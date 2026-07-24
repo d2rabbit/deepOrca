@@ -981,6 +981,9 @@ ${agentInstructions}
         return fs.readFileSync(zhPath, "utf8");
       }
     }
+    if (!fs.existsSync(basePath)) {
+      return "";
+    }
     return fs.readFileSync(basePath, "utf8");
   }
 

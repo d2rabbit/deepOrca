@@ -135,7 +135,11 @@ export class PluginManager {
   readSkillDoc(path: string, locale?: string): string {
     const sm = this.getSessionManager();
     if (!sm) return "";
-    return sm.readSkillDocument(path, locale);
+    try {
+      return sm.readSkillDocument(path, locale);
+    } catch {
+      return "";
+    }
   }
 
   /** Search skills by keyword (name or description, case-insensitive).
