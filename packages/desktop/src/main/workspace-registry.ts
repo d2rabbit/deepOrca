@@ -85,11 +85,16 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
     workspaces.push({ root, label, projectCode: code, sessions });
   }
 
-  // Only workspaces that actually have a sessions-index.json on disk are listed.
-  // The current root is NOT force-injected as an empty workspace — if it has no
-  // sessions yet, it simply doesn't appear, so launching the app no longer treats
-  // the current directory (e.g. the home dir) as a workspace. It shows up the
-  // moment the user starts a real conversation there (which writes the index).
+  // Ensure the current workspace always appears in the tree, even if it has no
+  // sessions-index.json yet (e.g. a freshly opened project). This gives the user
+  // a visual anchor and a "+" button to start their first conversation.
+  if (currentRoot && !workspaces.some((w) => w.root === currentRoot)) {
+    const label = path.basename(currentRoot) || currentRoot;
+    // Derive a stable project code from the root path (same logic as core).
+    const code = currentRoot.replace(/[/\\]/g, "-").replace(/^-/, "");
+    workspaces.push({ root: currentRoot, label, projectCode: code, sessions: [] });
+  }
+
   workspaces.sort((a, b) => {
     if (a.root === currentRoot) {
       return -1;
