@@ -83,18 +83,44 @@ function resolveVendorEntry(): string | null {
  * Decide how to invoke CodeGraph. Prefers the vendored build (run through the
  * current Node/Electron binary); otherwise falls back to `npx`, which resolves the
  * published package from the registry / local cache without a global install.
+ *
+ * NOTE: In Electron, `process.execPath` is the Electron binary. Even with
+ * ELECTRON_RUN_AS_NODE=1, Electron does NOT insert the script path into argv[1]
+ * the way plain Node does — the script path ends up as a positional argument,
+ * causing commander to report "unknown command <path>". We therefore skip the
+ * vendored path when running inside Electron and fall back to npx (or a system
+ * node if available).
  */
 export function resolveCodegraphExecutable(): CodegraphExecutable {
   const entry = resolveVendorEntry();
-  if (entry) {
-    const env: Record<string, string> = {};
-    if (process.versions.electron) {
-      // Make the Electron binary behave like plain Node so it can run the JS entry.
-      env.ELECTRON_RUN_AS_NODE = "1";
+  if (entry && !process.versions.electron) {
+    return { command: process.execPath, prefixArgs: [entry] };
+  }
+  if (entry && process.versions.electron) {
+    // In Electron, try to find a system node to run the vendored entry.
+    // `process.env.NODE` is sometimes set in dev; otherwise fall through to npx.
+    const systemNode = process.env.NODE || findSystemNode();
+    if (systemNode) {
+      return { command: systemNode, prefixArgs: [entry] };
     }
-    return { command: process.execPath, prefixArgs: [entry], env };
   }
   return { command: "npx", prefixArgs: ["-y", CODEGRAPH_PACKAGE] };
+}
+
+/** Best-effort lookup for a system `node` binary (used in Electron). */
+function findSystemNode(): string | null {
+  try {
+    const { execSync } = require("child_process") as typeof import("child_process");
+    const result = execSync(process.platform === "win32" ? "where node" : "which node", {
+      encoding: "utf8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const first = result.trim().split("\n")[0];
+    return first || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

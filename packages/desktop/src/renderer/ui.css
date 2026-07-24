@@ -3168,9 +3168,10 @@ button.ui-tool-head:hover {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--ui-space-3);
-  padding: var(--ui-space-3);
+  padding: var(--ui-space-3) var(--ui-space-3);
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
+  transition: background 0.12s var(--ui-ease), border-color 0.12s var(--ui-ease);
 }
 .ui-plugin-item:hover {
   background: var(--ui-surface-hover);
@@ -3184,7 +3185,7 @@ button.ui-tool-head:hover {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   padding: 0;
   border: 0;
   background: none;
@@ -3199,7 +3200,36 @@ button.ui-tool-head:hover {
   gap: var(--ui-space-2);
 }
 .ui-plugin-item-name {
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.ui-plugin-item-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ui-plugin-item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.ui-plugin-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  letter-spacing: 0.02em;
+}
+.ui-plugin-tag.accent {
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  color: var(--ui-accent);
 }
 .ui-plugin-item-status {
   font-size: 11px;
@@ -4361,12 +4391,13 @@ button.ui-topbar-pill {
 /* ── Plugin MCP rows (items 5 & 8) ───────────────────────────────────────── */
 .ui-mcp-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--ui-space-2);
-  padding: var(--ui-space-2) var(--ui-space-3);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
-  transition: background 0.12s var(--ui-ease);
+  transition: background 0.12s var(--ui-ease), border-color 0.12s var(--ui-ease);
 }
 .ui-mcp-row:hover {
   background: var(--ui-surface-hover);
@@ -4376,6 +4407,7 @@ button.ui-topbar-pill {
 }
 .ui-mcp-row.selected {
   background: var(--ui-accent-soft);
+  border-color: var(--ui-accent);
 }
 .ui-mcp-row-main {
   flex: 1;

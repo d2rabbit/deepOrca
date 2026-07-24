@@ -177,6 +177,17 @@ export function PluginMcpPanel({
                       {srv.name}
                       {srv.builtin ? <span className="ui-mcp-badge">{t("mcp.builtin")}</span> : null}
                     </span>
+                    <span className="ui-plugin-item-desc">
+                      {srv.command} {srv.args}
+                    </span>
+                    <div className="ui-plugin-item-tags">
+                      <span className="ui-plugin-tag accent">mcp</span>
+                      {srv.builtin ? (
+                        <span className="ui-plugin-tag">built-in</span>
+                      ) : (
+                        <span className="ui-plugin-tag">custom</span>
+                      )}
+                    </div>
                   </button>
                   <div className="ui-mcp-row-actions">
                     <Switch checked={srv.enabled} onChange={() => void toggle(srv)} title={t("mcp.enableTitle")} />
@@ -263,6 +274,15 @@ export function PluginMcpPanel({
                             <span className="ui-plugin-item-name">{skill.name}</span>
                             {skill.isLoaded ? <span className="ui-mcp-badge">{t("plugins.skills.loaded")}</span> : null}
                           </div>
+                          {skill.description ? <span className="ui-plugin-item-desc">{skill.description}</span> : null}
+                          <div className="ui-plugin-item-tags">
+                            <span className="ui-plugin-tag">skill</span>
+                            {skill.path.startsWith("bundled:") ? (
+                              <span className="ui-plugin-tag accent">bundled</span>
+                            ) : (
+                              <span className="ui-plugin-tag">local</span>
+                            )}
+                          </div>
                         </button>
                         <Switch
                           checked={selectedSkills.includes(skill.name)}
@@ -304,6 +324,13 @@ export function PluginMcpPanel({
                               </span>
                               <span className="ui-mcp-badge builtin">{t("plugins.builtin.badge")}</span>
                             </div>
+                            <span className="ui-plugin-item-desc">
+                              {builtinLabel(t, plugin.name, "desc", plugin.description || "")}
+                            </span>
+                            <div className="ui-plugin-item-tags">
+                              <span className="ui-plugin-tag accent">plugin</span>
+                              <span className="ui-plugin-tag">built-in</span>
+                            </div>
                           </button>
                         </div>
                       );
@@ -322,6 +349,13 @@ export function PluginMcpPanel({
                                 {builtinLabel(t, skill.name, "name", skill.name)}
                               </span>
                               <span className="ui-mcp-badge builtin">{t("plugins.builtin.badge")}</span>
+                            </div>
+                            {skill.description ? (
+                              <span className="ui-plugin-item-desc">{skill.description}</span>
+                            ) : null}
+                            <div className="ui-plugin-item-tags">
+                              <span className="ui-plugin-tag accent">skill</span>
+                              <span className="ui-plugin-tag">bundled</span>
                             </div>
                           </button>
                         </div>
