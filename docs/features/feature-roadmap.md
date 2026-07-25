@@ -1,224 +1,132 @@
-# Orca Feature 规划与集成路线图
+# Orca Feature 集成路线图（下阶段）
 
-> 版本：v1.0 · 日期：2026-07-21 · 状态：规划中
-
----
-
-## 一、近期开发（Feature Dev）
-
-### 1. 远程插件中心集成
-
-**目标**：在线插件市场，支持一键安装/更新社区 Skills、MCP 服务器和内置插件。
-
-| 维度 | 说明 |
-|------|------|
-| 核心能力 | 插件发现、版本管理、一键安装/更新、评分/评论、依赖解析 |
-| 技术方案 | 后端 Registry API + 桌面端 Plugin Store 面板 + CLI `deepcode plugin install` |
-| 参考 | VSCode Marketplace、npm registry、flutter/agent-plugins 的 `npx skills add` 模式 |
-| 优先级 | P0 — 生态基础设施 |
-| 状态 | 🔨 规划中 |
-
-### 2. 自定义 CLI 与指令
-
-**目标**：用户可注册自定义斜杠命令和 CLI 子命令，扩展 Agent 工作流。
-
-| 维度 | 说明 |
-|------|------|
-| 核心能力 | 命令注册协议、参数解析、权限继承、组合命令（pipeline） |
-| 技术方案 | `.deepcode/commands/` 目录 + YAML/JSON 命令定义 + commander 子命令动态注册 |
-| 参考 | opencli 的 adapter 注册模式、CLI-Anything 的 HARNESS.md 方法论 |
-| 优先级 | P1 — 用户自定义工作流 |
-| 状态 | 🔨 规划中 |
-
-### 3. 项目图谱与沉浸式 Wiki（知识中心）
-
-**目标**：代码知识图谱可视化 + 项目级知识沉淀，类似 Qoder 知识中心。
-
-| 维度 | 说明 |
-|------|------|
-| 核心能力 | 代码结构图谱、模块关系可视化、知识卡片沉淀、跨会话知识积累 |
-| 技术方案 | Tree-sitter AST → 图数据库(SQLite) → D3.js 可视化 + Markdown Wiki 生成 |
-| 参考 | code-review-graph（图谱+Wiki）、Understand-Anything（Tree-sitter+LLM）、mem0（记忆层） |
-| 优先级 | P1 — 需深度设计 |
-| 状态 | 📐 设计中 |
-
-> ⚠️ 此功能需要详细设计文档，涉及图谱存储格式、增量更新策略、知识提取管线等核心决策。
-
-### 4. Designer 能力
-
-**目标**：AI 驱动的 UI 设计生成，从自然语言描述到可预览的界面原型。
-
-| 维度 | 说明 |
-|------|------|
-| 核心能力 | 自然语言→HTML/React 原型、设计系统约束、实时预览、导出 |
-| 技术方案 | MCP Server 接入 Open Design / 内置 Skill + iframe 沙箱预览 |
-| 参考 | Open Design（od mcp）、Pencil CLI、v0.dev |
-| 优先级 | P2 — 互补型能力 |
-| 状态 | 🔨 规划中 |
+> 版本：v2.0 · 日期：2026-07-21 · 状态：规划中
+> 本文件定义下阶段 8 个开源项目的**直接集成**方案。所有项目均为直接集成到 Orca 中，非从零开发。
 
 ---
 
-## 二、后期特性（Feature Backlog）— 直接集成项目
+## 总览
 
-> 以下项目均为**直接集成**到 Orca 中，作为内置能力或预配置扩展，而非从零开发。
+| # | 项目 | 集成形态 | 核心价值 | 优先级 |
+|---|------|----------|----------|--------|
+| 1 | flutter/agent-plugins | 构建时内置 Skills | Flutter/Dart 开发能力包 | P0 |
+| 2 | code-review-graph | 内置 MCP Server | 代码图谱 + 爆炸半径 + 简化架构图 | P0 |
+| 3 | serena | 内置 MCP Server | 符号级重构/导航/编辑 | P1 |
+| 4 | mem0 | core 层 SDK | 跨会话长期记忆 | P1 |
+| 5 | openwiki | 内置 CLI 工具 | 项目 Wiki 自动生成与维护 | P1 |
+| 6 | opencli | 内置插件 | 100+ 网站适配器 + CLI Hub | P2 |
+| 7 | CLI-Anything | 内置 Skill | 万能 CLI 生成（Agent 驱动任意软件） | P2 |
+| 8 | open-design | MCP Server（设计+展示） | AI 设计生成 + 文件交付给 coding agent | P2 |
 
-### 1. code-review-graph（代码审查图谱）
+---
+
+## 一、flutter/agent-plugins — 构建时内置 AI 工具包
+
+> 仓库：https://github.com/flutter/agent-plugins
+
+### 作用
+
+Flutter 官方 Agent 技能包，包含 10+ 个 SKILL.md（架构、布局、测试、路由、本地化、HTTP、表单、动画等）+ MCP 配置 + rules。让 Orca 在 Flutter/Dart 开发场景下具备专家级工作流指导。
+
+### 与现有能力的适配度
+
+| 维度 | 评估 |
+|------|------|
+| Skills 系统 | 🟢 完全兼容 — Orca 已扫描 `.agents/skills/` 和 `.deepcode/skills/` |
+| 构建流程 | 🟢 可嵌入 — 构建脚本中 git clone + 复制到 templates |
+| 运行时依赖 | 🟢 零 — 纯 Markdown + JSON 文件 |
+| 许可 | BSD-3-Clause |
+
+### 集成方案
+
+**构建时从源仓库安装内置**（每次构建重新拉取最新版本）：
+
+```bash
+# scripts/install-builtin-skills.sh（构建时执行）
+FLUTTER_SKILLS_DIR="packages/core/templates/skills/flutter-agent"
+rm -rf "$FLUTTER_SKILLS_DIR"
+git clone --depth 1 https://github.com/flutter/agent-plugins.git /tmp/flutter-agent-plugins
+cp -r /tmp/flutter-agent-plugins/skills/* "$FLUTTER_SKILLS_DIR/"
+cp /tmp/flutter-agent-plugins/.mcp.json "$FLUTTER_SKILLS_DIR/"
+rm -rf /tmp/flutter-agent-plugins
+```
+
+**关键设计**：
+- 不走远程插件中心，直接构建时内置
+- 每次 `npm run build` / `npm run bundle` 时重新从源仓库拉取
+- 作为 `packages/core/templates/skills/flutter-agent/` 随核心引擎发布
+- Agent 启动时自动加载，用户无需任何配置
+
+---
+
+## 二、code-review-graph — 代码图谱 + 简化架构图
 
 > 仓库：https://github.com/tirth8205/code-review-graph
 
-#### 项目概述
+### 作用
 
-Local-first 代码智能图谱，为 MCP 和 CLI 构建持久化代码结构映射。使用 Tree-sitter 解析 AST，追踪增量变更，通过 MCP 为 AI 助手提供精准上下文。
+Local-first 代码智能图谱。Tree-sitter 解析 AST → 持久化图（SQLite）→ 通过 MCP 提供 30 个工具（爆炸半径、社区检测、执行流、Wiki 生成、风险评分等）。35+ 语言支持，增量更新 < 2 秒。
 
-#### 核心能力
+### 与现有能力的适配度
 
-| 能力 | 说明 |
+| 维度 | 评估 |
 |------|------|
-| 爆炸半径分析 | 变更影响范围追踪（caller/dependent/test） |
-| 增量更新 | < 2 秒增量重建（SHA-256 哈希检测） |
-| 30 个 MCP 工具 | 图谱查询、语义搜索、社区检测、架构概览、Wiki 生成等 |
-| 风险评分审查 | detect_changes → 受影响函数 + 执行流 + 测试缺口 |
-| 多语言支持 | 35+ 语言（Python/JS/TS/Go/Rust/Java/C/C++/...） |
-| 可视化 | D3.js 力导向图 + GraphML/Neo4j/Obsidian/SVG 导出 |
-| Wiki 生成 | 从社区结构自动生成 Markdown Wiki |
-| GitHub Action | CI 中风险评分 PR 审查 |
-| 多仓库守护进程 | crg-daemon 后台监控多仓库 |
-
-#### 技术栈
-
-| 维度 | 详情 |
-|------|------|
-| 语言 | Python 3.10+ |
-| 存储 | SQLite（local-first，零外部依赖） |
-| 解析 | Tree-sitter（tree_sitter_language_pack） |
-| 接口 | MCP Server（stdio）+ CLI |
+| CodeGraph 索引 | 🟡 有重叠 — CRG 的图谱能力覆盖并超越现有 CodeGraph |
+| 代码审查面板 | 🟢 互补 — 爆炸半径 + 风险评分增强现有 OCR 审查 |
+| MCP 系统 | 🟢 原生兼容 — stdio MCP Server |
+| 运行时依赖 | 🟡 需 Python 3.10+ |
 | 许可 | MIT |
-| 安装 | `pip install code-review-graph` |
 
-#### 与 Orca 的集成度评估
+### 集成方案
 
-| 维度 | 评估 | 说明 |
-|------|------|------|
-| 功能重叠 | 🟡 中 | 与现有 CodeGraph 索引模块有重叠（都是代码结构索引） |
-| 互补价值 | 🟢 高 | 爆炸半径、风险评分、Wiki 生成是 CodeGraph 不具备的 |
-| 技术兼容 | 🟢 高 | MCP Server 原生支持，可直接配置接入 |
-| 集成成本 | 🟢 低 | 配置文件级别（settings.json mcpServers） |
-| 运行时依赖 | 🟡 中 | 需要 Python 3.10+ 环境 |
-
-#### 集成方案
+**我们不需要它的 D3.js 力导向图**，只需要简单的流程架构图（Mermaid/文本渲染），降低成本。
 
 **Phase 1 — 内置 MCP Server 预配置**：
-在 Orca 中预置 CRG 的 MCP Server 配置，用户安装 `code-review-graph` 后自动接入：
 ```json
 {
   "mcpServers": {
     "code-review-graph": {
       "command": "code-review-graph",
-      "args": ["serve"]
+      "args": ["serve", "--tools", "build_or_update_graph_tool,get_impact_radius_tool,get_review_context_tool,detect_changes_tool,get_architecture_overview_tool,generate_wiki_tool,query_graph_tool,list_communities_tool"]
     }
   }
 }
 ```
+只暴露核心工具子集，减少 token 消耗。
 
-**Phase 2 — 代码审查面板增强**：将 CRG 的 `detect_changes` + `get_impact_radius` 直接整合到现有审查面板，审查意见旁展示爆炸半径影响图。
+**Phase 2 — 审查面板增强**：
+- 审查意见旁展示「影响范围」列表（文本形式，非 D3 图）
+- 调用 `detect_changes` 获取风险评分，在面板顶部展示风险摘要
 
-**Phase 3 — 图谱面板集成**：将 CRG 的 Wiki 生成 + 社区检测 + D3.js 可视化直接作为桌面端「项目图谱」面板的后端引擎。
-
----
-
-### 2. flutter/agent-plugins（Agent 插件协议）
-
-> 仓库：https://github.com/flutter/agent-plugins/tree/main
-
-#### 项目概述
-
-Flutter 官方维护的 Agent 插件集合。定义了标准化的 Agent Skills 打包格式：skills + MCP server 配置 + rules 的组合体。
-
-#### 核心能力
-
-| 能力 | 说明 |
-|------|------|
-| 标准化插件格式 | skills/ 目录 + .mcp.json + rules 三合一 |
-| 跨 Agent 兼容 | 支持 Claude Code、Codex、Cursor、通用 `.agents/skills/` |
-| 安装协议 | `npx skills@1.5.17 add flutter/agent-plugins --skill '*' --agent universal` |
-| 10+ Flutter Skills | 架构、布局、测试、路由、本地化、HTTP 等 |
-| MCP Server 配置 | 自动配置 Dart/Flutter MCP 工具 |
-
-#### 技术栈
-
-| 维度 | 详情 |
-|------|------|
-| 格式 | Markdown (SKILL.md) + JSON (.mcp.json) |
-| 分发 | npx skills CLI / Claude plugin marketplace / Codex plugin |
-| 许可 | BSD-3-Clause |
-| 依赖 | 零运行时依赖（纯文档 + 配置） |
-
-#### 与 Orca 的集成度评估
-
-| 维度 | 评估 | 说明 |
-|------|------|------|
-| 功能重叠 | 🟢 低 | Orca 已有 Skills 系统，但缺少标准化市场协议 |
-| 互补价值 | 🟢 高 | 插件分发标准 + 跨 Agent 互操作 |
-| 技术兼容 | 🟢 极高 | Orca 已扫描 `.agents/skills/`，天然兼容 |
-| 集成成本 | 🟢 极低 | 零代码 — 已兼容 |
-| 战略价值 | 🟢 高 | 远程插件中心的标准参考 |
-
-#### 集成方案
-
-**Phase 1 — 内置兼容**：Orca 已支持 `.agents/skills/` 目录扫描，直接兼容其插件格式。
-
-**Phase 2 — 远程插件中心基座**：直接采用其 `npx skills add` 分发协议 + `plugin marketplace` 机制作为远程插件中心（Feature Dev #1）的底层实现：
-- 集成 `skills@x.x.x add` CLI 协议到 Orca 插件管理器
-- 支持 `--agent universal` 标准目录
-- 兼容 `.mcp.json` 自动配置
-- 对接 plugin marketplace 注册/发现
+**Phase 3 — 简化架构图面板**：
+- 调用 `get_architecture_overview` 获取社区结构
+- 渲染为 **Mermaid 流程图**（非 D3.js），桌面端用 mermaid.js 轻量渲染
+- 模块关系用简单方框 + 箭头，不追求力导向图的炫酷效果
+- 点击模块可查看包含的文件和函数列表
 
 ---
 
-### 3. serena（语义代码导航与编辑）
+## 三、serena — 符号级代码操作
 
 > 仓库：https://github.com/oraios/serena
 
-#### 项目概述
+### 作用
 
-"Agent 的 IDE"——通过 MCP 提供语义级代码检索、编辑、重构和调试工具。基于 LSP（Language Server Protocol）实现符号级操作，让 Agent 像使用 IDE 一样操作代码。
+"Agent 的 IDE"。通过 LSP 提供符号级检索（find symbol/references/declaration/implementations）、符号编辑（replace body/insert/safe delete）、跨文件 rename。40+ 语言支持。让 Agent 从"文本替换"升级为"语义操作"。
 
-#### 核心能力
+### 与现有能力的适配度
 
-| 能力 | 说明 |
+| 维度 | 评估 |
 |------|------|
-| 符号检索 | find symbol / file outline / references / declaration / implementations |
-| 符号编辑 | replace symbol body / insert before/after / safe delete |
-| 重构 | rename（跨文件）、move、inline（JetBrains 后端） |
-| 调试 | 断点、变量检查、表达式求值（JetBrains 后端） |
-| 记忆系统 | 跨会话知识持久化 |
-| 40+ 语言 | 通过 LSP 支持几乎所有主流语言 |
-| 多层配置 | global / CLI / per-project / context-specific / modes |
-
-#### 技术栈
-
-| 维度 | 详情 |
-|------|------|
-| 语言 | Python 3.13 |
-| 后端 | LSP（开源）/ JetBrains Plugin（付费） |
-| 接口 | MCP Server（stdio / HTTP） |
-| 安装 | `uv tool install -p 3.13 serena-agent` |
+| read/edit 工具 | 🟢 互补 — Orca 文本级，serena 符号级 |
+| MCP 系统 | 🟢 原生兼容 — stdio/HTTP MCP Server |
+| 桌面端 | 🟢 可扩展重构预览面板 |
+| 运行时依赖 | 🟡 Python 3.13 + uv + 各语言 LSP server |
 | 许可 | Apache-2.0 |
 
-#### 与 Orca 的集成度评估
+### 集成方案
 
-| 维度 | 评估 | 说明 |
-|------|------|------|
-| 功能重叠 | 🟡 中 | Orca 的 read/edit 工具是文本级，serena 是符号级 — 互补而非重叠 |
-| 互补价值 | 🟢 极高 | 跨文件 rename、引用查找、类型层次 — Agent 编码质量飞跃 |
-| 技术兼容 | 🟢 高 | MCP Server 原生支持 |
-| 集成成本 | 🟢 低 | 配置级（需 Python 3.13 + uv） |
-| 运行时依赖 | 🟡 中 | 需要各语言的 LSP server（自动安装） |
-
-#### 集成方案
-
-**Phase 1 — 内置 MCP Server 预配置**：
-将 serena 作为 Orca 的预置 MCP Server，安装后自动提供符号级操作能力：
+**Phase 1 — 内置 MCP Server**：
 ```json
 {
   "mcpServers": {
@@ -230,165 +138,284 @@ Flutter 官方维护的 Agent 插件集合。定义了标准化的 Agent Skills 
 }
 ```
 
-**Phase 2 — 内置 Skill 联动**：编写 `serena-skill` 让 Agent 自动判断何时使用符号级操作（重构、跨文件修改）vs 文本级操作（简单编辑）。
+**Phase 2 — 内置 Skill 联动**：
+编写 `serena-skill` SKILL.md，教 Agent：
+- 跨文件修改 → 用 serena rename
+- 查找所有调用方 → 用 serena find_references
+- 替换函数实现 → 用 serena replace_symbol_body
+- 简单文本修改 → 继续用 Orca 原生 edit 工具
 
-**Phase 3 — 桌面端重构面板**：将 serena 的 rename/references/implementations 能力直接呈现为桌面端「重构预览」面板。
-
----
-
-### 4. opencli（网站→CLI + 浏览器自动化）
-
-> 仓库：https://github.com/jackwener/opencli
-
-#### 项目概述
-
-将任意网站转换为 CLI 命令 + 在用户已登录的 Chrome 上执行 Browser Use。支持 100+ 网站适配器（Bilibili、知乎、小红书、Twitter、Reddit 等），同时提供 CLI Hub 统一入口。
-
-#### 核心能力
-
-| 能力 | 说明 |
-|------|------|
-| 网站适配器 | 100+ 内置站点命令（bilibili/zhihu/twitter/reddit/...） |
-| Browser Use | AI Agent 操控已登录 Chrome（navigate/click/fill/extract） |
-| CLI Hub | 统一 passthrough（gh/docker/vercel/tg/discord/...） |
-| 桌面应用适配 | Electron 应用操控（Cursor/Codex/ChatGPT/...） |
-| 插件系统 | `opencli plugin install github:user/repo` |
-| Agent Skills | 6 个 SKILL.md（browser/adapter-author/autofix/sitemap/usage） |
-| 下载支持 | 图片/视频/文章多平台下载 |
-
-#### 技术栈
-
-| 维度 | 详情 |
-|------|------|
-| 语言 | Node.js >= 20（TypeScript） |
-| 浏览器桥接 | Chrome Extension + 本地 daemon（WebSocket） |
-| 分发 | npm `@jackwener/opencli` / OpenCLIApp（桌面） |
-| 许可 | Apache-2.0 |
-
-#### 与 Orca 的集成度评估
-
-| 维度 | 评估 | 说明 |
-|------|------|------|
-| 功能重叠 | 🟡 中 | 与 browser-skill 内置插件有重叠（都是浏览器自动化） |
-| 互补价值 | 🟢 高 | 100+ 网站适配器 + CLI Hub 是 browser-skill 不具备的 |
-| 技术兼容 | 🟢 高 | Node.js 生态，npm 安装 |
-| 集成成本 | 🟢 低 | Skill 安装 + npm 全局包 |
-| 差异化 | 🟢 明确 | opencli 偏"网站数据获取"，browser-skill 偏"通用页面操控" |
-
-#### 集成方案
-
-**Phase 1 — 内置插件集成**：
-将 opencli 作为 Orca 内置插件（同 browser-skill 模式），预装 SKILL.md + npm 依赖：
-```bash
-npx skills add jackwener/opencli
-```
-Agent 通过 bash 工具直接执行 `opencli bilibili hot`、`opencli browser` 等命令。
-
-**Phase 2 — 与 browser-skill 协同**：
-- browser-skill：通用页面操控（表单填写、UI 测试、截图）
-- opencli：结构化数据获取（100+ 网站适配器）+ 已登录会话复用 + CLI Hub
-
-**Phase 3 — CLI Hub 直接整合**：将 opencli 的 `external register` + adapter 机制直接作为 Orca 自定义指令系统（Feature Dev #2）的底层实现。
+**Phase 3 — 桌面端重构面板**（可选）：
+在侧边栏展示 rename 预览（受影响文件列表 + diff 预览）。
 
 ---
 
-### 5. mem0（AI 记忆层）
+## 四、mem0 — 跨会话长期记忆
 
 > 仓库：https://github.com/mem0ai/mem0
 
-#### 项目概述
+### 作用
 
-通用 AI 记忆层——为 Agent 提供跨会话的长期记忆能力。支持 User/Session/Agent 三级记忆，具备实体链接、时间推理、多信号检索（语义+BM25+实体）。
+通用 AI 记忆层。User/Session/Agent 三级记忆，单次 LLM 调用提取事实，实体链接 + 时间推理 + 多信号检索（语义+BM25+实体）。让 Agent 越用越懂项目。Benchmark: LoCoMo 92.5 / LongMemEval 94.4。
 
-#### 核心能力
+### 与现有能力的适配度
 
-| 能力 | 说明 |
+| 维度 | 评估 |
 |------|------|
-| 多级记忆 | User / Session / Agent 三层状态 |
-| 智能提取 | 单次 LLM 调用提取事实（ADD-only，不覆盖） |
-| 实体链接 | 跨记忆实体关联 + 检索增强 |
-| 多信号检索 | 语义 + BM25 关键词 + 实体匹配并行融合 |
-| 时间推理 | 时间感知检索（当前状态/过去事件/未来计划） |
-| 部署灵活 | Library(pip/npm) / Self-Hosted(Docker) / Cloud(app.mem0.ai) |
-| CLI | `mem0 add/search/init` 命令行管理 |
-| Agent Skills | 6 个 SKILL.md（mem0/integrate/test/oss-to-platform/...） |
-| Benchmark | LoCoMo 92.5 / LongMemEval 94.4 |
-
-#### 技术栈
-
-| 维度 | 详情 |
-|------|------|
-| 语言 | Python（核心）+ npm SDK |
-| 向量存储 | Qdrant / Chroma / 内置 |
-| LLM 依赖 | 需要 LLM 做记忆提取（默认 gpt-5-mini，可配置） |
-| 接口 | Python SDK / npm SDK / REST API / CLI |
+| 会话持久化 | 🟢 互补 — Orca 有会话恢复但无智能记忆提取 |
+| core 层 | 🟢 npm SDK 可用（`mem0ai`） |
+| LLM 配置 | 🟢 可复用 Orca 已有的 LLM 端点 |
+| 隐私 | 🟡 需本地模式（Library 或 Self-Hosted） |
 | 许可 | Apache-2.0 |
 
-#### 与 Orca 的集成度评估
-
-| 维度 | 评估 | 说明 |
-|------|------|------|
-| 功能重叠 | 🟢 低 | Orca 有会话持久化但无智能记忆提取/检索 |
-| 互补价值 | 🟢 极高 | 跨会话知识积累 — Agent 越用越懂项目 |
-| 技术兼容 | 🟢 高 | npm SDK 可用，CLI 可通过 bash 调用 |
-| 集成成本 | 🟡 中 | 需要 LLM 端点配置 + 向量存储 |
-| 隐私考量 | 🟡 中 | 记忆数据需本地存储（Self-Hosted 或 Library 模式） |
-
-#### 集成方案
+### 集成方案
 
 **Phase 1 — 内置 CLI + Skill**：
-将 mem0 CLI 作为 Orca 预装依赖，内置 `mem0-skill` SKILL.md：
 ```bash
 npm install -g @mem0/cli
 mem0 init --agent --agent-caller orca
 ```
-Agent 在关键节点自动存储/检索记忆。
+内置 `mem0-skill` SKILL.md，Agent 在关键节点（任务完成、发现重要模式、用户纠正）自动 `mem0 add`，新会话开始自动 `mem0 search`。
 
 **Phase 2 — core 层 SDK 集成**：
-在 core 层直接引入 `mem0ai` npm 包，会话结束时自动提取关键事实，新会话开始时注入相关记忆。
+在 `packages/core` 引入 `mem0ai` npm 包：
+- 会话结束 → 自动提取关键事实存储
+- 会话开始 → 检索相关记忆注入 system prompt
+- 使用 Orca 已配置的 LLM 端点做记忆提取
 
 **Phase 3 — 知识中心记忆引擎**：
-将 mem0 直接作为项目图谱（Feature Dev #3）的记忆存储引擎，形成「项目知识图谱 + mem0 记忆层」的完整知识中心。
+mem0 作为项目图谱 + Wiki 的底层记忆存储，形成完整知识中心。
 
 ---
 
-## 三、横向对比
+## 五、openwiki — 项目 Wiki 自动生成与维护
 
-| 项目 | 核心能力 | 填补的缺口 | 集成度 | 集成成本 | 集成方式 | 优先级 |
-|------|----------|-----------|--------|----------|----------|--------|
-| code-review-graph | 代码图谱+爆炸半径 | 影响分析/Wiki | 🟢 高 | 低（MCP预配置） | 内置 MCP Server | P1 |
-| flutter/agent-plugins | 插件分发标准 | 插件市场协议 | 🟢 极高 | 极低（已兼容） | 插件中心基座 | P0 |
-| serena | 符号级代码操作 | 重构/跨文件编辑 | 🟢 高 | 低（MCP预配置） | 内置 MCP Server | P1 |
-| opencli | 网站→CLI+浏览器 | 数据获取/CLI Hub | 🟢 高 | 低（内置插件） | 内置插件 | P2 |
-| mem0 | AI 长期记忆 | 跨会话知识积累 | 🟢 高 | 中（SDK集成） | core 层 SDK | P1 |
+> 仓库：https://github.com/langchain-ai/openwiki
 
-## 四、集成优先级路线图
+### 作用
+
+LangChain 出品的 CLI，自动为代码库生成和维护 Agent Wiki。两种模式：
+- **Code 模式**：为当前仓库生成 `openwiki/` 文档目录 + 维护 AGENTS.md
+- **Personal 模式**：本地个人知识大脑（~/.openwiki/wiki），可接入 Git repo / Notion / Gmail / Web Search 等 connector
+
+输出兼容 Google Open Knowledge Format (OKF) v0.1。支持 CI 自动更新（GitHub Actions / GitLab CI）。
+
+### 与现有能力的适配度
+
+| 维度 | 评估 |
+|------|------|
+| 项目图谱/Wiki | 🟢 直接填补 — Feature Dev #3 的 Wiki 生成部分 |
+| AGENTS.md | 🟢 协同 — 自动维护 AGENTS.md 中的 wiki 引用块 |
+| 技术栈 | 🟢 Node.js（npm install -g openwiki） |
+| LLM 配置 | 🟢 支持 OpenAI-compatible 端点（可复用 Orca 配置） |
+| 许可 | MIT |
+
+### 集成方案
+
+**Phase 1 — 内置 CLI 工具**：
+将 `openwiki` 作为 Orca 预装依赖，内置 Skill 教 Agent 使用：
+```bash
+npm install -g openwiki
+# 初始化项目 wiki
+openwiki --init
+# 更新 wiki
+openwiki --update
+```
+
+**Phase 2 — 桌面端 Wiki 面板**：
+- 侧边栏新增「Wiki」视图，渲染 `openwiki/` 目录下的 Markdown 文件
+- 支持一键「生成/更新 Wiki」按钮（调用 `openwiki --update`）
+- Wiki 页面间链接可点击跳转
+
+**Phase 3 — 与 mem0 + code-review-graph 融合**：
+- openwiki 生成结构化文档
+- code-review-graph 提供代码结构图谱
+- mem0 提供跨会话记忆
+- 三者共同组成「项目知识中心」
+
+---
+
+## 六、opencli — 网站适配器 + CLI Hub
+
+> 仓库：https://github.com/jackwener/opencli
+
+### 作用
+
+将任意网站转为 CLI 命令 + Browser Use。100+ 内置网站适配器（Bilibili/知乎/小红书/Twitter/Reddit 等），CLI Hub 统一入口（gh/docker/vercel/tg/discord 等），6 个 Agent Skills。Node.js >= 20。
+
+### 与现有能力的适配度
+
+| 维度 | 评估 |
+|------|------|
+| browser-skill | 🟡 有重叠但互补 — opencli 偏数据获取，bsk 偏通用操控 |
+| bash 工具 | 🟢 完美匹配 — Agent 通过 bash 执行 opencli 命令 |
+| 技术栈 | 🟢 Node.js，npm 安装 |
+| 自定义指令 | 🟢 其 adapter 机制可用于 Feature Dev #2 |
+| 许可 | Apache-2.0 |
+
+### 集成方案
+
+**Phase 1 — 内置插件**（同 browser-skill 模式）：
+```
+packages/core/templates/plugins/opencli/
+├── plugin.json
+├── PLUGIN.md      # 教 Agent 使用 opencli
+└── PLUGIN.zh.md
+```
+Agent 通过 bash 工具执行 `opencli bilibili hot`、`opencli browser` 等。
+
+**Phase 2 — 与 browser-skill 协同分工**：
+- browser-skill（bsk）：通用页面操控（表单、UI 测试、截图）
+- opencli：结构化数据获取（100+ 网站）+ 已登录会话复用 + CLI Hub
+
+**Phase 3 — CLI Hub 整合**：
+opencli 的 `external register` + adapter 机制作为 Orca 自定义指令系统的底层实现。
+
+---
+
+## 七、CLI-Anything — 万能 CLI 生成器
+
+> 仓库：https://github.com/HKUDS/CLI-Anything
+
+### 作用
+
+一行命令为任意软件自动生成完整 CLI（7 阶段全自动：分析→设计→实现→测试→文档→发布）。已在 13 款软件验证（GIMP/Blender/LibreOffice/OBS 等），1955 项测试通过。让 Agent 能驱动任何专业软件。
+
+核心方法论：HARNESS.md（Agent 原生 CLI 设计规范）。生成的 CLI 具备 `--json` 输出、`--help` 自描述、REPL 交互、undo/redo。
+
+### 与现有能力的适配度
+
+| 维度 | 评估 |
+|------|------|
+| bash 工具 | 🟢 生成的 CLI 通过 bash 直接调用 |
+| Skills 系统 | 🟢 提供 SKILL.md，可作为 Agent Skill |
+| 自定义指令 | 🟢 HARNESS.md 方法论可指导 Feature Dev #2 |
+| 运行时依赖 | 🟡 Python 3.10+（生成过程需要） |
+| 许可 | 需确认（学术项目） |
+
+### 集成方案
+
+**Phase 1 — 内置 Skill**：
+将 CLI-Anything 的 HARNESS.md + 命令规范作为内置 Skill：
+```
+packages/core/templates/skills/cli-anything/
+├── SKILL.md       # 7 阶段方法论
+└── HARNESS.md     # CLI 设计规范
+```
+Agent 收到「为 XX 软件生成 CLI」指令时，按 7 阶段流水线执行。
+
+**Phase 2 — /cli-anything 斜杠命令**：
+注册自定义斜杠命令 `/cli-anything <path>`，触发完整构建流程。
+
+**Phase 3 — CLI-Hub 集成**：
+生成的 CLI 自动注册到 Orca 的命令系统，Agent 后续可直接通过 bash 调用。
+
+---
+
+## 八、open-design — AI 设计生成（设计+展示+文件交付）
+
+> 仓库：https://github.com/nexu-io/open-design
+
+### 作用
+
+开源 Claude Design 替代品。Agent 原生设计引擎：自然语言 → HTML 原型/仪表盘/演示文稿/图片/视频。151 个设计系统包、100+ 功能技能、277 个插件。支持 MCP Server（`od mcp install <agent>`）。
+
+**我们只需要它的设计能力和展示能力，以及 coding agent 如何获取设计文件来实现。**
+
+### 与现有能力的适配度
+
+| 维度 | 评估 |
+|------|------|
+| Designer 能力 | 🟢 直接填补 Feature Dev #4 |
+| MCP 系统 | 🟢 原生支持 — `od mcp install` 一行命令 |
+| 文件交付 | 🟢 输出 HTML/CSS 文件，coding agent 可直接读取实现 |
+| 桌面端展示 | 🟢 iframe 沙箱预览 |
+| 运行时依赖 | 🟡 需安装 `od` CLI（Node.js + pnpm） |
+| 许可 | Apache-2.0 |
+
+### 集成方案
+
+**核心思路**：不集成整个 Open Design 应用，只接入其 MCP Server 获取设计能力，coding agent 通过文件系统读取设计产物来实现。
+
+**Phase 1 — MCP Server 接入（设计能力）**：
+```json
+{
+  "mcpServers": {
+    "open-design": {
+      "command": "od",
+      "args": ["mcp", "start"]
+    }
+  }
+}
+```
+Agent 通过 MCP 工具调用设计生成：
+- 用户描述需求 → Agent 调用 OD 生成 HTML 原型
+- 设计产物输出到 `.deepcode/designs/` 目录
+
+**Phase 2 — 桌面端设计预览（展示能力）**：
+- 新增「设计预览」面板，用 iframe 沙箱渲染生成的 HTML
+- 支持切换设计系统（151 个 DESIGN.md 包）
+- 预览 → 确认 → coding agent 开始实现
+
+**Phase 3 — 设计→代码工作流（文件交付）**：
+```
+用户描述 → OD 生成设计文件（HTML/CSS）→ 存入 .deepcode/designs/
+→ coding agent 读取设计文件 → 实现为 React/Vue/Next.js 组件
+```
+- 设计文件是标准 HTML/CSS，coding agent 用 read 工具直接读取
+- Agent 根据设计文件中的布局、颜色、组件结构来实现生产代码
+- DESIGN.md 作为品牌约束，确保实现与设计一致
+
+---
+
+## 九、集成优先级路线图
 
 ```
-2026 Q3                          2026 Q4                          2027 Q1
-├── 远程插件中心 ◄─────────────────────────────────────────────────────────┤
-│   (参考 flutter/agent-plugins 协议)                                      │
-├── 自定义 CLI 与指令 ◄────────────────────────────────────────────────────┤
-│   (参考 opencli adapter 模式)                                            │
-├── mem0 记忆层 Phase 1-2 ◄──────────────────────────┤                     │
-├── serena MCP 接入 ◄────────────┤                                         │
-├── code-review-graph MCP 接入 ◄────────────┤                              │
-├── opencli Skill 集成 ◄──────────────────────┤                            │
-│                                 ├── 项目图谱+Wiki 设计 ◄─────────────────┤
-│                                 ├── Designer 能力 ◄──────────────────────┤
-│                                              ├── mem0 Phase 3 融合 ◄─────┤
+Phase 1（立即）                Phase 2（+2周）              Phase 3（+1月）
+├── flutter/agent-plugins ──┤                              │
+│   构建时内置 Skills        │                              │
+├── code-review-graph ──────┤                              │
+│   MCP 预配置 + 审查增强    │                              │
+├── serena ─────────────────┤                              │
+│   MCP 预配置 + Skill       │                              │
+│                            ├── mem0 SDK 集成 ─────────────┤
+│                            ├── openwiki CLI 内置 ─────────┤
+│                            ├── opencli 内置插件 ──────────┤
+│                            │                              ├── 知识中心融合
+│                            │                              │   (CRG+Wiki+mem0)
+│                            │                              ├── open-design MCP
+│                            │                              │   设计→代码工作流
+│                            │                              ├── CLI-Anything Skill
+│                            │                              │   /cli-anything 命令
+│                            │                              ├── 架构图面板
+│                            │                              │   (Mermaid 简化渲染)
 ```
 
-## 五、核心结论
+## 十、构建时依赖安装清单
 
-1. **flutter/agent-plugins** 直接作为远程插件中心的**底层协议基座**，Orca 已天然兼容其 skills 格式
-2. **serena + code-review-graph** 作为**内置 MCP Server 预配置**直接集成，零代码成本，立即增强 Agent 编码能力
-3. **mem0** 直接作为知识中心（Feature Dev #3）的**记忆存储引擎**，建议尽早启动 SDK 集成
-4. **opencli** 作为**内置插件**直接集成，与 browser-skill 协同覆盖浏览器自动化全场景
-5. 所有 5 个项目均为**直接集成**，通过 MCP / 内置插件 / SDK 路径嵌入 Orca，非从零开发
+以下工具需要在构建/安装时预置：
+
+| 工具 | 安装方式 | 用途 |
+|------|----------|------|
+| flutter/agent-plugins | `git clone --depth 1`（构建脚本） | 内置 Skills |
+| code-review-graph | `pip install code-review-graph` | MCP Server |
+| serena | `uv tool install -p 3.13 serena-agent` | MCP Server |
+| mem0 | `npm install mem0ai`（core 依赖） | 记忆层 SDK |
+| openwiki | `npm install -g openwiki` | Wiki 生成 CLI |
+| opencli | `npm install -g @jackwener/opencli` | 网站适配器 |
+| od (open-design) | `npm install -g @anthropic-ai/od`（或从源安装） | 设计 MCP |
+| CLI-Anything | 内置 SKILL.md + HARNESS.md（无需安装） | Skill 文件 |
+
+## 十一、核心原则
+
+1. **直接集成，不从零开发** — 所有 8 个项目均以 MCP/内置插件/SDK/Skill 形式直接嵌入
+2. **flutter/agent-plugins 构建时安装** — 每次构建从源仓库拉取，不依赖远程插件中心
+3. **code-review-graph 简化可视化** — 不要 D3.js 力导向图，只要 Mermaid 流程架构图
+4. **open-design 只要设计+展示+文件交付** — 不集成整个应用，coding agent 读取设计文件实现
+5. **暂不考虑远程插件中心** — 所有能力通过构建时内置或本地安装提供
 
 ---
 
 > 关联文档：
-> - [OCR 集成 & Understand-Anything 分析](./2026-07-ocr-integration-and-ua-analysis.md)
-> - [前期开源项目集成调研](./2026-07-open-source-integration-feasibility.md)
+> - [前期集成调研（5 项目）](../research/2026-07-open-source-integration-feasibility.md)
+> - [OCR 集成 & Understand-Anything 分析](../research/2026-07-ocr-integration-and-ua-analysis.md)
