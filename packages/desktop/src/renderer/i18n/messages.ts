@@ -459,6 +459,17 @@ export const en = {
   "index.reindexing": "Indexing…",
   "index.done": "Index complete",
   "index.failed": "Index failed",
+
+  // ── Code Review (ocr) ─────────────────────────────────────
+  "rail.review": "Code Review",
+  "review.title": "Code Review",
+  "review.checking": "Checking ocr availability…",
+  "review.notInstalled": "ocr CLI not found. Install it to enable AI code review:",
+  "review.modeWorkspace": "Workspace changes",
+  "review.modeBranch": "Branch diff",
+  "review.run": "Run Review",
+  "review.running": "Reviewing…",
+
   "scm.history": "History",
   "scm.noHistory": "No commits yet.",
   "mcp.add": "Add Server",
@@ -933,6 +944,17 @@ export const zh: Record<MessageKey, string> = {
   "index.reindexing": "正在索引…",
   "index.done": "索引完成",
   "index.failed": "索引失败",
+
+  // ── Code Review (ocr) ─────────────────────────────────────
+  "rail.review": "代码审查",
+  "review.title": "代码审查",
+  "review.checking": "正在检测 ocr 可用性…",
+  "review.notInstalled": "未找到 ocr CLI。安装后即可启用 AI 代码审查：",
+  "review.modeWorkspace": "工作区变更",
+  "review.modeBranch": "分支对比",
+  "review.run": "开始审查",
+  "review.running": "审查中…",
+
   "scm.history": "历史记录",
   "scm.noHistory": "暂无提交记录。",
   "mcp.add": "添加服务器",

@@ -97,6 +97,10 @@ export const IpcRequest = {
   CodegraphList: "codegraph:list",
   CodegraphReindex: "codegraph:reindex",
 
+  // Code Review (Open Code Review / ocr CLI)
+  ReviewRun: "review:run",
+  ReviewCheckAvailable: "review:checkAvailable",
+
   // MCP management (moved out of settings into the plugin module)
   PluginMcpList: "plugin:mcpList",
   PluginSetMcpEnabled: "plugin:setMcpEnabled",
@@ -112,7 +116,41 @@ export const IpcEvent = {
   ProjectRootChanged: "event:projectRootChanged",
   PluginEvent: "event:pluginEvent",
   CodegraphProgress: "event:codegraphProgress",
+  ReviewProgress: "event:reviewProgress",
 } as const;
+
+/** Payload for the ReviewProgress event (streamed ocr output). */
+export type ReviewProgressEvent = {
+  /** A chunk of process output. */
+  chunk: string;
+  /** Which stream produced the chunk. */
+  stream: "stdout" | "stderr";
+  /** True when the process has exited. */
+  done: boolean;
+  /** Exit code, present only when done=true. */
+  exitCode?: number;
+};
+
+/** A single review comment parsed from ocr JSON output. */
+export type ReviewComment = {
+  file: string;
+  line: number;
+  severity: "critical" | "warning" | "info" | string;
+  message: string;
+  suggestion?: string;
+};
+
+/** Options for launching a code review. */
+export type ReviewOptions = {
+  /** Review mode: workspace (default), branch range, or single commit. */
+  mode: "workspace" | "branch" | "commit";
+  /** Base ref for branch mode. */
+  from?: string;
+  /** Head ref for branch mode. */
+  to?: string;
+  /** Commit hash for commit mode. */
+  commit?: string;
+};
 
 /** Payload for the CodegraphProgress event (streamed indexing output). */
 export type CodegraphProgressEvent = {
@@ -384,6 +422,14 @@ export type DesktopApi = {
   codegraphReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
   /** Subscribe to streaming codegraph indexing output. Returns unsubscribe fn. */
   onCodegraphProgress(cb: (event: CodegraphProgressEvent) => void): () => void;
+
+  // ── Code Review (ocr) ─────────────────────────────────────────────────────
+  /** Check whether the `ocr` CLI is available on PATH. */
+  reviewCheckAvailable(): Promise<{ available: boolean; version?: string }>;
+  /** Run a code review, streaming progress via onReviewProgress. */
+  reviewRun(options: ReviewOptions): Promise<{ ok: boolean; error?: string }>;
+  /** Subscribe to streaming review output. Returns unsubscribe fn. */
+  onReviewProgress(cb: (event: ReviewProgressEvent) => void): () => void;
 
   // ── MCP management (plugin module) ──────────────────────────────────────
   /** List all MCP servers (user + built-in) with enable/runtime state. */

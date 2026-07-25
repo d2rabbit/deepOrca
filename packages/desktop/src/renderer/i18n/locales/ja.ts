@@ -451,6 +451,17 @@ export const ja: Record<MessageKey, string> = {
   "index.reindexing": "インデックス作成中…",
   "index.done": "インデックス完了",
   "index.failed": "インデックス失敗",
+
+  // ── Code Review (ocr) ─────────────────────────────────────
+  "rail.review": "コードレビュー",
+  "review.title": "コードレビュー",
+  "review.checking": "ocr の可用性を確認中…",
+  "review.notInstalled": "ocr CLI が見つかりません。インストールすると AI コードレビューが有効になります：",
+  "review.modeWorkspace": "ワークスペースの変更",
+  "review.modeBranch": "ブランチ比較",
+  "review.run": "レビュー開始",
+  "review.running": "レビュー中…",
+
   "scm.history": "履歴",
   "scm.noHistory": "コミットがまだありません。",
   "mcp.add": "サーバーを追加",

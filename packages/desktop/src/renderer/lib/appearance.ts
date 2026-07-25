@@ -90,8 +90,10 @@ export function setTheme(theme: Theme): void {
   }
 }
 
-/** The native tone for a platform's default stylesheet. */
-export function defaultAppearance(platform: string): Appearance {
+/** The native tone for a platform's default stylesheet.
+ *  Glass (Prism) is always dark-first regardless of platform. */
+export function defaultAppearance(platform: string, theme?: Theme): Appearance {
+  if (theme === "glass") return "dark";
   return platform === "win32" ? "dark" : "light";
 }
 
@@ -104,8 +106,8 @@ export function getStoredAppearance(): Appearance | null {
   }
 }
 
-export function resolveAppearance(platform: string): Appearance {
-  return getStoredAppearance() ?? defaultAppearance(platform);
+export function resolveAppearance(platform: string, theme?: Theme): Appearance {
+  return getStoredAppearance() ?? defaultAppearance(platform, theme);
 }
 
 export function applyAppearance(appearance: Appearance): void {

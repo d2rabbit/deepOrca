@@ -105,6 +105,23 @@ export function IconIndex(): JSX.Element {
   );
 }
 
+/** Magnifier with checkmark — code review */
+export function IconReview(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M13 13l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M7 9l1.5 1.5L11.5 7"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Eye with slash — reasoning hidden */
 export function IconReasoningHidden(): JSX.Element {
   return (

@@ -451,6 +451,17 @@ export const ko: Record<MessageKey, string> = {
   "index.reindexing": "인덱싱 중…",
   "index.done": "인덱싱 완료",
   "index.failed": "인덱싱 실패",
+
+  // ── Code Review (ocr) ─────────────────────────────────────
+  "rail.review": "코드 리뷰",
+  "review.title": "코드 리뷰",
+  "review.checking": "ocr 사용 가능 여부 확인 중…",
+  "review.notInstalled": "ocr CLI를 찾을 수 없습니다. 설치하면 AI 코드 리뷰를 사용할 수 있습니다:",
+  "review.modeWorkspace": "워크스페이스 변경",
+  "review.modeBranch": "브랜치 비교",
+  "review.run": "리뷰 실행",
+  "review.running": "리뷰 중…",
+
   "scm.history": "기록",
   "scm.noHistory": "아직 커밋이 없습니다.",
   "mcp.add": "서버 추가",

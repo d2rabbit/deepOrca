@@ -27,6 +27,7 @@ import { PluginDetail, type PluginSelection } from "./components/PluginDetail";
 import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
+import { CodeReviewPanel } from "./components/CodeReviewPanel";
 import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
@@ -42,6 +43,7 @@ import {
 } from "./lib/ask-question";
 import { extractProposedPlan, getImplementationPrompt, type PlanImplementationChoice } from "./lib/plan";
 import {
+  defaultAppearance,
   getStoredReasoningMode,
   nextReasoningMode,
   resolveAppearance,
@@ -68,6 +70,7 @@ import {
   IconPlugins,
   IconTokens,
   IconIndex,
+  IconReview,
   IconReasoningHidden,
   IconReasoningNormal,
   IconReasoningExpanded,
@@ -146,9 +149,9 @@ export function App(): JSX.Element {
 
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
-  const [sidebarView, setSidebarView] = useState<"explorer" | "scm" | "tasks" | "tokens" | "index" | "plugins">(
-    "explorer"
-  );
+  const [sidebarView, setSidebarView] = useState<
+    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "plugins"
+  >("explorer");
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [branch, setBranch] = useState("");
@@ -212,7 +215,7 @@ export function App(): JSX.Element {
 
   // VSCode-style activity bar: selecting a rail view swaps the left panel while
   // the main area stays put. Re-selecting the active view toggles the panel.
-  const selectView = useCallback((view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "plugins") => {
+  const selectView = useCallback((view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "plugins") => {
     setSidebarView((prev) => {
       if (prev === view) {
         setPanelOpen((wasOpen) => !wasOpen);
@@ -280,8 +283,9 @@ export function App(): JSX.Element {
       if (disposed) return;
       setProjectRoot(root);
       setPlatform(plat);
-      setAppearanceState(resolveAppearance(plat));
-      setThemeState(resolveTheme(plat));
+      const resolvedTheme = resolveTheme(plat);
+      setAppearanceState(resolveAppearance(plat, resolvedTheme));
+      setThemeState(resolvedTheme);
       await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
       const active = await api.getActiveSession();
       if (!disposed && active) {
@@ -563,16 +567,26 @@ export function App(): JSX.Element {
     setThemeState((prev) => {
       const next: Theme = prev === "glass" ? baseTheme(platform) : "glass";
       persistTheme(next);
+      // Auto-switch appearance to match the theme's native tone.
+      const tone = defaultAppearance(platform, next);
+      setAppearanceState(tone);
+      persistAppearance(tone);
       return next;
     });
   }, [platform]);
 
   // Theme selection from the settings panel (General tab). Applies immediately
   // (swaps the stylesheet link) and persists — no reload needed.
-  const handleSelectTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-    persistTheme(next);
-  }, []);
+  const handleSelectTheme = useCallback(
+    (next: Theme) => {
+      setThemeState(next);
+      persistTheme(next);
+      const tone = defaultAppearance(platform, next);
+      setAppearanceState(tone);
+      persistAppearance(tone);
+    },
+    [platform]
+  );
 
   const handleCycleReasoning = useCallback(() => {
     setReasoningModeState((prev) => {
@@ -972,6 +986,14 @@ export function App(): JSX.Element {
         >
           <IconIndex />
         </RailButton>
+        <RailButton
+          active={panelOpen && sidebarView === "review"}
+          title={t("rail.review")}
+          aria-label={t("rail.review")}
+          onClick={() => selectView("review")}
+        >
+          <IconReview />
+        </RailButton>
         <RailSpacer />
         <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
           {reasoningIconEl}
@@ -1023,6 +1045,8 @@ export function App(): JSX.Element {
           <TokenStatsPanel sessions={sessions} />
         ) : sidebarView === "index" ? (
           <IndexLibraryPanel />
+        ) : sidebarView === "review" ? (
+          <CodeReviewPanel />
         ) : (
           <PluginMcpPanel
             skills={skills}

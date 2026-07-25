@@ -91,6 +91,11 @@ const api: DesktopApi = {
   codegraphReindex: (root) => ipcRenderer.invoke(IpcRequest.CodegraphReindex, root),
   onCodegraphProgress: (cb) => subscribe(IpcEvent.CodegraphProgress, cb as (p: never) => void),
 
+  // ── Code Review (ocr) ─────────────────────────────────────────
+  reviewCheckAvailable: () => ipcRenderer.invoke(IpcRequest.ReviewCheckAvailable),
+  reviewRun: (options) => ipcRenderer.invoke(IpcRequest.ReviewRun, options),
+  onReviewProgress: (cb) => subscribe(IpcEvent.ReviewProgress, cb as (p: never) => void),
+
   // ── MCP management (plugin module) ─────────────────────────────
   pluginMcpList: () => ipcRenderer.invoke(IpcRequest.PluginMcpList),
   pluginSetMcpEnabled: (name, enabled) => ipcRenderer.invoke(IpcRequest.PluginSetMcpEnabled, name, enabled),

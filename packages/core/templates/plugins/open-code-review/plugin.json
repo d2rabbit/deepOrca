@@ -1,0 +1,10 @@
+{
+  "name": "open-code-review",
+  "version": "1.0.0",
+  "description": "AI-powered code review via the ocr CLI (Alibaba Open Code Review) — reads Git diffs, produces structured line-level review comments.",
+  "category": "quality",
+  "author": "Alibaba Group",
+  "homepage": "https://github.com/alibaba/open-code-review",
+  "builtin": true,
+  "removable": false
+}

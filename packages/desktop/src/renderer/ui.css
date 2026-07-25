@@ -4388,6 +4388,88 @@ button.ui-topbar-pill {
   background: var(--ui-surface);
 }
 
+/* ── Code Review panel (ocr) ─────────────────────────────────────────────── */
+.ui-review-version {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  margin-left: auto;
+}
+.ui-review-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) 0;
+}
+.ui-review-mode {
+  flex: 1;
+  min-width: 0;
+}
+.ui-review-ref {
+  width: 80px;
+}
+.ui-review-summary {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: 12px;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.03));
+  border-radius: var(--ui-radius-sm);
+  margin-bottom: var(--ui-space-2);
+}
+.ui-review-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-review-comment {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  animation: ui-card-enter 0.2s ease both;
+}
+.ui-review-comment-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-1);
+}
+.ui-review-severity {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-review-file {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-review-message {
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  line-height: 1.5;
+}
+.ui-review-suggestion {
+  margin-top: var(--ui-space-1);
+  font-size: 11px;
+  color: var(--ui-accent);
+  font-style: italic;
+}
+.ui-review-unavailable {
+  padding: var(--ui-space-3);
+  font-size: 12px;
+  color: var(--ui-text-secondary);
+  text-align: center;
+}
+.ui-review-unavailable code {
+  display: block;
+  margin-top: var(--ui-space-2);
+  padding: var(--ui-space-2);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.04));
+  border-radius: var(--ui-radius-sm);
+  font-size: 11px;
+  word-break: break-all;
+}
+
 /* ── Plugin MCP rows (items 5 & 8) ───────────────────────────────────────── */
 .ui-mcp-row {
   display: flex;

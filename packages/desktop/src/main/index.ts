@@ -6,6 +6,7 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
 import {
   setShellIfWindows,
   configureCodegraphVendorRoot,
@@ -14,7 +15,7 @@ import {
 } from "@vegamo/deepcode-core";
 import type { ModelConfigSelection, UserPromptContent } from "@vegamo/deepcode-core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
-import type { CodegraphIndexEntry, EditableSettings, UndoRestoreMode } from "../shared/ipc.js";
+import type { CodegraphIndexEntry, EditableSettings, ReviewOptions, UndoRestoreMode } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
 import { applyAppIcon } from "./app-icon.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
@@ -279,6 +280,49 @@ function registerIpc(): void {
       action: "reset" as const,
       error: exitCode !== 0 ? `exit code ${exitCode}` : undefined,
     };
+  });
+
+  // ── Code Review (ocr CLI) ──────────────────────────────────────────────────
+  handle(IpcRequest.ReviewCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
+    return new Promise((resolve) => {
+      execFile("ocr", ["--version"], { timeout: 5000 }, (err, stdout) => {
+        if (err) {
+          resolve({ available: false });
+        } else {
+          resolve({ available: true, version: stdout.trim().split("\n")[0] });
+        }
+      });
+    });
+  });
+  handle(IpcRequest.ReviewRun, (options: ReviewOptions): Promise<{ ok: boolean; error?: string }> => {
+    const args = ["review", "--format", "json"];
+    if (options.mode === "branch" && options.from) {
+      args.push("--from", options.from);
+      if (options.to) args.push("--to", options.to);
+    } else if (options.mode === "commit" && options.commit) {
+      args.push("--commit", options.commit);
+    }
+    return new Promise((resolve) => {
+      try {
+        const cp = spawn("ocr", args, { cwd: getBridge().projectRoot, shell: true });
+        cp.stdout?.on("data", (d: Buffer) => {
+          emit(IpcEvent.ReviewProgress, { chunk: d.toString(), stream: "stdout", done: false });
+        });
+        cp.stderr?.on("data", (d: Buffer) => {
+          emit(IpcEvent.ReviewProgress, { chunk: d.toString(), stream: "stderr", done: false });
+        });
+        cp.on("error", (err) => {
+          emit(IpcEvent.ReviewProgress, { chunk: "", stream: "stdout", done: true, exitCode: 1 });
+          resolve({ ok: false, error: err.message });
+        });
+        cp.on("close", (code) => {
+          emit(IpcEvent.ReviewProgress, { chunk: "", stream: "stdout", done: true, exitCode: code ?? 0 });
+          resolve({ ok: code === 0, error: code !== 0 ? `exit code ${code}` : undefined });
+        });
+      } catch (err) {
+        resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    });
   });
 
   // ── MCP management (plugin module) ────────────────────────────────────────

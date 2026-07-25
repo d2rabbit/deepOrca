@@ -1,4 +1,360 @@
 /* ===========================================================================
+   Glass theme — "Prism" design language (v2 redesign).
+
+   Design identity (distinct from macOS Aqua):
+     · Dark-first: deep indigo-slate base, NOT macOS's light-grey vibrancy.
+     · Aurora color bleeding: teal → indigo → violet, NOT generic pink/purple.
+     · Inner-glow edges: panels lit from within (inset box-shadow), NOT just
+       a flat 1px white border.
+     · Pillowy radii: 10 / 16 / 22 — rounder than macOS's 6/9/12.
+     · Geometric typeface: Inter-first, NOT -apple-system.
+     · Colored shadows: tinted with aurora hues, NOT neutral grey.
+     · No specular gel highlight (that's Aqua's signature — we avoid it).
+     · Hover = inner luminosity bloom, NOT brightness filter.
+
+   Like other themes, this file ships NO layout; ui.css owns structure via
+   the semantic `--ui-*` vocabulary. Here we:
+     (1) bind `--ui-*` to the Prism palette (dark default + light variant),
+     (2) add Prism flourishes hooked onto primitive classes.
+   =========================================================================== */
+
+:root {
+  /* ── Aurora backdrop — deep-space with teal/indigo/violet bleeding ──────── */
+  --glass-backdrop:
+    radial-gradient(1200px 800px at 12% 18%, rgba(45, 212, 191, 0.28), transparent 52%),
+    radial-gradient(1000px 700px at 88% 12%, rgba(99, 102, 241, 0.32), transparent 50%),
+    radial-gradient(900px 900px at 72% 88%, rgba(139, 92, 246, 0.26), transparent 50%),
+    radial-gradient(600px 600px at 30% 75%, rgba(14, 165, 233, 0.18), transparent 45%),
+    linear-gradient(160deg, #0c0f1a 0%, #111631 40%, #16103a 72%, #0e1225 100%);
+
+  /* Inner-glow edge — the signature "lit from within" border. */
+  --glass-edge: rgba(148, 163, 255, 0.18);
+  --glass-edge-soft: rgba(148, 163, 255, 0.1);
+  --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), inset 0 0 12px 0 rgba(99, 132, 255, 0.04);
+  --glass-scrim: rgba(8, 10, 20, 0.3);
+  --glass-blur: blur(20px) saturate(150%) brightness(0.92);
+
+  /* ── Semantic token bindings (dark-first) ── */
+  --ui-bg: var(--glass-backdrop);
+  --ui-surface: rgba(17, 22, 42, 0.62);
+  --ui-surface-raised: rgba(24, 30, 56, 0.72);
+  --ui-surface-sunken: rgba(10, 13, 28, 0.6);
+  --ui-surface-hover: rgba(99, 132, 255, 0.1);
+
+  --ui-text: #e8ecf8;
+  --ui-text-dim: #a4afc8;
+  --ui-text-faint: #6b7694;
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: #6d8aff;
+  --ui-accent-strong: #4f6ef2;
+  --ui-accent-soft: rgba(109, 138, 255, 0.14);
+  --ui-accent-fill: linear-gradient(135deg, #5b7cfa 0%, #7c5cfc 100%);
+  --ui-focus-ring: rgba(109, 138, 255, 0.6);
+
+  --ui-border: var(--glass-edge);
+  --ui-border-soft: var(--glass-edge-soft);
+
+  --ui-success: #34d399;
+  --ui-danger: #f87171;
+  --ui-warning: #fbbf24;
+  --ui-info: #a78bfa;
+
+  /* Pillowy radii — distinctly rounder than macOS. */
+  --ui-radius-sm: 10px;
+  --ui-radius-md: 16px;
+  --ui-radius-lg: 22px;
+  --ui-radius-pill: 999px;
+
+  /* Colored shadows — tinted with aurora indigo, NOT neutral grey. */
+  --ui-shadow-sm: 0 2px 8px rgba(15, 18, 45, 0.5), 0 0 1px rgba(99, 132, 255, 0.2);
+  --ui-shadow-card:
+    0 8px 32px rgba(10, 14, 40, 0.55), 0 2px 8px rgba(10, 14, 40, 0.4), 0 0 0 1px rgba(99, 132, 255, 0.06);
+  --ui-shadow-modal: 0 32px 80px rgba(5, 8, 25, 0.7), 0 0 60px rgba(99, 102, 241, 0.08);
+
+  /* Geometric typeface — Inter-first, distinct from macOS system font. */
+  --ui-font-sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --ui-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* ── Prism — Light variant ─────────────────────────────────────────────────
+   A cool porcelain base with faint aurora tinting; NOT macOS warm grey. */
+:root[data-appearance="light"] {
+  --glass-backdrop:
+    radial-gradient(1100px 760px at 10% 15%, rgba(45, 212, 191, 0.18), transparent 52%),
+    radial-gradient(1000px 700px at 90% 10%, rgba(99, 102, 241, 0.2), transparent 50%),
+    radial-gradient(900px 900px at 75% 90%, rgba(139, 92, 246, 0.16), transparent 50%),
+    linear-gradient(160deg, #eef1f8 0%, #e8ecf6 40%, #ede9f8 72%, #f0f2fa 100%);
+
+  --glass-edge: rgba(99, 102, 241, 0.16);
+  --glass-edge-soft: rgba(99, 102, 241, 0.09);
+  --glass-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.7), inset 0 0 12px 0 rgba(99, 132, 255, 0.03);
+  --glass-scrim: rgba(240, 242, 250, 0.4);
+  --glass-blur: blur(18px) saturate(130%);
+
+  --ui-surface: rgba(255, 255, 255, 0.68);
+  --ui-surface-raised: rgba(255, 255, 255, 0.82);
+  --ui-surface-sunken: rgba(238, 241, 250, 0.7);
+  --ui-surface-hover: rgba(99, 102, 241, 0.08);
+
+  --ui-text: #1a1f36;
+  --ui-text-dim: #4a5270;
+  --ui-text-faint: #8890a8;
+
+  --ui-accent: #4f6ef2;
+  --ui-accent-strong: #3b56d4;
+  --ui-accent-soft: rgba(79, 110, 242, 0.1);
+  --ui-accent-fill: linear-gradient(135deg, #4f6ef2 0%, #6d5cf5 100%);
+  --ui-focus-ring: rgba(79, 110, 242, 0.5);
+
+  --ui-success: #059669;
+  --ui-danger: #dc2626;
+  --ui-warning: #d97706;
+  --ui-info: #7c3aed;
+
+  --ui-shadow-sm: 0 2px 8px rgba(30, 40, 90, 0.1), 0 0 1px rgba(99, 102, 241, 0.15);
+  --ui-shadow-card: 0 8px 28px rgba(30, 40, 90, 0.12), 0 2px 8px rgba(30, 40, 90, 0.08);
+  --ui-shadow-modal: 0 24px 64px rgba(20, 28, 70, 0.22), 0 0 40px rgba(99, 102, 241, 0.06);
+}
+
+/* ===========================================================================
+   Flourishes — Prism decoration hooked onto primitive classes.
+   =========================================================================== */
+
+/* Aurora backdrop that bleeds through every translucent surface. */
+.ui-shell {
+  background: var(--glass-backdrop);
+  background-size: 140% 140%;
+  background-attachment: fixed;
+}
+
+/* Frost every surface with the Prism blur stack. */
+.ui-rail,
+.ui-window-bar,
+.ui-session-panel,
+.ui-side-panel,
+.ui-rightpanel,
+.ui-composer-card,
+.ui-card,
+.ui-modal,
+.ui-command,
+.ui-settings-section,
+.ui-diff-overlay-panel {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+/* Inner-glow edge on floating surfaces — the "lit from within" signature. */
+.ui-composer-card,
+.ui-card,
+.ui-modal,
+.ui-command,
+.ui-settings-section,
+.ui-diff-overlay-panel {
+  border: 1px solid var(--ui-border);
+  box-shadow: var(--glass-glow), var(--ui-shadow-card);
+}
+
+/* Rail: vertical glass separation with a subtle gradient edge. */
+.ui-rail {
+  border-right: 1px solid var(--glass-edge-soft);
+  box-shadow: 1px 0 12px rgba(99, 132, 255, 0.04);
+}
+
+/* Contrast scrim behind conversation area. */
+.ui-main {
+  background: var(--glass-scrim);
+}
+
+/* Composer dock: transparent (the card itself is glass). */
+.ui-composer-dock {
+  background: none;
+}
+
+/* ── Buttons: inner luminosity on hover (NOT Aqua's specular gel) ────────── */
+.ui-btn {
+  border: 1px solid var(--glass-edge-soft);
+  transition:
+    background 0.18s var(--ui-ease),
+    border-color 0.18s var(--ui-ease),
+    box-shadow 0.18s var(--ui-ease),
+    transform 0.08s var(--ui-ease);
+}
+.ui-btn:hover:not(:disabled) {
+  border-color: var(--glass-edge);
+  box-shadow: inset 0 0 16px rgba(99, 132, 255, 0.06), 0 2px 8px rgba(10, 14, 40, 0.3);
+}
+
+/* Primary button: gradient fill with a soft outer glow (no gel highlight). */
+.ui-btn--primary {
+  border: 1px solid rgba(109, 138, 255, 0.3);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.ui-btn--primary:hover:not(:disabled) {
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-color: rgba(109, 138, 255, 0.5);
+}
+
+/* ── Rail buttons: glow bloom on active ──────────────────────────────────── */
+.ui-rail-btn {
+  border: 1px solid transparent;
+  transition:
+    background 0.16s var(--ui-ease),
+    border-color 0.16s var(--ui-ease),
+    box-shadow 0.16s var(--ui-ease);
+}
+.ui-rail-btn:hover {
+  border-color: var(--glass-edge-soft);
+  box-shadow: inset 0 0 10px rgba(99, 132, 255, 0.05);
+}
+.ui-rail-btn.ui-rail-btn--active {
+  border-color: rgba(109, 138, 255, 0.3);
+  box-shadow: inset 0 0 14px rgba(99, 132, 255, 0.08), 0 0 8px rgba(99, 132, 255, 0.1);
+}
+
+/* ── Cards: hover lifts with colored glow ────────────────────────────────── */
+.ui-card:hover {
+  box-shadow: var(--glass-glow), 0 12px 40px rgba(10, 14, 40, 0.6), 0 0 20px rgba(99, 132, 255, 0.06);
+  border-color: rgba(109, 138, 255, 0.22);
+}
+
+/* ── Session items: selected gets inner glow ─────────────────────────────── */
+.ui-session-item.active {
+  box-shadow: inset 0 0 12px rgba(99, 132, 255, 0.06);
+  border-color: rgba(109, 138, 255, 0.2);
+}
+
+/* ── Input fields: subtle inner depth ────────────────────────────────────── */
+.ui-input,
+.ui-select,
+textarea {
+  border: 1px solid var(--glass-edge-soft);
+  transition:
+    border-color 0.16s var(--ui-ease),
+    box-shadow 0.16s var(--ui-ease);
+}
+.ui-input:focus,
+.ui-select:focus,
+textarea:focus {
+  border-color: rgba(109, 138, 255, 0.4);
+  box-shadow: 0 0 0 3px var(--ui-focus-ring), inset 0 0 8px rgba(99, 132, 255, 0.04);
+}
+
+/* ── Modal: dramatic aurora glow behind ──────────────────────────────────── */
+.ui-modal-overlay {
+  backdrop-filter: blur(8px) brightness(0.7);
+  -webkit-backdrop-filter: blur(8px) brightness(0.7);
+}
+.ui-modal {
+  box-shadow: var(--ui-shadow-modal), 0 0 80px rgba(99, 102, 241, 0.06);
+}
+
+/* ── Focus ring: soft glow instead of hard outline ───────────────────────── */
+.ui-btn:focus-visible,
+.ui-input:focus-visible,
+.ui-select:focus-visible,
+.ui-rail-btn:focus-visible,
+.ui-session-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
+}
+
+/* ── Welcome cards: glass with aurora tint on hover ──────────────────────── */
+.ui-welcome-card {
+  border: 1px solid var(--glass-edge-soft);
+  box-shadow: var(--glass-glow);
+}
+.ui-welcome-card:hover {
+  border-color: rgba(109, 138, 255, 0.25);
+  box-shadow: var(--glass-glow), 0 8px 24px rgba(10, 14, 40, 0.4), 0 0 16px rgba(99, 132, 255, 0.06);
+}
+
+/* ── Scrollbar: slim, tinted ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(109, 138, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(109, 138, 255, 0.35);
+}
+
+/* ── Slow aurora drift — only when motion is welcome ─────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-shell {
+    animation: prism-drift 32s ease-in-out infinite alternate;
+  }
+}
+@keyframes prism-drift {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
+}
+
+/* ── Accessibility: reduced transparency ─────────────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --ui-bg: #0e1225;
+    --ui-surface: #171d38;
+    --ui-surface-raised: #1e2545;
+    --ui-surface-sunken: #0e1225;
+    --ui-surface-hover: rgba(99, 132, 255, 0.08);
+    --ui-border: rgba(148, 163, 255, 0.16);
+    --ui-border-soft: rgba(148, 163, 255, 0.09);
+    --glass-scrim: transparent;
+  }
+  :root[data-appearance="light"] {
+    --ui-bg: #eef1f8;
+    --ui-surface: #ffffff;
+    --ui-surface-raised: #ffffff;
+    --ui-surface-sunken: #e8ecf6;
+    --ui-surface-hover: rgba(79, 110, 242, 0.06);
+    --ui-border: rgba(99, 102, 241, 0.14);
+    --ui-border-soft: rgba(99, 102, 241, 0.08);
+    --glass-scrim: transparent;
+  }
+  .ui-shell {
+    background: var(--ui-bg);
+    background-attachment: scroll;
+    animation: none;
+  }
+  .ui-rail,
+  .ui-window-bar,
+  .ui-session-panel,
+  .ui-side-panel,
+  .ui-rightpanel,
+  .ui-composer-card,
+  .ui-card,
+  .ui-modal,
+  .ui-command,
+  .ui-settings-section,
+  .ui-diff-overlay-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .ui-main {
+    background: none;
+  }
+  .ui-composer-card,
+  .ui-card,
+  .ui-modal,
+  .ui-command,
+  .ui-settings-section,
+  .ui-diff-overlay-panel {
+    box-shadow: var(--ui-shadow-card);
+  }
+}
+/* ===========================================================================
    Glass theme — Glassmorphism surface language.
 
    Defining signals (per the design brief):

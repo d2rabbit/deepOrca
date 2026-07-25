@@ -18,6 +18,7 @@ export {
   IconPlugins,
   IconTokens,
   IconIndex,
+  IconReview,
   IconReasoningHidden,
   IconReasoningNormal,
   IconReasoningExpanded,

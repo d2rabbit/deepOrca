@@ -451,6 +451,17 @@ export const zhTW: Record<MessageKey, string> = {
   "index.reindexing": "正在索引…",
   "index.done": "索引完成",
   "index.failed": "索引失敗",
+
+  // ── Code Review (ocr) ─────────────────────────────────────
+  "rail.review": "程式碼審查",
+  "review.title": "程式碼審查",
+  "review.checking": "正在檢測 ocr 可用性…",
+  "review.notInstalled": "未找到 ocr CLI。安裝後即可啟用 AI 程式碼審查：",
+  "review.modeWorkspace": "工作區變更",
+  "review.modeBranch": "分支對比",
+  "review.run": "開始審查",
+  "review.running": "審查中…",
+
   "scm.history": "歷史記錄",
   "scm.noHistory": "暫無提交記錄。",
   "mcp.add": "新增伺服器",

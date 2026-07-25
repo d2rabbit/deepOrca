@@ -33,12 +33,13 @@ function injectStylesheet(href: string, id?: string): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   const { platform } = await api.ready();
-  applyAppearance(resolveAppearance(platform));
+  const theme = resolveTheme(platform);
+  applyAppearance(resolveAppearance(platform, theme));
   // Shared primitive stylesheet first (theme-agnostic structure + token
   // fallbacks), then the resolved theme file (Aqua / Metro / Glass) which binds
   // --ui-*. The theme link carries a stable id so it can be swapped at runtime.
   await injectStylesheet("./ui.css");
-  await injectStylesheet(themeStylesheet(resolveTheme(platform)), THEME_LINK_ID);
+  await injectStylesheet(themeStylesheet(theme), THEME_LINK_ID);
   createRoot(container!).render(
     <StrictMode>
       <I18nProvider>
