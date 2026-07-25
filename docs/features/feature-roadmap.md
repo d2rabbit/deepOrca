@@ -58,7 +58,9 @@
 
 ---
 
-## 二、后期特性（Feature Backlog）— 开源项目集成调研
+## 二、后期特性（Feature Backlog）— 直接集成项目
+
+> 以下项目均为**直接集成**到 Orca 中，作为内置能力或预配置扩展，而非从零开发。
 
 ### 1. code-review-graph（代码审查图谱）
 
@@ -103,9 +105,10 @@ Local-first 代码智能图谱，为 MCP 和 CLI 构建持久化代码结构映�
 | 集成成本 | 🟢 低 | 配置文件级别（settings.json mcpServers） |
 | 运行时依赖 | 🟡 中 | 需要 Python 3.10+ 环境 |
 
-#### 推荐集成方案
+#### 集成方案
 
-**Phase 1 — MCP Server 接入**（配置级，< 1 小时）：
+**Phase 1 — 内置 MCP Server 预配置**：
+在 Orca 中预置 CRG 的 MCP Server 配置，用户安装 `code-review-graph` 后自动接入：
 ```json
 {
   "mcpServers": {
@@ -117,9 +120,9 @@ Local-first 代码智能图谱，为 MCP 和 CLI 构建持久化代码结构映�
 }
 ```
 
-**Phase 2 — 增强代码审查面板**：将 CRG 的 `detect_changes` + `get_impact_radius` 与现有 OCR 审查面板结合，在审查意见旁展示影响范围图。
+**Phase 2 — 代码审查面板增强**：将 CRG 的 `detect_changes` + `get_impact_radius` 直接整合到现有审查面板，审查意见旁展示爆炸半径影响图。
 
-**Phase 3 — 替代/增强 CodeGraph**：评估 CRG 的 Wiki 生成 + 社区检测能力是否可替代现有 CodeGraph 索引模块。
+**Phase 3 — 图谱面板集成**：将 CRG 的 Wiki 生成 + 社区检测 + D3.js 可视化直接作为桌面端「项目图谱」面板的后端引擎。
 
 ---
 
@@ -160,14 +163,15 @@ Flutter 官方维护的 Agent 插件集合。定义了标准化的 Agent Skills 
 | 集成成本 | 🟢 极低 | 零代码 — 已兼容 |
 | 战略价值 | 🟢 高 | 远程插件中心的标准参考 |
 
-#### 推荐集成方案
+#### 集成方案
 
-**直接兼容**：Orca 已支持 `.agents/skills/` 目录扫描，flutter/agent-plugins 的 skills 可直接使用。
+**Phase 1 — 内置兼容**：Orca 已支持 `.agents/skills/` 目录扫描，直接兼容其插件格式。
 
-**战略参考**：其 `npx skills add` 分发模式 + `plugin marketplace` 概念是远程插件中心（Feature Dev #1）的核心参考。建议：
-- 采用相同的 `skills@x.x.x add` CLI 协议
+**Phase 2 — 远程插件中心基座**：直接采用其 `npx skills add` 分发协议 + `plugin marketplace` 机制作为远程插件中心（Feature Dev #1）的底层实现：
+- 集成 `skills@x.x.x add` CLI 协议到 Orca 插件管理器
 - 支持 `--agent universal` 标准目录
 - 兼容 `.mcp.json` 自动配置
+- 对接 plugin marketplace 注册/发现
 
 ---
 
@@ -211,9 +215,10 @@ Flutter 官方维护的 Agent 插件集合。定义了标准化的 Agent Skills 
 | 集成成本 | 🟢 低 | 配置级（需 Python 3.13 + uv） |
 | 运行时依赖 | 🟡 中 | 需要各语言的 LSP server（自动安装） |
 
-#### 推荐集成方案
+#### 集成方案
 
-**Phase 1 — MCP Server 接入**（推荐，配置级）：
+**Phase 1 — 内置 MCP Server 预配置**：
+将 serena 作为 Orca 的预置 MCP Server，安装后自动提供符号级操作能力：
 ```json
 {
   "mcpServers": {
@@ -225,9 +230,9 @@ Flutter 官方维护的 Agent 插件集合。定义了标准化的 Agent Skills 
 }
 ```
 
-**Phase 2 — 内置 Skill**：编写 `serena-skill` 教 Agent 何时使用符号级操作（重构、跨文件修改）vs 文本级操作（简单编辑）。
+**Phase 2 — 内置 Skill 联动**：编写 `serena-skill` 让 Agent 自动判断何时使用符号级操作（重构、跨文件修改）vs 文本级操作（简单编辑）。
 
-**Phase 3 — 深度集成**：评估将 serena 的符号编辑能力整合到桌面端编辑体验中（重构预览面板）。
+**Phase 3 — 桌面端重构面板**：将 serena 的 rename/references/implementations 能力直接呈现为桌面端「重构预览」面板。
 
 ---
 
@@ -270,19 +275,20 @@ Flutter 官方维护的 Agent 插件集合。定义了标准化的 Agent Skills 
 | 集成成本 | 🟢 低 | Skill 安装 + npm 全局包 |
 | 差异化 | 🟢 明确 | opencli 偏"网站数据获取"，browser-skill 偏"通用页面操控" |
 
-#### 推荐集成方案
+#### 集成方案
 
-**Phase 1 — Agent Skill 安装**：
+**Phase 1 — 内置插件集成**：
+将 opencli 作为 Orca 内置插件（同 browser-skill 模式），预装 SKILL.md + npm 依赖：
 ```bash
 npx skills add jackwener/opencli
 ```
-Agent 即可通过 bash 工具执行 `opencli bilibili hot`、`opencli browser` 等命令。
+Agent 通过 bash 工具直接执行 `opencli bilibili hot`、`opencli browser` 等命令。
 
-**Phase 2 — 与 browser-skill 互补定位**：
+**Phase 2 — 与 browser-skill 协同**：
 - browser-skill：通用页面操控（表单填写、UI 测试、截图）
-- opencli：结构化数据获取（热门列表、搜索、下载）+ 已登录会话复用
+- opencli：结构化数据获取（100+ 网站适配器）+ 已登录会话复用 + CLI Hub
 
-**Phase 3 — CLI Hub 集成**：评估将 opencli 的 `external register` 模式引入 Orca 的自定义指令系统（Feature Dev #2）。
+**Phase 3 — CLI Hub 直接整合**：将 opencli 的 `external register` + adapter 机制直接作为 Orca 自定义指令系统（Feature Dev #2）的底层实现。
 
 ---
 
@@ -328,32 +334,33 @@ Agent 即可通过 bash 工具执行 `opencli bilibili hot`、`opencli browser` 
 | 集成成本 | 🟡 中 | 需要 LLM 端点配置 + 向量存储 |
 | 隐私考量 | 🟡 中 | 记忆数据需本地存储（Self-Hosted 或 Library 模式） |
 
-#### 推荐集成方案
+#### 集成方案
 
-**Phase 1 — CLI + Skill 集成**（最低成本）：
+**Phase 1 — 内置 CLI + Skill**：
+将 mem0 CLI 作为 Orca 预装依赖，内置 `mem0-skill` SKILL.md：
 ```bash
 npm install -g @mem0/cli
 mem0 init --agent --agent-caller orca
 ```
-编写 `mem0-skill` SKILL.md，教 Agent 在关键节点存储/检索记忆。
+Agent 在关键节点自动存储/检索记忆。
 
-**Phase 2 — npm SDK 内置集成**：
-在 core 层引入 `mem0ai` npm 包，会话结束时自动提取关键事实，新会话开始时注入相关记忆。
+**Phase 2 — core 层 SDK 集成**：
+在 core 层直接引入 `mem0ai` npm 包，会话结束时自动提取关键事实，新会话开始时注入相关记忆。
 
-**Phase 3 — 知识中心融合**：
-将 mem0 的记忆层与项目图谱（Feature Dev #3）结合，形成"项目知识图谱 + 交互记忆"的完整知识中心。
+**Phase 3 — 知识中心记忆引擎**：
+将 mem0 直接作为项目图谱（Feature Dev #3）的记忆存储引擎，形成「项目知识图谱 + mem0 记忆层」的完整知识中心。
 
 ---
 
 ## 三、横向对比
 
-| 项目 | 核心能力 | 填补的缺口 | 集成度 | 集成成本 | 推荐方式 | 优先级 |
+| 项目 | 核心能力 | 填补的缺口 | 集成度 | 集成成本 | 集成方式 | 优先级 |
 |------|----------|-----------|--------|----------|----------|--------|
-| code-review-graph | 代码图谱+爆炸半径 | 影响分析/Wiki | 🟢 高 | 低（MCP配置） | MCP Server | P1 |
-| flutter/agent-plugins | 插件分发标准 | 插件市场协议 | 🟢 极高 | 极低（已兼容） | 战略参考 | P0（参考） |
-| serena | 符号级代码操作 | 重构/跨文件编辑 | 🟢 高 | 低（MCP配置） | MCP Server | P1 |
-| opencli | 网站→CLI+浏览器 | 数据获取/CLI Hub | 🟢 高 | 低（Skill+npm） | Agent Skill | P2 |
-| mem0 | AI 长期记忆 | 跨会话知识积累 | 🟢 高 | 中（LLM+存储） | CLI→SDK | P1 |
+| code-review-graph | 代码图谱+爆炸半径 | 影响分析/Wiki | 🟢 高 | 低（MCP预配置） | 内置 MCP Server | P1 |
+| flutter/agent-plugins | 插件分发标准 | 插件市场协议 | 🟢 极高 | 极低（已兼容） | 插件中心基座 | P0 |
+| serena | 符号级代码操作 | 重构/跨文件编辑 | 🟢 高 | 低（MCP预配置） | 内置 MCP Server | P1 |
+| opencli | 网站→CLI+浏览器 | 数据获取/CLI Hub | 🟢 高 | 低（内置插件） | 内置插件 | P2 |
+| mem0 | AI 长期记忆 | 跨会话知识积累 | 🟢 高 | 中（SDK集成） | core 层 SDK | P1 |
 
 ## 四、集成优先级路线图
 
@@ -374,11 +381,11 @@ mem0 init --agent --agent-caller orca
 
 ## 五、核心结论
 
-1. **flutter/agent-plugins** 是远程插件中心的**协议标准参考**，Orca 已天然兼容其 skills 格式
-2. **serena + code-review-graph** 通过 MCP Server 配置即可接入，零代码成本，立即增强 Agent 编码能力
-3. **mem0** 是知识中心（Feature Dev #3）的**记忆层基础设施**，建议尽早启动 Phase 1
-4. **opencli** 与现有 browser-skill 互补，丰富数据获取和 CLI Hub 能力
-5. 所有 5 个项目均支持 MCP 或 Skill 集成路径，与 Orca 架构**零冲突**
+1. **flutter/agent-plugins** 直接作为远程插件中心的**底层协议基座**，Orca 已天然兼容其 skills 格式
+2. **serena + code-review-graph** 作为**内置 MCP Server 预配置**直接集成，零代码成本，立即增强 Agent 编码能力
+3. **mem0** 直接作为知识中心（Feature Dev #3）的**记忆存储引擎**，建议尽早启动 SDK 集成
+4. **opencli** 作为**内置插件**直接集成，与 browser-skill 协同覆盖浏览器自动化全场景
+5. 所有 5 个项目均为**直接集成**，通过 MCP / 内置插件 / SDK 路径嵌入 Orca，非从零开发
 
 ---
 
