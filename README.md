@@ -69,6 +69,15 @@ Orca 提供三种并列的扩展能力：
 当前内置插件：
 - **browser-skill** — 通过 `bsk` CLI 驱动用户真实的 Chromium 浏览器进行自动化操作（访问页面、填写表单、抓取数据、UI 回归测试等）
 - **open-code-review** — 集成阿里巴巴 [Open Code Review](https://github.com/alibaba/open-code-review) AI 代码审查 CLI，读取 Git diff 生成行级精度的结构化审查意见
+- **git-mcp** — 本地 GitMCP 模块，输入 GitHub 仓库地址即可生成对应的 MCP 服务器，基于 SQLite FTS5 全文索引实现文档语义搜索，支持代码检索和文档获取
+
+### **GitMCP 模块**
+GitMCP 是一个独立的内置模块，让你可以直接索引和搜索任何 GitHub 仓库的文档：
+- 输入仓库地址（支持 URL、SSH、`owner/repo` 三种格式），自动生成本地 MCP 服务器
+- 基于 SQLite FTS5 全文索引，BM25 排序，毫秒级语义搜索
+- 4 个内置工具：`fetch_documentation`、`search_documentation`、`search_code`、`fetch_url_content`
+- 在 GitMCP 面板中管理仓库（添加/删除/重建索引/启停）
+- 在 MCP 页签中可启停，但不可删除（保护内置模块）
 
 ### **Skills（技能）**
 支持 agent skills，允许您扩展助手的能力。Skills 会按以下优先级扫描：
@@ -88,8 +97,9 @@ Orca 提供三种并列的扩展能力：
 - 插件中心（MCP / Skills / 内置插件三栏管理）
 - 源码管理 (Git) 面板
 - 代码索引 (CodeGraph) 面板
+- **GitMCP 面板** — 管理 GitHub 仓库索引，语义搜索文档和代码
 - **代码审查 (Open Code Review) 面板** — 一键审查工作区变更或分支对比，流式输出 + 结构化评论展示
-- 多主题系统（Aqua 原生 / Glass Prism 玻璃拟态）
+- 多主题系统（Aqua 原生 / Glass Prism 玻璃拟态 / Punk 2077 赛博朋克）
 - 6 语言国际化（en / zh / ja / ko / zh-HK / zh-TW）
 
 ### **为 DeepSeek 优化**
@@ -108,6 +118,7 @@ Orca 提供三种并列的扩展能力：
 | 扩展系统 | Skills / MCP / 内置插件 | ✅ |
 | 代码索引 | CodeGraph MCP Server + 索引面板 | ✅ |
 | 代码审查 | Open Code Review 内置插件 + 审查面板 | ✅ |
+| GitMCP | 本地 GitMCP 模块 + 仓库索引面板 | ✅ |
 | 浏览器自动化 | browser-skill 内置插件 | ✅ |
 | 源码管理 | Git 面板（stage/commit/diff/branch） | ✅ |
 | 权限控制 | 细粒度 scope 策略 | ✅ |
