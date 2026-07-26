@@ -59,10 +59,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **桌面端 UI 深化** (2026-07-24, `5d2d0d6`)
   - 深化 UI 组件交互与 core 能力整合 (v12-v22)
 
-- **DeepOrca 品牌重塑** (2026-07-23, `c89bf67`)
-  - 对外文案品牌替换为 DeepOrca
+- **DeepOrca 品牌重塑与提示词强化** (2026-07-23, `c89bf67`)
+  - 对外文案品牌替换为 DeepOrca（提示词强化）
+    - app.name 6处、plugins.builtin.hint 6处、Deep Code 文案 18处
+    - index.html title、main app.setName/窗口 title、package.json description
+    - 保留: @vegamo/deepcode-* 包名、window.deepcode、.deepcode/ 目录、
+      DEEPCODE_API_KEY env、localStorage key、orca-icon.svg 文件名
   - 设置面板新增「关于」Tab（包含更新日志）
-  - 4 个版本里程碑的更新日志
+    - 介绍本项目基于 @vegamo/deepcode-cli fork 构建，命名为 DeepOrca（6语言）
+    - 更新日志：从 fork 开始的核心大型变动（4 个版本里程碑）
+    - 配套 ui-about/ui-changelog 样式
+  - **项目定位**：DeepOrca 只提供桌面客户端版本，不提供 CLI 和 VSCode 的构建版本
 
 - **聊天渲染改进** (2026-07-23, `622d732`)
   - 聊天渲染改进：头像、入场动画、响应式边距
