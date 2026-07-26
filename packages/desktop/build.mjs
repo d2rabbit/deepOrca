@@ -66,20 +66,24 @@ const rendererConfig = {
   loader: { ".png": "dataurl", ".svg": "dataurl" },
 };
 
-// Ensure CodeGraph is vendored (checked out + compiled) into vendor/codegraph.
-// Best-effort: if it fails (no network/git), the core resolver falls back to npx,
-// so the build must not break because of it.
-function ensureCodegraphVendored() {
-  const entry = resolve(__dirname, "vendor", "codegraph", "dist", "bin", "codegraph.js");
-  if (existsSync(entry)) {
-    return;
-  }
-  const script = resolve(__dirname, "..", "..", "scripts", "vendor-codegraph.js");
+// Vendor CodeGraph + OpenWiki (checked out + compiled) into vendor/<name>.
+// Runs on EVERY build: the vendor scripts fetch the upstream repo first and only
+// recompile when there are new commits, so an up-to-date checkout costs one
+// `git fetch`. Best-effort: if vendoring fails (no network/git) an existing
+// vendored copy keeps working, and the runtime falls back to npx otherwise —
+// the build must not break because of it.
+function ensureVendored(name, entryRel, fallbackHint) {
+  const entry = resolve(__dirname, "vendor", name, ...entryRel);
+  const script = resolve(__dirname, "..", "..", "scripts", `vendor-${name}.js`);
   try {
-    console.log("[desktop] vendoring CodeGraph (first build) …");
+    console.log(`[desktop] vendoring ${name} (checking upstream) …`);
     execFileSync(process.execPath, [script], { stdio: "inherit" });
   } catch {
-    console.warn("[desktop] CodeGraph vendoring skipped — runtime will fall back to `npx @colbymchenry/codegraph`.");
+    if (existsSync(entry)) {
+      console.warn(`[desktop] ${name} vendoring failed — keeping the existing vendored build.`);
+    } else {
+      console.warn(`[desktop] ${name} vendoring skipped — runtime will fall back to \`${fallbackHint}\`.`);
+    }
   }
 }
 
@@ -134,11 +138,16 @@ async function copyStaticAssets() {
   if (existsSync(fusionCss)) {
     await cp(fusionCss, resolve(outdir, "renderer/styles-fusion.css"));
   }
+  const lineCss = resolve(__dirname, "src/renderer/styles-line.css");
+  if (existsSync(lineCss)) {
+    await cp(lineCss, resolve(outdir, "renderer/styles-line.css"));
+  }
 }
 
 async function run() {
   await ensureCoreBuilt();
-  ensureCodegraphVendored();
+  ensureVendored("codegraph", ["dist", "bin", "codegraph.js"], "npx @colbymchenry/codegraph");
+  ensureVendored("openwiki", ["dist", "cli.js"], "npx openwiki");
   if (isDev) {
     const contexts = await Promise.all([context(mainConfig), context(preloadConfig), context(rendererConfig)]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));

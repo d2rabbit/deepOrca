@@ -70,6 +70,10 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
       continue;
     }
     const root = index.originalPath;
+    // Skip the user's home directory — it should never appear as a workspace.
+    if (root === homedir() || root === homedir() + "/" || root === homedir() + "\\") {
+      continue;
+    }
     const label = path.basename(root) || root;
     const sessions: SerializableSessionEntry[] = [];
     for (const entry of index.entries) {
@@ -87,8 +91,16 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
 
   // Ensure the current workspace always appears in the tree, even if it has no
   // sessions-index.json yet (e.g. a freshly opened project). This gives the user
-  // a visual anchor and a "+" button to start their first conversation.
-  if (currentRoot && !workspaces.some((w) => w.root === currentRoot)) {
+  // a visual anchor and a "+" button to start their first conversation. The
+  // user's home directory is deliberately excluded — it must never show up as a
+  // workspace, even while it serves as the engine's fallback root.
+  const home = homedir();
+  if (
+    currentRoot &&
+    currentRoot !== home &&
+    path.resolve(currentRoot) !== home &&
+    !workspaces.some((w) => w.root === currentRoot)
+  ) {
     const label = path.basename(currentRoot) || currentRoot;
     // Derive a stable project code from the root path (same logic as core).
     const code = currentRoot.replace(/[/\\]/g, "-").replace(/^-/, "");

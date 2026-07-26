@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { createRequire } from "node:module";
 import {
   buildCodegraphMcpServerConfig,
   CODEGRAPH_DIR_NAME,
@@ -14,6 +15,16 @@ import {
   resolveCodegraphExecutable,
   runCodegraphSync,
 } from "../common/codegraph";
+
+/** Whether the Node running this test can load node:sqlite (mirrors the resolver's self-check). */
+function selfNodeHasSqlite(): boolean {
+  try {
+    createRequire(import.meta.url)("node:sqlite");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function makeTempProject(withCodegraphDir: boolean): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "codegraph-test-"));
@@ -83,14 +94,24 @@ test("resolveCodegraphExecutable falls back to npx when no vendored build is con
   assert.ok(exe.prefixArgs.includes("-y"), "npx fallback should be non-interactive");
 });
 
-test("resolveCodegraphExecutable prefers a vendored build and runs it through Node", () => {
+test("resolveCodegraphExecutable prefers a vendored build and runs it through a sqlite-capable Node", () => {
   const vendorRoot = makeVendorRoot();
   try {
     configureCodegraphVendorRoot(vendorRoot);
     const exe = resolveCodegraphExecutable();
-    assert.equal(exe.command, process.execPath);
-    assert.equal(exe.prefixArgs.length, 1);
-    assert.equal(exe.prefixArgs[0], path.resolve(vendorRoot, CODEGRAPH_VENDOR_ENTRY));
+    if (exe.command === "npx") {
+      // No sqlite-capable Node found anywhere on this machine — npx fallback is correct.
+      assert.ok(exe.prefixArgs.includes(CODEGRAPH_PACKAGE));
+      return;
+    }
+    // Vendored entry must be the script argument; the runner is the current
+    // process (when its Node has node:sqlite) or a discovered system Node.
+    assert.equal(exe.prefixArgs[exe.prefixArgs.length - 1], path.resolve(vendorRoot, CODEGRAPH_VENDOR_ENTRY));
+    if (selfNodeHasSqlite() && !process.versions.electron) {
+      assert.equal(exe.command, process.execPath);
+    } else {
+      assert.ok(fs.existsSync(exe.command), "resolved runner should be an existing binary");
+    }
   } finally {
     configureCodegraphVendorRoot(null);
     fs.rmSync(vendorRoot, { recursive: true, force: true });
@@ -111,10 +132,12 @@ test("buildCodegraphMcpServerConfig uses the vendored entry when configured", ()
   try {
     configureCodegraphVendorRoot(vendorRoot);
     const config = buildCodegraphMcpServerConfig("/tmp/proj");
-    assert.equal(config.command, process.execPath);
     assert.ok(config.args, "config should carry args");
-    assert.equal(config.args![0], path.resolve(vendorRoot, CODEGRAPH_VENDOR_ENTRY));
-    assert.deepEqual(config.args!.slice(1), ["serve", "--mcp"]);
+    if (config.command !== "npx") {
+      const entry = path.resolve(vendorRoot, CODEGRAPH_VENDOR_ENTRY);
+      assert.ok(config.args!.includes(entry), "args should reference the vendored entry");
+    }
+    assert.deepEqual(config.args!.slice(-2), ["serve", "--mcp"]);
     assert.equal(config.cwd, "/tmp/proj");
   } finally {
     configureCodegraphVendorRoot(null);

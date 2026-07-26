@@ -122,6 +122,19 @@ export function IconReview(): JSX.Element {
   );
 }
 
+/** Book with nodes — wiki knowledge graph */
+export function IconWiki(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M4 4h12v13H4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M7 4v13" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="12" cy="8" r="1.2" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="12" cy="13" r="1.2" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M12 9.2v2.6" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
 /** Eye with slash — reasoning hidden */
 export function IconReasoningHidden(): JSX.Element {
   return (
@@ -203,6 +216,21 @@ export function IconGlass(): JSX.Element {
     <svg {...S}>
       <path d="M10 2l6 5-6 11L4 7l6-5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M4 7h12M10 2l-2 5 2 11 2-11-2-5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Lightning bolt — Line theme punk (2077) variant toggle */
+export function IconPunk(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M11.5 2 5 11h4l-1.5 7L15 9h-4l.5-7Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

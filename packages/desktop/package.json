@@ -15,10 +15,12 @@
     "dev": "node ./build.mjs --dev",
     "start": "electron .",
     "build-and-start": "npm run build && npm run start",
-    "vendor:codegraph": "node ../../scripts/vendor-codegraph.js"
+    "vendor:codegraph": "node ../../scripts/vendor-codegraph.js",
+    "vendor:openwiki": "node ../../scripts/vendor-openwiki.js"
   },
   "dependencies": {
     "@vegamo/deepcode-core": "file:../core",
+    "highlight.js": "^11.11.1",
     "marked": "^14.1.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

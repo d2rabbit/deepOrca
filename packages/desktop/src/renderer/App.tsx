@@ -28,6 +28,7 @@ import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
 import { CodeReviewPanel } from "./components/CodeReviewPanel";
+import { WikiPanel } from "./components/WikiPanel";
 import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
@@ -45,14 +46,18 @@ import { extractProposedPlan, getImplementationPrompt, type PlanImplementationCh
 import {
   defaultAppearance,
   getStoredReasoningMode,
+  getStoredLineVariant,
+  applyLineVariant,
   nextReasoningMode,
   resolveAppearance,
   resolveTheme,
   baseTheme,
   setAppearance as persistAppearance,
   setTheme as persistTheme,
+  setLineVariant as persistLineVariant,
   setReasoningMode as persistReasoningMode,
   type Appearance,
+  type LineVariant,
   type ReasoningMode,
   type Theme,
 } from "./lib/appearance";
@@ -71,12 +76,14 @@ import {
   IconTokens,
   IconIndex,
   IconReview,
+  IconWiki,
   IconReasoningHidden,
   IconReasoningNormal,
   IconReasoningExpanded,
   IconMoon,
   IconSun,
   IconGlass,
+  IconPunk,
   IconUndo,
   IconSettings,
   type CommandItem,
@@ -150,7 +157,7 @@ export function App(): JSX.Element {
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [sidebarView, setSidebarView] = useState<
-    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "plugins"
+    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "wiki" | "plugins"
   >("explorer");
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
@@ -159,6 +166,7 @@ export function App(): JSX.Element {
 
   const [appearance, setAppearanceState] = useState<Appearance>("light");
   const [theme, setThemeState] = useState<Theme>("aqua");
+  const [lineVariant, setLineVariantState] = useState<LineVariant>(() => getStoredLineVariant());
   const [reasoningMode, setReasoningModeState] = useState<ReasoningMode>(() => getStoredReasoningMode());
 
   const [panelOpen, setPanelOpen] = useState(true);
@@ -215,16 +223,19 @@ export function App(): JSX.Element {
 
   // VSCode-style activity bar: selecting a rail view swaps the left panel while
   // the main area stays put. Re-selecting the active view toggles the panel.
-  const selectView = useCallback((view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "plugins") => {
-    setSidebarView((prev) => {
-      if (prev === view) {
-        setPanelOpen((wasOpen) => !wasOpen);
+  const selectView = useCallback(
+    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "wiki" | "plugins") => {
+      setSidebarView((prev) => {
+        if (prev === view) {
+          setPanelOpen((wasOpen) => !wasOpen);
+          return view;
+        }
+        setPanelOpen(true);
         return view;
-      }
-      setPanelOpen(true);
-      return view;
-    });
-  }, []);
+      });
+    },
+    []
+  );
   const openTokensView = useCallback(() => selectView("tokens"), [selectView]);
 
   // ── Data loading ────────────────────────────────────────────────────────────
@@ -575,6 +586,20 @@ export function App(): JSX.Element {
     });
   }, [platform]);
 
+  // Line theme flavour toggle: original stroke look ↔ punk (2077 tribute).
+  const handleToggleLineVariant = useCallback(() => {
+    setLineVariantState((prev) => {
+      const next: LineVariant = prev === "punk" ? "stroke" : "punk";
+      persistLineVariant(next);
+      return next;
+    });
+  }, []);
+
+  // The punk recolor only applies while the Line theme is active.
+  useEffect(() => {
+    applyLineVariant(theme === "line" ? lineVariant : "stroke");
+  }, [theme, lineVariant]);
+
   // Theme selection from the settings panel (General tab). Applies immediately
   // (swaps the stylesheet link) and persists — no reload needed.
   const handleSelectTheme = useCallback(
@@ -918,6 +943,7 @@ export function App(): JSX.Element {
         : t("topbar.reasoningNormal");
   const appearanceTitle = appearance === "dark" ? t("topbar.appearanceDark") : t("topbar.appearanceLight");
   const themeTitle = theme === "glass" ? t("topbar.themeGlass") : t("topbar.themeNative");
+  const lineVariantTitle = lineVariant === "punk" ? t("topbar.linePunk") : t("topbar.lineStroke");
 
   return (
     <div
@@ -994,6 +1020,14 @@ export function App(): JSX.Element {
         >
           <IconReview />
         </RailButton>
+        <RailButton
+          active={panelOpen && sidebarView === "wiki"}
+          title={t("rail.wiki")}
+          aria-label={t("rail.wiki")}
+          onClick={() => selectView("wiki")}
+        >
+          <IconWiki />
+        </RailButton>
         <RailSpacer />
         <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
           {reasoningIconEl}
@@ -1001,7 +1035,16 @@ export function App(): JSX.Element {
         <RailButton title={appearanceTitle} aria-label={appearanceTitle} onClick={handleToggleAppearance}>
           {appearance === "dark" ? <IconMoon /> : <IconSun />}
         </RailButton>
-        {platform !== "win32" ? (
+        {theme === "line" ? (
+          <RailButton
+            active={lineVariant === "punk"}
+            title={lineVariantTitle}
+            aria-label={lineVariantTitle}
+            onClick={handleToggleLineVariant}
+          >
+            <IconPunk />
+          </RailButton>
+        ) : platform !== "win32" ? (
           <RailButton active={theme === "glass"} title={themeTitle} aria-label={themeTitle} onClick={handleToggleTheme}>
             <IconGlass />
           </RailButton>
@@ -1047,6 +1090,8 @@ export function App(): JSX.Element {
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
           <CodeReviewPanel />
+        ) : sidebarView === "wiki" ? (
+          <WikiPanel />
         ) : (
           <PluginMcpPanel
             skills={skills}

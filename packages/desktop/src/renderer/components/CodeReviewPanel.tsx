@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import type { ReviewComment, ReviewOptions, ReviewProgressEvent } from "../../shared/ipc";
+import type { ReviewComment, ReviewProgressEvent } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
@@ -7,6 +7,8 @@ import { Button, IconButton } from "../ui/index";
 /**
  * Left-panel code review (item 8): runs the `ocr` CLI (Alibaba Open Code Review)
  * against the current workspace and displays structured review comments.
+ * The review scope is fixed — uncommitted workspace changes vs HEAD — and is
+ * stated directly in the panel instead of offering mode selection.
  */
 export function CodeReviewPanel(): JSX.Element {
   const { t } = useI18n();
@@ -16,8 +18,6 @@ export function CodeReviewPanel(): JSX.Element {
   const [logLines, setLogLines] = useState<string[]>([]);
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [summary, setSummary] = useState<string>("");
-  const [mode, setMode] = useState<ReviewOptions["mode"]>("workspace");
-  const [fromRef, setFromRef] = useState("main");
   const logEndRef = useRef<HTMLDivElement | null>(null);
   const rawOutputRef = useRef("");
 
@@ -28,34 +28,6 @@ export function CodeReviewPanel(): JSX.Element {
       setVersion(res.version ?? "");
     });
   }, []);
-
-  // Subscribe to streaming review progress events.
-  useEffect(() => {
-    const off = api.onReviewProgress((event: ReviewProgressEvent) => {
-      if (event.done) {
-        setBusy(false);
-        // Try to parse JSON output from accumulated stdout.
-        parseReviewOutput(rawOutputRef.current);
-        return;
-      }
-      if (event.stream === "stdout") {
-        rawOutputRef.current += event.chunk;
-      }
-      setLogLines((prev) => {
-        const text = event.chunk.replace(/\n$/, "");
-        if (!text) return prev;
-        const lines = text.split("\n");
-        const next = [...prev, ...lines];
-        return next.length > 300 ? next.slice(next.length - 300) : next;
-      });
-    });
-    return off;
-  }, []);
-
-  // Auto-scroll log to bottom on new lines.
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logLines]);
 
   const parseReviewOutput = useCallback((raw: string) => {
     // Attempt to extract JSON from the output (ocr --format json).
@@ -95,19 +67,42 @@ export function CodeReviewPanel(): JSX.Element {
     setSummary("");
   }, []);
 
+  // Subscribe to streaming review progress events.
+  useEffect(() => {
+    const off = api.onReviewProgress((event: ReviewProgressEvent) => {
+      if (event.done) {
+        setBusy(false);
+        // Try to parse JSON output from accumulated stdout.
+        parseReviewOutput(rawOutputRef.current);
+        return;
+      }
+      if (event.stream === "stdout") {
+        rawOutputRef.current += event.chunk;
+      }
+      setLogLines((prev) => {
+        const text = event.chunk.replace(/\n$/, "");
+        if (!text) return prev;
+        const lines = text.split("\n");
+        const next = [...prev, ...lines];
+        return next.length > 300 ? next.slice(next.length - 300) : next;
+      });
+    });
+    return off;
+  }, [parseReviewOutput]);
+
+  // Auto-scroll log to bottom on new lines.
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logLines]);
+
   const runReview = useCallback(async () => {
     setBusy(true);
     setComments([]);
     setSummary("");
     rawOutputRef.current = "";
-    const label = mode === "branch" ? `ocr review --from ${fromRef} --format json` : "ocr review --format json";
-    setLogLines([`$ ${label}`]);
-    const options: ReviewOptions = { mode };
-    if (mode === "branch") {
-      options.from = fromRef;
-    }
-    await api.reviewRun(options);
-  }, [mode, fromRef]);
+    setLogLines(["$ ocr review --format json"]);
+    await api.reviewRun();
+  }, []);
 
   const severityColor = (sev: string): string => {
     switch (sev) {
@@ -156,26 +151,9 @@ export function CodeReviewPanel(): JSX.Element {
         {version ? <span className="ui-review-version">{version}</span> : null}
       </div>
       <div className="ui-side-panel-body">
-        {/* Controls */}
+        {/* Fixed review scope statement + run action */}
         <div className="ui-review-controls">
-          <select
-            className="ui-select ui-review-mode"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as ReviewOptions["mode"])}
-            disabled={busy}
-          >
-            <option value="workspace">{t("review.modeWorkspace")}</option>
-            <option value="branch">{t("review.modeBranch")}</option>
-          </select>
-          {mode === "branch" ? (
-            <input
-              className="ui-input ui-review-ref"
-              value={fromRef}
-              onChange={(e) => setFromRef(e.target.value)}
-              placeholder="main"
-              disabled={busy}
-            />
-          ) : null}
+          <div className="ui-review-scope">{t("review.scope")}</div>
           <Button size="sm" onClick={() => void runReview()} disabled={busy}>
             {busy ? t("review.running") : t("review.run")}
           </Button>

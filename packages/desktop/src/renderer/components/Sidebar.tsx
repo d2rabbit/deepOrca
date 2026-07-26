@@ -178,7 +178,7 @@ export function Sidebar({
           <div className="ui-session-actions" onClick={(e) => e.stopPropagation()}>
             <IconButton
               className="ui-icon-btn--sm"
-              title={t("sidebar.rename")}
+              data-tip={t("sidebar.rename")}
               aria-label={t("sidebar.rename")}
               onClick={() => beginRename(entry)}
             >
@@ -186,7 +186,7 @@ export function Sidebar({
             </IconButton>
             <IconButton
               className="ui-icon-btn--sm"
-              title={t("sidebar.export")}
+              data-tip={t("sidebar.export")}
               aria-label={t("sidebar.export")}
               onClick={() => void api.exportSession(entry.id)}
             >
@@ -194,7 +194,7 @@ export function Sidebar({
             </IconButton>
             <IconButton
               className="ui-icon-btn--sm"
-              title={t("workspace.archive")}
+              data-tip={t("workspace.archive")}
               aria-label={t("workspace.archive")}
               onClick={() => onArchive(entry.id)}
             >
@@ -202,7 +202,7 @@ export function Sidebar({
             </IconButton>
             <IconButton
               className="ui-icon-btn--sm"
-              title={t("sidebar.delete")}
+              data-tip={t("sidebar.delete")}
               aria-label={t("sidebar.delete")}
               onClick={() => onDelete(entry.id)}
             >
@@ -310,7 +310,7 @@ export function Sidebar({
                     <div className="ui-session-actions" onClick={(e) => e.stopPropagation()}>
                       <IconButton
                         className="ui-icon-btn--sm"
-                        title={t("workspace.unarchive")}
+                        data-tip={t("workspace.unarchive")}
                         aria-label={t("workspace.unarchive")}
                         onClick={() => onUnarchive(session.id)}
                       >
@@ -318,7 +318,7 @@ export function Sidebar({
                       </IconButton>
                       <IconButton
                         className="ui-icon-btn--sm"
-                        title={t("sidebar.delete")}
+                        data-tip={t("sidebar.delete")}
                         aria-label={t("sidebar.delete")}
                         onClick={() => onDelete(session.id)}
                       >

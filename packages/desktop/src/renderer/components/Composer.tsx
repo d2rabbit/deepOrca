@@ -475,16 +475,31 @@ export function Composer(props: Props): JSX.Element {
             ) : null}
             {selectedSkills.length > 0 ? (
               <div className="ui-skill-chips">
-                {selectedSkills.map((name) => (
-                  <button
-                    key={name}
-                    className="ui-chip on"
-                    onClick={() => onToggleSkill(name)}
-                    title={t("composer.removeSkill")}
-                  >
-                    ✓ {name}
-                  </button>
-                ))}
+                {selectedSkills.map((name) => {
+                  const info = skills.find((s) => s.name === name);
+                  return (
+                    <div key={name} className="ui-composer-skill-card" title={info?.description || name}>
+                      <span className="ui-composer-skill-card-icon" aria-hidden="true">
+                        ✦
+                      </span>
+                      <div className="ui-composer-skill-card-main">
+                        <span className="ui-composer-skill-card-name">{name}</span>
+                        {info?.description ? (
+                          <span className="ui-composer-skill-card-desc">{info.description}</span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="ui-composer-skill-card-remove"
+                        onClick={() => onToggleSkill(name)}
+                        title={t("composer.removeSkill")}
+                        aria-label={t("composer.removeSkill")}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
           </div>

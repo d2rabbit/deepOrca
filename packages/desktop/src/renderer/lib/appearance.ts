@@ -16,11 +16,16 @@ export type ReasoningMode = "normal" | "expanded" | "hidden";
 // default and an opt-in alternative on macOS. Fusion is a Windows-only theme
 // blending Win8 tile colors with Win11 glassy breath. The user's explicit
 // choice is persisted and wins over the platform default.
-export type Theme = "aqua" | "metro" | "glass" | "fusion";
+export type Theme = "aqua" | "metro" | "glass" | "fusion" | "line";
+
+// The Line theme ships two flavours: the original "stroke" drafting look and a
+// cyberpunk 2077-inspired "punk" recolor, toggled via `data-line-variant`.
+export type LineVariant = "stroke" | "punk";
 
 const APPEARANCE_KEY = "deepcode.appearance";
 const REASONING_KEY = "deepcode.reasoningMode";
 const THEME_KEY = "deepcode.theme";
+const LINE_VARIANT_KEY = "deepcode.lineVariant";
 
 /** DOM id given to the injected theme stylesheet so it can be swapped at runtime. */
 export const THEME_LINK_ID = "deepcode-theme-css";
@@ -30,6 +35,7 @@ const THEME_STYLESHEETS: Record<Theme, string> = {
   metro: "./styles-metro.css",
   glass: "./styles-glass.css",
   fusion: "./styles-fusion.css",
+  line: "./styles-line.css",
 };
 
 /** The stylesheet href that binds `--ui-*` tokens for a theme. */
@@ -37,11 +43,9 @@ export function themeStylesheet(theme: Theme): string {
   return THEME_STYLESHEETS[theme];
 }
 
-/** The native theme for a platform (before any persisted user override). */
-export function defaultTheme(platform: string): Theme {
-  if (platform === "win32") return "metro";
-  if (platform === "linux") return "glass";
-  return "aqua";
+/** The default theme (before any persisted user override): Line everywhere. */
+export function defaultTheme(_platform: string): Theme {
+  return "line";
 }
 
 /** The non-glass theme a platform toggles back to when Glass is turned off. */
@@ -55,15 +59,17 @@ export function baseTheme(platform: string): Theme {
  * Linux only Glass. Defaults are NOT changed by this map.
  */
 export function availableThemes(platform: string): Theme[] {
-  if (platform === "win32") return ["metro", "fusion"];
-  if (platform === "darwin") return ["aqua", "glass"];
-  return ["glass"];
+  if (platform === "win32") return ["line", "metro", "fusion"];
+  if (platform === "darwin") return ["line", "aqua", "glass"];
+  return ["line", "glass"];
 }
 
 export function getStoredTheme(): Theme | null {
   try {
     const stored = localStorage.getItem(THEME_KEY);
-    return stored === "aqua" || stored === "metro" || stored === "glass" || stored === "fusion" ? stored : null;
+    return stored === "aqua" || stored === "metro" || stored === "glass" || stored === "fusion" || stored === "line"
+      ? stored
+      : null;
   } catch {
     return null;
   }
@@ -90,10 +96,37 @@ export function setTheme(theme: Theme): void {
   }
 }
 
+export function getStoredLineVariant(): LineVariant {
+  try {
+    const stored = localStorage.getItem(LINE_VARIANT_KEY);
+    return stored === "punk" ? "punk" : "stroke";
+  } catch {
+    return "stroke";
+  }
+}
+
+/** Apply the Line variant via a root data attribute (styles-line.css hooks it). */
+export function applyLineVariant(variant: LineVariant): void {
+  if (variant === "punk") {
+    document.documentElement.dataset.lineVariant = "punk";
+  } else {
+    delete document.documentElement.dataset.lineVariant;
+  }
+}
+
+export function setLineVariant(variant: LineVariant): void {
+  applyLineVariant(variant);
+  try {
+    localStorage.setItem(LINE_VARIANT_KEY, variant);
+  } catch {
+    // Persisting is best-effort.
+  }
+}
+
 /** The native tone for a platform's default stylesheet.
  *  Glass (Prism) is always dark-first regardless of platform. */
 export function defaultAppearance(platform: string, theme?: Theme): Appearance {
-  if (theme === "glass") return "dark";
+  if (theme === "glass" || theme === "line") return "dark";
   return platform === "win32" ? "dark" : "light";
 }
 

@@ -35,6 +35,7 @@ import type {
   AgentChangeFile,
   DiffPayload,
   EditableSettings,
+  GitCommitFileEntry,
   GitLogEntry,
   PermissionDecision,
   PluginMcpServer,
@@ -606,8 +607,12 @@ export class SessionBridge {
     return gitService.log(this.projectRoot, limit);
   }
 
-  gitCommitDiff(hash: string): Promise<DiffPayload> {
-    return gitService.commitDiff(this.projectRoot, hash);
+  gitCommitDiff(hash: string, file?: string): Promise<DiffPayload> {
+    return gitService.commitDiff(this.projectRoot, hash, file);
+  }
+
+  gitCommitFiles(hash: string): Promise<GitCommitFileEntry[]> {
+    return gitService.commitFiles(this.projectRoot, hash);
   }
 
   // ── MCP management (plugin module) ──────────────────────────────────────────

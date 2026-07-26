@@ -14,7 +14,27 @@ export function IndexLibraryPanel(): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [logRoot, setLogRoot] = useState<string | null>(null);
+  /** Parsed progress percentage (0-100) or null for indeterminate. */
+  const [percent, setPercent] = useState<number | null>(null);
   const logEndRef = useRef<HTMLDivElement | null>(null);
+  const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const closeLog = useCallback(() => {
+    if (autoCloseRef.current) {
+      clearTimeout(autoCloseRef.current);
+      autoCloseRef.current = null;
+    }
+    setLogRoot(null);
+    setLogLines([]);
+    setPercent(null);
+  }, []);
+
+  // Clear any pending auto-close timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
+    };
+  }, []);
 
   const reload = useCallback(async () => {
     setEntries(await api.codegraphList());
@@ -29,14 +49,33 @@ export function IndexLibraryPanel(): JSX.Element {
     const off = api.onCodegraphProgress((event: CodegraphProgressEvent) => {
       if (event.done) {
         setBusy(null);
+        setPercent(100);
         setLogLines((prev) => {
           const suffix = event.exitCode === 0 ? t("index.done") : `${t("index.failed")} (exit ${event.exitCode})`;
           return [...prev, `\n✓ ${suffix}`];
         });
         void reload();
+        // Auto-close the output window shortly after a successful run; keep it
+        // open on failure so the error output stays inspectable.
+        if (event.exitCode === 0) {
+          if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
+          autoCloseRef.current = setTimeout(() => {
+            autoCloseRef.current = null;
+            setLogRoot(null);
+            setLogLines([]);
+            setPercent(null);
+          }, 2500);
+        }
         return;
       }
       setLogRoot(event.root);
+      // Best-effort determinate progress: pick the last "NN%" seen in output.
+      const pctMatch = event.chunk.match(/(\d{1,3})(?:\.\d+)?\s*%/g);
+      if (pctMatch && pctMatch.length > 0) {
+        const last = pctMatch[pctMatch.length - 1] ?? "";
+        const value = Math.min(100, parseInt(last, 10));
+        if (!Number.isNaN(value)) setPercent(value);
+      }
       setLogLines((prev) => {
         const text = event.chunk.replace(/\n$/, "");
         if (!text) return prev;
@@ -55,9 +94,14 @@ export function IndexLibraryPanel(): JSX.Element {
   }, [logLines]);
 
   const reindex = useCallback(async (root: string) => {
+    if (autoCloseRef.current) {
+      clearTimeout(autoCloseRef.current);
+      autoCloseRef.current = null;
+    }
     setBusy(root);
     setLogRoot(root);
     setLogLines([`$ codegraph init ${root}`]);
+    setPercent(null);
     try {
       await api.codegraphReindex(root);
     } finally {
@@ -98,17 +142,18 @@ export function IndexLibraryPanel(): JSX.Element {
           <div className="ui-index-log">
             <div className="ui-index-log-head">
               <span>{logRoot}</span>
-              <IconButton
-                onClick={() => {
-                  setLogRoot(null);
-                  setLogLines([]);
-                }}
-                title="✕"
-                aria-label="close"
-              >
+              <IconButton onClick={closeLog} title={t("common.close")} aria-label={t("common.close")}>
                 ✕
               </IconButton>
             </div>
+            {busy !== null || percent !== null ? (
+              <div className="ui-index-progress">
+                <div
+                  className={`ui-index-progress-fill${busy !== null && percent === null ? " indeterminate" : ""}`}
+                  style={percent !== null ? { width: `${percent}%` } : undefined}
+                />
+              </div>
+            ) : null}
             <pre className="ui-index-log-body">
               {logLines.join("\n")}
               <div ref={logEndRef} />

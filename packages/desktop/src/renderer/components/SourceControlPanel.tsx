@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import type { AgentChangeFile, GitLogEntry, GitStatus, GitStatusFile } from "../../shared/ipc";
+import type { AgentChangeFile, GitCommitFileEntry, GitLogEntry, GitStatus, GitStatusFile } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton, Input } from "../ui/index";
@@ -45,6 +45,9 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff }: Props)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [splitRatio, setSplitRatio] = useState(55);
+  // History second level: the expanded commit and its per-commit file lists.
+  const [expandedHash, setExpandedHash] = useState<string | null>(null);
+  const [commitFiles, setCommitFiles] = useState<Record<string, GitCommitFileEntry[]>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
@@ -139,6 +142,23 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff }: Props)
     setMessage("");
     await reload();
   }, [message, reload, t]);
+
+  // First click on a history row expands its file list (second level);
+  // clicking again collapses it. Only the file rows open the diff overlay.
+  const toggleCommit = useCallback(
+    async (hash: string) => {
+      if (expandedHash === hash) {
+        setExpandedHash(null);
+        return;
+      }
+      setExpandedHash(hash);
+      if (!commitFiles[hash]) {
+        const files = await api.gitCommitFiles(hash);
+        setCommitFiles((prev) => ({ ...prev, [hash]: files }));
+      }
+    },
+    [expandedHash, commitFiles]
+  );
 
   if (!status.isRepo) {
     return (
@@ -287,15 +307,42 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff }: Props)
           <div className="ui-side-panel-empty">{t("scm.noHistory")}</div>
         ) : (
           log.map((entry) => (
-            <div
-              key={entry.hash}
-              className="ui-scm-commit-row"
-              title={`${entry.shortHash} · ${entry.author} · ${entry.date}`}
-              onClick={() => onOpenDiff({ kind: "commit", hash: entry.hash, subject: entry.subject })}
-            >
-              <span className="ui-scm-commit-hash">{entry.shortHash}</span>
-              <span className="ui-scm-commit-subject">{entry.subject}</span>
-              <span className="ui-scm-commit-meta">{entry.date}</span>
+            <div key={entry.hash} className="ui-scm-commit-block">
+              <div
+                className={`ui-scm-commit-row${expandedHash === entry.hash ? " expanded" : ""}`}
+                title={`${entry.shortHash} · ${entry.author} · ${entry.date}`}
+                onClick={() => void toggleCommit(entry.hash)}
+              >
+                <span className="ui-scm-commit-caret">{expandedHash === entry.hash ? "▾" : "▸"}</span>
+                <span className="ui-scm-commit-hash">{entry.shortHash}</span>
+                <span className="ui-scm-commit-subject">{entry.subject}</span>
+                <span className="ui-scm-commit-meta">{entry.date}</span>
+              </div>
+              {expandedHash === entry.hash ? (
+                <div className="ui-scm-commit-files">
+                  {!commitFiles[entry.hash] ? (
+                    <div className="ui-side-panel-empty">{t("diff.loading")}</div>
+                  ) : commitFiles[entry.hash].length === 0 ? (
+                    <div className="ui-side-panel-empty">{t("scm.noChanges")}</div>
+                  ) : (
+                    commitFiles[entry.hash].map((f) => (
+                      <div
+                        key={`${entry.hash}:${f.path}`}
+                        className="ui-scm-file ui-scm-commit-file"
+                        onClick={() =>
+                          onOpenDiff({ kind: "commit", hash: entry.hash, subject: entry.subject, file: f.path })
+                        }
+                      >
+                        <span className={`ui-scm-status ${statusCls(f.status)}`}>{f.status}</span>
+                        <span className="ui-scm-name" title={f.path}>
+                          {baseName(f.path)}
+                        </span>
+                        <span className="ui-scm-path">{f.path}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : null}
             </div>
           ))
         )}

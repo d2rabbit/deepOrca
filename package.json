@@ -15,7 +15,8 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "generate": "node scripts/generate-git-commit-info.js",
-    "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
+    "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/install-flutter-skills.js && node scripts/copy-bundle-assets.js",
+    "install-flutter-skills": "node scripts/install-flutter-skills.js",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
     "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\" --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",

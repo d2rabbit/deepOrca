@@ -27,17 +27,21 @@ type RailButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   badge?: boolean;
 };
 
-/** Single rail action; `active` highlights the current view. */
+/** Single rail action; `active` highlights the current view. The `title` prop
+ *  is rendered as a custom CSS tooltip (`data-tip`) instead of the tiny native
+ *  one, so hints stay readable. */
 export function RailButton({
   active = false,
   badge = false,
   className,
   type = "button",
+  title,
   ...rest
 }: RailButtonProps): JSX.Element {
   return (
     <button
       type={type}
+      data-tip={title || undefined}
       className={cx("ui-rail-btn", active && "ui-rail-btn--active", badge && "ui-rail-btn--badge", className)}
       {...rest}
     />

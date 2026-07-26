@@ -3,7 +3,15 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { I18nProvider } from "./i18n";
 import { api } from "./api";
-import { applyAppearance, resolveAppearance, resolveTheme, themeStylesheet, THEME_LINK_ID } from "./lib/appearance";
+import {
+  applyAppearance,
+  applyLineVariant,
+  getStoredLineVariant,
+  resolveAppearance,
+  resolveTheme,
+  themeStylesheet,
+  THEME_LINK_ID,
+} from "./lib/appearance";
 
 const container = document.getElementById("root");
 if (!container) {
@@ -35,6 +43,7 @@ async function bootstrap(): Promise<void> {
   const { platform } = await api.ready();
   const theme = resolveTheme(platform);
   applyAppearance(resolveAppearance(platform, theme));
+  if (theme === "line") applyLineVariant(getStoredLineVariant());
   // Shared primitive stylesheet first (theme-agnostic structure + token
   // fallbacks), then the resolved theme file (Aqua / Metro / Glass) which binds
   // --ui-*. The theme link carries a stable id so it can be swapped at runtime.

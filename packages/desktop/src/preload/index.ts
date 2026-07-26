@@ -84,7 +84,8 @@ const api: DesktopApi = {
   gitCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitCheckout, branch),
   gitDiff: (file, staged) => ipcRenderer.invoke(IpcRequest.GitDiff, file, staged),
   gitLog: (limit) => ipcRenderer.invoke(IpcRequest.GitLog, limit),
-  gitCommitDiff: (hash) => ipcRenderer.invoke(IpcRequest.GitCommitDiff, hash),
+  gitCommitDiff: (hash, file) => ipcRenderer.invoke(IpcRequest.GitCommitDiff, hash, file),
+  gitCommitFiles: (hash) => ipcRenderer.invoke(IpcRequest.GitCommitFiles, hash),
 
   // ── CodeGraph index library ──────────────────────────────────
   codegraphList: () => ipcRenderer.invoke(IpcRequest.CodegraphList),
@@ -93,8 +94,16 @@ const api: DesktopApi = {
 
   // ── Code Review (ocr) ─────────────────────────────────────────
   reviewCheckAvailable: () => ipcRenderer.invoke(IpcRequest.ReviewCheckAvailable),
-  reviewRun: (options) => ipcRenderer.invoke(IpcRequest.ReviewRun, options),
+  reviewRun: () => ipcRenderer.invoke(IpcRequest.ReviewRun),
   onReviewProgress: (cb) => subscribe(IpcEvent.ReviewProgress, cb as (p: never) => void),
+
+  // ── Wiki knowledge graph (openwiki) ─────────────────────────────
+  wikiCheckAvailable: () => ipcRenderer.invoke(IpcRequest.WikiCheckAvailable),
+  wikiInit: () => ipcRenderer.invoke(IpcRequest.WikiInit),
+  wikiUpdate: () => ipcRenderer.invoke(IpcRequest.WikiUpdate),
+  wikiListPages: () => ipcRenderer.invoke(IpcRequest.WikiListPages),
+  wikiReadPage: (path) => ipcRenderer.invoke(IpcRequest.WikiReadPage, path),
+  onWikiProgress: (cb) => subscribe(IpcEvent.WikiProgress, cb as (p: never) => void),
 
   // ── MCP management (plugin module) ─────────────────────────────
   pluginMcpList: () => ipcRenderer.invoke(IpcRequest.PluginMcpList),

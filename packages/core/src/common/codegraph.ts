@@ -1,8 +1,14 @@
-import { spawn, type ChildProcess, type SpawnOptions } from "child_process";
+import { execFileSync, execSync, spawn, type ChildProcess, type SpawnOptions } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { createRequire } from "node:module";
 import { createMcpSpawnSpec } from "../mcp/mcp-client";
 import type { McpServerConfig } from "../settings";
+
+// CommonJS-style require bound to this module — works in both the ESM dist
+// (loaded from node_modules) and bundled outputs, unlike a bare `require`
+// which only exists when an esbuild banner injects it.
+const moduleRequire = createRequire(import.meta.url);
 
 /**
  * CodeGraph integration.
@@ -80,47 +86,258 @@ function resolveVendorEntry(): string | null {
 }
 
 /**
- * Decide how to invoke CodeGraph. Prefers the vendored build (run through the
- * current Node/Electron binary); otherwise falls back to `npx`, which resolves the
- * published package from the registry / local cache without a global install.
+ * Decide how to invoke CodeGraph. Prefers the vendored build, run through a Node
+ * runtime that actually ships `node:sqlite` (CodeGraph's storage backend):
  *
- * NOTE: In Electron, `process.execPath` is the Electron binary. Even with
- * ELECTRON_RUN_AS_NODE=1, Electron does NOT insert the script path into argv[1]
- * the way plain Node does — the script path ends up as a positional argument,
- * causing commander to report "unknown command <path>". We therefore skip the
- * vendored path when running inside Electron and fall back to npx (or a system
- * node if available).
+ *   1. The host process itself, when it is plain Node with node:sqlite available.
+ *   2. A system Node verified to load node:sqlite — all PATH entries (`which -a`),
+ *      common install locations (Homebrew, /usr/local, Volta) that a GUI app's
+ *      PATH may miss, and nvm/fnm version directories.
+ *   3. Electron itself via ELECTRON_RUN_AS_NODE=1, when its bundled Node has
+ *      node:sqlite (Electron ≥35). argv is passed exactly like plain `node`, so
+ *      the CLI's arg parsing works unchanged.
+ *
+ * Only when no sqlite-capable runtime exists do we fall back to `npx`, which
+ * resolves the published package without a global install (and will surface
+ * CodeGraph's own Node-version error if the PATH Node is too old).
  */
 export function resolveCodegraphExecutable(): CodegraphExecutable {
   const entry = resolveVendorEntry();
-  if (entry && !process.versions.electron) {
-    return { command: process.execPath, prefixArgs: [entry] };
-  }
-  if (entry && process.versions.electron) {
-    // In Electron, try to find a system node to run the vendored entry.
-    // `process.env.NODE` is sometimes set in dev; otherwise fall through to npx.
-    const systemNode = process.env.NODE || findSystemNode();
+  if (entry) {
+    if (!process.versions.electron && selfNodeHasSqlite()) {
+      return { command: process.execPath, prefixArgs: [entry] };
+    }
+    const systemNode = resolveSqliteCapableNode();
     if (systemNode) {
-      return { command: systemNode, prefixArgs: [entry] };
+      const exe: CodegraphExecutable = { command: systemNode.bin, prefixArgs: [entry] };
+      if (systemNode.needsFlag) {
+        // Node 22.5–22.12 ships node:sqlite behind --experimental-sqlite.
+        exe.env = { NODE_OPTIONS: "--experimental-sqlite" };
+      }
+      return exe;
+    }
+    if (process.versions.electron && selfNodeHasSqlite()) {
+      return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
     }
   }
   return { command: "npx", prefixArgs: ["-y", CODEGRAPH_PACKAGE] };
 }
 
-/** Best-effort lookup for a system `node` binary (used in Electron). */
-function findSystemNode(): string | null {
+/** True when the current process's own Node runtime can run CodeGraph
+ * (node:sqlite present and below the Node 25+ range CodeGraph hard-blocks). */
+function selfNodeHasSqlite(): boolean {
   try {
-    const { execSync } = require("child_process") as typeof import("child_process");
-    const result = execSync(process.platform === "win32" ? "where node" : "which node", {
+    moduleRequire("node:sqlite");
+    return parseInt(process.versions.node, 10) < 25;
+  } catch {
+    return false;
+  }
+}
+
+type SqliteCapableNode = { bin: string; needsFlag: boolean };
+
+/** Cached result of the (relatively expensive) system Node probe. `undefined` = not probed yet. */
+let cachedSqliteNode: SqliteCapableNode | null | undefined;
+
+/** Locate (and cache) a system Node binary that can load node:sqlite. */
+function resolveSqliteCapableNode(): SqliteCapableNode | null {
+  if (cachedSqliteNode === undefined) {
+    cachedSqliteNode = findSqliteCapableNode();
+  }
+  return cachedSqliteNode;
+}
+
+/** Probe every candidate Node binary until one proves it can load node:sqlite. */
+function findSqliteCapableNode(): SqliteCapableNode | null {
+  for (const bin of listNodeCandidates()) {
+    const support = probeNodeSqlite(bin);
+    if (support) {
+      return { bin, needsFlag: support === "flag" };
+    }
+  }
+  return null;
+}
+
+/** Collect candidate Node binaries: explicit override, PATH, fixed locations, version managers. */
+function listNodeCandidates(): string[] {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  const push = (bin: string | undefined | null): void => {
+    if (!bin || seen.has(bin)) return;
+    seen.add(bin);
+    try {
+      if (fs.existsSync(bin)) candidates.push(bin);
+    } catch {
+      // Unreadable path — skip.
+    }
+  };
+
+  // 0. Explicit override (sometimes set in dev environments).
+  push(process.env.NODE);
+
+  // 1. Every node on PATH (`which -a` lists all entries, not just the first).
+  try {
+    const result = execSync(process.platform === "win32" ? "where node" : "which -a node", {
       encoding: "utf8",
       timeout: 3000,
       stdio: ["ignore", "pipe", "ignore"],
     });
-    const first = result.trim().split("\n")[0];
-    return first || null;
+    for (const line of result.trim().split("\n")) {
+      push(line.trim());
+    }
   } catch {
-    return null;
+    // PATH lookup failed — continue with fixed locations.
   }
+
+  // 2. Common install locations a GUI app's minimal PATH may miss.
+  if (process.platform !== "win32") {
+    const home = process.env.HOME || "";
+    push("/opt/homebrew/bin/node");
+    push("/usr/local/bin/node");
+    push("/usr/bin/node");
+    if (home) push(path.join(home, ".volta", "bin", "node"));
+  }
+
+  // 3. Version manager directories (nvm/fnm), newest first.
+  for (const bin of listVersionManagerNodes()) {
+    push(bin);
+  }
+  return candidates;
+}
+
+/** Scan common Node version manager directories for Node 22+ binaries (newest first). */
+function listVersionManagerNodes(): string[] {
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  const isWin = process.platform === "win32";
+  const nodeBin = isWin ? "node.exe" : "node";
+
+  // Build platform-specific search directories.
+  const searchDirs: { dir: string; binPath: (entry: string) => string }[] = [];
+  if (isWin) {
+    // nvm-windows: %APPDATA%\nvm\v22.x.x\node.exe
+    const appData = process.env.APPDATA || "";
+    if (appData) {
+      searchDirs.push({ dir: path.join(appData, "nvm"), binPath: (e) => path.join(e, nodeBin) });
+    }
+    // fnm (Windows): %LOCALAPPDATA%\fnm\node-versions\v22.x.x\installation\node.exe
+    const localAppData = process.env.LOCALAPPDATA || "";
+    if (localAppData) {
+      searchDirs.push({
+        dir: path.join(localAppData, "fnm", "node-versions"),
+        binPath: (e) => path.join(e, "installation", nodeBin),
+      });
+    }
+  } else {
+    // nvm: ~/.nvm/versions/node/v22.x.x/bin/node
+    if (home) {
+      searchDirs.push({
+        dir: path.join(home, ".nvm", "versions", "node"),
+        binPath: (e) => path.join(e, "bin", nodeBin),
+      });
+    }
+    // fnm: ~/.local/share/fnm/node-versions/v22.x.x/installation/bin/node
+    if (home) {
+      searchDirs.push({
+        dir: path.join(home, ".local", "share", "fnm", "node-versions"),
+        binPath: (e) => path.join(e, "installation", "bin", nodeBin),
+      });
+    }
+  }
+
+  const found: string[] = [];
+  for (const { dir, binPath } of searchDirs) {
+    try {
+      const entries = fs
+        .readdirSync(dir)
+        .filter((d) => {
+          const major = parseInt(d.replace(/^v/, ""), 10);
+          return Number.isFinite(major) && major >= 22;
+        })
+        .sort()
+        .reverse();
+      for (const entry of entries) {
+        const bin = binPath(path.join(dir, entry));
+        if (fs.existsSync(bin)) {
+          found.push(bin);
+        }
+      }
+    } catch {
+      // Directory doesn't exist — skip.
+    }
+  }
+  return found;
+}
+
+/** Cached results of the generic modern-Node probe, keyed by minimum major. */
+const cachedModernNodes = new Map<number, string | null>();
+
+/**
+ * Locate a runtime for vendored Node CLIs that need a minimum Node major
+ * (e.g. OpenWiki requires Node 22+ for require(esm) in its dependencies).
+ * Prefers the host process when it is plain Node and new enough, otherwise
+ * reuses the same candidate enumeration as the CodeGraph sqlite probe but
+ * only checks the version. Returns the binary path, or null when none found.
+ */
+export function resolveModernNode(minMajor: number): string | null {
+  if (!process.versions.electron && parseInt(process.versions.node, 10) >= minMajor) {
+    return process.execPath;
+  }
+  const cached = cachedModernNodes.get(minMajor);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let found: string | null = null;
+  for (const bin of listNodeCandidates()) {
+    if (probeNodeMajor(bin) >= minMajor) {
+      found = bin;
+      break;
+    }
+  }
+  cachedModernNodes.set(minMajor, found);
+  return found;
+}
+
+/** Return the major version of a Node binary, or -1 when probing fails. */
+function probeNodeMajor(bin: string): number {
+  try {
+    const out = execFileSync(bin, ["-e", "process.stdout.write(process.version)"], {
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const major = parseInt(out.replace(/^v/, ""), 10);
+    return Number.isFinite(major) ? major : -1;
+  } catch {
+    return -1;
+  }
+}
+
+/**
+ * Verify a Node binary is usable for CodeGraph, instead of trusting version
+ * numbers alone: it must load node:sqlite AND be below Node 25 — CodeGraph
+ * hard-blocks 25+ (V8 turboshaft WASM JIT Zone allocator bug crashes tree-sitter
+ * grammar compilation). "ok" = loads directly, "flag" = needs
+ * --experimental-sqlite (22.5–22.12), null = unsupported.
+ * Uses execFileSync to avoid shell injection via crafted paths.
+ */
+function probeNodeSqlite(bin: string): "ok" | "flag" | null {
+  const attempt = (args: string[]): boolean => {
+    try {
+      const out = execFileSync(bin, [...args, "-e", "require('node:sqlite');process.stdout.write(process.version)"], {
+        encoding: "utf8",
+        timeout: 5000,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+      const major = parseInt(out.replace(/^v/, ""), 10);
+      // CodeGraph's own bootstrap rejects Node >= 25 (WASM JIT OOM crash).
+      return Number.isFinite(major) && major < 25;
+    } catch {
+      return false;
+    }
+  };
+  if (attempt([])) return "ok";
+  if (attempt(["--experimental-sqlite"])) return "flag";
+  return null;
 }
 
 /**

@@ -308,7 +308,9 @@ select {
   background: var(--ui-surface-hover);
   color: var(--ui-text-faint);
   margin-left: var(--ui-space-2);
-  transition: background 0.2s var(--ui-ease), color 0.2s var(--ui-ease);
+  transition:
+    background 0.2s var(--ui-ease),
+    color 0.2s var(--ui-ease);
 }
 
 .ui-session-search {
@@ -344,7 +346,9 @@ select {
   border-radius: 50%;
   font-size: 10px;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 .ui-search-clear:hover {
   background: var(--ui-danger);
@@ -438,7 +442,10 @@ select {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.18s var(--ui-ease), max-height 0.18s var(--ui-ease), margin-top 0.18s var(--ui-ease);
+  transition:
+    opacity 0.18s var(--ui-ease),
+    max-height 0.18s var(--ui-ease),
+    margin-top 0.18s var(--ui-ease);
 }
 .ui-session-item:hover .ui-session-actions,
 .ui-session-item.active .ui-session-actions {
@@ -487,13 +494,18 @@ select {
 }
 .ui-topbar-session-title {
   font-size: 12px;
-  font-weight: 500;
-  color: var(--ui-text-dim);
+  font-weight: 600;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
-  opacity: 0.85;
+  /* Emphasis pill: at most ~5 CJK characters, the rest is ellipsized. */
+  max-width: calc(5em + 18px);
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-accent-soft);
+  opacity: 0.92;
   transition: opacity 0.2s ease;
 }
 .ui-topbar-session-status:hover .ui-topbar-session-title {
@@ -1179,7 +1191,9 @@ select {
   height: 22px;
   border-radius: var(--ui-radius-pill);
   background: var(--ui-border);
-  transition: background 0.16s var(--ui-ease), box-shadow 0.16s var(--ui-ease);
+  transition:
+    background 0.16s var(--ui-ease),
+    box-shadow 0.16s var(--ui-ease);
   position: relative;
 }
 .ui-switch:hover .ui-switch-track {
@@ -1205,7 +1219,9 @@ select {
 }
 .ui-switch input:checked + .ui-switch-track::after {
   transform: translateX(16px);
-  transition: transform 0.16s var(--ui-ease), width 0.1s var(--ui-ease);
+  transition:
+    transform 0.16s var(--ui-ease),
+    width 0.1s var(--ui-ease);
 }
 
 .ui-checkbox {
@@ -1271,7 +1287,9 @@ select {
   color: var(--ui-text);
   font-size: 13px;
   padding: 7px 10px;
-  transition: border-color 0.14s var(--ui-ease), box-shadow 0.14s var(--ui-ease);
+  transition:
+    border-color 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
 }
 .ui-input:focus,
 .ui-textarea:focus,
@@ -1319,8 +1337,15 @@ select {
   animation: ui-dot-pulse 1s ease-in-out infinite;
 }
 @keyframes ui-dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.75); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
 }
 .ui-status-dot--ready {
   background: var(--ui-success);
@@ -1498,9 +1523,15 @@ select {
     box-shadow 0.14s var(--ui-ease);
   animation: ui-card-stagger 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.ui-welcome-card:nth-child(2) { animation-delay: 0.05s; }
-.ui-welcome-card:nth-child(3) { animation-delay: 0.1s; }
-.ui-welcome-card:nth-child(4) { animation-delay: 0.15s; }
+.ui-welcome-card:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.ui-welcome-card:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.ui-welcome-card:nth-child(4) {
+  animation-delay: 0.15s;
+}
 @keyframes ui-card-stagger {
   from {
     opacity: 0;
@@ -1707,9 +1738,15 @@ select {
   animation: ui-copy-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes ui-copy-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.25); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* Message timestamp — small, muted, bottom-right */
@@ -1898,7 +1935,9 @@ button.ui-tool-head:hover {
   margin-left: var(--ui-space-1);
   width: 14px;
   text-align: center;
-  transition: transform 0.15s var(--ui-ease), color 0.12s ease;
+  transition:
+    transform 0.15s var(--ui-ease),
+    color 0.12s ease;
 }
 .ui-tool-card.open .ui-tool-chevron {
   color: var(--ui-accent);
@@ -2095,7 +2134,9 @@ button.ui-tool-head:hover {
   color: var(--ui-text-dim);
   text-align: left;
   border-radius: var(--ui-radius-sm);
-  transition: color 0.12s ease, background 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
 }
 .ui-tool-result-toggle:hover {
   color: var(--ui-text);
@@ -2127,7 +2168,10 @@ button.ui-tool-head:hover {
   font-size: 12px;
   color: var(--ui-text-faint);
   opacity: 0;
-  transition: opacity 0.15s var(--ui-ease), background 0.12s var(--ui-ease), color 0.12s var(--ui-ease);
+  transition:
+    opacity 0.15s var(--ui-ease),
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-tool-result:hover .ui-tool-result-copy {
   opacity: 1;
@@ -2181,7 +2225,9 @@ button.ui-tool-head:hover {
   background: var(--ui-surface-sunken);
   border-radius: var(--ui-radius-pill);
   display: inline-block;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 .ui-system-note:hover {
   background: var(--ui-surface-hover);
@@ -2242,7 +2288,10 @@ button.ui-tool-head:hover {
   font-size: 13px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s var(--ui-ease), background 0.12s var(--ui-ease), color 0.12s var(--ui-ease);
+  transition:
+    opacity 0.15s var(--ui-ease),
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-md .code-block-wrap:hover .code-block-copy {
   opacity: 1;
@@ -2465,8 +2514,13 @@ button.ui-tool-head:hover {
   animation: ui-perm-pulse 1.4s ease-in-out infinite;
 }
 @keyframes ui-perm-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Permission card keyboard hint */
@@ -2511,10 +2565,18 @@ button.ui-tool-head:hover {
 .ui-opt-row .ui-opt {
   animation: ui-opt-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.ui-opt-row .ui-opt:nth-child(1) { animation-delay: 0s; }
-.ui-opt-row .ui-opt:nth-child(2) { animation-delay: 0.04s; }
-.ui-opt-row .ui-opt:nth-child(3) { animation-delay: 0.08s; }
-.ui-opt-row .ui-opt:nth-child(4) { animation-delay: 0.12s; }
+.ui-opt-row .ui-opt:nth-child(1) {
+  animation-delay: 0s;
+}
+.ui-opt-row .ui-opt:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.ui-opt-row .ui-opt:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.ui-opt-row .ui-opt:nth-child(4) {
+  animation-delay: 0.12s;
+}
 @keyframes ui-opt-enter {
   from {
     opacity: 0;
@@ -2547,7 +2609,9 @@ button.ui-tool-head:hover {
   animation: ui-spin 0.8s linear infinite;
 }
 @keyframes ui-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* =========================================================================
@@ -2654,11 +2718,15 @@ button.ui-tool-head:hover {
   display: flex;
   flex-direction: column;
   gap: var(--ui-space-2);
-  transition: border-color 0.18s var(--ui-ease), box-shadow 0.18s var(--ui-ease);
+  transition:
+    border-color 0.18s var(--ui-ease),
+    box-shadow 0.18s var(--ui-ease);
 }
 .ui-composer-card:focus-within {
   border-color: var(--ui-accent);
-  box-shadow: var(--ui-shadow-card), 0 0 0 2px var(--ui-accent-soft);
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 2px var(--ui-accent-soft);
 }
 .ui-composer-card.plan-mode {
   border-color: var(--ui-info);
@@ -2666,7 +2734,9 @@ button.ui-tool-head:hover {
 }
 .ui-composer-card.plan-mode:focus-within {
   border-color: var(--ui-info);
-  box-shadow: var(--ui-shadow-card), 0 0 0 2px color-mix(in srgb, var(--ui-info) 18%, transparent);
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 2px color-mix(in srgb, var(--ui-info) 18%, transparent);
 }
 .ui-composer-attachments {
   display: flex;
@@ -2822,11 +2892,23 @@ button.ui-tool-head:hover {
   background: var(--ui-accent);
   animation: ui-dot-bounce 1.2s ease-in-out infinite;
 }
-.ui-thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
-.ui-thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+.ui-thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ui-thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
 @keyframes ui-dot-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-3px); opacity: 1; }
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
 }
 @keyframes ui-spin {
   to {
@@ -2950,7 +3032,9 @@ button.ui-tool-head:hover {
   font-size: 13px;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  transition: color 0.14s var(--ui-ease), border-color 0.14s var(--ui-ease);
+  transition:
+    color 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease);
 }
 .ui-tab:hover {
   color: var(--ui-text);
@@ -3171,7 +3255,9 @@ button.ui-tool-head:hover {
   padding: var(--ui-space-3) var(--ui-space-3);
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
-  transition: background 0.12s var(--ui-ease), border-color 0.12s var(--ui-ease);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
 }
 .ui-plugin-item:hover {
   background: var(--ui-surface-hover);
@@ -3299,11 +3385,21 @@ button.ui-tool-head:hover {
 .ui-undo-item:hover {
   border-color: var(--ui-accent);
 }
-.ui-undo-item:nth-child(1) { animation-delay: 0s; }
-.ui-undo-item:nth-child(2) { animation-delay: 0.04s; }
-.ui-undo-item:nth-child(3) { animation-delay: 0.08s; }
-.ui-undo-item:nth-child(4) { animation-delay: 0.12s; }
-.ui-undo-item:nth-child(5) { animation-delay: 0.16s; }
+.ui-undo-item:nth-child(1) {
+  animation-delay: 0s;
+}
+.ui-undo-item:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.ui-undo-item:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.ui-undo-item:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.ui-undo-item:nth-child(5) {
+  animation-delay: 0.16s;
+}
 .ui-undo-preview {
   font-size: 13px;
 }
@@ -3436,7 +3532,9 @@ button.ui-tool-head:hover {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ui-text-dim);
-  transition: background 0.12s var(--ui-ease), color 0.12s var(--ui-ease);
+  transition:
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 
 .ui-tree-ws-head:hover {
@@ -3568,7 +3666,9 @@ button.ui-tool-head:hover {
 
 .ui-scm-commit .ui-input {
   flex: 1;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .ui-scm-commit .ui-input:focus {
   border-color: var(--ui-accent);
@@ -3660,10 +3760,18 @@ button.ui-tool-head:hover {
   flex-shrink: 0;
   color: var(--ui-text-dim);
 }
-.ui-scm-status.modified { color: var(--ui-warning); }
-.ui-scm-status.added { color: var(--ui-success); }
-.ui-scm-status.deleted { color: var(--ui-danger); }
-.ui-scm-status.renamed { color: var(--ui-info); }
+.ui-scm-status.modified {
+  color: var(--ui-warning);
+}
+.ui-scm-status.added {
+  color: var(--ui-success);
+}
+.ui-scm-status.deleted {
+  color: var(--ui-danger);
+}
+.ui-scm-status.renamed {
+  color: var(--ui-info);
+}
 
 .ui-scm-name {
   white-space: nowrap;
@@ -4090,8 +4198,13 @@ button.ui-topbar-pill {
   animation: ui-bar-shimmer 2s ease-in-out infinite;
 }
 @keyframes ui-bar-shimmer {
-  0%, 100% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
 }
 .ui-topbar-token-bar-fill.near {
   background: var(--ui-warning);
@@ -4289,9 +4402,15 @@ button.ui-topbar-pill {
   gap: var(--ui-space-2);
   animation: ui-card-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.ui-token-bar-row:nth-child(2) { animation-delay: 0.05s; }
-.ui-token-bar-row:nth-child(3) { animation-delay: 0.1s; }
-.ui-token-bar-row:nth-child(4) { animation-delay: 0.15s; }
+.ui-token-bar-row:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.ui-token-bar-row:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.ui-token-bar-row:nth-child(4) {
+  animation-delay: 0.15s;
+}
 .ui-token-bar-label {
   font-size: 11.5px;
   color: var(--ui-text-dim);
@@ -4400,12 +4519,12 @@ button.ui-topbar-pill {
   gap: var(--ui-space-2);
   padding: var(--ui-space-2) 0;
 }
-.ui-review-mode {
+.ui-review-scope {
   flex: 1;
   min-width: 0;
-}
-.ui-review-ref {
-  width: 80px;
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+  line-height: 1.4;
 }
 .ui-review-summary {
   padding: var(--ui-space-2) var(--ui-space-3);
@@ -4470,6 +4589,44 @@ button.ui-topbar-pill {
   word-break: break-all;
 }
 
+/* ── Wiki knowledge graph panel (openwiki) ─────────────────────────────── */
+.ui-wiki-actions {
+  display: flex;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) 0;
+}
+.ui-wiki-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ui-wiki-page-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s var(--ui-ease);
+}
+.ui-wiki-page-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-wiki-content {
+  margin: 0;
+  padding: var(--ui-space-2);
+  font-family: var(--ui-font-mono, "SF Mono", "Cascadia Code", monospace);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ui-text-primary);
+}
+
 /* ── Plugin MCP rows (items 5 & 8) ───────────────────────────────────────── */
 .ui-mcp-row {
   display: flex;
@@ -4479,7 +4636,9 @@ button.ui-topbar-pill {
   padding: var(--ui-space-3);
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
-  transition: background 0.12s var(--ui-ease), border-color 0.12s var(--ui-ease);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
 }
 .ui-mcp-row:hover {
   background: var(--ui-surface-hover);
@@ -4757,7 +4916,9 @@ button.ui-topbar-pill {
   animation: ui-overlay-fade 0.18s ease both;
 }
 @keyframes ui-overlay-fade {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 .ui-diff-overlay-panel {
   display: flex;
@@ -4859,7 +5020,9 @@ button.ui-topbar-pill {
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface-raised);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .ui-bento-cell:hover {
   border-color: var(--ui-accent);
@@ -5357,14 +5520,30 @@ button.ui-topbar-pill {
 .ui-tree-children .ui-session-item {
   animation: ui-session-stagger 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.ui-tree-children .ui-session-item:nth-child(1) { animation-delay: 0s; }
-.ui-tree-children .ui-session-item:nth-child(2) { animation-delay: 0.03s; }
-.ui-tree-children .ui-session-item:nth-child(3) { animation-delay: 0.06s; }
-.ui-tree-children .ui-session-item:nth-child(4) { animation-delay: 0.09s; }
-.ui-tree-children .ui-session-item:nth-child(5) { animation-delay: 0.12s; }
-.ui-tree-children .ui-session-item:nth-child(6) { animation-delay: 0.15s; }
-.ui-tree-children .ui-session-item:nth-child(7) { animation-delay: 0.18s; }
-.ui-tree-children .ui-session-item:nth-child(8) { animation-delay: 0.21s; }
+.ui-tree-children .ui-session-item:nth-child(1) {
+  animation-delay: 0s;
+}
+.ui-tree-children .ui-session-item:nth-child(2) {
+  animation-delay: 0.03s;
+}
+.ui-tree-children .ui-session-item:nth-child(3) {
+  animation-delay: 0.06s;
+}
+.ui-tree-children .ui-session-item:nth-child(4) {
+  animation-delay: 0.09s;
+}
+.ui-tree-children .ui-session-item:nth-child(5) {
+  animation-delay: 0.12s;
+}
+.ui-tree-children .ui-session-item:nth-child(6) {
+  animation-delay: 0.15s;
+}
+.ui-tree-children .ui-session-item:nth-child(7) {
+  animation-delay: 0.18s;
+}
+.ui-tree-children .ui-session-item:nth-child(8) {
+  animation-delay: 0.21s;
+}
 @keyframes ui-session-stagger {
   from {
     opacity: 0;
@@ -5388,8 +5567,12 @@ button.ui-topbar-pill {
   background: var(--ui-accent);
   animation: ui-streaming-bounce 1.2s ease-in-out infinite;
 }
-.ui-topbar-streaming-dot:nth-child(2) { animation-delay: 0.15s; }
-.ui-topbar-streaming-dot:nth-child(3) { animation-delay: 0.3s; }
+.ui-topbar-streaming-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ui-topbar-streaming-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
 .ui-topbar-streaming-time {
   margin-left: 4px;
   font-family: var(--ui-font-mono);
@@ -5398,8 +5581,16 @@ button.ui-topbar-pill {
   opacity: 0.8;
 }
 @keyframes ui-streaming-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-3px); opacity: 1; }
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
 }
 
 /* Jump-to-latest unread badge */
@@ -5436,14 +5627,25 @@ button.ui-topbar-pill {
   animation: ui-composer-busy-pulse 2s ease-in-out infinite;
 }
 @keyframes ui-composer-busy-pulse {
-  0%, 100% { box-shadow: var(--ui-shadow-card), 0 0 0 2px var(--ui-accent-soft); }
-  50% { box-shadow: var(--ui-shadow-card), 0 0 0 4px var(--ui-accent-soft); }
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 4px var(--ui-accent-soft);
+  }
 }
 
 /* Composer ready state — gentle glow when text is ready to send */
 .ui-composer-card.ready:not(.busy) {
   border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
-  box-shadow: var(--ui-shadow-card), 0 0 0 1px var(--ui-accent-soft);
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 1px var(--ui-accent-soft);
 }
 
 /* Plan mode badge — small tag at top-right of composer card */
@@ -5467,9 +5669,6 @@ button.ui-topbar-pill {
 @media (max-width: 900px) {
   .ui-topbar-token-label {
     display: none;
-  }
-  .ui-topbar-session-title {
-    max-width: 140px;
   }
   .ui-conversation-inner {
     max-width: 95%;
@@ -5592,6 +5791,535 @@ button.ui-topbar-pill {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Command / skill trigger cards (chat + composer) ───────────────────── */
+/* Column wrapper so a user turn can stack skill cards above its bubble while
+   the row itself stays right-aligned. */
+.ui-user-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ui-space-2);
+  max-width: 85%;
+  min-width: 0;
+}
+.ui-user-stack > .ui-bubble {
+  max-width: 100%;
+}
+
+/* Slash command invocation card (user side) */
+.ui-cmd-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-md);
+  border-bottom-right-radius: 4px;
+  background: var(--ui-accent-soft);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  min-width: 180px;
+  transition: box-shadow 0.15s ease;
+}
+.ui-cmd-card:hover {
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-cmd-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: var(--ui-radius-sm);
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent);
+}
+.ui-cmd-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ui-cmd-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-cmd-card-kind {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-accent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+.ui-cmd-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-cmd-card-args {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 420px;
+}
+
+/* Skill attachments on a user message */
+.ui-msg-skills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+}
+.ui-msg-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  padding: 5px var(--ui-space-3);
+  max-width: 320px;
+  min-width: 0;
+}
+.ui-msg-skill-card-icon {
+  color: var(--ui-accent);
+  font-size: 13px;
+  flex: none;
+}
+.ui-msg-skill-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ui-msg-skill-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-msg-skill-card-kind {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-accent);
+}
+.ui-msg-skill-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-msg-skill-card-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Skill loaded" system card (centered row) */
+.ui-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  max-width: 560px;
+  min-width: 0;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ui-skill-card:hover {
+  box-shadow: var(--ui-shadow-sm);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+}
+.ui-skill-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  color: var(--ui-accent);
+  font-size: 13px;
+}
+.ui-skill-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ui-skill-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.ui-skill-card-title {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-skill-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-skill-card-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+  flex: none;
+}
+.ui-skill-card-badge.bundled {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+}
+.ui-skill-card-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-skill-card-check {
+  flex: none;
+  color: var(--ui-success);
+  font-size: 13px;
+}
+
+/* Selected-skill cards inside the composer attachment zone */
+.ui-composer-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-accent-soft);
+  padding: 4px var(--ui-space-2) 4px var(--ui-space-3);
+  max-width: 280px;
+  min-width: 0;
+}
+.ui-composer-skill-card-icon {
+  color: var(--ui-accent);
+  font-size: 12px;
+  flex: none;
+}
+.ui-composer-skill-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.ui-composer-skill-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-composer-skill-card-desc {
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-composer-skill-card-remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--ui-text-dim);
+  font-size: 13px;
+  line-height: 1;
+  transition:
+    background 0.1s var(--ui-ease),
+    color 0.1s var(--ui-ease);
+}
+.ui-composer-skill-card-remove:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-danger);
+}
+
+/* ── Index library progress bar ──────────────────────────────────────── */
+.ui-index-progress {
+  margin-top: var(--ui-space-2);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ui-border-soft);
+  overflow: hidden;
+}
+.ui-index-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--ui-accent);
+  transition: width 0.25s ease;
+}
+.ui-index-progress-fill.indeterminate {
+  width: 40%;
+  animation: ui-index-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes ui-index-indeterminate {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+
+/* ── SCM history: two-level commit → file list ──────────────────────── */
+.ui-scm-commit-block {
+  display: flex;
+  flex-direction: column;
+}
+.ui-scm-commit-caret {
+  flex: none;
+  width: 12px;
+  font-size: 9px;
+  color: var(--ui-text-faint);
+  text-align: center;
+  user-select: none;
+}
+.ui-scm-commit-row.expanded {
+  background: var(--ui-surface-hover);
+}
+.ui-scm-commit-row.expanded .ui-scm-commit-caret {
+  color: var(--ui-accent);
+}
+.ui-scm-commit-files {
+  margin-left: 16px;
+  padding: 2px 0 4px 4px;
+  border-left: 1px solid var(--ui-border-soft);
+  animation: ui-view-fade 0.15s var(--ui-ease) both;
+}
+.ui-scm-commit-file {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+/* ── Diff syntax highlighting (highlight.js tokens, scoped to diff text) ──── */
+.ui-diff-text .hljs-comment,
+.ui-diff-text .hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+.ui-diff-text .hljs-keyword,
+.ui-diff-text .hljs-selector-tag,
+.ui-diff-text .hljs-type,
+.ui-diff-text .hljs-tag {
+  color: #d73a49;
+}
+.ui-diff-text .hljs-string,
+.ui-diff-text .hljs-regexp,
+.ui-diff-text .hljs-addition {
+  color: #22863a;
+}
+.ui-diff-text .hljs-number,
+.ui-diff-text .hljs-literal,
+.ui-diff-text .hljs-attr,
+.ui-diff-text .hljs-attribute,
+.ui-diff-text .hljs-symbol,
+.ui-diff-text .hljs-selector-attr,
+.ui-diff-text .hljs-selector-pseudo,
+.ui-diff-text .hljs-selector-id,
+.ui-diff-text .hljs-selector-class {
+  color: #005cc5;
+}
+.ui-diff-text .hljs-title,
+.ui-diff-text .hljs-function .hljs-title,
+.ui-diff-text .hljs-title.function_,
+.ui-diff-text .hljs-title.class_ {
+  color: #6f42c1;
+}
+.ui-diff-text .hljs-built_in,
+.ui-diff-text .hljs-builtin-name,
+.ui-diff-text .hljs-variable,
+.ui-diff-text .hljs-template-variable,
+.ui-diff-text .hljs-params {
+  color: #e36209;
+}
+.ui-diff-text .hljs-meta,
+.ui-diff-text .hljs-doctag,
+.ui-diff-text .hljs-deletion {
+  color: #b31d28;
+}
+.ui-diff-text .hljs-name,
+.ui-diff-text .hljs-section,
+.ui-diff-text .hljs-bullet {
+  color: #735c0f;
+}
+.ui-diff-text .hljs-emphasis {
+  font-style: italic;
+}
+.ui-diff-text .hljs-strong {
+  font-weight: 600;
+}
+
+:root[data-appearance="dark"] .ui-diff-text .hljs-comment,
+:root[data-appearance="dark"] .ui-diff-text .hljs-quote {
+  color: #8b949e;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-keyword,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-tag,
+:root[data-appearance="dark"] .ui-diff-text .hljs-type,
+:root[data-appearance="dark"] .ui-diff-text .hljs-tag {
+  color: #ff7b72;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-string,
+:root[data-appearance="dark"] .ui-diff-text .hljs-regexp,
+:root[data-appearance="dark"] .ui-diff-text .hljs-addition {
+  color: #a5d6ff;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-number,
+:root[data-appearance="dark"] .ui-diff-text .hljs-literal,
+:root[data-appearance="dark"] .ui-diff-text .hljs-attr,
+:root[data-appearance="dark"] .ui-diff-text .hljs-attribute,
+:root[data-appearance="dark"] .ui-diff-text .hljs-symbol,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-attr,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-pseudo,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-id,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-class {
+  color: #79c0ff;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-title,
+:root[data-appearance="dark"] .ui-diff-text .hljs-function .hljs-title,
+:root[data-appearance="dark"] .ui-diff-text .hljs-title.function_,
+:root[data-appearance="dark"] .ui-diff-text .hljs-title.class_ {
+  color: #d2a8ff;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-built_in,
+:root[data-appearance="dark"] .ui-diff-text .hljs-builtin-name,
+:root[data-appearance="dark"] .ui-diff-text .hljs-variable,
+:root[data-appearance="dark"] .ui-diff-text .hljs-template-variable,
+:root[data-appearance="dark"] .ui-diff-text .hljs-params {
+  color: #ffa657;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-meta,
+:root[data-appearance="dark"] .ui-diff-text .hljs-doctag,
+:root[data-appearance="dark"] .ui-diff-text .hljs-deletion {
+  color: #ffdcd7;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-name,
+:root[data-appearance="dark"] .ui-diff-text .hljs-section,
+:root[data-appearance="dark"] .ui-diff-text .hljs-bullet {
+  color: #7ee787;
+}
+
+/* ── CSS tooltips ([data-tip]) ────────────────────────────────────── */
+[data-tip] {
+  position: relative;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  padding: 3px 8px;
+  border-radius: var(--ui-radius-sm);
+  border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
+  background: rgba(24, 24, 28, 0.94);
+  color: #f3f4f6;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2000;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+[data-tip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 0.35s;
+}
+:root[data-appearance="dark"] [data-tip]::after {
+  background: rgba(240, 240, 244, 0.96);
+  color: #17181c;
+  border-color: color-mix(in srgb, #000000 15%, transparent);
+}
+/* Rail buttons sit on the far-left edge — pop the tip to the right instead. */
+.ui-rail [data-tip]::after {
+  bottom: auto;
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%) translateX(-2px);
+}
+.ui-rail [data-tip]:hover::after {
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ── Command / skill card polish ─────────────────────────────────── */
+.ui-cmd-card {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface-raised)),
+    color-mix(in srgb, var(--ui-accent) 5%, var(--ui-surface-raised))
+  );
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+.ui-cmd-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border-soft));
+  box-shadow:
+    var(--ui-shadow-sm),
+    0 0 0 1px var(--ui-accent-soft);
+}
+.ui-cmd-card-icon {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 30%, transparent);
+}
+.ui-cmd-card-name {
+  letter-spacing: 0.01em;
+}
+.ui-msg-skill-card {
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+.ui-msg-skill-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
+  box-shadow: var(--ui-shadow-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -33,5 +33,6 @@ packages/core/src/generated/
 packages/vscode-ide-companion/*.vsix
 packages/vscode-ide-companion/templates/
 
-# Vendored CodeGraph build (checked out + compiled at build time via scripts/vendor-codegraph.js)
+# Vendored CodeGraph/OpenWiki builds (checked out + compiled at build time via scripts/vendor-*.js)
 packages/desktop/vendor/
+vendor-src/

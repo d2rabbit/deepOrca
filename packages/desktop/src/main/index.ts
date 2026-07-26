@@ -6,16 +6,19 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFile } from "node:fs/promises";
+import { statSync } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import {
   setShellIfWindows,
   configureCodegraphVendorRoot,
   hasCodegraphProject,
   runCodegraphResetWithOutput,
+  resolveCurrentSettings,
+  resolveModernNode,
 } from "@vegamo/deepcode-core";
 import type { ModelConfigSelection, UserPromptContent } from "@vegamo/deepcode-core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
-import type { CodegraphIndexEntry, EditableSettings, ReviewOptions, UndoRestoreMode } from "../shared/ipc.js";
+import type { CodegraphIndexEntry, EditableSettings, UndoRestoreMode, WikiPageEntry } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
 import { applyAppIcon } from "./app-icon.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
@@ -32,6 +35,32 @@ app.setName("DeepOrca");
 // (packages/desktop/vendor/codegraph). When absent (not yet vendored), the core
 // resolver transparently falls back to `npx @colbymchenry/codegraph`.
 configureCodegraphVendorRoot(join(__dirname, "..", "vendor", "codegraph"));
+
+// Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
+// kick off the vendor scripts in the background at boot so they fetch upstream
+// and recompile when new commits landed — the next launch picks up the update.
+// Packaged builds ship a frozen vendored copy and skip this.
+function refreshVendoredToolsInBackground(): void {
+  if (app.isPackaged) {
+    return;
+  }
+  for (const name of ["codegraph", "openwiki"]) {
+    const script = join(__dirname, "..", "..", "..", "scripts", `vendor-${name}.js`);
+    try {
+      const child = spawn(process.execPath, [script], {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        stdio: "ignore",
+        detached: process.platform !== "win32",
+      });
+      child.once("error", () => {
+        // Best-effort — the vendored copy stays as-is.
+      });
+      child.unref();
+    } catch {
+      // Best-effort — the vendored copy stays as-is.
+    }
+  }
+}
 
 // Deep Code's bash tool relies on a POSIX shell; on Windows this resolves Git Bash.
 process.env.NoDefaultCurrentDirectoryInExePath = "1";
@@ -63,9 +92,30 @@ function emit(channel: string, payload?: unknown): void {
   mainWindow?.webContents.send(channel, payload);
 }
 
+// The initial project root: the most recently active known workspace. Home is
+// only a last-resort fallback for a truly fresh install — it must never surface
+// as a workspace in the session tree (workspace-registry filters it out).
+function resolveInitialRoot(): string {
+  try {
+    const { workspaces } = listWorkspaceSessions("");
+    for (const w of workspaces) {
+      try {
+        if (statSync(w.root).isDirectory()) {
+          return w.root;
+        }
+      } catch {
+        // Stale root (moved/deleted) — try the next workspace.
+      }
+    }
+  } catch {
+    // Fall through to home.
+  }
+  return app.getPath("home");
+}
+
 function getBridge(): SessionBridge {
   if (!bridge) {
-    bridge = new SessionBridge(app.getPath("home"), emit);
+    bridge = new SessionBridge(resolveInitialRoot(), emit);
   }
   return bridge;
 }
@@ -259,7 +309,8 @@ function registerIpc(): void {
   handle(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
   handle(IpcRequest.GitDiff, (file: string, staged: boolean) => getBridge().gitDiff(file, staged));
   handle(IpcRequest.GitLog, (limit?: number) => getBridge().gitLog(limit));
-  handle(IpcRequest.GitCommitDiff, (hash: string) => getBridge().gitCommitDiff(hash));
+  handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
+  handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
 
   // ── CodeGraph index library ───────────────────────────────────────────────
   handle(IpcRequest.CodegraphList, (): CodegraphIndexEntry[] => {
@@ -294,14 +345,10 @@ function registerIpc(): void {
       });
     });
   });
-  handle(IpcRequest.ReviewRun, (options: ReviewOptions): Promise<{ ok: boolean; error?: string }> => {
+  // Review scope is fixed: uncommitted workspace changes (vs HEAD) in the current
+  // project — no branch/commit selection, the UI states the scope directly.
+  handle(IpcRequest.ReviewRun, (): Promise<{ ok: boolean; error?: string }> => {
     const args = ["review", "--format", "json"];
-    if (options.mode === "branch" && options.from) {
-      args.push("--from", options.from);
-      if (options.to) args.push("--to", options.to);
-    } else if (options.mode === "commit" && options.commit) {
-      args.push("--commit", options.commit);
-    }
     return new Promise((resolve) => {
       try {
         const cp = spawn("ocr", args, { cwd: getBridge().projectRoot, shell: true });
@@ -323,6 +370,152 @@ function registerIpc(): void {
         resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
       }
     });
+  });
+
+  // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
+  // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
+  // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run
+  // it as a built-in command through a system Node 22+ (OpenWiki's engines floor;
+  // its deps rely on require(esm), which Electron 33's bundled Node 20 lacks).
+  // Fallback: `npx -y openwiki`.
+  // Dedicated wiki agent model strategy: flash-first, pro-fallback.
+  const WIKI_MODEL_FLASH = "deepseek-v4-flash";
+  const WIKI_MODEL_PRO = "deepseek-v4-pro";
+  const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
+
+  /** Resolve how to invoke openwiki: vendored entry through a system Node 22+, or npx fallback. */
+  const resolveOpenwikiCommand = (): { command: string; prefixArgs: string[]; env?: Record<string, string> } => {
+    try {
+      if (statSync(OPENWIKI_VENDOR_ENTRY).isFile()) {
+        const node = resolveModernNode(22);
+        if (node) {
+          return { command: node, prefixArgs: [OPENWIKI_VENDOR_ENTRY] };
+        }
+      }
+    } catch {
+      // Vendored entry not present — fall through to npx.
+    }
+    return { command: "npx", prefixArgs: ["-y", "openwiki"] };
+  };
+
+  handle(IpcRequest.WikiCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
+    return new Promise((resolve) => {
+      const { command, prefixArgs, env } = resolveOpenwikiCommand();
+      const vendored = command !== "npx";
+      const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
+      execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
+        if (!err) {
+          resolve({ available: true, version: stdout.trim().split("\n")[0] });
+        } else {
+          // A vendored build counts as available even when --version probing fails.
+          resolve({ available: vendored });
+        }
+      });
+    });
+  });
+
+  /**
+   * Spawn openwiki with the wiki agent's model strategy:
+   * 1. Try flash model (fast/cheap) first
+   * 2. If flash fails (model unavailable), fall back to pro
+   * Passes the user's LLM credentials so openwiki uses the same endpoint.
+   */
+  const runWikiAgent = (args: string[]): Promise<{ ok: boolean; error?: string }> => {
+    const settings = resolveCurrentSettings(getBridge().projectRoot);
+    const env: Record<string, string> = { ...(process.env as Record<string, string>) };
+    if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
+    if (settings.baseURL) env.OPENAI_BASE_URL = settings.baseURL;
+
+    const spawnWith = (model: string): Promise<{ ok: boolean; error?: string }> => {
+      return new Promise((resolve) => {
+        try {
+          const { command, prefixArgs, env: exeEnv } = resolveOpenwikiCommand();
+          const cp = spawn(command, [...prefixArgs, ...args, "--model", model], {
+            cwd: getBridge().projectRoot,
+            env: { ...env, ...exeEnv, OPENWIKI_MODEL: model },
+          });
+          cp.stdout?.on("data", (d: Buffer) => {
+            emit(IpcEvent.WikiProgress, { chunk: d.toString(), stream: "stdout", done: false });
+          });
+          cp.stderr?.on("data", (d: Buffer) => {
+            emit(IpcEvent.WikiProgress, { chunk: d.toString(), stream: "stderr", done: false });
+          });
+          cp.on("error", (err) => {
+            resolve({ ok: false, error: `Failed to start openwiki: ${err.message}` });
+          });
+          cp.on("close", (code) => {
+            resolve({ ok: code === 0, error: code !== 0 ? `exit code ${code}` : undefined });
+          });
+        } catch (err) {
+          resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+      });
+    };
+
+    return (async () => {
+      // Phase 1: try flash model
+      emit(IpcEvent.WikiProgress, {
+        chunk: `[wiki-agent] model: ${WIKI_MODEL_FLASH}\n`,
+        stream: "stdout",
+        done: false,
+      });
+      const flashResult = await spawnWith(WIKI_MODEL_FLASH);
+      if (flashResult.ok) {
+        emit(IpcEvent.WikiProgress, { chunk: "", stream: "stdout", done: true, exitCode: 0 });
+        return flashResult;
+      }
+      // Phase 2: flash failed, fall back to pro
+      emit(IpcEvent.WikiProgress, {
+        chunk: `[wiki-agent] flash unavailable, falling back to ${WIKI_MODEL_PRO}\n`,
+        stream: "stderr",
+        done: false,
+      });
+      const proResult = await spawnWith(WIKI_MODEL_PRO);
+      emit(IpcEvent.WikiProgress, { chunk: "", stream: "stdout", done: true, exitCode: proResult.ok ? 0 : 1 });
+      return proResult;
+    })();
+  };
+
+  handle(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
+  handle(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
+
+  handle(IpcRequest.WikiListPages, async (): Promise<WikiPageEntry[]> => {
+    const { readdir } = await import("node:fs/promises");
+    const { join: pathJoin } = await import("node:path");
+    const wikiDir = pathJoin(getBridge().projectRoot, "openwiki");
+    try {
+      const entries: WikiPageEntry[] = [];
+      const walk = async (dir: string, prefix: string): Promise<void> => {
+        const items = await readdir(dir, { withFileTypes: true });
+        for (const item of items) {
+          const rel = prefix ? `${prefix}/${item.name}` : item.name;
+          if (item.isDirectory()) {
+            await walk(pathJoin(dir, item.name), rel);
+          } else if (item.name.endsWith(".md")) {
+            const title = item.name.replace(/\.md$/, "").replace(/[-_]/g, " ");
+            entries.push({ path: rel, title: title.charAt(0).toUpperCase() + title.slice(1) });
+          }
+        }
+      };
+      await walk(wikiDir, "");
+      entries.sort((a, b) => a.path.localeCompare(b.path));
+      return entries;
+    } catch {
+      return [];
+    }
+  });
+
+  handle(IpcRequest.WikiReadPage, async (path: string): Promise<string> => {
+    const { readFile } = await import("node:fs/promises");
+    const { join: pathJoin, normalize } = await import("node:path");
+    // Prevent path traversal
+    const safe = normalize(path).replace(/^(\.\.[/\\])+/, "");
+    const filePath = pathJoin(getBridge().projectRoot, "openwiki", safe);
+    try {
+      return await readFile(filePath, "utf-8");
+    } catch {
+      return "";
+    }
   });
 
   // ── MCP management (plugin module) ────────────────────────────────────────
@@ -370,6 +563,7 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   registerIpc();
   createWindow();
+  refreshVendoredToolsInBackground();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

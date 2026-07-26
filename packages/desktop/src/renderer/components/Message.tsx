@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import type { SessionMessage } from "../../shared/ipc";
+import type { SessionMessage, SkillInfo } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { renderMarkdown } from "../markdown";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../lib/messages";
 import { useI18n } from "../i18n";
 import {
+  IconCommand,
   IconToolRead,
   IconToolWrite,
   IconToolEdit,
@@ -222,16 +223,100 @@ function stripReadLineNumbers(text: string): string {
     .join("\n");
 }
 
+// ── Slash command detection ───────────────────────────────────────────────────
+/**
+ * Detect a user message that is a slash command invocation ("/init", "/continue
+ * extra args"…). The first whitespace-separated token must be exactly "/<word>"
+ * — a leading absolute path like "/Volumes/data" contains a second slash and is
+ * therefore not treated as a command.
+ */
+function parseSlashCommand(content: string): { name: string; args: string } | null {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("/")) return null;
+  const firstToken = trimmed.split(/\s+/, 1)[0] ?? "";
+  if (!/^\/[a-zA-Z][\w-]*$/.test(firstToken)) return null;
+  return { name: firstToken.slice(1), args: trimmed.slice(firstToken.length).trim() };
+}
+
+/** Source badge for a skill card: bundled skills ship with the product. */
+function SkillSourceBadge({ skill }: { skill: SkillInfo }): JSX.Element {
+  const { t } = useI18n();
+  const bundled = skill.path.startsWith("bundled:");
+  return (
+    <span className={`ui-skill-card-badge${bundled ? " bundled" : ""}`} title={skill.path}>
+      {bundled ? t("msg.skillSourceBuiltin") : t("msg.skillSourceLocal")}
+    </span>
+  );
+}
+
+/** Mini skill card attached to a user message (skills sent with the prompt). */
+function SkillAttachmentCard({ skill }: { skill: SkillInfo }): JSX.Element {
+  const { t } = useI18n();
+  return (
+    <div className="ui-msg-skill-card" title={skill.description || skill.name}>
+      <span className="ui-msg-skill-card-icon" aria-hidden="true">
+        ✦
+      </span>
+      <div className="ui-msg-skill-card-main">
+        <div className="ui-msg-skill-card-head">
+          <span className="ui-msg-skill-card-kind">{t("msg.skillBadge")}</span>
+          <span className="ui-msg-skill-card-name">{skill.name}</span>
+        </div>
+        {skill.description ? <div className="ui-msg-skill-card-desc">{truncate(skill.description, 80)}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Card rendering for a user-triggered slash command ("/init" …). */
+function CommandCard({ name, args, createTime }: { name: string; args: string; createTime?: string }): JSX.Element {
+  const { t } = useI18n();
+  return (
+    <div className="ui-cmd-card">
+      <span className="ui-cmd-card-icon" aria-hidden="true">
+        <IconCommand />
+      </span>
+      <div className="ui-cmd-card-main">
+        <div className="ui-cmd-card-head">
+          <span className="ui-cmd-card-kind">{t("msg.commandBadge")}</span>
+          <span className="ui-cmd-card-name">{name}</span>
+        </div>
+        {args ? <div className="ui-cmd-card-args">{args}</div> : null}
+      </div>
+      {createTime ? <span className="ui-msg-time user">{formatTime(createTime)}</span> : null}
+    </div>
+  );
+}
+
 // ── User bubble (QQ-style: right-aligned) ─────────────────────────────────────
 function UserBubble({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();
   const attachments = Array.isArray(message.contentParams) ? message.contentParams.length : 0;
+  const skills = message.meta?.userPrompt?.skills ?? [];
+  const command = parseSlashCommand(message.content || "");
+
+  // Command invocations render as a dedicated card instead of a text bubble.
+  const body = command ? (
+    <CommandCard name={command.name} args={command.args} createTime={message.createTime} />
+  ) : message.content || attachments > 0 || skills.length === 0 ? (
+    <div className="ui-bubble user">
+      <span style={{ whiteSpace: "pre-wrap" }}>{message.content || t("msg.noContent")}</span>
+      {attachments > 0 ? <span className="ui-bubble-attach">{attachments} img</span> : null}
+      {message.createTime ? <span className="ui-msg-time user">{formatTime(message.createTime)}</span> : null}
+    </div>
+  ) : null;
+
   return (
     <div className="ui-bubble-row user">
-      <div className="ui-bubble user">
-        <span style={{ whiteSpace: "pre-wrap" }}>{message.content || t("msg.noContent")}</span>
-        {attachments > 0 ? <span className="ui-bubble-attach">{attachments} img</span> : null}
-        {message.createTime ? <span className="ui-msg-time user">{formatTime(message.createTime)}</span> : null}
+      <div className="ui-user-stack">
+        {skills.length > 0 ? (
+          <div className="ui-msg-skills">
+            {skills.map((skill) => (
+              <SkillAttachmentCard key={skill.name} skill={skill} />
+            ))}
+          </div>
+        ) : null}
+        {body}
       </div>
       <Avatar role="user" />
     </div>
@@ -483,6 +568,31 @@ function SystemNote({ children }: { children: React.ReactNode }): JSX.Element {
   );
 }
 
+// ── Skill loaded card (system message with meta.skill) ───────────────────────
+function SkillLoadedCard({ skill }: { skill: SkillInfo }): JSX.Element {
+  const { t } = useI18n();
+  return (
+    <div className="ui-bubble-row system">
+      <div className="ui-skill-card">
+        <span className="ui-skill-card-icon" aria-hidden="true">
+          ✦
+        </span>
+        <div className="ui-skill-card-main">
+          <div className="ui-skill-card-head">
+            <span className="ui-skill-card-title">{t("msg.skillLoadedTitle")}</span>
+            <span className="ui-skill-card-name">{skill.name}</span>
+            <SkillSourceBadge skill={skill} />
+          </div>
+          {skill.description ? <div className="ui-skill-card-desc">{truncate(skill.description, 140)}</div> : null}
+        </div>
+        <span className="ui-skill-card-check" aria-hidden="true">
+          ✓
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Message dispatcher ───────────────────────────────────────────────────
 export function Message({
   message,
@@ -530,7 +640,7 @@ export function Message({
       return <SystemNote>{message.content || ""}</SystemNote>;
     }
     if (message.meta?.skill) {
-      return <SystemNote>› {t("msg.loadedSkill", { name: message.meta.skill.name })}</SystemNote>;
+      return <SkillLoadedCard skill={message.meta.skill} />;
     }
     if (message.meta?.isSummary) {
       return <SystemNote>› {t("msg.summaryInserted")}</SystemNote>;

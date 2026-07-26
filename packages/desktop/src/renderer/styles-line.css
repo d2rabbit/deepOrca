@@ -1,0 +1,404 @@
+/* ===========================================================================
+   Line theme — "Stroke" design language.
+
+   Inspired by the project's SVG icon system: 1.5px precise strokes, geometric
+   purity, `currentColor` monochrome philosophy, and round line-cap softness.
+
+   Design identity (completely independent from Aqua/Metro/Glass/Fusion):
+     · Hairline precision: 1px borders drawn like SVG strokes — deliberate,
+       visible, structural. NOT blurred, NOT glassy, NOT glossy.
+     · Monochrome + single accent: like `currentColor` icons, the UI is
+       grayscale-first with ONE precise indigo accent cutting through.
+     · Flat geometry: zero gradients, zero blur, zero specular highlights.
+       Depth comes from border hierarchy alone (like line-weight in drafting).
+     · Round-cap radii: 6px consistent rounding echoing `strokeLinecap="round"`
+       and `strokeLinejoin="round"` — soft but precise, never pillowy.
+     · Cross-platform neutral: system font stack with no OS bias. Works
+       identically on macOS, Windows, and Linux.
+     · High legibility: strong contrast ratios, clear figure/ground separation.
+     · Technical instrument aesthetic: like a precision oscilloscope or
+       engineering CAD viewport — functional beauty through restraint.
+
+   Like other themes, this file ships NO layout; ui.css owns structure via
+   the semantic `--ui-*` vocabulary. Here we:
+     (1) bind `--ui-*` to the Stroke palette (dark default + light variant),
+     (2) add Stroke flourishes hooked onto primitive classes.
+   =========================================================================== */
+
+:root {
+  /* ── Stroke palette (dark — default) ── */
+  --line-bg: #141416;
+  --line-surface: #1c1c1f;
+  --line-surface-raised: #242428;
+  --line-surface-sunken: #0e0e10;
+  --line-stroke: rgba(255, 255, 255, 0.14);
+  --line-stroke-soft: rgba(255, 255, 255, 0.07);
+  --line-accent: #5b7ff5;
+  --line-accent-strong: #4466dd;
+  --line-accent-soft: rgba(91, 127, 245, 0.12);
+
+  /* ── Semantic token bindings (dark) ── */
+  --ui-bg: var(--line-bg);
+  --ui-surface: var(--line-surface);
+  --ui-surface-raised: var(--line-surface-raised);
+  --ui-surface-sunken: var(--line-surface-sunken);
+  --ui-surface-hover: rgba(255, 255, 255, 0.05);
+
+  --ui-text: #ececee;
+  --ui-text-dim: #a0a0a8;
+  --ui-text-faint: #68686f;
+  --ui-text-on-accent: #ffffff;
+
+  --ui-accent: var(--line-accent);
+  --ui-accent-strong: var(--line-accent-strong);
+  --ui-accent-soft: var(--line-accent-soft);
+  --ui-accent-fill: var(--line-accent);
+  --ui-focus-ring: rgba(91, 127, 245, 0.6);
+
+  --ui-border: var(--line-stroke);
+  --ui-border-soft: var(--line-stroke-soft);
+
+  --ui-success: #3dd68c;
+  --ui-danger: #f06565;
+  --ui-warning: #f5b73d;
+  --ui-info: #7c8cf8;
+
+  /* Round-cap radii — consistent 6px echoing strokeLinecap="round". */
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 6px;
+  --ui-radius-lg: 8px;
+  --ui-radius-pill: 999px;
+
+  /* Minimal shadows — depth via borders, not blur. */
+  --ui-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --ui-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --ui-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  /* Cross-platform neutral font stack — no OS bias. */
+  --ui-font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --ui-font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", "Fira Code", Consolas, "Noto Sans Mono", monospace;
+}
+
+/* ── Stroke — Light variant ─────────────────────────────────────────────────
+   Clean white drafting paper with precise graphite lines. */
+:root[data-appearance="light"] {
+  --line-bg: #fafafa;
+  --line-surface: #ffffff;
+  --line-surface-raised: #ffffff;
+  --line-surface-sunken: #f2f2f4;
+  --line-stroke: rgba(0, 0, 0, 0.13);
+  --line-stroke-soft: rgba(0, 0, 0, 0.06);
+  --line-accent: #4466dd;
+  --line-accent-strong: #3352bb;
+  --line-accent-soft: rgba(68, 102, 221, 0.09);
+
+  --ui-bg: var(--line-bg);
+  --ui-surface: var(--line-surface);
+  --ui-surface-raised: var(--line-surface-raised);
+  --ui-surface-sunken: var(--line-surface-sunken);
+  --ui-surface-hover: rgba(0, 0, 0, 0.04);
+
+  --ui-text: #1a1a1e;
+  --ui-text-dim: #55555c;
+  --ui-text-faint: #8c8c94;
+
+  --ui-accent: var(--line-accent);
+  --ui-accent-strong: var(--line-accent-strong);
+  --ui-accent-soft: var(--line-accent-soft);
+  --ui-accent-fill: var(--line-accent);
+  --ui-focus-ring: rgba(68, 102, 221, 0.45);
+
+  --ui-border: var(--line-stroke);
+  --ui-border-soft: var(--line-stroke-soft);
+
+  --ui-success: #1a9e5c;
+  --ui-danger: #d63c3c;
+  --ui-warning: #c08a12;
+  --ui-info: #5566cc;
+
+  --ui-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --ui-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.07);
+  --ui-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* ===========================================================================
+   Flourishes — Stroke decoration hooked onto primitive classes.
+   The signature: visible 1px borders as structural elements (like SVG strokes),
+   a single accent line as orientation cue, and zero decorative noise.
+   =========================================================================== */
+
+/* Clean flat backdrop — no gradients, no patterns. Pure ground. */
+.ui-shell {
+  background: var(--ui-bg);
+}
+
+/* Cards: defined by their border (the "stroke"), not by shadow or fill. */
+.ui-msg-card {
+  border: 1px solid var(--ui-border);
+  box-shadow: none;
+}
+
+/* Rail: a single hairline separates it from the canvas — like a SVG viewBox edge. */
+.ui-rail {
+  border-right: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+}
+
+/* Rail buttons: round-cap hover state echoing icon stroke rounding. */
+.ui-rail-btn:hover {
+  background: var(--ui-surface-hover);
+  border-radius: var(--ui-radius-md);
+}
+.ui-rail-btn.active {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border-radius: var(--ui-radius-md);
+}
+
+/* Primary button: flat fill, no gradient, precise like a filled SVG path. */
+.ui-btn-primary {
+  background: var(--ui-accent-fill);
+  border: none;
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+.ui-btn-primary:hover {
+  background: var(--ui-accent-strong);
+}
+
+/* Secondary button: stroke-only (outlined), like an unfilled SVG shape. */
+.ui-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+.ui-btn-secondary:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+/* Input/prompt: defined by its border stroke, focus = accent stroke. */
+.ui-prompt {
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface-sunken);
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+.ui-prompt:focus {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 2px var(--ui-accent-soft);
+  background: var(--ui-surface);
+}
+
+/* Tool cards: left accent border = the "current stroke color" indicator. */
+.ui-tool-card {
+  border: 1px solid var(--ui-border-soft);
+  border-left: 2px solid var(--ui-text-faint);
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+.ui-tool-card.bash {
+  border-left-color: var(--ui-accent);
+}
+.ui-tool-card.read {
+  border-left-color: var(--ui-success);
+}
+.ui-tool-card.write,
+.ui-tool-card.edit {
+  border-left-color: var(--ui-warning);
+}
+.ui-tool-card.search {
+  border-left-color: var(--ui-info);
+}
+.ui-tool-card.mcp {
+  border-left-color: #c084fc;
+}
+
+/* Code blocks: sunken with precise border — like a nested viewBox. */
+.ui-md pre,
+.ui-md .code-block-wrap pre.code-block {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+}
+.ui-md code {
+  background: var(--ui-surface-sunken);
+  border-radius: var(--ui-radius-sm);
+}
+
+/* Modals & command palette: clean border, minimal shadow, no blur. */
+.ui-modal-card,
+.ui-cmdk {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-modal);
+  backdrop-filter: none;
+}
+
+/* Tabs: underline indicator (like a precise SVG path segment). */
+.ui-tab.active {
+  border-bottom: 2px solid var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+/* Side panel: hairline separation. */
+.ui-side-panel {
+  border-right: 1px solid var(--ui-border-soft);
+}
+
+/* Scrollbar: thin, precise, monochrome — like a 1px stroke. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-stroke);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-text-faint);
+}
+
+/* Selection: accent-soft highlight. */
+::selection {
+  background: var(--ui-accent-soft);
+}
+
+/* Status dot: clean circle, no glow. */
+.ui-status-dot {
+  box-shadow: none;
+}
+
+/* Diff overlay: precise borders. */
+.ui-diff {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+}
+
+/* Plan card: stroke-defined. */
+.ui-tool-plan {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+}
+.ui-tool-plan-label {
+  background: var(--ui-surface-sunken);
+}
+
+/* System note: subtle recessed area. */
+.ui-system-note {
+  background: var(--ui-surface-sunken);
+  border-radius: var(--ui-radius-md);
+}
+
+/* Focus visible: precise 2px accent ring (like a selection outline in CAD). */
+:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 1px;
+}
+/* ===========================================================================
+   Punk variant — "Night City" recolor (a 2077 tribute), toggled at runtime via
+   `data-line-variant="punk"` on <html>. Same stroke-driven structure as the
+   original Line theme; only the palette + a few flourishes mutate:
+     · Signal yellow (#fcee0a) as the cutting accent, cyan as the info channel.
+     · Near-black ground with a faint warm tint, harder corners (2px), and a
+       subtle neon glow on focus/accent elements.
+   =========================================================================== */
+:root[data-line-variant="punk"] {
+  /* ── Night City palette (dark) ── */
+  --line-bg: #0b0b0d;
+  --line-surface: #121215;
+  --line-surface-raised: #1a1a1e;
+  --line-surface-sunken: #060607;
+  --line-stroke: rgba(252, 238, 10, 0.22);
+  --line-stroke-soft: rgba(252, 238, 10, 0.09);
+  --line-accent: #fcee0a;
+  --line-accent-strong: #e0d400;
+  --line-accent-soft: rgba(252, 238, 10, 0.12);
+
+  --ui-surface-hover: rgba(252, 238, 10, 0.06);
+
+  --ui-text: #f2f2ec;
+  --ui-text-dim: #b8b8a6;
+  --ui-text-faint: #74746a;
+  --ui-text-on-accent: #0b0b0d;
+
+  --ui-focus-ring: rgba(0, 240, 255, 0.55);
+
+  --ui-success: #00f0a0;
+  --ui-danger: #ff003c;
+  --ui-warning: #fcee0a;
+  --ui-info: #00f0ff;
+
+  /* Harder chamfered corners — tech armor, not soft caps. */
+  --ui-radius-sm: 1px;
+  --ui-radius-md: 2px;
+  --ui-radius-lg: 3px;
+
+  /* Neon-tinted depth. */
+  --ui-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+  --ui-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(252, 238, 10, 0.05);
+  --ui-shadow-modal: 0 8px 40px rgba(0, 0, 0, 0.75), 0 0 24px rgba(0, 240, 255, 0.08);
+}
+
+/* Punk on light appearance: "corpo daylight" — pale ground, ink strokes,
+   yellow kept as the signal color. */
+:root[data-line-variant="punk"][data-appearance="light"] {
+  --line-bg: #f4f2ea;
+  --line-surface: #fbfaf4;
+  --line-surface-raised: #ffffff;
+  --line-surface-sunken: #eae7db;
+  --line-stroke: rgba(20, 20, 10, 0.28);
+  --line-stroke-soft: rgba(20, 20, 10, 0.12);
+  --line-accent: #b7a900;
+  --line-accent-strong: #948900;
+  --line-accent-soft: rgba(183, 169, 0, 0.14);
+
+  --ui-surface-hover: rgba(20, 20, 10, 0.05);
+
+  --ui-text: #14140c;
+  --ui-text-dim: #4c4c40;
+  --ui-text-faint: #84847a;
+  --ui-text-on-accent: #14140c;
+
+  --ui-focus-ring: rgba(0, 160, 175, 0.5);
+
+  --ui-success: #0a8f60;
+  --ui-danger: #d40031;
+  --ui-warning: #a08e00;
+  --ui-info: #007e8c;
+
+  --ui-shadow-sm: 0 1px 3px rgba(20, 20, 10, 0.12);
+  --ui-shadow-card: 0 2px 8px rgba(20, 20, 10, 0.1);
+  --ui-shadow-modal: 0 8px 32px rgba(20, 20, 10, 0.18);
+}
+
+/* Punk flourishes — small neon touches on top of the stroke structure. */
+:root[data-line-variant="punk"] .ui-rail {
+  border-right-color: var(--line-stroke);
+}
+:root[data-line-variant="punk"] .ui-rail-btn.active {
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+:root[data-line-variant="punk"] .ui-prompt:focus {
+  border-color: var(--ui-info);
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.15);
+}
+:root[data-line-variant="punk"] .ui-tab.active {
+  border-bottom-color: var(--ui-info);
+  color: var(--ui-info);
+}
+:root[data-line-variant="punk"] ::selection {
+  background: rgba(0, 240, 255, 0.25);
+}
+:root[data-line-variant="punk"] .ui-status-dot {
+  box-shadow: 0 0 6px currentColor;
+}
+:root[data-line-variant="punk"] :focus-visible {
+  outline-color: var(--ui-info);
+}

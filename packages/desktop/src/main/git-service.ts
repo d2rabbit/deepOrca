@@ -5,7 +5,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { DiffPayload, GitLogEntry, GitStatus, GitStatusFile } from "../shared/ipc.js";
+import type { DiffPayload, GitCommitFileEntry, GitLogEntry, GitStatus, GitStatusFile } from "../shared/ipc.js";
 
 const run = promisify(execFile);
 
@@ -226,16 +226,48 @@ export async function log(cwd: string, limit = 50): Promise<GitLogEntry[]> {
   }
 }
 
-/** Combined diff for a single commit (`git show <hash>`). */
-export async function commitDiff(cwd: string, hash: string): Promise<DiffPayload> {
+/** Diff for a single commit (`git show <hash>`), optionally for one file. */
+export async function commitDiff(cwd: string, hash: string, file?: string): Promise<DiffPayload> {
   const trimmed = hash.trim();
   if (!trimmed) {
     return { file: "", diff: "", binary: false };
   }
   try {
-    const { stdout } = await git(cwd, ["show", "--no-color", trimmed]);
-    return { file: trimmed, diff: stdout, binary: /^Binary files /m.test(stdout) };
+    const args = ["show", "--no-color", trimmed];
+    if (file) {
+      args.push("--", file);
+    }
+    const { stdout } = await git(cwd, args);
+    return { file: file ?? trimmed, diff: stdout, binary: /^Binary files /m.test(stdout) };
   } catch (err) {
-    return { file: trimmed, diff: `# ${toError(err)}`, binary: false };
+    return { file: file ?? trimmed, diff: `# ${toError(err)}`, binary: false };
+  }
+}
+
+/** Files touched by a commit (`git show --name-status`). Soft-fails to `[]`. */
+export async function commitFiles(cwd: string, hash: string): Promise<GitCommitFileEntry[]> {
+  const trimmed = hash.trim();
+  if (!trimmed) {
+    return [];
+  }
+  try {
+    const { stdout } = await git(cwd, ["show", "--name-status", "--format=", "--no-color", trimmed]);
+    const files: GitCommitFileEntry[] = [];
+    for (const line of stdout.split("\n")) {
+      const row = line.trim();
+      if (!row) {
+        continue;
+      }
+      const parts = row.split("\t");
+      const status = (parts[0] ?? "").charAt(0);
+      // Renames/copies carry two paths (old \t new) — show the new one.
+      const path = parts[parts.length - 1] ?? "";
+      if (status && path) {
+        files.push({ path, status });
+      }
+    }
+    return files;
+  } catch {
+    return [];
   }
 }

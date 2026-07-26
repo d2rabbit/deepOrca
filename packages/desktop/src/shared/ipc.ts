@@ -85,6 +85,7 @@ export const IpcRequest = {
   GitDiff: "git:diff",
   GitLog: "git:log",
   GitCommitDiff: "git:commitDiff",
+  GitCommitFiles: "git:commitFiles",
 
   // Agent changes (write/edit files in a session)
   AgentChangesList: "agent:changesList",
@@ -100,6 +101,13 @@ export const IpcRequest = {
   // Code Review (Open Code Review / ocr CLI)
   ReviewRun: "review:run",
   ReviewCheckAvailable: "review:checkAvailable",
+
+  // Wiki knowledge graph (openwiki CLI)
+  WikiCheckAvailable: "wiki:checkAvailable",
+  WikiInit: "wiki:init",
+  WikiUpdate: "wiki:update",
+  WikiListPages: "wiki:listPages",
+  WikiReadPage: "wiki:readPage",
 
   // MCP management (moved out of settings into the plugin module)
   PluginMcpList: "plugin:mcpList",
@@ -117,6 +125,7 @@ export const IpcEvent = {
   PluginEvent: "event:pluginEvent",
   CodegraphProgress: "event:codegraphProgress",
   ReviewProgress: "event:reviewProgress",
+  WikiProgress: "event:wikiProgress",
 } as const;
 
 /** Payload for the ReviewProgress event (streamed ocr output). */
@@ -140,16 +149,24 @@ export type ReviewComment = {
   suggestion?: string;
 };
 
-/** Options for launching a code review. */
-export type ReviewOptions = {
-  /** Review mode: workspace (default), branch range, or single commit. */
-  mode: "workspace" | "branch" | "commit";
-  /** Base ref for branch mode. */
-  from?: string;
-  /** Head ref for branch mode. */
-  to?: string;
-  /** Commit hash for commit mode. */
-  commit?: string;
+/** Payload for the WikiProgress event (streamed openwiki output). */
+export type WikiProgressEvent = {
+  /** A chunk of process output. */
+  chunk: string;
+  /** Which stream produced the chunk. */
+  stream: "stdout" | "stderr";
+  /** True when the process has exited. */
+  done: boolean;
+  /** Exit code, present only when done=true. */
+  exitCode?: number;
+};
+
+/** A single wiki page entry from the openwiki/ directory. */
+export type WikiPageEntry = {
+  /** Relative path within the openwiki/ directory. */
+  path: string;
+  /** Display title derived from filename or first heading. */
+  title: string;
 };
 
 /** Payload for the CodegraphProgress event (streamed indexing output). */
@@ -236,6 +253,13 @@ export type GitLogEntry = {
   /** Short (relative) date string. */
   date: string;
   subject: string;
+};
+
+/** One file touched by a commit (`git show --name-status`). */
+export type GitCommitFileEntry = {
+  path: string;
+  /** Git status letter: M / A / D / R… */
+  status: string;
 };
 
 /** One workspace's CodeGraph index status for the index-library list. */
@@ -404,8 +428,10 @@ export type DesktopApi = {
   gitDiff(file: string, staged: boolean): Promise<DiffPayload>;
   /** Recent commits (newest first), capped by `limit` (default 50). */
   gitLog(limit?: number): Promise<GitLogEntry[]>;
-  /** Combined diff for a single commit (`git show`). */
-  gitCommitDiff(hash: string): Promise<DiffPayload>;
+  /** Diff for a single commit (`git show`), optionally narrowed to one file. */
+  gitCommitDiff(hash: string, file?: string): Promise<DiffPayload>;
+  /** Files touched by a commit (second-level history expansion). */
+  gitCommitFiles(hash: string): Promise<GitCommitFileEntry[]>;
 
   // ── Agent changes ───────────────────────────────────────────────────────
   agentChangesList(sessionId: string): Promise<AgentChangeFile[]>;
@@ -426,10 +452,24 @@ export type DesktopApi = {
   // ── Code Review (ocr) ─────────────────────────────────────────────────────
   /** Check whether the `ocr` CLI is available on PATH. */
   reviewCheckAvailable(): Promise<{ available: boolean; version?: string }>;
-  /** Run a code review, streaming progress via onReviewProgress. */
-  reviewRun(options: ReviewOptions): Promise<{ ok: boolean; error?: string }>;
+  /** Run a code review of the uncommitted workspace changes, streaming progress via onReviewProgress. */
+  reviewRun(): Promise<{ ok: boolean; error?: string }>;
   /** Subscribe to streaming review output. Returns unsubscribe fn. */
   onReviewProgress(cb: (event: ReviewProgressEvent) => void): () => void;
+
+  // ── Wiki knowledge graph (openwiki) ─────────────────────────────────────────
+  /** Check whether the built-in (vendored) or PATH `openwiki` CLI is available. */
+  wikiCheckAvailable(): Promise<{ available: boolean; version?: string }>;
+  /** Generate the project wiki (openwiki --init), streaming via onWikiProgress. */
+  wikiInit(): Promise<{ ok: boolean; error?: string }>;
+  /** Incrementally update the project wiki (openwiki --update). */
+  wikiUpdate(): Promise<{ ok: boolean; error?: string }>;
+  /** List all wiki pages in the project's openwiki/ directory. */
+  wikiListPages(): Promise<WikiPageEntry[]>;
+  /** Read the markdown content of a wiki page. */
+  wikiReadPage(path: string): Promise<string>;
+  /** Subscribe to streaming wiki generation output. Returns unsubscribe fn. */
+  onWikiProgress(cb: (event: WikiProgressEvent) => void): () => void;
 
   // ── MCP management (plugin module) ──────────────────────────────────────
   /** List all MCP servers (user + built-in) with enable/runtime state. */

@@ -109,6 +109,7 @@ export {
   isCodegraphDisabled,
   getCodegraphVendorRoot,
   resolveCodegraphExecutable,
+  resolveModernNode,
   runCodegraphCommand,
   runCodegraphInit,
   runCodegraphInitAsync,

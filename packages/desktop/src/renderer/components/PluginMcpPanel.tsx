@@ -177,9 +177,7 @@ export function PluginMcpPanel({
                       {srv.name}
                       {srv.builtin ? <span className="ui-mcp-badge">{t("mcp.builtin")}</span> : null}
                     </span>
-                    <span className="ui-plugin-item-desc">
-                      {srv.command} {srv.args}
-                    </span>
+                    <span className="ui-plugin-item-desc">{srv.builtin ? srv.name : `${srv.command} ${srv.args}`}</span>
                     <div className="ui-plugin-item-tags">
                       <span className="ui-plugin-tag accent">mcp</span>
                       {srv.builtin ? (
