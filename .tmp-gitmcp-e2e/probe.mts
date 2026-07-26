@@ -1,0 +1,1 @@
+try { const r = await fetch("https://raw.githubusercontent.com/octocat/Spoon-Knife/HEAD/README.md"); console.log("status", r.status); } catch (e) { console.log("ERR", e.message, "|cause:", e.cause?.message, e.cause?.code); }

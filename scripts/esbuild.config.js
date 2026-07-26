@@ -7,12 +7,16 @@ const root = join(__dirname, "..");
 
 const cliRoot = join(root, "packages", "cli");
 const entry = join(cliRoot, "src", "cli.tsx");
+// Standalone gitmcp MCP server, shipped next to the CLI bundle so
+// `resolveGitmcpServerEntry()` finds it at dist/gitmcp/server.js.
+const gitmcpEntry = join(root, "packages", "core", "src", "gitmcp", "server.ts");
 
 await build({
-  entryPoints: [entry],
+  entryPoints: { cli: entry, "gitmcp/server": gitmcpEntry },
   bundle: true,
   outdir: join(cliRoot, "dist"),
-  entryNames: "[name]",
+  // [dir] keeps the key's directory part, so "gitmcp/server" lands in dist/gitmcp/.
+  entryNames: "[dir]/[name]",
   chunkNames: "chunks/[name]-[hash]",
   splitting: true,
   platform: "node",

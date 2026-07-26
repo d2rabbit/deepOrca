@@ -28,6 +28,7 @@ import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
 import { CodeReviewPanel } from "./components/CodeReviewPanel";
+import { GitMcpPanel } from "./components/GitMcpPanel";
 import { WikiPanel } from "./components/WikiPanel";
 import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
 import { UndoModal } from "./components/UndoModal";
@@ -76,6 +77,7 @@ import {
   IconTokens,
   IconIndex,
   IconReview,
+  IconGitmcp,
   IconWiki,
   IconReasoningHidden,
   IconReasoningNormal,
@@ -86,6 +88,8 @@ import {
   IconPunk,
   IconUndo,
   IconSettings,
+  Modal,
+  Button,
   type CommandItem,
 } from "./ui/index";
 
@@ -151,13 +155,16 @@ export function App(): JSX.Element {
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
 
   const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
+  // Branch the user tried to switch to while the working tree had blocking local changes.
+  const [branchConflict, setBranchConflict] = useState<string | null>(null);
+  const [stashSwitching, setStashSwitching] = useState(false);
   const [editable, setEditable] = useState<EditableSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [sidebarView, setSidebarView] = useState<
-    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "wiki" | "plugins"
+    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins"
   >("explorer");
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
@@ -224,7 +231,7 @@ export function App(): JSX.Element {
   // VSCode-style activity bar: selecting a rail view swaps the left panel while
   // the main area stays put. Re-selecting the active view toggles the panel.
   const selectView = useCallback(
-    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "wiki" | "plugins") => {
+    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins") => {
       setSidebarView((prev) => {
         if (prev === view) {
           setPanelOpen((wasOpen) => !wasOpen);
@@ -543,6 +550,10 @@ export function App(): JSX.Element {
         await refreshGit();
         await refreshSessions();
         bumpTree();
+      } else if (result.conflict) {
+        // Dirty tree: offer stash-and-switch instead of dumping raw git stderr.
+        setBranchConflict(next);
+        await refreshGit();
       } else {
         setErrorLine(result.error ?? t("app.requestFailed"));
         // Keep the dropdown in sync with the real branch after a failed switch.
@@ -551,6 +562,30 @@ export function App(): JSX.Element {
     },
     [bumpTree, refreshGit, refreshSessions, t]
   );
+
+  const handleStashAndSwitch = useCallback(async () => {
+    const target = branchConflict;
+    if (!target || stashSwitching) {
+      return;
+    }
+    setStashSwitching(true);
+    try {
+      const result = await api.gitStashCheckout(target);
+      if (result.ok) {
+        setBranchConflict(null);
+        pushToast("success", t("scm.stashSwitchDone", { branch: target }));
+        await refreshGit();
+        await refreshSessions();
+        bumpTree();
+      } else {
+        setBranchConflict(null);
+        setErrorLine(result.error ?? t("app.requestFailed"));
+        await refreshGit();
+      }
+    } finally {
+      setStashSwitching(false);
+    }
+  }, [branchConflict, stashSwitching, bumpTree, pushToast, refreshGit, refreshSessions, t]);
 
   const handleSetModel = useCallback(async (selection: ModelConfigSelection) => {
     setSettings(await api.setModel(selection));
@@ -1021,6 +1056,14 @@ export function App(): JSX.Element {
           <IconReview />
         </RailButton>
         <RailButton
+          active={panelOpen && sidebarView === "gitmcp"}
+          title={t("rail.gitmcp")}
+          aria-label={t("rail.gitmcp")}
+          onClick={() => selectView("gitmcp")}
+        >
+          <IconGitmcp />
+        </RailButton>
+        <RailButton
           active={panelOpen && sidebarView === "wiki"}
           title={t("rail.wiki")}
           aria-label={t("rail.wiki")}
@@ -1090,6 +1133,8 @@ export function App(): JSX.Element {
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
           <CodeReviewPanel />
+        ) : sidebarView === "gitmcp" ? (
+          <GitMcpPanel />
         ) : sidebarView === "wiki" ? (
           <WikiPanel />
         ) : (
@@ -1253,6 +1298,22 @@ export function App(): JSX.Element {
       ) : null}
 
       {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}
+
+      {branchConflict ? (
+        <Modal
+          title={t("scm.dirtySwitchTitle")}
+          subtitle={t("scm.dirtySwitchBody", { branch: branchConflict })}
+          onClose={() => setBranchConflict(null)}
+          actions={
+            <>
+              <Button onClick={() => setBranchConflict(null)}>{t("common.cancel")}</Button>
+              <Button variant="primary" disabled={stashSwitching} onClick={() => void handleStashAndSwitch()}>
+                {stashSwitching ? t("scm.stashSwitchBusy") : t("scm.stashAndSwitch")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
 
       <CommandPalette
         open={paletteOpen}

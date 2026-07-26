@@ -74,8 +74,20 @@ export async function listBranches(cwd: string): Promise<string[]> {
   }
 }
 
-/** Check out an existing branch. Surfaces git's stderr (e.g. dirty tree). */
-export async function checkout(cwd: string, branch: string): Promise<{ ok: boolean; error?: string }> {
+/** Heuristic for git refusing a checkout because local changes would be clobbered. */
+function isDirtyTreeConflict(message: string): boolean {
+  return (
+    message.includes("would be overwritten by checkout") ||
+    message.includes("Please commit your changes or stash them") ||
+    message.includes("needs merge")
+  );
+}
+
+/** Check out an existing branch. Flags dirty-tree conflicts so the UI can offer stash-and-switch. */
+export async function checkout(
+  cwd: string,
+  branch: string
+): Promise<{ ok: boolean; error?: string; conflict?: boolean }> {
   const trimmed = branch.trim();
   if (!trimmed) {
     return { ok: false, error: "Empty branch name" };
@@ -84,6 +96,38 @@ export async function checkout(cwd: string, branch: string): Promise<{ ok: boole
     await git(cwd, ["checkout", trimmed]);
     return { ok: true };
   } catch (err) {
+    const message = toError(err);
+    return { ok: false, error: message, conflict: isDirtyTreeConflict(message) };
+  }
+}
+
+/** Stash local changes (incl. untracked), then check out `branch`. Pops the stash back if checkout fails. */
+export async function stashCheckout(cwd: string, branch: string): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = branch.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Empty branch name" };
+  }
+  try {
+    await git(cwd, [
+      "stash",
+      "push",
+      "--include-untracked",
+      "-m",
+      `DeepOrca auto-stash before switching to ${trimmed}`,
+    ]);
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+  try {
+    await git(cwd, ["checkout", trimmed]);
+    return { ok: true };
+  } catch (err) {
+    // Restore the working tree so a failed switch does not strand changes in the stash.
+    try {
+      await git(cwd, ["stash", "pop"]);
+    } catch {
+      // Best-effort: the stash entry is still recoverable via `git stash list`.
+    }
     return { ok: false, error: toError(err) };
   }
 }

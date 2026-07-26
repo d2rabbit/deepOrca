@@ -122,6 +122,24 @@ export function IconReview(): JSX.Element {
   );
 }
 
+/** Repo book with branch — GitMCP repositories */
+export function IconGitmcp(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M6.5 3h9v14h-9A1.5 1.5 0 0 1 5 15.5v-11A1.5 1.5 0 0 1 6.5 3Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M5 14.5A1.5 1.5 0 0 1 6.5 13h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="9.5" cy="6.5" r="1.1" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="12.5" cy="10" r="1.1" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M9.5 7.6c0 1.6 3 .8 3 1.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** Book with nodes — wiki knowledge graph */
 export function IconWiki(): JSX.Element {
   return (

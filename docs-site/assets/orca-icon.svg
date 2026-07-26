@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Glow Filters -->
+    <filter id="neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="soft-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Background Container Gradients -->
+    <linearGradient id="bgBadgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop id="stop-bg-1" offset="0%" stop-color="#12182e" />
+      <stop id="stop-bg-2" offset="100%" stop-color="#080a14" />
+    </linearGradient>
+
+    <!-- Cyber Metallic Orca Body Gradient -->
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e2538" />
+      <stop offset="50%" stop-color="#111524" />
+      <stop offset="100%" stop-color="#060810" />
+    </linearGradient>
+
+    <!-- White Cute Belly Gradient -->
+    <linearGradient id="bellyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="70%" stop-color="#e0f5ff" />
+      <stop offset="100%" stop-color="#a0e2f8" />
+    </linearGradient>
+
+    <!-- Cyber Accents Gradients -->
+    <linearGradient id="cyberAccentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop id="stop-accent-1" offset="0%" stop-color="#00f3ff" />
+      <stop id="stop-accent-2" offset="100%" stop-color="#ff007f" />
+    </linearGradient>
+
+    <linearGradient id="visorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop id="stop-visor-1" offset="0%" stop-color="#00f3ff" stop-opacity="0.95" />
+      <stop id="stop-visor-2" offset="100%" stop-color="#ff007f" stop-opacity="0.85" />
+    </linearGradient>
+
+    <!-- Tech Grid Overlay -->
+    <pattern id="techHexGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 0 10 L 10 0 L 20 10 L 10 20 Z" fill="none" stroke="rgba(0, 243, 255, 0.08)" stroke-width="0.8"/>
+    </pattern>
+  </defs>
+
+  <!-- ICON CONTAINER BADGE SHAPE -->
+  <g id="icon-bg-shape">
+    <rect id="bg-squircle" x="16" y="16" width="480" height="480" rx="110" fill="url(#bgBadgeGrad)" stroke="url(#cyberAccentGrad)" stroke-width="3" />
+  </g>
+
+  <!-- ICON HUD BACKGROUND ELEMENTS -->
+  <g id="svg-bg-hud" opacity="0.6">
+    <!-- Geometric HUD Circles & Polygon Lines -->
+    <circle cx="256" cy="256" r="190" fill="none" stroke="url(#cyberAccentGrad)" stroke-width="1.2" stroke-dasharray="8 12 80 10" opacity="0.4" />
+    <polygon points="256,70 417,163 417,349 256,442 95,349 95,163" fill="none" stroke="#00f3ff" stroke-width="1" stroke-dasharray="4 8" opacity="0.3" />
+    <!-- Corner Crosshairs -->
+    <path d="M 60 256 L 75 256 M 437 256 L 452 256 M 256 60 L 256 75 M 256 437 L 256 452" stroke="#00f3ff" stroke-width="2" stroke-linecap="square" opacity="0.6" />
+  </g>
+
+  <!-- GEOMETRIC STREAMLINED CYBER ORCA -->
+  <g id="orca-character" transform="translate(0, 0)">
+
+    <!-- Shadow / Ground Laser Line -->
+    <ellipse cx="256" cy="425" rx="130" ry="12" fill="#00f3ff" opacity="0.2" filter="url(#neon-glow)" />
+
+    <!-- 1. BACK PECTORAL FIN (Angular) -->
+    <polygon points="175,295 110,350 135,370 195,330" fill="#0b0e1a" stroke="url(#cyberAccentGrad)" stroke-width="2" />
+    <polyline points="120,352 138,365 180,332" fill="none" stroke="#00f3ff" stroke-width="2" filter="url(#soft-glow)" />
+
+    <!-- 2. GEOMETRIC DORSAL FIN (Sharp Cyber Fin) -->
+    <g id="dorsal-fin">
+      <!-- Main Sharp Fin Polygon -->
+      <polygon points="225,185 270,72 320,105 292,202" fill="url(#bodyGrad)" stroke="#283250" stroke-width="2" />
+      <!-- Fin Facet Accent -->
+      <polygon points="270,72 320,105 285,150" fill="url(#cyberAccentGrad)" opacity="0.15" />
+      <!-- Leading Edge Neon Laser -->
+      <polyline points="225,185 270,72 320,105" fill="none" stroke="url(#cyberAccentGrad)" stroke-width="3" stroke-linejoin="miter" stroke-miterlimit="4" filter="url(#neon-glow)" />
+      <!-- Vent Grooves -->
+      <line x1="250" y1="145" x2="275" y2="125" stroke="#00f3ff" stroke-width="2" filter="url(#soft-glow)" />
+      <line x1="262" y1="168" x2="287" y2="148" stroke="#00f3ff" stroke-width="2" filter="url(#soft-glow)" />
+    </g>
+
+    <!-- 3. GEOMETRIC TAIL ASSEMBLY (Sharp Dual Blade Fluke) -->
+    <g id="tail-assembly">
+      <!-- Tail Stock Stem -->
+      <polygon points="350,280 405,255 425,278 372,310" fill="url(#bodyGrad)" stroke="#283250" stroke-width="2" />
+      <!-- Top Fluke Blade -->
+      <polygon points="405,255 465,175 445,235 420,250" fill="url(#bodyGrad)" stroke="#283250" stroke-width="2" />
+      <polyline points="405,255 465,175 445,235" fill="none" stroke="url(#cyberAccentGrad)" stroke-width="2.5" filter="url(#soft-glow)" />
+      <!-- Bottom Fluke Blade -->
+      <polygon points="420,250 480,268 435,282 410,270" fill="url(#bodyGrad)" stroke="#283250" stroke-width="2" />
+      <polyline points="420,250 480,268 435,282" fill="none" stroke="#ff007f" stroke-width="2" filter="url(#soft-glow)" />
+      <!-- Tail Energy Node -->
+      <polygon points="415,250 425,258 415,266 405,258" fill="#ff007f" filter="url(#soft-glow)" />
+    </g>
+
+    <!-- 4. STREAMLINED GEOMETRIC MAIN BODY -->
+    <!-- Low-poly faceted hull -->
+    <polygon id="orca-main-body" points="80,255 145,200 240,175 325,195 380,240 372,310 280,345 185,335 110,305"
+             fill="url(#bodyGrad)"
+             stroke="#2c365a"
+             stroke-width="2.5"
+             stroke-linejoin="miter" />
+
+    <!-- Texture Overlay -->
+    <polygon points="80,255 145,200 240,175 325,195 380,240 372,310 280,345 185,335 110,305" fill="url(#techHexGrid)" opacity="0.6" />
+
+    <!-- Body Facet Shading Lines (Low-Poly Cyber Structure) -->
+    <g stroke="rgba(0, 243, 255, 0.2)" stroke-width="1.2" fill="none">
+      <line x1="80" y1="255" x2="240" y2="175" />
+      <line x1="145" y1="200" x2="185" y2="335" />
+      <line x1="240" y1="175" x2="280" y2="345" />
+      <line x1="325" y1="195" x2="372" y2="310" />
+    </g>
+
+    <!-- 5. GEOMETRIC WHITE BELLY PATCH -->
+    <polygon id="orca-belly" points="105,282 170,270 260,278 355,275 330,320 250,335 160,322"
+             fill="url(#bellyGrad)"
+             stroke="#a8e0f5"
+             stroke-width="1" />
+
+    <!-- 6. ANGULAR EYE PATCH (Geometric Signature Orca Spot) -->
+    <polygon id="eye-patch" points="140,218 195,205 210,225 160,238" fill="#ffffff" fill-opacity="0.95" stroke="#00f3ff" stroke-width="1.5" filter="url(#soft-glow)" />
+
+    <!-- 7. CYBER VISION OPTICS / VISOR (Polyhedron Lens) -->
+    <g id="cyber-eye-group">
+      <!-- Polygon Visor Base -->
+      <polygon points="120,242 162,232 178,252 136,262" fill="url(#visorGrad)" stroke="#ffffff" stroke-width="1.8" filter="url(#neon-glow)" />
+      <!-- Core Lens -->
+      <polygon points="142,242 158,238 164,248 148,252" fill="#080a14" stroke="#00f3ff" stroke-width="1.5" />
+      <circle cx="153" cy="245" r="3" fill="#00f3ff" filter="url(#soft-glow)" />
+      <circle cx="154.5" cy="243.5" r="1.2" fill="#ffffff" />
+      <!-- Target Reticle Box -->
+      <rect x="135" y="230" width="38" height="28" fill="none" stroke="#ff007f" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" />
+    </g>
+
+    <!-- 8. FOREGROUND PECTORAL FIN (Sharp Geometric) -->
+    <g id="front-flipper">
+      <polygon points="215,310 170,380 210,395 255,330" fill="url(#bodyGrad)" stroke="#283152" stroke-width="2" />
+      <polyline points="215,310 170,380 210,395" fill="none" stroke="url(#cyberAccentGrad)" stroke-width="2.5" filter="url(#soft-glow)" />
+      <circle cx="190" cy="387" r="3" fill="#00f3ff" filter="url(#soft-glow)" />
+    </g>
+
+    <!-- 9. CYBER CIRCUIT TRACES & LASER EDGES -->
+    <g id="cyber-circuits" stroke-linecap="square">
+      <!-- Spine Cyberline -->
+      <polyline points="80,255 145,200 240,175 325,195 380,240" fill="none" stroke="#00f3ff" stroke-width="2.5" filter="url(#neon-glow)" />
+
+      <!-- Nodes -->
+      <polygon points="145,200 149,194 145,188 141,194" fill="#101322" stroke="#00f3ff" stroke-width="2" />
+      <polyline points="145,188 170,165 200,165" fill="none" stroke="#00f3ff" stroke-width="1.5" />
+      <circle cx="200" cy="165" r="2.5" fill="#ff007f" />
+
+      <polygon points="240,175 244,169 240,163 236,169" fill="#101322" stroke="#00f3ff" stroke-width="2" />
+      <polyline points="240,163 265,142 295,142" fill="none" stroke="#00f3ff" stroke-width="1.5" />
+      <circle cx="295" cy="142" r="2.5" fill="#00f3ff" />
+    </g>
+
+    <!-- Minimal Cyber Text Stamp -->
+    <text x="215" y="255" font-family="'Orbitron', sans-serif" font-size="10" font-weight="800" fill="#00f3ff" letter-spacing="3" opacity="0.6">ORCA_v2</text>
+
+  </g>
+</svg>

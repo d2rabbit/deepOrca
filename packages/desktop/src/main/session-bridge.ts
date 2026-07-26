@@ -4,12 +4,23 @@
 
 import {
   buildCodegraphMcpServerConfig,
+  buildGitmcpMaintenanceCommand,
+  buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
   createOpenAIClient,
   getProjectSettingsPath,
   getUserSettingsPath,
+  gitmcpServerNameForSlug,
+  gitmcpSlugFromServerName,
+  gitmcpSqliteAvailable,
+  GitmcpStore,
+  indexRepository,
+  isGitmcpServerName,
+  parseRepoSlug,
+  readGitmcpRepoMeta,
   readProjectSettings,
   readSettings,
+  removeGitmcpRepoIndex,
   resolveCurrentSettings,
   SessionManager,
   setCodegraphDisabled,
@@ -19,6 +30,7 @@ import {
 } from "@vegamo/deepcode-core";
 import type {
   DeepcodingSettings,
+  GitmcpRepoMeta,
   McpServerConfig,
   ModelConfigSelection,
   PermissionDefaultMode,
@@ -30,6 +42,7 @@ import type {
   UserPromptContent,
 } from "@vegamo/deepcode-core";
 import { existsSync } from "node:fs";
+import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
 import type {
   AgentChangeFile,
@@ -37,6 +50,8 @@ import type {
   EditableSettings,
   GitCommitFileEntry,
   GitLogEntry,
+  GitmcpAddResult,
+  GitmcpRepoEntry,
   PermissionDecision,
   PluginMcpServer,
   SerializableProcess,
@@ -599,6 +614,10 @@ export class SessionBridge {
     return gitService.checkout(this.projectRoot, branch);
   }
 
+  gitStashCheckout(branch: string) {
+    return gitService.stashCheckout(this.projectRoot, branch);
+  }
+
   gitDiff(file: string, staged: boolean) {
     return gitService.diff(this.projectRoot, file, staged);
   }
@@ -634,7 +653,9 @@ export class SessionBridge {
         args: (cfg.args ?? []).join(" "),
         env: stringifyEnv(cfg.env),
         enabled: !disabled.has(name),
-        builtin: name === CODEGRAPH_MCP_SERVER_NAME,
+        // GitMCP repositories are managed from the GitMCP module: the MCP tab
+        // may toggle them but never remove them (same contract as codegraph).
+        builtin: name === CODEGRAPH_MCP_SERVER_NAME || isGitmcpServerName(name),
         status: statuses.get(name),
       });
     }
@@ -717,6 +738,173 @@ export class SessionBridge {
     }
     this.reload();
     this.emit(IpcEvent.McpStatusChanged);
+  }
+
+  // ── GitMCP module ──────────────────────────────────────────────────────────
+
+  /**
+   * Read the shared index metadata, falling back to the `--meta` maintenance
+   * subcommand in a sqlite-capable runtime when this process (the Electron
+   * main process) cannot load `node:sqlite` itself.
+   */
+  private readGitmcpMeta(): GitmcpRepoMeta[] {
+    if (gitmcpSqliteAvailable()) {
+      return readGitmcpRepoMeta();
+    }
+    const cmd = buildGitmcpMaintenanceCommand(["--meta"]);
+    if (!cmd) {
+      return [];
+    }
+    const res = spawnSync(cmd.command, cmd.args ?? [], {
+      env: { ...process.env, ...cmd.env },
+      encoding: "utf8",
+      timeout: 15_000,
+    });
+    try {
+      return JSON.parse(res.stdout.trim() || "[]") as GitmcpRepoMeta[];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Remove a repository's index data, in-process or via `--remove-index`. */
+  private removeGitmcpIndex(slug: string): void {
+    if (gitmcpSqliteAvailable()) {
+      removeGitmcpRepoIndex(slug);
+      return;
+    }
+    const cmd = buildGitmcpMaintenanceCommand(["--remove-index", slug]);
+    if (cmd) {
+      spawnSync(cmd.command, cmd.args ?? [], { env: { ...process.env, ...cmd.env }, timeout: 15_000 });
+    }
+  }
+
+  /**
+   * GitMCP repositories = the `gitmcp:` prefixed entries in the resolved
+   * mcpServers, merged with the disable sidecar, runtime status and the local
+   * index metadata (`~/.deepcode/gitmcp/index.db`).
+   */
+  gitmcpList(): GitmcpRepoEntry[] {
+    const configured = resolveCurrentSettings(this.projectRoot).mcpServers ?? {};
+    const disabled = new Set(readDisabledMcp(this.projectRoot));
+    const statuses = new Map(this.manager.getMcpStatus().map((s) => [s.name, s]));
+    const metaBySlug = new Map(this.readGitmcpMeta().map((m) => [m.slug, m]));
+    const entries: GitmcpRepoEntry[] = [];
+    for (const name of Object.keys(configured)) {
+      if (!isGitmcpServerName(name)) {
+        continue;
+      }
+      const slug = gitmcpSlugFromServerName(name);
+      const meta = metaBySlug.get(slug);
+      const entry: GitmcpRepoEntry = {
+        slug,
+        serverName: name,
+        enabled: !disabled.has(name),
+        indexed: (meta?.chunkCount ?? 0) > 0,
+        chunkCount: meta?.chunkCount ?? 0,
+      };
+      const status = statuses.get(name);
+      if (status) {
+        entry.status = status;
+      }
+      if (meta?.fetchedAt != null) {
+        entry.fetchedAt = meta.fetchedAt;
+      }
+      entries.push(entry);
+    }
+    return entries.sort((a, b) => a.slug.localeCompare(b.slug));
+  }
+
+  /**
+   * Register a repository and activate its MCP server. The entry is written to
+   * the *user-level* settings (unlike pluginUpsertMcpServer's project-first
+   * target) because the index database is shared across projects anyway.
+   */
+  gitmcpAdd(input: string): GitmcpAddResult {
+    const slug = parseRepoSlug(input);
+    if (!slug) {
+      return { ok: false, error: "invalid" };
+    }
+    const serverName = gitmcpServerNameForSlug(slug);
+    const configured = resolveCurrentSettings(this.projectRoot).mcpServers ?? {};
+    if (Object.keys(configured).some((name) => name.toLowerCase() === serverName.toLowerCase())) {
+      return { ok: false, error: "exists" };
+    }
+    const raw = readSettings() ?? {};
+    const servers: Record<string, McpServerConfig> = { ...(raw.mcpServers ?? {}) };
+    servers[serverName] = buildGitmcpPlaceholderConfig(slug);
+    writeSettings({ ...raw, mcpServers: servers });
+    this.reload();
+    this.emit(IpcEvent.McpStatusChanged);
+    return { ok: true, slug };
+  }
+
+  /**
+   * Remove a repository entirely: its MCP entry (user-level, plus project-level
+   * in case one was configured there by hand) and its local index data.
+   */
+  gitmcpRemove(slug: string): void {
+    const serverName = gitmcpServerNameForSlug(slug);
+    const removeFrom = (raw: DeepcodingSettings, write: (next: DeepcodingSettings) => void): void => {
+      const servers: Record<string, McpServerConfig> = { ...(raw.mcpServers ?? {}) };
+      if (!(serverName in servers)) {
+        return;
+      }
+      delete servers[serverName];
+      const next: DeepcodingSettings = { ...raw };
+      if (Object.keys(servers).length > 0) {
+        next.mcpServers = servers;
+      } else {
+        delete next.mcpServers;
+      }
+      write(next);
+    };
+    removeFrom(readSettings() ?? {}, (next) => writeSettings(next));
+    if (existsSync(getProjectSettingsPath(this.projectRoot))) {
+      removeFrom(readProjectSettings(this.projectRoot) ?? {}, (next) => writeProjectSettings(next, this.projectRoot));
+    }
+    this.removeGitmcpIndex(slug);
+    this.reload();
+    this.emit(IpcEvent.McpStatusChanged);
+  }
+
+  /**
+   * Re-fetch the repository documentation and rebuild its index — in-process
+   * when this runtime has `node:sqlite`, otherwise via the `--reindex`
+   * maintenance subcommand in the same sqlite-capable runtime that backs the
+   * MCP server (the Electron main process lacks `node:sqlite`).
+   */
+  async gitmcpReindex(slug: string): Promise<{ ok: boolean; error?: string }> {
+    if (gitmcpSqliteAvailable()) {
+      const store = new GitmcpStore();
+      try {
+        await indexRepository(slug, store);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      } finally {
+        store.close();
+      }
+    }
+    const cmd = buildGitmcpMaintenanceCommand(["--reindex", slug]);
+    if (!cmd) {
+      return { ok: false, error: "No sqlite-capable Node runtime found for the GitMCP index" };
+    }
+    return await new Promise((resolve) => {
+      execFile(
+        cmd.command,
+        cmd.args ?? [],
+        { env: { ...process.env, ...cmd.env }, encoding: "utf8", timeout: 120_000 },
+        (error, stdout) => {
+          const lastLine = stdout.trim().split("\n").pop() ?? "";
+          try {
+            resolve(JSON.parse(lastLine) as { ok: boolean; error?: string });
+          } catch {
+            resolve({ ok: false, error: error ? error.message : "reindex produced no result" });
+          }
+        }
+      );
+    });
   }
 
   // ── Orca Built-in Plugins ─────────────────────────────────────────────────

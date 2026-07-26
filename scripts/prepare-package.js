@@ -285,6 +285,7 @@ const cliRoot = join(root, "packages", "cli");
 const distDir = join(cliRoot, "dist");
 const distCliJs = join(distDir, "cli.js");
 const distChunks = join(distDir, "chunks");
+const distGitmcp = join(distDir, "gitmcp", "server.js");
 const distTemplates = join(distDir, "templates");
 const distBundled = join(distDir, "bundled");
 
@@ -293,6 +294,9 @@ if (!existsSync(distCliJs)) {
 }
 if (!existsSync(distChunks)) {
   fail(`Chunks directory not found: ${distChunks}. Run "npm run build" first.`);
+}
+if (!existsSync(distGitmcp)) {
+  fail(`gitmcp server bundle not found: ${distGitmcp}. Run "npm run build" first.`);
 }
 if (!existsSync(distTemplates)) {
   fail(`Templates directory not found: ${distTemplates}. Run "npm run build" first.`);
@@ -306,6 +310,7 @@ validatePacklist(
   [
     { type: "file", value: "dist/cli.js" },
     { type: "prefix", value: "dist/chunks/", label: "dist/chunks/*.js" },
+    { type: "prefix", value: "dist/gitmcp/", label: "dist/gitmcp/server.js" },
     { type: "prefix", value: "dist/templates/", label: "dist/templates/**" },
     { type: "prefix", value: "dist/bundled/", label: "dist/bundled/**" },
   ],
@@ -339,7 +344,7 @@ const distPackageJson = {
   bin: {
     deepcode: "cli.js",
   },
-  files: ["cli.js", "chunks/**", "templates/**", "bundled/**", "README.md", "LICENSE"],
+  files: ["cli.js", "chunks/**", "gitmcp/**", "templates/**", "bundled/**", "README.md", "LICENSE"],
   engines: cliPkg.engines,
   dependencies: {},
 };
@@ -355,6 +360,7 @@ if (!dryRun) {
     [
       { type: "file", value: "cli.js" },
       { type: "prefix", value: "chunks/", label: "chunks/*.js" },
+      { type: "prefix", value: "gitmcp/", label: "gitmcp/server.js" },
       { type: "prefix", value: "templates/", label: "templates/**" },
       { type: "prefix", value: "bundled/", label: "bundled/**" },
     ],

@@ -13,6 +13,12 @@ import {
   isCodegraphDisabled,
   runCodegraphSync,
 } from "./common/codegraph";
+import {
+  buildGitmcpMcpServerConfig,
+  gitmcpSlugFromServerName,
+  isGitmcpPlaceholderConfig,
+  isGitmcpServerName,
+} from "./gitmcp/resolve";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { DEEPSEEK_V4_MODELS, COMPACTION_MODEL } from "./common/model-capabilities";
 import { readTextFileWithMetadata } from "./common/file-utils";
@@ -429,23 +435,51 @@ export class SessionManager {
    * automatically — but only for projects that already contain a `.codegraph/`
    * directory, so the index/knowledge base stays project-scoped and nothing is
    * assumed to exist on the host. A user-provided `codegraph` entry always wins.
+   * GitMCP entries (`gitmcp:` prefix) that still hold the portable placeholder
+   * config are rewritten here into a concrete spawn config for this machine.
    */
   private augmentMcpServersWithBuiltins(
     servers?: Record<string, McpServerConfig>
   ): Record<string, McpServerConfig> | undefined {
+    let result = this.resolveGitmcpServers(servers);
     if (!hasCodegraphProject(this.projectRoot)) {
-      return servers;
+      return result;
     }
     if (isCodegraphDisabled(this.projectRoot)) {
-      return servers;
+      return result;
     }
-    if (servers && Object.prototype.hasOwnProperty.call(servers, CODEGRAPH_MCP_SERVER_NAME)) {
-      return servers;
+    if (result && Object.prototype.hasOwnProperty.call(result, CODEGRAPH_MCP_SERVER_NAME)) {
+      return result;
     }
-    return {
-      ...(servers ?? {}),
+    result = {
+      ...(result ?? {}),
       [CODEGRAPH_MCP_SERVER_NAME]: buildCodegraphMcpServerConfig(this.projectRoot),
     };
+    return result;
+  }
+
+  /**
+   * Replace GitMCP placeholder configs (`{ command: "gitmcp" }`) with the real
+   * spawn config resolved for this machine. Entries the user configured with a
+   * concrete command are left untouched; unresolvable placeholders are kept
+   * as-is so the failure surfaces as a visible server error instead of the
+   * repository silently disappearing.
+   */
+  private resolveGitmcpServers(servers?: Record<string, McpServerConfig>): Record<string, McpServerConfig> | undefined {
+    if (!servers) {
+      return servers;
+    }
+    let result = servers;
+    for (const [name, config] of Object.entries(servers)) {
+      if (!isGitmcpServerName(name) || !isGitmcpPlaceholderConfig(config)) {
+        continue;
+      }
+      const built = buildGitmcpMcpServerConfig(gitmcpSlugFromServerName(name));
+      if (built) {
+        result = { ...result, [name]: built };
+      }
+    }
+    return result;
   }
 
   async initMcpServers(servers?: Record<string, McpServerConfig>): Promise<void> {

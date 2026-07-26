@@ -191,6 +191,9 @@ export const zhTW: Record<MessageKey, string> = {
   "builtin.karpathy-guidelines.name": "Karpathy 准则",
   "builtin.karpathy-guidelines.desc":
     "减少常见 LLM 编码错误的行为准则——避免过度复杂化、做精准的外科手术式改动、暴露假设、定义可验证的成功标准。",
+  "builtin.git-mcp.name": "GitMCP",
+  "builtin.git-mcp.desc":
+    "通过完全本地化的 GitMCP 服务器让外部 GitHub 仓库的回答有据可依——在 GitMCP 模块添加仓库后，其文档会被抓取并本地索引，以 MCP 工具形式提供。",
   "context.compaction": "上下文",
   "context.compacting": "壓縮中…",
 
@@ -391,6 +394,12 @@ export const zhTW: Record<MessageKey, string> = {
   // ── Source control panel ──────────────────────────────────
   "scm.title": "原始碼控制",
   "scm.branch": "分支",
+  "scm.dirtySwitchTitle": "切換分支受阻",
+  "scm.dirtySwitchBody":
+    "本地有未提交的變更，直接切換到「{branch}」會覆蓋它們。要自動暫存（git stash）後再切換嗎？之後可用 git stash pop 恢復。",
+  "scm.stashAndSwitch": "暫存並切換",
+  "scm.stashSwitchBusy": "切換中…",
+  "scm.stashSwitchDone": "已暫存本地變更並切換到 {branch}",
   "scm.noRepo": "此工作區不是 Git 儲存庫。",
   "scm.noChanges": "沒有變更。",
   "scm.stagedChanges": "已暫存的變更",
@@ -468,6 +477,24 @@ export const zhTW: Record<MessageKey, string> = {
   "review.scope": "審查範圍：目前專案工作區未提交的變更（相對 HEAD）。",
   "review.run": "開始審查",
   "review.running": "審查中…",
+
+  // ── GitMCP repositories (local MCP servers) ──────────────
+  "rail.gitmcp": "GitMCP",
+  "gitmcp.title": "GitMCP 儲存庫",
+  "gitmcp.placeholder": "owner/repo 或 GitHub 網址",
+  "gitmcp.add": "新增",
+  "gitmcp.adding": "新增中…",
+  "gitmcp.invalid": "無法識別的儲存庫——請輸入 owner/repo 或 GitHub 網址。",
+  "gitmcp.exists": "該儲存庫已新增。",
+  "gitmcp.empty": "尚無儲存庫。新增後其文件將以本機 MCP 伺服器方式提供。",
+  "gitmcp.indexing": "索引中…",
+  "gitmcp.indexed": "已索引 · {n} 個分塊 · {time}前",
+  "gitmcp.notIndexed": "尚未索引——可點擊重建，或在首次檢索時自動索引。",
+  "gitmcp.indexFailed": "索引失敗",
+  "gitmcp.reindex": "重建索引",
+  "gitmcp.delete": "刪除",
+  "gitmcp.deleteConfirm": "移除 {name} 及其本機索引？",
+  "gitmcp.hint": "每個儲存庫以本機 MCP 伺服器執行（gitmcp:owner/repo）。MCP 頁籤可啟停，但只有本模組可刪除。",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.wiki": "Wiki 知識圖譜",

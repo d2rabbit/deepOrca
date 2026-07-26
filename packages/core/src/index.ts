@@ -124,6 +124,28 @@ export {
   CODEGRAPH_VENDOR_ENTRY,
 } from "./common/codegraph";
 export type { CodegraphExecutable } from "./common/codegraph";
+export {
+  GITMCP_SERVER_PREFIX,
+  GITMCP_PLACEHOLDER_COMMAND,
+  isGitmcpServerName,
+  gitmcpServerNameForSlug,
+  gitmcpSlugFromServerName,
+  parseRepoSlug,
+  buildGitmcpPlaceholderConfig,
+  buildGitmcpMcpServerConfig,
+  buildGitmcpMaintenanceCommand,
+  resolveGitmcpServerEntry,
+} from "./gitmcp/resolve";
+export {
+  GitmcpStore,
+  getGitmcpIndexDbPath,
+  gitmcpSqliteAvailable,
+  removeGitmcpRepoIndex,
+  readGitmcpRepoMeta,
+} from "./gitmcp/store";
+export type { GitmcpRepoMeta, DocChunk, SearchBackend, SearchHit } from "./gitmcp/store";
+export { indexRepository, chunkMarkdown } from "./gitmcp/indexer";
+export type { IndexResult } from "./gitmcp/indexer";
 export { reportNewPrompt } from "./common/telemetry";
 export {
   DEEPSEEK_V4_MODELS,

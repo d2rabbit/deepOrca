@@ -196,6 +196,9 @@ export const en = {
   "builtin.karpathy-guidelines.name": "Karpathy Guidelines",
   "builtin.karpathy-guidelines.desc":
     "Behavioral guidelines to reduce common LLM coding mistakes — avoid overcomplication, make surgical changes, surface assumptions, define verifiable success criteria.",
+  "builtin.git-mcp.name": "GitMCP",
+  "builtin.git-mcp.desc":
+    "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
   "context.compaction": "Context",
   "context.compacting": "Compacting…",
 
@@ -397,6 +400,12 @@ export const en = {
   // ── Source control panel ──────────────────────────────────
   "scm.title": "Source Control",
   "scm.branch": "Branch",
+  "scm.dirtySwitchTitle": "Branch switch blocked",
+  "scm.dirtySwitchBody":
+    "You have uncommitted local changes that switching to “{branch}” would overwrite. Stash them automatically and switch? You can restore them later with git stash pop.",
+  "scm.stashAndSwitch": "Stash & switch",
+  "scm.stashSwitchBusy": "Switching…",
+  "scm.stashSwitchDone": "Local changes stashed, switched to {branch}",
   "scm.noRepo": "This workspace is not a Git repository.",
   "scm.noChanges": "No changes.",
   "scm.stagedChanges": "Staged Changes",
@@ -476,6 +485,25 @@ export const en = {
   "review.scope": "Review scope: uncommitted workspace changes (vs HEAD) in the current project.",
   "review.run": "Run Review",
   "review.running": "Reviewing…",
+
+  // ── GitMCP repositories (local MCP servers) ──────────────
+  "rail.gitmcp": "GitMCP",
+  "gitmcp.title": "GitMCP Repositories",
+  "gitmcp.placeholder": "owner/repo or GitHub URL",
+  "gitmcp.add": "Add",
+  "gitmcp.adding": "Adding…",
+  "gitmcp.invalid": "Unrecognized repository — enter owner/repo or a GitHub URL.",
+  "gitmcp.exists": "This repository is already registered.",
+  "gitmcp.empty": "No repositories yet. Add one to expose its docs as a local MCP server.",
+  "gitmcp.indexing": "Indexing…",
+  "gitmcp.indexed": "Indexed · {n} chunks · {time} ago",
+  "gitmcp.notIndexed": "Not indexed yet — rebuild, or the first search will index it.",
+  "gitmcp.indexFailed": "Index failed",
+  "gitmcp.reindex": "Rebuild",
+  "gitmcp.delete": "Delete",
+  "gitmcp.deleteConfirm": "Remove {name} and its local index?",
+  "gitmcp.hint":
+    "Each repository runs as a local MCP server (gitmcp:owner/repo). The MCP tab can toggle it, but only this module can remove it.",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.wiki": "Wiki",
@@ -705,6 +733,9 @@ export const zh: Record<MessageKey, string> = {
   "builtin.karpathy-guidelines.name": "Karpathy 准则",
   "builtin.karpathy-guidelines.desc":
     "减少常见 LLM 编码错误的行为准则——避免过度复杂化、做精准的外科手术式改动、暴露假设、定义可验证的成功标准。",
+  "builtin.git-mcp.name": "GitMCP",
+  "builtin.git-mcp.desc":
+    "通过完全本地化的 GitMCP 服务器让外部 GitHub 仓库的回答有据可依——在 GitMCP 模块添加仓库后，其文档会被抓取并本地索引，以 MCP 工具形式提供。",
   "context.compaction": "上下文",
   "context.compacting": "压缩中…",
 
@@ -905,6 +936,12 @@ export const zh: Record<MessageKey, string> = {
   // ── Source control panel ──────────────────────────────────
   "scm.title": "源代码管理",
   "scm.branch": "分支",
+  "scm.dirtySwitchTitle": "切换分支受阻",
+  "scm.dirtySwitchBody":
+    "本地有未提交的更改，直接切换到“{branch}”会覆盖它们。要自动暂存（git stash）后再切换吗？之后可用 git stash pop 恢复。",
+  "scm.stashAndSwitch": "暂存并切换",
+  "scm.stashSwitchBusy": "切换中…",
+  "scm.stashSwitchDone": "已暂存本地更改并切换到 {branch}",
   "scm.noRepo": "此工作区不是 Git 仓库。",
   "scm.noChanges": "没有更改。",
   "scm.stagedChanges": "已暂存的更改",
@@ -982,6 +1019,24 @@ export const zh: Record<MessageKey, string> = {
   "review.scope": "审查范围：当前项目工作区未提交的变更（相对 HEAD）。",
   "review.run": "开始审查",
   "review.running": "审查中…",
+
+  // ── GitMCP repositories (local MCP servers) ──────────────
+  "rail.gitmcp": "GitMCP",
+  "gitmcp.title": "GitMCP 仓库",
+  "gitmcp.placeholder": "owner/repo 或 GitHub 地址",
+  "gitmcp.add": "添加",
+  "gitmcp.adding": "添加中…",
+  "gitmcp.invalid": "无法识别的仓库——请输入 owner/repo 或 GitHub 地址。",
+  "gitmcp.exists": "该仓库已添加。",
+  "gitmcp.empty": "暂无仓库。添加后其文档将以本地 MCP 服务器方式提供。",
+  "gitmcp.indexing": "索引中…",
+  "gitmcp.indexed": "已索引 · {n} 个分块 · {time}前",
+  "gitmcp.notIndexed": "尚未索引——可点击重建，或在首次检索时自动索引。",
+  "gitmcp.indexFailed": "索引失败",
+  "gitmcp.reindex": "重建索引",
+  "gitmcp.delete": "删除",
+  "gitmcp.deleteConfirm": "移除 {name} 及其本地索引？",
+  "gitmcp.hint": "每个仓库以本地 MCP 服务器运行（gitmcp:owner/repo）。MCP 页签可启停，但只有本模块可删除。",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.wiki": "Wiki 知识图谱",

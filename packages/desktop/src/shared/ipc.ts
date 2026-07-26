@@ -82,6 +82,7 @@ export const IpcRequest = {
   GitCurrentBranch: "git:currentBranch",
   GitListBranches: "git:listBranches",
   GitCheckout: "git:checkout",
+  GitStashCheckout: "git:stashCheckout",
   GitDiff: "git:diff",
   GitLog: "git:log",
   GitCommitDiff: "git:commitDiff",
@@ -112,6 +113,12 @@ export const IpcRequest = {
   // MCP management (moved out of settings into the plugin module)
   PluginMcpList: "plugin:mcpList",
   PluginSetMcpEnabled: "plugin:setMcpEnabled",
+
+  // GitMCP module (repository-scoped local documentation MCP servers)
+  GitmcpList: "gitmcp:list",
+  GitmcpAdd: "gitmcp:add",
+  GitmcpRemove: "gitmcp:remove",
+  GitmcpReindex: "gitmcp:reindex",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -286,6 +293,33 @@ export type PluginMcpServer = {
   status?: McpServerStatus;
 };
 
+/**
+ * One GitMCP-managed repository, derived from the `gitmcp:` prefixed entries
+ * in `settings.mcpServers` (which are the single source of truth) merged with
+ * the disable sidecar, runtime status and local index metadata.
+ */
+export type GitmcpRepoEntry = {
+  /** "owner/repo" */
+  slug: string;
+  /** "gitmcp:owner/repo" — the MCP server name (used for enable/disable). */
+  serverName: string;
+  enabled: boolean;
+  /** Live runtime status, when the server is connected/known to the engine. */
+  status?: McpServerStatus;
+  /** True when the local index holds chunks for this repository. */
+  indexed: boolean;
+  chunkCount: number;
+  /** Unix ms of the last successful fetch+index. */
+  fetchedAt?: number;
+};
+
+/** Result of adding a repository to the GitMCP module. */
+export type GitmcpAddResult = {
+  ok: boolean;
+  slug?: string;
+  error?: "invalid" | "exists";
+};
+
 /** Resolved settings summary surfaced to the renderer (never leaks the API key). */
 export type SettingsSummary = {
   model: string;
@@ -424,7 +458,10 @@ export type DesktopApi = {
   gitCommit(message: string): Promise<{ ok: boolean; error?: string }>;
   gitCurrentBranch(): Promise<string>;
   gitListBranches(): Promise<string[]>;
-  gitCheckout(branch: string): Promise<{ ok: boolean; error?: string }>;
+  /** Switch branch. `conflict: true` means local changes block the checkout (commit/stash first). */
+  gitCheckout(branch: string): Promise<{ ok: boolean; error?: string; conflict?: boolean }>;
+  /** Auto-stash local changes (incl. untracked), then switch branch. Stash is popped back on failure. */
+  gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string }>;
   gitDiff(file: string, staged: boolean): Promise<DiffPayload>;
   /** Recent commits (newest first), capped by `limit` (default 50). */
   gitLog(limit?: number): Promise<GitLogEntry[]>;
@@ -476,6 +513,16 @@ export type DesktopApi = {
   pluginMcpList(): Promise<PluginMcpServer[]>;
   /** Enable or disable a server (built-ins may be disabled, never removed). */
   pluginSetMcpEnabled(name: string, enabled: boolean): Promise<void>;
+
+  // ── GitMCP module ──────────────────────────────────────────────────
+  /** List the GitMCP-managed repositories with index + runtime state. */
+  gitmcpList(): Promise<GitmcpRepoEntry[]>;
+  /** Register a repository (URL or owner/repo) and activate its MCP server. */
+  gitmcpAdd(input: string): Promise<GitmcpAddResult>;
+  /** Remove a repository: MCP entry and its local index data. */
+  gitmcpRemove(slug: string): Promise<void>;
+  /** Re-fetch the repository documentation and rebuild its index. */
+  gitmcpReindex(slug: string): Promise<{ ok: boolean; error?: string }>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */

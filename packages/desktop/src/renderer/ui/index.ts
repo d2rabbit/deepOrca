@@ -19,6 +19,7 @@ export {
   IconTokens,
   IconIndex,
   IconReview,
+  IconGitmcp,
   IconWiki,
   IconReasoningHidden,
   IconReasoningNormal,

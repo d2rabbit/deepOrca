@@ -191,6 +191,9 @@ export const ja: Record<MessageKey, string> = {
   "builtin.karpathy-guidelines.name": "Karpathy Guidelines",
   "builtin.karpathy-guidelines.desc":
     "Behavioral guidelines to reduce common LLM coding mistakes — avoid overcomplication, make surgical changes, surface assumptions, define verifiable success criteria.",
+  "builtin.git-mcp.name": "GitMCP",
+  "builtin.git-mcp.desc":
+    "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
   "context.compaction": "コンテキスト",
   "context.compacting": "圧縮中…",
 
@@ -391,6 +394,12 @@ export const ja: Record<MessageKey, string> = {
   // ── Source control panel ──────────────────────────────────
   "scm.title": "ソース管理",
   "scm.branch": "ブランチ",
+  "scm.dirtySwitchTitle": "ブランチ切替がブロックされました",
+  "scm.dirtySwitchBody":
+    "未コミットのローカル変更があり、「{branch}」に切り替えると上書きされます。自動的にスタッシュ（git stash）して切り替えますか？後で git stash pop で復元できます。",
+  "scm.stashAndSwitch": "スタッシュして切替",
+  "scm.stashSwitchBusy": "切替中…",
+  "scm.stashSwitchDone": "ローカル変更をスタッシュし、{branch} に切り替えました",
   "scm.noRepo": "このワークスペースは Git リポジトリではありません。",
   "scm.noChanges": "変更はありません。",
   "scm.stagedChanges": "ステージ済みの変更",
@@ -468,6 +477,25 @@ export const ja: Record<MessageKey, string> = {
   "review.scope": "レビュー範囲：現在のプロジェクトの未コミットの変更（HEAD 比）。",
   "review.run": "レビュー開始",
   "review.running": "レビュー中…",
+
+  // ── GitMCP repositories (local MCP servers) ──────────────
+  "rail.gitmcp": "GitMCP",
+  "gitmcp.title": "GitMCP リポジトリ",
+  "gitmcp.placeholder": "owner/repo または GitHub URL",
+  "gitmcp.add": "追加",
+  "gitmcp.adding": "追加中…",
+  "gitmcp.invalid": "リポジトリを認識できません——owner/repo か GitHub URL を入力してください。",
+  "gitmcp.exists": "このリポジトリは追加済みです。",
+  "gitmcp.empty": "リポジトリはまだありません。追加するとドキュメントがローカル MCP サーバーとして提供されます。",
+  "gitmcp.indexing": "インデックス作成中…",
+  "gitmcp.indexed": "インデックス済み · {n} チャンク · {time}前",
+  "gitmcp.notIndexed": "未インデックス——再構築するか、初回検索時に自動作成されます。",
+  "gitmcp.indexFailed": "インデックス失敗",
+  "gitmcp.reindex": "再構築",
+  "gitmcp.delete": "削除",
+  "gitmcp.deleteConfirm": "{name} とそのローカルインデックスを削除しますか？",
+  "gitmcp.hint":
+    "各リポジトリはローカル MCP サーバー（gitmcp:owner/repo）として動作します。MCP タブでは有効/無効のみ、削除はこのモジュールからのみ可能です。",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.wiki": "Wiki ナレッジグラフ",

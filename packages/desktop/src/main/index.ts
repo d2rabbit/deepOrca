@@ -307,6 +307,7 @@ function registerIpc(): void {
   handle(IpcRequest.GitCurrentBranch, () => getBridge().gitCurrentBranch());
   handle(IpcRequest.GitListBranches, () => getBridge().gitListBranches());
   handle(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
+  handle(IpcRequest.GitStashCheckout, (branch: string) => getBridge().gitStashCheckout(branch));
   handle(IpcRequest.GitDiff, (file: string, staged: boolean) => getBridge().gitDiff(file, staged));
   handle(IpcRequest.GitLog, (limit?: number) => getBridge().gitLog(limit));
   handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
@@ -523,6 +524,12 @@ function registerIpc(): void {
   handle(IpcRequest.PluginSetMcpEnabled, (name: string, enabled: boolean) =>
     getBridge().pluginSetMcpEnabled(name, enabled)
   );
+
+  // ── GitMCP module ──────────────────────────────────────────────────────
+  handle(IpcRequest.GitmcpList, () => getBridge().gitmcpList());
+  handle(IpcRequest.GitmcpAdd, (input: string) => getBridge().gitmcpAdd(input));
+  handle(IpcRequest.GitmcpRemove, (slug: string) => getBridge().gitmcpRemove(slug));
+  handle(IpcRequest.GitmcpReindex, (slug: string) => getBridge().gitmcpReindex(slug));
 
   // ── Agent changes ─────────────────────────────────────────────────────────
   handle(IpcRequest.AgentChangesList, (sessionId: string) => getBridge().agentChangesList(sessionId));

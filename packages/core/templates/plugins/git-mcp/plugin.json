@@ -1,0 +1,10 @@
+{
+  "name": "git-mcp",
+  "version": "1.0.0",
+  "description": "Ground answers about external GitHub repositories in their live docs via GitMCP (gitmcp.io) — analyze any repo the user depends on and generate the matching MCP server config.",
+  "category": "documentation",
+  "author": "idosal / GitMCP",
+  "homepage": "https://github.com/idosal/git-mcp",
+  "builtin": true,
+  "removable": false
+}

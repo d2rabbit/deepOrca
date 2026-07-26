@@ -82,6 +82,7 @@ const api: DesktopApi = {
   gitCurrentBranch: () => ipcRenderer.invoke(IpcRequest.GitCurrentBranch),
   gitListBranches: () => ipcRenderer.invoke(IpcRequest.GitListBranches),
   gitCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitCheckout, branch),
+  gitStashCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitStashCheckout, branch),
   gitDiff: (file, staged) => ipcRenderer.invoke(IpcRequest.GitDiff, file, staged),
   gitLog: (limit) => ipcRenderer.invoke(IpcRequest.GitLog, limit),
   gitCommitDiff: (hash, file) => ipcRenderer.invoke(IpcRequest.GitCommitDiff, hash, file),
@@ -108,6 +109,12 @@ const api: DesktopApi = {
   // ── MCP management (plugin module) ─────────────────────────────
   pluginMcpList: () => ipcRenderer.invoke(IpcRequest.PluginMcpList),
   pluginSetMcpEnabled: (name, enabled) => ipcRenderer.invoke(IpcRequest.PluginSetMcpEnabled, name, enabled),
+
+  // ── GitMCP module ────────────────────────────────
+  gitmcpList: () => ipcRenderer.invoke(IpcRequest.GitmcpList),
+  gitmcpAdd: (input) => ipcRenderer.invoke(IpcRequest.GitmcpAdd, input),
+  gitmcpRemove: (slug) => ipcRenderer.invoke(IpcRequest.GitmcpRemove, slug),
+  gitmcpReindex: (slug) => ipcRenderer.invoke(IpcRequest.GitmcpReindex, slug),
 
   // ── Agent changes ───────────────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),

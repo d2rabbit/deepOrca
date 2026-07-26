@@ -1,34 +1,27 @@
 /* global document, window, IntersectionObserver */
-// Orca GitHub Pages — Main JS
+// DeepOrca GitHub Pages — Cyber HUD interactions
 
-// Navbar scroll effect
+// Navbar scroll state
 const nav = document.getElementById("nav");
 window.addEventListener("scroll", () => {
-  if (window.scrollY > 20) {
-    nav.classList.add("scrolled");
-  } else {
-    nav.classList.remove("scrolled");
-  }
+  nav.classList.toggle("scrolled", window.scrollY > 20);
 });
 
-// Fade-in on scroll (Intersection Observer)
+// Reveal-on-scroll
 const observer = new IntersectionObserver(
   (entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
         entry.target.classList.add("visible");
+        observer.unobserve(entry.target);
       }
     });
   },
-  { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+  { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
 );
+document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
 
-document.querySelectorAll(".feature-card, .step, .screenshot-card").forEach((el) => {
-  el.classList.add("fade-in");
-  observer.observe(el);
-});
-
-// Smooth scroll for anchor links
+// Smooth scroll for in-page anchors
 document.querySelectorAll('a[href^="#"]').forEach((link) => {
   link.addEventListener("click", (e) => {
     const target = document.querySelector(link.getAttribute("href"));

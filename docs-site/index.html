@@ -3,267 +3,307 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Orca — AI 编码助手</title>
-  <meta name="description" content="Orca 是专为 DeepSeek 模型优化的 AI 编码助手，支持终端 CLI、Electron 桌面客户端以及 VSCode 插件三种形态。">
-  <link rel="icon" href="https://avatars.githubusercontent.com/u/118287711?s=200&v=4" type="image/png">
+  <title>DeepOrca — AI 编码桌面客户端</title>
+  <meta name="description" content="DeepOrca 是专为 DeepSeek 模型打造的 AI 编码桌面客户端：会话工作台、源码管理、插件中心、代码索引与项目 Wiki，一站式赛博编码体验。">
+  <link rel="icon" href="assets/orca-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Navigation -->
-  <nav class="nav" id="nav">
+  <!-- Ambient layers -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow--cyan" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow--magenta" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <!-- ══ NAV ══ -->
+  <header class="nav" id="nav">
     <div class="nav-inner">
-      <a href="#" class="nav-brand">
-        <img src="https://avatars.githubusercontent.com/u/118287711?s=200&v=4" alt="Orca" class="nav-logo">
-        <span class="nav-name">Orca</span>
+      <a href="#top" class="brand">
+        <img src="assets/orca-icon.svg" alt="DeepOrca" class="brand-icon">
+        <span class="brand-word">DEEP<em>ORCA</em></span>
+        <span class="brand-tag">ORCA_v2</span>
       </a>
-      <div class="nav-links">
-        <a href="#features">功能</a>
-        <a href="#quickstart">快速开始</a>
-        <a href="#screenshots">截图</a>
-        <a href="https://github.com/lessweb/deepcode-cli/tree/main/docs" target="_blank">文档</a>
-      </div>
-      <div class="nav-actions">
-        <a href="https://github.com/lessweb/deepcode-cli" target="_blank" class="btn btn-ghost">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <nav class="nav-links">
+        <a href="#modules"><span class="nav-idx">01</span>核心模块</a>
+        <a href="#extend"><span class="nav-idx">02</span>扩展机制</a>
+        <a href="#boot"><span class="nav-idx">03</span>快速开始</a>
+        <a href="#visual"><span class="nav-idx">04</span>界面</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="cbtn cbtn--ghost" href="https://github.com/asdshuaishuai/deepcode-cli" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           GitHub
         </a>
-        <a href="#quickstart" class="btn btn-primary">开始使用</a>
+        <a class="cbtn cbtn--primary" href="#boot">开始使用</a>
       </div>
     </div>
-  </nav>
+    <div class="nav-rule" aria-hidden="true"></div>
+  </header>
 
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-bg"></div>
-    <div class="hero-content">
-      <div class="hero-badge">
-        <span class="badge-dot"></span>
-        v0.1.34 · 为 DeepSeek 而生
-      </div>
-      <h1 class="hero-title">
-        <span class="gradient-text">Orca</span>
-        <br>AI 编码助手
-      </h1>
-      <p class="hero-desc">
-        专为 <code>deepseek-v4</code> 模型优化的 AI 编码助手。
-        <br>支持终端 CLI、桌面客户端、VSCode 插件三种形态，
-        <br>内置 Skills、MCP、插件三大扩展机制。
-      </p>
-      <div class="hero-actions">
-        <a href="#quickstart" class="btn btn-primary btn-lg">快速开始</a>
-        <a href="https://github.com/lessweb/deepcode-cli" target="_blank" class="btn btn-outline btn-lg">
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          GitHub
-        </a>
-      </div>
-      <div class="hero-stats">
-        <div class="stat">
-          <span class="stat-num">3</span>
-          <span class="stat-label">运行形态</span>
+  <!-- ══ HERO ══ -->
+  <main id="top">
+    <section class="hero">
+      <div class="hero-left">
+        <div class="sys-badge">
+          <span class="sys-dot"></span>SYS.ONLINE&nbsp;//&nbsp;v0.1.34&nbsp;·&nbsp;BUILT&nbsp;FOR&nbsp;DEEPSEEK
         </div>
-        <div class="stat">
-          <span class="stat-num">7+</span>
-          <span class="stat-label">内置工具</span>
+        <h1 class="hero-title">
+          <span class="glitch" data-text="DEEPORCA">DEEPORCA</span>
+          <span class="hero-sub">AI 编码桌面客户端</span>
+        </h1>
+        <p class="hero-desc">
+          专为 <code>deepseek-v4</code> 打造的桌面级 AI 编码工作台。<br>
+          会话 · 源码管理 · 插件中心 · 代码索引 · 项目 Wiki，<br>
+          潜入深海，让虎鲸替你围猎代码。
+        </p>
+        <div class="hero-actions">
+          <a class="cbtn cbtn--primary cbtn--lg" href="#boot">▸ 立即部署</a>
+          <a class="cbtn cbtn--outline cbtn--lg" href="https://github.com/asdshuaishuai/deepcode-cli/releases" target="_blank" rel="noopener">⤓ 下载客户端</a>
         </div>
-        <div class="stat">
-          <span class="stat-num">3</span>
-          <span class="stat-label">扩展机制</span>
-        </div>
-      </div>
-    </div>
-    <div class="hero-terminal">
-      <div class="terminal-window">
-        <div class="terminal-header">
-          <span class="terminal-dot red"></span>
-          <span class="terminal-dot yellow"></span>
-          <span class="terminal-dot green"></span>
-          <span class="terminal-title">Terminal — orca</span>
-        </div>
-        <div class="terminal-body">
-          <div class="term-line"><span class="term-prompt">$</span> npm install -g @vegamo/deepcode-cli</div>
-          <div class="term-line"><span class="term-prompt">$</span> cd your-project && deepcode</div>
-          <div class="term-line term-output">
-            <span class="term-accent">◆</span> Orca v0.1.34 · DeepSeek optimized
-          </div>
-          <div class="term-line term-output">
-            <span class="term-dim">Type a message or / for commands</span>
-          </div>
-          <div class="term-line">
-            <span class="term-prompt">›</span> <span class="term-cursor"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section class="section" id="features">
-    <div class="container">
-      <h2 class="section-title">三大形态，一套引擎</h2>
-      <p class="section-desc">共享核心引擎，在不同场景下自由切换</p>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">⌨️</div>
-          <h3>终端 CLI</h3>
-          <p>基于 Ink (React for Terminals) 构建的现代化终端界面，支持富文本渲染、图片粘贴、快捷键操作。</p>
-          <div class="feature-tags">
-            <span class="tag">Ink</span>
-            <span class="tag">React</span>
-            <span class="tag">Rich UI</span>
-          </div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🖥️</div>
-          <h3>桌面客户端</h3>
-          <p>Electron 桌面 GUI，QQ 风格气泡消息、工具调用卡片、插件中心、源码管理、代码索引面板。</p>
-          <div class="feature-tags">
-            <span class="tag">Electron</span>
-            <span class="tag">Metro UI</span>
-            <span class="tag">多面板</span>
-          </div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">📝</div>
-          <h3>VSCode 插件</h3>
-          <p>功能完整的 VSCode 扩展，与 CLI 共享配置，在终端和编辑器之间无缝切换。</p>
-          <div class="feature-tags">
-            <span class="tag">VSCode</span>
-            <span class="tag">Extension</span>
-            <span class="tag">共享配置</span>
-          </div>
+        <div class="readout">
+          <div class="readout-cell"><span class="readout-num" data-count="7">07</span><span class="readout-key">内置工具</span></div>
+          <div class="readout-sep"></div>
+          <div class="readout-cell"><span class="readout-num">03</span><span class="readout-key">扩展机制</span></div>
+          <div class="readout-sep"></div>
+          <div class="readout-cell"><span class="readout-num">06</span><span class="readout-key">界面语言</span></div>
         </div>
       </div>
 
-      <h2 class="section-title" style="margin-top: 80px;">三大扩展机制</h2>
-      <p class="section-desc">Skills、MCP、内置插件并列，灵活扩展 AI 能力</p>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🎯</div>
-          <h3>Skills 技能</h3>
-          <p>SKILL.md 驱动的 Agent 能力扩展，支持项目和用户两级作用域，跨客户端互操作。</p>
-          <div class="feature-tags">
-            <span class="tag">SKILL.md</span>
-            <span class="tag">双层作用域</span>
+      <div class="hero-right">
+        <figure class="orca-stage">
+          <div class="orca-ring" aria-hidden="true"></div>
+          <img src="assets/orca-icon.svg" alt="DeepOrca 图标" class="orca-img">
+          <figcaption class="orca-caption">UNIT&nbsp;//&nbsp;ORCA_v2&nbsp;·&nbsp;STATUS&nbsp;:&nbsp;<span class="txt-cyan">HUNTING</span></figcaption>
+        </figure>
+        <div class="hud-window">
+          <div class="hud-window-bar">
+            <span class="hud-chip"></span><span class="hud-chip hud-chip--m"></span>
+            <span class="hud-window-title">DEEPORCA :: SESSION</span>
           </div>
+          <div class="hud-window-body mono">
+            <p><span class="txt-cyan">›</span> 帮我重构这个模块并补上单元测试</p>
+            <p class="dim"><span class="txt-magenta">◆</span> read · edit · bash — 3 个工具调用完成</p>
+            <p class="dim">✓ 重构完成，12 个测试全部通过</p>
+            <p><span class="txt-cyan">›</span> <span class="cursor"></span></p>
+          </div>
+          <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
+          <span class="corner corner--bl"></span><span class="corner corner--br"></span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">🔌</div>
+      </div>
+    </section>
+
+    <!-- ══ TICKER ══ -->
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track">
+        <span>DEEPSEEK-V4 OPTIMIZED</span><i>◇</i><span>PLAN MODE</span><i>◇</i><span>GIT INTEGRATED</span><i>◇</i><span>CODEGRAPH INDEX</span><i>◇</i><span>OPENWIKI</span><i>◇</i><span>MCP PROTOCOL</span><i>◇</i><span>AGENT SKILLS</span><i>◇</i><span>PUNK THEME 2077</span><i>◇</i>
+        <span>DEEPSEEK-V4 OPTIMIZED</span><i>◇</i><span>PLAN MODE</span><i>◇</i><span>GIT INTEGRATED</span><i>◇</i><span>CODEGRAPH INDEX</span><i>◇</i><span>OPENWIKI</span><i>◇</i><span>MCP PROTOCOL</span><i>◇</i><span>AGENT SKILLS</span><i>◇</i><span>PUNK THEME 2077</span><i>◇</i>
+      </div>
+    </div>
+
+    <!-- ══ MODULES ══ -->
+    <section class="section" id="modules">
+      <div class="section-head">
+        <span class="section-code">// 01</span>
+        <h2 class="section-title">核心模块</h2>
+        <p class="section-desc">不止是聊天窗口 — 编码所需的一切都封装在一个客户端里</p>
+      </div>
+      <div class="mod-grid">
+        <article class="mod-card reveal">
+          <header class="mod-head"><span class="mod-id">MOD-01</span><span class="mod-sig"></span></header>
+          <h3>AI 会话工作台</h3>
+          <p>气泡对话、工具调用卡片、指令与技能卡片、计划模式、Token 消耗面板 — AI 的每一步都清晰可见。</p>
+          <footer class="mod-tags"><span>计划模式</span><span>工具卡片</span><span>TOKEN 统计</span></footer>
+        </article>
+        <article class="mod-card reveal">
+          <header class="mod-head"><span class="mod-id">MOD-02</span><span class="mod-sig"></span></header>
+          <h3>源码管理</h3>
+          <p>内置 Git 面板：暂存、提交、分支切换（脏工作区自动引导暂存）、提交历史两级浏览、diff 语法高亮。</p>
+          <footer class="mod-tags"><span>GIT</span><span>语法高亮</span><span>历史浏览</span></footer>
+        </article>
+        <article class="mod-card reveal">
+          <header class="mod-head"><span class="mod-id">MOD-03</span><span class="mod-sig"></span></header>
+          <h3>代码索引 &amp; WIKI</h3>
+          <p>CodeGraph 索引让 AI 精准理解项目结构，OpenWiki 自动生成项目知识库，索引进度实时可视。</p>
+          <footer class="mod-tags"><span>CODEGRAPH</span><span>OPENWIKI</span></footer>
+        </article>
+        <article class="mod-card reveal">
+          <header class="mod-head"><span class="mod-id">MOD-04</span><span class="mod-sig"></span></header>
+          <h3>多工作区会话</h3>
+          <p>多项目并行管理，会话自动持久化，文件历史支持一键撤销 AI 修改，会话可导出归档。</p>
+          <footer class="mod-tags"><span>多工作区</span><span>撤销修改</span></footer>
+        </article>
+        <article class="mod-card reveal">
+          <header class="mod-head"><span class="mod-id">MOD-05</span><span class="mod-sig"></span></header>
+          <h3>主题系统</h3>
+          <p>Line 线条主题默认呈现，一键切换朋克风（致敬 2077），另有 Metro、Fusion、Glass 与日夜模式。</p>
+          <footer class="mod-tags"><span>LINE</span><span>PUNK 2077</span><span>日夜模式</span></footer>
+        </article>
+        <article class="mod-card reveal">
+          <header class="mod-head"><span class="mod-id">MOD-06</span><span class="mod-sig"></span></header>
+          <h3>多语言界面</h3>
+          <p>简体中文、繁体中文（台/港）、English、日本語、한국어六种界面语言，自动跟随系统偏好。</p>
+          <footer class="mod-tags"><span>I18N</span><span>6 LANGS</span></footer>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══ EXTEND ══ -->
+    <section class="section" id="extend">
+      <div class="section-head">
+        <span class="section-code">// 02</span>
+        <h2 class="section-title">扩展机制</h2>
+        <p class="section-desc">Skills · MCP · 内置插件并列，随时给虎鲸换上新装备</p>
+      </div>
+      <div class="ext-grid">
+        <article class="ext-card reveal">
+          <span class="ext-glyph">◈</span>
+          <h3>SKILLS 技能</h3>
+          <p>SKILL.md 驱动的 Agent 能力扩展，项目与用户两级作用域，内置 Dart / Flutter 等技能包。</p>
+        </article>
+        <article class="ext-card reveal">
+          <span class="ext-glyph">◎</span>
           <h3>MCP 服务器</h3>
           <p>通过 Model Context Protocol 连接 GitHub、浏览器、数据库等外部服务，无限扩展工具能力。</p>
-          <div class="feature-tags">
-            <span class="tag">MCP</span>
-            <span class="tag">外部服务</span>
-          </div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🧩</div>
+        </article>
+        <article class="ext-card reveal">
+          <span class="ext-glyph">⬡</span>
           <h3>内置插件</h3>
-          <p>随 Orca 一起发布的核心能力扩展，始终可用。如 browser-skill 驱动真实浏览器自动化。</p>
-          <div class="feature-tags">
-            <span class="tag">Builtin</span>
-            <span class="tag">始终可用</span>
-          </div>
-        </div>
+          <p>随 DeepOrca 一起发布的核心能力扩展，始终可用，如 browser-skill 驱动真实浏览器自动化。</p>
+        </article>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Quick Start -->
-  <section class="section section-alt" id="quickstart">
-    <div class="container">
-      <h2 class="section-title">快速开始</h2>
-      <p class="section-desc">三步即可开始使用</p>
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-content">
-            <h3>安装</h3>
-            <div class="code-block">
-              <code>npm install -g @vegamo/deepcode-cli</code>
-            </div>
+    <!-- ══ BOOT SEQUENCE ══ -->
+    <section class="section" id="boot">
+      <div class="section-head">
+        <span class="section-code">// 03</span>
+        <h2 class="section-title">启动序列</h2>
+        <p class="section-desc">三步部署，即刻潜航</p>
+      </div>
+      <div class="boot-list">
+        <div class="boot-step reveal">
+          <div class="boot-no">STEP<br><b>01</b></div>
+          <div class="boot-body">
+            <h3>获取应用</h3>
+            <p>从 <a href="https://github.com/asdshuaishuai/deepcode-cli/releases" target="_blank" rel="noopener">GitHub Releases</a> 下载对应平台安装包，或从源码构建：</p>
+            <pre class="codeblock mono"><span class="dim">$</span> git clone https://github.com/asdshuaishuai/deepcode-cli.git
+<span class="dim">$</span> cd deepcode-cli &amp;&amp; npm install
+<span class="dim">$</span> npm run desktop:start</pre>
           </div>
         </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-content">
-            <h3>配置</h3>
-            <p class="step-desc">创建 <code>~/.deepcode/settings.json</code></p>
-            <div class="code-block">
-<pre>{
-  "env": {
-    "MODEL": "deepseek-v4-pro",
-    "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
+        <div class="boot-step reveal">
+          <div class="boot-no">STEP<br><b>02</b></div>
+          <div class="boot-body">
+            <h3>接入模型</h3>
+            <p>在应用「设置」面板填写模型信息，或编辑 <code>~/.deepcode/settings.json</code>：</p>
+            <pre class="codeblock mono">{
+  <span class="txt-cyan">"env"</span>: {
+    <span class="txt-cyan">"MODEL"</span>: <span class="txt-magenta">"deepseek-v4-pro"</span>,
+    <span class="txt-cyan">"BASE_URL"</span>: <span class="txt-magenta">"https://api.deepseek.com"</span>,
+    <span class="txt-cyan">"API_KEY"</span>: <span class="txt-magenta">"sk-..."</span>
   },
-  "thinkingEnabled": true,
-  "reasoningEffort": "max"
+  <span class="txt-cyan">"thinkingEnabled"</span>: true,
+  <span class="txt-cyan">"reasoningEffort"</span>: <span class="txt-magenta">"max"</span>
 }</pre>
-            </div>
           </div>
         </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-content">
-            <h3>启动</h3>
-            <div class="code-block">
-              <code>cd your-project && deepcode</code>
-            </div>
+        <div class="boot-step reveal">
+          <div class="boot-no">STEP<br><b>03</b></div>
+          <div class="boot-body">
+            <h3>开始围猎</h3>
+            <p>打开 DeepOrca，选择项目文件夹，输入需求 — 虎鲸出击，与 AI 结对编程。</p>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Screenshots -->
-  <section class="section" id="screenshots">
-    <div class="container">
-      <h2 class="section-title">界面预览</h2>
-      <p class="section-desc">终端 CLI 与桌面客户端</p>
-      <div class="screenshots-grid">
-        <div class="screenshot-card">
-          <img src="../resources/intro2.png" alt="CLI 界面" loading="lazy">
-          <span class="screenshot-label">终端 CLI</span>
+    <!-- ══ VISUAL ══ -->
+    <section class="section" id="visual">
+      <div class="section-head">
+        <span class="section-code">// 04</span>
+        <h2 class="section-title">界面档案</h2>
+        <p class="section-desc">DeepOrca 桌面客户端 — 工作区 · 会话 · 源码管理，一屏尽收</p>
+      </div>
+      <figure class="shot reveal">
+        <div class="app-mock mono" role="img" aria-label="DeepOrca 桌面客户端界面示意">
+          <div class="am-titlebar">
+            <span class="am-dot"></span><span class="am-dot am-dot--m"></span><span class="am-dot am-dot--d"></span>
+            <span class="am-title">DEEPORCA — deepcode-cli</span>
+            <span class="am-title-right txt-cyan">PUNK&nbsp;2077</span>
+          </div>
+          <div class="am-body">
+            <aside class="am-rail">
+              <span class="am-rail-item is-on">◈</span>
+              <span class="am-rail-item">⎇</span>
+              <span class="am-rail-item">⌘</span>
+              <span class="am-rail-item">✦</span>
+              <span class="am-rail-item">⚙</span>
+            </aside>
+            <aside class="am-side">
+              <div class="am-side-head">SESSIONS</div>
+              <div class="am-sess is-on"><span class="txt-cyan">▸</span> 重构权限系统模块</div>
+              <div class="am-sess"><span class="dim">▸</span> 修复切分支冲突</div>
+              <div class="am-sess"><span class="dim">▸</span> 生成项目 Wiki</div>
+              <div class="am-side-head">SOURCE&nbsp;CONTROL</div>
+              <div class="am-sess"><span class="txt-magenta">⎇</span> qoder <span class="dim">· 3 changed</span></div>
+            </aside>
+            <div class="am-chat">
+              <div class="am-msg am-msg--user">帮我把源码管理面板加上分支冲突提示</div>
+              <div class="am-tool">
+                <div class="am-tool-head"><span class="txt-cyan">◆ edit</span><span class="dim">git-service.ts</span><span class="am-tool-ok">✓ DONE</span></div>
+                <div class="am-tool-body dim">+ stashCheckout(cwd, branch) · 冲突时自动暂存并还原现场</div>
+              </div>
+              <div class="am-tool">
+                <div class="am-tool-head"><span class="txt-cyan">◆ bash</span><span class="dim">npm run typecheck</span><span class="am-tool-ok">✓ PASS</span></div>
+              </div>
+              <div class="am-msg am-msg--ai">完成。切换分支遇到未提交更改时，会弹出「暂存并切换」，一键 stash → checkout。</div>
+              <div class="am-input"><span class="txt-cyan">›</span>&nbsp;向虎鲸下达指令…<span class="cursor"></span></div>
+            </div>
+          </div>
+          <div class="am-status">
+            <span><span class="txt-magenta">⎇</span> qoder</span>
+            <span class="dim">deepseek-v4</span>
+            <span class="dim">TOKENS 12.4K / 512K</span>
+            <span class="am-status-right txt-cyan">● READY</span>
+          </div>
         </div>
-        <div class="screenshot-card">
-          <img src="../resources/intro1.png" alt="桌面客户端" loading="lazy">
-          <span class="screenshot-label">桌面客户端</span>
+        <figcaption class="shot-cap mono">RENDER&nbsp;//&nbsp;DEEPORCA&nbsp;DESKTOP&nbsp;·&nbsp;SESSION&nbsp;+&nbsp;SCM&nbsp;WORKBENCH</figcaption>
+        <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
+        <span class="corner corner--bl"></span><span class="corner corner--br"></span>
+      </figure>
+    </section>
+
+    <!-- ══ CTA ══ -->
+    <section class="finale">
+      <div class="finale-frame reveal">
+        <img src="assets/orca-icon.svg" alt="" class="finale-icon" aria-hidden="true">
+        <h2 class="finale-title">READY&nbsp;TO&nbsp;DIVE&nbsp;?</h2>
+        <p class="finale-desc">下载 DeepOrca，让深海猎手接管你的编码流</p>
+        <div class="finale-actions">
+          <a class="cbtn cbtn--primary cbtn--lg" href="https://github.com/asdshuaishuai/deepcode-cli/releases" target="_blank" rel="noopener">⤓ 下载客户端</a>
+          <a class="cbtn cbtn--outline cbtn--lg" href="https://github.com/asdshuaishuai/deepcode-cli" target="_blank" rel="noopener">GitHub 仓库</a>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 
-  <!-- CTA -->
-  <section class="section cta-section">
-    <div class="container">
-      <h2 class="cta-title">准备好开始了吗？</h2>
-      <p class="cta-desc">加入 Orca，体验为 DeepSeek 量身打造的 AI 编码助手</p>
-      <div class="cta-actions">
-        <a href="https://github.com/lessweb/deepcode-cli" target="_blank" class="btn btn-primary btn-lg">GitHub 仓库</a>
-        <a href="https://www.npmjs.com/package/@vegamo/deepcode-cli" target="_blank" class="btn btn-outline btn-lg">npm 包</a>
-        <a href="https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode" target="_blank" class="btn btn-outline btn-lg">VSCode 插件</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Footer -->
+  <!-- ══ FOOTER ══ -->
   <footer class="footer">
-    <div class="container">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <img src="https://avatars.githubusercontent.com/u/118287711?s=200&v=4" alt="Orca" class="footer-logo">
-          <span>Orca</span>
-        </div>
-        <div class="footer-links">
-          <a href="https://github.com/lessweb/deepcode-cli" target="_blank">GitHub</a>
-          <a href="https://www.npmjs.com/package/@vegamo/deepcode-cli" target="_blank">npm</a>
-          <a href="https://github.com/lessweb/deepcode-cli/tree/main/docs" target="_blank">文档</a>
-          <a href="https://github.com/lessweb/deepcode-cli/issues" target="_blank">Issues</a>
-        </div>
-        <div class="footer-copy">MIT License · Built for DeepSeek</div>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="assets/orca-icon.svg" alt="DeepOrca" class="footer-icon">
+        <span class="mono">DEEPORCA&nbsp;//&nbsp;ORCA_v2</span>
       </div>
+      <nav class="footer-links mono">
+        <a href="https://github.com/asdshuaishuai/deepcode-cli" target="_blank" rel="noopener">GITHUB</a>
+        <a href="https://github.com/asdshuaishuai/deepcode-cli/releases" target="_blank" rel="noopener">RELEASES</a>
+        <a href="https://github.com/asdshuaishuai/deepcode-cli/tree/main/docs" target="_blank" rel="noopener">DOCS</a>
+        <a href="https://github.com/asdshuaishuai/deepcode-cli/issues" target="_blank" rel="noopener">ISSUES</a>
+      </nav>
+      <span class="footer-copy mono">MIT&nbsp;LICENSE&nbsp;·&nbsp;BUILT&nbsp;FOR&nbsp;DEEPSEEK</span>
     </div>
   </footer>
 

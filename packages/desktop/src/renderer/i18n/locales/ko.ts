@@ -191,6 +191,9 @@ export const ko: Record<MessageKey, string> = {
   "builtin.karpathy-guidelines.name": "Karpathy Guidelines",
   "builtin.karpathy-guidelines.desc":
     "Behavioral guidelines to reduce common LLM coding mistakes — avoid overcomplication, make surgical changes, surface assumptions, define verifiable success criteria.",
+  "builtin.git-mcp.name": "GitMCP",
+  "builtin.git-mcp.desc":
+    "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
   "context.compaction": "컨텍스트",
   "context.compacting": "압축 중…",
 
@@ -391,6 +394,12 @@ export const ko: Record<MessageKey, string> = {
   // ── Source control panel ──────────────────────────────────
   "scm.title": "소스 제어",
   "scm.branch": "브랜치",
+  "scm.dirtySwitchTitle": "브랜치 전환이 차단됨",
+  "scm.dirtySwitchBody":
+    "커밋되지 않은 로컬 변경 사항이 있어 “{branch}”(으)로 전환하면 덮어씌집니다. 자동으로 스태시(git stash)한 뒤 전환할까요? 나중에 git stash pop으로 복원할 수 있습니다.",
+  "scm.stashAndSwitch": "스태시 후 전환",
+  "scm.stashSwitchBusy": "전환 중…",
+  "scm.stashSwitchDone": "로컬 변경을 스태시하고 {branch}(으)로 전환했습니다",
   "scm.noRepo": "이 작업 공간은 Git 저장소가 아닙니다.",
   "scm.noChanges": "변경 사항이 없습니다.",
   "scm.stagedChanges": "스테이징된 변경 사항",
@@ -468,6 +477,25 @@ export const ko: Record<MessageKey, string> = {
   "review.scope": "리뷰 범위: 현재 프로젝트 워크스페이스의 커밋되지 않은 변경 사항(HEAD 대비).",
   "review.run": "리뷰 실행",
   "review.running": "리뷰 중…",
+
+  // ── GitMCP repositories (local MCP servers) ──────────────
+  "rail.gitmcp": "GitMCP",
+  "gitmcp.title": "GitMCP 저장소",
+  "gitmcp.placeholder": "owner/repo 또는 GitHub URL",
+  "gitmcp.add": "추가",
+  "gitmcp.adding": "추가 중…",
+  "gitmcp.invalid": "저장소를 인식할 수 없습니다 — owner/repo 또는 GitHub URL을 입력하세요.",
+  "gitmcp.exists": "이미 추가된 저장소입니다.",
+  "gitmcp.empty": "저장소가 없습니다. 추가하면 문서가 로컬 MCP 서버로 제공됩니다.",
+  "gitmcp.indexing": "인덱싱 중…",
+  "gitmcp.indexed": "인덱싱 완료 · 청크 {n}개 · {time} 전",
+  "gitmcp.notIndexed": "아직 인덱싱되지 않음 — 재구축하거나 첫 검색 시 자동 인덱싱됩니다.",
+  "gitmcp.indexFailed": "인덱싱 실패",
+  "gitmcp.reindex": "재구축",
+  "gitmcp.delete": "삭제",
+  "gitmcp.deleteConfirm": "{name}과(와) 로컬 인덱스를 제거하시겠습니까?",
+  "gitmcp.hint":
+    "각 저장소는 로컬 MCP 서버(gitmcp:owner/repo)로 실행됩니다. MCP 탭에서는 켜고 끄기만 가능하며, 삭제는 이 모듈에서만 가능합니다.",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
   "rail.wiki": "Wiki 지식 그래프",

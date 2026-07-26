@@ -104,23 +104,36 @@ function resolveVendorEntry(): string | null {
 export function resolveCodegraphExecutable(): CodegraphExecutable {
   const entry = resolveVendorEntry();
   if (entry) {
-    if (!process.versions.electron && selfNodeHasSqlite()) {
-      return { command: process.execPath, prefixArgs: [entry] };
-    }
-    const systemNode = resolveSqliteCapableNode();
-    if (systemNode) {
-      const exe: CodegraphExecutable = { command: systemNode.bin, prefixArgs: [entry] };
-      if (systemNode.needsFlag) {
-        // Node 22.5–22.12 ships node:sqlite behind --experimental-sqlite.
-        exe.env = { NODE_OPTIONS: "--experimental-sqlite" };
-      }
-      return exe;
-    }
-    if (process.versions.electron && selfNodeHasSqlite()) {
-      return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
+    const runtime = resolveSqliteRuntimeForEntry(entry);
+    if (runtime) {
+      return runtime;
     }
   }
   return { command: "npx", prefixArgs: ["-y", CODEGRAPH_PACKAGE] };
+}
+
+/**
+ * Resolve how to run a JS entry that needs `node:sqlite` (CodeGraph, the gitmcp
+ * server, …): host Node → sqlite-capable system Node → Electron as Node. Returns
+ * `null` when no sqlite-capable runtime exists on this machine.
+ */
+export function resolveSqliteRuntimeForEntry(entry: string): CodegraphExecutable | null {
+  if (!process.versions.electron && selfNodeHasSqlite()) {
+    return { command: process.execPath, prefixArgs: [entry] };
+  }
+  const systemNode = resolveSqliteCapableNode();
+  if (systemNode) {
+    const exe: CodegraphExecutable = { command: systemNode.bin, prefixArgs: [entry] };
+    if (systemNode.needsFlag) {
+      // Node 22.5–22.12 ships node:sqlite behind --experimental-sqlite.
+      exe.env = { NODE_OPTIONS: "--experimental-sqlite" };
+    }
+    return exe;
+  }
+  if (process.versions.electron && selfNodeHasSqlite()) {
+    return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
+  }
+  return null;
 }
 
 /** True when the current process's own Node runtime can run CodeGraph
