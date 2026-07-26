@@ -524,6 +524,23 @@ export const zhHK: Record<MessageKey, string> = {
   "mcp.removeTitle": "移除伺服器",
   "tokens.currentWorkspace": "目前工作區",
 
+  // ── Editor (Monaco code editor) ───────────────────────────
+  "rail.editor": "編輯器",
+  "editor.title": "程式碼編輯器",
+  "editor.empty": "選擇要編輯的檔案。",
+  "editor.loading": "載入檔案中…",
+  "editor.binary": "二進位檔案 — 無法編輯。",
+  "editor.save": "儲存",
+  "editor.saved": "已儲存",
+  "editor.dirty": "已修改",
+  "editor.openInEditor": "在編輯器中開啟",
+  "editor.back": "返回",
+  "editor.fileTree": "檔案",
+  "editor.noFiles": "找不到檔案。",
+  "editor.readError": "讀取檔案失敗。",
+  "editor.writeError": "儲存檔案失敗。",
+  "editor.tooLarge": "檔案過大，無法編輯。",
+
   // ── Language names ────────────────────────────────────────
   "lang.en": "English",
   "lang.zh": "简体中文",

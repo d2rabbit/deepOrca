@@ -116,6 +116,11 @@ const api: DesktopApi = {
   gitmcpRemove: (slug) => ipcRenderer.invoke(IpcRequest.GitmcpRemove, slug),
   gitmcpReindex: (slug) => ipcRenderer.invoke(IpcRequest.GitmcpReindex, slug),
 
+  // ── Editor module ─────────────────────────────────────────────────────
+  editorReadFile: (filePath) => ipcRenderer.invoke(IpcRequest.EditorReadFile, filePath),
+  editorWriteFile: (filePath, content) => ipcRenderer.invoke(IpcRequest.EditorWriteFile, filePath, content),
+  editorListFiles: (dirPath) => ipcRenderer.invoke(IpcRequest.EditorListFiles, dirPath),
+
   // ── Agent changes ───────────────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),
   agentChangesDiff: (sessionId, file) => ipcRenderer.invoke(IpcRequest.AgentChangesDiff, sessionId, file),

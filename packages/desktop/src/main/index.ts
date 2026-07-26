@@ -25,6 +25,7 @@ import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
 import { listWorkspaceSessions } from "./workspace-registry.js";
 import { archiveSession, unarchiveSession } from "./archive-store.js";
+import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -530,6 +531,13 @@ function registerIpc(): void {
   handle(IpcRequest.GitmcpAdd, (input: string) => getBridge().gitmcpAdd(input));
   handle(IpcRequest.GitmcpRemove, (slug: string) => getBridge().gitmcpRemove(slug));
   handle(IpcRequest.GitmcpReindex, (slug: string) => getBridge().gitmcpReindex(slug));
+
+  // ── Editor module ───────────────────────────────────────────────────────
+  handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
+  handle(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
+    handleEditorWriteFile(getBridge().projectRoot, filePath, content)
+  );
+  handle(IpcRequest.EditorListFiles, (dirPath: string) => handleEditorListFiles(getBridge().projectRoot, dirPath));
 
   // ── Agent changes ─────────────────────────────────────────────────────────
   handle(IpcRequest.AgentChangesList, (sessionId: string) => getBridge().agentChangesList(sessionId));

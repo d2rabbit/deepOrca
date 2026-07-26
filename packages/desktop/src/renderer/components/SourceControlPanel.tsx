@@ -12,6 +12,8 @@ type Props = {
   sessionId: string | null;
   /** Open the universal diff overlay for any target (git file / commit / agent). */
   onOpenDiff: (target: DiffTarget) => void;
+  /** Open a file in the code editor overlay. */
+  onOpenEditor?: (filePath: string) => void;
 };
 
 /** Map git status letter to a CSS modifier for color coding. */
@@ -36,7 +38,7 @@ function baseName(path: string): string {
  * (working tree + agent edits) and a lower half showing commit history. Every
  * row opens the universal DiffOverlay rather than an inline diff.
  */
-export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff }: Props): JSX.Element {
+export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEditor }: Props): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS);
   const [log, setLog] = useState<GitLogEntry[]>([]);
@@ -190,6 +192,11 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff }: Props)
       </span>
       <span className="ui-scm-path">{file.path}</span>
       <span className="ui-scm-file-actions" onClick={(e) => e.stopPropagation()}>
+        {onOpenEditor ? (
+          <Button size="sm" variant="subtle" onClick={() => onOpenEditor(file.path)} title={t("editor.openInEditor")}>
+            ✎
+          </Button>
+        ) : null}
         {isStaged ? (
           <Button size="sm" variant="subtle" onClick={() => void unstage(file.path)}>
             {t("scm.unstage")}

@@ -525,6 +525,23 @@ export const ja: Record<MessageKey, string> = {
   "mcp.removeTitle": "サーバーを削除",
   "tokens.currentWorkspace": "現在のワークスペース",
 
+  // ── Editor (Monaco code editor) ───────────────────────────
+  "rail.editor": "エディタ",
+  "editor.title": "コードエディタ",
+  "editor.empty": "編集するファイルを選択してください。",
+  "editor.loading": "ファイルを読み込み中…",
+  "editor.binary": "バイナリファイル — 編集できません。",
+  "editor.save": "保存",
+  "editor.saved": "保存しました",
+  "editor.dirty": "変更あり",
+  "editor.openInEditor": "エディタで開く",
+  "editor.back": "戻る",
+  "editor.fileTree": "ファイル",
+  "editor.noFiles": "ファイルが見つかりません。",
+  "editor.readError": "ファイルの読み込みに失敗しました。",
+  "editor.writeError": "ファイルの保存に失敗しました。",
+  "editor.tooLarge": "ファイルが大きすぎて編集できません。",
+
   // ── Language names ────────────────────────────────────────
   "lang.en": "English",
   "lang.zh": "简体中文",

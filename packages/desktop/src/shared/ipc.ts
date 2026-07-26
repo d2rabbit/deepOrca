@@ -119,6 +119,11 @@ export const IpcRequest = {
   GitmcpAdd: "gitmcp:add",
   GitmcpRemove: "gitmcp:remove",
   GitmcpReindex: "gitmcp:reindex",
+
+  // Editor module (Monaco code editor)
+  EditorReadFile: "editor:readFile",
+  EditorWriteFile: "editor:writeFile",
+  EditorListFiles: "editor:listFiles",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -370,6 +375,15 @@ export type EditableSettings = {
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };
 
+/** A file or directory entry for the editor file explorer. */
+export type EditorFileEntry = {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  /** File size in bytes (0 for directories). */
+  size: number;
+};
+
 /** A file match for @file mention autocomplete. */
 export type FileMatch = {
   path: string;
@@ -523,6 +537,14 @@ export type DesktopApi = {
   gitmcpRemove(slug: string): Promise<void>;
   /** Re-fetch the repository documentation and rebuild its index. */
   gitmcpReindex(slug: string): Promise<{ ok: boolean; error?: string }>;
+
+  // ── Editor module ─────────────────────────────────────────────────────
+  /** Read a file's text content from the project root. */
+  editorReadFile(filePath: string): Promise<{ ok: boolean; content?: string; error?: string; binary?: boolean }>;
+  /** Write text content to a file within the project root. */
+  editorWriteFile(filePath: string, content: string): Promise<{ ok: boolean; error?: string }>;
+  /** List files and directories under a path within the project root. */
+  editorListFiles(dirPath: string): Promise<{ ok: boolean; entries?: EditorFileEntry[]; error?: string }>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */

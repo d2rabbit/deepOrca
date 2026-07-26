@@ -31,6 +31,8 @@ import { CodeReviewPanel } from "./components/CodeReviewPanel";
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { WikiPanel } from "./components/WikiPanel";
 import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
+import { EditorOverlay } from "./components/EditorOverlay";
+import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
@@ -79,6 +81,7 @@ import {
   IconReview,
   IconGitmcp,
   IconWiki,
+  IconEditor,
   IconReasoningHidden,
   IconReasoningNormal,
   IconReasoningExpanded,
@@ -164,10 +167,11 @@ export function App(): JSX.Element {
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [sidebarView, setSidebarView] = useState<
-    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins"
+    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor"
   >("explorer");
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
+  const [editorFile, setEditorFile] = useState<string | null>(null);
   const [branch, setBranch] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
 
@@ -231,7 +235,7 @@ export function App(): JSX.Element {
   // VSCode-style activity bar: selecting a rail view swaps the left panel while
   // the main area stays put. Re-selecting the active view toggles the panel.
   const selectView = useCallback(
-    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins") => {
+    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor") => {
       setSidebarView((prev) => {
         if (prev === view) {
           setPanelOpen((wasOpen) => !wasOpen);
@@ -1071,6 +1075,14 @@ export function App(): JSX.Element {
         >
           <IconWiki />
         </RailButton>
+        <RailButton
+          active={panelOpen && sidebarView === "editor"}
+          title={t("rail.editor")}
+          aria-label={t("rail.editor")}
+          onClick={() => selectView("editor")}
+        >
+          <IconEditor />
+        </RailButton>
         <RailSpacer />
         <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
           {reasoningIconEl}
@@ -1124,7 +1136,12 @@ export function App(): JSX.Element {
             onOpenTokens={openTokensView}
           />
         ) : sidebarView === "scm" ? (
-          <SourceControlPanel refreshKey={treeRefreshKey} sessionId={activeId} onOpenDiff={handleOpenDiff} />
+          <SourceControlPanel
+            refreshKey={treeRefreshKey}
+            sessionId={activeId}
+            onOpenDiff={handleOpenDiff}
+            onOpenEditor={setEditorFile}
+          />
         ) : sidebarView === "tasks" ? (
           <TaskPanel messages={messages} />
         ) : sidebarView === "tokens" ? (
@@ -1137,6 +1154,8 @@ export function App(): JSX.Element {
           <GitMcpPanel />
         ) : sidebarView === "wiki" ? (
           <WikiPanel />
+        ) : sidebarView === "editor" ? (
+          <EditorPanel onOpenFile={setEditorFile} />
         ) : (
           <PluginMcpPanel
             skills={skills}
@@ -1291,7 +1310,12 @@ export function App(): JSX.Element {
         )}
       </div>
 
-      {diffTarget ? <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} /> : null}
+      {diffTarget ? (
+        <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+      ) : null}
+      {editorFile ? (
+        <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} />
+      ) : null}
 
       {modal === "undo" ? (
         <UndoModal sessionId={activeId} onClose={() => setModal(null)} onRestored={() => void handleUndoRestored()} />

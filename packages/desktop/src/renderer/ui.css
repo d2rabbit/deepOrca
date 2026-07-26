@@ -6328,3 +6328,183 @@ button.ui-topbar-pill {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Editor overlay ─────────────────────────────────────────────────────── */
+
+.ui-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.ui-editor-overlay-panel {
+  width: 92vw;
+  height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  box-shadow: var(--ui-shadow-lg);
+  overflow: hidden;
+}
+
+.ui-editor-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg-soft);
+  flex-shrink: 0;
+}
+
+.ui-editor-overlay-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-editor-dirty-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ui-editor-overlay-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ui-editor-overlay-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.ui-editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--ui-text-dim);
+  font-size: 13px;
+}
+
+.ui-editor-error {
+  color: var(--ui-error, #e5484d);
+}
+
+/* ── Editor panel (sidebar file tree) ───────────────────────────────────── */
+
+.ui-editor-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  font-size: 12px;
+}
+
+.ui-editor-breadcrumb-btn {
+  background: none;
+  border: none;
+  color: var(--ui-accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.ui-editor-breadcrumb-btn:hover {
+  background: var(--ui-bg-hover);
+}
+
+.ui-editor-breadcrumb-path {
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-editor-file-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ui-text);
+  transition: background 0.1s ease;
+}
+
+.ui-editor-file-entry:hover {
+  background: var(--ui-bg-hover);
+}
+
+.ui-editor-file-entry.is-dir {
+  font-weight: 500;
+}
+
+.ui-editor-file-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.ui-editor-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-editor-file-size {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+}
+
+/* ── Diff overlay action button ─────────────────────────────────────────── */
+
+.ui-diff-overlay-action {
+  background: none;
+  border: 1px solid var(--ui-border-soft);
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.ui-diff-overlay-action:hover {
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}

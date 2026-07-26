@@ -525,6 +525,23 @@ export const ko: Record<MessageKey, string> = {
   "mcp.removeTitle": "서버 제거",
   "tokens.currentWorkspace": "현재 워크스페이스",
 
+  // ── Editor (Monaco code editor) ───────────────────────────
+  "rail.editor": "에디터",
+  "editor.title": "코드 에디터",
+  "editor.empty": "편집할 파일을 선택하세요.",
+  "editor.loading": "파일 로드 중…",
+  "editor.binary": "바이너리 파일 — 편집할 수 없습니다.",
+  "editor.save": "저장",
+  "editor.saved": "저장됨",
+  "editor.dirty": "수정됨",
+  "editor.openInEditor": "에디터에서 열기",
+  "editor.back": "뒤로",
+  "editor.fileTree": "파일",
+  "editor.noFiles": "파일을 찾을 수 없습니다.",
+  "editor.readError": "파일을 읽지 못했습니다.",
+  "editor.writeError": "파일을 저장하지 못했습니다.",
+  "editor.tooLarge": "파일이 너무 커서 편집할 수 없습니다.",
+
   // ── Language names ────────────────────────────────────────
   "lang.en": "English",
   "lang.zh": "简体中文",

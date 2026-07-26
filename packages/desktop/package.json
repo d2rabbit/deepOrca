@@ -19,9 +19,11 @@
     "vendor:openwiki": "node ../../scripts/vendor-openwiki.js"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@vegamo/deepcode-core": "file:../core",
     "highlight.js": "^11.11.1",
     "marked": "^14.1.4",
+    "monaco-editor": "^0.56.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

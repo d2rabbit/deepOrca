@@ -467,3 +467,25 @@ export function IconChat(): JSX.Element {
     </svg>
   );
 }
+
+/** Code brackets — editor */
+export function IconEditor(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M8 3H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8M8 3v5h5M8 3l5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 12l-2-2 2-2M12 12l2-2-2-2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

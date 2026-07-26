@@ -139,7 +139,15 @@ async function loadDiff(target: DiffTarget): Promise<DiffPayload> {
  * A large secondary overlay used everywhere a diff is viewed — source control
  * files, agent file changes, and whole commits all render through this panel.
  */
-export function DiffOverlay({ target, onClose }: { target: DiffTarget; onClose: () => void }): JSX.Element {
+export function DiffOverlay({
+  target,
+  onClose,
+  onOpenEditor,
+}: {
+  target: DiffTarget;
+  onClose: () => void;
+  onOpenEditor?: (filePath: string) => void;
+}): JSX.Element {
   const { t } = useI18n();
   const [payload, setPayload] = useState<DiffPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -189,6 +197,15 @@ export function DiffOverlay({ target, onClose }: { target: DiffTarget; onClose: 
               <span className="ui-diff-stat-add">+{addedCount}</span>
               <span className="ui-diff-stat-del">-{removedCount}</span>
             </span>
+          ) : null}
+          {onOpenEditor && payload?.file ? (
+            <button
+              className="ui-diff-overlay-action"
+              onClick={() => onOpenEditor(payload.file)}
+              title={t("editor.openInEditor")}
+            >
+              ✎ {t("editor.openInEditor")}
+            </button>
           ) : null}
           <button
             className="ui-diff-overlay-close"

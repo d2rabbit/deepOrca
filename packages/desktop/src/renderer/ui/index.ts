@@ -43,4 +43,5 @@ export {
   IconToolMcp,
   IconToolGeneric,
   IconChat,
+  IconEditor,
 } from "./icons";
