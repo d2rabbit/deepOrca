@@ -24,6 +24,8 @@ export const en = {
 
   // ── Top bar ───────────────────────────────────────────────
   "topbar.desktop": "Desktop",
+  "topbar.pickFolder": "Choose a project folder…",
+  "topbar.pickFolderHint": "No workspace yet — click to pick a project folder",
   "topbar.mcpTitle": "MCP servers",
   "topbar.modelTitle": "Model settings",
   "topbar.settingsTitle": "Settings",
@@ -587,6 +589,8 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Top bar ───────────────────────────────────────────────
   "topbar.desktop": "桌面版",
+  "topbar.pickFolder": "选择项目文件夹…",
+  "topbar.pickFolderHint": "尚未选择工作区 — 点击选择项目文件夹",
   "topbar.mcpTitle": "MCP 服务器",
   "topbar.modelTitle": "模型设置",
   "topbar.settingsTitle": "设置",

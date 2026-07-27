@@ -394,7 +394,7 @@ export type FileMatch = {
 
 /** The typed surface exposed on `window.deeporca` from the preload script. */
 export type DesktopApi = {
-  ready(): Promise<{ projectRoot: string; platform: NodeJS.Platform }>;
+  ready(): Promise<{ projectRoot: string; platform: NodeJS.Platform; homeDir: string }>;
   pickFolder(): Promise<string | null>;
   setProjectRoot(root: string): Promise<{ projectRoot: string }>;
   getProjectRoot(): Promise<string>;

@@ -133,6 +133,9 @@ export function App(): JSX.Element {
   const { t } = useI18n();
   const { toasts, push: pushToast } = useToasts();
   const [projectRoot, setProjectRoot] = useState("");
+  // Home dir reported by main — used to detect the fresh-install fallback root
+  // so the UI never presents the user's home as a real workspace.
+  const [homeDir, setHomeDir] = useState("");
   const [settings, setSettings] = useState<SettingsSummary | null>(null);
   const [platform, setPlatform] = useState<string>("");
   const [sessions, setSessions] = useState<SerializableSessionEntry[]>([]);
@@ -337,9 +340,10 @@ export function App(): JSX.Element {
     let disposed = false;
     void (async () => {
       try {
-        const { projectRoot: root, platform: plat } = await api.ready();
+        const { projectRoot: root, platform: plat, homeDir: home } = await api.ready();
         if (disposed) return;
         setProjectRoot(root);
+        setHomeDir(home);
         setPlatform(plat);
         const resolvedTheme = resolveTheme(plat);
         setAppearanceState(resolveAppearance(plat, resolvedTheme));
@@ -1299,6 +1303,8 @@ export function App(): JSX.Element {
       <TopBar
         platform={platform}
         projectRoot={projectRoot}
+        isHomeRoot={homeDir !== "" && projectRoot === homeDir}
+        onPickFolder={() => void handleNewWorkspace()}
         settings={settings}
         branch={branch}
         branches={branches}

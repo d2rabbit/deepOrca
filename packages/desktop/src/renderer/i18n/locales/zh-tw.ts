@@ -19,6 +19,8 @@ export const zhTW: Record<MessageKey, string> = {
 
   // ── Top bar ───────────────────────────────────────────────
   "topbar.desktop": "桌面版",
+  "topbar.pickFolder": "選擇專案資料夾…",
+  "topbar.pickFolderHint": "尚未選擇工作區 — 點擊選擇專案資料夾",
   "topbar.mcpTitle": "MCP 伺服器",
   "topbar.modelTitle": "模型設定",
   "topbar.settingsTitle": "設定",

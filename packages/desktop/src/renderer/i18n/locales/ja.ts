@@ -18,6 +18,8 @@ export const ja: Record<MessageKey, string> = {
 
   // ── Top bar ───────────────────────────────────────────────
   "topbar.desktop": "デスクトップ",
+  "topbar.pickFolder": "プロジェクトフォルダを選択…",
+  "topbar.pickFolderHint": "ワークスペース未選択 — クリックしてプロジェクトフォルダを選択",
   "topbar.mcpTitle": "MCP サーバー",
   "topbar.modelTitle": "モデル設定",
   "topbar.settingsTitle": "設定",

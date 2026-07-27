@@ -18,6 +18,8 @@ export const ko: Record<MessageKey, string> = {
 
   // ── Top bar ───────────────────────────────────────────────
   "topbar.desktop": "데스크톱",
+  "topbar.pickFolder": "프로젝트 폴더 선택…",
+  "topbar.pickFolderHint": "작업 영역이 없습니다 — 클릭하여 프로젝트 폴더를 선택하세요",
   "topbar.mcpTitle": "MCP 서버",
   "topbar.modelTitle": "모델 설정",
   "topbar.settingsTitle": "설정",

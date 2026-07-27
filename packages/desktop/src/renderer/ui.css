@@ -4523,6 +4523,15 @@ button.ui-topbar-pill {
   white-space: nowrap;
   font-weight: 500;
 }
+
+/* Fresh-install call-to-action: the project pill invites picking a folder
+   instead of presenting the home-dir fallback as a workspace. */
+.ui-topbar-pickfolder .ui-topbar-project-name {
+  color: var(--ui-accent);
+}
+.ui-topbar-pickfolder:hover .ui-topbar-project-name {
+  text-decoration: underline;
+}
 /* The branch Select lives inside .ui-topbar-pill and has no own border —
    the pill is the border. Background is transparent so the pill tint
    shows through, and the height/padding reset match the pill geometry. */

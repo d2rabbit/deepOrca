@@ -7,6 +7,7 @@ import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { statSync } from "node:fs";
+import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
   setShellIfWindows,
@@ -133,7 +134,9 @@ function resolveInitialRoot(): string {
   } catch {
     // Fall through to home.
   }
-  return app.getPath("home");
+  // Use os.homedir() (not app.getPath) so the fallback matches the
+  // workspace-registry filter exactly — otherwise home can leak into the tree.
+  return homedir();
 }
 
 function getBridge(): SessionBridge {
@@ -220,6 +223,7 @@ function registerIpc(): void {
   handle(IpcRequest.Ready, () => ({
     projectRoot: getBridge().projectRoot,
     platform: resolvePlatform(),
+    homeDir: homedir(),
   }));
   handle(IpcRequest.GetProjectRoot, () => getBridge().projectRoot);
 

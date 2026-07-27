@@ -8,6 +8,10 @@ import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
 type Props = {
   platform: string;
   projectRoot: string;
+  /** True when the engine is on its home-dir fallback (no real workspace yet). */
+  isHomeRoot?: boolean;
+  /** Open the folder picker to choose a real workspace. */
+  onPickFolder?: () => void;
   settings: SettingsSummary | null;
   branch: string;
   branches: string[];
@@ -80,6 +84,8 @@ const ICON_CLOSE = (
 export function TopBar({
   platform,
   projectRoot,
+  isHomeRoot = false,
+  onPickFolder,
   settings,
   branch,
   branches,
@@ -165,32 +171,44 @@ export function TopBar({
       {isMac ? macControls : null}
 
       {/* Project / branch: "项目名 / 分支名" — wrapped in a unified pill so
-         the control surface reads as one cohesive accent-tinted group. */}
-      <div className="ui-topbar-pill ui-topbar-project" title={projectRoot}>
-        <span className="ui-topbar-project-name">{projectName(projectRoot) || t("topbar.desktop")}</span>
-        {branches.length > 0 ? (
-          <>
-            <span className="ui-topbar-sep">/</span>
-            <Select
-              className="ui-topbar-branch"
-              value={branch}
-              title={t("topbar.branch")}
-              onChange={(e) => onSwitchBranch(e.target.value)}
-            >
-              {branches.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </Select>
-          </>
-        ) : branch ? (
-          <>
-            <span className="ui-topbar-sep">/</span>
-            <span className="ui-topbar-branch-static">{branch}</span>
-          </>
-        ) : null}
-      </div>
+         the control surface reads as one cohesive accent-tinted group. On the
+         home-dir fallback (fresh install) the pill becomes a "pick a project
+         folder" call-to-action instead of masquerading home as a workspace. */}
+      {isHomeRoot ? (
+        <button
+          className="ui-topbar-pill ui-topbar-project ui-topbar-pickfolder"
+          title={t("topbar.pickFolderHint")}
+          onClick={onPickFolder}
+        >
+          <span className="ui-topbar-project-name">{t("topbar.pickFolder")}</span>
+        </button>
+      ) : (
+        <div className="ui-topbar-pill ui-topbar-project" title={projectRoot}>
+          <span className="ui-topbar-project-name">{projectName(projectRoot) || t("topbar.desktop")}</span>
+          {branches.length > 0 ? (
+            <>
+              <span className="ui-topbar-sep">/</span>
+              <Select
+                className="ui-topbar-branch"
+                value={branch}
+                title={t("topbar.branch")}
+                onChange={(e) => onSwitchBranch(e.target.value)}
+              >
+                {branches.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </Select>
+            </>
+          ) : branch ? (
+            <>
+              <span className="ui-topbar-sep">/</span>
+              <span className="ui-topbar-branch-static">{branch}</span>
+            </>
+          ) : null}
+        </div>
+      )}
 
       <div className="ui-window-bar-spacer">
         {streaming ? (
