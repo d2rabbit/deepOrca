@@ -15,8 +15,9 @@ export type ReasoningMode = "normal" | "expanded" | "hidden";
 // Aqua ships on macOS, Metro on Windows, Glass (glassmorphism) is the Linux
 // default and an opt-in alternative on macOS. Fusion is a Windows-only theme
 // blending Win8 tile colors with Win11 glassy breath. The user's explicit
-// choice is persisted and wins over the platform default.
-export type Theme = "aqua" | "metro" | "glass" | "fusion" | "line";
+// choice is persisted and wins over the platform default. Orca is the
+// dark-only Cyber HUD theme derived from the official site, offered everywhere.
+export type Theme = "aqua" | "metro" | "glass" | "fusion" | "line" | "orca";
 
 // The Line theme ships two flavours: the original "stroke" drafting look and a
 // cyberpunk 2077-inspired "punk" recolor, toggled via `data-line-variant`.
@@ -36,6 +37,7 @@ const THEME_STYLESHEETS: Record<Theme, string> = {
   glass: "./styles-glass.css",
   fusion: "./styles-fusion.css",
   line: "./styles-line.css",
+  orca: "./styles-orca.css",
 };
 
 /** The stylesheet href that binds `--ui-*` tokens for a theme. */
@@ -59,15 +61,20 @@ export function baseTheme(platform: string): Theme {
  * Linux only Glass. Defaults are NOT changed by this map.
  */
 export function availableThemes(platform: string): Theme[] {
-  if (platform === "win32") return ["line", "metro", "fusion"];
-  if (platform === "darwin") return ["line", "aqua", "glass"];
-  return ["line", "glass"];
+  if (platform === "win32") return ["line", "orca", "metro", "fusion"];
+  if (platform === "darwin") return ["line", "orca", "aqua", "glass"];
+  return ["line", "orca", "glass"];
 }
 
 export function getStoredTheme(): Theme | null {
   try {
     const stored = localStorage.getItem(THEME_KEY);
-    return stored === "aqua" || stored === "metro" || stored === "glass" || stored === "fusion" || stored === "line"
+    return stored === "aqua" ||
+      stored === "metro" ||
+      stored === "glass" ||
+      stored === "fusion" ||
+      stored === "line" ||
+      stored === "orca"
       ? stored
       : null;
   } catch {
@@ -124,9 +131,10 @@ export function setLineVariant(variant: LineVariant): void {
 }
 
 /** The native tone for a platform's default stylesheet.
- *  Glass (Prism) is always dark-first regardless of platform. */
+ *  Glass (Prism) and Line are dark-first; Orca is dark-ONLY (it ships no
+ *  light palette at all — the appearance toggle is hidden while active). */
 export function defaultAppearance(platform: string, theme?: Theme): Appearance {
-  if (theme === "glass" || theme === "line") return "dark";
+  if (theme === "glass" || theme === "line" || theme === "orca") return "dark";
   return platform === "win32" ? "dark" : "light";
 }
 

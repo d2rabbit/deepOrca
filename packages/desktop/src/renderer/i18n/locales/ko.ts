@@ -271,6 +271,7 @@ export const ko: Record<MessageKey, string> = {
   "theme.glass": "글래스",
   "theme.fusion": "Fusion(타일 · 글래스)",
   "theme.line": "Line(스트로크)",
+  "theme.orca": "Orca(사이버 HUD)",
   "decision.default": "기본",
   "decision.allow": "허용",
   "decision.ask": "확인",

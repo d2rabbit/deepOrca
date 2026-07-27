@@ -1206,9 +1206,12 @@ export function App(): JSX.Element {
         <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
           {reasoningIconEl}
         </RailButton>
-        <RailButton title={appearanceTitle} aria-label={appearanceTitle} onClick={handleToggleAppearance}>
-          {appearance === "dark" ? <IconMoon /> : <IconSun />}
-        </RailButton>
+        {/* Orca is dark-only — hide the light/dark toggle while it's active. */}
+        {theme !== "orca" ? (
+          <RailButton title={appearanceTitle} aria-label={appearanceTitle} onClick={handleToggleAppearance}>
+            {appearance === "dark" ? <IconMoon /> : <IconSun />}
+          </RailButton>
+        ) : null}
         {theme === "line" ? (
           <RailButton
             active={lineVariant === "punk"}
@@ -1218,7 +1221,7 @@ export function App(): JSX.Element {
           >
             <IconPunk />
           </RailButton>
-        ) : platform !== "win32" ? (
+        ) : theme !== "orca" && platform !== "win32" ? (
           <RailButton active={theme === "glass"} title={themeTitle} aria-label={themeTitle} onClick={handleToggleTheme}>
             <IconGlass />
           </RailButton>

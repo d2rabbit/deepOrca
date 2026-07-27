@@ -271,6 +271,7 @@ export const ja: Record<MessageKey, string> = {
   "theme.glass": "グラス",
   "theme.fusion": "Fusion（タイル · グラス）",
   "theme.line": "Line（ストローク）",
+  "theme.orca": "Orca（サイバーHUD）",
   "decision.default": "既定",
   "decision.allow": "許可",
   "decision.ask": "確認",

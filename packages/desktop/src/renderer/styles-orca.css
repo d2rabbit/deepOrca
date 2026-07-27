@@ -1,0 +1,151 @@
+/* ===========================================================================
+   Orca theme — Cyber HUD, derived from the official site (docs-site).
+
+   Palette lifted straight from docs-site/css/style.css:
+     bg #080a14 → #0c1020 → #12182e · cyan #00f3ff · magenta #ff007f
+     text #e6f1ff · dim #8b9bb4
+
+   Design identity:
+     · Deep-sea night ground with a faint cyan blueprint grid.
+     · Twin neon channels: cyan is the primary signal, magenta the counter
+       accent (danger/secondary highlights) — exactly like the site's
+       corner brackets (cyan top, magenta bottom).
+     · Hard HUD corners (2-4px), hairline cyan borders, neon glow on focus
+       and active states. No gloss, no frosted glass.
+     · Dark-only by design: this file deliberately ships NO
+       `[data-appearance="light"]` block — the palette is bound on :root and
+       ignores the light/dark switch entirely.
+
+   Like other themes, this file ships NO layout; ui.css owns structure via
+   the semantic `--ui-*` vocabulary.
+   =========================================================================== */
+
+:root {
+  /* ── Cyber HUD palette (site tokens) ── */
+  --orca-bg: #080a14;
+  --orca-bg-2: #0c1020;
+  --orca-bg-3: #12182e;
+  --orca-cyan: #00f3ff;
+  --orca-cyan-dim: rgba(0, 243, 255, 0.55);
+  --orca-cyan-line: rgba(0, 243, 255, 0.22);
+  --orca-cyan-faint: rgba(0, 243, 255, 0.07);
+  --orca-magenta: #ff007f;
+  --orca-magenta-line: rgba(255, 0, 127, 0.35);
+
+  /* ── Semantic token bindings (dark-only) ── */
+  --ui-bg: var(--orca-bg);
+  --ui-surface: var(--orca-bg-2);
+  --ui-surface-raised: var(--orca-bg-3);
+  --ui-surface-sunken: #05060d;
+  --ui-surface-hover: rgba(0, 243, 255, 0.06);
+
+  --ui-text: #e6f1ff;
+  --ui-text-dim: #8b9bb4;
+  --ui-text-faint: #5a6a84;
+  --ui-text-on-accent: #04121a;
+
+  --ui-accent: var(--orca-cyan);
+  --ui-accent-strong: #00c4d6;
+  --ui-accent-soft: rgba(0, 243, 255, 0.12);
+  --ui-accent-fill: var(--orca-cyan);
+  --ui-focus-ring: rgba(0, 243, 255, 0.6);
+
+  --ui-border: var(--orca-cyan-line);
+  --ui-border-soft: rgba(0, 243, 255, 0.1);
+
+  --ui-success: #00f0a0;
+  --ui-danger: var(--orca-magenta);
+  --ui-warning: #ffb020;
+  --ui-info: #7b9dff;
+
+  /* Hard HUD chamfers — armor plating, not pebbles. */
+  --ui-radius-sm: 2px;
+  --ui-radius-md: 3px;
+  --ui-radius-lg: 4px;
+  --ui-radius-pill: 999px;
+
+  /* Neon-tinted depth. */
+  --ui-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --ui-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 243, 255, 0.04);
+  --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 243, 255, 0.08);
+
+  --ui-font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --ui-font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", "Fira Code", Consolas, "Noto Sans Mono", monospace;
+}
+
+/* ===========================================================================
+   Flourishes — Cyber HUD touches hooked onto primitive classes.
+   =========================================================================== */
+
+/* Blueprint grid on the shell ground, echoing the site's .bg-grid. Surfaces
+   sit on top with their own paint, so the grid only breathes in open areas. */
+.ui-shell {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 70% 0%, rgba(0, 243, 255, 0.05), transparent 70%),
+    linear-gradient(var(--orca-cyan-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--orca-cyan-faint) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    44px 44px,
+    44px 44px;
+}
+
+/* Neon selection + focus, exactly like the site. */
+::selection {
+  background: rgba(0, 243, 255, 0.25);
+  color: #ffffff;
+}
+:focus-visible {
+  outline-color: var(--orca-cyan);
+}
+
+/* Rail: active tool gets the cyan signal bar + glow. */
+.ui-rail-btn.active {
+  box-shadow: inset 2px 0 0 var(--orca-cyan);
+  text-shadow: 0 0 10px var(--orca-cyan-dim);
+}
+
+/* Primary button: hard chamfer + neon bloom on hover (site .cbtn--primary). */
+.ui-btn--primary {
+  border-radius: var(--ui-radius-sm);
+}
+.ui-btn--primary:hover {
+  box-shadow: 0 0 18px rgba(0, 243, 255, 0.35);
+}
+
+/* Prompt input: cyan hairline wakes up with a glow when focused. */
+.ui-prompt:focus {
+  border-color: var(--orca-cyan);
+  box-shadow: 0 0 0 2px rgba(0, 243, 255, 0.15);
+}
+
+/* Modal + command palette: HUD panel — cyan frame over deep glass-less dark. */
+.ui-modal,
+.ui-command {
+  border: 1px solid var(--orca-cyan-line);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-modal-overlay,
+.ui-command-overlay {
+  background: rgba(4, 6, 12, 0.7);
+}
+
+/* Status dots pulse like console LEDs. */
+.ui-status-dot {
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Magenta counter-accent: destructive actions echo the site's bottom-corner
+   brackets. ui.css already binds danger paint; here we only add the glow. */
+.ui-btn--danger:hover {
+  box-shadow: 0 0 16px var(--orca-magenta-line);
+}
+
+/* Session/token badges read as HUD readouts. */
+.ui-session-tokens-badge,
+.ui-badge {
+  font-family: var(--ui-font-mono);
+  letter-spacing: 0.4px;
+}

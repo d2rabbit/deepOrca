@@ -270,6 +270,7 @@ export const zhTW: Record<MessageKey, string> = {
   "theme.glass": "毛玻璃",
   "theme.fusion": "Fusion（磁磚 · 玻璃）",
   "theme.line": "Line（線條）",
+  "theme.orca": "Orca（賽博 HUD）",
   "decision.default": "預設",
   "decision.allow": "允許",
   "decision.ask": "詢問",

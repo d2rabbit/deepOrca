@@ -142,6 +142,10 @@ async function copyStaticAssets() {
   if (existsSync(lineCss)) {
     await cp(lineCss, resolve(outdir, "renderer/styles-line.css"));
   }
+  const orcaCss = resolve(__dirname, "src/renderer/styles-orca.css");
+  if (existsSync(orcaCss)) {
+    await cp(orcaCss, resolve(outdir, "renderer/styles-orca.css"));
+  }
 }
 
 async function run() {
