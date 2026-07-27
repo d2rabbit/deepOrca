@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href='https://github.com/asdshuaishuai/deepcode-cli'>
-    <img src='docs-site/assets/orca-icon.svg' width='120' alt="DeepOrca"/>
+    <img src='docs-site/assets/orca-icon.png' width='120' alt="DeepOrca"/>
   </a>
 </p>
 
