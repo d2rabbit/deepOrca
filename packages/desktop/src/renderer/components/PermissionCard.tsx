@@ -91,8 +91,11 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
   }
 
   return (
-    <Card warn className="ui-card-enter">
+    <Card warn className="ui-card-enter ui-perm-card">
       <CardHeader>
+        <span className="ui-perm-warn-icon" aria-hidden="true">
+          ⚠
+        </span>{" "}
         {t("perm.required")}{" "}
         <span style={{ color: "var(--ui-text-faint)", fontWeight: 400 }}>
           {Math.min(effectiveIndex + 1, prompts.length)}/{prompts.length}
@@ -110,13 +113,13 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
         </div>
       ) : null}
       <div style={{ fontWeight: 600 }}>{prompt.request.name}</div>
-      <div className="ui-mono">{prompt.request.command}</div>
+      <div className="ui-mono ui-perm-cmd">{prompt.request.command}</div>
       {prompt.request.description ? (
         <div style={{ color: "var(--ui-text-dim)", fontSize: 12.5 }}>{prompt.request.description}</div>
       ) : null}
       <div style={{ marginTop: 8 }}>{t("perm.proceed")}</div>
       <div className="ui-opt-row">
-        <button className="ui-opt" onClick={() => commit("allow")}>
+        <button className="ui-opt ui-opt--allow" onClick={() => commit("allow")}>
           {t("perm.yes")}
         </button>
         {allowAlways ? (
@@ -127,7 +130,7 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
             </span>
           </button>
         ) : null}
-        <button className="ui-opt" onClick={() => commit("deny")}>
+        <button className="ui-opt ui-opt--deny" onClick={() => commit("deny")}>
           {t("perm.no")}
         </button>
       </div>

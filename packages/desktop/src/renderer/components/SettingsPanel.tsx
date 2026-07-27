@@ -110,6 +110,27 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "索引库 rail 图标独立化(☷);启动不再将当前目录强行注入为空工作区。",
     ],
   },
+  {
+    version: "v0.5.0",
+    date: "2026-07",
+    changes: [
+      "集成 Monaco Editor 代码编辑器:语法高亮、智能提示、内嵌文件编辑。",
+      "新增本地 GitMCP 模块:SQLite FTS5 全文索引 + BM25 排序,内置文档/代码检索工具。",
+      "集成 Open Code Review 代码审查面板与 Glass Prism 主题。",
+      "仓库迁移至 GitHub 主仓库并以 master 为主干分支;上线 GitHub Pages 官网与 CI 工作流。",
+    ],
+  },
+  {
+    version: "v0.6.0",
+    date: "2026-07",
+    changes: [
+      "性能自迭代:消息 Markdown 渲染结果缓存 + 消息组件 memo 化,长会话与空闲时 CPU 占用显著下降。",
+      "加载动画心跳仅在任务进行中运行;流式输出期间侧边栏刷新节流至 1.5s/次,大幅减少 IPC 往返。",
+      "稳定性加固:IPC 错误统一归一化为可读信息;启动/切换工作区失败不再静默卡死,错误直接展示在输入区。",
+      "资源回收:代码审查/Wiki 后台进程随应用退出自动终止,不再残留。",
+      "顶栏修复:模型与思考模式下拉框按内容自适应宽度,窄窗口下不再截断文案。",
+    ],
+  },
 ];
 
 /** Settings surface rendered inline in the main area (no modal shell). */
@@ -386,7 +407,8 @@ export function SettingsPanel({
                 <section className="ui-settings-section">
                   <div className="ui-settings-section-title">{t("about.changelog")}</div>
                   <div className="ui-changelog">
-                    {CHANGELOG.map((entry) => (
+                    {/* Newest release first — the latest changes are what users came to read. */}
+                    {[...CHANGELOG].reverse().map((entry) => (
                       <div key={entry.version} className="ui-changelog-entry">
                         <div className="ui-changelog-head">
                           <span className="ui-changelog-version">{entry.version}</span>

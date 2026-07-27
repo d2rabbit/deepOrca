@@ -10,7 +10,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://gitcode.com/qq_22602527/deepOrce.git"
+    "url": "git+https://github.com/asdshuaishuai/deepcode-cli.git"
   },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",

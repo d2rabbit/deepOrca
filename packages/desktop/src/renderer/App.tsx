@@ -196,6 +196,36 @@ export function App(): JSX.Element {
 
   const bumpTree = useCallback(() => setTreeRefreshKey((k) => k + 1), []);
 
+  // Throttled variant for high-frequency session-entry updates: every bump makes
+  // the sidebar re-fetch the whole workspace tree over IPC, so during streaming
+  // we cap it to once per 1.5s with a trailing call.
+  const bumpTreeThrottleRef = useRef<{ last: number; timer: ReturnType<typeof setTimeout> | null }>({
+    last: 0,
+    timer: null,
+  });
+  const bumpTreeThrottled = useCallback(() => {
+    const state = bumpTreeThrottleRef.current;
+    const elapsed = Date.now() - state.last;
+    if (elapsed >= 1500) {
+      state.last = Date.now();
+      bumpTree();
+      return;
+    }
+    if (state.timer) return;
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      state.last = Date.now();
+      bumpTree();
+    }, 1500 - elapsed);
+  }, [bumpTree]);
+  useEffect(
+    () => () => {
+      const state = bumpTreeThrottleRef.current;
+      if (state.timer) clearTimeout(state.timer);
+    },
+    []
+  );
+
   // ── Session completion notification ────────────────────────────────────────
   useEffect(() => {
     if (prevBusyRef.current && !busy && !errorLine) {
@@ -267,9 +297,13 @@ export function App(): JSX.Element {
   }, []);
 
   const refreshGit = useCallback(async () => {
-    const [current, list] = await Promise.all([api.gitCurrentBranch(), api.gitListBranches()]);
-    setBranch(current);
-    setBranches(list);
+    try {
+      const [current, list] = await Promise.all([api.gitCurrentBranch(), api.gitListBranches()]);
+      setBranch(current);
+      setBranches(list);
+    } catch {
+      // Git may be unavailable in this workspace — keep prior branch state.
+    }
   }, []);
 
   const loadSession = useCallback(
@@ -301,17 +335,23 @@ export function App(): JSX.Element {
   useEffect(() => {
     let disposed = false;
     void (async () => {
-      const { projectRoot: root, platform: plat } = await api.ready();
-      if (disposed) return;
-      setProjectRoot(root);
-      setPlatform(plat);
-      const resolvedTheme = resolveTheme(plat);
-      setAppearanceState(resolveAppearance(plat, resolvedTheme));
-      setThemeState(resolvedTheme);
-      await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
-      const active = await api.getActiveSession();
-      if (!disposed && active) {
-        await loadSession(active);
+      try {
+        const { projectRoot: root, platform: plat } = await api.ready();
+        if (disposed) return;
+        setProjectRoot(root);
+        setPlatform(plat);
+        const resolvedTheme = resolveTheme(plat);
+        setAppearanceState(resolveAppearance(plat, resolvedTheme));
+        setThemeState(resolvedTheme);
+        await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
+        const active = await api.getActiveSession();
+        if (!disposed && active) {
+          await loadSession(active);
+        }
+      } catch (error) {
+        // Boot must never fail silently — surface the failure in the composer.
+        console.error("[boot] initial load failed:", error);
+        if (!disposed) setErrorLine(error instanceof Error ? error.message : String(error));
       }
     })();
 
@@ -339,7 +379,7 @@ export function App(): JSX.Element {
         setAskPermissions(entry.askPermissions);
         setRunningProcesses(entry.processes ?? []);
       }
-      bumpTree();
+      bumpTreeThrottled();
     });
 
     const offProcessStdout = api.onProcessStdout((event) => {
@@ -357,10 +397,8 @@ export function App(): JSX.Element {
       }
     });
 
-    // Periodic tick for loading animation (500ms)
-    const tickTimer = setInterval(() => {
-      setNowTick((v) => v + 1);
-    }, 500);
+    // Periodic tick for loading animation (500ms) — registered in a dedicated
+    // effect below so it only runs while a prompt is in flight.
 
     const offMcp = api.onMcpStatusChanged(() => void refreshMcp());
     const offPlugin = api.onPluginEvent((event) => {
@@ -373,11 +411,16 @@ export function App(): JSX.Element {
     const offRoot = api.onProjectRootChanged((root) => {
       setProjectRoot(root);
       void (async () => {
-        await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
-        const pending = pendingSelectRef.current;
-        pendingSelectRef.current = null;
-        await loadSession(pending);
-        bumpTree();
+        try {
+          await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
+          const pending = pendingSelectRef.current;
+          pendingSelectRef.current = null;
+          await loadSession(pending);
+          bumpTree();
+        } catch (error) {
+          console.error("[workspace] switch reload failed:", error);
+          setErrorLine(error instanceof Error ? error.message : String(error));
+        }
       })();
     });
 
@@ -390,9 +433,27 @@ export function App(): JSX.Element {
       offMcp();
       offPlugin();
       offRoot();
-      clearInterval(tickTimer);
     };
-  }, [bumpTree, loadSession, refreshGit, refreshMcp, refreshSessions, refreshSettings, refreshSkills]);
+  }, [
+    bumpTree,
+    bumpTreeThrottled,
+    loadSession,
+    refreshGit,
+    refreshMcp,
+    refreshSessions,
+    refreshSettings,
+    refreshSkills,
+  ]);
+
+  // Loading-animation tick — only while busy, so an idle app doesn't re-render
+  // the whole tree every 500ms.
+  useEffect(() => {
+    if (!busy) return;
+    const tickTimer = setInterval(() => {
+      setNowTick((v) => v + 1);
+    }, 500);
+    return () => clearInterval(tickTimer);
+  }, [busy]);
 
   // ── Prompt lifecycle ─────────────────────────────────────────────────────────
   const runPrompt = useCallback(
@@ -431,8 +492,9 @@ export function App(): JSX.Element {
         if (finalId) {
           activeIdRef.current = finalId;
           setActiveId(finalId);
-          setMessages(await api.listMessages(finalId));
-          const entry = await api.getSession(finalId);
+          // Fetch messages and entry state in parallel — one round-trip less.
+          const [msgs, entry] = await Promise.all([api.listMessages(finalId), api.getSession(finalId)]);
+          setMessages(msgs);
           setActiveStatus(entry?.status ?? null);
           setAskPermissions(entry?.askPermissions);
           const plan =

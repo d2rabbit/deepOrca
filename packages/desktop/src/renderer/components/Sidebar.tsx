@@ -91,8 +91,13 @@ export function Sidebar({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const data = await api.listWorkspaceSessions();
-      if (!cancelled) setTree(data);
+      try {
+        const data = await api.listWorkspaceSessions();
+        if (!cancelled) setTree(data);
+      } catch (error) {
+        // Keep the previous tree on failure — an empty flash is worse than stale data.
+        console.error("[sidebar] workspace tree load failed:", error);
+      }
     })();
     return () => {
       cancelled = true;

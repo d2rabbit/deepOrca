@@ -3,11 +3,11 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { statSync } from "node:fs";
-import { execFile, spawn } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
   setShellIfWindows,
   configureCodegraphVendorRoot,
@@ -28,6 +28,28 @@ import { archiveSession, unarchiveSession } from "./archive-store.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Long-running helper processes (ocr review / openwiki agent) spawned on behalf
+// of the renderer. Tracked so they are terminated when the app shuts down
+// instead of lingering after the window closes.
+const activeHelperProcesses = new Set<ChildProcess>();
+
+function trackHelperProcess(cp: ChildProcess): void {
+  activeHelperProcesses.add(cp);
+  cp.once("close", () => activeHelperProcesses.delete(cp));
+  cp.once("error", () => activeHelperProcesses.delete(cp));
+}
+
+function killHelperProcesses(): void {
+  for (const cp of activeHelperProcesses) {
+    try {
+      cp.kill();
+    } catch {
+      // Best-effort — process may have already exited.
+    }
+  }
+  activeHelperProcesses.clear();
+}
 
 // Product/brand name — drives the macOS menu-bar app name and Windows taskbar grouping.
 app.setName("DeepOrca");
@@ -180,8 +202,19 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
+  // Uniform error normalization: log main-side failures with their channel and
+  // rethrow a clean Error so the renderer receives a readable message instead
+  // of an opaque serialized rejection.
   const handle = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
-    ipcMain.handle(channel, (_event, ...args) => fn(...(args as never[])));
+    ipcMain.handle(channel, async (_event, ...args) => {
+      try {
+        return await fn(...(args as never[]));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[ipc] ${channel} failed:`, message);
+        throw new Error(`${channel}: ${message}`);
+      }
+    });
   };
 
   handle(IpcRequest.Ready, () => ({
@@ -354,6 +387,7 @@ function registerIpc(): void {
     return new Promise((resolve) => {
       try {
         const cp = spawn("ocr", args, { cwd: getBridge().projectRoot, shell: true });
+        trackHelperProcess(cp);
         cp.stdout?.on("data", (d: Buffer) => {
           emit(IpcEvent.ReviewProgress, { chunk: d.toString(), stream: "stdout", done: false });
         });
@@ -436,6 +470,7 @@ function registerIpc(): void {
             cwd: getBridge().projectRoot,
             env: { ...env, ...exeEnv, OPENWIKI_MODEL: model },
           });
+          trackHelperProcess(cp);
           cp.stdout?.on("data", (d: Buffer) => {
             emit(IpcEvent.WikiProgress, { chunk: d.toString(), stream: "stdout", done: false });
           });
@@ -482,9 +517,7 @@ function registerIpc(): void {
   handle(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
 
   handle(IpcRequest.WikiListPages, async (): Promise<WikiPageEntry[]> => {
-    const { readdir } = await import("node:fs/promises");
-    const { join: pathJoin } = await import("node:path");
-    const wikiDir = pathJoin(getBridge().projectRoot, "openwiki");
+    const wikiDir = join(getBridge().projectRoot, "openwiki");
     try {
       const entries: WikiPageEntry[] = [];
       const walk = async (dir: string, prefix: string): Promise<void> => {
@@ -492,7 +525,7 @@ function registerIpc(): void {
         for (const item of items) {
           const rel = prefix ? `${prefix}/${item.name}` : item.name;
           if (item.isDirectory()) {
-            await walk(pathJoin(dir, item.name), rel);
+            await walk(join(dir, item.name), rel);
           } else if (item.name.endsWith(".md")) {
             const title = item.name.replace(/\.md$/, "").replace(/[-_]/g, " ");
             entries.push({ path: rel, title: title.charAt(0).toUpperCase() + title.slice(1) });
@@ -508,11 +541,9 @@ function registerIpc(): void {
   });
 
   handle(IpcRequest.WikiReadPage, async (path: string): Promise<string> => {
-    const { readFile } = await import("node:fs/promises");
-    const { join: pathJoin, normalize } = await import("node:path");
     // Prevent path traversal
     const safe = normalize(path).replace(/^(\.\.[/\\])+/, "");
-    const filePath = pathJoin(getBridge().projectRoot, "openwiki", safe);
+    const filePath = join(getBridge().projectRoot, "openwiki", safe);
     try {
       return await readFile(filePath, "utf-8");
     } catch {
@@ -588,6 +619,7 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  killHelperProcesses();
   bridge?.dispose();
   bridge = null;
   pluginManager?.dispose();
@@ -595,4 +627,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  killHelperProcesses();
 });

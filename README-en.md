@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-  <a href='https://gitcode.com/qq_22602527/deepOrce'>
+  <a href='https://github.com/asdshuaishuai/deepcode-cli'>
     <img src='docs-site/assets/orca-icon.svg' width='120' alt="DeepOrca"/>
   </a>
 </p>
@@ -45,8 +45,8 @@ Deep Code is open-sourced under the MIT License. As required by the license, thi
 
 ```bash
 # Clone the repository
-git clone https://gitcode.com/qq_22602527/deepOrce.git
-cd deepOrce
+git clone https://github.com/asdshuaishuai/deepcode-cli.git
+cd deepcode-cli
 
 # Install dependencies
 npm install

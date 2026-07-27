@@ -1691,6 +1691,20 @@ select {
   color: var(--ui-text-on-accent);
   border-bottom-right-radius: 4px;
   white-space: pre-wrap;
+  position: relative;
+}
+/* QQ-style bubble tails (rendering-engine spec): a small triangle on the
+   avatar side. Right tail for the user, left tail for agent-side bubbles. */
+.ui-bubble.user::before {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--ui-accent-fill);
 }
 .ui-bubble-attach {
   display: inline-block;
@@ -1705,6 +1719,17 @@ select {
   border: 1px solid var(--ui-border-soft);
   border-bottom-left-radius: 4px;
   position: relative;
+}
+.ui-bubble.assistant::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid var(--ui-surface-raised);
 }
 
 /* Copy button on assistant messages — appears on hover */
@@ -1772,6 +1797,22 @@ select {
   padding: 0;
   max-width: 90%;
   overflow: hidden;
+  position: relative;
+  overflow: visible;
+}
+.ui-bubble.thinking::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid var(--ui-surface-sunken);
+}
+.ui-bubble.thinking > .ui-thinking-toggle {
+  border-radius: var(--ui-radius-md) var(--ui-radius-md) 0 0;
 }
 .ui-thinking-toggle {
   display: flex;
@@ -1797,7 +1838,7 @@ select {
 .ui-thinking-label {
   flex: none;
   font-weight: 600;
-  color: var(--ui-text);
+  color: #fbbf24; /* amber-400 — rendering-engine spec: think header is amber */
 }
 .ui-thinking-summary {
   flex: 1;
@@ -1823,6 +1864,13 @@ select {
   background: var(--ui-surface-hover);
   opacity: 0.8;
 }
+/* Elapsed-time badge in thinking toggle ("耗时 1.4s" in the spec). */
+.ui-thinking-elapsed {
+  flex: none;
+  font-size: 10.5px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-faint);
+}
 /* The body holds the model's reasoning text. Long traces are common, so
    cap the height at ~60vh and let the body scroll internally — the rest of
    the conversation stays put and the user can read top-to-bottom without
@@ -1836,6 +1884,7 @@ select {
   font-size: 13px;
   line-height: 1.55;
   color: var(--ui-text-dim);
+  font-style: italic; /* spec: reasoning reads as an italic aside */
   scrollbar-width: thin;
   animation: ui-expand-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -1912,8 +1961,19 @@ button.ui-tool-head:hover {
 .ui-tool-name {
   font-weight: 600;
   font-size: 12.5px;
-  color: var(--ui-text);
+  color: #fcd34d; /* amber-300 — spec: tool::name reads mono amber */
+  font-family: var(--ui-font-mono);
   flex: none;
+}
+/* MCP calls read mono purple with a purple frame (spec card #4). */
+.ui-tool-card.mcp .ui-tool-name {
+  color: #d8b4fe; /* purple-300 */
+}
+/* Muted "Tool:" prefix label before the mono tool name. */
+.ui-tool-kind {
+  flex: none;
+  font-size: 11px;
+  color: var(--ui-text-faint);
 }
 /* Inline file path shown in the header for file tools so the user can
    identify which file they're looking at without expanding the body. */
@@ -1952,6 +2012,22 @@ button.ui-tool-head:hover {
   background: color-mix(in srgb, var(--ui-danger) 15%, transparent);
   color: var(--ui-danger);
 }
+/* Success + MCP badges (rendering-engine spec): tinted pills with a
+   1px border of the same hue, echoing the 已成功 / MCP Server chips. */
+.ui-tool-badge.ok {
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+  color: var(--ui-success);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 25%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.ui-tool-badge.mcp {
+  background: color-mix(in srgb, #a855f7 12%, transparent);
+  color: #d8b4fe;
+  border: 1px solid color-mix(in srgb, #a855f7 25%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
 /* Elapsed time badge in tool header — shows how long the tool took. */
 .ui-tool-elapsed {
   flex: none;
@@ -1964,11 +2040,29 @@ button.ui-tool-head:hover {
   opacity: 0.85;
 }
 
-/* Tool params (one-liner).
-   The base color is --ui-text-faint so unrecognised tool types still
-   read as muted metadata, but per-tool-type accent rules below override
-   the color (and add a faint background tint) so each card family has
-   its own visual identity. */
+/* Tool params (one-liner) inside the dark PARAMS panel (spec card #3):
+   an uppercase tracking label row over the mono argument line. */
+.ui-tool-params-panel {
+  margin-top: var(--ui-space-1);
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+}
+.ui-tool-params-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ui-text-faint);
+  margin-bottom: 2px;
+}
+.ui-tool-params-fmt {
+  font-size: 9px;
+  opacity: 0.7;
+}
 .ui-tool-params {
   color: var(--ui-text-faint);
   font-size: 12px;
@@ -1976,7 +2070,6 @@ button.ui-tool-head:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-left: 28px;
 }
 
 /* Per-tool-type param & result accent. The colors echo the left-border
@@ -2021,7 +2114,7 @@ button.ui-tool-head:hover {
 .ui-tool-card.mcp .ui-tool-params,
 .ui-tool-card.mcp .ui-tool-params-inline,
 .ui-tool-card.mcp .ui-tool-result-hint {
-  color: #f9a8d4; /* pink-300 */
+  color: #d8b4fe; /* purple-300 — spec: MCP family is purple */
 }
 .ui-tool-card.generic .ui-tool-params,
 .ui-tool-card.generic .ui-tool-params-inline,
@@ -2063,8 +2156,8 @@ button.ui-tool-head:hover {
   background: color-mix(in srgb, #14b8a6 6%, transparent);
 }
 .ui-tool-card.mcp .ui-tool-result {
-  border-left-color: #ec4899;
-  background: color-mix(in srgb, #ec4899 6%, transparent);
+  border-left-color: #a855f7;
+  background: color-mix(in srgb, #a855f7 6%, transparent);
 }
 
 /* Tool-type accent bars (left border color) */
@@ -2090,7 +2183,9 @@ button.ui-tool-head:hover {
   border-left: 3px solid #14b8a6;
 }
 .ui-tool-card.mcp {
-  border-left: 3px solid #ec4899;
+  border-left: 3px solid #a855f7;
+  border-color: color-mix(in srgb, #a855f7 30%, var(--ui-border-soft));
+  border-left-color: #a855f7;
 }
 .ui-tool-card.generic {
   border-left: 3px solid var(--ui-border-soft);
@@ -2215,6 +2310,266 @@ button.ui-tool-head:hover {
 }
 .ui-diff > div:hover {
   filter: brightness(1.05);
+}
+
+/* ── Bash terminal frame (rendering-engine spec, card #8) ───────────────── */
+/* A macOS-style terminal window: traffic-light dots + title + copy in the
+   header, prompt-colored command line and muted output in the body. Always
+   dark — terminals stay dark in both appearances. */
+.ui-term {
+  margin-top: var(--ui-space-2);
+  background: #020617; /* slate-950 */
+  border: 1px solid #1e293b; /* slate-800 */
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  font-family: var(--ui-font-mono);
+}
+.ui-term-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #0f172a; /* slate-900 */
+  border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+}
+.ui-term-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.ui-term-dot.red {
+  background: rgba(239, 68, 68, 0.8);
+}
+.ui-term-dot.amber {
+  background: rgba(245, 158, 11, 0.8);
+}
+.ui-term-dot.green {
+  background: rgba(16, 185, 129, 0.8);
+}
+.ui-term-title {
+  flex: 1;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1; /* slate-300 */
+}
+.ui-term-copy {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
+  color: #94a3b8; /* slate-400 */
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.ui-term-copy:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.ui-term-copy.copied {
+  color: #34d399; /* emerald-400 */
+}
+.ui-term-body {
+  padding: var(--ui-space-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+  max-height: 320px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.ui-term-cmd {
+  color: #38bdf8; /* sky-400 — the command itself */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ui-term-user {
+  color: #34d399; /* emerald-400 — user@host */
+}
+.ui-term-path {
+  color: #818cf8; /* indigo-400 — cwd */
+}
+.ui-term-punc {
+  color: #64748b; /* slate-500 */
+}
+.ui-term-input {
+  color: #38bdf8;
+}
+.ui-term-out {
+  margin-top: 4px;
+  padding-left: var(--ui-space-2);
+  color: #94a3b8; /* slate-400 — output is muted */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── JSON card (rendering-engine spec, card #7) ──────────────────────── */
+/* Header: {} icon + name + "JSON • N Keys" pill + Tree/Raw switch + copy.
+   Body: syntax-colored collapsible tree or the raw pretty-printed source. */
+.ui-json-card {
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  background: var(--ui-surface-sunken);
+}
+.ui-json-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 6px 10px;
+  background: var(--ui-surface-raised);
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-json-head-icon {
+  flex: none;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8; /* sky-400 */
+}
+.ui-json-head-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-json-head-badge {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  color: #7dd3fc; /* sky-300 */
+}
+.ui-json-view-switch {
+  flex: none;
+  display: flex;
+  padding: 2px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-json-view-switch button {
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.ui-json-view-switch button:hover {
+  color: var(--ui-text);
+}
+.ui-json-view-switch button.active {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+  font-weight: 600;
+}
+.ui-json-copy {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.ui-json-copy:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+.ui-json-copy.copied {
+  color: var(--ui-success);
+}
+.ui-json-body {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  overflow-x: auto;
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  user-select: text;
+}
+.ui-json-line {
+  display: block;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-align: left;
+  color: var(--ui-text-dim);
+  width: 100%;
+}
+.ui-json-line:hover {
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+}
+.ui-json-toggle {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  font: inherit;
+}
+.ui-json-caret {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  transition: transform 0.15s var(--ui-ease);
+}
+.ui-json-caret.closed {
+  transform: rotate(-90deg);
+}
+/* Dashed indent guide for nested levels (spec: json-indent-line). */
+.ui-json-children {
+  border-left: 1px dashed color-mix(in srgb, var(--ui-text-faint) 35%, transparent);
+  margin-left: 9px;
+  padding-left: 12px;
+}
+.ui-json-key {
+  color: #7dd3fc; /* sky-300 */
+}
+.ui-json-str {
+  color: #6ee7b7; /* emerald-300 */
+}
+.ui-json-num {
+  color: #fb923c; /* orange-400 */
+}
+.ui-json-bool {
+  color: #c084fc; /* purple-400 */
+  font-weight: 600;
+}
+.ui-json-null {
+  color: var(--ui-text-faint);
+  font-style: italic;
+}
+.ui-json-punc {
+  color: var(--ui-text-faint);
+}
+.ui-json-count {
+  display: inline-block;
+  margin: 0 4px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius-pill);
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-raised);
+  font-size: 9px;
+  color: var(--ui-text-faint);
+}
+.ui-json-raw {
+  margin: 0;
+  white-space: pre;
+  color: var(--ui-text-dim);
 }
 
 /* ── System note (centered) ───────────────────────────────────────────────── */
@@ -2439,6 +2794,7 @@ button.ui-tool-head:hover {
   flex: 1 1 auto;
   min-width: 140px;
   padding: var(--ui-space-3);
+  padding-right: calc(var(--ui-space-3) + 14px); /* room for the › chevron */
   border-radius: var(--ui-radius-md);
   border: 1px solid var(--ui-border-soft);
   background: var(--ui-surface);
@@ -2449,12 +2805,28 @@ button.ui-tool-head:hover {
     border-color 0.14s var(--ui-ease),
     background 0.14s var(--ui-ease),
     transform 0.14s var(--ui-ease),
-    box-shadow 0.14s var(--ui-ease);
+    box-shadow 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+/* Decision-option chevron (spec card #11) — replaced by ✓ when selected. */
+.ui-opt::after {
+  content: "›";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-52%);
+  font-size: 13px;
+  color: var(--ui-text-faint);
+  transition: color 0.14s var(--ui-ease);
 }
 .ui-opt:hover {
   border-color: var(--ui-accent);
+  color: var(--ui-accent);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.ui-opt:hover::after {
+  color: var(--ui-accent);
 }
 .ui-opt:active {
   transform: translateY(0) scale(0.98);
@@ -2470,9 +2842,31 @@ button.ui-tool-head:hover {
   position: absolute;
   top: 6px;
   right: 8px;
+  transform: none;
   font-size: 11px;
   font-weight: 700;
   color: var(--ui-accent);
+}
+/* Permission-card action variants (spec card #9): filled emerald allow,
+   neutral deny — compact pill-ish buttons rather than full option tiles. */
+.ui-opt--allow {
+  background: var(--ui-success);
+  border-color: var(--ui-success);
+  color: #fff;
+  font-weight: 600;
+}
+.ui-opt--allow:hover {
+  background: color-mix(in srgb, var(--ui-success) 85%, #fff);
+  border-color: var(--ui-success);
+  color: #fff;
+}
+.ui-opt--allow::after,
+.ui-opt--deny::after {
+  content: none;
+}
+.ui-opt--deny:hover {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
 }
 .ui-opt {
   position: relative;
@@ -2491,6 +2885,29 @@ button.ui-tool-head:hover {
 .ui-scope-tag {
   font-size: 11px;
   font-weight: 600;
+}
+
+/* ── Permission card (rendering-engine spec, card #9) ──────────────────── */
+.ui-perm-card .ui-card-header {
+  color: #fbbf24; /* amber-400 — sensitive-operation warning header */
+}
+.ui-perm-warn-icon {
+  margin-right: 2px;
+}
+/* The command under review: dark mono panel tinted amber, like the spec's
+   "exec: kubectl …" strip. */
+.ui-perm-cmd {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  color: #fcd34d; /* amber-300 */
+}
+
+/* ── Question card title (rendering-engine spec, card #10) ──────────────── */
+.ui-q-text {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ui-accent) 80%, var(--ui-text));
 }
 
 /* Permission card progress bar */
@@ -4094,8 +4511,11 @@ button.ui-topbar-pill {
    the pill is the border. Background is transparent so the pill tint
    shows through, and the height/padding reset match the pill geometry. */
 .ui-topbar-branch {
+  /* Same `.ui-select` width:100% override as the model selectors — size
+     to the branch name so it isn't clipped inside the project pill. */
+  width: auto;
   height: 26px;
-  max-width: 160px;
+  max-width: 200px;
   border: 0;
   background: transparent;
   padding: 0 4px;
@@ -4113,8 +4533,10 @@ button.ui-topbar-pill {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  min-width: 0;
-  flex-shrink: 1;
+  /* Never squeeze this pill: the model / thinking labels must stay fully
+     readable. When horizontal space runs out, the center spacer and the
+     project pill absorb the compression instead. */
+  flex-shrink: 0;
 }
 /* Thin vertical divider between the two Selects so they read as paired
    sub-controls inside the pill instead of two independent inputs. */
@@ -4126,6 +4548,11 @@ button.ui-topbar-pill {
 }
 .ui-topbar-model,
 .ui-topbar-thinking {
+  /* Override the `.ui-select { width: 100% }` base rule: inside the
+     shrink-to-fit pill a percentage width lets the two selects squeeze
+     each other and clip their labels. Auto width sizes each select to
+     its longest option so both values render in full. */
+  width: auto;
   height: 26px;
   font-size: 12.5px;
   border: 0;
@@ -4141,10 +4568,10 @@ button.ui-topbar-pill {
   color: var(--ui-accent);
 }
 .ui-topbar-model {
-  max-width: 180px;
+  max-width: 220px;
 }
 .ui-topbar-thinking {
-  max-width: 120px;
+  max-width: 160px;
 }
 
 /* ── Top bar: token mini-panel (uses the same pill) ─────────────────────── */

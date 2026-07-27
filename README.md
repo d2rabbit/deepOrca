@@ -4,7 +4,7 @@
 <br/>
 
 <p align="center">
-  <a href='https://gitcode.com/qq_22602527/deepOrce'>
+  <a href='https://github.com/asdshuaishuai/deepcode-cli'>
     <img src='docs-site/assets/orca-icon.svg' width='120' alt="DeepOrca"/>
   </a>
 </p>
@@ -147,8 +147,8 @@ DeepOrca 计划集成 9 个优秀的开源项目，构建更强大的编码助�
 
 ```bash
 # 克隆仓库
-git clone https://gitcode.com/qq_22602527/deepOrce.git
-cd deepOrce
+git clone https://github.com/asdshuaishuai/deepcode-cli.git
+cd deepcode-cli
 
 # 安装依赖
 npm install
@@ -208,8 +208,8 @@ npm run desktop:start
 
 ```bash
 # 克隆仓库
-git clone https://gitcode.com/qq_22602527/deepOrce.git
-cd deepOrce
+git clone https://github.com/asdshuaishuai/deepcode-cli.git
+cd deepcode-cli
 
 # 安装依赖
 npm install
@@ -232,7 +232,7 @@ npm run desktop:dev
 
 ## 📞 获取帮助
 
-- **仓库 Issues**：https://gitcode.com/qq_22602527/deepOrce/issues
+- **仓库 Issues**：https://github.com/asdshuaishuai/deepcode-cli/issues
 - **文档**：查看 [docs/](docs/) 目录
 
 ---

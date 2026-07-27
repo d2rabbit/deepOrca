@@ -33,4 +33,4 @@ packages/core/src/generated/
 
 # Vendored CodeGraph/OpenWiki builds (checked out + compiled at build time via scripts/vendor-*.js)
 packages/desktop/vendor/
-vendor-src/
+vendor-src/.tmp-verify/

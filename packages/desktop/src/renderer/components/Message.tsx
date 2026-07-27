@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SessionMessage, SkillInfo } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { renderMarkdown } from "../markdown";
 import {
   buildThinkingSummary,
   buildToolSummary,
-  formatStatusName,
   formatToolParams,
   getDiffLines,
   getPlanLines,
   getResultMd,
 } from "../lib/messages";
 import { useI18n } from "../i18n";
+import { JsonView } from "./JsonView";
 import {
   IconCommand,
   IconToolRead,
@@ -25,6 +25,9 @@ import {
 } from "../ui/index";
 
 function Md({ text }: { text: string }): JSX.Element {
+  // Markdown parsing is the hot path of the chat view — cache the rendered
+  // HTML so re-renders (ticks, list updates) don't re-parse unchanged text.
+  const html = useMemo(() => renderMarkdown(text), [text]);
   function handleClick(e: React.MouseEvent<HTMLDivElement>): void {
     const btn = (e.target as HTMLElement).closest(".code-block-copy");
     if (!btn) return;
@@ -39,7 +42,7 @@ function Md({ text }: { text: string }): JSX.Element {
       });
     }
   }
-  return <div className="ui-md" onClick={handleClick} dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
+  return <div className="ui-md" onClick={handleClick} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /**
@@ -173,11 +176,31 @@ function firstNonEmptyLine(text: string): string {
 }
 
 /**
+ * Detect a result that is one pure JSON payload (a single ```json fence or
+ * bare JSON) and parse it. Only composites qualify — a bare string/number
+ * is better served by the plain markdown path.
+ */
+function tryParseJsonResult(resultMd: string): unknown | undefined {
+  const trimmed = resultMd.trim();
+  const fenced = trimmed.match(/^```json\s*\n([\s\S]*?)\n?```$/);
+  const body = (fenced ? fenced[1]! : trimmed).trim();
+  if (!body.startsWith("{") && !body.startsWith("[")) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return parsed !== null && typeof parsed === "object" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Result renderer for tool cards. The Read tool's output arrives with
  * line-number prefixes (e.g. "     1\t# AGENTS.md") so the agent can
  * cite lines. For .md / .html we strip those prefixes and render the
  * file as it was meant to be read; for code files we keep the
  * line-numbered view because the prefixes are the whole point.
+ * Pure-JSON payloads get the interactive tree/raw JsonView card instead
+ * of a flat fenced block (rendering-engine spec, card #7).
  */
 function ToolResult({
   toolName,
@@ -196,6 +219,10 @@ function ToolResult({
     // HTML is rendered as HTML (CSP blocks inline scripts); the line
     // numbers in the output would otherwise leak into the markup.
     return <Md text={stripReadLineNumbers(resultMd)} />;
+  }
+  const json = tryParseJsonResult(resultMd);
+  if (json !== undefined) {
+    return <JsonView data={json} />;
   }
   return <Md text={resultMd} />;
 }
@@ -329,11 +356,13 @@ function ThinkingBlock({
   messageParams,
   reasoningMode,
   isLatest,
+  elapsed,
 }: {
   content: string;
   messageParams: unknown;
   reasoningMode: ReasoningMode;
   isLatest: boolean;
+  elapsed?: string;
 }): JSX.Element | null {
   const { t } = useI18n();
   const summary = buildThinkingSummary(content, messageParams);
@@ -372,6 +401,7 @@ function ThinkingBlock({
           <span className="ui-thinking-icon">{expanded ? "◉" : "◎"}</span>
           <span className="ui-thinking-label">{t("msg.thinking")}</span>
           <span className="ui-thinking-summary">{truncate(summary || t("msg.reasoning"), 80)}</span>
+          {elapsed ? <span className="ui-thinking-elapsed">{elapsed}</span> : null}
           {charCount > 0 ? <span className="ui-thinking-chars">{formatCharCount(charCount)}</span> : null}
           <span className="ui-thinking-chevron">{expanded ? "▾" : "▸"}</span>
         </button>
@@ -400,12 +430,22 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
   const { t } = useI18n();
   const content = (message.content || "").trim();
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the pending copy-feedback reset when the bubble unmounts.
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
 
   const handleCopy = useCallback(() => {
     if (!content) return;
     void navigator.clipboard.writeText(content).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
     });
   }, [content]);
 
@@ -443,6 +483,64 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
 const COLLAPSIBLE_TOOLS = new Set(["read", "write", "edit", "bash", "cli"]);
 const SHOW_RESULT_HINT_IN_HEADER = new Set(["bash", "cli"]);
 
+/**
+ * Terminal frame for bash tool cards (rendering-engine spec, card #8):
+ * traffic-light window header + "Bash Terminal" title + copy-command
+ * button, over a prompt-colored command line and the raw output.
+ */
+function BashTerminal({ command, resultMd }: { command: string; resultMd: string }): JSX.Element {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the pending copy-feedback reset when the frame unmounts.
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(command).then(() => {
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+    });
+  }, [command]);
+
+  const output = stripCodeFence(resultMd).trim();
+  return (
+    <div className="ui-term">
+      <div className="ui-term-head">
+        <span className="ui-term-dot red" aria-hidden="true" />
+        <span className="ui-term-dot amber" aria-hidden="true" />
+        <span className="ui-term-dot green" aria-hidden="true" />
+        <span className="ui-term-title">Bash Terminal</span>
+        <button
+          type="button"
+          className={`ui-term-copy${copied ? " copied" : ""}`}
+          onClick={handleCopy}
+          title={copied ? t("msg.copied") : t("msg.copy")}
+          aria-label={t("msg.copy")}
+        >
+          {copied ? "✓" : "⧉"}
+        </button>
+      </div>
+      <div className="ui-term-body">
+        <div className="ui-term-cmd">
+          <span className="ui-term-user">agent@deeporca</span>
+          <span className="ui-term-punc">:</span>
+          <span className="ui-term-path">~</span>
+          <span className="ui-term-punc">$ </span>
+          <span className="ui-term-input">{command}</span>
+        </div>
+        {output ? <div className="ui-term-out">{output}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();
   const summary = buildToolSummary(message);
@@ -452,18 +550,33 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const planLines = getPlanLines(summary);
   const toolClass = toolCls(summary.name);
   const isMcp = summary.name.toLowerCase().startsWith("mcp__");
-  const displayName = isMcp ? summary.name.replace(/^mcp__/, "").replace(/__/g, " · ") : formatStatusName(summary.name);
+  const isBash = toolClass === "bash";
+  // Rendering-engine spec: tool names are mono "tool::<name>" (amber) and
+  // MCP calls are "mcp::<server>/<tool>" (purple) with an "MCP Server" badge.
+  const displayName = isMcp
+    ? `mcp::${summary.name.replace(/^mcp__/, "").replace(/__/g, "/")}`
+    : `tool::${summary.name.toLowerCase()}`;
   const isFileTool = COLLAPSIBLE_TOOLS.has(summary.name.toLowerCase());
   const showHeaderHint = SHOW_RESULT_HINT_IN_HEADER.has(summary.name.toLowerCase());
   const [bodyOpen, setBodyOpen] = useState(!isFileTool);
   const [resultOpen, setResultOpen] = useState(false);
   const [resultCopied, setResultCopied] = useState(false);
+  const resultCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the pending copy-feedback reset when the card unmounts.
+  useEffect(
+    () => () => {
+      if (resultCopyTimerRef.current) clearTimeout(resultCopyTimerRef.current);
+    },
+    []
+  );
 
   const handleCopyResult = useCallback(() => {
     if (!resultMd) return;
     void navigator.clipboard.writeText(resultMd).then(() => {
       setResultCopied(true);
-      setTimeout(() => setResultCopied(false), 1500);
+      if (resultCopyTimerRef.current) clearTimeout(resultCopyTimerRef.current);
+      resultCopyTimerRef.current = setTimeout(() => setResultCopied(false), 1500);
     });
   }, [resultMd]);
 
@@ -473,11 +586,19 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const headerInner = (
     <>
       <span className="ui-tool-icon">{toolIcon(summary.name)}</span>
+      {!isMcp ? <span className="ui-tool-kind">Tool:</span> : null}
       <span className="ui-tool-name">{displayName}</span>
       {/* Collapsible tools surface the file path / command inline so the
-         user can identify the operation without expanding the card. */}
-      {isFileTool && params ? <span className="ui-tool-params-inline">{params}</span> : null}
-      {summary.ok ? null : <span className="ui-tool-badge err">✗</span>}
+         user can identify the operation without expanding the card. For
+         bash the terminal frame already shows the command when open. */}
+      {isFileTool && params && !(isBash && bodyOpen) ? <span className="ui-tool-params-inline">{params}</span> : null}
+      {isMcp ? <span className="ui-tool-badge mcp">MCP Server</span> : null}
+      {/* Status badge — ✓ success / ✗ failure, per the rendering-engine spec. */}
+      {summary.ok ? (
+        <span className="ui-tool-badge ok">✓ {t("msg.toolOk")}</span>
+      ) : (
+        <span className="ui-tool-badge err">✗ {t("msg.toolFail")}</span>
+      )}
       {/* Elapsed time badge — how long the tool took to execute. */}
       {message.createTime && message.updateTime && message.createTime !== message.updateTime ? (
         <span className="ui-tool-elapsed">{formatElapsed(message.createTime, message.updateTime)}</span>
@@ -503,11 +624,21 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
       ) : (
         <div className="ui-tool-head">{headerInner}</div>
       )}
-      {/* Non-file tools keep the params on a separate line (current behavior). */}
-      {!isFileTool && params ? <div className="ui-tool-params">{params}</div> : null}
+      {/* Non-file tools keep the params in a dark PARAMS panel (spec card #3). */}
+      {!isFileTool && params ? (
+        <div className="ui-tool-params-panel">
+          <div className="ui-tool-params-label">
+            <span>Params</span>
+            <span className="ui-tool-params-fmt">{isMcp ? "MCP" : "JSON"}</span>
+          </div>
+          <div className="ui-tool-params">{params}</div>
+        </div>
+      ) : null}
       {/* Body — for file tools, only rendered when expanded. */}
       {(!isFileTool || bodyOpen) && (
         <>
+          {/* Bash renders as a terminal frame: command + output inline. */}
+          {isBash ? <BashTerminal command={summary.params.trim()} resultMd={resultMd} /> : null}
           {/* Diff preview for edit/write */}
           {diffLines.length > 0 ? (
             <div className="ui-diff">
@@ -528,8 +659,8 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
               <div className="ui-tool-plan-body">{planLines.join("\n")}</div>
             </div>
           ) : null}
-          {/* Collapsible result */}
-          {resultMd ? (
+          {/* Collapsible result — bash output already lives in the terminal frame. */}
+          {resultMd && !isBash ? (
             <div className="ui-tool-result-wrap">
               <button className="ui-tool-result-toggle" onClick={() => setResultOpen((v) => !v)}>
                 <span>{resultOpen ? "▾" : "▸"}</span>
@@ -594,7 +725,9 @@ function SkillLoadedCard({ skill }: { skill: SkillInfo }): JSX.Element {
 }
 
 // ── Main Message dispatcher ───────────────────────────────────────────────────
-export function Message({
+// Memoized: message objects are stable references, so unrelated app-level
+// re-renders (loading ticks, sidebar refreshes) skip the whole subtree.
+export const Message = memo(function Message({
   message,
   reasoningMode = "normal",
   expandedThinkingId,
@@ -618,6 +751,11 @@ export function Message({
           messageParams={message.messageParams}
           reasoningMode={reasoningMode}
           isLatest={message.id === expandedThinkingId}
+          elapsed={
+            message.createTime && message.updateTime && message.createTime !== message.updateTime
+              ? formatElapsed(message.createTime, message.updateTime)
+              : undefined
+          }
         />
       );
     }
@@ -649,4 +787,4 @@ export function Message({
   }
 
   return null;
-}
+});
