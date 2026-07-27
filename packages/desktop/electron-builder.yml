@@ -1,0 +1,68 @@
+# electron-builder configuration for DeepOrca Desktop.
+#
+# Packages the staged app dir produced by scripts/package-desktop.js
+# (out/app: generated package.json + dist/ + vendor/ + node_modules).
+#
+# asar is disabled on purpose: the vendored CodeGraph/OpenWiki runtimes are
+# executed by an external system Node process, which cannot read files inside
+# an asar archive.
+
+appId: dev.deeporca.desktop
+productName: DeepOrca
+executableName: DeepOrca
+
+directories:
+  app: out/app
+  output: out/pkg
+  buildResources: build
+
+asar: false
+compression: normal
+npmRebuild: false
+nodeGypRebuild: false
+
+files:
+  - "**/*"
+  - "!**/*.tsbuildinfo"
+  - "!**/*.map"
+
+# Vendored CodeGraph/OpenWiki runtimes are copied verbatim (incl. their own
+# node_modules, which the app-files copier would otherwise strip) into
+# Resources/app/vendor — the exact path the main process resolves at runtime.
+extraResources:
+  - from: vendor
+    to: app/vendor
+    filter:
+      - "**/*"
+      - "!**/.git/**"
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.png
+  target:
+    - target: dmg
+    - target: zip
+  # No signing identity in CI — ship unsigned builds.
+  identity: null
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+    - target: zip
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+
+linux:
+  icon: build/icon.png
+  category: Development
+  maintainer: DeepOrca Team
+  synopsis: AI coding desktop client built for DeepSeek
+  target:
+    - target: AppImage
+    - target: deb
+
+publish: null

@@ -10,7 +10,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/asdshuaishuai/deepcode-cli.git"
+    "url": "git+https://github.com/d2rabbit/deepOrca.git"
   },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -23,6 +23,7 @@
     "clean": "node scripts/clean.js",
     "build": "node scripts/build.js",
     "desktop:build": "npm run build --workspace @deeporca/desktop",
+    "desktop:package": "npm run package --workspace @deeporca/desktop",
     "desktop:dev": "npm run dev --workspace @deeporca/desktop",
     "desktop:start": "npm run build-and-start --workspace @deeporca/desktop",
     "desktop:startWin": "node scripts/desktop-start.js win",

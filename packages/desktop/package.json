@@ -7,7 +7,7 @@
   "main": "./dist/main.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/asdshuaishuai/deepcode-cli.git"
+    "url": "git+https://github.com/d2rabbit/deepOrca.git"
   },
   "scripts": {
     "typecheck": "tsc -p ./ --noEmit",
@@ -16,11 +16,13 @@
     "start": "electron .",
     "build-and-start": "npm run build && npm run start",
     "vendor:codegraph": "node ../../scripts/vendor-codegraph.js",
-    "vendor:openwiki": "node ../../scripts/vendor-openwiki.js"
+    "vendor:openwiki": "node ../../scripts/vendor-openwiki.js",
+    "stage": "node ../../scripts/package-desktop.js",
+    "package": "node ../../scripts/package-desktop.js && electron-builder --config electron-builder.yml --publish never"
   },
   "dependencies": {
-    "@monaco-editor/react": "^4.7.0",
     "@deeporca/core": "file:../core",
+    "@monaco-editor/react": "^4.7.0",
     "highlight.js": "^11.11.1",
     "marked": "^14.1.4",
     "monaco-editor": "^0.56.0",
@@ -30,6 +32,7 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "electron": "^33.4.11"
+    "electron": "33.4.11",
+    "electron-builder": "^26.15.3"
   }
 }

@@ -8,7 +8,7 @@
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/asdshuaishuai/deepcode-cli.git"
+    "url": "git+https://github.com/d2rabbit/deepOrca.git"
   },
   "exports": {
     ".": {
