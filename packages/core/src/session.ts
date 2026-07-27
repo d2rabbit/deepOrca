@@ -43,6 +43,8 @@ import {
 } from "./tools/executor";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings } from "./settings";
+import { getProjectSettingsPath, getUserSettingsPath } from "./settings";
+import { getUserConfigRoot } from "./common/app-dirs";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
@@ -909,8 +911,10 @@ ${agentInstructions}
   private getSkillScanRoots(): Array<{ root: string; displayRoot: string }> {
     const homeDir = os.homedir();
     return [
+      { root: path.join(this.projectRoot, ".deeporca", "skills"), displayRoot: "./.deeporca/skills" },
       { root: path.join(this.projectRoot, ".deepcode", "skills"), displayRoot: "./.deepcode/skills" },
       { root: path.join(this.projectRoot, ".agents", "skills"), displayRoot: "./.agents/skills" },
+      { root: path.join(homeDir, ".deeporca", "skills"), displayRoot: "~/.deeporca/skills" },
       { root: path.join(homeDir, ".deepcode", "skills"), displayRoot: "~/.deepcode/skills" },
       { root: path.join(homeDir, ".agents", "skills"), displayRoot: "~/.agents/skills" },
       { root: this.getBundledSkillsRoot(), displayRoot: "bundled:" },
@@ -1556,7 +1560,7 @@ ${content}
       this.onAssistantMessage(
         this.buildAssistantMessage(
           sessionId,
-          "API key not found. Please configure ~/.deepcode/settings.json or ./.deepcode/settings.json.",
+          `API key not found. Please configure ${getUserSettingsPath()} or ${getProjectSettingsPath(this.projectRoot)}.`,
           null
         ),
         false
@@ -2152,7 +2156,7 @@ ${content}
     sessionsIndexPath: string;
   } {
     const projectCode = getProjectCode(this.projectRoot);
-    const projectDir = path.join(os.homedir(), ".deepcode", "projects", projectCode);
+    const projectDir = path.join(getUserConfigRoot(), "projects", projectCode);
     const sessionsIndexPath = path.join(projectDir, "sessions-index.json");
     return { projectCode, projectDir, sessionsIndexPath };
   }
@@ -2417,6 +2421,10 @@ ${content}
   private loadProjectAgentInstructions(): { content: string; displayPath: string } | null {
     const candidatePaths = [
       {
+        absolutePath: path.join(this.projectRoot, ".deeporca", "AGENTS.md"),
+        displayPath: "./.deeporca/AGENTS.md",
+      },
+      {
         absolutePath: path.join(this.projectRoot, ".deepcode", "AGENTS.md"),
         displayPath: "./.deepcode/AGENTS.md",
       },
@@ -2457,7 +2465,10 @@ ${content}
       return projectInstructions.content;
     }
 
-    return this.readNonEmptyFile(path.join(os.homedir(), ".deepcode", "AGENTS.md"));
+    return (
+      this.readNonEmptyFile(path.join(os.homedir(), ".deeporca", "AGENTS.md")) ??
+      this.readNonEmptyFile(path.join(os.homedir(), ".deepcode", "AGENTS.md"))
+    );
   }
 
   private buildSystemMessage(

@@ -15,7 +15,7 @@ type I18nContextValue = {
   t: Translate;
 };
 
-const STORAGE_KEY = "deepcode.locale";
+const STORAGE_KEY = "deeporca.locale";
 
 const SUPPORTED_LOCALES: Locale[] = ["en", "zh", "zh-TW", "zh-HK", "ja", "ko"];
 

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`AGENTS.md` is a project instruction file for AI coding assistants. Use it to record long-lived repository rules so Deep Code knows how to install dependencies, run tests, edit code, prepare changes, and follow team conventions.
+`AGENTS.md` is a project instruction file for AI coding assistants. Use it to record long-lived repository rules so DeepOrca knows how to install dependencies, run tests, edit code, prepare changes, and follow team conventions.
 
 If you often repeat instructions such as "run this test first", "do not edit that directory", or "include these details in the PR summary", put them in `AGENTS.md`.
 
@@ -31,17 +31,17 @@ Run this inside a project:
 /init
 ```
 
-Deep Code helps create or update `AGENTS.md`. You can also create it manually:
+DeepOrca helps create or update `AGENTS.md`. You can also create it manually:
 
 ```bash
 touch AGENTS.md
 ```
 
-If you want Deep Code-specific project instructions, you can use:
+If you want DeepOrca-specific project instructions, you can use:
 
 ```bash
-mkdir -p .deepcode
-touch .deepcode/AGENTS.md
+mkdir -p .deeporca
+touch .deeporca/AGENTS.md
 ```
 
 Common choices:
@@ -49,8 +49,8 @@ Common choices:
 | File | Best for |
 | ---- | -------- |
 | `AGENTS.md` | Rules that should be visible to multiple AI coding tools |
-| `.deepcode/AGENTS.md` | Rules intended only for Deep Code |
-| `~/.deepcode/AGENTS.md` | Personal defaults for repositories without project instructions |
+| `.deeporca/AGENTS.md` | Rules intended only for DeepOrca |
+| `~/.deeporca/AGENTS.md` | Personal defaults for repositories without project instructions |
 
 ## Recommended Structure
 
@@ -150,7 +150,7 @@ Good:
 ```markdown
 ## Security
 
-Do not commit API keys or tokens. Use `~/.deepcode/settings.json` for local
+Do not commit API keys or tokens. Use `~/.deeporca/settings.json` for local
 credentials and keep project examples redacted.
 ```
 

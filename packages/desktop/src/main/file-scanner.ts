@@ -18,6 +18,7 @@ const NOISY_DIRS = new Set([
   ".svn",
   ".hg",
   ".deepcode",
+  ".deeporca",
   ".husky",
   ".github",
 ]);

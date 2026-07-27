@@ -80,7 +80,7 @@
 
 ### 索引库
 
-- **R16** The 索引库 shall 存放于 `~/.deepcode/gitmcp/`（跨项目共享），使用 `node:sqlite` + FTS5，
+- **R16** The 索引库 shall 存放于 `~/.deeporca/gitmcp/`（跨项目共享），使用 `node:sqlite` + FTS5，
   schema 中预留向量检索扩展点（检索后端抽象接口），本期不加载 sqlite-vec。
 
 ### 兼容与既有能力

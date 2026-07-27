@@ -1,4 +1,4 @@
-# Deep Code Desktop — Windows 8 磁贴(Metro)主题设计
+# DeepOrca Desktop — Windows 8 磁贴(Metro)主题设计
 
 - 日期:2026-07-21
 - 范围:`packages/desktop`(Electron 桌面客户端)
@@ -256,7 +256,7 @@ function createWindow(): void {
     minWidth: 720,
     minHeight: 480,
     backgroundColor: isWin ? "#1d1d1d" : "#e7ecf2",
-    title: "Deep Code",
+    title: "DeepOrca",
     autoHideMenuBar: true,
     frame: false,
     // 两边都用 hidden + 自绘控件:Mac 走 gumdrop(左上),Win 走磁贴控件(右上)。
@@ -291,7 +291,7 @@ dev 模式(`--dev`)同样要 copy,因为 renderer 是从 `dist/renderer/` 加载
 
 由于 `desktop` 包当前**没有测试**(`package.json` 无 `test` 脚本),验证以手动 + 类型检查为主:
 
-1. **类型检查**:`npm run typecheck --workspace @vegamo/deepcode-desktop` 必须通过。重点 `ipc.ts` 的 `ReadyResult` 改动、`App.tsx` / `TopBar.tsx` 的新 prop。
+1. **类型检查**:`npm run typecheck --workspace @deeporca/desktop` 必须通过。重点 `ipc.ts` 的 `ReadyResult` 改动、`App.tsx` / `TopBar.tsx` 的新 prop。
 2. **构建**:`npm run desktop:build` 必须成功,`dist/renderer/` 下应同时存在 `styles.css` 和 `styles-metro.css`。
 3. **Windows 手动验证**(核心):
    - `npm run desktop:start`,窗口背景为深色,无白屏闪烁。

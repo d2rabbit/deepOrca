@@ -1,6 +1,6 @@
-# Deep Code 权限机制
+# DeepOrca 权限机制
 
-Deep Code 内置了一套细粒度的权限控制机制，在 AI 助手执行工具调用（如执行 Shell 命令、读写文件、访问网络等）前，根据用户配置的策略决定是自动放行、直接拒绝、还是弹出交互式确认。
+DeepOrca 内置了一套细粒度的权限控制机制，在 AI 助手执行工具调用（如执行 Shell 命令、读写文件、访问网络等）前，根据用户配置的策略决定是自动放行、直接拒绝、还是弹出交互式确认。
 
 ## 概述
 
@@ -12,7 +12,7 @@ Deep Code 内置了一套细粒度的权限控制机制，在 AI 助手执行工
 
 ## 权限范围
 
-Deep Code 定义了以下 10 种权限范围，覆盖了工具调用的各类风险场景：
+DeepOrca 定义了以下 10 种权限范围，覆盖了工具调用的各类风险场景：
 
 | 权限范围 | 说明 |
 | -------- | ---- |
@@ -31,7 +31,7 @@ Deep Code 定义了以下 10 种权限范围，覆盖了工具调用的各类风
 
 ## 权限配置
 
-在 `~/.deepcode/settings.json`（用户级）或 `.deepcode/settings.json`（项目级）中通过 `permissions` 字段配置：
+在 `~/.deeporca/settings.json`（用户级）或 `.deeporca/settings.json`（项目级）中通过 `permissions` 字段配置：
 
 ```json
 {
@@ -92,7 +92,7 @@ Deep Code 定义了以下 10 种权限范围，覆盖了工具调用的各类风
 
 ## 持久化机制
 
-当用户在权限提示中选择 "Yes, and always allow" 后，对应的权限范围会被写入当前项目的 `.deepcode/settings.json` 文件中：
+当用户在权限提示中选择 "Yes, and always allow" 后，对应的权限范围会被写入当前项目的 `.deeporca/settings.json` 文件中：
 
 - 新增范围会追加到 `permissions.allow` 列表
 - 如果该范围之前存在于 `deny` 或 `ask` 中，会被自动移除

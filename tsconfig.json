@@ -30,9 +30,5 @@
   },
   "include": [],
   "exclude": ["node_modules", "dist"],
-  "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/cli" },
-    { "path": "./packages/vscode-ide-companion" }
-  ]
+  "references": [{ "path": "./packages/core" }]
 }

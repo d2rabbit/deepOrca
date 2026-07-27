@@ -153,11 +153,11 @@ export const zhTW: Record<MessageKey, string> = {
   "plugins.title": "外掛中心",
   "plugins.tab.skills": "技能",
   "plugins.tab.mcp": "MCP 伺服器",
-  "plugins.skills.none": "未發現技能。將 SKILL.md 放入 .deepcode/skills/ 目錄即可。",
+  "plugins.skills.none": "未發現技能。將 SKILL.md 放入 .deeporca/skills/ 目錄即可。",
   "plugins.skills.loaded": "已載入",
   "plugins.skills.attach": "附加至提示",
   "plugins.skills.locations":
-    "技能會從 .deepcode/skills 或 .agents/skills（專案或使用者目錄）載入。建立含 SKILL.md 的資料夾後點擊重新整理。",
+    "技能會從 .deeporca/skills 或 .agents/skills（專案或使用者目錄）載入。建立含 SKILL.md 的資料夾後點擊重新整理。",
   "plugins.mcp.presets": "快速新增",
   "plugins.detail.empty": "在左側選擇一個外掛以檢視詳情。",
   "plugins.detail.overview": "概覽",
@@ -180,8 +180,8 @@ export const zhTW: Record<MessageKey, string> = {
   "builtin.browser-skill.name": "浏览器技能",
   "builtin.browser-skill.desc":
     "通过 bsk CLI 驱动用户的真实 Chromium 浏览器——访问页面、填写表单、抓取数据、点击流程、回归测试界面。",
-  "builtin.deepcode-self-refer.name": "Deep Code 自引用",
-  "builtin.deepcode-self-refer.desc":
+  "builtin.deeporca-self-refer.name": "DeepOrca 自引用",
+  "builtin.deeporca-self-refer.desc":
     "回答关于 DeepOrca 本身的问题——功能、配置、斜杠命令、技能、MCP 集成、权限、通知、会话持久化和故障排查。",
   "builtin.skill-digester.name": "技能消化器",
   "builtin.skill-digester.desc":
@@ -228,7 +228,7 @@ export const zhTW: Record<MessageKey, string> = {
   "settings.tab.permissions": "權限",
   "settings.tab.mcp": "MCP 伺服器",
   "settings.apiKey": "API Key",
-  "settings.envOverride": "環境變數 DEEPCODE_API_KEY 也設定了 API Key，會覆寫此處的值。",
+  "settings.envOverride": "環境變數 DEEPORCA_API_KEY 也設定了 API Key，會覆寫此處的值。",
   "settings.baseUrl": "Base URL",
   "settings.baseUrlHint": "留空則使用預設的 DeepSeek 端點。",
   "settings.model": "模型",
@@ -428,8 +428,7 @@ export const zhTW: Record<MessageKey, string> = {
   "app.name": "DeepOrca",
   "settings.tab.about": "關於",
   "about.title": "關於 DeepOrca",
-  "about.intro":
-    "DeepOrca 是一款編碼智能體桌面客戶端,基於開源專案 @vegamo/deepcode-cli fork 建構,並重塑命名為 DeepOrca。",
+  "about.intro": "DeepOrca 是一款編碼智能體桌面客戶端,基於 DeepOrca 核心引擎建構。",
   "about.detail":
     "它以 Electron 桌面應用形式發布,由相同的核心引擎驅動(LLM 工作階段迴圈、7 個內建工具、MCP 用戶端、權限系統),針對 DeepSeek 模型調校。",
   "about.changelog": "更新日誌",

@@ -1,6 +1,6 @@
 # 快速开始
 
-Deep Code 是一款开源的终端 AI 编程助手，专为 DeepSeek-V4 系列模型适配，支持深度思考、推理强度控制，并通过 Skills 和 MCP 扩展更多能力。
+DeepOrca 是一款开源的终端 AI 编程助手，专为 DeepSeek-V4 系列模型适配，支持深度思考、推理强度控制，并通过 Skills 和 MCP 扩展更多能力。
 
 ## 前置要求
 
@@ -14,18 +14,18 @@ Deep Code 是一款开源的终端 AI 编程助手，专为 DeepSeek-V4 系列�
 使用 npm 全局安装：
 
 ```bash
-npm install -g @vegamo/deepcode-cli
+npm install -g deeporca
 ```
 
 安装后检查版本：
 
 ```bash
-deepcode --version
+deeporca --version
 ```
 
 ## 配置 DeepSeek-V4
 
-Deep Code 推荐使用 `deepseek-v4-pro`，也支持 `deepseek-v4-flash`。创建 `~/.deepcode/settings.json`，写入你的 DeepSeek 模型配置：
+DeepOrca 推荐使用 `deepseek-v4-pro`，也支持 `deepseek-v4-flash`。创建 `~/.deeporca/settings.json`，写入你的 DeepSeek 模型配置：
 
 ```json
 {
@@ -51,9 +51,9 @@ Deep Code 推荐使用 `deepseek-v4-pro`，也支持 `deepseek-v4-flash`。创�
 | `thinkingEnabled` | 是否启用思考模式 |
 | `reasoningEffort` | 推理强度，常用 `"high"` 或 `"max"` |
 
-也可以在项目目录中创建 `.deepcode/settings.json`，为当前项目单独设置模型、权限或 MCP。
+也可以在项目目录中创建 `.deeporca/settings.json`，为当前项目单独设置模型、权限或 MCP。
 
-更多 DeepSeek 官方配置说明可参考 [Deep Code 集成指南](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/deepcode)。
+更多 DeepSeek 官方配置说明可参考 [DeepOrca 集成指南](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/deeporca)。
 
 更多配置项请参考 [configuration.md](configuration.md)。
 
@@ -63,15 +63,15 @@ Deep Code 推荐使用 `deepseek-v4-pro`，也支持 `deepseek-v4-flash`。创�
 
 ```bash
 cd path/to/your/project
-deepcode
+deeporca
 ```
 
-Deep Code 会在当前目录中启动交互式界面。你可以直接输入任务，然后按 `Enter` 发送。
+DeepOrca 会在当前目录中启动交互式界面。你可以直接输入任务，然后按 `Enter` 发送。
 
 如果想带着初始问题启动：
 
 ```bash
-deepcode -p "总结这个项目"
+deeporca -p "总结这个项目"
 ```
 
 ## 第一次可以这样问
@@ -86,7 +86,7 @@ deepcode -p "总结这个项目"
 找出主要入口文件，并解释请求流程。
 ```
 
-然后尝试让 Deep Code 修改代码：
+然后尝试让 DeepOrca 修改代码：
 
 ```text
 为登录校验逻辑添加一个单元测试。
@@ -127,7 +127,7 @@ deepcode -p "总结这个项目"
 | `/mcp` | 查看 MCP 服务状态和可用工具 |
 | `/undo` | 将代码和/或对话恢复到之前的状态 |
 | `/raw` | 切换显示模式 |
-| `/exit` | 退出 Deep Code |
+| `/exit` | 退出 DeepOrca |
 
 ## 为项目添加说明
 
@@ -137,14 +137,14 @@ deepcode -p "总结这个项目"
 /init
 ```
 
-Deep Code 会帮助你创建 `AGENTS.md`。这个文件适合记录项目约定，例如：
+DeepOrca 会帮助你创建 `AGENTS.md`。这个文件适合记录项目约定，例如：
 
 - 项目如何安装依赖和运行测试
 - 代码风格和提交要求
 - 重要目录说明
 - 修改代码前后需要执行的检查
 
-之后 Deep Code 在该项目中工作时会自动参考这些说明。
+之后 DeepOrca 在该项目中工作时会自动参考这些说明。
 
 ## 使用 Skills
 
@@ -162,9 +162,9 @@ Agent Skills 适合保存可复用工作流，例如代码审查、发布检查�
 
 ## 连接外部工具
 
-如果你想让 Deep Code 连接 GitHub、浏览器、数据库或其他服务，可以配置 MCP。
+如果你想让 DeepOrca 连接 GitHub、浏览器、数据库或其他服务，可以配置 MCP。
 
-配置后，在 Deep Code 中运行：
+配置后，在 DeepOrca 中运行：
 
 ```text
 /mcp
@@ -176,15 +176,15 @@ Agent Skills 适合保存可复用工作流，例如代码审查、发布检查�
 
 ## 权限与安全
 
-Deep Code 可能会读取文件、修改代码或运行命令。你可以通过权限配置控制哪些操作自动允许、哪些操作需要确认、哪些操作直接拒绝。
+DeepOrca 可能会读取文件、修改代码或运行命令。你可以通过权限配置控制哪些操作自动允许、哪些操作需要确认、哪些操作直接拒绝。
 
-Deep Code 默认支持 YOLO 模式，可以更流畅地执行读写文件、运行命令等操作。如果你希望更谨慎，可以使用严格模式，让 Deep Code 在执行较高风险操作前询问你。
+DeepOrca 默认支持 YOLO 模式，可以更流畅地执行读写文件、运行命令等操作。如果你希望更谨慎，可以使用严格模式，让 DeepOrca 在执行较高风险操作前询问你。
 
 更多说明请参考 [permission.md](permission.md)。
 
 ## 任务完成通知
 
-如果希望 Deep Code 完成任务后通知你，可以配置通知脚本，例如发送 Slack、飞书、系统通知或终端提示。
+如果希望 DeepOrca 完成任务后通知你，可以配置通知脚本，例如发送 Slack、飞书、系统通知或终端提示。
 
 更多说明请参考 [notify.md](notify.md)。
 

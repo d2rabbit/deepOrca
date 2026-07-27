@@ -1,10 +1,10 @@
 # Status Line Plugins
 
-Deep Code CLI lets you inject custom information into the status line at the bottom of the terminal (Git branch, current time, token usage, etc.) through plugins, without modifying the CLI source. The status line renders below the keyboard hint line under the prompt input, and all provider outputs are concatenated with a separator.
+DeepOrca CLI lets you inject custom information into the status line at the bottom of the terminal (Git branch, current time, token usage, etc.) through plugins, without modifying the CLI source. The status line renders below the keyboard hint line under the prompt input, and all provider outputs are concatenated with a separator.
 
 ## Configuration
 
-Add a `statusline` field to `~/.deepcode/settings.json` (or the project-level `.deepcode/settings.json`):
+Add a `statusline` field to `~/.deeporca/settings.json` (or the project-level `.deeporca/settings.json`):
 
 ```json
 {
@@ -22,7 +22,7 @@ Add a `statusline` field to `~/.deepcode/settings.json` (or the project-level `.
       {
         "type": "module",
         "id": "tokens",
-        "path": "./.deepcode/plugins/tokens.mjs",
+        "path": "./.deeporca/plugins/tokens.mjs",
         "color": "yellow"
       }
     ]
@@ -77,7 +77,7 @@ Loads a local JS/MJS module and calls its default-exported function. The return 
 The module must export a `default` function (or a named `provider`):
 
 ```js
-// .deepcode/plugins/tokens.mjs
+// .deeporca/plugins/tokens.mjs
 export default function tokensProvider({ projectRoot, session }) {
   // Return a string (sync or async).
   if (session?.activeSessionId) {
@@ -139,7 +139,7 @@ The function receives `{ projectRoot: string, session: SessionInfo | null }` and
       {
         "type": "module",
         "id": "ts-errors",
-        "path": "./.deepcode/plugins/ts-errors.mjs",
+        "path": "./.deeporca/plugins/ts-errors.mjs",
         "color": "red",
         "timeoutMs": 5000
       }

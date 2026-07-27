@@ -11,7 +11,7 @@
 // This module lives in the *main* process (Node.js) and communicates with the
 // renderer via IPC (see ../shared/ipc.ts).
 
-import type { McpServerConfig, McpServerStatus, SessionManager, SkillInfo } from "@vegamo/deepcode-core";
+import type { McpServerConfig, McpServerStatus, SessionManager, SkillInfo } from "@deeporca/core";
 
 // ── Plugin status events ──────────────────────────────────────────────────────
 

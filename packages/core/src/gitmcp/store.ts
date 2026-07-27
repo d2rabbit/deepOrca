@@ -1,7 +1,7 @@
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { createRequire } from "node:module";
+import { getUserConfigRoot } from "../common/app-dirs";
 
 // CommonJS-style require bound to this module — works in both the ESM dist and
 // bundled outputs. `node:sqlite` is loaded lazily so merely importing this file
@@ -46,7 +46,7 @@ export interface SearchBackend {
 
 /** Default location of the shared multi-repository index database. */
 export function getGitmcpIndexDbPath(): string {
-  return path.join(os.homedir(), ".deepcode", "gitmcp", "index.db");
+  return path.join(getUserConfigRoot(), "gitmcp", "index.db");
 }
 
 /**
@@ -146,7 +146,7 @@ class Fts5Backend implements SearchBackend {
 }
 
 /**
- * The shared GitMCP index store (`~/.deepcode/gitmcp/index.db`, one database
+ * The shared GitMCP index store (`<config>/gitmcp/index.db`, one database
  * for all repositories). Opens lazily on first use; requires a runtime with
  * `node:sqlite` (guaranteed for the server process by the spawn-config
  * resolution, and for Electron ≥35 in the desktop main process).

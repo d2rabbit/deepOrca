@@ -1,6 +1,6 @@
 # 开源项目集成可行性调研报告
 
-> 调研目标：评估 5 个开源项目作为 Deep Code 内置插件或指令的可行性和价值
+> 调研目标：评估 5 个开源项目作为 DeepOrca 内置插件或指令的可行性和价值
 > 调研日期：2026-07-21
 
 ## 一、CodeFlow（braedonsaunders/codeflow）
@@ -22,11 +22,11 @@ CodeFlow 是一个**纯浏览器端代码库架构可视化工具**。用户粘�
 
 **技术实现**：单个 `index.html` 文件，React 18 + D3.js 7 + Babel 均从 CDN 加载，零构建依赖，零后端。支持 30+ 编程语言。
 
-### 与 Deep Code 的契合度
+### 与 DeepOrca 的契合度
 
 **契合度：低-中**
 
-- Deep Code 是**文本交互的编码 Agent**，核心能力是 LLM 驱动的对话式代码理解和修改
+- DeepOrca 是**文本交互的编码 Agent**，核心能力是 LLM 驱动的对话式代码理解和修改
 - CodeFlow 是**可视化分析工具**，输出是 D3.js 图谱而非结构化数据
 - 二者在"理解代码结构"这一维度有交集，但交互范式完全不同
 - CodeFlow 的依赖分析是启发式（正则提取函数名匹配），准确度不足以作为 Agent 的可靠输入源
@@ -48,7 +48,7 @@ CodeFlow 是一个**纯浏览器端代码库架构可视化工具**。用户粘�
 | 作为 `/analyze` 命令调用浏览器打开 | 简单 | 低，但价值有限 |
 | 不集成，作为外部参考 | ✅ 推荐 | 零 |
 
-**推荐**：暂不集成。CodeFlow 的价值在于可视化展示，与 Deep Code 的文本 Agent 范式不匹配。如果未来需要代码分析能力，更推荐基于 tree-sitter 或 LSP 构建原生分析工具。
+**推荐**：暂不集成。CodeFlow 的价值在于可视化展示，与 DeepOrca 的文本 Agent 范式不匹配。如果未来需要代码分析能力，更推荐基于 tree-sitter 或 LSP 构建原生分析工具。
 
 ### 优劣势与风险
 
@@ -77,14 +77,14 @@ CLI-Anything 是香港大学团队的**万能 CLI 生成器**——一行命令�
 - 统一 REPL 界面（ReplSkin）
 - 可逆操作（undo/redo + 持久化状态）
 
-### 与 Deep Code 的契合度
+### 与 DeepOrca 的契合度
 
 **契合度：高**
 
-- Deep Code 的核心工具之一是 `bash`，Agent 大量通过 shell 执行命令
-- CLI-Anything 能为**任意专业软件**生成结构化 CLI，直接扩展 Deep Code 的操作能力边界
+- DeepOrca 的核心工具之一是 `bash`，Agent 大量通过 shell 执行命令
+- CLI-Anything 能为**任意专业软件**生成结构化 CLI，直接扩展 DeepOrca 的操作能力边界
 - 生成的 CLI 天然具备 `--json` 输出和 `--help` 自描述，完美匹配 LLM 消费格式
-- 可作为 Deep Code 的**元工具**（meta-tool）：用 Deep Code Agent 调用 CLI-Anything 生成新 CLI，再通过 bash 工具使用
+- 可作为 DeepOrca 的**元工具**（meta-tool）：用 DeepOrca Agent 调用 CLI-Anything 生成新 CLI，再通过 bash 工具使用
 
 ### 技术架构兼容性
 
@@ -104,15 +104,15 @@ CLI-Anything 是香港大学团队的**万能 CLI 生成器**——一行命令�
 | Slash 命令 `/cli-anything` | ✅ 高 | 低-中 |
 | MCP Server | ❌ 不匹配 | 高（需要重写为 Node.js） |
 
-**推荐集成方式**：封装为 **Agent Skill**（`SKILL.md`），放在 `.deepcode/skills/cli-anything/` 下。用户在 Deep Code 中输入 `/cli-anything ./gimp` 即可触发 7 阶段流水线。生成的 CLI 通过现有的 `bash` 工具直接调用。
+**推荐集成方式**：封装为 **Agent Skill**（`SKILL.md`），放在 `.deeporca/skills/cli-anything/` 下。用户在 DeepOrca 中输入 `/cli-anything ./gimp` 即可触发 7 阶段流水线。生成的 CLI 通过现有的 `bash` 工具直接调用。
 
-**工作量**：约 1-2 天（编写 SKILL.md + 资源文件 + 测试），核心是适配 Deep Code 的 Skill 协议。
+**工作量**：约 1-2 天（编写 SKILL.md + 资源文件 + 测试），核心是适配 DeepOrca 的 Skill 协议。
 
 ### 优劣势与风险
 
 - ✅ **亮点**：极大扩展 Agent 能力边界、已在 13 款软件上验证、方法论成熟（HARNESS.md）、支持 6 个 Agent 框架
 - ✅ **亮点**：生成的 CLI 是 pip 可安装的独立工具，不依赖 CLI-Anything 运行时
-- ❌ **局限**：Python 生态，Deep Code 用户需要 `pip` 环境；对目标软件需要源码或 API 文档
+- ❌ **局限**：Python 生态，DeepOrca 用户需要 `pip` 环境；对目标软件需要源码或 API 文档
 - ⚠️ **风险**：生成的 CLI 质量依赖 LLM 能力，不同模型效果可能差异大；Python 依赖链可能与 Node.js 项目环境冲突
 
 ---
@@ -135,13 +135,13 @@ Open Design 是**开源的 Claude Design 替代品**——Agent 原生的设计�
 
 **技术栈**：Next.js 16 + React 18 + TypeScript + Electron + Express + SQLite + Node 24 + pnpm。
 
-### 与 Deep Code 的契合度
+### 与 DeepOrca 的契合度
 
 **契合度：中-高（互补型）**
 
-- Open Design 已有成熟的 **MCP Server**（`od mcp install <agent>`），可直接接入 Deep Code
-- 提供 `skills/` + `design-templates/` + `design-systems/` 三层体系，与 Deep Code 的 Agent Skills 协议高度兼容（同样使用 `SKILL.md` 约定）
-- Deep Code 作为编码 Agent，缺少设计/原型生成能力，Open Design 完美填补这一空白
+- Open Design 已有成熟的 **MCP Server**（`od mcp install <agent>`），可直接接入 DeepOrca
+- 提供 `skills/` + `design-templates/` + `design-systems/` 三层体系，与 DeepOrca 的 Agent Skills 协议高度兼容（同样使用 `SKILL.md` 约定）
+- DeepOrca 作为编码 Agent，缺少设计/原型生成能力，Open Design 完美填补这一空白
 - 但 Open Design 体量巨大（整个 Next.js 应用 + Electron + 守护进程），作为"插件"引入过于沉重
 
 ### 技术架构兼容性
@@ -150,7 +150,7 @@ Open Design 是**开源的 Claude Design 替代品**——Agent 原生的设计�
 |---|---|
 | Node.js 22 / ESM | ✅ Node 24（兼容 22），TypeScript + ESM |
 | 作为 MCP Server | ✅ **原生支持**——已有 stdio MCP Server + 逐 Agent 安装脚本 |
-| 作为 Skill | ✅ 其 `SKILL.md` 协议与 Deep Code 完全一致 |
+| 作为 Skill | ✅ 其 `SKILL.md` 协议与 DeepOrca 完全一致 |
 | 依赖复杂度 | 极高（Next.js + Electron + SQLite + pnpm monorepo） |
 
 ### 集成方案建议
@@ -158,10 +158,10 @@ Open Design 是**开源的 Claude Design 替代品**——Agent 原生的设计�
 | 方案 | 可行性 | 工作量 |
 |---|---|---|
 | **MCP Server 接入**（推荐） | ✅ 高 | 低（配置文件级别） |
-| 提取核心 Skills 为 Deep Code Skills | ⚠️ 中等 | 中（需要适配目录结构） |
+| 提取核心 Skills 为 DeepOrca Skills | ⚠️ 中等 | 中（需要适配目录结构） |
 | 整体集成 | ❌ 不可行 | 极高（两个独立 Electron 应用） |
 
-**推荐集成方式**：配置为 **MCP Server**。用户只需在 `~/.deepcode/settings.json` 中添加：
+**推荐集成方式**：配置为 **MCP Server**。用户只需在 `~/.deeporca/settings.json` 中添加：
 
 ```json
 {
@@ -174,16 +174,16 @@ Open Design 是**开源的 Claude Design 替代品**——Agent 原生的设计�
 }
 ```
 
-即可通过 `mcp__open-design__*` 工具调用设计生成能力。Deep Code 的 MCP 协议已完全支持此模式。
+即可通过 `mcp__open-design__*` 工具调用设计生成能力。DeepOrca 的 MCP 协议已完全支持此模式。
 
 **工作量**：配置级别（< 1 小时），但用户需要先安装 Open Design CLI（`od`）。
 
 ### 优劣势与风险
 
 - ✅ **亮点**：MCP Server 原生支持、151 个设计系统、277 个插件生态、Apache-2.0 许可
-- ✅ **亮点**：与 Deep Code 共享 `SKILL.md` 协议，技能可互换
+- ✅ **亮点**：与 DeepOrca 共享 `SKILL.md` 协议，技能可互换
 - ❌ **局限**：项目体量极大（完整 Next.js 应用），作为外部依赖过重；需要 `od` CLI 预装
-- ⚠️ **风险**：Open Design 仍在快速迭代（0.13.0），API 稳定性不确定；守护进程 + Electron 双进程模型可能与 Deep Code Desktop 冲突
+- ⚠️ **风险**：Open Design 仍在快速迭代（0.13.0），API 稳定性不确定；守护进程 + Electron 双进程模型可能与 DeepOrca Desktop 冲突
 
 ---
 
@@ -210,15 +210,15 @@ Agent → bsk CLI → bsk daemon → WebSocket → Browser Extension → Agent W
 
 **技术栈**：Rust（CLI + daemon，Cargo workspace）+ TypeScript（browser extension，pnpm）。
 
-### 与 Deep Code 的契合度
+### 与 DeepOrca 的契合度
 
 **契合度：极高**
 
-- Deep Code 的 7 个内置工具中没有浏览器操控能力，这是**最大的能力缺口之一**
-- BrowserSkill 的设计哲学（CLI 接口 + shell 调用）与 Deep Code 的 `bash` 工具完美匹配
+- DeepOrca 的 7 个内置工具中没有浏览器操控能力，这是**最大的能力缺口之一**
+- BrowserSkill 的设计哲学（CLI 接口 + shell 调用）与 DeepOrca 的 `bash` 工具完美匹配
 - 不需要 MCP Server——Agent 直接通过 `bash` 工具执行 `bsk` 命令即可
-- Human-in-loop 机制与 Deep Code 的 `AskUserQuestion` 工具天然互补
-- Deep Code Desktop 是 Electron 应用，但 BrowserSkill 操控的是用户的**系统浏览器**，不冲突
+- Human-in-loop 机制与 DeepOrca 的 `AskUserQuestion` 工具天然互补
+- DeepOrca Desktop 是 Electron 应用，但 BrowserSkill 操控的是用户的**系统浏览器**，不冲突
 
 ### 技术架构兼容性
 
@@ -240,7 +240,7 @@ Agent → bsk CLI → bsk daemon → WebSocket → Browser Extension → Agent W
 
 **推荐集成方式**：
 
-1. 将 BrowserSkill 的 `SKILL.md` 安装到 `.deepcode/skills/browser-skill/`
+1. 将 BrowserSkill 的 `SKILL.md` 安装到 `.deeporca/skills/browser-skill/`
 2. Agent 通过现有的 `bash` 工具执行 `bsk` 命令
 3. 遇到验证码等场景时，Agent 自动调用 `AskUserQuestion` 请求用户介入
 
@@ -248,9 +248,9 @@ Agent → bsk CLI → bsk daemon → WebSocket → Browser Extension → Agent W
 
 ### 优劣势与风险
 
-- ✅ **亮点**：完美匹配 Deep Code 架构、零代码集成、复用真实登录态、Human-in-loop、MIT 许可
+- ✅ **亮点**：完美匹配 DeepOrca 架构、零代码集成、复用真实登录态、Human-in-loop、MIT 许可
 - ✅ **亮点**：腾讯出品，维护可持续性强；已适配 8+ Agent 框架
-- ✅ **亮点**：`bsk install-skill` 一键安装到 Deep Code
+- ✅ **亮点**：`bsk install-skill` 一键安装到 DeepOrca
 - ❌ **局限**：需要 Chrome/Edge 浏览器 + 扩展安装；Rust 二进制更新需用户手动
 - ⚠️ **风险**：浏览器扩展权限敏感（需要读取所有网站数据），企业用户可能有安全顾虑
 
@@ -281,14 +281,14 @@ Open Code Review 是阿里巴巴开源的 **AI 代码审查 CLI 工具**，已�
 
 **技术栈**：npm 包（`@alibaba-group/open-code-review`）、Node.js CLI、支持 OpenAI / Anthropic 模型、自带 MCP Server。
 
-### 与 Deep Code 的契合度
+### 与 DeepOrca 的契合度
 
 **契合度：极高**
 
 - 代码审查是编码 Agent 的**核心高频场景**之一
-- Deep Code 目前没有内置的代码审查能力，Agent 只能靠 LLM 自身能力逐文件审查，覆盖率不稳定
+- DeepOrca 目前没有内置的代码审查能力，Agent 只能靠 LLM 自身能力逐文件审查，覆盖率不稳定
 - Open Code Review 的"确定性规则匹配 + LLM 推理"混合架构解决了纯 LLM 审查的痛点（覆盖率不全、定位漂移、质量波动）
-- 支持 **Delegation Mode**（`ocr delegate`）——不启动自己的 LLM，而是让宿主 Agent 的 LLM 执行审查，OCR 只负责文件选择和规则解析，**完美匹配 Deep Code 作为宿主**
+- 支持 **Delegation Mode**（`ocr delegate`）——不启动自己的 LLM，而是让宿主 Agent 的 LLM 执行审查，OCR 只负责文件选择和规则解析，**完美匹配 DeepOrca 作为宿主**
 - 已有 npm 包和 MCP Server，集成路径清晰
 
 ### 技术架构兼容性
@@ -312,16 +312,16 @@ Open Code Review 是阿里巴巴开源的 **AI 代码审查 CLI 工具**，已�
 
 **推荐集成方式**：**三管齐下**
 
-1. **Slash 命令** `/review` — 用户在 Deep Code 中输入即触发 `ocr review`
+1. **Slash 命令** `/review` — 用户在 DeepOrca 中输入即触发 `ocr review`
 2. **Agent Skill** — `SKILL.md` 封装审查方法论，Agent 在合适时机自动调用
-3. **Delegation Mode** — 通过 `ocr delegate` 让 Deep Code 的 LLM 直接消费 OCR 的规则解析结果
+3. **Delegation Mode** — 通过 `ocr delegate` 让 DeepOrca 的 LLM 直接消费 OCR 的规则解析结果
 
 **工作量**：约半天（安装 npm 包 + 编写 Skill + 注册 slash 命令 + 测试）。
 
 ### 优劣势与风险
 
 - ✅ **亮点**：阿里内部数万开发者验证、混合架构（F1 优于纯 LLM）、token 消耗仅 1/9、内置安全规则集（NPE/XSS/SQL注入）
-- ✅ **亮点**：Delegation Mode 完美匹配 Deep Code（不需要额外 LLM 配置）、npm 包安装简单、Apache-2.0 许可
+- ✅ **亮点**：Delegation Mode 完美匹配 DeepOrca（不需要额外 LLM 配置）、npm 包安装简单、Apache-2.0 许可
 - ✅ **亮点**：支持 MCP Server、Skill、Plugin 三种集成方式
 - ❌ **局限**：需要 Git 仓库（`ocr review` 依赖 diff）；对非 Git 项目支持有限
 - ⚠️ **风险**：阿里内部优化可能偏向 Java/Go 等后端语言，前端/TypeScript 规则覆盖待验证
@@ -334,7 +334,7 @@ Open Code Review 是阿里巴巴开源的 **AI 代码审查 CLI 工具**，已�
 |---|---|---|---|---|---|
 | **核心能力** | 代码架构可视化 | 万能 CLI 生成器 | AI 设计工件生成 | 浏览器自动化桥接 | AI 代码审查 |
 | **填补的缺口** | 代码可视化 | 专业软件操控 | UI/UX 设计 | **浏览器操控** | **代码审查** |
-| **与 Deep Code 契合度** | 🟡 低-中 | 🟢 高 | 🟢 中-高 | 🟢 **极高** | 🟢 **极高** |
+| **与 DeepOrca 契合度** | 🟡 低-中 | 🟢 高 | 🟢 中-高 | 🟢 **极高** | 🟢 **极高** |
 | **集成复杂度** | 高（需重写） | 中（Python 依赖） | 低（MCP 配置） | **极低**（Skill 文件） | **低**（npm + Skill） |
 | **推荐集成方式** | 不集成 | Agent Skill | MCP Server | Skill + bash | Skill + `/review` |
 | **技术栈兼容** | ❌ 纯浏览器 | ⚠️ Python 3.10+ | ✅ Node 24 + TS | ✅ Rust + TS | ✅ Node.js + npm |
@@ -354,7 +354,7 @@ Open Code Review 是阿里巴巴开源的 **AI 代码审查 CLI 工具**，已�
 
 ## 核心结论
 
-- **BrowserSkill + Open Code Review** 是最高价值的两个项目——它们分别填补了 Deep Code 最明显的两个能力缺口（浏览器操控 + 代码审查），且都支持**零代码 / 低代码集成**
+- **BrowserSkill + Open Code Review** 是最高价值的两个项目——它们分别填补了 DeepOrca 最明显的两个能力缺口（浏览器操控 + 代码审查），且都支持**零代码 / 低代码集成**
 - **Open Design** 作为 MCP Server 接入是最低成本的扩展方式，适合需要设计生成能力的团队
 - **CLI-Anything** 的"元工具"理念最有想象力，但 Python 依赖链是实际的集成障碍
-- **CodeFlow** 的可视化能力虽然惊艳，但其纯浏览器端架构与 Deep Code 的文本 Agent 范式根本不兼容，不建议集成
+- **CodeFlow** 的可视化能力虽然惊艳，但其纯浏览器端架构与 DeepOrca 的文本 Agent 范式根本不兼容，不建议集成

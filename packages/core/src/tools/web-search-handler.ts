@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { spawn } from "child_process";
 import type OpenAI from "openai";
 import type { CreateOpenAIClient, ToolExecutionContext, ToolExecutionResult } from "./executor";
+import { getUserSettingsPath } from "../settings";
 
 const MAX_OUTPUT_CHARS = 30000;
 const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
@@ -54,8 +55,7 @@ export async function handleWebSearchTool(
     return {
       ok: false,
       name: "WebSearch",
-      error:
-        "WebSearch default mode requires a valid LLM configuration in ~/.deepcode/settings.json or ./.deepcode/settings.json.",
+      error: `WebSearch default mode requires a valid LLM configuration in ${getUserSettingsPath()} or the project settings.json.`,
     };
   }
 

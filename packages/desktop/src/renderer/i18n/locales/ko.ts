@@ -152,11 +152,11 @@ export const ko: Record<MessageKey, string> = {
   "plugins.title": "플러그인 센터",
   "plugins.tab.skills": "스킬",
   "plugins.tab.mcp": "MCP 서버",
-  "plugins.skills.none": "스킬을 찾을 수 없습니다. SKILL.md를 .deepcode/skills/ 디렉터리에 두세요.",
+  "plugins.skills.none": "스킬을 찾을 수 없습니다. SKILL.md를 .deeporca/skills/ 디렉터리에 두세요.",
   "plugins.skills.loaded": "로드됨",
   "plugins.skills.attach": "프롬프트에 연결",
   "plugins.skills.locations":
-    "스킬은 .deepcode/skills 또는 .agents/skills(프로젝트 또는 홈)에서 로드됩니다. SKILL.md가 있는 폴더를 추가한 뒤 새로 고침하세요.",
+    "스킬은 .deeporca/skills 또는 .agents/skills(프로젝트 또는 홈)에서 로드됩니다. SKILL.md가 있는 폴더를 추가한 뒤 새로 고침하세요.",
   "plugins.mcp.presets": "빠른 추가",
   "plugins.detail.empty": "세부 정보를 보려면 왼쪽에서 플러그인을 선택하세요.",
   "plugins.detail.overview": "개요",
@@ -179,8 +179,8 @@ export const ko: Record<MessageKey, string> = {
   "builtin.browser-skill.name": "Browser Skill",
   "builtin.browser-skill.desc":
     "Drive the user's real Chromium browser through the bsk CLI — visit pages, fill forms, scrape data, click through flows, regression-test UI.",
-  "builtin.deepcode-self-refer.name": "Deep Code Self-Refer",
-  "builtin.deepcode-self-refer.desc":
+  "builtin.deeporca-self-refer.name": "DeepOrca Self-Refer",
+  "builtin.deeporca-self-refer.desc":
     "Answers questions about DeepOrca itself — features, configuration, slash commands, Skills, MCP integration, permissions, notifications, session persistence, and troubleshooting.",
   "builtin.skill-digester.name": "Skill Digester",
   "builtin.skill-digester.desc":
@@ -228,7 +228,7 @@ export const ko: Record<MessageKey, string> = {
   "settings.tab.permissions": "권한",
   "settings.tab.mcp": "MCP 서버",
   "settings.apiKey": "API 키",
-  "settings.envOverride": "환경 변수 DEEPCODE_API_KEY에도 API 키가 설정되어 있어 이 값을 덮어씁니다.",
+  "settings.envOverride": "환경 변수 DEEPORCA_API_KEY에도 API 키가 설정되어 있어 이 값을 덮어씁니다.",
   "settings.baseUrl": "Base URL",
   "settings.baseUrlHint": "비워 두면 기본 DeepSeek 엔드포인트를 사용합니다.",
   "settings.model": "모델",
@@ -428,8 +428,7 @@ export const ko: Record<MessageKey, string> = {
   "app.name": "DeepOrca",
   "settings.tab.about": "정보",
   "about.title": "DeepOrca 정보",
-  "about.intro":
-    "DeepOrca는 코딩 에이전트 데스크톱 GUI로, 오픈소스 프로젝트 @vegamo/deepcode-cli를 포크하여 DeepOrca로 다시 구축했습니다.",
+  "about.intro": "DeepOrca는 코딩 에이전트 데스크톱 GUI로, DeepOrca 코어 엔진 위에 구축되었습니다.",
   "about.detail":
     "Electron 데스크톱 앱으로 제공되며, 동일한 코어 엔진(LLM 세션 루프, 7개 내장 도구, MCP 클라이언트, 권한 시스템)으로 구동되고 DeepSeek 모델에 최적화되어 있습니다.",
   "about.changelog": "변경 이력",

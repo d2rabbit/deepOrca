@@ -1,4 +1,13 @@
-// Core library public API — used by both CLI and VSCode companion.
+// Core library public API — consumed by the DeepOrca desktop client.
+
+// App config directories (bidirectional .deepcode/.deeporca compatibility)
+export {
+  getUserConfigRoot,
+  getProjectConfigRoot,
+  getEnvVar,
+  CONFIG_DIR_NAME,
+  LEGACY_CONFIG_DIR_NAME,
+} from "./common/app-dirs";
 
 // Settings
 export {

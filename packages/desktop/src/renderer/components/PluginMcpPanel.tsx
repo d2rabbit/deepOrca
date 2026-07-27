@@ -298,7 +298,7 @@ export function PluginMcpPanel({
         ) : (
           (() => {
             // Plugins tab: built-in plugins (browser-skill) + bundled skills
-            // (deepcode-self-refer etc.), all non-removable built-in items.
+            // (deeporca-self-refer etc.), all non-removable built-in items.
             const bundled = skills.filter(isBundledSkill);
             const isEmpty = builtinPlugins.length === 0 && bundled.length === 0;
             return (

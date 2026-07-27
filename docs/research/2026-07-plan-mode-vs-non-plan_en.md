@@ -8,7 +8,7 @@
 
 ## Abstract
 
-We conducted a controlled A/B experiment to evaluate the impact of Deep Code's Plan Mode on four dimensions: **result quality, wall-clock time, token consumption, and real cost**. Two sessions were launched simultaneously on the same task using the same model (`deepseek-v4-pro`) — one with Plan Mode enabled, one without. This simultaneous setup eliminates the confounding effect of API-side compute fluctuations across time windows.
+We conducted a controlled A/B experiment to evaluate the impact of DeepOrca's Plan Mode on four dimensions: **result quality, wall-clock time, token consumption, and real cost**. Two sessions were launched simultaneously on the same task using the same model (`deepseek-v4-pro`) — one with Plan Mode enabled, one without. This simultaneous setup eliminates the confounding effect of API-side compute fluctuations across time windows.
 
 **Core finding**: Plan Mode traded a **26% cost increase** and **32% time increase** for a **quality leap from 0% to 75% correctness**. Additionally, its reasoning density (Reasoning Ratio) was nearly **1.5×** that of the non-Plan session, indicating that Plan Mode effectively steers the model toward deeper analytical behavior.
 
@@ -20,7 +20,7 @@ We conducted a controlled A/B experiment to evaluate the impact of Deep Code's P
 
 The agent was asked to solve a real-world, non-trivial Python problem.
 
-> Full task description and test data on GitHub: [qorzj/deepcode-qrcode-benchmark](https://github.com/qorzj/deepcode-qrcode-benchmark)
+> Full task description and test data on GitHub: [qorzj/deeporca-qrcode-benchmark](https://github.com/qorzj/deeporca-qrcode-benchmark)
 
 ### 1.2 Controlled Variables
 
@@ -156,4 +156,4 @@ Plan Mode is not a silver bullet. Based on this experimental data, we recommend:
 
 ---
 
-*Experimental data is reproducible via Deep Code session transcripts. Plan Mode session ID: `5fa1934d-d738-4f07-aaae-8e0b80f7b2ae`; Control session ID: `ce7157e1-bf12-404b-9e35-72027a4a55ed`.*
+*Experimental data is reproducible via DeepOrca session transcripts. Plan Mode session ID: `5fa1934d-d738-4f07-aaae-8e0b80f7b2ae`; Control session ID: `ce7157e1-bf12-404b-9e35-72027a4a55ed`.*

@@ -1,6 +1,6 @@
-# Deep Code Permission Mechanism
+# DeepOrca Permission Mechanism
 
-Deep Code includes a fine-grained permission control mechanism. Before the AI assistant executes a tool call (such as running a shell command, reading/writing files, accessing the network, etc.), the system determines whether to auto-allow, auto-deny, or prompt for interactive confirmation based on your configured policy.
+DeepOrca includes a fine-grained permission control mechanism. Before the AI assistant executes a tool call (such as running a shell command, reading/writing files, accessing the network, etc.), the system determines whether to auto-allow, auto-deny, or prompt for interactive confirmation based on your configured policy.
 
 ## Overview
 
@@ -12,7 +12,7 @@ Each time the AI assistant invokes a tool, the system automatically analyzes the
 
 ## Permission Scopes
 
-Deep Code defines the following 10 permission scopes, covering various risk scenarios for tool calls:
+DeepOrca defines the following 10 permission scopes, covering various risk scenarios for tool calls:
 
 | Permission Scope | Description |
 | ---------------- | ----------- |
@@ -31,7 +31,7 @@ There is also a special `unknown` scope used when the LLM cannot classify a comm
 
 ## Permission Configuration
 
-Configure permissions in `~/.deepcode/settings.json` (user-level) or `.deepcode/settings.json` (project-level) via the `permissions` field:
+Configure permissions in `~/.deeporca/settings.json` (user-level) or `.deeporca/settings.json` (project-level) via the `permissions` field:
 
 ```json
 {
@@ -91,7 +91,7 @@ With this configuration:
 
 ## Persistence
 
-When you select "Yes, and always allow" in a permission prompt, the corresponding scope is written to the project's `.deepcode/settings.json`:
+When you select "Yes, and always allow" in a permission prompt, the corresponding scope is written to the project's `.deeporca/settings.json`:
 
 - The scope is appended to the `permissions.allow` list
 - If the scope was previously in `deny` or `ask`, it is automatically removed

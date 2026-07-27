@@ -9,7 +9,7 @@
   - _Requirement: R1, R4, R15_
 
 - [x] 2. SQLite 索引库（`store.ts`）
-  - `~/.deepcode/gitmcp/index.db` 建库建表（repos/chunks/chunks_fts，含 embedding BLOB 预留列）
+  - `~/.deeporca/gitmcp/index.db` 建库建表（repos/chunks/chunks_fts，含 embedding BLOB 预留列）
   - `SearchBackend` 抽象接口 + `Fts5Backend` 实现（bm25 排序、repo_id 过滤）
   - `removeGitmcpRepoIndex(slug)` 删除仓库全部索引数据并导出
   - _Requirement: R16, R7_

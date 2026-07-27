@@ -1,4 +1,4 @@
-// App icon wiring for the Deep Code Desktop (orca) client.
+// App icon wiring for the DeepOrca Desktop (orca) client.
 //
 // The brand icon ships as an SVG (assets/orca-icon.svg → copied to dist/orca-icon.svg
 // by build.mjs). Electron's window / taskbar / dock icons need a raster image, and no

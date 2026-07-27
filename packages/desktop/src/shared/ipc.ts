@@ -13,12 +13,12 @@ import type {
   SkillInfo,
   UndoTarget,
   UserPromptContent,
-} from "@vegamo/deepcode-core";
+} from "@deeporca/core";
 
 /** Per-model token usage accounting, re-exported for renderer consumers. */
 export type { ModelUsage };
-import type { McpServerStatus } from "@vegamo/deepcode-core";
-import type { AskPermissionRequest, UserToolPermission } from "@vegamo/deepcode-core";
+import type { McpServerStatus } from "@deeporca/core";
+import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
 export const IpcRequest = {
@@ -390,7 +390,7 @@ export type FileMatch = {
   type: "file" | "directory";
 };
 
-/** The typed surface exposed on `window.deepcode` from the preload script. */
+/** The typed surface exposed on `window.deeporca` from the preload script. */
 export type DesktopApi = {
   ready(): Promise<{ projectRoot: string; platform: NodeJS.Platform }>;
   pickFolder(): Promise<string | null>;

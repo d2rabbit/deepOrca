@@ -204,7 +204,7 @@ test("server speaks the MCP handshake and lists the four tools", async () => {
     assert.ok(init);
     const initResult = init.result as { protocolVersion: string; serverInfo: { name: string } };
     assert.equal(initResult.protocolVersion, "2025-03-26");
-    assert.equal(initResult.serverInfo.name, "deepcode-gitmcp");
+    assert.equal(initResult.serverInfo.name, "deeporca-gitmcp");
 
     // Notification (no id) → no response written back.
     assert.equal(await dispatchRpcMessage(handlers, { jsonrpc: "2.0", method: "notifications/initialized" }), null);

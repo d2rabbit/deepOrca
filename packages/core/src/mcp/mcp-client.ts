@@ -195,7 +195,7 @@ export class McpClient {
         {
           protocolVersion: "2025-03-26",
           capabilities: {},
-          clientInfo: { name: "deepcode-cli", version: "0.1.0" },
+          clientInfo: { name: "deeporca", version: "0.1.0" },
         },
         timeoutMs
       )

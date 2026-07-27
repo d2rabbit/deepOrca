@@ -1,4 +1,4 @@
-// Electron main process for the Deep Code Desktop client.
+// Electron main process for the DeepOrca Desktop client.
 // Boots a BrowserWindow, wires the SessionBridge to IPC, and forwards engine
 // events to the renderer.
 
@@ -15,8 +15,8 @@ import {
   runCodegraphResetWithOutput,
   resolveCurrentSettings,
   resolveModernNode,
-} from "@vegamo/deepcode-core";
-import type { ModelConfigSelection, UserPromptContent } from "@vegamo/deepcode-core";
+} from "@deeporca/core";
+import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import type { CodegraphIndexEntry, EditableSettings, UndoRestoreMode, WikiPageEntry } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
@@ -63,7 +63,7 @@ function refreshVendoredToolsInBackground(): void {
   }
 }
 
-// Deep Code's bash tool relies on a POSIX shell; on Windows this resolves Git Bash.
+// DeepOrca's bash tool relies on a POSIX shell; on Windows this resolves Git Bash.
 process.env.NoDefaultCurrentDirectoryInExePath = "1";
 try {
   setShellIfWindows();
@@ -79,7 +79,7 @@ let mainWindow: BrowserWindow | null = null;
 // Honored only in an unpackaged (dev) build; production always reports the real OS.
 function resolvePlatform(): string {
   if (!app.isPackaged) {
-    const override = process.env.DEEPCODE_PLATFORM;
+    const override = process.env.DEEPORCA_PLATFORM ?? process.env.DEEPCODE_PLATFORM;
     if (override === "win32" || override === "darwin" || override === "linux") {
       return override;
     }

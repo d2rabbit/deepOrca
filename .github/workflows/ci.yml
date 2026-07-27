@@ -38,13 +38,10 @@ jobs:
         run: npm run check
 
       - name: Build Core
-        run: npm run build --workspace=@vegamo/deepcode-core
+        run: npm run build
 
-      - name: Bundle CLI
-        run: npm run bundle
-
-      - name: Build VSCode Extension
-        run: npm run build:vscode
+      - name: Build Desktop
+        run: npm run desktop:build
 
       - name: Test
         run: npm test

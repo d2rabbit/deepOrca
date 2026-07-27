@@ -1,6 +1,6 @@
 # Quickstart
 
-Deep Code is an open-source terminal AI coding assistant for the DeepSeek-V4 model, supporting deep thinking, reasoning effort control, and extend its capabilities with Skills and MCP.
+DeepOrca is an open-source terminal AI coding assistant for the DeepSeek-V4 model, supporting deep thinking, reasoning effort control, and extend its capabilities with Skills and MCP.
 
 ## Prerequisites
 
@@ -11,21 +11,21 @@ Before you start, make sure you have:
 
 ## Install
 
-Install Deep Code globally with npm:
+Install DeepOrca globally with npm:
 
 ```bash
-npm install -g @vegamo/deepcode-cli
+npm install -g deeporca
 ```
 
 Check the installed version:
 
 ```bash
-deepcode --version
+deeporca --version
 ```
 
 ## Configure DeepSeek-V4
 
-Deep Code recommends `deepseek-v4-pro` and also supports `deepseek-v4-flash`. Create `~/.deepcode/settings.json` and add your DeepSeek model configuration:
+DeepOrca recommends `deepseek-v4-pro` and also supports `deepseek-v4-flash`. Create `~/.deeporca/settings.json` and add your DeepSeek model configuration:
 
 ```json
 {
@@ -51,9 +51,9 @@ Common fields:
 | `thinkingEnabled` | Whether to enable thinking mode |
 | `reasoningEffort` | Reasoning effort, commonly `"high"` or `"max"` |
 
-You can also create `.deepcode/settings.json` inside a project to customize the model, permissions, or MCP settings for that project only.
+You can also create `.deeporca/settings.json` inside a project to customize the model, permissions, or MCP settings for that project only.
 
-For DeepSeek's official setup notes, see the [Deep Code integration guide](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/deepcode).
+For DeepSeek's official setup notes, see the [DeepOrca integration guide](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/deeporca).
 
 For all configuration options, see [configuration_en.md](configuration_en.md).
 
@@ -63,15 +63,15 @@ Open your project directory:
 
 ```bash
 cd path/to/your/project
-deepcode
+deeporca
 ```
 
-Deep Code starts an interactive terminal UI in the current directory. Type a task and press `Enter`.
+DeepOrca starts an interactive terminal UI in the current directory. Type a task and press `Enter`.
 
 To start with an initial prompt:
 
 ```bash
-deepcode -p "Summarize this project"
+deeporca -p "Summarize this project"
 ```
 
 ## Try These First
@@ -127,7 +127,7 @@ Type `/` in the input box to open the command menu.
 | `/mcp` | Show MCP server status and available tools |
 | `/undo` | Restore code and/or conversation to an earlier point |
 | `/raw` | Change the display mode |
-| `/exit` | Quit Deep Code |
+| `/exit` | Quit DeepOrca |
 
 ## Add Project Instructions
 
@@ -137,14 +137,14 @@ Run this inside a project:
 /init
 ```
 
-Deep Code helps create `AGENTS.md`. Use it to record project conventions, such as:
+DeepOrca helps create `AGENTS.md`. Use it to record project conventions, such as:
 
 - How to install dependencies and run tests
 - Code style and contribution expectations
 - Important directory notes
 - Checks to run before or after editing code
 
-Deep Code automatically uses these instructions when working in the project.
+DeepOrca automatically uses these instructions when working in the project.
 
 ## Use Skills
 
@@ -162,7 +162,7 @@ For more details, see [agent-skills_en.md](agent-skills_en.md).
 
 ## Connect External Tools
 
-Use MCP to connect Deep Code to GitHub, browsers, databases, or other services.
+Use MCP to connect DeepOrca to GitHub, browsers, databases, or other services.
 
 After configuring MCP, run:
 
@@ -176,15 +176,15 @@ For setup instructions, see [mcp_en.md](mcp_en.md).
 
 ## Permissions and Safety
 
-Deep Code may read files, edit code, or run commands. You can configure which actions are allowed automatically, which require confirmation, and which are denied.
+DeepOrca may read files, edit code, or run commands. You can configure which actions are allowed automatically, which require confirmation, and which are denied.
 
-Deep Code supports YOLO mode by default, so it can smoothly read and write files, run commands, and continue common coding tasks. If you prefer a more cautious setup, use strict permissions so Deep Code asks before higher-risk actions.
+DeepOrca supports YOLO mode by default, so it can smoothly read and write files, run commands, and continue common coding tasks. If you prefer a more cautious setup, use strict permissions so DeepOrca asks before higher-risk actions.
 
 For details, see [permission_en.md](permission_en.md).
 
 ## Task Completion Notifications
 
-Deep Code can run a notification script when a task finishes, such as sending a Slack message, Feishu message, system notification, or terminal alert.
+DeepOrca can run a notification script when a task finishes, such as sending a Slack message, Feishu message, system notification, or terminal alert.
 
 For examples, see [notify_en.md](notify_en.md).
 

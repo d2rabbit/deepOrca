@@ -2,8 +2,8 @@ import type { DesktopApi } from "../shared/ipc";
 
 declare global {
   interface Window {
-    deepcode: DesktopApi;
+    deeporca: DesktopApi;
   }
 }
 
-export const api: DesktopApi = window.deepcode;
+export const api: DesktopApi = window.deeporca;

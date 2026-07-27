@@ -1,6 +1,5 @@
-// Wraps a Deep Code core `SessionManager` for a single project root and forwards
-// its callbacks to the renderer via the provided `emit` function. Mirrors the way
-// the CLI's App.tsx constructs and drives the SessionManager.
+// Wraps a DeepOrca core `SessionManager` for a single project root and forwards
+// its callbacks to the renderer via the provided `emit` function.
 
 import {
   buildCodegraphMcpServerConfig,
@@ -8,6 +7,7 @@ import {
   buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
   createOpenAIClient,
+  getEnvVar,
   getProjectSettingsPath,
   getUserSettingsPath,
   gitmcpServerNameForSlug,
@@ -27,7 +27,7 @@ import {
   writeModelConfigSelection,
   writeProjectSettings,
   writeSettings,
-} from "@vegamo/deepcode-core";
+} from "@deeporca/core";
 import type {
   DeepcodingSettings,
   GitmcpRepoMeta,
@@ -40,7 +40,7 @@ import type {
   SessionMessage,
   SessionProcessEntry,
   UserPromptContent,
-} from "@vegamo/deepcode-core";
+} from "@deeporca/core";
 import { existsSync } from "node:fs";
 import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
@@ -397,7 +397,7 @@ export class SessionBridge {
     return {
       saveTarget: target,
       saveTargetPath: target === "project" ? getProjectSettingsPath(this.projectRoot) : getUserSettingsPath(),
-      hasEnvApiKey: Boolean(process.env.DEEPCODE_API_KEY),
+      hasEnvApiKey: Boolean(getEnvVar("API_KEY")),
       apiKey: env.API_KEY ?? "",
       baseURL: env.BASE_URL ?? "",
       model: raw.model ?? "",
@@ -782,7 +782,7 @@ export class SessionBridge {
   /**
    * GitMCP repositories = the `gitmcp:` prefixed entries in the resolved
    * mcpServers, merged with the disable sidecar, runtime status and the local
-   * index metadata (`~/.deepcode/gitmcp/index.db`).
+   * index metadata (`<config root>/gitmcp/index.db`).
    */
   gitmcpList(): GitmcpRepoEntry[] {
     const configured = resolveCurrentSettings(this.projectRoot).mcpServers ?? {};

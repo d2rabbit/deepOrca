@@ -1,4 +1,4 @@
-# Deep Code 配置
+# DeepOrca 配置
 
 ## 配置层级
 
@@ -13,12 +13,12 @@
 
 ## 设置文件
 
-Deep Code 使用 `settings.json` 设置文件进行持久化配置，支持两个层级的存放位置：
+DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个层级的存放位置：
 
 | 文件类型     | 位置                                 | 作用范围                                              |
 | ------------ | ---------------------------------- | ---------------------------------------------------- |
-| 用户设置文件 | `~/.deepcode/settings.json`         | 适用于当前用户的所有 Deep Code 会话。                      |
-| 项目设置文件 | `项目根目录/.deepcode/settings.json` | 仅在该特定项目中运行 Deep Code 时生效。项目设置会覆盖用户设置。 |
+| 用户设置文件 | `~/.deeporca/settings.json`         | 适用于当前用户的所有 DeepOrca 会话。                      |
+| 项目设置文件 | `项目根目录/.deeporca/settings.json` | 仅在该特定项目中运行 DeepOrca 时生效。项目设置会覆盖用户设置。 |
 
 ### `settings.json` 中的可用设置
 
@@ -93,7 +93,7 @@ Deep Code 使用 `settings.json` 设置文件进行持久化配置，支持两�
 
 #### `webSearchTool` — 自定义联网搜索
 
-Deep Code 内置免费可用的 Web Search 工具。如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径：
+DeepOrca 内置免费可用的 Web Search 工具。如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径：
 
 ```json
 {
@@ -144,7 +144,7 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 | `args`               | string[] | 否   | 传递给命令的参数列表                                                  |
 | `env`                | object   | 否   | 传递给 MCP 服务器进程的环境变量                                       |
 
-> 当 `command` 为 `npx` 时，Deep Code 会自动在参数前补充 `-y`。
+> 当 `command` 为 `npx` 时，DeepOrca 会自动在参数前补充 `-y`。
 
 详细 MCP 使用说明请参考 [mcp.md](mcp.md)。
 
@@ -160,7 +160,7 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 也可以通过环境变量关闭：
 
 ```bash
-DEEPCODE_TELEMETRY_ENABLED=0 deepcode
+DEEPORCA_TELEMETRY_ENABLED=0 deeporca
 ```
 
 ## 环境变量优先级
@@ -172,7 +172,7 @@ DEEPCODE_TELEMETRY_ENABLED=0 deepcode
 环境变量优先级遵循“越具体、越局部的配置，优先级越高”和“env文件默认保护现有环境，系统变量高于env文件”的覆盖逻辑。(settings.json的env对象可以认为是一种env文件)
 
 优先级层级 (由低到高)
-1. settings.json 外层的 env：这是针对整个工具及其所有子进程的通用配置（全局变量）。可被外层环境变量覆盖，但环境变量KEY会移除`DEEPCODE_`前缀。
+1. settings.json 外层的 env：这是针对整个工具及其所有子进程的通用配置（全局变量）。可被外层环境变量覆盖，但环境变量KEY会移除`DEEPORCA_`前缀。
 2. settings.json mcpServers 内定义的 env：这是针对特定 MCP 服务的最具体配置（局部变量）。可被外层环境变量覆盖，但环境变量KEY会移除`MCP_`前缀。
 3. Shell 环境系统变量：操作系统层面的环境变量。
 
@@ -185,7 +185,7 @@ DEEPCODE_TELEMETRY_ENABLED=0 deepcode
 1. 硬编码默认值: `""`
 2. 用户级settings.json: `{"env": {"API_KEY": "abc123"}}`
 3. 项目级settings.json: `{"env": {"API_KEY": "abc123"}}`
-4. 系统环境变量: `DEEPCODE_API_KEY=abc123 deepcode`
+4. 系统环境变量: `DEEPORCA_API_KEY=abc123 deeporca`
 
 #### 二、设置模型的model, thinkingEnabled, reasoningEffort
 
@@ -196,7 +196,7 @@ DEEPCODE_TELEMETRY_ENABLED=0 deepcode
 3. 用户级settings.json: `{"thinkingEnabled": true}`
 4. 项目级settings.json: `{"env": {"THINKING_ENABLED": "true"}}`
 5. 项目级settings.json: `{"thinkingEnabled": true}`
-6. 系统环境变量: `DEEPCODE_THINKING_ENABLED=true deepcode`
+6. 系统环境变量: `DEEPORCA_THINKING_ENABLED=true deeporca`
 
 #### 三、设置启动notify, webSearchTool等外挂脚本的环境变量
 
@@ -205,7 +205,7 @@ DEEPCODE_TELEMETRY_ENABLED=0 deepcode
 1. 硬编码默认值：`os.environ.get('WEBHOOK', '...')  # notify脚本代码`
 2. 用户级settings.json: `{"env": {"WEBHOOK": "..."}}`
 3. 项目级settings.json: `{"env": {"WEBHOOK": "true"}}`
-4. 系统环境变量: `DEEPCODE_WEBHOOK=... deepcode`
+4. 系统环境变量: `DEEPORCA_WEBHOOK=... deeporca`
 
 #### 四、设置MCP Service的环境变量
 
@@ -215,4 +215,4 @@ DEEPCODE_TELEMETRY_ENABLED=0 deepcode
 2. 用户级settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
 3. 项目级settings.json: `{"mcpServers":{"github":{"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"..."}}}}`
 4. 项目级settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
-5. 系统环境变量: `DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... deepcode`
+5. 系统环境变量: `DEEPORCA_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... deeporca`

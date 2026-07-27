@@ -1,16 +1,16 @@
 # Session Persistence
 
-Deep Code stores per-project session history in the local user directory. This history powers `/resume`, `/continue`, and `/undo`, and it remains available after the current terminal process exits.
+DeepOrca stores per-project session history in the local user directory. This history powers `/resume`, `/continue`, and `/undo`, and it remains available after the current terminal process exits.
 
 ## Storage Location
 
 Each project has its own storage directory:
 
 ```text
-~/.deepcode/projects/<project-code>/
+~/.deeporca/projects/<project-code>/
 ```
 
-`<project-code>` is generated from the project root path. Normal paths are converted into safe directory names. When the path would be too long, Deep Code keeps part of the project name and appends a stable hash so the storage path stays safe.
+`<project-code>` is generated from the project root path. Normal paths are converted into safe directory names. When the path would be too long, DeepOrca keeps part of the project name and appends a stable hash so the storage path stays safe.
 
 The project storage directory contains these main files and directories:
 
@@ -51,24 +51,24 @@ Each session has a separate JSONL message file named `<session-id>.jsonl`. Messa
 | `checkpointHash` | Code checkpoint hash associated with `/undo`. |
 | `meta` | Extra metadata for tool display, skills, permissions, summaries, and related features. |
 
-When loading a message file, Deep Code parses JSON one line at a time. Malformed lines are ignored so the remaining usable history can still be loaded.
+When loading a message file, DeepOrca parses JSON one line at a time. Malformed lines are ignored so the remaining usable history can still be loaded.
 
 ### Code Checkpoints
 
-Deep Code stores code checkpoints in `file-history/.git`. This repository is only internal file history; it is not the project Git repository.
+DeepOrca stores code checkpoints in `file-history/.git`. This repository is only internal file history; it is not the project Git repository.
 
 - A new session initializes an internal branch named after the session ID.
-- Before each user prompt, Deep Code records the state of files it already tracks.
-- Before and after tool-based file mutations, Deep Code records the relevant file state as needed.
+- Before each user prompt, DeepOrca records the state of files it already tracks.
+- Before and after tool-based file mutations, DeepOrca records the relevant file state as needed.
 - `checkpointHash` on user messages links a conversation position to a code state.
 
-Checkpoints only cover files Deep Code has tracked. Unrelated files are not arbitrarily rewritten by `/undo`.
+Checkpoints only cover files DeepOrca has tracked. Unrelated files are not arbitrarily rewritten by `/undo`.
 
 ## Session Lifecycle
 
 ### Creating A Session
 
-When creating a new session, Deep Code:
+When creating a new session, DeepOrca:
 
 1. Generates a new session ID.
 2. Initializes the code checkpoint branch for that session.
@@ -84,11 +84,11 @@ The per-project session list keeps the 50 most recent entries. When the limit is
 
 `/continue` first continues the active session. If there is no active session to continue, it opens the session selection flow.
 
-When continuing a session, Deep Code reads the message file, filters compacted old messages, repairs incomplete tool-call context, and converts the usable history into model request messages.
+When continuing a session, DeepOrca reads the message file, filters compacted old messages, repairs incomplete tool-call context, and converts the usable history into model request messages.
 
 ### Long-Session Compaction
 
-When the conversation context grows too large, Deep Code can compact earlier messages:
+When the conversation context grows too large, DeepOrca can compact earlier messages:
 
 - It summarizes an older range of non-system messages.
 - It marks those old messages as `compacted: true`.
@@ -100,7 +100,7 @@ Future requests use the remaining active messages and the summary message. The o
 
 Session status changes during execution:
 
-- After a user interruption, status becomes `interrupted`, and Deep Code clears the current session controller and tracked subprocesses.
+- After a user interruption, status becomes `interrupted`, and DeepOrca clears the current session controller and tracked subprocesses.
 - After a request failure, status becomes `failed`, and the failure reason is written to the index.
 - When a tool call needs confirmation, status becomes `ask_permission`.
 - When a tool needs user input, status becomes `waiting_for_user`.
@@ -109,9 +109,9 @@ These states are persisted in `sessions-index.json`, so they remain visible in t
 
 ## How `/undo` Uses Persistent Data
 
-`/undo` candidates come from visible, non-compacted user messages. Each candidate is checked for an associated `checkpointHash`, and Deep Code verifies whether the checkpoint can be restored.
+`/undo` candidates come from visible, non-compacted user messages. Each candidate is checked for an associated `checkpointHash`, and DeepOrca verifies whether the checkpoint can be restored.
 
-Depending on the selected mode, Deep Code can perform these operations:
+Depending on the selected mode, DeepOrca can perform these operations:
 
 | Operation | Behavior |
 | --------- | -------- |
@@ -135,5 +135,5 @@ Renaming a session only updates the `summary` field in the index. It does not ch
 
 - Session data is stored in the local user directory and separated by project.
 - If a project directory is moved, the new project root path generates a new `<project-code>`; history for the old path is not migrated automatically.
-- `file-history/.git` is Deep Code's internal checkpoint repository and should not be edited manually.
+- `file-history/.git` is DeepOrca's internal checkpoint repository and should not be edited manually.
 - Deleting a session does not remove every historical object from the internal Git repository. It mainly removes the session index entry, message file, and runtime resources.

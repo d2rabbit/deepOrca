@@ -158,11 +158,11 @@ export const en = {
   "plugins.title": "Plugin Center",
   "plugins.tab.skills": "Skills",
   "plugins.tab.mcp": "MCP Servers",
-  "plugins.skills.none": "No skills found. Place a SKILL.md inside the .deepcode/skills/ directory.",
+  "plugins.skills.none": "No skills found. Place a SKILL.md inside the .deeporca/skills/ directory.",
   "plugins.skills.loaded": "loaded",
   "plugins.skills.attach": "Attach to prompt",
   "plugins.skills.locations":
-    "Skills load from .deepcode/skills or .agents/skills (project or home). Add a folder with SKILL.md, then Refresh.",
+    "Skills load from .deeporca/skills or .agents/skills (project or home). Add a folder with SKILL.md, then Refresh.",
   "plugins.mcp.presets": "Quick add",
   "plugins.detail.empty": "Select a plugin on the left to view its details.",
   "plugins.detail.overview": "Overview",
@@ -184,8 +184,8 @@ export const en = {
   "builtin.browser-skill.name": "Browser Skill",
   "builtin.browser-skill.desc":
     "Drive the user's real Chromium browser through the bsk CLI — visit pages, fill forms, scrape data, click through flows, regression-test UI.",
-  "builtin.deepcode-self-refer.name": "Deep Code Self-Refer",
-  "builtin.deepcode-self-refer.desc":
+  "builtin.deeporca-self-refer.name": "DeepOrca Self-Refer",
+  "builtin.deeporca-self-refer.desc":
     "Answers questions about DeepOrca itself — features, configuration, slash commands, Skills, MCP integration, permissions, notifications, session persistence, and troubleshooting.",
   "builtin.skill-digester.name": "Skill Digester",
   "builtin.skill-digester.desc":
@@ -234,7 +234,7 @@ export const en = {
   "settings.tab.mcp": "MCP servers",
   "settings.apiKey": "API key",
   "settings.envOverride":
-    "An API key is also set via the DEEPCODE_API_KEY environment variable, which overrides this value.",
+    "An API key is also set via the DEEPORCA_API_KEY environment variable, which overrides this value.",
   "settings.baseUrl": "Base URL",
   "settings.baseUrlHint": "Leave empty to use the default DeepSeek endpoint.",
   "settings.model": "Model",
@@ -434,8 +434,7 @@ export const en = {
   "app.name": "DeepOrca",
   "settings.tab.about": "About",
   "about.title": "About DeepOrca",
-  "about.intro":
-    "DeepOrca is a coding-agent desktop GUI, forked from the open-source @vegamo/deepcode-cli project and rebuilt as DeepOrca.",
+  "about.intro": "DeepOrca is a coding-agent desktop GUI built on the DeepOrca core engine.",
   "about.detail":
     "It ships as an Electron desktop app driven by the same core engine (LLM session loop, 7 built-in tools, MCP client, permissions), tuned for DeepSeek models.",
   "about.changelog": "Changelog",
@@ -710,11 +709,11 @@ export const zh: Record<MessageKey, string> = {
   "plugins.title": "插件中心",
   "plugins.tab.skills": "技能",
   "plugins.tab.mcp": "MCP 服务器",
-  "plugins.skills.none": "未发现技能。将 SKILL.md 放入 .deepcode/skills/ 目录即可。",
+  "plugins.skills.none": "未发现技能。将 SKILL.md 放入 .deeporca/skills/ 目录即可。",
   "plugins.skills.loaded": "已加载",
   "plugins.skills.attach": "附加到提示",
   "plugins.skills.locations":
-    "技能会从 .deepcode/skills 或 .agents/skills（项目或用户目录）加载。新建含 SKILL.md 的文件夹后点击刷新。",
+    "技能会从 .deeporca/skills 或 .agents/skills（项目或用户目录）加载。新建含 SKILL.md 的文件夹后点击刷新。",
   "plugins.mcp.presets": "快速添加",
   "plugins.detail.empty": "在左侧选择一个插件以查看详情。",
   "plugins.detail.overview": "概览",
@@ -737,8 +736,8 @@ export const zh: Record<MessageKey, string> = {
   "builtin.browser-skill.name": "浏览器技能",
   "builtin.browser-skill.desc":
     "通过 bsk CLI 驱动用户的真实 Chromium 浏览器——访问页面、填写表单、抓取数据、点击流程、回归测试界面。",
-  "builtin.deepcode-self-refer.name": "Deep Code 自引用",
-  "builtin.deepcode-self-refer.desc":
+  "builtin.deeporca-self-refer.name": "DeepOrca 自引用",
+  "builtin.deeporca-self-refer.desc":
     "回答关于 DeepOrca 本身的问题——功能、配置、斜杠命令、技能、MCP 集成、权限、通知、会话持久化和故障排查。",
   "builtin.skill-digester.name": "技能消化器",
   "builtin.skill-digester.desc":
@@ -785,7 +784,7 @@ export const zh: Record<MessageKey, string> = {
   "settings.tab.permissions": "权限",
   "settings.tab.mcp": "MCP 服务器",
   "settings.apiKey": "API Key",
-  "settings.envOverride": "环境变量 DEEPCODE_API_KEY 也设置了 API Key，会覆盖此处的值。",
+  "settings.envOverride": "环境变量 DEEPORCA_API_KEY 也设置了 API Key，会覆盖此处的值。",
   "settings.baseUrl": "Base URL",
   "settings.baseUrlHint": "留空则使用默认的 DeepSeek 端点。",
   "settings.model": "模型",
@@ -985,8 +984,7 @@ export const zh: Record<MessageKey, string> = {
   "app.name": "DeepOrca",
   "settings.tab.about": "关于",
   "about.title": "关于 DeepOrca",
-  "about.intro":
-    "DeepOrca 是一款编码智能体桌面客户端,基于开源项目 @vegamo/deepcode-cli fork 构建,并重塑命名为 DeepOrca。",
+  "about.intro": "DeepOrca 是一款编码智能体桌面客户端,基于 DeepOrca 核心引擎构建。",
   "about.detail":
     "它以 Electron 桌面应用形式发布,由相同的核心引擎驱动(LLM 会话循环、7 个内置工具、MCP 客户端、权限系统),针对 DeepSeek 模型调优。",
   "about.changelog": "更新日志",

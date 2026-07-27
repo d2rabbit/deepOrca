@@ -73,13 +73,13 @@ const REASONING_OPTIONS: ReasoningEffort[] = ["max", "high"];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
 
-/** Changelog since the fork from the upstream deepcode-cli repository. */
+/** DeepOrca desktop changelog. */
 const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
   {
     version: "v0.1.0",
     date: "2026-07",
     changes: [
-      "基于 @vegamo/deepcode-cli (v0.1.34) fork 构建,命名为 DeepOrca,新增 Electron 桌面客户端。",
+      "基于 DeepOrca 核心引擎构建的 Electron 桌面客户端。",
       "新增 Aqua(macOS 原生)、Metro/Fluent(Windows 8 磁贴骨架)双主题体系。",
       "建立语义化 design-token 系统(--ui-* 变量),为后续主题切换奠定基础。",
     ],

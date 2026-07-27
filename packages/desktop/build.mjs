@@ -1,7 +1,7 @@
-// Build script for the Deep Code Desktop (Electron) client.
+// Build script for the DeepOrca Desktop (Electron) client.
 //
 // Produces three bundles under dist/:
-//   - main.js      (ESM, Electron main process — runs the Deep Code core engine)
+//   - main.js      (ESM, Electron main process — runs the DeepOrca core engine)
 //   - preload.cjs  (CJS, Electron preload — exposes a typed bridge to the renderer)
 //   - renderer/    (browser bundle + index.html + styles.css — the React GUI)
 //
@@ -87,7 +87,7 @@ function ensureVendored(name, entryRel, fallbackHint) {
   }
 }
 
-// Ensure @vegamo/deepcode-core is freshly built before bundling.
+// Ensure @deeporca/core is freshly built before bundling.
 // The desktop main bundle keeps core `external` (resolved from node_modules at
 // runtime), so a stale core/dist/ (e.g. after a `git pull` that changed core
 // source but not its gitignored dist) makes Electron fail to import new
@@ -105,8 +105,8 @@ async function ensureCoreBuilt() {
   if (existsSync(buildinfo)) {
     await rm(buildinfo, { force: true });
   }
-  console.log("[desktop] building @vegamo/deepcode-core …");
-  execFileSync("npm", ["run", "build", "--workspace=@vegamo/deepcode-core"], {
+  console.log("[desktop] building @deeporca/core …");
+  execFileSync("npm", ["run", "build", "--workspace=@deeporca/core"], {
     stdio: "inherit",
     cwd: root,
     shell: true,

@@ -91,7 +91,7 @@ Here's an example of how your output should be structured:
 
 </summary>`;
 
-const SYSTEM_PROMPT_BASE = `你是名叫Deep Code的交互式CLI工具，帮助用户完成软件工程任务。 Use the instructions below and the tools available to you to assist the user.
+const SYSTEM_PROMPT_BASE = `你是名叫DeepOrca的交互式编程助手，帮助用户完成软件工程任务。 Use the instructions below and the tools available to you to assist the user.
 
 # 核心行为准则
 

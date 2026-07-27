@@ -1,9 +1,9 @@
 // Cross-workspace session enumeration for the desktop client. Reads every
-// `~/.deepcode/projects/*/sessions-index.json` written by core's SessionManager,
+// `<config root>/projects/*/sessions-index.json` written by core's SessionManager,
 // groups sessions by their originating workspace, and merges the desktop-only
 // archive sidecar so the renderer can render a VSCode-style workspace tree.
 
-import { type SessionsIndex } from "@vegamo/deepcode-core";
+import { getUserConfigRoot, type SessionsIndex } from "@deeporca/core";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -13,7 +13,7 @@ import { readArchivedIds } from "./archive-store.js";
 
 /** Root directory holding every project's session index. */
 function projectsDir(): string {
-  return path.join(homedir(), ".deepcode", "projects");
+  return path.join(getUserConfigRoot(), "projects");
 }
 
 /** Read and parse a single `sessions-index.json`, tolerating malformed files. */

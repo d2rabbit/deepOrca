@@ -30,18 +30,4 @@ for (const pkgDir of packageDirs) {
   rmSync(join(pkgDir, "tsconfig.tsbuildinfo"), { force: true });
 }
 
-// VSCode companion specific artifacts
-const vscodeDir = join(root, "packages", "vscode-ide-companion");
-rmSync(join(vscodeDir, "out"), RMRF);
-console.log("  rm packages/vscode-ide-companion/out/");
-
-rmSync(join(vscodeDir, "templates"), RMRF);
-console.log("  rm packages/vscode-ide-companion/templates/");
-
-const vsixFiles = globSync("*.vsix", { cwd: vscodeDir });
-for (const vsixFile of vsixFiles) {
-  rmSync(join(vscodeDir, vsixFile), RMRF);
-  console.log(`  rm packages/vscode-ide-companion/${vsixFile}`);
-}
-
 console.log("\n✅  Clean complete.\n\n");

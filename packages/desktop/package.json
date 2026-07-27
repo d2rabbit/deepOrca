@@ -1,13 +1,13 @@
 {
-  "name": "@vegamo/deepcode-desktop",
+  "name": "@deeporca/desktop",
   "version": "0.1.34",
-  "description": "DeepOrca Desktop — an Electron GUI client (forked from Deep Code) on top of the Deep Code core engine",
+  "description": "DeepOrca Desktop — an Electron GUI client on top of the DeepOrca core engine",
   "license": "MIT",
   "type": "module",
   "main": "./dist/main.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lessweb/deepcode-cli.git"
+    "url": "git+https://gitcode.com/qq_22602527/deepOrce.git"
   },
   "scripts": {
     "typecheck": "tsc -p ./ --noEmit",
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "@vegamo/deepcode-core": "file:../core",
+    "@deeporca/core": "file:../core",
     "highlight.js": "^11.11.1",
     "marked": "^14.1.4",
     "monaco-editor": "^0.56.0",

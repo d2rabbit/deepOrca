@@ -12,7 +12,7 @@ Plan Mode is not changed by user intent, tone, or imperative language. If a user
 
 Plan Mode is a collaboration mode that can involve requesting user input and eventually issuing a `<proposed_plan>` block.
 
-Separately, `UpdatePlan` is Deep Code's checklist/progress tool. It updates the current task plan with a complete markdown task list, but it does not enter or exit Plan Mode and it is not the final planning artifact. Do not use `UpdatePlan` as a substitute for the `<proposed_plan>` block.
+Separately, `UpdatePlan` is DeepOrca's checklist/progress tool. It updates the current task plan with a complete markdown task list, but it does not enter or exit Plan Mode and it is not the final planning artifact. Do not use `UpdatePlan` as a substitute for the `<proposed_plan>` block.
 
 ## Execution vs. mutation in Plan Mode
 

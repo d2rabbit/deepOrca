@@ -6,6 +6,7 @@ import * as path from "path";
 import type OpenAI from "openai";
 import type { ToolExecutionContext } from "../tools/executor";
 import { handleWebSearchTool } from "../tools/web-search-handler";
+import { getUserSettingsPath } from "../settings";
 
 const tempDirs: string[] = [];
 const originalFetch = globalThis.fetch;
@@ -140,7 +141,7 @@ test("WebSearch returns a configuration error when neither a script nor an LLM c
   assert.equal(result.ok, false);
   assert.equal(
     result.error,
-    "WebSearch default mode requires a valid LLM configuration in ~/.deepcode/settings.json or ./.deepcode/settings.json."
+    `WebSearch default mode requires a valid LLM configuration in ${getUserSettingsPath()} or the project settings.json.`
   );
 });
 

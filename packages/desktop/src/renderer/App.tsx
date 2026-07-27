@@ -903,7 +903,7 @@ export function App(): JSX.Element {
   // Reflect session state in the window title so the user can see progress
   // even when the app is in the background (taskbar / dock tooltip).
   useEffect(() => {
-    const base = "Deep Code";
+    const base = "DeepOrca";
     if (busy) {
       document.title = `⚡ ${base}`;
     } else if (activeStatus === "ask_permission" || activeStatus === "waiting_for_user") {

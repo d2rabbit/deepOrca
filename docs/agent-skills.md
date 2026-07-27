@@ -17,20 +17,20 @@
 
 ## 扫描位置
 
-Deep Code CLI 会按以下顺序扫描 skills。相同 `name` 的 skill 只保留优先级最高的一个。
+DeepOrca CLI 会按以下顺序扫描 skills。相同 `name` 的 skill 只保留优先级最高的一个。
 
 | 优先级 | Scope   | Path                  | 用途 |
 | ------ | ------- | --------------------- | ---- |
-| 1      | Project | `./.deepcode/skills/` | Deep Code 项目级原生位置 |
+| 1      | Project | `./.deeporca/skills/` | DeepOrca 项目级原生位置 |
 | 2      | Project | `./.agents/skills/`   | 项目级跨客户端互操作位置 |
-| 3      | User    | `~/.deepcode/skills/` | Deep Code 用户级原生位置 |
+| 3      | User    | `~/.deeporca/skills/` | DeepOrca 用户级原生位置 |
 | 4      | User    | `~/.agents/skills/`   | 用户级跨客户端互操作位置 |
-| 5      | Global  | `built-in`            | Deep Code 内置 skills |
+| 5      | Global  | `built-in`            | DeepOrca 内置 skills |
 
 目录结构示例：
 
 ```text
-.deepcode/
+.deeporca/
 └── skills/
     └── code-review/
         ├── SKILL.md
@@ -64,9 +64,9 @@ and missing tests over style comments.
 
 ## `SKILL.md` Frontmatter
 
-Deep Code CLI reads the YAML frontmatter at the top of `SKILL.md`.
+DeepOrca CLI reads the YAML frontmatter at the top of `SKILL.md`.
 
-| 字段 | 必填 | Deep Code 行为 | 建议 |
+| 字段 | 必填 | DeepOrca 行为 | 建议 |
 | ---- | ---- | -------------- | ---- |
 | `name` | 建议必填 | 作为 skill 的唯一名称。缺失时使用目录名，并把 `_` 转成 `-`。 | 使用小写字母、数字和连字符。保持与目录名一致。 |
 | `description` | 建议必填 | 用于自动匹配任务，也显示在 `/skills` 和斜杠菜单中。 | 写清楚 skill 做什么、何时使用、常见触发词。 |
@@ -83,11 +83,11 @@ metadata:
 ---
 ```
 
-> Deep Code CLI 当前只解释上表中的字段。其他 frontmatter 字段可用于跨客户端互操作或文档说明，但不会自动限制 Deep Code 的工具权限。
+> DeepOrca CLI 当前只解释上表中的字段。其他 frontmatter 字段可用于跨客户端互操作或文档说明，但不会自动限制 DeepOrca 的工具权限。
 
 ## 写好 `description`
 
-`description` 是最重要的发现信号。Deep Code 会在自动匹配阶段只把 skill 的 `name` 和 `description` 交给模型判断，因此描述越具体，匹配越可靠。
+`description` 是最重要的发现信号。DeepOrca 会在自动匹配阶段只把 skill 的 `name` 和 `description` 交给模型判断，因此描述越具体，匹配越可靠。
 
 推荐结构：
 
@@ -200,11 +200,11 @@ my-skill/
 
 ## 调用方式
 
-Deep Code CLI 支持自动和手动两种调用方式。
+DeepOrca CLI 支持自动和手动两种调用方式。
 
 ### 自动调用
 
-每次用户输入后，Deep Code 会根据可用 skills 的 `name` 和 `description` 判断哪些 skill 与任务匹配。匹配到的 skill 会被加载到当前会话中。
+每次用户输入后，DeepOrca 会根据可用 skills 的 `name` 和 `description` 判断哪些 skill 与任务匹配。匹配到的 skill 会被加载到当前会话中。
 
 自动调用规则：
 
@@ -293,9 +293,9 @@ Use this skill to prepare a safe release for this repository.
 
 检查：
 
-1. 目录是否位于 Deep Code 扫描位置之一
+1. 目录是否位于 DeepOrca 扫描位置之一
 2. 文件名是否为 `SKILL.md`
-3. `SKILL.md` 是否在独立 skill 目录中，例如 `.deepcode/skills/my-skill/SKILL.md`
+3. `SKILL.md` 是否在独立 skill 目录中，例如 `.deeporca/skills/my-skill/SKILL.md`
 4. `enabledSkills` 是否把该 skill 设置为 `false`
 5. 是否存在同名 skill 被更高优先级位置覆盖
 

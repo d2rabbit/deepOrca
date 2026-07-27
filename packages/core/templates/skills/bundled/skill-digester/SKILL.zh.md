@@ -1,13 +1,13 @@
 ---
 name: skill-digester
-description: Reviews and improves another DeepCode skill's SKILL.md description field, and guides Agent Skill installation into user or project .agents/skills roots. Use when the user asks to digest a skill, install an Agent Skill, install a skill to user/project scope, or says "消化技能" or "安装 agent skill".
+description: Reviews and improves another DeepOrca skill's SKILL.md description field, and guides Agent Skill installation into user or project .agents/skills roots. Use when the user asks to digest a skill, install an Agent Skill, install a skill to user/project scope, or says "消化技能" or "安装 agent skill".
 ---
 
 # Skill Digester
 
 本技能用于处理两类相关任务：
 
-- 审阅并可选地重写另一个 DeepCode 技能的 `description` 字段。
+- 审阅并可选地重写另一个 DeepOrca 技能的 `description` 字段。
 - 指导将 Agent Skill 安装到可互操作的 `.agents/skills` 根目录中。
 
 ## 交互规则
@@ -28,26 +28,26 @@ description: Reviews and improves another DeepCode skill's SKILL.md description 
    - 通过运行本技能目录中自带的 Node 脚本来定位技能：
 
      ```bash
-     node ~/.deepcode/skills/skill-digester/scripts/find-skill.js "<skill-name-or-path>" "<project-root>"
+     node ~/.deeporca/skills/skill-digester/scripts/find-skill.js "<skill-name-or-path>" "<project-root>"
      ```
 
      如果本技能是从项目级或其他用户级路径加载的，请改用与当前 `SKILL.md` 同目录的 `scripts/find-skill.js` 文件。
-   - 该脚本按照 Deep Code CLI 扫描的相同根目录及优先级顺序进行搜索：
-     1. 项目原生技能：`./.deepcode/skills/<folder>/SKILL.md`
+   - 该脚本按照 DeepOrca CLI 扫描的相同根目录及优先级顺序进行搜索：
+     1. 项目原生技能：`./.deeporca/skills/<folder>/SKILL.md`
      2. 项目可互操作技能：`./.agents/skills/<folder>/SKILL.md`
-     3. 用户原生技能：`~/.deepcode/skills/<folder>/SKILL.md`
+     3. 用户原生技能：`~/.deeporca/skills/<folder>/SKILL.md`
      4. 用户可互操作技能：`~/.agents/skills/<folder>/SKILL.md`
-   - 仅将 `./` 视为当前 Deep Code 项目根目录；除非运行中的项目根目录发生了变更，否则不要扫描父目录。
-   - 脚本会按照 Deep Code 的方式解析每个候选技能的名称：当 frontmatter 的 `name` 存在时使用去除首尾空格后的该字段，否则使用文件夹名称并将下划线转换为连字符。
+   - 仅将 `./` 视为当前 DeepOrca 项目根目录；除非运行中的项目根目录发生了变更，否则不要扫描父目录。
+   - 脚本会按照 DeepOrca 的方式解析每个候选技能的名称：当 frontmatter 的 `name` 存在时使用去除首尾空格后的该字段，否则使用文件夹名称并将下划线转换为连字符。
    - 优先将用户输入与解析后的技能名称进行匹配。如有需要，也可考虑文件夹名称或用户显式提供的路径。
    - 将匹配技能的 `path` 视为待审阅的源 `SKILL.md`。
    - 将匹配技能的 `digestTarget.path` 视为唯一要创建或编辑的输出 `SKILL.md` 路径。
-   - `digestTarget.path` 始终指向同一范围的原生 Deep Code 根目录：
-     - 来自 `./.deepcode/skills` 或 `./.agents/skills` 的项目级源文件，其消化输出目标为 `./.deepcode/skills/<folder>/SKILL.md`。
-     - 来自 `~/.deepcode/skills` 或 `~/.agents/skills` 的用户级源文件，其消化输出目标为 `~/.deepcode/skills/<folder>/SKILL.md`。
+   - `digestTarget.path` 始终指向同一范围的原生 DeepOrca 根目录：
+     - 来自 `./.deeporca/skills` 或 `./.agents/skills` 的项目级源文件，其消化输出目标为 `./.deeporca/skills/<folder>/SKILL.md`。
+     - 来自 `~/.deeporca/skills` 或 `~/.agents/skills` 的用户级源文件，其消化输出目标为 `~/.deeporca/skills/<folder>/SKILL.md`。
    - 如果脚本返回一个活动匹配项，则使用其 `path` 进行读取，使用 `digestTarget.path` 进行写入。
    - 如果脚本返回活动匹配项和被遮蔽的匹配项，则展示每个源路径和消化目标路径，然后在使用被遮蔽的源文件之前通过 `AskUserQuestion` 询问。
-   - 如果脚本未返回匹配项，则说明该技能未在 Deep Code 扫描的技能根目录中找到，并使用 `AskUserQuestion` 询问用户是否希望尝试其他名称。
+   - 如果脚本未返回匹配项，则说明该技能未在 DeepOrca 扫描的技能根目录中找到，并使用 `AskUserQuestion` 询问用户是否希望尝试其他名称。
 
 2. 在审阅之前推断用户的首选语言。
    - 根据用户的措辞推断一种可能的语言。例如，如果用户说 `消化pdf技能`，则推断为中文。
@@ -94,7 +94,7 @@ description: Reviews and improves another DeepCode skill's SKILL.md description 
 
 ## Install Agent Skill Workflow
 
-当用户要求安装 Agent Skill 时，请使用此工作流。安装操作始终写入 `.agents/skills`，而不是 `.deepcode/skills`。
+当用户要求安装 Agent Skill 时，请使用此工作流。安装操作始终写入 `.agents/skills`，而不是 `.deeporca/skills`。
 
 1. 识别源技能目录。
    - 如果用户提供了显式的文件或目录路径，则按以下规则解析：
@@ -164,7 +164,7 @@ description: Reviews and improves another DeepCode skill's SKILL.md description 
 
 - 未经询问，绝不修改名称相似的其他技能。
 - 绝不要将消化输出保存到 `.agents/skills` 下；`.agents/skills` 仅作为消化的源根目录。
-- 绝不要将已安装的 Agent Skill 保存到 `.deepcode/skills` 下；安装操作仅写入 `.agents/skills`。
+- 绝不要将已安装的 Agent Skill 保存到 `.deeporca/skills` 下；安装操作仅写入 `.agents/skills`。
 - 在消化过程中，绝不在项目级和用户级之间移动技能。
 - 除非用户在看到冲突后明确要求，否则绝不覆盖或合并已存在的已安装技能目录。
 - 一经确认，除非用户要求，否则绝不更改目标技能的语言偏好。

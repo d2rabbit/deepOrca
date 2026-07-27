@@ -19,7 +19,7 @@ import { indexRepository } from "./indexer";
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-03-26", "2024-11-05"];
 const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
 
-const SERVER_INFO = { name: "deepcode-gitmcp", version: "0.1.0" };
+const SERVER_INFO = { name: "deeporca-gitmcp", version: "0.1.0" };
 
 /** Same character set `parseRepoSlug()` guarantees — a cheap argv sanity check. */
 const SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;

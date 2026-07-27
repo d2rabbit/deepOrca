@@ -1,6 +1,6 @@
 import { defaultsToThinkingMode } from "./common/model-capabilities";
+import { getProjectConfigRoot, getUserConfigRoot } from "./common/app-dirs";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 
 export type DeepcodingEnv = Record<string, string | undefined> & {
@@ -386,13 +386,16 @@ function normalizeEnv(env: DeepcodingSettings["env"]): Record<string, string> {
 
 export function collectDeepcodeEnv(processEnv: SettingsProcessEnv = process.env): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(processEnv)) {
-    if (!key.startsWith("DEEPCODE_") || typeof value !== "string") {
-      continue;
-    }
-    const strippedKey = key.slice("DEEPCODE_".length);
-    if (strippedKey) {
-      result[strippedKey] = value;
+  // Legacy DEEPCODE_* variables are collected first so DEEPORCA_* takes precedence.
+  for (const prefix of ["DEEPCODE_", "DEEPORCA_"]) {
+    for (const [key, value] of Object.entries(processEnv)) {
+      if (!key.startsWith(prefix) || typeof value !== "string") {
+        continue;
+      }
+      const strippedKey = key.slice(prefix.length);
+      if (strippedKey) {
+        result[strippedKey] = value;
+      }
     }
   }
   return result;
@@ -605,11 +608,11 @@ export const DEFAULT_BASE_URL = "https://api.deepseek.com";
 // ---------------------------------------------------------------------------
 
 export function getUserSettingsPath(): string {
-  return path.join(os.homedir(), ".deepcode", "settings.json");
+  return path.join(getUserConfigRoot(), "settings.json");
 }
 
 export function getProjectSettingsPath(projectRoot: string): string {
-  return path.join(projectRoot, ".deepcode", "settings.json");
+  return path.join(getProjectConfigRoot(projectRoot), "settings.json");
 }
 
 export function readSettingsFile(settingsPath: string): DeepcodingSettings | null {

@@ -1,6 +1,6 @@
 # Plan Mode
 
-Plan Mode is a built-in collaboration mode in Deep Code. When Plan Mode is active, the AI assistant works with you to create a detailed implementation plan, but **does not perform any code-modifying actions**. Plan first, implement later—giving every step of a complex task a clear rationale.
+Plan Mode is a built-in collaboration mode in DeepOrca. When Plan Mode is active, the AI assistant works with you to create a detailed implementation plan, but **does not perform any code-modifying actions**. Plan first, implement later—giving every step of a complex task a clear rationale.
 
 ## Why Plan Mode
 
@@ -85,7 +85,7 @@ A plan typically includes:
 - **Test Plan**: Test cases and scenarios
 - **Assumptions**: Assumptions made and defaults chosen
 
-After the plan is output, Deep Code automatically shows a choice dialog—no extra input needed:
+After the plan is output, DeepOrca automatically shows a choice dialog—no extra input needed:
 
 | Option | Effect |
 | ------ | ------ |
@@ -99,7 +99,7 @@ You can press `1-3` to select directly, or use `↑/↓` to move the cursor and 
 
 Plan Mode is a **collaborative conversation mode** whose final artifact is the complete plan inside a `<proposed_plan>` block.
 
-`UpdatePlan` is Deep Code's **progress checklist tool** that shows step-by-step progress during execution. It does not enter or exit Plan Mode and is not the final planning artifact.
+`UpdatePlan` is DeepOrca's **progress checklist tool** that shows step-by-step progress during execution. It does not enter or exit Plan Mode and is not the final planning artifact.
 
 The two can work together: during implementation, the AI may use `UpdatePlan` to track progress on complex tasks, but the plan itself is already settled in Plan Mode.
 

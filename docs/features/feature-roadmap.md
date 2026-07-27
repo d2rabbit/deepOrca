@@ -41,7 +41,7 @@ Flutter 官方 Agent 技能包，包含 10+ 个 SKILL.md（架构、布局、测
 
 | 维度 | 评估 |
 |------|------|
-| Skills 系统 | 🟢 完全兼容 — Orca 已扫描 `.agents/skills/` 和 `.deepcode/skills/` |
+| Skills 系统 | 🟢 完全兼容 — Orca 已扫描 `.agents/skills/` 和 `.deeporca/skills/` |
 | 构建流程 | 🟢 可嵌入 — 构建脚本中 git clone + 复制到 templates |
 | 运行时依赖 | 🟢 零 — 纯 Markdown + JSON 文件 |
 | 许可 | BSD-3-Clause |
@@ -472,8 +472,8 @@ function DesignPreviewPanelFallback({ designPath }: { designPath: string }) {
   const [htmlContent, setHtmlContent] = useState<string>("");
   
   useEffect(() => {
-    // 通过 IPC 读取 .deepcode/designs/ 下的 HTML 文件
-    window.deepcode.readFile(designPath).then(setHtmlContent);
+    // 通过 IPC 读取 .deeporca/designs/ 下的 HTML 文件
+    window.deeporca.readFile(designPath).then(setHtmlContent);
   }, [designPath]);
   
   return (

@@ -1,4 +1,4 @@
-# Deep Code Configuration
+# DeepOrca Configuration
 
 ## Configuration Hierarchy
 
@@ -13,12 +13,12 @@ Configuration is applied in the following priority order (lower-numbered sources
 
 ## Settings File
 
-Deep Code uses the `settings.json` file for persistent configuration, supporting two storage locations:
+DeepOrca uses the `settings.json` file for persistent configuration, supporting two storage locations:
 
 | File Type           | Location                                  | Scope                                                                 |
 | ------------------- | ----------------------------------------- | --------------------------------------------------------------------- |
-| User settings file  | `~/.deepcode/settings.json`               | Applies to all Deep Code sessions for the current user.               |
-| Project settings file | `<project root>/.deepcode/settings.json` | Takes effect only when running Deep Code in that specific project. Project settings override user settings. |
+| User settings file  | `~/.deeporca/settings.json`               | Applies to all DeepOrca sessions for the current user.               |
+| Project settings file | `<project root>/.deeporca/settings.json` | Takes effect only when running DeepOrca in that specific project. Project settings override user settings. |
 
 ### Available Settings in `settings.json`
 
@@ -93,7 +93,7 @@ The following context is injected as environment variables when the notify scrip
 
 #### `webSearchTool` — Custom Web Search
 
-Deep Code has a built-in, free-to-use Web Search tool. If you need custom search logic, set `webSearchTool` to the full path of an executable script:
+DeepOrca has a built-in, free-to-use Web Search tool. If you need custom search logic, set `webSearchTool` to the full path of an executable script:
 
 ```json
 {
@@ -144,7 +144,7 @@ Configuration for MCP (Model Context Protocol) servers. The value is a key-value
 | `args`                | string[] | No       | List of arguments passed to the command                                  |
 | `env`                 | object   | No       | Environment variables passed to the MCP server process                   |
 
-> When `command` is `npx`, Deep Code automatically prepends `-y` to the arguments.
+> When `command` is `npx`, DeepOrca automatically prepends `-y` to the arguments.
 
 For detailed MCP usage instructions, refer to [mcp.md](mcp.md).
 
@@ -159,7 +159,7 @@ Set to `false` to disable anonymous usage reporting (default `true`). The report
 You can also disable it via environment variable:
 
 ```bash
-DEEPCODE_TELEMETRY_ENABLED=0 deepcode
+DEEPORCA_TELEMETRY_ENABLED=0 deeporca
 ```
 
 ## Environment Variable Priority
@@ -171,7 +171,7 @@ Environment variables are a common way to configure applications, especially for
 Environment variable priority follows the logic of “the more specific and localized the configuration, the higher the priority”, and the override rule of “env files protect existing environment by default, system variables override env files”. (The `env` object in settings.json can be thought of as a type of env file.)
 
 Priority levels (from lowest to highest):
-1. `env` defined at the top level of `settings.json` – this is a general configuration for the entire tool and all its subprocesses (global variables). Can be overridden by outer environment variables, but the environment variable KEY has the `DEEPCODE_` prefix removed.
+1. `env` defined at the top level of `settings.json` – this is a general configuration for the entire tool and all its subprocesses (global variables). Can be overridden by outer environment variables, but the environment variable KEY has the `DEEPORCA_` prefix removed.
 2. `env` defined inside `mcpServers` in `settings.json` – this is the most specific configuration for a particular MCP service (local variables). Can be overridden by outer environment variables, but the KEY has the `MCP_` prefix removed.
 3. Shell/system environment variables – operating system level.
 
@@ -184,7 +184,7 @@ Applied in the following priority order (lower-numbered sources are overridden b
 1. Hardcoded default: `""`
 2. User-level settings.json: `{"env": {"API_KEY": "abc123"}}`
 3. Project-level settings.json: `{"env": {"API_KEY": "abc123"}}`
-4. System environment variable: `DEEPCODE_API_KEY=abc123 deepcode`
+4. System environment variable: `DEEPORCA_API_KEY=abc123 deeporca`
 
 #### 2. Setting model, thinkingEnabled, and reasoningEffort
 
@@ -195,7 +195,7 @@ Applied in the following priority order (lower-numbered overridden by higher-num
 3. User-level settings.json: `{"thinkingEnabled": true}`
 4. Project-level settings.json: `{"env": {"THINKING_ENABLED": "true"}}`
 5. Project-level settings.json: `{"thinkingEnabled": true}`
-6. System environment variable: `DEEPCODE_THINKING_ENABLED=true deepcode`
+6. System environment variable: `DEEPORCA_THINKING_ENABLED=true deeporca`
 
 #### 3. Setting environment variables for external scripts like notify and webSearchTool
 
@@ -204,7 +204,7 @@ Applied in the following priority order (lower-numbered overridden by higher-num
 1. Hardcoded default: `os.environ.get('WEBHOOK', '...')  # notify script code`
 2. User-level settings.json: `{"env": {"WEBHOOK": "..."}}`
 3. Project-level settings.json: `{"env": {"WEBHOOK": "true"}}`
-4. System environment variable: `DEEPCODE_WEBHOOK=... deepcode`
+4. System environment variable: `DEEPORCA_WEBHOOK=... deeporca`
 
 #### 4. Setting environment variables for an MCP Service
 
@@ -214,4 +214,4 @@ Applied in the following priority order (lower-numbered overridden by higher-num
 2. User-level settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
 3. Project-level settings.json: `{"mcpServers":{"github":{"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"..."}}}}`
 4. Project-level settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
-5. System environment variable: `DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... deepcode`
+5. System environment variable: `DEEPORCA_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... deeporca`

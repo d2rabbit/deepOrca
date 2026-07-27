@@ -152,7 +152,7 @@ test("Bash can run commands in the background and report completion output", asy
   const output = fs.readFileSync(outputPath, "utf8");
   assert.match(output, /start/);
   assert.match(output, /done/);
-  assert.doesNotMatch(output, /__DEEPCODE_PWD__/);
+  assert.doesNotMatch(output, /__DEEPORCA_PWD__/);
 });
 
 test("Bash background completion reports failed exit codes", async () => {

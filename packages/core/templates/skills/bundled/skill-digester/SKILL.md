@@ -1,13 +1,13 @@
 ---
 name: skill-digester
-description: Reviews and improves another DeepCode skill's SKILL.md description field, and guides Agent Skill installation into user or project .agents/skills roots. Use when the user asks to digest a skill, install an Agent Skill, install a skill to user/project scope, or says "消化技能" or "安装 agent skill".
+description: Reviews and improves another DeepOrca skill's SKILL.md description field, and guides Agent Skill installation into user or project .agents/skills roots. Use when the user asks to digest a skill, install an Agent Skill, install a skill to user/project scope, or says "消化技能" or "安装 agent skill".
 ---
 
 # Skill Digester
 
 Use this skill for two related tasks:
 
-- Review and optionally rewrite the `description` field of another DeepCode skill.
+- Review and optionally rewrite the `description` field of another DeepOrca skill.
 - Guide installation of an Agent Skill into an interoperable `.agents/skills` root.
 
 ## Interaction Rule
@@ -28,26 +28,26 @@ First classify the request:
    - Locate the skill by running the bundled Node script from this skill directory:
 
      ```bash
-     node ~/.deepcode/skills/skill-digester/scripts/find-skill.js "<skill-name-or-path>" "<project-root>"
+     node ~/.deeporca/skills/skill-digester/scripts/find-skill.js "<skill-name-or-path>" "<project-root>"
      ```
 
      If this skill is loaded from a project-level or different user-level path, use the `scripts/find-skill.js` file next to this `SKILL.md` instead.
-   - The script searches the same roots Deep Code CLI scans, in priority order:
-     1. Project native skills: `./.deepcode/skills/<folder>/SKILL.md`
+   - The script searches the same roots DeepOrca CLI scans, in priority order:
+     1. Project native skills: `./.deeporca/skills/<folder>/SKILL.md`
      2. Project interoperable skills: `./.agents/skills/<folder>/SKILL.md`
-     3. User native skills: `~/.deepcode/skills/<folder>/SKILL.md`
+     3. User native skills: `~/.deeporca/skills/<folder>/SKILL.md`
      4. User interoperable skills: `~/.agents/skills/<folder>/SKILL.md`
-   - Treat `./` as the current Deep Code project root only; do not scan parent directories unless the running project root is changed.
-   - The script resolves each candidate's skill name the way Deep Code does: use the trimmed frontmatter `name` when present, otherwise use the folder name with underscores converted to hyphens.
+   - Treat `./` as the current DeepOrca project root only; do not scan parent directories unless the running project root is changed.
+   - The script resolves each candidate's skill name the way DeepOrca does: use the trimmed frontmatter `name` when present, otherwise use the folder name with underscores converted to hyphens.
    - Match the user's input against the resolved skill name first. If needed, also consider the folder name or an explicit path the user provided.
    - Treat the matched skill's `path` as the source `SKILL.md` to review.
    - Treat the matched skill's `digestTarget.path` as the only output `SKILL.md` path to create or edit.
-   - `digestTarget.path` always points to the same scope's native Deep Code root:
-     - Project sources from `./.deepcode/skills` or `./.agents/skills` digest to `./.deepcode/skills/<folder>/SKILL.md`.
-     - User sources from `~/.deepcode/skills` or `~/.agents/skills` digest to `~/.deepcode/skills/<folder>/SKILL.md`.
+   - `digestTarget.path` always points to the same scope's native DeepOrca root:
+     - Project sources from `./.deeporca/skills` or `./.agents/skills` digest to `./.deeporca/skills/<folder>/SKILL.md`.
+     - User sources from `~/.deeporca/skills` or `~/.agents/skills` digest to `~/.deeporca/skills/<folder>/SKILL.md`.
    - If the script returns one active match, use its `path` for reading and `digestTarget.path` for writing.
    - If the script returns active and shadowed matches, present each source path and digest target path, then use `AskUserQuestion` before using a shadowed source.
-   - If the script returns no match, state that the skill was not found in Deep Code's scanned skill roots and use `AskUserQuestion` to ask whether the user wants to try another name.
+   - If the script returns no match, state that the skill was not found in DeepOrca's scanned skill roots and use `AskUserQuestion` to ask whether the user wants to try another name.
 
 2. Infer the user's preferred language before reviewing.
    - Infer a likely language from the user's wording. For example, if the user says `消化pdf技能`, infer Chinese.
@@ -94,7 +94,7 @@ First classify the request:
 
 ## Install Agent Skill Workflow
 
-Use this workflow when the user asks to install an Agent Skill. Installation always writes to `.agents/skills`, not `.deepcode/skills`.
+Use this workflow when the user asks to install an Agent Skill. Installation always writes to `.agents/skills`, not `.deeporca/skills`.
 
 1. Identify the source skill directory.
    - If the user provided an explicit file or directory path, resolve it:
@@ -164,7 +164,7 @@ Avoid descriptions that are only generic labels, marketing copy, or internal imp
 
 - Never modify a different skill with a similar name without asking.
 - Never save the digested output under `.agents/skills`; `.agents/skills` is only a source root for digestion.
-- Never save installed Agent Skills under `.deepcode/skills`; installation writes only to `.agents/skills`.
+- Never save installed Agent Skills under `.deeporca/skills`; installation writes only to `.agents/skills`.
 - Never move a skill between project and user level during digestion.
 - Never overwrite or merge an existing installed skill directory unless the user explicitly asks after seeing the conflict.
 - Never change the target skill's language preference after confirmation unless the user asks.

@@ -1,6 +1,6 @@
 # git-mcp
 
-Ground your answers about **external GitHub repositories** in their real documentation via the built-in **local GitMCP server** — each registered repository runs as a local stdio MCP server backed by a shared on-disk index (`~/.deepcode/gitmcp/index.db`). Documentation is fetched once from GitHub, chunked and indexed locally (FTS5/BM25), so searches work offline and nothing is sent to third-party services. It eliminates hallucinated APIs for niche, new, or fast-moving libraries.
+Ground your answers about **external GitHub repositories** in their real documentation via the built-in **local GitMCP server** — each registered repository runs as a local stdio MCP server backed by a shared on-disk index (`~/.deeporca/gitmcp/index.db`). Documentation is fetched once from GitHub, chunked and indexed locally (FTS5/BM25), so searches work offline and nothing is sent to third-party services. It eliminates hallucinated APIs for niche, new, or fast-moving libraries.
 
 ## When to use
 
@@ -29,7 +29,7 @@ After a server connects, its tools appear as `mcp__gitmcp_{owner}_{repo}__*` (`:
 
 **Desktop:** open the **GitMCP** module in the left rail (next to Code Review), paste `owner/repo` or any GitHub URL, and press Add. The module builds the local index right away, and the server can be toggled or removed there. The Plugin Center → MCP tab may enable/disable these servers but never remove them.
 
-**CLI:** add a placeholder entry to `~/.deepcode/settings.json` — the engine rewrites it to the actual local server command at startup:
+**CLI:** add a placeholder entry to `~/.deeporca/settings.json` — the engine rewrites it to the actual local server command at startup:
 
 ```json
 {

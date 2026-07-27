@@ -25,7 +25,7 @@ const DOC_CANDIDATES: Array<{ file: string; source: DocSource }> = [
 // explicit branches cover repositories where HEAD resolution misbehaves.
 const BRANCH_CANDIDATES = ["HEAD", "main", "master"];
 
-const USER_AGENT = "deepcode-gitmcp";
+const USER_AGENT = "deeporca-gitmcp";
 
 /** Response size cap for `fetch_url_content` (post-extraction). */
 export const URL_CONTENT_LIMIT = 100 * 1024;

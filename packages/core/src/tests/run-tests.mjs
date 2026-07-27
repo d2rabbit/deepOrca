@@ -1,4 +1,4 @@
-// Test runner for @vegamo/deepcode-core
+// Test runner for @deeporca/core
 import { globSync } from "glob";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";

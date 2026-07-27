@@ -1,10 +1,10 @@
 # 状态栏插件
 
-Deep Code CLI 支持通过插件向终端底部状态栏注入自定义信息（Git 分支、当前时间、token 用量等),无需修改 CLI 源码。状态栏行展示在输入框下方的快捷键提示行下方,所有 provider 的输出会用分隔符拼接后渲染。
+DeepOrca CLI 支持通过插件向终端底部状态栏注入自定义信息（Git 分支、当前时间、token 用量等),无需修改 CLI 源码。状态栏行展示在输入框下方的快捷键提示行下方,所有 provider 的输出会用分隔符拼接后渲染。
 
 ## 配置
 
-在 `~/.deepcode/settings.json`(或项目级 `.deepcode/settings.json`)中添加 `statusline` 字段:
+在 `~/.deeporca/settings.json`(或项目级 `.deeporca/settings.json`)中添加 `statusline` 字段:
 
 ```json
 {
@@ -22,7 +22,7 @@ Deep Code CLI 支持通过插件向终端底部状态栏注入自定义信息（
       {
         "type": "module",
         "id": "tokens",
-        "path": "./.deepcode/plugins/tokens.mjs",
+        "path": "./.deeporca/plugins/tokens.mjs",
         "color": "yellow"
       }
     ]
@@ -77,7 +77,7 @@ Deep Code CLI 支持通过插件向终端底部状态栏注入自定义信息（
 模块需导出一个 `default` 函数(或具名 `provider`):
 
 ```js
-// .deepcode/plugins/tokens.mjs
+// .deeporca/plugins/tokens.mjs
 export default function tokensProvider({ projectRoot, session }) {
   // 返回字符串(同步或异步)
   if (session?.activeSessionId) {
@@ -139,7 +139,7 @@ export default function tokensProvider({ projectRoot, session }) {
       {
         "type": "module",
         "id": "ts-errors",
-        "path": "./.deepcode/plugins/ts-errors.mjs",
+        "path": "./.deeporca/plugins/ts-errors.mjs",
         "color": "red",
         "timeoutMs": 5000
       }

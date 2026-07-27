@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为 Deep Code Desktop 新增一套以 Win8 磁贴为骨架、叠加适度 Fluent 点缀的深色主题,运行时按平台自适应(win→Metro / mac→Aqua)。
+**Goal:** 为 DeepOrca Desktop 新增一套以 Win8 磁贴为骨架、叠加适度 Fluent 点缀的深色主题,运行时按平台自适应(win→Metro / mac→Aqua)。
 
 **Architecture:** 7 步自底向上:先打通 IPC 管道把 `process.platform` 传给渲染层(ipc.ts → main/index.ts),再建立动态 CSS 加载机制(main.tsx + index.html),编平台感知的控件(TopBar.tsx + App.tsx),最后从零写出完整的 `styles-metro.css`。Aqua 主题的 `styles.css` 零改动。
 
@@ -40,7 +40,7 @@ ready(): Promise<{ projectRoot: string; platform: NodeJS.Platform }>;
 - [ ] **Step 2: 类型检查**
 
 ```bash
-npm run typecheck --workspace @vegamo/deepcode-desktop
+npm run typecheck --workspace @deeporca/desktop
 ```
 预期:PASS(当前只有声明,main 进程 handler 还没改,类型可能报 handler 返回缺少 `platform`——属于预期,Task 3 补齐后消除)。
 
@@ -131,7 +131,7 @@ function createWindow(): void {
     minWidth: 720,
     minHeight: 480,
     backgroundColor: "#e7ecf2",
-    title: "Deep Code",
+    title: "DeepOrca",
     autoHideMenuBar: true,
     frame: false,
     titleBarStyle: "hidden",
@@ -154,7 +154,7 @@ function createWindow(): void {
     minWidth: 720,
     minHeight: 480,
     backgroundColor: isWin ? "#1d1d1d" : "#e7ecf2",
-    title: "Deep Code",
+    title: "DeepOrca",
     autoHideMenuBar: true,
     // 两边都用 hidden + 自绘控件 — Mac 走 gumdrop(左上),Win 走磁贴控件(右上)。
     // 不用 Windows 的 titleBarOverlay(那是 Fluent,本期目标是 Win8 磁贴)。
@@ -187,7 +187,7 @@ handle(IpcRequest.Ready, () => ({
 - [ ] **Step 3: 类型检查**
 
 ```bash
-npm run typecheck --workspace @vegamo/deepcode-desktop
+npm run typecheck --workspace @deeporca/desktop
 ```
 预期:PASS(Task 1 加了 `platform` 字段,现在 handler 补齐了,类型约束满足)。
 
@@ -218,7 +218,7 @@ git commit -m "feat(desktop): platform-aware window bg color and Ready handler r
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Deep Code</title>
+    <title>DeepOrca</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -239,7 +239,7 @@ git commit -m "feat(desktop): platform-aware window bg color and Ready handler r
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Deep Code</title>
+    <title>DeepOrca</title>
     <!-- CSS 由 main.tsx 按平台动态注入,此处不再硬编码 -->
   </head>
   <body style="background:#1d1d1d;margin:0">
@@ -352,7 +352,7 @@ void bootstrap();
 - [ ] **Step 2: 类型检查**
 
 ```bash
-npm run typecheck --workspace @vegamo/deepcode-desktop
+npm run typecheck --workspace @deeporca/desktop
 ```
 预期:PASS。`api.ready()` 现在返回 `{ projectRoot, platform }`,解构 `platform` 合法。
 
@@ -528,7 +528,7 @@ export function TopBar({
 - [ ] **Step 3: 类型检查**
 
 ```bash
-npm run typecheck --workspace @vegamo/deepcode-desktop
+npm run typecheck --workspace @deeporca/desktop
 ```
 预期:PASS。
 
@@ -1578,7 +1578,7 @@ npm run desktop:build
 - [ ] **Step 12: 类型检查(整体)**
 
 ```bash
-npm run typecheck --workspace @vegamo/deepcode-desktop
+npm run typecheck --workspace @deeporca/desktop
 ```
 预期:PASS。
 
@@ -1595,7 +1595,7 @@ git commit -m "feat(desktop): add complete Windows Metro/Fluent dark theme style
 
 ### 构建
 ```bash
-npm run typecheck --workspace @vegamo/deepcode-desktop  # 必须 PASS
+npm run typecheck --workspace @deeporca/desktop  # 必须 PASS
 npm run desktop:build  # 必须 PASS
 ```
 

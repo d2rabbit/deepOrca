@@ -1,10 +1,10 @@
 import { createHash } from "crypto";
 import { McpClient, type McpToolDefinition, type McpPromptDefinition, type McpResourceDefinition } from "./mcp-client";
 import type { McpServerConfig } from "../settings";
+import { getEnvVar } from "../common/app-dirs";
 
-const MCP_STARTUP_TIMEOUT_MS = process.env.DEEPCODE_MCP_TIMEOUT
-  ? parseInt(process.env.DEEPCODE_MCP_TIMEOUT, 10)
-  : 30_000;
+const mcpTimeoutEnv = getEnvVar("MCP_TIMEOUT");
+const MCP_STARTUP_TIMEOUT_MS = mcpTimeoutEnv ? parseInt(mcpTimeoutEnv, 10) : 30_000;
 const MCP_CALL_TOOL_TIMEOUT_MS = 60_000;
 const API_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const API_TOOL_NAME_MAX_LENGTH = 64;

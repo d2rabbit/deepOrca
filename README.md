@@ -4,8 +4,8 @@
 <br/>
 
 <p align="center">
-  <a href='https://github.com/lessweb/deepcode-cli'>
-    <img src='https://avatars.githubusercontent.com/u/118287711?s=200&v=4' width='120' alt="DeepOrca"/>
+  <a href='https://gitcode.com/qq_22602527/deepOrce'>
+    <img src='docs-site/assets/orca-icon.svg' width='120' alt="DeepOrca"/>
   </a>
 </p>
 
@@ -13,10 +13,7 @@
 
 **AI 驱动的下一代编码助手**
 
-[![][npm-release-shield]][npm-release-link] [![][npm-downloads-shield]][npm-downloads-link] [![][github-contributors-shield]][github-contributors-link] [![][github-forks-shield]][github-forks-link] [![][github-stars-shield]][github-stars-link]
-[![][github-issues-shield]][github-issues-link] [![][github-issues-pr-shield]][github-issues-pr-link] [![][github-license-shield]][github-license-link]
-
-[English](README-en.md) · 中文 · [官网](https://lessweb.github.io/deepcode-cli/) · [文档](docs/) · [更新日志](CHANGELOG.md)
+[English](README-en.md) · 中文 · [文档](docs/) · [更新日志](CHANGELOG.md)
 
 <br/>
 </div>
@@ -25,23 +22,22 @@
 
 ## 🐋 关于 DeepOrca
 
-**DeepOrca** 是一个 AI 驱动的下一代编码助手，专为 `deepseek-v4` 模型优化，提供终端 CLI、Electron 桌面客户端以及 VSCode 插件三种形态。
+**DeepOrca** 是一个 AI 驱动的下一代编码助手，专为 `deepseek-v4` 模型优化，以 Electron 桌面客户端为唯一形态，由两个包组成：
 
-DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli) 的 fork，但已发展为一个独立的项目。我们保留了 Deep Code 优秀的核心引擎架构，并在此基础上进行了大量扩展——包括桌面客户端 GUI、内置插件系统、GitMCP 模块、Monaco Editor 集成等。
+| 包 | 说明 |
+|------|------|
+| `@deeporca/core` | 核心引擎：LLM 会话循环、内置工具、Skills/MCP 扩展、会话持久化 |
+| `@deeporca/desktop` | Electron 桌面客户端：完整 GUI，Monaco 编辑器、多面板、多主题 |
 
-> 📖 **DeepCode CLI 详细说明**：查看 [README-deepcode-cli.md](README-deepcode-cli.md) 了解 DeepCode CLI 的完整功能说明、安装配置、使用指南等。
+### 📦 关于 Deep Code
+
+DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli)（`@vegamo/deepcode`）的 fork，已发展为一个独立项目。我们保留了 Deep Code 优秀的核心引擎架构（LLM 会话循环、内置工具、Skills/MCP 扩展、权限控制），并在此基础上进行了大量扩展——包括桌面客户端 GUI、内置插件系统、GitMCP 模块、Monaco Editor 集成等，并移除了终端 CLI 与 VSCode 插件形态。
+
+Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留了其原始版权声明（见 [LICENSE](LICENSE)），并在此向原作者致谢。
 
 ---
 
 ## ✨ 核心特性
-
-### 🖥️ 三种形态，无缝切换
-
-| 形态 | 说明 | 状态 |
-|------|------|------|
-| **终端 CLI** | Ink TUI，轻量高效，适合快速编码任务 | ✅ 已发布 |
-| **桌面客户端** | Electron GUI，功能完整，适合复杂项目开发 | ✅ 已发布 |
-| **VSCode 插件** | 编辑器内嵌 Agent，与 IDE 深度集成 | ✅ 已发布 |
 
 ### 🧩 强大的扩展系统
 
@@ -49,7 +45,7 @@ DeepOrca 提供三种并列的扩展能力：
 
 | 扩展类型 | 说明 | 管理方式 |
 |----------|------|----------|
-| **Skills（技能）** | SKILL.md 驱动的 Agent 能力扩展 | 放入 `.deepcode/skills/` 目录 |
+| **Skills（技能）** | SKILL.md 驱动的 Agent 能力扩展 | 放入 `.deeporca/skills/` 目录 |
 | **MCP 服务器** | 通过 Model Context Protocol 连接外部服务 | 在 settings.json 中配置 |
 | **内置插件** | 随 DeepOrca 一起发布的核心能力扩展 | 自动加载，不可卸载 |
 
@@ -81,9 +77,7 @@ DeepOrca 提供三种并列的扩展能力：
 | 能力域 | 功能 | 状态 |
 |--------|------|------|
 | 核心引擎 | LLM 会话循环、7 内置工具、上下文压缩 | ✅ |
-| 终端 CLI | Ink TUI、斜杠命令、Plan Mode | ✅ |
 | 桌面客户端 | Electron GUI、多面板、多主题 | ✅ |
-| VSCode 插件 | 编辑器内嵌 Agent | ✅ |
 | 扩展系统 | Skills / MCP / 内置插件 | ✅ |
 | 代码编辑器 | Monaco Editor 集成 | ✅ |
 | 代码索引 | CodeGraph MCP Server + 索引面板 | ✅ |
@@ -149,17 +143,20 @@ DeepOrca 计划集成 9 个优秀的开源项目，构建更强大的编码助�
 
 ## 🚀 快速开始
 
-### 安装
+### 安装与构建
 
 ```bash
-npm install -g @vegamo/deepcode-cli
-```
+# 克隆仓库
+git clone https://gitcode.com/qq_22602527/deepOrce.git
+cd deepOrce
 
-在任意项目目录下运行 `deepcode` 即可启动 CLI。
+# 安装依赖
+npm install
+```
 
 ### 配置
 
-创建 `~/.deepcode/settings.json` 文件：
+创建 `~/.deeporca/settings.json` 文件（若本机已有 `~/.deepcode` 配置目录则会直接沿用，无需迁移）：
 
 ```json
 {
@@ -194,7 +191,6 @@ npm run desktop:start
 
 | 文档 | 说明 |
 |------|------|
-| [README-deepcode-cli.md](README-deepcode-cli.md) | DeepCode CLI 完整功能说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 更新日志和提交历史 |
 | [docs/architecture.md](docs/architecture.md) | 架构设计和核心流程 |
 | [docs/configuration.md](docs/configuration.md) | 配置文件详解 |
@@ -212,8 +208,8 @@ npm run desktop:start
 
 ```bash
 # 克隆仓库
-git clone https://github.com/lessweb/deepcode-cli.git
-cd deepcode-cli
+git clone https://gitcode.com/qq_22602527/deepOrce.git
+cd deepOrce
 
 # 安装依赖
 npm install
@@ -221,15 +217,11 @@ npm install
 # 运行测试
 npm test
 
-# CLI 本地开发
+# core 构建
 npm run build
-npm link
 
 # 桌面客户端本地开发
 npm run desktop:dev
-
-# VSCode 插件本地开发
-npm run build:vscode
 ```
 
 **提交前检查**：
@@ -240,15 +232,18 @@ npm run build:vscode
 
 ## 📞 获取帮助
 
-- **GitHub Issues**：https://github.com/lessweb/deepcode-cli/issues
-- **官网**：https://lessweb.github.io/deepcode-cli/
+- **仓库 Issues**：https://gitcode.com/qq_22602527/deepOrce/issues
 - **文档**：查看 [docs/](docs/) 目录
 
 ---
 
-## 📄 协议
+## 📄 开源协议
 
-MIT License
+本项目采用 [MIT License](LICENSE) 开源。
+
+- DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License）。
+- 根据 MIT 协议条款，本仓库完整保留原始版权声明与许可声明；你在使用、修改或分发本项目（及其实质部分）时，也需保留 [LICENSE](LICENSE) 中的版权声明与许可声明。
+- 软件按“原样”提供，不附带任何形式的担保，详见协议全文。
 
 ---
 
@@ -256,28 +251,7 @@ MIT License
 
 如果你觉得 DeepOrca 对你有帮助，请考虑：
 
-- ⭐ 在 GitHub 上给我们一个 Star
+- ⭐ 在仓库给我们一个 Star
 - 🐛 提交 Bug 报告和功能建议
 - 📢 分享给你的朋友和同事
 - 🤝 贡献代码和文档
-
----
-
-<!-- LINK GROUP -->
-
-[npm-release-link]: https://www.npmjs.com/package/@vegamo/deepcode-cli
-[npm-release-shield]: https://img.shields.io/npm/v/@vegamo/deepcode-cli?color=4d6BFE&labelColor=black&logo=npm&logoColor=white&style=flat-square&cacheSeconds=1800
-[npm-downloads-link]: https://www.npmjs.com/package/@vegamo/deepcode-cli
-[npm-downloads-shield]: https://img.shields.io/npm/dt/@vegamo/deepcode-cli?labelColor=black&style=flat-square&color=4d6BFE&cacheSeconds=1800
-[github-contributors-link]: https://github.com/lessweb/deepcode-cli/graphs/contributors
-[github-contributors-shield]: https://img.shields.io/github/contributors/lessweb/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
-[github-forks-link]: https://github.com/lessweb/deepcode-cli/network/members
-[github-forks-shield]: https://img.shields.io/github/forks/lessweb/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
-[github-stars-link]: https://github.com/lessweb/deepcode-cli/network/stargazers
-[github-stars-shield]: https://img.shields.io/github/stars/lessweb/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
-[github-issues-link]: https://github.com/lessweb/deepcode-cli/issues
-[github-issues-shield]: https://img.shields.io/github/issues/lessweb/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
-[github-issues-pr-link]: https://github.com/lessweb/deepcode-cli/pulls
-[github-issues-pr-shield]: https://img.shields.io/github/issues-pr/lessweb/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800
-[github-license-link]: https://github.com/lessweb/deepcode-cli/blob/main/LICENSE
-[github-license-shield]: https://img.shields.io/github/license/lessweb/deepcode-cli?color=4d6BFE&labelColor=black&style=flat-square&cacheSeconds=1800

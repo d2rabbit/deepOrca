@@ -17,7 +17,7 @@ import {
 
 const MAX_OUTPUT_CHARS = 30000;
 const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
-const BACKGROUND_OUTPUT_DIR = path.join(os.tmpdir(), "deepcode-background");
+const BACKGROUND_OUTPUT_DIR = path.join(os.tmpdir(), "deeporca-background");
 const TRAILING_BACKGROUND_OPERATOR_PATTERN = /(^|[^\\&])\s*&\s*$/;
 const sessionWorkingDirs = new Map<string, string>();
 
@@ -123,9 +123,9 @@ function buildShellCommand(command: string): {
   }
   wrappedParts.push(
     normalizedCommand,
-    "__DEEPCODE_STATUS__=$?",
+    "__DEEPORCA_STATUS__=$?",
     `printf '%s%s\\n' "${marker}" "$PWD"`,
-    "exit $__DEEPCODE_STATUS__"
+    "exit $__DEEPORCA_STATUS__"
   );
   const wrappedCommand = `{ ${wrappedParts.join("; ")}; } < /dev/null`;
   return { shellPath, shellArgs: ["-c", wrappedCommand], marker };
@@ -403,7 +403,7 @@ function appendChunk(existing: string, chunk: string | Buffer): string {
 
 function buildMarker(): string {
   const token = Math.random().toString(36).slice(2);
-  return `__DEEPCODE_PWD__${token}__`;
+  return `__DEEPORCA_PWD__${token}__`;
 }
 
 function buildToolCommandResult(

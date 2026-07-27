@@ -14,11 +14,10 @@ function run(command, args, label) {
 }
 
 console.log("=========================================");
-console.log("  Deep Code CLI — Build");
+console.log("  DeepOrca — Build");
 console.log("=========================================");
 
-run("npm", ["run", "build", "--workspace=@vegamo/deepcode-core"], "1/3");
-run("node", ["scripts/rewrite-esm-imports.js"], "2/3");
-run("npm", ["run", "bundle"], "3/3");
+run("npm", ["run", "build", "--workspace=@deeporca/core"], "1/2");
+run("node", ["scripts/rewrite-esm-imports.js"], "2/2");
 
 console.log("\n✅  Build complete.\n\n");

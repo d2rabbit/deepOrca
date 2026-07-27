@@ -1,4 +1,4 @@
-// Preload: exposes a typed, minimal API surface on `window.deepcode`.
+// Preload: exposes a typed, minimal API surface on `window.deeporca`.
 // Runs with contextIsolation so the renderer never touches Node/Electron directly.
 
 import { contextBridge, ipcRenderer } from "electron";
@@ -129,4 +129,4 @@ const api: DesktopApi = {
   exportSession: (sessionId) => ipcRenderer.invoke(IpcRequest.SessionExport, sessionId),
 };
 
-contextBridge.exposeInMainWorld("deepcode", api);
+contextBridge.exposeInMainWorld("deeporca", api);

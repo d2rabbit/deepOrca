@@ -18,7 +18,7 @@ function relativeTime(ms: number): string {
 /**
  * GitMCP module (edge rail item, sibling of Code Review): register a GitHub
  * repository and it becomes a local MCP server (`gitmcp:owner/repo`) backed by
- * a shared local index (~/.deepcode/gitmcp/index.db). This panel is the only
+ * a shared local index (`<config root>/gitmcp/index.db`). This panel is the only
  * place such servers can be removed — the plugin MCP tab may only toggle them.
  */
 export function GitMcpPanel(): JSX.Element {

@@ -481,10 +481,10 @@ test("SessionManager lists bundled skills at lowest priority", async () => {
   const manager = createSessionManager(workspace, "machine-id-bundled-skills");
   const skills = await manager.listSkills();
   const skillWriter = skills.find((skill) => skill.name === "skill-writer");
-  const selfRefer = skills.find((skill) => skill.name === "deepcode-self-refer");
+  const selfRefer = skills.find((skill) => skill.name === "deeporca-self-refer");
 
   assert.equal(skillWriter?.path, "bundled:skill-writer/SKILL.md");
-  assert.equal(selfRefer?.path, "bundled:deepcode-self-refer/SKILL.md");
+  assert.equal(selfRefer?.path, "bundled:deeporca-self-refer/SKILL.md");
   assert.match(skillWriter?.description ?? "", /Guide users through creating/);
 });
 
@@ -629,7 +629,7 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
       enabledSkills: {
         "skill-writer": false,
         "renamed-disabled": false,
-        "deepcode-self-refer": false,
+        "deeporca-self-refer": false,
         "skill-digester": false,
         plan: false,
         "enabled-skill": true,
@@ -642,8 +642,16 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
   const skills = await manager.listSkills();
   const skillNames = skills.map((skill) => skill.name);
 
-  assert.deepEqual(skillNames, ["enabled-skill"]);
-  assert.equal(skills[0]?.path, "./.deepcode/skills/enabled-skill/SKILL.md");
+  // Disabled skills must be excluded regardless of which bundled skills ship alongside.
+  const nonBundled = skills.filter((skill) => !skill.path.startsWith("bundled:"));
+  assert.deepEqual(
+    nonBundled.map((skill) => skill.name),
+    ["enabled-skill"]
+  );
+  for (const disabledName of ["skill-writer", "renamed-disabled", "deeporca-self-refer", "skill-digester"]) {
+    assert.equal(skillNames.includes(disabledName), false);
+  }
+  assert.equal(nonBundled[0]?.path, "./.deepcode/skills/enabled-skill/SKILL.md");
 });
 
 test("SessionManager keeps implicit opt-out skills available for manual invocation", async () => {
@@ -1542,7 +1550,7 @@ test("createSession initializes file-history repo and session branch", async (t)
 
   const sessionId = await manager.createSession({ text: "first prompt" });
   const userMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "user");
-  const gitDir = path.join(home, ".deepcode", "projects", getProjectCode(workspace), "file-history", ".git");
+  const gitDir = getFileHistoryGitDir(home, workspace);
 
   assert.ok(fs.existsSync(gitDir));
   assert.ok(userMessage?.checkpointHash);
@@ -2440,7 +2448,7 @@ test("replySession applies permission replies, runs pending tools, and stores al
   });
 
   const toolMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "tool");
-  const settings = JSON.parse(fs.readFileSync(path.join(workspace, ".deepcode", "settings.json"), "utf8"));
+  const settings = JSON.parse(fs.readFileSync(path.join(workspace, configDirName(workspace), "settings.json"), "utf8"));
 
   assert.match(toolMessage?.content ?? "", /allowed content/);
   assert.deepEqual(settings.permissions.allow, ["read-in-cwd"]);
@@ -3466,7 +3474,7 @@ test("SessionManager.deleteSession removes the messages file", () => {
   (manager as any).activateSession = async () => {};
 
   const sessionId = createSessionAndMessages(manager, "session-delete-msg", "Test session");
-  const messagePath = path.join(home, ".deepcode", "projects", getProjectCode(workspace), `${sessionId}.jsonl`);
+  const messagePath = path.join(home, configDirName(home), "projects", getProjectCode(workspace), `${sessionId}.jsonl`);
 
   // Verify messages file exists
   assert.ok(fs.existsSync(messagePath));
@@ -3566,6 +3574,11 @@ function hasGit(): boolean {
   }
 }
 
+// Mirrors app-dirs resolution: legacy .deepcode wins when present, else .deeporca.
+function configDirName(base: string): string {
+  return fs.existsSync(path.join(base, ".deepcode")) ? ".deepcode" : ".deeporca";
+}
+
 function createFileHistoryCommit(
   home: string,
   workspace: string,
@@ -3573,7 +3586,7 @@ function createFileHistoryCommit(
   files: Record<string, string>
 ): string {
   const projectCode = getProjectCode(workspace);
-  const gitDir = path.join(home, ".deepcode", "projects", projectCode, "file-history", ".git");
+  const gitDir = path.join(home, configDirName(home), "projects", projectCode, "file-history", ".git");
   const fileHistory = new GitFileHistory(workspace, gitDir);
   fileHistory.ensureSession(sessionId);
 
@@ -3591,13 +3604,13 @@ function createFileHistoryCommit(
 
 function getFileHistoryGitDir(home: string, workspace: string): string {
   const projectCode = getProjectCode(workspace);
-  return path.join(home, ".deepcode", "projects", projectCode, "file-history", ".git");
+  return path.join(home, configDirName(home), "projects", projectCode, "file-history", ".git");
 }
 
 function readFileHistoryManifest(home: string, workspace: string, checkpointHash: string): any {
   const gitDir = getFileHistoryGitDir(home, workspace);
   return JSON.parse(
-    runFileHistoryGit(gitDir, workspace, ["cat-file", "blob", `${checkpointHash}:.deepcode-file-history.json`])
+    runFileHistoryGit(gitDir, workspace, ["cat-file", "blob", `${checkpointHash}:.deeporca-file-history.json`])
   );
 }
 

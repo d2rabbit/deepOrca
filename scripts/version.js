@@ -243,7 +243,7 @@ if (bumpArg === "from-git") {
 // ── Banner ───────────────────────────────────────────────────────────────────
 
 log("=========================================");
-log(`  Deep Code — Bump Version`);
+log(`  DeepOrca — Bump Version`);
 log(`  ${currentVersion} → ${version}`);
 log("=========================================\n");
 

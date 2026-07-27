@@ -3,9 +3,12 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
-const FILE_HISTORY_AUTHOR_NAME = "DeepCode Checkpoint";
-const FILE_HISTORY_AUTHOR_EMAIL = "deepcode-checkpoint@localhost";
-const MANIFEST_PATH = ".deepcode-file-history.json";
+const FILE_HISTORY_AUTHOR_NAME = "DeepOrca Checkpoint";
+const FILE_HISTORY_AUTHOR_EMAIL = "deeporca-checkpoint@localhost";
+const MANIFEST_PATH = ".deeporca-file-history.json";
+// Checkpoints written by legacy Deep Code installs used the old manifest name;
+// reads fall back to it so existing file-history repos stay undo-able.
+const LEGACY_MANIFEST_PATH = ".deepcode-file-history.json";
 
 type FileHistoryEntry = {
   path: string;
@@ -262,7 +265,12 @@ export class GitFileHistory {
   }
 
   private readManifest(commitHash: string): FileHistoryManifest {
-    const buffer = this.runGitBuffer(["cat-file", "blob", `${commitHash}:${MANIFEST_PATH}`]);
+    let buffer: Buffer;
+    try {
+      buffer = this.runGitBuffer(["cat-file", "blob", `${commitHash}:${MANIFEST_PATH}`]);
+    } catch {
+      buffer = this.runGitBuffer(["cat-file", "blob", `${commitHash}:${LEGACY_MANIFEST_PATH}`]);
+    }
     const parsed = JSON.parse(buffer.toString("utf8")) as FileHistoryManifest;
     if (
       !parsed ||

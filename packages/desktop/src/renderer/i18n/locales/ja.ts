@@ -152,11 +152,11 @@ export const ja: Record<MessageKey, string> = {
   "plugins.title": "プラグインセンター",
   "plugins.tab.skills": "スキル",
   "plugins.tab.mcp": "MCP サーバー",
-  "plugins.skills.none": "スキルが見つかりません。SKILL.md を .deepcode/skills/ ディレクトリに配置してください。",
+  "plugins.skills.none": "スキルが見つかりません。SKILL.md を .deeporca/skills/ ディレクトリに配置してください。",
   "plugins.skills.loaded": "読み込み済み",
   "plugins.skills.attach": "プロンプトに付加",
   "plugins.skills.locations":
-    "スキルは .deepcode/skills または .agents/skills（プロジェクトまたはホーム）から読み込まれます。SKILL.md を含むフォルダーを追加して更新してください。",
+    "スキルは .deeporca/skills または .agents/skills（プロジェクトまたはホーム）から読み込まれます。SKILL.md を含むフォルダーを追加して更新してください。",
   "plugins.mcp.presets": "クイック追加",
   "plugins.detail.empty": "詳細を表示するには左側でプラグインを選択してください。",
   "plugins.detail.overview": "概要",
@@ -179,8 +179,8 @@ export const ja: Record<MessageKey, string> = {
   "builtin.browser-skill.name": "Browser Skill",
   "builtin.browser-skill.desc":
     "Drive the user's real Chromium browser through the bsk CLI — visit pages, fill forms, scrape data, click through flows, regression-test UI.",
-  "builtin.deepcode-self-refer.name": "Deep Code Self-Refer",
-  "builtin.deepcode-self-refer.desc":
+  "builtin.deeporca-self-refer.name": "DeepOrca Self-Refer",
+  "builtin.deeporca-self-refer.desc":
     "Answers questions about DeepOrca itself — features, configuration, slash commands, Skills, MCP integration, permissions, notifications, session persistence, and troubleshooting.",
   "builtin.skill-digester.name": "Skill Digester",
   "builtin.skill-digester.desc":
@@ -228,7 +228,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.tab.permissions": "権限",
   "settings.tab.mcp": "MCP サーバー",
   "settings.apiKey": "API キー",
-  "settings.envOverride": "環境変数 DEEPCODE_API_KEY にも API キーが設定されており、この値を上書きします。",
+  "settings.envOverride": "環境変数 DEEPORCA_API_KEY にも API キーが設定されており、この値を上書きします。",
   "settings.baseUrl": "Base URL",
   "settings.baseUrlHint": "空欄の場合はデフォルトの DeepSeek エンドポイントを使用します。",
   "settings.model": "モデル",
@@ -429,7 +429,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.tab.about": "について",
   "about.title": "DeepOrca について",
   "about.intro":
-    "DeepOrca はコーディングエージェントのデスクトップ GUI で、オープンソースプロジェクト @vegamo/deepcode-cli をフォークし、DeepOrca として再構築したものです。",
+    "DeepOrca はコーディングエージェントのデスクトップ GUI で、DeepOrca コアエンジンの上に構築されています。",
   "about.detail":
     "Electron デスクトップアプリとして提供され、同じコアエンジン(LLM セッションループ、7 つの組み込みツール、MCP クライアント、権限システム)で駆動し、DeepSeek モデルに最適化されています。",
   "about.changelog": "変更履歴",

@@ -17,20 +17,20 @@ Do not use a skill for:
 
 ## Scan Locations
 
-Deep Code CLI scans skills in the following order. If multiple skills resolve to the same `name`, only the highest-priority one is kept.
+DeepOrca CLI scans skills in the following order. If multiple skills resolve to the same `name`, only the highest-priority one is kept.
 
 | Priority | Scope   | Path                  | Purpose |
 | -------- | ------- | --------------------- | ------- |
-| 1        | Project | `./.deepcode/skills/` | Native Deep Code project skills |
+| 1        | Project | `./.deeporca/skills/` | Native DeepOrca project skills |
 | 2        | Project | `./.agents/skills/`   | Project skills shared with other agent clients |
-| 3        | User    | `~/.deepcode/skills/` | Native Deep Code user skills |
+| 3        | User    | `~/.deeporca/skills/` | Native DeepOrca user skills |
 | 4        | User    | `~/.agents/skills/`   | User skills shared with other agent clients |
-| 5        | Global  | `built-in`            | Skills bundled with Deep Code |
+| 5        | Global  | `built-in`            | Skills bundled with DeepOrca |
 
 Example structure:
 
 ```text
-.deepcode/
+.deeporca/
 └── skills/
     └── code-review/
         ├── SKILL.md
@@ -64,11 +64,11 @@ and missing tests over style comments.
 
 ## `SKILL.md` Frontmatter
 
-Deep Code CLI reads YAML frontmatter at the top of `SKILL.md`.
+DeepOrca CLI reads YAML frontmatter at the top of `SKILL.md`.
 
-| Field | Required | Deep Code behavior | Recommendation |
+| Field | Required | DeepOrca behavior | Recommendation |
 | ----- | -------- | ------------------ | -------------- |
-| `name` | Recommended | Used as the unique skill name. If missing, Deep Code uses the directory name and converts `_` to `-`. | Use lowercase letters, numbers, and hyphens. Keep it aligned with the directory name. |
+| `name` | Recommended | Used as the unique skill name. If missing, DeepOrca uses the directory name and converts `_` to `-`. | Use lowercase letters, numbers, and hyphens. Keep it aligned with the directory name. |
 | `description` | Recommended | Used for automatic matching and shown in `/skills` and the slash menu. | Describe what the skill does, when to use it, and common trigger terms. |
 | `metadata.allow-implicit-invocation` | Optional | When set to `false`, the skill is excluded from automatic matching but can still be selected manually. | Use for manual-only skills. |
 
@@ -83,11 +83,11 @@ metadata:
 ---
 ```
 
-> Deep Code CLI currently interprets only the fields listed above. Other frontmatter fields may be useful for cross-client compatibility or documentation, but they do not automatically restrict Deep Code tool permissions.
+> DeepOrca CLI currently interprets only the fields listed above. Other frontmatter fields may be useful for cross-client compatibility or documentation, but they do not automatically restrict DeepOrca tool permissions.
 
 ## Write a Strong `description`
 
-The `description` is the most important discovery signal. During automatic matching, Deep Code gives the model only each skill's `name` and `description`, so specific descriptions match more reliably.
+The `description` is the most important discovery signal. During automatic matching, DeepOrca gives the model only each skill's `name` and `description`, so specific descriptions match more reliably.
 
 Recommended pattern:
 
@@ -200,11 +200,11 @@ Example:
 
 ## Invocation
 
-Deep Code CLI supports automatic and manual skill invocation.
+DeepOrca CLI supports automatic and manual skill invocation.
 
 ### Automatic Invocation
 
-After each user message, Deep Code checks the available skills' `name` and `description` fields and selects the skills that match the task. Matching skills are loaded into the current session.
+After each user message, DeepOrca checks the available skills' `name` and `description` fields and selects the skills that match the task. Matching skills are loaded into the current session.
 
 Automatic invocation rules:
 
@@ -293,9 +293,9 @@ Use this skill to prepare a safe release for this repository.
 
 Check:
 
-1. The directory is under one of the Deep Code scan locations
+1. The directory is under one of the DeepOrca scan locations
 2. The file is named `SKILL.md`
-3. `SKILL.md` is inside its own skill directory, such as `.deepcode/skills/my-skill/SKILL.md`
+3. `SKILL.md` is inside its own skill directory, such as `.deeporca/skills/my-skill/SKILL.md`
 4. `enabledSkills` has not set the skill to `false`
 5. A higher-priority skill with the same name is not shadowing it
 

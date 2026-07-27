@@ -1,16 +1,16 @@
 // Desktop-only archive sidecar. Session archive state is a client concern that
-// must never leak into core's `SessionEntry` persistence (which the CLI shares),
-// so it lives in a standalone JSON file: `~/.deepcode/desktop/archive.json`.
+// must never leak into core's `SessionEntry` persistence, so it lives in a
+// standalone JSON file: `<config root>/desktop/archive.json`.
 
+import { getUserConfigRoot } from "@deeporca/core";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 
 type ArchiveFile = { archived: string[] };
 
 /** Path to the archive sidecar file. */
 function archivePath(): string {
-  return path.join(homedir(), ".deepcode", "desktop", "archive.json");
+  return path.join(getUserConfigRoot(), "desktop", "archive.json");
 }
 
 /** Read the raw archive file, tolerating a missing/corrupt file. */

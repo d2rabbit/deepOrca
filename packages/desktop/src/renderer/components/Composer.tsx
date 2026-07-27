@@ -47,7 +47,7 @@ const BUILTIN_SLASHES: SlashCandidate[] = [
   { kind: "builtin", name: "undo", label: "/undo", description: "Restore to a previous checkpoint" },
   { kind: "builtin", name: "raw", label: "/raw", description: "Cycle reasoning display (collapse/expand/hide)" },
   { kind: "builtin", name: "mcp", label: "/mcp", description: "View MCP server status and tools" },
-  { kind: "builtin", name: "exit", label: "/exit", description: "Quit Deep Code" },
+  { kind: "builtin", name: "exit", label: "/exit", description: "Quit DeepOrca" },
   { kind: "builtin", name: "settings", label: "/settings", description: "Open settings panel" },
 ];
 

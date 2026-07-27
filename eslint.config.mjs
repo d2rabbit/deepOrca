@@ -11,9 +11,9 @@ export default tseslint.config(
   // Custom project rules
   {
     rules: {
-      // CLI project allows console
+      // Desktop project allows console
       "no-console": "off",
-      // Allow dynamic require for package.json (cli.tsx)
+      // Allow dynamic require for package.json
       "@typescript-eslint/no-var-requires": "off",
       "@typescript-eslint/no-require-imports": "off",
       // Allow control regex for ANSI stripping (markdown.test.ts)
@@ -67,7 +67,12 @@ export default tseslint.config(
   },
   // Statusline plugins: Node.js environment
   {
-    files: [".deepcode/plugins/**/*.mjs", ".deepcode/plugins/**/*.js"],
+    files: [
+      ".deeporca/plugins/**/*.mjs",
+      ".deeporca/plugins/**/*.js",
+      ".deepcode/plugins/**/*.mjs",
+      ".deepcode/plugins/**/*.js",
+    ],
     languageOptions: {
       globals: {
         process: "readonly",
@@ -75,7 +80,7 @@ export default tseslint.config(
       },
     },
   },
-  // Browser resources: VSCode webview scripts
+  // Browser resources: webview scripts
   {
     files: ["packages/*/resources/**/*.js"],
     languageOptions: {

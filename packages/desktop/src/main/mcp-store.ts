@@ -1,17 +1,17 @@
 // Desktop-only sidecar for MCP server *disable* state. Disabling a server (rather
 // than removing it) is a client concern that must not leak into core settings —
 // notably the built-in CodeGraph server, which can be disabled but never removed.
-// State lives in `~/.deepcode/desktop/mcp.json`, keyed by resolved project root.
+// State lives in `<config root>/desktop/mcp.json`, keyed by resolved project root.
 
+import { getUserConfigRoot } from "@deeporca/core";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 
 type McpStore = { disabled: Record<string, string[]> };
 
 /** Path to the MCP sidecar file. */
 function storePath(): string {
-  return path.join(homedir(), ".deepcode", "desktop", "mcp.json");
+  return path.join(getUserConfigRoot(), "desktop", "mcp.json");
 }
 
 /** Read the raw store, tolerating a missing/corrupt file. */

@@ -1,6 +1,6 @@
 // Dev-only launcher that previews the desktop client as if running on another OS.
 //
-// Sets DEEPCODE_PLATFORM (honored by the Electron main process only in an
+// Sets DEEPORCA_PLATFORM (honored by the Electron main process only in an
 // unpackaged/dev build) and then runs the normal desktop build-and-start flow,
 // so you can eyeball each platform's theme (Aqua / Metro / Glass) and its
 // interaction adaptation (window controls, theme toggle) on any machine.
@@ -23,13 +23,13 @@ if (!platform) {
   process.exit(1);
 }
 
-console.log(`[desktop] previewing platform=${platform} (DEEPCODE_PLATFORM)`);
+console.log(`[desktop] previewing platform=${platform} (DEEPORCA_PLATFORM)`);
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const child = spawn(npm, ["run", "build-and-start", "--workspace", "@vegamo/deepcode-desktop"], {
+const child = spawn(npm, ["run", "build-and-start", "--workspace", "@deeporca/desktop"], {
   stdio: "inherit",
   shell: process.platform === "win32",
-  env: { ...process.env, DEEPCODE_PLATFORM: platform },
+  env: { ...process.env, DEEPORCA_PLATFORM: platform },
 });
 
 child.on("exit", (code) => process.exit(code ?? 0));

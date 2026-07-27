@@ -599,6 +599,8 @@ a:hover { text-shadow: 0 0 12px var(--cyan-dim); }
 .footer-links a:hover { color: var(--cyan); }
 .footer-links a:hover::after { width: 100%; }
 .footer-copy { width: 100%; font-size: 10.5px; letter-spacing: 1.5px; color: rgba(139, 155, 180, 0.5); }
+.footer-copy a { color: rgba(139, 155, 180, 0.75); text-decoration: underline; text-underline-offset: 2px; transition: color var(--duration-fast) var(--ease-out); }
+.footer-copy a:hover { color: var(--cyan); }
 
 /* ── Reveal on scroll ───────────────────────────────────────── */
 .reveal { 

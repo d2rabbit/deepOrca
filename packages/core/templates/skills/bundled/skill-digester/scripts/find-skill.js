@@ -119,16 +119,19 @@ function main() {
     process.exit(2);
   }
 
-  const projectNativeRoot = path.join(projectRoot, ".deepcode", "skills");
-  const userNativeRoot = path.join(os.homedir(), ".deepcode", "skills");
+  // Bidirectional config dir: legacy .deepcode wins when present, else .deeporca.
+  const projectDirName = fs.existsSync(path.join(projectRoot, ".deepcode")) ? ".deepcode" : ".deeporca";
+  const userDirName = fs.existsSync(path.join(os.homedir(), ".deepcode")) ? ".deepcode" : ".deeporca";
+  const projectNativeRoot = path.join(projectRoot, projectDirName, "skills");
+  const userNativeRoot = path.join(os.homedir(), userDirName, "skills");
   const roots = [
     {
       root: projectNativeRoot,
-      displayRoot: "./.deepcode/skills",
+      displayRoot: `./${projectDirName}/skills`,
       scope: "project",
       kind: "native",
       digestRoot: projectNativeRoot,
-      digestDisplayRoot: "./.deepcode/skills",
+      digestDisplayRoot: `./${projectDirName}/skills`,
     },
     {
       root: path.join(projectRoot, ".agents", "skills"),
@@ -136,15 +139,15 @@ function main() {
       scope: "project",
       kind: "interoperable",
       digestRoot: projectNativeRoot,
-      digestDisplayRoot: "./.deepcode/skills",
+      digestDisplayRoot: `./${projectDirName}/skills`,
     },
     {
       root: userNativeRoot,
-      displayRoot: "~/.deepcode/skills",
+      displayRoot: `~/${userDirName}/skills`,
       scope: "user",
       kind: "native",
       digestRoot: userNativeRoot,
-      digestDisplayRoot: "~/.deepcode/skills",
+      digestDisplayRoot: `~/${userDirName}/skills`,
     },
     {
       root: path.join(os.homedir(), ".agents", "skills"),
@@ -152,7 +155,7 @@ function main() {
       scope: "user",
       kind: "interoperable",
       digestRoot: userNativeRoot,
-      digestDisplayRoot: "~/.deepcode/skills",
+      digestDisplayRoot: `~/${userDirName}/skills`,
     },
   ];
 

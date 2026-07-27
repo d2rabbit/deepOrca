@@ -1,10 +1,10 @@
-# Deep Code CLI MCP Configuration Guide
+# DeepOrca CLI MCP Configuration Guide
 
-Deep Code CLI supports MCP (Model Context Protocol), enabling AI assistants to connect with external tools and services such as GitHub, browsers, databases, and more.
+DeepOrca CLI supports MCP (Model Context Protocol), enabling AI assistants to connect with external tools and services such as GitHub, browsers, databases, and more.
 
 ## Overview
 
-Once MCP is configured, Deep Code can:
+Once MCP is configured, DeepOrca can:
 
 - Operate on GitHub repositories (view issues, create PRs, search code, etc.)
 - Control browsers (screenshots, clicks, form filling, etc.)
@@ -12,11 +12,11 @@ Once MCP is configured, Deep Code can:
 - Connect to databases and APIs
 - ...and any external service compatible with the MCP protocol
 
-MCP tools are named in Deep Code using the format `mcp__<service_name>__<tool_name>`, for example `mcp__github__search_code`.
+MCP tools are named in DeepOrca using the format `mcp__<service_name>__<tool_name>`, for example `mcp__github__search_code`.
 
 ## Configuring MCP Servers
 
-Edit `~/.deepcode/settings.json` and add the `mcpServers` field:
+Edit `~/.deeporca/settings.json` and add the `mcpServers` field:
 
 ```json
 {
@@ -43,7 +43,7 @@ Edit `~/.deepcode/settings.json` and add the `mcpServers` field:
 
 | Field     | Type     | Required | Description                                                                                                                                                        |
 | --------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `command` | string   | Yes      | Path or command of the MCP server executable (e.g., `npx`, `node`, `python`). When the command is `npx`, Deep Code automatically prepends `-y` to the arguments. |
+| `command` | string   | Yes      | Path or command of the MCP server executable (e.g., `npx`, `node`, `python`). When the command is `npx`, DeepOrca automatically prepends `-y` to the arguments. |
 | `args`    | string[] | No       | List of arguments to pass to the command                                                                                                                           |
 | `env`     | object   | No       | Environment variables (e.g., API keys) to pass to the MCP server process                                                                                           |
 
@@ -51,7 +51,7 @@ Edit `~/.deepcode/settings.json` and add the `mcpServers` field:
 
 ### GitHub MCP
 
-Allows Deep Code to directly operate on GitHub repositories (search code, manage issues/PRs, read/write files, etc.):
+Allows DeepOrca to directly operate on GitHub repositories (search code, manage issues/PRs, read/write files, etc.):
 
 ```json
 {
@@ -71,7 +71,7 @@ Allows Deep Code to directly operate on GitHub repositories (search code, manage
 
 ### Browser Control (Playwright)
 
-Lets Deep Code control a browser for screenshots, page interactions, etc.:
+Lets DeepOrca control a browser for screenshots, page interactions, etc.:
 
 ```json
 {
@@ -86,7 +86,7 @@ Lets Deep Code control a browser for screenshots, page interactions, etc.:
 
 ### File System
 
-Enables Deep Code to read and write files within a specified directory:
+Enables DeepOrca to read and write files within a specified directory:
 
 ```json
 {
@@ -117,7 +117,7 @@ Enables Deep Code to read and write files within a specified directory:
 
 ## Full Configuration Example
 
-Below is a complete `~/.deepcode/settings.json` with both GitHub and Playwright MCP servers configured:
+Below is a complete `~/.deeporca/settings.json` with both GitHub and Playwright MCP servers configured:
 
 ```json
 {
@@ -146,12 +146,12 @@ Below is a complete `~/.deepcode/settings.json` with both GitHub and Playwright 
 
 ## Using MCP
 
-After configuration, start `deepcode` and type `/mcp` in the chat to view the status of all configured MCP servers and the list of tools each server provides.
+After configuration, start `deeporca` and type `/mcp` in the chat to view the status of all configured MCP servers and the list of tools each server provides.
 
 Simply use the MCP tool name in your conversation to invoke it, for example:
 
 ```
-Help me search for issues in the deepcode-cli repository on GitHub
+Help me search for issues in the deeporca-cli repository on GitHub
 ```
 
 The AI will automatically invoke the `mcp__github__search_issues` tool to complete the action.
@@ -177,17 +177,17 @@ If an MCP server fails to start, check:
 
 1. Whether `command` is installed (e.g., `npx` requires Node.js)
 2. Whether environment variables in `env` are correct (e.g., `GITHUB_PERSONAL_ACCESS_TOKEN`)
-3. Whether the terminal running `deepcode` has network access
+3. Whether the terminal running `deeporca` has network access
 
 ### Tools Not Showing Up
 
 1. Verify that the `mcpServers` field in `settings.json` is correctly formatted
-2. After starting deepcode, use `/mcp` to check server status
+2. After starting deeporca, use `/mcp` to check server status
 3. If the server status shows an error, debug based on the error message
 
 ### Windows Users
 
-On Windows, Deep Code CLI automatically adds shell support for `.cmd` commands. If your MCP command is a batch script, ensure the filename ends with `.cmd`.
+On Windows, DeepOrca CLI automatically adds shell support for `.cmd` commands. If your MCP command is a batch script, ensure the filename ends with `.cmd`.
 
 ## Writing Your Own MCP Server
 

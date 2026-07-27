@@ -8,7 +8,7 @@
 
 ## 摘要
 
-我们设计了一组受控对比实验，在完全相同的任务上同时启动两个 Deep Code 会话，其中一个开启 Plan Mode（`/plan`），另一个未开启，以评估 Deep Code 的 Plan Mode 在**结果质量、执行效率、Token 消耗与真实费用**四个维度的影响。两个会话同时启动并使用 `deepseek-v4-pro` 模型，从而排除了算力波动带来的干扰。
+我们设计了一组受控对比实验，在完全相同的任务上同时启动两个 DeepOrca 会话，其中一个开启 Plan Mode（`/plan`），另一个未开启，以评估 DeepOrca 的 Plan Mode 在**结果质量、执行效率、Token 消耗与真实费用**四个维度的影响。两个会话同时启动并使用 `deepseek-v4-pro` 模型，从而排除了算力波动带来的干扰。
 
 核心发现：Plan Mode 以 **26% 的成本增幅** 和 **32% 的时间增幅**，换取了 **从完全不可用到 75% 可用的质量跃迁**；同时其推理密度（Reasoning Ratio）几乎是非 Plan 模式的 **1.5 倍**，表明 Plan Mode 有效引导了模型的深度思考行为。
 
@@ -20,7 +20,7 @@
 
 要求 Agent 解决一个真实且有难度的 Python 任务。
 
-完整任务描述与测试数据见 GitHub：[qorzj/deepcode-qrcode-benchmark](https://github.com/qorzj/deepcode-qrcode-benchmark)
+完整任务描述与测试数据见 GitHub：[qorzj/deeporca-qrcode-benchmark](https://github.com/qorzj/deeporca-qrcode-benchmark)
 
 ### 1.2 控制变量
 
@@ -156,4 +156,4 @@ Plan Mode 并非银弹。基于本次实验数据，我们建议：
 
 ---
 
-*实验数据可在 Deep Code 会话记录中复验。Plan Mode 会话 ID: `5fa1934d-d738-4f07-aaae-8e0b80f7b2ae`；对照组会话 ID: `ce7157e1-bf12-404b-9e35-72027a4a55ed`。*
+*实验数据可在 DeepOrca 会话记录中复验。Plan Mode 会话 ID: `5fa1934d-d738-4f07-aaae-8e0b80f7b2ae`；对照组会话 ID: `ce7157e1-bf12-404b-9e35-72027a4a55ed`。*

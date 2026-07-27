@@ -22,13 +22,13 @@ export type Theme = "aqua" | "metro" | "glass" | "fusion" | "line";
 // cyberpunk 2077-inspired "punk" recolor, toggled via `data-line-variant`.
 export type LineVariant = "stroke" | "punk";
 
-const APPEARANCE_KEY = "deepcode.appearance";
-const REASONING_KEY = "deepcode.reasoningMode";
-const THEME_KEY = "deepcode.theme";
-const LINE_VARIANT_KEY = "deepcode.lineVariant";
+const APPEARANCE_KEY = "deeporca.appearance";
+const REASONING_KEY = "deeporca.reasoningMode";
+const THEME_KEY = "deeporca.theme";
+const LINE_VARIANT_KEY = "deeporca.lineVariant";
 
 /** DOM id given to the injected theme stylesheet so it can be swapped at runtime. */
-export const THEME_LINK_ID = "deepcode-theme-css";
+export const THEME_LINK_ID = "deeporca-theme-css";
 
 const THEME_STYLESHEETS: Record<Theme, string> = {
   aqua: "./styles.css",

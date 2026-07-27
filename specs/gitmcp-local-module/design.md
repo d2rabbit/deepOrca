@@ -5,7 +5,7 @@
 ```mermaid
 graph LR
   subgraph desktop renderer
-    GP[GitMcpPanel<br/>rail view "gitmcp"] --> API[window.deepcode]
+    GP[GitMcpPanel<br/>rail view "gitmcp"] --> API[window.deeporca]
     MP[PluginMcpPanel<br/>MCP 页签] --> API
   end
   subgraph desktop main
@@ -15,7 +15,7 @@ graph LR
   end
   subgraph core 子进程 (stdio)
     MM -->|spawn| SV[gitmcp-server<br/>dist/gitmcp/server.js]
-    SV --> DB[(~/.deepcode/gitmcp/index.db<br/>SQLite + FTS5)]
+    SV --> DB[(~/.deeporca/gitmcp/index.db<br/>SQLite + FTS5)]
     SV --> GH[GitHub raw / API]
   end
 ```
@@ -57,10 +57,10 @@ packages/core/src/gitmcp/
 | `search_code` | `query`, `page?` | `GET api.github.com/search/code?q={query}+repo:{owner}/{repo}`；有 `GITHUB_TOKEN` 则带 Authorization |
 | `fetch_url_content` | `url` | 抓取 URL，`text/html` 用内置正则/启发式剥离为纯文本（不引 html-to-md 依赖），限制 100KB |
 
-server 由 argv 绑定单仓库（`server.js vegamo/deepcode`），工具名固定——AI 通过 server 名
+server 由 argv 绑定单仓库（`server.js vegamo/deeporca`），工具名固定——AI 通过 server 名
 `gitmcp:{owner}/{repo}` 区分仓库，避免上游动态工具名带来的复杂性。
 
-### 2.3 索引库 schema（`~/.deepcode/gitmcp/index.db`，单库多仓库）
+### 2.3 索引库 schema（`~/.deeporca/gitmcp/index.db`，单库多仓库）
 
 ```sql
 CREATE TABLE repos (
@@ -125,7 +125,7 @@ GitmcpReindex(slug)→ { ok: boolean; error?: string }   // 触发重建（经 s
 - `gitmcpList()`：读 `resolveCurrentSettings().mcpServers` 过滤 `gitmcp:` 前缀 + disable sidecar +
   `manager.getMcpStatus()` + core 索引库元数据（`repos` 表）合成 `GitmcpRepoEntry[]`
 - `gitmcpAdd(input)`：`parseRepoSlug` 校验（R4）→ 查重（R5）→ 写用户级 settings（R2，
-  gitmcp 条目统一落**用户级** `~/.deepcode/settings.json`，因索引库本就跨项目共享）→ reload 连接
+  gitmcp 条目统一落**用户级** `~/.deeporca/settings.json`，因索引库本就跨项目共享）→ reload 连接
 - `gitmcpRemove(slug)`：复用 `pluginRemoveMcpServer("gitmcp:"+slug)` 逻辑 + `removeGitmcpRepoIndex(slug)`（R7）
 - `gitmcpReindex(slug)`：调 core 的 indexer 直接重建（不经 MCP 调用，避免依赖 server 存活）（R8）
 - `pluginMcpList()` 一处修改：`builtin: name === CODEGRAPH_MCP_SERVER_NAME || isGitmcpServerName(name)`（R9，

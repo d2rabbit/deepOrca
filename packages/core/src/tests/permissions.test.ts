@@ -12,6 +12,7 @@ import {
   isPathInAnyDirectory,
   parseBashSideEffects,
 } from "../common/permissions";
+import { getProjectConfigRoot } from "../common/app-dirs";
 import type { PermissionScope, PermissionSettings } from "../settings";
 
 const tempDirs: string[] = [];
@@ -363,7 +364,7 @@ test("appendProjectPermissionAllows seeds inherited permissions before adding al
     },
   });
 
-  const settingsPath = path.join(projectRoot, ".deepcode", "settings.json");
+  const settingsPath = path.join(getProjectConfigRoot(projectRoot), "settings.json");
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
   assert.deepEqual(settings.permissions, {
     allow: ["read-in-cwd", "query-git-log"],
@@ -385,7 +386,7 @@ test("appendProjectPermissionAllows moves inherited ask and deny scopes into all
     },
   });
 
-  const settingsPath = path.join(projectRoot, ".deepcode", "settings.json");
+  const settingsPath = path.join(getProjectConfigRoot(projectRoot), "settings.json");
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
   assert.deepEqual(settings.permissions, {
     allow: ["read-in-cwd", "network", "write-out-cwd"],
@@ -407,7 +408,7 @@ test("appendProjectPermissionAllows writes inherited permissions even when scope
     },
   });
 
-  const settingsPath = path.join(projectRoot, ".deepcode", "settings.json");
+  const settingsPath = path.join(getProjectConfigRoot(projectRoot), "settings.json");
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
   assert.deepEqual(settings.permissions, {
     allow: ["read-in-cwd"],

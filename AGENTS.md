@@ -4,26 +4,24 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 
 ## What this repo is
 
-`@vegamo/deepcode` — an npm **workspaces monorepo** for "Deep Code", a coding-agent
-harness tuned for DeepSeek models. Ships as a terminal CLI, an Electron desktop GUI,
-and a VSCode companion, all driven by one shared core engine.
+`deeporca` — an npm **workspaces monorepo** for "DeepOrca", a coding-agent
+harness tuned for DeepSeek models. Ships as an Electron desktop client driven by
+a shared core engine.
 
 Packages (under `packages/`):
 
 | Package | Scope npm name | Role |
 |---|---|---|
-| `core/` | `@vegamo/deepcode-core` | Engine: LLM session loop, 7 built-in tools, MCP client, permissions, settings. No UI deps. |
-| `cli/` | `@vegamo/deepcode-cli` | Terminal UI built with Ink (React-for-terminals). Depends on core. |
-| `desktop/` | `@vegamo/deepcode-desktop` | Electron GUI built on the core engine (new). Depends on core. |
-| `vscode-ide-companion/` | — | VSCode extension companion. |
+| `core/` | `@deeporca/core` | Engine: LLM session loop, 7 built-in tools, MCP client, permissions, settings. No UI deps. |
+| `desktop/` | `@deeporca/desktop` | Electron GUI built on the core engine. Depends on core. |
 
-`docs/` = user-facing docs. `scripts/` = build/release/packaging JS. `.deepcode/` =
+`docs/` = user-facing docs. `scripts/` = build/release/packaging JS. `.deeporca/` =
 the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
 
 ## Layer rules (important)
 
-- **`core` must stay UI-free.** It must not import `ink`, `react`, `electron`, or
-  anything terminal/GUI-specific. UI layers (`cli`, `desktop`) depend on core, never
+- **`core` must stay UI-free.** It must not import `react`, `electron`, or
+  anything terminal/GUI-specific. The UI layer (`desktop`) depends on core, never
   the reverse.
 - **Built-in tools are deliberately minimal:** `bash`, `read`, `write`, `edit`,
   `AskUserQuestion`, `UpdatePlan`, `WebSearch`. External capabilities come via MCP —
@@ -33,7 +31,7 @@ the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
   this when touching `packages/core/src/tools/read-handler.ts` / `edit-handler.ts`.
 - **Desktop IPC:** the contract lives in `packages/desktop/src/shared/ipc.ts`
   (type-only, dependency-free so both sides can bundle it). `main/` owns the engine,
-  `preload/` runs under contextIsolation and exposes a typed `window.deepcode`,
+  `preload/` runs under contextIsolation and exposes a typed `window.deeporca`,
   `renderer/` is a browser bundle with no Node/Electron access. Edit the contract in
   `shared/ipc.ts` and wire both ends; do not ad-hoc `ipcRenderer` calls in the renderer.
 - **bash tool needs a POSIX shell.** On Windows, `setShellIfWindows()` (core) points
@@ -47,19 +45,14 @@ the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
 | `npm run lint` / `npm run lint:fix` | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js` |
 | `npm run format` / `npm run format:check` | Prettier |
 | `npm run check` | typecheck + lint + format:check (run before pushing) |
-| `npm run build` | core tsc → rewrite ESM imports → bundle CLI |
-| `npm run bundle` | git-commit info + esbuild bundle + copy assets |
+| `npm run build` | core tsc → rewrite ESM imports |
 | `npm test` | run every workspace's tests |
-| `npm run start` | run the locally built CLI |
 | `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run |
-| `npm run build:vscode` | build the VSCode companion |
 | `npm run release:version` | bump version across all packages |
 | `npm run clean` | remove generated files and `dist/` |
 
 Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/src/tests/<file>.test.ts`
 (tests use Node's native runner `node:test` + `node:assert/strict`, executed via `tsx`).
-
-Run the CLI locally after bundling: `node packages/cli/dist/cli.js`.
 
 ## Toolchain & conventions
 
@@ -73,7 +66,7 @@ Run the CLI locally after bundling: `node packages/cli/dist/cli.js`.
   `.js`. `scripts/rewrite-esm-imports.js` fixes this in `core/dist/` after build.
   When adding files to core, write source imports *without* extensions (the script
   adds them) — match existing core files.
-- **Lint:** `no-console` is off (CLI project). Unused vars/params may be `_`-prefixed.
+- **Lint:** `no-console` is off. Unused vars/params may be `_`-prefixed.
   `@typescript-eslint/consistent-type-imports` is on (warn) — reinforces `import type`.
 - **Pre-commit:** Husky runs `lint-staged` (eslint --fix + prettier --write on
   staged `*.{ts,tsx,js,mjs,cjs,jsx}` and `*.json`). Format before building to avoid
@@ -81,10 +74,10 @@ Run the CLI locally after bundling: `node packages/cli/dist/cli.js`.
 
 ## Generated / gitignored (do not edit by hand)
 
-- `packages/cli/src/generated/`, `packages/core/src/generated/` — build-time output
+- `packages/core/src/generated/` — build-time output
   (e.g. git-commit info via `scripts/generate-git-commit-info.js`).
 - `dist/`, `out/`, `*.tsbuildinfo` — build artifacts.
-- `.deepcode/settings.json`, `.env`, `.env.local` — local secrets/config.
+- `.deeporca/settings.json`, `.env`, `.env.local` — local secrets/config.
 
 ## Commits
 
@@ -106,7 +99,7 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
    `waiting_for_user` / `ask_permission` statuses are hit.
 4. **Compaction**: when active tokens exceed a threshold (512K for DeepSeek V4, 128K for others),
    the middle 2/3 of non-system messages are summarized by the LLM and replaced with a compact summary.
-5. **Persistence**: sessions are stored as `~/.deepcode/projects/<projectCode>/sessions-index.json`
+5. **Persistence**: sessions are stored as `~/.deeporca/projects/<projectCode>/sessions-index.json`
    and individual session messages as `*.jsonl` files. Each session has a file history (lightweight
    Git repo under `file-history/.git`) for undo support.
 
@@ -157,12 +150,13 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 
 ### Skills discovery (`packages/core/src/session.ts`)
 
-- Skills are scanned from 5 locations (in priority order):
-  `./.deepcode/skills/` → `./.agents/skills/` → `~/.deepcode/skills/` → `~/.agents/skills/` → bundled.
+- Skills are scanned from these locations (in priority order):
+  `./.deeporca/skills/` (or legacy `./.deepcode/skills/`) → `./.agents/skills/` →
+  `~/.deeporca/skills/` (or legacy `~/.deepcode/skills/`) → `~/.agents/skills/` → bundled.
 - Each skill directory must contain a `SKILL.md` with YAML frontmatter (`name`, `description`).
 - Automatic skill matching uses the LLM itself: candidate skill names+descriptions are sent to
   the model, which returns matching names in JSON format.
-- Three bundled skills ship with the CLI: `deepcode-self-refer`, `skill-digester`, `skill-writer`.
+- Three bundled skills ship with the product: `deeporca-self-refer`, `skill-digester`, `skill-writer`.
   `karpathy-guidelines` is injected as a default skill template.
 
 ## Areas that need extra care

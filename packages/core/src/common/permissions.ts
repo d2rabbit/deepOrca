@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { DeepcodingSettings, PermissionScope, PermissionSettings } from "../settings";
+import { getProjectConfigRoot } from "./app-dirs";
 import { isAbsoluteFilePath, normalizeFilePath } from "./state";
 
 export type BashPermissionScope = Exclude<PermissionScope, "mcp"> | "unknown";
@@ -477,7 +478,7 @@ export function appendProjectPermissionAllows(
   if (nextScopes.length === 0) {
     return;
   }
-  const settingsPath = path.join(projectRoot, ".deepcode", "settings.json");
+  const settingsPath = path.join(getProjectConfigRoot(projectRoot), "settings.json");
   let settings: DeepcodingSettings = {};
   try {
     if (fs.existsSync(settingsPath)) {

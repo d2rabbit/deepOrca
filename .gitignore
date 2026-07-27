@@ -16,6 +16,7 @@ out/
 *.log
 *.vsix
 .deepcode/settings.json
+.deeporca/settings.json
 .qoder/
 .superpowers/
 .zcode/
@@ -28,10 +29,7 @@ out/
 .env.local
 
 # Generated files
-packages/cli/src/generated/
 packages/core/src/generated/
-packages/vscode-ide-companion/*.vsix
-packages/vscode-ide-companion/templates/
 
 # Vendored CodeGraph/OpenWiki builds (checked out + compiled at build time via scripts/vendor-*.js)
 packages/desktop/vendor/
