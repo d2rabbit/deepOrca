@@ -41,6 +41,9 @@ export const IpcRequest = {
 
   PromptSend: "prompt:send",
   PromptInterrupt: "prompt:interrupt",
+  PromptPause: "prompt:pause",
+  PromptResume: "prompt:resume",
+  PromptEnhance: "prompt:enhance",
   PermissionDeny: "permission:deny",
   AdjustBashTimeout: "prompt:adjustBashTimeout",
 
@@ -410,6 +413,12 @@ export type DesktopApi = {
 
   sendPrompt(prompt: UserPromptContent): Promise<{ ok: boolean; error?: string }>;
   interrupt(): Promise<void>;
+  /** Gracefully pause the running session at the next loop checkpoint. */
+  pausePrompt(): Promise<{ sessionId: string | null }>;
+  /** Resume a paused/interrupted session; resolves when the loop exits again. */
+  resumePrompt(sessionId: string): Promise<{ ok: boolean; error?: string }>;
+  /** Rewrite a draft prompt via the flash model (prompt enhancement). */
+  enhancePrompt(text: string): Promise<{ ok: boolean; text?: string; error?: string }>;
   denyPermission(reason?: string): Promise<void>;
   adjustBashTimeout(deltaMs: number): Promise<{ timeoutMs: number } | null>;
 

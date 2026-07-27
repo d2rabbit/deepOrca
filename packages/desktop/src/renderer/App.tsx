@@ -145,6 +145,7 @@ export function App(): JSX.Element {
   const [draft, setDraft] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
   const [planMode, setPlanMode] = useState(false);
   const [statusLine, setStatusLine] = useState<string | null>(null);
   const [errorLine, setErrorLine] = useState<string | null>(null);
@@ -507,6 +508,8 @@ export function App(): JSX.Element {
       } finally {
         setBusy(false);
         setStreamProgress(null);
+        // Drop a stale "pausing…" notice once the loop has actually exited.
+        setStatusLine((prev) => (prev === t("composer.pausing") ? null : prev));
       }
     },
     [pendingPermissionReply, refreshSessions, refreshSkills, t]
@@ -532,6 +535,56 @@ export function App(): JSX.Element {
   const handleStop = useCallback(() => {
     void api.interrupt();
   }, []);
+
+  const handlePause = useCallback(() => {
+    setStatusLine(t("composer.pausing"));
+    void api.pausePrompt();
+  }, [t]);
+
+  const handleResume = useCallback(async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    setBusy(true);
+    setErrorLine(null);
+    setStatusLine(null);
+    try {
+      const result = await api.resumePrompt(sessionId);
+      if (!result.ok) {
+        setErrorLine(result.error ?? t("app.requestFailed"));
+      }
+      const [msgs, entry] = await Promise.all([api.listMessages(sessionId), api.getSession(sessionId)]);
+      setMessages(msgs);
+      setActiveStatus(entry?.status ?? null);
+      setAskPermissions(entry?.askPermissions);
+      await refreshSessions();
+    } catch (error) {
+      setErrorLine(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+      setStreamProgress(null);
+    }
+  }, [refreshSessions, t]);
+
+  const handleEnhance = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || enhancing) return;
+    setEnhancing(true);
+    setErrorLine(null);
+    setStatusLine(t("composer.enhancing"));
+    try {
+      const result = await api.enhancePrompt(text);
+      if (result.ok && result.text) {
+        setDraft(result.text);
+      } else if (!result.ok) {
+        setErrorLine(result.error ?? t("composer.enhanceFailed"));
+      }
+    } catch (error) {
+      setErrorLine(error instanceof Error ? error.message : String(error));
+    } finally {
+      setEnhancing(false);
+      setStatusLine(null);
+    }
+  }, [draft, enhancing, t]);
 
   const handlePermissionResult = useCallback(
     (result: PermissionResult) => {
@@ -1322,6 +1375,11 @@ export function App(): JSX.Element {
                 onChange={setDraft}
                 onSend={handleSend}
                 onStop={handleStop}
+                onPause={handlePause}
+                onResume={() => void handleResume()}
+                canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
+                onEnhance={() => void handleEnhance()}
+                enhancing={enhancing}
                 busy={busy}
                 disabled={composerDisabled}
                 planMode={planMode}

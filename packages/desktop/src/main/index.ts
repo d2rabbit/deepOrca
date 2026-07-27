@@ -277,6 +277,23 @@ function registerIpc(): void {
     }
   });
   handle(IpcRequest.PromptInterrupt, () => getBridge().interrupt());
+  handle(IpcRequest.PromptPause, () => getBridge().pause());
+  handle(IpcRequest.PromptResume, async (sessionId: string) => {
+    try {
+      await getBridge().resume(sessionId);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  handle(IpcRequest.PromptEnhance, async (text: string) => {
+    try {
+      const enhanced = await getBridge().enhancePrompt(text);
+      return { ok: true, text: enhanced };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
   handle(IpcRequest.PermissionDeny, (reason?: string) => getBridge().denyPermission(reason));
   handle(IpcRequest.AdjustBashTimeout, (deltaMs: number) => getBridge().adjustBashTimeout(deltaMs));
 

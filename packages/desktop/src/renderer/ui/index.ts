@@ -44,4 +44,5 @@ export {
   IconToolGeneric,
   IconChat,
   IconEditor,
+  IconMagicWand,
 } from "./icons";

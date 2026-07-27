@@ -28,6 +28,7 @@ const KNOWN_STATUSES = new Set([
   "completed",
   "error",
   "interrupted",
+  "paused",
   "ask_permission",
   "waiting_for_user",
   "compacting",

@@ -489,3 +489,24 @@ export function IconEditor(): JSX.Element {
     </svg>
   );
 }
+
+/** Magic wand with sparkles — prompt enhancement */
+export function IconMagicWand(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M13.2 6.8 3.5 16.5M15 5l-1.8 1.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15.5 9.5v3M14 11h3M6.5 2.5v3M5 4h3M17 15.5v2M16 16.5h2"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

@@ -1109,6 +1109,22 @@ select {
   width: 26px;
 }
 
+/* Prompt-enhance magic wand: gentle pulse while the flash model rewrites the draft. */
+.ui-composer-enhance.enhancing svg {
+  animation: ui-enhance-pulse 1s ease-in-out infinite;
+}
+@keyframes ui-enhance-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.86);
+  }
+}
+
 .ui-icon-btn {
   width: 32px;
   height: 32px;

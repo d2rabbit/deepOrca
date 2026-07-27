@@ -31,6 +31,9 @@ const api: DesktopApi = {
 
   sendPrompt: (prompt) => ipcRenderer.invoke(IpcRequest.PromptSend, prompt),
   interrupt: () => ipcRenderer.invoke(IpcRequest.PromptInterrupt),
+  pausePrompt: () => ipcRenderer.invoke(IpcRequest.PromptPause),
+  resumePrompt: (sessionId) => ipcRenderer.invoke(IpcRequest.PromptResume, sessionId),
+  enhancePrompt: (text) => ipcRenderer.invoke(IpcRequest.PromptEnhance, text),
   denyPermission: (reason) => ipcRenderer.invoke(IpcRequest.PermissionDeny, reason),
   adjustBashTimeout: (deltaMs) => ipcRenderer.invoke(IpcRequest.AdjustBashTimeout, deltaMs),
 

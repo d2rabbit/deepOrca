@@ -360,6 +360,18 @@ export class SessionBridge {
     this.manager.interruptActiveSession();
   }
 
+  pause(): { sessionId: string | null } {
+    return { sessionId: this.manager.pauseActiveSession() };
+  }
+
+  async resume(sessionId: string): Promise<void> {
+    await this.manager.resumeSession(sessionId);
+  }
+
+  enhancePrompt(text: string): Promise<string> {
+    return this.manager.enhancePrompt(text);
+  }
+
   adjustBashTimeout(deltaMs: number): { timeoutMs: number } | null {
     const result = this.manager.adjustActiveBashTimeout(deltaMs);
     return result ? { timeoutMs: result.timeoutMs } : null;

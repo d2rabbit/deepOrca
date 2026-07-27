@@ -226,6 +226,7 @@ export type SessionStatus =
   | "waiting_for_user"
   | "completed"
   | "interrupted"
+  | "paused"
   | "ask_permission"
   | "permission_denied";
 
@@ -398,6 +399,8 @@ export class SessionManager {
   private activeSessionId: string | null = null;
   private activePromptController: AbortController | null = null;
   private readonly sessionControllers = new Map<string, AbortController>();
+  /** Sessions with a graceful-pause request pending; honored at the next loop boundary. */
+  private readonly pauseRequestedSessions = new Set<string>();
   private readonly processTimeoutControls = new Map<string, ProcessTimeoutControl>();
   private readonly liveProcessKeys = new Set<string>();
   private readonly toolExecutor: ToolExecutor;
@@ -915,6 +918,62 @@ ${agentInstructions}
       }
       return [];
     }
+  }
+
+  /**
+   * Rewrite a draft user prompt into a clearer, more actionable prompt.
+   * Like skill matching, this is a lightweight single-turn task and is always
+   * routed to the flash model with thinking disabled — it must never consume
+   * pro-level reasoning tokens.
+   */
+  async enhancePrompt(draftPrompt: string, options?: { signal?: AbortSignal }): Promise<string> {
+    this.throwIfAborted(options?.signal);
+    const draft = draftPrompt.trim();
+    if (!draft) {
+      return draftPrompt;
+    }
+
+    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    if (!client) {
+      throw new Error("API key not found. Please configure your settings first.");
+    }
+    const model = LIGHTWEIGHT_TASK_MODEL;
+
+    const systemPrompt = `You are a prompt engineer for a coding agent. Rewrite the user's draft prompt so the agent can act on it precisely.
+
+Rules:
+- Keep the user's original intent, scope and language (Chinese stays Chinese, English stays English).
+- Make the goal explicit; clarify vague verbs; keep any file paths, code identifiers, error messages and constraints verbatim.
+- Structure multi-part requests as short numbered points when it helps.
+- Do NOT invent requirements, do NOT ask questions, do NOT add explanations.
+- Output ONLY the rewritten prompt text, no preamble, no quotes, no markdown fences.`;
+
+    const response = await this.createChatCompletionStream(
+      client,
+      {
+        model,
+        temperature: 0.3,
+        max_tokens: 2048,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: draft },
+        ],
+        ...buildThinkingRequestOptions(false, baseURL),
+      },
+      options?.signal ? { signal: options.signal } : undefined,
+      undefined,
+      {
+        enabled: debugLogEnabled,
+        location: "SessionManager.enhancePrompt",
+        baseURL,
+        params: { purpose: "prompt-enhance", model, temperature: 0.3 },
+      }
+    );
+    this.throwIfAborted(options?.signal);
+
+    const rawContent = response.choices?.[0]?.message?.content;
+    const enhanced = typeof rawContent === "string" ? rawContent.trim() : "";
+    return enhanced || draftPrompt;
   }
 
   private getSkillScanRoots(): Array<{ root: string; displayRoot: string }> {
@@ -1597,6 +1656,8 @@ ${content}
     }));
 
     this.sessionControllers.set(sessionId, sessionController);
+    // A fresh activation must not inherit a stale pause request from a previous run.
+    this.pauseRequestedSessions.delete(sessionId);
 
     try {
       const maxIterations = 80000; // about 1K RMB cost
@@ -1604,6 +1665,11 @@ ${content}
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
         if (this.isInterrupted(sessionId)) {
+          return;
+        }
+
+        if (this.consumePauseRequest(sessionId)) {
+          this.markSessionPaused(sessionId);
           return;
         }
 
@@ -1707,6 +1773,13 @@ ${content}
         }
         this.appendSessionMessage(sessionId, assistantMessage);
         this.onAssistantMessage(assistantMessage, true);
+
+        // Second pause checkpoint: pausing here leaves the tool calls pending, so a
+        // later resume re-enters the loop and executes them via the trailing-pending path.
+        if (this.consumePauseRequest(sessionId)) {
+          this.markSessionPaused(sessionId);
+          return;
+        }
 
         let waitingForUser = false;
         const responseUsage = response.usage ?? null;
@@ -1904,6 +1977,63 @@ ${content}
     reportNewPrompt({ enabled: telemetryEnabled ?? true, machineId });
   }
 
+  /**
+   * Request a graceful pause of the active session. Unlike interrupt, this does
+   * not abort the in-flight LLM request or kill processes — the loop stops at
+   * the next checkpoint (before the next LLM call or before executing freshly
+   * returned tool calls) and the session is marked "paused" so it can be
+   * resumed later without losing any state.
+   * Returns the session id the pause was requested for, or null when there is
+   * no session currently running.
+   */
+  pauseActiveSession(): string | null {
+    const sessionId = this.activeSessionId;
+    if (!sessionId || !this.sessionControllers.has(sessionId)) {
+      return null;
+    }
+    this.pauseRequestedSessions.add(sessionId);
+    return sessionId;
+  }
+
+  /**
+   * Resume a paused (or interrupted) session by re-entering the LLM loop.
+   * Trailing pending tool calls left by a pause checkpoint are executed first
+   * by the loop's trailing-pending path, so no work is lost.
+   */
+  async resumeSession(sessionId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    if (this.sessionControllers.has(sessionId)) {
+      // Already running — nothing to resume.
+      return;
+    }
+    const controller = new AbortController();
+    this.activePromptController = controller;
+    try {
+      this.activeSessionId = sessionId;
+      await this.activateSession(sessionId, controller);
+    } finally {
+      if (this.activePromptController === controller) {
+        this.activePromptController = null;
+      }
+    }
+  }
+
+  private consumePauseRequest(sessionId: string): boolean {
+    return this.pauseRequestedSessions.delete(sessionId);
+  }
+
+  private markSessionPaused(sessionId: string): void {
+    this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      status: "paused",
+      failReason: null,
+      updateTime: new Date().toISOString(),
+    }));
+  }
+
   interruptActiveSession(): void {
     const controller = this.activePromptController;
     if (controller && !controller.signal.aborted) {
@@ -1937,6 +2067,7 @@ ${content}
       controller.abort();
       this.sessionControllers.delete(sessionId);
     }
+    this.pauseRequestedSessions.delete(sessionId);
 
     const now = new Date().toISOString();
     this.updateSessionEntry(sessionId, (entry) => ({

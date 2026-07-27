@@ -2,13 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "rea
 import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n } from "../i18n";
 import { FileMentionMenu } from "./FileMentionMenu";
-import { Button, Switch } from "../ui/index";
+import { Button, Switch, IconMagicWand } from "../ui/index";
 
 type Props = {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
   onStop: () => void;
+  /** Gracefully pause the running task at the next checkpoint. */
+  onPause?: () => void;
+  /** Resume a paused/interrupted task. */
+  onResume?: () => void;
+  /** True when the active session can be resumed (paused/interrupted). */
+  canResume?: boolean;
+  /** Rewrite the draft via the flash model (magic-wand button). */
+  onEnhance?: () => void;
+  /** True while a prompt enhancement request is in flight. */
+  enhancing?: boolean;
   busy: boolean;
   disabled: boolean;
   planMode: boolean;
@@ -76,6 +86,11 @@ export function Composer(props: Props): JSX.Element {
     onChange,
     onSend,
     onStop,
+    onPause,
+    onResume,
+    canResume = false,
+    onEnhance,
+    enhancing = false,
     busy,
     disabled,
     planMode,
@@ -182,7 +197,7 @@ export function Composer(props: Props): JSX.Element {
     prevDisabledRef.current = disabled;
   }, [disabled]);
 
-  const canSend = !busy && !disabled && (value.trim().length > 0 || selectedSkills.length > 0);
+  const canSend = !busy && !disabled && !enhancing && (value.trim().length > 0 || selectedSkills.length > 0);
 
   const applySlash = useCallback(
     (item: SlashCandidate) => {
@@ -555,13 +570,40 @@ export function Composer(props: Props): JSX.Element {
               {planMode ? t("composer.planHint") || "Type a plan request · Shift+Tab to toggle" : t("composer.hint")}
             </span>
             {busy ? (
-              <Button variant="danger" size="sm" onClick={onStop}>
-                {t("composer.stop")}
-              </Button>
+              <>
+                {onPause ? (
+                  <Button size="sm" onClick={onPause} title={t("composer.pausing")}>
+                    {t("composer.pause")}
+                  </Button>
+                ) : null}
+                <Button variant="danger" size="sm" onClick={onStop}>
+                  {t("composer.stop")}
+                </Button>
+              </>
             ) : (
-              <Button variant="primary" size="sm" onClick={onSend} disabled={!canSend}>
-                {t("composer.send")}
-              </Button>
+              <>
+                {onEnhance ? (
+                  <Button
+                    size="sm"
+                    icon
+                    className={`ui-composer-enhance${enhancing ? " enhancing" : ""}`}
+                    onClick={onEnhance}
+                    disabled={enhancing || disabled || value.trim().length === 0}
+                    title={enhancing ? t("composer.enhancing") : t("composer.enhance")}
+                    aria-label={t("composer.enhance")}
+                  >
+                    <IconMagicWand />
+                  </Button>
+                ) : null}
+                {canResume && onResume ? (
+                  <Button variant="primary" size="sm" onClick={onResume} disabled={disabled}>
+                    {t("composer.resume")}
+                  </Button>
+                ) : null}
+                <Button variant="primary" size="sm" onClick={onSend} disabled={!canSend}>
+                  {t("composer.send")}
+                </Button>
+              </>
             )}
           </div>
         </div>
