@@ -360,7 +360,6 @@ export type EditableSettings = {
   /** True when an API key is provided via environment and would override the file value. */
   hasEnvApiKey: boolean;
   apiKey: string;
-  baseURL: string;
   model: string;
   /** Empty string means "unset". */
   temperature: string;

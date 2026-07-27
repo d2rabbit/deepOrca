@@ -399,7 +399,6 @@ export class SessionBridge {
       saveTargetPath: target === "project" ? getProjectSettingsPath(this.projectRoot) : getUserSettingsPath(),
       hasEnvApiKey: Boolean(getEnvVar("API_KEY")),
       apiKey: env.API_KEY ?? "",
-      baseURL: env.BASE_URL ?? "",
       model: raw.model ?? "",
       temperature: raw.temperature != null ? String(raw.temperature) : "",
       thinkingEnabled: raw.thinkingEnabled ?? resolved.thinkingEnabled,
@@ -429,12 +428,9 @@ export class SessionBridge {
     } else {
       delete env.API_KEY;
     }
-    const baseURL = patch.baseURL.trim();
-    if (baseURL) {
-      env.BASE_URL = baseURL;
-    } else {
-      delete env.BASE_URL;
-    }
+    // The endpoint is locked to DeepSeek's first-party API in this release —
+    // the GUI no longer edits BASE_URL. Any value already present in the
+    // settings file (power-user escape hatch) is preserved untouched.
     if (Object.keys(env).length > 0) {
       next.env = env;
     } else {

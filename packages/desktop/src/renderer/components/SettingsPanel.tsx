@@ -243,12 +243,9 @@ export function SettingsPanel({
                   </Field>
 
                   <Field label={t("settings.baseUrl")} hint={t("settings.baseUrlHint")}>
-                    <Input
-                      type="text"
-                      value={s.baseURL}
-                      placeholder="https://api.deepseek.com"
-                      onChange={(e) => patch({ baseURL: e.target.value })}
-                    />
+                    {/* Endpoint is locked to DeepSeek's first-party API in this
+                       release — shown read-only so the user knows where requests go. */}
+                    <Input type="text" value="https://api.deepseek.com" disabled readOnly />
                   </Field>
 
                   <Field label={t("settings.model")}>

@@ -234,7 +234,8 @@ export const ja: Record<MessageKey, string> = {
   "settings.apiKey": "API キー",
   "settings.envOverride": "環境変数 DEEPORCA_API_KEY にも API キーが設定されており、この値を上書きします。",
   "settings.baseUrl": "Base URL",
-  "settings.baseUrlHint": "空欄の場合はデフォルトの DeepSeek エンドポイントを使用します。",
+  "settings.baseUrlHint":
+    "DeepSeek 公式エンドポイントに固定されています——現バージョンではサードパーティエンドポイントは未対応です。",
   "settings.model": "モデル",
   "settings.temperature": "温度",
   "settings.temperaturePlaceholder": "未設定（0〜2）",

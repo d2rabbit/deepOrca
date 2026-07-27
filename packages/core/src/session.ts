@@ -20,7 +20,7 @@ import {
   isGitmcpServerName,
 } from "./gitmcp/resolve";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
-import { DEEPSEEK_V4_MODELS, COMPACTION_MODEL } from "./common/model-capabilities";
+import { DEEPSEEK_V4_MODELS, COMPACTION_MODEL, LIGHTWEIGHT_TASK_MODEL } from "./common/model-capabilities";
 import { readTextFileWithMetadata } from "./common/file-utils";
 import {
   buildSkillDocumentsPrompt,
@@ -83,6 +83,9 @@ const PROJECT_CODE_HASH_LENGTH = 16;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
 const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
+// Compaction wants faithful, reproducible summaries — a fixed low temperature
+// (instead of the user's conversational setting) keeps them deterministic.
+const COMPACTION_TEMPERATURE = 0.3;
 const PLAN_MODE_ON_STATUS_MESSAGE = "  └ Set Plan Mode on. Awaiting <proposed_plan>.";
 const PLAN_MODE_OFF_STATUS_MESSAGE = "  └ Set Plan Mode off.";
 const PLAN_MODE_FORCE_ASK_SCOPES = [
@@ -846,10 +849,14 @@ If none of the available skills match, respond with an empty array, i.e. \`{"ski
     }
     const candidateSkillNames = new Set(simpleSkills.map((skill) => skill.name));
 
-    const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
     if (!client) {
       return [];
     }
+    // Skill matching is a tiny classification task — route it to the v4 flash
+    // model with thinking explicitly disabled and a tight output cap so it
+    // never burns pro-level reasoning tokens or adds avoidable latency.
+    const model = LIGHTWEIGHT_TASK_MODEL;
 
     const agentInstructions = this.loadAgentInstructions();
     if (agentInstructions) {
@@ -868,11 +875,13 @@ ${agentInstructions}
         {
           model,
           temperature: 0.1,
+          max_tokens: 256,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
           response_format: { type: "json_object" },
+          ...buildThinkingRequestOptions(false, baseURL),
         },
         options?.signal ? { signal: options.signal } : undefined,
         options?.sessionId,
@@ -880,7 +889,7 @@ ${agentInstructions}
           enabled: debugLogEnabled,
           location: "SessionManager.identifyMatchingSkillNames",
           baseURL,
-          params: { purpose: "skill-matching", temperature: 0.1 },
+          params: { purpose: "skill-matching", model, temperature: 0.1 },
         }
       );
       this.throwIfAborted(options?.signal);
@@ -1794,7 +1803,7 @@ ${content}
 
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
     this.throwIfAborted(signal);
-    const { client, baseURL, temperature, debugLogEnabled } = this.createOpenAIClient();
+    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
     if (!client) {
       return;
     }
@@ -1803,6 +1812,7 @@ ${content}
     const model = COMPACTION_MODEL;
     const thinkingEnabled = false;
     const reasoningEffort = undefined;
+    const temperature = COMPACTION_TEMPERATURE;
     const sessionMessages = this.listSessionMessages(sessionId).filter((message) => !message.compacted);
     if (sessionMessages.length === 0) {
       return;
@@ -1831,7 +1841,7 @@ ${content}
       client,
       {
         model,
-        ...(temperature !== undefined ? { temperature } : {}),
+        temperature,
         messages: [{ role: "user", content: compactPrompt }],
         ...thinkingOptions,
       },

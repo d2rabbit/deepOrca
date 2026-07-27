@@ -234,7 +234,7 @@ export const zhHK: Record<MessageKey, string> = {
   "settings.apiKey": "API Key",
   "settings.envOverride": "環境變數 DEEPORCA_API_KEY 也設定了 API Key，會覆寫此處的值。",
   "settings.baseUrl": "Base URL",
-  "settings.baseUrlHint": "留空則使用預設的 DeepSeek 端點。",
+  "settings.baseUrlHint": "已鎖定為 DeepSeek 官方端點——目前版本不支援第三方端點。",
   "settings.model": "模型",
   "settings.temperature": "溫度",
   "settings.temperaturePlaceholder": "未設定（0–2）",

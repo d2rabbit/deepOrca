@@ -240,7 +240,8 @@ export const en = {
   "settings.envOverride":
     "An API key is also set via the DEEPORCA_API_KEY environment variable, which overrides this value.",
   "settings.baseUrl": "Base URL",
-  "settings.baseUrlHint": "Leave empty to use the default DeepSeek endpoint.",
+  "settings.baseUrlHint":
+    "Locked to the official DeepSeek endpoint — third-party endpoints are not supported in this release.",
   "settings.model": "Model",
   "settings.temperature": "Temperature",
   "settings.temperaturePlaceholder": "unset (0–2)",
@@ -794,7 +795,7 @@ export const zh: Record<MessageKey, string> = {
   "settings.apiKey": "API Key",
   "settings.envOverride": "环境变量 DEEPORCA_API_KEY 也设置了 API Key，会覆盖此处的值。",
   "settings.baseUrl": "Base URL",
-  "settings.baseUrlHint": "留空则使用默认的 DeepSeek 端点。",
+  "settings.baseUrlHint": "已锁定为 DeepSeek 官方端点——当前版本不支持第三方端点。",
   "settings.model": "模型",
   "settings.temperature": "温度",
   "settings.temperaturePlaceholder": "未设置（0–2）",

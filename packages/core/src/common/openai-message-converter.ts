@@ -104,11 +104,13 @@ export class OpenAIMessageConverter {
     if (messageParams?.tool_call_id) {
       (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
     }
-    if (typeof messageParams?.reasoning_content === "string") {
-      (base as { reasoning_content?: string }).reasoning_content = messageParams.reasoning_content;
-    } else if (thinkingEnabled && message.role === "assistant") {
-      // Thinking-mode providers require every replayed assistant message
-      // to include the reasoning_content field, even when it is empty.
+    if (thinkingEnabled && message.role === "assistant") {
+      // Thinking-mode providers require every replayed assistant message to
+      // carry the reasoning_content field, but per DeepSeek's API contract the
+      // content itself must not be sent back. Always replaying it empty keeps
+      // the request valid, avoids re-uploading megabytes of historical
+      // reasoning as prompt tokens each iteration, and keeps the replayed
+      // prefix byte-stable for the server-side context cache.
       (base as { reasoning_content?: string }).reasoning_content = "";
     }
 

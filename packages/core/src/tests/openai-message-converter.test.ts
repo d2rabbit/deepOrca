@@ -121,7 +121,7 @@ test("OpenAIMessageConverter injects reasoning_content in thinking mode", () => 
   assert.equal(Object.prototype.hasOwnProperty.call(nonThinking[0] ?? {}, "reasoning_content"), false);
 });
 
-test("OpenAIMessageConverter preserves existing reasoning_content from messageParams", () => {
+test("OpenAIMessageConverter never replays stored reasoning_content back to the API", () => {
   const c = converter();
   const messages: SessionMessage[] = [
     msg({
@@ -131,9 +131,13 @@ test("OpenAIMessageConverter preserves existing reasoning_content from messagePa
     }),
   ];
 
-  const result = c.buildMessages(messages, false, "test-model") as Array<{ reasoning_content?: string }>;
+  const thinking = c.buildMessages(messages, true, "test-model") as Array<{ reasoning_content?: string }>;
+  const nonThinking = c.buildMessages(messages, false, "test-model") as Array<{ reasoning_content?: string }>;
 
-  assert.equal(result[0]?.reasoning_content, "deep thought");
+  // DeepSeek's contract: the field must exist on replayed assistant messages
+  // in thinking mode but its historical content must never be sent back.
+  assert.equal(thinking[0]?.reasoning_content, "");
+  assert.equal(Object.prototype.hasOwnProperty.call(nonThinking[0] ?? {}, "reasoning_content"), false);
 });
 
 test("OpenAIMessageConverter uses /init prompt via renderInitPrompt callback", () => {

@@ -7,6 +7,14 @@ export const DEEPSEEK_V4_MODELS = new Set(["deepseek-v4-flash", "deepseek-v4-pro
  */
 export const COMPACTION_MODEL = "deepseek-v4-flash";
 
+/**
+ * Model for lightweight internal LLM subtasks (skill matching, classification,
+ * short structured outputs). Same rationale as COMPACTION_MODEL: these tasks
+ * need low latency and cheap tokens, not the pro model's full reasoning depth,
+ * so they are always routed to the v4 flash variant.
+ */
+export const LIGHTWEIGHT_TASK_MODEL = "deepseek-v4-flash";
+
 export const NON_MULTIMODAL_MODELS = new Set([
   "deepseek-v4-pro",
   "deepseek-v4-flash",
