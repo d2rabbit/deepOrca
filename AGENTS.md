@@ -17,6 +17,12 @@ Packages (under `packages/`):
 
 `docs/` = user-facing docs. `scripts/` = build/release/packaging JS. `.deeporca/` =
 the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
+`specs/` = feature specs (requirements/design/tasks). `docs-site/` = static GitHub Pages site.
+
+**Branch policy: `master` is the mainline.** Base new work on `master` and merge/release
+from it. Older branches (`main`, `feat/*`) predate the DeepOrca desktop-only refactor —
+a leftover untracked `packages/cli/` directory may exist on disk from them; `master`
+does not track it, don't edit or commit it.
 
 ## Layer rules (important)
 
@@ -48,6 +54,7 @@ the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
 | `npm run build` | core tsc → rewrite ESM imports |
 | `npm test` | run every workspace's tests |
 | `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run |
+| `npm run desktop:startMac` / `startWin` / `startLx` | build+run with per-OS setup via `scripts/desktop-start.js` |
 | `npm run release:version` | bump version across all packages |
 | `npm run clean` | remove generated files and `dist/` |
 
@@ -74,9 +81,9 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
 
 ## Generated / gitignored (do not edit by hand)
 
-- `packages/core/src/generated/` — build-time output
-  (e.g. git-commit info via `scripts/generate-git-commit-info.js`).
+- `packages/core/src/generated/` — build-time output.
 - `dist/`, `out/`, `*.tsbuildinfo` — build artifacts.
+- `vendor-src/`, `packages/desktop/vendor/` — vendored CodeGraph/OpenWiki clones + compiled builds.
 - `.deeporca/settings.json`, `.env`, `.env.local` — local secrets/config.
 
 ## Commits
@@ -147,6 +154,20 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 - Tools are discovered through `tools/list` and cached. On `tools/list` changed notifications,
   `mcpToolDefinitions` are refreshed in the session manager.
 - `getMcpToolDefinitions()` returns `ToolDefinition[]` that gets merged into the LLM's tool list.
+
+### Desktop build & vendored tools (`packages/desktop/build.mjs`)
+
+- `desktop:build` runs esbuild to produce three bundles under `packages/desktop/dist/`:
+  `main.js` (ESM, main process, node deps + core kept external), `preload.cjs`
+  (CJS — required for sandboxed preload), and `renderer/` (browser bundle + html/css).
+- Every desktop build also **vendors CodeGraph and OpenWiki**: `scripts/vendor-codegraph.js`
+  / `vendor-openwiki.js` keep persistent clones in `vendor-src/` (gitignored), fetch
+  upstream, and recompile into `packages/desktop/vendor/<name>` only when HEAD changed
+  (`.vendored-head` marker; `--force` to rebuild). Vendoring is best-effort: on
+  network/git failure the existing vendored copy keeps working, otherwise runtime
+  falls back to `npx`.
+- CodeGraph needs Node 22.5+ at runtime (`node:sqlite`); the desktop client runs the
+  vendored entry through a system Node 22+ binary (see `packages/core/src/common/codegraph.ts`).
 
 ### Skills discovery (`packages/core/src/session.ts`)
 
