@@ -16,6 +16,8 @@
 // Env overrides:
 //   CODEGRAPH_REPO  (default https://github.com/colbymchenry/codegraph.git)
 //   CODEGRAPH_REF   (default main)
+// Mirror repos are tried automatically whenever the primary GitHub clone or
+// fetch fails, so builds keep working when github.com is unreachable.
 
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -29,7 +31,11 @@ const targetDir = join(repoRoot, "packages", "desktop", "vendor", "codegraph");
 const entryFile = join(targetDir, "dist", "bin", "codegraph.js");
 const headFile = join(targetDir, ".vendored-head");
 
-const REPO = process.env.CODEGRAPH_REPO || "https://github.com/colbymchenry/codegraph.git";
+// Primary GitHub source first; gitcode mirror backs it up when GitHub is blocked.
+const REPOS = [
+  process.env.CODEGRAPH_REPO || "https://github.com/colbymchenry/codegraph.git",
+  "https://gitcode.com/GitHub_Trending/co0degr/codegraph.git",
+];
 const REF = process.env.CODEGRAPH_REF || "main";
 const force = process.argv.includes("--force");
 const isWindows = process.platform === "win32";
@@ -51,36 +57,84 @@ function getHead(dir) {
   }
 }
 
+function cloneWithFallback(branch, dest) {
+  let lastError = null;
+  for (const repo of REPOS) {
+    log(`cloning ${repo} @ ${branch} …`);
+    try {
+      run("git", ["clone", "--branch", branch, repo, dest]);
+      return repo;
+    } catch (error) {
+      lastError = error;
+      log(`clone from ${repo} failed — trying next mirror …`);
+    }
+  }
+  throw lastError ?? new Error("all mirrors failed to clone");
+}
+
+function fetchWithFallback(dir, branch) {
+  // Try each repo as a git remote so a blocked primary can fall back to a mirror.
+  for (const repo of REPOS) {
+    const remoteName = repo === REPOS[0] ? "origin" : "backup";
+    try {
+      run("git", ["remote", "set-url", remoteName, repo], dir);
+    } catch {
+      run("git", ["remote", "add", remoteName, repo], dir);
+    }
+    log(`fetching ${repo} …`);
+    try {
+      run("git", ["fetch", remoteName, branch], dir);
+      return remoteName;
+    } catch {
+      log(`fetch from ${repo} failed — trying next mirror …`);
+    }
+  }
+  return null;
+}
+
 function main() {
   // ── Step 1: Ensure persistent source clone exists ──
   if (!existsSync(join(sourceDir, ".git"))) {
-    log(`cloning ${REPO} @ ${REF} → vendor-src/codegraph …`);
+    log(`cloning → vendor-src/codegraph @ ${REF}`);
     mkdirSync(dirname(sourceDir), { recursive: true });
     try {
-      run("git", ["clone", "--branch", REF, REPO, sourceDir]);
+      cloneWithFallback(REF, sourceDir);
     } catch (error) {
       // Offline / blocked network: keep any existing vendored build working.
       if (existsSync(entryFile)) {
-        log("clone failed (offline?) — keeping the existing vendored build.");
+        log("clone failed on all mirrors (offline?) — keeping the existing vendored build.");
         return;
       }
       throw error;
     }
   } else {
-    // Fetch latest from remote.
     log("fetching upstream updates …");
-    try {
-      run("git", ["fetch", "origin", REF], sourceDir);
-    } catch {
-      log("fetch failed (offline?) — using local source.");
+    const remote = fetchWithFallback(sourceDir, REF);
+    if (!remote) {
+      log("fetch failed on all mirrors (offline?) — using local source.");
     }
   }
 
-  // Reset to latest remote HEAD.
-  try {
-    run("git", ["reset", "--hard", `origin/${REF}`], sourceDir);
-  } catch {
-    // If origin/REF doesn't exist (detached), stay on current.
+  // Reset to the latest fetched HEAD from whichever remote succeeded (origin preferred).
+  const fetchedRemote = (() => {
+    try {
+      run("git", ["rev-parse", "--verify", `origin/${REF}`], sourceDir);
+      return "origin";
+    } catch {
+      try {
+        run("git", ["rev-parse", "--verify", `backup/${REF}`], sourceDir);
+        return "backup";
+      } catch {
+        return null;
+      }
+    }
+  })();
+  if (fetchedRemote) {
+    try {
+      run("git", ["reset", "--hard", `${fetchedRemote}/${REF}`], sourceDir);
+    } catch {
+      // If the ref is missing (detached), stay on current.
+    }
   }
 
   const currentHead = getHead(sourceDir);
