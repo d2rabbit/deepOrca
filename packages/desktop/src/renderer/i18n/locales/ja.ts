@@ -488,7 +488,7 @@ export const ja: Record<MessageKey, string> = {
   "rail.review": "コードレビュー",
   "review.title": "コードレビュー",
   "review.checking": "ocr の可用性を確認中…",
-  "review.notInstalled": "ocr CLI が見つかりません。インストールすると AI コードレビューが有効になります：",
+  "review.notInstalled": "このビルドでは Open Code Review を利用できません。",
   "review.scope": "レビュー範囲：現在のプロジェクトの未コミットの変更（HEAD 比）。",
   "review.run": "レビュー開始",
   "review.running": "レビュー中…",

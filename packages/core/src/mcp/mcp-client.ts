@@ -448,6 +448,9 @@ export function createMcpSpawnSpec(
     command,
     args,
     shell: false,
+    // Match the shell branch: a spawned Node process can briefly flash a console
+    // window on Windows, so hide it regardless of how the command is resolved.
+    windowsHide: true,
   };
 }
 

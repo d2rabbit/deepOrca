@@ -405,7 +405,14 @@ function registerIpc(): void {
       // bin/ocr.js is CommonJS; require.resolve gives its absolute path from
       // wherever node_modules is hoisted (app dir in dev, Resources/app in packaged).
       const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
-      return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
+      // OCR_NO_UPDATE suppresses the launcher's built-in updater (bin/ocr.js spawns
+      // update.js, which calls `npm i -g` on the host) — we ship a pinned version,
+      // so auto-updating must never reach for an external npm.
+      return {
+        command: process.execPath,
+        prefixArgs: [entry],
+        env: { ELECTRON_RUN_AS_NODE: "1", OCR_NO_UPDATE: "1" },
+      };
     } catch {
       // Package not installed.
     }
@@ -472,9 +479,10 @@ function registerIpc(): void {
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run
-  // it as a built-in command through a system Node 22+ (OpenWiki's engines floor;
-  // its deps rely on require(esm), which Electron 33's bundled Node 20 lacks).
-  // Fallback: `npx -y openwiki`.
+  // it as a built-in command through the bundled Node (Electron ≥35 ships Node
+  // 22.14+, which satisfies OpenWiki's require(esm) engines floor). The tool is
+  // reported unavailable when the vendored build is missing — never reaching for
+  // an external runtime.
   // Dedicated wiki agent model strategy: flash-first, pro-fallback.
   const WIKI_MODEL_FLASH = "deepseek-v4-flash";
   const WIKI_MODEL_PRO = "deepseek-v4-pro";

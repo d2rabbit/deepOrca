@@ -137,7 +137,6 @@ export function CodeReviewPanel(): JSX.Element {
         <div className="ui-side-panel-body">
           <div className="ui-review-unavailable">
             <p>{t("review.notInstalled")}</p>
-            <code>npm install -g @alibaba-group/open-code-review</code>
           </div>
         </div>
       </div>

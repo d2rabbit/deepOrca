@@ -487,7 +487,7 @@ export const ko: Record<MessageKey, string> = {
   "rail.review": "코드 리뷰",
   "review.title": "코드 리뷰",
   "review.checking": "ocr 사용 가능 여부 확인 중…",
-  "review.notInstalled": "ocr CLI를 찾을 수 없습니다. 설치하면 AI 코드 리뷰를 사용할 수 있습니다:",
+  "review.notInstalled": "이 빌드에서는 Open Code Review를 사용할 수 없습니다.",
   "review.scope": "리뷰 범위: 현재 프로젝트 워크스페이스의 커밋되지 않은 변경 사항(HEAD 대비).",
   "review.run": "리뷰 실행",
   "review.running": "리뷰 중…",

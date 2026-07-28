@@ -486,7 +486,7 @@ export const zhHK: Record<MessageKey, string> = {
   "rail.review": "程式碼審查",
   "review.title": "程式碼審查",
   "review.checking": "正在檢測 ocr 可用性…",
-  "review.notInstalled": "未找到 ocr CLI。安裝後即可啟用 AI 程式碼審查：",
+  "review.notInstalled": "目前版本未內建 Open Code Review。",
   "review.scope": "審查範圍：當前項目工作區未提交的變更（相對 HEAD）。",
   "review.run": "開始審查",
   "review.running": "審查中…",
