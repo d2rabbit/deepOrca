@@ -44,11 +44,10 @@ async function bootstrap(): Promise<void> {
   const theme = resolveTheme(platform);
   applyAppearance(resolveAppearance(platform, theme));
   if (theme === "line") applyLineVariant(getStoredLineVariant());
-  // Shared primitive stylesheet first (theme-agnostic structure + token
-  // fallbacks), then the resolved theme file (Aqua / Metro / Glass) which binds
-  // --ui-*. The theme link carries a stable id so it can be swapped at runtime.
-  await injectStylesheet("./ui.css");
-  await injectStylesheet(themeStylesheet(theme), THEME_LINK_ID);
+  // Load both stylesheets in parallel instead of serially — the theme file
+  // doesn't depend on ui.css being loaded first (CSS cascade is order-based,
+  // not load-order-based). This cuts first-paint latency by one round-trip.
+  await Promise.all([injectStylesheet("./ui.css"), injectStylesheet(themeStylesheet(theme), THEME_LINK_ID)]);
   createRoot(container!).render(
     <StrictMode>
       <I18nProvider>
