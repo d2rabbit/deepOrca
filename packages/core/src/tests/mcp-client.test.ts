@@ -22,17 +22,27 @@ test("createMcpSpawnSpec joins args without quoting when spaces are absent (Wind
   });
 });
 
-test("createMcpSpawnSpec quotes Windows command paths and arguments", () => {
+test("createMcpSpawnSpec spawns absolute-path executables without a shell on Windows", () => {
+  // An absolute path (process.execPath, a vendored binary, a require.resolve'd
+  // entry) can be spawned directly — no cmd.exe needed. This avoids relying on
+  // ComSpec, which Electron's environment may not expose (spawn cmd.exe ENOENT).
   const spec = createMcpSpawnSpec(
     String.raw`C:\Program Files\nodejs\node.exe`,
     [String.raw`C:\tmp\mcp server.cjs`, 'a "quoted" value'],
     "win32"
   );
 
-  assert.equal(
-    spec.command,
-    String.raw`"C:\Program Files\nodejs\node.exe" "C:\tmp\mcp server.cjs" "a \"quoted\" value"`
-  );
+  assert.equal(spec.shell, false);
+  assert.equal(spec.command, String.raw`C:\Program Files\nodejs\node.exe`);
+  assert.deepEqual(spec.args, [String.raw`C:\tmp\mcp server.cjs`, 'a "quoted" value']);
+});
+
+test("createMcpSpawnSpec quotes Windows command paths and arguments for bare commands", () => {
+  // Only bare command names (npx, …) need shell:true so cmd.exe can resolve them
+  // via PATHEXT. Args are folded into the command string with cmd-safe quoting.
+  const spec = createMcpSpawnSpec("npx", [String.raw`C:\tmp\mcp server.cjs`, 'a "quoted" value'], "win32");
+
+  assert.equal(spec.command, String.raw`npx "C:\tmp\mcp server.cjs" "a \"quoted\" value"`);
   assert.deepEqual(spec.args, []);
 });
 

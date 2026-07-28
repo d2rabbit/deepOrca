@@ -424,7 +424,13 @@ export function createMcpSpawnSpec(
   args: string[],
   platform: NodeJS.Platform = process.platform
 ): McpSpawnSpec {
-  if (platform === "win32") {
+  // An absolute path (e.g. process.execPath, a vendored node binary, or a JS
+  // entry resolved via require.resolve) can be spawned directly without a shell.
+  // This avoids relying on cmd.exe (via ComSpec), which Electron's environment
+  // may not expose correctly — causing `spawn cmd.exe ENOENT`. The shell path
+  // below is only needed for bare command names (npx, …) that require PATHEXT
+  // resolution.
+  if (platform === "win32" && !path.isAbsolute(command)) {
     return {
       // On Windows, shell: true lets cmd.exe resolve the command via PATHEXT
       // (npx -> npx.cmd, etc.). Join command and args into a single string
