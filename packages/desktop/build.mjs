@@ -26,6 +26,14 @@ const shared = {
   define: {
     "process.env.NODE_ENV": JSON.stringify(isDev ? "development" : "production"),
   },
+  // Minify in production for smaller bundles and faster startup.
+  // Dev keeps readable output for easier debugging.
+  minify: !isDev,
+  // Drop debugger statements and console.debug in production.
+  // Keep console.log/error/warn for diagnostics.
+  drop: isDev ? [] : ["debugger"],
+  pure: ["console.debug"],
+  legalComments: "none",
 };
 
 /** Main process: ESM, keep node deps + core external for runtime resolution. */
