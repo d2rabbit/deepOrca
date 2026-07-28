@@ -1,8 +1,9 @@
 # Orca Feature 集成路线图（下阶段）
 
-> 版本：v2.1 · 日期：2026-07-26 · 状态：规划中
-> 本文件定义下阶段 9 个开源项目的**直接集成**方案。所有项目均为直接集成到 Orca 中，非从零开发。
+> 版本：v2.2 · 日期：2026-07-28 · 状态：规划中
+> 本文件定义下阶段开源项目的**直接集成**方案。所有项目均为直接集成到 Orca 中，非从零开发。
 > v2.1 更新：新增 Penpot vs Open Design 对比分析（选择 Open Design），新增 Obscura 轻量级无头浏览器集成，标记已集成项目。
+> v2.2 更新：新增 3 个引擎层/方法论项目调研（Prewalk、OpenSpace、OpenSpec）——它们不是可"安装"的工具，而是**引擎核心能力的演进方向**，与已有能力的关系以冲突/互补分析呈现。
 
 ---
 
@@ -26,6 +27,20 @@
 
 **额外已集成项目**（不在本路线图 9 个项目中）：
 - ✅ **codegraph**：vendored CLI（`packages/desktop/vendor/codegraph/`）+ 桌面端代码图谱面板（作为 code-review-graph 的替代品，已提供代码索引和图谱能力）
+
+---
+
+## 总览 — 引擎能力演进项目（v2.2 新增）
+
+> 以下 3 个项目**不是可安装的外部工具**，而是反映 coding-agent 引擎层的核心能力演进方向。它们的价值在于**方法论/机制**而非二进制依赖，与 DeepOrca 已有能力的冲突/互补关系见各章节。
+
+| # | 项目 | 性质 | 对应的 DeepOrca 能力 | 关系 | 优先级 |
+|---|------|------|----------------------|------|--------|
+| A | Prewalk | 模型切换编排（贵模型规划→廉价模型执行） | 模型路由（仅轻量子任务用 flash） | 🟢 **互补/空白** — 无任何中途切换机制 | P1 |
+| B | OpenSpace | 技能全生命周期（执行→评估→改进→复用） | 技能系统（仅静态编写/描述审查） | 🟢 **互补/空白** — 无执行反馈闭环 | P2 |
+| C | OpenSpec | 规范驱动开发（spec 提案→实施→归档） | Plan Mode（提案→批准→执行） | 🟡 **部分重叠** — 流程已有但 spec 不持久化 | P2 |
+
+**核心判断**：三者均**不冲突**——它们填补的是 DeepOrca 当前**完全空白或半成品**的能力域，且可基于现有 `model-capabilities.ts`、skills 系统、Plan Mode 基础设施自然扩展。
 
 ---
 
@@ -629,16 +644,165 @@ Agent 通过 MCP 工具调用浏览器自动化：
 
 ---
 
-## 十、集成优先级路线图
+## A、Prewalk — 模型切换编排（贵模型规划→廉价模型执行）
+
+> 来源：https://stencil.so/blog/prewalk · 性质：**编排方法论**，非可安装工具
+
+### 作用
+
+Prewalk 是一种 coding-agent 的**模型切换编排技术**，解决"用贵模型读代码写计划、交给廉价模型执行反而更贵"的问题（廉价模型要重新读一遍代码库，贵模型的读取成本被重复支付）。
+
+核心机制：
+1. 贵模型（frontier）带着隐藏指令"深度规划→生成 TODO 列表→开始执行"启动
+2. 贵模型探索代码、写计划、初始化 TODO、做出**第一处代码编辑**
+3. 在第一处编辑发生的瞬间，系统将活动模型**切换**为廉价模型，并从共享上下文中删除初始规划指令
+4. 廉价模型"以为自己一直在执行"，继承了已验证的有效上下文
+
+作者声称：达到 frontier 97% 性能，成本降低 41%，速度提升 1.9×。
+
+### 与现有能力的关系
+
+| DeepOrca 现状 | Prewalk 对应能力 | 关系 |
+|---------------|------------------|------|
+| `model-capabilities.ts` 将**轻量子任务**（技能匹配、prompt 增强、压缩）固定路由到 flash | **主任务中途**的模型切换（规划段→执行段） | 🟢 互补 — DeepOrca 只有"子任务降级"，**无任何主任务中途切换机制** |
+| 主循环（`session.ts` activateSession）全程跑单一用户配置模型 | 首次编辑触发的模型降级 | 🟢 空白 — 完全未实现 |
+| UpdatePlan 工具（执行中的 TODO 进度跟踪） | Prewalk 依赖的 TODO 列表作为切换后的"永久方向盘" | 🟢 可复用 — UpdatePlan 已是 markdown TODO 跟踪，正是 Prewalk 需要的载体 |
+
+**关键发现**：`session.ts` 中搜索 `handoff`/`escalat`/`switchModel`/`tier` 零匹配——**模型中途切换在 DeepOrca 是完全空白的领域**。而 UpdatePlan 工具已经提供了 Prewalk 机制所需的 TODO 跟踪基础设施。
+
+### 冲突 vs 互补判断
+
+**🟢 纯互补，零冲突。**
+- 不与现有模型路由冲突（现有是子任务降级，Prewalk 是主任务分段）
+- 不与 Plan Mode 冲突（Plan Mode 是人工批准的提案→执行，Prewalk 是自动的规划段→执行段切换）
+- 复用已有基础设施（UpdatePlan 的 TODO 跟踪、`model-capabilities.ts` 的模型常量）
+
+### 集成借鉴方向（非直接安装，是引擎能力演进）
+
+**Phase 1 — 会话级模型配置（前置条件）**：
+当前主循环只用单一模型。需先支持"规划模型"与"执行模型"的双模型配置：
+```typescript
+// settings.json 扩展
+{
+  "model": "deepseek-v4-pro",           // 主/执行模型
+  "planningModel": "deepseek-v4-pro"    // 规划段模型（可选，默认同 model）
+}
+```
+
+**Phase 2 — Prewalk 切换点**：
+在 `activateSession` 循环中，检测"首次工具调用产生文件编辑"作为切换信号：
+- 切换前：注入隐藏的"深度规划+TODO"系统指令
+- 切换时：从消息历史中移除规划指令，切换 `model` 为执行模型
+- 切换后：廉价模型继承 UpdatePlan 的 TODO 作为持续引导
+
+**Phase 3 — 自适应切换策略**：
+基于任务复杂度决定是否启用 Prewalk（简单任务不必切换，复杂任务才分阶段）。
+
+---
+
+## B、OpenSpace — 技能全生命周期（执行→评估→改进→复用）
+
+> 仓库：https://github.com/HKUDS/OpenSpace · 出品方：香港大学数据科学实验室（LightRAG 同团队）· 性质：**自演化技能引擎**，可作 MCP 集成
+
+### 作用
+
+OpenSpace 定位为"AI Agent 的技能管理层"，提供技能全生命周期的四个能力：
+1. **技能执行** — 在 agent 工作流中运行已定义的技能/工具
+2. **技能评估** — 验证哪些技能在实践中真正有效（测试 + 可观测性）
+3. **技能改进** — 基于执行反馈精炼技能（自演化闭环）
+4. **技能复用** — 跨任务/跨 agent 检索和重用已习得的模式（集体智能/共享技能注册表）
+
+架构分三层：Grounding 层（环境后端）、Skill 层（注册/索引/检索/版本化）、Evolution 层（自改进闭环）。声称减少 ~46% token、输出质量提升 ~4.2×。
+
+### 与现有能力的关系
+
+| DeepOrca 现状 | OpenSpace 对应能力 | 关系 |
+|---------------|---------------------|------|
+| `skill-writer`（编写 SKILL.md 的静态指南） | 技能**创建** | 🟢 部分覆盖 — DeepOrca 有人工编写，无自动生成 |
+| `skill-digester`（审查/重写技能的 description 字段，需人工批准） | 技能**改进**（基于文本启发式） | 🟡 弱重叠 — digester 改描述文案，不改技能实质 |
+| 无执行结果捕获、无技能成功率指标、无基于表现的自动重写 | 技能**评估** + 基于**执行结果**的自改进 | 🟢 空白 — 搜索 `skillEvaluat`/`self-evolv`/`feedback loop` 零匹配 |
+
+**关键发现**：DeepOrca 的"技能改进"完全是人工发起的（通过 skill-digester），基于静态文本启发式，**没有任何基于执行结果的能力评估或自演化闭环**。这是 OpenSpace 的核心差异点。
+
+### 冲突 vs 互补判断
+
+**🟢 互补为主，需注意与 mem0 的定位边界。**
+- 与 skills 系统**不冲突**（OpenSpace 是其上层的生命周期管理，不替换扫描/加载机制）
+- 与路线图 #4 **mem0（跨会话记忆）有功能边界**：mem0 记"事实/偏好"，OpenSpace 记"技能/工作流"。需明确分工，避免两个"记忆层"职责模糊
+- 与 skill-digester **轻微重叠**但可融合：digester 的描述审查可成为 OpenSpace 评估环节的一部分
+
+### 集成借鉴方向
+
+**方向一（轻量借鉴）— 自建轻量评估闭环**：
+不引入 OpenSpace 整体，借鉴其"执行→评估→改进"理念：
+- 技能执行后捕获结果（成功/失败/重试次数）
+- 低成功率技能触发 skill-digester 自动重写 description
+- 高成功率技能在技能匹配时加权
+
+**方向二（深度集成）— OpenSpace 作为技能后端 MCP**：
+若要完整的自演化能力，OpenSpace 可作为 MCP Server 接入，承担技能注册/评估/演化的后端，DeepOrca 的 skills 系统作为前端加载层。但需评估其与 mem0 的职责划分。
+
+---
+
+## C、OpenSpec — 规范驱动开发（spec 提案→实施→归档）
+
+> 仓库：https://github.com/Fission-AI/OpenSpec · 性质：**CLI 工具 + 工作流方法论**，spec-first 开发范式
+
+### 作用
+
+OpenSpec 将编程问题转化为**需求工程问题**——确保人与 AI 在写代码前就需求达成一致。核心是 spec-driven development (SDD) 三步工作流：
+1. **Proposal** — 创建 markdown 规范文档描述要构建什么
+2. **Apply** — AI 基于已批准的 spec 实现代码
+3. **Archive** — 完成的 spec 归档，保持清晰的历史记录
+
+特点：CLI-first（agent 通过读写文件交互）、无需 API key/MCP、分层 spec（agent 只读当前任务相关的 spec）、保持人机对齐的"单一真相源"。MCP Server 支持是路线图项（Issue #319）。
+
+### 与现有能力的关系
+
+| DeepOrca 现状 | OpenSpec 对应能力 | 关系 |
+|---------------|---------------------|------|
+| **Plan Mode**（提案→批准→执行，有变更守卫） | Proposal→Apply 工作流 | 🟡 **高度重叠** — 流程模型已存在且较成熟 |
+| `<proposed_plan>` 渲染在聊天中，靠 renderer 正则提取 | 持久化、版本化的 spec 文档 | 🔴 **DeepOrca 的短板** — spec 是临时的，不持久化/不版本化 |
+| UpdatePlan（执行中的 TODO 进度，非持久 UI 元数据） | 分层 spec + 变更请求谱系 | 🔴 **DeepOrca 的短板** — 无 spec→变更请求→产物的谱系追踪 |
+| Plan Mode 强制 write/delete/git 权限升级为 ask | spec 作为"单一真相源"的治理 | 🟢 协同 — 权限强制机制已有 |
+
+**关键发现**：DeepOrca 的 Plan Mode 已经实现了 spec-driven 的**协作模型和权限守卫**（这是 OpenSpec 的核心价值），但在**spec 持久化和谱系治理**上是短板——`<proposed_plan>` 是聊天气泡里的临时内容，UpdatePlan 状态是非持久 UI 元数据。
+
+### 冲突 vs 互补判断
+
+**🟡 部分重叠，互补空间在持久化和治理。**
+- **不冲突**：OpenSpec 的三步流程与 Plan Mode 的提案→批准→执行理念一致，是同一范式的不同实现
+- **重叠点**：两者都解决"先对齐再动手"，DeepOrca 已有成熟实现，**不应引入 OpenSpec 替换 Plan Mode**
+- **互补点**：OpenSpec 的**持久化 spec 文档 + 分层结构 + 归档历史 + 变更请求谱系**正是 Plan Mode 缺失的——可借鉴其理念增强 Plan Mode，而非引入整个工具
+
+### 集成借鉴方向（增强现有 Plan Mode，非引入 OpenSpec）
+
+**Phase 1 — spec 持久化**：
+将 `<proposed_plan>` 从临时聊天内容改为持久化文件：
+```
+.deeporca/plans/
+├── 2026-07-28-electron-upgrade.md    # 带 "决策完成" 的 spec
+└── archive/                           # 已完成的归档
+```
+
+**Phase 2 — 分层 spec 与谱系**：
+借鉴 OpenSpec 的分层结构，大型任务支持 spec 拆分为子需求，记录 spec→实施→产物的关联（哪些文件因哪个 spec 而变更）。
+
+**Phase 3 — spec 复用**：
+归档的 spec 可在新会话中被检索引用（与 mem0 的记忆能力协同），避免重复规划。
+
+---
+
+
 
 ```
 Phase 1（立即）                Phase 2（+2周）              Phase 3（+1月）
 ├── flutter/agent-plugins ──┤                              │
-│   构建时内置 Skills        │                              │
-├── code-review-graph ──────┤                              │
-│   MCP 预配置 + 审查增强    │                              │
-├── serena ─────────────────┤                              │
-│   MCP 预配置 + Skill       │                              │
+│   构建时内置 Skills        │
+├── code-review-graph ──────┤
+│   MCP 预配置 + 审查增强    │
+├── serena ─────────────────┤
+│   MCP 预配置 + Skill       │
 │                            ├── mem0 SDK 集成 ─────────────┤
 │                            ├── openwiki CLI 内置 ─────────┤
 │                            ├── opencli 内置插件 ──────────┤
@@ -653,6 +817,14 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 │                            │                              │   (Mermaid 简化渲染)
 │                            │                              ├── Web 抓取面板
 │                            │                              │   (Obscura 桌面端集成)
+│
+│  ── 引擎能力演进（v2.2 新增，非工具安装）──────────────────────
+├── Prewalk 模型切换 ────────┤
+│   双模型配置 + 首次编辑切换  │
+├── OpenSpec spec 持久化 ────┤
+│   Plan Mode 增强(非替换)    │
+│                            ├── OpenSpace 技能评估闭环 ────┤
+│                            │   执行结果捕获+自动重写       │
 ```
 
 ## 十、构建时依赖安装清单
@@ -679,6 +851,13 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 4. **open-design 优先使用 Web 渲染模块** — 内置启动 Open Design daemon server，通过 iframe 嵌入其 Next.js 预览页面；如果无法嵌入，则降级为完全自己实现 UI 渲染
 5. **obscura 专注大规模数据获取** — 与 browser-skill 互补，Obscura 负责抓取，browser-skill 负责操控
 6. **暂不考虑远程插件中心** — 所有能力通过构建时内置或本地安装提供
+
+### 引擎能力演进原则（v2.2 新增）
+
+7. **Prewalk 是方法论不是工具** — 模型中途切换是引擎能力演进，基于已有 `model-capabilities.ts` + UpdatePlan 扩展，不引入外部依赖
+8. **OpenSpec 增强 Plan Mode 而非替换** — DeepOrca 已有成熟的提案→批准→执行流程，借鉴 OpenSpec 的 spec 持久化/分层/归档理念增强，不引入 OpenSpec CLI
+9. **OpenSpace 与 mem0 明确分工** — mem0 记"事实/偏好"，OpenSpace 记"技能/工作流"；优先自建轻量技能评估闭环，深度集成作为可选项
+10. **三者均不冲突** — Prewalk/OpenSpace 填补完全空白域，OpenSpec 补齐 Plan Mode 持久化短板，可并行推进
 
 ---
 
