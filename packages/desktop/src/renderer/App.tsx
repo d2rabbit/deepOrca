@@ -443,6 +443,7 @@ export function App(): JSX.Element {
     bumpTree,
     bumpTreeThrottled,
     loadSession,
+    pushToast,
     refreshGit,
     refreshMcp,
     refreshSessions,
@@ -969,7 +970,7 @@ export function App(): JSX.Element {
         run: () => setModal("shortcuts"),
       },
     ],
-    [handleCycleReasoning, handleNewSession, handleOpenSettings, openTokensView, runPrompt, selectView, t]
+    [handleCycleReasoning, handleNewSession, handleOpenSettings, openTokensView, pushToast, runPrompt, selectView, t]
   );
 
   // ── Derived UI ────────────────────────────────────────────────────────────────
