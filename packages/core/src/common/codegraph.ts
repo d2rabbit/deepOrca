@@ -87,19 +87,15 @@ function resolveVendorEntry(): string | null {
 
 /**
  * Decide how to invoke CodeGraph. Prefers the vendored build, run through a Node
- * runtime that actually ships `node:sqlite` (CodeGraph's storage backend):
+ * runtime that actually ships `node:sqlite` (CodeGraph's storage backend) — see
+ * {@link resolveSqliteRuntimeForEntry} for the resolution order. In Electron ≥35
+ * the vendored entry runs on the bundled Node (self-contained, no host dep).
  *
- *   1. The host process itself, when it is plain Node with node:sqlite available.
- *   2. A system Node verified to load node:sqlite — all PATH entries (`which -a`),
- *      common install locations (Homebrew, /usr/local, Volta) that a GUI app's
- *      PATH may miss, and nvm/fnm version directories.
- *   3. Electron itself via ELECTRON_RUN_AS_NODE=1, when its bundled Node has
- *      node:sqlite (Electron ≥35). argv is passed exactly like plain `node`, so
- *      the CLI's arg parsing works unchanged.
- *
- * Only when no sqlite-capable runtime exists do we fall back to `npx`, which
- * resolves the published package without a global install (and will surface
- * CodeGraph's own Node-version error if the PATH Node is too old).
+ * Only when the vendored build is entirely missing do we fall back to `npx`,
+ * which resolves the published package without a global install (and will
+ * surface CodeGraph's own Node-version error if the PATH Node is too old). This
+ * branch is a last resort for unpackaged/CLI use — the desktop app always ships
+ * the vendored build, so it is never reached there.
  */
 export function resolveCodegraphExecutable(): CodegraphExecutable {
   const entry = resolveVendorEntry();
@@ -114,13 +110,29 @@ export function resolveCodegraphExecutable(): CodegraphExecutable {
 
 /**
  * Resolve how to run a JS entry that needs `node:sqlite` (CodeGraph, the gitmcp
- * server, …): host Node → sqlite-capable system Node → Electron as Node. Returns
- * `null` when no sqlite-capable runtime exists on this machine.
+ * server, …). Internal plugins must NEVER depend on the host's external
+ * Node/npm/PATH — they run on the runtime that ships inside the app:
+ *
+ *   1. Electron's bundled Node via ELECTRON_RUN_AS_NODE=1 (Electron ≥35 ships
+ *      Node 22.14+, which has node:sqlite without a flag). This is the primary
+ *      path in the desktop app and needs nothing from the host.
+ *   2. The host process itself, when running as plain Node with node:sqlite
+ *      (the CLI/dev scenario).
+ *   3. A sqlite-capable system Node, only as a last-resort fallback for the
+ *      plain-Node CLI when the host Node is too old.
+ *
+ * Returns `null` when no suitable runtime exists.
  */
 export function resolveSqliteRuntimeForEntry(entry: string): CodegraphExecutable | null {
+  // Electron: always prefer the bundled Node (self-contained, no host dependency).
+  if (process.versions.electron && selfNodeHasSqlite()) {
+    return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
+  }
+  // Plain Node host that already has node:sqlite.
   if (!process.versions.electron && selfNodeHasSqlite()) {
     return { command: process.execPath, prefixArgs: [entry] };
   }
+  // Last-resort fallback (CLI-only): a sqlite-capable system Node on the host.
   const systemNode = resolveSqliteCapableNode();
   if (systemNode) {
     const exe: CodegraphExecutable = { command: systemNode.bin, prefixArgs: [entry] };
@@ -129,9 +141,6 @@ export function resolveSqliteRuntimeForEntry(entry: string): CodegraphExecutable
       exe.env = { NODE_OPTIONS: "--experimental-sqlite" };
     }
     return exe;
-  }
-  if (process.versions.electron && selfNodeHasSqlite()) {
-    return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
   }
   return null;
 }
@@ -287,11 +296,17 @@ const cachedModernNodes = new Map<number, string | null>();
 /**
  * Locate a runtime for vendored Node CLIs that need a minimum Node major
  * (e.g. OpenWiki requires Node 22+ for require(esm) in its dependencies).
- * Prefers the host process when it is plain Node and new enough, otherwise
- * reuses the same candidate enumeration as the CodeGraph sqlite probe but
- * only checks the version. Returns the binary path, or null when none found.
+ * Internal plugins must stay self-contained: in Electron we always use the
+ * bundled Node (Electron ≥35 ships Node 22.14+), never the host's Node.
+ * The system-Node probe is only a last-resort fallback for the plain-Node CLI.
+ * Returns the binary path, or null when none found.
  */
 export function resolveModernNode(minMajor: number): string | null {
+  // Electron: always use the bundled Node (self-contained, no host dependency).
+  if (process.versions.electron && parseInt(process.versions.node, 10) >= minMajor) {
+    return process.execPath;
+  }
+  // Plain Node host that is already new enough.
   if (!process.versions.electron && parseInt(process.versions.node, 10) >= minMajor) {
     return process.execPath;
   }
@@ -299,6 +314,7 @@ export function resolveModernNode(minMajor: number): string | null {
   if (cached !== undefined) {
     return cached;
   }
+  // Last-resort fallback (CLI-only): a sufficiently new system Node on the host.
   let found: string | null = null;
   for (const bin of listNodeCandidates()) {
     if (probeNodeMajor(bin) >= minMajor) {

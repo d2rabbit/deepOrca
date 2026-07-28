@@ -394,30 +394,39 @@ function registerIpc(): void {
   // whose bin/ocr.js launcher resolves a prebuilt platform binary from an
   // optionalDependency (@alibaba-group/ocr-<os>-<arch>). We run that launcher
   // through Electron's bundled Node (ELECTRON_RUN_AS_NODE) so no global install
-  // is needed; falling back to npx only if the dep is somehow absent.
-  const resolveOcrCommand = (): { command: string; prefixArgs: string[]; env?: Record<string, string> } => {
+  // or external runtime is needed. Returns null when the bundled dep is absent —
+  // the tool is reported unavailable rather than reaching for an external npx.
+  const resolveOcrCommand = (): {
+    command: string;
+    prefixArgs: string[];
+    env?: Record<string, string>;
+  } | null => {
     try {
       // bin/ocr.js is CommonJS; require.resolve gives its absolute path from
       // wherever node_modules is hoisted (app dir in dev, Resources/app in packaged).
       const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
       return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
     } catch {
-      // Package not installed — fall through to npx.
+      // Package not installed.
     }
-    return { command: "npx", prefixArgs: ["-y", "@alibaba-group/open-code-review"] };
+    return null;
   };
 
   handle(IpcRequest.ReviewCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
     return new Promise((resolve) => {
-      const { command, prefixArgs, env } = resolveOcrCommand();
-      const vendored = command !== "npx";
+      const resolved = resolveOcrCommand();
+      if (!resolved) {
+        resolve({ available: false });
+        return;
+      }
+      const { command, prefixArgs, env } = resolved;
       const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
       execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
         if (!err) {
           resolve({ available: true, version: stdout.trim().split("\n")[0] });
         } else {
           // A bundled install counts as available even when --version probing fails.
-          resolve({ available: vendored });
+          resolve({ available: true });
         }
       });
     });
@@ -427,8 +436,14 @@ function registerIpc(): void {
   handle(IpcRequest.ReviewRun, (): Promise<{ ok: boolean; error?: string }> => {
     const args = ["review", "--format", "json"];
     return new Promise((resolve) => {
+      const resolved = resolveOcrCommand();
+      if (!resolved) {
+        emit(IpcEvent.ReviewProgress, { chunk: "", stream: "stdout", done: true, exitCode: 1 });
+        resolve({ ok: false, error: "Open Code Review is not bundled with this build." });
+        return;
+      }
       try {
-        const { command, prefixArgs, env: exeEnv } = resolveOcrCommand();
+        const { command, prefixArgs, env: exeEnv } = resolved;
         const cp = spawn(command, [...prefixArgs, ...args], {
           cwd: getBridge().projectRoot,
           env: { ...(process.env as Record<string, string>), ...exeEnv },
@@ -465,32 +480,49 @@ function registerIpc(): void {
   const WIKI_MODEL_PRO = "deepseek-v4-pro";
   const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
 
-  /** Resolve how to invoke openwiki: vendored entry through a system Node 22+, or npx fallback. */
-  const resolveOpenwikiCommand = (): { command: string; prefixArgs: string[]; env?: Record<string, string> } => {
+  /**
+   * Resolve how to invoke openwiki. Internal plugins must stay self-contained:
+   * the vendored entry runs through the bundled Node (Electron ≥35 ships
+   * Node 22.14+), never the host's external Node/npm. Returns null when the
+   * vendored entry or a suitable runtime is missing — the UI then reports the
+   * tool as unavailable rather than reaching for an external `npx`.
+   */
+  const resolveOpenwikiCommand = (): {
+    command: string;
+    prefixArgs: string[];
+    env?: Record<string, string>;
+  } | null => {
     try {
       if (statSync(OPENWIKI_VENDOR_ENTRY).isFile()) {
         const node = resolveModernNode(22);
         if (node) {
-          return { command: node, prefixArgs: [OPENWIKI_VENDOR_ENTRY] };
+          // When the runtime is Electron itself, ELECTRON_RUN_AS_NODE makes its
+          // bundled Node execute the entry like plain `node entry.js`.
+          const env = node === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : undefined;
+          return { command: node, prefixArgs: [OPENWIKI_VENDOR_ENTRY], env };
         }
       }
     } catch {
-      // Vendored entry not present — fall through to npx.
+      // Vendored entry not present.
     }
-    return { command: "npx", prefixArgs: ["-y", "openwiki"] };
+    return null;
   };
 
   handle(IpcRequest.WikiCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
     return new Promise((resolve) => {
-      const { command, prefixArgs, env } = resolveOpenwikiCommand();
-      const vendored = command !== "npx";
+      const resolved = resolveOpenwikiCommand();
+      if (!resolved) {
+        resolve({ available: false });
+        return;
+      }
+      const { command, prefixArgs, env } = resolved;
       const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
       execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
         if (!err) {
           resolve({ available: true, version: stdout.trim().split("\n")[0] });
         } else {
           // A vendored build counts as available even when --version probing fails.
-          resolve({ available: vendored });
+          resolve({ available: true });
         }
       });
     });
@@ -510,8 +542,13 @@ function registerIpc(): void {
 
     const spawnWith = (model: string): Promise<{ ok: boolean; error?: string }> => {
       return new Promise((resolve) => {
+        const resolved = resolveOpenwikiCommand();
+        if (!resolved) {
+          resolve({ ok: false, error: "OpenWiki is not bundled with this build." });
+          return;
+        }
         try {
-          const { command, prefixArgs, env: exeEnv } = resolveOpenwikiCommand();
+          const { command, prefixArgs, env: exeEnv } = resolved;
           const cp = spawn(command, [...prefixArgs, ...args, "--model", model], {
             cwd: getBridge().projectRoot,
             env: { ...env, ...exeEnv, OPENWIKI_MODEL: model },
