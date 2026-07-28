@@ -3,7 +3,7 @@
 > 版本：v2.2 · 日期：2026-07-28 · 状态：规划中
 > 本文件定义下阶段开源项目的**直接集成**方案。所有项目均为直接集成到 Orca 中，非从零开发。
 > v2.1 更新：新增 Penpot vs Open Design 对比分析（选择 Open Design），新增 Obscura 轻量级无头浏览器集成，标记已集成项目。
-> v2.2 更新：新增 3 个引擎层/方法论项目调研（Prewalk、OpenSpace、OpenSpec）——它们不是可"安装"的工具，而是**引擎核心能力的演进方向**，与已有能力的关系以冲突/互补分析呈现。
+> v2.2 更新：新增 3 个引擎层/方法论项目调研（Prewalk、OpenSpace、OpenSpec）——基于完整 README（webReader 抓取）的深度分析，含集成成本与实现形态判定。
 
 ---
 
@@ -37,8 +37,8 @@
 | # | 项目 | 性质 | 对应的 DeepOrca 能力 | 关系 | 优先级 |
 |---|------|------|----------------------|------|--------|
 | A | Prewalk | 模型切换编排（贵模型规划→廉价模型执行） | 模型路由（仅轻量子任务用 flash） | 🟢 **互补/空白** — 无任何中途切换机制 | P1 |
-| B | OpenSpace | 技能全生命周期（执行→评估→改进→复用） | 技能系统（仅静态编写/描述审查） | 🟢 **互补/空白** — 无执行反馈闭环 | P2 |
-| C | OpenSpec | 规范驱动开发（spec 提案→实施→归档） | Plan Mode（提案→批准→执行） | 🟡 **部分重叠** — 流程已有但 spec 不持久化 | P2 |
+| B | OpenSpace | 技能全生命周期（执行→评估→改进→复用） | 技能系统（仅静态编写/描述审查） | 🟢 **理念互补** — 无执行反馈闭环；⚠️ 直接集成成本高（Python+Cloud+架构重叠），仅借鉴理念 | P2 |
+| C | OpenSpec | 规范驱动开发（spec 提案→实施→归档） | Plan Mode（提案→批准→执行） | 🟡 **部分重叠** — 流程已有但 spec 不持久化；Node 工具，可内置或借鉴 | P2 |
 
 **核心判断**：三者均**不冲突**——它们填补的是 DeepOrca 当前**完全空白或半成品**的能力域，且可基于现有 `model-capabilities.ts`、skills 系统、Plan Mode 基础设施自然扩展。
 
@@ -733,14 +733,19 @@ OpenSpace 定位为"AI Agent 的技能管理层"，提供技能全生命周期�
 
 ### 集成借鉴方向
 
-**方向一（轻量借鉴）— 自建轻量评估闭环**：
+**方向一（轻量借鉴，推荐）— 自建轻量评估闭环**：
 不引入 OpenSpace 整体，借鉴其"执行→评估→改进"理念：
 - 技能执行后捕获结果（成功/失败/重试次数）
 - 低成功率技能触发 skill-digester 自动重写 description
 - 高成功率技能在技能匹配时加权
 
-**方向二（深度集成）— OpenSpace 作为技能后端 MCP**：
-若要完整的自演化能力，OpenSpace 可作为 MCP Server 接入，承担技能注册/评估/演化的后端，DeepOrca 的 skills 系统作为前端加载层。但需评估其与 mem0 的职责划分。
+**⚠️ 集成成本警告（基于完整 README）— 不推荐直接集成 OpenSpace**：
+OpenSpace 不适合作为 MCP/依赖直接集成，原因：
+- **Python 3.12+ 依赖**（`pip install -e .`）——违背 DeepOrca "零外部依赖"原则，且 Python 运行时正是我们刚在 codegraph/openwiki 上努力消除的东西
+- **Cloud 依赖**：技能质量评估、演化 lineage、跨 agent 共享依赖 open-space.cloud 云服务（可选，但核心价值在这）
+- **它本身是个完整的 agent harness**（grounding/agents/execution lifecycle + Dashboard）——与 DeepOrca 的 session loop **架构重叠**，不只是"技能管理层"
+
+**结论**：只借鉴 OpenSpace 的设计理念（FIX/DERIVED/CAPTURED 演化触发器、provisional→trusted 信任状态机），在 DeepOrca 内部用 Node.js 自建轻量版。
 
 ---
 
@@ -777,6 +782,16 @@ OpenSpec 将编程问题转化为**需求工程问题**——确保人与 AI 在
 
 ### 集成借鉴方向（增强现有 Plan Mode，非引入 OpenSpec）
 
+**📖 README 补充发现（webReader 抓取）**：
+- **新增 artifact-guided 工作流**：`/opsx:explore`（无 stakes 探索）→ `/opsx:propose` → `/opsx:apply` → `/opsx:archive`，**与 DeepOrca 的 Plan Mode 三阶段（探索→对齐→实施）几乎一一对应**
+- **Stores（beta）**：跨 repo 的 spec 共享——一个 plan 仓库供多 repo 的 agent 读取，对 monorepo 场景有价值
+- **变更产物结构清晰**：每个 change 一个文件夹（`proposal.md` + `specs/` + `design.md` + `tasks.md`），正是"spec 持久化"需要的形态
+- **确认是 Node.js 工具**（`npm install -g @fission-ai/openspec`，Node ≥ 20.19）——技术栈匹配，**可作为 npm 依赖内置**（和 ocr 同模式）
+
+**两条可选路径**：
+
+**路径 A（借鉴理念，推荐先做）— 增强 Plan Mode**：
+
 **Phase 1 — spec 持久化**：
 将 `<proposed_plan>` 从临时聊天内容改为持久化文件：
 ```
@@ -790,6 +805,16 @@ OpenSpec 将编程问题转化为**需求工程问题**——确保人与 AI 在
 
 **Phase 3 — spec 复用**：
 归档的 spec 可在新会话中被检索引用（与 mem0 的记忆能力协同），避免重复规划。
+
+**路径 B（深度集成，可选）— OpenSpec CLI 作为内置 npm 依赖**：
+因 OpenSpec 是 Node.js 工具（Node ≥ 20.19，与 Electron 35 自带 Node 22 匹配），可像 ocr 那样作为 npm 依赖内置：
+```bash
+npm install @fission-ai/openspec  # 作为 desktop 依赖
+```
+- Plan Mode 作为 OpenSpec 的入口（用户触发 `/plan` → 生成 OpenSpec change）
+- 获得 OpenSpec 成熟的 spec 持久化/归档/Stores 能力，不自建
+- 复用 DeepOrca 的 `ELECTRON_RUN_AS_NODE` 模式跑 OpenSpec CLI（零外部 Node 依赖）
+- **取舍**：引入外部依赖 vs 自建轻量版；需评估 OpenSpec 的 MCP Server 路线图（Issue #319）成熟度后再定
 
 ---
 
