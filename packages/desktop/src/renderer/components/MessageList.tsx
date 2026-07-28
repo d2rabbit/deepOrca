@@ -7,18 +7,24 @@ import { useI18n } from "../i18n";
 import { IconWelcomePlan, IconWelcomeInit, IconWelcomeSkills, IconWelcomeUndo } from "../ui/index";
 
 /** Format an ISO date string as a short locale date (e.g. "Jul 21, 2026"). */
+const dateSepCache = new Map<string, string>();
 function formatDateSeparator(iso: string): string {
+  const cached = dateSepCache.get(iso);
+  if (cached !== undefined) return cached;
+  let result = "";
   try {
     const d = new Date(iso);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
-    if (d.toDateString() === today.toDateString()) return "Today";
-    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-    return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+    if (d.toDateString() === today.toDateString()) result = "Today";
+    else if (d.toDateString() === yesterday.toDateString()) result = "Yesterday";
+    else result = d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   } catch {
-    return "";
+    result = "";
   }
+  dateSepCache.set(iso, result);
+  return result;
 }
 
 /** Get the date key (YYYY-MM-DD) from an ISO string for grouping. */

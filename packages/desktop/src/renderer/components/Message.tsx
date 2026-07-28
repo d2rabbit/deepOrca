@@ -543,11 +543,14 @@ function BashTerminal({ command, resultMd }: { command: string; resultMd: string
 
 function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();
-  const summary = buildToolSummary(message);
-  const params = formatToolParams(summary);
-  const resultMd = getResultMd(message);
-  const diffLines = getDiffLines(summary);
-  const planLines = getPlanLines(summary);
+  // Memoize derived data — tool messages are immutable after creation, so
+  // these computations never change. Without useMemo, every parent re-render
+  // (tick, scroll, sidebar refresh) re-parses JSON and re-computes diffs.
+  const summary = useMemo(() => buildToolSummary(message), [message]);
+  const params = useMemo(() => formatToolParams(summary), [summary]);
+  const resultMd = useMemo(() => getResultMd(message), [message]);
+  const diffLines = useMemo(() => getDiffLines(summary), [summary]);
+  const planLines = useMemo(() => getPlanLines(summary), [summary]);
   const toolClass = toolCls(summary.name);
   const isMcp = summary.name.toLowerCase().startsWith("mcp__");
   const isBash = toolClass === "bash";
