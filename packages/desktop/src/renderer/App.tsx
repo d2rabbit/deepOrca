@@ -391,6 +391,14 @@ export function App(): JSX.Element {
         setActiveStatus(entry.status);
         setAskPermissions(entry.askPermissions);
         setRunningProcesses(entry.processes ?? []);
+        // Clean up stdout buffers for processes that are no longer running.
+        // Without this, the Map retains up to 1MB per dead PID for the app lifetime.
+        const newPids = new Set((entry.processes ?? []).map((p) => Number(p.pid)));
+        for (const pid of processStdoutRef.current.keys()) {
+          if (!newPids.has(pid)) {
+            processStdoutRef.current.delete(pid);
+          }
+        }
       }
       bumpTreeThrottled();
     });

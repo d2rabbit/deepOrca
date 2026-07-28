@@ -417,6 +417,15 @@ export class SessionManager {
   private memoryClient: MemoryGatewayClient | null = null;
   private readonly messageConverter: OpenAIMessageConverter;
 
+  /**
+   * Per-session message cache. listSessionMessages is called multiple times
+   * per loop iteration (×80000 max), each time re-reading and re-parsing the
+   * entire JSONL file. This cache holds the parsed result so repeated reads
+   * within a turn are O(1). Invalidated on append/save and cleared on session
+   * switch or dispose.
+   */
+  private readonly messageCache = new Map<string, SessionMessage[]>();
+
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
     this.createOpenAIClient = options.createOpenAIClient;
@@ -561,6 +570,8 @@ export class SessionManager {
     this.mcpManager.disconnect();
     // Flush any pending debounced index write before teardown.
     this.flushSessionsIndex();
+    // Release cached messages to free memory.
+    this.messageCache.clear();
   }
 
   private estimateStreamTokens(text: string): number {
@@ -1591,6 +1602,15 @@ ${content}
   async replySession(sessionId: string, userPrompt: UserPromptContent, controller?: AbortController): Promise<void> {
     const signal = controller?.signal;
     this.throwIfAborted(signal);
+    // Release memory from previously active session's file-state caches.
+    // Without this, every file ever read/written in every session stays in
+    // memory until the session is explicitly deleted.
+    if (this.activeSessionId && this.activeSessionId !== sessionId) {
+      this.messageCache.delete(this.activeSessionId);
+      // Note: we don't clearSessionState for the old session because the user
+      // might switch back — but file-state maps grow large; a future enhancement
+      // could use an LRU eviction policy here.
+    }
     appendProjectPermissionAllows(this.projectRoot, userPrompt.alwaysAllows, {
       inheritedPermissions: this.getResolvedSettings().permissions,
     });
@@ -2256,6 +2276,13 @@ ${content}
   }
 
   listSessionMessages(sessionId: string): SessionMessage[] {
+    // Check cache first — avoids re-reading + re-parsing the entire JSONL file
+    // on every call (this method is invoked multiple times per loop iteration).
+    const cached = this.messageCache.get(sessionId);
+    if (cached) {
+      return cached;
+    }
+
     const messagePath = this.getSessionMessagesPath(sessionId);
     if (!fs.existsSync(messagePath)) {
       return [];
@@ -2272,6 +2299,7 @@ ${content}
         // ignore malformed line
       }
     }
+    this.messageCache.set(sessionId, messages);
     return messages;
   }
 
@@ -2624,6 +2652,8 @@ ${content}
     this.ensureProjectDir();
     const messagePath = this.getSessionMessagesPath(sessionId);
     fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, "utf8");
+    // Invalidate cache so the next listSessionMessages re-reads from disk.
+    this.messageCache.delete(sessionId);
   }
 
   private saveSessionMessages(sessionId: string, messages: SessionMessage[]): void {
@@ -2631,6 +2661,8 @@ ${content}
     const messagePath = this.getSessionMessagesPath(sessionId);
     const payload = messages.map((message) => JSON.stringify(message)).join("\n");
     fs.writeFileSync(messagePath, payload ? `${payload}\n` : "", "utf8");
+    // Update cache with the saved array (avoids a disk re-read).
+    this.messageCache.set(sessionId, messages);
   }
 
   private updateSessionEntry(sessionId: string, updater: (entry: SessionEntry) => SessionEntry): SessionEntry | null {
