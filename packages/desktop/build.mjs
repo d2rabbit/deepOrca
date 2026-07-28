@@ -72,7 +72,7 @@ const rendererConfig = {
   jsx: "automatic",
   splitting: true,
   chunkNames: "chunks/[name]-[hash]",
-  loader: { ".png": "dataurl", ".svg": "dataurl" },
+  loader: { ".png": "dataurl", ".svg": "dataurl", ".ttf": "dataurl", ".woff": "dataurl", ".woff2": "dataurl" },
 };
 
 // Vendor CodeGraph + OpenWiki (checked out + compiled) into vendor/<name>.
