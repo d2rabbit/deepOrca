@@ -78,7 +78,12 @@ function main() {
     type: "module",
     main: "dist/main.js",
     // Core stays external in the main bundle → ship its runtime deps.
-    dependencies: { ...corePkg.dependencies },
+    // ocr (Open Code Review) ships as an npm dep so the app runs the vendored
+    // binary without requiring a global install (see resolveOcrCommand in main).
+    dependencies: {
+      ...corePkg.dependencies,
+      "@alibaba-group/open-code-review": desktopPkg.dependencies["@alibaba-group/open-code-review"],
+    },
     // Lets electron-builder resolve the Electron version for this app dir.
     devDependencies: { electron: electronVersion },
   };

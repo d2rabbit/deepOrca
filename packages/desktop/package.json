@@ -21,6 +21,7 @@
     "package": "node ../../scripts/package-desktop.js && electron-builder --config electron-builder.yml --publish never"
   },
   "dependencies": {
+    "@alibaba-group/open-code-review": "^1.8.0",
     "@deeporca/core": "file:../core",
     "@monaco-editor/react": "^4.7.0",
     "highlight.js": "^11.11.1",

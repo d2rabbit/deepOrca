@@ -390,13 +390,34 @@ function registerIpc(): void {
   });
 
   // ── Code Review (ocr CLI) ──────────────────────────────────────────────────
+  // Open Code Review ships as an npm package (@alibaba-group/open-code-review)
+  // whose bin/ocr.js launcher resolves a prebuilt platform binary from an
+  // optionalDependency (@alibaba-group/ocr-<os>-<arch>). We run that launcher
+  // through Electron's bundled Node (ELECTRON_RUN_AS_NODE) so no global install
+  // is needed; falling back to npx only if the dep is somehow absent.
+  const resolveOcrCommand = (): { command: string; prefixArgs: string[]; env?: Record<string, string> } => {
+    try {
+      // bin/ocr.js is CommonJS; require.resolve gives its absolute path from
+      // wherever node_modules is hoisted (app dir in dev, Resources/app in packaged).
+      const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
+      return { command: process.execPath, prefixArgs: [entry], env: { ELECTRON_RUN_AS_NODE: "1" } };
+    } catch {
+      // Package not installed — fall through to npx.
+    }
+    return { command: "npx", prefixArgs: ["-y", "@alibaba-group/open-code-review"] };
+  };
+
   handle(IpcRequest.ReviewCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
     return new Promise((resolve) => {
-      execFile("ocr", ["--version"], { timeout: 5000 }, (err, stdout) => {
-        if (err) {
-          resolve({ available: false });
-        } else {
+      const { command, prefixArgs, env } = resolveOcrCommand();
+      const vendored = command !== "npx";
+      const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
+      execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
+        if (!err) {
           resolve({ available: true, version: stdout.trim().split("\n")[0] });
+        } else {
+          // A bundled install counts as available even when --version probing fails.
+          resolve({ available: vendored });
         }
       });
     });
@@ -407,7 +428,11 @@ function registerIpc(): void {
     const args = ["review", "--format", "json"];
     return new Promise((resolve) => {
       try {
-        const cp = spawn("ocr", args, { cwd: getBridge().projectRoot, shell: true });
+        const { command, prefixArgs, env: exeEnv } = resolveOcrCommand();
+        const cp = spawn(command, [...prefixArgs, ...args], {
+          cwd: getBridge().projectRoot,
+          env: { ...(process.env as Record<string, string>), ...exeEnv },
+        });
         trackHelperProcess(cp);
         cp.stdout?.on("data", (d: Buffer) => {
           emit(IpcEvent.ReviewProgress, { chunk: d.toString(), stream: "stdout", done: false });
