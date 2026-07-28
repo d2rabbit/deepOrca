@@ -608,13 +608,14 @@ function registerIpc(): void {
         });
 
         // Wait for the Gateway to be ready (poll /health for up to 15 seconds).
+        // Check immediately first (common case: gateway starts fast), then poll.
         const client = new MemoryGatewayClient({
           port,
           userId: settings.memory.userId || undefined,
           apiKey: settings.memory.apiKey || undefined,
         });
         for (let i = 0; i < 30; i++) {
-          await new Promise((r) => setTimeout(r, 500));
+          if (i > 0) await new Promise((r) => setTimeout(r, 500));
           if (await client.healthCheck()) {
             memoryClient = client;
             getBridge().setMemoryClient(client);

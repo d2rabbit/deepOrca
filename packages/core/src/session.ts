@@ -1536,11 +1536,15 @@ ${content}
     }
 
     // Memory recall — inject cross-session memories before activation.
-    // recall() has a 5s deadline; if the Gateway is down or slow, we proceed
-    // without memories. Memory must never block session creation significantly.
+    // Uses a 2s race: if the Gateway responds fast, memories are injected
+    // synchronously before the LLM sees the first message. If it's slow,
+    // we proceed without memories rather than blocking session creation.
     if (this.memoryClient?.isAvailable() && userPrompt.text) {
       try {
-        const recall = await this.memoryClient.recall(userPrompt.text, sessionId);
+        const recall = await Promise.race([
+          this.memoryClient.recall(userPrompt.text, sessionId),
+          new Promise<null>((r) => setTimeout(() => r(null), 2000)),
+        ]);
         if (recall) {
           const memoryPrompt = getMemoryPrompt(recall);
           if (memoryPrompt) {

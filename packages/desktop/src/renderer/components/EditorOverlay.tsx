@@ -1,30 +1,27 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import Editor, { type OnMount, loader } from "@monaco-editor/react";
-import * as monacoEditor from "monaco-editor";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type JSX } from "react";
 import type { editor } from "monaco-editor";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
 
-// Configure Monaco to use the locally bundled monaco-editor package instead
-// of fetching from a CDN at runtime. This eliminates the network dependency
-// (works offline, no CSP conflicts) and fixes the version skew between
-// package.json (^0.56) and the loader's hardcoded CDN default (0.55.1).
-// Must run before any <Editor> component mounts.
-loader.config({ monaco: monacoEditor });
+// Monaco is dynamically imported inside the component so its ~5MB of code
+// only loads when the user actually opens the editor. Combined with
+// React.lazy() in App.tsx and esbuild splitting, Monaco is fully deferred.
+// The loader is configured once (on first mount) to use the local npm
+// package instead of a CDN — eliminating the network dependency.
+let monacoInitialized = false;
+async function ensureMonacoLoaded(): Promise<void> {
+  if (monacoInitialized) return;
+  monacoInitialized = true;
+  const [{ loader: monacoLoader }, monacoEditor] = await Promise.all([
+    import("@monaco-editor/react"),
+    import("monaco-editor"),
+  ]);
+  // Use the locally bundled monaco-editor package instead of CDN.
+  monacoLoader.config({ monaco: monacoEditor.default ?? monacoEditor });
 
-// Monaco web workers handle language features (TS IntelliSense, JSON validation,
-// etc.). When loaded from the npm package (not CDN), we must provide worker
-// constructors. Since esbuild bundles everything into one file, we use a
-// self-contained worker shim that imports the worker entry points.
-// This runs in the renderer (browser) context.
-let workerConfigured = false;
-function ensureWorkerConfig(): void {
-  if (workerConfigured) return;
-  workerConfigured = true;
-  // The editor worker is the base worker all language workers extend.
-  // We create it from the bundled worker module via a Blob URL to avoid
-  // needing a separate worker file on disk.
+  // Configure web workers for language features (TS IntelliSense, JSON, etc.).
+  // Workers are loaded from the bundled monaco-editor package via import.meta.url.
   self.MonacoEnvironment = {
     getWorker(_workerId: string, label: string): Worker {
       switch (label) {
@@ -179,11 +176,24 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     setDirty(false);
   }, [content, saving, filePath, t]);
 
-  const handleEditorMount: OnMount = (ed) => {
-    ensureWorkerConfig();
-    editorRef.current = ed;
-    ed.focus();
-  };
+  const [monacoReady, setMonacoReady] = useState(false);
+  const MonacoEditorRef = useRef<ComponentType<Record<string, unknown>> | null>(null);
+
+  // Dynamically load Monaco on mount — defers ~5MB of code until the editor
+  // is actually opened.
+  useEffect(() => {
+    let cancelled = false;
+    void ensureMonacoLoaded().then(async () => {
+      if (cancelled) return;
+      const mod = await import("@monaco-editor/react");
+      if (cancelled) return;
+      MonacoEditorRef.current = mod.default as ComponentType<Record<string, unknown>>;
+      setMonacoReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleChange = useCallback((value: string | undefined) => {
     const next = value ?? "";
@@ -241,32 +251,44 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
           <div className="ui-editor-empty">{t("editor.binary")}</div>
         ) : content === null ? (
           <div className="ui-editor-empty">{t("editor.empty")}</div>
+        ) : !monacoReady || !MonacoEditorRef.current ? (
+          <div className="ui-editor-empty">
+            <span className="ui-spinner" /> {t("editor.loading")}
+          </div>
         ) : (
-          <Editor
-            height="100%"
-            language={lang}
-            value={content}
-            theme={appearance === "dark" ? "vs-dark" : "vs"}
-            onChange={handleChange}
-            onMount={handleEditorMount}
-            options={{
-              minimap: { enabled: true },
-              fontSize: 13,
-              wordWrap: "on",
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              insertSpaces: true,
-              renderWhitespace: "selection",
-              bracketPairColorization: { enabled: true },
-              guides: { bracketPairs: true, indentation: true },
-            }}
-            loading={
-              <div className="ui-editor-empty">
-                <span className="ui-spinner" /> {t("editor.loading")}
-              </div>
-            }
-          />
+          (() => {
+            const MonacoEditor = MonacoEditorRef.current;
+            return (
+              <MonacoEditor
+                height="100%"
+                language={lang}
+                value={content}
+                theme={appearance === "dark" ? "vs-dark" : "vs"}
+                onChange={handleChange}
+                onMount={(ed: editor.IStandaloneCodeEditor) => {
+                  editorRef.current = ed;
+                  ed.focus();
+                }}
+                options={{
+                  minimap: { enabled: true },
+                  fontSize: 13,
+                  wordWrap: "on",
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  insertSpaces: true,
+                  renderWhitespace: "selection",
+                  bracketPairColorization: { enabled: true },
+                  guides: { bracketPairs: true, indentation: true },
+                }}
+                loading={
+                  <div className="ui-editor-empty">
+                    <span className="ui-spinner" /> {t("editor.loading")}
+                  </div>
+                }
+              />
+            );
+          })()
         )}
       </div>
     </>

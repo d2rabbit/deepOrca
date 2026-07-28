@@ -54,15 +54,24 @@ const preloadConfig = {
   external: ["electron"],
 };
 
-/** Renderer: browser bundle, everything bundled in. */
+/**
+ * Renderer: browser bundle with code splitting.
+ * Splitting enables React.lazy() and dynamic import() to produce separate
+ * chunk files, so heavy dependencies (Monaco ~5MB, Mermaid ~3MB) are only
+ * loaded when the user actually opens the editor or renders a diagram.
+ * Requires outdir (not outfile) + format: "esm" (already set).
+ */
+const rendererOutdir = resolve(outdir, "renderer");
 const rendererConfig = {
   ...shared,
   entryPoints: [resolve(__dirname, "src/renderer/main.tsx")],
-  outfile: resolve(outdir, "renderer/renderer.js"),
+  outdir: rendererOutdir,
   platform: "browser",
   format: "esm",
   target: "chrome124",
   jsx: "automatic",
+  splitting: true,
+  chunkNames: "chunks/[name]-[hash]",
   loader: { ".png": "dataurl", ".svg": "dataurl" },
 };
 

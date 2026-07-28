@@ -27,14 +27,19 @@ import { PluginDetail, type PluginSelection } from "./components/PluginDetail";
 import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
-import { CodeReviewPanel } from "./components/CodeReviewPanel";
-import { GitMcpPanel } from "./components/GitMcpPanel";
-import { WikiPanel } from "./components/WikiPanel";
-import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
 import { lazy, Suspense } from "react";
-// Lazy-load Monaco editor — it pulls in ~5MB of Monaco code, so we only
-// load it when the user actually opens the editor view.
+
+// Lazy-load heavy components that are only shown when the user navigates to
+// specific views. This keeps the initial bundle small and defers ~8MB+ of
+// code (Monaco + Mermaid + markdown renderers) until actually needed.
+const CodeReviewPanel = lazy(() =>
+  import("./components/CodeReviewPanel").then((m) => ({ default: m.CodeReviewPanel }))
+);
+const DiffOverlay = lazy(() => import("./components/DiffOverlay").then((m) => ({ default: m.DiffOverlay })));
+import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
+const WikiPanel = lazy(() => import("./components/WikiPanel").then((m) => ({ default: m.WikiPanel })));
+import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
@@ -1275,11 +1280,15 @@ export function App(): JSX.Element {
         ) : sidebarView === "index" ? (
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
-          <CodeReviewPanel />
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <CodeReviewPanel />
+          </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />
         ) : sidebarView === "wiki" ? (
-          <WikiPanel />
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <WikiPanel />
+          </Suspense>
         ) : sidebarView === "editor" ? (
           <EditorPanel onOpenFile={setEditorFile} />
         ) : (
@@ -1454,7 +1463,9 @@ export function App(): JSX.Element {
       </div>
 
       {diffTarget ? (
-        <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+        <Suspense fallback={<div className="ui-editor-overlay" />}>
+          <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+        </Suspense>
       ) : null}
 
       {modal === "undo" ? (
