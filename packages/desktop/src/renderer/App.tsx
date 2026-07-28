@@ -399,14 +399,42 @@ export function App(): JSX.Element {
       accumulateStdout(processStdoutRef.current, event.pid, event.chunk);
     });
 
+    // Throttle stream progress updates to max 4/sec (250ms). Token streaming
+    // fires hundreds of events/sec; without throttling, each token triggers a
+    // full App re-render. The progress bar only needs sub-second granularity.
+    let lastStreamUpdate = 0;
+    let pendingStreamP: { startedAt: string; formattedTokens: string } | null = null;
+    let streamFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushStreamProgress = () => {
+      streamFlushTimer = null;
+      if (pendingStreamP) {
+        setStreamProgress(pendingStreamP);
+        pendingStreamP = null;
+      }
+    };
     const offStreamProgress = api.onLlmStreamProgress((progress) => {
       const p = progress as { phase?: string; startedAt?: string; formattedTokens?: string };
       if (p.phase === "end") {
+        if (streamFlushTimer) {
+          clearTimeout(streamFlushTimer);
+          streamFlushTimer = null;
+        }
+        pendingStreamP = null;
         setStreamProgress(null);
         return;
       }
       if (p.startedAt) {
-        setStreamProgress({ startedAt: p.startedAt, formattedTokens: p.formattedTokens ?? "0" });
+        const next = { startedAt: p.startedAt, formattedTokens: p.formattedTokens ?? "0" };
+        const now = Date.now();
+        if (now - lastStreamUpdate >= 250) {
+          lastStreamUpdate = now;
+          setStreamProgress(next);
+        } else {
+          pendingStreamP = next;
+          if (!streamFlushTimer) {
+            streamFlushTimer = setTimeout(flushStreamProgress, 250 - (now - lastStreamUpdate));
+          }
+        }
       }
     });
 
