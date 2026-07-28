@@ -890,9 +890,15 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  // Register IPC handlers first so the renderer can communicate as soon as
+  // the window loads. createWindow follows immediately — the window appears
+  // fast because the renderer HTML + JS start loading right away.
   registerIpc();
   createWindow();
-  refreshVendoredToolsInBackground();
+  // Defer background vendoring until after the window is visible — it
+  // fetches git repos and compiles, which is I/O-heavy and shouldn't
+  // compete with first paint for CPU/disk bandwidth.
+  setImmediate(refreshVendoredToolsInBackground);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
