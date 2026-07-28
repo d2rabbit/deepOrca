@@ -31,6 +31,7 @@ import {
   writeProjectSettings,
   writeSettings,
 } from "@deeporca/core";
+import type { MemoryGatewayClient } from "@deeporca/core";
 import type {
   DeepcodingSettings,
   GitmcpRepoMeta,
@@ -276,8 +277,8 @@ export class SessionBridge {
   }
 
   /** Set the memory Gateway client on the active SessionManager. */
-  setMemoryClient(client: { isAvailable(): boolean } | null): void {
-    this.manager.setMemoryClient(client as never);
+  setMemoryClient(client: MemoryGatewayClient | null): void {
+    this.manager.setMemoryClient(client);
   }
 
   dispose(): void {

@@ -1536,7 +1536,8 @@ ${content}
     }
 
     // Memory recall — inject cross-session memories before activation.
-    // Fire-and-forget: if the Gateway is down or slow, we proceed without memories.
+    // recall() has a 5s deadline; if the Gateway is down or slow, we proceed
+    // without memories. Memory must never block session creation significantly.
     if (this.memoryClient?.isAvailable() && userPrompt.text) {
       try {
         const recall = await this.memoryClient.recall(userPrompt.text, sessionId);

@@ -12,7 +12,7 @@
  * issues inside Electron and keeps the memory pipeline isolated.
  *
  * Integration hooks in SessionManager:
- *   - createSession:  recall() → inject memories into system prompt
+ *   - createSession:  recall() → inject memories into system prompt (5s deadline)
  *   - turn complete:  capture() → fire-and-forget store (async)
  *   - compactSession: capture evicted window before summarization
  */
@@ -33,14 +33,8 @@ function gatewayBaseUrl(port: number = DEFAULT_GATEWAY_PORT): string {
 
 /** Result of a recall operation — memories relevant to the user's query. */
 export type RecallResult = {
-  /** Text to prepend to the user message (contextual recall). */
-  prependContext?: string;
   /** Text to append to the system prompt (persona + relevant memories). */
   appendSystemContext?: string;
-  /** Individual L1 memories that matched. */
-  recalledMemories?: Array<{ content: string; score: number; type: string }>;
-  /** L3 persona summary, if available. */
-  persona?: string | null;
   /** Which recall strategy was used (hybrid/keyword/vector). */
   strategy?: string;
 };
@@ -123,19 +117,25 @@ export class MemoryGatewayClient {
     }
   }
 
+  /** Force-set the health flag (used by the host when the process dies). */
+  markUnhealthy(): void {
+    this.healthy = false;
+  }
+
   /** True if the last healthCheck succeeded. */
   get isHealthy(): boolean {
     return this.healthy;
   }
 
-  /** Convenience: healthy AND user has memory enabled. */
+  /** True when the Gateway is healthy and ready to serve requests. */
   isAvailable(): boolean {
     return this.healthy;
   }
 
   /**
    * Recall relevant memories before an LLM turn. Called at session creation
-   * to inject context into the system prompt.
+   * to inject context into the system prompt. Uses a tight 5s deadline so it
+   * never significantly delays session creation.
    */
   async recall(query: string, sessionKey: string): Promise<RecallResult | null> {
     if (!this.healthy) return null;
@@ -148,7 +148,7 @@ export class MemoryGatewayClient {
           session_key: sessionKey,
           user_id: this.userId,
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(5000),
       });
       if (!resp.ok) return null;
       const data = (await resp.json()) as {
@@ -156,7 +156,6 @@ export class MemoryGatewayClient {
         strategy?: string;
         memory_count?: number;
       };
-      // Map the Gateway response to our RecallResult shape.
       return {
         appendSystemContext: data.context ?? undefined,
         strategy: data.strategy,
@@ -288,14 +287,17 @@ export class MemoryGatewayClient {
 /**
  * Resolve the Gateway entry point from the installed npm package.
  * Returns the absolute path to the Gateway server script, or null if the
- * package is not installed.
+ * package is not installed or the gateway entry is missing.
+ *
+ * The published package ships only `src/gateway/server.ts` (TypeScript) —
+ * there is no pre-compiled gateway in dist/. The caller must run this via tsx.
  */
 export function resolveGatewayEntry(): string | null {
   try {
     const pkgPath = moduleRequire.resolve("@tencentdb-agent-memory/memory-tencentdb/package.json");
     const pkgDir = dirname(pkgPath);
 
-    // Check for gateway server entry in dist/ or src/
+    // The package ships src/ in its files list. The gateway server is TS.
     const candidates = [
       join(pkgDir, "dist", "gateway", "server.mjs"),
       join(pkgDir, "dist", "gateway", "server.js"),
@@ -313,20 +315,46 @@ export function resolveGatewayEntry(): string | null {
 }
 
 /**
+ * Resolve the tsx binary path for running TypeScript gateway entries.
+ * tsx is a dependency of the TDAM package but may be hoisted to the root.
+ * Returns the path to the tsx CLI script, or null if not found.
+ */
+export function resolveTsxBinary(): string | null {
+  try {
+    // Try resolving tsx from the TDAM package's perspective (handles hoisting).
+    return moduleRequire.resolve("tsx/bin/cli.mjs", {
+      paths: [dirname(moduleRequire.resolve("@tencentdb-agent-memory/memory-tencentdb/package.json"))],
+    });
+  } catch {
+    // Fall back to resolving from our own location.
+    try {
+      return moduleRequire.resolve("tsx/bin/cli.mjs");
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
  * Build the environment variables for the Gateway process. These configure
  * the LLM endpoint that TDAM uses for memory extraction.
  */
-export function buildGatewayEnv(opts: { apiKey: string; baseUrl: string; model: string }): Record<string, string> {
-  return {
-    // TDAM reads these for the standalone LLM runner.
+export function buildGatewayEnv(opts: {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  port?: number;
+}): Record<string, string> {
+  const env: Record<string, string> = {
+    // TDAM's StandaloneLLMRunnerFactory reads these.
     TDAI_LLM_API_KEY: opts.apiKey,
     TDAI_LLM_BASE_URL: opts.baseUrl,
     TDAI_LLM_MODEL: opts.model,
-    // Also set the Docker-style vars as fallback.
-    MODEL_API_KEY: opts.apiKey,
-    MODEL_BASE_URL: opts.baseUrl,
-    MODEL_NAME: opts.model,
-    // Skip the OpenClaw postinstall patch — we're not OpenClaw.
-    MEMORY_TENCENTDB_SKIP_OPENCLAW_PATCH: "1",
   };
+  // Forward the gateway port so the process binds correctly.
+  if (opts.port) {
+    env.TDAI_GATEWAY_PORT = String(opts.port);
+    env.TDAI_GATEWAY_HOST = "127.0.0.1";
+  }
+  return env;
 }

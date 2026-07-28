@@ -155,7 +155,13 @@ export {
 } from "./common/crg";
 export type { CrgExecutable } from "./common/crg";
 
-export { MemoryGatewayClient, resolveGatewayEntry, buildGatewayEnv, DEFAULT_GATEWAY_PORT } from "./common/memory";
+export {
+  MemoryGatewayClient,
+  resolveGatewayEntry,
+  resolveTsxBinary,
+  buildGatewayEnv,
+  DEFAULT_GATEWAY_PORT,
+} from "./common/memory";
 export type {
   RecallResult,
   CompletedTurn,

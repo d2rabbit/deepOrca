@@ -22,6 +22,7 @@ import {
   runCrgResetWithOutput,
   MemoryGatewayClient,
   resolveGatewayEntry,
+  resolveTsxBinary,
   buildGatewayEnv,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
@@ -547,58 +548,91 @@ function registerIpc(): void {
 
   let memoryGatewayProcess: ChildProcess | null = null;
   let memoryClient: MemoryGatewayClient | null = null;
+  let memoryStarting: Promise<{ ok: boolean; error?: string }> | null = null;
 
   async function startMemoryGateway(): Promise<{ ok: boolean; error?: string }> {
+    // Prevent concurrent start attempts (I10).
     if (memoryGatewayProcess) {
       return { ok: true };
     }
-    const entry = resolveGatewayEntry();
-    if (!entry) {
-      return { ok: false, error: "TencentDB-Agent-Memory package is not installed." };
+    if (memoryStarting) {
+      return memoryStarting;
     }
-    const settings = resolveCurrentSettings(getBridge().projectRoot);
-    if (!settings.apiKey) {
-      return { ok: false, error: "LLM API key is required for memory extraction." };
-    }
-    const env = {
-      ...buildGatewayEnv({
-        apiKey: settings.apiKey,
-        baseUrl: settings.baseURL,
-        model: settings.model,
-      }),
-      ELECTRON_RUN_AS_NODE: "1",
-    };
-    try {
-      // Run the Gateway server.ts via tsx (bundled with TDAM).
-      const cp = spawn(process.execPath, ["--import", "tsx", entry], {
-        cwd: getBridge().projectRoot,
-        env: { ...(process.env as Record<string, string>), ...env },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      trackHelperProcess(cp);
-      memoryGatewayProcess = cp;
-      cp.stderr?.on("data", (d: Buffer) => {
-        const text = d.toString().trim();
-        if (text) console.error("[memory-gateway]", text);
-      });
-      // Wait for the Gateway to be ready (poll /health for up to 15 seconds).
-      const port = settings.memory.port || 8420;
-      const client = new MemoryGatewayClient({ port, userId: settings.memory.userId || undefined });
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 500));
-        if (await client.healthCheck()) {
-          memoryClient = client;
-          getBridge().setMemoryClient(client);
-          return { ok: true };
-        }
+
+    memoryStarting = (async () => {
+      const entry = resolveGatewayEntry();
+      if (!entry) {
+        return { ok: false, error: "TencentDB-Agent-Memory package is not installed." };
       }
-      // Gateway didn't become healthy in time — clean up.
-      stopMemoryGateway();
-      return { ok: false, error: "Gateway failed to start within 15 seconds." };
-    } catch (err) {
-      memoryGatewayProcess = null;
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
+      // Resolve tsx from the TDAM package's dependency tree, not from cwd.
+      const tsxBin = resolveTsxBinary();
+      if (!tsxBin) {
+        return { ok: false, error: "tsx is required to run the memory Gateway but was not found." };
+      }
+      const settings = resolveCurrentSettings(getBridge().projectRoot);
+      if (!settings.apiKey) {
+        return { ok: false, error: "LLM API key is required for memory extraction." };
+      }
+      const port = settings.memory.port || 8420;
+      const env = {
+        ...buildGatewayEnv({
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseURL,
+          model: settings.model,
+          port,
+        }),
+        ELECTRON_RUN_AS_NODE: "1",
+      };
+      try {
+        // Run the Gateway server.ts via tsx binary (not --import, to avoid cwd
+        // resolution issues). tsxBin is an absolute path resolved from the TDAM
+        // package's dependency tree.
+        const cp = spawn(process.execPath, [tsxBin, entry], {
+          cwd: getBridge().projectRoot,
+          env: { ...(process.env as Record<string, string>), ...env },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        trackHelperProcess(cp);
+        memoryGatewayProcess = cp;
+
+        // Detect gateway crashes after startup (I1).
+        cp.on("exit", () => {
+          memoryGatewayProcess = null;
+          memoryClient?.markUnhealthy();
+          memoryClient = null;
+          getBridge().setMemoryClient(null);
+        });
+        cp.stderr?.on("data", (d: Buffer) => {
+          const text = d.toString().trim();
+          if (text) console.error("[memory-gateway]", text);
+        });
+
+        // Wait for the Gateway to be ready (poll /health for up to 15 seconds).
+        const client = new MemoryGatewayClient({
+          port,
+          userId: settings.memory.userId || undefined,
+          apiKey: settings.memory.apiKey || undefined,
+        });
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          if (await client.healthCheck()) {
+            memoryClient = client;
+            getBridge().setMemoryClient(client);
+            return { ok: true };
+          }
+        }
+        // Gateway didn't become healthy in time — clean up.
+        stopMemoryGateway();
+        return { ok: false, error: "Gateway failed to start within 15 seconds." };
+      } catch (err) {
+        memoryGatewayProcess = null;
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    })();
+
+    const result = await memoryStarting;
+    memoryStarting = null;
+    return result;
   }
 
   function stopMemoryGateway(): void {
@@ -606,20 +640,23 @@ function registerIpc(): void {
       memoryGatewayProcess.kill();
       memoryGatewayProcess = null;
     }
+    memoryClient?.markUnhealthy();
     memoryClient = null;
     getBridge().setMemoryClient(null);
   }
 
-  handle(IpcRequest.MemoryCheckAvailable, (): Promise<{ available: boolean; healthy: boolean }> => {
+  handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
     const entry = resolveGatewayEntry();
     if (!entry) {
-      return Promise.resolve({ available: false, healthy: false });
+      return { available: false, healthy: false };
     }
-    if (memoryClient?.isHealthy) {
-      return Promise.resolve({ available: true, healthy: true });
+    // Active probe: re-check health if we have a client (I2).
+    if (memoryClient) {
+      const healthy = await memoryClient.healthCheck();
+      return { available: true, healthy };
     }
-    // If gateway isn't running, check if the package is installed.
-    return Promise.resolve({ available: true, healthy: false });
+    // Gateway isn't running but the package is installed.
+    return { available: true, healthy: false };
   });
 
   handle(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {

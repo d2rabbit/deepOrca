@@ -31,7 +31,10 @@ import { CodeReviewPanel } from "./components/CodeReviewPanel";
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { WikiPanel } from "./components/WikiPanel";
 import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
-import { EditorOverlay } from "./components/EditorOverlay";
+import { lazy, Suspense } from "react";
+// Lazy-load Monaco editor — it pulls in ~5MB of Monaco code, so we only
+// load it when the user actually opens the editor view.
+const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
@@ -1353,7 +1356,15 @@ export function App(): JSX.Element {
             onBack={() => setMainView("chat")}
           />
         ) : sidebarView === "editor" && editorFile ? (
-          <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
+          <Suspense
+            fallback={
+              <div className="ui-editor-empty">
+                <span className="ui-spinner" /> Loading editor…
+              </div>
+            }
+          >
+            <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
+          </Suspense>
         ) : (
           <>
             <MessageList

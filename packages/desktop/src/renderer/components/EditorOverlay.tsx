@@ -1,9 +1,62 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import Editor, { type OnMount } from "@monaco-editor/react";
+import Editor, { type OnMount, loader } from "@monaco-editor/react";
+import * as monacoEditor from "monaco-editor";
 import type { editor } from "monaco-editor";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
+
+// Configure Monaco to use the locally bundled monaco-editor package instead
+// of fetching from a CDN at runtime. This eliminates the network dependency
+// (works offline, no CSP conflicts) and fixes the version skew between
+// package.json (^0.56) and the loader's hardcoded CDN default (0.55.1).
+// Must run before any <Editor> component mounts.
+loader.config({ monaco: monacoEditor });
+
+// Monaco web workers handle language features (TS IntelliSense, JSON validation,
+// etc.). When loaded from the npm package (not CDN), we must provide worker
+// constructors. Since esbuild bundles everything into one file, we use a
+// self-contained worker shim that imports the worker entry points.
+// This runs in the renderer (browser) context.
+let workerConfigured = false;
+function ensureWorkerConfig(): void {
+  if (workerConfigured) return;
+  workerConfigured = true;
+  // The editor worker is the base worker all language workers extend.
+  // We create it from the bundled worker module via a Blob URL to avoid
+  // needing a separate worker file on disk.
+  self.MonacoEnvironment = {
+    getWorker(_workerId: string, label: string): Worker {
+      switch (label) {
+        case "json":
+          return new Worker(new URL("monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url), {
+            type: "module",
+          });
+        case "css":
+        case "scss":
+        case "less":
+          return new Worker(new URL("monaco-editor/esm/vs/language/css/css.worker.js", import.meta.url), {
+            type: "module",
+          });
+        case "html":
+        case "handlebars":
+        case "razor":
+          return new Worker(new URL("monaco-editor/esm/vs/language/html/html.worker.js", import.meta.url), {
+            type: "module",
+          });
+        case "typescript":
+        case "javascript":
+          return new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), {
+            type: "module",
+          });
+        default:
+          return new Worker(new URL("monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url), {
+            type: "module",
+          });
+      }
+    },
+  };
+}
 
 /** Map a file path to a Monaco language id. */
 function languageForFile(file: string): string {
@@ -127,6 +180,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
   }, [content, saving, filePath, t]);
 
   const handleEditorMount: OnMount = (ed) => {
+    ensureWorkerConfig();
     editorRef.current = ed;
     ed.focus();
   };
