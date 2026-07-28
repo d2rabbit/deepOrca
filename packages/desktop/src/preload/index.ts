@@ -101,6 +101,12 @@ const api: DesktopApi = {
   reviewRun: () => ipcRenderer.invoke(IpcRequest.ReviewRun),
   onReviewProgress: (cb) => subscribe(IpcEvent.ReviewProgress, cb as (p: never) => void),
 
+  // ── code-review-graph (CRG — analysis-layer) ──────────────────
+  crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),
+  crgList: () => ipcRenderer.invoke(IpcRequest.CrgList),
+  crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
+  onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
+
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────
   wikiCheckAvailable: () => ipcRenderer.invoke(IpcRequest.WikiCheckAvailable),
   wikiInit: () => ipcRenderer.invoke(IpcRequest.WikiInit),

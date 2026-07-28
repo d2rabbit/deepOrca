@@ -13,6 +13,7 @@ import {
   isCodegraphDisabled,
   runCodegraphSync,
 } from "./common/codegraph";
+import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
 import {
   buildGitmcpMcpServerConfig,
   gitmcpSlugFromServerName,
@@ -408,6 +409,8 @@ export class SessionManager {
   private mcpToolDefinitions: ToolDefinition[] = [];
   /** Sessions that mutated files during the current turn and need a CodeGraph index sync. */
   private readonly codegraphDirtySessions = new Set<string>();
+  /** Sessions that mutated files during the current turn and need a CRG graph sync. */
+  private readonly crgDirtySessions = new Set<string>();
   private readonly messageConverter: OpenAIMessageConverter;
 
   constructor(options: SessionManagerOptions) {
@@ -443,6 +446,8 @@ export class SessionManager {
    * automatically — but only for projects that already contain a `.codegraph/`
    * directory, so the index/knowledge base stays project-scoped and nothing is
    * assumed to exist on the host. A user-provided `codegraph` entry always wins.
+   * Similarly, code-review-graph is auto-registered for projects with a
+   * `.code-review-graph/` directory, exposing only analysis-layer tools.
    * GitMCP entries (`gitmcp:` prefix) that still hold the portable placeholder
    * config are rewritten here into a concrete spawn config for this machine.
    */
@@ -450,19 +455,30 @@ export class SessionManager {
     servers?: Record<string, McpServerConfig>
   ): Record<string, McpServerConfig> | undefined {
     let result = this.resolveGitmcpServers(servers);
-    if (!hasCodegraphProject(this.projectRoot)) {
-      return result;
+
+    // CodeGraph (navigation/retrieval layer).
+    if (hasCodegraphProject(this.projectRoot) && !isCodegraphDisabled(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, CODEGRAPH_MCP_SERVER_NAME))) {
+        result = {
+          ...(result ?? {}),
+          [CODEGRAPH_MCP_SERVER_NAME]: buildCodegraphMcpServerConfig(this.projectRoot),
+        };
+      }
     }
-    if (isCodegraphDisabled(this.projectRoot)) {
-      return result;
+
+    // code-review-graph (analysis/review layer — risk, architecture, impact).
+    if (hasCrgProject(this.projectRoot) && !isCrgDisabled(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, CRG_MCP_SERVER_NAME))) {
+        const crgConfig = buildCrgMcpServerConfig(this.projectRoot);
+        if (crgConfig) {
+          result = {
+            ...(result ?? {}),
+            [CRG_MCP_SERVER_NAME]: crgConfig,
+          };
+        }
+      }
     }
-    if (result && Object.prototype.hasOwnProperty.call(result, CODEGRAPH_MCP_SERVER_NAME)) {
-      return result;
-    }
-    result = {
-      ...(result ?? {}),
-      [CODEGRAPH_MCP_SERVER_NAME]: buildCodegraphMcpServerConfig(this.projectRoot),
-    };
+
     return result;
   }
 
@@ -1871,6 +1887,7 @@ ${content}
       }
       this.maybeNotifyTaskCompletion(sessionId, notify, startedAt, env);
       this.maybeSyncCodegraphIndex(sessionId);
+      this.maybeSyncCrgIndex(sessionId);
     }
   }
 
@@ -2343,6 +2360,8 @@ ${content}
     // Remember that this turn changed files so we can refresh the CodeGraph index
     // once the turn settles (see maybeSyncCodegraphIndex).
     this.codegraphDirtySessions.add(sessionId);
+    // Same for the CRG graph (see maybeSyncCrgIndex).
+    this.crgDirtySessions.add(sessionId);
   }
 
   /**
@@ -2355,6 +2374,18 @@ ${content}
       return;
     }
     runCodegraphSync(this.projectRoot);
+  }
+
+  /**
+   * After a task turn ends, run an incremental CRG graph rebuild if this turn
+   * mutated files. Fire-and-forget and gated on the project being CRG-enabled;
+   * runCrgSync no-ops otherwise.
+   */
+  private maybeSyncCrgIndex(sessionId: string): void {
+    if (!this.crgDirtySessions.delete(sessionId)) {
+      return;
+    }
+    runCrgSync(this.projectRoot);
   }
 
   private updateLatestUserCheckpointHash(sessionId: string, previousHash: string | undefined, nextHash: string): void {

@@ -106,6 +106,11 @@ export const IpcRequest = {
   ReviewRun: "review:run",
   ReviewCheckAvailable: "review:checkAvailable",
 
+  // code-review-graph (CRG — analysis-layer: risk, impact, architecture)
+  CrgCheckAvailable: "crg:checkAvailable",
+  CrgList: "crg:list",
+  CrgReindex: "crg:reindex",
+
   // Wiki knowledge graph (openwiki CLI)
   WikiCheckAvailable: "wiki:checkAvailable",
   WikiInit: "wiki:init",
@@ -140,6 +145,7 @@ export const IpcEvent = {
   PluginEvent: "event:pluginEvent",
   CodegraphProgress: "event:codegraphProgress",
   ReviewProgress: "event:reviewProgress",
+  CrgProgress: "event:crgProgress",
   WikiProgress: "event:wikiProgress",
 } as const;
 
@@ -196,6 +202,30 @@ export type CodegraphProgressEvent = {
   done: boolean;
   /** Exit code, present only when done=true. */
   exitCode?: number;
+};
+
+/** Payload for the CrgProgress event (streamed CRG build/analysis output). */
+export type CrgProgressEvent = {
+  /** The workspace root being processed. */
+  root: string;
+  /** A chunk of process output. */
+  chunk: string;
+  /** Which stream produced the chunk. */
+  stream: "stdout" | "stderr";
+  /** True when the process has exited. */
+  done: boolean;
+  /** Exit code, present only when done=true. */
+  exitCode?: number;
+};
+
+/** A workspace entry for the CRG index library panel. */
+export type CrgIndexEntry = {
+  /** Workspace root path. */
+  root: string;
+  /** Display label (directory basename). */
+  label: string;
+  /** True when the workspace already contains a `.code-review-graph/` directory. */
+  hasGraph: boolean;
 };
 
 export type UndoRestoreMode = "conversation" | "code-and-conversation";
@@ -515,6 +545,16 @@ export type DesktopApi = {
   reviewRun(): Promise<{ ok: boolean; error?: string }>;
   /** Subscribe to streaming review output. Returns unsubscribe fn. */
   onReviewProgress(cb: (event: ReviewProgressEvent) => void): () => void;
+
+  // ── code-review-graph (CRG — analysis-layer) ──────────────────────────────
+  /** Check whether `uv`/`uvx` and code-review-graph are available. */
+  crgCheckAvailable(): Promise<{ available: boolean; version?: string }>;
+  /** List every known workspace with its CRG graph state. */
+  crgList(): Promise<CrgIndexEntry[]>;
+  /** Build (or rebuild) the CRG graph for a workspace, streaming via onCrgProgress. */
+  crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
+  /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
+  onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────────────────
   /** Check whether the built-in (vendored) or PATH `openwiki` CLI is available. */

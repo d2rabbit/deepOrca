@@ -492,6 +492,31 @@ export const ja: Record<MessageKey, string> = {
   "review.scope": "レビュー範囲：現在のプロジェクトの未コミットの変更（HEAD 比）。",
   "review.run": "レビュー開始",
   "review.running": "レビュー中…",
+  "review.log": "ログ",
+  "review.tabQuality": "品質",
+  "review.tabRisk": "リスク",
+  "review.tabArchitecture": "アーキテクチャ",
+
+  // ── Code Review Graph (crg) ──────────────────────────────
+  "crg.notInstalled": "code-review-graph を実行するには uv（astral-sh/uv）が必要です。",
+  "crg.installHint": "uv をインストール：curl -LsSf https://astral.sh/uv/install.sh | sh",
+  "crg.noGraph": "このプロジェクトではまだコードグラフが構築されていません。",
+  "crg.graphReady": "グラフが利用可能です——エージェントが分析ツールを使用できます。",
+  "crg.build": "グラフを構築",
+  "crg.rebuild": "再構築",
+  "crg.building": "構築中…",
+  "crg.askAgent":
+    "エージェントが CRG の分析ツールを使ってリスクに関する質問に回答できるようになりました。試してみてください：",
+  "crg.exampleRisk": "「現在の変更のリスクを分析して」",
+  "crg.exampleImpact": "「loginUser を修正した場合の影響範囲は？」",
+  "crg.exampleGaps": "「変更されたコードのテストカバレッジのギャップを表示して」",
+  "crg.switchToRisk": "グラフを構築するには、リスクタブに切り替えてください。",
+  "crg.askAgentArchitecture":
+    "エージェントが CRG のコミュニティ検出を通じてアーキテクチャを描画できます。試してみてください：",
+  "crg.exampleArchitecture": "「このプロジェクトのアーキテクチャの概要を見せて」",
+  "crg.exampleCommunities": "「主要なモジュールとその境界は？」",
+  "crg.exampleHubBridge": "「どの関数がハブまたはブリッジノードですか？」",
+  "crg.exampleSurprise": "「意外なクロスモジュールのつながりを表示して」",
 
   // ── GitMCP repositories (local MCP servers) ──────────────
   "rail.gitmcp": "GitMCP",

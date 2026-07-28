@@ -1,9 +1,10 @@
 # Orca Feature 集成路线图（下阶段）
 
-> 版本：v2.2 · 日期：2026-07-28 · 状态：规划中
+> 版本：v2.3 · 日期：2026-07-28 · 状态：规划中
 > 本文件定义下阶段开源项目的**直接集成**方案。所有项目均为直接集成到 Orca 中，非从零开发。
 > v2.1 更新：新增 Penpot vs Open Design 对比分析（选择 Open Design），新增 Obscura 轻量级无头浏览器集成，标记已集成项目。
 > v2.2 更新：新增 3 个引擎层/方法论项目调研（Prewalk、OpenSpace、OpenSpec）——基于完整 README（webReader 抓取）的深度分析，含集成成本与实现形态判定。
+> v2.3 更新：新增 3 个候选项目深度调研——TencentDB-Agent-Memory（挑战 #4 mem0 的更强记忆方案）、Graphify（挑战 #2 code-review-graph 的更强图谱方案）、Bento（填补演示文稿生成空白）。含与现有路线图项目的对比与替换/并存判定。重新定位 #2 code-review-graph 为分析层（非图谱层），明确与已集成 codegraph 的互补关系；新增 CRG vs OCR 审查范式对比与协同方案。
 
 ---
 
@@ -12,21 +13,22 @@
 | # | 项目 | 集成形态 | 核心价值 | 优先级 | 状态 |
 |---|------|----------|----------|--------|------|
 | 1 | flutter/agent-plugins | 构建时内置 Skills | Flutter/Dart 开发能力包 | P0 | ✅ **已集成** |
-| 2 | code-review-graph | 内置 MCP Server | 代码图谱 + 爆炸半径 + 简化架构图 | P0 | 📋 规划中 |
+| 2 | code-review-graph | 内置 MCP Server | **代码审查 + 风险分析 + 架构智能**（v2.3 重新定位：分析层，非图谱层） | P0 | 📋 规划中 |
 | 3 | serena | 内置 MCP Server | 符号级重构/导航/编辑 | P1 | 📋 规划中 |
-| 4 | mem0 | core 层 SDK | 跨会话长期记忆 | P1 | 📋 规划中 |
+| 4 | TencentDB-Agent-Memory | core 层 SDK | 跨会话长期记忆（v2.3 替换 mem0） | P1 | 📋 规划中 |
 | 5 | openwiki | 内置 CLI 工具 | 项目 Wiki 自动生成与维护 | P1 | ✅ **已集成** |
 | 6 | opencli | 内置插件 | 100+ 网站适配器 + CLI Hub | P2 | 📋 规划中 |
 | 7 | CLI-Anything | 内置 Skill | 万能 CLI 生成（Agent 驱动任意软件） | P2 | 📋 规划中 |
 | 8 | open-design | MCP Server（设计+展示） | AI 设计生成 + 文件交付给 coding agent | P2 | 📋 规划中 |
 | 9 | obscura | MCP Server + 内置 Skill | 轻量级无头浏览器（大规模数据获取） | P2 | 📋 规划中 |
+| 10 | bento | MCP Server + 内置 Skill | 演示文稿生成（单 HTML 文件，v2.3 新增） | P3 | 📋 规划中 |
 
 **已集成项目说明**：
 - ✅ **flutter/agent-plugins**：构建脚本 `scripts/install-flutter-skills.js`，已内置 26 个 Flutter/Dart Skills 到 `packages/core/templates/skills/bundled/`
 - ✅ **openwiki**：vendored CLI（`packages/desktop/vendor/openwiki/`）+ 内置 Skill（`packages/core/templates/skills/bundled/openwiki/`）+ 桌面端 Wiki 面板集成
 
-**额外已集成项目**（不在本路线图 9 个项目中）：
-- ✅ **codegraph**：vendored CLI（`packages/desktop/vendor/codegraph/`）+ 桌面端代码图谱面板（作为 code-review-graph 的替代品，已提供代码索引和图谱能力）
+**额外已集成项目**（不在本路线图 10 个项目中）：
+- ✅ **codegraph**（`@colbymchenry/codegraph` v1.5.0）：vendored CLI（`packages/desktop/vendor/codegraph/`）+ 桌面端索引管理面板 + 内置 MCP Server。定位为**导航/检索层**——TypeScript 原生、始终在线（原生文件 watcher）、LLM 面向的"代码 GPS"。默认暴露 1 个工具（`codegraph_explore`，一次调用返回源码+调用链+影响范围），可选 8 个。35 语言支持（20 个 Rust kernel）。作为 #2 code-review-graph 的**互补导航层**，两者不竞争——codegraph 做"在哪/谁调用谁"，CRG 做"多危险/架构如何"
 
 ---
 
@@ -41,6 +43,23 @@
 | C | OpenSpec | 规范驱动开发（spec 提案→实施→归档） | Plan Mode（提案→批准→执行） | 🟡 **部分重叠** — 流程已有但 spec 不持久化；Node 工具，可内置或借鉴 | P2 |
 
 **核心判断**：三者均**不冲突**——它们填补的是 DeepOrca 当前**完全空白或半成品**的能力域，且可基于现有 `model-capabilities.ts`、skills 系统、Plan Mode 基础设施自然扩展。
+
+---
+
+## 总览 — 候选项目深度评估（v2.3 新增）
+
+> 以下 3 个项目经深度调研后评估。**每个都对应现有路线图中的某个项目或空白域**，需做出"替换 / 并存 / 不采纳"的明确判定。
+
+| # | 项目 | 对标的现有项 | 判定 | 核心理由 |
+|---|------|-------------|------|----------|
+| D | TencentDB-Agent-Memory | #4 mem0 | 🔄 **建议替换 mem0** | 理念更先进（四层记忆+白盒+符号化），技术栈完美匹配（TS ESM+Node 22+SQLite），更适合长期记忆 |
+| E | Graphify | #2 code-review-graph / 已集成 codegraph | ⚠️ **不直接集成，借鉴补强** | 功能最强但 Python 3.10+ 依赖是硬伤；已有 codegraph，补其缺失的多模态/社区检测能力即可 |
+| F | Bento | 空白域（演示文稿） | ✅ **新增 P3 候选** | 填补"生成可编辑幻灯片"空白，单 HTML 文件理念契合桌面端，但项目极新需观望 |
+
+**核心判断**：
+- **D 是本次调研的最大收获**——TencentDB-Agent-Memory 在记忆能力上全面超越 mem0，且技术栈完全匹配，建议作为 #4 的**首选方案**，mem0 降级为备选
+- **E 不值得引入新依赖**——Graphify 的核心价值（代码图谱）DeepOrca 已通过 codegraph 具备，其增量能力（社区检测、多模态）可通过增强 codegraph 实现
+- **F 是真正的空白填补**——但项目仅 2 周龄、2 人维护，建议设为 P3 观望项，待其稳定后再集成
 
 ---
 
@@ -83,50 +102,227 @@ rm -rf /tmp/flutter-agent-plugins
 
 ---
 
-## 二、code-review-graph — 代码图谱 + 简化架构图
+## 二、code-review-graph — 代码审查与风险分析平台（v2.3 重新定位）
 
 > 仓库：https://github.com/tirth8205/code-review-graph
+> Stars：~27.2k · 许可：MIT · 版本：v2.3.7 · 30 个 MCP 工具 + 5 个 MCP Prompt
 
-### 作用
+### 核心定位变更（v2.3 关键修正）
 
-Local-first 代码智能图谱。Tree-sitter 解析 AST → 持久化图（SQLite）→ 通过 MCP 提供 30 个工具（爆炸半径、社区检测、执行流、Wiki 生成、风险评分等）。35+ 语言支持，增量更新 < 2 秒。
+> **⚠️ CRG 不是 codegraph 的替代品或升级版——两者是不同层。**
+>
+> - **codegraph（已集成）= 导航/检索层**——TypeScript 原生、始终在线、LLM 面向的"代码 GPS"，回答"这个符号在哪、谁调用谁"
+> - **CRG（规划中）= 分析/审查层**——Python 重工具、按需调用的"代码审计师"，回答"这次改动有多危险、架构健康度如何、哪些是脆弱节点"
+>
+> **它们互补而非竞争。** 两者都会保留，各司其职。
+
+### 两层能力分工
+
+| 能力域 | codegraph（已集成，导航层） | CRG（规划中，分析层） |
+|--------|----------------------------|----------------------|
+| **符号检索** | ✅ `codegraph_explore` 一次调用返回源码+调用链 | ❌ 不做（CRG 假设你已能导航） |
+| **调用关系** | ✅ callers/callees/impact（默认深度 2） | ✅ traverse_graph（BFS/DFS + token 预算） |
+| **爆炸半径** | ✅ 基础（`codegraph_impact`） | ✅ **深度**——BFS + 测试覆盖缺口 + 受影响流程 |
+| **风险评分** | ❌ 无 | ✅ **核心差异化**——per-node risk_index（调用数+测试覆盖+安全相关性），CI 可 `fail-on-risk` |
+| **社区检测** | ❌ 无 | ✅ **核心差异化**——Leiden 算法（igraph），自动分辨率缩放，cohesion 度量 |
+| **架构总览** | ❌ 无 | ✅ **核心差异化**——从社区结构生成 + 跨社区耦合警告 |
+| **Hub/Bridge 分析** | ❌ 无 | ✅ **核心差异化**——度中心性 + 介数中心性（采样近似） |
+| **知识缺口** | ❌ 无 | ✅ **核心差异化**——孤立节点/稀薄社区/未测试热点 |
+| **惊喜连接** | ❌ 无 | ✅ **核心差异化**——跨社区/跨语言耦合异常评分 |
+| **执行流追踪** | ❌ 无 | ✅ 入口点流程检测 + 关键度评分（Python 强，JS/Go 弱） |
+| **变更检测** | ❌ 无 | ✅ **核心差异化**——git diff → 受影响函数/流程/社区/测试缺口，按优先级排序 |
+| **PR 审查** | ❌ 无 | ✅ **核心差异化**——GitHub Action 发 sticky 风险评论 + CI 门控 |
+| **重构工具** | ❌ 无 | ✅ rename 预览 + 死代码检测 + apply |
+| **Wiki 生成** | ❌ 无（由 openwiki 承担） | ✅ 按社区生成 Markdown wiki（可选 Ollama 摘要） |
+| **语言** | TypeScript 原生（35 语言，20 个 Rust kernel） | Python（35 语言，tree-sitter） |
+| **存储** | SQLite（WAL），项目级 `.codegraph/` | SQLite（WAL），项目级 `.code-review-graph/` |
+| **同步** | 始终在线（原生文件 watcher，~1s 延迟） | 按需（`build` / `watch` / `daemon`） |
+| **LLM 工具** | 默认暴露 1 个（`codegraph_explore`），可选 8 个 | 暴露 30 个（可过滤子集） |
+| **依赖** | 零外部（vendored，Node 22） | Python 3.10+（基础轻量，分析能力可选重依赖） |
+
+**结论**：codegraph 解决"**导航效率**"（一次调用代替 grep/Read 循环），CRG 解决"**分析深度**"（风险、架构、审查）。两者并行工作不冲突。
+
+### 为什么两层都需要
+
+**场景 1：Agent 日常编码**（codegraph 主场）
+```
+用户："修改 loginUser 函数"
+→ codegraph_explore 一次返回 loginUser 源码 + 所有调用方 + 受影响文件
+→ Agent 直接编码
+（CRG 不参与——日常导航用不到风险评分）
+```
+
+**场景 2：代码审查 / 大重构前评估**（CRG 主场）
+```
+用户："审查这个 PR" / "评估重构安全性"
+→ CRG detect_changes：风险评分 + 受影响流程 + 测试缺口
+→ CRG get_hub_nodes + get_bridge_nodes：识别脆弱节点
+→ CRG get_surprising_connections：发现跨模块异常耦合
+→ Agent 生成结构化审查报告
+（codegraph 不参与——它不做分析，只做导航）
+```
+
+**场景 3：架构理解**（两者协同）
+```
+用户："解释这个项目的架构"
+→ CRG get_architecture_overview：社区结构 + 模块边界
+→ codegraph_explore：深入特定模块的符号和调用链
+→ Agent 生成层次化架构说明
+```
+
+### CRG 的 30 个工具分类
+
+**图谱构建 / 生命周期**（4 个）：build、postprocess、embed、stats + 多仓库管理
+
+**上下文检索**（8 个）：minimal_context（~100 token 概览）、review_context、impact_radius、query、traverse、semantic_search、docs_section、find_large_functions
+
+**流程分析**（3 个）：list_flows、get_flow、get_affected_flows
+
+**社区/架构**（3 个）：list_communities、get_community、get_architecture_overview
+
+**分析与风险**（6 个）⭐ 核心差异化：detect_changes（风险评分）、get_hub_nodes（度中心性）、get_bridge_nodes（介数中心性）、get_knowledge_gaps（知识缺口）、get_surprising_connections（异常耦合）、get_suggested_questions（自动审查问题）
+
+**重构/Wiki**（4 个）：refactor、apply_refactor、generate_wiki、get_wiki_page
+
+**5 个 MCP Prompt**（工作流模板）：review_changes、architecture_map、debug_issue、onboard_developer、pre_merge_check
 
 ### 与现有能力的适配度
 
 | 维度 | 评估 |
 |------|------|
-| CodeGraph 索引 | 🟡 有重叠 — CRG 的图谱能力覆盖并超越现有 CodeGraph |
-| 代码审查面板 | 🟢 互补 — 爆炸半径 + 风险评分增强现有 OCR 审查 |
-| MCP 系统 | 🟢 原生兼容 — stdio MCP Server |
-| 运行时依赖 | 🟡 需 Python 3.10+ |
-| 许可 | MIT |
+| codegraph（导航层） | 🟢 **互补非竞争**——codegraph 做导航，CRG 做分析，两者各司其职 |
+| 代码审查面板 | 🟢 直接增强——风险评分 + 影响范围 + 审查问题注入现有 OCR 审查 |
+| MCP 系统 | 🟢 原生兼容——stdio/HTTP MCP Server（FastMCP） |
+| 运行时依赖 | 🟡 Python 3.10+（基础轻量，igraph/embeddings 可选） |
+| openwiki | 🟡 轻微重叠——CRG 有 wiki 生成，但 openwiki 更专精，CRG wiki 不作为重点 |
+| 许可 | 🟢 MIT |
 
-### 集成方案
+### 集成方案（聚焦分析层能力）
 
-**我们不需要它的 D3.js 力导向图**，只需要简单的流程架构图（Mermaid/文本渲染），降低成本。
-
-**Phase 1 — 内置 MCP Server 预配置**：
+**Phase 1 — MCP Server + 工具子集过滤**：
 ```json
 {
   "mcpServers": {
     "code-review-graph": {
       "command": "code-review-graph",
-      "args": ["serve", "--tools", "build_or_update_graph_tool,get_impact_radius_tool,get_review_context_tool,detect_changes_tool,get_architecture_overview_tool,generate_wiki_tool,query_graph_tool,list_communities_tool"]
+      "args": ["serve", "--tools",
+        "detect_changes_tool,get_impact_radius_tool,get_review_context_tool",
+        "get_hub_nodes_tool,get_bridge_nodes_tool,get_surprising_connections_tool,get_knowledge_gaps_tool",
+        "get_architecture_overview_tool,list_communities_tool",
+        "get_suggested_questions_tool,find_large_functions_tool"
+      ]
     }
   }
 }
 ```
-只暴露核心工具子集，减少 token 消耗。
 
-**Phase 2 — 审查面板增强**：
+**关键：工具过滤策略**——只暴露 CRG 的**分析层独有工具**（10/30），过滤掉与 codegraph 重叠的导航类工具（query_graph、traverse_graph、semantic_search 等），减少 token 消耗，明确分工。
+
+**Phase 2 — 审查面板深度增强**：
 - 审查意见旁展示「影响范围」列表（文本形式，非 D3 图）
-- 调用 `detect_changes` 获取风险评分，在面板顶部展示风险摘要
+- 调用 `detect_changes` 获取风险评分，在面板顶部展示风险等级（high ≥0.70 / critical ≥0.85）
+- 注入 `get_suggested_questions` 的自动审查问题作为审查清单
+- 展示 `get_knowledge_gaps` 识别的未测试热点
 
-**Phase 3 — 简化架构图面板**：
+**Phase 3 — 架构健康度面板**：
 - 调用 `get_architecture_overview` 获取社区结构
 - 渲染为 **Mermaid 流程图**（非 D3.js），桌面端用 mermaid.js 轻量渲染
-- 模块关系用简单方框 + 箭头，不追求力导向图的炫酷效果
+- 展示 hub/bridge 节点（脆弱性热点）和 surprising connections（架构异味）
 - 点击模块可查看包含的文件和函数列表
+
+### 运行时依赖处理
+
+| 依赖 | 必需性 | 处理策略 |
+|------|--------|----------|
+| Python 3.10+ | 必需 | `pip install code-review-graph`（基础安装轻量） |
+| igraph（Leiden 社区检测） | 可选 | `pip install code-review-graph[communities]`——架构分析需要 |
+| sentence-transformers（嵌入） | 可选 | 暂不安装——语义搜索由 codegraph 承担 |
+| jedi（Python 符号增强） | 可选 | 按需 |
+| ollama（Wiki 摘要） | 可选 | 不用——Wiki 由 openwiki 承担 |
+
+**依赖隔离原则**：CRG 作为**可选增强**，不强制安装。未安装 CRG 时，codegraph 继续提供导航能力，仅缺少深度分析。桌面端检测 CRG 是否可用，动态显示/隐藏分析面板。
+
+### CRG vs OCR（Open Code Review）—— 两种审查范式协同
+
+> **⚠️ 关键澄清**：CRG 和 OCR（已集成的阿里巴巴 Open Code Review）都叫"代码审查"，但它们是**完全不同的审查范式**，不竞争，反而应该协同。
+
+#### 本质区别
+
+| 维度 | OCR（已集成） | CRG（规划中） |
+|------|---------------|---------------|
+| **审查范式** | **LLM 驱动的质量审查** | **算法驱动的结构分析** |
+| **核心问题** | "这段代码写得好不好？" | "改这里会影响什么？" |
+| **用什么审查** | LLM（ocr 自己的模型端点） | 纯算法（tree-sitter + 图论 + 启发式） |
+| **审查什么** | 代码质量、安全漏洞、正确性、风格、bug | 结构影响、风险评分、测试覆盖缺口、架构健康度 |
+| **输出** | 行级审查意见（file/line/severity/message/suggestion） | 风险评分 + 受影响函数/流程/社区列表 |
+| **严重级别** | critical / warning / info（代码质量问题） | low / medium / high / critical（风险等级，0.4/0.7/0.85 阈值） |
+| **LLM 依赖** | ✅ **必需**——ocr 内部用自己的 LLM 端点做审查 | ❌ **完全不用**——纯确定性 Python 算法 |
+| **代码理解深度** | 语义级（LLM 理解代码逻辑） | 结构级（AST + 图拓扑，不理解逻辑） |
+| **误报倾向** | 可能误判（LLM 幻觉） | 保守（宁可多报影响范围） |
+
+#### 各自审查什么（不重叠）
+
+**OCR 审查的（CRG 完全不做）**：
+- ✅ 代码质量问题（命名、复杂度、可读性）
+- ✅ 安全漏洞检测（注入、认证缺陷、敏感信息泄露）
+- ✅ 正确性/bug（空指针、逻辑错误、边界条件）
+- ✅ 代码风格建议
+- ✅ 行级修改建议（suggestion）
+- → **本质**：让 LLM 阅读代码 diff，像人类 reviewer 一样给出意见
+
+**CRG 审查的（OCR 完全不做）**：
+- ✅ 爆炸半径（改这个函数影响哪些下游）
+- ✅ 风险评分（基于 fan-out、hub/bridge、测试覆盖、安全关键词）
+- ✅ 测试覆盖缺口（改了生产代码但无测试关系的节点）
+- ✅ 受影响执行流程
+- ✅ 架构健康度（社区检测、hub/bridge 脆弱节点）
+- ✅ 跨模块异常耦合
+- → **本质**：用图算法算出"哪些改动最危险"，帮人类/LLM 聚焦
+
+#### 协同工作流（两者互补的完整审查）
+
+```
+用户提交 PR / 请求审查
+│
+├─ 第一步：CRG 结构分析（先跑，快、确定、无 LLM 成本）
+│  ├─ detect_changes → 风险评分 + 受影响函数列表
+│  ├─ get_impact_radius → 爆炸半径
+│  ├─ get_knowledge_gaps → 未测试热点
+│  └─ 输出："这次改动涉及 8 个函数，其中 3 个高风险（hub 节点+无测试），
+│           影响 2 个执行流程，测试缺口 5 处"
+│
+├─ 第二步：OCR 质量审查（聚焦高风险函数，省 token）
+│  ├─ 只对 CRG 标记为 high/critical 的函数调用 ocr review
+│  ├─ ocr 的 LLM 阅读这些函数的 diff → 质量意见
+│  └─ 输出："loginUser 第 42 行有空指针风险（warning）；
+│           checkPermission 缺少权限校验（critical）"
+│
+└─ 合并报告：结构风险（CRG）+ 质量问题（OCR）
+   "3 个高风险函数（CRG），其中 2 个有质量问题（OCR）"
+```
+
+**协同价值**：
+- CRG 做了 **triage（分诊）**——从 500 文件 diff 中筛出 5 个关键函数
+- OCR 做了 **diagnosis（诊断）**——对这 5 个函数做深度 LLM 审查
+- 单独用 OCR：对大 diff 盲目审查，token 爆炸且容易遗漏关键影响
+- 单独用 CRG：知道哪里危险但不知道代码写得对不对
+- **两者结合**：精准聚焦 + 深度诊断 = 完整审查
+
+#### 集成时的分工设计
+
+| 触发场景 | 用 OCR | 用 CRG | 用两者 |
+|----------|--------|--------|--------|
+| 用户点击"审查代码" | ✅ 质量审查 | ✅ 先跑风险分析 | ✅ **协同** |
+| Agent 日常编码后 | ✅ 快速质量检查 | ❌ 太重 | |
+| PR 合并前 | ✅ | ✅ CI 门控（fail-on-risk） | ✅ **协同** |
+| 架构评估 | ❌ 不适用 | ✅ 社区/hub/bridge | |
+| 新人 onboarding | ❌ 不适用 | ✅ architecture_map | |
+
+**桌面端面板设计**：
+- 现有 OCR 审查面板保持不变（LLM 质量审查）
+- CRG 分析结果**注入** OCR 审查面板顶部——作为"风险概览"区域
+- 用户先看 CRG 的结构风险摘要，再看 OCR 的行级质量意见
+- 两者的严重级别用不同视觉区分（CRG = 影响范围 / OCR = 代码质量）
 
 ---
 
@@ -174,41 +370,74 @@ Local-first 代码智能图谱。Tree-sitter 解析 AST → 持久化图（SQLit
 
 ---
 
-## 四、mem0 — 跨会话长期记忆
+## 四、跨会话长期记忆 — TencentDB-Agent-Memory（v2.3 替换 mem0）
 
-> 仓库：https://github.com/mem0ai/mem0
+> 仓库：https://github.com/TencentCloud/TencentDB-Agent-Memory
+> **⚠️ v2.3 变更**：原 #4 mem0 经与 TencentDB-Agent-Memory 深度对比后，**建议替换为 TencentDB-Agent-Memory**。mem0 降级为备选方案。详细对比见 [附录 D](#d-tencentdb-agent-memory--四层记忆--符号化检索)。
 
 ### 作用
 
-通用 AI 记忆层。User/Session/Agent 三级记忆，单次 LLM 调用提取事实，实体链接 + 时间推理 + 多信号检索（语义+BM25+实体）。让 Agent 越用越懂项目。Benchmark: LoCoMo 92.5 / LongMemEval 94.4。
+腾讯云出品的团队级 AI Agent 记忆中枢。将对话/文档/代码转化为四种可复用、可治理、可共享的记忆资产：Chat Memory、Skill、LLM-Wiki、Code-Graph。
+
+**核心理念**：拒绝"暴力堆历史"和"不可逆有损摘要"两种极端，保持原文不丢的同时构建可查询的结构化层——"原文不丢、结构可查"。
+
+**性能声明**（项目方自测）：最高节省 61.38% token，通过率提升 51.52%；PersonaMem 长期记忆评估准确率从 48% 提升至 76%。
+
+### 为什么替换 mem0（v2.3 核心判定）
+
+| 维度 | mem0 | TencentDB-Agent-Memory | 判定 |
+|------|------|------------------------|------|
+| **记忆模型** | 三级（User/Session/Agent）扁平事实提取 | **四层渐进式管线**（L0 原文→L1 原子事实→L2 场景摘要→L3 用户画像） | 🟢 TDAM 显著更先进 |
+| **可调试性** | 黑盒（向量分数不可读） | **白盒**——关键中间产物为人类可读的 Markdown + Mermaid 画布 | 🟢 TDAM 更符合 DeepOrca 的透明理念 |
+| **检索方式** | 语义+BM25+实体 | **混合检索**（BM25 + 向量 + RRF 融合）+ 符号化记忆（Mermaid 符号图 + node_id 回溯原文） | 🟢 TDAM 检索更精准 |
+| **技术栈** | Python SDK（需 Python 运行时） | **TypeScript ESM + Node ≥ 22.16 + SQLite + sqlite-vec** | 🟢 TDAM 与 DeepOrca 完美匹配（零 Python） |
+| **本地优先** | 需 Library/Self-Hosted 模式 | **默认完全本地**（SQLite + sqlite-vec），零外部 API 依赖 | 🟢 TDAM 更契合本地优先原则 |
+| **成熟度** | Apache-2.0，较成熟 | MIT，~9.3k stars，v0.3.6（pre-1.0），GitHub Trending #1 | 🟡 mem0 更成熟，但 TDAM 势头强 |
+| **LLM 配置** | OpenAI-compatible | OpenAI-compatible（默认 DeepSeek-V3.2，可复用 Orca 配置） | 🟢 平局 |
+
+**结论**：TencentDB-Agent-Memory 在**记忆模型先进性、白盒可调试性、技术栈匹配度、本地优先**四个关键维度全面优于 mem0，且许可更宽松（MIT vs Apache-2.0）。唯一风险是 pre-1.0 成熟度，但其 9.3k stars 和活跃度表明社区认可度高。
 
 ### 与现有能力的适配度
 
 | 维度 | 评估 |
 |------|------|
 | 会话持久化 | 🟢 互补 — Orca 有会话恢复但无智能记忆提取 |
-| core 层 | 🟢 npm SDK 可用（`mem0ai`） |
-| LLM 配置 | 🟢 可复用 Orca 已有的 LLM 端点 |
-| 隐私 | 🟡 需本地模式（Library 或 Self-Hosted） |
-| 许可 | Apache-2.0 |
+| core 层 | 🟢 TypeScript ESM，可直接作为 core 层 SDK |
+| LLM 配置 | 🟢 OpenAI-compatible，复用 Orca 已有的 LLM 端点 |
+| 存储 | 🟢 默认 SQLite（本地优先），可选迁移到腾讯云 VectorDB |
+| 隐私 | 🟢 默认完全本地，零外部 API 依赖 |
+| Node 版本 | 🟢 要求 ≥ 22.16，DeepOrca 已是 Node 22 |
+| 许可 | 🟢 MIT |
 
 ### 集成方案
 
-**Phase 1 — 内置 CLI + Skill**：
+**Phase 1 — core 层 SDK 集成**：
 ```bash
-npm install -g @mem0/cli
-mem0 init --agent --agent-caller orca
+npm install @tencentdb-agent-memory/memory-tencentdb  # core 依赖
 ```
-内置 `mem0-skill` SKILL.md，Agent 在关键节点（任务完成、发现重要模式、用户纠正）自动 `mem0 add`，新会话开始自动 `mem0 search`。
+- 会话结束 → 自动提取关键事实，走 L0→L1→L2→L3 四层管线存储
+- 会话开始 → 混合检索（BM25+向量+RRF）相关记忆注入 system prompt
+- 使用 Orca 已配置的 LLM 端点做记忆提取（默认 DeepSeek-V3.2 正好匹配）
 
-**Phase 2 — core 层 SDK 集成**：
-在 `packages/core` 引入 `mem0ai` npm 包：
-- 会话结束 → 自动提取关键事实存储
-- 会话开始 → 检索相关记忆注入 system prompt
-- 使用 Orca 已配置的 LLM 端点做记忆提取
+**Phase 2 — 符号化记忆面板**：
+利用 TDAM 的白盒特性，在桌面端展示：
+- 记忆画布（Mermaid 可视化 L2 场景摘要 + L3 用户画像）
+- 原文回溯（点击符号节点 → grep/retrieve 原始对话文本）
+- 这正是 TDAM 区别于 mem0 黑盒的核心优势
 
-**Phase 3 — 知识中心记忆引擎**：
-mem0 作为项目图谱 + Wiki 的底层记忆存储，形成完整知识中心。
+**Phase 3 — 与 openwiki + codegraph 融合**：
+- TDAM 的 LLM-Wiki 资产与 openwiki 生成的项目文档互补
+- TDAM 的 Code-Graph 资产与已集成的 codegraph 互补
+- 三者共同组成「项目知识中心」的记忆层
+
+### 风险与缓解
+
+| 风险 | 缓解措施 |
+|------|----------|
+| pre-1.0 API 变动 | 封装适配层，隔离 TDAM API 变更 |
+| 手动补丁需重应用（OpenClaw 场景） | DeepOrca 不走 OpenClaw，直接用 npm SDK，无此问题 |
+| 嵌入模型维度配置陷阱（BGE-M3 需 sendDimensions=false） | 文档记录，默认配置规避 |
+| mem0 备选 | 保留 mem0 集成方案作为 fallback，适配层抽象记忆接口 |
 
 ---
 
@@ -818,6 +1047,234 @@ npm install @fission-ai/openspec  # 作为 desktop 依赖
 
 ---
 
+## D、TencentDB-Agent-Memory — 四层记忆 + 符号化检索
+
+> 仓库：https://github.com/TencentCloud/TencentDB-Agent-Memory
+> 出品方：腾讯云 · 许可：MIT · Stars：~9.3k · 状态：v0.3.6（pre-1.0）· GitHub Trending #1（2026-07-08）
+
+### D.1 作用与核心价值
+
+团队级 AI Agent 记忆中枢。将对话/文档/代码转化为四种可复用、可治理、可共享的记忆资产：**Chat Memory、Skill、LLM-Wiki、Code-Graph**。
+
+**解决的痛点**（当前 Agent 记忆的两大失败模式）：
+1. **跨会话上下文断裂**——长期任务失去连续性
+2. **朴素摘要的两难**——堆历史撑爆 token / 有损摘要丢失原文真相
+
+**核心理念**："原文不丢、结构可查"——拒绝暴力堆历史和不可逆有损摘要两种极端，保持原文完整的同时构建可查询的结构化层。
+
+### D.2 架构：两大支柱
+
+**支柱一：记忆分层（Memory Layering）**
+
+异构存储 + 渐进式披露，四层渐进式管线（L0→L1→L2→L3）：
+
+| 层级 | 名称 | 内容 | 类比 |
+|------|------|------|------|
+| L0 | Raw Interaction | 所有原始对话轮次 | 原始日志 |
+| L1 | Atomic Memory | 自动提取的事实、约束、偏好、阶段结论 | 原子事实 |
+| L2 | Scenario Summary | 按特定任务聚合的原子记忆 | 任务摘要 |
+| L3 | User Persona | 持续蒸馏的稳定长期用户画像 | 用户画像 |
+
+运行"提取→聚合→蒸馏"管线，将不同粒度放在可互换的"楼层"上。短期上下文有自己的三层栈：底部原始输出 → 中间步骤摘要 → 顶部轻量 Mermaid 画布。
+
+**支柱二：符号化记忆（Symbolic Memory）**
+
+上下文卸载 + Mermaid 高密度语法。Agent 在符号图上推理，用 `node_id` 按需 grep/retrieve 完整原文——最小化 token 使用的同时保持可溯源性。
+
+### D.3 技术栈（完美匹配 DeepOrca）
+
+| 组件 | TencentDB-Agent-Memory | DeepOrca 现状 | 匹配度 |
+|------|------------------------|---------------|--------|
+| 语言/运行时 | TypeScript ESM, Node ≥ 22.16 | TypeScript ESM, Node ≥ 22 | 🟢 完美 |
+| 模块系统 | ESM (`"type": "module"`) | ESM only | 🟢 完美 |
+| 存储 | SQLite + sqlite-vec（默认本地） | 已有 SQLite 使用（codegraph） | 🟢 匹配 |
+| LLM SDK | Vercel AI SDK + OpenAI-compatible | OpenAI-compatible | 🟢 可复用 |
+| 默认模型 | DeepSeek-V3.2 | DeepSeek 系列主力 | 🟢 匹配 |
+| 分词 | js-tiktoken + jieba（中文） | 已有 token 统计 | 🟢 匹配 |
+| Schema | zod v4 | 已使用 zod | 🟢 匹配 |
+| 构建 | tsdown, vitest | tsc, node:test | 🟡 不同但兼容 |
+
+### D.4 与 mem0 的详细对比（替换判定依据）
+
+| 维度 | mem0 | TencentDB-Agent-Memory | 胜者 |
+|------|------|------------------------|------|
+| **记忆模型** | 三级扁平（User/Session/Agent） | 四层渐进式（L0→L3）语义金字塔 | 🟢 TDAM |
+| **可调试性** | 黑盒（不透明向量分数） | 白盒（Markdown + Mermaid 人类可读） | 🟢 TDAM |
+| **检索** | 语义+BM25+实体 | BM25+向量+RRF 融合 + 符号化 node_id 回溯 | 🟢 TDAM |
+| **语言** | Python SDK | TypeScript ESM | 🟢 TDAM（零 Python） |
+| **本地优先** | 需配置 Library/Self-Hosted | 默认完全本地 | 🟢 TDAM |
+| **许可** | Apache-2.0 | MIT | 🟢 TDAM（更宽松） |
+| **成熟度** | 较成熟，1.0+ | v0.3.6 pre-1.0 | 🟡 mem0 |
+| **社区** | 成熟社区 | 9.3k stars，Trending #1 | 🟡 平局 |
+| **Benchmark** | LoCoMo 92.5 / LongMemEval 94.4 | token -61.38%, pass +51.52%, PersonaMem 48%→76% | 🟡 不可直接比 |
+
+**最终判定**：TDAM 在 7/9 维度优于或持平 mem0，关键技术栈维度（TypeScript、本地优先、白盒）全面胜出。**建议替换**，mem0 作为备选保留。
+
+### D.5 集成成本评估
+
+| 维度 | 评估 | 说明 |
+|------|------|------|
+| 依赖复杂度 | 🟢 低 | 一个 npm 包，SQLite 已在用 |
+| API 稳定性 | 🟡 中 | pre-1.0，需封装适配层 |
+| 运行时开销 | 🟢 低 | 本地 SQLite，无外部服务 |
+| 与现有代码冲突 | 🟢 无 | 纯新增，不改现有会话循环 |
+| 回退方案 | 🟢 有 | mem0 作为 fallback，适配层抽象 |
+
+### D.6 局限性与注意事项
+
+- **pre-1.0 成熟度**：v0.3.6，API 和配置 schema 仍在变动 → 缓解：封装适配层
+- **Benchmark 自报**：61.38% token 节省等数字是项目方自测，无第三方复现 → 缓解：自行基准测试
+- **厂商亲和性**：部分功能（VectorDB 迁移、DeepSeek 默认）倾向腾讯云生态 → 缓解：本地模式不受影响
+- **嵌入模型陷阱**：开源嵌入模型（如 BGE-M3）需设 `embedding.sendDimensions=false`，否则 HTTP 400 → 缓解：文档记录默认规避
+
+---
+
+## E、Graphify — 多模态代码知识图谱
+
+> 仓库：https://github.com/Graphify-Labs/graphify
+> 出品方：Graphify-Labs（Safi Shamsi）· 许可：Apache-2.0 OR MIT（双许可）· Stars：~97.4k · 状态：v0.9.29（pre-1.0，`v8` 分支）
+
+### E.1 作用与核心价值
+
+将代码库及其周边产物（文档、SQL schema、配置、PDF、图片、视频）转化为**可查询的知识图谱**。作为 `/graphify` skill 供 AI coding assistant 使用（Claude Code、Cursor、Codex、Gemini CLI 等）。
+
+**核心卖点**：大规模代码库下"每查询 71.5 倍 token 节省"（52+ 文件场景；6 文件小目录约 1x）。
+
+**关键特性**：
+- **确定性本地代码解析**——tree-sitter AST，无 LLM，代码不离机
+- **多模态摄取**——代码（~40 语言）、Markdown/PDF、图片/图表（via 助手视觉模型）、音频/视频（faster-whisper 本地转写）
+- **图查询**——最短路径、节点解释、自然语言查询、连接追踪
+- **连接透明度**——每条边标记 EXTRACTED / INFERRED / AMBIGUOUS
+- **社区检测**——Leiden 算法（graspologic）识别子系统聚类
+- **无向量库**——纯图遍历，不用 embedding
+- **Wiki 模式**——`--wiki` 生成 Markdown 知识库供 Agent 按文件导航
+- **增量更新 + watch**——SHA256 缓存，`--update` 合并，`--watch` 自动同步
+
+### E.2 与 DeepOrca 现有能力的重叠分析
+
+| Graphify 能力 | DeepOrca 现状 | 重叠/互补 |
+|---------------|---------------|-----------|
+| tree-sitter 代码解析 → 图 | ✅ 已集成 codegraph（vendored） | 🔴 **重叠**——codegraph 已做 |
+| 最短路径/节点解释查询 | ✅ codegraph 已有 codegraph_explore | 🔴 **重叠** |
+| ~40 语言支持 | ✅ codegraph 支持主流语言 | 🟡 Graphify 更广 |
+| Mermaid Wiki 输出 | ✅ openwiki 已集成 | 🔴 **重叠**——openwiki 已做 |
+| MCP Server 集成 | ✅ codegraph/openwiki 已 MCP 化 | 🔴 **重叠** |
+| Leiden 社区检测 | ❌ DeepOrca 无 | 🟢 **互补**——空白能力 |
+| 多模态（PDF/图片/音视频） | ❌ DeepOrca 无 | 🟢 **互补**——空白能力 |
+| EXTRACTED/INFERRED/AMBIGUOUS 标签 | ❌ DeepOrca 无 | 🟢 **互补**——更精细的边语义 |
+| rationale 提取（# NOTE/# WHY 注释） | ❌ DeepOrca 无 | 🟢 **互补**——理念新颖 |
+
+### E.3 判定：不直接集成，借鉴补强 codegraph
+
+**🔴 不采纳 Graphify 的理由**：
+
+1. **核心功能三重重叠**：代码图谱（codegraph）、Wiki 生成（openwiki）、MCP 集成——Graphify 的三大卖点 DeepOrca 已全部具备
+2. **Python 3.10+ 依赖是硬伤**：违背 DeepOrca "零外部 Python 运行时"原则（codegraph/openwiki 已努力消除 Python 依赖），且 `graspologic`（Leiden）是重科学计算包
+3. **输出提交 Git 的设计不适合**：`graphify-out/` 设计为提交版本控制，会污染 DeepOrca 的代码库
+4. **pre-1.0 + `main` 与 `v8` 分支文档脱节**：API 快速变动，`main` 分支停留在 v0.1.x 而 `v8` 已 v0.9.29
+
+**🟢 借鉴方向——补强现有 codegraph**：
+
+| Graphify 的增量能力 | 补强方式 | 成本 |
+|---------------------|----------|------|
+| Leiden 社区检测 | 在 codegraph 面板增加"模块聚类"视图，用 JS 实现轻量聚类 | 中 |
+| EXTRACTED/INFERRED/AMBIGUOUS 边标签 | 扩展 codegraph 的边数据模型，标注来源置信度 | 低 |
+| rationale 注释提取（# NOTE/# WHY） | codegraph 索引时提取特殊注释作为节点属性 | 低 |
+| 多模态摄取（PDF/图片） | 通过 MCP 的 pdf/image 技能间接实现，非代码图谱职责 | 不做 |
+
+### E.4 97.4k stars 的启示
+
+Graphify 的超高人气（97.4k stars）证明了一件事：**代码知识图谱是 coding agent 的高价值能力**。DeepOrca 已通过 codegraph 占据了这个位置，方向正确。Graphify 的社区检测和多模态理念值得借鉴，但其 Python 重依赖和功能重叠使其不适合直接集成。
+
+---
+
+## F、Bento — 单文件演示文稿（填补演示文稿生成空白）
+
+> 仓库：https://github.com/nyblnet/bento
+> 出品方：The Bento authors · 许可：MIT · Stars：~2.7k · 状态：极新（2026-07-17 创建，2 周龄，2 人维护）
+> 热度：Show HN #1（~1k points）
+
+### F.1 作用与核心价值
+
+开源本地优先的办公套件，整个应用——编辑器、查看器、演示器、文档数据——都在**单个自包含 HTML 文件**（~560 KB）中。首发产品是 **Bento Slides**（PowerPoint 替代品）。
+
+**核心理念**："one file, forever"——一个 `.bento.html` 文件就是软件本身。任何现代浏览器都能打开、编辑、演示、发送，接收方无需安装任何东西。无安装程序、无账号、无后端。
+
+**关键特性**：
+- **自包含格式**——幻灯片、字体、图片、图表、动画、完整编辑器全部在一个文件里
+- **Morph 演示**——共享 `id` 的元素在幻灯片间自动补间动画（位置/大小/颜色/渐变）
+- **实时协作**——端到端加密（AES-GCM），密钥在文件内从不上服务器；离线编辑通过自研 CRDT 合并
+- **内置图表**——柱/折线/饼/散点，无依赖自研引擎，支持 morph（柱状图变饼图）
+- **为 AI 设计**——文档是纯 JSON，Agent 可直接编辑 `.bento.html` 文件
+- **签名自更新**——ECDSA 签名，更新保留旧文件回滚
+- **标准幻灯片功能**——演讲者视图、评论、布局、PDF 导出、8 种 UI 语言
+
+### F.2 为什么是 DeepOrca 的真正空白填补
+
+| 维度 | 评估 |
+|------|------|
+| **空白填补** | 🟢 DeepOrca 无任何演示文稿/幻灯片生成能力 |
+| **理念契合** | 🟢 单 HTML 文件 = 完全自包含，与 DeepOrca 桌面端理念一致 |
+| **AI 原生** | 🟢 文档是纯 JSON，Agent 可直接编辑，已有 Claude Code skill |
+| **本地优先** | 🟢 无需后端（协作用可选的 blind relay） |
+| **许可** | 🟢 MIT |
+| **技术栈** | 🟢 TypeScript + Vite（与 DeepOrca 桌面端 renderer 一致） |
+
+### F.3 集成方案（P3 观望，待稳定后推进）
+
+**Phase 1 — MCP Server / Skill 接入**：
+Bento 已提供 Claude Code skill（`/plugin marketplace add nyblnet/bento`）。DeepOrca 可：
+- 内置 `bento-skill` SKILL.md，教 Agent 编辑 `.bento.html` 的 JSON 文档块
+- 关键规则：JSON 中所有 `<` 必须转义为 `\u003c`；`docId` 永不重新生成
+- Agent 通过 bash 工具操作 `.bento.html` 文件（读取 JSON 块 → 修改 → 写回）
+
+**Phase 2 — 桌面端预览集成**：
+```typescript
+// packages/desktop/src/renderer/components/SlidesPreviewPanel.tsx
+function SlidesPreviewPanel({ bentoPath }: { bentoPath: string }) {
+  const previewUrl = `file://${bentoPath}`; // .bento.html 本身就是完整应用
+  
+  return (
+    <iframe
+      src={previewUrl}
+      sandbox="allow-scripts"
+      style={{ width: "100%", height: "100%", border: "none" }}
+    />
+  );
+}
+```
+`.bento.html` 是完整的 HTML 应用，可直接在 iframe 中渲染——**无需 daemon、无需后端**，比 open-design 的集成更简单。
+
+**Phase 3 — 生成工作流**：
+```
+用户描述 → Agent 生成幻灯片 JSON → 写入 .bento.html 模板
+→ 桌面端 iframe 预览 → 用户编辑/演示
+→ 可交付：单个 .bento.html 文件（含完整编辑器）
+```
+
+### F.4 为什么设为 P3（观望项）
+
+| 风险 | 说明 | 监控指标 |
+|------|------|----------|
+| **极新项目** | 2026-07-17 创建，仅 2 周龄 | 观察 3-6 个月活跃度 |
+| **2 人维护** | 本质是 solo/small-team side project | 观察贡献者增长 |
+| **文档模型变动** | pre-1.0，JSON schema 快速演进 | 观察 API 稳定性 |
+| **协作边缘情况** | 快照 undo 可能 revert 协作者；属性级 LWW | 关注协作场景成熟度 |
+| **桌面端优先** | 手机查看/演示好，编辑非一等公民 | 与 DeepOrca 桌面端匹配，非阻塞 |
+
+### F.5 Bento vs 传统方案的独特价值
+
+| 方案 | 分发形态 | 可编辑性 | AI 友好 | 离线 |
+|------|----------|----------|---------|------|
+| **Bento** | 单个 `.bento.html`（含编辑器） | ✅ 接收方可编辑 | ✅ 纯 JSON | ✅ |
+| PowerPoint | `.pptx`（需 Office） | 需购买软件 | ❌ 二进制 | ✅ |
+| Google Slides | 云链接 | 需账号/联网 | ❌ 非文件 | ❌ |
+| reveal.js | HTML + 资源目录 | 需技术能力 | 🟡 部分 | ✅ |
+
+**Bento 的独特定位**：唯一一个"单文件即应用、AI 可直接编辑 JSON、接收方零安装"的方案——完美契合 DeepOrca 的"Agent 生成 → 用户使用"工作流。
+
+---
+
 
 
 ```
@@ -828,12 +1285,13 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 │   MCP 预配置 + 审查增强    │
 ├── serena ─────────────────┤
 │   MCP 预配置 + Skill       │
-│                            ├── mem0 SDK 集成 ─────────────┤
+│                            ├── TencentDB-Agent-Memory ───┤  ← v2.3 替换 mem0
+│                            │   core SDK + 记忆面板        │
 │                            ├── openwiki CLI 内置 ─────────┤
 │                            ├── opencli 内置插件 ──────────┤
 │                            ├── obscura MCP + Skill ───────┤
 │                            │                              ├── 知识中心融合
-│                            │                              │   (CRG+Wiki+mem0)
+│                            │                              │   (CRG+Wiki+TDAM)
 │                            │                              ├── open-design MCP
 │                            │                              │   设计→代码工作流
 │                            │                              ├── CLI-Anything Skill
@@ -850,6 +1308,10 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 │   Plan Mode 增强(非替换)    │
 │                            ├── OpenSpace 技能评估闭环 ────┤
 │                            │   执行结果捕获+自动重写       │
+│
+│  ── P3 观望项（v2.3 新增）──────────────────────────────────
+│                            │                              ├── Bento 演示文稿
+│                            │                              │   (待项目稳定后集成)
 ```
 
 ## 十、构建时依赖安装清单
@@ -861,18 +1323,19 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 | flutter/agent-plugins | `git clone --depth 1`（构建脚本） | 内置 Skills |
 | code-review-graph | `pip install code-review-graph` | MCP Server |
 | serena | `uv tool install -p 3.13 serena-agent` | MCP Server |
-| mem0 | `npm install mem0ai`（core 依赖） | 记忆层 SDK |
+| TencentDB-Agent-Memory | `npm install @tencentdb-agent-memory/memory-tencentdb`（core 依赖） | 记忆层 SDK（v2.3 替换 mem0） |
 | openwiki | `npm install -g openwiki` | Wiki 生成 CLI |
 | opencli | `npm install -g @jackwener/opencli` | 网站适配器 |
 | od (open-design) | `npm install -g @anthropic-ai/od`（或从源安装） | 设计 MCP |
 | obscura | 下载二进制文件（无需安装） | 无头浏览器 MCP |
 | CLI-Anything | 内置 SKILL.md + HARNESS.md（无需安装） | Skill 文件 |
+| bento | `npm install`（slides 目录，仅 P3 推进时） | 演示文稿（v2.3 新增，P3 观望） |
 
 ## 十二、核心原则
 
-1. **直接集成，不从零开发** — 所有 9 个项目均以 MCP/内置插件/SDK/Skill 形式直接嵌入
+1. **直接集成，不从零开发** — 所有项目均以 MCP/内置插件/SDK/Skill 形式直接嵌入
 2. **flutter/agent-plugins 构建时安装** — 每次构建从源仓库拉取，不依赖远程插件中心
-3. **code-review-graph 简化可视化** — 不要 D3.js 力导向图，只要 Mermaid 流程架构图
+3. **code-review-graph 是分析层不是图谱层**（v2.3 修正）——codegraph（已集成）是导航/检索层，CRG 是分析/审查层，两者互补非竞争；CRG 只暴露分析层独有工具（风险评分、社区检测、hub/bridge 分析等），过滤掉与 codegraph 重叠的导航工具
 4. **open-design 优先使用 Web 渲染模块** — 内置启动 Open Design daemon server，通过 iframe 嵌入其 Next.js 预览页面；如果无法嵌入，则降级为完全自己实现 UI 渲染
 5. **obscura 专注大规模数据获取** — 与 browser-skill 互补，Obscura 负责抓取，browser-skill 负责操控
 6. **暂不考虑远程插件中心** — 所有能力通过构建时内置或本地安装提供
@@ -883,6 +1346,13 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 8. **OpenSpec 增强 Plan Mode 而非替换** — DeepOrca 已有成熟的提案→批准→执行流程，借鉴 OpenSpec 的 spec 持久化/分层/归档理念增强，不引入 OpenSpec CLI
 9. **OpenSpace 与 mem0 明确分工** — mem0 记"事实/偏好"，OpenSpace 记"技能/工作流"；优先自建轻量技能评估闭环，深度集成作为可选项
 10. **三者均不冲突** — Prewalk/OpenSpace 填补完全空白域，OpenSpec 补齐 Plan Mode 持久化短板，可并行推进
+
+### 候选项目评估原则（v2.3 新增）
+
+11. **TencentDB-Agent-Memory 替换 mem0** — 在记忆模型、白盒可调试性、技术栈匹配、本地优先四个关键维度全面优于 mem0，且许可更宽松（MIT）；mem0 降级为备选，适配层抽象记忆接口确保可回退
+12. **Graphify 不直接集成，借鉴补强 codegraph** — 核心功能与 codegraph/openwiki 三重重叠，Python 重依赖是硬伤；借鉴其社区检测（Leiden）和边置信度标签（EXTRACTED/INFERRED/AMBIGUOUS）理念增强现有 codegraph
+13. **Bento 设为 P3 观望项** — 真正填补演示文稿空白，单 HTML 文件理念契合桌面端，但项目仅 2 周龄、2 人维护；待 3-6 个月观察稳定后再推进集成
+14. **v2.3 三项目的共同判定逻辑** — 替换型（TDAM）看重全面优势 + 技术栈匹配；补强型（Graphify）看重增量能力 + 避免重依赖；观望型（Bento）看重空白填补 + 成熟度风险
 
 ---
 

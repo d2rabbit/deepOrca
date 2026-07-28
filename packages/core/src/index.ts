@@ -133,6 +133,27 @@ export {
   CODEGRAPH_VENDOR_ENTRY,
 } from "./common/codegraph";
 export type { CodegraphExecutable } from "./common/codegraph";
+
+export {
+  CRG_PACKAGE,
+  CRG_MCP_SERVER_NAME,
+  CRG_DIR_NAME,
+  CRG_ANALYSIS_TOOLS,
+  configureCrgVendorRoot,
+  getCrgVendorRoot,
+  resolveUvBinary,
+  resolveCrgExecutable,
+  setCrgDisabled,
+  isCrgDisabled,
+  hasCrgProject,
+  buildCrgMcpServerConfig,
+  runCrgBuild,
+  runCrgSync,
+  runCrgBuildWithOutput,
+  runCrgResetWithOutput,
+  spawnCrgPiped,
+} from "./common/crg";
+export type { CrgExecutable } from "./common/crg";
 export {
   GITMCP_SERVER_PREFIX,
   GITMCP_PLACEHOLDER_COMMAND,

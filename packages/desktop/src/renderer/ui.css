@@ -5040,6 +5040,105 @@ button.ui-topbar-pill {
   font-size: 11px;
   word-break: break-all;
 }
+.ui-review-hint {
+  margin-top: var(--ui-space-2);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-review-version {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  margin-left: var(--ui-space-1);
+}
+
+/* ── Review panel tabs ─────────────────────────────────────────────────── */
+.ui-review-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--ui-border-soft);
+  padding: 0 var(--ui-space-3);
+}
+.ui-review-tab {
+  background: none;
+  border: none;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ui-review-tab:hover {
+  color: var(--ui-text-primary);
+}
+.ui-review-tab.active {
+  color: var(--ui-accent);
+  border-bottom-color: var(--ui-accent);
+}
+
+/* ── CRG (code-review-graph) panel styles ──────────────────────────────── */
+.ui-crg-analysis-guide,
+.ui-crg-architecture-guide {
+  padding: var(--ui-space-2) 0;
+}
+.ui-crg-hint {
+  font-size: 11px;
+  color: var(--ui-text-secondary);
+  margin-bottom: var(--ui-space-2);
+}
+.ui-crg-examples {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+}
+.ui-crg-examples li {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.03));
+  border-radius: var(--ui-radius-sm);
+  font-family: var(--ui-font-mono, monospace);
+}
+
+/* ── Mermaid diagram container ─────────────────────────────────────────── */
+.ui-mermaid-container {
+  padding: var(--ui-space-2);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  border-radius: var(--ui-radius-md);
+  overflow-x: auto;
+  text-align: center;
+}
+.ui-mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+.ui-mermaid-loading {
+  font-size: 12px;
+  color: var(--ui-text-faint);
+}
+.ui-mermaid-fallback {
+  padding: var(--ui-space-2);
+  font-size: 11px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-faint);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ui-crg-mermaid-placeholder {
+  margin-top: var(--ui-space-3);
+}
+.ui-crg-mermaid-placeholder::before {
+  content: "Preview";
+  display: block;
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  margin-bottom: var(--ui-space-1);
+}
 
 /* ── Wiki knowledge graph panel (openwiki) ─────────────────────────────── */
 .ui-wiki-actions {

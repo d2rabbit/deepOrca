@@ -16,10 +16,20 @@ import {
   runCodegraphResetWithOutput,
   resolveCurrentSettings,
   resolveModernNode,
+  configureCrgVendorRoot,
+  hasCrgProject,
+  resolveUvBinary,
+  runCrgResetWithOutput,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
-import type { CodegraphIndexEntry, EditableSettings, UndoRestoreMode, WikiPageEntry } from "../shared/ipc.js";
+import type {
+  CodegraphIndexEntry,
+  CrgIndexEntry,
+  EditableSettings,
+  UndoRestoreMode,
+  WikiPageEntry,
+} from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
 import { applyAppIcon } from "./app-icon.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
@@ -59,6 +69,12 @@ app.setName("DeepOrca");
 // (packages/desktop/vendor/codegraph). When absent (not yet vendored), the core
 // resolver transparently falls back to `npx @colbymchenry/codegraph`.
 configureCodegraphVendorRoot(join(__dirname, "..", "vendor", "codegraph"));
+
+// Point the CRG (code-review-graph) resolver at the vendored uv binary
+// (packages/desktop/vendor/uv). When absent, the core resolver falls back
+// to a system `uv`/`uvx` on PATH. CRG is a Python tool run via uv's
+// isolated environment — no host Python required when uv is vendored.
+configureCrgVendorRoot(join(__dirname, "..", "vendor", "uv"));
 
 // Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
 // kick off the vendor scripts in the background at boot so they fetch upstream
@@ -474,6 +490,50 @@ function registerIpc(): void {
         resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
       }
     });
+  });
+
+  // ── code-review-graph (CRG — analysis-layer via uv/uvx) ────────────────────
+  // CRG is a Python tool. We run it via `uv tool run` (uvx), which auto-provisions
+  // an isolated Python 3.12 environment. The vendored uv binary (packages/desktop/
+  // vendor/uv) is preferred; when absent, a system `uv`/`uvx` on PATH is used.
+
+  handle(IpcRequest.CrgCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
+    return new Promise((resolve) => {
+      const uvBin = resolveUvBinary();
+      if (!uvBin) {
+        resolve({ available: false });
+        return;
+      }
+      // Probe uv version first — if uv works, uvx can run CRG.
+      execFile(uvBin, ["--version"], { timeout: 10000 }, (err, stdout) => {
+        if (err) {
+          resolve({ available: false });
+          return;
+        }
+        resolve({ available: true, version: stdout.trim().split("\n")[0] });
+      });
+    });
+  });
+
+  handle(IpcRequest.CrgList, (): CrgIndexEntry[] => {
+    const { workspaces } = listWorkspaceSessions(getBridge().projectRoot);
+    return workspaces.map((w) => ({
+      root: w.root,
+      label: w.label,
+      hasGraph: hasCrgProject(w.root),
+    }));
+  });
+
+  handle(IpcRequest.CrgReindex, async (root: string) => {
+    const exitCode = await runCrgResetWithOutput(root, (chunk: string, stream: "stdout" | "stderr") => {
+      emit(IpcEvent.CrgProgress, { root, chunk, stream, done: false });
+    });
+    emit(IpcEvent.CrgProgress, { root, chunk: "", stream: "stdout", done: true, exitCode });
+    return {
+      ok: exitCode === 0,
+      action: "reset" as const,
+      error: exitCode !== 0 ? `exit code ${exitCode}` : undefined,
+    };
   });
 
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────

@@ -491,14 +491,37 @@ export const en = {
   "index.done": "Index complete",
   "index.failed": "Index failed",
 
-  // ── Code Review (ocr) ─────────────────────────────────────
+  // ── Code Review (ocr + crg) ───────────────────────────────
   "rail.review": "Code Review",
   "review.title": "Code Review",
-  "review.checking": "Checking ocr availability…",
+  "review.checking": "Checking availability…",
   "review.notInstalled": "Open Code Review is not available in this build.",
   "review.scope": "Review scope: uncommitted workspace changes (vs HEAD) in the current project.",
   "review.run": "Run Review",
   "review.running": "Reviewing…",
+  "review.log": "log",
+  "review.tabQuality": "Quality",
+  "review.tabRisk": "Risk",
+  "review.tabArchitecture": "Architecture",
+
+  // ── code-review-graph (CRG analysis layer) ────────────────
+  "crg.notInstalled": "code-review-graph requires uv (astral-sh/uv) to run.",
+  "crg.installHint": "Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh",
+  "crg.noGraph": "No graph built yet for this project.",
+  "crg.graphReady": "Graph ready — analysis tools available to the agent.",
+  "crg.build": "Build Graph",
+  "crg.rebuild": "Rebuild",
+  "crg.building": "Building…",
+  "crg.askAgent": "The agent can now answer risk questions using CRG's analysis tools. Try asking:",
+  "crg.exampleRisk": '"Analyze the risk of my current changes"',
+  "crg.exampleImpact": '"What\'s the blast radius if I modify loginUser?"',
+  "crg.exampleGaps": '"Show test coverage gaps in the changed code"',
+  "crg.switchToRisk": "Switch to the Risk tab to build the graph first.",
+  "crg.askAgentArchitecture": "The agent can render the architecture via CRG's community detection. Try asking:",
+  "crg.exampleArchitecture": '"Show me the architecture overview of this project"',
+  "crg.exampleCommunities": '"What are the main modules and their boundaries?"',
+  "crg.exampleHubBridge": '"Which functions are hub or bridge nodes?"',
+  "crg.exampleSurprise": '"Show surprising cross-module connections"',
 
   // ── GitMCP repositories (local MCP servers) ──────────────
   "rail.gitmcp": "GitMCP",
@@ -1053,14 +1076,37 @@ export const zh: Record<MessageKey, string> = {
   "index.done": "索引完成",
   "index.failed": "索引失败",
 
-  // ── Code Review (ocr) ─────────────────────────────────────
+  // ── Code Review (ocr + crg) ───────────────────────────────
   "rail.review": "代码审查",
   "review.title": "代码审查",
-  "review.checking": "正在检测 ocr 可用性…",
+  "review.checking": "正在检测可用性…",
   "review.notInstalled": "当前版本未内置 Open Code Review。",
   "review.scope": "审查范围：当前项目工作区未提交的变更（相对 HEAD）。",
   "review.run": "开始审查",
   "review.running": "审查中…",
+  "review.log": "日志",
+  "review.tabQuality": "质量",
+  "review.tabRisk": "风险",
+  "review.tabArchitecture": "架构",
+
+  // ── code-review-graph (CRG 分析层) ────────────────────────
+  "crg.notInstalled": "code-review-graph 需要 uv（astral-sh/uv）才能运行。",
+  "crg.installHint": "安装 uv：curl -LsSf https://astral.sh/uv/install.sh | sh",
+  "crg.noGraph": "当前项目尚未构建代码图谱。",
+  "crg.graphReady": "图谱已就绪——分析工具已对 Agent 可用。",
+  "crg.build": "构建图谱",
+  "crg.rebuild": "重建",
+  "crg.building": "构建中…",
+  "crg.askAgent": "Agent 现在可以使用 CRG 的分析工具回答风险问题。试试问：",
+  "crg.exampleRisk": "「分析我当前改动的风险」",
+  "crg.exampleImpact": "「修改 loginUser 的影响范围是什么？」",
+  "crg.exampleGaps": "「显示变更代码中的测试缺口」",
+  "crg.switchToRisk": "请先切换到「风险」标签页构建图谱。",
+  "crg.askAgentArchitecture": "Agent 可以通过 CRG 的社区检测渲染架构。试试问：",
+  "crg.exampleArchitecture": "「展示这个项目的架构概览」",
+  "crg.exampleCommunities": "「主要模块和它们的边界是什么？」",
+  "crg.exampleHubBridge": "「哪些函数是 hub 或 bridge 节点？」",
+  "crg.exampleSurprise": "「显示异常的跨模块连接」",
 
   // ── GitMCP repositories (local MCP servers) ──────────────
   "rail.gitmcp": "GitMCP",

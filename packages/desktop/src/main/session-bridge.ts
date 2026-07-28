@@ -3,9 +3,12 @@
 
 import {
   buildCodegraphMcpServerConfig,
+  buildCrgMcpServerConfig,
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
+  CRG_MCP_SERVER_NAME,
+  setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
   getProjectSettingsPath,
@@ -278,11 +281,14 @@ export class SessionBridge {
 
   /**
    * (Re)initialize MCP servers honoring the desktop-only disable sidecar. The
-   * built-in CodeGraph opt-out is pushed into core (which auto-registers it), and
-   * user-configured servers marked disabled are filtered out before init.
+   * built-in CodeGraph and CRG opt-outs are pushed into core (which
+   * auto-registers them), and user-configured servers marked disabled are
+   * filtered out before init.
    */
   private initMcp(): void {
-    setCodegraphDisabled(this.projectRoot, readDisabledMcp(this.projectRoot).includes(CODEGRAPH_MCP_SERVER_NAME));
+    const disabled = readDisabledMcp(this.projectRoot);
+    setCodegraphDisabled(this.projectRoot, disabled.includes(CODEGRAPH_MCP_SERVER_NAME));
+    setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
   }
 
@@ -663,7 +669,7 @@ export class SessionBridge {
         enabled: !disabled.has(name),
         // GitMCP repositories are managed from the GitMCP module: the MCP tab
         // may toggle them but never remove them (same contract as codegraph).
-        builtin: name === CODEGRAPH_MCP_SERVER_NAME || isGitmcpServerName(name),
+        builtin: name === CODEGRAPH_MCP_SERVER_NAME || name === CRG_MCP_SERVER_NAME || isGitmcpServerName(name),
         status: statuses.get(name),
       });
     }
@@ -680,6 +686,22 @@ export class SessionBridge {
         builtin: true,
         status: statuses.get(CODEGRAPH_MCP_SERVER_NAME),
       });
+    }
+    // Built-in CRG (code-review-graph): analysis-layer MCP server. Shown even
+    // when the project has not built a graph yet, so it can be toggled.
+    if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
+      const cfg = buildCrgMcpServerConfig(this.projectRoot);
+      if (cfg) {
+        list.push({
+          name: CRG_MCP_SERVER_NAME,
+          command: cfg.command,
+          args: (cfg.args ?? []).join(" "),
+          env: stringifyEnv(cfg.env),
+          enabled: !disabled.has(CRG_MCP_SERVER_NAME),
+          builtin: true,
+          status: statuses.get(CRG_MCP_SERVER_NAME),
+        });
+      }
     }
     return list;
   }

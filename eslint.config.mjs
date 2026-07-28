@@ -62,6 +62,9 @@ export default tseslint.config(
       globals: {
         process: "readonly",
         console: "readonly",
+        fetch: "readonly",
+        AbortSignal: "readonly",
+        AbortController: "readonly",
       },
     },
   },
