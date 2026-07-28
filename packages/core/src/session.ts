@@ -14,6 +14,7 @@ import {
   runCodegraphSync,
 } from "./common/codegraph";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
+import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
   gitmcpSlugFromServerName,
@@ -28,6 +29,7 @@ import {
   getCompactPrompt,
   getDefaultSkillPrompt,
   getExtensionRoot,
+  getMemoryPrompt,
   getPlanModePrompt,
   getRuntimeContext,
   getSystemPrompt,
@@ -411,6 +413,8 @@ export class SessionManager {
   private readonly codegraphDirtySessions = new Set<string>();
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
   private readonly crgDirtySessions = new Set<string>();
+  /** Memory Gateway client (null when memory is disabled or Gateway unavailable). */
+  private memoryClient: MemoryGatewayClient | null = null;
   private readonly messageConverter: OpenAIMessageConverter;
 
   constructor(options: SessionManagerOptions) {
@@ -427,6 +431,19 @@ export class SessionManager {
     this.messageConverter = new OpenAIMessageConverter({
       renderInitPrompt: () => this.renderInitCommandPrompt(),
     });
+  }
+
+  /**
+   * Configure the memory Gateway client. Called by the desktop host after the
+   * Gateway sidecar has started (or with null to disable memory).
+   */
+  setMemoryClient(client: MemoryGatewayClient | null): void {
+    this.memoryClient = client;
+  }
+
+  /** True when the memory Gateway is healthy and available. */
+  isMemoryAvailable(): boolean {
+    return this.memoryClient?.isAvailable() ?? false;
   }
 
   /**
@@ -1518,6 +1535,22 @@ ${content}
       this.appendSessionMessage(sessionId, instructionsMessage);
     }
 
+    // Memory recall — inject cross-session memories before activation.
+    // Fire-and-forget: if the Gateway is down or slow, we proceed without memories.
+    if (this.memoryClient?.isAvailable() && userPrompt.text) {
+      try {
+        const recall = await this.memoryClient.recall(userPrompt.text, sessionId);
+        if (recall) {
+          const memoryPrompt = getMemoryPrompt(recall);
+          if (memoryPrompt) {
+            this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, memoryPrompt));
+          }
+        }
+      } catch {
+        // Memory recall must never block session creation.
+      }
+    }
+
     this.appendPlanModeTransitionMessages(sessionId, false, Boolean(userPrompt.planMode));
 
     this.recordUserPromptCheckpoint(sessionId);
@@ -1888,6 +1921,7 @@ ${content}
       this.maybeNotifyTaskCompletion(sessionId, notify, startedAt, env);
       this.maybeSyncCodegraphIndex(sessionId);
       this.maybeSyncCrgIndex(sessionId);
+      this.maybeCaptureMemory(sessionId);
     }
   }
 
@@ -2386,6 +2420,43 @@ ${content}
       return;
     }
     runCrgSync(this.projectRoot);
+  }
+
+  /**
+   * After a task turn ends, capture the conversation into the memory Gateway.
+   * Fire-and-forget — memory capture must never break the session loop.
+   * Extracts the user prompt text + last assistant response and sends them
+   * to the TDAM Gateway for L0 storage and pipeline processing.
+   */
+  private maybeCaptureMemory(sessionId: string): void {
+    if (!this.memoryClient?.isAvailable()) {
+      return;
+    }
+    const messages = this.listSessionMessages(sessionId);
+    if (messages.length < 2) {
+      return;
+    }
+    // Find the last user message and the last assistant message.
+    let userText = "";
+    let assistantText = "";
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (!msg) continue;
+      const text = msg.content ?? "";
+      if (msg.role === "user" && !userText) {
+        userText = text;
+      }
+      if (msg.role === "assistant" && !assistantText) {
+        assistantText = text;
+      }
+      if (userText && assistantText) break;
+    }
+    if (!userText || !assistantText) {
+      return;
+    }
+    void this.memoryClient.capture({ userText, assistantText, sessionKey: sessionId }).catch(() => {
+      // Swallow — best-effort memory capture.
+    });
   }
 
   private updateLatestUserCheckpointHash(sessionId: string, previousHash: string | undefined, nextHash: string): void {

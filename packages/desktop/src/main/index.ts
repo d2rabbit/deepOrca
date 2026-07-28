@@ -20,6 +20,9 @@ import {
   hasCrgProject,
   resolveUvBinary,
   runCrgResetWithOutput,
+  MemoryGatewayClient,
+  resolveGatewayEntry,
+  buildGatewayEnv,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -536,11 +539,102 @@ function registerIpc(): void {
     };
   });
 
+  // ── Memory Gateway (TencentDB-Agent-Memory sidecar) ──────────────────────
+  // TDAM runs as an HTTP Gateway daemon on localhost:8420. We launch it via
+  // Electron's bundled Node (ELECTRON_RUN_AS_NODE) using tsx to handle the
+  // TypeScript entry point. The Gateway handles all memory operations:
+  // recall, capture, search — DeepOrca communicates via HTTP.
+
+  let memoryGatewayProcess: ChildProcess | null = null;
+  let memoryClient: MemoryGatewayClient | null = null;
+
+  async function startMemoryGateway(): Promise<{ ok: boolean; error?: string }> {
+    if (memoryGatewayProcess) {
+      return { ok: true };
+    }
+    const entry = resolveGatewayEntry();
+    if (!entry) {
+      return { ok: false, error: "TencentDB-Agent-Memory package is not installed." };
+    }
+    const settings = resolveCurrentSettings(getBridge().projectRoot);
+    if (!settings.apiKey) {
+      return { ok: false, error: "LLM API key is required for memory extraction." };
+    }
+    const env = {
+      ...buildGatewayEnv({
+        apiKey: settings.apiKey,
+        baseUrl: settings.baseURL,
+        model: settings.model,
+      }),
+      ELECTRON_RUN_AS_NODE: "1",
+    };
+    try {
+      // Run the Gateway server.ts via tsx (bundled with TDAM).
+      const cp = spawn(process.execPath, ["--import", "tsx", entry], {
+        cwd: getBridge().projectRoot,
+        env: { ...(process.env as Record<string, string>), ...env },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      trackHelperProcess(cp);
+      memoryGatewayProcess = cp;
+      cp.stderr?.on("data", (d: Buffer) => {
+        const text = d.toString().trim();
+        if (text) console.error("[memory-gateway]", text);
+      });
+      // Wait for the Gateway to be ready (poll /health for up to 15 seconds).
+      const port = settings.memory.port || 8420;
+      const client = new MemoryGatewayClient({ port, userId: settings.memory.userId || undefined });
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (await client.healthCheck()) {
+          memoryClient = client;
+          getBridge().setMemoryClient(client);
+          return { ok: true };
+        }
+      }
+      // Gateway didn't become healthy in time — clean up.
+      stopMemoryGateway();
+      return { ok: false, error: "Gateway failed to start within 15 seconds." };
+    } catch (err) {
+      memoryGatewayProcess = null;
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  function stopMemoryGateway(): void {
+    if (memoryGatewayProcess) {
+      memoryGatewayProcess.kill();
+      memoryGatewayProcess = null;
+    }
+    memoryClient = null;
+    getBridge().setMemoryClient(null);
+  }
+
+  handle(IpcRequest.MemoryCheckAvailable, (): Promise<{ available: boolean; healthy: boolean }> => {
+    const entry = resolveGatewayEntry();
+    if (!entry) {
+      return Promise.resolve({ available: false, healthy: false });
+    }
+    if (memoryClient?.isHealthy) {
+      return Promise.resolve({ available: true, healthy: true });
+    }
+    // If gateway isn't running, check if the package is installed.
+    return Promise.resolve({ available: true, healthy: false });
+  });
+
+  handle(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
+    if (enabled) {
+      return startMemoryGateway();
+    }
+    stopMemoryGateway();
+    return { ok: true };
+  });
+
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run
-  // it as a built-in command through the bundled Node (Electron ≥35 ships Node
-  // 22.14+, which satisfies OpenWiki's require(esm) engines floor). The tool is
+  // it as a built-in command through the bundled Node (Electron ≥43 ships Node
+  // 24+, which satisfies OpenWiki's require(esm) engines floor). The tool is
   // reported unavailable when the vendored build is missing — never reaching for
   // an external runtime.
   // Dedicated wiki agent model strategy: flash-first, pro-fallback.

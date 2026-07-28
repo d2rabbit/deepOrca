@@ -345,6 +345,29 @@ export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
   return `${COMPACT_PROMPT_BASE}\n\nconversation below:\n\n\`\`\`jsonl\n${jsonl}\n\`\`\``;
 }
 
+/**
+ * Build a system-prompt block from recalled memories. Uses XML-tagged wrapping
+ * (matching the skill-document pattern) so the LLM can clearly identify the
+ * memory context. Returns empty string when no memories were recalled.
+ */
+export function getMemoryPrompt(recall: {
+  appendSystemContext?: string;
+  persona?: string | null;
+  strategy?: string;
+}): string {
+  const parts: string[] = [];
+  if (recall.persona) {
+    parts.push(`<user-persona>\n${recall.persona}\n</user-persona>`);
+  }
+  if (recall.appendSystemContext) {
+    parts.push(`<cross-session-memory>\n${recall.appendSystemContext}\n</cross-session-memory>`);
+  }
+  if (parts.length === 0) {
+    return "";
+  }
+  return `<memory-context strategy="${recall.strategy ?? "none"}">\n${parts.join("\n\n")}\n</memory-context>`;
+}
+
 export function getRuntimeContext(projectRoot: string, model?: string): string {
   const uname = getUnameInfo();
   const shellPath = getShellPathInfo();

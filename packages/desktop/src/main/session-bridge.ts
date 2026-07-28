@@ -275,6 +275,11 @@ export class SessionBridge {
     }
   }
 
+  /** Set the memory Gateway client on the active SessionManager. */
+  setMemoryClient(client: { isAvailable(): boolean } | null): void {
+    this.manager.setMemoryClient(client as never);
+  }
+
   dispose(): void {
     this.manager.dispose();
   }

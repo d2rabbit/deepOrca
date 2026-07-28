@@ -154,6 +154,15 @@ export {
   spawnCrgPiped,
 } from "./common/crg";
 export type { CrgExecutable } from "./common/crg";
+
+export { MemoryGatewayClient, resolveGatewayEntry, buildGatewayEnv, DEFAULT_GATEWAY_PORT } from "./common/memory";
+export type {
+  RecallResult,
+  CompletedTurn,
+  CaptureResult,
+  MemorySearchResult,
+  MemoryGatewayConfig,
+} from "./common/memory";
 export {
   GITMCP_SERVER_PREFIX,
   GITMCP_PLACEHOLDER_COMMAND,

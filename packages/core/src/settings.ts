@@ -81,6 +81,18 @@ export type ResolvedStatusLineSettings = {
   providers: StatusLineProviderConfig[];
 };
 
+/** Memory integration settings (TencentDB-Agent-Memory Gateway). */
+export type MemorySettings = {
+  /** Enable cross-session memory (default: false — opt-in). */
+  enabled?: boolean;
+  /** User ID for multi-user isolation (default: machine hostname). */
+  userId?: string;
+  /** Gateway port (default: 8420). */
+  port?: number;
+  /** Bearer token for Gateway auth (optional). */
+  apiKey?: string;
+};
+
 export type DeepcodingSettings = {
   env?: DeepcodingEnv;
   model?: string;
@@ -95,6 +107,7 @@ export type DeepcodingSettings = {
   permissions?: PermissionSettings;
   enabledSkills?: EnabledSkillsSettings;
   statusline?: StatusLineSettings;
+  memory?: MemorySettings;
 };
 
 export type ResolvedDeepcodingSettings = {
@@ -113,6 +126,7 @@ export type ResolvedDeepcodingSettings = {
   permissions: Required<PermissionSettings>;
   enabledSkills: EnabledSkillsSettings;
   statusline: ResolvedStatusLineSettings;
+  memory: Required<MemorySettings>;
 };
 
 export type ModelConfigSelection = {
@@ -349,6 +363,20 @@ function normalizeStatusLine(value: unknown): StatusLineSettings | null {
   return result;
 }
 
+function mergeMemory(
+  userSettings: DeepcodingSettings | null | undefined,
+  projectSettings: DeepcodingSettings | null | undefined
+): Required<MemorySettings> {
+  const user = userSettings?.memory;
+  const project = projectSettings?.memory;
+  return {
+    enabled: project?.enabled ?? user?.enabled ?? false,
+    userId: project?.userId ?? user?.userId ?? "",
+    port: project?.port ?? user?.port ?? 8420,
+    apiKey: project?.apiKey ?? user?.apiKey ?? "",
+  };
+}
+
 function mergeStatusLine(
   userSettings: DeepcodingSettings | null | undefined,
   projectSettings: DeepcodingSettings | null | undefined
@@ -555,6 +583,7 @@ export function resolveSettingsSources(
     permissions: mergePermissions(userSettings, projectSettings),
     enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
     statusline: mergeStatusLine(userSettings, projectSettings),
+    memory: mergeMemory(userSettings, projectSettings),
   };
 }
 

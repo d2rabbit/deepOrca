@@ -132,6 +132,10 @@ export const IpcRequest = {
   EditorReadFile: "editor:readFile",
   EditorWriteFile: "editor:writeFile",
   EditorListFiles: "editor:listFiles",
+
+  // Memory (TencentDB-Agent-Memory Gateway)
+  MemoryCheckAvailable: "memory:checkAvailable",
+  MemorySetEnabled: "memory:setEnabled",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -593,6 +597,12 @@ export type DesktopApi = {
   editorWriteFile(filePath: string, content: string): Promise<{ ok: boolean; error?: string }>;
   /** List files and directories under a path within the project root. */
   editorListFiles(dirPath: string): Promise<{ ok: boolean; entries?: EditorFileEntry[]; error?: string }>;
+
+  // ── Memory (TencentDB-Agent-Memory Gateway) ───────────────────────────
+  /** Check whether the memory Gateway is available and healthy. */
+  memoryCheckAvailable(): Promise<{ available: boolean; healthy: boolean }>;
+  /** Enable or disable cross-session memory (starts/stops the Gateway sidecar). */
+  memorySetEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */

@@ -130,7 +130,11 @@ const api: DesktopApi = {
   editorWriteFile: (filePath, content) => ipcRenderer.invoke(IpcRequest.EditorWriteFile, filePath, content),
   editorListFiles: (dirPath) => ipcRenderer.invoke(IpcRequest.EditorListFiles, dirPath),
 
-  // ── Agent changes ───────────────────────────────────────────────────────
+  // ── Memory (TencentDB-Agent-Memory) ──────────────────────────────
+  memoryCheckAvailable: () => ipcRenderer.invoke(IpcRequest.MemoryCheckAvailable),
+  memorySetEnabled: (enabled) => ipcRenderer.invoke(IpcRequest.MemorySetEnabled, enabled),
+
+  // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),
   agentChangesDiff: (sessionId, file) => ipcRenderer.invoke(IpcRequest.AgentChangesDiff, sessionId, file),
 

@@ -113,8 +113,8 @@ export function resolveCodegraphExecutable(): CodegraphExecutable {
  * server, …). Internal plugins must NEVER depend on the host's external
  * Node/npm/PATH — they run on the runtime that ships inside the app:
  *
- *   1. Electron's bundled Node via ELECTRON_RUN_AS_NODE=1 (Electron ≥35 ships
- *      Node 22.14+, which has node:sqlite without a flag). This is the primary
+ *   1. Electron's bundled Node via ELECTRON_RUN_AS_NODE=1 (Electron ≥43 ships
+ *      Node 24+, which has node:sqlite without a flag). This is the primary
  *      path in the desktop app and needs nothing from the host.
  *   2. The host process itself, when running as plain Node with node:sqlite
  *      (the CLI/dev scenario).
@@ -297,7 +297,7 @@ const cachedModernNodes = new Map<number, string | null>();
  * Locate a runtime for vendored Node CLIs that need a minimum Node major
  * (e.g. OpenWiki requires Node 22+ for require(esm) in its dependencies).
  * Internal plugins must stay self-contained: in Electron we always use the
- * bundled Node (Electron ≥35 ships Node 22.14+), never the host's Node.
+ * bundled Node (Electron ≥43 ships Node 24+), never the host's Node.
  * The system-Node probe is only a last-resort fallback for the plain-Node CLI.
  * Returns the binary path, or null when none found.
  */
