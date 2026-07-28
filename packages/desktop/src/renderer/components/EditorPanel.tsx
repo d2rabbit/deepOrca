@@ -4,8 +4,133 @@ import { api } from "../api";
 import { useI18n } from "../i18n";
 import { IconButton } from "../ui/index";
 
+/** Map file extension to a distinctive icon. */
+function fileIcon(name: string, isDir: boolean): string {
+  if (isDir) return "📁";
+  const ext = (name.split(".").pop() ?? "").toLowerCase();
+  const map: Record<string, string> = {
+    ts: "🔷",
+    tsx: "🔷",
+    mts: "🔷",
+    cts: "🔷",
+    js: "🟡",
+    jsx: "🟡",
+    mjs: "🟡",
+    cjs: "🟡",
+    json: "📋",
+    jsonc: "📋",
+    json5: "📋",
+    css: "🎨",
+    scss: "🎨",
+    less: "🎨",
+    sass: "🎨",
+    html: "🌐",
+    htm: "🌐",
+    xml: "🌐",
+    svg: "🖼️",
+    vue: "💚",
+    svelte: "🧡",
+    md: "📝",
+    markdown: "📝",
+    mdx: "📝",
+    py: "🐍",
+    pyi: "🐍",
+    rs: "🦀",
+    go: "🐹",
+    java: "☕",
+    kt: "☕",
+    scala: "☕",
+    c: "⚙️",
+    h: "⚙️",
+    cc: "⚙️",
+    cpp: "⚙️",
+    cxx: "⚙️",
+    hpp: "⚙️",
+    cs: "🔮",
+    rb: "💎",
+    php: "🐘",
+    sh: "🐚",
+    bash: "🐚",
+    zsh: "🐚",
+    fish: "🐚",
+    yml: "⚙️",
+    yaml: "⚙️",
+    toml: "⚙️",
+    ini: "⚙️",
+    cfg: "⚙️",
+    sql: "🗃️",
+    graphql: "🗃️",
+    gql: "🗃️",
+    lua: "🌙",
+    r: "📊",
+    pl: "🐪",
+    dockerfile: "🐳",
+    mk: "🔨",
+    makefile: "🔨",
+    lock: "🔒",
+    env: "🔒",
+    png: "🖼️",
+    jpg: "🖼️",
+    jpeg: "🖼️",
+    gif: "🖼️",
+    webp: "🖼️",
+    ico: "🖼️",
+    mp3: "🎵",
+    wav: "🎵",
+    ogg: "🎵",
+    flac: "🎵",
+    mp4: "🎬",
+    avi: "🎬",
+    mov: "🎬",
+    mkv: "🎬",
+    webm: "🎬",
+    zip: "📦",
+    tar: "📦",
+    gz: "📦",
+    bz2: "📦",
+    xz: "📦",
+    "7z": "📦",
+    rar: "📦",
+    pdf: "📄",
+    doc: "📄",
+    docx: "📄",
+    xls: "📊",
+    xlsx: "📊",
+    ppt: "📽️",
+    pptx: "📽️",
+    woff: "🔤",
+    woff2: "🔤",
+    ttf: "🔤",
+    otf: "🔤",
+    eot: "🔤",
+    exe: "⚡",
+    dll: "⚡",
+    so: "⚡",
+    dylib: "⚡",
+    app: "⚡",
+    db: "🗄️",
+    sqlite: "🗄️",
+    sqlite3: "🗄️",
+    gitignore: "🙈",
+    gitattributes: "🙈",
+    npmrc: "📦",
+    nvmrc: "📦",
+    txt: "📃",
+    log: "📃",
+  };
+  // Special filenames without extension
+  const lower = name.toLowerCase();
+  if (lower === "dockerfile" || lower.startsWith("dockerfile.")) return "🐳";
+  if (lower === "makefile" || lower === "gnumakefile") return "🔨";
+  if (lower === ".gitignore" || lower === ".gitattributes") return "🙈";
+  if (lower === "license" || lower === "licence") return "📜";
+  if (lower === "readme" || lower.startsWith("readme.")) return "📖";
+  if (lower === "changelog" || lower.startsWith("changelog.")) return "📋";
+  return map[ext] ?? "📄";
+}
+
 type Props = {
-  /** Called when the user picks a file to open in the editor overlay. */
+  /** Called when the user picks a file to open in the editor. */
   onOpenFile: (filePath: string) => void;
 };
 
@@ -16,6 +141,7 @@ export function EditorPanel({ onOpenFile }: Props): JSX.Element {
   const [currentDir, setCurrentDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const loadDir = useCallback(
     async (dir: string) => {
@@ -48,6 +174,7 @@ export function EditorPanel({ onOpenFile }: Props): JSX.Element {
       if (entry.type === "directory") {
         void loadDir(entry.path);
       } else {
+        setSelectedFile(entry.path);
         onOpenFile(entry.path);
       }
     },
@@ -83,10 +210,10 @@ export function EditorPanel({ onOpenFile }: Props): JSX.Element {
           entries.map((entry) => (
             <div
               key={entry.path}
-              className={`ui-editor-file-entry${entry.type === "directory" ? " is-dir" : ""}`}
+              className={`ui-editor-file-entry${entry.type === "directory" ? " is-dir" : ""}${selectedFile === entry.path ? " is-selected" : ""}`}
               onClick={() => handleEntryClick(entry)}
             >
-              <span className="ui-editor-file-icon">{entry.type === "directory" ? "📁" : "📄"}</span>
+              <span className="ui-editor-file-icon">{fileIcon(entry.name, entry.type === "directory")}</span>
               <span className="ui-editor-file-name" title={entry.path}>
                 {entry.name}
               </span>

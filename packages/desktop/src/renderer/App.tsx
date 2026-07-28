@@ -1351,6 +1351,8 @@ export function App(): JSX.Element {
             }
             onBack={() => setMainView("chat")}
           />
+        ) : sidebarView === "editor" && editorFile ? (
+          <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
         ) : (
           <>
             <MessageList
@@ -1441,9 +1443,6 @@ export function App(): JSX.Element {
 
       {diffTarget ? (
         <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
-      ) : null}
-      {editorFile ? (
-        <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} />
       ) : null}
 
       {modal === "undo" ? (

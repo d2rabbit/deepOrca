@@ -69,13 +69,16 @@ type Props = {
   onClose: () => void;
   /** Current appearance for Monaco theme. */
   appearance: "light" | "dark";
+  /** When true, render inline (workspace mode) instead of modal overlay. */
+  inline?: boolean;
 };
 
 /**
- * Full-screen Monaco code editor overlay. Loads a file via IPC, allows editing,
+ * Monaco code editor. Loads a file via IPC, allows editing,
  * and saves back via IPC. Tracks dirty state and warns on unsaved changes.
+ * Can render as a modal overlay or inline workspace panel.
  */
-export function EditorOverlay({ filePath, onClose, appearance }: Props): JSX.Element {
+export function EditorOverlay({ filePath, onClose, appearance, inline }: Props): JSX.Element {
   const { t } = useI18n();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,62 +160,72 @@ export function EditorOverlay({ filePath, onClose, appearance }: Props): JSX.Ele
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
   const lang = languageForFile(filePath);
 
+  const editorContent = (
+    <>
+      <div className="ui-editor-overlay-head">
+        <span className="ui-editor-overlay-title" title={filePath}>
+          {fileName}
+          {dirty ? <span className="ui-editor-dirty-badge">{t("editor.dirty")}</span> : null}
+        </span>
+        <div className="ui-editor-overlay-actions">
+          <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={() => void handleSave()}>
+            {saving ? t("editor.loading") : t("editor.save")}
+          </Button>
+          <IconButton onClick={handleClose} aria-label={t("common.close")} title={t("common.close")}>
+            ✕
+          </IconButton>
+        </div>
+      </div>
+      <div className="ui-editor-overlay-body">
+        {loading ? (
+          <div className="ui-editor-empty">
+            <span className="ui-spinner" /> {t("editor.loading")}
+          </div>
+        ) : error ? (
+          <div className="ui-editor-empty ui-editor-error">{error}</div>
+        ) : binary ? (
+          <div className="ui-editor-empty">{t("editor.binary")}</div>
+        ) : content === null ? (
+          <div className="ui-editor-empty">{t("editor.empty")}</div>
+        ) : (
+          <Editor
+            height="100%"
+            language={lang}
+            value={content}
+            theme={appearance === "dark" ? "vs-dark" : "vs"}
+            onChange={handleChange}
+            onMount={handleEditorMount}
+            options={{
+              minimap: { enabled: true },
+              fontSize: 13,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+              insertSpaces: true,
+              renderWhitespace: "selection",
+              bracketPairColorization: { enabled: true },
+              guides: { bracketPairs: true, indentation: true },
+            }}
+            loading={
+              <div className="ui-editor-empty">
+                <span className="ui-spinner" /> {t("editor.loading")}
+              </div>
+            }
+          />
+        )}
+      </div>
+    </>
+  );
+
+  if (inline) {
+    return <div className="ui-editor-inline">{editorContent}</div>;
+  }
+
   return (
     <div className="ui-editor-overlay" onClick={handleClose}>
       <div className="ui-editor-overlay-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="ui-editor-overlay-head">
-          <span className="ui-editor-overlay-title" title={filePath}>
-            {fileName}
-            {dirty ? <span className="ui-editor-dirty-badge">{t("editor.dirty")}</span> : null}
-          </span>
-          <div className="ui-editor-overlay-actions">
-            <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={() => void handleSave()}>
-              {saving ? t("editor.loading") : t("editor.save")}
-            </Button>
-            <IconButton onClick={handleClose} aria-label={t("common.close")} title={t("common.close")}>
-              ✕
-            </IconButton>
-          </div>
-        </div>
-        <div className="ui-editor-overlay-body">
-          {loading ? (
-            <div className="ui-editor-empty">
-              <span className="ui-spinner" /> {t("editor.loading")}
-            </div>
-          ) : error ? (
-            <div className="ui-editor-empty ui-editor-error">{error}</div>
-          ) : binary ? (
-            <div className="ui-editor-empty">{t("editor.binary")}</div>
-          ) : content === null ? (
-            <div className="ui-editor-empty">{t("editor.empty")}</div>
-          ) : (
-            <Editor
-              height="100%"
-              language={lang}
-              value={content}
-              theme={appearance === "dark" ? "vs-dark" : "vs"}
-              onChange={handleChange}
-              onMount={handleEditorMount}
-              options={{
-                minimap: { enabled: true },
-                fontSize: 13,
-                wordWrap: "on",
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                tabSize: 2,
-                insertSpaces: true,
-                renderWhitespace: "selection",
-                bracketPairColorization: { enabled: true },
-                guides: { bracketPairs: true, indentation: true },
-              }}
-              loading={
-                <div className="ui-editor-empty">
-                  <span className="ui-spinner" /> {t("editor.loading")}
-                </div>
-              }
-            />
-          )}
-        </div>
+        {editorContent}
       </div>
     </div>
   );

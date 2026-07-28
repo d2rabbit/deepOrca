@@ -587,9 +587,14 @@ export function runCodegraphResetWithOutput(
       const cp = spawnCodegraphPiped(projectRoot, ["init"]);
       cp.stdout?.on("data", (d: Buffer) => onOutput(d.toString(), "stdout"));
       cp.stderr?.on("data", (d: Buffer) => onOutput(d.toString(), "stderr"));
-      cp.on("error", () => resolve(1));
+      cp.on("error", (err) => {
+        onOutput(`\n[Error] Failed to spawn codegraph: ${err.message}\n`, "stderr");
+        resolve(1);
+      });
       cp.on("close", (code) => resolve(code ?? 0));
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      onOutput(`\n[Error] Failed to start codegraph: ${message}\n`, "stderr");
       resolve(1);
     }
   });

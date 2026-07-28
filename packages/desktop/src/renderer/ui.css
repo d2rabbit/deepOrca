@@ -6781,6 +6781,37 @@ button.ui-topbar-pill {
   }
 }
 
+/* ── Editor inline (workspace mode) ─────────────────────────────────────── */
+
+.ui-editor-inline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-bg);
+  overflow: hidden;
+}
+
+.ui-editor-inline .ui-editor-overlay-head {
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg-soft);
+}
+
+.ui-editor-inline .ui-editor-overlay-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Editor file entry selected state ───────────────────────────────────── */
+
+.ui-editor-file-entry.is-selected {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+.ui-editor-file-entry.is-selected:hover {
+  background: var(--ui-accent-soft);
+}
+
 /* ── Editor overlay ─────────────────────────────────────────────────────── */
 
 .ui-editor-overlay {
