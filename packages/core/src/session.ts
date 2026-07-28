@@ -559,6 +559,8 @@ export class SessionManager {
     this.sessionControllers.clear();
     this.processTimeoutControls.clear();
     this.mcpManager.disconnect();
+    // Flush any pending debounced index write before teardown.
+    this.flushSessionsIndex();
   }
 
   private estimateStreamTokens(text: string): number {
@@ -1497,7 +1499,9 @@ ${content}
     const keptIds = new Set(keptEntries.map((item) => item.id));
     const droppedEntries = sortedEntries.filter((item) => !keptIds.has(item.id));
     index.entries = keptEntries;
-    this.saveSessionsIndex(index);
+    // Session creation is critical — flush immediately (not debounced).
+    this.pendingIndex = index;
+    this.flushSessionsIndex();
     for (const dropped of droppedEntries) {
       this.cleanupSessionResources(dropped.id, {
         removeMessages: true,
@@ -2220,7 +2224,9 @@ ${content}
     }
 
     index.entries = nextEntries;
-    this.saveSessionsIndex(index);
+    // Session deletion is critical — flush immediately (not debounced).
+    this.pendingIndex = index;
+    this.flushSessionsIndex();
     this.cleanupSessionResources(sessionId, {
       removeMessages: true,
       processIds: this.getProcessIds(targetEntry?.processes ?? null),
@@ -2526,7 +2532,35 @@ ${content}
     }
   }
 
+  /**
+   * Pending index write timer for debounced saves. High-frequency
+   * updateSessionEntry calls (status changes during streaming) are batched
+   * into a single disk write every 250ms instead of rewriting the entire
+   * index file on every call. Critical operations (create/delete session)
+   * call flushSessionsIndex() to force an immediate write.
+   */
+  private indexWriteTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly INDEX_WRITE_DELAY = 250;
+
   private saveSessionsIndex(index: SessionsIndex): void {
+    // Stash the latest index — the debounced write will pick it up.
+    this.pendingIndex = index;
+    if (this.indexWriteTimer) return;
+    this.indexWriteTimer = setTimeout(() => {
+      this.indexWriteTimer = null;
+      this.flushSessionsIndex();
+    }, SessionManager.INDEX_WRITE_DELAY);
+  }
+
+  /** Force-write the pending index immediately (clears any debounce timer). */
+  private flushSessionsIndex(): void {
+    if (this.indexWriteTimer) {
+      clearTimeout(this.indexWriteTimer);
+      this.indexWriteTimer = null;
+    }
+    if (!this.pendingIndex) return;
+    const index = this.pendingIndex;
+    this.pendingIndex = null;
     const { sessionsIndexPath } = this.getProjectStorage();
     this.ensureProjectDir();
     const normalized = {
@@ -2539,6 +2573,8 @@ ${content}
     };
     fs.writeFileSync(sessionsIndexPath, JSON.stringify(normalized, null, 2), "utf8");
   }
+
+  private pendingIndex: SessionsIndex | null = null;
 
   private getSessionMessagesPath(sessionId: string): string {
     const { projectDir } = this.getProjectStorage();

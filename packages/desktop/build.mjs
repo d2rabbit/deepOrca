@@ -25,6 +25,9 @@ const shared = {
   logLevel: "info",
   define: {
     "process.env.NODE_ENV": JSON.stringify(isDev ? "development" : "production"),
+    // Conditional compilation: debug-only code guarded by
+    // `if (process.env.DEEPORCA_DEBUG) { ... }` is tree-shaken in production.
+    "process.env.DEEPORCA_DEBUG": JSON.stringify(isDev ? "1" : "0"),
   },
   // Minify in production for smaller bundles and faster startup.
   // Dev keeps readable output for easier debugging.
@@ -43,7 +46,7 @@ const mainConfig = {
   outfile: resolve(outdir, "main.js"),
   platform: "node",
   format: "esm",
-  target: "node22",
+  target: "node24",
   packages: "external",
   banner: {
     // Provide CJS-style globals a few node deps expect, harmless for our own code.
@@ -58,7 +61,7 @@ const preloadConfig = {
   outfile: resolve(outdir, "preload.cjs"),
   platform: "node",
   format: "cjs",
-  target: "node22",
+  target: "node24",
   external: ["electron"],
 };
 
@@ -76,7 +79,7 @@ const rendererConfig = {
   outdir: rendererOutdir,
   platform: "browser",
   format: "esm",
-  target: "chrome124",
+  target: "chrome150",
   jsx: "automatic",
   splitting: true,
   chunkNames: "chunks/[name]-[hash]",

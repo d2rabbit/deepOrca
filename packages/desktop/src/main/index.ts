@@ -69,6 +69,13 @@ function killHelperProcesses(): void {
 // Product/brand name — drives the macOS menu-bar app name and Windows taskbar grouping.
 app.setName("DeepOrca");
 
+// V8 performance tuning — must be set before app.whenReady().
+// max-semi-space-size: 16MB→64MB reduces minor GC frequency during token
+//   streaming and JSON parsing (4x fewer scavenge pauses).
+// max-old-space-size: raised to 4GB to prevent OOM on long agentic sessions
+//   that accumulate full conversation history in memory.
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096 --max-semi-space-size=64");
+
 // Point the CodeGraph resolver at the copy we vendor next to the built app
 // (packages/desktop/vendor/codegraph). When absent (not yet vendored), the core
 // resolver transparently falls back to `npx @colbymchenry/codegraph`.
@@ -207,6 +214,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // Disable spellcheck — this is a coding tool, not a word processor.
+      // Hunspell dictionary loading and per-keystroke analysis waste CPU/memory.
+      spellcheck: false,
     },
   });
 
