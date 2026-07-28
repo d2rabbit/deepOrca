@@ -41,12 +41,52 @@ marked.use({ walkTokens: prettyPrintJsonBlocks, renderer: customRenderer });
  * The renderer runs with a strict CSP (no inline scripts, no remote origins),
  * and content originates from the local model session, so we allow inline HTML
  * off but strip nothing beyond what `marked` produces.
+ *
+ * Results are cached in a small LRU (128 entries) keyed by text hash, so
+ * re-renders of the same message (tick-driven, list scroll) skip re-parsing.
+ * This is critical for long sessions with hundreds of messages.
  */
+
+// Simple LRU cache: Map preserves insertion order in JS, so we delete+set
+// to move a key to the end (most-recently-used) on access.
+const MD_CACHE_MAX = 128;
+const mdCache = new Map<string, string>();
+
+function getCached(text: string): string | undefined {
+  const hit = mdCache.get(text);
+  if (hit !== undefined) {
+    // Move to end (most recently used).
+    mdCache.delete(text);
+    mdCache.set(text, hit);
+  }
+  return hit;
+}
+
+function setCached(text: string, html: string): void {
+  if (mdCache.size >= MD_CACHE_MAX) {
+    // Evict oldest entry (first key in the Map).
+    const oldest = mdCache.keys().next().value;
+    if (oldest !== undefined) mdCache.delete(oldest);
+  }
+  mdCache.set(text, html);
+}
+
 export function renderMarkdown(text: string): string {
   if (!text) {
     return "";
   }
+  const cached = getCached(text);
+  if (cached !== undefined) {
+    return cached;
+  }
   const html = marked.parse(text, { async: false }) as string;
   // Defensive: neutralise any javascript: URLs that could slip through.
-  return html.replace(/javascript:/gi, "");
+  const safe = html.replace(/javascript:/gi, "");
+  setCached(text, safe);
+  return safe;
+}
+
+/** Clear the markdown cache (useful when switching projects to free memory). */
+export function clearMarkdownCache(): void {
+  mdCache.clear();
 }
