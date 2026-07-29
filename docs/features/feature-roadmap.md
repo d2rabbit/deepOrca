@@ -1,6 +1,6 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.2 · 日期：2026-07-29 · 状态：规划中
+> 版本：v3.5 · 日期：2026-07-29 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
@@ -13,7 +13,11 @@
 >
 > **v3.3 更新**：移动开发域新增 React Native（Expo 官方 Skills + Callstack）；新增桌面开发域（Electron/Tauri）；新增 .NET 开发域（Microsoft 官方 dotnet/skills）。只采纳第一方或官方社区认可的工具套件。
 >
-> **v3.4 更新**：桌面开发域新增 Apple（Xcode 27 第一方 7 Skills）和 Qt/KDE（Qt Group 第一方 7 Skills + MCP）。GNOME/GTK 无官方方案暂不纳入。
+> **v3.4 更新**：桌面开发域新增 Apple（Xcode 27 第一方 7 Skills）和 Qt/KDE（Qt Group 第一方 7 Skills + MCP）。GNOME/GTK 无官方方案暂不纳入。Electron 自建搁置（调试工具链工程量过大）。
+>
+> **v3.5 更新**：新增"远程接入"（§十三）—— 本地 DeepOrca 通过反向隧道/蒲公英/ngrok 等暴露为 Web 端，移动端浏览器/App 直接访问；SessionBridge 与 IPC 已经完全 engine-agnostic，可零改造复用。新增"语音双工"（§十四）—— 语音代替输入法作为输入手段，主推 whisper.cpp + whisper-streaming LocalAgreement 方案。功能域位置无先后顺序，仅按添加顺序排号。
+>
+> **v3.5 更新**：新增"远程接入"功能域（WebSocket 桥 + 静态服务 + 隧道方案，架构可行性已验证）和"语音双工"功能域（whisper.cpp 本地优先 + API 兜底）。
 
 ---
 
@@ -33,7 +37,11 @@
 | [十、引擎演进](#十引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
 | [十一、自进化](#十一自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
 | [十二、插件中心](#十二插件中心) | 分组展示, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
-| [搁置项](#搁置项) | — | OpenSpec, Superpowers | 暂不规划，理由见下 |
+| [十三、远程接入](#十三远程接入) | — | WebSocket 桥 + 静态服务 + 隧道方案 | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca |
+| [十四、语音双工](#十四语音双工) | — | whisper.cpp 本地 + API 兜底 | 语音替代键盘输入，实时转录填入 Composer |
+| [搁置项](#搁置项) | — | OpenSpec, Superpowers, Electron 自建 | 暂不规划，理由见下 |
+| [十三、远程接入](#十三远程接入) | — | 本地 Web 服务 + 反向隧道 | 移动端/外网浏览器直接访问本机 DeepOrca |
+| [十四、语音双工](#十四语音双工) | — | whisper.cpp + whisper-streaming | 用语音代替键盘输入：ASR、流式上屏、命令识别 |
 
 ---
 
@@ -397,6 +405,100 @@
 | 能力 | 项目 | 贡献 | 优先级 |
 |------|------|------|--------|
 | 网站适配器 + CLI Hub | **opencli** | 100+ 网站适配器（数据获取）+ CLI Hub 统一入口 | P2 |
+
+---
+
+## 十三、远程接入
+
+> 让用户从手机或远程浏览器接入 DeepOrca——本地启动服务端，通过蒲公英/ngrok/frp 等隧道映射到外网，远程打开完整 UI。
+
+### 架构（已验证可行性）
+
+DeepOrca 的架构对 Web 远程接入**天然友好**：
+
+- **Renderer 是纯浏览器 bundle**——零 Electron 导入，只通过 `window.deeporca` 与后端通信（`renderer/api.ts:9`）
+- **SessionBridge 不依赖 Electron**——不导入 `electron`，通过 `emit` 回调注入事件（`session-bridge.ts:76`）
+- **IPC 契约 JSON-safe**——81 个 request-response + 11 个 event，可 1:1 映射到 WebSocket
+- **已有 `dist/renderer/` 静态站点**——index.html + renderer.js + CSS，任何 HTTP 服务器可直接 serve
+
+```
+手机/远程浏览器
+  ↓ 蒲公英 / ngrok / frp 隧道（用户自行配置，DeepOrca 只提供服务方案）
+  ↓
+DeepOrca 本地服务端（Electron 主进程内置，新增）
+  ├── HTTP 静态服务 → serve dist/renderer/（现有 UI，零改动复用）
+  ├── WebSocket 服务 → 桥接 window.deeporca API
+  │   ├── 81 个 request → 复用现有 ipcMain.handle 逻辑（提取为共享 dispatch table）
+  │   └── 11 个 event → 广播给 WS 客户端
+  └── SessionBridge → SessionManager（现有，零改动）
+```
+
+### 零改动部分
+
+- ❌ 不改 `@deeporca/core`（SessionManager）
+- ❌ 不改任何 renderer 组件（50+ React 组件全部复用）
+- ❌ 不改 SessionBridge
+
+### 规划中
+
+| 能力 | 集成形态 | 贡献 | 优先级 |
+|------|----------|------|--------|
+| WebSocket 服务端 | Electron 主进程内 `ws` 库，提取现有 IPC handler 为共享 dispatch | 复用 100% 引擎和 UI，远程浏览器获得完整 DeepOrca 体验 | P1 |
+| 浏览器端 shim | 注入 `window.deeporca` 的 `<script>`，通过 WS marshalling 实现 DesktopApi | 浏览器中无缝运行现有 React UI | P1 |
+| HTTP 静态服务 | 同源 serve `dist/renderer/`（避免 CSP 问题） | 远程加载完整前端 | P1 |
+| 隧道配置文档 | 文档 + 配置引导（蒲公英/ngrok/frp） | 用户一键配置外网访问 | P2 |
+| 访问鉴权 | WS 连接 token + 可选 HTTPS | 防止未授权访问 | P1 |
+
+### 设计原则
+
+1. **DeepOrca 只提供服务端**——隧道/映射/HTTPS 由用户自行配置（蒲公英/ngrok/frp/Cloudflare Tunnel 等）
+2. **本地优先**——服务端跑在 Electron 主进程内，不需要独立进程
+3. **同源策略**——HTTP 静态服务和 WebSocket 跑在同一端口，避免 CSP 放宽
+4. **完整体验**——远程浏览器获得与桌面端完全一致的 UI（因为是同一份 renderer bundle）
+
+---
+
+## 十四、语音双工
+
+> 语音替代键盘输入——实时语音转录填入 Composer，让用户用说话代替打字。
+
+### 规划中
+
+| 能力 | 方案 | 贡献 | 优先级 |
+|------|------|------|--------|
+| 本地实时语音转录（默认） | **whisper.cpp** vendor + whisper-streaming LocalAgreement 策略 | 零外部依赖，CPU 可跑，3.3 秒延迟，74-244MB 模型 | P2 |
+| 云端 API 兜底 | OpenAI Audio API / 用户配置的兼容端点 | 零体积，复用现有 API key，网络依赖 | P3 |
+
+### 本地方案详情（whisper.cpp）
+
+- **引擎**：whisper.cpp（OpenAI Whisper 的 C++ 移植，单二进制，MIT）
+- **流式**：whisper-streaming 的 LocalAgreement 自适应延迟策略（3.3 秒延迟，非"录完再转"）
+- **模型**：base(74MB) 或 small(244MB)，首次使用时下载或随包分发
+- **vendor**：`scripts/vendor-whisper.js`（同 codegraph/openwiki 模式，预编译平台二进制）
+- **集成先例**：Ditto（Windows Electron + whisper.cpp + CUDA）、WhisperScript（macOS+Windows Electron GUI）
+- **加速**：Apple Silicon CoreML / Windows CUDA / Linux OpenBLAS
+
+### 工作流
+
+```
+用户按住快捷键 / 点击麦克风按钮
+  ↓
+Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
+  ↓
+麦克风音频流 → whisper-streaming LocalAgreement → 实时转录
+  ↓
+转录文本逐步填入 Composer 输入框
+  ↓
+用户说完 → 文本作为 prompt 发送给 Agent
+```
+
+### 备选方案（不首选）
+
+| 方案 | 准确率 | 问题 |
+|------|--------|------|
+| NVIDIA Parakeet TDT 0.6B v2 | 业界最高 WER | 需 Python/NeMo，违背零依赖 |
+| Superwhisper / Wispr Flow | 高 | 云端依赖 / macOS 为主 / 付费 |
+| OpenAI Audio API | 高 | 网络依赖 + API key + 付费（但可作为兜底） |
 
 ---
 
