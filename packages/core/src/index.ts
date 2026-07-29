@@ -158,6 +158,12 @@ export {
 export type { CrgExecutable } from "./common/crg";
 
 export { DART_MCP_SERVER_NAME, buildDartMcpServerConfig, hasDartProject, isDartMcpAvailable } from "./common/dart-mcp";
+export {
+  SERENA_MCP_SERVER_NAME,
+  buildSerenaMcpServerConfig,
+  configureSerenaUvResolver,
+  isSerenaAvailable,
+} from "./common/serena-mcp";
 
 export {
   MemoryGatewayClient,

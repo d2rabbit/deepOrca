@@ -11,6 +11,8 @@ import {
   DART_MCP_SERVER_NAME,
   buildDartMcpServerConfig,
   hasDartProject,
+  SERENA_MCP_SERVER_NAME,
+  buildSerenaMcpServerConfig,
   setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
@@ -684,6 +686,7 @@ export class SessionBridge {
           name === CODEGRAPH_MCP_SERVER_NAME ||
           name === CRG_MCP_SERVER_NAME ||
           name === DART_MCP_SERVER_NAME ||
+          name === SERENA_MCP_SERVER_NAME ||
           isGitmcpServerName(name),
         status: statuses.get(name),
       });
@@ -735,6 +738,23 @@ export class SessionBridge {
         });
       }
     }
+    // Built-in Serena MCP server: semantic code operations (find symbol,
+    // references, rename, replace body). Shown when uv is available
+    // (vendored or system). Covers 40+ languages via SolidLSP.
+    if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
+      const cfg = buildSerenaMcpServerConfig(this.projectRoot);
+      if (cfg) {
+        list.push({
+          name: SERENA_MCP_SERVER_NAME,
+          command: cfg.command,
+          args: (cfg.args ?? []).join(" "),
+          env: stringifyEnv(cfg.env),
+          enabled: !disabled.has(SERENA_MCP_SERVER_NAME),
+          builtin: true,
+          status: statuses.get(SERENA_MCP_SERVER_NAME),
+        });
+      }
+    }
     return list;
   }
 
@@ -776,6 +796,10 @@ export class SessionBridge {
     if (hasDartProject(this.projectRoot) && !Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
       const cfg = buildDartMcpServerConfig();
       if (cfg) entries.push({ name: DART_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
+      const cfg = buildSerenaMcpServerConfig(this.projectRoot);
+      if (cfg) entries.push({ name: SERENA_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
     void disabled; // enable state is irrelevant for display grouping
 

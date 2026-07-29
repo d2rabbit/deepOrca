@@ -24,6 +24,13 @@
     "mcp": ["code-review-graph"]
   },
   {
+    "id": "serena",
+    "name": "Serena",
+    "description": "Symbol-level code operations — find symbol, find references, rename, replace symbol body, safe delete. Powered by SolidLSP with 40+ language servers (Java, Kotlin, Python, TypeScript, Rust, C/C++, Swift, Go, and more).",
+    "category": "code-intelligence",
+    "mcp": ["serena"]
+  },
+  {
     "id": "gitmcp",
     "name": "GitMCP",
     "description": "Turn any GitHub repository into an MCP knowledge source the agent can query.",

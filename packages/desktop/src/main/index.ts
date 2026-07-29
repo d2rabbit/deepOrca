@@ -20,6 +20,7 @@ import {
   hasCrgProject,
   resolveUvBinary,
   runCrgResetWithOutput,
+  configureSerenaUvResolver,
   MemoryGatewayClient,
   resolveGatewayEntry,
   resolveTsxBinary,
@@ -86,6 +87,11 @@ configureCodegraphVendorRoot(join(__dirname, "..", "vendor", "codegraph"));
 // to a system `uv`/`uvx` on PATH. CRG is a Python tool run via uv's
 // isolated environment — no host Python required when uv is vendored.
 configureCrgVendorRoot(join(__dirname, "..", "vendor", "uv"));
+
+// Share the same vendored uv binary with Serena's MCP resolver. Serena is also
+// Python-based and runs through `uvx --python 3.13 serena-agent` — the same
+// vendored uv that CRG uses handles the isolated Python provisioning.
+configureSerenaUvResolver(() => resolveUvBinary());
 
 // Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
 // kick off the vendor scripts in the background at boot so they fetch upstream

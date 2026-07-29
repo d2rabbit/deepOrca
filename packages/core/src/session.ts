@@ -15,6 +15,7 @@ import {
 } from "./common/codegraph";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
 import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject } from "./common/dart-mcp";
+import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME } from "./common/serena-mcp";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -560,6 +561,19 @@ export class SessionManager {
             [DART_MCP_SERVER_NAME]: dartConfig,
           };
         }
+      }
+    }
+
+    // Serena — semantic code retrieval, editing, refactoring (symbol-level
+    // operations via SolidLSP, 40+ languages). Activated for all projects when
+    // uv is available. Complements the built-in text-level read/edit tools.
+    if (!(result && Object.prototype.hasOwnProperty.call(result, SERENA_MCP_SERVER_NAME))) {
+      const serenaConfig = buildSerenaMcpServerConfig(this.projectRoot);
+      if (serenaConfig) {
+        result = {
+          ...(result ?? {}),
+          [SERENA_MCP_SERVER_NAME]: serenaConfig,
+        };
       }
     }
 
