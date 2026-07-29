@@ -27,6 +27,27 @@ import type { McpServerConfig } from "../settings";
 
 export const SERENA_MCP_SERVER_NAME = "serena";
 
+// ── Disable flag (host-managed, per project root) ────────────────────────────
+
+import path from "node:path";
+
+const disabledSerenaRoots = new Set<string>();
+
+/** Enable or disable the built-in Serena MCP server for a project root. */
+export function setSerenaDisabled(projectRoot: string, disabled: boolean): void {
+  const key = path.resolve(projectRoot);
+  if (disabled) {
+    disabledSerenaRoots.add(key);
+  } else {
+    disabledSerenaRoots.delete(key);
+  }
+}
+
+/** True when the built-in Serena MCP server has been disabled for a project root. */
+export function isSerenaDisabled(projectRoot: string): boolean {
+  return disabledSerenaRoots.has(path.resolve(projectRoot));
+}
+
 /** Shared uv binary resolver — reuses the same vendored uv as CRG. */
 // We import lazily to avoid a hard dependency on crg.ts when Serena isn't used.
 let uvResolver: (() => string | null) | null = null;

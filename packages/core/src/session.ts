@@ -14,8 +14,8 @@ import {
   runCodegraphSync,
 } from "./common/codegraph";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
-import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject } from "./common/dart-mcp";
-import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME } from "./common/serena-mcp";
+import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject, isDartDisabled } from "./common/dart-mcp";
+import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -551,8 +551,8 @@ export class SessionManager {
 
     // Dart/Flutter MCP server — runtime layout analysis, widget tree inspection,
     // pub.dev search, test execution, code formatting. Activated for Dart/Flutter
-    // projects (pubspec.yaml present). Requires `dart` on PATH (Dart SDK 3.9+).
-    if (hasDartProject(this.projectRoot)) {
+    // projects (pubspec.yaml present) when `dart` is on PATH (Dart SDK 3.9+).
+    if (hasDartProject(this.projectRoot) && !isDartDisabled(this.projectRoot)) {
       if (!(result && Object.prototype.hasOwnProperty.call(result, DART_MCP_SERVER_NAME))) {
         const dartConfig = buildDartMcpServerConfig();
         if (dartConfig) {
@@ -566,14 +566,17 @@ export class SessionManager {
 
     // Serena — semantic code retrieval, editing, refactoring (symbol-level
     // operations via SolidLSP, 40+ languages). Activated for all projects when
-    // uv is available. Complements the built-in text-level read/edit tools.
-    if (!(result && Object.prototype.hasOwnProperty.call(result, SERENA_MCP_SERVER_NAME))) {
-      const serenaConfig = buildSerenaMcpServerConfig(this.projectRoot);
-      if (serenaConfig) {
-        result = {
-          ...(result ?? {}),
-          [SERENA_MCP_SERVER_NAME]: serenaConfig,
-        };
+    // uv is available and not disabled. Complements the built-in text-level
+    // read/edit tools.
+    if (!isSerenaDisabled(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, SERENA_MCP_SERVER_NAME))) {
+        const serenaConfig = buildSerenaMcpServerConfig(this.projectRoot);
+        if (serenaConfig) {
+          result = {
+            ...(result ?? {}),
+            [SERENA_MCP_SERVER_NAME]: serenaConfig,
+          };
+        }
       }
     }
 

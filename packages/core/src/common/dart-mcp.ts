@@ -25,6 +25,25 @@ import type { McpServerConfig } from "../settings";
 
 export const DART_MCP_SERVER_NAME = "dart-mcp-server";
 
+// ── Disable flag (host-managed, per project root) ────────────────────────────
+
+const disabledDartRoots = new Set<string>();
+
+/** Enable or disable the built-in Dart MCP server for a project root. */
+export function setDartDisabled(projectRoot: string, disabled: boolean): void {
+  const key = path.resolve(projectRoot);
+  if (disabled) {
+    disabledDartRoots.add(key);
+  } else {
+    disabledDartRoots.delete(key);
+  }
+}
+
+/** True when the built-in Dart MCP server has been disabled for a project root. */
+export function isDartDisabled(projectRoot: string): boolean {
+  return disabledDartRoots.has(path.resolve(projectRoot));
+}
+
 /** True when the project has a pubspec.yaml (Dart/Flutter project root). */
 export function hasDartProject(projectRoot: string): boolean {
   return existsSync(path.join(projectRoot, "pubspec.yaml"));

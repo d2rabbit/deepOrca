@@ -11,8 +11,10 @@ import {
   DART_MCP_SERVER_NAME,
   buildDartMcpServerConfig,
   hasDartProject,
+  setDartDisabled,
   SERENA_MCP_SERVER_NAME,
   buildSerenaMcpServerConfig,
+  setSerenaDisabled,
   setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
@@ -302,6 +304,8 @@ export class SessionBridge {
     const disabled = readDisabledMcp(this.projectRoot);
     setCodegraphDisabled(this.projectRoot, disabled.includes(CODEGRAPH_MCP_SERVER_NAME));
     setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
+    setDartDisabled(this.projectRoot, disabled.includes(DART_MCP_SERVER_NAME));
+    setSerenaDisabled(this.projectRoot, disabled.includes(SERENA_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
   }
 
