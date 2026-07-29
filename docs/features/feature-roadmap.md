@@ -12,6 +12,8 @@
 > 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
 >
 > **v3.3 更新**：移动开发域新增 React Native（Expo 官方 Skills + Callstack）；新增桌面开发域（Electron/Tauri）；新增 .NET 开发域（Microsoft 官方 dotnet/skills）。只采纳第一方或官方社区认可的工具套件。
+>
+> **v3.4 更新**：桌面开发域新增 Apple（Xcode 27 第一方 7 Skills）和 Qt/KDE（Qt Group 第一方 7 Skills + MCP）。GNOME/GTK 无官方方案暂不纳入。
 
 ---
 
@@ -22,7 +24,7 @@
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
 | [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | Flutter + Android + HarmonyOS + React Native |
-| [四、桌面开发](#四桌面开发) | — | Electron Skills（社区）, Tauri（社区 MCP） | Electron + Tauri 桌面应用开发 |
+| [四、桌面开发](#四桌面开发) | — | Electron（自建）, Tauri（社区 MCP）, Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方） | Electron + Tauri + macOS/iOS + Qt/KDE 桌面应用开发 |
 | [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
 | [六、设计生成](#六设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
@@ -138,12 +140,19 @@
 
 | 能力 | 项目 | 来源认可度 | 集成形态 | 贡献 | 优先级 |
 |------|------|-----------|----------|------|--------|
-| Electron 应用开发 | **Electron Skills**（社区精选） | 🟡 社区（无官方） | 构建 Skills | 主进程/渲染进程/IPC/安全/contextIsolation/preload 最佳实践 | P2 |
+| Electron 应用开发 | **Electron Skills**（自建 + 社区精选） | 🟡 社区（无官方） | 构建 Skills | 主进程/渲染进程/IPC/安全/contextIsolation/preload 最佳实践 | P2 |
 | Tauri 应用开发 | **mcp-server-tauri** | 🟡 社区（Tauri 官方未出同类） | MCP + Skills | Rust 后端/IPC/Web 前端集成/capabilities 安全模型 | P3 |
+| Apple 平台开发（macOS + iOS） | **Xcode 27 Agent Skills**（Apple 第一方） | ✅ **Apple 第一方** | 构建 Skills（`xcrun agent skills export` 导出） | SwiftUI 现代 API/UIKit 现代化/测试现代化/安全审计/C 边界安全 7 个官方 Skills | P1 |
+| Apple 社区精选 | **twostraws/swift-agent-skills**（Paul Hudson） | ✅ 社区权威 | 构建 Skills | SwiftUI Pro/Swift 并发/SwiftData/Swift Testing 4 个精选 Skills | P2 |
+| Qt/KDE 应用开发 | **TheQtCompanyRnD/agent-skills**（Qt Group 第一方） | ✅ **Qt Group 第一方** | 构建 Skills + MCP | 7 个 Skills：qt-cpp-review/qt-cpp-docs/qt-qml/qt-qml-review/qt-qml-profiler/qt-qml-docs/qt-ui-design + Qt 文档 MCP | P2 |
 
-**Electron 现状说明**：Electron 官方仓库（`electron/electron`）的 `CLAUDE.md` 是给**开发 Electron 框架本身**的指南，不是教 Agent 开发 Electron **应用**的 Skills。社区有零散的 electron-development SKILL.md，但无官方认可。DeepOrca 自身就是 Electron 应用，可自建 Electron 应用开发 Skills（基于本项目实践），同时参考社区精选。
+**Electron 现状说明**：Electron 官方仓库（`electron/electron`）的 `CLAUDE.md` 是给**开发 Electron 框架本身**的指南，不是教 Agent 开发 Electron **应用**的 Skills。DeepOrca 自身就是 Electron 应用，可自建 Electron 应用开发 Skills（基于本项目实践），作为"第一方"Skills。
 
-**Tauri 现状说明**：`hypothesi/mcp-server-tauri` 是社区维护的 Tauri v2 MCP server + Agent Skills，非 Tauri 官方。但 Tauri 官方未出同类工具，这是目前最完善的方案。
+**Apple 现状说明**：WWDC 2026 发布，Xcode 27 内置 7 个第一方 Agent Skills，可通过 `xcrun agent skills export --output-dir <path>` 导出为标准 SKILL.md。另有 Paul Hudson（hackingwithswift.com 创始人，Swift 社区权威）维护的社区精选目录 `twostraws/swift-agent-skills`。
+
+**Qt/KDE 现状说明**：Qt Group（Qt 商业所有者）官方维护 `TheQtCompanyRnD/agent-skills`，7 个 Skills 覆盖 C++ 代码审查/QML 编码/QML 审查/性能分析/文档/UI 设计。另含 Qt 文档 MCP server。这是 KDE/Qt 桌面开发的官方第一方方案。
+
+**GNOME/GTK 现状说明**：❌ **无官方方案**。GNOME 基金会和 GTK 团队未发布 Agent Skills。暂不纳入，待官方方案出现。
 
 **与 DeepOrca 自身的关系**：DeepOrca 是 Electron 应用，对 Electron 应用开发有深度实践经验。可考虑自建 Electron 开发 Skills（从本项目 AGENTS.md/架构中提炼），作为"第一方"Skills。
 
