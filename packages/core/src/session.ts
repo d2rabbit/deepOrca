@@ -14,6 +14,7 @@ import {
   runCodegraphSync,
 } from "./common/codegraph";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
+import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject } from "./common/dart-mcp";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -542,6 +543,21 @@ export class SessionManager {
           result = {
             ...(result ?? {}),
             [CRG_MCP_SERVER_NAME]: crgConfig,
+          };
+        }
+      }
+    }
+
+    // Dart/Flutter MCP server — runtime layout analysis, widget tree inspection,
+    // pub.dev search, test execution, code formatting. Activated for Dart/Flutter
+    // projects (pubspec.yaml present). Requires `dart` on PATH (Dart SDK 3.9+).
+    if (hasDartProject(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, DART_MCP_SERVER_NAME))) {
+        const dartConfig = buildDartMcpServerConfig();
+        if (dartConfig) {
+          result = {
+            ...(result ?? {}),
+            [DART_MCP_SERVER_NAME]: dartConfig,
           };
         }
       }

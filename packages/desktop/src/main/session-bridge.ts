@@ -8,6 +8,9 @@ import {
   buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
   CRG_MCP_SERVER_NAME,
+  DART_MCP_SERVER_NAME,
+  buildDartMcpServerConfig,
+  hasDartProject,
   setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
@@ -677,7 +680,11 @@ export class SessionBridge {
         enabled: !disabled.has(name),
         // GitMCP repositories are managed from the GitMCP module: the MCP tab
         // may toggle them but never remove them (same contract as codegraph).
-        builtin: name === CODEGRAPH_MCP_SERVER_NAME || name === CRG_MCP_SERVER_NAME || isGitmcpServerName(name),
+        builtin:
+          name === CODEGRAPH_MCP_SERVER_NAME ||
+          name === CRG_MCP_SERVER_NAME ||
+          name === DART_MCP_SERVER_NAME ||
+          isGitmcpServerName(name),
         status: statuses.get(name),
       });
     }
@@ -711,6 +718,23 @@ export class SessionBridge {
         });
       }
     }
+    // Built-in Dart/Flutter MCP server: runtime analysis, widget inspection,
+    // pub.dev search, test execution. Shown when the project has a pubspec.yaml
+    // and `dart` (≥ 3.9) is available on PATH.
+    if (hasDartProject(this.projectRoot) && !Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
+      const cfg = buildDartMcpServerConfig();
+      if (cfg) {
+        list.push({
+          name: DART_MCP_SERVER_NAME,
+          command: cfg.command,
+          args: (cfg.args ?? []).join(" "),
+          env: stringifyEnv(cfg.env),
+          enabled: !disabled.has(DART_MCP_SERVER_NAME),
+          builtin: true,
+          status: statuses.get(DART_MCP_SERVER_NAME),
+        });
+      }
+    }
     return list;
   }
 
@@ -730,14 +754,17 @@ export class SessionBridge {
     const configured = settings.mcpServers ?? {};
     const disabled = new Set(readDisabledMcp(this.projectRoot));
     const isBuiltin = (name: string): boolean =>
-      name === CODEGRAPH_MCP_SERVER_NAME || name === CRG_MCP_SERVER_NAME || isGitmcpServerName(name);
+      name === CODEGRAPH_MCP_SERVER_NAME ||
+      name === CRG_MCP_SERVER_NAME ||
+      name === DART_MCP_SERVER_NAME ||
+      isGitmcpServerName(name);
     const entries: McpServerConfigEntry[] = Object.entries(configured).map(([name, cfg]) => ({
       name,
       config: cfg,
       builtin: isBuiltin(name),
     }));
-    // Built-in servers not yet configured by the user (codegraph, CRG) are
-    // synthesized from their builders so the group card lists them regardless.
+    // Built-in servers not yet configured by the user (codegraph, CRG, dart)
+    // are synthesized from their builders so the group card lists them regardless.
     if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
       const cfg = buildCodegraphMcpServerConfig(this.projectRoot);
       entries.push({ name: CODEGRAPH_MCP_SERVER_NAME, config: cfg, builtin: true });
@@ -745,6 +772,10 @@ export class SessionBridge {
     if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
       const cfg = buildCrgMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: CRG_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    if (hasDartProject(this.projectRoot) && !Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
+      const cfg = buildDartMcpServerConfig();
+      if (cfg) entries.push({ name: DART_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
     void disabled; // enable state is irrelevant for display grouping
 

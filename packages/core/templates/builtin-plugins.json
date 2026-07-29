@@ -2,10 +2,11 @@
   {
     "id": "flutter-dev",
     "name": "Flutter Development",
-    "description": "Expert skill pack for Flutter/Dart development — architecture, testing, routing, localization, HTTP, FFI and more.",
+    "description": "Expert skill pack for Flutter/Dart development — architecture, testing, routing, localization, HTTP, FFI and more. Includes the Dart MCP server for runtime layout analysis, widget inspection, and pub.dev search.",
     "category": "development",
     "icon": "flutter",
-    "skills": ["dart-*", "flutter-*"]
+    "skills": ["dart-*", "flutter-*"],
+    "mcp": ["dart-mcp-server"]
   },
   {
     "id": "codegraph",
