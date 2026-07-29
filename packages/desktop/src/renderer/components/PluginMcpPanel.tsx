@@ -167,39 +167,46 @@ export function PluginMcpPanel({
       <div className="ui-side-panel-body">
         {section === "mcp" ? (
           <>
-            {servers.map((srv) => {
-              const isSel = selected?.kind === "mcp" && selected.name === srv.name;
-              return (
-                <div
-                  key={srv.name}
-                  className={`ui-mcp-row${srv.enabled ? "" : " disabled"}${isSel ? " selected" : ""}`}
-                >
-                  <button
-                    type="button"
-                    className="ui-mcp-row-main"
-                    onClick={() => onSelect({ kind: "mcp", name: srv.name })}
+            {servers
+              .filter((srv) => !srv.builtin)
+              .map((srv) => {
+                const isSel = selected?.kind === "mcp" && selected.name === srv.name;
+                return (
+                  <div
+                    key={srv.name}
+                    className={`ui-mcp-row${srv.enabled ? "" : " disabled"}${isSel ? " selected" : ""}`}
                   >
-                    <span className="ui-mcp-row-name">
-                      {srv.status ? <StatusDot status={srv.status.status} /> : <StatusDot />}
-                      {srv.name}
-                      {srv.builtin ? <span className="ui-mcp-badge">{t("mcp.builtin")}</span> : null}
-                    </span>
-                    <span className="ui-plugin-item-desc">{srv.builtin ? srv.name : `${srv.command} ${srv.args}`}</span>
-                    <div className="ui-plugin-item-tags">
-                      <span className="ui-plugin-tag accent">mcp</span>
-                      {srv.builtin ? (
-                        <span className="ui-plugin-tag">built-in</span>
-                      ) : (
-                        <span className="ui-plugin-tag">custom</span>
-                      )}
+                    <button
+                      type="button"
+                      className="ui-mcp-row-main"
+                      onClick={() => onSelect({ kind: "mcp", name: srv.name })}
+                    >
+                      <span className="ui-mcp-row-name">
+                        {srv.status ? <StatusDot status={srv.status.status} /> : <StatusDot />}
+                        {srv.name}
+                        {srv.builtin ? <span className="ui-mcp-badge">{t("mcp.builtin")}</span> : null}
+                      </span>
+                      <span className="ui-plugin-item-desc">
+                        {srv.builtin ? srv.name : `${srv.command} ${srv.args}`}
+                      </span>
+                      <div className="ui-plugin-item-tags">
+                        <span className="ui-plugin-tag accent">mcp</span>
+                        {srv.builtin ? (
+                          <span className="ui-plugin-tag">built-in</span>
+                        ) : (
+                          <span className="ui-plugin-tag">custom</span>
+                        )}
+                      </div>
+                    </button>
+                    <div className="ui-mcp-row-actions">
+                      <Switch checked={srv.enabled} onChange={() => void toggle(srv)} title={t("mcp.enableTitle")} />
                     </div>
-                  </button>
-                  <div className="ui-mcp-row-actions">
-                    <Switch checked={srv.enabled} onChange={() => void toggle(srv)} title={t("mcp.enableTitle")} />
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+
+            {/* Built-in MCP servers (codegraph, CRG, gitmcp:*) live only in the
+                Plugins tab group cards — the MCP tab shows user-defined servers. */}
 
             {adding ? (
               <div className="ui-mcp-add-form">
