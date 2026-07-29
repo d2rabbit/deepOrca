@@ -1,10 +1,11 @@
 # Orca Feature 集成路线图（下阶段）
 
-> 版本：v2.3 · 日期：2026-07-28 · 状态：规划中
+> 版本：v2.4 · 日期：2026-07-29 · 状态：规划中
 > 本文件定义下阶段开源项目的**直接集成**方案。所有项目均为直接集成到 Orca 中，非从零开发。
 > v2.1 更新：新增 Penpot vs Open Design 对比分析（选择 Open Design），新增 Obscura 轻量级无头浏览器集成，标记已集成项目。
 > v2.2 更新：新增 3 个引擎层/方法论项目调研（Prewalk、OpenSpace、OpenSpec）——基于完整 README（webReader 抓取）的深度分析，含集成成本与实现形态判定。
 > v2.3 更新：新增 3 个候选项目深度调研——TencentDB-Agent-Memory（挑战 #4 mem0 的更强记忆方案）、Graphify（挑战 #2 code-review-graph 的更强图谱方案）、Bento（填补演示文稿生成空白）。含与现有路线图项目的对比与替换/并存判定。重新定位 #2 code-review-graph 为分析层（非图谱层），明确与已集成 codegraph 的互补关系；新增 CRG vs OCR 审查范式对比与协同方案。
+> v2.4 更新：根据最新提交同步已集成状态（Electron 35 + ocr 内置 + 插件中心分组 + Bento Slides + TencentDB-Agent-Memory 已在 perf 分支落地）；新增 8 个项目全面调研（Understand-Anything / taste-skill / web-access / pi-computer-use / Self-Harness / OmniGent / Superpowers / Open Deep Research），含与已实现能力的冗余/互补判定。
 
 ---
 
@@ -15,13 +16,13 @@
 | 1 | flutter/agent-plugins | 构建时内置 Skills | Flutter/Dart 开发能力包 | P0 | ✅ **已集成** |
 | 2 | code-review-graph | 内置 MCP Server | **代码审查 + 风险分析 + 架构智能**（v2.3 重新定位：分析层，非图谱层） | P0 | 📋 规划中 |
 | 3 | serena | 内置 MCP Server | 符号级重构/导航/编辑 | P1 | 📋 规划中 |
-| 4 | TencentDB-Agent-Memory | core 层 SDK | 跨会话长期记忆（v2.3 替换 mem0） | P1 | 📋 规划中 |
+| 4 | TencentDB-Agent-Memory | core 层 SDK | 跨会话长期记忆（v2.3 替换 mem0） | P1 | ✅ **已集成**（perf 分支） |
 | 5 | openwiki | 内置 CLI 工具 | 项目 Wiki 自动生成与维护 | P1 | ✅ **已集成** |
 | 6 | opencli | 内置插件 | 100+ 网站适配器 + CLI Hub | P2 | 📋 规划中 |
 | 7 | CLI-Anything | 内置 Skill | 万能 CLI 生成（Agent 驱动任意软件） | P2 | 📋 规划中 |
 | 8 | open-design | MCP Server（设计+展示） | AI 设计生成 + 文件交付给 coding agent | P2 | 📋 规划中 |
 | 9 | obscura | MCP Server + 内置 Skill | 轻量级无头浏览器（大规模数据获取） | P2 | 📋 规划中 |
-| 10 | bento | MCP Server + 内置 Skill | 演示文稿生成（单 HTML 文件，v2.3 新增） | P3 | 📋 规划中 |
+| 10 | bento | MCP Server + 内置 Skill | 演示文稿生成（单 HTML 文件，v2.3 新增） | P3 | ✅ **已集成**（perf 分支，Skill 形态） |
 
 **已集成项目说明**：
 - ✅ **flutter/agent-plugins**：构建脚本 `scripts/install-flutter-skills.js`，已内置 26 个 Flutter/Dart Skills 到 `packages/core/templates/skills/bundled/`
@@ -29,6 +30,12 @@
 
 **额外已集成项目**（不在本路线图 10 个项目中）：
 - ✅ **codegraph**（`@colbymchenry/codegraph` v1.5.0）：vendored CLI（`packages/desktop/vendor/codegraph/`）+ 桌面端索引管理面板 + 内置 MCP Server。定位为**导航/检索层**——TypeScript 原生、始终在线（原生文件 watcher）、LLM 面向的"代码 GPS"。默认暴露 1 个工具（`codegraph_explore`，一次调用返回源码+调用链+影响范围），可选 8 个。35 语言支持（20 个 Rust kernel）。作为 #2 code-review-graph 的**互补导航层**，两者不竞争——codegraph 做"在哪/谁调用谁"，CRG 做"多危险/架构如何"
+- ✅ **code-review-graph (CRG)**（`dev` 分支 `1f5146e`）：内置 MCP Server，作为 codegraph 之上的**分析层**——风险评分、爆炸半径、社区检测、架构概览。用 vendored `uv` 二进制自动提供隔离的 Python 3.12（延续零外部依赖原则）。代码审查面板升级为 3 Tab：Quality（OCR）/ Risk（CRG）/ Architecture（Mermaid.js）
+- ✅ **Open Code Review (ocr)**（`873f437`）：作为 npm 依赖内置（`@alibaba-group/open-code-review` + 平台子包二进制），无需全局安装。设 `OCR_NO_UPDATE=1` 禁用其后台 updater
+- ✅ **Electron 35 升级**（`d0ebc79`）：从 Electron 33（Node 20）升级到 35（Node 22.16），使 codegraph/openwiki 全部运行在 Electron 自带 Node 上，实现内部插件零外部依赖
+- ✅ **插件中心分组**（`dbf94fb` + `b70a7bb`）：内置 skills/MCP/plugins 按 `builtin-plugins.json` 清单统一分组为插件卡片（Flutter/CodeGraph/代码审查/GitMCP 等），内置项不再在 Skills/MCP tab 单独展示
+- ✅ **TencentDB-Agent-Memory**（`perf` 分支 `08308c5`）：core 层记忆 SDK（`packages/core/src/common/memory.ts`），已替换原 #4 mem0 规划
+- ✅ **Bento Slides**（`perf` 分支 `08308c5`）：内置 Skill（`packages/core/templates/skills/bundled/bento-slides/`），单 HTML 文件演示文稿生成
 
 ---
 
@@ -63,7 +70,198 @@
 
 ---
 
-## 一、flutter/agent-plugins — 构建时内置 AI 工具包
+## 总览 — 全面调研项目（v2.4 新增）
+
+> 以下 8 个项目经 zread 完整 README 调研。每个都对照 DeepOrca **已实现能力**（codegraph/CRG/openwiki/ocr/memory/bento/Electron 35/插件分组）和**规划中能力**，做出"冗余 / 互补 / 空白填补 / 不采纳"的明确判定。
+
+| # | 项目 | 性质 | 对标的 DeepOrca 能力 | 判定 | 优先级 |
+|---|------|------|----------------------|------|--------|
+| G | Understand-Anything | 代码知识图谱插件（多 agent + dashboard） | 已集成 codegraph + CRG + openwiki | 🔴 **高度冗余** — 功能已被三方覆盖 | 不采纳 |
+| H | taste-skill | 前端设计 Agent Skills（反 slop） | 空白域（前端设计质量） | 🟢 **互补/空白填补** — 纯 Skill，零依赖 | P2 |
+| I | web-access | CDP 浏览器自动化 Skill | 规划中 #9 obscura + 已集成 browser-skill | 🟡 **部分互补** — CDP 登录态复用独特，但与 obscura 重叠 | P3 |
+| J | pi-computer-use | 桌面应用 GUI 操控（macOS/Win） | 规划中 #7 CLI-Anything | 🟢 **互补/空白填补** — 桌面 GUI 自动化是全新域 | P2 |
+| K | Self-Harness | agent 自改进方法论（论文） | 引擎演进 B OpenSpace（技能自演化） | 🟢 **理念互补** — 填补 harness 自改进空白，与 OpenSpace 互补 | P3 |
+| L | OmniGent | 多 agent 编排 meta-harness | DeepOrca 自身是 harness | 🔴 **架构冲突** — 与 DeepOrca 定位重叠，不采纳 | 不采纳 |
+| M | Superpowers | 开发方法论 Skill 集（TDD/brainstorm/review） | karpathy-guidelines（仅行为准则） | 🟢 **互补/空白填补** — 填补系统化开发方法论 | P1 |
+| N | Open Deep Research | 深度研究 agent（LangGraph） | 空白域（多轮深度研究） | 🟢 **互补/空白填补** — 但 Python 依赖，借鉴为主 | P3 |
+
+**核心判断**：
+- **G/L 不采纳**——Understand-Anything 与已集成的 codegraph+CRG+openwiki 三方高度冗余；OmniGent 是 meta-harness，与 DeepOrca 自身定位冲突
+- **M 是最高价值收获**——Superpowers 的系统化开发方法论（brainstorming→plan→TDD→review→worktree）是 DeepOrca 完全空白的领域，且纯 Skill 零依赖
+- **H/J 填补具体空白**——taste-skill 填补前端设计质量，pi-computer-use 填补桌面 GUI 自动化
+- **K 与 B 互补**——Self-Harness 的"弱点挖掘→harness 提案→回归测试"自改进闭环，与 OpenSpace 的技能自演化互补，可合并为统一的引擎自改进方向
+
+---
+
+## G、Understand-Anything — 代码知识图谱（不采纳：高度冗余）
+
+> 仓库：https://github.com/Egonex-AI/Understand-Anything · MIT · Claude Code Plugin + 多平台 Skill
+
+### 作用
+将代码库转为交互式知识图谱：多 agent 流水线（project-scanner → file-analyzer → architecture-analyzer → tour-builder → graph-reviewer）扫描全项目，生成 `.ua/knowledge-graph.json`，配合交互式 Web dashboard（力导向图 + 模糊/语义搜索 + diff 影响分析 + 导览 + 业务域视图）。Tree-sitter（确定性结构）+ LLM（语义摘要）混合。
+
+### 与 DeepOrca 已实现能力的关系
+
+| DeepOrca 已有 | Understand-Anything 对应 | 关系 |
+|---------------|--------------------------|------|
+| **codegraph**（导航层：符号检索+调用链+影响范围） | 结构图谱（file/function/class 节点+边） | 🔴 直接冗余 |
+| **CRG**（分析层：风险评分+社区检测+架构概览） | 架构层可视化+diff 影响分析 | 🔴 直接冗余 |
+| **openwiki**（项目 Wiki 生成） | 导览+业务域映射 | 🟡 部分重叠 |
+
+### 冗余判定
+**🔴 高度冗余，不采纳。** DeepOrca 已通过 codegraph（导航）+ CRG（分析）+ openwiki（文档）三方覆盖了 Understand-Anything 的全部核心能力，且三者都是 TypeScript 原生、零外部 Python 依赖。引入 Understand-Anything 会造成：能力重叠 + 多一套 `.ua/` 数据目录 + 重复的图谱构建成本。
+
+---
+
+## H、taste-skill — 前端设计 Agent Skills（互补：填补设计质量空白）
+
+> 仓库：https://github.com/Leonxlnx/taste-skill · MIT · 纯 SKILL.md 集合
+
+### 作用
+"反 slop"前端设计技能包——10 个实现 Skill（设计变化/动效/密度三旋钮调参）+ 3 个图像生成 Skill（网站参考图/移动端/品牌包）。提升 AI 生成 UI 的布局、排版、动效、间距质量，避免"样板感"。框架无关（React/Vue/Svelte 通用），通过 `npx skills add` 安装。
+
+### 与 DeepOrca 已实现能力的关系
+
+| DeepOrca 现状 | taste-skill 对应 | 关系 |
+|---------------|------------------|------|
+| 无前端设计质量 Skill（flutter skills 偏功能，非视觉设计） | 系统化前端设计方法论 | 🟢 纯空白填补 |
+| 已有 24 个 flutter/dart skills（功能开发导向） | 视觉设计导向 skills | 🟢 互补，不冲突 |
+| Skills 系统（`bundled/` 扫描加载） | 纯 SKILL.md，零依赖 | 🟢 完美兼容 |
+
+### 互补判定
+**🟢 纯互补，零冲突。** 填补前端设计质量这一完全空白域。集成方式同 flutter skills——构建时 git clone + 复制 SKILL.md 到 `bundled/`。建议选取核心几个（taste-skill v2 + image-to-code + redesign）而非全部 13 个，避免 Skill 过载。
+
+---
+
+## I、web-access — CDP 浏览器自动化 Skill（部分互补：与 obscura 重叠）
+
+> 仓库：https://github.com/eze-is/web-access · MIT · 纯 Skill + Node.js 脚本
+
+### 作用
+给 Agent 装上"完整联网能力"：联网策略自动选择（WebSearch/WebFetch/curl/Jina/CDP）+ CDP Proxy 浏览器操作（直连用户日常 Chrome，**天然携带登录态**）+ 三种点击方式 + 本地 Chrome 书签/历史检索 + 站点经验积累（按域名存储，跨 session 复用）+ 并行分治。
+
+### 与 DeepOrca 已实现/规划能力的关系
+
+| DeepOrca 现状/规划 | web-access 对应 | 关系 |
+|--------------------|-----------------|------|
+| 已集成 **browser-skill**（bsk CLI，通用页面操控） | CDP Proxy 浏览器操控 | 🟡 重叠但机制不同 |
+| 规划中 **#9 obscura**（轻量无头浏览器，大规模抓取） | CDP 浏览器自动化 | 🔴 与 obscura 定位重叠 |
+| WebSearch 工具（内置） | 联网策略自动选择 | 🟢 互补（策略层增强） |
+
+### 互补/冗余判定
+**🟡 部分互补，需与 obscura 协调。** web-access 的独特价值是 **CDP 直连用户 Chrome 复用登录态**（browser-skill 和 obscura 都不做这个）。但其浏览器自动化部分与规划中的 obscura 高度重叠。建议：若集成 obscura，则 web-access 仅借鉴其"联网策略选择 + 站点经验积累"理念，不整体引入；若不集成 obscura，web-access 的 CDP 模式可作为轻量浏览器方案。
+
+---
+
+## J、pi-computer-use — 桌面应用 GUI 操控（互补：填补桌面自动化空白）
+
+> 仓库：https://github.com/injaneity/pi-computer-use · MIT · Pi 扩展（macOS Swift + Windows Rust）
+
+### 作用
+让 AI agent 操控桌面应用（非 API/CLI）：查找窗口、观察 UI、搜索控件、点击/输入/滚动/等待 UI 变化。macOS 用 Swift helper（Accessibility API），Windows 用平台 accessibility API。8 个工具（find_roots/observe_ui/search_ui/act_ui/read_text/wait_for 等）。
+
+### 与 DeepOrca 已实现/规划能力的关系
+
+| DeepOrca 现状/规划 | pi-computer-use 对应 | 关系 |
+|--------------------|----------------------|------|
+| 规划中 **#7 CLI-Anything**（为软件生成 CLI） | 直接操控 GUI（无需生成 CLI） | 🟢 互补 — 两种思路：CLI-Anything 生成命令行接口，pi-computer-use 直接操作界面 |
+| bash 工具（命令行执行） | GUI 自动化 | 🟢 完全新域 |
+
+### 互补判定
+**🟢 纯互补，填补全新空白域。** 桌面 GUI 自动化（操控 Figma/Photoshop/Excel 等无 API 的桌面软件）是 DeepOrca 完全没有的能力。与 CLI-Anything 互补——后者把软件变成 CLI，前者直接操作软件界面。但集成成本较高（需 macOS Swift + Windows Rust 原生 helper），建议设为 P2 中期项。
+
+---
+
+## K、Self-Harness — agent 自改进方法论（互补：引擎自改进方向）
+
+> 论文：https://arxiv.org/abs/2606.09498 · Harrison Chase (LangChain) 关注 · 2026 · 上海 AI 实验室
+
+### 作用
+LLM agent **自改进自身 harness（脚手架）** 的新范式，无需微调或换更强模型。三阶段闭环：
+1. **弱点挖掘**（Weakness Mining）—— 分析执行轨迹，发现失败模式
+2. **Harness 提案**（Harness Proposal）—— 针对每个弱点生成最小化、多样性的 harness 修改
+3. **回归测试**（Regression Testing）—— 只保留通过回归测试的修改，防止改好一处破坏他处
+
+### 与 DeepOrca 已实现/规划能力的关系
+
+| DeepOrca 现状/规划 | Self-Harness 对应 | 关系 |
+|--------------------|-------------------|------|
+| 引擎演进 **B OpenSpace**（技能自演化：执行→评估→改进） | harness 自改进（prompt/工具/控制流自改） | 🟢 互补 — OpenSpace 改"技能内容"，Self-Harness 改"引擎脚手架" |
+| 引擎演进 **A Prewalk**（模型切换编排） | harness 修改的一种 | 🟡 部分重叠 — Prewalk 可视为一种 harness 提案 |
+| 无任何 harness 自改进机制 | 三阶段自改进闭环 | 🟢 纯空白填补 |
+
+### 互补判定
+**🟢 理念互补，与 OpenSpace 合并为统一的"引擎自改进"方向。** Self-Harness 是学术论文（方法论），非可安装工具。其"弱点挖掘→提案→回归测试"理念可融入 DeepOrca 的引擎演进：与 B OpenSpace 的技能自演化结合，形成"技能内容 + 引擎脚手架"的双层自改进。建议作为引擎演进的远期方向（P3），先落地 OpenSpace 再考虑。
+
+---
+
+## L、OmniGent — 多 agent 编排 meta-harness（不采纳：架构冲突）
+
+> 仓库：https://github.com/omnigent-ai/omnigent · Databricks 出品 · 开源 meta-harness
+
+### 作用
+**meta-harness（元脚手架）**——在 Claude Code/Codex/Cursor/OpenCode 等多个 coding agent **之上**提供统一编排层，让它们成为"可互换的工人"在同一工作流中组合/切换/管理。内置多 agent 编排器 + MLflow 可观测性 + 团队治理。
+
+### 与 DeepOrca 的关系
+
+| 维度 | 分析 |
+|------|------|
+| 定位 | OmniGent 是 **meta-harness**（编排多个 harness）；DeepOrca **自身就是一个 harness**（coding agent 运行时） |
+| 关系 | 🔴 **架构冲突** — DeepOrca 不会把自己降级为 OmniGent 下的一个"worker"，也不会去编排其他 harness |
+
+### 冲突判定
+**🔴 架构冲突，不采纳。** DeepOrca 是完整的 coding agent harness（引擎+UI+工具+会话），不是被编排的 worker。OmniGent 的价值在于"管理多个异构 agent"，而 DeepOrca 的定位是"一个自包含的强 agent"。两者在同一层级竞争，不互补。
+
+---
+
+## M、Superpowers — 系统化开发方法论 Skill 集（互补：最高价值收获）
+
+> 仓库：https://github.com/obra/superpowers · MIT · 纯 Skill 集 + session-start hook
+
+### 作用
+完整的软件开发方法论，以可组合的 Skill 集实现。核心工作流自动触发：
+1. **brainstorming**——写代码前先苏格拉底式澄清需求、探索方案、分段呈现设计
+2. **using-git-worktrees**——设计批准后创建隔离工作区
+3. **writing-plans**——拆解为 2-5 分钟的细粒度任务（含确切文件路径+完整代码+验证步骤）
+4. **subagent-driven-development**——每任务派发子 agent，两阶段审查（spec 合规 + 代码质量）
+5. **test-driven-development**——强制 RED-GREEN-REFACTOR
+6. **requesting-code-review**——任务间审查，critical 问题阻断
+7. **finishing-a-development-branch**——验证测试+合并/PR 决策
+
+### 与 DeepOrca 已实现能力的关系
+
+| DeepOrca 现状 | Superpowers 对应 | 关系 |
+|---------------|------------------|------|
+| **karpathy-guidelines**（仅行为准则：避免过度复杂/外科手术式修改） | 系统化方法论（7 阶段完整工作流） | 🟢 karpathy 是"原则"，Superpowers 是"流程"——互补 |
+| **Plan Mode**（提案→批准→执行） | brainstorming + writing-plans | 🟡 部分重叠 — Plan Mode 已有提案流程，但 Superpowers 更细（worktree+TDD+子 agent） |
+| **UpdatePlan**（执行中 TODO 跟踪） | subagent-driven-development 的任务跟踪 | 🟢 可复用 UpdatePlan 作为载体 |
+| 无 TDD/系统化调试/code review 工作流 | test-driven-development + systematic-debugging + code-review | 🟢 纯空白填补 |
+
+### 互补判定
+**🟢 最高价值收获，纯互补。** Superpowers 填补的是 DeepOrca **完全空白的系统化开发方法论**——TDD、系统化调试、子 agent 驱动开发、git worktree 隔离、代码审查工作流。与 Plan Mode 互补（Plan Mode 做"提案"，Superpowers 做"执行纪律"）。纯 Skill 零依赖，集成方式同 flutter/taste-skill。注意：本项目已有 superpowers 插件缓存（`C:\Users\EDY\.zcode\cli\plugins\`），但**未内置到 bundled skills**——需主动集成。
+
+---
+
+## N、Open Deep Research — 深度研究 agent（互补：填补深度研究空白）
+
+> 仓库：https://github.com/langchain-ai/open_deep_research · MIT · LangGraph + Python
+
+### 作用
+开源深度研究 agent——多轮搜索→摘要→压缩→生成报告的 plan-and-execute 工作流。支持多模型提供商、多搜索工具、MCP 兼容。Deep Research Bench 排行榜 #6（RACE 0.4344）。4 个可配置模型角色（摘要/研究/压缩/报告）。
+
+### 与 DeepOrca 已实现能力的关系
+
+| DeepOrca 现状 | Open Deep Research 对应 | 关系 |
+|---------------|-------------------------|------|
+| WebSearch 工具（单次搜索） | 多轮深度研究（搜索→反思→再搜索→报告） | 🟢 互补 — 从"单次搜索"升级为"深度研究" |
+| 无深度研究能力 | 完整 deep research 流水线 | 🟢 纯空白填补 |
+
+### 互补判定
+**🟢 互补，但 Python 依赖限制集成形态。** 填补"多轮深度研究"空白（DeepOrca 只有单次 WebSearch）。但 Open Deep Research 是 Python（LangGraph），与零外部依赖原则冲突。建议：**借鉴其工作流理念**（搜索→摘要→压缩→报告的多轮循环），用 DeepOrca 的 Node.js 引擎自建轻量版，而非引入 Python 依赖。设为 P3 远期项。
+
+---
+
+
 
 > 仓库：https://github.com/flutter/agent-plugins
 
@@ -1353,6 +1551,16 @@ Phase 1（立即）                Phase 2（+2周）              Phase 3（+1�
 12. **Graphify 不直接集成，借鉴补强 codegraph** — 核心功能与 codegraph/openwiki 三重重叠，Python 重依赖是硬伤；借鉴其社区检测（Leiden）和边置信度标签（EXTRACTED/INFERRED/AMBIGUOUS）理念增强现有 codegraph
 13. **Bento 设为 P3 观望项** — 真正填补演示文稿空白，单 HTML 文件理念契合桌面端，但项目仅 2 周龄、2 人维护；待 3-6 个月观察稳定后再推进集成
 14. **v2.3 三项目的共同判定逻辑** — 替换型（TDAM）看重全面优势 + 技术栈匹配；补强型（Graphify）看重增量能力 + 避免重依赖；观望型（Bento）看重空白填补 + 成熟度风险
+
+### 全面调研评估原则（v2.4 新增）
+
+15. **Understand-Anything 不采纳** — 与已集成的 codegraph（导航）+ CRG（分析）+ openwiki（文档）三方高度冗余，引入会造成能力重叠 + 重复图谱构建成本
+16. **Superpowers 是最高价值收获** — 系统化开发方法论（brainstorming→plan→TDD→review→worktree）是 DeepOrca 完全空白域，纯 Skill 零依赖，与 Plan Mode 互补（Plan Mode 做提案，Superpowers 做执行纪律）
+17. **OmniGent 不采纳** — meta-harness 与 DeepOrca 自身 harness 定位冲突，DeepOrca 不会降级为被编排的 worker
+18. **taste-skill / pi-computer-use 填补具体空白** — 前者填补前端设计质量（纯 Skill），后者填补桌面 GUI 自动化（新域但集成成本高）
+19. **web-access 需与 obscura 协调** — CDP 登录态复用独特，但浏览器自动化与 obscura 重叠；若集成 obscura 则仅借鉴其联网策略+站点经验理念
+20. **Self-Harness 与 OpenSpace 合并** — 前者改"引擎脚手架"，后者改"技能内容"，合并为统一的引擎自改进方向（远期）
+21. **Open Deep Research 借鉴为主** — 填补多轮深度研究空白，但 Python 依赖，建议借鉴其工作流理念自建 Node.js 轻量版
 
 ---
 
