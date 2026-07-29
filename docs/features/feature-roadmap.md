@@ -1,6 +1,6 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.5 · 日期：2026-07-29 · 状态：规划中
+> 版本：v3.6 · 日期：2026-07-30 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
@@ -299,10 +299,40 @@
 
 | 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
 |------|------|----------|------|--------|
-| 桌面 GUI 操控 | **pi-computer-use** | Pi 扩展（macOS Swift + Windows Rust） | 查找窗口/观察 UI/点击输入/等待变化——操控 Figma/Photoshop/Excel 等桌面软件 | P2 |
+| 桌面 GUI 操控（原生执行层） | **pi-computer-use** | Pi 扩展（macOS Swift + Windows Rust） | 查找窗口/观察 UI/点击输入/等待变化——操控 Figma/Photoshop/Excel 等桌面软件 | P2 |
+| 视觉感知 fallback（VLM 定位层） | **ShowUI**（ShowLab, CVPR 2025） | Skill + 可选 Python sidecar（或 HF Space 远程） | 当无障碍树缺失时（Photoshop/自绘 UI/远程画面），VLM 视觉定位元素坐标 → pi-computer-use 执行点击 | P2-P3 |
 | 万能 CLI 生成 | **CLI-Anything** | 内置 Skill（HARNESS.md 方法论） | 7 阶段为任意软件自动生成 CLI（分析→设计→实现→测试→文档→发布） | P2 |
 
 **互补关系**：pi-computer-use 直接操控 GUI，CLI-Anything 把软件变成 CLI——两种思路解决同一问题（驱动无 API 的软件）。
+
+**ShowUI vs pi-computer-use 分工**（仿 bsk/obscura 分工模式）：
+
+```
+用户请求 → pi-computer-use 查找窗口/元素
+  ├─ 应用暴露无障碍树（原生应用）→ 原生 AX/UIAutomation API 定位（pi-computer-use 自带，快速精确）
+  └─ 无障碍树缺失（Photoshop/自绘 UI/远程画面）→ ShowUI 视觉定位坐标 → pi-computer-use 执行点击
+```
+
+**ShowUI 不作为核心依赖**：Python + ~2B 参数模型 + GPU 需求违反"零外部运行时依赖"原则。作为可选 sidecar（仿 CRG/uv 模式）或通过 Hugging Face Space 远程调用（免本地 GPU）。
+
+**ShowUI 技术参数**：~2B 参数 VLA 模型（Phi-3-Vision/Qwen2.5-VL 基座）、Apache-2.0、CVPR 2025。输入截图 → 输出交互元素坐标 + 任务决策。通过 `computer_use_ootb` 变体支持 macOS/Windows/Linux 全桌面控制。
+
+### 模拟器使用（sim-use）
+
+> 新增（2026-07-30 调研）——填补 iOS 模拟器交互空白 + 补齐 Android 验证循环。
+
+| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
+|------|------|----------|------|--------|
+| iOS + Android 统一模拟器操控 | **sim-use**（LY Corporation） | 内置 Skill + PLUGIN.md（CLI-first，走 bash） | observe-act-verify 循环：UI 大纲（比无障碍树小 ~16x）、tap/swipe/type/paste、截图+崩溃检测 | P1 |
+
+**与 android-cli 的互补关系**：
+
+```
+android-cli (Google)  →  项目生命周期：create/run/emulator/sdk/docs
+sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Android 统一）
+```
+
+**sim-use 技术参数**：Swift CLI（macOS 14+）、Apache-2.0、~549 stars（3 周龄）。iOS 用 Meta idb XCFrameworks + Apple Accessibility API；Android 用 Kotlin AccessibilityService + HTTP over adb forward。前置条件：Xcode（iOS）或 adb + 模拟器（Android）。非 MCP——CLI-first，附带 SKILL.md。
 
 ---
 
@@ -386,11 +416,23 @@
 
 **实施条件**：层二（harness 自改进）依赖层一（技能自演化）先落地建立执行结果捕获基础设施。建议作为远期方向（P3）。
 
+#### 层三：蜂群协作（多 Agent 编排）
+
+> 新增（2026-07-30 调研）——借鉴 JiuwenSwarm 理念，不引入 Python 运行时。
+
+| 能力 | 来源理念 | 贡献 | 优先级 |
+|------|----------|------|--------|
+| 任务分治编排 | **JiuwenSwarm**（openJiuwen）理念 | 复杂任务自动分解 → 并行 subagent 分派 → 结果合并 | P3 |
+| 上下文卸载 + 分层记忆 | JiuwenSwarm 理念 | 显式 token 成本控制（与 TDAM L0-L3 管线互补） | P3 |
+
+**为什么不直接集成 JiuwenSwarm**：Python 运行时（pip install + Web UI），与 DeepOrca 的 Node/Electron 架构不匹配。只借鉴其"分治→并行→合并"编排模式和"上下文卸载保护 token 账单"的成本控制策略。落地方式：编写内置 Skill 教 Agent 在复杂任务中做任务分解 + 并行分派（复用 DeepOrca 已有的 subagent 能力）。
+
 ---
 
 ## 十二、插件中心
 
-> 统一的插件/技能/MCP 管理入口——内置项分组展示，用户自定义项独立管理。
+> 统一的插件/技能/MCP 管理入口——内置项分组展示，远程源一键安装。
+> UI 方案：**设置面板内平铺卡片网格**（非左侧列表），按 category 分区。
 
 ### 已集成
 
@@ -399,8 +441,71 @@
 | 分组展示 | `builtin-plugins.json` 清单 | 内置 skills/MCP/plugins 按工具分组（Flutter/CodeGraph/代码审查/GitMCP…） |
 | 内置项隔离 | MCP/Skills tab 过滤 | 内置项不在 MCP/Skills tab 单独展示，仅在 Plugins tab 分组卡片中 |
 | Flutter/Dart 技能包 | flutter/agent-plugins | 24 个技能构建时内置 |
+| Android/HarmonyOS/RN 技能包 | android/skills + deveco-cli + expo + callstack | 构建时内置 |
+| Browser 统一分组 | browser-skill + web-access-strategy | Chrome 操控 + 联网策略 Skill |
 
-### 规划中
+### 规划中：远程源集成
+
+#### 技术阻断点（必须先解决）
+
+| # | 阻断点 | 影响 | 方案 |
+|---|--------|------|------|
+| 1 | **MCP HTTP/SSE 传输缺失** | 当前 `McpServerConfig` 只支持 stdio，远程 MCP 服务器（GitHub/ModelScope 等）无法接入 | 扩展 `McpServerConfig` 为 discriminated union：`type: "stdio" \| "http" \| "sse"` + `url` + `headers` |
+| 2 | **远程源抽象缺失** | `BuiltinPluginGroup` 只读本地 JSON | 定义 `RemotePluginSource` 接口（`list()/search()/install()`），本地清单成为其中一个 source |
+| 3 | **安装管线缺失** | Skills 自动发现、MCP 手动配置 | 实现"下载→放置→注册→启用→卸载"生命周期 |
+
+#### 远程源清单（按优先级）
+
+| 优先级 | 源 | 类型 | 格式 | API | 中国镜像 | 内容量 |
+|--------|-----|------|------|-----|----------|--------|
+| **P0** | **claude-plugins-official** (anthropics) | 插件+MCP+Skill | `marketplace.json`（**事实标准格式**） | Git clone + GitHub API | ❌ | 32.8k stars, 80+ 插件 |
+| **P0** | **MCP Registry** (mcp-cn.com / registry.modelcontextprotocol.io) | MCP | REST API | ✅ 无认证 `GET /v0/servers` | ✅ mcp-cn.com | 官方 MCP 注册表 |
+| **P1** | **ClawHub** (clawhub.ai) | Skill+Plugin | SKILL.md（原生兼容） | `clawhub install` CLI + `inspect` 安全扫描 | ✅ cn.clawhub-mirror.com (ByteDance) | ~57k skills |
+| **P1** | **anthropics/skills** | Skill | SKILL.md | Git clone | ❌ | 165k stars, 501 skills |
+| **P2** | **ModelScope** (modelscope.cn) | Skill+MCP | SDK/OpenAPI | ✅ 需 token | ✅ 原生 | 最大 CN 目录 |
+| **P2** | **SkillHub.cn** | Skill | SKILL.md + CLI | `skillhub install` CLI | ✅ 腾讯云 COS | CN 精选 Top 50 |
+| **P3** | **SwarmSkills** (swarmskills.openjiuwen.com) | Swarm Skill | SKILL.md 扩展 | 经 ClawHub 间接 | ❌ | JiuwenSwarm 生态 |
+| ⚠️ | **skill.xfyun.cn** (讯飞) | 未知 | 未知 | 未确认 | — | 待验证 |
+
+#### 标准格式：marketplace.json
+
+采用 `anthropics/claude-plugins-official` 的格式作为远程源标准（与 DeepOrca 现有模型 1:1 对应）：
+
+```
+marketplace.json     ≈  DeepOrca 的 builtin-plugins.json（远程 SHA-pin 版）
+plugin.json          ≈  DeepOrca 的 BuiltinPluginInfo manifest
+.mcp.json            ≈  DeepOrca 的 mcpServers settings
+skills/SKILL.md      =  DeepOrca 原生 skill 格式（完全相同）
+```
+
+用户可添加任意兼容源（设置 → 插件中心 → 添加来源 → 输入 Git URL 或 marketplace.json URL → 自动解析 → 一键安装）。
+
+#### 插件中心 UI 方案
+
+```
+设置面板 → "插件中心" Tab
+├── 搜索栏 + 来源筛选（内置 / ClawHub / MCP Registry / claude-plugins-official / 自定义）
+├── 平铺卡片网格（每个卡片 = 一个插件/技能/MCP 服务器）
+│   ├── 图标 + 名称 + 描述 + 来源标签
+│   ├── 安装/卸载/启用/禁用 按钮
+│   └── 详情展开（README 预览、权限要求、依赖、SHA pin）
+├── 按 category 分区（development / automation / documentation / ...）
+└── "添加自定义源" 入口（输入 marketplace.json URL → 解析 → 列出可用项）
+```
+
+#### 实施阶段
+
+| 阶段 | 内容 | 解除阻断 |
+|------|------|----------|
+| Phase 0 | 扩展 MCP 客户端支持 HTTP/SSE 传输 | #1 |
+| Phase 1 | 定义 `RemotePluginSource` 接口 + marketplace.json 适配器 | #2 |
+| Phase 2 | 实现 claude-plugins-official 源（Git clone → 解析 → 安装） | 格式标准 |
+| Phase 3 | 实现 MCP Registry 源（REST API → 列表/搜索 → 配置生成） | P0 MCP 源 |
+| Phase 4 | 实现 ClawHub 源（CLI + inspect 安全扫描） | 最大 Skill 源 |
+| Phase 5 | 设置面板插件中心 UI（平铺卡片 + 搜索 + 安装管线） | #3 |
+| Phase 6 | ModelScope + SkillHub.cn + 自定义远程源 | 区域覆盖 |
+
+#### 其他规划项
 
 | 能力 | 项目 | 贡献 | 优先级 |
 |------|------|------|--------|
@@ -532,6 +637,10 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 | Bento Slides（演示文稿） | `08308c5` perf | 办公套件 |
 | browser-skill（浏览器操控） | 内置插件 | 浏览器与联网 |
 | flutter/agent-plugins（24 技能） | 构建 skills | 移动开发 |
+| Android Development Kit（14 技能 + CLI） | `16c4b2c` perf | 移动开发 |
+| HarmonyOS Development Kit（Skills + MCP） | `16c4b2c` perf | 移动开发 |
+| React Native Development Kit（Skills + Expo MCP） | `16c4b2c` perf | 移动开发 |
+| web-access-strategy（联网策略 Skill） | `16c4b2c` perf | 浏览器与联网 |
 | Plan Mode（规划+权限强制） | 引擎核心 | 引擎演进 |
 | UpdatePlan（进度跟踪） | 引擎核心 | 引擎演进 |
 | Electron 35（零外部依赖） | `d0ebc79` dev | 引擎演进 |
