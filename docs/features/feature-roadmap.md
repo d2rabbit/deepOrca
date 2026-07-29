@@ -456,16 +456,38 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 #### 远程源清单（按优先级）
 
-| 优先级 | 源 | 类型 | 格式 | API | 中国镜像 | 内容量 |
-|--------|-----|------|------|-----|----------|--------|
-| **P0** | **claude-plugins-official** (anthropics) | 插件+MCP+Skill | `marketplace.json`（**事实标准格式**） | Git clone + GitHub API | ❌ | 32.8k stars, 80+ 插件 |
-| **P0** | **MCP Registry** (mcp-cn.com / registry.modelcontextprotocol.io) | MCP | REST API | ✅ 无认证 `GET /v0/servers` | ✅ mcp-cn.com | 官方 MCP 注册表 |
-| **P1** | **ClawHub** (clawhub.ai) | Skill+Plugin | SKILL.md（原生兼容） | `clawhub install` CLI + `inspect` 安全扫描 | ✅ cn.clawhub-mirror.com (ByteDance) | ~57k skills |
-| **P1** | **anthropics/skills** | Skill | SKILL.md | Git clone | ❌ | 165k stars, 501 skills |
-| **P2** | **ModelScope** (modelscope.cn) | Skill+MCP | SDK/OpenAPI | ✅ 需 token | ✅ 原生 | 最大 CN 目录 |
-| **P2** | **SkillHub.cn** | Skill | SKILL.md + CLI | `skillhub install` CLI | ✅ 腾讯云 COS | CN 精选 Top 50 |
-| **P3** | **SwarmSkills** (swarmskills.openjiuwen.com) | Swarm Skill | SKILL.md 扩展 | 经 ClawHub 间接 | ❌ | JiuwenSwarm 生态 |
-| ⚠️ | **skill.xfyun.cn** (讯飞) | 未知 | 未知 | 未确认 | — | 待验证 |
+> **架构洞察（2026-07-30 深度验证）**：5 个 Skill Hub 实际分为**两种 CLI 族系 + 一个独立 API**，不是统一格式。集成方案需按族系适配，而非假设统一协议。
+
+##### clawhub CLI 族（共享 `clawhub` npm CLI + `--registry` 切换 + `/api/v1/skills` REST）
+
+| 源 | 安装命令 | 搜索 | Agent 提示词 | 备注 |
+|----|----------|------|-------------|------|
+| **ClawHub** (clawhub.ai) | `npx clawhub@latest install <slug>` | `clawhub search "<q>"` 或 REST `GET /api/v1/skills?q=` | 无独立提示词（在 OpenClaw 文档中） | 参考实现，~57k skills，有 `inspect`/`scan` 安全扫描 |
+| **skill.xfyun.cn** (讯飞) | `npx clawhub install <slug> --registry https://skill.xfyun.cn` | 同上（指向讯飞 registry） | ✅ `/registry/skill.md`（`skillhub-registry` skill） | **非独立 hub**——是 SkillHub 应用代码 + 讯飞 SSO 部署 |
+| **cn.clawhub-mirror.com** | `npx clawhub install <slug> --registry https://cn.clawhub-mirror.com` | 同上 | 无 | 中国镜像（腾讯云前端），`--registry` 切换即可，与 ClawHub 二选一 |
+
+**clawhub 族集成方案**：安装一个 `clawhub` CLI 适配器，通过 `CLAWHUB_REGISTRY` 环境变量或 `--registry` 参数切换源。三个站点共享相同的 `/api/v1/skills` API 和 `/.well-known/clawhub.json` 发现端点。Agent 端通过内置 Skill 教 Agent 使用 `clawhub search/install/inspect`。
+
+##### 独立 CLI 族（各有专属安装工具）
+
+| 源 | 安装命令 | 搜索 | Agent 提示词 | 备注 |
+|----|----------|------|-------------|------|
+| **SkillHub.cn** | `skillhub install <name> --dir <skills dir>` | `skillhub search <q>` | ✅ `/install/skillhub.md`（含优先源策略：首选 SkillHub 中国加速 → 回退 ClawHub） | 自有 CLI（腾讯云 COS 安装器），标准 SKILL.md 格式 |
+| **ModelScope** (modelscope.cn) | `modelscope skills add @<namespace>/<name>` | `ms` CLI / OpenAPI | ✅ `ms-hub` meta-skill（SKILL.md 本身就是 Agent 指令） | Python SDK CLI（`pip install modelscope`），安装到 `~/.agents/skills/` |
+
+##### 独立 API 族（无 CLI，REST API 直接调用）
+
+| 源 | API | Agent 提示词 | 备注 |
+|----|------|-------------|------|
+| **SwarmSkills** (swarmskills.openjiuwen.com) | `GET /api/v1/skills`（列表）、`GET /api/v1/skills/<slug>`（详情） | 无（SPA 界面，无 CLI 文档） | "Swarm Skill" = 多角色 SKILL.md 扩展，含 SwarmFlow 编排脚本 |
+
+##### 其他远程源
+
+| 优先级 | 源 | 类型 | 格式 | API | 内容量 |
+|--------|-----|------|------|-----|--------|
+| **P0** | **claude-plugins-official** (anthropics) | 插件+MCP+Skill | `marketplace.json`（**事实标准格式**） | Git clone + GitHub API | 32.8k stars, 80+ 插件 |
+| **P0** | **MCP Registry** (mcp-cn.com / registry.modelcontextprotocol.io) | MCP | REST API | ✅ 无认证 `GET /v0/servers` | 官方 MCP 注册表 |
+| **P1** | **anthropics/skills** | Skill | SKILL.md | Git clone | 165k stars, 501 skills |
 
 #### 标准格式：marketplace.json
 
@@ -493,17 +515,21 @@ skills/SKILL.md      =  DeepOrca 原生 skill 格式（完全相同）
 └── "添加自定义源" 入口（输入 marketplace.json URL → 解析 → 列出可用项）
 ```
 
-#### 实施阶段
+#### 实施阶段（修正版——按真实 CLI 族系适配）
 
 | 阶段 | 内容 | 解除阻断 |
 |------|------|----------|
 | Phase 0 | 扩展 MCP 客户端支持 HTTP/SSE 传输 | #1 |
-| Phase 1 | 定义 `RemotePluginSource` 接口 + marketplace.json 适配器 | #2 |
-| Phase 2 | 实现 claude-plugins-official 源（Git clone → 解析 → 安装） | 格式标准 |
-| Phase 3 | 实现 MCP Registry 源（REST API → 列表/搜索 → 配置生成） | P0 MCP 源 |
-| Phase 4 | 实现 ClawHub 源（CLI + inspect 安全扫描） | 最大 Skill 源 |
-| Phase 5 | 设置面板插件中心 UI（平铺卡片 + 搜索 + 安装管线） | #3 |
-| Phase 6 | ModelScope + SkillHub.cn + 自定义远程源 | 区域覆盖 |
+| Phase 1 | 定义 `RemotePluginSource` 接口（`list()/search()/install()/uninstall()`） | #2 |
+| Phase 2 | **clawhub CLI 族适配器**：封装 `npx clawhub search/install/inspect`，支持 `CLAWHUB_REGISTRY` 切换（clawhub.ai / cn.clawhub-mirror.com / skill.xfyun.cn 三源共享） | 最大 Skill 源（~57k） |
+| Phase 3 | **claude-plugins-official 源**：Git clone `marketplace.json` → 解析 → sparse checkout 安装 | 格式标准 |
+| Phase 4 | **MCP Registry 源**：REST API `GET /v0/servers` → 列表/搜索 → stdio+HTTP 配置生成 | P0 MCP 源 |
+| Phase 5 | **SkillHub.cn 独立 CLI 适配器**：封装 `skillhub search/install`（腾讯云 COS 加速） | CN 精选源 |
+| Phase 6 | **ModelScope 独立 CLI 适配器**：封装 `modelscope skills add`（Python SDK，需 pip） | 最大 CN 目录 |
+| Phase 7 | 设置面板插件中心 UI（平铺卡片 + 搜索 + 安装管线 + 来源筛选） | #3 |
+| Phase 8 | SwarmSkills API 适配器 + 自定义远程源（用户填 `--registry` URL） | 长尾覆盖 |
+
+**关键设计**：每个适配器实现统一的 `RemotePluginSource` 接口，但内部调用各自的 CLI/API。插件中心 UI 不感知底层差异——用户只需选择来源、搜索、一键安装。clawhub 族三个站点通过 registry 参数自动切换，用户看到的是"ClawHub（国际）/ ClawHub 镜像（中国）/ 讯飞 SkillHub"三个选项。
 
 #### 其他规划项
 
