@@ -11,7 +11,7 @@
 >
 > 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
 >
-> 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
+> **v3.3 更新**：移动开发域新增 React Native（Expo 官方 Skills + Callstack）；新增桌面开发域（Electron/Tauri）；新增 .NET 开发域（Microsoft 官方 dotnet/skills）。只采纳第一方或官方社区认可的工具套件。
 
 ---
 
@@ -21,14 +21,16 @@
 |--------|--------|--------|----------|
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
-| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Development Kit（14 skills + CLI）, HarmonyOS Development Kit | Flutter + Android + HarmonyOS 开发能力包 |
-| [四、设计生成](#四设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
-| [五、办公套件](#五办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
-| [六、浏览器与联网](#六浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
-| [七、桌面自动化](#七桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
-| [八、引擎演进](#八引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
-| [九、自进化](#九自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
-| [十、插件中心](#十插件中心) | 分组展示, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
+| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | Flutter + Android + HarmonyOS + React Native |
+| [四、桌面开发](#四桌面开发) | — | Electron Skills（社区）, Tauri（社区 MCP） | Electron + Tauri 桌面应用开发 |
+| [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
+| [六、设计生成](#六设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
+| [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
+| [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
+| [九、桌面自动化](#九桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
+| [十、引擎演进](#十引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
+| [十一、自进化](#十一自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
+| [十二、插件中心](#十二插件中心) | 分组展示, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
 | [搁置项](#搁置项) | — | OpenSpec, Superpowers | 暂不规划，理由见下 |
 
 ---
@@ -87,7 +89,7 @@
 
 ## 三、移动开发
 
-> Flutter + Android 开发能力包——官方技能包 + 运行时交互（Dart MCP / Android CLI）。
+> Flutter + Android + HarmonyOS + React Native 开发能力包——官方/第一方技能包 + 运行时交互。
 
 ### 已集成
 
@@ -104,24 +106,81 @@
 | Android CLI 集成 | **Android CLI** | Skill 教 Agent 用 bash 调用 `android` 命令 | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案） |
 | HarmonyOS 开发技能 | **DevEco CLI** Skills | 构建 Skills（`scripts/install-harmonyos-skills.js`） | ArkTS/ArkUI 最佳实践、状态管理、导航、数据持久化、测试、性能优化 |
 | HarmonyOS CLI 集成 | **DevEco CLI**（`devecocli`） | Skill 教 Agent 用 bash 调用 `devecocli` 命令 | 项目创建/构建(hvigor)/运行/模拟器/截图/布局检查/文档检索（华为官方，HDC 2026 发布） |
+| React Native 开发技能 | **Expo Skills** + **Callstack Agent Skills** | 构建 Skills（`scripts/install-rn-skills.js`） | Expo 官方 Skills（SDK 升级/EAS 部署/调试最佳实践）+ Callstack 社区权威 Skills（性能优化/升级/原生模块） |
+| React Native 运行时交互 | **Expo MCP Server** | 内置 MCP（`docs.expo.dev/mcp`） | SDK 知识注入 + 移动模拟器交互 + React Native DevTools |
+
+**四平台范式差异**：
+
+| 维度 | Flutter | Android | HarmonyOS | React Native |
+|------|---------|---------|-----------|-------------|
+| 技能来源 | flutter/agent-plugins（24 个） | android/skills（14 个） | deveco-cli 内置 | Expo 官方 + Callstack |
+| 运行时交互 | MCP（`dart mcp-server`） | CLI（`android`） | CLI（`devecocli`） | MCP（Expo MCP） |
+| 官方认可 | ✅ Flutter 团队 | ✅ Google | ✅ 华为 | ✅ Expo + Callstack |
+| 包管理 | pub.dev | Gradle | ohpm | npm |
 
 **Flutter vs Android vs HarmonyOS 的范式差异**：
 
-| 维度 | Flutter | Android | HarmonyOS |
-|------|---------|---------|-----------|
-| 技能来源 | flutter/agent-plugins（24 个） | android/skills（14 个） | deveco-cli 内置 Skills |
-| 运行时交互 | **MCP**（`dart mcp-server`） | **CLI**（`android` 命令） | **CLI**（`devecocli`）+ 可选 MCP |
-| 官方选择 | MCP | CLI-first | CLI + MCP 双模式 |
-| 包管理 | pub.dev | Gradle | ohpm |
-| 构建系统 | dart compile | Gradle | hvigor |
-| 设备调试 | flutter driver | adb | hdc |
-| 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` | `build-profile.json5` |
+| 维度 | Flutter | Android | HarmonyOS | React Native |
+|------|---------|---------|-----------|-------------|
+| 构建系统 | dart compile | Gradle | hvigor | Metro |
+| 设备调试 | flutter driver | adb | hdc | Expo/agent-device |
+| 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` | `build-profile.json5` | `app.json`/`package.json` |
 
-详见 [Android Development Kit 设计](../../specs/android-dev-kit/design.md) 和 [HarmonyOS Development Kit 设计](../../specs/harmonyos-dev-kit/design.md)。
+详见各平台设计文档：[Android](../../specs/android-dev-kit/design.md) · [HarmonyOS](../../specs/harmonyos-dev-kit/design.md)。
 
 ---
 
-## 四、设计生成
+## 四、桌面开发
+
+> Electron + Tauri 桌面应用开发能力包。
+
+### 规划中
+
+| 能力 | 项目 | 来源认可度 | 集成形态 | 贡献 | 优先级 |
+|------|------|-----------|----------|------|--------|
+| Electron 应用开发 | **Electron Skills**（社区精选） | 🟡 社区（无官方） | 构建 Skills | 主进程/渲染进程/IPC/安全/contextIsolation/preload 最佳实践 | P2 |
+| Tauri 应用开发 | **mcp-server-tauri** | 🟡 社区（Tauri 官方未出同类） | MCP + Skills | Rust 后端/IPC/Web 前端集成/capabilities 安全模型 | P3 |
+
+**Electron 现状说明**：Electron 官方仓库（`electron/electron`）的 `CLAUDE.md` 是给**开发 Electron 框架本身**的指南，不是教 Agent 开发 Electron **应用**的 Skills。社区有零散的 electron-development SKILL.md，但无官方认可。DeepOrca 自身就是 Electron 应用，可自建 Electron 应用开发 Skills（基于本项目实践），同时参考社区精选。
+
+**Tauri 现状说明**：`hypothesi/mcp-server-tauri` 是社区维护的 Tauri v2 MCP server + Agent Skills，非 Tauri 官方。但 Tauri 官方未出同类工具，这是目前最完善的方案。
+
+**与 DeepOrca 自身的关系**：DeepOrca 是 Electron 应用，对 Electron 应用开发有深度实践经验。可考虑自建 Electron 开发 Skills（从本项目 AGENTS.md/架构中提炼），作为"第一方"Skills。
+
+---
+
+## 五、.NET 开发
+
+> Microsoft 官方 .NET AI 开发技能包——C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild。
+
+### 规划中
+
+| 能力 | 项目 | 来源认可度 | 集成形态 | 贡献 | 优先级 |
+|------|------|-----------|----------|------|--------|
+| .NET 全栈开发技能 | **dotnet/skills**（Microsoft 官方） | ✅ **Microsoft 第一方** | 构建 Skills（12 个插件域） | 覆盖 .NET 开发全生命周期 | P2 |
+
+**dotnet/skills 12 个插件域**（`github.com/dotnet/skills`）：
+
+| 域 | 覆盖内容 |
+|----|---------|
+| `dotnet` | C# 核心、语言特性、LSP |
+| `dotnet-aspnet` | ASP.NET Core（最小 API、OpenTelemetry、文件上传） |
+| `dotnet-maui` | .NET MAUI 跨平台 UI（生命周期/数据绑定/导航/主题/CollectionView） |
+| `dotnet-test` | 测试（执行/迁移/质量审计/覆盖率/框架迁移 MSTest→v3/v4/xUnit v3） |
+| `dotnet-diag` | 诊断（性能分析/dump 收集/dotnet-trace/崩溃符号化） |
+| `dotnet-msbuild` | MSBuild（binlog 分析/增量构建/并行/反模式/现代化） |
+| `dotnet-nuget` | NuGet（中央包管理迁移） |
+| `dotnet-upgrade` | 升级迁移（.NET 8→9→10→11/AOT 兼容/可空引用/线程中止） |
+| `dotnet-ai` | AI/ML（MCP C# 创建/调试/发布/测试） |
+| `dotnet-data` | 数据（EF Core 查询优化） |
+| `dotnet-template-engine` | 模板引擎（发现/实例化/验证/编写） |
+| `dotnet11` | .NET 11 新特性（System.Text.Json 等） |
+
+**集成方式**：构建时从 `dotnet/skills` 仓库拉取 12 个插件域的 SKILL.md 到 `bundled/`。Agent 检测到 .NET 项目（`.csproj`/`.sln`）时自动加载对应 Skills。
+
+---
+
+## 六、设计生成
 
 > brief → 生成 → 预览 → 交付 的全流程设计能力。Agent 是画师，Electron webview 是画布，Canvas UI 是画笔。
 
@@ -155,7 +214,7 @@
 
 ---
 
-## 五、办公套件
+## 七、办公套件
 
 > 单文件办公文档生成——演示文稿、文档、表格、表单。核心理念：一个 HTML 文件就是完整的办公应用（编辑器+查看器+导出器），零安装零依赖，任何浏览器可打开。
 
@@ -188,7 +247,7 @@
 
 ---
 
-## 六、浏览器与联网
+## 八、浏览器与联网
 
 > 登录态操控 + 大规模抓取 + 深度联网策略——让 Agent 能真正"上网干活"。
 
@@ -218,7 +277,7 @@
 
 ---
 
-## 七、桌面自动化
+## 九、桌面自动化
 
 > 操控无 API 的桌面软件——让 Agent 不局限于终端和浏览器。
 
@@ -233,7 +292,7 @@
 
 ---
 
-## 八、引擎演进
+## 十、引擎演进
 
 > DeepOrca 引擎层的核心能力升级——模型路由、子 agent。
 
@@ -257,7 +316,7 @@
 
 ---
 
-## 九、自进化
+## 十一、自进化
 
 > Agent 改进自身——双层自改进：**引擎脚手架**（prompt/工具/控制流）+ **技能内容**（SKILL.md 行为/描述）。
 > 当前 DeepOrca 的技能系统是**静态**的（skill-writer 编写、skill-digester 改描述文案），没有任何基于执行结果的反馈闭环。
@@ -315,7 +374,7 @@
 
 ---
 
-## 十、插件中心
+## 十二、插件中心
 
 > 统一的插件/技能/MCP 管理入口——内置项分组展示，用户自定义项独立管理。
 
