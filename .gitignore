@@ -35,5 +35,11 @@ packages/core/src/generated/
 packages/desktop/vendor/
 vendor-src/
 
+# Bundled skills (generated at build time, not checked in)
+packages/core/templates/skills/bundled/android-*/
+packages/core/templates/skills/bundled/harmonyos-*/
+packages/core/templates/skills/bundled/react-native-*/
+packages/core/templates/skills/bundled/expo-*/
+
 # Local verification scratch dir
 .tmp-verify/

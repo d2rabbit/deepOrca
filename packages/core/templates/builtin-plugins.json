@@ -46,11 +46,39 @@
     "skills": ["openwiki"]
   },
   {
-    "id": "browser-skill",
-    "name": "Browser Skill",
-    "description": "Drive the user's real Chromium browser — visit pages, fill forms, scrape data, regression-test UI.",
+    "id": "browser",
+    "name": "Browser & Web Access",
+    "description": "Real Chrome control with login state (browser-skill/bsk) + single web search (WebSearch tool) + intelligent web-access strategy (auto-selects WebSearch/curl/Jina/bsk per task type and accumulates per-domain experience).",
     "category": "automation",
-    "plugins": ["browser-skill"]
+    "plugins": ["browser-skill"],
+    "skills": ["web-access-strategy"]
+  },
+  {
+    "id": "android-dev",
+    "name": "Android Development",
+    "description": "Official Android development skills (14 SKILL.md from Google) + Android CLI integration. Covers Jetpack Compose, Navigation 3, CameraX migration, R8 analysis, edge-to-edge, testing, Perfetto profiling, and more.",
+    "category": "development",
+    "icon": "android",
+    "skills": ["android-*"],
+    "plugins": ["android-cli"]
+  },
+  {
+    "id": "harmonyos-dev",
+    "name": "HarmonyOS Development",
+    "description": "HarmonyOS development skills + DevEco CLI MCP integration. Covers ArkTS/ArkUI, hvigor build, ohpm packages, hdc debugging, emulator, and HarmonyOS docs.",
+    "category": "development",
+    "icon": "harmonyos",
+    "skills": ["harmonyos-*"],
+    "mcp": ["harmonyos-mcp"]
+  },
+  {
+    "id": "react-native-dev",
+    "name": "React Native Development",
+    "description": "React Native development skills (Expo official + Callstack community) + Expo MCP server. Covers SDK upgrades, EAS deploy, debugging best practices, performance optimization, and native modules.",
+    "category": "development",
+    "icon": "react",
+    "skills": ["react-native-*", "expo-*"],
+    "mcp": ["expo-mcp"]
   },
   {
     "id": "skill-tools",

@@ -15,6 +15,14 @@ import {
   SERENA_MCP_SERVER_NAME,
   buildSerenaMcpServerConfig,
   setSerenaDisabled,
+  HARMONYOS_MCP_SERVER_NAME,
+  buildHarmonyosMcpServerConfig,
+  hasHarmonyosProject,
+  setHarmonyosDisabled,
+  EXPO_MCP_SERVER_NAME,
+  buildExpoMcpServerConfig,
+  hasReactNativeProject,
+  setExpoDisabled,
   setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
@@ -306,6 +314,8 @@ export class SessionBridge {
     setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
     setDartDisabled(this.projectRoot, disabled.includes(DART_MCP_SERVER_NAME));
     setSerenaDisabled(this.projectRoot, disabled.includes(SERENA_MCP_SERVER_NAME));
+    setHarmonyosDisabled(this.projectRoot, disabled.includes(HARMONYOS_MCP_SERVER_NAME));
+    setExpoDisabled(this.projectRoot, disabled.includes(EXPO_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
   }
 
@@ -691,6 +701,8 @@ export class SessionBridge {
           name === CRG_MCP_SERVER_NAME ||
           name === DART_MCP_SERVER_NAME ||
           name === SERENA_MCP_SERVER_NAME ||
+          name === HARMONYOS_MCP_SERVER_NAME ||
+          name === EXPO_MCP_SERVER_NAME ||
           isGitmcpServerName(name),
         status: statuses.get(name),
       });
@@ -759,6 +771,38 @@ export class SessionBridge {
         });
       }
     }
+    // Built-in HarmonyOS MCP server: DevEco CLI (create/build/run/emulator/
+    // screenshot/layout/docs). Shown for HarmonyOS projects when devecocli is available.
+    if (!Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)) {
+      const cfg = buildHarmonyosMcpServerConfig();
+      if (cfg) {
+        list.push({
+          name: HARMONYOS_MCP_SERVER_NAME,
+          command: cfg.command,
+          args: (cfg.args ?? []).join(" "),
+          env: stringifyEnv(cfg.env),
+          enabled: !disabled.has(HARMONYOS_MCP_SERVER_NAME),
+          builtin: true,
+          status: statuses.get(HARMONYOS_MCP_SERVER_NAME),
+        });
+      }
+    }
+    // Built-in Expo MCP server: SDK knowledge + simulator interaction + RN DevTools.
+    // Shown for React Native / Expo projects when npx expo is available.
+    if (!Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)) {
+      const cfg = buildExpoMcpServerConfig();
+      if (cfg) {
+        list.push({
+          name: EXPO_MCP_SERVER_NAME,
+          command: cfg.command,
+          args: (cfg.args ?? []).join(" "),
+          env: stringifyEnv(cfg.env),
+          enabled: !disabled.has(EXPO_MCP_SERVER_NAME),
+          builtin: true,
+          status: statuses.get(EXPO_MCP_SERVER_NAME),
+        });
+      }
+    }
     return list;
   }
 
@@ -781,6 +825,9 @@ export class SessionBridge {
       name === CODEGRAPH_MCP_SERVER_NAME ||
       name === CRG_MCP_SERVER_NAME ||
       name === DART_MCP_SERVER_NAME ||
+      name === SERENA_MCP_SERVER_NAME ||
+      name === HARMONYOS_MCP_SERVER_NAME ||
+      name === EXPO_MCP_SERVER_NAME ||
       isGitmcpServerName(name);
     const entries: McpServerConfigEntry[] = Object.entries(configured).map(([name, cfg]) => ({
       name,
@@ -804,6 +851,20 @@ export class SessionBridge {
     if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
       const cfg = buildSerenaMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: SERENA_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    if (
+      hasHarmonyosProject(this.projectRoot) &&
+      !Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)
+    ) {
+      const cfg = buildHarmonyosMcpServerConfig();
+      if (cfg) entries.push({ name: HARMONYOS_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    if (
+      hasReactNativeProject(this.projectRoot) &&
+      !Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)
+    ) {
+      const cfg = buildExpoMcpServerConfig();
+      if (cfg) entries.push({ name: EXPO_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
     void disabled; // enable state is irrelevant for display grouping
 

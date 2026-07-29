@@ -175,6 +175,23 @@ export {
 } from "./common/serena-mcp";
 
 export {
+  HARMONYOS_MCP_SERVER_NAME,
+  buildHarmonyosMcpServerConfig,
+  hasHarmonyosProject,
+  isHarmonyosAvailable,
+  setHarmonyosDisabled,
+  isHarmonyosDisabled,
+} from "./common/harmonyos-mcp";
+export {
+  EXPO_MCP_SERVER_NAME,
+  buildExpoMcpServerConfig,
+  hasReactNativeProject,
+  isExpoAvailable,
+  setExpoDisabled,
+  isExpoDisabled,
+} from "./common/expo-mcp";
+
+export {
   MemoryGatewayClient,
   resolveGatewayEntry,
   resolveTsxBinary,

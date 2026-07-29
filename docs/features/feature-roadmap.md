@@ -27,12 +27,12 @@
 |--------|--------|--------|----------|
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
-| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | Flutter + Android + HarmonyOS + React Native |
+| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | — | Flutter + Android + HarmonyOS + React Native |
 | [四、桌面开发](#四桌面开发) | — | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP） | macOS/iOS + Qt/KDE + Tauri 桌面应用开发 |
 | [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
 | [六、设计生成](#六设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
-| [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
+| [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch, web-access 理念 | obscura | 登录态操控 + 大规模抓取 + 深度联网策略 |
 | [九、桌面自动化](#九桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
 | [十、引擎演进](#十引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
 | [十一、自进化](#十一自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
@@ -107,17 +107,17 @@
 |------|------|----------|------|
 | Flutter/Dart 开发技能（24 个） | **flutter/agent-plugins** | 构建 Skills（`scripts/install-flutter-skills.js`） | 架构/测试/路由/本地化/HTTP/FFI 等 |
 | Flutter 运行时交互 | **Dart MCP server** | 内置 MCP（`dart mcp-server`，pubspec.yaml 项目自动激活） | 运行时布局分析/widget 树检查/pub.dev 搜索/测试执行/dart format |
-
-### 规划中
-
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
 | Android 开发技能（14 个） | **android/skills** | 构建 Skills（`scripts/install-android-skills.js`） | Jetpack Compose/Navigation 3/CameraX 迁移/R8 分析/edge-to-edge/测试/Perfetto 性能分析 等 |
 | Android CLI 集成 | **Android CLI** | Skill 教 Agent 用 bash 调用 `android` 命令 | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案） |
 | HarmonyOS 开发技能 | **DevEco CLI** Skills | 构建 Skills（`scripts/install-harmonyos-skills.js`） | ArkTS/ArkUI 最佳实践、状态管理、导航、数据持久化、测试、性能优化 |
 | HarmonyOS CLI 集成 | **DevEco CLI**（`devecocli`） | Skill 教 Agent 用 bash 调用 `devecocli` 命令 | 项目创建/构建(hvigor)/运行/模拟器/截图/布局检查/文档检索（华为官方，HDC 2026 发布） |
 | React Native 开发技能 | **Expo Skills** + **Callstack Agent Skills** | 构建 Skills（`scripts/install-rn-skills.js`） | Expo 官方 Skills（SDK 升级/EAS 部署/调试最佳实践）+ Callstack 社区权威 Skills（性能优化/升级/原生模块） |
 | React Native 运行时交互 | **Expo MCP Server** | 内置 MCP（`docs.expo.dev/mcp`） | SDK 知识注入 + 移动模拟器交互 + React Native DevTools |
+
+### 规划中
+
+| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
+|------|------|----------|------|--------|
 
 **四平台范式差异**：
 
@@ -271,13 +271,13 @@
 |------|------|----------|------|
 | 真实 Chrome 操控（携带登录态） | **browser-skill** (bsk) | 内置插件（Rust CLI + Chrome 扩展） | 通用页面操控——表单/截图/UI 测试，Agent Window 隔离 |
 | 单次网络搜索 | **WebSearch** | 内置工具 | 脚本钩子或托管 API，单次查询→文本结果 |
+| 联网策略 + 站点经验 | **web-access** 理念 | 借鉴 Skill（不整体引入） | 联网工具自动选择（WebSearch/curl/Jina/CDP）+ 按域名积累操作经验 |
 
 ### 规划中
 
 | 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
 |------|------|----------|------|--------|
 | 大规模无头抓取 + Stealth | **obscura** | MCP Server（Rust 单二进制） | 30MB 内存、85ms 加载、反检测——bsk 做操控，obscura 做抓取 | P2 |
-| 联网策略 + 站点经验 | **web-access** 理念 | 借鉴 Skill（不整体引入） | 联网工具自动选择（WebSearch/curl/Jina/CDP）+ 按域名积累操作经验 | P3 |
 
 **分工设计**：
 ```

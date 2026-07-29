@@ -16,6 +16,18 @@ import {
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
 import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject, isDartDisabled } from "./common/dart-mcp";
 import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
+import {
+  buildHarmonyosMcpServerConfig,
+  HARMONYOS_MCP_SERVER_NAME,
+  hasHarmonyosProject,
+  isHarmonyosDisabled,
+} from "./common/harmonyos-mcp";
+import {
+  buildExpoMcpServerConfig,
+  EXPO_MCP_SERVER_NAME,
+  hasReactNativeProject,
+  isExpoDisabled,
+} from "./common/expo-mcp";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -575,6 +587,36 @@ export class SessionManager {
           result = {
             ...(result ?? {}),
             [SERENA_MCP_SERVER_NAME]: serenaConfig,
+          };
+        }
+      }
+    }
+
+    // HarmonyOS MCP server — DevEco CLI (project creation/build/run/emulator/
+    // screenshot/layout/docs). Activated for HarmonyOS projects (build-profile.json5
+    // or oh-package.json5) when `devecocli` is on PATH.
+    if (hasHarmonyosProject(this.projectRoot) && !isHarmonyosDisabled(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, HARMONYOS_MCP_SERVER_NAME))) {
+        const harmonyosConfig = buildHarmonyosMcpServerConfig();
+        if (harmonyosConfig) {
+          result = {
+            ...(result ?? {}),
+            [HARMONYOS_MCP_SERVER_NAME]: harmonyosConfig,
+          };
+        }
+      }
+    }
+
+    // Expo / React Native MCP server — SDK knowledge + simulator interaction +
+    // RN DevTools. Activated for RN/Expo projects (app.json with expo config
+    // or package.json with react-native dep) when `npx expo` is available.
+    if (hasReactNativeProject(this.projectRoot) && !isExpoDisabled(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, EXPO_MCP_SERVER_NAME))) {
+        const expoConfig = buildExpoMcpServerConfig();
+        if (expoConfig) {
+          result = {
+            ...(result ?? {}),
+            [EXPO_MCP_SERVER_NAME]: expoConfig,
           };
         }
       }
