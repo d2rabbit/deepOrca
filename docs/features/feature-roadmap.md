@@ -18,8 +18,9 @@
 | [三、设计生成](#三设计生成) | DeepDesign Phase 1, Bento Slides | taste-skill, Canvas UI, dashboard/deck 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [四、浏览器与联网](#四浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
 | [五、桌面自动化](#五桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
-| [六、引擎演进](#六引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, OpenSpace 理念, Subagent | 模型切换 + 技能自演化 + 子 agent + 自改进 |
-| [七、插件中心](#七插件中心) | 分组展示, flutter skills, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
+| [六、引擎演进](#六引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
+| [七、自进化](#七自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
+| [八、插件中心](#八插件中心) | 分组展示, flutter skills, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
 | [搁置项](#搁置项) | — | OpenSpec, Superpowers | 暂不规划，理由见下 |
 
 ---
@@ -159,7 +160,7 @@
 
 ## 六、引擎演进
 
-> DeepOrca 引擎层的核心能力升级——模型路由、技能自演化、子 agent、自改进。
+> DeepOrca 引擎层的核心能力升级——模型路由、子 agent。
 
 ### 已集成
 
@@ -175,15 +176,71 @@
 | 能力 | 来源 | 贡献 | 优先级 |
 |------|------|------|--------|
 | 模型中途切换 | **Prewalk** 理念 | 贵模型规划→首次编辑→切换廉价模型执行。基于 model-capabilities.ts + UpdatePlan 扩展 | P1 |
-| 技能自演化 | **OpenSpace** 理念 | 执行→评估→改进闭环。skill-digester 只改描述文案，无执行反馈——填补此空白 | P2 |
 | 子 agent（Subagent） | **DeepCode** 架构理念 | Paper2Code（论文→代码）+ Loop engineering（自主循环直到测试通过）。加 Task 工具 + runSubagent | P2 |
-| harness 自改进 | **Self-Harness** 论文理念 | 弱点挖掘→harness 提案→回归测试。与 OpenSpace 合并为统一自改进方向 | P3 |
 
 **架构可行性**（已验证）：DeepOrca 引擎对 subagent 友好——`activateSession` 已是 public 按 sessionId 参数化的纯异步函数，所有状态 Map<sessionId> 结构。加一个 Task 工具 + 抽取 `runSubagent()` 即可，不需重新设计引擎。
 
 ---
 
-## 七、插件中心
+## 七、自进化
+
+> Agent 改进自身——双层自改进：**引擎脚手架**（prompt/工具/控制流）+ **技能内容**（SKILL.md 行为/描述）。
+> 当前 DeepOrca 的技能系统是**静态**的（skill-writer 编写、skill-digester 改描述文案），没有任何基于执行结果的反馈闭环。
+
+### 已集成（静态，无反馈闭环）
+
+| 能力 | 项目 | 定位 | 局限 |
+|------|------|------|------|
+| 技能编写 | **skill-writer** | 教 Agent 创建 SKILL.md | 纯人工编写，无自动生成 |
+| 技能描述审查 | **skill-digester** | 审查/重写 skill 的 description 字段 | 基于文本启发式，需人工批准，**无执行结果反馈** |
+
+**关键空白**：搜索 `skillEvaluat`/`self-evolv`/`feedback loop` 在代码中零匹配——DeepOrca **没有任何基于执行结果的能力评估或自动改进机制**。
+
+### 规划中（双层自改进）
+
+#### 层一：技能自演化（技能内容改进）
+
+| 能力 | 来源理念 | 贡献 | 优先级 |
+|------|----------|------|--------|
+| 技能执行→评估→改进闭环 | **OpenSpace** 理念（借鉴，不直接集成） | 技能执行后捕获结果（成功/失败/重试次数）→ 低成功率技能触发自动重写 → 高成功率技能在匹配时加权 | P2 |
+
+**为什么不直接集成 OpenSpace**：Python 3.12+ 依赖 + Cloud 依赖（open-space.cloud）+ 它本身是完整 agent harness（与 DeepOrca 架构重叠）。只借鉴其"FIX/DERIVED/CAPTURED 演化触发器"和"provisional→trusted 信任状态机"设计理念，在 DeepOrca 内部用 Node.js 自建轻量版。
+
+**轻量自建方案**：
+```
+技能执行 → 捕获结果（成功/失败/重试/用户纠正）
+    ↓
+低成功率技能 → skill-digester 自动重写 description（现有工具）
+    ↓
+高成功率技能 → 技能匹配时加权（identifyMatchingSkillNames 增强）
+```
+
+#### 层二：harness 自改进（引擎脚手架改进）
+
+| 能力 | 来源理念 | 贡献 | 优先级 |
+|------|----------|------|--------|
+| 弱点挖掘→提案→回归测试 | **Self-Harness** 论文（arxiv:2606.09498） | Agent 分析自身执行轨迹发现失败模式 → 生成最小化脚手架修改（prompt/工具定义/控制流）→ 回归测试只保留有效改进 | P3 |
+
+**三阶段闭环**：
+```
+1. 弱点挖掘（Weakness Mining）
+   分析执行轨迹 → 发现失败模式/重复错误
+   
+2. Harness 提案（Harness Proposal）
+   针对每个弱点 → 生成最小化、多样性的脚手架修改
+   （如：调整 prompt 措辞、增加工具参数约束、修改控制流）
+   
+3. 回归测试（Regression Testing）
+   只保留通过回归测试的修改 → 防止改好一处破坏他处
+```
+
+**与技能自演化的关系**：Self-Harness 改"引擎脚手架"（prompt/工具/控制流），OpenSpace 改"技能内容"（SKILL.md）——两者互补，不重叠。
+
+**实施条件**：层二（harness 自改进）依赖层一（技能自演化）先落地建立执行结果捕获基础设施。建议作为远期方向（P3）。
+
+---
+
+## 八、插件中心
 
 > 统一的插件/技能/MCP 管理入口——内置项分组展示，用户自定义项独立管理。
 
