@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><!-- REPLACE: Page Title --></title>
+    <style>
+      /* ────────────────────────────────────────────────────────────
+         DeepDesign web-prototype seed
+         :root variables map directly to DESIGN.md tokens.
+         Replace these six variables — the entire page restyles.
+         ──────────────────────────────────────────────────────────── */
+      :root {
+        /* Color (from DESIGN.md) */
+        --bg: #0a0a0a; /* page background */
+        --surface: #141414; /* cards, panels */
+        --accent: #6366f1; /* primary accent — max 2 uses per screen */
+        --text: #fafafa; /* body text */
+        --muted: #737373; /* secondary text, captions */
+
+        /* Typography */
+        --font-display: "Iowan Old Style", "Charter", Georgia, serif;
+        --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        --font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+
+        /* Layout */
+        --max-width: 1200px;
+        --section-pad-y: 80px;
+        --radius: 12px;
+        --gap: 24px;
+      }
+
+      /* ── Reset ─────────────────────────────────────────────────── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      /* ── Layout primitives ─────────────────────────────────────── */
+      .container {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      .section {
+        padding-block: var(--section-pad-y);
+      }
+
+      .grid {
+        display: grid;
+        gap: var(--gap);
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .grid-4 {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      /* ── Top navigation ────────────────────────────────────────── */
+      .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: color-mix(in srgb, var(--bg) 85%, transparent);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid color-mix(in srgb, var(--muted) 20%, transparent);
+      }
+
+      .topnav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+      }
+
+      .topnav-brand {
+        font-family: var(--font-display);
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .topnav-links {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+        list-style: none;
+      }
+
+      .topnav-links a {
+        font-size: 14px;
+        color: var(--muted);
+        transition: color 0.2s ease;
+      }
+
+      .topnav-links a:hover {
+        color: var(--text);
+      }
+
+      /* ── Typography classes ────────────────────────────────────── */
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+      }
+
+      .display {
+        font-family: var(--font-display);
+        font-size: clamp(32px, 5vw, 56px);
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+      }
+
+      .lead {
+        font-size: 18px;
+        line-height: 1.5;
+        color: var(--muted);
+        max-width: 60ch;
+      }
+
+      .mono {
+        font-family: var(--font-mono);
+      }
+
+      /* ── Components ────────────────────────────────────────────── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition:
+          transform 0.2s ease,
+          background 0.2s ease;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+      }
+
+      .btn-ghost:hover {
+        border-color: var(--text);
+      }
+
+      .card {
+        background: var(--surface);
+        border-radius: var(--radius);
+        border: 1px solid color-mix(in srgb, var(--muted) 15%, transparent);
+        padding: 32px;
+        transition: border-color 0.2s ease;
+      }
+
+      .card:hover {
+        border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+      }
+
+      .card-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--accent) 15%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        font-size: 24px;
+      }
+
+      .card-title {
+        font-family: var(--font-display);
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .card-desc {
+        font-size: 15px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      /* ── Placeholder (image slots — never use external URLs) ───── */
+      .ph-img {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: color-mix(in srgb, var(--muted) 12%, transparent);
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 13px;
+      }
+
+      /* ── Footer ────────────────────────────────────────────────── */
+      .footer {
+        border-top: 1px solid color-mix(in srgb, var(--muted) 15%, transparent);
+        padding-block: 48px;
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      /* ── Responsive (do not break) ─────────────────────────────── */
+      @media (max-width: 920px) {
+        .grid-4 {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+        .topnav-links {
+          display: none;
+        }
+        .section {
+          padding-block: 48px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ════════════════════════════════════════════════════════════
+         TOPNAV — brand + nav links
+         ════════════════════════════════════════════════════════════ -->
+    <nav class="topnav">
+      <div class="container topnav-inner">
+        <span class="topnav-brand"><!-- REPLACE: Brand Name --></span>
+        <ul class="topnav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- ════════════════════════════════════════════════════════════
+         MAIN — paste sections from layouts.md here
+         ════════════════════════════════════════════════════════════ -->
+    <main id="content">
+      <!-- [PASTE SECTIONS HERE] -->
+    </main>
+
+    <!-- ════════════════════════════════════════════════════════════
+         FOOTER
+         ════════════════════════════════════════════════════════════ -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <span><!-- REPLACE: Brand Name --></span>
+        <span class="mono">© 2026</span>
+      </div>
+    </footer>
+  </body>
+</html>
