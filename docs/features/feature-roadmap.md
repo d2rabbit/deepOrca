@@ -1,12 +1,15 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.1 · 日期：2026-07-29 · 状态：规划中
+> 版本：v3.2 · 日期：2026-07-29 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
 >
-> **v3.1 更新**：Bento 从"设计生成"拆出，独立为"办公套件"功能域（§四）。办公文档（演示/文档/表格）
-> 与视觉设计（UI 原型/落地页）是不同的产物范式，分开规划。集成 Serena（符号级代码操作）和 Dart MCP。
+> **v3.1 更新**：Bento 从"设计生成"拆出，独立为"办公套件"功能域（§四）。集成 Serena（符号级代码操作）和 Dart MCP。
+>
+> **v3.2 更新**：新增"移动开发"功能域（§三），Flutter Development（已集成）+ Android Development Kit（规划中）。
+>
+> 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
 >
 > 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
 
@@ -18,13 +21,14 @@
 |--------|--------|--------|----------|
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
-| [三、设计生成](#三设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
-| [四、办公套件](#四办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
-| [五、浏览器与联网](#五浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
-| [六、桌面自动化](#六桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
-| [七、引擎演进](#七引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
-| [八、自进化](#八自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
-| [九、插件中心](#九插件中心) | 分组展示, flutter skills, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
+| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Development Kit（14 skills + CLI） | Flutter + Android 开发能力包 |
+| [四、设计生成](#四设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
+| [五、办公套件](#五办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
+| [六、浏览器与联网](#六浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
+| [七、桌面自动化](#七桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
+| [八、引擎演进](#八引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
+| [九、自进化](#九自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
+| [十、插件中心](#十插件中心) | 分组展示, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
 | [搁置项](#搁置项) | — | OpenSpec, Superpowers | 暂不规划，理由见下 |
 
 ---
@@ -81,7 +85,38 @@
 
 ---
 
-## 三、设计生成
+## 三、移动开发
+
+> Flutter + Android 开发能力包——官方技能包 + 运行时交互（Dart MCP / Android CLI）。
+
+### 已集成
+
+| 能力 | 项目 | 集成形态 | 定位 |
+|------|------|----------|------|
+| Flutter/Dart 开发技能（24 个） | **flutter/agent-plugins** | 构建 Skills（`scripts/install-flutter-skills.js`） | 架构/测试/路由/本地化/HTTP/FFI 等 |
+| Flutter 运行时交互 | **Dart MCP server** | 内置 MCP（`dart mcp-server`，pubspec.yaml 项目自动激活） | 运行时布局分析/widget 树检查/pub.dev 搜索/测试执行/dart format |
+
+### 规划中
+
+| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
+|------|------|----------|------|--------|
+| Android 开发技能（14 个） | **android/skills** | 构建 Skills（`scripts/install-android-skills.js`） | Jetpack Compose/Navigation 3/CameraX 迁移/R8 分析/edge-to-edge/测试/Perfetto 性能分析 等 |
+| Android CLI 集成 | **Android CLI** | Skill 教 Agent 用 bash 调用 `android` 命令 | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案） |
+
+**Flutter vs Android 的范式差异**：
+
+| 维度 | Flutter | Android |
+|------|---------|---------|
+| 技能来源 | flutter/agent-plugins（24 个） | android/skills（14 个，Google 官方） |
+| 运行时交互 | **MCP**（`dart mcp-server`） | **CLI**（`android` 命令，走 bash） |
+| 官方选择 | MCP | CLI-first |
+| 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` |
+
+详见 [Android Development Kit 设计](../../specs/android-dev-kit/design.md)。
+
+---
+
+## 四、设计生成
 
 > brief → 生成 → 预览 → 交付 的全流程设计能力。Agent 是画师，Electron webview 是画布，Canvas UI 是画笔。
 
@@ -115,7 +150,7 @@
 
 ---
 
-## 四、办公套件
+## 五、办公套件
 
 > 单文件办公文档生成——演示文稿、文档、表格、表单。核心理念：一个 HTML 文件就是完整的办公应用（编辑器+查看器+导出器），零安装零依赖，任何浏览器可打开。
 
@@ -148,7 +183,7 @@
 
 ---
 
-## 五、浏览器与联网
+## 六、浏览器与联网
 
 > 登录态操控 + 大规模抓取 + 深度联网策略——让 Agent 能真正"上网干活"。
 
@@ -178,7 +213,7 @@
 
 ---
 
-## 六、桌面自动化
+## 七、桌面自动化
 
 > 操控无 API 的桌面软件——让 Agent 不局限于终端和浏览器。
 
@@ -193,7 +228,7 @@
 
 ---
 
-## 七、引擎演进
+## 八、引擎演进
 
 > DeepOrca 引擎层的核心能力升级——模型路由、子 agent。
 
@@ -217,7 +252,7 @@
 
 ---
 
-## 八、自进化
+## 九、自进化
 
 > Agent 改进自身——双层自改进：**引擎脚手架**（prompt/工具/控制流）+ **技能内容**（SKILL.md 行为/描述）。
 > 当前 DeepOrca 的技能系统是**静态**的（skill-writer 编写、skill-digester 改描述文案），没有任何基于执行结果的反馈闭环。
@@ -275,7 +310,7 @@
 
 ---
 
-## 九、插件中心
+## 十、插件中心
 
 > 统一的插件/技能/MCP 管理入口——内置项分组展示，用户自定义项独立管理。
 
@@ -317,13 +352,13 @@
 | CRG（分析层 MCP） | `1f5146e` dev | 代码智能 |
 | ocr（AI 审查） | `873f437` dev | 代码智能 |
 | Serena（符号级代码操作 MCP） | `abb3f78` perf | 代码智能 |
-| Dart MCP（Flutter 运行时分析） | `2b08460` perf | 插件中心 |
+| Dart MCP（Flutter 运行时分析） | `2b08460` perf | 移动开发 |
 | openwiki（Wiki 生成） | vendored CLI | 知识中心 |
 | TencentDB-Agent-Memory（记忆） | `08308c5` perf | 知识中心 |
 | DeepDesign Phase 1（设计生成） | `127c912` perf | 设计生成 |
 | Bento Slides（演示文稿） | `08308c5` perf | 办公套件 |
 | browser-skill（浏览器操控） | 内置插件 | 浏览器与联网 |
-| flutter/agent-plugins（24 技能） | 构建 skills | 插件中心 |
+| flutter/agent-plugins（24 技能） | 构建 skills | 移动开发 |
 | Plan Mode（规划+权限强制） | 引擎核心 | 引擎演进 |
 | UpdatePlan（进度跟踪） | 引擎核心 | 引擎演进 |
 | Electron 35（零外部依赖） | `d0ebc79` dev | 引擎演进 |
