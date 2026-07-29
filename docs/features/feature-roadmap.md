@@ -1,11 +1,14 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.0 · 日期：2026-07-29 · 状态：规划中
+> 版本：v3.1 · 日期：2026-07-29 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
 >
-> 历史版本：v2.1-v2.4 按项目逐个调研，v3.0 按功能重新规划。
+> **v3.1 更新**：Bento 从"设计生成"拆出，独立为"办公套件"功能域（§四）。办公文档（演示/文档/表格）
+> 与视觉设计（UI 原型/落地页）是不同的产物范式，分开规划。集成 Serena（符号级代码操作）和 Dart MCP。
+>
+> 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
 
 ---
 
@@ -15,12 +18,13 @@
 |--------|--------|--------|----------|
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
-| [三、设计生成](#三设计生成) | DeepDesign Phase 1, Bento Slides | taste-skill, Canvas UI, dashboard/deck 模板 | brief→生成→预览→交付 的全流程设计能力 |
-| [四、浏览器与联网](#四浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
-| [五、桌面自动化](#五桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
-| [六、引擎演进](#六引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
-| [七、自进化](#七自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
-| [八、插件中心](#八插件中心) | 分组展示, flutter skills, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
+| [三、设计生成](#三设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
+| [四、办公套件](#四办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
+| [五、浏览器与联网](#五浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
+| [六、桌面自动化](#六桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
+| [七、引擎演进](#七引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
+| [八、自进化](#八自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
+| [九、插件中心](#九插件中心) | 分组展示, flutter skills, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
 | [搁置项](#搁置项) | — | OpenSpec, Superpowers | 暂不规划，理由见下 |
 
 ---
@@ -86,7 +90,6 @@
 | 能力 | 项目 | 集成形态 | 定位 |
 |------|------|----------|------|
 | 通用设计生成（原型/落地页） | **DeepDesign** Phase 1 | Skill + seed 模板 + 3 设计系统 | 复刻 Claude Design 核心，零 daemon，Electron webview 预览 |
-| 演示文稿生成 | **Bento Slides** | 内置 Skill | JSON → 单 HTML 文件（编辑器+放映+文档一体） |
 
 **DeepDesign 已有文件**：
 - `deep-design` SKILL.md（工作流编排）
@@ -100,20 +103,52 @@
 | 前端设计质量纪律 | **taste-skill** | 构建 Skill（纯 SKILL.md） | 布局/排版/动效/间距的反 slop 方法论，框架无关 | P1 |
 | 视觉特效"画笔" | **Canvas UI** | 构建时 vendor 组件源码 | 25 个 Canvas/WebGL 特效（液体/火焰/玻璃/粒子），Agent 按需内联 | P1 |
 | 仪表盘模板 | DeepDesign dashboard | seed + layouts | 侧边栏 + KPI 卡 + 内联 SVG 图表 | P2 |
-| 演示文稿模板 | DeepDesign deck | seed + layouts | 横向翻页 + title/content slide | P2 |
 | 移动端模板 | DeepDesign mobile-app | seed + layouts | iPhone 框架 + 多屏流程 | P3 |
 | 海报模板 | DeepDesign poster | seed + layouts | 单页海报/社交媒体图 | P3 |
 
 **实施路线**：
 - Phase 1（已完成）：web-prototype 模板 + dark-tech 系统 + deep-design Skill
-- Phase 2：dashboard/deck 模板 + 3 设计系统 + DESIGN.md 用户自建 + PDF 导出
+- Phase 2：dashboard 模板 + 3 设计系统 + DESIGN.md 用户自建 + PDF 导出
 - Phase 3：Canvas UI 特效 vendor + mobile-app/poster 模板 + DesignStudioPanel 桌面面板
 
 **替代决策**：DeepDesign 替代了原路线图的 OpenDesign daemon 集成——同能力，零 daemon，轻量 10 倍。
 
 ---
 
-## 四、浏览器与联网
+## 四、办公套件
+
+> 单文件办公文档生成——演示文稿、文档、表格、表单。核心理念：一个 HTML 文件就是完整的办公应用（编辑器+查看器+导出器），零安装零依赖，任何浏览器可打开。
+
+### 已集成
+
+| 能力 | 项目 | 集成形态 | 定位 |
+|------|------|----------|------|
+| 演示文稿生成 | **Bento Slides** | 内置 Skill + 模板 | JSON → 单 `.bento.html` 文件（~644KB，含编辑器+放映+导出），支持文本/形状/图表(ECharts)/表格/图片/morph 动画 |
+
+**Bento 的核心能力**：
+- **单文件即完整应用**——`.bento.html` 包含 JS 运行时 + 文档数据，浏览器打开即可编辑/放映/导出
+- **丰富的元素类型**——text（富文本）、shape（矩形/椭圆/箭头/路径）、chart（ECharts 柱状/折线/饼图/散点）、table、image、SVG
+- **Morph 动画**——跨幻灯片同 ID 元素自动形变过渡（签名特性）
+- **主题系统**——background/color/accent/fontFamily 四个 token 控制全局风格
+- **零依赖**——无需服务器/安装/联网，纯前端
+
+### 规划中
+
+| 能力 | 集成形态 | 贡献 | 优先级 |
+|------|----------|------|--------|
+| 文档生成（Markdown → 单 HTML） | Skill + 模板 | 富文本文档（带目录/代码高亮/图表），单 HTML 导出，类似 Bento 但面向长文档 | P2 |
+| 表格/电子表单生成 | Skill + 模板 | 数据表格（排序/筛选/公式），单 HTML 文件含查看器 | P3 |
+| 办公文档预览面板 | Electron webview 组件 | 统一的办公文档预览（.bento.html + 文档 HTML），复用 DesignStudioPanel 的 webview 基础设施 | P2 |
+
+**设计理念**（与 DeepDesign 的关系）：
+- **DeepDesign** = 视觉设计（UI 原型/落地页/仪表盘/海报）——追求"好看"
+- **办公套件** = 办公文档（演示文稿/文档/表格）——追求"实用"
+- 两者共享 Electron webview 预览基础设施，但 Skill/模板/输出格式独立
+- Bento 的 JSON 数据模型与 DeepDesign 的 HTML 模板是不同的产物范式——办公套件用 JSON 数据驱动，设计生成用 HTML 模板组合
+
+---
+
+## 五、浏览器与联网
 
 > 登录态操控 + 大规模抓取 + 深度联网策略——让 Agent 能真正"上网干活"。
 
@@ -143,7 +178,7 @@
 
 ---
 
-## 五、桌面自动化
+## 六、桌面自动化
 
 > 操控无 API 的桌面软件——让 Agent 不局限于终端和浏览器。
 
@@ -158,7 +193,7 @@
 
 ---
 
-## 六、引擎演进
+## 七、引擎演进
 
 > DeepOrca 引擎层的核心能力升级——模型路由、子 agent。
 
@@ -182,7 +217,7 @@
 
 ---
 
-## 七、自进化
+## 八、自进化
 
 > Agent 改进自身——双层自改进：**引擎脚手架**（prompt/工具/控制流）+ **技能内容**（SKILL.md 行为/描述）。
 > 当前 DeepOrca 的技能系统是**静态**的（skill-writer 编写、skill-digester 改描述文案），没有任何基于执行结果的反馈闭环。
@@ -240,7 +275,7 @@
 
 ---
 
-## 八、插件中心
+## 九、插件中心
 
 > 统一的插件/技能/MCP 管理入口——内置项分组展示，用户自定义项独立管理。
 
@@ -281,10 +316,12 @@
 | codegraph（导航层 MCP） | vendored CLI | 代码智能 |
 | CRG（分析层 MCP） | `1f5146e` dev | 代码智能 |
 | ocr（AI 审查） | `873f437` dev | 代码智能 |
+| Serena（符号级代码操作 MCP） | `abb3f78` perf | 代码智能 |
+| Dart MCP（Flutter 运行时分析） | `2b08460` perf | 插件中心 |
 | openwiki（Wiki 生成） | vendored CLI | 知识中心 |
 | TencentDB-Agent-Memory（记忆） | `08308c5` perf | 知识中心 |
 | DeepDesign Phase 1（设计生成） | `127c912` perf | 设计生成 |
-| Bento Slides（演示文稿） | `08308c5` perf | 设计生成 |
+| Bento Slides（演示文稿） | `08308c5` perf | 办公套件 |
 | browser-skill（浏览器操控） | 内置插件 | 浏览器与联网 |
 | flutter/agent-plugins（24 技能） | 构建 skills | 插件中心 |
 | Plan Mode（规划+权限强制） | 引擎核心 | 引擎演进 |
