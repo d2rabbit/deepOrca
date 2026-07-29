@@ -7,7 +7,7 @@
 >
 > **v3.1 更新**：Bento 从"设计生成"拆出，独立为"办公套件"功能域（§四）。集成 Serena（符号级代码操作）和 Dart MCP。
 >
-> **v3.2 更新**：新增"移动开发"功能域（§三），Flutter Development（已集成）+ Android Development Kit（规划中）。
+> **v3.2 更新**：新增"移动开发"功能域（§三），Flutter Development（已集成）+ Android Development Kit（规划中）+ HarmonyOS Development Kit（规划中）。
 >
 > 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
 >
@@ -21,7 +21,7 @@
 |--------|--------|--------|----------|
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
-| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Development Kit（14 skills + CLI） | Flutter + Android 开发能力包 |
+| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Development Kit（14 skills + CLI）, HarmonyOS Development Kit | Flutter + Android + HarmonyOS 开发能力包 |
 | [四、设计生成](#四设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [五、办公套件](#五办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
 | [六、浏览器与联网](#六浏览器与联网) | browser-skill, WebSearch | obscura, web-access 理念 | 登录态操控 + 大规模抓取 + 深度联网策略 |
@@ -102,17 +102,22 @@
 |------|------|----------|------|--------|
 | Android 开发技能（14 个） | **android/skills** | 构建 Skills（`scripts/install-android-skills.js`） | Jetpack Compose/Navigation 3/CameraX 迁移/R8 分析/edge-to-edge/测试/Perfetto 性能分析 等 |
 | Android CLI 集成 | **Android CLI** | Skill 教 Agent 用 bash 调用 `android` 命令 | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案） |
+| HarmonyOS 开发技能 | **DevEco CLI** Skills | 构建 Skills（`scripts/install-harmonyos-skills.js`） | ArkTS/ArkUI 最佳实践、状态管理、导航、数据持久化、测试、性能优化 |
+| HarmonyOS CLI 集成 | **DevEco CLI**（`devecocli`） | Skill 教 Agent 用 bash 调用 `devecocli` 命令 | 项目创建/构建(hvigor)/运行/模拟器/截图/布局检查/文档检索（华为官方，HDC 2026 发布） |
 
-**Flutter vs Android 的范式差异**：
+**Flutter vs Android vs HarmonyOS 的范式差异**：
 
-| 维度 | Flutter | Android |
-|------|---------|---------|
-| 技能来源 | flutter/agent-plugins（24 个） | android/skills（14 个，Google 官方） |
-| 运行时交互 | **MCP**（`dart mcp-server`） | **CLI**（`android` 命令，走 bash） |
-| 官方选择 | MCP | CLI-first |
-| 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` |
+| 维度 | Flutter | Android | HarmonyOS |
+|------|---------|---------|-----------|
+| 技能来源 | flutter/agent-plugins（24 个） | android/skills（14 个） | deveco-cli 内置 Skills |
+| 运行时交互 | **MCP**（`dart mcp-server`） | **CLI**（`android` 命令） | **CLI**（`devecocli`）+ 可选 MCP |
+| 官方选择 | MCP | CLI-first | CLI + MCP 双模式 |
+| 包管理 | pub.dev | Gradle | ohpm |
+| 构建系统 | dart compile | Gradle | hvigor |
+| 设备调试 | flutter driver | adb | hdc |
+| 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` | `build-profile.json5` |
 
-详见 [Android Development Kit 设计](../../specs/android-dev-kit/design.md)。
+详见 [Android Development Kit 设计](../../specs/android-dev-kit/design.md) 和 [HarmonyOS Development Kit 设计](../../specs/harmonyos-dev-kit/design.md)。
 
 ---
 
