@@ -24,7 +24,7 @@
 | [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
 | [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
 | [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP） | Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | Flutter + Android + HarmonyOS + React Native |
-| [四、桌面开发](#四桌面开发) | — | Electron（自建）, Tauri（社区 MCP）, Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方） | Electron + Tauri + macOS/iOS + Qt/KDE 桌面应用开发 |
+| [四、桌面开发](#四桌面开发) | — | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP） | macOS/iOS + Qt/KDE + Tauri 桌面应用开发 |
 | [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
 | [六、设计生成](#六设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
@@ -140,13 +140,10 @@
 
 | 能力 | 项目 | 来源认可度 | 集成形态 | 贡献 | 优先级 |
 |------|------|-----------|----------|------|--------|
-| Electron 应用开发 | **Electron Skills**（自建 + 社区精选） | 🟡 社区（无官方） | 构建 Skills | 主进程/渲染进程/IPC/安全/contextIsolation/preload 最佳实践 | P2 |
-| Tauri 应用开发 | **mcp-server-tauri** | 🟡 社区（Tauri 官方未出同类） | MCP + Skills | Rust 后端/IPC/Web 前端集成/capabilities 安全模型 | P3 |
 | Apple 平台开发（macOS + iOS） | **Xcode 27 Agent Skills**（Apple 第一方） | ✅ **Apple 第一方** | 构建 Skills（`xcrun agent skills export` 导出） | SwiftUI 现代 API/UIKit 现代化/测试现代化/安全审计/C 边界安全 7 个官方 Skills | P1 |
 | Apple 社区精选 | **twostraws/swift-agent-skills**（Paul Hudson） | ✅ 社区权威 | 构建 Skills | SwiftUI Pro/Swift 并发/SwiftData/Swift Testing 4 个精选 Skills | P2 |
 | Qt/KDE 应用开发 | **TheQtCompanyRnD/agent-skills**（Qt Group 第一方） | ✅ **Qt Group 第一方** | 构建 Skills + MCP | 7 个 Skills：qt-cpp-review/qt-cpp-docs/qt-qml/qt-qml-review/qt-qml-profiler/qt-qml-docs/qt-ui-design + Qt 文档 MCP | P2 |
-
-**Electron 现状说明**：Electron 官方仓库（`electron/electron`）的 `CLAUDE.md` 是给**开发 Electron 框架本身**的指南，不是教 Agent 开发 Electron **应用**的 Skills。DeepOrca 自身就是 Electron 应用，可自建 Electron 应用开发 Skills（基于本项目实践），作为"第一方"Skills。
+| Tauri 应用开发 | **mcp-server-tauri** | 🟡 社区（Tauri 官方未出同类） | MCP + Skills | Rust 后端/IPC/Web 前端集成/capabilities 安全模型 | P3 |
 
 **Apple 现状说明**：WWDC 2026 发布，Xcode 27 内置 7 个第一方 Agent Skills，可通过 `xcrun agent skills export --output-dir <path>` 导出为标准 SKILL.md。另有 Paul Hudson（hackingwithswift.com 创始人，Swift 社区权威）维护的社区精选目录 `twostraws/swift-agent-skills`。
 
@@ -154,7 +151,7 @@
 
 **GNOME/GTK 现状说明**：❌ **无官方方案**。GNOME 基金会和 GTK 团队未发布 Agent Skills。暂不纳入，待官方方案出现。
 
-**与 DeepOrca 自身的关系**：DeepOrca 是 Electron 应用，对 Electron 应用开发有深度实践经验。可考虑自建 Electron 开发 Skills（从本项目 AGENTS.md/架构中提炼），作为"第一方"Skills。
+**Electron 现状说明**：见 [搁置项](#搁置项)——自建 Electron 调试工具链（MCP/CLI 操控窗口/IPC/DevTools）工程量过大，暂时搁置。
 
 ---
 
@@ -412,6 +409,7 @@
 | **OpenSpec** | Plan Mode 已有成熟的提案→批准→执行流程（含权限强制），OpenSpec 的增量价值（spec 持久化）触及引擎核心改动，风险高 | Plan Mode 的 spec 持久化需求明确且迫切时重新评估 |
 | **Superpowers** | 执行纪律类 skill（TDD/debug/review）可共存，但规划类（brainstorming/writing-plans）与 Plan Mode 争夺控制权；子 agent 类（subagent-driven）DeepOrca 无 Task 工具 | 引擎加入 Task 工具后，重新评估执行纪律类 skill 的引入 |
 | **OmniGent** | meta-harness 与 DeepOrca 自身 harness 定位冲突，不互补 | 永不采纳（架构层级冲突） |
+| **Electron 开发套件（自建）** | Electron 无官方 Agent Skills。自建需要实现 MCP/CLI 调试层（操控窗口/IPC/DevTools/进程），工程量巨大——本质上是在造 Electron 专用的 DevTools 自动化层 | 出现社区认可的 Electron Agent Skills 方案，或 DeepOrca 有明确的 Electron 应用调试自动化需求时 |
 
 ---
 
