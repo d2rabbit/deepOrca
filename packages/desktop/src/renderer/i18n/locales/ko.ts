@@ -207,6 +207,35 @@ export const ko: Record<MessageKey, string> = {
   "builtin.git-mcp.name": "GitMCP",
   "builtin.git-mcp.desc":
     "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
+  "plugins.group.skills": "skills",
+  "plugins.group.mcp": "MCP",
+  "plugins.group.plugins": "plugins",
+  "plugins.detail.includesSkills": "Skills",
+  "plugins.detail.includesMcp": "MCP Servers",
+  "plugins.detail.includesPlugins": "Plugins",
+  "builtin-plugin.flutter-dev.name": "Flutter Development",
+  "builtin-plugin.flutter-dev.desc":
+    "Expert skill pack for Flutter/Dart development — architecture, testing, routing, localization, HTTP, FFI and more.",
+  "builtin-plugin.codegraph.name": "CodeGraph",
+  "builtin-plugin.codegraph.desc":
+    "Pre-indexed code knowledge graph — symbol navigation, call edges, and dependency maps for instant retrieval.",
+  "builtin-plugin.code-review.name": "Code Review",
+  "builtin-plugin.code-review.desc":
+    "AI-powered code review (Open Code Review) plus risk scoring and impact-radius analysis (code-review-graph).",
+  "builtin-plugin.gitmcp.name": "GitMCP",
+  "builtin-plugin.gitmcp.desc": "Turn any GitHub repository into an MCP knowledge source the agent can query.",
+  "builtin-plugin.openwiki.name": "OpenWiki",
+  "builtin-plugin.openwiki.desc": "Automatically generate and maintain a project Wiki the agent can reference.",
+  "builtin-plugin.browser-skill.name": "Browser Skill",
+  "builtin-plugin.browser-skill.desc":
+    "Drive the user's real Chromium browser — visit pages, fill forms, scrape data, regression-test UI.",
+  "builtin-plugin.skill-tools.name": "Skill Tools",
+  "builtin-plugin.skill-tools.desc": "Author, digest, and manage Agent Skills.",
+  "builtin-plugin.deeporca.name": "DeepOrca",
+  "builtin-plugin.deeporca.desc":
+    "Product-native skills and templates — self-reference docs and Bento slides generation.",
+  "builtin-plugin.other.name": "Other",
+  "builtin-plugin.other.desc": "Built-in items not assigned to a plugin group.",
   "context.compaction": "컨텍스트",
   "context.compacting": "압축 중…",
 

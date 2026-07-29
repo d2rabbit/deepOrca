@@ -2,6 +2,7 @@
 // Kept dependency-free (type-only imports) so it can be bundled into both sides.
 
 import type {
+  BuiltinPluginGroup,
   BuiltinPluginInfo,
   ModelConfigSelection,
   ModelUsage,
@@ -67,6 +68,7 @@ export const IpcRequest = {
   PluginRemoveMcpServer: "plugin:removeMcpServer",
   PluginBuiltinList: "plugin:builtinList",
   PluginBuiltinReadDoc: "plugin:builtinReadDoc",
+  PluginBuiltinGroups: "plugin:builtinGroups",
 
   /** Scan workspace files for @file mentions */
   ScanFiles: "app:scanFiles",
@@ -483,6 +485,8 @@ export type DesktopApi = {
   pluginBuiltinList(): Promise<BuiltinPluginInfo[]>;
   /** Read a built-in plugin's PLUGIN.md document by name. */
   pluginBuiltinReadDoc(name: string, locale?: string): Promise<string>;
+  /** List built-in plugin groups — related skills/MCP/plugins bundled into one card. */
+  pluginBuiltinGroups(): Promise<BuiltinPluginGroup[]>;
 
   // ── Events ────────────────────────────────────────────────────────────────
   onAssistantMessage(cb: (message: SessionMessage) => void): () => void;
@@ -614,6 +618,7 @@ export type PluginEventPayload =
 
 export type {
   AskPermissionRequest,
+  BuiltinPluginGroup,
   BuiltinPluginInfo,
   McpServerStatus,
   ModelConfigSelection,

@@ -53,6 +53,8 @@ export type {
   UserPromptContent,
   SkillInfo,
   BuiltinPluginInfo,
+  BuiltinPluginGroup,
+  McpServerConfigEntry,
   ModelUsage,
   SessionProcessEntry,
   BashTimeoutAdjustment,

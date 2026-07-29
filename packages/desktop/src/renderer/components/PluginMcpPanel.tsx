@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
-import type { BuiltinPluginInfo, PluginMcpServer, SkillInfo } from "../../shared/ipc";
+import type { BuiltinPluginGroup, PluginMcpServer, SkillInfo } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { Button, Input, StatusDot, Switch } from "../ui/index";
@@ -62,7 +62,7 @@ export function PluginMcpPanel({
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("mcp");
   const [servers, setServers] = useState<PluginMcpServer[]>([]);
-  const [builtinPlugins, setBuiltinPlugins] = useState<BuiltinPluginInfo[]>([]);
+  const [groups, setGroups] = useState<BuiltinPluginGroup[]>([]);
   const [adding, setAdding] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [name, setName] = useState("");
@@ -74,11 +74,18 @@ export function PluginMcpPanel({
     setServers(await api.pluginMcpList());
   }, []);
 
+  const reloadGroups = useCallback(async () => {
+    setGroups(await api.pluginBuiltinGroups());
+  }, []);
+
   useEffect(() => {
     void reload();
-    void api.pluginBuiltinList().then(setBuiltinPlugins);
-    return api.onMcpStatusChanged(() => void reload());
-  }, [reload]);
+    void reloadGroups();
+    return api.onMcpStatusChanged(() => {
+      void reload();
+      void reloadGroups();
+    });
+  }, [reload, reloadGroups]);
 
   const toggle = useCallback(
     async (srv: PluginMcpServer) => {
@@ -297,69 +304,42 @@ export function PluginMcpPanel({
           })()
         ) : (
           (() => {
-            // Plugins tab: built-in plugins (browser-skill) + bundled skills
-            // (deeporca-self-refer etc.), all non-removable built-in items.
-            const bundled = skills.filter(isBundledSkill);
-            const isEmpty = builtinPlugins.length === 0 && bundled.length === 0;
+            // Plugins tab: built-in items grouped into plugin cards. Each card
+            // bundles related skills, MCP servers, and plugin descriptors that
+            // belong to the same tool/service. Clicking opens the group detail.
+            const nonEmpty = groups.filter(
+              (g) => g.skills.length > 0 || g.mcpServers.length > 0 || g.plugins.length > 0
+            );
             return (
               <>
-                {isEmpty ? (
+                {nonEmpty.length === 0 ? (
                   <div className="ui-side-panel-empty">{t("plugins.builtin.none")}</div>
                 ) : (
-                  <>
-                    {builtinPlugins.map((plugin) => {
-                      const isSel = selected?.kind === "plugin" && selected.name === plugin.name;
-                      return (
-                        <div key={plugin.name} className={`ui-plugin-item${isSel ? " selected" : ""}`}>
-                          <button
-                            type="button"
-                            className="ui-plugin-item-main"
-                            onClick={() => onSelect({ kind: "plugin", name: plugin.name })}
-                          >
-                            <div className="ui-plugin-item-header">
-                              <span className="ui-plugin-item-name">
-                                {builtinLabel(t, plugin.name, "name", plugin.name)}
-                              </span>
-                              <span className="ui-mcp-badge builtin">{t("plugins.builtin.badge")}</span>
-                            </div>
-                            <span className="ui-plugin-item-desc">
-                              {builtinLabel(t, plugin.name, "desc", plugin.description || "")}
-                            </span>
-                            <div className="ui-plugin-item-tags">
-                              <span className="ui-plugin-tag accent">plugin</span>
-                              <span className="ui-plugin-tag">built-in</span>
-                            </div>
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {bundled.map((skill) => {
-                      const isSel = selected?.kind === "skill" && selected.name === skill.name;
-                      return (
-                        <div key={skill.name} className={`ui-plugin-item${isSel ? " selected" : ""}`}>
-                          <button
-                            type="button"
-                            className="ui-plugin-item-main"
-                            onClick={() => onSelect({ kind: "skill", name: skill.name })}
-                          >
-                            <div className="ui-plugin-item-header">
-                              <span className="ui-plugin-item-name">
-                                {builtinLabel(t, skill.name, "name", skill.name)}
-                              </span>
-                              <span className="ui-mcp-badge builtin">{t("plugins.builtin.badge")}</span>
-                            </div>
-                            {skill.description ? (
-                              <span className="ui-plugin-item-desc">{skill.description}</span>
-                            ) : null}
-                            <div className="ui-plugin-item-tags">
-                              <span className="ui-plugin-tag accent">skill</span>
-                              <span className="ui-plugin-tag">bundled</span>
-                            </div>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </>
+                  nonEmpty.map((group) => {
+                    const isSel = selected?.kind === "group" && selected.name === group.id;
+                    const stats: string[] = [];
+                    if (group.skills.length > 0) stats.push(`${group.skills.length} ${t("plugins.group.skills")}`);
+                    if (group.mcpServers.length > 0) stats.push(`${group.mcpServers.length} ${t("plugins.group.mcp")}`);
+                    if (group.plugins.length > 0) stats.push(`${group.plugins.length} ${t("plugins.group.plugins")}`);
+                    return (
+                      <div key={group.id} className={`ui-plugin-group-card${isSel ? " selected" : ""}`}>
+                        <button
+                          type="button"
+                          className="ui-plugin-item-main"
+                          onClick={() => onSelect({ kind: "group", name: group.id })}
+                        >
+                          <div className="ui-plugin-item-header">
+                            <span className="ui-plugin-item-name">{builtinLabel(t, group.id, "name", group.name)}</span>
+                            <span className="ui-mcp-badge builtin">{t("plugins.builtin.badge")}</span>
+                          </div>
+                          <span className="ui-plugin-item-desc">
+                            {builtinLabel(t, group.id, "desc", group.description)}
+                          </span>
+                          {stats.length > 0 ? <div className="ui-plugin-group-stats">{stats.join(" · ")}</div> : null}
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
                 <div className="ui-skill-hint">{t("plugins.builtin.hint")}</div>
               </>

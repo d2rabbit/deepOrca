@@ -10,6 +10,7 @@ test("createMcpSpawnSpec keeps non-Windows MCP launches shell-free", () => {
     command: "npx",
     args: ["-y", "@playwright/mcp@latest"],
     shell: false,
+    windowsHide: true,
   });
 });
 

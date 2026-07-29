@@ -1,0 +1,61 @@
+[
+  {
+    "id": "flutter-dev",
+    "name": "Flutter Development",
+    "description": "Expert skill pack for Flutter/Dart development — architecture, testing, routing, localization, HTTP, FFI and more.",
+    "category": "development",
+    "icon": "flutter",
+    "skills": ["dart-*", "flutter-*"]
+  },
+  {
+    "id": "codegraph",
+    "name": "CodeGraph",
+    "description": "Pre-indexed code knowledge graph — symbol navigation, call edges, and dependency maps for instant retrieval.",
+    "category": "code-intelligence",
+    "mcp": ["codegraph"]
+  },
+  {
+    "id": "code-review",
+    "name": "Code Review",
+    "description": "AI-powered code review (Open Code Review) plus risk scoring and impact-radius analysis (code-review-graph).",
+    "category": "quality",
+    "plugins": ["open-code-review"],
+    "mcp": ["code-review-graph"]
+  },
+  {
+    "id": "gitmcp",
+    "name": "GitMCP",
+    "description": "Turn any GitHub repository into an MCP knowledge source the agent can query.",
+    "category": "documentation",
+    "plugins": ["git-mcp"],
+    "mcp": ["gitmcp:*"]
+  },
+  {
+    "id": "openwiki",
+    "name": "OpenWiki",
+    "description": "Automatically generate and maintain a project Wiki the agent can reference.",
+    "category": "documentation",
+    "skills": ["openwiki"]
+  },
+  {
+    "id": "browser-skill",
+    "name": "Browser Skill",
+    "description": "Drive the user's real Chromium browser — visit pages, fill forms, scrape data, regression-test UI.",
+    "category": "automation",
+    "plugins": ["browser-skill"]
+  },
+  {
+    "id": "skill-tools",
+    "name": "Skill Tools",
+    "description": "Author, digest, and manage Agent Skills.",
+    "category": "meta",
+    "skills": ["skill-writer", "skill-digester"]
+  },
+  {
+    "id": "deeporca",
+    "name": "DeepOrca",
+    "description": "Product-native skills and templates — self-reference docs and Bento slides generation.",
+    "category": "meta",
+    "skills": ["deeporca-self-refer", "bento-slides"]
+  }
+]

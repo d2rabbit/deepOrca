@@ -357,6 +357,48 @@ export type BuiltinPluginInfo = {
   path: string;
 };
 
+/**
+ * A built-in plugin group — the user-facing "plugin card" in the plugin center.
+ * Groups unify related skills, MCP servers, and plugin descriptors that belong
+ * to the same tool/service into a single displayable unit. The manifest lives
+ * at `templates/builtin-plugins.json` (shipped with the product, read-only);
+ * this type carries the manifest plus the *resolved* members matched at call
+ * time against the live skill/MCP/plugin lists.
+ */
+export type BuiltinPluginGroup = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  /** Optional icon identifier (e.g. "flutter"); the renderer maps it to an icon. */
+  icon?: string;
+  /** Skills matched into this group (from the bundled + user skill lists). */
+  skills: SkillInfo[];
+  /** MCP servers matched into this group (by name or `prefix:*` glob). */
+  mcpServers: McpServerConfigEntry[];
+  /** Built-in plugin descriptors matched into this group (by name). */
+  plugins: BuiltinPluginInfo[];
+};
+
+/** Minimal MCP server shape needed for group resolution (name + enabled). */
+export type McpServerConfigEntry = {
+  name: string;
+  config: McpServerConfig;
+  builtin?: boolean;
+};
+
+/** Raw manifest entry in `builtin-plugins.json` (before resolution). */
+type BuiltinPluginGroupManifest = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  icon?: string;
+  skills?: string[];
+  mcp?: string[];
+  plugins?: string[];
+};
+
 type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
@@ -1230,6 +1272,104 @@ Rules:
       }
     }
     return tryRead(resolvedPath) ?? "";
+  }
+
+  /**
+   * Resolve the built-in plugin groups defined in `templates/builtin-plugins.json`
+   * against the live skill/MCP/plugin lists. Each manifest glob (e.g. `dart-*`,
+   * `gitmcp:*`) is expanded into concrete members. Items not matched by any group
+   * fall through to an auto-generated "other" group so nothing is silently hidden.
+   *
+   * This is display-only metadata — it never affects loading, enabling, or
+   * execution of skills/MCP/plugins.
+   */
+  listBuiltinPluginGroups(
+    skills: SkillInfo[],
+    mcpServers: McpServerConfigEntry[],
+    builtinPlugins: BuiltinPluginInfo[]
+  ): BuiltinPluginGroup[] {
+    const extensionRoot = getExtensionRoot();
+    const sourceManifest = path.join(extensionRoot, "templates", "builtin-plugins.json");
+    // Published bundle: copied next to plugins/ under dist/.
+    const distManifest = path.join(extensionRoot, "builtin-plugins.json");
+    const manifestPath = fs.existsSync(sourceManifest)
+      ? sourceManifest
+      : fs.existsSync(distManifest)
+        ? distManifest
+        : sourceManifest;
+
+    let manifests: BuiltinPluginGroupManifest[] = [];
+    try {
+      const raw = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+      if (Array.isArray(raw)) manifests = raw as BuiltinPluginGroupManifest[];
+    } catch {
+      // Missing/unreadable manifest → no groups; everything is "other".
+    }
+
+    const matchName = (patterns: string[] | undefined, name: string): boolean => {
+      if (!patterns) return false;
+      return patterns.some((p) => {
+        if (p.endsWith(":*")) return name.startsWith(p.slice(0, -1));
+        if (p.endsWith("-*")) return name.startsWith(p.slice(0, -1));
+        return p === name;
+      });
+    };
+
+    const matchedSkills = new Set<string>();
+    const matchedMcp = new Set<string>();
+    const matchedPlugins = new Set<string>();
+
+    const groups: BuiltinPluginGroup[] = manifests.map((m) => {
+      const groupSkills = skills.filter((s) => {
+        if (matchName(m.skills, s.name)) {
+          matchedSkills.add(s.name);
+          return true;
+        }
+        return false;
+      });
+      const groupMcp = mcpServers.filter((e) => {
+        if (matchName(m.mcp, e.name)) {
+          matchedMcp.add(e.name);
+          return true;
+        }
+        return false;
+      });
+      const groupPlugins = builtinPlugins.filter((p) => {
+        if (matchName(m.plugins, p.name)) {
+          matchedPlugins.add(p.name);
+          return true;
+        }
+        return false;
+      });
+      return {
+        id: m.id,
+        name: m.name,
+        description: m.description,
+        category: m.category,
+        icon: m.icon,
+        skills: groupSkills,
+        mcpServers: groupMcp,
+        plugins: groupPlugins,
+      };
+    });
+
+    // Catch-all "other" group for built-in items not claimed by any manifest entry.
+    const leftoverSkills = skills.filter((s) => !matchedSkills.has(s.name));
+    const leftoverMcp = mcpServers.filter((e) => !matchedMcp.has(e.name));
+    const leftoverPlugins = builtinPlugins.filter((p) => !matchedPlugins.has(p.name));
+    if (leftoverSkills.length || leftoverMcp.length || leftoverPlugins.length) {
+      groups.push({
+        id: "other",
+        name: "Other",
+        description: "Built-in items not assigned to a plugin group.",
+        category: "other",
+        skills: leftoverSkills,
+        mcpServers: leftoverMcp,
+        plugins: leftoverPlugins,
+      });
+    }
+
+    return groups;
   }
 
   private resolveSkillPath(skillPath: string): string {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
-import type { BuiltinPluginInfo, PluginMcpServer, SkillInfo } from "../../shared/ipc";
+import type { BuiltinPluginGroup, BuiltinPluginInfo, PluginMcpServer, SkillInfo } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { renderMarkdown } from "../markdown";
@@ -7,7 +7,7 @@ import { Button, StatusDot, Switch } from "../ui/index";
 import { builtinLabel, isBundledSkill } from "./PluginMcpPanel";
 
 /** Which plugin the workspace detail pane is showing. */
-export type PluginSelection = { kind: "mcp" | "skill" | "plugin"; name: string };
+export type PluginSelection = { kind: "mcp" | "skill" | "plugin" | "group"; name: string };
 
 type Props = {
   selection: PluginSelection | null;
@@ -201,6 +201,11 @@ export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill 
         </section>
       </div>
     );
+  }
+
+  // ── Built-in plugin group detail ─────────────────────────────────────────
+  if (selection.kind === "group") {
+    return <PluginGroupDetail groupId={selection.name} />;
   }
 
   // ── Built-in plugin detail (browser-skill) ───────────────────────────────
@@ -419,6 +424,115 @@ function BuiltinPluginDetail({ name }: { name: string }): JSX.Element {
           <div className="ui-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(doc) }} />
         ) : null}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Detail pane for a built-in plugin group — the unified "plugin card". Lists the
+ * skills, MCP servers, and plugin descriptors bundled into this group as
+ * read-only member sections (all built-in items are non-removable).
+ */
+function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
+  const { t } = useI18n();
+  const [group, setGroup] = useState<BuiltinPluginGroup | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .pluginBuiltinGroups()
+      .then((list) => {
+        if (!cancelled) setGroup(list.find((g) => g.id === groupId) ?? null);
+      })
+      .catch(() => {
+        /* noop */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId]);
+
+  if (!group) {
+    return (
+      <div className="ui-plugin-detail">
+        <div className="ui-plugin-detail-empty">{t("plugins.detail.empty")}</div>
+      </div>
+    );
+  }
+
+  const displayName = builtinLabel(t, group.id, "name", group.name);
+  const displayDesc = builtinLabel(t, group.id, "desc", group.description);
+  const hasMembers = group.skills.length > 0 || group.mcpServers.length > 0 || group.plugins.length > 0;
+
+  return (
+    <div className="ui-plugin-detail">
+      {/* Hero card */}
+      <header className="ui-detail-hero">
+        <div className="ui-detail-hero-title">
+          <span className="ui-detail-hero-name">{displayName}</span>
+          <span className="ui-mcp-badge builtin">{t("plugins.builtin.badge")}</span>
+        </div>
+        {displayDesc ? <p className="ui-detail-hero-lead">{displayDesc}</p> : null}
+        <dl className="ui-detail-meta">
+          <div className="ui-detail-meta-row">
+            <dt>{t("plugins.detail.source")}</dt>
+            <dd>{group.category}</dd>
+          </div>
+        </dl>
+      </header>
+
+      {/* Actions — built-in groups are read-only */}
+      <section className="ui-detail-actions">
+        <span className="ui-detail-readonly">{t("plugins.builtin.readonly")}</span>
+      </section>
+
+      {/* Members */}
+      {hasMembers ? (
+        <section className="ui-detail-caps">
+          {group.plugins.length > 0 ? (
+            <div className="ui-plugin-cap-group">
+              <span className="ui-plugin-cap-label">
+                {t("plugins.detail.includesPlugins")} · {group.plugins.length}
+              </span>
+              <div className="ui-plugin-cap-list">
+                {group.plugins.map((p) => (
+                  <span key={p.name} className="ui-plugin-cap-chip">
+                    {builtinLabel(t, p.name, "name", p.name)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {group.skills.length > 0 ? (
+            <div className="ui-plugin-cap-group">
+              <span className="ui-plugin-cap-label">
+                {t("plugins.detail.includesSkills")} · {group.skills.length}
+              </span>
+              <div className="ui-plugin-cap-list">
+                {group.skills.map((s) => (
+                  <span key={s.name} className="ui-plugin-cap-chip">
+                    {builtinLabel(t, s.name, "name", s.name)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {group.mcpServers.length > 0 ? (
+            <div className="ui-plugin-cap-group">
+              <span className="ui-plugin-cap-label">
+                {t("plugins.detail.includesMcp")} · {group.mcpServers.length}
+              </span>
+              <div className="ui-plugin-cap-list">
+                {group.mcpServers.map((m) => (
+                  <span key={m.name} className="ui-plugin-cap-chip">
+                    {m.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

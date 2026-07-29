@@ -33,9 +33,11 @@ import {
 } from "@deeporca/core";
 import type { MemoryGatewayClient } from "@deeporca/core";
 import type {
+  BuiltinPluginGroup,
   DeepcodingSettings,
   GitmcpRepoMeta,
   McpServerConfig,
+  McpServerConfigEntry,
   ModelConfigSelection,
   PermissionDefaultMode,
   PermissionScope,
@@ -710,6 +712,46 @@ export class SessionBridge {
       }
     }
     return list;
+  }
+
+  /**
+   * Resolve built-in plugin groups: related skills, MCP servers, and plugin
+   * descriptors bundled into display cards. Display-only — never affects
+   * loading or execution. Built-in MCP entries are included so a group shows
+   * its full toolset even before the user adds a server.
+   */
+  async pluginBuiltinGroups(): Promise<BuiltinPluginGroup[]> {
+    const skills = await this.manager.listSkills(undefined);
+    const plugins = this.manager.listBuiltinPlugins();
+
+    // Reconstruct McpServerConfigEntry[] from the same sources as pluginMcpList,
+    // so built-in servers (codegraph, CRG, gitmcp:*) appear in their groups.
+    const settings = resolveCurrentSettings(this.projectRoot);
+    const configured = settings.mcpServers ?? {};
+    const disabled = new Set(readDisabledMcp(this.projectRoot));
+    const isBuiltin = (name: string): boolean =>
+      name === CODEGRAPH_MCP_SERVER_NAME || name === CRG_MCP_SERVER_NAME || isGitmcpServerName(name);
+    const entries: McpServerConfigEntry[] = Object.entries(configured).map(([name, cfg]) => ({
+      name,
+      config: cfg,
+      builtin: isBuiltin(name),
+    }));
+    // Built-in servers not yet configured by the user (codegraph, CRG) are
+    // synthesized from their builders so the group card lists them regardless.
+    if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
+      const cfg = buildCodegraphMcpServerConfig(this.projectRoot);
+      entries.push({ name: CODEGRAPH_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
+      const cfg = buildCrgMcpServerConfig(this.projectRoot);
+      if (cfg) entries.push({ name: CRG_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    void disabled; // enable state is irrelevant for display grouping
+
+    // Only consider built-in (bundled) skills for grouping; user skills stay in
+    // the Skills tab as-is.
+    const bundledSkills = skills.filter((s) => s.path.startsWith("bundled:"));
+    return this.manager.listBuiltinPluginGroups(bundledSkills, entries, plugins);
   }
 
   /** Toggle a server's enable state and re-initialize MCP so it takes effect. */

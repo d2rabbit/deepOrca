@@ -368,6 +368,7 @@ function registerIpc(): void {
   handle(IpcRequest.PluginBuiltinReadDoc, (name: string, locale?: string) =>
     getBridge().pluginBuiltinReadDoc(name, locale)
   );
+  handle(IpcRequest.PluginBuiltinGroups, () => getBridge().pluginBuiltinGroups());
 
   // ── File scanner (for @file mentions) ────────────────────────────────────
   handle(IpcRequest.ScanFiles, (query: string) => {
