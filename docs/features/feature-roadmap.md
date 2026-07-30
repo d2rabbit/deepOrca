@@ -1,6 +1,6 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.6 · 日期：2026-07-30 · 状态：规划中
+> 版本：v3.8 · 日期：2026-07-30 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
@@ -18,6 +18,10 @@
 > **v3.5 更新**：新增"远程接入"（§十三）—— 本地 DeepOrca 通过反向隧道/蒲公英/ngrok 等暴露为 Web 端，移动端浏览器/App 直接访问；SessionBridge 与 IPC 已经完全 engine-agnostic，可零改造复用。新增"语音双工"（§十四）—— 语音代替输入法作为输入手段，主推 whisper.cpp + whisper-streaming LocalAgreement 方案。功能域位置无先后顺序，仅按添加顺序排号。
 >
 > **v3.5 更新**：新增"远程接入"功能域（WebSocket 桥 + 静态服务 + 隧道方案，架构可行性已验证）和"语音双工"功能域（whisper.cpp 本地优先 + API 兜底）。
+>
+> **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
+>
+> **v3.8 更新**：调研官方 `@modelcontextprotocol/sdk` 迁移。发现 DeepOrca 的 MCP **全是手写**（客户端 987 行 + gitmcp 服务端 230 行），落后协议两个版本，致命缺口是 **server→client 请求全死**（sampling/roots/elicitation，因客户端 `capabilities:{}` + 路由器丢弃带 id 的 server 请求）。迁移可行性已验证（zod v4 已用、Node 22 原生 crypto 免 polyfill）。**决策（用户拍板）：最高优先级前置**——A2UI 深度依赖 MCP，先打 SDK 地基可省一次返工 + 一次兼容性回归。A2UI 场景分级：P0 原型模块（核心卖点）→ P1 用户决策/持续状态监控/工作流（核心模块）→ P2 代码审查/git/wiki 富展示（待基础能力测完）。调研报告见 `docs/research/2026-07-mcp-sdk-migration.md`。
 
 ---
 
@@ -209,10 +213,13 @@
 - `seed.html` + `layouts.md`（8 个 section 骨架 + P0/P1/P2 自检清单）
 - 3 个 DESIGN.md 系统（dark-tech / modern-minimal / editorial）
 
+> **与 A2UI 原型模块的边界**：DeepDesign 是「设计」（设计师向，HTML 成品，可脱离宿主）。A2UI 原型模块是「原型」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca 运行时**，类 v0/bolt）——**原型 ≠ 设计**，两者是独立产品线，受众/输入/格式/目标都不同。详见 `docs/research/2026-07-a2ui-integration.md` §四。
+
 ### 规划中
 
 | 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
 |------|------|----------|------|--------|
+| **AI-native 原型模块** | **A2UI** 协议（a2ui-project/a2ui） | 内置 Skill（`a2ui-prototype`）+ `@a2ui/react` 渲染器 + A2UI over MCP | **独立产品线**：PM 用自然语言驱动声明式 Surface 原型，原生依赖 DeepOrca 运行时，支持增量迭代与交互验证。类 v0/bolt 但以 Surface 为载体。与 DeepDesign 并列（原型≠设计）。草案 `specs/a2ui-integration/design.md` | P1 |
 | 前端设计质量纪律 | **taste-skill** | 构建 Skill（纯 SKILL.md） | 布局/排版/动效/间距的反 slop 方法论，框架无关 | P1 |
 | 视觉特效"画笔" | **Canvas UI** | 构建时 vendor 组件源码 | 25 个 Canvas/WebGL 特效（液体/火焰/玻璃/粒子），Agent 按需内联 | P1 |
 | 仪表盘模板 | DeepDesign dashboard | seed + layouts | 侧边栏 + KPI 卡 + 内联 SVG 图表 | P2 |
@@ -355,6 +362,8 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 |------|------|------|--------|
 | 模型中途切换 | **Prewalk** 理念 | 贵模型规划→首次编辑→切换廉价模型执行。基于 model-capabilities.ts + UpdatePlan 扩展 | P1 |
 | 子 agent（Subagent） | **DeepCode** 架构理念 | Paper2Code（论文→代码）+ Loop engineering（自主循环直到测试通过）。加 Task 工具 + runSubagent | P2 |
+| **A2UI 对话交互层**（Agent 驱动声明式 UI） | **A2UI** 协议（a2ui-project/a2ui，Apache-2.0） | 对话区从纯文本升级为可交互富组件——富交互工具结果 / 结构化输入面板 / 任务看板三个场景。复用官方 `@a2ui/react` 渲染器 + 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。原型设计场景归 §六 独立产品线。设计草案 `specs/a2ui-integration/design.md` | P1-P2 |
+| **官方 MCP SDK 迁移**（手写 → `@modelcontextprotocol/sdk`） | 引擎基础设施升级 | 把手写 JSON-RPC（客户端 987 行 + gitmcp 服务端 230 行）换成官方 SDK。追平协议版本（落后到 2025-06-18/2026-07-28）、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation，当前因 `capabilities:{}` + 路由器丢弃带 id 请求而全死）、支持 image/audio/structured content。可行性已验证（zod v4 已用、Node 22 原生 crypto）。**最高优先级前置——A2UI 依赖 MCP，先打地基可省一次返工 + 一次兼容性回归**。调研 `docs/research/2026-07-mcp-sdk-migration.md` | P0（前置） |
 
 **架构可行性**（已验证）：DeepOrca 引擎对 subagent 友好——`activateSession` 已是 public 按 sessionId 参数化的纯异步函数，所有状态 Map<sessionId> 结构。加一个 Task 工具 + 抽取 `runSubagent()` 即可，不需重新设计引擎。
 
