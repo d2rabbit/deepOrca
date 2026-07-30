@@ -43,6 +43,7 @@ import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
+import { TaskProgressPanel } from "./components/TaskProgressPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
@@ -1110,7 +1111,7 @@ export function App(): JSX.Element {
   ) : showPermission ? (
     <PermissionCard requests={askPermissions!} onSubmit={handlePermissionResult} onCancel={handlePermissionCancel} />
   ) : showPlan ? (
-    <PlanCard onSelect={handlePlanChoice} />
+    <PlanCard onSelect={handlePlanChoice} planText={pendingPlan} />
   ) : null;
 
   const composerDisabled = showQuestion || showPermission || showPlan;
@@ -1430,6 +1431,7 @@ export function App(): JSX.Element {
               }}
               footer={footer}
             />
+            <TaskProgressPanel />
             {showProcessPanel ? (
               <ProcessOutputPanel
                 processes={runningProcesses}

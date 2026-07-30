@@ -5,6 +5,8 @@ import { renderMarkdown } from "../markdown";
 
 // Lazy-load A2UI Surface renderer — only needed when agent produces A2UI output.
 const A2uiMessage = lazy(() => import("../a2ui/A2uiMessage").then((m) => ({ default: m.A2uiMessage })));
+// Lazy-load comparison matrix — only needed when agent uses <comparison> tags.
+const ComparisonMatrix = lazy(() => import("./ComparisonMatrix").then((m) => ({ default: m.ComparisonMatrix })));
 import {
   buildThinkingSummary,
   buildToolSummary,
@@ -435,6 +437,20 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Extract <comparison> blocks for rich rendering.
+  const comparisonBlocks = useMemo(() => {
+    const matches: string[] = [];
+    const regex = /<comparison>\s*([\s\S]*?)\s*<\/comparison>/g;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(content)) !== null) {
+      matches.push(m[1]!);
+    }
+    return matches;
+  }, [content]);
+  // Content without comparison blocks (rendered as markdown).
+  const contentWithoutComparisons =
+    comparisonBlocks.length > 0 ? content.replace(/<comparison>[\s\S]*?<\/comparison>/g, "").trim() : content;
+
   // Clear the pending copy-feedback reset when the bubble unmounts.
   useEffect(
     () => () => {
@@ -456,7 +472,14 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
     <div className="ui-bubble-row assistant">
       <Avatar role="assistant" />
       <div className="ui-bubble assistant">
-        {content ? <Md text={content} /> : null}
+        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} /> : null}
+        {comparisonBlocks.length > 0
+          ? comparisonBlocks.map((block, i) => (
+              <Suspense key={`cmp-${i}`} fallback={<div>Loading comparison…</div>}>
+                <ComparisonMatrix content={block} />
+              </Suspense>
+            ))
+          : null}
         {content ? (
           <button
             type="button"
