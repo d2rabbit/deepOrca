@@ -1,6 +1,6 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.12 · 日期：2026-07-31 · 状态：规划中
+> 版本：v3.13 · 日期：2026-07-31 · 状态：规划中
 >
 > **v3.12 更新**：A2UI 严格代码审计完成，修复 6 个关键 bug（协议不匹配 B1-B3 / 资源传输 B4 / 独立窗口 B6 / 状态泄漏 B9-B10 / 导航重复 I2）。弃用 `@a2ui/web_core`，自建轻量 processor 直接消费自定义消息格式——渲染层已为此格式编写。EmbeddedResource 现在通过 `metadata.a2ui` 正确传递到渲染器。独立窗口通过 `?view=prototype` query param 检测并渲染 PrototypeWindow。
 >
@@ -162,6 +162,7 @@
 | Apple 社区精选                | **twostraws/swift-agent-skills**（Paul Hudson）     | ✅ 社区权威                   | 构建 Skills                                     | SwiftUI Pro/Swift 并发/SwiftData/Swift Testing 4 个精选 Skills                                                     | P2     |
 | Qt/KDE 应用开发               | **TheQtCompanyRnD/agent-skills**（Qt Group 第一方） | ✅ **Qt Group 第一方**        | 构建 Skills + MCP                               | 7 个 Skills：qt-cpp-review/qt-cpp-docs/qt-qml/qt-qml-review/qt-qml-profiler/qt-qml-docs/qt-ui-design + Qt 文档 MCP | P2     |
 | Tauri 应用开发                | **mcp-server-tauri**                                | 🟡 社区（Tauri 官方未出同类） | MCP + Skills                                    | Rust 后端/IPC/Web 前端集成/capabilities 安全模型                                                                   | P3     |
+| deepin/UOS 桌面开发           | **linuxdeepin/deepin-skills**（统信第一方）          | ✅ **统信第一方**             | 构建 Skills（`scripts/install-deepin-skills.js`） | 4 个 Skills：DTK 原生应用开发（UI/主题/CMake/平台适配）、DDE Shell 扩展（Dock/顶栏/侧栏）、控制中心模块/插件、任务栏托盘插件。LGPL-3.0 | P2     |
 
 **Apple 现状说明**：WWDC 2026 发布，Xcode 27 内置 7 个第一方 Agent Skills，可通过 `xcrun agent skills export --output-dir <path>` 导出为标准 SKILL.md。另有 Paul Hudson（hackingwithswift.com 创始人，Swift 社区权威）维护的社区精选目录 `twostraws/swift-agent-skills`。
 
@@ -234,6 +235,7 @@
 | 移动端模板             | DeepDesign mobile-app                                                            | seed + layouts                                                              | iPhone 框架 + 多屏流程                                                                                                                                                                                                                                                                                                                                                               | P3                   |
 | 海报模板               | DeepDesign poster                                                                | seed + layouts                                                              | 单页海报/社交媒体图                                                                                                                                                                                                                                                                                                                                                                  | P3                   |
 | **Tailwind CSS 实现层** | **Tailwind CSS CDN**                                                             | DeepDesign 产出 HTML 内嵌 `<script src="https://cdn.tailwindcss.com">`     | Agent 写 `class="flex gap-4 rounded-xl"` 比手写 CSS 更可靠、更一致。配合 UI 风格目录提示词，Agent 直接用 utility classes 落地风格定义信号（如 Neobrutalism 的 `border-2 border-black shadow-[4px_4px_0_#000]`）。**不替换主 UI 的 `--ui-*` token 系统**——仅用于 DeepDesign 产出的 HTML 设计件。调研 `docs/research/2026-07-tailwind-namethatui-htmx.md` | P2                   |
+| **Uiverse 组件库** | **uiverse-io/galaxy**（5800+ 开源 UI 元素，MIT）                                | DeepDesign 参考文档（`design/references/uiverse-components.md`）           | 精选 20-30 个高质量 HTML/CSS 组件代码（Buttons/Cards/Inputs/Loaders/Toggles/Tooltips 等 11 分类），Agent 生成设计稿时直接引用替代从零手写 CSS。不做全量 vendor（5800 太多），只精选高频组件。[uiverse.io](https://uiverse.io) · [galaxy](https://github.com/uiverse-io/galaxy) | P2                   |
 
 **实施路线**：
 
@@ -670,6 +672,31 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 | NVIDIA Parakeet TDT 0.6B v2 | 业界最高 WER | 需 Python/NeMo，违背零依赖                |
 | Superwhisper / Wispr Flow   | 高           | 云端依赖 / macOS 为主 / 付费              |
 | OpenAI Audio API            | 高           | 网络依赖 + API key + 付费（但可作为兜底） |
+
+---
+
+## 十五、统一模型网关（最低优先级）
+
+> 内置模型提供能力——让 DeepOrca 自带多提供商路由 + token 压缩，用户不再手动切模型。
+
+### 规划中
+
+| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
+|------|------|----------|------|--------|
+| 多提供商路由 + 自动 fallback | **OmniRoute**（diegosouzapw/OmniRoute，35k stars，MIT） | 文档引导（用户自配 baseURL） | 290+ AI 提供商聚合为单一 OpenAI-compatible 端点，19 种路由策略，配额感知自动故障转移。用户将 DeepOrca 的 `baseURL` 指向 OmniRoute `localhost:port/v1` 即获得多模型负载均衡 | P3（最低） |
+| Token 压缩管道 | OmniRoute 12 引擎压缩（RTK/Caveman） | 文档引导 | 比当前 LLM 摘要式 compaction 更激进，节省 15-95% token。通过 OmniRoute MCP server 暴露给 Agent | P3 |
+| OmniRoute MCP Server | OmniRoute 内置 MCP（stdio/HTTP/SSE） | 用户自配 MCP（插件中心添加） | Agent 可调用路由/压缩/记忆工具，自主管理提供商网络 | P3 |
+
+**为什么是最低优先级**：
+- OmniRoute 是独立服务（需要用户自己跑 server），不适合 vendor 进 DeepOrca
+- DeepOrca 已有 `createOpenAIClient` + `model-capabilities.ts` 路由层，满足当前需求
+- Token 压缩有自研 compaction（L0-L3 记忆管线）
+- 仅当用户有多提供商负载均衡需求时才有价值
+
+**集成方式**：纯文档引导，零代码改动
+1. 用户 `npm install -g omniroute` + `omniroute start`
+2. 在 DeepOrca 设置中将 `baseURL` 指向 `http://localhost:port/v1`
+3. 高级用户可将 OmniRoute MCP server 添加到插件中心
 
 ---
 
