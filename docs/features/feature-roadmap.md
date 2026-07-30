@@ -1,6 +1,6 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.8 · 日期：2026-07-30 · 状态：规划中
+> 版本：v3.9 · 日期：2026-07-30 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
@@ -21,6 +21,8 @@
 >
 > **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
 >
+> **v3.9 更新**：① **MCP SDK 迁移已完成**（§十 已集成）——手写 JSON-RPC 换官方 `@modelcontextprotocol/sdk@1.22.0`，客户端 + gitmcp 服务端全切换，对外接口零变化，`npm run check` 全绿 + 端到端握手验证通过（perf/native-optimizations 分支 9 commits）。这同时**解锁了 §十二 远程源集成的 HTTP/SSE 传输阻断点**。② 新增 4 项调研结论：**SkillSpector**（NVIDIA 安全扫描器，归入 §十二 作安装闸门 P1，填补远程 skill/MCP 引入的安全缺口）、**Harness Handbook**（§十一 自进化远期愿景——行为级地图）、**Agent-Reach**（§八 不采纳，借鉴多后端路由思路）、open-notebook（不同产品形态，不采纳）。③ 修复总览表 §十三/§十四 重复行。调研见 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md`。
+
 > **v3.8 更新**：调研官方 `@modelcontextprotocol/sdk` 迁移。发现 DeepOrca 的 MCP **全是手写**（客户端 987 行 + gitmcp 服务端 230 行），落后协议两个版本，致命缺口是 **server→client 请求全死**（sampling/roots/elicitation，因客户端 `capabilities:{}` + 路由器丢弃带 id 的 server 请求）。迁移可行性已验证（zod v4 已用、Node 22 原生 crypto 免 polyfill）。**决策（用户拍板）：最高优先级前置**——A2UI 深度依赖 MCP，先打 SDK 地基可省一次返工 + 一次兼容性回归。A2UI 场景分级：P0 原型模块（核心卖点）→ P1 用户决策/持续状态监控/工作流（核心模块）→ P2 代码审查/git/wiki 富展示（待基础能力测完）。调研报告见 `docs/research/2026-07-mcp-sdk-migration.md`。
 
 ---
@@ -34,18 +36,16 @@
 | [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | — | Flutter + Android + HarmonyOS + React Native |
 | [四、桌面开发](#四桌面开发) | — | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP） | macOS/iOS + Qt/KDE + Tauri 桌面应用开发 |
 | [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
-| [六、设计生成](#六设计生成) | DeepDesign Phase 1 | taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
+| [六、设计生成](#六设计生成) | DeepDesign Phase 1 | **A2UI 原型模块（P0 核心卖点）**, taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
 | [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch, web-access 理念 | obscura | 登录态操控 + 大规模抓取 + 深度联网策略 |
 | [九、桌面自动化](#九桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
-| [十、引擎演进](#十引擎演进) | Plan Mode, UpdatePlan, Electron 35 | Prewalk, Subagent | 模型切换 + 子 agent |
-| [十一、自进化](#十一自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念 | harness 脚手架自改进 + 技能执行反馈闭环 |
-| [十二、插件中心](#十二插件中心) | 分组展示, 插件分组 | opencli | 统一的插件/技能/MCP 管理入口 |
+| [十、引擎演进](#十引擎演进) | Plan Mode, UpdatePlan, Electron 35, **MCP SDK 迁移（官方 @modelcontextprotocol/sdk）** | A2UI 对话交互层, Prewalk, Subagent | 模型切换 + 子 agent + 交互层升级 |
+| [十一、自进化](#十一自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念, **Harness Handbook 行为地图理念** | harness 脚手架自改进 + 技能执行反馈闭环 |
+| [十二、插件中心](#十二插件中心) | 分组展示, 插件分组 | **SkillSpector 安全闸门（P1）**, opencli, 远程源集成 | 统一的插件/技能/MCP 管理入口 + 安装安全 |
 | [十三、远程接入](#十三远程接入) | — | WebSocket 桥 + 静态服务 + 隧道方案 | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca |
 | [十四、语音双工](#十四语音双工) | — | whisper.cpp 本地 + API 兜底 | 语音替代键盘输入，实时转录填入 Composer |
 | [搁置项](#搁置项) | — | OpenSpec, Superpowers, Electron 自建 | 暂不规划，理由见下 |
-| [十三、远程接入](#十三远程接入) | — | 本地 Web 服务 + 反向隧道 | 移动端/外网浏览器直接访问本机 DeepOrca |
-| [十四、语音双工](#十四语音双工) | — | whisper.cpp + whisper-streaming | 用语音代替键盘输入：ASR、流式上屏、命令识别 |
 
 ---
 
@@ -296,6 +296,12 @@
 
 **关键判定**：web-access 的核心能力（真实 Chrome + 登录态）与 bsk 冗余，不整体引入。只借鉴其"联网策略选择 + 站点经验积累"两个独特点。
 
+### 不采纳
+
+| 项目 | 理由 |
+|------|------|
+| **Agent-Reach**（Panniantong） | 场景与 DeepOrca §八 高度重叠（都是"让 agent 联网"），但形态/受众不同——Agent-Reach 是 CLI 能力层（靠上游 CLI + cookie 登录态，强中文平台），DeepOrca 是 Electron harness（内置 bsk 真实 Chrome）。整体引入会与既有 bsk/WebSearch/web-access 三层体系冲突。**借鉴其「首选+备选后端路由」选型思路和 `doctor` 体检模式**，强化 web-access 的多后端降级与可用性探测。调研 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md` |
+
 ---
 
 ## 九、桌面自动化
@@ -355,15 +361,15 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 | UpdatePlan（markdown TODO 跟踪） | 引擎核心 | 执行阶段进度跟踪 |
 | 模型路由（轻量子任务→flash） | `model-capabilities.ts` | 子任务降级（技能匹配/prompt 增强/压缩用 flash） |
 | Electron 35（Node 22.16） | 引擎升级 | 内部插件零外部依赖（node:sqlite + require(esm)） |
+| **官方 MCP SDK 迁移**（`@modelcontextprotocol/sdk@1.22.0`） | 引擎基础设施升级 | 把手写 JSON-RPC（客户端 + gitmcp 服务端）换成官方 SDK。追平协议版本、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation）、支持 image/audio/structured content。**已完成（perf/native-optimizations 分支 9 commits）**——客户端 `Client`+`StdioClientTransport`、gitmcp `McpServer`+`registerTool`，对外接口零变化，`npm run check` 全绿，gitmcp 端到端握手验证通过。迁移记录 `specs/mcp-sdk-migration/design.md` |
 
 ### 规划中
 
 | 能力 | 来源 | 贡献 | 优先级 |
 |------|------|------|--------|
+| **A2UI 对话交互层**（Agent 驱动声明式 UI） | **A2UI** 协议（a2ui-project/a2ui，Apache-2.0） | 对话区从纯文本升级为可交互富组件——用户决策 / 持续状态监控 / 工作流（P1），代码审查/git/wiki 富展示（P2，待基础能力测完）。复用官方 `@a2ui/react` 渲染器 + 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。原型设计场景归 §六 独立产品线（P0 核心卖点）。**MCP SDK 前置已满足**，可启动。设计草案 `specs/a2ui-integration/design.md`，调研 `docs/research/2026-07-a2ui-integration.md` | P1-P2 |
 | 模型中途切换 | **Prewalk** 理念 | 贵模型规划→首次编辑→切换廉价模型执行。基于 model-capabilities.ts + UpdatePlan 扩展 | P1 |
 | 子 agent（Subagent） | **DeepCode** 架构理念 | Paper2Code（论文→代码）+ Loop engineering（自主循环直到测试通过）。加 Task 工具 + runSubagent | P2 |
-| **A2UI 对话交互层**（Agent 驱动声明式 UI） | **A2UI** 协议（a2ui-project/a2ui，Apache-2.0） | 对话区从纯文本升级为可交互富组件——富交互工具结果 / 结构化输入面板 / 任务看板三个场景。复用官方 `@a2ui/react` 渲染器 + 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。原型设计场景归 §六 独立产品线。设计草案 `specs/a2ui-integration/design.md` | P1-P2 |
-| **官方 MCP SDK 迁移**（手写 → `@modelcontextprotocol/sdk`） | 引擎基础设施升级 | 把手写 JSON-RPC（客户端 987 行 + gitmcp 服务端 230 行）换成官方 SDK。追平协议版本（落后到 2025-06-18/2026-07-28）、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation，当前因 `capabilities:{}` + 路由器丢弃带 id 请求而全死）、支持 image/audio/structured content。可行性已验证（zod v4 已用、Node 22 原生 crypto）。**最高优先级前置——A2UI 依赖 MCP，先打地基可省一次返工 + 一次兼容性回归**。调研 `docs/research/2026-07-mcp-sdk-migration.md` | P0（前置） |
 
 **架构可行性**（已验证）：DeepOrca 引擎对 subagent 友好——`activateSession` 已是 public 按 sessionId 参数化的纯异步函数，所有状态 Map<sessionId> 结构。加一个 Task 工具 + 抽取 `runSubagent()` 即可，不需重新设计引擎。
 
@@ -407,6 +413,7 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 | 能力 | 来源理念 | 贡献 | 优先级 |
 |------|----------|------|--------|
 | 弱点挖掘→提案→回归测试 | **Self-Harness** 论文（arxiv:2606.09498） | Agent 分析自身执行轨迹发现失败模式 → 生成最小化脚手架修改（prompt/工具定义/控制流）→ 回归测试只保留有效改进 | P3 |
+| **harness 行为级地图**（自动生成） | **Harness Handbook** 论文（arxiv:2607.13285，借鉴理念不集成） | 用静态分析 + LLM 结构化自动合成 harness 的三层行为地图（系统流程→细粒度行为→源码位置），解决"行为定位"难题。让 `deeporca-self-refer` 从"读手写 AGENTS.md"升级为"读自动生成的行为地图"。**理念启发**——实现工程量大（静态分析+LLM 结构化），记远期愿景 | P3 |
 
 **三阶段闭环**：
 ```
@@ -455,11 +462,19 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 ### 规划中：远程源集成
 
+#### 安装安全闸门（前置，与远程源集成同期）
+
+| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
+|------|------|----------|------|--------|
+| **skill/MCP 安全扫描闸门** | **SkillSpector**（NVIDIA，Apache-2.0） | builtin MCP server（`uvx skillspector mcp`，复用 crg/serena 的 uv 路径）或安装管线内强制 CLI 调用 | 从不可信远程源装 skill/MCP 前的安全闸门。68 漏洞模式/17 类（prompt injection / data exfiltration / supply chain 含 OSV CVE / **MCP least-privilege LP1-4** / **MCP tool poisoning TP1-4**），静态+LLM 两阶段，风险评分 SAFE/CAUTION/DO_NOT_INSTALL → allow/prompt/block。`--no-llm` 可纯静态零依赖。DeepOrca 大举引入远程 skill/MCP（见下「远程源清单」），SkillSpector 是配套的安全层。调研 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md` | **P1** |
+
+> **为什么必须**：DeepOrca 正规划 8 个远程 Hub 集成（ClawHub/ModelScope/SkillHub/SwarmSkills…），远程 skill/MCP 是高风险面（研究显示 26.1% skill 含漏洞、5.2% 疑似恶意）。MCP tool poisoning（元数据藏指令/Unicode 欺骗/描述-行为不符）是真实攻击向量。SkillSpector 形态现成（MCP server），集成成本低（uv shim）。
+
 #### 技术阻断点（必须先解决）
 
 | # | 阻断点 | 影响 | 方案 |
 |---|--------|------|------|
-| 1 | **MCP HTTP/SSE 传输缺失** | 当前 `McpServerConfig` 只支持 stdio，远程 MCP 服务器（GitHub/ModelScope 等）无法接入 | 扩展 `McpServerConfig` 为 discriminated union：`type: "stdio" \| "http" \| "sse"` + `url` + `headers` |
+| 1 | ~~**MCP HTTP/SSE 传输缺失**~~ ✅ **已解锁** | MCP SDK 迁移（§十，已完成）已引入官方 SDK，`StdioClientTransport` 之外 Streamable HTTP/SSE 传输是 SDK 原生支持 | 扩展 `McpServerConfig` 为 discriminated union（`type: "stdio" \| "http" \| "sse"` + `url` + `headers`），复用 SDK 的 HTTP/SSE transport |
 | 2 | **远程源抽象缺失** | `BuiltinPluginGroup` 只读本地 JSON | 定义 `RemotePluginSource` 接口（`list()/search()/install()`），本地清单成为其中一个 source |
 | 3 | **安装管线缺失** | Skills 自动发现、MCP 手动配置 | 实现"下载→放置→注册→启用→卸载"生命周期 |
 
