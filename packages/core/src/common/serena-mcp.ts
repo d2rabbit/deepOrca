@@ -23,7 +23,9 @@
  */
 
 import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { McpServerConfig } from "../settings";
+import { getUserConfigRoot } from "./app-dirs";
 
 export const SERENA_MCP_SERVER_NAME = "serena";
 
@@ -98,6 +100,54 @@ export function isSerenaAvailable(): boolean {
 }
 
 /**
+ * Serena launches a web dashboard and auto-opens a browser tab on every start
+ * by default (`web_dashboard_open_on_launch: true`). DeepOrca runs Serena as a
+ * silent stdio MCP server — a browser popup on every session is intrusive.
+ *
+ * Serena reads its global config from `<SERENA_HOME>/serena_config.yml`
+ * (default `~/.serena`). Rather than mutating the user's own `~/.serena`
+ * config (which could clobber their settings or fight with a standalone Serena
+ * install), DeepOrca points `SERENA_HOME` at its own managed directory and
+ * writes a minimal config there that suppresses the dashboard popup. This
+ * leaves Serena's own dashboard server running (so the agent can still open it
+ * on demand via the `open_dashboard` tool) — only the auto-open is suppressed.
+ *
+ * See: https://oraios.github.io/serena/02-usage/060_dashboard.html
+ */
+const SERENA_CONFIG_DIR_NAME = "serena-config";
+const SERENA_CONFIG_FILE_NAME = "serena_config.yml";
+const SERENA_CONFIG_CONTENT =
+  "# Managed by DeepOrca — suppresses Serena's default dashboard auto-open so\n" +
+  "# Serena runs silently as a stdio MCP server. The dashboard server itself\n" +
+  "# stays enabled; use the `open_dashboard` tool to open it on demand.\n" +
+  "web_dashboard_open_on_launch: false\n";
+
+let serenaHomeEnsured = false;
+
+/**
+ * Ensure a DeepOrca-managed `SERENA_HOME` directory exists with a config file
+ * that disables Serena's dashboard auto-open. Returns the absolute path to use
+ * as `SERENA_HOME`. Idempotent — only writes once per process.
+ */
+export function ensureSerenaHeadlessHome(): string {
+  const home = path.join(getUserConfigRoot(), SERENA_CONFIG_DIR_NAME);
+  if (!serenaHomeEnsured) {
+    try {
+      mkdirSync(home, { recursive: true });
+      const configFile = path.join(home, SERENA_CONFIG_FILE_NAME);
+      if (!existsSync(configFile)) {
+        writeFileSync(configFile, SERENA_CONFIG_CONTENT, "utf8");
+      }
+    } catch {
+      // Best-effort: if we can't write the config, Serena falls back to its
+      // own defaults (dashboard may pop up). Non-fatal — the server still runs.
+    }
+    serenaHomeEnsured = true;
+  }
+  return home;
+}
+
+/**
  * Build the MCP server config for Serena.
  *
  * Uses `uvx` (uv's npx-equivalent) to run `serena-agent` in an isolated Python
@@ -105,6 +155,9 @@ export function isSerenaAvailable(): boolean {
  * (uv tool install -p 3.13 serena-agent). `--context ide-assistant` tells
  * Serena to disable its built-in file/search/shell tools (DeepOrca already
  * provides those), exposing only the semantic symbol tools.
+ *
+ * Sets `SERENA_HOME` to a DeepOrca-managed dir whose config suppresses the
+ * default dashboard auto-open popup (see `ensureSerenaHeadlessHome`).
  *
  * Returns null when no `uv` binary is available — the caller skips
  * registration so the absence is silent rather than a crash.
@@ -125,5 +178,6 @@ export function buildSerenaMcpServerConfig(projectRoot: string): McpServerConfig
   return {
     command,
     args: [...prefixArgs, "start-mcp-server", "--context", "ide-assistant", "--project", projectRoot],
+    env: { SERENA_HOME: ensureSerenaHeadlessHome() },
   };
 }
