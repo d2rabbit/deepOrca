@@ -693,6 +693,23 @@ function registerIpc(): void {
     return { ok: true };
   });
 
+  // ── A2UI (Surface user interaction → agent) ──────────────────────────────
+  // When the user clicks a button on an A2UI Surface, the renderer calls
+  // this handler. We forward it as an MCP tool call (a2ui_action) to the
+  // A2UI MCP server, which the agent receives as a tool result.
+  handle(
+    IpcRequest.A2uiAction,
+    async (surfaceId: string, actionName: string, context: Record<string, unknown>): Promise<void> => {
+      try {
+        const bridge = getBridge();
+        // Call the A2UI MCP server's a2ui_action tool via the session manager.
+        await bridge.callMcpTool("a2ui", "a2ui_action", { surfaceId, actionName, context });
+      } catch (err) {
+        console.error("[a2ui-action]", err instanceof Error ? err.message : String(err));
+      }
+    }
+  );
+
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run

@@ -301,6 +301,14 @@ export class SessionBridge {
     this.manager.setMemoryClient(client);
   }
 
+  /**
+   * Call an MCP tool directly (outside the agent loop). Used by A2UI to
+   * forward user interactions (a2ui_action) back to the agent.
+   */
+  async callMcpTool(serverName: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.manager.executeMcpTool(serverName, toolName, args);
+  }
+
   dispose(): void {
     this.manager.dispose();
   }

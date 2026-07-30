@@ -696,6 +696,16 @@ export class SessionManager {
     return this.mcpManager.getStatus();
   }
 
+  /**
+   * Execute an MCP tool directly (outside the agent loop). Used by the
+   * desktop host to forward A2UI user interactions back to the agent
+   * via the a2ui_action tool.
+   */
+  async executeMcpTool(serverName: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
+    const namespacedName = `mcp__${serverName}__${toolName}`;
+    return this.mcpManager.executeMcpTool(namespacedName, args);
+  }
+
   async reconnectMcpServer(name: string, config?: McpServerConfig): Promise<void> {
     await this.mcpManager.reconnect(name, config);
     this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();

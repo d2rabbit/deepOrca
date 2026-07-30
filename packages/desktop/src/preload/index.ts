@@ -135,6 +135,10 @@ const api: DesktopApi = {
   memoryCheckAvailable: () => ipcRenderer.invoke(IpcRequest.MemoryCheckAvailable),
   memorySetEnabled: (enabled) => ipcRenderer.invoke(IpcRequest.MemorySetEnabled, enabled),
 
+  // ── A2UI (Surface interaction → agent) ──────────────────────────
+  a2uiAction: (surfaceId, actionName, context) =>
+    ipcRenderer.invoke(IpcRequest.A2uiAction, surfaceId, actionName, context),
+
   // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),
   agentChangesDiff: (sessionId, file) => ipcRenderer.invoke(IpcRequest.AgentChangesDiff, sessionId, file),

@@ -138,6 +138,9 @@ export const IpcRequest = {
   // Memory (TencentDB-Agent-Memory Gateway)
   MemoryCheckAvailable: "memory:checkAvailable",
   MemorySetEnabled: "memory:setEnabled",
+
+  // A2UI (Surface user interaction → agent)
+  A2uiAction: "a2ui:action",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -607,6 +610,10 @@ export type DesktopApi = {
   memoryCheckAvailable(): Promise<{ available: boolean; healthy: boolean }>;
   /** Enable or disable cross-session memory (starts/stops the Gateway sidecar). */
   memorySetEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
+
+  // ── A2UI (Surface interaction) ─────────────────────────────────────────
+  /** Send a user interaction from an A2UI Surface back to the agent. */
+  a2uiAction(surfaceId: string, actionName: string, context: Record<string, unknown>): Promise<void>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */
