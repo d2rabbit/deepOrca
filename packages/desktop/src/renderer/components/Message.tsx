@@ -1,7 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type JSX } from "react";
 import type { SessionMessage, SkillInfo } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { renderMarkdown } from "../markdown";
+
+// Lazy-load A2UI Surface renderer — only needed when agent produces A2UI output.
+const A2uiMessage = lazy(() => import("../a2ui/A2uiMessage").then((m) => ({ default: m.A2uiMessage })));
 import {
   buildThinkingSummary,
   buildToolSummary,
@@ -767,6 +770,23 @@ export const Message = memo(function Message({
 
   if (message.role === "tool") {
     const toolName = buildToolSummary(message).name.toLowerCase();
+
+    // A2UI tool results — render as interactive Surface instead of plain ToolCard.
+    if (toolName.includes("a2ui") || toolName.includes("render_surface") || toolName.includes("update_surface")) {
+      const a2uiJson = extractA2uiPayload(message);
+      if (a2uiJson) {
+        const summary = extractA2uiSummary(message);
+        return (
+          <div className="ui-bubble-row tool">
+            <Avatar role="mcp" />
+            <Suspense fallback={<div className="ui-tool-card">Loading Surface…</div>}>
+              <A2uiMessage a2uiJson={a2uiJson} summary={summary} />
+            </Suspense>
+          </div>
+        );
+      }
+    }
+
     const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
     return (
       <div className="ui-bubble-row tool">
@@ -791,3 +811,43 @@ export const Message = memo(function Message({
 
   return null;
 });
+
+// ── A2UI payload extraction helpers ─────────────────────────────────────────
+
+/** Extract A2UI JSON payload from a tool result message. */
+function extractA2uiPayload(message: SessionMessage): string | null {
+  try {
+    const parsed = JSON.parse(message.content || "{}");
+    // Check metadata for embedded resource
+    const meta = parsed.metadata ?? {};
+    // The MCP server returns content with a resource of type application/a2ui+json
+    // The executor serializes the result — look for a2ui data in the output or metadata
+    if (meta.a2ui) return JSON.stringify(meta.a2ui);
+    // Check output for resource content
+    const output = parsed.output;
+    if (typeof output === "string" && output.includes("application/a2ui+json")) {
+      // Try to extract the JSON payload from the resource text
+      const match = output.match(/"text"\s*:\s*(".*?")/);
+      if (match) {
+        try {
+          return JSON.parse(match[1]);
+        } catch {
+          // fall through
+        }
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract the text summary from an A2UI tool result. */
+function extractA2uiSummary(message: SessionMessage): string | undefined {
+  try {
+    const parsed = JSON.parse(message.content || "{}");
+    return typeof parsed.output === "string" ? parsed.output.split("\n")[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}

@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CallToolResultSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServerConfig } from "../settings";
 import { getEnvVar } from "../common/app-dirs";
@@ -101,7 +102,7 @@ function buildMcpNamespacedName(
 // ourselves because the SDK Client does not expose an isConnected() method.
 type ManagedClient = {
   client: Client;
-  transport: StdioClientTransport;
+  transport: StdioClientTransport | InMemoryTransport;
   serverName: string;
   // Tail of the server's stderr output (most recent STDERR_RING_BUFFER_BYTES).
   // Captured while draining so a startup failure that writes a diagnostic to
@@ -196,6 +197,88 @@ export class McpManager {
     });
 
     await this.connectServer(name, effectiveConfig);
+  }
+
+  /**
+   * Connect an in-process MCP server (e.g. A2UI) using InMemoryTransport.
+   * This avoids spawning a subprocess — the server runs in the same Node
+   * process, communicating over a linked pair of in-memory transports.
+   */
+  async connectInProcessServer(
+    name: string,
+    server: { connect(transport: InMemoryTransport): Promise<void> }
+  ): Promise<void> {
+    if (this.disposed) return;
+
+    this.pruneDisconnectedClients();
+    this.tools = this.tools.filter((t) => t.serverName !== name);
+    this.prompts = this.prompts.filter((p) => p.serverName !== name);
+    this.resources = this.resources.filter((r) => r.serverName !== name);
+
+    try {
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await server.connect(serverTransport);
+
+      const client = new Client({ name: "deeporca", version: "0.1.0" }, { capabilities: {} });
+      await this.connectWithTimeout(client, clientTransport, MCP_STARTUP_TIMEOUT_MS);
+
+      if (this.disposed) {
+        await client.close().catch(() => {});
+        return;
+      }
+
+      const managed: ManagedClient = {
+        client,
+        transport: clientTransport,
+        serverName: name,
+        stderrBuffer: "",
+      };
+      this.clients.push(managed);
+      this.connectedServers.add(name);
+
+      const serverTools = await this.listAllTools(client);
+      if (this.disposed) return;
+      const toolNamespacedNames: string[] = [];
+      const usedToolNames = new Set(this.tools.map((tool) => tool.namespacedName));
+      for (const tool of serverTools) {
+        const namespacedName = buildMcpNamespacedName(name, tool.name, usedToolNames);
+        usedToolNames.add(namespacedName);
+        this.tools.push({
+          serverName: name,
+          originalName: tool.name,
+          namespacedName,
+          definition: tool,
+          client,
+        });
+        toolNamespacedNames.push(namespacedName);
+      }
+
+      this.setStatus({
+        name,
+        status: "ready",
+        connected: true,
+        toolCount: serverTools.length,
+        tools: toolNamespacedNames,
+        promptCount: 0,
+        prompts: [],
+        resourceCount: 0,
+        resources: [],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.setStatus({
+        name,
+        status: "failed",
+        connected: false,
+        error: message,
+        toolCount: 0,
+        tools: [],
+        promptCount: 0,
+        prompts: [],
+        resourceCount: 0,
+        resources: [],
+      });
+    }
   }
 
   private async connectServer(name: string, config: McpServerConfig): Promise<void> {
@@ -385,7 +468,11 @@ export class McpManager {
     return managed;
   }
 
-  private connectWithTimeout(client: Client, transport: StdioClientTransport, timeoutMs: number): Promise<void> {
+  private connectWithTimeout(
+    client: Client,
+    transport: StdioClientTransport | InMemoryTransport,
+    timeoutMs: number
+  ): Promise<void> {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(

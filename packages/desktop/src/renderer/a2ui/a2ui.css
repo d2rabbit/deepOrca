@@ -1,0 +1,209 @@
+/* ── A2UI Surface styles ─────────────────────────────────────────────────── */
+/* Uses DeepOrca's --ui-* CSS variables for theme consistency.               */
+/* Global (not CSS Modules) — matches the rest of the renderer.             */
+
+.ui-a2ui-surfaces {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) 0;
+}
+
+.ui-a2ui-surface {
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  background: var(--ui-surface);
+}
+
+.ui-a2ui-surface-title {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-secondary);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+}
+
+.ui-a2ui-surface-body {
+  padding: var(--ui-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+
+.ui-a2ui-empty {
+  padding: var(--ui-space-3);
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  text-align: center;
+}
+
+/* ── Layout components ──────────────────────────────────────────────────── */
+
+.ui-a2ui-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+
+.ui-a2ui-row {
+  display: flex;
+  flex-direction: row;
+  gap: var(--ui-space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ui-a2ui-card {
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+
+.ui-a2ui-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ui-a2ui-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+}
+
+.ui-a2ui-divider {
+  border: none;
+  border-top: 1px solid var(--ui-border-soft);
+  margin: var(--ui-space-1) 0;
+}
+
+/* ── Content components ─────────────────────────────────────────────────── */
+
+.ui-a2ui-text {
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  line-height: 1.5;
+}
+
+.ui-a2ui-text-heading {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ui-a2ui-text-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ui-a2ui-text-subtitle {
+  font-size: 12px;
+  color: var(--ui-text-secondary);
+}
+
+.ui-a2ui-text-caption {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+
+.ui-a2ui-icon {
+  font-size: 14px;
+  color: var(--ui-text-secondary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.ui-a2ui-image {
+  max-width: 100%;
+  border-radius: var(--ui-radius-sm);
+}
+
+/* ── Input components ───────────────────────────────────────────────────── */
+
+.ui-a2ui-button {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-text-on-accent, #fff);
+  background: var(--ui-accent);
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.ui-a2ui-button:hover {
+  opacity: 0.85;
+}
+
+.ui-a2ui-button:active {
+  opacity: 0.7;
+}
+
+.ui-a2ui-textfield {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 120px;
+}
+
+.ui-a2ui-textfield:focus {
+  border-color: var(--ui-accent);
+}
+
+.ui-a2ui-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  cursor: pointer;
+}
+
+.ui-a2ui-checkbox input {
+  accent-color: var(--ui-accent);
+}
+
+.ui-a2ui-choicepicker {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+/* ── Unknown component fallback ─────────────────────────────────────────── */
+
+.ui-a2ui-unknown {
+  padding: var(--ui-space-2);
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+}
+
+/* ── Inline A2UI message in conversation ────────────────────────────────── */
+
+.ui-a2ui-message {
+  margin: var(--ui-space-2) 0;
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+}

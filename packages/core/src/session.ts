@@ -33,6 +33,7 @@ import {
   hasReactNativeProject,
   isExpoDisabled,
 } from "./common/expo-mcp";
+import { A2UI_MCP_SERVER_NAME, buildA2uiServer, isA2uiDisabled } from "./mcp/a2ui-mcp";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -680,6 +681,14 @@ export class SessionManager {
       this.onMcpStatusChanged?.();
     });
     await this.mcpManager.initialize(this.augmentMcpServersWithBuiltins(servers));
+
+    // Connect the A2UI in-process MCP server (runs via InMemoryTransport,
+    // no subprocess). Always available unless explicitly disabled.
+    if (!isA2uiDisabled(this.projectRoot)) {
+      const a2uiServer = buildA2uiServer();
+      await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, a2uiServer);
+    }
+
     this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();
   }
 

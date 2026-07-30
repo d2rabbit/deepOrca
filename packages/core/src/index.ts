@@ -201,6 +201,14 @@ export {
 } from "./common/expo-mcp";
 
 export {
+  A2UI_MCP_SERVER_NAME,
+  buildA2uiServer,
+  buildA2uiMcpServerConfig,
+  setA2uiDisabled,
+  isA2uiDisabled,
+} from "./mcp/a2ui-mcp";
+
+export {
   MemoryGatewayClient,
   resolveGatewayEntry,
   resolveTsxBinary,
