@@ -3,7 +3,6 @@
 // API), so tool input shapes MUST be built with zod's v3 compatibility build —
 // otherwise the SDK throws `keyValidator._parse is not a function` at call time.
 import { z } from "zod/v3";
-import type { McpToolDefinition } from "../mcp/mcp-client";
 import type { FetchLike } from "./github";
 import { fetchUrlContent, searchCode } from "./github";
 import type { GitmcpStore } from "./store";
@@ -22,61 +21,6 @@ export type ToolCallResult = {
 };
 
 const SEARCH_LIMIT = 8;
-
-export function buildToolDefinitions(slug: string): McpToolDefinition[] {
-  return [
-    {
-      name: "fetch_documentation",
-      description:
-        `Fetch the primary documentation of ${slug} (llms.txt, llms-full.txt or README.md) ` +
-        `and refresh the local index. Falls back to the cached copy when offline.`,
-      inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    },
-    {
-      name: "search_documentation",
-      description:
-        `Full-text search (BM25) over the locally indexed documentation of ${slug}. ` +
-        `Indexes the repository first when it has not been fetched yet.`,
-      inputSchema: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "Search query (plain words; no special syntax needed)" },
-        },
-        required: ["query"],
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "search_code",
-      description:
-        `Search code inside ${slug} via the GitHub code-search API. ` +
-        `Set the GITHUB_TOKEN environment variable to raise rate limits.`,
-      inputSchema: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "Code search query" },
-          page: { type: "number", description: "Result page, starting at 1 (default 1)" },
-        },
-        required: ["query"],
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "fetch_url_content",
-      description:
-        "Fetch an http(s) URL (e.g. a link found in the documentation) and return its content " +
-        "as plain text. HTML is stripped; output is capped at 100 KB.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          url: { type: "string", description: "Absolute http(s) URL to fetch" },
-        },
-        required: ["url"],
-        additionalProperties: false,
-      },
-    },
-  ];
-}
 
 export type GitmcpToolRegistration = {
   name: string;
@@ -100,7 +44,7 @@ export function buildGitmcpToolRegistrations(slug: string): GitmcpToolRegistrati
     {
       name: "search_code",
       description: `Search code snippets indexed for ${slug}.`,
-      inputShape: { query: z.string() },
+      inputShape: { query: z.string(), page: z.number().optional() },
     },
     {
       name: "fetch_url_content",
