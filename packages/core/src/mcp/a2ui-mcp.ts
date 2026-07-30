@@ -363,6 +363,26 @@ export function buildA2uiServer(): McpServer {
       const surfaceId = String(args.surfaceId ?? "");
       const actionName = String(args.actionName ?? "");
       const context = args.context ?? {};
+
+      // Auto-handle navigation actions (navigate:<pageName>)
+      if (actionName.startsWith("navigate:")) {
+        const pageName = actionName.slice("navigate:".length);
+        const state = surfaces.get(surfaceId);
+        if (state) {
+          const pages = (state.dataModel["nav.pages"] as string[]) ?? [];
+          const pageTitle = pageName;
+          state.dataModel = {
+            ...state.dataModel,
+            "nav.currentPage": pageTitle.charAt(0).toUpperCase() + pageTitle.slice(1),
+            "nav.currentPageContent": `Content for ${pageTitle} — ask me to add components here.`,
+            "nav.currentPageId": pageName,
+          };
+          const messages = [updateDataModelMessage(surfaceId, state.dataModel)];
+          state.messages = [...state.messages, ...messages];
+          return a2uiResult(messages, `Navigated to page "${pageTitle}".`);
+        }
+      }
+
       return {
         content: [
           {
@@ -371,6 +391,50 @@ export function buildA2uiServer(): McpServer {
           },
         ],
       };
+    }
+  );
+
+  // Tool: navigate_to — switch the current page in a multi-page prototype
+  registerTool(
+    "navigate_to",
+    {
+      description:
+        "Switch the current page in a multi-page prototype Surface. Updates the " +
+        "dataModel to show the new page's title and content placeholder. Use this " +
+        "when the user clicks a navigation button with action 'navigate:<pageName>'.",
+      inputSchema: {
+        surfaceId: z.string().describe("ID of the multi-page Surface"),
+        pageName: z.string().describe("Name of the page to navigate to"),
+        pageTitle: z.string().optional().describe("Display title for the page (defaults to pageName)"),
+        pageContent: z.string().optional().describe("Content text for the page (defaults to a placeholder)"),
+      },
+    },
+    async (args) => {
+      const surfaceId = String(args.surfaceId ?? "");
+      const pageName = String(args.pageName ?? "");
+      const pageTitle = String(args.pageTitle ?? pageName);
+      const pageContent = String(args.pageContent ?? `Content for ${pageTitle} — ask me to add components here.`);
+
+      const state = surfaces.get(surfaceId);
+      if (!state) {
+        return {
+          content: [{ type: "text", text: `Surface "${surfaceId}" not found.` }],
+          isError: true,
+        };
+      }
+
+      // Update data model to switch page
+      state.dataModel = {
+        ...state.dataModel,
+        "nav.currentPage": pageTitle,
+        "nav.currentPageContent": pageContent,
+        "nav.currentPageId": pageName,
+      };
+
+      const messages = [updateDataModelMessage(surfaceId, state.dataModel)];
+      state.messages = [...state.messages, ...messages];
+
+      return a2uiResult(messages, `Navigated to page "${pageTitle}" (id: ${pageName}).`);
     }
   );
 

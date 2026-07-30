@@ -34,6 +34,8 @@ export function generatePrototype(template: string, params: TemplateParams): Pro
       return kanban(params);
     case "data-table":
       return dataTable(params);
+    case "multi-page":
+      return multiPage(params);
     default:
       return null;
   }
@@ -71,6 +73,11 @@ export function listTemplates(): Array<{ name: string; description: string; para
       name: "data-table",
       description: "Sortable data table with headers and rows",
       params: ["columns (string[])", "rows (string[][])"],
+    },
+    {
+      name: "multi-page",
+      description: "Multi-page prototype with navigation buttons between pages",
+      params: ["pages ({name, title}[])", "title (string)"],
     },
   ];
 }
@@ -351,4 +358,67 @@ function dataTable(params: TemplateParams): PrototypeResult {
   }
 
   return { components, dataModel: { columns, rows } };
+}
+
+function multiPage(params: TemplateParams): PrototypeResult {
+  const pages = (params.pages as Array<{ name: string; title: string }>) ?? [
+    { name: "home", title: "Home" },
+    { name: "detail", title: "Detail" },
+  ];
+  const title = String(params.title ?? "Multi-Page Prototype");
+  const components: Record<string, unknown>[] = [];
+
+  const root = nextId("col");
+  components.push({ id: root, type: "Column", properties: {} });
+
+  // App title
+  const titleId = nextId("text");
+  components.push({ id: titleId, type: "Text", parentId: root, properties: { text: title, variant: "heading" } });
+
+  // Breadcrumb showing current page
+  const breadcrumbId = nextId("text");
+  components.push({
+    id: breadcrumbId,
+    type: "Text",
+    parentId: root,
+    properties: { text: `$nav.currentPage`, variant: "caption" },
+  });
+
+  // Current page content placeholder
+  const contentCard = nextId("card");
+  components.push({ id: contentCard, type: "Card", parentId: root, properties: {} });
+  const contentText = nextId("text");
+  components.push({
+    id: contentText,
+    type: "Text",
+    parentId: contentCard,
+    properties: { text: `$nav.currentPageContent`, variant: "body" },
+  });
+
+  // Navigation buttons — one per page
+  const navRow = nextId("row");
+  components.push({ id: navRow, type: "Row", parentId: root, properties: {} });
+
+  for (const page of pages) {
+    const navBtn = nextId("btn");
+    components.push({
+      id: navBtn,
+      type: "Button",
+      parentId: navRow,
+      properties: {
+        label: page.title,
+        action: `navigate:${page.name}`,
+      },
+    });
+  }
+
+  return {
+    components,
+    dataModel: {
+      "nav.currentPage": pages[0]?.title ?? "Home",
+      "nav.currentPageContent": `Content for ${pages[0]?.title ?? "Home"} — ask me to add components here.`,
+      "nav.pages": pages.map((p) => p.name),
+      "nav.currentPageId": pages[0]?.name ?? "home",
+    },
+  };
 }
