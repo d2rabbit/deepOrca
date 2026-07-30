@@ -2220,12 +2220,55 @@ button.ui-tool-head:hover {
   font-weight: 600;
   background: color-mix(in srgb, #0ea5e9 8%, transparent);
   color: var(--ui-text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-tool-plan-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill, 999px);
 }
 .ui-tool-plan-body {
   padding: var(--ui-space-2) var(--ui-space-3);
-  white-space: pre-wrap;
   font-size: 13px;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Interactive plan checklist items */
+.ui-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  padding: 2px 0;
+  cursor: default;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ui-plan-item.sub {
+  padding-left: var(--ui-space-4);
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+.ui-plan-item input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--ui-accent);
+  cursor: default;
+  flex-shrink: 0;
+}
+.ui-plan-item.done .ui-plan-item-text {
+  text-decoration: line-through;
+  color: var(--ui-text-faint);
+}
+.ui-plan-item-text {
+  flex: 1;
+  word-break: break-word;
 }
 
 /* ── Tool result (collapsible) ────────────────────────────────────────────── */

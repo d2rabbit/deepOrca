@@ -656,13 +656,28 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
               ))}
             </div>
           ) : null}
-          {/* Plan lines for UpdatePlan */}
+          {/* Interactive plan checklist for UpdatePlan */}
           {planLines.length > 0 ? (
             <div className="ui-tool-plan">
               <div className="ui-tool-plan-label">
                 <IconToolPlan /> {t("msg.plan")}
+                <span className="ui-tool-plan-count">
+                  {planLines.filter((l) => l.match(/^\s*[-*]\s*\[x\]/i)).length}/{planLines.length}
+                </span>
               </div>
-              <div className="ui-tool-plan-body">{planLines.join("\n")}</div>
+              <div className="ui-tool-plan-body">
+                {planLines.map((line, i) => {
+                  const checked = /^\s*[-*]\s*\[x\]/i.test(line);
+                  const text = line.replace(/^\s*[-*]\s*\[[ xX]\]\s*/, "");
+                  const isSubItem = /^\s{2,}/.test(line);
+                  return (
+                    <label key={i} className={`ui-plan-item${checked ? " done" : ""}${isSubItem ? " sub" : ""}`}>
+                      <input type="checkbox" checked={checked} readOnly />
+                      <span className="ui-plan-item-text">{text}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
           {/* Collapsible result — bash output already lives in the terminal frame. */}
