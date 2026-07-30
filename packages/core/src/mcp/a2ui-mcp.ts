@@ -19,6 +19,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod/v3";
 import type { ZodRawShape } from "zod/v3";
+import { generatePrototype, listTemplates } from "./a2ui-templates";
 
 export const A2UI_MCP_SERVER_NAME = "a2ui";
 
@@ -184,6 +185,90 @@ export function buildA2uiServer(): McpServer {
         messages,
         `Surface "${title}" (id: ${surfaceId}) created with ${components.length} components.`
       );
+    }
+  );
+
+  // Tool: render_prototype — generate a Surface from a template + params
+  registerTool(
+    "render_prototype",
+    {
+      description:
+        "Generate an interactive prototype Surface from a pre-built template. " +
+        "Pick a template (login-form, dashboard, list-detail, wizard, kanban, data-table) " +
+        "and fill in params (field names, column names, items, etc.). The server generates " +
+        "the complete component tree — you don't need to write A2UI JSON manually. " +
+        "Use `list_templates` to see available templates and their params.",
+      inputSchema: {
+        template: z
+          .string()
+          .describe("Template name: login-form, dashboard, list-detail, wizard, kanban, or data-table"),
+        surfaceId: z.string().describe("Unique identifier for this prototype Surface"),
+        title: z.string().describe("Display title for the prototype"),
+        params: z
+          .record(z.unknown())
+          .describe(
+            "Template parameters. See list_templates for each template's required params. " +
+              "Example: { fields: ['Email', 'Password'] } for login-form."
+          ),
+      },
+    },
+    async (args) => {
+      const template = String(args.template ?? "");
+      const surfaceId = String(args.surfaceId ?? `proto-${Date.now()}`);
+      const title = String(args.title ?? "Prototype");
+      const params = (args.params as Record<string, unknown>) ?? {};
+
+      const result = generatePrototype(template, params);
+      if (!result) {
+        const available = listTemplates()
+          .map((t) => `${t.name}(${t.params.join(", ")})`)
+          .join("; ");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Unknown template "${template}". Available: ${available}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const messages: unknown[] = [
+        createSurfaceMessage(surfaceId, title),
+        updateComponentsMessage(surfaceId, result.components),
+        updateDataModelMessage(surfaceId, result.dataModel),
+      ];
+
+      surfaces.set(surfaceId, {
+        surfaceId,
+        title,
+        messages,
+        dataModel: result.dataModel,
+      });
+
+      return a2uiResult(
+        messages,
+        `Prototype "${title}" created from template "${template}" with ${result.components.length} components. Surface ID: ${surfaceId}. Ask the user to interact with it, or use update_surface to iterate.`
+      );
+    }
+  );
+
+  // Tool: list_templates — show available prototype templates
+  registerTool(
+    "list_templates",
+    {
+      description:
+        "List all available prototype templates with their names, descriptions, and required parameters. " +
+        "Call this before render_prototype to see what templates are available.",
+      inputSchema: {},
+    },
+    async () => {
+      const templates = listTemplates();
+      const text = templates.map((t) => `• ${t.name}: ${t.description}\n  params: ${t.params.join(", ")}`).join("\n\n");
+      return {
+        content: [{ type: "text", text: `Available templates:\n\n${text}` }],
+      };
     }
   );
 

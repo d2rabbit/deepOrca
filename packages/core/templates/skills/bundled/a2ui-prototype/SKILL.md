@@ -29,9 +29,36 @@ trees that render inline and support user interaction (clicks, forms).
 
 ## Workflow
 
-### Step 1: Create the Surface
+### Step 1 (PREFERRED): Use a Template
 
-Call `mcp__a2ui__render_surface` with:
+Call `mcp__a2ui__render_prototype` — pick a template, fill in params, done:
+
+```json
+{
+  "template": "login-form",
+  "surfaceId": "login",
+  "title": "Login Form",
+  "params": {
+    "fields": ["Email", "Password"],
+    "title": "Welcome Back"
+  }
+}
+```
+
+Available templates (call `mcp__a2ui__list_templates` for details):
+
+| Template | params | Use case |
+|----------|--------|----------|
+| `login-form` | `fields[]`, `title` | Login/registration forms |
+| `dashboard` | `metrics[{label,value}]`, `title` | KPI dashboards |
+| `list-detail` | `items[{label,subtitle}]`, `detailFields[]` | Master-detail layouts |
+| `wizard` | `steps[]`, `title` | Multi-step flows |
+| `kanban` | `columns[]`, `cards[{title,column}]` | Task boards |
+| `data-table` | `columns[]`, `rows[][]` | Data tables |
+
+### Step 1 (FALLBACK): Manual Components
+
+If no template fits, call `mcp__a2ui__render_surface` with hand-written components:
 
 ```json
 {
