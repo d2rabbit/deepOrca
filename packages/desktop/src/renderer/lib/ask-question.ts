@@ -4,7 +4,15 @@
 import type { SessionMessage } from "../../shared/ipc";
 
 export type AskUserQuestionOption = { label: string; description?: string };
-export type AskUserQuestionItem = { question: string; multiSelect?: boolean; options: AskUserQuestionOption[] };
+export type AskUserQuestionItem = {
+  question: string;
+  multiSelect?: boolean;
+  options: AskUserQuestionOption[];
+  /** If "text", render a free-text input instead of option buttons. */
+  inputType?: "text" | "choice";
+  /** Placeholder for text input. */
+  placeholder?: string;
+};
 export type PendingAskUserQuestion = { messageId: string; sessionId: string; questions: AskUserQuestionItem[] };
 export type AskUserQuestionAnswers = Record<string, string>;
 

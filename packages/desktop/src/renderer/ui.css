@@ -3067,6 +3067,19 @@ button.ui-tool-head:hover {
 .ui-q-text {
   font-weight: 600;
 }
+.ui-q-text-input {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-q-text-input:focus {
+  border-color: var(--ui-accent);
+}
 
 /* Question card option stagger entrance */
 .ui-opt-row .ui-opt {
