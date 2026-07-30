@@ -318,6 +318,20 @@ export class McpManager {
       stderr: "pipe",
     });
 
+    // Drain stderr so a chatty server's pipe doesn't exert backpressure and stall
+    // its event loop. With `stderr: "pipe"` the SDK pipes child.stderr into a
+    // PassThrough with no consumer; a PassThrough buffers to its 16KB
+    // highWaterMark then pauses the producer, which — for a verbose-stderr server
+    // (logs, deprecation warnings, stack traces) — fills the OS pipe buffer,
+    // blocks the server's process.stderr.write(), and silently hangs it. The old
+    // McpClient consumed stderr into a 4KB ring buffer to avoid exactly this; we
+    // simply discard the bytes (acceptable to lose — see bed96b0 notes). The
+    // transport exposes `stderr` as a ready-to-read PassThrough immediately on
+    // construction, so attaching now also captures any early output.
+    transport.stderr?.on("data", () => {
+      /* drain: prevent backpressure on a verbose-stderr server */
+    });
+
     const client = new Client({ name: "deeporca", version: "0.1.0" }, { capabilities: {} });
 
     // Crash / disconnect detection: the SDK Protocol base class exposes a
