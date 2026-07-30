@@ -17,6 +17,11 @@ import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisab
 import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject, isDartDisabled } from "./common/dart-mcp";
 import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import {
+  buildSkillSpectorMcpServerConfig,
+  SKILL_SPECTOR_MCP_SERVER_NAME,
+  isSkillSpectorDisabled,
+} from "./common/skill-spector";
+import {
   buildHarmonyosMcpServerConfig,
   HARMONYOS_MCP_SERVER_NAME,
   hasHarmonyosProject,
@@ -587,6 +592,23 @@ export class SessionManager {
           result = {
             ...(result ?? {}),
             [SERENA_MCP_SERVER_NAME]: serenaConfig,
+          };
+        }
+      }
+    }
+
+    // SkillSpector MCP server — AI skill/MCP security scanner (prompt injection,
+    // data exfiltration, supply-chain CVEs, MCP least-privilege, MCP tool poisoning).
+    // Always available (security scanning is relevant to every project) when uv is
+    // available and not disabled. Exposes `scan_skill`; the agent defaults use_llm=false
+    // (pure-static, zero credentials). Installed from git+SHA — the PyPI package is malware.
+    if (!isSkillSpectorDisabled(this.projectRoot)) {
+      if (!(result && Object.prototype.hasOwnProperty.call(result, SKILL_SPECTOR_MCP_SERVER_NAME))) {
+        const skillSpectorConfig = buildSkillSpectorMcpServerConfig(this.projectRoot);
+        if (skillSpectorConfig) {
+          result = {
+            ...(result ?? {}),
+            [SKILL_SPECTOR_MCP_SERVER_NAME]: skillSpectorConfig,
           };
         }
       }

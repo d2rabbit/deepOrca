@@ -111,10 +111,10 @@ function main() {
   log("copying dist/ …");
   cpSync(join(desktopDir, "dist"), join(stagingDir, "dist"), { recursive: true });
 
-  for (const name of ["codegraph", "openwiki", "uv"]) {
+  for (const name of ["codegraph", "openwiki", "uv", "skillspector"]) {
     if (!existsSync(join(desktopDir, "vendor", name))) {
       log(
-        `vendor/${name} missing — packaged app will fall back to ${name === "uv" ? "system uv on PATH" : "npx"} at runtime.`
+        `vendor/${name} missing — packaged app will fall back to ${name === "uv" ? "system uv on PATH" : name === "skillspector" ? "uv tool install from git" : "npx"} at runtime.`
       );
     }
   }

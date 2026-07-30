@@ -31,6 +31,13 @@
     "mcp": ["serena"]
   },
   {
+    "id": "skill-spector",
+    "name": "SkillSpector",
+    "description": "AI skill / MCP security scanner — scans skills and MCP servers for vulnerabilities before install (prompt injection, data exfiltration, supply-chain CVEs, MCP least-privilege violations, MCP tool poisoning). Installed from git+SHA (the PyPI package is malware). Defaults to pure-static analysis (use_llm=false, zero credentials).",
+    "category": "security",
+    "mcp": ["skill-spector"]
+  },
+  {
     "id": "gitmcp",
     "name": "GitMCP",
     "description": "Turn any GitHub repository into an MCP knowledge source the agent can query.",

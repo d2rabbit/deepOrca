@@ -175,6 +175,10 @@ async function run() {
   // uv: shared by CRG + Serena. The version marker file is the stable existence
   // check (the binary lives under a host-specific <target>/ subdir).
   ensureVendored("uv", [".vendored-uv-version"], "system uv on PATH");
+  // SkillSpector: Python security scanner. The vendor script records the pinned commit
+  // SHA (no compilation — Python builds at install time). Runtime reads the SHA to install
+  // from git+SHA, avoiding the malicious PyPI package.
+  ensureVendored("skillspector", [".vendored-skillspector-sha"], "uv tool install from git");
   if (isDev) {
     const contexts = await Promise.all([context(mainConfig), context(preloadConfig), context(rendererConfig)]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));

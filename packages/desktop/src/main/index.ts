@@ -21,6 +21,8 @@ import {
   resolveUvBinary,
   runCrgResetWithOutput,
   configureSerenaUvResolver,
+  configureSkillSpectorUvResolver,
+  configureSkillSpectorVendorRoot,
   MemoryGatewayClient,
   resolveGatewayEntry,
   resolveTsxBinary,
@@ -93,6 +95,12 @@ configureCrgVendorRoot(join(__dirname, "..", "vendor", "uv"));
 // vendored uv that CRG uses handles the isolated Python provisioning.
 configureSerenaUvResolver(() => resolveUvBinary());
 
+// SkillSpector (AI skill/MCP security scanner) shares the same vendored uv and reads
+// its pinned commit SHA from the vendored skillspector dir (written by
+// scripts/vendor-skillspector.js at build time). Installs from git+SHA at runtime.
+configureSkillSpectorUvResolver(() => resolveUvBinary());
+configureSkillSpectorVendorRoot(join(__dirname, "..", "vendor", "skillspector"));
+
 // Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
 // kick off the vendor scripts in the background at boot so they fetch upstream
 // and recompile when new commits landed — the next launch picks up the update.
@@ -101,7 +109,7 @@ function refreshVendoredToolsInBackground(): void {
   if (app.isPackaged) {
     return;
   }
-  for (const name of ["codegraph", "openwiki", "uv"]) {
+  for (const name of ["codegraph", "openwiki", "uv", "skillspector"]) {
     const script = join(__dirname, "..", "..", "..", "scripts", `vendor-${name}.js`);
     try {
       const child = spawn(process.execPath, [script], {

@@ -173,6 +173,15 @@ export {
   setSerenaDisabled,
   isSerenaDisabled,
 } from "./common/serena-mcp";
+export {
+  SKILL_SPECTOR_MCP_SERVER_NAME,
+  buildSkillSpectorMcpServerConfig,
+  configureSkillSpectorUvResolver,
+  configureSkillSpectorVendorRoot,
+  ensureSkillSpectorInstalled,
+  setSkillSpectorDisabled,
+  isSkillSpectorDisabled,
+} from "./common/skill-spector";
 
 export {
   HARMONYOS_MCP_SERVER_NAME,

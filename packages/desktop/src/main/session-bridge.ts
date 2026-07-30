@@ -15,6 +15,9 @@ import {
   SERENA_MCP_SERVER_NAME,
   buildSerenaMcpServerConfig,
   setSerenaDisabled,
+  SKILL_SPECTOR_MCP_SERVER_NAME,
+  buildSkillSpectorMcpServerConfig,
+  setSkillSpectorDisabled,
   HARMONYOS_MCP_SERVER_NAME,
   buildHarmonyosMcpServerConfig,
   hasHarmonyosProject,
@@ -314,6 +317,7 @@ export class SessionBridge {
     setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
     setDartDisabled(this.projectRoot, disabled.includes(DART_MCP_SERVER_NAME));
     setSerenaDisabled(this.projectRoot, disabled.includes(SERENA_MCP_SERVER_NAME));
+    setSkillSpectorDisabled(this.projectRoot, disabled.includes(SKILL_SPECTOR_MCP_SERVER_NAME));
     setHarmonyosDisabled(this.projectRoot, disabled.includes(HARMONYOS_MCP_SERVER_NAME));
     setExpoDisabled(this.projectRoot, disabled.includes(EXPO_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
@@ -701,6 +705,7 @@ export class SessionBridge {
           name === CRG_MCP_SERVER_NAME ||
           name === DART_MCP_SERVER_NAME ||
           name === SERENA_MCP_SERVER_NAME ||
+          name === SKILL_SPECTOR_MCP_SERVER_NAME ||
           name === HARMONYOS_MCP_SERVER_NAME ||
           name === EXPO_MCP_SERVER_NAME ||
           isGitmcpServerName(name),
@@ -768,6 +773,23 @@ export class SessionBridge {
           enabled: !disabled.has(SERENA_MCP_SERVER_NAME),
           builtin: true,
           status: statuses.get(SERENA_MCP_SERVER_NAME),
+        });
+      }
+    }
+    // Built-in SkillSpector MCP server: AI skill/MCP security scanner. Shown when uv
+    // is available (vendored or system) — installed from git+SHA on first use (the PyPI
+    // package is malware). Exposes `scan_skill`; defaults to pure-static (use_llm=false).
+    if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
+      const cfg = buildSkillSpectorMcpServerConfig(this.projectRoot);
+      if (cfg) {
+        list.push({
+          name: SKILL_SPECTOR_MCP_SERVER_NAME,
+          command: cfg.command,
+          args: (cfg.args ?? []).join(" "),
+          env: stringifyEnv(cfg.env),
+          enabled: !disabled.has(SKILL_SPECTOR_MCP_SERVER_NAME),
+          builtin: true,
+          status: statuses.get(SKILL_SPECTOR_MCP_SERVER_NAME),
         });
       }
     }
