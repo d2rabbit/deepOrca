@@ -2,7 +2,7 @@ import { execFileSync, execSync, spawn, type ChildProcess, type SpawnOptions } f
 import * as fs from "fs";
 import * as path from "path";
 import { createRequire } from "node:module";
-import { createMcpSpawnSpec } from "../mcp/mcp-client";
+import { createMcpSpawnSpec } from "../mcp/spawn-spec";
 import type { McpServerConfig } from "../settings";
 
 // CommonJS-style require bound to this module — works in both the ESM dist

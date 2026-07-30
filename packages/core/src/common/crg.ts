@@ -1,7 +1,7 @@
 import { execSync, spawn, type ChildProcess, type SpawnOptions } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import { createMcpSpawnSpec } from "../mcp/mcp-client";
+import { createMcpSpawnSpec } from "../mcp/spawn-spec";
 import type { McpServerConfig } from "../settings";
 
 /**
