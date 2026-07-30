@@ -383,42 +383,27 @@ export function App(): JSX.Element {
         // tool result arrives with A2UI payload.
         if (message.role === "tool") {
           const content = message.content || "";
+          // Check for A2UI tool results via metadata.a2ui (set by executor).
           if (
-            (content.includes("render_prototype") || content.includes("render_surface")) &&
-            content.includes("application/a2ui+json")
+            content.includes("render_prototype") ||
+            content.includes("render_surface") ||
+            content.includes("update_surface")
           ) {
             try {
               const parsed = JSON.parse(content);
               const meta = parsed.metadata ?? {};
-              const output = parsed.output ?? "";
-              // Extract A2UI JSON from embedded resource
-              const resourceMatch = typeof output === "string" ? output.match(/"text"\s*:\s*(".*?")/s) : null;
-              if (resourceMatch) {
-                setPrototypeJson(JSON.parse(resourceMatch[1]!));
-                setMainView("prototype");
-              } else if (meta.a2ui) {
-                setPrototypeJson(JSON.stringify(meta.a2ui));
-                setMainView("prototype");
+              if (meta.a2ui) {
+                const a2uiJson = typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
+                if (content.includes("render_prototype") || content.includes("render_surface")) {
+                  setPrototypeJson(a2uiJson);
+                  setMainView("prototype");
+                } else if (content.includes("update_surface")) {
+                  // Update existing prototype panel.
+                  setPrototypeJson(a2uiJson);
+                }
               }
             } catch {
               // Not parseable — stay in chat view.
-            }
-          }
-          // Also handle update_surface — update the prototype panel if open.
-          if (
-            mainView === "prototype" &&
-            content.includes("update_surface") &&
-            content.includes("application/a2ui+json")
-          ) {
-            try {
-              const parsed = JSON.parse(content);
-              const output = parsed.output ?? "";
-              const resourceMatch = typeof output === "string" ? output.match(/"text"\s*:\s*(".*?")/s) : null;
-              if (resourceMatch) {
-                setPrototypeJson(JSON.parse(resourceMatch[1]!));
-              }
-            } catch {
-              // Ignore.
             }
           }
         }

@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState, type JSX } from "react";
 import type { A2uiComponent, A2uiSurfaceState } from "./processor";
-import { processA2uiMessages, getProcessor } from "./processor";
+import { processA2uiMessages, getSurfaces } from "./processor";
 
 type Props = {
   /** Raw A2UI JSON messages (from MCP EmbeddedResource). */
@@ -24,30 +24,8 @@ export function A2uiSurface({ messagesJson, onAction }: Props): JSX.Element {
   // Process messages on mount and when messagesJson changes.
   useEffect(() => {
     processA2uiMessages(messagesJson);
-    refreshSurfaces();
+    setSurfaces(getSurfaces());
   }, [messagesJson]);
-
-  const refreshSurfaces = useCallback(() => {
-    const processor = getProcessor();
-    const rawSurfaces = processor.getSurfaces();
-    // getSurfaces() returns Map entries [id, Surface] or iterable of surfaces.
-    // Handle both shapes defensively.
-    const states: A2uiSurfaceState[] = [];
-    const surfaceList = Array.from(rawSurfaces as Iterable<unknown>);
-    for (const entry of surfaceList) {
-      // Entry could be [id, surfaceObj] (Map entry) or a surface object directly.
-      const surface = Array.isArray(entry) ? (entry[1] as Record<string, unknown>) : (entry as Record<string, unknown>);
-      if (!surface) continue;
-      const components = (surface.componentTree ?? surface.components ?? []) as A2uiComponent[];
-      states.push({
-        surfaceId: String(surface.surfaceId ?? surface.id ?? ""),
-        title: String(surface.title ?? ""),
-        components,
-        dataModel: (surface.dataModel ?? {}) as Record<string, unknown>,
-      });
-    }
-    setSurfaces(states);
-  }, []);
 
   if (surfaces.length === 0) {
     return <div className="ui-a2ui-empty">Loading Surface…</div>;

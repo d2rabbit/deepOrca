@@ -734,11 +734,13 @@ function registerIpc(): void {
     protoWin.on("closed", () => {
       prototypeWindows.delete(winId);
     });
-    // Load the same renderer and inject the A2UI JSON via a query param.
-    await protoWin.loadFile(join(__dirname, "renderer/index.html"));
-    // Send the A2UI payload to the new window's renderer.
+    // Load renderer with query param so it knows it's a prototype window.
+    await protoWin.loadFile(join(__dirname, "renderer/index.html"), {
+      query: { view: "prototype" },
+    });
+    // Send the A2UI payload to the new window's renderer after load.
     protoWin.webContents.once("did-finish-load", () => {
-      protoWin.webContents.send("event:a2uiWindowPayload" as never, { a2uiJson, title } as never);
+      protoWin.webContents.send("event:a2uiWindowPayload", { a2uiJson, title });
     });
   });
 

@@ -650,10 +650,23 @@ export class McpManager {
         .filter((c) => c.type === "text" && c.text)
         .map((c) => c.text ?? "")
         .join("\n");
+      // Extract embedded resources (e.g. A2UI JSON) — preserve their mimeType
+      // and text so the renderer can detect and render them.
+      const metadata: Record<string, unknown> = {};
+      for (const c of result.content) {
+        if (c.type === "resource") {
+          const res = c as { resource?: { mimeType?: string; text?: string } };
+          const resource = res.resource;
+          if (resource?.mimeType === "application/a2ui+json" && resource.text) {
+            metadata.a2ui = resource.text;
+          }
+        }
+      }
       return {
         ok: !result.isError,
         name,
         output: text || JSON.stringify(result.content),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       };
     } catch (err) {
       return {
