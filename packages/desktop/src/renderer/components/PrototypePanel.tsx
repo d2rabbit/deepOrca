@@ -9,9 +9,10 @@
  * User interactions (button clicks) flow through the same a2uiAction IPC chain.
  */
 
-import { useState, type JSX } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { api } from "../api";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
+import { processA2uiMessages } from "../a2ui/processor";
 import { useI18n } from "../i18n";
 
 type Props = {
@@ -23,9 +24,27 @@ type Props = {
   onIterate: (text: string) => void;
 };
 
-export function PrototypePanel({ a2uiJson, onClose, onIterate }: Props): JSX.Element {
+export function PrototypePanel({ a2uiJson: initialJson, onClose, onIterate }: Props): JSX.Element {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
+  const [liveJson, setLiveJson] = useState(initialJson);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Subscribe to real-time surface updates pushed by main process
+  // after a2ui_action mutations (e.g. navigate: page switch).
+  useEffect(() => {
+    const off = api.onA2uiSurfaceUpdate((event) => {
+      processA2uiMessages(event.a2uiJson);
+      setLiveJson(event.a2uiJson);
+      setRefreshKey((k) => k + 1);
+    });
+    return off;
+  }, []);
+
+  // Update liveJson when parent passes new a2uiJson (e.g. update_surface from agent).
+  useEffect(() => {
+    setLiveJson(initialJson);
+  }, [initialJson]);
 
   function handleSubmit(): void {
     const text = draft.trim();
@@ -41,7 +60,7 @@ export function PrototypePanel({ a2uiJson, onClose, onIterate }: Props): JSX.Ele
         <div className="ui-prototype-panel-actions">
           <button
             className="ui-prototype-panel-btn"
-            onClick={() => void api.a2uiOpenWindow(a2uiJson, "Prototype")}
+            onClick={() => void api.a2uiOpenWindow(liveJson, "Prototype")}
             title="Open in separate window"
           >
             ⧉ Window
@@ -52,7 +71,7 @@ export function PrototypePanel({ a2uiJson, onClose, onIterate }: Props): JSX.Ele
         </div>
       </div>
       <div className="ui-prototype-panel-body">
-        <A2uiSurface messagesJson={a2uiJson} />
+        <A2uiSurface key={refreshKey} messagesJson={liveJson} />
       </div>
       <div className="ui-prototype-panel-composer">
         <input

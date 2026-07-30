@@ -157,7 +157,16 @@ export const IpcEvent = {
   ReviewProgress: "event:reviewProgress",
   CrgProgress: "event:crgProgress",
   WikiProgress: "event:wikiProgress",
+  A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
 } as const;
+
+/** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
+export type A2uiSurfaceUpdateEvent = {
+  /** Updated A2UI JSON messages to re-process in the renderer. */
+  a2uiJson: string;
+  /** Surface ID that was updated. */
+  surfaceId: string;
+};
 
 /** Payload for the ReviewProgress event (streamed ocr output). */
 export type ReviewProgressEvent = {
@@ -617,6 +626,8 @@ export type DesktopApi = {
   a2uiAction(surfaceId: string, actionName: string, context: Record<string, unknown>): Promise<void>;
   /** Open a standalone prototype preview window. */
   a2uiOpenWindow(a2uiJson: string, title: string): Promise<void>;
+  /** Subscribe to A2UI surface updates (pushed after a2ui_action mutations). */
+  onA2uiSurfaceUpdate(cb: (event: A2uiSurfaceUpdateEvent) => void): () => void;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */
