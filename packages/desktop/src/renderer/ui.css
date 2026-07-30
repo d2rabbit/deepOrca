@@ -7553,6 +7553,139 @@ button.ui-topbar-pill {
   margin-top: 2px;
 }
 
+/* Git changes (#12) */
+.ui-git-changes-body {
+  padding: var(--ui-space-1) 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ui-git-change-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 2px var(--ui-space-3);
+  font-size: 12px;
+}
+.ui-git-status-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--ui-radius-sm);
+  flex-shrink: 0;
+}
+.ui-git-status-added { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+.ui-git-status-modified { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+.ui-git-status-deleted { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+.ui-git-status-renamed { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.ui-git-change-file {
+  flex: 1;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-git-change-stats {
+  display: flex;
+  gap: 4px;
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+  flex-shrink: 0;
+}
+.ui-git-add { color: #3fb950; }
+.ui-git-del { color: #f85149; }
+
+/* Risk analysis (#14) */
+.ui-risk-overall {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ui-risk-body {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-risk-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  margin-bottom: 2px;
+}
+.ui-risk-item-name {
+  flex: 1;
+  font-size: 12px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-risk-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.ui-risk-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.ui-risk-badge.sec { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+.ui-risk-badge.no-test { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+.ui-risk-score {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ui-risk-bar {
+  height: 3px;
+  background: var(--ui-surface-sunken);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ui-risk-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Wiki pages (#16) */
+.ui-wiki-pages-body {
+  padding: var(--ui-space-1) 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ui-wiki-page-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 3px var(--ui-space-3);
+  font-size: 12px;
+}
+.ui-wiki-page-icon {
+  flex-shrink: 0;
+}
+.ui-wiki-page-title {
+  font-weight: 500;
+  color: var(--ui-text-primary);
+}
+.ui-wiki-page-path {
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 10px;
+  margin-left: auto;
+}
+
 /* ── Prototype panel (PM-Design full-screen preview) ──────────────────────── */
 .ui-prototype-panel {
   display: flex;

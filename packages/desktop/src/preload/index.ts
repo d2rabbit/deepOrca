@@ -138,6 +138,7 @@ const api: DesktopApi = {
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>
     ipcRenderer.invoke(IpcRequest.A2uiAction, surfaceId, actionName, context),
+  a2uiOpenWindow: (a2uiJson, title) => ipcRenderer.invoke(IpcRequest.A2uiOpenWindow, a2uiJson, title),
 
   // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),

@@ -141,6 +141,7 @@ export const IpcRequest = {
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
+  A2uiOpenWindow: "a2ui:openWindow",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -614,6 +615,8 @@ export type DesktopApi = {
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an A2UI Surface back to the agent. */
   a2uiAction(surfaceId: string, actionName: string, context: Record<string, unknown>): Promise<void>;
+  /** Open a standalone prototype preview window. */
+  a2uiOpenWindow(a2uiJson: string, title: string): Promise<void>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */

@@ -710,6 +710,38 @@ function registerIpc(): void {
     }
   );
 
+  // ── A2UI standalone prototype window ──────────────────────────────────────
+  // Opens a separate Electron BrowserWindow with the prototype Surface at
+  // full screen — useful for PM presentations or focused prototype testing.
+  const prototypeWindows = new Map<string, BrowserWindow>();
+  handle(IpcRequest.A2uiOpenWindow, async (a2uiJson: string, title: string): Promise<void> => {
+    const winId = `proto-${Date.now()}`;
+    const protoWin = new BrowserWindow({
+      width: 1024,
+      height: 720,
+      title: title || "Prototype Preview",
+      autoHideMenuBar: true,
+      frame: false,
+      webPreferences: {
+        preload: join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        spellcheck: false,
+      },
+    });
+    prototypeWindows.set(winId, protoWin);
+    protoWin.on("closed", () => {
+      prototypeWindows.delete(winId);
+    });
+    // Load the same renderer and inject the A2UI JSON via a query param.
+    await protoWin.loadFile(join(__dirname, "renderer/index.html"));
+    // Send the A2UI payload to the new window's renderer.
+    protoWin.webContents.once("did-finish-load", () => {
+      protoWin.webContents.send("event:a2uiWindowPayload" as never, { a2uiJson, title } as never);
+    });
+  });
+
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run

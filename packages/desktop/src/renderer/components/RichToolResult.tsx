@@ -21,6 +21,7 @@ type Props = {
 export function getRichToolType(message: SessionMessage): string | null {
   const summary = buildToolSummary(message);
   const name = summary.name.toLowerCase();
+  const content = message.content || "";
 
   // CodeGraph explore results — contain symbol/file/call info
   if (name.includes("codegraph") && name.includes("explore")) return "symbol-tree";
@@ -30,6 +31,16 @@ export function getRichToolType(message: SessionMessage): string | null {
 
   // WebSearch results — contain search result links
   if (name === "websearch" || name.includes("web_search")) return "search-results";
+
+  // Git diff/status results — contain file changes
+  if ((name === "gitdiff" || name === "git_diff" || name.includes("git_status")) && content.includes("{"))
+    return "git-changes";
+
+  // CRG detect_changes results — contain risk scores
+  if ((name.includes("detect_changes") || name.includes("crg")) && content.includes("risk")) return "risk-analysis";
+
+  // GitMCP/wiki search results — contain page entries
+  if ((name.includes("search_documentation") || name.includes("wiki")) && content.includes("{")) return "wiki-pages";
 
   return null;
 }
@@ -44,6 +55,13 @@ export function RichToolResult({ message }: Props): JSX.Element | null {
     case "review-comments":
       return <ReviewCommentsResult message={message} />;
     case "search-results":
+      return <SearchResultsResult message={message} />;
+    case "git-changes":
+      return <GitChangesResult message={message} />;
+    case "risk-analysis":
+      return <RiskAnalysisResult message={message} />;
+    case "wiki-pages":
+      return <WikiPagesResult message={message} />;
       return <SearchResultsResult message={message} />;
     default:
       return null;
@@ -244,6 +262,178 @@ function parseSearchResults(text: string): SearchResult[] {
       title: String(r.title ?? r.name ?? ""),
       url: String(r.url ?? r.link ?? r.href ?? "#"),
       snippet: String(r.snippet ?? r.description ?? r.summary ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// #12 — Git Changes (file list with status badges)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type GitChange = { file: string; status: string; insertions?: number; deletions?: number };
+
+function GitChangesResult({ message }: { message: SessionMessage }): JSX.Element | null {
+  const changes = useMemo(() => parseGitChanges(message.content || ""), [message.content]);
+  if (changes.length === 0) return null;
+  return (
+    <div className="ui-rich-result ui-git-changes">
+      <div className="ui-rich-result-label">📂 Git Changes ({changes.length})</div>
+      <div className="ui-git-changes-body">
+        {changes.map((c, i) => (
+          <div key={i} className="ui-git-change-row">
+            <span className={`ui-git-status-badge ui-git-status-${c.status}`}>
+              {c.status === "added"
+                ? "A"
+                : c.status === "modified"
+                  ? "M"
+                  : c.status === "deleted"
+                    ? "D"
+                    : c.status === "renamed"
+                      ? "R"
+                      : "?"}
+            </span>
+            <span className="ui-git-change-file">{c.file}</span>
+            {c.insertions !== undefined || c.deletions !== undefined ? (
+              <span className="ui-git-change-stats">
+                {c.insertions ? <span className="ui-git-add">+{c.insertions}</span> : null}
+                {c.deletions ? <span className="ui-git-del">-{c.deletions}</span> : null}
+              </span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function parseGitChanges(text: string): GitChange[] {
+  try {
+    const parsed = JSON.parse(text);
+    const items = parsed.changes ?? parsed.files ?? parsed ?? [];
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, 50).map((item: Record<string, unknown>) => ({
+      file: String(item.file ?? item.path ?? item.filename ?? ""),
+      status: String(item.status ?? item.change ?? "modified"),
+      insertions: typeof item.insertions === "number" ? item.insertions : undefined,
+      deletions: typeof item.deletions === "number" ? item.deletions : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// #14 — CRG Risk Analysis (risk score heatmap)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type RiskItem = { name: string; riskScore: number; testCoverage?: boolean; securityRelevant?: boolean };
+
+function RiskAnalysisResult({ message }: { message: SessionMessage }): JSX.Element | null {
+  const data = useMemo(() => parseRiskAnalysis(message.content || ""), [message.content]);
+  if (!data) return null;
+  const riskColor = (score: number): string =>
+    score >= 0.85 ? "var(--ui-danger, #ef4444)" : score >= 0.7 ? "var(--ui-warning, #f59e0b)" : "#3fb950";
+  return (
+    <div className="ui-rich-result ui-risk-analysis">
+      <div className="ui-rich-result-label">
+        🔥 Risk Analysis
+        <span className="ui-risk-overall" style={{ color: riskColor(data.overallRisk) }}>
+          Overall: {Math.round(data.overallRisk * 100)}%
+        </span>
+      </div>
+      <div className="ui-risk-body">
+        {data.items.slice(0, 20).map((item, i) => (
+          <div key={i} className="ui-risk-item">
+            <div className="ui-risk-item-header">
+              <span className="ui-risk-item-name">{item.name}</span>
+              <div className="ui-risk-item-badges">
+                {item.securityRelevant ? <span className="ui-risk-badge sec">🔒 sec</span> : null}
+                {item.testCoverage === false ? <span className="ui-risk-badge no-test">⚠ no test</span> : null}
+                <span className="ui-risk-score" style={{ color: riskColor(item.riskScore) }}>
+                  {Math.round(item.riskScore * 100)}%
+                </span>
+              </div>
+            </div>
+            <div className="ui-risk-bar">
+              <div
+                className="ui-risk-bar-fill"
+                style={{ width: `${item.riskScore * 100}%`, background: riskColor(item.riskScore) }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function parseRiskAnalysis(text: string): { overallRisk: number; items: RiskItem[] } | null {
+  try {
+    const parsed = JSON.parse(text);
+    const overall =
+      typeof parsed.overallRisk === "number"
+        ? parsed.overallRisk
+        : typeof parsed.risk_score === "number"
+          ? parsed.risk_score
+          : 0;
+    const functions = parsed.changedFunctions ?? parsed.functions ?? [];
+    const items: RiskItem[] = (Array.isArray(functions) ? functions : []).map((f: Record<string, unknown>) => ({
+      name: String(f.name ?? f.function ?? ""),
+      riskScore: typeof f.riskScore === "number" ? f.riskScore : typeof f.risk_score === "number" ? f.risk_score : 0,
+      testCoverage:
+        typeof f.testCoverage === "boolean"
+          ? f.testCoverage
+          : typeof f.test_coverage === "boolean"
+            ? f.test_coverage
+            : undefined,
+      securityRelevant:
+        typeof f.securityRelevant === "boolean"
+          ? f.securityRelevant
+          : typeof f.security_relevant === "boolean"
+            ? f.security_relevant
+            : undefined,
+    }));
+    return { overallRisk: overall, items };
+  } catch {
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// #16 — Wiki/Page Navigation (page list with titles)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type WikiPage = { path: string; title: string };
+
+function WikiPagesResult({ message }: { message: SessionMessage }): JSX.Element | null {
+  const pages = useMemo(() => parseWikiPages(message.content || ""), [message.content]);
+  if (pages.length === 0) return null;
+  return (
+    <div className="ui-rich-result ui-wiki-pages">
+      <div className="ui-rich-result-label">📖 Documentation ({pages.length})</div>
+      <div className="ui-wiki-pages-body">
+        {pages.map((p, i) => (
+          <div key={i} className="ui-wiki-page-row">
+            <span className="ui-wiki-page-icon">📄</span>
+            <span className="ui-wiki-page-title">{p.title}</span>
+            <span className="ui-wiki-page-path">{p.path}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function parseWikiPages(text: string): WikiPage[] {
+  try {
+    const parsed = JSON.parse(text);
+    const items = parsed.pages ?? parsed.results ?? parsed.items ?? parsed ?? [];
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, 30).map((item: Record<string, unknown>) => ({
+      path: String(item.path ?? item.url ?? item.href ?? ""),
+      title: String(item.title ?? item.name ?? item.path ?? ""),
     }));
   } catch {
     return [];
