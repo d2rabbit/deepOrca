@@ -1,7 +1,9 @@
 import { pathToFileURL } from "url";
-import type { RpcHandlers } from "./rpc";
-import { RpcError, INVALID_REQUEST, serveStdio } from "./rpc";
-import { buildToolDefinitions, callTool } from "./tools";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { ZodRawShape } from "zod/v3";
+import { buildGitmcpToolRegistrations, callTool } from "./tools";
 import { GitmcpStore, readGitmcpRepoMeta, removeGitmcpRepoIndex } from "./store";
 import { indexRepository } from "./indexer";
 
@@ -16,44 +18,41 @@ import { indexRepository } from "./indexer";
  * `parseRepoSlug()` at registration time; only a sanity check happens here.
  */
 
-const SUPPORTED_PROTOCOL_VERSIONS = ["2025-03-26", "2024-11-05"];
-const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
-
 const SERVER_INFO = { name: "deeporca-gitmcp", version: "0.1.0" };
 
 /** Same character set `parseRepoSlug()` guarantees — a cheap argv sanity check. */
 const SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 /**
- * Build the JSON-RPC method handlers for one repository. Exported so tests
- * can drive the full protocol in-process via `dispatchRpcMessage()`.
+ * Minimal view of the SDK `registerTool` call signature, pinned to concrete
+ * zod raw shapes. `McpServer.registerTool`'s real signature infers a deep
+ * `objectOutputType<InputArgs, ...>` generic over the input shape; passing an
+ * open `Record<string, ZodType>` makes TypeScript complain "type instantiation
+ * is excessively deep" (TS2589). Routing through this alias short-circuits the
+ * inference while staying type-safe: names are strings, shapes are validated
+ * zod fields, and the callback returns the SDK's `CallToolResult`.
  */
-export function buildServerHandlers(slug: string, store: GitmcpStore = new GitmcpStore()): RpcHandlers {
-  return {
-    initialize: (params) => {
-      const requested = typeof params?.protocolVersion === "string" ? params.protocolVersion : "";
-      const protocolVersion = SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : DEFAULT_PROTOCOL_VERSION;
-      return {
-        protocolVersion,
-        capabilities: { tools: {} },
-        serverInfo: SERVER_INFO,
-      };
-    },
-    "notifications/initialized": () => ({}),
-    ping: () => ({}),
-    "tools/list": () => ({ tools: buildToolDefinitions(slug) }),
-    "tools/call": async (params) => {
-      const name = typeof params?.name === "string" ? params.name : "";
-      if (!name) {
-        throw new RpcError(INVALID_REQUEST, "tools/call requires a tool name");
-      }
-      const args =
-        typeof params?.arguments === "object" && params.arguments !== null
-          ? (params.arguments as Record<string, unknown>)
-          : {};
-      return callTool(store, slug, name, args);
-    },
-  };
+type RegisterToolLoose = (
+  name: string,
+  config: { description?: string; inputSchema?: ZodRawShape },
+  cb: (args: Record<string, unknown>) => CallToolResult | Promise<CallToolResult>
+) => unknown;
+
+/**
+ * Build the MCP server for one repository: registers the four gitmcp tools,
+ * each delegating to the pure `callTool` dispatcher. The returned server is
+ * not yet connected — the caller connects it to a transport (in-memory for
+ * tests, `StdioServerTransport` for the real process entry).
+ */
+export function buildGitmcpServer(slug: string, store: GitmcpStore = new GitmcpStore()): McpServer {
+  const server = new McpServer(SERVER_INFO);
+  const registerTool = server.registerTool.bind(server) as unknown as RegisterToolLoose;
+  for (const reg of buildGitmcpToolRegistrations(slug)) {
+    registerTool(reg.name, { description: reg.description, inputSchema: reg.inputShape }, async (args) =>
+      callTool(store, slug, reg.name, args)
+    );
+  }
+  return server;
 }
 
 /**
@@ -105,11 +104,12 @@ function main(): void {
     process.stderr.write(`gitmcp: expected a repository slug argument (owner/repo), got "${slug}"\n`);
     process.exit(1);
   }
-  serveStdio(buildServerHandlers(slug));
+  const server = buildGitmcpServer(slug);
+  void server.connect(new StdioServerTransport());
 }
 
 // Only start the serve loop when executed as the process entry — tests import
-// `buildServerHandlers` from this module without spawning a process.
+// `buildGitmcpServer` from this module without spawning a process.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

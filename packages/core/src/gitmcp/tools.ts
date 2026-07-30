@@ -1,3 +1,8 @@
+// The MCP SDK (1.22.0) bundles zod ^3 and validates `inputSchema` via the v3
+// internal `_parse`. The repo's top-level zod is v4 (whose ZodType lacks that
+// API), so tool input shapes MUST be built with zod's v3 compatibility build —
+// otherwise the SDK throws `keyValidator._parse is not a function` at call time.
+import { z } from "zod/v3";
 import type { McpToolDefinition } from "../mcp/mcp-client";
 import type { FetchLike } from "./github";
 import { fetchUrlContent, searchCode } from "./github";
@@ -69,6 +74,38 @@ export function buildToolDefinitions(slug: string): McpToolDefinition[] {
         required: ["url"],
         additionalProperties: false,
       },
+    },
+  ];
+}
+
+export type GitmcpToolRegistration = {
+  name: string;
+  description: string;
+  inputShape: Record<string, z.ZodType>;
+};
+
+/** The four tools as zod input shapes for SDK `registerTool` (auto-converted to JSON Schema). */
+export function buildGitmcpToolRegistrations(slug: string): GitmcpToolRegistration[] {
+  return [
+    {
+      name: "fetch_documentation",
+      description: `Fetch and cache the documentation of ${slug} (llms.txt → README → docs).`,
+      inputShape: {},
+    },
+    {
+      name: "search_documentation",
+      description: `Full-text search (BM25) over the locally indexed documentation of ${slug}.`,
+      inputShape: { query: z.string() },
+    },
+    {
+      name: "search_code",
+      description: `Search code snippets indexed for ${slug}.`,
+      inputShape: { query: z.string() },
+    },
+    {
+      name: "fetch_url_content",
+      description: `Fetch raw content from a URL under ${slug}.`,
+      inputShape: { url: z.string() },
     },
   ];
 }

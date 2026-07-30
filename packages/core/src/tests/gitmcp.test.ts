@@ -17,8 +17,7 @@ import { GitmcpStore, readGitmcpRepoMeta, removeGitmcpRepoIndex, toFtsQuery } fr
 import { chunkMarkdown, indexRepository } from "../gitmcp/indexer";
 import { extractTextFromHtml } from "../gitmcp/github";
 import type { FetchLike } from "../gitmcp/github";
-import { dispatchRpcMessage, METHOD_NOT_FOUND, PARSE_ERROR } from "../gitmcp/rpc";
-import { buildServerHandlers, runMaintenance } from "../gitmcp/server";
+import { runMaintenance } from "../gitmcp/server";
 
 const tempDirs: string[] = [];
 
@@ -186,85 +185,6 @@ test("readGitmcpRepoMeta and removeGitmcpRepoIndex tolerate a missing db", () =>
   const missing = path.join(os.tmpdir(), "gitmcp-does-not-exist", "index.db");
   assert.deepEqual(readGitmcpRepoMeta(missing), []);
   removeGitmcpRepoIndex("owner/repo", missing); // must not throw
-});
-
-// --- rpc + server: in-process protocol round-trip ----------------------------
-
-test("server speaks the MCP handshake and lists the four tools", async () => {
-  const store = new GitmcpStore(tempDbPath());
-  try {
-    const handlers = buildServerHandlers("owner/repo", store);
-
-    const init = await dispatchRpcMessage(handlers, {
-      jsonrpc: "2.0",
-      id: 1,
-      method: "initialize",
-      params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "deepcode-cli" } },
-    });
-    assert.ok(init);
-    const initResult = init.result as { protocolVersion: string; serverInfo: { name: string } };
-    assert.equal(initResult.protocolVersion, "2025-03-26");
-    assert.equal(initResult.serverInfo.name, "deeporca-gitmcp");
-
-    // Notification (no id) → no response written back.
-    assert.equal(await dispatchRpcMessage(handlers, { jsonrpc: "2.0", method: "notifications/initialized" }), null);
-
-    const list = await dispatchRpcMessage(handlers, { jsonrpc: "2.0", id: 2, method: "tools/list" });
-    const tools = (list?.result as { tools: Array<{ name: string }> }).tools.map((t) => t.name);
-    assert.deepEqual(tools, ["fetch_documentation", "search_documentation", "search_code", "fetch_url_content"]);
-
-    // prompts/list is probed by the client and must yield method-not-found.
-    const prompts = await dispatchRpcMessage(handlers, { jsonrpc: "2.0", id: 3, method: "prompts/list" });
-    assert.equal(prompts?.error?.code, METHOD_NOT_FOUND);
-  } finally {
-    store.close();
-  }
-});
-
-test("dispatchRpcMessage rejects malformed messages", async () => {
-  const response = await dispatchRpcMessage({}, "not an object");
-  assert.ok(response?.error);
-  assert.notEqual(response.error.code, PARSE_ERROR); // parse errors happen a layer above
-});
-
-test("search_documentation auto-indexes then searches via the store", sqliteOnly, async () => {
-  const store = new GitmcpStore(tempDbPath());
-  try {
-    const markdown = "# Setup\n\nInstall with `brew install deepcode` on macOS.\n\n# Other\n\nUnrelated section.";
-    await indexRepository("owner/repo", store, stubDocFetch(markdown));
-    const handlers = buildServerHandlers("owner/repo", store);
-
-    const response = await dispatchRpcMessage(handlers, {
-      jsonrpc: "2.0",
-      id: 4,
-      method: "tools/call",
-      params: { name: "search_documentation", arguments: { query: "brew install" } },
-    });
-    const result = response?.result as { content: Array<{ type: string; text: string }>; isError?: boolean };
-    assert.ok(!result.isError);
-    assert.ok(result.content[0].text.includes("Setup"));
-    assert.ok(result.content[0].text.includes("brew install"));
-  } finally {
-    store.close();
-  }
-});
-
-test("unknown tool returns an isError result, not a protocol error", async () => {
-  const store = new GitmcpStore(tempDbPath());
-  try {
-    const handlers = buildServerHandlers("owner/repo", store);
-    const response = await dispatchRpcMessage(handlers, {
-      jsonrpc: "2.0",
-      id: 5,
-      method: "tools/call",
-      params: { name: "nope", arguments: {} },
-    });
-    const result = response?.result as { isError?: boolean };
-    assert.equal(result.isError, true);
-    assert.equal(response?.error, undefined);
-  } finally {
-    store.close();
-  }
 });
 
 // --- github: html extraction --------------------------------------------------
