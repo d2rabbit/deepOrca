@@ -20,6 +20,11 @@ export function createMcpSpawnSpec(
   // resolution.
   if (platform === "win32" && !path.isAbsolute(command)) {
     return {
+      // On Windows, shell: true lets cmd.exe resolve the command via PATHEXT
+      // (npx -> npx.cmd, etc.). Join command and args into a single string
+      // with empty spawn args to avoid Node 24 DEP0190.
+      // Only quote arguments that need protection from cmd.exe to prevent
+      // double-wrapping by Node.js's own shell quoting.
       command: [command, ...args].map(quoteWindowsArgIfNeeded).join(" "),
       args: [],
       shell: true,
@@ -31,6 +36,8 @@ export function createMcpSpawnSpec(
     command,
     args,
     shell: false,
+    // Match the shell branch: a spawned Node process can briefly flash a console
+    // window on Windows, so hide it regardless of how the command is resolved.
     windowsHide: true,
   };
 }
