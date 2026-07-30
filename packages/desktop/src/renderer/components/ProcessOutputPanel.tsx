@@ -144,6 +144,30 @@ export function ProcessOutputPanel({ processes, stdoutRef, onDismiss }: ProcessO
           </button>
         </span>
       </div>
+      {/* Per-process status cards with stop button */}
+      {processes.length > 0 ? (
+        <div className="ui-process-cards">
+          {processes.map((proc) => (
+            <div key={proc.pid} className="ui-process-card">
+              <span className="ui-process-card-dot" />
+              <span className="ui-process-card-pid">PID {proc.pid}</span>
+              <span className="ui-process-card-cmd ui-mono">{proc.command}</span>
+              {proc.deadlineAt ? (
+                <span className="ui-process-card-deadline">
+                  ⏱ {new Date(proc.deadlineAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              ) : null}
+              <button
+                className="ui-process-card-stop"
+                onClick={() => void api.interrupt()}
+                title={t("common.interrupt")}
+              >
+                ■
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="ui-process-panel-body" ref={containerRef} onScroll={handleScroll}>
         {lines.map((line, i) => (
           <div key={i} className="ui-process-line">

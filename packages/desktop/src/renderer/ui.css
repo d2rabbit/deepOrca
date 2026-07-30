@@ -6069,6 +6069,73 @@ button.ui-topbar-pill {
     transform: translateY(12px);
   }
 }
+/* Per-process status cards */
+.ui-process-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-process-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 3px 0;
+  font-size: 11px;
+}
+.ui-process-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3fb950;
+  flex-shrink: 0;
+  animation: ui-pulse 1.5s ease-in-out infinite;
+}
+.ui-process-card-pid {
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  flex-shrink: 0;
+}
+.ui-process-card-cmd {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-dim);
+}
+.ui-process-card-deadline {
+  color: var(--ui-warning);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.ui-process-card-stop {
+  background: var(--ui-danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.ui-process-card-stop:hover {
+  opacity: 0.8;
+}
+@keyframes ui-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
 .ui-process-panel-head {
   display: flex;
   align-items: center;
