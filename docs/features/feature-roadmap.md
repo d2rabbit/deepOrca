@@ -31,23 +31,23 @@
 
 ## 功能域总览
 
-| 功能域 | 已集成 | 规划中 | 核心目标 |
-|--------|--------|--------|----------|
-| [一、代码智能](#一代码智能) | codegraph, CRG, ocr | serena | 让 Agent 从"文本级"升级为"语义级"代码操作 |
-| [二、知识中心](#二知识中心) | openwiki, TencentDB-Agent-Memory | Open Deep Research 理念 | 项目文档 + 跨会话记忆 + 深度研究 |
-| [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | — | Flutter + Android + HarmonyOS + React Native |
-| [四、桌面开发](#四桌面开发) | — | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP） | macOS/iOS + Qt/KDE + Tauri 桌面应用开发 |
-| [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
-| [六、设计生成](#六设计生成) | DeepDesign Phase 1 | **A2UI 原型模块（P0 核心卖点）**, taste-skill, **html-in-canvas（远期特效，阻塞于平台）**, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
-| [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
-| [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch, web-access 理念 | obscura | 登录态操控 + 大规模抓取 + 深度联网策略 |
-| [九、桌面自动化](#九桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
-| [十、引擎演进](#十引擎演进) | Plan Mode, UpdatePlan, Electron 35, **MCP SDK 迁移（官方 @modelcontextprotocol/sdk）** | A2UI 对话交互层, Prewalk, Subagent | 模型切换 + 子 agent + 交互层升级 |
-| [十一、自进化](#十一自进化) | skill-writer, skill-digester（静态） | Self-Harness 理念, OpenSpace 理念, **Harness Handbook 行为地图理念** | harness 脚手架自改进 + 技能执行反馈闭环 |
-| [十二、插件中心](#十二插件中心) | 分组展示, 插件分组 | **SkillSpector 安全闸门（P1）**, opencli, 远程源集成 | 统一的插件/技能/MCP 管理入口 + 安装安全 |
-| [十三、远程接入](#十三远程接入) | — | WebSocket 桥 + 静态服务 + 隧道方案 | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca |
-| [十四、语音双工](#十四语音双工) | — | whisper.cpp 本地 + API 兜底 | 语音替代键盘输入，实时转录填入 Composer |
-| [搁置项](#搁置项) | — | OpenSpec, Superpowers, Electron 自建 | 暂不规划，理由见下 |
+| 功能域                              | 已集成                                                                                                    | 规划中                                                                                                    | 核心目标                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [一、代码智能](#一代码智能)         | codegraph, CRG, ocr                                                                                       | serena                                                                                                    | 让 Agent 从"文本级"升级为"语义级"代码操作      |
+| [二、知识中心](#二知识中心)         | openwiki, TencentDB-Agent-Memory                                                                          | Open Deep Research 理念                                                                                   | 项目文档 + 跨会话记忆 + 深度研究               |
+| [三、移动开发](#三移动开发)         | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | —                                                                                                         | Flutter + Android + HarmonyOS + React Native   |
+| [四、桌面开发](#四桌面开发)         | —                                                                                                         | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）                                    | macOS/iOS + Qt/KDE + Tauri 桌面应用开发        |
+| [五、.NET 开发](#五net-开发)        | —                                                                                                         | dotnet/skills（Microsoft 官方 12 域）                                                                     | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild    |
+| [六、设计生成](#六设计生成)         | DeepDesign Phase 1                                                                                        | **A2UI 原型模块（P0 核心卖点）**, taste-skill, **html-in-canvas（远期特效，阻塞于平台）**, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力          |
+| [七、办公套件](#七办公套件)         | Bento Slides                                                                                              | 文档/表格/表单生成                                                                                        | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
+| [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch, web-access 理念                                                                 | obscura                                                                                                   | 登录态操控 + 大规模抓取 + 深度联网策略         |
+| [九、桌面自动化](#九桌面自动化)     | —                                                                                                         | pi-computer-use, CLI-Anything                                                                             | 操控无 API 的桌面软件                          |
+| [十、引擎演进](#十引擎演进)         | Plan Mode, UpdatePlan, Electron 35, **MCP SDK 迁移（官方 @modelcontextprotocol/sdk）**                    | A2UI 对话交互层, Prewalk, Subagent                                                                        | 模型切换 + 子 agent + 交互层升级               |
+| [十一、自进化](#十一自进化)         | skill-writer, skill-digester（静态）                                                                      | Self-Harness 理念, OpenSpace 理念, **Harness Handbook 行为地图理念**                                      | harness 脚手架自改进 + 技能执行反馈闭环        |
+| [十二、插件中心](#十二插件中心)     | 分组展示, 插件分组                                                                                        | **SkillSpector 安全闸门（P1）**, opencli, 远程源集成                                                      | 统一的插件/技能/MCP 管理入口 + 安装安全        |
+| [十三、远程接入](#十三远程接入)     | —                                                                                                         | WebSocket 桥 + 静态服务 + 隧道方案                                                                        | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca  |
+| [十四、语音双工](#十四语音双工)     | —                                                                                                         | whisper.cpp 本地 + API 兜底                                                                               | 语音替代键盘输入，实时转录填入 Composer        |
+| [搁置项](#搁置项)                   | —                                                                                                         | OpenSpec, Superpowers, Electron 自建                                                                      | 暂不规划，理由见下                             |
 
 ---
 
@@ -57,28 +57,28 @@
 
 ### 已集成
 
-| 能力 | 项目 | 集成形态 | 定位 |
-|------|------|----------|------|
-| 符号检索 + 调用链 + 影响范围 | **codegraph** v1.5.0 | vendored CLI + MCP | 导航层——"代码 GPS"，35 语言，一次调用返回源码+调用链 |
+| 能力                           | 项目                        | 集成形态                      | 定位                                                                |
+| ------------------------------ | --------------------------- | ----------------------------- | ------------------------------------------------------------------- |
+| 符号检索 + 调用链 + 影响范围   | **codegraph** v1.5.0        | vendored CLI + MCP            | 导航层——"代码 GPS"，35 语言，一次调用返回源码+调用链                |
 | 风险评分 + 社区检测 + 架构概览 | **CRG** (code-review-graph) | vendored uv + MCP（dev 分支） | 分析层——"这个改动有多危险"，Leiden 社区 + 风险指数 + Mermaid 架构图 |
-| AI 代码审查 | **ocr** (Open Code Review) | npm 依赖内置 | 审查层——审查未提交的工作区改动 |
+| AI 代码审查                    | **ocr** (Open Code Review)  | npm 依赖内置                  | 审查层——审查未提交的工作区改动                                      |
 
 **三层协同**：codegraph（在哪）→ CRG（多危险）→ ocr（怎么改）。桌面端代码审查面板 3 Tab：Quality（OCR）/ Risk（CRG）/ Architecture（Mermaid）。
 
 ### 规划中
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
-| 符号级重构（rename/find-references/replace-body） | **serena** | MCP Server（Python 3.13 + uv + LSP） | 从"文本替换"升级为"语义操作"，40+ 语言，跨文件 rename | P1 |
+| 能力                                              | 项目       | 集成形态                             | 贡献                                                  | 优先级 |
+| ------------------------------------------------- | ---------- | ------------------------------------ | ----------------------------------------------------- | ------ |
+| 符号级重构（rename/find-references/replace-body） | **serena** | MCP Server（Python 3.13 + uv + LSP） | 从"文本替换"升级为"语义操作"，40+ 语言，跨文件 rename | P1     |
 
 **与已有能力关系**：serena 互补——codegraph 做"检索"，serena 做"语义编辑"。read/edit 工具做文本级，serena 做符号级。
 
 ### 不采纳
 
-| 项目 | 理由 |
-|------|------|
-| Understand-Anything | 与 codegraph+CRG+openwiki 三方高度冗余 |
-| Graphify | 功能最强但 Python 重依赖；codegraph 已覆盖核心图谱，借鉴社区检测理念即可 |
+| 项目                | 理由                                                                     |
+| ------------------- | ------------------------------------------------------------------------ |
+| Understand-Anything | 与 codegraph+CRG+openwiki 三方高度冗余                                   |
+| Graphify            | 功能最强但 Python 重依赖；codegraph 已覆盖核心图谱，借鉴社区检测理念即可 |
 
 ---
 
@@ -88,16 +88,16 @@
 
 ### 已集成
 
-| 能力 | 项目 | 集成形态 | 定位 |
-|------|------|----------|------|
-| 项目 Wiki 自动生成与维护 | **openwiki** | vendored CLI + Skill + 桌面面板 | 为代码库生成 Agent 可引用的结构化文档 |
-| 跨会话长期记忆 | **TencentDB-Agent-Memory** | core SDK（perf 分支） | 四层记忆 + 符号化检索，替换了原规划的 mem0 |
+| 能力                     | 项目                       | 集成形态                        | 定位                                       |
+| ------------------------ | -------------------------- | ------------------------------- | ------------------------------------------ |
+| 项目 Wiki 自动生成与维护 | **openwiki**               | vendored CLI + Skill + 桌面面板 | 为代码库生成 Agent 可引用的结构化文档      |
+| 跨会话长期记忆           | **TencentDB-Agent-Memory** | core SDK（perf 分支）           | 四层记忆 + 符号化检索，替换了原规划的 mem0 |
 
 ### 规划中
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
-| 多轮深度研究 | **Open Deep Research** 理念 | 借鉴工作流，Node.js 自建轻量版 | 从"单次 WebSearch"升级为"搜索→反思→再搜索→报告"的多轮循环 | P3 |
+| 能力         | 项目                        | 集成形态                       | 贡献                                                      | 优先级 |
+| ------------ | --------------------------- | ------------------------------ | --------------------------------------------------------- | ------ |
+| 多轮深度研究 | **Open Deep Research** 理念 | 借鉴工作流，Node.js 自建轻量版 | 从"单次 WebSearch"升级为"搜索→反思→再搜索→报告"的多轮循环 | P3     |
 
 **关系说明**：Open Deep Research 是 Python（LangGraph），违背零依赖。借鉴其 4 阶段工作流（摘要→研究→压缩→报告），用 DeepOrca 的 Node.js 引擎自建轻量版。
 
@@ -109,37 +109,37 @@
 
 ### 已集成
 
-| 能力 | 项目 | 集成形态 | 定位 |
-|------|------|----------|------|
-| Flutter/Dart 开发技能（24 个） | **flutter/agent-plugins** | 构建 Skills（`scripts/install-flutter-skills.js`） | 架构/测试/路由/本地化/HTTP/FFI 等 |
-| Flutter 运行时交互 | **Dart MCP server** | 内置 MCP（`dart mcp-server`，pubspec.yaml 项目自动激活） | 运行时布局分析/widget 树检查/pub.dev 搜索/测试执行/dart format |
-| Android 开发技能（14 个） | **android/skills** | 构建 Skills（`scripts/install-android-skills.js`） | Jetpack Compose/Navigation 3/CameraX 迁移/R8 分析/edge-to-edge/测试/Perfetto 性能分析 等 |
-| Android CLI 集成 | **Android CLI** | Skill 教 Agent 用 bash 调用 `android` 命令 | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案） |
-| HarmonyOS 开发技能 | **DevEco CLI** Skills | 构建 Skills（`scripts/install-harmonyos-skills.js`） | ArkTS/ArkUI 最佳实践、状态管理、导航、数据持久化、测试、性能优化 |
-| HarmonyOS CLI 集成 | **DevEco CLI**（`devecocli`） | Skill 教 Agent 用 bash 调用 `devecocli` 命令 | 项目创建/构建(hvigor)/运行/模拟器/截图/布局检查/文档检索（华为官方，HDC 2026 发布） |
-| React Native 开发技能 | **Expo Skills** + **Callstack Agent Skills** | 构建 Skills（`scripts/install-rn-skills.js`） | Expo 官方 Skills（SDK 升级/EAS 部署/调试最佳实践）+ Callstack 社区权威 Skills（性能优化/升级/原生模块） |
-| React Native 运行时交互 | **Expo MCP Server** | 内置 MCP（`docs.expo.dev/mcp`） | SDK 知识注入 + 移动模拟器交互 + React Native DevTools |
+| 能力                           | 项目                                         | 集成形态                                                 | 定位                                                                                                    |
+| ------------------------------ | -------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Flutter/Dart 开发技能（24 个） | **flutter/agent-plugins**                    | 构建 Skills（`scripts/install-flutter-skills.js`）       | 架构/测试/路由/本地化/HTTP/FFI 等                                                                       |
+| Flutter 运行时交互             | **Dart MCP server**                          | 内置 MCP（`dart mcp-server`，pubspec.yaml 项目自动激活） | 运行时布局分析/widget 树检查/pub.dev 搜索/测试执行/dart format                                          |
+| Android 开发技能（14 个）      | **android/skills**                           | 构建 Skills（`scripts/install-android-skills.js`）       | Jetpack Compose/Navigation 3/CameraX 迁移/R8 分析/edge-to-edge/测试/Perfetto 性能分析 等                |
+| Android CLI 集成               | **Android CLI**                              | Skill 教 Agent 用 bash 调用 `android` 命令               | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案）                           |
+| HarmonyOS 开发技能             | **DevEco CLI** Skills                        | 构建 Skills（`scripts/install-harmonyos-skills.js`）     | ArkTS/ArkUI 最佳实践、状态管理、导航、数据持久化、测试、性能优化                                        |
+| HarmonyOS CLI 集成             | **DevEco CLI**（`devecocli`）                | Skill 教 Agent 用 bash 调用 `devecocli` 命令             | 项目创建/构建(hvigor)/运行/模拟器/截图/布局检查/文档检索（华为官方，HDC 2026 发布）                     |
+| React Native 开发技能          | **Expo Skills** + **Callstack Agent Skills** | 构建 Skills（`scripts/install-rn-skills.js`）            | Expo 官方 Skills（SDK 升级/EAS 部署/调试最佳实践）+ Callstack 社区权威 Skills（性能优化/升级/原生模块） |
+| React Native 运行时交互        | **Expo MCP Server**                          | 内置 MCP（`docs.expo.dev/mcp`）                          | SDK 知识注入 + 移动模拟器交互 + React Native DevTools                                                   |
 
 ### 规划中
 
 | 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
+| ---- | ---- | -------- | ---- | ------ |
 
 **四平台范式差异**：
 
-| 维度 | Flutter | Android | HarmonyOS | React Native |
-|------|---------|---------|-----------|-------------|
-| 技能来源 | flutter/agent-plugins（24 个） | android/skills（14 个） | deveco-cli 内置 | Expo 官方 + Callstack |
-| 运行时交互 | MCP（`dart mcp-server`） | CLI（`android`） | CLI（`devecocli`） | MCP（Expo MCP） |
-| 官方认可 | ✅ Flutter 团队 | ✅ Google | ✅ 华为 | ✅ Expo + Callstack |
-| 包管理 | pub.dev | Gradle | ohpm | npm |
+| 维度       | Flutter                        | Android                 | HarmonyOS          | React Native          |
+| ---------- | ------------------------------ | ----------------------- | ------------------ | --------------------- |
+| 技能来源   | flutter/agent-plugins（24 个） | android/skills（14 个） | deveco-cli 内置    | Expo 官方 + Callstack |
+| 运行时交互 | MCP（`dart mcp-server`）       | CLI（`android`）        | CLI（`devecocli`） | MCP（Expo MCP）       |
+| 官方认可   | ✅ Flutter 团队                | ✅ Google               | ✅ 华为            | ✅ Expo + Callstack   |
+| 包管理     | pub.dev                        | Gradle                  | ohpm               | npm                   |
 
 **Flutter vs Android vs HarmonyOS 的范式差异**：
 
-| 维度 | Flutter | Android | HarmonyOS | React Native |
-|------|---------|---------|-----------|-------------|
-| 构建系统 | dart compile | Gradle | hvigor | Metro |
-| 设备调试 | flutter driver | adb | hdc | Expo/agent-device |
+| 维度     | Flutter        | Android              | HarmonyOS             | React Native              |
+| -------- | -------------- | -------------------- | --------------------- | ------------------------- |
+| 构建系统 | dart compile   | Gradle               | hvigor                | Metro                     |
+| 设备调试 | flutter driver | adb                  | hdc                   | Expo/agent-device         |
 | 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` | `build-profile.json5` | `app.json`/`package.json` |
 
 详见各平台设计文档：[Android](../../specs/android-dev-kit/design.md) · [HarmonyOS](../../specs/harmonyos-dev-kit/design.md)。
@@ -152,12 +152,12 @@
 
 ### 规划中
 
-| 能力 | 项目 | 来源认可度 | 集成形态 | 贡献 | 优先级 |
-|------|------|-----------|----------|------|--------|
-| Apple 平台开发（macOS + iOS） | **Xcode 27 Agent Skills**（Apple 第一方） | ✅ **Apple 第一方** | 构建 Skills（`xcrun agent skills export` 导出） | SwiftUI 现代 API/UIKit 现代化/测试现代化/安全审计/C 边界安全 7 个官方 Skills | P1 |
-| Apple 社区精选 | **twostraws/swift-agent-skills**（Paul Hudson） | ✅ 社区权威 | 构建 Skills | SwiftUI Pro/Swift 并发/SwiftData/Swift Testing 4 个精选 Skills | P2 |
-| Qt/KDE 应用开发 | **TheQtCompanyRnD/agent-skills**（Qt Group 第一方） | ✅ **Qt Group 第一方** | 构建 Skills + MCP | 7 个 Skills：qt-cpp-review/qt-cpp-docs/qt-qml/qt-qml-review/qt-qml-profiler/qt-qml-docs/qt-ui-design + Qt 文档 MCP | P2 |
-| Tauri 应用开发 | **mcp-server-tauri** | 🟡 社区（Tauri 官方未出同类） | MCP + Skills | Rust 后端/IPC/Web 前端集成/capabilities 安全模型 | P3 |
+| 能力                          | 项目                                                | 来源认可度                    | 集成形态                                        | 贡献                                                                                                               | 优先级 |
+| ----------------------------- | --------------------------------------------------- | ----------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------ |
+| Apple 平台开发（macOS + iOS） | **Xcode 27 Agent Skills**（Apple 第一方）           | ✅ **Apple 第一方**           | 构建 Skills（`xcrun agent skills export` 导出） | SwiftUI 现代 API/UIKit 现代化/测试现代化/安全审计/C 边界安全 7 个官方 Skills                                       | P1     |
+| Apple 社区精选                | **twostraws/swift-agent-skills**（Paul Hudson）     | ✅ 社区权威                   | 构建 Skills                                     | SwiftUI Pro/Swift 并发/SwiftData/Swift Testing 4 个精选 Skills                                                     | P2     |
+| Qt/KDE 应用开发               | **TheQtCompanyRnD/agent-skills**（Qt Group 第一方） | ✅ **Qt Group 第一方**        | 构建 Skills + MCP                               | 7 个 Skills：qt-cpp-review/qt-cpp-docs/qt-qml/qt-qml-review/qt-qml-profiler/qt-qml-docs/qt-ui-design + Qt 文档 MCP | P2     |
+| Tauri 应用开发                | **mcp-server-tauri**                                | 🟡 社区（Tauri 官方未出同类） | MCP + Skills                                    | Rust 后端/IPC/Web 前端集成/capabilities 安全模型                                                                   | P3     |
 
 **Apple 现状说明**：WWDC 2026 发布，Xcode 27 内置 7 个第一方 Agent Skills，可通过 `xcrun agent skills export --output-dir <path>` 导出为标准 SKILL.md。另有 Paul Hudson（hackingwithswift.com 创始人，Swift 社区权威）维护的社区精选目录 `twostraws/swift-agent-skills`。
 
@@ -175,26 +175,26 @@
 
 ### 规划中
 
-| 能力 | 项目 | 来源认可度 | 集成形态 | 贡献 | 优先级 |
-|------|------|-----------|----------|------|--------|
-| .NET 全栈开发技能 | **dotnet/skills**（Microsoft 官方） | ✅ **Microsoft 第一方** | 构建 Skills（12 个插件域） | 覆盖 .NET 开发全生命周期 | P2 |
+| 能力              | 项目                                | 来源认可度              | 集成形态                   | 贡献                     | 优先级 |
+| ----------------- | ----------------------------------- | ----------------------- | -------------------------- | ------------------------ | ------ |
+| .NET 全栈开发技能 | **dotnet/skills**（Microsoft 官方） | ✅ **Microsoft 第一方** | 构建 Skills（12 个插件域） | 覆盖 .NET 开发全生命周期 | P2     |
 
 **dotnet/skills 12 个插件域**（`github.com/dotnet/skills`）：
 
-| 域 | 覆盖内容 |
-|----|---------|
-| `dotnet` | C# 核心、语言特性、LSP |
-| `dotnet-aspnet` | ASP.NET Core（最小 API、OpenTelemetry、文件上传） |
-| `dotnet-maui` | .NET MAUI 跨平台 UI（生命周期/数据绑定/导航/主题/CollectionView） |
-| `dotnet-test` | 测试（执行/迁移/质量审计/覆盖率/框架迁移 MSTest→v3/v4/xUnit v3） |
-| `dotnet-diag` | 诊断（性能分析/dump 收集/dotnet-trace/崩溃符号化） |
-| `dotnet-msbuild` | MSBuild（binlog 分析/增量构建/并行/反模式/现代化） |
-| `dotnet-nuget` | NuGet（中央包管理迁移） |
-| `dotnet-upgrade` | 升级迁移（.NET 8→9→10→11/AOT 兼容/可空引用/线程中止） |
-| `dotnet-ai` | AI/ML（MCP C# 创建/调试/发布/测试） |
-| `dotnet-data` | 数据（EF Core 查询优化） |
-| `dotnet-template-engine` | 模板引擎（发现/实例化/验证/编写） |
-| `dotnet11` | .NET 11 新特性（System.Text.Json 等） |
+| 域                       | 覆盖内容                                                          |
+| ------------------------ | ----------------------------------------------------------------- |
+| `dotnet`                 | C# 核心、语言特性、LSP                                            |
+| `dotnet-aspnet`          | ASP.NET Core（最小 API、OpenTelemetry、文件上传）                 |
+| `dotnet-maui`            | .NET MAUI 跨平台 UI（生命周期/数据绑定/导航/主题/CollectionView） |
+| `dotnet-test`            | 测试（执行/迁移/质量审计/覆盖率/框架迁移 MSTest→v3/v4/xUnit v3）  |
+| `dotnet-diag`            | 诊断（性能分析/dump 收集/dotnet-trace/崩溃符号化）                |
+| `dotnet-msbuild`         | MSBuild（binlog 分析/增量构建/并行/反模式/现代化）                |
+| `dotnet-nuget`           | NuGet（中央包管理迁移）                                           |
+| `dotnet-upgrade`         | 升级迁移（.NET 8→9→10→11/AOT 兼容/可空引用/线程中止）             |
+| `dotnet-ai`              | AI/ML（MCP C# 创建/调试/发布/测试）                               |
+| `dotnet-data`            | 数据（EF Core 查询优化）                                          |
+| `dotnet-template-engine` | 模板引擎（发现/实例化/验证/编写）                                 |
+| `dotnet11`               | .NET 11 新特性（System.Text.Json 等）                             |
 
 **集成方式**：构建时从 `dotnet/skills` 仓库拉取 12 个插件域的 SKILL.md 到 `bundled/`。Agent 检测到 .NET 项目（`.csproj`/`.sln`）时自动加载对应 Skills。
 
@@ -206,11 +206,12 @@
 
 ### 已集成
 
-| 能力 | 项目 | 集成形态 | 定位 |
-|------|------|----------|------|
+| 能力                        | 项目                   | 集成形态                       | 定位                                                      |
+| --------------------------- | ---------------------- | ------------------------------ | --------------------------------------------------------- |
 | 通用设计生成（原型/落地页） | **DeepDesign** Phase 1 | Skill + seed 模板 + 3 设计系统 | 复刻 Claude Design 核心，零 daemon，Electron webview 预览 |
 
 **DeepDesign 已有文件**：
+
 - `deep-design` SKILL.md（工作流编排）
 - `seed.html` + `layouts.md`（8 个 section 骨架 + P0/P1/P2 自检清单）
 - 3 个 DESIGN.md 系统（dark-tech / modern-minimal / editorial）
@@ -219,16 +220,17 @@
 
 ### 规划中
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
-| **AI-native 原型模块** | **A2UI** 协议（a2ui-project/a2ui） | 内置 Skill（`a2ui-prototype`）+ `@a2ui/react` 渲染器 + A2UI over MCP | **独立产品线**：PM 用自然语言驱动声明式 Surface 原型，原生依赖 DeepOrca 运行时，支持增量迭代与交互验证。类 v0/bolt 但以 Surface 为载体。与 DeepDesign 并列（原型≠设计）。草案 `specs/a2ui-integration/design.md` | P1 |
-| 前端设计质量纪律 | **taste-skill** | 构建 Skill（纯 SKILL.md） | 布局/排版/动效/间距的反 slop 方法论，框架无关 | P1 |
-| 视觉特效"画笔" | **html-in-canvas**（WICG 提案 [html-in-canvas.dev](https://html-in-canvas.dev)） | 浏览器原生 API（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor** | 让 Agent 生成的 HTML 设计件获得 shader 级视觉特效（液体玻璃 refraction、像素瓦解、CRT/色差 shader、3D 贴 HTML 纹理），远超纯 CSS。**当前实验态**：仅 Chrome Canary / Brave 147+ 需手动开 `chrome://flags/#canvas-draw-element`，Firefox/Safari 无实现，无 polyfill，无正式发布时间表。**等 Chromium/Electron 稳定支持后才可纳入**。详见 `docs/research/2026-07-30-html-in-canvas.md` | P3（阻塞于平台支持） |
-| 仪表盘模板 | DeepDesign dashboard | seed + layouts | 侧边栏 + KPI 卡 + 内联 SVG 图表 | P2 |
-| 移动端模板 | DeepDesign mobile-app | seed + layouts | iPhone 框架 + 多屏流程 | P3 |
-| 海报模板 | DeepDesign poster | seed + layouts | 单页海报/社交媒体图 | P3 |
+| 能力                   | 项目                                                                             | 集成形态                                                                    | 贡献                                                                                                                                                                                                                                                                                                                                                                                 | 优先级               |
+| ---------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| **AI-native 原型模块** | **A2UI** 协议（a2ui-project/a2ui）                                               | 内置 Skill（`a2ui-prototype`）+ `@a2ui/react` 渲染器 + A2UI over MCP        | **独立产品线**：PM 用自然语言驱动声明式 Surface 原型，原生依赖 DeepOrca 运行时，支持增量迭代与交互验证。类 v0/bolt 但以 Surface 为载体。与 DeepDesign 并列（原型≠设计）。草案 `specs/a2ui-integration/design.md`                                                                                                                                                                     | P1                   |
+| 前端设计质量纪律       | **taste-skill**                                                                  | 构建 Skill（纯 SKILL.md）                                                   | 布局/排版/动效/间距的反 slop 方法论，框架无关                                                                                                                                                                                                                                                                                                                                        | P1                   |
+| 视觉特效"画笔"         | **html-in-canvas**（WICG 提案 [html-in-canvas.dev](https://html-in-canvas.dev)） | 浏览器原生 API（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor** | 让 Agent 生成的 HTML 设计件获得 shader 级视觉特效（液体玻璃 refraction、像素瓦解、CRT/色差 shader、3D 贴 HTML 纹理），远超纯 CSS。**当前实验态**：仅 Chrome Canary / Brave 147+ 需手动开 `chrome://flags/#canvas-draw-element`，Firefox/Safari 无实现，无 polyfill，无正式发布时间表。**等 Chromium/Electron 稳定支持后才可纳入**。详见 `docs/research/2026-07-30-html-in-canvas.md` | P3（阻塞于平台支持） |
+| 仪表盘模板             | DeepDesign dashboard                                                             | seed + layouts                                                              | 侧边栏 + KPI 卡 + 内联 SVG 图表                                                                                                                                                                                                                                                                                                                                                      | P2                   |
+| 移动端模板             | DeepDesign mobile-app                                                            | seed + layouts                                                              | iPhone 框架 + 多屏流程                                                                                                                                                                                                                                                                                                                                                               | P3                   |
+| 海报模板               | DeepDesign poster                                                                | seed + layouts                                                              | 单页海报/社交媒体图                                                                                                                                                                                                                                                                                                                                                                  | P3                   |
 
 **实施路线**：
+
 - Phase 1（已完成）：web-prototype 模板 + dark-tech 系统 + deep-design Skill
 - Phase 2：dashboard 模板 + 3 设计系统 + DESIGN.md 用户自建 + PDF 导出
 - Phase 3：mobile-app/poster 模板 + DesignStudioPanel 桌面面板（html-in-canvas 视觉特效另作独立远期项，阻塞于 Chromium/Electron 平台支持，不在此阶段 vendor）
@@ -243,11 +245,12 @@
 
 ### 已集成
 
-| 能力 | 项目 | 集成形态 | 定位 |
-|------|------|----------|------|
+| 能力         | 项目             | 集成形态          | 定位                                                                                                         |
+| ------------ | ---------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
 | 演示文稿生成 | **Bento Slides** | 内置 Skill + 模板 | JSON → 单 `.bento.html` 文件（~644KB，含编辑器+放映+导出），支持文本/形状/图表(ECharts)/表格/图片/morph 动画 |
 
 **Bento 的核心能力**：
+
 - **单文件即完整应用**——`.bento.html` 包含 JS 运行时 + 文档数据，浏览器打开即可编辑/放映/导出
 - **丰富的元素类型**——text（富文本）、shape（矩形/椭圆/箭头/路径）、chart（ECharts 柱状/折线/饼图/散点）、table、image、SVG
 - **Morph 动画**——跨幻灯片同 ID 元素自动形变过渡（签名特性）
@@ -256,13 +259,14 @@
 
 ### 规划中
 
-| 能力 | 集成形态 | 贡献 | 优先级 |
-|------|----------|------|--------|
-| 文档生成（Markdown → 单 HTML） | Skill + 模板 | 富文本文档（带目录/代码高亮/图表），单 HTML 导出，类似 Bento 但面向长文档 | P2 |
-| 表格/电子表单生成 | Skill + 模板 | 数据表格（排序/筛选/公式），单 HTML 文件含查看器 | P3 |
-| 办公文档预览面板 | Electron webview 组件 | 统一的办公文档预览（.bento.html + 文档 HTML），复用 DesignStudioPanel 的 webview 基础设施 | P2 |
+| 能力                           | 集成形态              | 贡献                                                                                      | 优先级 |
+| ------------------------------ | --------------------- | ----------------------------------------------------------------------------------------- | ------ |
+| 文档生成（Markdown → 单 HTML） | Skill + 模板          | 富文本文档（带目录/代码高亮/图表），单 HTML 导出，类似 Bento 但面向长文档                 | P2     |
+| 表格/电子表单生成              | Skill + 模板          | 数据表格（排序/筛选/公式），单 HTML 文件含查看器                                          | P3     |
+| 办公文档预览面板               | Electron webview 组件 | 统一的办公文档预览（.bento.html + 文档 HTML），复用 DesignStudioPanel 的 webview 基础设施 | P2     |
 
 **设计理念**（与 DeepDesign 的关系）：
+
 - **DeepDesign** = 视觉设计（UI 原型/落地页/仪表盘/海报）——追求"好看"
 - **办公套件** = 办公文档（演示文稿/文档/表格）——追求"实用"
 - 两者共享 Electron webview 预览基础设施，但 Skill/模板/输出格式独立
@@ -276,19 +280,20 @@
 
 ### 已集成
 
-| 能力 | 项目 | 集成形态 | 定位 |
-|------|------|----------|------|
-| 真实 Chrome 操控（携带登录态） | **browser-skill** (bsk) | 内置插件（Rust CLI + Chrome 扩展） | 通用页面操控——表单/截图/UI 测试，Agent Window 隔离 |
-| 单次网络搜索 | **WebSearch** | 内置工具 | 脚本钩子或托管 API，单次查询→文本结果 |
-| 联网策略 + 站点经验 | **web-access** 理念 | 借鉴 Skill（不整体引入） | 联网工具自动选择（WebSearch/curl/Jina/CDP）+ 按域名积累操作经验 |
+| 能力                           | 项目                    | 集成形态                           | 定位                                                            |
+| ------------------------------ | ----------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| 真实 Chrome 操控（携带登录态） | **browser-skill** (bsk) | 内置插件（Rust CLI + Chrome 扩展） | 通用页面操控——表单/截图/UI 测试，Agent Window 隔离              |
+| 单次网络搜索                   | **WebSearch**           | 内置工具                           | 脚本钩子或托管 API，单次查询→文本结果                           |
+| 联网策略 + 站点经验            | **web-access** 理念     | 借鉴 Skill（不整体引入）           | 联网工具自动选择（WebSearch/curl/Jina/CDP）+ 按域名积累操作经验 |
 
 ### 规划中
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
-| 大规模无头抓取 + Stealth | **obscura** | MCP Server（Rust 单二进制） | 30MB 内存、85ms 加载、反检测——bsk 做操控，obscura 做抓取 | P2 |
+| 能力                     | 项目        | 集成形态                    | 贡献                                                     | 优先级 |
+| ------------------------ | ----------- | --------------------------- | -------------------------------------------------------- | ------ |
+| 大规模无头抓取 + Stealth | **obscura** | MCP Server（Rust 单二进制） | 30MB 内存、85ms 加载、反检测——bsk 做操控，obscura 做抓取 | P2     |
 
 **分工设计**：
+
 ```
 用户请求 → Agent 判断任务类型
   ├─ 通用页面操控（表单/UI 测试）→ browser-skill（登录态操控）
@@ -300,8 +305,8 @@
 
 ### 不采纳
 
-| 项目 | 理由 |
-|------|------|
+| 项目                           | 理由                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agent-Reach**（Panniantong） | 场景与 DeepOrca §八 高度重叠（都是"让 agent 联网"），但形态/受众不同——Agent-Reach 是 CLI 能力层（靠上游 CLI + cookie 登录态，强中文平台），DeepOrca 是 Electron harness（内置 bsk 真实 Chrome）。整体引入会与既有 bsk/WebSearch/web-access 三层体系冲突。**借鉴其「首选+备选后端路由」选型思路和 `doctor` 体检模式**，强化 web-access 的多后端降级与可用性探测。调研 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md` |
 
 ---
@@ -312,11 +317,11 @@
 
 ### 规划中（全新空白域）
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
-| 桌面 GUI 操控（原生执行层） | **pi-computer-use** | Pi 扩展（macOS Swift + Windows Rust） | 查找窗口/观察 UI/点击输入/等待变化——操控 Figma/Photoshop/Excel 等桌面软件 | P2 |
-| 视觉感知 fallback（VLM 定位层） | **ShowUI**（ShowLab, CVPR 2025） | Skill + 可选 Python sidecar（或 HF Space 远程） | 当无障碍树缺失时（Photoshop/自绘 UI/远程画面），VLM 视觉定位元素坐标 → pi-computer-use 执行点击 | P2-P3 |
-| 万能 CLI 生成 | **CLI-Anything** | 内置 Skill（HARNESS.md 方法论） | 7 阶段为任意软件自动生成 CLI（分析→设计→实现→测试→文档→发布） | P2 |
+| 能力                            | 项目                             | 集成形态                                        | 贡献                                                                                            | 优先级 |
+| ------------------------------- | -------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| 桌面 GUI 操控（原生执行层）     | **pi-computer-use**              | Pi 扩展（macOS Swift + Windows Rust）           | 查找窗口/观察 UI/点击输入/等待变化——操控 Figma/Photoshop/Excel 等桌面软件                       | P2     |
+| 视觉感知 fallback（VLM 定位层） | **ShowUI**（ShowLab, CVPR 2025） | Skill + 可选 Python sidecar（或 HF Space 远程） | 当无障碍树缺失时（Photoshop/自绘 UI/远程画面），VLM 视觉定位元素坐标 → pi-computer-use 执行点击 | P2-P3  |
+| 万能 CLI 生成                   | **CLI-Anything**                 | 内置 Skill（HARNESS.md 方法论）                 | 7 阶段为任意软件自动生成 CLI（分析→设计→实现→测试→文档→发布）                                   | P2     |
 
 **互补关系**：pi-computer-use 直接操控 GUI，CLI-Anything 把软件变成 CLI——两种思路解决同一问题（驱动无 API 的软件）。
 
@@ -336,9 +341,9 @@
 
 > 新增（2026-07-30 调研）——填补 iOS 模拟器交互空白 + 补齐 Android 验证循环。
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
-| iOS + Android 统一模拟器操控 | **sim-use**（LY Corporation） | 内置 Skill + PLUGIN.md（CLI-first，走 bash） | observe-act-verify 循环：UI 大纲（比无障碍树小 ~16x）、tap/swipe/type/paste、截图+崩溃检测 | P1 |
+| 能力                         | 项目                          | 集成形态                                     | 贡献                                                                                       | 优先级 |
+| ---------------------------- | ----------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------ | ------ |
+| iOS + Android 统一模拟器操控 | **sim-use**（LY Corporation） | 内置 Skill + PLUGIN.md（CLI-first，走 bash） | observe-act-verify 循环：UI 大纲（比无障碍树小 ~16x）、tap/swipe/type/paste、截图+崩溃检测 | P1     |
 
 **与 android-cli 的互补关系**：
 
@@ -357,21 +362,21 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 ### 已集成
 
-| 能力 | 来源 | 定位 |
-|------|------|------|
-| Plan Mode（3 阶段对话 + 权限强制 + proposed_plan） | 引擎核心 | 规划层权威——引擎级权限强制，force-ask 写操作 |
-| UpdatePlan（markdown TODO 跟踪） | 引擎核心 | 执行阶段进度跟踪 |
-| 模型路由（轻量子任务→flash） | `model-capabilities.ts` | 子任务降级（技能匹配/prompt 增强/压缩用 flash） |
-| Electron 35（Node 22.16） | 引擎升级 | 内部插件零外部依赖（node:sqlite + require(esm)） |
-| **官方 MCP SDK 迁移**（`@modelcontextprotocol/sdk@1.22.0`） | 引擎基础设施升级 | 把手写 JSON-RPC（客户端 + gitmcp 服务端）换成官方 SDK。追平协议版本、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation）、支持 image/audio/structured content。**已完成（perf/native-optimizations 分支 9 commits）**——客户端 `Client`+`StdioClientTransport`、gitmcp `McpServer`+`registerTool`，对外接口零变化，`npm run check` 全绿，gitmcp 端到端握手验证通过。迁移记录 `specs/mcp-sdk-migration/design.md` |
+| 能力                                                        | 来源                    | 定位                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plan Mode（3 阶段对话 + 权限强制 + proposed_plan）          | 引擎核心                | 规划层权威——引擎级权限强制，force-ask 写操作                                                                                                                                                                                                                                                                                                                                                                                                 |
+| UpdatePlan（markdown TODO 跟踪）                            | 引擎核心                | 执行阶段进度跟踪                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 模型路由（轻量子任务→flash）                                | `model-capabilities.ts` | 子任务降级（技能匹配/prompt 增强/压缩用 flash）                                                                                                                                                                                                                                                                                                                                                                                              |
+| Electron 35（Node 22.16）                                   | 引擎升级                | 内部插件零外部依赖（node:sqlite + require(esm)）                                                                                                                                                                                                                                                                                                                                                                                             |
+| **官方 MCP SDK 迁移**（`@modelcontextprotocol/sdk@1.22.0`） | 引擎基础设施升级        | 把手写 JSON-RPC（客户端 + gitmcp 服务端）换成官方 SDK。追平协议版本、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation）、支持 image/audio/structured content。**已完成（perf/native-optimizations 分支 9 commits）**——客户端 `Client`+`StdioClientTransport`、gitmcp `McpServer`+`registerTool`，对外接口零变化，`npm run check` 全绿，gitmcp 端到端握手验证通过。迁移记录 `specs/mcp-sdk-migration/design.md` |
 
 ### 规划中
 
-| 能力 | 来源 | 贡献 | 优先级 |
-|------|------|------|--------|
-| **A2UI 对话交互层**（Agent 驱动声明式 UI） | **A2UI** 协议（a2ui-project/a2ui，Apache-2.0） | 对话区从纯文本升级为可交互富组件——用户决策 / 持续状态监控 / 工作流（P1），代码审查/git/wiki 富展示（P2，待基础能力测完）。复用官方 `@a2ui/react` 渲染器 + 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。原型设计场景归 §六 独立产品线（P0 核心卖点）。**MCP SDK 前置已满足**，可启动。设计草案 `specs/a2ui-integration/design.md`，调研 `docs/research/2026-07-a2ui-integration.md` | P1-P2 |
-| 模型中途切换 | **Prewalk** 理念 | 贵模型规划→首次编辑→切换廉价模型执行。基于 model-capabilities.ts + UpdatePlan 扩展 | P1 |
-| 子 agent（Subagent） | **DeepCode** 架构理念 | Paper2Code（论文→代码）+ Loop engineering（自主循环直到测试通过）。加 Task 工具 + runSubagent | P2 |
+| 能力                                       | 来源                                           | 贡献                                                                                                                                                                                                                                                                                                                                                                                            | 优先级 |
+| ------------------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **A2UI 对话交互层**（Agent 驱动声明式 UI） | **A2UI** 协议（a2ui-project/a2ui，Apache-2.0） | 对话区从纯文本升级为可交互富组件——用户决策 / 持续状态监控 / 工作流（P1），代码审查/git/wiki 富展示（P2，待基础能力测完）。复用官方 `@a2ui/react` 渲染器 + 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。原型设计场景归 §六 独立产品线（P0 核心卖点）。**MCP SDK 前置已满足**，可启动。设计草案 `specs/a2ui-integration/design.md`，调研 `docs/research/2026-07-a2ui-integration.md` | P1-P2  |
+| 模型中途切换                               | **Prewalk** 理念                               | 贵模型规划→首次编辑→切换廉价模型执行。基于 model-capabilities.ts + UpdatePlan 扩展                                                                                                                                                                                                                                                                                                              | P1     |
+| 子 agent（Subagent）                       | **DeepCode** 架构理念                          | Paper2Code（论文→代码）+ Loop engineering（自主循环直到测试通过）。加 Task 工具 + runSubagent                                                                                                                                                                                                                                                                                                   | P2     |
 
 **架构可行性**（已验证）：DeepOrca 引擎对 subagent 友好——`activateSession` 已是 public 按 sessionId 参数化的纯异步函数，所有状态 Map<sessionId> 结构。加一个 Task 工具 + 抽取 `runSubagent()` 即可，不需重新设计引擎。
 
@@ -384,9 +389,9 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 ### 已集成（静态，无反馈闭环）
 
-| 能力 | 项目 | 定位 | 局限 |
-|------|------|------|------|
-| 技能编写 | **skill-writer** | 教 Agent 创建 SKILL.md | 纯人工编写，无自动生成 |
+| 能力         | 项目               | 定位                                | 局限                                           |
+| ------------ | ------------------ | ----------------------------------- | ---------------------------------------------- |
+| 技能编写     | **skill-writer**   | 教 Agent 创建 SKILL.md              | 纯人工编写，无自动生成                         |
 | 技能描述审查 | **skill-digester** | 审查/重写 skill 的 description 字段 | 基于文本启发式，需人工批准，**无执行结果反馈** |
 
 **关键空白**：搜索 `skillEvaluat`/`self-evolv`/`feedback loop` 在代码中零匹配——DeepOrca **没有任何基于执行结果的能力评估或自动改进机制**。
@@ -395,13 +400,14 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 #### 层一：技能自演化（技能内容改进）
 
-| 能力 | 来源理念 | 贡献 | 优先级 |
-|------|----------|------|--------|
-| 技能执行→评估→改进闭环 | **OpenSpace** 理念（借鉴，不直接集成） | 技能执行后捕获结果（成功/失败/重试次数）→ 低成功率技能触发自动重写 → 高成功率技能在匹配时加权 | P2 |
+| 能力                   | 来源理念                               | 贡献                                                                                          | 优先级 |
+| ---------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------- | ------ |
+| 技能执行→评估→改进闭环 | **OpenSpace** 理念（借鉴，不直接集成） | 技能执行后捕获结果（成功/失败/重试次数）→ 低成功率技能触发自动重写 → 高成功率技能在匹配时加权 | P2     |
 
 **为什么不直接集成 OpenSpace**：Python 3.12+ 依赖 + Cloud 依赖（open-space.cloud）+ 它本身是完整 agent harness（与 DeepOrca 架构重叠）。只借鉴其"FIX/DERIVED/CAPTURED 演化触发器"和"provisional→trusted 信任状态机"设计理念，在 DeepOrca 内部用 Node.js 自建轻量版。
 
 **轻量自建方案**：
+
 ```
 技能执行 → 捕获结果（成功/失败/重试/用户纠正）
     ↓
@@ -412,20 +418,21 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 #### 层二：harness 自改进（引擎脚手架改进）
 
-| 能力 | 来源理念 | 贡献 | 优先级 |
-|------|----------|------|--------|
-| 弱点挖掘→提案→回归测试 | **Self-Harness** 论文（arxiv:2606.09498） | Agent 分析自身执行轨迹发现失败模式 → 生成最小化脚手架修改（prompt/工具定义/控制流）→ 回归测试只保留有效改进 | P3 |
-| **harness 行为级地图**（自动生成） | **Harness Handbook** 论文（arxiv:2607.13285，借鉴理念不集成） | 用静态分析 + LLM 结构化自动合成 harness 的三层行为地图（系统流程→细粒度行为→源码位置），解决"行为定位"难题。让 `deeporca-self-refer` 从"读手写 AGENTS.md"升级为"读自动生成的行为地图"。**理念启发**——实现工程量大（静态分析+LLM 结构化），记远期愿景 | P3 |
+| 能力                               | 来源理念                                                      | 贡献                                                                                                                                                                                                                                                 | 优先级 |
+| ---------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 弱点挖掘→提案→回归测试             | **Self-Harness** 论文（arxiv:2606.09498）                     | Agent 分析自身执行轨迹发现失败模式 → 生成最小化脚手架修改（prompt/工具定义/控制流）→ 回归测试只保留有效改进                                                                                                                                          | P3     |
+| **harness 行为级地图**（自动生成） | **Harness Handbook** 论文（arxiv:2607.13285，借鉴理念不集成） | 用静态分析 + LLM 结构化自动合成 harness 的三层行为地图（系统流程→细粒度行为→源码位置），解决"行为定位"难题。让 `deeporca-self-refer` 从"读手写 AGENTS.md"升级为"读自动生成的行为地图"。**理念启发**——实现工程量大（静态分析+LLM 结构化），记远期愿景 | P3     |
 
 **三阶段闭环**：
+
 ```
 1. 弱点挖掘（Weakness Mining）
    分析执行轨迹 → 发现失败模式/重复错误
-   
+
 2. Harness 提案（Harness Proposal）
    针对每个弱点 → 生成最小化、多样性的脚手架修改
    （如：调整 prompt 措辞、增加工具参数约束、修改控制流）
-   
+
 3. 回归测试（Regression Testing）
    只保留通过回归测试的修改 → 防止改好一处破坏他处
 ```
@@ -438,10 +445,10 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 > 新增（2026-07-30 调研）——借鉴 JiuwenSwarm 理念，不引入 Python 运行时。
 
-| 能力 | 来源理念 | 贡献 | 优先级 |
-|------|----------|------|--------|
-| 任务分治编排 | **JiuwenSwarm**（openJiuwen）理念 | 复杂任务自动分解 → 并行 subagent 分派 → 结果合并 | P3 |
-| 上下文卸载 + 分层记忆 | JiuwenSwarm 理念 | 显式 token 成本控制（与 TDAM L0-L3 管线互补） | P3 |
+| 能力                  | 来源理念                          | 贡献                                             | 优先级 |
+| --------------------- | --------------------------------- | ------------------------------------------------ | ------ |
+| 任务分治编排          | **JiuwenSwarm**（openJiuwen）理念 | 复杂任务自动分解 → 并行 subagent 分派 → 结果合并 | P3     |
+| 上下文卸载 + 分层记忆 | JiuwenSwarm 理念                  | 显式 token 成本控制（与 TDAM L0-L3 管线互补）    | P3     |
 
 **为什么不直接集成 JiuwenSwarm**：Python 运行时（pip install + Web UI），与 DeepOrca 的 Node/Electron 架构不匹配。只借鉴其"分治→并行→合并"编排模式和"上下文卸载保护 token 账单"的成本控制策略。落地方式：编写内置 Skill 教 Agent 在复杂任务中做任务分解 + 并行分派（复用 DeepOrca 已有的 subagent 能力）。
 
@@ -454,31 +461,31 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 ### 已集成
 
-| 能力 | 来源 | 定位 |
-|------|------|------|
-| 分组展示 | `builtin-plugins.json` 清单 | 内置 skills/MCP/plugins 按工具分组（Flutter/CodeGraph/代码审查/GitMCP…） |
-| 内置项隔离 | MCP/Skills tab 过滤 | 内置项不在 MCP/Skills tab 单独展示，仅在 Plugins tab 分组卡片中 |
-| Flutter/Dart 技能包 | flutter/agent-plugins | 24 个技能构建时内置 |
-| Android/HarmonyOS/RN 技能包 | android/skills + deveco-cli + expo + callstack | 构建时内置 |
-| Browser 统一分组 | browser-skill + web-access-strategy | Chrome 操控 + 联网策略 Skill |
+| 能力                        | 来源                                           | 定位                                                                     |
+| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
+| 分组展示                    | `builtin-plugins.json` 清单                    | 内置 skills/MCP/plugins 按工具分组（Flutter/CodeGraph/代码审查/GitMCP…） |
+| 内置项隔离                  | MCP/Skills tab 过滤                            | 内置项不在 MCP/Skills tab 单独展示，仅在 Plugins tab 分组卡片中          |
+| Flutter/Dart 技能包         | flutter/agent-plugins                          | 24 个技能构建时内置                                                      |
+| Android/HarmonyOS/RN 技能包 | android/skills + deveco-cli + expo + callstack | 构建时内置                                                               |
+| Browser 统一分组            | browser-skill + web-access-strategy            | Chrome 操控 + 联网策略 Skill                                             |
 
 ### 规划中：远程源集成
 
 #### 安装安全闸门（前置，与远程源集成同期）
 
-| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
-|------|------|----------|------|--------|
+| 能力                       | 项目                                   | 集成形态                                                                                          | 贡献                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 优先级 |
+| -------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | **skill/MCP 安全扫描闸门** | **SkillSpector**（NVIDIA，Apache-2.0） | builtin MCP server（`uvx skillspector mcp`，复用 crg/serena 的 uv 路径）或安装管线内强制 CLI 调用 | 从不可信远程源装 skill/MCP 前的安全闸门。68 漏洞模式/17 类（prompt injection / data exfiltration / supply chain 含 OSV CVE / **MCP least-privilege LP1-4** / **MCP tool poisoning TP1-4**），静态+LLM 两阶段，风险评分 SAFE/CAUTION/DO_NOT_INSTALL → allow/prompt/block。`--no-llm` 可纯静态零依赖。DeepOrca 大举引入远程 skill/MCP（见下「远程源清单」），SkillSpector 是配套的安全层。调研 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md` | **P1** |
 
 > **为什么必须**：DeepOrca 正规划 8 个远程 Hub 集成（ClawHub/ModelScope/SkillHub/SwarmSkills…），远程 skill/MCP 是高风险面（研究显示 26.1% skill 含漏洞、5.2% 疑似恶意）。MCP tool poisoning（元数据藏指令/Unicode 欺骗/描述-行为不符）是真实攻击向量。SkillSpector 形态现成（MCP server），集成成本低（uv shim）。
 
 #### 技术阻断点（必须先解决）
 
-| # | 阻断点 | 影响 | 方案 |
-|---|--------|------|------|
-| 1 | ~~**MCP HTTP/SSE 传输缺失**~~ ✅ **已解锁** | MCP SDK 迁移（§十，已完成）已引入官方 SDK，`StdioClientTransport` 之外 Streamable HTTP/SSE 传输是 SDK 原生支持 | 扩展 `McpServerConfig` 为 discriminated union（`type: "stdio" \| "http" \| "sse"` + `url` + `headers`），复用 SDK 的 HTTP/SSE transport |
-| 2 | **远程源抽象缺失** | `BuiltinPluginGroup` 只读本地 JSON | 定义 `RemotePluginSource` 接口（`list()/search()/install()`），本地清单成为其中一个 source |
-| 3 | **安装管线缺失** | Skills 自动发现、MCP 手动配置 | 实现"下载→放置→注册→启用→卸载"生命周期 |
+| #   | 阻断点                                      | 影响                                                                                                           | 方案                                                                                                                                    |
+| --- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ~~**MCP HTTP/SSE 传输缺失**~~ ✅ **已解锁** | MCP SDK 迁移（§十，已完成）已引入官方 SDK，`StdioClientTransport` 之外 Streamable HTTP/SSE 传输是 SDK 原生支持 | 扩展 `McpServerConfig` 为 discriminated union（`type: "stdio" \| "http" \| "sse"` + `url` + `headers`），复用 SDK 的 HTTP/SSE transport |
+| 2   | **远程源抽象缺失**                          | `BuiltinPluginGroup` 只读本地 JSON                                                                             | 定义 `RemotePluginSource` 接口（`list()/search()/install()`），本地清单成为其中一个 source                                              |
+| 3   | **安装管线缺失**                            | Skills 自动发现、MCP 手动配置                                                                                  | 实现"下载→放置→注册→启用→卸载"生命周期                                                                                                  |
 
 #### 远程源清单（按优先级）
 
@@ -486,34 +493,34 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 ##### clawhub CLI 族（共享 `clawhub` npm CLI + `--registry` 切换 + `/api/v1/skills` REST）
 
-| 源 | 安装命令 | 搜索 | Agent 提示词 | 备注 |
-|----|----------|------|-------------|------|
-| **ClawHub** (clawhub.ai) | `npx clawhub@latest install <slug>` | `clawhub search "<q>"` 或 REST `GET /api/v1/skills?q=` | 无独立提示词（在 OpenClaw 文档中） | 参考实现，~57k skills，有 `inspect`/`scan` 安全扫描 |
-| **skill.xfyun.cn** (讯飞) | `npx clawhub install <slug> --registry https://skill.xfyun.cn` | 同上（指向讯飞 registry） | ✅ `/registry/skill.md`（`skillhub-registry` skill） | **非独立 hub**——是 SkillHub 应用代码 + 讯飞 SSO 部署 |
-| **cn.clawhub-mirror.com** | `npx clawhub install <slug> --registry https://cn.clawhub-mirror.com` | 同上 | 无 | 中国镜像（腾讯云前端），`--registry` 切换即可，与 ClawHub 二选一 |
+| 源                        | 安装命令                                                              | 搜索                                                   | Agent 提示词                                         | 备注                                                             |
+| ------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| **ClawHub** (clawhub.ai)  | `npx clawhub@latest install <slug>`                                   | `clawhub search "<q>"` 或 REST `GET /api/v1/skills?q=` | 无独立提示词（在 OpenClaw 文档中）                   | 参考实现，~57k skills，有 `inspect`/`scan` 安全扫描              |
+| **skill.xfyun.cn** (讯飞) | `npx clawhub install <slug> --registry https://skill.xfyun.cn`        | 同上（指向讯飞 registry）                              | ✅ `/registry/skill.md`（`skillhub-registry` skill） | **非独立 hub**——是 SkillHub 应用代码 + 讯飞 SSO 部署             |
+| **cn.clawhub-mirror.com** | `npx clawhub install <slug> --registry https://cn.clawhub-mirror.com` | 同上                                                   | 无                                                   | 中国镜像（腾讯云前端），`--registry` 切换即可，与 ClawHub 二选一 |
 
 **clawhub 族集成方案**：安装一个 `clawhub` CLI 适配器，通过 `CLAWHUB_REGISTRY` 环境变量或 `--registry` 参数切换源。三个站点共享相同的 `/api/v1/skills` API 和 `/.well-known/clawhub.json` 发现端点。Agent 端通过内置 Skill 教 Agent 使用 `clawhub search/install/inspect`。
 
 ##### 独立 CLI 族（各有专属安装工具）
 
-| 源 | 安装命令 | 搜索 | Agent 提示词 | 备注 |
-|----|----------|------|-------------|------|
-| **SkillHub.cn** | `skillhub install <name> --dir <skills dir>` | `skillhub search <q>` | ✅ `/install/skillhub.md`（含优先源策略：首选 SkillHub 中国加速 → 回退 ClawHub） | 自有 CLI（腾讯云 COS 安装器），标准 SKILL.md 格式 |
-| **ModelScope** (modelscope.cn) | `modelscope skills add @<namespace>/<name>` | `ms` CLI / OpenAPI | ✅ `ms-hub` meta-skill（SKILL.md 本身就是 Agent 指令） | Python SDK CLI（`pip install modelscope`），安装到 `~/.agents/skills/` |
+| 源                             | 安装命令                                     | 搜索                  | Agent 提示词                                                                     | 备注                                                                   |
+| ------------------------------ | -------------------------------------------- | --------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **SkillHub.cn**                | `skillhub install <name> --dir <skills dir>` | `skillhub search <q>` | ✅ `/install/skillhub.md`（含优先源策略：首选 SkillHub 中国加速 → 回退 ClawHub） | 自有 CLI（腾讯云 COS 安装器），标准 SKILL.md 格式                      |
+| **ModelScope** (modelscope.cn) | `modelscope skills add @<namespace>/<name>`  | `ms` CLI / OpenAPI    | ✅ `ms-hub` meta-skill（SKILL.md 本身就是 Agent 指令）                           | Python SDK CLI（`pip install modelscope`），安装到 `~/.agents/skills/` |
 
 ##### 独立 API 族（无 CLI，REST API 直接调用）
 
-| 源 | API | Agent 提示词 | 备注 |
-|----|------|-------------|------|
+| 源                                           | API                                                               | Agent 提示词                | 备注                                                        |
+| -------------------------------------------- | ----------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------- |
 | **SwarmSkills** (swarmskills.openjiuwen.com) | `GET /api/v1/skills`（列表）、`GET /api/v1/skills/<slug>`（详情） | 无（SPA 界面，无 CLI 文档） | "Swarm Skill" = 多角色 SKILL.md 扩展，含 SwarmFlow 编排脚本 |
 
 ##### 其他远程源
 
-| 优先级 | 源 | 类型 | 格式 | API | 内容量 |
-|--------|-----|------|------|-----|--------|
-| **P0** | **claude-plugins-official** (anthropics) | 插件+MCP+Skill | `marketplace.json`（**事实标准格式**） | Git clone + GitHub API | 32.8k stars, 80+ 插件 |
-| **P0** | **MCP Registry** (mcp-cn.com / registry.modelcontextprotocol.io) | MCP | REST API | ✅ 无认证 `GET /v0/servers` | 官方 MCP 注册表 |
-| **P1** | **anthropics/skills** | Skill | SKILL.md | Git clone | 165k stars, 501 skills |
+| 优先级 | 源                                                               | 类型           | 格式                                   | API                         | 内容量                 |
+| ------ | ---------------------------------------------------------------- | -------------- | -------------------------------------- | --------------------------- | ---------------------- |
+| **P0** | **claude-plugins-official** (anthropics)                         | 插件+MCP+Skill | `marketplace.json`（**事实标准格式**） | Git clone + GitHub API      | 32.8k stars, 80+ 插件  |
+| **P0** | **MCP Registry** (mcp-cn.com / registry.modelcontextprotocol.io) | MCP            | REST API                               | ✅ 无认证 `GET /v0/servers` | 官方 MCP 注册表        |
+| **P1** | **anthropics/skills**                                            | Skill          | SKILL.md                               | Git clone                   | 165k stars, 501 skills |
 
 #### 标准格式：marketplace.json
 
@@ -543,25 +550,25 @@ skills/SKILL.md      =  DeepOrca 原生 skill 格式（完全相同）
 
 #### 实施阶段（修正版——按真实 CLI 族系适配）
 
-| 阶段 | 内容 | 解除阻断 |
-|------|------|----------|
-| Phase 0 | 扩展 MCP 客户端支持 HTTP/SSE 传输 | #1 |
-| Phase 1 | 定义 `RemotePluginSource` 接口（`list()/search()/install()/uninstall()`） | #2 |
+| 阶段    | 内容                                                                                                                                                              | 解除阻断              |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| Phase 0 | 扩展 MCP 客户端支持 HTTP/SSE 传输                                                                                                                                 | #1                    |
+| Phase 1 | 定义 `RemotePluginSource` 接口（`list()/search()/install()/uninstall()`）                                                                                         | #2                    |
 | Phase 2 | **clawhub CLI 族适配器**：封装 `npx clawhub search/install/inspect`，支持 `CLAWHUB_REGISTRY` 切换（clawhub.ai / cn.clawhub-mirror.com / skill.xfyun.cn 三源共享） | 最大 Skill 源（~57k） |
-| Phase 3 | **claude-plugins-official 源**：Git clone `marketplace.json` → 解析 → sparse checkout 安装 | 格式标准 |
-| Phase 4 | **MCP Registry 源**：REST API `GET /v0/servers` → 列表/搜索 → stdio+HTTP 配置生成 | P0 MCP 源 |
-| Phase 5 | **SkillHub.cn 独立 CLI 适配器**：封装 `skillhub search/install`（腾讯云 COS 加速） | CN 精选源 |
-| Phase 6 | **ModelScope 独立 CLI 适配器**：封装 `modelscope skills add`（Python SDK，需 pip） | 最大 CN 目录 |
-| Phase 7 | 设置面板插件中心 UI（平铺卡片 + 搜索 + 安装管线 + 来源筛选） | #3 |
-| Phase 8 | SwarmSkills API 适配器 + 自定义远程源（用户填 `--registry` URL） | 长尾覆盖 |
+| Phase 3 | **claude-plugins-official 源**：Git clone `marketplace.json` → 解析 → sparse checkout 安装                                                                        | 格式标准              |
+| Phase 4 | **MCP Registry 源**：REST API `GET /v0/servers` → 列表/搜索 → stdio+HTTP 配置生成                                                                                 | P0 MCP 源             |
+| Phase 5 | **SkillHub.cn 独立 CLI 适配器**：封装 `skillhub search/install`（腾讯云 COS 加速）                                                                                | CN 精选源             |
+| Phase 6 | **ModelScope 独立 CLI 适配器**：封装 `modelscope skills add`（Python SDK，需 pip）                                                                                | 最大 CN 目录          |
+| Phase 7 | 设置面板插件中心 UI（平铺卡片 + 搜索 + 安装管线 + 来源筛选）                                                                                                      | #3                    |
+| Phase 8 | SwarmSkills API 适配器 + 自定义远程源（用户填 `--registry` URL）                                                                                                  | 长尾覆盖              |
 
 **关键设计**：每个适配器实现统一的 `RemotePluginSource` 接口，但内部调用各自的 CLI/API。插件中心 UI 不感知底层差异——用户只需选择来源、搜索、一键安装。clawhub 族三个站点通过 registry 参数自动切换，用户看到的是"ClawHub（国际）/ ClawHub 镜像（中国）/ 讯飞 SkillHub"三个选项。
 
 #### 其他规划项
 
-| 能力 | 项目 | 贡献 | 优先级 |
-|------|------|------|--------|
-| 网站适配器 + CLI Hub | **opencli** | 100+ 网站适配器（数据获取）+ CLI Hub 统一入口 | P2 |
+| 能力                 | 项目        | 贡献                                          | 优先级 |
+| -------------------- | ----------- | --------------------------------------------- | ------ |
+| 网站适配器 + CLI Hub | **opencli** | 100+ 网站适配器（数据获取）+ CLI Hub 统一入口 | P2     |
 
 ---
 
@@ -598,13 +605,13 @@ DeepOrca 本地服务端（Electron 主进程内置，新增）
 
 ### 规划中
 
-| 能力 | 集成形态 | 贡献 | 优先级 |
-|------|----------|------|--------|
-| WebSocket 服务端 | Electron 主进程内 `ws` 库，提取现有 IPC handler 为共享 dispatch | 复用 100% 引擎和 UI，远程浏览器获得完整 DeepOrca 体验 | P1 |
-| 浏览器端 shim | 注入 `window.deeporca` 的 `<script>`，通过 WS marshalling 实现 DesktopApi | 浏览器中无缝运行现有 React UI | P1 |
-| HTTP 静态服务 | 同源 serve `dist/renderer/`（避免 CSP 问题） | 远程加载完整前端 | P1 |
-| 隧道配置文档 | 文档 + 配置引导（蒲公英/ngrok/frp） | 用户一键配置外网访问 | P2 |
-| 访问鉴权 | WS 连接 token + 可选 HTTPS | 防止未授权访问 | P1 |
+| 能力             | 集成形态                                                                  | 贡献                                                  | 优先级 |
+| ---------------- | ------------------------------------------------------------------------- | ----------------------------------------------------- | ------ |
+| WebSocket 服务端 | Electron 主进程内 `ws` 库，提取现有 IPC handler 为共享 dispatch           | 复用 100% 引擎和 UI，远程浏览器获得完整 DeepOrca 体验 | P1     |
+| 浏览器端 shim    | 注入 `window.deeporca` 的 `<script>`，通过 WS marshalling 实现 DesktopApi | 浏览器中无缝运行现有 React UI                         | P1     |
+| HTTP 静态服务    | 同源 serve `dist/renderer/`（避免 CSP 问题）                              | 远程加载完整前端                                      | P1     |
+| 隧道配置文档     | 文档 + 配置引导（蒲公英/ngrok/frp）                                       | 用户一键配置外网访问                                  | P2     |
+| 访问鉴权         | WS 连接 token + 可选 HTTPS                                                | 防止未授权访问                                        | P1     |
 
 ### 设计原则
 
@@ -621,10 +628,10 @@ DeepOrca 本地服务端（Electron 主进程内置，新增）
 
 ### 规划中
 
-| 能力 | 方案 | 贡献 | 优先级 |
-|------|------|------|--------|
-| 本地实时语音转录（默认） | **whisper.cpp** vendor + whisper-streaming LocalAgreement 策略 | 零外部依赖，CPU 可跑，3.3 秒延迟，74-244MB 模型 | P2 |
-| 云端 API 兜底 | OpenAI Audio API / 用户配置的兼容端点 | 零体积，复用现有 API key，网络依赖 | P3 |
+| 能力                     | 方案                                                           | 贡献                                            | 优先级 |
+| ------------------------ | -------------------------------------------------------------- | ----------------------------------------------- | ------ |
+| 本地实时语音转录（默认） | **whisper.cpp** vendor + whisper-streaming LocalAgreement 策略 | 零外部依赖，CPU 可跑，3.3 秒延迟，74-244MB 模型 | P2     |
+| 云端 API 兜底            | OpenAI Audio API / 用户配置的兼容端点                          | 零体积，复用现有 API key，网络依赖              | P3     |
 
 ### 本地方案详情（whisper.cpp）
 
@@ -651,11 +658,11 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 
 ### 备选方案（不首选）
 
-| 方案 | 准确率 | 问题 |
-|------|--------|------|
-| NVIDIA Parakeet TDT 0.6B v2 | 业界最高 WER | 需 Python/NeMo，违背零依赖 |
-| Superwhisper / Wispr Flow | 高 | 云端依赖 / macOS 为主 / 付费 |
-| OpenAI Audio API | 高 | 网络依赖 + API key + 付费（但可作为兜底） |
+| 方案                        | 准确率       | 问题                                      |
+| --------------------------- | ------------ | ----------------------------------------- |
+| NVIDIA Parakeet TDT 0.6B v2 | 业界最高 WER | 需 Python/NeMo，违背零依赖                |
+| Superwhisper / Wispr Flow   | 高           | 云端依赖 / macOS 为主 / 付费              |
+| OpenAI Audio API            | 高           | 网络依赖 + API key + 付费（但可作为兜底） |
 
 ---
 
@@ -663,12 +670,12 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 
 > 以下项目经深入分析后**暂时搁置**，不纳入当前规划。
 
-| 项目 | 搁置理由 | 重新评估条件 |
-|------|----------|-------------|
-| **OpenSpec** | Plan Mode 已有成熟的提案→批准→执行流程（含权限强制），OpenSpec 的增量价值（spec 持久化）触及引擎核心改动，风险高 | Plan Mode 的 spec 持久化需求明确且迫切时重新评估 |
-| **Superpowers** | 执行纪律类 skill（TDD/debug/review）可共存，但规划类（brainstorming/writing-plans）与 Plan Mode 争夺控制权；子 agent 类（subagent-driven）DeepOrca 无 Task 工具 | 引擎加入 Task 工具后，重新评估执行纪律类 skill 的引入 |
-| **OmniGent** | meta-harness 与 DeepOrca 自身 harness 定位冲突，不互补 | 永不采纳（架构层级冲突） |
-| **Electron 开发套件（自建）** | Electron 无官方 Agent Skills。自建需要实现 MCP/CLI 调试层（操控窗口/IPC/DevTools/进程），工程量巨大——本质上是在造 Electron 专用的 DevTools 自动化层 | 出现社区认可的 Electron Agent Skills 方案，或 DeepOrca 有明确的 Electron 应用调试自动化需求时 |
+| 项目                          | 搁置理由                                                                                                                                                        | 重新评估条件                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **OpenSpec**                  | Plan Mode 已有成熟的提案→批准→执行流程（含权限强制），OpenSpec 的增量价值（spec 持久化）触及引擎核心改动，风险高                                                | Plan Mode 的 spec 持久化需求明确且迫切时重新评估                                              |
+| **Superpowers**               | 执行纪律类 skill（TDD/debug/review）可共存，但规划类（brainstorming/writing-plans）与 Plan Mode 争夺控制权；子 agent 类（subagent-driven）DeepOrca 无 Task 工具 | 引擎加入 Task 工具后，重新评估执行纪律类 skill 的引入                                         |
+| **OmniGent**                  | meta-harness 与 DeepOrca 自身 harness 定位冲突，不互补                                                                                                          | 永不采纳（架构层级冲突）                                                                      |
+| **Electron 开发套件（自建）** | Electron 无官方 Agent Skills。自建需要实现 MCP/CLI 调试层（操控窗口/IPC/DevTools/进程），工程量巨大——本质上是在造 Electron 专用的 DevTools 自动化层             | 出现社区认可的 Electron Agent Skills 方案，或 DeepOrca 有明确的 Electron 应用调试自动化需求时 |
 
 ---
 
@@ -676,29 +683,29 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 
 > 以下能力已在代码仓库中落地（跨 dev / perf / master 分支）。
 
-| 能力 | commit / 分支 | 功能域 |
-|------|---------------|--------|
-| codegraph（导航层 MCP） | vendored CLI | 代码智能 |
-| CRG（分析层 MCP） | `1f5146e` dev | 代码智能 |
-| ocr（AI 审查） | `873f437` dev | 代码智能 |
-| Serena（符号级代码操作 MCP） | `abb3f78` perf | 代码智能 |
-| Dart MCP（Flutter 运行时分析） | `2b08460` perf | 移动开发 |
-| openwiki（Wiki 生成） | vendored CLI | 知识中心 |
-| TencentDB-Agent-Memory（记忆） | `08308c5` perf | 知识中心 |
-| DeepDesign Phase 1（设计生成） | `127c912` perf | 设计生成 |
-| Bento Slides（演示文稿） | `08308c5` perf | 办公套件 |
-| browser-skill（浏览器操控） | 内置插件 | 浏览器与联网 |
-| flutter/agent-plugins（24 技能） | 构建 skills | 移动开发 |
-| Android Development Kit（14 技能 + CLI） | `16c4b2c` perf | 移动开发 |
-| HarmonyOS Development Kit（Skills + MCP） | `16c4b2c` perf | 移动开发 |
-| React Native Development Kit（Skills + Expo MCP） | `16c4b2c` perf | 移动开发 |
-| web-access-strategy（联网策略 Skill） | `16c4b2c` perf | 浏览器与联网 |
-| Plan Mode（规划+权限强制） | 引擎核心 | 引擎演进 |
-| UpdatePlan（进度跟踪） | 引擎核心 | 引擎演进 |
-| Electron 35（零外部依赖） | `d0ebc79` dev | 引擎演进 |
-| 插件中心分组 | `dbf94fb`+`b70a7bb` perf | 插件中心 |
-| vendor 镜像兜底 | `4eb24c0` dev | 引擎演进 |
-| spawn 修复 | `04c1585` dev | 引擎演进 |
+| 能力                                              | commit / 分支            | 功能域       |
+| ------------------------------------------------- | ------------------------ | ------------ |
+| codegraph（导航层 MCP）                           | vendored CLI             | 代码智能     |
+| CRG（分析层 MCP）                                 | `1f5146e` dev            | 代码智能     |
+| ocr（AI 审查）                                    | `873f437` dev            | 代码智能     |
+| Serena（符号级代码操作 MCP）                      | `abb3f78` perf           | 代码智能     |
+| Dart MCP（Flutter 运行时分析）                    | `2b08460` perf           | 移动开发     |
+| openwiki（Wiki 生成）                             | vendored CLI             | 知识中心     |
+| TencentDB-Agent-Memory（记忆）                    | `08308c5` perf           | 知识中心     |
+| DeepDesign Phase 1（设计生成）                    | `127c912` perf           | 设计生成     |
+| Bento Slides（演示文稿）                          | `08308c5` perf           | 办公套件     |
+| browser-skill（浏览器操控）                       | 内置插件                 | 浏览器与联网 |
+| flutter/agent-plugins（24 技能）                  | 构建 skills              | 移动开发     |
+| Android Development Kit（14 技能 + CLI）          | `16c4b2c` perf           | 移动开发     |
+| HarmonyOS Development Kit（Skills + MCP）         | `16c4b2c` perf           | 移动开发     |
+| React Native Development Kit（Skills + Expo MCP） | `16c4b2c` perf           | 移动开发     |
+| web-access-strategy（联网策略 Skill）             | `16c4b2c` perf           | 浏览器与联网 |
+| Plan Mode（规划+权限强制）                        | 引擎核心                 | 引擎演进     |
+| UpdatePlan（进度跟踪）                            | 引擎核心                 | 引擎演进     |
+| Electron 35（零外部依赖）                         | `d0ebc79` dev            | 引擎演进     |
+| 插件中心分组                                      | `dbf94fb`+`b70a7bb` perf | 插件中心     |
+| vendor 镜像兜底                                   | `4eb24c0` dev            | 引擎演进     |
+| spawn 修复                                        | `04c1585` dev            | 引擎演进     |
 
 ---
 
@@ -715,6 +722,7 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 ---
 
 > 关联文档：
+>
 > - [DeepDesign 内核设计](../../specs/deep-design/design.md)
 > - [前期集成调研（5 项目）](../research/2026-07-open-source-integration-feasibility.md)
 > - [OCR 集成 & Understand-Anything 分析](../research/2026-07-ocr-integration-and-ua-analysis.md)
