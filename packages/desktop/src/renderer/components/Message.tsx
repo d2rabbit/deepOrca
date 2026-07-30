@@ -7,6 +7,7 @@ import { renderMarkdown } from "../markdown";
 const A2uiMessage = lazy(() => import("../a2ui/A2uiMessage").then((m) => ({ default: m.A2uiMessage })));
 // Lazy-load comparison matrix — only needed when agent uses <comparison> tags.
 const ComparisonMatrix = lazy(() => import("./ComparisonMatrix").then((m) => ({ default: m.ComparisonMatrix })));
+import { getRichToolType, RichToolResult } from "./RichToolResult";
 import {
   buildThinkingSummary,
   buildToolSummary,
@@ -823,6 +824,18 @@ export const Message = memo(function Message({
           </div>
         );
       }
+    }
+
+    // Rich tool results — structured rendering for known tool types.
+    const richType = getRichToolType(message);
+    if (richType) {
+      const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
+      return (
+        <div className="ui-bubble-row tool">
+          <Avatar role={avatarRole} />
+          <RichToolResult message={message} />
+        </div>
+      );
     }
 
     const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
