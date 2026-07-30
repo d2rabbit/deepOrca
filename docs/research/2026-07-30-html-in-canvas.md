@@ -1,8 +1,26 @@
 # html-in-canvas 调研报告
 
-> 日期：2026-07-30 · 状态：调研完成
+> 日期：2026-07-30 · 状态：调研完成（含实测验证）
 > 来源：[html-in-canvas.dev](https://html-in-canvas.dev) · [overview](https://html-in-canvas.dev/docs/overview/) · [demos](https://html-in-canvas.dev/demos/) · [browser-support](https://html-in-canvas.dev/docs/browser-support/)
 > 目的：核实「Canvas UI」（roadmap §六 视觉特效画笔）的真实定位，评估 html-in-canvas 对 DeepOrca 设计生成的价值。
+
+---
+
+## 实测验证（2026-07-30，决定性）
+
+在 DeepOrca 实际 Electron 进程内探测 html-in-canvas API：
+
+| 探测项                    | 默认（无 flag）                       | `--enable-features=CanvasDrawElement` |
+| ------------------------- | ------------------------------------- | ------------------------------------- |
+| Chromium 版本             | **150.0.7871.129**（Electron 43.2.0） | 150                                   |
+| `ctx.drawElementImage`    | undefined                             | **function ✓**                        |
+| `layoutSubtree` in canvas | false                                 | **true ✓**                            |
+| `requestPaint`            | undefined                             | **function ✓**                        |
+| `captureElementImage`     | undefined                             | **function ✓**                        |
+
+**结论：DeepOrca 的 Electron 43 / Chromium 150 已包含 html-in-canvas 全套 API**（提案要求 ≥147，DeepOrca 满足）。默认关闭，但加 `--enable-features=CanvasDrawElement` 启动参数即全可用。
+
+**修正先前判断**：之前 roadmap 写"阻塞于 Chromium/Electron 平台支持"——**这个前提已满足**，只是默认关。实际可行路径：① 现在 DeepOrca 启动加该 flag 即可用（实验性，flag 可能随版本变）；② 等 Chromium 后续默认开启后随 Electron 升级自动获得。
 
 ---
 
