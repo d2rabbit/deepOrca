@@ -12,6 +12,10 @@ const API_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const API_TOOL_NAME_MAX_LENGTH = 64;
 // Safety valve for pagination loops (SDK returns one page at a time with nextCursor).
 const MAX_PAGES = 100;
+// Size of the per-server stderr ring buffer, in bytes. Matches the legacy
+// McpClient: large enough to surface a startup diagnostic, small enough to
+// bound memory. We keep the tail (most recent) bytes.
+const STDERR_RING_BUFFER_BYTES = 4096;
 
 type McpToolEntry = {
   serverName: string;
@@ -99,6 +103,10 @@ type ManagedClient = {
   client: Client;
   transport: StdioClientTransport;
   serverName: string;
+  // Tail of the server's stderr output (most recent STDERR_RING_BUFFER_BYTES).
+  // Captured while draining so a startup failure that writes a diagnostic to
+  // stderr then exits can surface in the failed-status error message.
+  stderrBuffer: string;
 };
 
 export class McpManager {
@@ -284,7 +292,12 @@ export class McpManager {
       if (managed) {
         await this.silentlyClose(managed);
       }
-      const message = err instanceof Error ? err.message : String(err);
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      // Surface any stderr the server wrote before failing — mirrors the old
+      // McpClient's withStderr(): if the buffer captured something, append it so
+      // startup diagnostics (e.g. "mcp startup boom") reach status.error.
+      const stderr = managed?.stderrBuffer.trim();
+      const message = stderr ? `${rawMessage}. stderr: ${stderr}` : rawMessage;
       this.setStatus({
         name,
         status: "failed",
@@ -318,21 +331,34 @@ export class McpManager {
       stderr: "pipe",
     });
 
-    // Drain stderr so a chatty server's pipe doesn't exert backpressure and stall
-    // its event loop. With `stderr: "pipe"` the SDK pipes child.stderr into a
-    // PassThrough with no consumer; a PassThrough buffers to its 16KB
-    // highWaterMark then pauses the producer, which — for a verbose-stderr server
-    // (logs, deprecation warnings, stack traces) — fills the OS pipe buffer,
-    // blocks the server's process.stderr.write(), and silently hangs it. The old
-    // McpClient consumed stderr into a 4KB ring buffer to avoid exactly this; we
-    // simply discard the bytes (acceptable to lose — see bed96b0 notes). The
-    // transport exposes `stderr` as a ready-to-read PassThrough immediately on
+    // The holder is allocated first so the stderr handler below can close over
+    // it and accumulate bytes into the same buffer read on the failure path.
+    const managed: ManagedClient = {
+      client: undefined as unknown as Client,
+      transport,
+      serverName: name,
+      stderrBuffer: "",
+    };
+
+    // Drain stderr while keeping the most recent ~4KB in a ring buffer.
+    //
+    // With `stderr: "pipe"` the SDK pipes child.stderr into a PassThrough with
+    // no consumer; a PassThrough buffers to its 16KB highWaterMark then pauses
+    // the producer, which — for a verbose-stderr server (logs, deprecation
+    // warnings, stack traces) — fills the OS pipe buffer, blocks the server's
+    // process.stderr.write(), and silently hangs it. The old McpClient consumed
+    // stderr into a 4KB ring buffer to avoid exactly this. We keep that
+    // behavior AND retain the tail so a server that writes a diagnostic to
+    // stderr and exits can surface it in the failed-status error message (the
+    // regression in a3310ff discarded the bytes entirely). The transport
+    // exposes `stderr` as a ready-to-read PassThrough immediately on
     // construction, so attaching now also captures any early output.
-    transport.stderr?.on("data", () => {
-      /* drain: prevent backpressure on a verbose-stderr server */
+    transport.stderr?.on("data", (chunk: Buffer) => {
+      managed.stderrBuffer = appendStderrRing(managed.stderrBuffer, chunk);
     });
 
     const client = new Client({ name: "deeporca", version: "0.1.0" }, { capabilities: {} });
+    managed.client = client;
 
     // Crash / disconnect detection: the SDK Protocol base class exposes a
     // public `onclose` callback that fires whenever the transport closes —
@@ -356,7 +382,7 @@ export class McpManager {
       this.refreshServerTools(name, client).catch(() => {});
     });
 
-    return { client, transport, serverName: name };
+    return managed;
   }
 
   private connectWithTimeout(client: Client, transport: StdioClientTransport, timeoutMs: number): Promise<void> {
@@ -699,6 +725,15 @@ export class McpManager {
 
 function buildRawMcpNamespacedName(serverName: string, toolName: string): string {
   return `mcp__${serverName}__${toolName}`;
+}
+
+// Append a stderr chunk to the ring buffer, keeping only the most recent
+// STDERR_RING_BUFFER_BYTES. Decode as UTF-8 (stderr is human-readable text);
+// truncating the head is fine — we only need the tail to surface the most
+// recent diagnostic.
+function appendStderrRing(prev: string, chunk: Buffer): string {
+  const next = prev + chunk.toString("utf8");
+  return next.length > STDERR_RING_BUFFER_BYTES ? next.slice(next.length - STDERR_RING_BUFFER_BYTES) : next;
 }
 
 // Build a Record<string, string> env (dropping any undefined values that

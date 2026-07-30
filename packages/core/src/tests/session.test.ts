@@ -743,7 +743,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -830,7 +834,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -949,7 +957,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -1058,7 +1070,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -3381,7 +3397,11 @@ rl.on("line", (line) => {
   const request = JSON.parse(line);
   if (!("id" in request)) return;
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: {} } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
