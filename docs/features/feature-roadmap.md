@@ -217,6 +217,7 @@
 - `deep-design` SKILL.md（工作流编排）
 - `seed.html` + `layouts.md`（8 个 section 骨架 + P0/P1/P2 自检清单）
 - 3 个 DESIGN.md 系统（dark-tech / modern-minimal / editorial）
+- **UI 风格目录**（`design/references/ui-styles.md`）——14 个 UI 设计风格的完整 Agent 提示词，来自 [NameThatUI/styles](https://namethatui.com/styles)。每个风格包含：定义信号、CSS 关键值（精确的 box-shadow / backdrop-filter / gradient 值）、Tailwind 实现思路、无障碍约束（4.5:1 对比度、focus 可见性、reduced-motion）。Agent 根据用户口语描述匹配风格（"磨砂玻璃"→Glassmorphism、"黑边亮色"→Neobrutalism），复制提示词后配合 Tailwind CDN 产出 HTML。14 个风格：Skeuomorphism / Neumorphism / Glassmorphism / Liquid Glass / Web Brutalism / Neobrutalism / Y2K Digital / Frutiger Aero / Flat Design / Minimalism / Claymorphism / Vernacular Web / Aqua / Windows Aero。
 
 > **与 A2UI 原型模块的边界**：DeepDesign 是「设计」（设计师向，HTML 成品，可脱离宿主）。A2UI 原型模块是「原型」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca 运行时**，类 v0/bolt）——**原型 ≠ 设计**，两者是独立产品线，受众/输入/格式/目标都不同。详见 `docs/research/2026-07-a2ui-integration.md` §四。
 
@@ -230,11 +231,13 @@
 | 仪表盘模板             | DeepDesign dashboard                                                             | seed + layouts                                                              | 侧边栏 + KPI 卡 + 内联 SVG 图表                                                                                                                                                                                                                                                                                                                                                      | P2                   |
 | 移动端模板             | DeepDesign mobile-app                                                            | seed + layouts                                                              | iPhone 框架 + 多屏流程                                                                                                                                                                                                                                                                                                                                                               | P3                   |
 | 海报模板               | DeepDesign poster                                                                | seed + layouts                                                              | 单页海报/社交媒体图                                                                                                                                                                                                                                                                                                                                                                  | P3                   |
+| **Tailwind CSS 实现层** | **Tailwind CSS CDN**                                                             | DeepDesign 产出 HTML 内嵌 `<script src="https://cdn.tailwindcss.com">`     | Agent 写 `class="flex gap-4 rounded-xl"` 比手写 CSS 更可靠、更一致。配合 UI 风格目录提示词，Agent 直接用 utility classes 落地风格定义信号（如 Neobrutalism 的 `border-2 border-black shadow-[4px_4px_0_#000]`）。**不替换主 UI 的 `--ui-*` token 系统**——仅用于 DeepDesign 产出的 HTML 设计件。调研 `docs/research/2026-07-tailwind-namethatui-htmx.md` | P2                   |
 
 **实施路线**：
 
 - Phase 1（已完成）：web-prototype 模板 + dark-tech 系统 + deep-design Skill
-- Phase 2：dashboard 模板 + 3 设计系统 + DESIGN.md 用户自建 + PDF 导出
+- Phase 1.5（已完成）：UI 风格目录（14 个 NameThatUI/styles 提示词）→ `design/references/ui-styles.md`
+- Phase 2：dashboard 模板 + 3 设计系统 + DESIGN.md 用户自建 + PDF 导出 + **Tailwind CDN 实现层**（Agent 用 utility classes 落地风格提示词）
 - Phase 3：mobile-app/poster 模板 + DesignStudioPanel 桌面面板（html-in-canvas 视觉特效另作独立远期项，阻塞于 Chromium/Electron 平台支持，不在此阶段 vendor）
 
 **替代决策**：DeepDesign 替代了原路线图的 OpenDesign daemon 集成——同能力，零 daemon，轻量 10 倍。
