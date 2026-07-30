@@ -21,6 +21,8 @@ type TemplateParams = Record<string, unknown>;
  * Returns null if the template name is unknown.
  */
 export function generatePrototype(template: string, params: TemplateParams): PrototypeResult | null {
+  // Reset ID counter per call so component IDs are deterministic within a surface.
+  idCounter = 0;
   switch (template.toLowerCase()) {
     case "login-form":
       return loginForm(params);
@@ -84,6 +86,7 @@ export function listTemplates(): Array<{ name: string; description: string; para
 
 // ── Template implementations ─────────────────────────────────────────────────
 
+// Per-call counter — reset at the start of each generatePrototype invocation.
 let idCounter = 0;
 function nextId(prefix: string): string {
   idCounter += 1;

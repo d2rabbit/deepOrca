@@ -55,6 +55,12 @@ interface SurfaceState {
   dataModel: Record<string, unknown>;
 }
 
+// Module-level surfaces are intentionally kept here because:
+// 1. Only ONE A2UI server instance exists per process (InMemoryTransport)
+// 2. Persistence functions need access from outside buildA2uiServer()
+// 3. The server is rebuilt on session reload — persistSurfaces/restoreSurfaces
+//    handle the state transfer across rebuilds.
+// However, we clear it on rebuild to prevent cross-session leakage.
 const surfaces = new Map<string, SurfaceState>();
 
 // ── Persistence (save/load to .deeporca/prototypes/) ────────────────────────
@@ -208,6 +214,8 @@ const SERVER_INFO = { name: "deeporca-a2ui", version: "0.1.0" };
  * Also registers `a2ui_action` for bidirectional user interaction flow.
  */
 export function buildA2uiServer(): McpServer {
+  // Clear stale surfaces from previous session to prevent cross-session leaks.
+  surfaces.clear();
   const server = new McpServer(SERVER_INFO);
   const registerTool = server.registerTool.bind(server) as unknown as RegisterToolLoose;
 
@@ -438,22 +446,21 @@ export function buildA2uiServer(): McpServer {
       const actionName = String(args.actionName ?? "");
       const context = args.context ?? {};
 
-      // Auto-handle navigation actions (navigate:<pageName>)
+      // Auto-handle navigation actions (navigate:<pageName>) — delegates to
+      // the same logic as navigate_to tool to keep a single code path.
       if (actionName.startsWith("navigate:")) {
         const pageName = actionName.slice("navigate:".length);
         const state = surfaces.get(surfaceId);
         if (state) {
-          const pages = (state.dataModel["nav.pages"] as string[]) ?? [];
-          const pageTitle = pageName;
           state.dataModel = {
             ...state.dataModel,
-            "nav.currentPage": pageTitle.charAt(0).toUpperCase() + pageTitle.slice(1),
-            "nav.currentPageContent": `Content for ${pageTitle} — ask me to add components here.`,
+            "nav.currentPage": pageName.charAt(0).toUpperCase() + pageName.slice(1),
+            "nav.currentPageContent": `Content for ${pageName} — ask me to add components here.`,
             "nav.currentPageId": pageName,
           };
           const messages = [updateDataModelMessage(surfaceId, state.dataModel)];
           state.messages = [...state.messages, ...messages];
-          return a2uiResult(messages, `Navigated to page "${pageTitle}".`);
+          return a2uiResult(messages, `Navigated to page "${pageName}".`);
         }
       }
 
