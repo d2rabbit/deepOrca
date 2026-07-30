@@ -176,7 +176,7 @@ function deleteSurfaceMessage(surfaceId: string): unknown {
 // ── Tool result with EmbeddedResource ────────────────────────────────────────
 
 /** Wrap A2UI messages as a CallToolResult with embedded resource. */
-function a2uiResult(messages: unknown[], text: string): CallToolResult {
+function a2uiResult(messages: unknown[], text: string, surfaceId?: string): CallToolResult {
   return {
     content: [
       {
@@ -186,7 +186,7 @@ function a2uiResult(messages: unknown[], text: string): CallToolResult {
       {
         type: "resource",
         resource: {
-          uri: `a2ui://surface/${Date.now()}`,
+          uri: `a2ui://surface/${surfaceId ?? "unknown"}-${Date.now()}`,
           mimeType: "application/a2ui+json",
           text: JSON.stringify(messages),
         },
@@ -247,21 +247,18 @@ export function buildA2uiServer(): McpServer {
       const components = (args.components as unknown[]) ?? [];
       const dataModel = (args.dataModel as Record<string, unknown>) ?? {};
 
-      surfaces.set(surfaceId, {
-        surfaceId,
-        title,
-        messages: [createSurfaceMessage(surfaceId, title)],
-        dataModel,
-      });
-
-      // Add component + data messages
       const messages: unknown[] = [
         createSurfaceMessage(surfaceId, title),
         updateComponentsMessage(surfaceId, components),
         updateDataModelMessage(surfaceId, dataModel),
       ];
 
-      surfaces.get(surfaceId)!.messages = messages;
+      surfaces.set(surfaceId, {
+        surfaceId,
+        title,
+        messages,
+        dataModel,
+      });
 
       return a2uiResult(
         messages,
@@ -400,8 +397,13 @@ export function buildA2uiServer(): McpServer {
 
       state.messages = [...state.messages, ...messages];
 
+      // Return the FULL message history (not just the delta) so that a fresh
+      // renderer that hasn't seen the initial createSurface can hydrate
+      // the surface from scratch. This prevents update_surface results from
+      // being silently dropped when the processor has no prior state.
+      const fullMessages = state.messages;
       const summary = `Surface "${state.title}" updated: ${messages.length} message(s).`;
-      return a2uiResult(messages, summary);
+      return a2uiResult(fullMessages, summary);
     }
   );
 

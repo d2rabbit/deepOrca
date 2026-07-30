@@ -691,9 +691,11 @@ export class SessionManager {
     // Connect the A2UI in-process MCP server (runs via InMemoryTransport,
     // no subprocess). Always available unless explicitly disabled.
     if (!isA2uiDisabled(this.projectRoot)) {
-      // Restore any persisted prototype surfaces from disk.
-      restoreSurfaces(this.projectRoot);
       const a2uiServer = buildA2uiServer();
+      // Restore persisted surfaces AFTER buildA2uiServer() (which clears the
+      // module-level surfaces Map to prevent cross-session leaks). This way
+      // restored surfaces survive the clear and are available immediately.
+      restoreSurfaces(this.projectRoot);
       await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, a2uiServer);
     }
 

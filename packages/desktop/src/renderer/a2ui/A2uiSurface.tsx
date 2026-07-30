@@ -52,7 +52,17 @@ function renderComponents(
   parentId: string | undefined,
   onAction?: (surfaceId: string, actionName: string, context: Record<string, unknown>) => void
 ): JSX.Element[] {
-  const children = allComponents.filter((c) => c.parentId === parentId);
+  // Build a set of all valid IDs for orphan detection.
+  const allIds = new Set(allComponents.map((c) => c.id));
+  const children = allComponents.filter((c) => {
+    if (c.parentId === parentId) return true;
+    // Orphan recovery: if parentId is set but doesn't match any component,
+    // and we're at the root level (parentId === undefined), render it as root.
+    if (parentId === undefined && c.parentId !== undefined && !allIds.has(c.parentId)) {
+      return true;
+    }
+    return false;
+  });
   return children.map((comp) => {
     const childElements = renderComponents(surface, allComponents, comp.id, onAction);
     return (
@@ -82,13 +92,29 @@ function ComponentRenderer({
   const props = component.properties ?? {};
   const type = component.type.toLowerCase();
 
-  // Resolve property values that reference the data model via JSON Pointer ($ref).
+  // Resolve property values that reference the data model.
+  // Uses ${...} syntax for data bindings to avoid false-positive on literal
+  // strings starting with $ (e.g. "$12.50", "$HOME").
+  // Falls back to legacy $prefix for backward compat with existing templates.
   const resolve = (val: unknown): unknown => {
-    if (typeof val === "string" && val.startsWith("$")) {
-      const path = val.slice(1);
+    if (typeof val !== "string") return val;
+    // New syntax: ${path/to/key} — explicit, no ambiguity
+    const explicitMatch = val.match(/^\$\{(.+)\}$/);
+    if (explicitMatch) {
+      const path = explicitMatch[1]!;
       return path.split("/").reduce<unknown>((obj, key) => {
         return (obj as Record<string, unknown>)?.[key];
       }, dataModel);
+    }
+    // Legacy syntax: $path (only if the resolved value exists in dataModel)
+    if (val.startsWith("$") && !val.startsWith("${")) {
+      const path = val.slice(1);
+      const resolved = path.split("/").reduce<unknown>((obj, key) => {
+        return (obj as Record<string, unknown>)?.[key];
+      }, dataModel);
+      // Only use the resolved value if it's not undefined — otherwise it's
+      // a literal string that happens to start with $ (e.g. "$12.50").
+      if (resolved !== undefined) return resolved;
     }
     return val;
   };

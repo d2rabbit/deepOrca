@@ -62,7 +62,6 @@ export function RichToolResult({ message }: Props): JSX.Element | null {
       return <RiskAnalysisResult message={message} />;
     case "wiki-pages":
       return <WikiPagesResult message={message} />;
-      return <SearchResultsResult message={message} />;
     default:
       return null;
   }

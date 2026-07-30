@@ -4,16 +4,16 @@
  * When the user clicks "⧉ Window" in PrototypePanel, the main process
  * opens a new BrowserWindow with ?view=prototype. This component:
  * 1. Listens for the `event:a2uiWindowPayload` IPC event (sent on load)
- * 2. Renders the A2UI Surface full-screen
- * 3. Shows the surface title in a minimal header
+ * 2. Renders the A2UI Surface full-screen from the received payload
  */
 
 import { useEffect, useState, type JSX } from "react";
+import { ipcRenderer } from "electron";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
-import { processA2uiMessages, getSurfaces } from "../a2ui/processor";
+import { processA2uiMessages } from "../a2ui/processor";
 
 export function PrototypeWindow(): JSX.Element {
-  const [loaded, setLoaded] = useState(false);
+  const [a2uiJson, setA2uiJson] = useState<string | null>(null);
   const [title, setTitle] = useState("Prototype");
 
   useEffect(() => {
@@ -21,29 +21,13 @@ export function PrototypeWindow(): JSX.Element {
     const handler = (_event: unknown, data: { a2uiJson: string; title: string }) => {
       processA2uiMessages(data.a2uiJson);
       setTitle(data.title || "Prototype");
-      setLoaded(true);
+      setA2uiJson(data.a2uiJson);
     };
-    // The preload's subscribe helper isn't available for this one-off event,
-    // so we use the raw ipcRenderer via window.deeporca if available.
-    // Fallback: check if payload was already sent (race condition guard).
-    const checkInterval = setInterval(() => {
-      const surfaces = getSurfaces();
-      if (surfaces.length > 0) {
-        setTitle(surfaces[0]!.title);
-        setLoaded(true);
-        clearInterval(checkInterval);
-      }
-    }, 200);
-    // Timeout after 10 seconds.
-    const timeout = setTimeout(() => clearInterval(checkInterval), 10000);
-
+    ipcRenderer.on("event:a2uiWindowPayload", handler as never);
     return () => {
-      clearInterval(checkInterval);
-      clearTimeout(timeout);
+      ipcRenderer.removeListener("event:a2uiWindowPayload", handler as never);
     };
   }, []);
-
-  const surfaces = getSurfaces();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--ui-bg, #1a1a1a)" }}>
@@ -60,12 +44,10 @@ export function PrototypeWindow(): JSX.Element {
         ✦ {title}
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-        {loaded && surfaces.length > 0 ? (
-          <A2uiSurface messagesJson={JSON.stringify([])} />
+        {a2uiJson ? (
+          <A2uiSurface messagesJson={a2uiJson} />
         ) : (
-          <div style={{ color: "#888", textAlign: "center", paddingTop: 40 }}>
-            {loaded ? "No surfaces found." : "Waiting for prototype data…"}
-          </div>
+          <div style={{ color: "#888", textAlign: "center", paddingTop: 40 }}>Waiting for prototype data…</div>
         )}
       </div>
     </div>
