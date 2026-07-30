@@ -19,6 +19,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod/v3";
 import type { ZodRawShape } from "zod/v3";
+import * as fs from "node:fs";
+import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
 
 export const A2UI_MCP_SERVER_NAME = "a2ui";
@@ -54,6 +56,78 @@ interface SurfaceState {
 }
 
 const surfaces = new Map<string, SurfaceState>();
+
+// ── Persistence (save/load to .deeporca/prototypes/) ────────────────────────
+
+/** Directory for persisted prototype surfaces. */
+function getPrototypesDir(projectRoot: string): string {
+  return nodePath.join(projectRoot, ".deeporca", "prototypes");
+}
+
+/** Save all active surfaces to disk. Called on session dispose. */
+export function persistSurfaces(projectRoot: string): void {
+  const dir = getPrototypesDir(projectRoot);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    for (const [id, state] of surfaces) {
+      const filePath = nodePath.join(dir, `${id}.json`);
+      fs.writeFileSync(
+        filePath,
+        JSON.stringify(
+          { surfaceId: id, title: state.title, messages: state.messages, dataModel: state.dataModel },
+          null,
+          2
+        ),
+        "utf8"
+      );
+    }
+  } catch {
+    // Best-effort — persistence failures must not break the session.
+  }
+}
+
+/** Load persisted surfaces from disk. Called on session init. */
+export function restoreSurfaces(projectRoot: string): void {
+  const dir = getPrototypesDir(projectRoot);
+  try {
+    if (!fs.existsSync(dir)) return;
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      try {
+        const raw = fs.readFileSync(nodePath.join(dir, file), "utf8");
+        const data = JSON.parse(raw) as {
+          surfaceId: string;
+          title: string;
+          messages: unknown[];
+          dataModel: Record<string, unknown>;
+        };
+        surfaces.set(data.surfaceId, {
+          surfaceId: data.surfaceId,
+          title: data.title,
+          messages: data.messages,
+          dataModel: data.dataModel,
+        });
+      } catch {
+        // Skip malformed files.
+      }
+    }
+  } catch {
+    // Best-effort.
+  }
+}
+
+/** Clear all surfaces (memory + disk). Called on explicit close. */
+export function clearAllSurfaces(projectRoot: string): void {
+  surfaces.clear();
+  const dir = getPrototypesDir(projectRoot);
+  try {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  } catch {
+    // Best-effort.
+  }
+}
 
 // ── A2UI message builders ────────────────────────────────────────────────────
 

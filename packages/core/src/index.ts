@@ -206,6 +206,9 @@ export {
   buildA2uiMcpServerConfig,
   setA2uiDisabled,
   isA2uiDisabled,
+  persistSurfaces,
+  restoreSurfaces,
+  clearAllSurfaces,
 } from "./mcp/a2ui-mcp";
 
 export {

@@ -33,7 +33,13 @@ import {
   hasReactNativeProject,
   isExpoDisabled,
 } from "./common/expo-mcp";
-import { A2UI_MCP_SERVER_NAME, buildA2uiServer, isA2uiDisabled } from "./mcp/a2ui-mcp";
+import {
+  A2UI_MCP_SERVER_NAME,
+  buildA2uiServer,
+  isA2uiDisabled,
+  persistSurfaces,
+  restoreSurfaces,
+} from "./mcp/a2ui-mcp";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -685,6 +691,8 @@ export class SessionManager {
     // Connect the A2UI in-process MCP server (runs via InMemoryTransport,
     // no subprocess). Always available unless explicitly disabled.
     if (!isA2uiDisabled(this.projectRoot)) {
+      // Restore any persisted prototype surfaces from disk.
+      restoreSurfaces(this.projectRoot);
       const a2uiServer = buildA2uiServer();
       await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, a2uiServer);
     }
@@ -728,6 +736,8 @@ export class SessionManager {
     this.mcpManager.disconnect();
     // Flush any pending debounced index write before teardown.
     this.flushSessionsIndex();
+    // Persist prototype surfaces to disk before teardown.
+    persistSurfaces(this.projectRoot);
     // Release cached messages to free memory.
     this.messageCache.clear();
   }
