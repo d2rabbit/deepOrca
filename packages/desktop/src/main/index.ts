@@ -101,7 +101,7 @@ function refreshVendoredToolsInBackground(): void {
   if (app.isPackaged) {
     return;
   }
-  for (const name of ["codegraph", "openwiki"]) {
+  for (const name of ["codegraph", "openwiki", "uv"]) {
     const script = join(__dirname, "..", "..", "..", "scripts", `vendor-${name}.js`);
     try {
       const child = spawn(process.execPath, [script], {

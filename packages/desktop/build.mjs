@@ -172,6 +172,9 @@ async function run() {
   await ensureCoreBuilt();
   ensureVendored("codegraph", ["dist", "bin", "codegraph.js"], "npx @colbymchenry/codegraph");
   ensureVendored("openwiki", ["dist", "cli.js"], "npx openwiki");
+  // uv: shared by CRG + Serena. The version marker file is the stable existence
+  // check (the binary lives under a host-specific <target>/ subdir).
+  ensureVendored("uv", [".vendored-uv-version"], "system uv on PATH");
   if (isDev) {
     const contexts = await Promise.all([context(mainConfig), context(preloadConfig), context(rendererConfig)]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));
