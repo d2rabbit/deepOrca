@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { McpClient, createMcpSpawnSpec } from "../mcp/mcp-client";
+import { createMcpSpawnSpec } from "../mcp/spawn-spec";
+import { McpClient } from "../mcp/mcp-client";
 
 test("createMcpSpawnSpec keeps non-Windows MCP launches shell-free", () => {
   assert.deepEqual(createMcpSpawnSpec("npx", ["-y", "@playwright/mcp@latest"], "darwin"), {
