@@ -200,6 +200,155 @@
   gap: var(--ui-space-1);
 }
 
+/* ── DeepOrca custom catalog components (P3.2) ──────────────────────────── */
+
+/* Kanban board */
+.ui-a2ui-kanban-col {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  background: var(--ui-surface-sunken);
+  border-radius: var(--ui-radius-sm);
+  padding: var(--ui-space-1);
+}
+.ui-a2ui-kanban-col-head {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  padding: 2px var(--ui-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.ui-a2ui-kanban-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-a2ui-kanban-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ui-a2ui-kanban-card:hover {
+  border-color: var(--ui-accent);
+}
+.ui-a2ui-kanban-card-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-text-primary);
+}
+.ui-a2ui-kanban-card-priority {
+  font-size: 9px;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+/* Metric card (dashboard) */
+.ui-a2ui-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  min-width: 100px;
+}
+.ui-a2ui-metric-label {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-a2ui-metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ui-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.ui-a2ui-metric-trend {
+  font-size: 10px;
+  font-weight: 600;
+}
+.ui-a2ui-metric-trend.up { color: #3fb950; }
+.ui-a2ui-metric-trend.down { color: #f85149; }
+
+/* Flow step (wizard/debug) */
+.ui-a2ui-flow-step {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-1) 0;
+}
+.ui-a2ui-flow-step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+  border: 2px solid var(--ui-border);
+  color: var(--ui-text-faint);
+}
+.ui-a2ui-flow-step.active .ui-a2ui-flow-step-dot {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+.ui-a2ui-flow-step.done .ui-a2ui-flow-step-dot {
+  background: #3fb950;
+  border-color: #3fb950;
+  color: #fff;
+}
+.ui-a2ui-flow-step-label {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+.ui-a2ui-flow-step.active .ui-a2ui-flow-step-label {
+  color: var(--ui-text-primary);
+  font-weight: 600;
+}
+.ui-a2ui-flow-step.done .ui-a2ui-flow-step-label {
+  text-decoration: line-through;
+  color: var(--ui-text-faint);
+}
+
+/* Badge */
+.ui-a2ui-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--ui-radius-pill, 999px);
+}
+
+/* Progress bar */
+.ui-a2ui-progress {
+  height: 4px;
+  background: var(--ui-surface-sunken);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ui-a2ui-progress-fill {
+  height: 100%;
+  background: var(--ui-accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
 /* ── Inline A2UI message in conversation ────────────────────────────────── */
 
 .ui-a2ui-message {

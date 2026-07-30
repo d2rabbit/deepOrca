@@ -180,6 +180,91 @@ function ComponentRenderer({
         </select>
       );
     }
+    // ── DeepOrca custom catalog components (P3.2) ──────────────────────────
+    case "kanbancolumn": {
+      const title = String(resolve(props.title) ?? "");
+      return (
+        <div className="ui-a2ui-kanban-col">
+          <div className="ui-a2ui-kanban-col-head">{title}</div>
+          <div className="ui-a2ui-kanban-col-body">{childElements}</div>
+        </div>
+      );
+    }
+    case "kanbancard": {
+      const cardTitle = String(resolve(props.title) ?? "");
+      const priority = String(resolve(props.priority) ?? "");
+      const priorityColor =
+        priority === "high"
+          ? "var(--ui-danger, #ef4444)"
+          : priority === "medium"
+            ? "var(--ui-warning, #f59e0b)"
+            : "#3fb950";
+      return (
+        <div className="ui-a2ui-kanban-card" onClick={() => onAction?.("open_card", { componentId: component.id })}>
+          <div className="ui-a2ui-kanban-card-title">{cardTitle}</div>
+          {priority ? (
+            <span className="ui-a2ui-kanban-card-priority" style={{ background: priorityColor }}>
+              {priority}
+            </span>
+          ) : null}
+          {childElements}
+        </div>
+      );
+    }
+    case "metriccard": {
+      const label = String(resolve(props.label) ?? "");
+      const value = String(resolve(props.value) ?? "");
+      const trend = resolve(props.trend);
+      const trendStr = typeof trend === "string" ? trend : "";
+      const isUp = trendStr.startsWith("+");
+      return (
+        <div className="ui-a2ui-metric-card">
+          <div className="ui-a2ui-metric-label">{label}</div>
+          <div className="ui-a2ui-metric-value">{value}</div>
+          {trendStr ? <div className={`ui-a2ui-metric-trend ${isUp ? "up" : "down"}`}>{trendStr}</div> : null}
+        </div>
+      );
+    }
+    case "flowstep": {
+      const stepLabel = String(resolve(props.label) ?? "");
+      const status = String(resolve(props.status) ?? "pending");
+      const isActive = status === "active";
+      const isDone = status === "done";
+      return (
+        <div className={`ui-a2ui-flow-step ${isActive ? "active" : ""} ${isDone ? "done" : ""}`}>
+          <div className="ui-a2ui-flow-step-dot">{isDone ? "✓" : isActive ? "●" : "○"}</div>
+          <span className="ui-a2ui-flow-step-label">{stepLabel}</span>
+          {childElements}
+        </div>
+      );
+    }
+    case "badge": {
+      const badgeText = String(resolve(props.text) ?? resolve(props.label) ?? "");
+      const variant = String(resolve(props.variant) ?? "default");
+      const colors: Record<string, string> = {
+        success: "#3fb950",
+        warning: "#d29922",
+        danger: "#f85149",
+        info: "#0ea5e9",
+        default: "var(--ui-text-faint)",
+      };
+      return (
+        <span
+          className="ui-a2ui-badge"
+          style={{ background: `${colors[variant] ?? colors.default}20`, color: colors[variant] ?? colors.default }}
+        >
+          {badgeText}
+        </span>
+      );
+    }
+    case "progress": {
+      const pct = Math.min(100, Math.max(0, Number(resolve(props.percent) ?? 0)));
+      return (
+        <div className="ui-a2ui-progress">
+          <div className="ui-a2ui-progress-fill" style={{ width: `${pct}%` }} />
+        </div>
+      );
+    }
     default:
       // Unknown component type — render children in a generic container.
       return (
