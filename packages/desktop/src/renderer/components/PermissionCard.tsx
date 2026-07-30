@@ -3,6 +3,7 @@ import type { AskPermissionRequest, PermissionScope } from "../../shared/ipc";
 import {
   buildResult,
   buildScopePrompts,
+  describeScope,
   isAlwaysAllowedScope,
   scopeRiskColor,
   type PermissionResult,
@@ -117,6 +118,16 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
       {prompt.request.description ? (
         <div style={{ color: "var(--ui-text-dim)", fontSize: 12.5 }}>{prompt.request.description}</div>
       ) : null}
+      {/* Side-effect scope tags — visual risk indicators */}
+      <div className="ui-perm-scopes">
+        {prompt.request.scopes.map((scope) => (
+          <span key={scope} className="ui-perm-scope-tag" style={{ borderColor: scopeRiskColor(scope) }}>
+            <span className="ui-perm-scope-dot" style={{ background: scopeRiskColor(scope) }} />
+            {t(`scope.${scope}` as MessageKey)}
+            <span className="ui-perm-scope-desc">{describeScope(scope)}</span>
+          </span>
+        ))}
+      </div>
       <div style={{ marginTop: 8 }}>{t("perm.proceed")}</div>
       <div className="ui-opt-row">
         <button className="ui-opt ui-opt--allow" onClick={() => commit("allow")}>
