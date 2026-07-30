@@ -1,6 +1,6 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.9 · 日期：2026-07-30 · 状态：规划中
+> 版本：v3.10 · 日期：2026-07-30 · 状态：规划中
 >
 > **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
 > 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
@@ -21,6 +21,8 @@
 >
 > **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
 >
+> **v3.10 更新**：修正 §六「Canvas UI」条目——核实其即 **html-in-canvas**（[html-in-canvas.dev](https://html-in-canvas.dev)），是 **WICG 浏览器原生 API 提案**（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor**（原"构建时 vendor 组件源码"描述有误）。特效能力吻合 demos（液体玻璃/像素瓦解/CRT shader/3D 贴纹理），但**当前纯实验态**（仅 Chrome Canary / Brave 147+ 需手动开 flag，Firefox/Safari 无实现，无 polyfill，无正式发布时间表）。优先级 P1→P3，**阻塞于 Chromium/Electron 平台支持**，定位为 DeepDesign/A2UI 的远期视觉特效升级路径。Phase 3 移除"特效 vendor"。调研 `docs/research/2026-07-30-html-in-canvas.md`。
+
 > **v3.9 更新**：① **MCP SDK 迁移已完成**（§十 已集成）——手写 JSON-RPC 换官方 `@modelcontextprotocol/sdk@1.22.0`，客户端 + gitmcp 服务端全切换，对外接口零变化，`npm run check` 全绿 + 端到端握手验证通过（perf/native-optimizations 分支 9 commits）。这同时**解锁了 §十二 远程源集成的 HTTP/SSE 传输阻断点**。② 新增 4 项调研结论：**SkillSpector**（NVIDIA 安全扫描器，归入 §十二 作安装闸门 P1，填补远程 skill/MCP 引入的安全缺口）、**Harness Handbook**（§十一 自进化远期愿景——行为级地图）、**Agent-Reach**（§八 不采纳，借鉴多后端路由思路）、open-notebook（不同产品形态，不采纳）。③ 修复总览表 §十三/§十四 重复行。调研见 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md`。
 
 > **v3.8 更新**：调研官方 `@modelcontextprotocol/sdk` 迁移。发现 DeepOrca 的 MCP **全是手写**（客户端 987 行 + gitmcp 服务端 230 行），落后协议两个版本，致命缺口是 **server→client 请求全死**（sampling/roots/elicitation，因客户端 `capabilities:{}` + 路由器丢弃带 id 的 server 请求）。迁移可行性已验证（zod v4 已用、Node 22 原生 crypto 免 polyfill）。**决策（用户拍板）：最高优先级前置**——A2UI 深度依赖 MCP，先打 SDK 地基可省一次返工 + 一次兼容性回归。A2UI 场景分级：P0 原型模块（核心卖点）→ P1 用户决策/持续状态监控/工作流（核心模块）→ P2 代码审查/git/wiki 富展示（待基础能力测完）。调研报告见 `docs/research/2026-07-mcp-sdk-migration.md`。
@@ -36,7 +38,7 @@
 | [三、移动开发](#三移动开发) | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack） | — | Flutter + Android + HarmonyOS + React Native |
 | [四、桌面开发](#四桌面开发) | — | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP） | macOS/iOS + Qt/KDE + Tauri 桌面应用开发 |
 | [五、.NET 开发](#五net-开发) | — | dotnet/skills（Microsoft 官方 12 域） | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild |
-| [六、设计生成](#六设计生成) | DeepDesign Phase 1 | **A2UI 原型模块（P0 核心卖点）**, taste-skill, Canvas UI, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
+| [六、设计生成](#六设计生成) | DeepDesign Phase 1 | **A2UI 原型模块（P0 核心卖点）**, taste-skill, **html-in-canvas（远期特效，阻塞于平台）**, dashboard 模板 | brief→生成→预览→交付 的全流程设计能力 |
 | [七、办公套件](#七办公套件) | Bento Slides | 文档/表格/表单生成 | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
 | [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch, web-access 理念 | obscura | 登录态操控 + 大规模抓取 + 深度联网策略 |
 | [九、桌面自动化](#九桌面自动化) | — | pi-computer-use, CLI-Anything | 操控无 API 的桌面软件 |
@@ -200,7 +202,7 @@
 
 ## 六、设计生成
 
-> brief → 生成 → 预览 → 交付 的全流程设计能力。Agent 是画师，Electron webview 是画布，Canvas UI 是画笔。
+> brief → 生成 → 预览 → 交付 的全流程设计能力。Agent 是画师，Electron webview 是画布，html-in-canvas（浏览器原生 API 提案）是远期的视觉特效升级路径。
 
 ### 已集成
 
@@ -221,7 +223,7 @@
 |------|------|----------|------|--------|
 | **AI-native 原型模块** | **A2UI** 协议（a2ui-project/a2ui） | 内置 Skill（`a2ui-prototype`）+ `@a2ui/react` 渲染器 + A2UI over MCP | **独立产品线**：PM 用自然语言驱动声明式 Surface 原型，原生依赖 DeepOrca 运行时，支持增量迭代与交互验证。类 v0/bolt 但以 Surface 为载体。与 DeepDesign 并列（原型≠设计）。草案 `specs/a2ui-integration/design.md` | P1 |
 | 前端设计质量纪律 | **taste-skill** | 构建 Skill（纯 SKILL.md） | 布局/排版/动效/间距的反 slop 方法论，框架无关 | P1 |
-| 视觉特效"画笔" | **Canvas UI** | 构建时 vendor 组件源码 | 25 个 Canvas/WebGL 特效（液体/火焰/玻璃/粒子），Agent 按需内联 | P1 |
+| 视觉特效"画笔" | **html-in-canvas**（WICG 提案 [html-in-canvas.dev](https://html-in-canvas.dev)） | 浏览器原生 API（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor** | 让 Agent 生成的 HTML 设计件获得 shader 级视觉特效（液体玻璃 refraction、像素瓦解、CRT/色差 shader、3D 贴 HTML 纹理），远超纯 CSS。**当前实验态**：仅 Chrome Canary / Brave 147+ 需手动开 `chrome://flags/#canvas-draw-element`，Firefox/Safari 无实现，无 polyfill，无正式发布时间表。**等 Chromium/Electron 稳定支持后才可纳入**。详见 `docs/research/2026-07-30-html-in-canvas.md` | P3（阻塞于平台支持） |
 | 仪表盘模板 | DeepDesign dashboard | seed + layouts | 侧边栏 + KPI 卡 + 内联 SVG 图表 | P2 |
 | 移动端模板 | DeepDesign mobile-app | seed + layouts | iPhone 框架 + 多屏流程 | P3 |
 | 海报模板 | DeepDesign poster | seed + layouts | 单页海报/社交媒体图 | P3 |
@@ -229,7 +231,7 @@
 **实施路线**：
 - Phase 1（已完成）：web-prototype 模板 + dark-tech 系统 + deep-design Skill
 - Phase 2：dashboard 模板 + 3 设计系统 + DESIGN.md 用户自建 + PDF 导出
-- Phase 3：Canvas UI 特效 vendor + mobile-app/poster 模板 + DesignStudioPanel 桌面面板
+- Phase 3：mobile-app/poster 模板 + DesignStudioPanel 桌面面板（html-in-canvas 视觉特效另作独立远期项，阻塞于 Chromium/Electron 平台支持，不在此阶段 vendor）
 
 **替代决策**：DeepDesign 替代了原路线图的 OpenDesign daemon 集成——同能力，零 daemon，轻量 10 倍。
 
