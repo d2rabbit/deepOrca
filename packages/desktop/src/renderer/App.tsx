@@ -39,6 +39,7 @@ const DiffOverlay = lazy(() => import("./components/DiffOverlay").then((m) => ({
 import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
 const WikiPanel = lazy(() => import("./components/WikiPanel").then((m) => ({ default: m.WikiPanel })));
+const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
@@ -177,7 +178,8 @@ export function App(): JSX.Element {
   const [editable, setEditable] = useState<EditableSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
-  const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
+  const [mainView, setMainView] = useState<"chat" | "settings" | "plugins" | "prototype">("chat");
+  const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [sidebarView, setSidebarView] = useState<
     "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor"
@@ -377,6 +379,49 @@ export function App(): JSX.Element {
       }
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
+        // Auto-switch to prototype panel when a render_prototype/render_surface
+        // tool result arrives with A2UI payload.
+        if (message.role === "tool") {
+          const content = message.content || "";
+          if (
+            (content.includes("render_prototype") || content.includes("render_surface")) &&
+            content.includes("application/a2ui+json")
+          ) {
+            try {
+              const parsed = JSON.parse(content);
+              const meta = parsed.metadata ?? {};
+              const output = parsed.output ?? "";
+              // Extract A2UI JSON from embedded resource
+              const resourceMatch = typeof output === "string" ? output.match(/"text"\s*:\s*(".*?")/s) : null;
+              if (resourceMatch) {
+                setPrototypeJson(JSON.parse(resourceMatch[1]!));
+                setMainView("prototype");
+              } else if (meta.a2ui) {
+                setPrototypeJson(JSON.stringify(meta.a2ui));
+                setMainView("prototype");
+              }
+            } catch {
+              // Not parseable — stay in chat view.
+            }
+          }
+          // Also handle update_surface — update the prototype panel if open.
+          if (
+            mainView === "prototype" &&
+            content.includes("update_surface") &&
+            content.includes("application/a2ui+json")
+          ) {
+            try {
+              const parsed = JSON.parse(content);
+              const output = parsed.output ?? "";
+              const resourceMatch = typeof output === "string" ? output.match(/"text"\s*:\s*(".*?")/s) : null;
+              if (resourceMatch) {
+                setPrototypeJson(JSON.parse(resourceMatch[1]!));
+              }
+            } catch {
+              // Ignore.
+            }
+          }
+        }
       }
     });
 
@@ -1401,6 +1446,23 @@ export function App(): JSX.Element {
             }
             onBack={() => setMainView("chat")}
           />
+        ) : mainView === "prototype" && prototypeJson ? (
+          <Suspense
+            fallback={
+              <div className="ui-editor-empty">
+                <span className="ui-spinner" /> Loading prototype…
+              </div>
+            }
+          >
+            <PrototypePanel
+              a2uiJson={prototypeJson}
+              onClose={() => {
+                setMainView("chat");
+                setPrototypeJson(null);
+              }}
+              onIterate={(text) => void runPrompt({ text })}
+            />
+          </Suspense>
         ) : sidebarView === "editor" && editorFile ? (
           <Suspense
             fallback={

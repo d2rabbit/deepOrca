@@ -7434,3 +7434,80 @@ button.ui-topbar-pill {
   border-color: var(--ui-accent);
   background: var(--ui-accent-soft);
 }
+
+/* ── Prototype panel (PM-Design full-screen preview) ──────────────────────── */
+.ui-prototype-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-surface);
+}
+.ui-prototype-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+}
+.ui-prototype-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text-secondary);
+}
+.ui-prototype-panel-btn {
+  background: none;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ui-prototype-panel-btn:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+.ui-prototype-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ui-space-4);
+}
+.ui-prototype-panel-composer {
+  display: flex;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+}
+.ui-prototype-panel-input {
+  flex: 1;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+}
+.ui-prototype-panel-input:focus {
+  border-color: var(--ui-accent);
+}
+.ui-prototype-panel-send {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 14px;
+  color: var(--ui-text-on-accent, #fff);
+  background: var(--ui-accent);
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ui-prototype-panel-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ui-prototype-panel-send:not(:disabled):hover {
+  opacity: 0.85;
+}
