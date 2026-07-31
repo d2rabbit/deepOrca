@@ -55,21 +55,6 @@ export function PrototypePanel({ a2uiJson: initialJson, onClose, onIterate }: Pr
 
   return (
     <div className="ui-prototype-panel">
-      <div className="ui-prototype-panel-head">
-        <span className="ui-prototype-panel-title">✦ Prototype Preview</span>
-        <div className="ui-prototype-panel-actions">
-          <button
-            className="ui-prototype-panel-btn"
-            onClick={() => void api.a2uiOpenWindow(liveJson, "Prototype")}
-            title="Open in separate window"
-          >
-            ⧉ Window
-          </button>
-          <button className="ui-prototype-panel-btn" onClick={onClose} title="Back to chat">
-            ← {t("common.close")}
-          </button>
-        </div>
-      </div>
       <div className="ui-prototype-panel-body">
         <A2uiSurface key={refreshKey} messagesJson={liveJson} />
       </div>

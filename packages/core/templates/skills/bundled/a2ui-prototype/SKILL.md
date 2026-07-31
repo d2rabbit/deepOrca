@@ -18,8 +18,16 @@ trees that render inline and support user interaction (clicks, forms).
 ## When to Use
 
 - User asks for a prototype, mockup, wireframe, or demo (原型/模型/线框图/演示)
+- User types `/pm-design` or `/prototype` command
 - User wants to validate an interaction flow or UI layout
 - User wants to iterate on a design via conversation
+
+## Trigger
+
+- **Slash command**: `/pm-design` or `/prototype` — opens the right-side preview panel
+- **Automatic**: when you call `render_prototype`, the preview panel opens automatically
+- The preview panel shows alongside the chat — user can see both the conversation
+  and the live prototype at the same time (split view)
 
 ## When NOT to Use
 

@@ -178,8 +178,10 @@ export function App(): JSX.Element {
   const [editable, setEditable] = useState<EditableSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
-  const [mainView, setMainView] = useState<"chat" | "settings" | "plugins" | "prototype">("chat");
+  const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [sidebarView, setSidebarView] = useState<
     "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor"
@@ -396,11 +398,11 @@ export function App(): JSX.Element {
                 const a2uiJson = typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
                 if (content.includes("render_prototype") || content.includes("render_surface")) {
                   setPrototypeJson(a2uiJson);
-                  setMainView("prototype");
+                  setPreviewOpen(true);
+                  setPreviewTab("prototype");
                 } else if (content.includes("update_surface")) {
-                  // Update existing prototype panel and switch back if user navigated away.
                   setPrototypeJson(a2uiJson);
-                  setMainView("prototype");
+                  setPreviewOpen(true);
                 }
               }
             } catch {
@@ -1432,23 +1434,6 @@ export function App(): JSX.Element {
             }
             onBack={() => setMainView("chat")}
           />
-        ) : mainView === "prototype" && prototypeJson ? (
-          <Suspense
-            fallback={
-              <div className="ui-editor-empty">
-                <span className="ui-spinner" /> Loading prototype…
-              </div>
-            }
-          >
-            <PrototypePanel
-              a2uiJson={prototypeJson}
-              onClose={() => {
-                setMainView("chat");
-                setPrototypeJson(null);
-              }}
-              onIterate={(text) => void runPrompt({ text })}
-            />
-          </Suspense>
         ) : sidebarView === "editor" && editorFile ? (
           <Suspense
             fallback={
@@ -1527,6 +1512,11 @@ export function App(): JSX.Element {
                     setModal("undo");
                   } else if (cmd === "init") {
                     void runPrompt({ text: "/init" });
+                  } else if (cmd === "pm-design" || cmd === "prototype") {
+                    // PM-Design: trigger prototype creation mode via agent prompt
+                    void runPrompt({
+                      text: "Create an interactive prototype using the A2UI render_prototype tool. Ask me what to build first.",
+                    });
                   } else if (cmd === "raw") {
                     handleCycleReasoning();
                   } else if (cmd === "continue") {
@@ -1547,6 +1537,50 @@ export function App(): JSX.Element {
           </>
         )}
       </div>
+
+      {/* Right-side preview panel — PM-Design / DeepDesign output */}
+      {previewOpen && prototypeJson ? (
+        <div className="ui-preview-panel">
+          <div className="ui-preview-panel-head">
+            <div className="ui-preview-tabs">
+              <button
+                className={`ui-preview-tab ${previewTab === "prototype" ? "active" : ""}`}
+                onClick={() => setPreviewTab("prototype")}
+              >
+                ✦ Prototype
+              </button>
+            </div>
+            <button
+              className="ui-preview-close"
+              onClick={() => {
+                setPreviewOpen(false);
+                setPrototypeJson(null);
+              }}
+              title="Close preview"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="ui-preview-panel-body">
+            <Suspense
+              fallback={
+                <div className="ui-editor-empty">
+                  <span className="ui-spinner" /> Loading…
+                </div>
+              }
+            >
+              <PrototypePanel
+                a2uiJson={prototypeJson}
+                onClose={() => {
+                  setPreviewOpen(false);
+                  setPrototypeJson(null);
+                }}
+                onIterate={(text) => void runPrompt({ text })}
+              />
+            </Suspense>
+          </div>
+        </div>
+      ) : null}
 
       {diffTarget ? (
         <Suspense fallback={<div className="ui-editor-overlay" />}>

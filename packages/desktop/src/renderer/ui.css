@@ -7699,25 +7699,80 @@ button.ui-topbar-pill {
   margin-left: auto;
 }
 
-/* ── Prototype panel (PM-Design full-screen preview) ──────────────────────── */
+/* ── Right-side preview panel (PM-Design / DeepDesign split view) ─────────── */
+.ui-preview-panel {
+  display: flex;
+  flex-direction: column;
+  width: 480px;
+  min-width: 360px;
+  max-width: 50vw;
+  border-left: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  overflow: hidden;
+  animation: ui-preview-slide-in 0.2s ease both;
+}
+@keyframes ui-preview-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.ui-preview-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  flex-shrink: 0;
+}
+.ui-preview-tabs {
+  display: flex;
+  gap: 2px;
+}
+.ui-preview-tab {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ui-preview-tab:hover { color: var(--ui-text-secondary); }
+.ui-preview-tab.active {
+  color: var(--ui-accent);
+  border-bottom-color: var(--ui-accent);
+}
+.ui-preview-close {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+  transition: background 0.15s;
+}
+.ui-preview-close:hover {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-primary);
+}
+.ui-preview-panel-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Prototype panel (now embedded in preview panel, no own header) ───────── */
 .ui-prototype-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--ui-surface);
-}
-.ui-prototype-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-bottom: 1px solid var(--ui-border-soft);
-  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
-}
-.ui-prototype-panel-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ui-text-secondary);
+  flex: 1;
+  overflow: hidden;
 }
 .ui-prototype-panel-btn {
   background: none;

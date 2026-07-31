@@ -246,6 +246,14 @@
 
 **替代决策**：DeepDesign 替代了原路线图的 OpenDesign daemon 集成——同能力，零 daemon，轻量 10 倍。
 
+**右侧预览面板模式（与 PM-Design 共享）**：
+DeepDesign 和 PM-Design 都采用**插件指令触发 + 右侧分屏预览**模式（非独立工作区）：
+- `/pm-design` 或 `/prototype` → 触发 PM-Design 原型设计 → 右侧预览面板打开（A2UI Surface）
+- `/deep-design` → 触发 DeepDesign HTML 设计 → 右侧预览面板打开（iframe 渲染 HTML）
+- 对话区保持可见（split view），用户边对话边看预览
+- 预览面板支持 tab 切换（prototype / design），关闭即收起
+- 布局：`[Rail] [Sidebar] [Chat Area] [Preview Panel (right)]`
+
 ---
 
 ## 七、办公套件
