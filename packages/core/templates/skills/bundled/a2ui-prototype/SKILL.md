@@ -55,6 +55,7 @@ Available templates (call `mcp__a2ui__list_templates` for details):
 | `wizard` | `steps[]`, `title` | Multi-step flows |
 | `kanban` | `columns[]`, `cards[{title,column}]` | Task boards |
 | `data-table` | `columns[]`, `rows[][]` | Data tables |
+| `multi-page` | `pages[{name,title}]`, `title` | Multi-page prototype with navigation |
 
 ### Step 1 (FALLBACK): Manual Components
 
@@ -141,20 +142,25 @@ Every component is a flat object in an adjacency list:
 
 ## Data Binding
 
-Bind component properties to the data model using `$` prefix:
+Bind component properties to the data model using `${path}` explicit syntax
+(preferred — no ambiguity with literal `$` strings like `"$12.50"`):
 
 ```json
 {
   "id": "name-field",
   "type": "TextField",
   "properties": {
-    "value": "$form.name",
+    "value": "${form/name}",
     "placeholder": "Enter name"
   }
 }
 ```
 
-This binds the `value` property to `dataModel.form.name`.
+This binds the `value` property to `dataModel.form.name` (path split on `/`).
+
+**Legacy syntax**: `$form.name` also works — it looks up `dataModel["form.name"]`
+(single key with dots). Only resolves if the key exists; otherwise treated as
+a literal string. Prefer `${...}` for new prototypes.
 
 ## Best Practices
 

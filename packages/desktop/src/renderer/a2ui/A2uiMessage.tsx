@@ -9,9 +9,10 @@
  * a2uiAction IPC channel → main process → MCP a2ui_action tool.
  */
 
-import { useCallback, type JSX } from "react";
+import { useCallback, useEffect, useState, type JSX } from "react";
 import { A2uiSurface } from "./A2uiSurface";
 import { api } from "../api";
+import { processA2uiMessages } from "./processor";
 
 type Props = {
   /** The raw A2UI JSON messages from the tool result's embedded resource. */
@@ -20,7 +21,21 @@ type Props = {
   summary?: string;
 };
 
-export function A2uiMessage({ a2uiJson, summary }: Props): JSX.Element {
+export function A2uiMessage({ a2uiJson: initialJson, summary }: Props): JSX.Element {
+  const [liveJson, setLiveJson] = useState(initialJson);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Subscribe to surface updates pushed after a2ui_action (e.g. navigate:).
+  // This makes inline Surface buttons refresh in real-time, same as PrototypePanel.
+  useEffect(() => {
+    const off = api.onA2uiSurfaceUpdate((event) => {
+      processA2uiMessages(event.a2uiJson);
+      setLiveJson(event.a2uiJson);
+      setRefreshKey((k) => k + 1);
+    });
+    return off;
+  }, []);
+
   // Forward user interactions to the agent via IPC → MCP a2ui_action tool.
   const handleAction = useCallback((surfaceId: string, actionName: string, context: Record<string, unknown>) => {
     void api.a2uiAction(surfaceId, actionName, context);
@@ -29,7 +44,7 @@ export function A2uiMessage({ a2uiJson, summary }: Props): JSX.Element {
   return (
     <div className="ui-a2ui-message">
       {summary ? <div className="ui-a2ui-message-summary">{summary}</div> : null}
-      <A2uiSurface messagesJson={a2uiJson} onAction={handleAction} />
+      <A2uiSurface key={refreshKey} messagesJson={liveJson} onAction={handleAction} />
     </div>
   );
 }

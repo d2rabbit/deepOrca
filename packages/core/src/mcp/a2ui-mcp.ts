@@ -75,6 +75,16 @@ export function persistSurfaces(projectRoot: string): void {
   const dir = getPrototypesDir(projectRoot);
   try {
     fs.mkdirSync(dir, { recursive: true });
+    // Clear directory first to remove stale files from closed surfaces.
+    const existing = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    for (const f of existing) {
+      try {
+        fs.unlinkSync(nodePath.join(dir, f));
+      } catch {
+        // Best-effort.
+      }
+    }
+    // Write current surfaces.
     for (const [id, state] of surfaces) {
       const filePath = nodePath.join(dir, `${id}.json`);
       fs.writeFileSync(

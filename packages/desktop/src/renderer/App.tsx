@@ -398,8 +398,9 @@ export function App(): JSX.Element {
                   setPrototypeJson(a2uiJson);
                   setMainView("prototype");
                 } else if (content.includes("update_surface")) {
-                  // Update existing prototype panel.
+                  // Update existing prototype panel and switch back if user navigated away.
                   setPrototypeJson(a2uiJson);
+                  setMainView("prototype");
                 }
               }
             } catch {
