@@ -87,6 +87,40 @@
     "skills": ["react-native-*", "expo-*"]
   },
   {
+    "id": "dotnet-dev",
+    "name": ".NET Development",
+    "description": "Official Microsoft .NET agent skills (16 plugins from dotnet/skills). Covers ASP.NET Core, Blazor, MAUI, EF Core, testing, NuGet, MSBuild, AI, diagnostics, upgrade assistant, and more. Cross-platform (.NET runs on Windows, macOS, Linux).",
+    "category": "development",
+    "icon": "dotnet",
+    "skills": ["dotnet-*"]
+  },
+  {
+    "id": "qt-dev",
+    "name": "Qt/KDE Development",
+    "description": "Official Qt Group agent skills (12 skills from TheQtCompanyRnD/agent-skills, BSD-3-Clause). Covers CMake projects, C++ review/docs, QML coding/review/profiler/test, UI design, Figma integration. Cross-platform (Qt runs on all desktop OS). Includes Qt Documentation MCP server.",
+    "category": "development",
+    "icon": "qt",
+    "skills": ["qt-*"]
+  },
+  {
+    "id": "apple-dev",
+    "name": "Apple Platform Development",
+    "description": "Apple Xcode 27 first-party skills (7 skills via xcrun export) + community curated directory. Covers SwiftUI, UIKit modernization, test modernization, security audit, C bounds safety. macOS only — requires Xcode 27.",
+    "category": "development",
+    "icon": "apple",
+    "skills": ["apple-*"],
+    "platform": "darwin"
+  },
+  {
+    "id": "deepin-dev",
+    "name": "deepin/UOS Development",
+    "description": "Official deepin desktop development skills (4 skills from linuxdeepin/deepin-skills, LGPL-3.0). Covers DTK native apps, DDE Shell extensions, Control Center modules, Tray plugins. Linux only.",
+    "category": "development",
+    "icon": "deepin",
+    "skills": ["deepin-*"],
+    "platform": "linux"
+  },
+  {
     "id": "skill-tools",
     "name": "Skill Tools",
     "description": "Author, digest, and manage Agent Skills.",

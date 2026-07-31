@@ -452,6 +452,36 @@ export type LlmStreamProgress = {
   phase: "start" | "update" | "end";
 };
 
+/**
+ * Platform-conditional skill loading: skills with platform-specific prefixes
+ * are only loaded on matching OS. Cross-platform skills load everywhere.
+ *
+ * Platform-specific prefixes:
+ * - darwin: apple-, swift-, uikit-, swiftui-
+ * - linux: deepin-, dde-, dtk-
+ * - win32: (none currently — .NET/Qt are cross-platform)
+ *
+ * Cross-platform (no filtering): dotnet-, qt-, flutter-, android-,
+ * harmonyos-, react-native-, expo-, bento-, deeporca-, web-, openwiki-,
+ * skill-, a2ui-, dart-
+ */
+const DARWIN_PREFIXES = ["apple-", "swift-", "uikit-", "swiftui-"];
+const LINUX_PREFIXES = ["deepin-", "dde-", "dtk-"];
+
+function isSkillForCurrentPlatform(skillName: string): boolean {
+  const name = skillName.toLowerCase();
+  // Check macOS-only skills
+  if (DARWIN_PREFIXES.some((p) => name.startsWith(p))) {
+    return process.platform === "darwin";
+  }
+  // Check Linux-only skills
+  if (LINUX_PREFIXES.some((p) => name.startsWith(p))) {
+    return process.platform === "linux";
+  }
+  // All other skills are cross-platform
+  return true;
+}
+
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
@@ -1267,6 +1297,13 @@ Rules:
 
     for (const { root, displayRoot } of skillRoots) {
       for (const skill of collectSkills(root, displayRoot)) {
+        // Platform-conditional filtering: skills with known platform prefixes
+        // are only loaded on matching OS. Cross-platform skills (no prefix or
+        // recognized cross-platform prefix like flutter-/android-/harmonyos-/
+        // react-native-/bento-/deeporca-/web-/openwiki-/skill-/a2ui-) load on all.
+        if (!isSkillForCurrentPlatform(skill.name)) {
+          continue;
+        }
         if (!skillsByName.has(skill.name)) {
           skillsByName.set(skill.name, skill);
         }

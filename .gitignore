@@ -40,6 +40,10 @@ packages/core/templates/skills/bundled/android-*/
 packages/core/templates/skills/bundled/harmonyos-*/
 packages/core/templates/skills/bundled/react-native-*/
 packages/core/templates/skills/bundled/expo-*/
+packages/core/templates/skills/bundled/dotnet-*/
+packages/core/templates/skills/bundled/qt-*/
+packages/core/templates/skills/bundled/deepin-*/
+packages/core/templates/skills/bundled/apple-*/
 
 # Local verification scratch dir
 .tmp-verify/
