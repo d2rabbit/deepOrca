@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is an **npm workspaces monorepo** for **Orca** (forked from DeepOrca). Packages live under `packages/`.
+This is an **npm workspaces monorepo** for **DeepOrca**. Packages live under `packages/` — only `core` and `desktop`.
 
 ```
 packages/
@@ -13,27 +13,27 @@ packages/
 │   ├── session.ts          # SessionManager — LLM loop, compaction, tool orchestration
 │   ├── prompt.ts           # System prompt builder, tool definitions, skill/plugin injection
 │   └── settings.ts         # Settings resolution from ~/.deeporca/settings.json
-├── cli/src/                # Terminal UI (Ink/React)
-├── desktop/                # Electron GUI — React renderer, Metro theme, IPC bridge, plugin manager
-│   ├── src/main/           # Main process (session bridge, file scanner, git-service, mcp-store, etc.)
-│   ├── src/renderer/       # React renderer (components, UI primitives, i18n with 6 locales)
-│   ├── src/preload/        # Context-isolated preload with typed window.deeporca API
-│   └── src/shared/         # Type-only IPC contract (dependency-free)
-└── vscode-ide-companion/   # VSCode extension
+└── desktop/                # Electron GUI — React renderer, IPC bridge, plugin manager
+    ├── src/main/           # Main process (session bridge, file scanner, git-service, mcp-store, etc.)
+    ├── src/renderer/       # React renderer (components, UI primitives, i18n)
+    ├── src/preload/        # Context-isolated preload with typed window.deeporca API
+    └── src/shared/         # Type-only IPC contract (dependency-free)
 docs/                       # Configuration, MCP, permissions, plan-mode, etc.
 docs/superpowers/           # Design specs and implementation plans
 scripts/                    # Build, release, and packaging scripts
 ```
 
-Templates live in `packages/core/templates/` — tools, prompts, skills, and **plugins** (e.g. `browser-skill` as the first built-in plugin). Bundled output: `packages/cli/dist/cli.js`. Root `AGENTS.md` contains detailed architecture flows.
+Templates live in `packages/core/templates/` — tools, prompts, skills, and **plugins** (e.g. `browser-skill` as the first built-in plugin). Root `AGENTS.md` contains detailed architecture flows.
+
+**Branch policy**: `master` is the mainline; base new work on it. Untracked leftover package directories from pre-refactor branches may exist on disk — `master` does not track them; don't edit or commit them.
 
 ## Extension Mechanisms
 
-Orca provides three parallel extension systems, all auto-injected into sessions:
+DeepOrca provides three parallel extension systems, all auto-injected into sessions:
 
 | System | Location | Examples |
 |--------|----------|----------|
-| **Skills** (user-defined) | `~/.agents/skills/`, `./.agents/skills/` | Guided workflows via SKILL.md |
+| **Skills** (user-defined) | `./.deeporca/skills/`, `./.agents/skills/`, `~/.deeporca/skills/`, `~/.agents/skills/` | Guided workflows via SKILL.md |
 | **MCP servers** (external) | `settings.json → mcpServers` | GitHub, Playwright, Filesystem |
 | **Built-in plugins** (core) | `packages/core/templates/plugins/` | `browser-skill` (non-removable) |
 
@@ -43,12 +43,16 @@ Run from repo root.
 
 | Command | What it does |
 |---|---|
+| `npm run typecheck` | `tsc --noEmit` across all workspaces |
+| `npm run lint` / `npm run lint:fix` | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js` |
+| `npm run format` / `npm run format:check` | Prettier |
 | `npm run check` | Typecheck + lint + format check (run before pushing) |
-| `npm run build` | Builds core (tsc), rewrites ESM imports, bundles CLI (esbuild) |
+| `npm run build` | Builds core (tsc), rewrites ESM imports |
 | `npm test` | Runs all workspace tests (node:test + tsx) |
-| `npm run start` | Runs the locally built CLI |
-| `npm run desktop:build / :dev / :start` | Build / dev / run the Electron desktop app |
-| `npm run generate` | Generates build-time git commit info |
+| `npm run desktop:build / :dev / :start` | Build / dev / build+run the Electron desktop app |
+| `npm run desktop:startMac / :startWin / :startLx` | Build+run with per-OS setup via `scripts/desktop-start.js` |
+| `npm run release:version` | Bump version across all packages |
+| `npm run clean` | Remove generated files and `dist/` |
 
 Single test: `node packages/<name>/src/tests/run-tests.mjs packages/<name>/src/tests/<file>.test.ts`
 
@@ -76,8 +80,4 @@ Single test: `node packages/<name>/src/tests/run-tests.mjs packages/<name>/src/t
 
 `SessionManager` (in `@deeporca/core`) drives the LLM loop: builds system prompts (with skills + plugins + MCP tools injected as context), streams responses, executes tools via `ToolExecutor`, and compacts context on token threshold exceedance.
 
-**Plan Mode** (`/plan` or `Shift+Tab`): First turn is read-only; agent must produce `<proposed_plan>` for user approval before writes, deletions, or git mutations.
-
-**Slash commands**: `/skills`, `/model`, `/plan`, `/new`, `/init`, `/resume`, `/continue`, `/undo`, `/mcp`, `/raw`, `/exit`.
-
-**CLI flags**: `-p <prompt>` / `--prompt`, `-r [sessionId]` / `--resume`, `-v`, `-h`.
+**Plan Mode**: First turn is read-only; agent must produce `<proposed_plan>` for user approval before writes, deletions, or git mutations. See `docs/plan-mode.md`.
