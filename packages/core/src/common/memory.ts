@@ -320,19 +320,34 @@ export function resolveGatewayEntry(): string | null {
  * Returns the path to the tsx CLI script, or null if not found.
  */
 export function resolveTsxBinary(): string | null {
-  try {
-    // Try resolving tsx from the TDAM package's perspective (handles hoisting).
-    return moduleRequire.resolve("tsx/bin/cli.mjs", {
-      paths: [dirname(moduleRequire.resolve("@tencentdb-agent-memory/memory-tencentdb/package.json"))],
-    });
-  } catch {
-    // Fall back to resolving from our own location.
+  // tsx 4.x has no bin/ directory — its exports map exposes ./cli → ./dist/cli.mjs
+  // and the bin field is ./dist/cli.mjs. Resolve via package.json + path join.
+  const tryResolve = (fromDir: string): string | null => {
     try {
-      return moduleRequire.resolve("tsx/bin/cli.mjs");
+      const tsxPkgPath = moduleRequire.resolve("tsx/package.json", { paths: [fromDir] });
+      const tsxDir = dirname(tsxPkgPath);
+      const candidate = join(tsxDir, "dist", "cli.mjs");
+      if (existsSync(candidate)) return candidate;
+      // Fallback: some versions may use cli.js
+      const candidate2 = join(tsxDir, "dist", "cli.js");
+      if (existsSync(candidate2)) return candidate2;
     } catch {
-      return null;
+      // tsx not installed from this perspective.
     }
+    return null;
+  };
+
+  // 1. Try from TDAM package's perspective (tsx may be hoisted there).
+  try {
+    const tdamDir = dirname(moduleRequire.resolve("@tencentdb-agent-memory/memory-tencentdb/package.json"));
+    const found = tryResolve(tdamDir);
+    if (found) return found;
+  } catch {
+    // TDAM not installed.
   }
+
+  // 2. Try from our own location.
+  return tryResolve(dirname(moduleRequire.resolve(".")));
 }
 
 /**

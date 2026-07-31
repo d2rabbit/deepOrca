@@ -126,8 +126,10 @@ function resolveVendoredUvPath(vendorRoot: string): string | null {
   const binaryName = platform === "win32" ? "uv.exe" : "uv";
 
   // uv release archives extract to uv-<target>/uv<ext>, then our vendor layout
-  // places that under vendor/uv/<target>/. Check common sub-paths.
+  // places that under vendor/uv/<target>/. The tarball nests under uv-<target>/.
+  // Actual layout: vendor/uv/<target>/uv-<target>/uv
   const candidates = [
+    path.join(vendorRoot, target, `uv-${target}`, binaryName),
     path.join(vendorRoot, target, "uv", binaryName),
     path.join(vendorRoot, target, binaryName),
     path.join(vendorRoot, `uv-${target}`, binaryName),
@@ -220,7 +222,7 @@ export function buildCrgMcpServerConfig(projectRoot: string): McpServerConfig | 
   }
   const config: McpServerConfig = {
     command: exe.command,
-    args: [...exe.prefixArgs, "serve", "--mcp", "--tools", CRG_ANALYSIS_TOOLS],
+    args: [...exe.prefixArgs, "serve", "--tools", CRG_ANALYSIS_TOOLS],
     cwd: projectRoot,
   };
   if (exe.env && Object.keys(exe.env).length > 0) {
