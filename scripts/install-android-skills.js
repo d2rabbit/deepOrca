@@ -37,33 +37,31 @@ function run(cmd, opts = {}) {
  * 兼容仓库根目录直接存放技能，或放在 skills/、SKILLS/ 等子目录中的情况。
  */
 function findSkillDirs(cloneRoot) {
-  // 1. 尝试常见的 skills 子目录
-  const candidates = ["skills", "SKILLS", "skill", "docs/skills"];
-  for (const c of candidates) {
-    const dir = join(cloneRoot, c);
-    if (existsSync(dir)) {
-      const found = listSkillDirsIn(dir);
-      if (found.length > 0) return found;
-    }
-  }
-
-  // 2. 仓库根目录直接存放技能目录
-  const rootLevel = listSkillDirsIn(cloneRoot);
-  if (rootLevel.length > 0) return rootLevel;
-
-  return [];
-}
-
-function listSkillDirsIn(dir) {
-  if (!existsSync(dir)) return [];
+  // Recursively find ALL directories containing SKILL.md at any depth.
+  // External repos nest skills at varying levels (e.g. category/skill/SKILL.md).
   const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    const skillMd = join(dir, entry.name, "SKILL.md");
-    if (existsSync(skillMd)) {
-      out.push({ name: entry.name, path: join(dir, entry.name) });
+  function walk(dir) {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        // Check if this dir contains SKILL.md directly.
+        if (existsSync(join(fullPath, "SKILL.md"))) {
+          out.push({ name: entry.name, path: fullPath });
+        } else {
+          // Recurse deeper.
+          walk(fullPath);
+        }
+      }
     }
   }
+  walk(cloneRoot);
   return out;
 }
 

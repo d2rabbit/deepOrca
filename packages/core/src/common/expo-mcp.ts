@@ -91,14 +91,20 @@ export function isExpoAvailable(): boolean {
 
 /**
  * Build the MCP server config for Expo.
- * Returns null when `npx expo` is not available.
+ *
+ * Expo MCP is a REMOTE HTTP server (https://mcp.expo.dev/mcp), not a local
+ * stdio subprocess. There is no `expo mcp` CLI subcommand — the local dev
+ * server flow requires EXPO_UNSTABLE_MCP_SERVER=1 + running `expo start`.
+ *
+ * Since DeepOrca's McpServerConfig only supports stdio (command + args),
+ * we cannot auto-register the remote Expo MCP. Instead, users should manually
+ * configure it in settings if their MCP client supports HTTP transport
+ * (planned Phase 0 of plugin hub — see roadmap §十二).
+ *
+ * Returns null to skip auto-registration. Users add it manually.
  */
 export function buildExpoMcpServerConfig(): McpServerConfig | null {
-  if (!isExpoAvailable()) {
-    return null;
-  }
-  return {
-    command: "npx",
-    args: ["-y", "expo", "mcp"],
-  };
+  // Expo MCP is remote-only — no local stdio spawn possible.
+  // Auto-registration disabled until HTTP MCP transport is supported.
+  return null;
 }

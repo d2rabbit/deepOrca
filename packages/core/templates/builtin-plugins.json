@@ -63,7 +63,7 @@
   {
     "id": "android-dev",
     "name": "Android Development",
-    "description": "Official Android development skills (14 SKILL.md from Google) + Android CLI integration. Covers Jetpack Compose, Navigation 3, CameraX migration, R8 analysis, edge-to-edge, testing, Perfetto profiling, and more.",
+    "description": "Official Android development skills from Google (android/skills repo) + Android CLI integration. Covers Jetpack Compose, Navigation, CameraX, R8 analysis, edge-to-edge, testing, Perfetto profiling, and more.",
     "category": "development",
     "icon": "android",
     "skills": ["android-*"],
@@ -81,11 +81,10 @@
   {
     "id": "react-native-dev",
     "name": "React Native Development",
-    "description": "React Native development skills (Expo official + Callstack community) + Expo MCP server. Covers SDK upgrades, EAS deploy, debugging best practices, performance optimization, and native modules.",
+    "description": "React Native development skills (Expo official) + Expo MCP (remote HTTP, user-configured). Covers SDK upgrades, EAS deploy, debugging best practices, performance optimization, and native modules.",
     "category": "development",
     "icon": "react",
-    "skills": ["react-native-*", "expo-*"],
-    "mcp": ["expo-mcp"]
+    "skills": ["react-native-*", "expo-*"]
   },
   {
     "id": "skill-tools",

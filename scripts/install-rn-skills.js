@@ -31,13 +31,8 @@ const SOURCES = [
     prefix: "expo-",
     exclude: new Set([]),
   },
-  {
-    name: "callstack/agent-skills",
-    repoUrl: "https://github.com/callstack/agent-skills.git",
-    cloneDir: join(tmpdir(), "orca-callstack-agent-skills"),
-    prefix: "react-native-",
-    exclude: new Set([]),
-  },
+  // NOTE: callstack/agent-skills was removed — the repo does not exist (404).
+  // If a community RN skills repo appears in the future, add it here.
 ];
 
 function run(cmd, opts = {}) {
@@ -49,38 +44,32 @@ function run(cmd, opts = {}) {
  * 在源目录中查找包含 SKILL.md 的技能目录。
  * 依次尝试 skills/、SKILLS/、skill/、docs/skills/ 以及仓库根目录。
  */
+/**
+ * Recursively find ALL directories containing SKILL.md at any depth.
+ * Expo's repo nests skills at plugins/expo/skills/<name>/SKILL.md.
+ */
 function findSkillDirs(cloneRoot) {
-  const candidates = ["skills", "SKILLS", "skill", "docs/skills", "docs/skill"];
-  for (const c of candidates) {
-    const dir = join(cloneRoot, c);
-    if (existsSync(dir)) {
-      const found = listSkillDirsIn(dir);
-      if (found.length > 0) {
-        console.log(`   found skills directory: ${c}/`);
-        return found;
+  const out = [];
+  function walk(dir) {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (existsSync(join(fullPath, "SKILL.md"))) {
+          out.push({ name: entry.name, path: fullPath });
+        } else {
+          walk(fullPath);
+        }
       }
     }
   }
-
-  const rootLevel = listSkillDirsIn(cloneRoot);
-  if (rootLevel.length > 0) {
-    console.log("   found skills at repository root");
-    return rootLevel;
-  }
-
-  return [];
-}
-
-function listSkillDirsIn(dir) {
-  if (!existsSync(dir)) return [];
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    const skillMd = join(dir, entry.name, "SKILL.md");
-    if (existsSync(skillMd)) {
-      out.push({ name: entry.name, path: join(dir, entry.name) });
-    }
-  }
+  walk(cloneRoot);
   return out;
 }
 

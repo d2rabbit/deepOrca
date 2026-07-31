@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const bundledDir = join(root, "packages", "core", "templates", "skills", "bundled");
 
-const REPO_URL = "https://github.com/openharmony-sig/deveco-cli.git";
+const REPO_URL = "https://gitcode.com/openharmony-sig/deveco-cli.git";
 const CLONE_DIR = join(tmpdir(), "orca-harmonyos-deveco-cli");
 
 const NAME_PREFIX = "harmonyos-";
@@ -37,38 +37,27 @@ function run(cmd, opts = {}) {
  * 依次尝试 skills/、SKILLS/、skill/、docs/skills/ 以及仓库根目录。
  */
 function findSkillDirs(cloneRoot) {
-  const candidates = ["skills", "SKILLS", "skill", "docs/skills", "docs/skill"];
-  for (const c of candidates) {
-    const dir = join(cloneRoot, c);
-    if (existsSync(dir)) {
-      const found = listSkillDirsIn(dir);
-      if (found.length > 0) {
-        console.log(`   found skills directory: ${c}/`);
-        return found;
+  const out = [];
+  function walk(dir) {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (existsSync(join(fullPath, "SKILL.md"))) {
+          out.push({ name: entry.name, path: fullPath });
+        } else {
+          walk(fullPath);
+        }
       }
     }
   }
-
-  // 仓库根目录直接存放技能目录
-  const rootLevel = listSkillDirsIn(cloneRoot);
-  if (rootLevel.length > 0) {
-    console.log("   found skills at repository root");
-    return rootLevel;
-  }
-
-  return [];
-}
-
-function listSkillDirsIn(dir) {
-  if (!existsSync(dir)) return [];
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    const skillMd = join(dir, entry.name, "SKILL.md");
-    if (existsSync(skillMd)) {
-      out.push({ name: entry.name, path: join(dir, entry.name) });
-    }
-  }
+  walk(cloneRoot);
   return out;
 }
 

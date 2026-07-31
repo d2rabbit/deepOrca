@@ -80,6 +80,6 @@ export function buildHarmonyosMcpServerConfig(): McpServerConfig | null {
   }
   return {
     command: "devecocli",
-    args: ["mcp"],
+    args: ["serve", "mcp"],
   };
 }
