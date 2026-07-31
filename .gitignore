@@ -43,3 +43,7 @@ packages/core/templates/skills/bundled/expo-*/
 
 # Local verification scratch dir
 .tmp-verify/
+.tmp-orca/
+
+# Site verification screenshots (run artifacts)
+.site-verify-*.png
