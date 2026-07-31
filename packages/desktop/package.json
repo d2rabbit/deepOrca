@@ -11,6 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p ./ --noEmit",
+    "test": "node src/tests/run-tests.mjs",
     "build": "node ./build.mjs",
     "dev": "node ./build.mjs --dev",
     "start": "electron .",
