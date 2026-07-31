@@ -36,7 +36,7 @@ const shared = {
   // Keep console.log/error/warn for diagnostics.
   drop: isDev ? [] : ["debugger"],
   pure: ["console.debug"],
-  legalComments: "none",
+  legalComments: "eof",
 };
 
 /** Main process: ESM, keep node deps + core external for runtime resolution. */

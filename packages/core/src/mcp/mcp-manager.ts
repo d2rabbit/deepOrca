@@ -233,6 +233,12 @@ export class McpManager {
         serverName: name,
         stderrBuffer: "",
       };
+
+      // Set up crash detection — same as stdio servers.
+      client.onclose = () => {
+        this.onServerCrash(name, `In-process MCP server "${name}" closed unexpectedly`);
+      };
+
       this.clients.push(managed);
       this.connectedServers.add(name);
 
@@ -265,6 +271,15 @@ export class McpManager {
         resources: [],
       });
     } catch (err) {
+      // Clean up the half-registered client if it was already pushed.
+      // Same pattern as connectServer's catch block.
+      const idx = this.clients.findIndex((c) => c.serverName === name);
+      if (idx >= 0) {
+        const leaked = this.clients.splice(idx, 1)[0];
+        if (leaked) await this.silentlyClose(leaked);
+      }
+      this.connectedServers.delete(name);
+      this.tools = this.tools.filter((t) => t.serverName !== name);
       const message = err instanceof Error ? err.message : String(err);
       this.setStatus({
         name,
@@ -636,7 +651,7 @@ export class McpManager {
     name: string,
     args: Record<string, unknown>,
     timeoutMs = MCP_CALL_TOOL_TIMEOUT_MS
-  ): Promise<{ ok: boolean; name: string; output?: string; error?: string }> {
+  ): Promise<{ ok: boolean; name: string; output?: string; error?: string; metadata?: Record<string, unknown> }> {
     const tool = this.tools.find((t) => t.namespacedName === name);
     if (!tool) {
       return { ok: false, name, error: `Unknown MCP tool: ${name}` };
