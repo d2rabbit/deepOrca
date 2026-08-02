@@ -804,7 +804,7 @@ export class SessionBridge {
     // Built-in HarmonyOS MCP server: DevEco CLI (create/build/run/emulator/
     // screenshot/layout/docs). Shown for HarmonyOS projects when devecocli is available.
     if (!Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)) {
-      const cfg = buildHarmonyosMcpServerConfig();
+      const cfg = buildHarmonyosMcpServerConfig(this.projectRoot);
       if (cfg) {
         list.push({
           name: HARMONYOS_MCP_SERVER_NAME,
@@ -886,7 +886,7 @@ export class SessionBridge {
       hasHarmonyosProject(this.projectRoot) &&
       !Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)
     ) {
-      const cfg = buildHarmonyosMcpServerConfig();
+      const cfg = buildHarmonyosMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: HARMONYOS_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
     if (

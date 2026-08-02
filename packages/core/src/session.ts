@@ -40,6 +40,7 @@ import {
   persistSurfaces,
   restoreSurfaces,
 } from "./mcp/a2ui-mcp";
+import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
@@ -656,7 +657,7 @@ export class SessionManager {
     // or oh-package.json5) when `devecocli` is on PATH.
     if (hasHarmonyosProject(this.projectRoot) && !isHarmonyosDisabled(this.projectRoot)) {
       if (!(result && Object.prototype.hasOwnProperty.call(result, HARMONYOS_MCP_SERVER_NAME))) {
-        const harmonyosConfig = buildHarmonyosMcpServerConfig();
+        const harmonyosConfig = buildHarmonyosMcpServerConfig(this.projectRoot);
         if (harmonyosConfig) {
           result = {
             ...(result ?? {}),
@@ -727,6 +728,16 @@ export class SessionManager {
       // restored surfaces survive the clear and are available immediately.
       restoreSurfaces(this.projectRoot);
       await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, a2uiServer);
+    }
+
+    // Connect the Activity-Frames in-process MCP server (behavioral memory).
+    // Provides 6 tools for querying local screen activity. If no capture DB
+    // exists, tools return "DB not found" errors gracefully.
+    try {
+      const afServer = buildActivityFramesServer(undefined, this.projectRoot);
+      await this.mcpManager.connectInProcessServer(ACTIVITY_FRAMES_MCP_SERVER_NAME, afServer);
+    } catch {
+      // Activity DB not available — tools will report gracefully.
     }
 
     this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();

@@ -56,6 +56,35 @@ export function getSurfaces(): A2uiSurfaceState[] {
   return result;
 }
 
+/** Get a single surface by ID (returns null if not found). */
+export function getSurface(surfaceId: string): A2uiSurfaceState | null {
+  const surface = surfaces.get(surfaceId);
+  if (!surface) return null;
+  return {
+    surfaceId: surface.surfaceId,
+    title: surface.title,
+    components: Array.from(surface.components.values()),
+    dataModel: surface.dataModel,
+  };
+}
+
+/**
+ * Extract the surfaceId from the first message in a JSON payload.
+ * Used to scope update subscriptions to the relevant surface only.
+ */
+export function extractSurfaceId(messagesJson: string): string | null {
+  try {
+    const messages = JSON.parse(messagesJson);
+    if (!Array.isArray(messages)) return null;
+    for (const msg of messages) {
+      if (msg && typeof msg.surfaceId === "string") return msg.surfaceId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Clear all surfaces. */
 export function clearSurfaces(): void {
   surfaces = new Map();
@@ -110,12 +139,64 @@ function handleUpdateComponents(msg: Record<string, unknown>): void {
   if (!surface) return;
   const components = msg.components;
   if (Array.isArray(components)) {
-    // Replace all components for this surface.
-    surface.components = new Map();
+    // Mode: "replace" (default) wipes all existing components first.
+    // Mode: "merge" patches by id — same id replaces, new id adds,
+    // `{ id, _delete: true }` removes. Inspired by OpenUI merge.ts.
+    const mode = msg.mode === "merge" ? "merge" : "replace";
+    if (mode === "replace") {
+      surface.components = new Map();
+    }
     for (const comp of components) {
-      if (comp && typeof comp.id === "string") {
-        surface.components.set(comp.id, comp as A2uiComponent);
+      if (!comp || typeof comp.id !== "string") continue;
+      const c = comp as A2uiComponent & { _delete?: boolean };
+      if (c._delete) {
+        surface.components.delete(c.id);
+      } else {
+        surface.components.set(c.id, c);
       }
+    }
+    // GC: in merge mode, remove components whose parentId is no longer
+    // reachable from any root component (parentId undefined or pointing to
+    // a non-existent parent). This prevents orphaned subtrees after deletes.
+    if (mode === "merge") {
+      gcUnreachableComponents(surface);
+    }
+  }
+}
+
+/**
+ * Garbage-collect components unreachable from root components.
+ * A root component has no parentId (or parentId pointing to a non-existent
+ * component). We BFS from all roots, removing any component whose parentId
+ * chain doesn't lead to a root.
+ */
+function gcUnreachableComponents(surface: InternalSurface): void {
+  const reachable = new Set<string>();
+  const queue: string[] = [];
+
+  // Seed: components with no parent (roots)
+  for (const [id, comp] of surface.components) {
+    if (!comp.parentId || !surface.components.has(comp.parentId)) {
+      reachable.add(id);
+      queue.push(id);
+    }
+  }
+
+  // BFS: mark children as reachable
+  while (queue.length > 0) {
+    const id = queue.pop()!;
+    for (const [childId, comp] of surface.components) {
+      if (comp.parentId === id && !reachable.has(childId)) {
+        reachable.add(childId);
+        queue.push(childId);
+      }
+    }
+  }
+
+  // Remove unreachable
+  for (const id of surface.components.keys()) {
+    if (!reachable.has(id)) {
+      surface.components.delete(id);
     }
   }
 }

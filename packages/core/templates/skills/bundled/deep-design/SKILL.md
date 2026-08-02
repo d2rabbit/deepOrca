@@ -1,20 +1,20 @@
 ---
 name: deep-design
 description: >-
-  Generate design-grade HTML artifacts (prototypes, dashboards, decks, posters)
-  as self-contained single HTML files. Use when users ask for design, 原型,
-  落地页, dashboard, 仪表盘, 演示文稿, poster, landing page, or UI 设计稿.
-  Reads the project DESIGN.md brand contract, composes from seed templates,
-  optionally inlines Canvas UI visual effects. Output is one HTML file with
-  zero external dependencies.
+  Generate design-grade web artifacts using the .dd (OrcaDesign) format —
+  YAML front-matter + HTML body with section markers. Use when users ask for
+  design, 原型, 落地页, dashboard, 仪表盘, landing page, or UI 设计稿.
+  Reads the project DESIGN.md brand contract, composes from seed tokens,
+  produces a .dd file that DeepOrca renders to a live preview. Tailwind CSS
+  utility classes are available (locally vendored, no CDN needed).
 ---
 
-# DeepDesign — Generate Design-Grade HTML Artifacts
+# DeepDesign — Generate Design-Grade Web Artifacts
 
-Produce a single, self-contained HTML design artifact using bundled seed
-templates and section layouts — **not** by writing CSS from scratch. The seed
-already encodes good defaults (typography, spacing, accent budget). Your job
-is to compose it into a polished design.
+Produce a `.dd` (OrcaDesign Document) file — a structured design format with
+YAML metadata + HTML body. **Do not write raw HTML files.** The `.dd` format
+gives you structured tokens, section markers for targeted editing, and live
+preview in DeepOrca's right-side panel.
 
 ## When to Use
 
@@ -24,114 +24,171 @@ is to compose it into a polished design.
 - User asks for a poster / 海报 / social media card
 - User wants to design something visual and asks "can you make it look good?"
 
-## Resource Map
+## The .dd Format
 
-```
-deep-design/
-├── SKILL.md                              ← you're reading this
+A `.dd` file has two parts:
 
-templates/design/
-├── systems/                              ← DESIGN.md brand contracts
-│   ├── dark-tech.md                      ← default (matches Orca theme)
-│   ├── modern-minimal.md                 ← light, clean, airy
-│   └── editorial.md                      ← serif, magazine, structured
-├── templates/
-│   └── web-prototype/                    ← landing/marketing/general web
-│       ├── seed.html                     ← READ FIRST: tokens + class system
-│       └── references/
-│           └── layouts.md                ← 8 paste-ready section skeletons
-└── canvas-ui/                            ← optional visual effects (Phase 3)
-    └── registry.json                     ← liquid/blaze/glass/particle…
+### Part 1: YAML Front-matter (metadata + tokens)
+
+```yaml
+---
+name: Acme Landing Page
+system: dark-tech
+style: glassmorphism
+version: "1.0"
+tokens:
+  bg: "#0a0a0a"
+  surface: "#1a1a1a"
+  accent: "#3b82f6"
+  text: "#f5f5f5"
+  muted: "#888888"
+  fontDisplay: "Inter, sans-serif"
+  fontBody: "Inter, sans-serif"
+  fontMono: "JetBrains Mono, monospace"
+  maxWidth: "1200px"
+  radius: "8px"
+  gap: "24px"
+sections:
+  - id: hero
+    type: hero
+  - id: features
+    type: features
+  - id: cta
+    type: cta
+---
 ```
+
+### Part 2: HTML Body (with section markers)
+
+```html
+<!-- dd:section hero -->
+<section data-dd-id="hero" class="section">
+  <div class="container">
+    <p class="eyebrow">Introducing Acme</p>
+    <h1 class="display">The Future of Design</h1>
+    <p class="lead">AI-powered design at the speed of thought.</p>
+    <a href="#signup" class="btn btn-primary">Get Started</a>
+  </div>
+</section>
+<!-- /dd:section -->
+
+<!-- dd:section features -->
+<section data-dd-id="features" class="section">
+  <div class="container">
+    <h2>Why Choose Us</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3 class="card-title">Fast</h3>
+        <p class="card-desc">Lightning quick iteration</p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- /dd:section -->
+```
+
+### Key rules
+
+- **Section markers are mandatory**: `<!-- dd:section xxx -->` ... `<!-- /dd:section -->`
+- **Tokens map to CSS `:root` variables**: the compiler injects them automatically
+- **Tailwind CSS is available**: use utility classes like `flex gap-4 rounded-xl`
+  alongside the seed CSS classes (`.btn`, `.card`, `.grid`, etc.)
+- **Self-contained**: the compiler adds the `<html>`, `<head>`, `<style>`, and
+  Tailwind script — you only write the YAML + section HTML
+
+## Available CSS Classes
+
+| Class | Purpose |
+|-------|---------|
+| `.container` | Max-width wrapper (1200px default) |
+| `.section` | Vertical padding (80px default) |
+| `.grid`, `.grid-2/3/4` | CSS grid with gap |
+| `.topnav`, `.topnav-inner`, `.topnav-brand`, `.topnav-links` | Sticky navigation |
+| `.eyebrow` | Small uppercase accent label |
+| `.display` | Large hero title |
+| `.lead` | Muted lead paragraph |
+| `.btn`, `.btn-primary`, `.btn-ghost` | Buttons with hover states |
+| `.card`, `.card-icon`, `.card-title`, `.card-desc` | Feature cards |
+| `.ph-img` | Placeholder image (no external URLs) |
+| `.footer` | Footer with border-top |
+| `.mono` | Inline code style |
 
 ## Workflow
 
 ### Step 0 — Read the brand contract
 
 Check for a project-level `.deeporca/DESIGN.md`. If it exists, read it — its
-colors, fonts, spacing become the `:root` variables in the seed.
+colors, fonts, spacing become the tokens in the YAML front-matter.
 
-If no project DESIGN.md exists, pick a built-in system based on context:
+If no project DESIGN.md exists, pick a built-in system:
+- Dark/tech/productivity → `dark-tech` (bg:#0a0a0a, accent:#3b82f6)
+- Light/clean/SaaS → `modern-minimal` (bg:#fafafa, accent:#2563eb)
+- Editorial/magazine → `editorial` (serif, structured)
 
-- Dark/tech/productivity → `dark-tech.md`
-- Light/clean/SaaS → `modern-minimal.md`
-- Editorial/magazine/content → `editorial.md`
+### Step 1 — Read seed.html for reference
 
-State which system you're using in one sentence.
-
-### Step 1 — Read the seed template
-
-**Read `seed.html` end-to-end** — at minimum through the `<style>` block.
-The class inventory in `layouts.md` lists every class defined in the seed.
-If one is missing, add it to `<style>` rather than re-defining it inline.
+Read `seed.html` to understand the class system and default styles. You don't
+copy seed.html anymore — you write a .dd file from scratch using its classes.
 
 ### Step 2 — Plan the section rhythm
 
-**Pick layouts before writing copy.** From `layouts.md`, choose a rhythm:
+Pick sections before writing content:
 
-| Page kind | Default rhythm                           |
-| --------- | ---------------------------------------- |
-| Landing   | hero → features → stats _or_ quote → cta |
-| Marketing | hero → log-list → cta                    |
-| Pricing   | hero → comparison → cta                  |
-| Docs      | hero → log-list → cta                    |
+| Page kind | Default rhythm |
+|-----------|----------------|
+| Landing | hero → features → stats → cta |
+| Marketing | hero → log-list → cta |
+| Pricing | hero → comparison → cta |
+| Dashboard | hero → stats → features |
 
-State the chosen list in one sentence to the user **before** writing — they
-can redirect cheaply now, not after 200 lines of HTML.
+State the chosen sections to the user **before** writing.
 
-### Step 3 — Compose
+### Step 3 — Write the .dd file
 
-1. Copy `seed.html` as the starting point.
-2. Replace the six `:root` CSS variables with the design system's tokens.
-3. Replace `<title>` and the topnav brand.
-4. For each chosen section, copy the `<section>` block from `layouts.md` into
-   `<main id="content">`.
-5. Replace all `[REPLACE]` strings with **real, specific content** from the
-   user's brief. No filler — if a slot is empty, the section is the wrong
-   choice; pick a different layout.
+1. Write the YAML front-matter with tokens from the chosen design system.
+2. List sections in the `sections:` array.
+3. Write each section's HTML between `<!-- dd:section xxx -->` markers.
+4. Use seed CSS classes + Tailwind utilities for styling.
+5. Replace all placeholder text with **real, specific content**.
 
-### Step 4 — Optional: inline Canvas UI effects
+### Step 4 — Call render_design
 
-If the design would benefit from visual flair (liquid hero background, glass
-panels, particle reveal), check `canvas-ui/registry.json` for available
-effects. Inline the component's vanilla JS source into the HTML. Use
-sparingly — one effect per page maximum.
+Call the `render_design` MCP tool with the full .dd content. The preview panel
+opens automatically showing the compiled design.
 
-### Step 5 — Self-check
+### Step 5 — Self-check (P0 rules)
 
-Run through the P0 checklist in `layouts.md`:
+- [ ] Title and body use different sizes/weights
+- [ ] All spacing on 4px/8px scale
+- [ ] One accent color throughout
+- [ ] Every button has hover state
+- [ ] Images use `.ph-img`, not external URLs
+- [ ] Mobile reflow works (grids collapse at 920px)
+- [ ] Every `<section>` has `data-dd-id` and section markers
 
-- [ ] Every `:root` variable from DESIGN.md — no invented colors
-- [ ] Accent used at most 2× per screen
-- [ ] No `[REPLACE]` placeholders remain
-- [ ] No external image URLs (use `.ph-img`)
-- [ ] Every `<section>` has `data-dd-id`
-- [ ] Mobile reflow works at 920px
+### Step 6 — Iterate
 
-### Step 6 — Write the file
+When the user requests changes:
+1. Edit the specific section in the .dd content.
+2. Call `update_design` with the full updated .dd content.
+3. Preview refreshes automatically.
 
-Write the completed HTML to:
+### Step 7 — Save
 
-```
-.deeporca/designs/<descriptive-name>.html
-```
-
-Then send one short summary naming the file and what it contains. Do not
-output the full HTML source in chat.
+Write the .dd file to `.deeporca/designs/<name>.dd` for persistence.
 
 ## Hard Rules
 
 - **Single accent, used at most twice per screen.** Eyebrow + primary CTA is
   the default budget.
-- **Image placeholders, not external URLs.** Use `.ph-img` — never link to a
-  stock photo CDN.
-- **Mobile reflow already works** via the seed's media query at 920px. Don't
-  break it by adding fixed widths.
-- **`data-dd-id` on every `<section>`** so comment mode can target it.
-- **Self-contained single HTML** — all CSS inline in one `<style>` block. No
-  external `<link>` or `<script src>`. The file must open in any browser.
+- **Image placeholders, not external URLs.** Use `.ph-img`.
+- **`data-dd-id` on every `<section>`** and wrap in section markers.
+- **Tokens from design system** — don't invent colors not in the token list.
+- **Tailwind utilities OK** — they augment the seed CSS, don't replace it.
 
 ## Output Contract
 
-Write to `.deeporca/designs/<name>.html`. One short summary after writing.
-Nothing after.
+Call `render_design` with the .dd content for preview.
+Write to `.deeporca/designs/<name>.dd` for persistence.
+One short summary after. Nothing after.

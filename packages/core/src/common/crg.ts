@@ -234,7 +234,8 @@ export function buildCrgMcpServerConfig(projectRoot: string): McpServerConfig | 
 // ── Subprocess execution ─────────────────────────────────────────────────────
 
 type CrgChild = {
-  once(event: string, listener: (error: NodeJS.ErrnoException) => void): unknown;
+  once(event: "error", listener: (error: NodeJS.ErrnoException) => void): unknown;
+  once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
   unref(): void;
 };
 
@@ -367,7 +368,7 @@ export function runCrgSync(projectRoot: string, spawnProcess: CrgSpawn = spawn a
     const child = spawnCrg(projectRoot, ["build"], spawnProcess);
     const clear = () => inFlightSyncs.delete(key);
     child.once("error", clear);
-    (child as unknown as { once?: (event: string, cb: () => void) => void }).once?.("exit", clear);
+    child.once("exit", clear);
     child.unref();
   } catch {
     inFlightSyncs.delete(key);

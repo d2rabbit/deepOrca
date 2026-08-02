@@ -40,11 +40,13 @@ import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
 const WikiPanel = lazy(() => import("./components/WikiPanel").then((m) => ({ default: m.WikiPanel })));
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
+const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
 import { TaskProgressPanel } from "./components/TaskProgressPanel";
+import { clearSurfaces as clearA2uiSurfaces } from "./a2ui/processor";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
@@ -180,6 +182,9 @@ export function App(): JSX.Element {
 
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
+  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design">("a2ui");
+  const [prototypeOpenuiCode, setPrototypeOpenuiCode] = useState<string>("");
+  const [designContent, setDesignContent] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
@@ -330,6 +335,16 @@ export function App(): JSX.Element {
       setPendingPlan(null);
       setErrorLine(null);
       setPendingPermissionReply((prev) => (prev && prev.sessionId !== id ? null : prev));
+      // M1: drop all cached A2UI surfaces so the new session starts clean and
+      // the global singleton Map doesn't grow unbounded across switches.
+      clearA2uiSurfaces();
+      // F3: reset prototype panel state so switching sessions doesn't reopen
+      // the preview with stale content from the prior session.
+      setPrototypeJson(null);
+      setPrototypeOpenuiCode("");
+      setPrototypeMode("a2ui");
+      setPreviewOpen(false);
+      setDesignContent(null);
       if (!id) {
         setMessages([]);
         setActiveStatus(null);
@@ -385,8 +400,40 @@ export function App(): JSX.Element {
         // tool result arrives with A2UI payload.
         if (message.role === "tool") {
           const content = message.content || "";
+          // Check for DeepDesign (.dd format) tool results via metadata.design.
+          if (content.includes("render_design") || content.includes("update_design")) {
+            try {
+              const parsed = JSON.parse(content);
+              const meta = parsed.metadata ?? {};
+              if (meta.design) {
+                const ddContent = typeof meta.design === "string" ? meta.design : String(meta.design);
+                setPrototypeMode("design");
+                setDesignContent(ddContent);
+                setPreviewOpen(true);
+                setPreviewTab("design");
+              }
+            } catch {
+              // Not parseable.
+            }
+          }
+          // Check for OpenUI Lang tool results via metadata.openui.
+          if (content.includes("render_openui") || content.includes("update_openui")) {
+            try {
+              const parsed = JSON.parse(content);
+              const meta = parsed.metadata ?? {};
+              if (meta.openui) {
+                const openuiCode = typeof meta.openui === "string" ? meta.openui : String(meta.openui);
+                setPrototypeMode("openui");
+                setPrototypeOpenuiCode(openuiCode);
+                setPreviewOpen(true);
+                setPreviewTab("prototype");
+              }
+            } catch {
+              // Not parseable.
+            }
+          }
           // Check for A2UI tool results via metadata.a2ui (set by executor).
-          if (
+          else if (
             content.includes("render_prototype") ||
             content.includes("render_surface") ||
             content.includes("update_surface")
@@ -397,10 +444,12 @@ export function App(): JSX.Element {
               if (meta.a2ui) {
                 const a2uiJson = typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
                 if (content.includes("render_prototype") || content.includes("render_surface")) {
+                  setPrototypeMode("a2ui");
                   setPrototypeJson(a2uiJson);
                   setPreviewOpen(true);
                   setPreviewTab("prototype");
                 } else if (content.includes("update_surface")) {
+                  setPrototypeMode("a2ui");
                   setPrototypeJson(a2uiJson);
                   setPreviewOpen(true);
                 }
@@ -936,6 +985,90 @@ export function App(): JSX.Element {
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
+  // ── Stable props for memoized children ──────────────────────────────────────
+  // MessageList / Composer / Sidebar are wrapped in React.memo; every callback
+  // handed to them must keep a stable identity across App re-renders (stream
+  // ticks, busy ticks) or memoization is defeated.
+  const handleTogglePlan = useCallback(() => setPlanMode((v) => !v), []);
+  const handleToggleSkill = useCallback(
+    (name: string) =>
+      setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name])),
+    []
+  );
+  const handleRemoveImage = useCallback((i: number) => setImageUrls((prev) => prev.filter((_, idx) => idx !== i)), []);
+  const handleAddImage = useCallback((dataUrl: string) => setImageUrls((prev) => [...prev, dataUrl]), []);
+  const handleResumeClick = useCallback(() => void handleResume(), [handleResume]);
+  const handleEnhanceClick = useCallback(() => void handleEnhance(), [handleEnhance]);
+  const handleCollapsePanel = useCallback(() => setPanelOpen(false), []);
+  const handleBackToChat = useCallback(() => setMainView("chat"), []);
+  const handleSelectPlugin = useCallback((sel: PluginSelection) => {
+    setSelectedPlugin(sel);
+    setMainView("plugins");
+  }, []);
+  const handleRefreshPluginSkills = useCallback(async () => {
+    await api.pluginRefreshSkills(activeId ?? undefined);
+    await refreshSkills(activeId ?? undefined);
+  }, [activeId, refreshSkills]);
+
+  const handleQuickAction = useCallback(
+    (action: "plan" | "init" | "skills" | "undo") => {
+      if (action === "plan") {
+        setPlanMode((v) => !v);
+      } else if (action === "init") {
+        void runPrompt({ text: "/init" });
+      } else if (action === "skills") {
+        selectView("plugins");
+      } else if (action === "undo") {
+        setModal("undo");
+      }
+    },
+    [runPrompt, selectView]
+  );
+
+  const handleSlashCommand = useCallback(
+    (cmd: string) => {
+      if (cmd === "new") {
+        handleNewSession();
+      } else if (cmd === "plan") {
+        setPlanMode((v) => !v);
+      } else if (cmd === "mcp" || cmd === "plugins") {
+        selectView("plugins");
+      } else if (cmd === "skills") {
+        // Skills are shown as chips already, nothing extra needed
+      } else if (cmd === "settings") {
+        void handleOpenSettings();
+      } else if (cmd === "undo") {
+        setModal("undo");
+      } else if (cmd === "init") {
+        void runPrompt({ text: "/init" });
+      } else if (cmd === "pm-design" || cmd === "prototype") {
+        // PM-Design: trigger prototype creation mode via agent prompt
+        void runPrompt({
+          text: "Create an interactive prototype using the A2UI render_prototype tool. Ask me what to build first.",
+        });
+      } else if (cmd === "pm-design-openui" || cmd === "openui") {
+        // PM-Design (OpenUI Lang mode): use the compact OpenUI Lang syntax
+        void runPrompt({
+          text: "Create an interactive prototype using the render_openui tool with OpenUI Lang syntax. Ask me what to build first.",
+        });
+      } else if (cmd === "deep-design" || cmd === "design") {
+        // DeepDesign: generate a web design using the .dd format
+        void runPrompt({
+          text: "Create a web design using the render_design tool with the .dd (OrcaDesign) format. Ask me what to design first.",
+        });
+      } else if (cmd === "raw") {
+        handleCycleReasoning();
+      } else if (cmd === "continue") {
+        handleSend();
+      } else if (cmd === "resume") {
+        selectView("explorer");
+      } else if (cmd === "exit") {
+        void api.closeWindow();
+      }
+    },
+    [handleCycleReasoning, handleNewSession, handleOpenSettings, handleSend, runPrompt, selectView]
+  );
+
   // ── ⌘K command palette + global keyboard shortcuts ─────────────────────────
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
@@ -1135,17 +1268,38 @@ export function App(): JSX.Element {
     };
   }, [mainView]);
 
-  const footer = showQuestion ? (
-    <QuestionCard
-      questions={pendingQuestion!.questions}
-      onSubmit={handleQuestionAnswers}
-      onCancel={() => setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion!.messageId))}
-    />
-  ) : showPermission ? (
-    <PermissionCard requests={askPermissions!} onSubmit={handlePermissionResult} onCancel={handlePermissionCancel} />
-  ) : showPlan ? (
-    <PlanCard onSelect={handlePlanChoice} planText={pendingPlan} />
-  ) : null;
+  // Memoized: MessageList is React.memo and its scroll effect depends on
+  // `footer` — an unstable identity would re-run smooth scrolling every render.
+  const footer = useMemo(
+    () =>
+      showQuestion ? (
+        <QuestionCard
+          questions={pendingQuestion!.questions}
+          onSubmit={handleQuestionAnswers}
+          onCancel={() => setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion!.messageId))}
+        />
+      ) : showPermission ? (
+        <PermissionCard
+          requests={askPermissions!}
+          onSubmit={handlePermissionResult}
+          onCancel={handlePermissionCancel}
+        />
+      ) : showPlan ? (
+        <PlanCard onSelect={handlePlanChoice} planText={pendingPlan} />
+      ) : null,
+    [
+      showQuestion,
+      showPermission,
+      showPlan,
+      pendingQuestion,
+      askPermissions,
+      pendingPlan,
+      handleQuestionAnswers,
+      handlePermissionResult,
+      handlePermissionCancel,
+      handlePlanChoice,
+    ]
+  );
 
   const composerDisabled = showQuestion || showPermission || showPlan;
 
@@ -1326,14 +1480,14 @@ export function App(): JSX.Element {
             currentRoot={projectRoot}
             refreshKey={treeRefreshKey}
             sessions={sessions}
-            onSelectSession={(root, id) => void handleSelectSession(root, id)}
-            onDelete={(id) => void handleDeleteSession(id)}
-            onRename={(id, summary) => void handleRenameSession(id, summary)}
-            onArchive={(id) => void handleArchiveSession(id)}
-            onUnarchive={(id) => void handleUnarchiveSession(id)}
-            onCollapse={() => setPanelOpen(false)}
-            onNewWorkspace={() => void handleNewWorkspace()}
-            onNewSessionInWorkspace={(root) => void handleNewSessionInWorkspace(root)}
+            onSelectSession={handleSelectSession}
+            onDelete={handleDeleteSession}
+            onRename={handleRenameSession}
+            onArchive={handleArchiveSession}
+            onUnarchive={handleUnarchiveSession}
+            onCollapse={handleCollapsePanel}
+            onNewWorkspace={handleNewWorkspace}
+            onNewSessionInWorkspace={handleNewSessionInWorkspace}
             onOpenTokens={openTokensView}
           />
         ) : sidebarView === "scm" ? (
@@ -1365,18 +1519,10 @@ export function App(): JSX.Element {
           <PluginMcpPanel
             skills={skills}
             selectedSkills={selectedSkills}
-            onToggleSkill={(name) =>
-              setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
-            }
-            onRefreshSkills={async () => {
-              await api.pluginRefreshSkills(activeId ?? undefined);
-              await refreshSkills(activeId ?? undefined);
-            }}
+            onToggleSkill={handleToggleSkill}
+            onRefreshSkills={handleRefreshPluginSkills}
             selected={selectedPlugin}
-            onSelect={(sel) => {
-              setSelectedPlugin(sel);
-              setMainView("plugins");
-            }}
+            onSelect={handleSelectPlugin}
           />
         )}
       </div>
@@ -1390,13 +1536,13 @@ export function App(): JSX.Element {
         platform={platform}
         projectRoot={projectRoot}
         isHomeRoot={homeDir !== "" && projectRoot === homeDir}
-        onPickFolder={() => void handleNewWorkspace()}
+        onPickFolder={handleNewWorkspace}
         settings={settings}
         branch={branch}
         branches={branches}
-        onSwitchBranch={(b) => void handleSwitchBranch(b)}
-        onSetModel={(sel) => void handleSetModel(sel)}
-        onOpenSettings={() => void handleOpenSettings()}
+        onSwitchBranch={handleSwitchBranch}
+        onSetModel={handleSetModel}
+        onOpenSettings={handleOpenSettings}
         onOpenTokens={openTokensView}
         activeTokens={activeContextTokens}
         totalTokens={workspaceUsage.totals.total}
@@ -1418,8 +1564,8 @@ export function App(): JSX.Element {
             initial={editable}
             initialTab={settingsInitialTab}
             sessions={sessions}
-            onSave={(next) => void handleSaveSettings(next)}
-            onClose={() => setMainView("chat")}
+            onSave={handleSaveSettings}
+            onClose={handleBackToChat}
             platform={platform}
             theme={theme}
             onSelectTheme={handleSelectTheme}
@@ -1429,10 +1575,8 @@ export function App(): JSX.Element {
             selection={selectedPlugin}
             skills={skills}
             selectedSkills={selectedSkills}
-            onToggleSkill={(name) =>
-              setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
-            }
-            onBack={() => setMainView("chat")}
+            onToggleSkill={handleToggleSkill}
+            onBack={handleBackToChat}
           />
         ) : sidebarView === "editor" && editorFile ? (
           <Suspense
@@ -1451,17 +1595,7 @@ export function App(): JSX.Element {
               hasActiveSession={activeId !== null || messages.length > 0}
               reasoningMode={reasoningMode}
               compacting={activeStatus === "compacting"}
-              onQuickAction={(action) => {
-                if (action === "plan") {
-                  setPlanMode((v) => !v);
-                } else if (action === "init") {
-                  void runPrompt({ text: "/init" });
-                } else if (action === "skills") {
-                  selectView("plugins");
-                } else if (action === "undo") {
-                  setModal("undo");
-                }
-              }}
+              onQuickAction={handleQuickAction}
               footer={footer}
             />
             <TaskProgressPanel />
@@ -1479,54 +1613,23 @@ export function App(): JSX.Element {
                 onSend={handleSend}
                 onStop={handleStop}
                 onPause={handlePause}
-                onResume={() => void handleResume()}
+                onResume={handleResumeClick}
                 canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
-                onEnhance={() => void handleEnhance()}
+                onEnhance={handleEnhanceClick}
                 enhancing={enhancing}
                 busy={busy}
                 disabled={composerDisabled}
                 planMode={planMode}
-                onTogglePlan={() => setPlanMode((v) => !v)}
+                onTogglePlan={handleTogglePlan}
                 skills={skills}
                 selectedSkills={selectedSkills}
-                onToggleSkill={(name) =>
-                  setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
-                }
+                onToggleSkill={handleToggleSkill}
                 statusText={loadingText ?? statusLine}
                 errorText={errorLine}
                 imageUrls={imageUrls}
-                onRemoveImage={(i) => setImageUrls((prev) => prev.filter((_, idx) => idx !== i))}
-                onAddImage={(dataUrl) => setImageUrls((prev) => [...prev, dataUrl])}
-                onSlashCommand={(cmd) => {
-                  if (cmd === "new") {
-                    handleNewSession();
-                  } else if (cmd === "plan") {
-                    setPlanMode((v) => !v);
-                  } else if (cmd === "mcp" || cmd === "plugins") {
-                    selectView("plugins");
-                  } else if (cmd === "skills") {
-                    // Skills are shown as chips already, nothing extra needed
-                  } else if (cmd === "settings") {
-                    void handleOpenSettings();
-                  } else if (cmd === "undo") {
-                    setModal("undo");
-                  } else if (cmd === "init") {
-                    void runPrompt({ text: "/init" });
-                  } else if (cmd === "pm-design" || cmd === "prototype") {
-                    // PM-Design: trigger prototype creation mode via agent prompt
-                    void runPrompt({
-                      text: "Create an interactive prototype using the A2UI render_prototype tool. Ask me what to build first.",
-                    });
-                  } else if (cmd === "raw") {
-                    handleCycleReasoning();
-                  } else if (cmd === "continue") {
-                    handleSend();
-                  } else if (cmd === "resume") {
-                    selectView("explorer");
-                  } else if (cmd === "exit") {
-                    void api.closeWindow();
-                  }
-                }}
+                onRemoveImage={handleRemoveImage}
+                onAddImage={handleAddImage}
+                onSlashCommand={handleSlashCommand}
               />
               <ContextProgress
                 activeTokens={activeContextTokens}
@@ -1539,7 +1642,7 @@ export function App(): JSX.Element {
       </div>
 
       {/* Right-side preview panel — PM-Design / DeepDesign output */}
-      {previewOpen && prototypeJson ? (
+      {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
         <div className="ui-preview-panel">
           <div className="ui-preview-panel-head">
             <div className="ui-preview-tabs">
@@ -1549,12 +1652,20 @@ export function App(): JSX.Element {
               >
                 ✦ Prototype
               </button>
+              <button
+                className={`ui-preview-tab ${previewTab === "design" ? "active" : ""}`}
+                onClick={() => setPreviewTab("design")}
+              >
+                ✦ Design
+              </button>
             </div>
             <button
               className="ui-preview-close"
               onClick={() => {
                 setPreviewOpen(false);
                 setPrototypeJson(null);
+                setPrototypeOpenuiCode("");
+                setDesignContent(null);
               }}
               title="Close preview"
             >
@@ -1569,14 +1680,22 @@ export function App(): JSX.Element {
                 </div>
               }
             >
-              <PrototypePanel
-                a2uiJson={prototypeJson}
-                onClose={() => {
-                  setPreviewOpen(false);
-                  setPrototypeJson(null);
-                }}
-                onIterate={(text) => void runPrompt({ text })}
-              />
+              {previewTab === "design" && designContent ? (
+                <DesignPreview ddContent={designContent} />
+              ) : (
+                <PrototypePanel
+                  a2uiJson={prototypeJson ?? ""}
+                  openuiCode={prototypeOpenuiCode}
+                  mode={prototypeMode === "design" ? "a2ui" : prototypeMode}
+                  onClose={() => {
+                    setPreviewOpen(false);
+                    setPrototypeJson(null);
+                    setPrototypeOpenuiCode("");
+                    setDesignContent(null);
+                  }}
+                  onIterate={(text) => void runPrompt({ text })}
+                />
+              )}
             </Suspense>
           </div>
         </div>

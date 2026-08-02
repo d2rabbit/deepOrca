@@ -16,7 +16,6 @@ import type {
   WikiProgressEvent,
   ReviewProgressEvent,
 } from "../../shared/ipc";
-import { useI18n } from "../i18n";
 
 type TaskState = {
   key: string;
@@ -29,10 +28,8 @@ type TaskState = {
 };
 
 const FADE_DELAY_MS = 3000;
-const MAX_LINES = 5;
 
 export function TaskProgressPanel(): JSX.Element | null {
-  const { t } = useI18n();
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map());
   const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

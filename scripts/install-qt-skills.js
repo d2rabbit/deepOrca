@@ -1,7 +1,7 @@
 // Vendor Qt Group Agent Skills (https://github.com/TheQtCompanyRnD/agent-skills) into bundled skills.
 // 12 skills under skills/<name>/SKILL.md. License: BSD-3-Clause.
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -26,6 +26,7 @@ function main() {
     console.warn("  ⚠ Failed to clone — skipping.");
     process.exit(0);
   }
+  mkdirSync(bundledDir, { recursive: true });
   for (const d of readdirSync(bundledDir)) {
     if (d.startsWith("qt-")) rmSync(join(bundledDir, d), { recursive: true, force: true });
   }
@@ -41,7 +42,7 @@ function main() {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         if (existsSync(join(full, "SKILL.md"))) {
-          cpSync(full, join(bundledDir, `qt-${entry.name}`), { recursive: true });
+          cpSync(full, join(bundledDir, `qt-${entry.name}`), { recursive: true, dereference: true });
           count++;
         } else {
           walk(full);

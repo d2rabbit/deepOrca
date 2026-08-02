@@ -1,7 +1,7 @@
 // Vendor Deepin Skills (https://github.com/linuxdeepin/deepin-skills) into bundled skills.
 // 4 skills under skills/<name>/SKILL.md. License: LGPL-3.0-or-later. Default branch: master.
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -19,6 +19,13 @@ function run(cmd, opts = {}) {
 }
 
 function main() {
+  // Deepin skills are Linux-only at runtime (session.ts filters deepin-/dde-/dtk-
+  // prefixes to Linux). Skip vendoring on non-Linux hosts to avoid installing
+  // skills the runtime will never load.
+  if (process.platform !== "linux") {
+    console.log("\n📦 deepin-skills: skipped (Linux-only, not on this platform)\n");
+    return;
+  }
   console.log("\n📦 Installing linuxdeepin/deepin-skills...\n");
   if (existsSync(CLONE_DIR)) rmSync(CLONE_DIR, { recursive: true, force: true });
   try {
@@ -27,6 +34,7 @@ function main() {
     console.warn("  ⚠ Failed to clone — skipping.");
     process.exit(0);
   }
+  mkdirSync(bundledDir, { recursive: true });
   for (const d of readdirSync(bundledDir)) {
     if (d.startsWith("deepin-") || d.startsWith("dde-") || d.startsWith("dtk-")) {
       rmSync(join(bundledDir, d), { recursive: true, force: true });
@@ -43,7 +51,7 @@ function main() {
     const skillDir = join(skillsDir, entry.name);
     if (existsSync(join(skillDir, "SKILL.md"))) {
       const dest = join(bundledDir, `deepin-${entry.name}`);
-      cpSync(skillDir, dest, { recursive: true });
+      cpSync(skillDir, dest, { recursive: true, dereference: true });
       // Preserve LGPL license notice alongside the skill.
       const licenseSrc = join(CLONE_DIR, "LICENSE");
       if (existsSync(licenseSrc)) cpSync(licenseSrc, join(dest, "LICENSE.deepin"));

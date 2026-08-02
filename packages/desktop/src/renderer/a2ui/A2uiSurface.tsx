@@ -7,33 +7,45 @@
  * our own lightweight React components styled with --ui-* CSS variables.
  */
 
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useEffect, useState, type JSX } from "react";
 import type { A2uiComponent, A2uiSurfaceState } from "./processor";
-import { processA2uiMessages, getSurfaces } from "./processor";
+import { processA2uiMessages, getSurfaces, getSurface } from "./processor";
 
 type Props = {
   /** Raw A2UI JSON messages (from MCP EmbeddedResource). */
   messagesJson: string;
   /** Called when the user interacts with an action-enabled component. */
   onAction?: (surfaceId: string, actionName: string, context: Record<string, unknown>) => void;
+  /**
+   * When provided, render only this surface (scoped mode for inline chat).
+   * When omitted, render all surfaces (used by PrototypePanel).
+   */
+  surfaceId?: string;
 };
 
-export function A2uiSurface({ messagesJson, onAction }: Props): JSX.Element {
-  const [surfaces, setSurfaces] = useState<A2uiSurfaceState[]>([]);
+export function A2uiSurface({ messagesJson, onAction, surfaceId }: Props): JSX.Element {
+  const [surfaceStates, setSurfaceStates] = useState<A2uiSurfaceState[]>([]);
 
   // Process messages on mount and when messagesJson changes.
   useEffect(() => {
     processA2uiMessages(messagesJson);
-    setSurfaces(getSurfaces());
-  }, [messagesJson]);
+    if (surfaceId) {
+      // Scoped mode: render only the specified surface.
+      const s = getSurface(surfaceId);
+      setSurfaceStates(s ? [s] : []);
+    } else {
+      // Unscoped mode: render all surfaces (PrototypePanel).
+      setSurfaceStates(getSurfaces());
+    }
+  }, [messagesJson, surfaceId]);
 
-  if (surfaces.length === 0) {
+  if (surfaceStates.length === 0) {
     return <div className="ui-a2ui-empty">Loading Surface…</div>;
   }
 
   return (
     <div className="ui-a2ui-surfaces">
-      {surfaces.map((surface) => (
+      {surfaceStates.map((surface) => (
         <div key={surface.surfaceId} className="ui-a2ui-surface">
           {surface.title ? <div className="ui-a2ui-surface-title">{surface.title}</div> : null}
           <div className="ui-a2ui-surface-body">

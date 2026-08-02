@@ -3,7 +3,7 @@
 // We flatten: plugins/<plugin>/skills/<skill>/SKILL.md → bundled/dotnet-<plugin>-<skill>/SKILL.md
 import { execSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
@@ -23,11 +23,12 @@ function main() {
   if (existsSync(CLONE_DIR)) rmSync(CLONE_DIR, { recursive: true, force: true });
   try {
     run(`git clone --depth 1 ${REPO_URL} "${CLONE_DIR}"`);
-  } catch (e) {
+  } catch (_e) {
     console.warn("  ⚠ Failed to clone dotnet/skills — skipping.");
     process.exit(0);
   }
   // Remove old dotnet-* skills
+  mkdirSync(bundledDir, { recursive: true });
   for (const d of readdirSync(bundledDir)) {
     if (d.startsWith("dotnet-")) rmSync(join(bundledDir, d), { recursive: true, force: true });
   }
@@ -46,7 +47,7 @@ function main() {
         if (existsSync(join(full, "SKILL.md"))) {
           const name = entry.name;
           const dest = join(bundledDir, `dotnet-${name}`);
-          cpSync(full, dest, { recursive: true });
+          cpSync(full, dest, { recursive: true, dereference: true });
           count++;
         } else {
           walk(full);

@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { memo, type JSX } from "react";
 import { useI18n } from "../i18n";
 import { compactTokenThreshold, formatTokens } from "../lib/token-usage";
 
@@ -18,7 +18,11 @@ type Props = {
  * it nears the compaction threshold. Percentage keeps two decimals so the user
  * can watch it tick up smoothly rather than jumping in whole-point steps.
  */
-export function ContextProgress({ activeTokens, model, compacting = false }: Props): JSX.Element | null {
+export const ContextProgress = memo(function ContextProgress({
+  activeTokens,
+  model,
+  compacting = false,
+}: Props): JSX.Element | null {
   const { t } = useI18n();
   if (activeTokens <= 0 && !compacting) return null;
 
@@ -55,4 +59,4 @@ export function ContextProgress({ activeTokens, model, compacting = false }: Pro
       </div>
     </div>
   );
-}
+});

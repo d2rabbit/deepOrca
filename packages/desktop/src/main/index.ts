@@ -154,7 +154,14 @@ let bridge: SessionBridge | null = null;
 let pluginManager: PluginManager | null = null;
 
 function emit(channel: string, payload?: unknown): void {
-  mainWindow?.webContents.send(channel, payload);
+  // Broadcast to every BrowserWindow so popout prototype windows also receive
+  // A2UI surface updates (and any other emit-channel event). Each window's
+  // renderer is responsible for scoping updates by surfaceId.
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, payload);
+    }
+  }
 }
 
 // The initial project root: the most recently active known workspace. Home is
@@ -749,7 +756,7 @@ function registerIpc(): void {
     });
     // Send the A2UI payload to the new window's renderer after load.
     protoWin.webContents.once("did-finish-load", () => {
-      protoWin.webContents.send("event:a2uiWindowPayload", { a2uiJson, title });
+      protoWin.webContents.send(IpcEvent.A2uiWindowPayload, { a2uiJson, title });
     });
   });
 

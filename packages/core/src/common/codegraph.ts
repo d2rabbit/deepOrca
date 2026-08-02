@@ -426,7 +426,8 @@ export function buildCodegraphMcpServerConfig(projectRoot: string): McpServerCon
 }
 
 type CodegraphChild = {
-  once(event: string, listener: (error: NodeJS.ErrnoException) => void): unknown;
+  once(event: "error", listener: (error: NodeJS.ErrnoException) => void): unknown;
+  once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
   unref(): void;
 };
 
@@ -507,8 +508,7 @@ export function runCodegraphSync(
     const child = spawnCodegraph(projectRoot, ["sync", projectRoot], spawnProcess);
     const clear = () => inFlightSyncs.delete(key);
     child.once("error", clear);
-    // Best-effort cleanup once the process settles; ignore if unsupported.
-    (child as unknown as { once?: (event: string, cb: () => void) => void }).once?.("exit", clear);
+    child.once("exit", clear);
     child.unref();
   } catch {
     inFlightSyncs.delete(key);

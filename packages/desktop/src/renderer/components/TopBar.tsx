@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { memo, type JSX } from "react";
 import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
@@ -81,7 +81,8 @@ const ICON_CLOSE = (
 );
 
 /** Slim draggable window bar: window controls + project/branch + dual model selectors + token mini. */
-export function TopBar({
+// Memoized: all props are primitives or stable references from App.
+export const TopBar = memo(function TopBar({
   platform,
   projectRoot,
   isHomeRoot = false,
@@ -307,4 +308,4 @@ export function TopBar({
       {isMac ? null : winControls}
     </div>
   );
-}
+});

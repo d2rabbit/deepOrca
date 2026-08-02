@@ -1,6 +1,10 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.13 · 日期：2026-07-31 · 状态：规划中
+> 版本：v3.15 · 日期：2026-08-02 · 状态：规划中
+>
+> **v3.15 更新**：① **taste-skill**（§六 P1）已完成——纯方法论 SKILL.md，10 条 P0 设计纪律 + 排版阶梯 + 颜色/动效/布局规范。② **DeepDesign `.dd` 专属格式**（§六 P1）已完成——OrcaDesign Document（YAML front-matter + HTML body + section markers），取代直接写 HTML。编译器注入 tokens + seed CSS + 本地内置 Tailwind JIT（~400KB，离线可用）。新增 `render_design` / `update_design` MCP 工具 + DesignPreview 预览组件（iframe srcDoc）+ `/deep-design` 命令。③ **A2UI merge delta**（§六 P0）已完成——`update_surface` 改为 delta-only 补丁（借鉴 OpenUI merge.ts），processor 端 merge + GC。④ **OpenUI Lang PM-Designer**（§六 P1）已完成——`@openuidev/lang-core` + `react-lang` 集成，11 个自研组件库，`/pm-design-openui` 触发。⑤ 调研 thesysdev/openui + different-ai/openwork + Accio-Lab/Dressage + onecli/onecli + nossa-y/activity-frames。⑥ 新增 §二「行为记忆」（activity-frames TS 重写，P2）+ §十六「能力编排协议」（OpenWork 理念，P3）+ §十七「密钥保险库」（OneCLI 理念 SQLite 重构，P2）。
+>
+> **v3.14 更新**：① **A2UI 审计第二弹**——修复 12 个 bug（surface 跨污染 C1+C2 / 内存泄漏 M1 / 独立窗口按钮失效 M4 / 死代码 fallback M5 / 全量快照 O(n²) M2 / MCP onclose 误报 1-A / 子进程 fragile cast 3-A+7-A / Gateway 网络错误静默 4-A+B / HarmonyOS cwd 缺失 5-A），并修复预存的 PrototypeWindow `import electron` 破坏 browser bundle 问题。② **调研 thesysdev/openui + different-ai/openwork**——OpenUI Lang 定位为 PM-Designer 专用渲染层（Zod v4 已就绪，无阻塞）；OpenWork 双工具 MCP 模型（`search_capabilities`+`execute_capability`）作为能力编排层参考，优先级低于 SSH（§十三）。③ 新增 §十六「能力编排协议」（OpenWork 理念，P3）。
 >
 > **v3.12 更新**：A2UI 严格代码审计完成，修复 6 个关键 bug（协议不匹配 B1-B3 / 资源传输 B4 / 独立窗口 B6 / 状态泄漏 B9-B10 / 导航重复 I2）。弃用 `@a2ui/web_core`，自建轻量 processor 直接消费自定义消息格式——渲染层已为此格式编写。EmbeddedResource 现在通过 `metadata.a2ui` 正确传递到渲染器。独立窗口通过 `?view=prototype` query param 检测并渲染 PrototypeWindow。
 >
@@ -38,11 +42,11 @@
 | 功能域                              | 已集成                                                                                                     | 规划中                                                                                                                                                    | 核心目标                                       |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | [一、代码智能](#一代码智能)         | codegraph, CRG, ocr                                                                                        | serena                                                                                                                                                    | 让 Agent 从"文本级"升级为"语义级"代码操作      |
-| [二、知识中心](#二知识中心)         | openwiki, TencentDB-Agent-Memory                                                                           | Open Deep Research 理念                                                                                                                                   | 项目文档 + 跨会话记忆 + 深度研究               |
+| [二、知识中心](#二知识中心)         | openwiki, TencentDB-Agent-Memory                                                                           | **行为记忆（activity-frames TS 重写）**, Open Deep Research 理念                                                                                          | 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究     |
 | [三、移动开发](#三移动开发)         | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack）  | —                                                                                                                                                         | Flutter + Android + HarmonyOS + React Native   |
 | [四、桌面开发](#四桌面开发)         | —                                                                                                          | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）                                                                                    | macOS/iOS + Qt/KDE + Tauri 桌面应用开发        |
 | [五、.NET 开发](#五net-开发)        | —                                                                                                          | dotnet/skills（Microsoft 官方 12 域）                                                                                                                     | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild    |
-| [六、设计生成](#六设计生成)         | DeepDesign Phase 1                                                                                         | **A2UI 原型模块（P1 核心卖点）**, taste-skill, **html-in-canvas（API 提案，Electron 43/Chromium 150 实测支持，flag 可开）**, dashboard/mobile/poster 模板 | brief→生成→预览→交付 的全流程设计能力          |
+| [六、设计生成](#六设计生成)         | DeepDesign Phase 1 + **`.dd` 格式**, **taste-skill**, **A2UI PM-Design P0-P4 + merge delta**, **OpenUI Lang PoC** | **html-in-canvas（API 提案，flag 可开）**, dashboard/mobile/poster 模板, Uiverse 组件库 | brief→生成→预览→交付 的全流程设计能力          |
 | [七、办公套件](#七办公套件)         | Bento Slides                                                                                               | 文档/表格生成, 办公文档预览面板                                                                                                                           | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
 | [八、浏览器与联网](#八浏览器与联网) | browser-skill, WebSearch, web-access 理念                                                                  | obscura                                                                                                                                                   | 登录态操控 + 大规模抓取 + 深度联网策略         |
 | [九、桌面自动化](#九桌面自动化)     | —                                                                                                          | pi-computer-use, ShowUI（VLM 视觉定位）, CLI-Anything, **sim-use（iOS+Android 模拟器，P1）**                                                              | 操控无 API 的桌面软件 + 模拟器交互             |
@@ -51,6 +55,9 @@
 | [十二、插件中心](#十二插件中心)     | 分组展示（builtin-plugins.json）, Flutter/Android/HarmonyOS/RN 技能包, Browser 分组                        | **SkillSpector 安全闸门（P1）**, opencli, 远程源集成（8 Hub）                                                                                             | 统一的插件/技能/MCP 管理入口 + 安装安全        |
 | [十三、远程接入](#十三远程接入)     | —                                                                                                          | WebSocket 桥 + 静态服务 + 隧道方案                                                                                                                        | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca  |
 | [十四、语音双工](#十四语音双工)     | —                                                                                                          | whisper.cpp 本地 + API 兜底                                                                                                                               | 语音替代键盘输入，实时转录填入 Composer        |
+| [十五、统一模型网关](#十五统一模型网关最低优先级) | —                                                                                                        | OmniRoute（文档引导）                                                                                                                                     | 多提供商路由 + token 压缩                     |
+| [十六、能力编排协议](#十六能力编排协议) | —                                                                                                          | OpenWork 双工具 MCP 理念 + 技能/工作流可迁移                                                                                                              | 统一能力发现和执行入口（一站化编排层）          |
+| [十七、密钥保险库](#十七密钥保险库) | —                                                                                                          | OneCLI 理念 SQLite 重构（AES-256-GCM + 注入引擎）                                                                                                         | Agent 持占位符 key，真实凭证加密存储+按需注入      |
 | [搁置项](#搁置项)                   | —                                                                                                          | OpenSpec, Superpowers, OmniGent, Electron 自建                                                                                                            | 暂不规划，理由见下                             |
 
 ---
@@ -88,7 +95,7 @@
 
 ## 二、知识中心
 
-> 项目文档 + 跨会话记忆 + 深度研究——让 Agent 越用越懂项目，不遗忘已学的事实。
+> 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究——让 Agent 越用越懂项目，不遗忘已学的事实，知道用户做了什么。
 
 ### 已集成
 
@@ -101,9 +108,13 @@
 
 | 能力         | 项目                        | 集成形态                       | 贡献                                                      | 优先级 |
 | ------------ | --------------------------- | ------------------------------ | --------------------------------------------------------- | ------ |
+| **行为记忆** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（~2000 行），InMemoryTransport MCP server，vendor nocta-recorder 二进制 | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）→ 6 个 MCP 工具。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(TDAM) + 行为记忆(frames)」双层记忆。详见 `specs/activity-frames/design.md` | **P2** |
 | 多轮深度研究 | **Open Deep Research** 理念 | 借鉴工作流，Node.js 自建轻量版 | 从"单次 WebSearch"升级为"搜索→反思→再搜索→报告"的多轮循环 | P3     |
 
-**关系说明**：Open Deep Research 是 Python（LangGraph），违背零依赖。借鉴其 4 阶段工作流（摘要→研究→压缩→报告），用 DeepOrca 的 Node.js 引擎自建轻量版。
+**关系说明**：
+- **三层记忆体系**：TDAM（对话记忆，「说了什么」）+ activity-frames（行为记忆，「做了什么」）+ openwiki（知识记忆，「项目是什么」）。三者互补不重叠。
+- **activity-frames TS 重写理由**：原项目是纯 Python 零依赖数据变换库（~2500 行），但其 MCP server 是手写 JSON-RPC 子进程。DeepOrca 的「零外部运行时依赖」原则要求 TS 原生实现。重写后走 InMemoryTransport（同 a2ui server），无需 Python/子进程。
+- Open Deep Research 是 Python（LangGraph），违背零依赖。借鉴其 4 阶段工作流（摘要→研究→压缩→报告），用 DeepOrca 的 Node.js 引擎自建轻量版。
 
 ---
 
@@ -228,13 +239,15 @@
 
 | 能力                   | 项目                                                                             | 集成形态                                                                    | 贡献                                                                                                                                                                                                                                                                                                                                                                                 | 优先级               |
 | ---------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
-| **AI-native 原型模块** | **A2UI** 协议（a2ui-project/a2ui）                                               | 内置 Skill（`a2ui-prototype`）+ `@a2ui/web_core` MessageProcessor + 自研渲染器 + A2UI over MCP（InMemoryTransport）        | ✅ **已集成**：PM 用自然语言驱动声明式 Surface 原型。7 个模板（login-form/dashboard/list-detail/wizard/kanban/data-table/multi-page）+ render_prototype 工具 + 全屏预览面板 + 多页面导航 + 持久化恢复。`9699fbe`→`0699927`
-| 前端设计质量纪律       | **taste-skill**                                                                  | 构建 Skill（纯 SKILL.md）                                                   | 布局/排版/动效/间距的反 slop 方法论，框架无关                                                                                                                                                                                                                                                                                                                                        | P1                   |
+| **AI-native 原型模块** | **A2UI** 协议（a2ui-project/a2ui）                                               | 内置 Skill（`a2ui-prototype`）+ 自研 MessageProcessor + 自研渲染器 + A2UI over MCP（InMemoryTransport）        | ✅ **已集成**：PM 用自然语言驱动声明式 Surface 原型。7 个模板 + render_prototype 工具 + 全屏预览面板 + 多页面导航 + 持久化恢复。v3.14 审计第二弹修复 12 bug（surface 作用域隔离 / 内存泄漏 / 独立窗口交互 / 全量快照→快照）。`9699fbe`→`0699927` |
+| **A2UI 增量补丁（merge）** | OpenUI merge.ts 理念（thesysdev/openui） | `a2ui-mcp.ts` update_surface delta-only + processor 端 merge | **P0（开发中）**：借鉴 OpenUI `mergeStatements` 的「按 id 合并 + GC 不可达」理念，update_surface 从返回完整快照改为返回 delta-only（仅变更的组件），processor 端 merge 到已有 surface state。首次调用仍返回完整快照。省 70%+ token |
+| **OpenUI Lang 渲染（PM-Designer 专用）** | **thesysdev/openui**（@openuidev/lang-core + react-lang，MIT） | `@openuidev/lang-core`（解析+运行时+prompt）+ `@openuidev/react-lang`（Renderer）+ pm-designer skill prompt 切换 | **P1（PoC 阶段）**：OpenUI Lang 作为 A2UI 的补充，**仅用于 PM-Designer**。紧凑行式语法（`root = Stack([title, form])`）比 JSON 省 3-4x token；响应式 `$variable` 自动依赖追踪；增量编辑按语句名 merge 省 85% token。MCP 原生——`toolProvider` 直接接 DeepOrca MCP client。**不替换通用 A2UI 管线**——PM-Designer 走 OpenUI Lang，其他场景仍走 A2UI JSON |
+| 前端设计质量纪律       | **taste-skill**                                                                  | ✅ **已完成**：构建 Skill（纯 SKILL.md）                                 | 10 条 P0 设计纪律 + 排版阶梯 + 颜色/动效/布局规范，框架无关。同时适用于 DeepDesign（.dd）和 PM-Designer（A2UI/OpenUI）                                                                                                                                                                                                                                                              | ~~P1~~ 完成          |
 | 视觉特效"画笔"         | **html-in-canvas**（WICG 提案 [html-in-canvas.dev](https://html-in-canvas.dev)） | 浏览器原生 API（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor** | 让 Agent 生成的 HTML 设计件获得 shader 级视觉特效（液体玻璃 refraction、像素瓦解、CRT/色差 shader、3D 贴 HTML 纹理），远超纯 CSS。**当前实验态**：仅 Chrome Canary / Brave 147+ 需手动开 `chrome://flags/#canvas-draw-element`，Firefox/Safari 无实现，无 polyfill，无正式发布时间表。**等 Chromium/Electron 稳定支持后才可纳入**。详见 `docs/research/2026-07-30-html-in-canvas.md` | P3（阻塞于平台支持） |
 | 仪表盘模板             | DeepDesign dashboard                                                             | seed + layouts                                                              | 侧边栏 + KPI 卡 + 内联 SVG 图表                                                                                                                                                                                                                                                                                                                                                      | P2                   |
 | 移动端模板             | DeepDesign mobile-app                                                            | seed + layouts                                                              | iPhone 框架 + 多屏流程                                                                                                                                                                                                                                                                                                                                                               | P3                   |
 | 海报模板               | DeepDesign poster                                                                | seed + layouts                                                              | 单页海报/社交媒体图                                                                                                                                                                                                                                                                                                                                                                  | P3                   |
-| **Tailwind CSS 实现层** | **Tailwind CSS CDN**                                                             | DeepDesign 产出 HTML 内嵌 `<script src="https://cdn.tailwindcss.com">`     | Agent 写 `class="flex gap-4 rounded-xl"` 比手写 CSS 更可靠、更一致。配合 UI 风格目录提示词，Agent 直接用 utility classes 落地风格定义信号（如 Neobrutalism 的 `border-2 border-black shadow-[4px_4px_0_#000]`）。**不替换主 UI 的 `--ui-*` token 系统**——仅用于 DeepDesign 产出的 HTML 设计件。调研 `docs/research/2026-07-tailwind-namethatui-htmx.md` | P2                   |
+| **Tailwind CSS 实现层** | **Tailwind CSS 本地内置**                                                        | ✅ **已完成**：vendor 脚本下载 JIT ~400KB 到本地，`.dd` 编译器自动内联   | Agent 写 `class="flex gap-4 rounded-xl"` 比手写 CSS 更可靠、更一致。**离线可用**——不依赖 CDN，Tailwind JIT 脚本在构建时 vendor 到 `packages/desktop/vendor/tailwind/` 并内联到每个设计稿。配合 UI 风格目录提示词，Agent 直接用 utility classes 落地风格定义信号（如 Neobrutalism 的 `border-2 border-black shadow-[4px_4px_0_#000]`）。**不替换主 UI 的 `--ui-*` token 系统** | ~~P2~~ 完成          |
 | **Uiverse 组件库** | **uiverse-io/galaxy**（5800+ 开源 UI 元素，MIT）                                | DeepDesign 参考文档（`design/references/uiverse-components.md`）           | 精选 20-30 个高质量 HTML/CSS 组件代码（Buttons/Cards/Inputs/Loaders/Toggles/Tooltips 等 11 分类），Agent 生成设计稿时直接引用替代从零手写 CSS。不做全量 vendor（5800 太多），只精选高频组件。[uiverse.io](https://uiverse.io) · [galaxy](https://github.com/uiverse-io/galaxy) | P2                   |
 
 **实施路线**：
@@ -708,6 +721,119 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 
 ---
 
+## 十六、能力编排协议
+
+> DeepOrca 一站化的编排层——让 coding / worker / designer / computer-use 四类能力统一发现、统一调用。
+> 借鉴 **OpenWork**（different-ai/openwork，19.2k stars）的双工具 MCP 模型和技能市场理念，不引入其代码。
+
+### 背景
+
+DeepOrca 已有/规划中的能力图谱：
+- **Coding Agent**（已实现）——核心引擎，7 个内置工具 + MCP
+- **Worker**（部分）——后台进程监控、长任务
+- **Designer**（deepdesign + pm-designer）——HTML 设计生成 + A2UI/OpenUI Lang 原型
+- **Computer-Use**（规划中）——浏览器/桌面控制（§九）
+
+当前问题：每个能力各自是独立 MCP server，工具列表随能力增多而膨胀（codegraph_explore / a2ui_render_surface / crg_analyze / dart_mcp_… → 50+ 工具平铺给 LLM）。LLM 需要知道所有工具名才能调用，认知负担随工具数线性增长。
+
+### 规划中
+
+| 能力 | 来源理念 | 集成形态 | 贡献 | 优先级 |
+| --- | --- | --- | --- | --- |
+| **双工具能力编排 MCP** | OpenWork `search_capabilities` + `execute_capability` | 内置 MCP server（InMemoryTransport） | 所有能力（skill/MCP/plugin/designer/worker）统一为两个工具入口。LLM 先 `search_capabilities("原型设计")` 发现能力，再 `execute_capability("pm-designer", {action:"render",...})` 调用。工具列表从 50+ 收敛到 2 | **P3** |
+| **能力发现 + 语义路由** | OpenWork capability 分类（skill/context/agent/command/tool） | `deeporca-capabilities` MCP server 内部 | 按用户意图语义匹配能力→自动路由到对应 agent/skill/MCP。coding agent 不需要预先知道所有工具名 | **P3** |
+| **技能/工作流可迁移** | OpenWork「工作流的 Git」理念 | skill export/import（`.deeporca/skill-packs/`） | 用户创建的工作流（skill 组合 + MCP 配置 + settings 摘要）打包为可分享的 `.orca-pack`，团队成员一键导入 | **P3** |
+| **发现文件 + bearer token 进程发现** | OpenWork UI-control 桥的本地发现文件模式 | `deeporca-control.json`（随机 token，写入 userData） | 比「固定端口」更安全的 sidecar/prototype-window 进程发现方式 | P3 |
+
+### 双工具 MCP 模型设计
+
+```
+当前（平铺）：
+  LLM ← 50+ tools（codegraph_explore, a2ui_render_surface, crg_analyze, dart_devtools...）
+
+未来（编排）：
+  LLM ← 2 tools
+    search_capabilities(query) → 返回匹配的能力列表
+      [{ id:"pm-designer", name:"原型设计", category:"design", description:"..." },
+       { id:"codegraph", name:"代码导航", category:"coding", description:"..." }]
+    execute_capability(id, action, params) → 路由到对应能力执行
+      execute("pm-designer", "render", { template:"dashboard", params:{...} })
+```
+
+### 为什么优先级低（P3，低于 SSH）
+
+1. **当前工具数量可接受**——50+ 工具虽然多，但 DeepSeek 的上下文窗口足够；性能问题要等工具数过百才明显
+2. **架构改动面大**——需要重构 session manager 的工具注册和路由逻辑，触及核心引擎
+3. **OpenWork 是 OpenCode 套壳**——它的编排层深度绑定 OpenCode 的 subprocess 模型，不是可直接复用的库
+4. **SSH/远程接入（§十三）优先级更高**——远程接入是用户直接可感知的能力，能力编排是内部架构优化
+
+### OpenWork 其他可借鉴理念（不单独立项）
+
+| 理念 | 来源 | 价值 | 落地方式 |
+| --- | --- | --- | --- |
+| UI-control-over-MCP（7 个语义化 UI 工具） | OpenWork `openwork-ui-mcp` | 让外部 agent 通过 MCP 语义化控制 DeepOrca 桌面 UI（替代截图点击） | 独立 MCP server，暴露 `ui_snapshot` / `ui_execute_action` / `ui_list_actions` |
+| Fraimz 演示驱动验证 | OpenWork AGENTS.md | frame-by-frame CDP 驱动证明功能可用，替代单元测试覆盖 UI 交互 | `evals/` 目录 + `npm run fraimz` |
+| 扩展贡献清单（extensions manifest） | OpenWork `docs/extensions-manifest-foundation.md` | 声明式扩展模型（contributions: settings 面板 / composer prompts / side panels） | 未来插件系统的架构参考 |
+
+---
+
+## 十七、密钥保险库
+
+> Agent 持占位符 key，真实凭证加密存储 + 按需注入——借鉴 **OneCLI**（onecli/onecli，2.9k stars）理念，SQLite 重构。
+
+### 背景
+
+当前 DeepOrca 的 API key 明文存储在 `settings.json` 中。Agent 代码（`createOpenAIClient`）直接读取真实 key。安全问题：
+1. Agent prompt injection 可能泄露真实 key
+2. 日志/debug 输出可能包含 key
+3. 明文文件容易被误提交到 git
+
+OneCLI 的核心理念（MITM 代理注入真实凭证）过于重型（Rust + PostgreSQL + Next.js）。但 DeepOrca **控制自己的 HTTP 客户端**——不需要 MITM 代理，只需在应用层增加凭证解析。
+
+### 规划中
+
+| 能力 | 来源理念 | 集成形态 | 贡献 | 优先级 |
+| --- | --- | --- | --- | --- |
+| **加密密钥保险库** | OneCLI secret vault | SQLite 单表（AES-256-GCM）+ 设置面板 tab | API key 从 `settings.json` 明文 → 加密 SQLite vault。Agent 代码持有占位符（`PLACEHOLDER`），`createOpenAIClient` 在请求时从 vault 解密注入真实 key | **P2** |
+| **凭证注入引擎** | OneCLI `inject.rs` | ~200 行 TypeScript | 借鉴 OneCLI 的 Injection 枚举（SetHeader / ReplaceHeader / SetParam / SetPath），按密钥类型自动映射（anthropic→`x-api-key`，openai→`Authorization: Bearer`，generic→可配置） | P2 |
+| **密钥轮换 + 审计** | OneCLI audit log | SQLite 审计表 | 记录每次凭证注入的时间/目标/host，支持密钥过期提醒 | P3 |
+
+### SQLite Schema（单表核心）
+
+```sql
+CREATE TABLE vault_secrets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,              -- "Anthropic API Key"
+  type TEXT NOT NULL,              -- "anthropic" | "openai" | "generic"
+  encrypted_value TEXT NOT NULL,   -- AES-256-GCM: {iv}:{authTag}:{ciphertext}
+  host_pattern TEXT NOT NULL,      -- "api.anthropic.com"
+  injection_config TEXT,           -- JSON: {headerName, valueFormat, ...}
+  created_at TEXT DEFAULT (datetime('now')),
+  rotated_at TEXT
+);
+```
+
+### 为什么不用 OneCLI 原版
+
+| OneCLI 组件 | 需要？ | 理由 |
+| --- | --- | --- |
+| MITM HTTPS 代理（Rust + CA + 叶子证书） | ❌ | DeepOrca 控制自己的 HTTP 客户端，不需要拦截 |
+| PostgreSQL + Prisma | ❌ | 单用户桌面应用，SQLite 足够 |
+| Policy Engine（优先级规则） | ❌ | 单用户不需要多租户策略 |
+| Next.js Dashboard | ❌ | DeepOrca 设置面板增加 tab 即可 |
+| OAuth App 连接（Gmail/GitHub/Slack） | 后续 | 先做静态 API key |
+| 1Password/Bitwarden 集成 | 后续 | 先做本地 vault |
+
+### DeepOrca 集成点
+
+```
+当前：  settings.json (明文 key) → createOpenAIClient → API
+未来：  SQLite vault (加密 key) → createOpenAIClient 凭证解析层 → 注入真实 key → API
+                                     ↑ Agent 代码看到的是 PLACEHOLDER
+```
+
+---
+
 ## 搁置项
 
 > 以下项目经深入分析后**暂时搁置**，不纳入当前规划。
@@ -743,6 +869,7 @@ Electron 主进程 spawn whisper.cpp 子进程（vendor 二进制）
 | React Native Development Kit（Skills + Expo MCP） | `16c4b2c` perf           | 移动开发     |
 | web-access-strategy（联网策略 Skill）             | `16c4b2c` perf           | 浏览器与联网 |
 | A2UI PM-Design（原型设计模块 P0-P4）              | `9699fbe`→`0699927` perf | 设计生成     |
+| A2UI 审计第二弹（12 bug 修复）                    | v3.14 perf               | 设计生成     |
 | A2UI 对话交互层（P1-P3 富组件）                   | `561ba72`→`fed3c67` perf | 引擎演进     |
 | Plan Mode（规划+权限强制）                        | 引擎核心                 | 引擎演进     |
 | UpdatePlan（进度跟踪）                            | 引擎核心                 | 引擎演进     |

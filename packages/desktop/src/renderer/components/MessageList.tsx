@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { findExpandedThinkingId } from "../lib/messages";
@@ -46,7 +46,10 @@ type Props = {
   compacting?: boolean;
 };
 
-export function MessageList({
+// Memoized: every prop is a stable reference from App (messages array identity
+// only changes on real updates, callbacks are useCallback'd, footer is a
+// memoized ReactNode), so busy/stream ticks in App skip this whole subtree.
+export const MessageList = memo(function MessageList({
   messages,
   hasActiveSession,
   reasoningMode,
@@ -224,4 +227,4 @@ export function MessageList({
       )}
     </div>
   );
-}
+});

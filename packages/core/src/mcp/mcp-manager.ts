@@ -56,6 +56,8 @@ export type McpResourceDefinition = {
 type CallToolResult = {
   content: Array<{ type: string; text?: string }>;
   isError?: boolean;
+  /** Custom metadata returned by the tool (SDK uses "passthrough" mode). */
+  metadata?: Record<string, unknown>;
 };
 
 export type McpServerStatus = {
@@ -234,9 +236,18 @@ export class McpManager {
         stderrBuffer: "",
       };
 
-      // Set up crash detection — same as stdio servers.
+      // Set up crash detection — same guard as stdio servers. When the
+      // manager intentionally closes the transport in disconnect()/removeServer(),
+      // it adds the name to `intentionallyClosing` first so the close event
+      // is NOT mistaken for a crash.
       client.onclose = () => {
-        this.onServerCrash(name, `In-process MCP server "${name}" closed unexpectedly`);
+        this.connectedServers.delete(name);
+        if (this.intentionallyClosing.has(name)) {
+          return;
+        }
+        if (!this.disposed && this.serverConfigs[name]) {
+          this.onServerCrash(name, `In-process MCP server "${name}" closed unexpectedly`);
+        }
       };
 
       this.clients.push(managed);
@@ -676,6 +687,13 @@ export class McpManager {
             metadata.a2ui = resource.text;
           }
         }
+      }
+      // Pass through any custom metadata the tool returned directly (e.g.
+      // render_openui returns metadata.openui with the OpenUI Lang code).
+      // The MCP SDK uses "passthrough" mode on CallToolResultSchema so these
+      // custom fields survive callTool() validation.
+      if (result.metadata && typeof result.metadata === "object") {
+        Object.assign(metadata, result.metadata as Record<string, unknown>);
       }
       return {
         ok: !result.isError,

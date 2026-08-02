@@ -94,4 +94,10 @@ function main() {
   console.log("");
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  // Best-effort: never break the build on a skill-vendor failure.
+  console.warn(`[install-flutter-skills] ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(0);
+}

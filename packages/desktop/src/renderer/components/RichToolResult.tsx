@@ -11,7 +11,6 @@
 import { useMemo, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { buildToolSummary } from "../lib/messages";
-import { useI18n } from "../i18n";
 
 type Props = {
   message: SessionMessage;
@@ -72,7 +71,6 @@ export function RichToolResult({ message }: Props): JSX.Element | null {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function SymbolTreeResult({ message }: { message: SessionMessage }): JSX.Element | null {
-  const { t } = useI18n();
   const text = message.content || "";
 
   // Parse codegraph output into a tree structure.
@@ -167,7 +165,6 @@ function parseSymbolTree(text: string): SymbolNode[] {
 type ReviewItem = { file: string; line: number; severity: string; message: string; suggestion?: string };
 
 function ReviewCommentsResult({ message }: { message: SessionMessage }): JSX.Element | null {
-  const { t } = useI18n();
   const comments = useMemo(() => parseReviewComments(message.content || ""), [message.content]);
 
   if (comments.length === 0) return null;

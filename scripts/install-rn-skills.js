@@ -54,7 +54,8 @@ function findSkillDirs(cloneRoot) {
     let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
+    } catch (err) {
+      console.warn(`  ⚠ Skipping unreadable dir "${dir}": ${err instanceof Error ? err.message : err}`);
       return;
     }
     for (const entry of entries) {

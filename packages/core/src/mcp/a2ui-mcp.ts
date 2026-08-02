@@ -53,6 +53,8 @@ interface SurfaceState {
   title: string;
   messages: unknown[];
   dataModel: Record<string, unknown>;
+  /** Current component set (the latest `updateComponents` payload). */
+  components: unknown[];
 }
 
 // Module-level surfaces are intentionally kept here because:
@@ -90,7 +92,13 @@ export function persistSurfaces(projectRoot: string): void {
       fs.writeFileSync(
         filePath,
         JSON.stringify(
-          { surfaceId: id, title: state.title, messages: state.messages, dataModel: state.dataModel },
+          {
+            surfaceId: id,
+            title: state.title,
+            messages: state.messages,
+            dataModel: state.dataModel,
+            components: state.components,
+          },
           null,
           2
         ),
@@ -116,12 +124,16 @@ export function restoreSurfaces(projectRoot: string): void {
           title: string;
           messages: unknown[];
           dataModel: Record<string, unknown>;
+          components?: unknown[];
         };
         surfaces.set(data.surfaceId, {
           surfaceId: data.surfaceId,
           title: data.title,
           messages: data.messages,
           dataModel: data.dataModel,
+          // Back-compat: older persisted files lack `components`. Recover it
+          // by scanning the message history for the last updateComponents.
+          components: data.components ?? extractComponentsFromMessages(data.messages),
         });
       } catch {
         // Skip malformed files.
@@ -157,12 +169,27 @@ function createSurfaceMessage(surfaceId: string, title: string): unknown {
   };
 }
 
-/** Build an `updateComponents` A2UI message from a flat component list. */
+/** Build an `updateComponents` A2UI message from a flat component list (full replace). */
 function updateComponentsMessage(surfaceId: string, components: unknown[]): unknown {
   return {
     type: "updateComponents",
     surfaceId,
     components,
+  };
+}
+
+/**
+ * Build a `patchComponents` A2UI message — delta-only merge patch.
+ * Components with matching id replace existing ones; new ids are added;
+ * `{ id, _delete: true }` removes a component. Unreachable components are
+ * GC'd by the processor. This is inspired by OpenUI's mergeStatements.
+ */
+function patchComponentsMessage(surfaceId: string, components: unknown[]): unknown {
+  return {
+    type: "updateComponents",
+    surfaceId,
+    components,
+    mode: "merge",
   };
 }
 
@@ -203,6 +230,27 @@ function a2uiResult(messages: unknown[], text: string, surfaceId?: string): Call
       },
     ],
   };
+}
+
+/** Recover the latest components from a message history (back-compat for old persisted files). */
+function extractComponentsFromMessages(messages: unknown[]): unknown[] {
+  let components: unknown[] = [];
+  for (const msg of messages) {
+    if (msg && typeof msg === "object" && (msg as { type?: string }).type === "updateComponents") {
+      const comps = (msg as { components?: unknown[] }).components;
+      if (Array.isArray(comps)) components = comps;
+    }
+  }
+  return components;
+}
+
+/** Build a self-contained snapshot of a surface (createSurface + components + dataModel). */
+function snapshotMessages(state: SurfaceState): unknown[] {
+  return [
+    createSurfaceMessage(state.surfaceId, state.title),
+    updateComponentsMessage(state.surfaceId, state.components),
+    updateDataModelMessage(state.surfaceId, state.dataModel),
+  ];
 }
 
 // ── MCP Server builder ───────────────────────────────────────────────────────
@@ -268,6 +316,7 @@ export function buildA2uiServer(): McpServer {
         title,
         messages,
         dataModel,
+        components,
       });
 
       return a2uiResult(
@@ -334,6 +383,7 @@ export function buildA2uiServer(): McpServer {
         title,
         messages,
         dataModel: result.dataModel,
+        components: result.components,
       });
 
       return a2uiResult(
@@ -368,12 +418,18 @@ export function buildA2uiServer(): McpServer {
       description:
         "Update an existing A2UI Surface. Can add/remove/modify components or update the data model. " +
         "Use this to iterate on a prototype based on user feedback — the Surface updates live without " +
-        "rebuilding from scratch.",
+        "rebuilding from scratch.\n\n" +
+        "Components are sent as a DELTA PATCH (not full replacement): components with matching id " +
+        'replace existing ones, new ids are added, and `{ id: "...", _delete: true }` removes a component. ' +
+        "Only send the components that changed — the renderer merges them into the existing surface.",
       inputSchema: {
         surfaceId: z.string().describe("ID of the Surface to update"),
         components: z
           .array(z.record(z.unknown()))
-          .describe("Updated component definitions (replaces existing components for this surface)"),
+          .describe(
+            "Delta patch of components. Same id = replace, new id = add, { id, _delete: true } = remove. " +
+              "Only send changed/new components — not the full set."
+          ),
         dataModelPatch: z.record(z.unknown()).describe("Partial data model update (merged into existing data model)"),
         title: z.string().optional().describe("Optional new title for the Surface"),
       },
@@ -389,31 +445,50 @@ export function buildA2uiServer(): McpServer {
       }
 
       const messages: unknown[] = [];
+      let changedCount = 0;
 
       if (args.title) {
         state.title = String(args.title);
       }
 
       if (args.components) {
-        const components = args.components as unknown[];
-        messages.push(updateComponentsMessage(surfaceId, components));
+        const incoming = args.components as unknown[];
+        // Merge into state.components by id (delta patch, not full replace).
+        const componentMap = new Map((state.components as Array<{ id?: string }>).map((c) => [c.id ?? "", c]));
+        for (const comp of incoming) {
+          if (!comp || typeof (comp as { id?: unknown }).id !== "string") continue;
+          const id = (comp as { id: string }).id;
+          if ((comp as { _delete?: boolean })._delete) {
+            componentMap.delete(id);
+          } else {
+            componentMap.set(id, comp);
+          }
+          changedCount++;
+        }
+        state.components = Array.from(componentMap.values());
+
+        // Return a merge-mode patch message (delta-only, not full snapshot).
+        // The processor will merge these by id and GC unreachable components.
+        messages.push(patchComponentsMessage(surfaceId, incoming));
       }
 
       if (args.dataModelPatch) {
         const patch = args.dataModelPatch as Record<string, unknown>;
         state.dataModel = { ...state.dataModel, ...patch };
-        messages.push(updateDataModelMessage(surfaceId, state.dataModel));
+        // dataModel is already merged on the processor side, so send only
+        // the patch keys (not the full dataModel).
+        messages.push(updateDataModelMessage(surfaceId, patch));
       }
 
       state.messages = [...state.messages, ...messages];
 
-      // Return the FULL message history (not just the delta) so that a fresh
-      // renderer that hasn't seen the initial createSurface can hydrate
-      // the surface from scratch. This prevents update_surface results from
-      // being silently dropped when the processor has no prior state.
-      const fullMessages = state.messages;
-      const summary = `Surface "${state.title}" updated: ${messages.length} message(s).`;
-      return a2uiResult(fullMessages, summary);
+      // Build the result payload. If this is the first update (no prior
+      // components existed before this call), send a full snapshot so a
+      // fresh renderer can hydrate. Otherwise, send only the delta messages.
+      const hadComponentsBefore = changedCount > 0 && state.components.length > changedCount;
+      const payload = hadComponentsBefore ? messages : snapshotMessages(state);
+      const summary = `Surface "${state.title}" updated: ${changedCount} component(s) patched.`;
+      return a2uiResult(payload, summary);
     }
   );
 
@@ -470,9 +545,8 @@ export function buildA2uiServer(): McpServer {
             "nav.currentPageContent": `Content for ${pageName} — ask me to add components here.`,
             "nav.currentPageId": pageName,
           };
-          const messages = [updateDataModelMessage(surfaceId, state.dataModel)];
-          state.messages = [...state.messages, ...messages];
-          return a2uiResult(messages, `Navigated to page "${pageName}".`);
+          state.messages = [...state.messages, updateDataModelMessage(surfaceId, state.dataModel)];
+          return a2uiResult(snapshotMessages(state), `Navigated to page "${pageName}".`);
         }
       }
 
@@ -524,14 +598,176 @@ export function buildA2uiServer(): McpServer {
         "nav.currentPageId": pageName,
       };
 
-      const messages = [updateDataModelMessage(surfaceId, state.dataModel)];
-      state.messages = [...state.messages, ...messages];
+      state.messages = [...state.messages, updateDataModelMessage(surfaceId, state.dataModel)];
 
-      return a2uiResult(messages, `Navigated to page "${pageTitle}" (id: ${pageName}).`);
+      return a2uiResult(snapshotMessages(state), `Navigated to page "${pageTitle}" (id: ${pageName}).`);
     }
   );
 
+  // Tool: render_openui — render an OpenUI Lang program (PM-Designer mode)
+  // Unlike the A2UI tools above, this returns the OpenUI Lang code as plain
+  // text with metadata.openui, not as an A2UI embedded resource. The renderer
+  // detects metadata.openui and switches to OpenUI Lang rendering mode.
+  registerTool(
+    "render_openui",
+    {
+      description:
+        "Render an OpenUI Lang program as an interactive prototype. " +
+        "OpenUI Lang is a compact, line-oriented language (e.g. `root = Column([title, form])`) " +
+        "that is ~3x more token-efficient than JSON. Use this for PM-Designer prototypes.\n\n" +
+        "Available components: Column, Row, Stack, Card, TextContent, Badge, Button, TextField, Metric, Divider, Spacer.\n" +
+        "Syntax: `identifier = ComponentName(prop1, prop2, ...)` where props are positional or named.\n" +
+        "Children are arrays: `[child1, child2]`. Forward references allowed.\n" +
+        "Example:\n" +
+        "```\n" +
+        "root = Column([title, emailField, passwordField, submitBtn])\n" +
+        'title = TextContent("Sign In", "title")\n' +
+        'emailField = TextField("Email", "you@example.com", "text", "email")\n' +
+        'passwordField = TextField("Password", "", "password", "password")\n' +
+        'submitBtn = Button("Sign In", "submit:login", "primary")\n' +
+        "```",
+      inputSchema: {
+        code: z
+          .string()
+          .describe(
+            "The OpenUI Lang program. Each line is `identifier = ComponentName(...)`. " +
+              "The `root` statement is the top-level component."
+          ),
+      },
+    },
+    async (args) => {
+      const code = String(args.code ?? "");
+      if (!code.trim()) {
+        return {
+          content: [{ type: "text", text: "Error: empty OpenUI Lang code." }],
+          isError: true,
+        };
+      }
+      // Return as text content with metadata.openui. The desktop renderer
+      // detects this and switches to OpenUI Lang rendering mode.
+      return {
+        content: [
+          {
+            type: "text",
+            text: `OpenUI prototype rendered (${code.split("\n").length} statements). The preview panel should now show the prototype.`,
+          },
+        ],
+        metadata: { openui: code },
+      } as CallToolResult;
+    }
+  );
+
+  // Tool: update_openui — update an existing OpenUI Lang prototype
+  registerTool(
+    "update_openui",
+    {
+      description:
+        "Update an OpenUI Lang prototype with new code. Only send changed/new statements — " +
+        "the renderer merges them into the existing program (incremental editing). " +
+        "To delete a statement, set it to null: `oldWidget = null`.",
+      inputSchema: {
+        code: z
+          .string()
+          .describe("Updated OpenUI Lang code. Can be a full program or just the changed statements (delta)."),
+      },
+    },
+    async (args) => {
+      const code = String(args.code ?? "");
+      return {
+        content: [
+          {
+            type: "text",
+            text: `OpenUI prototype updated (${code.split("\n").length} statements).`,
+          },
+        ],
+        metadata: { openui: code },
+      } as CallToolResult;
+    }
+  );
+
+  // Register DeepDesign (.dd format) tools on the same server.
+  registerDesignTools(registerTool);
+
   return server;
+}
+
+// ── DeepDesign (.dd format) tools ────────────────────────────────────────────
+// These tools handle the OrcaDesign (.dd) format — a YAML front-matter + HTML
+// body format for DeepDesign. The renderer compiles .dd → HTML for preview.
+
+/**
+ * Build MCP tools for DeepDesign (.dd format). Registered on the same a2ui
+ * server since it's the in-process design server.
+ */
+export function registerDesignTools(registerTool: RegisterToolLoose): void {
+  // Tool: render_design — render a .dd document for preview
+  registerTool(
+    "render_design",
+    {
+      description:
+        "Render an OrcaDesign (.dd) document for live preview in DeepOrca. " +
+        "The .dd format is YAML front-matter (metadata + design tokens) + HTML body " +
+        "with section markers. The renderer compiles it into a self-contained HTML " +
+        "page with design tokens injected as CSS :root variables.\n\n" +
+        "Use this for DeepDesign output (landing pages, dashboards, web designs). " +
+        "For PM-Designer prototypes (interactive component-based), use render_openui instead.",
+      inputSchema: {
+        content: z
+          .string()
+          .describe(
+            "The .dd document content. Starts with `---` YAML front-matter, then HTML body.\n" +
+              "YAML must include: name, system (dark-tech/modern-minimal/editorial), tokens (CSS variables), sections (id+type list).\n" +
+              "HTML body uses `<!-- dd:section xxx -->` markers around each <section>.\n" +
+              "Available CSS classes: container, section, grid, grid-2/3/4, topnav, eyebrow, display, lead, btn/btn-primary/btn-ghost, card/card-icon/card-title/card-desc, ph-img, footer."
+          ),
+      },
+    },
+    async (args) => {
+      const content = String(args.content ?? "");
+      if (!content.trim()) {
+        return {
+          content: [{ type: "text", text: "Error: empty .dd content." }],
+          isError: true,
+        } as CallToolResult;
+      }
+      const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `DeepDesign rendered (${sectionCount} section(s)). Preview panel should now show the design.`,
+          },
+        ],
+        metadata: { design: content },
+      } as CallToolResult;
+    }
+  );
+
+  // Tool: update_design — update an existing .dd document
+  registerTool(
+    "update_design",
+    {
+      description:
+        "Update an existing OrcaDesign (.dd) document with new content. " +
+        "Send the full updated .dd content — the renderer will re-compile and refresh the preview.",
+      inputSchema: {
+        content: z.string().describe("The updated .dd document content (full file)."),
+      },
+    },
+    async (args) => {
+      const content = String(args.content ?? "");
+      const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `DeepDesign updated (${sectionCount} section(s)).`,
+          },
+        ],
+        metadata: { design: content },
+      } as CallToolResult;
+    }
+  );
 }
 
 /**

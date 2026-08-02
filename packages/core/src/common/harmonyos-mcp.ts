@@ -73,13 +73,23 @@ export function isHarmonyosAvailable(): boolean {
 /**
  * Build the MCP server config for HarmonyOS DevEco CLI.
  * Returns null when `devecocli` is not on PATH.
+ *
+ * `projectRoot` is passed so the spawned `devecocli serve mcp` process runs
+ * with the project as its CWD — DevEco CLI resolves build-profile.json5 /
+ * hvigor tasks relative to its working directory, and without an explicit
+ * cwd the child inherits the host's CWD (e.g. the Electron app dir), which
+ * is almost never the project.
  */
-export function buildHarmonyosMcpServerConfig(): McpServerConfig | null {
+export function buildHarmonyosMcpServerConfig(projectRoot?: string): McpServerConfig | null {
   if (!isHarmonyosAvailable()) {
     return null;
   }
-  return {
+  const config: McpServerConfig = {
     command: "devecocli",
     args: ["serve", "mcp"],
   };
+  if (projectRoot) {
+    config.cwd = path.resolve(projectRoot);
+  }
+  return config;
 }

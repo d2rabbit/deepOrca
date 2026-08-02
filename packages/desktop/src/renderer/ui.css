@@ -652,6 +652,23 @@ select {
   pointer-events: none;
   z-index: 2;
 }
+/* Ambient breathing on the top fade — a very slow opacity swell gives the
+   conversation a "living" feel. Opacity-only, zero layout/paint churn beyond
+   the composited fade layer itself. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-main::before {
+    animation: ui-main-fade-breathe 9s ease-in-out infinite;
+  }
+}
+@keyframes ui-main-fade-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
 
 .ui-conversation {
   flex: 1;
@@ -707,6 +724,31 @@ select {
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+}
+/* Gentle attention breathing — the pill floats and glows on a slow cycle so
+   it stays discoverable while unread messages pile up. Delayed past the
+   entrance animation (which it overrides once running, since it is listed
+   last) so the two never fight over `transform`. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-jump-to-latest {
+    animation:
+      ui-jump-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both,
+      ui-jump-breathe 2.6s ease-in-out 0.4s infinite;
+    will-change: transform;
+  }
+}
+@keyframes ui-jump-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: var(--ui-shadow-card);
+  }
+  50% {
+    transform: translateY(-2px);
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 12px 1px var(--ui-accent-soft);
   }
 }
 .ui-jump-to-latest:hover {
@@ -2960,6 +3002,7 @@ button.ui-tool-head:hover {
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
   padding: var(--ui-space-2) var(--ui-space-3);
+  color: #fcd34d; /* amber-300 */
 }
 /* Side-effect scope tags — visual risk indicators on permission cards */
 .ui-perm-scopes {
@@ -2990,8 +3033,6 @@ button.ui-tool-head:hover {
   font-weight: 400;
   font-size: 10px;
   margin-left: 2px;
-}
-  color: #fcd34d; /* amber-300 */
 }
 
 /* ── Question card title (rendering-engine spec, card #10) ──────────────── */
@@ -6473,7 +6514,10 @@ button.ui-topbar-pill {
   height: 4px;
   border-radius: 50%;
   background: var(--ui-accent);
-  animation: ui-streaming-bounce 1.2s ease-in-out infinite;
+  will-change: transform;
+  animation:
+    ui-streaming-bounce 1.2s ease-in-out infinite,
+    ui-streaming-glow 1.2s ease-in-out infinite;
 }
 .ui-topbar-streaming-dot:nth-child(2) {
   animation-delay: 0.15s;
@@ -6498,6 +6542,18 @@ button.ui-topbar-pill {
   30% {
     transform: translateY(-3px);
     opacity: 1;
+  }
+}
+/* Soft halo synced to the bounce — the dot "inhales" light at the top of its
+   hop. Box-shadow on a 4px dot is a trivial paint cost. */
+@keyframes ui-streaming-glow {
+  0%,
+  60%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    box-shadow: 0 0 6px 1px var(--ui-accent-soft);
   }
 }
 
@@ -6554,6 +6610,67 @@ button.ui-topbar-pill {
   box-shadow:
     var(--ui-shadow-card),
     0 0 0 1px var(--ui-accent-soft);
+}
+
+/* ── Composer breathing （呼吸感） ────────────────────────────────────────────
+   Slow, ambient glow pulses that make the composer feel alive without moving
+   a single pixel of layout. The 0%/100% stops exactly match the static
+   focus/ready box-shadows above, so the animation fades in and out seamlessly
+   when focus or readiness changes. `:not(.busy)` keeps the (faster, more
+   urgent) busy pulse in charge while streaming. Motion-sensitive users get
+   the static styles only. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-composer-card:focus-within:not(.busy) {
+    animation: ui-focus-breathe 3.2s ease-in-out infinite;
+  }
+  .ui-composer-card.plan-mode:focus-within:not(.busy) {
+    animation: ui-focus-breathe-plan 3.2s ease-in-out infinite;
+  }
+  .ui-composer-card.ready:not(.busy):not(:focus-within) {
+    animation: ui-ready-breathe 3.6s ease-in-out infinite;
+  }
+}
+@keyframes ui-focus-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 3px var(--ui-accent-soft),
+      0 0 16px 2px var(--ui-accent-soft);
+  }
+}
+@keyframes ui-focus-breathe-plan {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px color-mix(in srgb, var(--ui-info) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 3px color-mix(in srgb, var(--ui-info) 22%, transparent),
+      0 0 16px 2px color-mix(in srgb, var(--ui-info) 16%, transparent);
+  }
+}
+@keyframes ui-ready-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 1px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft),
+      0 0 12px 1px var(--ui-accent-soft);
+  }
 }
 
 /* Plan mode badge — small tag at top-right of composer card */
@@ -6996,14 +7113,19 @@ button.ui-topbar-pill {
 }
 .ui-index-progress-fill.indeterminate {
   width: 40%;
+  will-change: transform;
   animation: ui-index-indeterminate 1.2s ease-in-out infinite;
 }
+/* Composited slide: the fill is 40% of the track, so translateX(-100%) parks
+   it fully off the left edge and translateX(250%) (=100% of track) fully off
+   the right edge — identical motion to the old margin-left animation, but it
+   stays on the compositor instead of forcing layout every frame. */
 @keyframes ui-index-indeterminate {
   0% {
-    margin-left: -40%;
+    transform: translateX(-100%);
   }
   100% {
-    margin-left: 100%;
+    transform: translateX(250%);
   }
 }
 

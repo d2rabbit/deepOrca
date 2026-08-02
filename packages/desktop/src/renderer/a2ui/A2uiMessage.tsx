@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
 import { A2uiSurface } from "./A2uiSurface";
 import { api } from "../api";
-import { processA2uiMessages } from "./processor";
+import { processA2uiMessages, extractSurfaceId } from "./processor";
 
 type Props = {
   /** The raw A2UI JSON messages from the tool result's embedded resource. */
@@ -25,16 +25,24 @@ export function A2uiMessage({ a2uiJson: initialJson, summary }: Props): JSX.Elem
   const [liveJson, setLiveJson] = useState(initialJson);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Extract the surfaceId from the initial payload to scope subscriptions.
+  // This prevents updates from OTHER surfaces from corrupting this inline render.
+  const scopedSurfaceId = extractSurfaceId(initialJson);
+
   // Subscribe to surface updates pushed after a2ui_action (e.g. navigate:).
-  // This makes inline Surface buttons refresh in real-time, same as PrototypePanel.
+  // Only apply updates that match this message's surfaceId.
   useEffect(() => {
     const off = api.onA2uiSurfaceUpdate((event) => {
+      // C1 fix: skip updates for different surfaces.
+      if (scopedSurfaceId && event.surfaceId && event.surfaceId !== scopedSurfaceId) {
+        return;
+      }
       processA2uiMessages(event.a2uiJson);
       setLiveJson(event.a2uiJson);
       setRefreshKey((k) => k + 1);
     });
     return off;
-  }, []);
+  }, [scopedSurfaceId]);
 
   // Forward user interactions to the agent via IPC → MCP a2ui_action tool.
   const handleAction = useCallback((surfaceId: string, actionName: string, context: Record<string, unknown>) => {
@@ -44,7 +52,12 @@ export function A2uiMessage({ a2uiJson: initialJson, summary }: Props): JSX.Elem
   return (
     <div className="ui-a2ui-message">
       {summary ? <div className="ui-a2ui-message-summary">{summary}</div> : null}
-      <A2uiSurface key={refreshKey} messagesJson={liveJson} onAction={handleAction} />
+      <A2uiSurface
+        key={refreshKey}
+        messagesJson={liveJson}
+        onAction={handleAction}
+        surfaceId={scopedSurfaceId ?? undefined}
+      />
     </div>
   );
 }

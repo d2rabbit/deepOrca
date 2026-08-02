@@ -122,6 +122,16 @@ export class MemoryGatewayClient {
     this.healthy = false;
   }
 
+  /**
+   * Called when a Gateway request throws (network error, timeout, etc.).
+   * Marks the client unhealthy so subsequent calls short-circuit instead of
+   * each waiting their full timeout on a dead process. The host's periodic
+   * health-check will re-enable the flag once the Gateway recovers.
+   */
+  private onNetError(_e: unknown): void {
+    this.healthy = false;
+  }
+
   /** True if the last healthCheck succeeded. */
   get isHealthy(): boolean {
     return this.healthy;
@@ -160,7 +170,8 @@ export class MemoryGatewayClient {
         appendSystemContext: data.context ?? undefined,
         strategy: data.strategy,
       };
-    } catch {
+    } catch (e) {
+      this.onNetError(e);
       return null;
     }
   }
@@ -193,7 +204,8 @@ export class MemoryGatewayClient {
         l0RecordedCount: data.l0_recorded ?? 0,
         schedulerNotified: data.scheduler_notified ?? false,
       };
-    } catch {
+    } catch (e) {
+      this.onNetError(e);
       return null;
     }
   }
@@ -226,7 +238,8 @@ export class MemoryGatewayClient {
         total: data.total ?? 0,
         strategy: data.strategy,
       };
-    } catch {
+    } catch (e) {
+      this.onNetError(e);
       return null;
     }
   }
@@ -257,7 +270,8 @@ export class MemoryGatewayClient {
         text: data.results ?? "",
         total: data.total ?? 0,
       };
-    } catch {
+    } catch (e) {
+      this.onNetError(e);
       return null;
     }
   }
@@ -278,7 +292,8 @@ export class MemoryGatewayClient {
         }),
         signal: AbortSignal.timeout(10000),
       });
-    } catch {
+    } catch (e) {
+      this.onNetError(e);
       // Swallow — best-effort.
     }
   }
@@ -346,8 +361,14 @@ export function resolveTsxBinary(): string | null {
     // TDAM not installed.
   }
 
-  // 2. Try from our own location.
-  return tryResolve(dirname(moduleRequire.resolve(".")));
+  // 2. Try from our own location. `moduleRequire.resolve(".")` can throw if
+  //    the current module's package boundary is ambiguous, so guard it.
+  try {
+    const ownDir = dirname(moduleRequire.resolve("."));
+    return tryResolve(ownDir);
+  } catch {
+    return null;
+  }
 }
 
 /**
