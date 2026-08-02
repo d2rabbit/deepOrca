@@ -40,7 +40,7 @@ import {
   persistSurfaces,
   restoreSurfaces,
 } from "./mcp/a2ui-mcp";
-import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames";
+import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames/index";
 import type { MemoryGatewayClient } from "./common/memory";
 import {
   buildGitmcpMcpServerConfig,
