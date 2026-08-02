@@ -6,8 +6,13 @@ import { Button, Input, StatusDot, Switch } from "../ui/index";
 import type { PluginSelection } from "./PluginDetail";
 
 /**
- * Look up the localized display name/description for a built-in item (plugin or
- * bundled skill). Falls back to the raw value when no i18n entry exists.
+ * Look up the localized display name/description for a built-in item. Falls back
+ * to the raw value when no i18n entry exists.
+ *
+ * Two key prefixes exist in the i18n catalog:
+ *  - `builtin.<name>.<field>`   → individual plugins and bundled skills
+ *  - `builtin-plugin.<id>.<field>` → plugin group cards (code-intelligence, flutter-dev, …)
+ *
  * i18n rule: zh/zh-TW/zh-HK show Simplified Chinese; en/ja/ko show English.
  */
 export function builtinLabel(
@@ -16,9 +21,13 @@ export function builtinLabel(
   field: "name" | "desc",
   fallback: string
 ): string {
-  const key = `builtin.${name}.${field}` as MessageKey;
-  const value = t(key);
-  return value === key ? fallback : value;
+  // Try individual-item key first, then group key.
+  const itemKey = `builtin.${name}.${field}` as MessageKey;
+  const itemValue = t(itemKey);
+  if (itemValue !== itemKey) return itemValue;
+  const groupKey = `builtin-plugin.${name}.${field}` as MessageKey;
+  const groupValue = t(groupKey);
+  return groupValue === groupKey ? fallback : groupValue;
 }
 
 /** A skill is "built-in" (shipped with the product) when its path is bundled:. */

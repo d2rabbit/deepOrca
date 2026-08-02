@@ -18,8 +18,8 @@
 
 ## 前置条件
 
-1. `ocr` 在 `PATH` 中 — 通过 `npm install -g @alibaba-group/open-code-review` 安装
-2. 已配置 LLM 端点（`ocr config set llm.url …` 或环境变量 `OCR_LLM_URL`、`OCR_LLM_TOKEN`、`OCR_LLM_MODEL`）
+1. **内置** — `ocr` 已随 DeepOrca 内置，通过 Electron 的 Node 运行，无需手动安装。
+2. 已配置 LLM 端点（自动使用 DeepOrca 的模型设置）
 3. Git 仓库（ocr 从工作树读取 diff）
 
 ## 命令
