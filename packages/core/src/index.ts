@@ -200,6 +200,8 @@ export {
   isExpoDisabled,
 } from "./common/expo-mcp";
 
+export { ACTIVITY_FRAMES_MCP_SERVER_NAME } from "./activity-frames";
+
 export {
   A2UI_MCP_SERVER_NAME,
   buildA2uiServer,

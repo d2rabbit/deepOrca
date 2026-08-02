@@ -26,6 +26,8 @@ import {
   buildExpoMcpServerConfig,
   hasReactNativeProject,
   setExpoDisabled,
+  ACTIVITY_FRAMES_MCP_SERVER_NAME,
+  A2UI_MCP_SERVER_NAME,
   setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
@@ -856,8 +858,11 @@ export class SessionBridge {
       name === CRG_MCP_SERVER_NAME ||
       name === DART_MCP_SERVER_NAME ||
       name === SERENA_MCP_SERVER_NAME ||
+      name === SKILL_SPECTOR_MCP_SERVER_NAME ||
       name === HARMONYOS_MCP_SERVER_NAME ||
       name === EXPO_MCP_SERVER_NAME ||
+      name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
+      name === A2UI_MCP_SERVER_NAME ||
       isGitmcpServerName(name);
     const entries: McpServerConfigEntry[] = Object.entries(configured).map(([name, cfg]) => ({
       name,
@@ -882,6 +887,10 @@ export class SessionBridge {
       const cfg = buildSerenaMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: SERENA_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
+    if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
+      const cfg = buildSkillSpectorMcpServerConfig(this.projectRoot);
+      if (cfg) entries.push({ name: SKILL_SPECTOR_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
     if (
       hasHarmonyosProject(this.projectRoot) &&
       !Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)
@@ -895,6 +904,24 @@ export class SessionBridge {
     ) {
       const cfg = buildExpoMcpServerConfig();
       if (cfg) entries.push({ name: EXPO_MCP_SERVER_NAME, config: cfg, builtin: true });
+    }
+    // Activity-Frames is an in-process MCP server (no command/args). Synthesize a
+    // display-only entry so it appears in the "documentation" group card.
+    if (!Object.prototype.hasOwnProperty.call(configured, ACTIVITY_FRAMES_MCP_SERVER_NAME)) {
+      entries.push({
+        name: ACTIVITY_FRAMES_MCP_SERVER_NAME,
+        config: { command: "(in-process)", args: [] },
+        builtin: true,
+      });
+    }
+    // A2UI is an in-process MCP server (no command/args). Synthesize a
+    // display-only entry so it appears in the "design" group card.
+    if (!Object.prototype.hasOwnProperty.call(configured, A2UI_MCP_SERVER_NAME)) {
+      entries.push({
+        name: A2UI_MCP_SERVER_NAME,
+        config: { command: "(in-process)", args: [] },
+        builtin: true,
+      });
     }
     void disabled; // enable state is irrelevant for display grouping
 
