@@ -18,22 +18,22 @@ AI-powered code review through the `ocr` CLI (Alibaba Open Code Review). It read
 
 ## Prerequisites
 
-1. `ocr` on `PATH` — install via `npm install -g @alibaba-group/open-code-review`
-2. An LLM endpoint configured (`ocr config set llm.url …` or env vars `OCR_LLM_URL`, `OCR_LLM_TOKEN`, `OCR_LLM_MODEL`)
+1. **Built-in** — `ocr` is bundled with DeepOrca and runs via Electron's Node. No manual installation needed.
+2. An LLM endpoint configured (uses DeepOrca's model settings automatically)
 3. A Git repository (ocr reads diffs from the working tree)
 
 ## Commands
 
-| Command | Purpose |
-|---------|---------|
-| `ocr review` | Review all uncommitted changes (staged + unstaged + untracked) |
-| `ocr review --from <base> --to <head>` | Review diff between two refs |
-| `ocr review --commit <hash>` | Review a single commit |
-| `ocr review --format json` | Machine-readable JSON output |
-| `ocr review --audience agent` | Compact summary for CI/agent consumption |
-| `ocr scan <path>` | Full-file audit (no diff needed) |
-| `ocr config set llm.url <url>` | Configure LLM endpoint |
-| `ocr llm test` | Verify LLM connectivity |
+| Command                                | Purpose                                                        |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `ocr review`                           | Review all uncommitted changes (staged + unstaged + untracked) |
+| `ocr review --from <base> --to <head>` | Review diff between two refs                                   |
+| `ocr review --commit <hash>`           | Review a single commit                                         |
+| `ocr review --format json`             | Machine-readable JSON output                                   |
+| `ocr review --audience agent`          | Compact summary for CI/agent consumption                       |
+| `ocr scan <path>`                      | Full-file audit (no diff needed)                               |
+| `ocr config set llm.url <url>`         | Configure LLM endpoint                                         |
+| `ocr llm test`                         | Verify LLM connectivity                                        |
 
 ## Workflow
 

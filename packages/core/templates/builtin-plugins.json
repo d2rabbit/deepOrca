@@ -1,69 +1,25 @@
 [
   {
+    "id": "code-intelligence",
+    "name": "代码智能 / Code Intelligence",
+    "description": "符号导航 + 风险分析 + 语义操作 + AI 代码审查。CodeGraph 导航、CRG 风险评分、Serena 符号重构、OCR AI 审查。\nSymbol navigation + risk analysis + semantic refactoring + AI code review.",
+    "category": "code-intelligence",
+    "mcp": ["codegraph", "code-review-graph", "serena"],
+    "plugins": ["open-code-review"]
+  },
+  {
     "id": "flutter-dev",
-    "name": "Flutter Development",
-    "description": "Expert skill pack for Flutter/Dart development — architecture, testing, routing, localization, HTTP, FFI and more. Includes the Dart MCP server for runtime layout analysis, widget inspection, and pub.dev search.",
+    "name": "Flutter 开发 / Flutter Development",
+    "description": "Flutter/Dart 全栈开发技能包（24 个技能）+ Dart MCP 运行时分析。架构、测试、路由、本地化、HTTP、FFI 等。\nFlutter/Dart full-stack skill pack (24 skills) + Dart MCP runtime analysis.",
     "category": "development",
     "icon": "flutter",
     "skills": ["dart-*", "flutter-*"],
     "mcp": ["dart-mcp-server"]
   },
   {
-    "id": "codegraph",
-    "name": "CodeGraph",
-    "description": "Pre-indexed code knowledge graph — symbol navigation, call edges, and dependency maps for instant retrieval.",
-    "category": "code-intelligence",
-    "mcp": ["codegraph"]
-  },
-  {
-    "id": "code-review",
-    "name": "Code Review",
-    "description": "AI-powered code review (Open Code Review) plus risk scoring and impact-radius analysis (code-review-graph).",
-    "category": "quality",
-    "plugins": ["open-code-review"],
-    "mcp": ["code-review-graph"]
-  },
-  {
-    "id": "serena",
-    "name": "Serena",
-    "description": "Symbol-level code operations — find symbol, find references, rename, replace symbol body, safe delete. Powered by SolidLSP with 40+ language servers (Java, Kotlin, Python, TypeScript, Rust, C/C++, Swift, Go, and more).",
-    "category": "code-intelligence",
-    "mcp": ["serena"]
-  },
-  {
-    "id": "skill-spector",
-    "name": "SkillSpector",
-    "description": "AI skill / MCP security scanner — scans skills and MCP servers for vulnerabilities before install (prompt injection, data exfiltration, supply-chain CVEs, MCP least-privilege violations, MCP tool poisoning). Installed from git+SHA (the PyPI package is malware). Defaults to pure-static analysis (use_llm=false, zero credentials).",
-    "category": "security",
-    "mcp": ["skill-spector"]
-  },
-  {
-    "id": "gitmcp",
-    "name": "GitMCP",
-    "description": "Turn any GitHub repository into an MCP knowledge source the agent can query.",
-    "category": "documentation",
-    "plugins": ["git-mcp"],
-    "mcp": ["gitmcp:*"]
-  },
-  {
-    "id": "openwiki",
-    "name": "OpenWiki",
-    "description": "Automatically generate and maintain a project Wiki the agent can reference.",
-    "category": "documentation",
-    "skills": ["openwiki"]
-  },
-  {
-    "id": "browser",
-    "name": "Browser & Web Access",
-    "description": "Real Chrome control with login state (browser-skill/bsk) + single web search (WebSearch tool) + intelligent web-access strategy (auto-selects WebSearch/curl/Jina/bsk per task type and accumulates per-domain experience).",
-    "category": "automation",
-    "plugins": ["browser-skill"],
-    "skills": ["web-access-strategy"]
-  },
-  {
     "id": "android-dev",
-    "name": "Android Development",
-    "description": "Official Android development skills from Google (android/skills repo) + Android CLI integration. Covers Jetpack Compose, Navigation, CameraX, R8 analysis, edge-to-edge, testing, Perfetto profiling, and more.",
+    "name": "Android 开发 / Android Development",
+    "description": "Google 官方 Android 开发技能（14 个）+ Android CLI 集成。Jetpack Compose、Navigation、CameraX、R8、测试、Perfetto 等。\nOfficial Google Android dev skills (14) + Android CLI.",
     "category": "development",
     "icon": "android",
     "skills": ["android-*"],
@@ -71,8 +27,8 @@
   },
   {
     "id": "harmonyos-dev",
-    "name": "HarmonyOS Development",
-    "description": "HarmonyOS development skills + DevEco CLI MCP integration. Covers ArkTS/ArkUI, hvigor build, ohpm packages, hdc debugging, emulator, and HarmonyOS docs.",
+    "name": "HarmonyOS 开发 / HarmonyOS Development",
+    "description": "鸿蒙开发技能 + DevEco CLI MCP。ArkTS/ArkUI、hvigor 构建、ohpm 包、hdc 调试、模拟器、文档检索。\nHarmonyOS dev skills + DevEco CLI MCP.",
     "category": "development",
     "icon": "harmonyos",
     "skills": ["harmonyos-*"],
@@ -80,57 +36,88 @@
   },
   {
     "id": "react-native-dev",
-    "name": "React Native Development",
-    "description": "React Native development skills (Expo official) + Expo MCP (remote HTTP, user-configured). Covers SDK upgrades, EAS deploy, debugging best practices, performance optimization, and native modules.",
+    "name": "React Native 开发 / React Native Development",
+    "description": "React Native 开发技能（Expo 官方 + Callstack）+ Expo MCP。SDK 升级、EAS 部署、调试、性能优化、原生模块。\nRN dev skills (Expo + Callstack) + Expo MCP.",
     "category": "development",
     "icon": "react",
     "skills": ["react-native-*", "expo-*"]
   },
   {
-    "id": "dotnet-dev",
-    "name": ".NET Development",
-    "description": "Official Microsoft .NET agent skills (16 plugins from dotnet/skills). Covers ASP.NET Core, Blazor, MAUI, EF Core, testing, NuGet, MSBuild, AI, diagnostics, upgrade assistant, and more. Cross-platform (.NET runs on Windows, macOS, Linux).",
-    "category": "development",
-    "icon": "dotnet",
-    "skills": ["dotnet-*"]
-  },
-  {
-    "id": "qt-dev",
-    "name": "Qt/KDE Development",
-    "description": "Official Qt Group agent skills (12 skills from TheQtCompanyRnD/agent-skills, BSD-3-Clause). Covers CMake projects, C++ review/docs, QML coding/review/profiler/test, UI design, Figma integration. Cross-platform (Qt runs on all desktop OS). Includes Qt Documentation MCP server.",
-    "category": "development",
-    "icon": "qt",
-    "skills": ["qt-*"]
-  },
-  {
     "id": "apple-dev",
-    "name": "Apple Platform Development",
-    "description": "Apple Xcode 27 first-party skills (7 skills via xcrun export) + community curated directory. Covers SwiftUI, UIKit modernization, test modernization, security audit, C bounds safety. macOS only — requires Xcode 27.",
+    "name": "Apple 平台开发 / Apple Platform Development",
+    "description": "Apple Xcode 27 第一方技能（7 个）+ 社区精选。SwiftUI、UIKit 现代化、测试现代化、安全审计、C 边界安全。仅 macOS。\nApple Xcode 27 first-party skills + community. macOS only.",
     "category": "development",
     "icon": "apple",
     "skills": ["apple-*"],
     "platform": "darwin"
   },
   {
+    "id": "dotnet-dev",
+    "name": ".NET 开发 / .NET Development",
+    "description": "Microsoft 官方 .NET 技能（12 域）。ASP.NET Core、MAUI、EF Core、测试、NuGet、MSBuild、AI、诊断、升级助手等。跨平台。\nMicrosoft official .NET skills (12 domains). Cross-platform.",
+    "category": "development",
+    "icon": "dotnet",
+    "skills": ["dotnet-*"]
+  },
+  {
+    "id": "qt-dev",
+    "name": "Qt/KDE 开发 / Qt/KDE Development",
+    "description": "Qt Group 官方技能（7 个）+ Qt 文档 MCP。CMake、C++ 审查/文档、QML 编码/审查/分析、UI 设计、Figma 集成。跨平台。\nQt Group official skills (7) + Qt docs MCP. Cross-platform.",
+    "category": "development",
+    "icon": "qt",
+    "skills": ["qt-*"]
+  },
+  {
     "id": "deepin-dev",
-    "name": "deepin/UOS Development",
-    "description": "Official deepin desktop development skills (4 skills from linuxdeepin/deepin-skills, LGPL-3.0). Covers DTK native apps, DDE Shell extensions, Control Center modules, Tray plugins. Linux only.",
+    "name": "deepin/UOS 开发 / deepin/UOS Development",
+    "description": "统信官方 deepin 桌面开发技能（4 个）。DTK 原生应用、DDE Shell 扩展、控制中心模块、托盘插件。仅 Linux。\nOfficial deepin desktop dev skills (4). Linux only.",
     "category": "development",
     "icon": "deepin",
     "skills": ["deepin-*"],
     "platform": "linux"
   },
   {
+    "id": "design",
+    "name": "设计生成 / Design Generation",
+    "description": "DeepDesign（.dd 格式 + Tailwind）+ PM-Designer（A2UI + OpenUI Lang 原型）+ taste 设计纪律。brief → 生成 → 预览 → 迭代 全流程。\nDeepDesign + PM-Designer + taste design discipline.",
+    "category": "design",
+    "skills": ["deep-design", "taste", "pm-designer-openui"]
+  },
+  {
+    "id": "documentation",
+    "name": "知识与文档 / Knowledge & Docs",
+    "description": "GitMCP（GitHub 仓库 → MCP 知识源）+ OpenWiki（项目 Wiki 自动生成）。行为记忆（activity-frames）跨平台多源采集。\nGitMCP + OpenWiki + behavioral memory (activity-frames).",
+    "category": "documentation",
+    "plugins": ["git-mcp"],
+    "mcp": ["gitmcp:*", "activity-frames"],
+    "skills": ["openwiki"]
+  },
+  {
+    "id": "browser",
+    "name": "浏览器与联网 / Browser & Web",
+    "description": "真实 Chrome 操控（携带登录态 browser-skill）+ WebSearch + 智能联网策略（自动选择 WebSearch/curl/Jina/bsk + 按域名积累经验）。\nReal Chrome control + WebSearch + intelligent web-access strategy.",
+    "category": "automation",
+    "plugins": ["browser-skill"],
+    "skills": ["web-access-strategy"]
+  },
+  {
+    "id": "security",
+    "name": "安全扫描 / Security",
+    "description": "SkillSpector — AI skill/MCP 安全扫描器。68 漏洞模式，prompt injection / 数据外泄 / 供应链 CVE / MCP 最小权限 / MCP 工具投毒检测。\nSkillSpector — AI skill/MCP security scanner (68 vulnerability patterns).",
+    "category": "security",
+    "mcp": ["skill-spector"]
+  },
+  {
     "id": "skill-tools",
-    "name": "Skill Tools",
-    "description": "Author, digest, and manage Agent Skills.",
+    "name": "技能工具 / Skill Tools",
+    "description": "编写、审查、管理 Agent Skills。Author, digest, and manage Agent Skills.",
     "category": "meta",
     "skills": ["skill-writer", "skill-digester"]
   },
   {
     "id": "deeporca",
     "name": "DeepOrca",
-    "description": "Product-native skills and templates — self-reference docs and Bento slides generation.",
+    "description": "产品原生技能与模板 — 自引用文档、Bento 演示文稿生成。Product-native skills — self-reference docs and Bento slides.",
     "category": "meta",
     "skills": ["deeporca-self-refer", "bento-slides"]
   }

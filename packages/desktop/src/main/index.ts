@@ -422,12 +422,17 @@ function registerIpc(): void {
 
   // ── CodeGraph index library ───────────────────────────────────────────────
   handle(IpcRequest.CodegraphList, (): CodegraphIndexEntry[] => {
-    const { workspaces } = listWorkspaceSessions(getBridge().projectRoot);
-    return workspaces.map((w) => ({
-      root: w.root,
-      label: w.label,
-      initialized: hasCodegraphProject(w.root),
-    }));
+    const currentRoot = getBridge().projectRoot;
+    // Only show the current workspace, not all historical workspaces.
+    // This prevents a confusing list of unrelated directories.
+    if (!currentRoot) return [];
+    return [
+      {
+        root: currentRoot,
+        label: currentRoot.split("/").pop() || currentRoot,
+        initialized: hasCodegraphProject(currentRoot),
+      },
+    ];
   });
   handle(IpcRequest.CodegraphReindex, async (root: string) => {
     const exitCode = await runCodegraphResetWithOutput(root, (chunk, stream) => {
