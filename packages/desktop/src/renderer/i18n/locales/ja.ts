@@ -217,7 +217,7 @@ export const ja: Record<MessageKey, string> = {
   "builtin-plugin.code-intelligence.desc":
     "シンボルナビゲーション + リスク分析 + セマンティックリファクタリング + AI コードレビュー。",
   "builtin-plugin.flutter-dev.name": "Flutter 開発",
-  "builtin-plugin.flutter-dev.desc": "Flutter/Dart フルスタックスキルパック（24 スキル）+ Dart MCP ランタイム分析。",
+  "builtin-plugin.flutter-dev.desc": "Flutter/Dart フルスタックスキルパック（22 スキル）+ Dart MCP ランタイム分析。",
   "builtin-plugin.android-dev.name": "Android 開発",
   "builtin-plugin.android-dev.desc": "公式 Android スキル（14 個）+ Android CLI。",
   "builtin-plugin.harmonyos-dev.name": "HarmonyOS 開発",

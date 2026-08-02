@@ -222,7 +222,7 @@ export const en = {
   "builtin-plugin.code-intelligence.desc":
     "Symbol navigation + risk analysis + semantic refactoring + AI code review. CodeGraph, CRG, Serena, OCR.",
   "builtin-plugin.flutter-dev.name": "Flutter Development",
-  "builtin-plugin.flutter-dev.desc": "Flutter/Dart full-stack skill pack (24 skills) + Dart MCP runtime analysis.",
+  "builtin-plugin.flutter-dev.desc": "Flutter/Dart full-stack skill pack (22 skills) + Dart MCP runtime analysis.",
   "builtin-plugin.android-dev.name": "Android Development",
   "builtin-plugin.android-dev.desc": "Official Google Android dev skills (14) + Android CLI.",
   "builtin-plugin.harmonyos-dev.name": "HarmonyOS Development",
@@ -851,7 +851,7 @@ export const zh: Record<MessageKey, string> = {
   "builtin-plugin.code-intelligence.desc":
     "符号导航 + 风险分析 + 语义操作 + AI 代码审查。CodeGraph、CRG、Serena、OCR。",
   "builtin-plugin.flutter-dev.name": "Flutter 开发",
-  "builtin-plugin.flutter-dev.desc": "Flutter/Dart 全栈开发技能包（24 个技能）+ Dart MCP 运行时分析。",
+  "builtin-plugin.flutter-dev.desc": "Flutter/Dart 全栈开发技能包（22 个技能）+ Dart MCP 运行时分析。",
   "builtin-plugin.android-dev.name": "Android 开发",
   "builtin-plugin.android-dev.desc": "Google 官方 Android 开发技能（14 个）+ Android CLI。",
   "builtin-plugin.harmonyos-dev.name": "HarmonyOS 开发",

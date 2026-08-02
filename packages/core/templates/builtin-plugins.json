@@ -10,7 +10,7 @@
   {
     "id": "flutter-dev",
     "name": "Flutter 开发 / Flutter Development",
-    "description": "Flutter/Dart 全栈开发技能包（24 个技能）+ Dart MCP 运行时分析。架构、测试、路由、本地化、HTTP、FFI 等。\nFlutter/Dart full-stack skill pack (24 skills) + Dart MCP runtime analysis.",
+    "description": "Flutter/Dart 全栈开发技能包（22 个技能）+ Dart MCP 运行时分析。架构、测试、路由、本地化、HTTP、FFI 等。\nFlutter/Dart full-stack skill pack (22 skills) + Dart MCP runtime analysis.",
     "category": "development",
     "icon": "flutter",
     "skills": ["dart-*", "flutter-*"],

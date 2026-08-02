@@ -216,7 +216,7 @@ export const ko: Record<MessageKey, string> = {
   "builtin-plugin.code-intelligence.name": "코드 인텔리전스",
   "builtin-plugin.code-intelligence.desc": "심볼 내비게이션 + 위험 분석 + 시맨틱 리팩토링 + AI 코드 리뷰.",
   "builtin-plugin.flutter-dev.name": "Flutter 개발",
-  "builtin-plugin.flutter-dev.desc": "Flutter/Dart 풀스택 스킬 팩(24 스킬) + Dart MCP 런타임 분석.",
+  "builtin-plugin.flutter-dev.desc": "Flutter/Dart 풀스택 스킬 팩(22 스킬) + Dart MCP 런타임 분석.",
   "builtin-plugin.android-dev.name": "Android 개발",
   "builtin-plugin.android-dev.desc": "공식 Android 스킬(14개) + Android CLI.",
   "builtin-plugin.harmonyos-dev.name": "HarmonyOS 개발",

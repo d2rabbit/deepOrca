@@ -10,7 +10,6 @@ import {
   CRG_MCP_SERVER_NAME,
   DART_MCP_SERVER_NAME,
   buildDartMcpServerConfig,
-  hasDartProject,
   setDartDisabled,
   SERENA_MCP_SERVER_NAME,
   buildSerenaMcpServerConfig,
@@ -751,9 +750,9 @@ export class SessionBridge {
       }
     }
     // Built-in Dart/Flutter MCP server: runtime analysis, widget inspection,
-    // pub.dev search, test execution. Shown when the project has a pubspec.yaml
-    // and `dart` (≥ 3.9) is available on PATH.
-    if (hasDartProject(this.projectRoot) && !Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
+    // pub.dev search, test execution. Shown unconditionally when `dart` (≥ 3.9)
+    // is available on PATH (like codegraph/CRG — toggleable before project setup).
+    if (!Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
       const cfg = buildDartMcpServerConfig();
       if (cfg) {
         list.push({
@@ -877,7 +876,7 @@ export class SessionBridge {
       const cfg = buildCrgMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: CRG_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
-    if (hasDartProject(this.projectRoot) && !Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
+    if (!Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
       const cfg = buildDartMcpServerConfig();
       if (cfg) entries.push({ name: DART_MCP_SERVER_NAME, config: cfg, builtin: true });
     }

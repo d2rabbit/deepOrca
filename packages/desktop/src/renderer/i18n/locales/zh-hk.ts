@@ -217,7 +217,7 @@ export const zhHK: Record<MessageKey, string> = {
   "builtin-plugin.code-intelligence.desc":
     "符號導航 + 風險分析 + 語義操作 + AI 程式碼審查。CodeGraph、CRG、Serena、OCR。",
   "builtin-plugin.flutter-dev.name": "Flutter 開發",
-  "builtin-plugin.flutter-dev.desc": "Flutter/Dart 全棧開發技能包（24 個技能）+ Dart MCP 執行時分析。",
+  "builtin-plugin.flutter-dev.desc": "Flutter/Dart 全棧開發技能包（22 個技能）+ Dart MCP 執行時分析。",
   "builtin-plugin.android-dev.name": "Android 開發",
   "builtin-plugin.android-dev.desc": "Google 官方 Android 開發技能（14 個）+ Android CLI。",
   "builtin-plugin.harmonyos-dev.name": "HarmonyOS 開發",
