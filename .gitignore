@@ -35,11 +35,8 @@ packages/core/src/generated/
 packages/desktop/vendor/
 vendor-src/
 
-# Bundled skills (generated at build time, not checked in)
-packages/core/templates/skills/bundled/android-*/
-packages/core/templates/skills/bundled/harmonyos-*/
-packages/core/templates/skills/bundled/react-native-*/
-packages/core/templates/skills/bundled/expo-*/
+# Bundled skills: android/harmonyos/expo are committed (cross-platform).
+# Platform-specific skills (apple/dotnet/qt/deepin) are still build-time generated.
 packages/core/templates/skills/bundled/dotnet-*/
 packages/core/templates/skills/bundled/qt-*/
 packages/core/templates/skills/bundled/deepin-*/

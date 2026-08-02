@@ -80,7 +80,12 @@ function main() {
   }
 
   // 3. Locate skill directories (each containing SKILL.md)
-  const skills = findSkillDirs(CLONE_DIR);
+  let skills = findSkillDirs(CLONE_DIR);
+  // Fallback: some repos (e.g. deveco-cli) have a single SKILL.md at the root.
+  if (skills.length === 0 && existsSync(join(CLONE_DIR, "SKILL.md"))) {
+    skills = [{ name: "deveco-cli", path: CLONE_DIR }];
+    console.log("   (root-level SKILL.md detected — treating repo as single skill)");
+  }
   if (skills.length === 0) {
     console.warn("⚠️  openharmony-sig/deveco-cli: no skill directories (with SKILL.md) found — skipping");
     rmSync(CLONE_DIR, { recursive: true, force: true });

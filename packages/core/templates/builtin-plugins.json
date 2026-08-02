@@ -28,7 +28,7 @@
   {
     "id": "harmonyos-dev",
     "name": "HarmonyOS 开发 / HarmonyOS Development",
-    "description": "鸿蒙开发技能 + DevEco CLI MCP。ArkTS/ArkUI、hvigor 构建、ohpm 包、hdc 调试、模拟器、文档检索。\nHarmonyOS dev skills + DevEco CLI MCP.",
+    "description": "鸿蒙开发技能（DevEco CLI）+ HarmonyOS MCP。ArkTS/ArkUI、hvigor 构建、ohpm 包、hdc 调试、模拟器、文档检索。\nHarmonyOS dev skills (DevEco CLI) + HarmonyOS MCP.",
     "category": "development",
     "icon": "harmonyos",
     "skills": ["harmonyos-*"],
@@ -37,7 +37,7 @@
   {
     "id": "react-native-dev",
     "name": "React Native 开发 / React Native Development",
-    "description": "React Native 开发技能（Expo 官方 + Callstack）+ Expo MCP。SDK 升级、EAS 部署、调试、性能优化、原生模块。\nRN dev skills (Expo + Callstack) + Expo MCP.",
+    "description": "React Native / Expo 开发技能（22 个）+ Expo MCP。EAS 部署、SDK 升级、路由、原生模块、性能优化。\nRN/Expo dev skills (22) + Expo MCP.",
     "category": "development",
     "icon": "react",
     "skills": ["react-native-*", "expo-*"],

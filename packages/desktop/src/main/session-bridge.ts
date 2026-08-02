@@ -20,11 +20,9 @@ import {
   setSkillSpectorDisabled,
   HARMONYOS_MCP_SERVER_NAME,
   buildHarmonyosMcpServerConfig,
-  hasHarmonyosProject,
   setHarmonyosDisabled,
   EXPO_MCP_SERVER_NAME,
   buildExpoMcpServerConfig,
-  hasReactNativeProject,
   setExpoDisabled,
   ACTIVITY_FRAMES_MCP_SERVER_NAME,
   A2UI_MCP_SERVER_NAME,
@@ -891,17 +889,11 @@ export class SessionBridge {
       const cfg = buildSkillSpectorMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: SKILL_SPECTOR_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
-    if (
-      hasHarmonyosProject(this.projectRoot) &&
-      !Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)
-    ) {
+    if (!Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)) {
       const cfg = buildHarmonyosMcpServerConfig(this.projectRoot);
       if (cfg) entries.push({ name: HARMONYOS_MCP_SERVER_NAME, config: cfg, builtin: true });
     }
-    if (
-      hasReactNativeProject(this.projectRoot) &&
-      !Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)
-    ) {
+    if (!Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)) {
       const cfg = buildExpoMcpServerConfig();
       if (cfg) entries.push({ name: EXPO_MCP_SERVER_NAME, config: cfg, builtin: true });
     }

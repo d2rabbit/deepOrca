@@ -4,6 +4,10 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
+  // Ignore third-party bundled skills (generated from upstream repos, not our code)
+  {
+    ignores: ["packages/core/templates/skills/bundled/**"],
+  },
   // Base recommended rules from ESLint
   js.configs.recommended,
   // TypeScript recommended rules
