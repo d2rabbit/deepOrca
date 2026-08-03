@@ -585,7 +585,6 @@ export const en = {
     "Each repository runs as a local MCP server (gitmcp:owner/repo). The MCP tab can toggle it, but only this module can remove it.",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
-  "rail.wiki": "Wiki",
   "rail.editor": "Editor",
   "editor.title": "Code Editor",
   "editor.empty": "Select a file to edit.",
@@ -601,17 +600,6 @@ export const en = {
   "editor.readError": "Failed to read file.",
   "editor.writeError": "Failed to save file.",
   "editor.tooLarge": "File too large to edit.",
-  "wiki.title": "Wiki Knowledge Graph",
-  "wiki.notInstalled": "openwiki CLI not found. Install it to generate project wiki:",
-  "wiki.generate": "Generate Wiki",
-  "wiki.generating": "Generating…",
-  "wiki.update": "Update Wiki",
-  "wiki.updating": "Updating…",
-  "wiki.noPages": "No wiki pages yet. Click Generate to create the project knowledge graph.",
-  "wiki.done": "Wiki generation complete",
-  "wiki.failed": "Wiki generation failed",
-  "wiki.back": "Back to list",
-  "wiki.emptyPage": "(empty page)",
 
   "scm.history": "History",
   "scm.noHistory": "No commits yet.",
@@ -1209,7 +1197,6 @@ export const zh: Record<MessageKey, string> = {
   "gitmcp.hint": "每个仓库以本地 MCP 服务器运行（gitmcp:owner/repo）。MCP 页签可启停，但只有本模块可删除。",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
-  "rail.wiki": "Wiki 知识图谱",
   "rail.editor": "编辑器",
   "editor.title": "代码编辑器",
   "editor.empty": "选择一个文件进行编辑。",
@@ -1225,17 +1212,6 @@ export const zh: Record<MessageKey, string> = {
   "editor.readError": "读取文件失败。",
   "editor.writeError": "保存文件失败。",
   "editor.tooLarge": "文件过大，无法编辑。",
-  "wiki.title": "Wiki 知识图谱",
-  "wiki.notInstalled": "未找到 openwiki CLI。安装后即可生成项目 Wiki：",
-  "wiki.generate": "生成 Wiki",
-  "wiki.generating": "生成中…",
-  "wiki.update": "增量更新",
-  "wiki.updating": "更新中…",
-  "wiki.noPages": "暂无 Wiki 页面。点击「生成 Wiki」构建项目知识图谱。",
-  "wiki.done": "Wiki 生成完成",
-  "wiki.failed": "Wiki 生成失败",
-  "wiki.back": "返回列表",
-  "wiki.emptyPage": "（空页面）",
 
   "scm.history": "历史记录",
   "scm.noHistory": "暂无提交记录。",

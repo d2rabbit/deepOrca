@@ -575,18 +575,6 @@ export const ko: Record<MessageKey, string> = {
     "각 저장소는 로컬 MCP 서버(gitmcp:owner/repo)로 실행됩니다. MCP 탭에서는 켜고 끄기만 가능하며, 삭제는 이 모듈에서만 가능합니다.",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
-  "rail.wiki": "Wiki 지식 그래프",
-  "wiki.title": "Wiki 지식 그래프",
-  "wiki.notInstalled": "openwiki CLI를 찾을 수 없습니다. 설치하면 프로젝트 Wiki를 생성할 수 있습니다:",
-  "wiki.generate": "Wiki 생성",
-  "wiki.generating": "생성 중…",
-  "wiki.update": "증분 업데이트",
-  "wiki.updating": "업데이트 중…",
-  "wiki.noPages": "Wiki 페이지가 없습니다. 'Wiki 생성'을 클릭하여 프로젝트 지식 그래프를 구축하세요.",
-  "wiki.done": "Wiki 생성 완료",
-  "wiki.failed": "Wiki 생성 실패",
-  "wiki.back": "목록으로",
-  "wiki.emptyPage": "(빈 페이지)",
 
   "scm.history": "기록",
   "scm.noHistory": "아직 커밋이 없습니다.",

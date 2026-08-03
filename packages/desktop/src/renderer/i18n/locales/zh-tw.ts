@@ -573,18 +573,6 @@ export const zhTW: Record<MessageKey, string> = {
   "gitmcp.hint": "每個儲存庫以本機 MCP 伺服器執行（gitmcp:owner/repo）。MCP 頁籤可啟停，但只有本模組可刪除。",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
-  "rail.wiki": "Wiki 知識圖譜",
-  "wiki.title": "Wiki 知識圖譜",
-  "wiki.notInstalled": "未找到 openwiki CLI。安裝後即可生成專案 Wiki：",
-  "wiki.generate": "生成 Wiki",
-  "wiki.generating": "生成中…",
-  "wiki.update": "增量更新",
-  "wiki.updating": "更新中…",
-  "wiki.noPages": "暫無 Wiki 頁面。點擊「生成 Wiki」建構專案知識圖譜。",
-  "wiki.done": "Wiki 生成完成",
-  "wiki.failed": "Wiki 生成失敗",
-  "wiki.back": "返回列表",
-  "wiki.emptyPage": "（空頁面）",
 
   "scm.history": "歷史記錄",
   "scm.noHistory": "暫無提交記錄。",

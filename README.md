@@ -120,7 +120,6 @@ DeepOrca 计划集成 9 个优秀的开源项目，构建更强大的编码助�
 | 9 | [obscura](https://github.com/h4ckf0r0day/obscura) | MCP Server + 内置 Skill | 轻量级无头浏览器（大规模数据获取） | P2 | 📋 规划中 |
 
 **已集成项目说明**：
-- ✅ **flutter/agent-plugins**：构建脚本 `scripts/install-flutter-skills.js`，已内置 26 个 Flutter/Dart Skills
 - ✅ **openwiki**：vendored CLI + 内置 Skill + 桌面端 Wiki 面板集成
 - ✅ **codegraph**：vendored CLI + 桌面端代码图谱面板（额外项目）
 

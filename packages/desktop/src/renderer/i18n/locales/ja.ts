@@ -578,18 +578,6 @@ export const ja: Record<MessageKey, string> = {
     "各リポジトリはローカル MCP サーバー（gitmcp:owner/repo）として動作します。MCP タブでは有効/無効のみ、削除はこのモジュールからのみ可能です。",
 
   // ── Wiki knowledge graph (openwiki) ────────────────────────
-  "rail.wiki": "Wiki ナレッジグラフ",
-  "wiki.title": "Wiki ナレッジグラフ",
-  "wiki.notInstalled": "openwiki CLI が見つかりません。インストールするとプロジェクト Wiki を生成できます：",
-  "wiki.generate": "Wiki 生成",
-  "wiki.generating": "生成中…",
-  "wiki.update": "増分更新",
-  "wiki.updating": "更新中…",
-  "wiki.noPages": "Wiki ページがありません。「Wiki 生成」をクリックしてプロジェクトナレッジグラフを構築してください。",
-  "wiki.done": "Wiki 生成完了",
-  "wiki.failed": "Wiki 生成失敗",
-  "wiki.back": "リストに戻る",
-  "wiki.emptyPage": "（空ページ）",
 
   "scm.history": "履歴",
   "scm.noHistory": "コミットがまだありません。",
