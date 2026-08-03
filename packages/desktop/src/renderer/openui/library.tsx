@@ -10,7 +10,7 @@
 
 import { z } from "zod/v4";
 import type { ComponentRenderProps } from "@openuidev/react-lang";
-import { createLibrary, defineComponent, useTriggerAction } from "@openuidev/react-lang";
+import { createLibrary, defineComponent, useStateField, useTriggerAction } from "@openuidev/react-lang";
 
 // ── Shared prop schemas ──────────────────────────────────────────────────────
 
@@ -239,17 +239,17 @@ const Button = defineComponent({
   component: ButtonComponent,
 });
 
-const TextField = defineComponent({
-  name: "TextField",
-  description: "Single-line text input with label and placeholder.",
-  props: z.object({
-    label: z.string().optional(),
-    placeholder: z.string().optional(),
-    value: z.string().optional(),
-    type: z.enum(["text", "email", "password", "number"]).optional(),
-    name: z.string().optional().describe("Form field name for data binding"),
-  }),
-  component: ({ props }: ComponentRenderProps<Record<string, unknown>>) => (
+function TextFieldComponent({ props }: ComponentRenderProps<Record<string, unknown>>) {
+  // Bind the field to the SDK's form state via useStateField — the unified
+  // hook upstream recommends for component authors. It reads the current
+  // value from form state (falling back to props.value) and writes back via
+  // setValue, so event.formState is populated when a Button fires an action
+  // (e.g. submit:login). Without this, PrototypePanel's handleOpenuiAction
+  // never sees user input.
+  const fieldName = (props.name as string) ?? (props.label as string) ?? "field";
+  const initialValue = (props.value as string) ?? "";
+  const field = useStateField<string>(fieldName, initialValue);
+  return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
       {props.label ? (
         <label style={{ fontSize: 12, color: "var(--ui-text-secondary)", fontWeight: 500 }}>
@@ -259,8 +259,9 @@ const TextField = defineComponent({
       <input
         type={(props.type as string) ?? "text"}
         placeholder={(props.placeholder as string) ?? ""}
-        defaultValue={(props.value as string) ?? ""}
-        name={(props.name as string) ?? undefined}
+        value={field.value}
+        name={fieldName}
+        onChange={(e) => field.setValue(e.target.value)}
         style={{
           padding: "8px 12px",
           borderRadius: "var(--ui-radius, 8px)",
@@ -272,7 +273,20 @@ const TextField = defineComponent({
         }}
       />
     </div>
-  ),
+  );
+}
+
+const TextField = defineComponent({
+  name: "TextField",
+  description: "Single-line text input with label and placeholder.",
+  props: z.object({
+    label: z.string().optional(),
+    placeholder: z.string().optional(),
+    value: z.string().optional(),
+    type: z.enum(["text", "email", "password", "number"]).optional(),
+    name: z.string().optional().describe("Form field name for data binding"),
+  }),
+  component: TextFieldComponent,
 });
 
 const Metric = defineComponent({

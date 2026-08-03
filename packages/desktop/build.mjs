@@ -76,7 +76,11 @@ const rendererOutdir = resolve(outdir, "renderer");
 
 const rendererConfig = {
   ...shared,
-  entryPoints: [resolve(__dirname, "src/renderer/main.tsx")],
+  // Use an object entry so the output is named `renderer.js` (matching the
+  // <script src="./renderer.js"> in index.html). A plain array entry would
+  // derive the name from the source file (`main.tsx` → `main.js`) and the
+  // browser would 404 on the script tag → black screen.
+  entryPoints: { renderer: resolve(__dirname, "src/renderer/main.tsx") },
   outdir: rendererOutdir,
   platform: "browser",
   format: "esm",

@@ -27,13 +27,11 @@ export const A2UI_MCP_SERVER_NAME = "a2ui";
 
 // ── Disable flag (host-managed, per project root) ────────────────────────────
 
-import path from "node:path";
-
 const disabledA2uiRoots = new Set<string>();
 
 /** Enable or disable the built-in A2UI MCP server for a project root. */
 export function setA2uiDisabled(projectRoot: string, disabled: boolean): void {
-  const key = path.resolve(projectRoot);
+  const key = nodePath.resolve(projectRoot);
   if (disabled) {
     disabledA2uiRoots.add(key);
   } else {
@@ -43,7 +41,7 @@ export function setA2uiDisabled(projectRoot: string, disabled: boolean): void {
 
 /** True when the built-in A2UI MCP server has been disabled for a project root. */
 export function isA2uiDisabled(projectRoot: string): boolean {
-  return disabledA2uiRoots.has(path.resolve(projectRoot));
+  return disabledA2uiRoots.has(nodePath.resolve(projectRoot));
 }
 
 // ── Surface state (in-memory, per server instance) ───────────────────────────

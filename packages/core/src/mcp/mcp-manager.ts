@@ -131,6 +131,10 @@ export class McpManager {
   private initialized = false;
   private disposed = false;
   private intentionallyClosing = new Set<string>();
+  // Names of in-process servers (A2UI, activity-frames) successfully registered
+  // via connectInProcessServer(). These are NOT in serverConfigs (that map only
+  // holds stdio configs), so crash detection must key off this set instead.
+  private inProcessServers = new Set<string>();
   private configuredServerNames: string[] = [];
   private serverStatuses: McpServerStatus[] = [];
   private onToolsListChanged: (() => void) | null = null;
@@ -243,15 +247,20 @@ export class McpManager {
       client.onclose = () => {
         this.connectedServers.delete(name);
         if (this.intentionallyClosing.has(name)) {
+          this.inProcessServers.delete(name);
           return;
         }
-        if (!this.disposed && this.serverConfigs[name]) {
+        // In-process servers are not tracked in serverConfigs (that map only
+        // holds stdio configs); use inProcessServers to gate crash detection.
+        if (!this.disposed && this.inProcessServers.has(name)) {
+          this.inProcessServers.delete(name);
           this.onServerCrash(name, `In-process MCP server "${name}" closed unexpectedly`);
         }
       };
 
       this.clients.push(managed);
       this.connectedServers.add(name);
+      this.inProcessServers.add(name);
 
       const serverTools = await this.listAllTools(client);
       if (this.disposed) return;
@@ -290,6 +299,7 @@ export class McpManager {
         if (leaked) await this.silentlyClose(leaked);
       }
       this.connectedServers.delete(name);
+      this.inProcessServers.delete(name);
       this.tools = this.tools.filter((t) => t.serverName !== name);
       const message = err instanceof Error ? err.message : String(err);
       this.setStatus({
@@ -790,6 +800,7 @@ export class McpManager {
     this.clients = [];
     this.connectedServers.clear();
     this.intentionallyClosing.clear();
+    this.inProcessServers.clear();
     this.tools = [];
     this.prompts = [];
     this.resources = [];

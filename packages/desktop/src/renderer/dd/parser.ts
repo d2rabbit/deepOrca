@@ -114,9 +114,9 @@ function parseYamlFrontMatter(yaml: string): DdMeta {
       }
     }
 
-    // Token entries: `  bg: "#0a0a0a"`
+    // Token entries: `  bg: "#0a0a0a"` (keys may contain hyphens, e.g. `font-display`)
     if (currentSection === "tokens") {
-      const tokenMatch = line.match(/^\s+(\w+):\s*(.+)/);
+      const tokenMatch = line.match(/^\s+([\w-]+):\s*(.+)/);
       if (tokenMatch) {
         meta.tokens[tokenMatch[1]] = stripQuotes(tokenMatch[2].trim());
         continue;
@@ -128,8 +128,8 @@ function parseYamlFrontMatter(yaml: string): DdMeta {
       }
     }
 
-    // Top-level keys
-    const kvMatch = line.match(/^(\w+):\s*(.*)/);
+    // Top-level keys (allow hyphens in keys for robustness)
+    const kvMatch = line.match(/^([\w-]+):\s*(.*)/);
     if (!kvMatch) continue;
     const key = kvMatch[1];
     const value = kvMatch[2].trim();

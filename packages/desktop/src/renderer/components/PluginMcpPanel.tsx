@@ -42,6 +42,8 @@ type Props = {
   onRefreshSkills?: () => void | Promise<void>;
   selected: PluginSelection | null;
   onSelect: (selection: PluginSelection) => void;
+  /** Current OS platform — used to grey out platform-specific groups (apple/deepin). */
+  platform: string;
 };
 
 type Section = "mcp" | "skills" | "plugins";
@@ -67,6 +69,7 @@ export function PluginMcpPanel({
   onRefreshSkills,
   selected,
   onSelect,
+  platform,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("mcp");
@@ -323,8 +326,23 @@ export function PluginMcpPanel({
             // Plugins tab: built-in items grouped into plugin cards. Each card
             // bundles related skills, MCP servers, and plugin descriptors that
             // belong to the same tool/service. Clicking opens the group detail.
+            //
+            // Platform-specific groups (apple→macOS, deepin→Linux) are ALWAYS
+            // shown, even on a non-matching platform, but greyed out and
+            // non-interactive so the user knows the capability exists.
+            const isSupported = (g: BuiltinPluginGroup): boolean => {
+              if (!g.platform) return true;
+              if (g.platform === "darwin") return platform === "darwin";
+              if (g.platform === "linux") return platform === "linux";
+              return true;
+            };
             const nonEmpty = groups.filter(
-              (g) => g.skills.length > 0 || g.mcpServers.length > 0 || g.plugins.length > 0
+              (g) =>
+                g.skills.length > 0 ||
+                g.mcpServers.length > 0 ||
+                g.plugins.length > 0 ||
+                // Keep platform-specific groups even when empty (greyed out).
+                g.platform
             );
             return (
               <>
@@ -332,17 +350,22 @@ export function PluginMcpPanel({
                   <div className="ui-side-panel-empty">{t("plugins.builtin.none")}</div>
                 ) : (
                   nonEmpty.map((group) => {
-                    const isSel = selected?.kind === "group" && selected.name === group.id;
+                    const supported = isSupported(group);
+                    const isSel = supported && selected?.kind === "group" && selected.name === group.id;
                     const stats: string[] = [];
                     if (group.skills.length > 0) stats.push(`${group.skills.length} ${t("plugins.group.skills")}`);
                     if (group.mcpServers.length > 0) stats.push(`${group.mcpServers.length} ${t("plugins.group.mcp")}`);
                     if (group.plugins.length > 0) stats.push(`${group.plugins.length} ${t("plugins.group.plugins")}`);
                     return (
-                      <div key={group.id} className={`ui-plugin-group-card${isSel ? " selected" : ""}`}>
+                      <div
+                        key={group.id}
+                        className={`ui-plugin-group-card${isSel ? " selected" : ""}${supported ? "" : " unsupported"}`}
+                      >
                         <button
                           type="button"
                           className="ui-plugin-item-main"
-                          onClick={() => onSelect({ kind: "group", name: group.id })}
+                          onClick={() => supported && onSelect({ kind: "group", name: group.id })}
+                          disabled={!supported}
                         >
                           <div className="ui-plugin-item-header">
                             <span className="ui-plugin-item-name">{builtinLabel(t, group.id, "name", group.name)}</span>
@@ -351,7 +374,13 @@ export function PluginMcpPanel({
                           <span className="ui-plugin-item-desc">
                             {builtinLabel(t, group.id, "desc", group.description)}
                           </span>
-                          {stats.length > 0 ? <div className="ui-plugin-group-stats">{stats.join(" · ")}</div> : null}
+                          {supported && stats.length > 0 ? (
+                            <div className="ui-plugin-group-stats">{stats.join(" · ")}</div>
+                          ) : !supported ? (
+                            <div className="ui-plugin-group-stats unsupported-hint">
+                              {t("plugins.group.unsupported")}
+                            </div>
+                          ) : null}
                         </button>
                       </div>
                     );

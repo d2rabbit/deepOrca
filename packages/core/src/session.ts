@@ -399,6 +399,9 @@ export type BuiltinPluginGroup = {
   category: string;
   /** Optional icon identifier (e.g. "flutter"); the renderer maps it to an icon. */
   icon?: string;
+  /** When set, the group only loads on the matching OS. The renderer shows it
+   * greyed-out on other platforms so users know the capability exists. */
+  platform?: "darwin" | "linux";
   /** Skills matched into this group (from the bundled + user skill lists). */
   skills: SkillInfo[];
   /** MCP servers matched into this group (by name or `prefix:*` glob). */
@@ -412,6 +415,10 @@ export type McpServerConfigEntry = {
   name: string;
   config: McpServerConfig;
   builtin?: boolean;
+  /** Whether the server is enabled (not in the disabled set). For display in group cards. */
+  enabled?: boolean;
+  /** Connection status summary (ready/failed/connecting), if known. */
+  status?: string;
 };
 
 /** Raw manifest entry in `builtin-plugins.json` (before resolution). */
@@ -421,6 +428,7 @@ type BuiltinPluginGroupManifest = {
   description: string;
   category: string;
   icon?: string;
+  platform?: "darwin" | "linux";
   skills?: string[];
   mcp?: string[];
   plugins?: string[];
@@ -1495,9 +1503,21 @@ Rules:
     const matchedMcp = new Set<string>();
     const matchedPlugins = new Set<string>();
 
+    // Skills that are ALSO shipped as plugins (e.g. android-cli exists as both
+    // a bundled skill and a plugins/ entry). Exclude them from the skills list
+    // so the same tool doesn't appear twice within a group.
+    const pluginNames = new Set(builtinPlugins.map((p) => p.name));
+
     const groups: BuiltinPluginGroup[] = manifests.map((m) => {
       const groupSkills = skills.filter((s) => {
-        if (matchName(m.skills, s.name)) {
+        if (pluginNames.has(s.name)) return false; // shown as a plugin, not a skill
+        // Match against the skill's frontmatter name AND its directory name.
+        // Some upstream skill repos strip the category prefix from the `name`
+        // field (e.g. dir `android-adaptive` → name `adaptive`), so a glob like
+        // `android-*` would miss it if we only checked `name`. The directory
+        // name (last path segment of `bundled:<dir>`) always carries the prefix.
+        const dirName = s.path.startsWith("bundled:") ? (s.path.slice("bundled:".length).split("/").pop() ?? "") : "";
+        if (matchName(m.skills, s.name) || matchName(m.skills, dirName)) {
           matchedSkills.add(s.name);
           return true;
         }
@@ -1523,6 +1543,7 @@ Rules:
         description: m.description,
         category: m.category,
         icon: m.icon,
+        platform: m.platform,
         skills: groupSkills,
         mcpServers: groupMcp,
         plugins: groupPlugins,

@@ -876,7 +876,12 @@ function extractA2uiPayload(message: SessionMessage): string | null {
     // tried to scrape the payload out of `output` was unreachable in
     // practice and corrupted escaped JSON; removed.
     const meta = parsed.metadata ?? {};
-    if (meta.a2ui) return JSON.stringify(meta.a2ui);
+    // metadata.a2ui is already a JSON string (mcp-manager lifts the
+    // `application/a2ui+json` resource's `.text`, which itself is
+    // JSON.stringify(messages) from a2ui-mcp.ts). Stringifying it again would
+    // double-encode and break processor.ts's JSON.parse. Mirror App.tsx's
+    // typeof check. Only stringify if it somehow arrives as an object.
+    if (meta.a2ui) return typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
     return null;
   } catch {
     return null;

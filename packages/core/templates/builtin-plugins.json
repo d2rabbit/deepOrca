@@ -10,7 +10,7 @@
   {
     "id": "flutter-dev",
     "name": "Flutter 开发 / Flutter Development",
-    "description": "Flutter/Dart 全栈开发技能包（22 个技能）+ Dart MCP 运行时分析。架构、测试、路由、本地化、HTTP、FFI 等。\nFlutter/Dart full-stack skill pack (22 skills) + Dart MCP runtime analysis.",
+    "description": "Flutter/Dart 全栈开发技能包（23 个技能：Dart 12 + Flutter 11）+ Dart MCP 运行时分析。架构、测试、路由、本地化、HTTP、FFI 等。源自 flutter/agent-plugins 官方仓库。\nFlutter/Dart full-stack skill pack (23 skills) + Dart MCP. From flutter/agent-plugins.",
     "category": "development",
     "icon": "flutter",
     "skills": ["dart-*", "flutter-*"],
@@ -19,11 +19,20 @@
   {
     "id": "android-dev",
     "name": "Android 开发 / Android Development",
-    "description": "Google 官方 Android 开发技能（14 个）+ Android CLI 集成。Jetpack Compose、Navigation、CameraX、R8、测试、Perfetto 等。\nOfficial Google Android dev skills (14) + Android CLI.",
+    "description": "Google 官方 Android 开发技能（20 个）+ Android CLI 集成。Jetpack Compose、Navigation、CameraX、R8、测试、Perfetto 等。源自 android/skills 官方仓库。\nOfficial Google Android dev skills (20) + Android CLI. From android/skills.",
     "category": "development",
     "icon": "android",
     "skills": ["android-*"],
     "plugins": ["android-cli"]
+  },
+  {
+    "id": "expo-dev",
+    "name": "Expo 开发 / Expo Development",
+    "description": "Expo / React Native 开发技能（22 个）+ Expo MCP。EAS 部署、SDK 升级、路由、原生模块、性能优化。源自 expo/skills 官方仓库。\nExpo/RN dev skills (22) + Expo MCP. From expo/skills.",
+    "category": "development",
+    "icon": "react",
+    "skills": ["expo-*"],
+    "mcp": ["expo-mcp"]
   },
   {
     "id": "harmonyos-dev",
@@ -35,27 +44,9 @@
     "mcp": ["harmonyos-mcp"]
   },
   {
-    "id": "react-native-dev",
-    "name": "React Native 开发 / React Native Development",
-    "description": "React Native / Expo 开发技能（22 个）+ Expo MCP。EAS 部署、SDK 升级、路由、原生模块、性能优化。\nRN/Expo dev skills (22) + Expo MCP.",
-    "category": "development",
-    "icon": "react",
-    "skills": ["react-native-*", "expo-*"],
-    "mcp": ["expo-mcp"]
-  },
-  {
-    "id": "apple-dev",
-    "name": "Apple 平台开发 / Apple Platform Development",
-    "description": "Apple Xcode 27 第一方技能（7 个）+ 社区精选。SwiftUI、UIKit 现代化、测试现代化、安全审计、C 边界安全。仅 macOS。\nApple Xcode 27 first-party skills + community. macOS only.",
-    "category": "development",
-    "icon": "apple",
-    "skills": ["apple-*"],
-    "platform": "darwin"
-  },
-  {
     "id": "dotnet-dev",
     "name": ".NET 开发 / .NET Development",
-    "description": "Microsoft 官方 .NET 技能（12 域）。ASP.NET Core、MAUI、EF Core、测试、NuGet、MSBuild、AI、诊断、升级助手等。跨平台。\nMicrosoft official .NET skills (12 domains). Cross-platform.",
+    "description": "Microsoft 官方 .NET 技能（96 个）。ASP.NET Core、MAUI、EF Core、测试、NuGet、MSBuild、AI、诊断、升级助手等。跨平台。源自 dotnet/skills 官方仓库。\nMicrosoft official .NET skills (96). Cross-platform. From dotnet/skills.",
     "category": "development",
     "icon": "dotnet",
     "skills": ["dotnet-*"]
@@ -63,18 +54,27 @@
   {
     "id": "qt-dev",
     "name": "Qt/KDE 开发 / Qt/KDE Development",
-    "description": "Qt Group 官方技能（7 个）+ Qt 文档 MCP。CMake、C++ 审查/文档、QML 编码/审查/分析、UI 设计、Figma 集成。跨平台。\nQt Group official skills (7) + Qt docs MCP. Cross-platform.",
+    "description": "Qt Group 官方技能（12 个）。CMake、C++ 审查/文档、QML 编码/审查/分析、UI 设计、Figma 集成等。跨平台。源自 TheQtCompanyRnD/agent-skills 官方仓库。\nQt Group official skills (12). Cross-platform. From TheQtCompanyRnD/agent-skills.",
     "category": "development",
     "icon": "qt",
     "skills": ["qt-*"]
   },
   {
+    "id": "apple-dev",
+    "name": "Apple 平台开发 / Apple Platform Development",
+    "description": "Apple Xcode 27 第一方技能 + 社区精选。SwiftUI、UIKit 现代化、测试现代化、安全审计、C 边界安全。仅 macOS（需 Xcode 27 + xcrun）。\nApple Xcode 27 first-party skills + community. macOS only (requires Xcode 27 + xcrun).",
+    "category": "development",
+    "icon": "apple",
+    "skills": ["apple-*", "swift-*", "uikit-*", "swiftui-*"],
+    "platform": "darwin"
+  },
+  {
     "id": "deepin-dev",
     "name": "deepin/UOS 开发 / deepin/UOS Development",
-    "description": "统信官方 deepin 桌面开发技能（4 个）。DTK 原生应用、DDE Shell 扩展、控制中心模块、托盘插件。仅 Linux。\nOfficial deepin desktop dev skills (4). Linux only.",
+    "description": "统信官方 deepin 桌面开发技能。DTK 原生应用、DDE Shell 扩展、控制中心模块、托盘插件。仅 Linux。源自 linuxdeepin/deepin-skills 官方仓库。\nOfficial deepin desktop dev skills. Linux only. From linuxdeepin/deepin-skills.",
     "category": "development",
     "icon": "deepin",
-    "skills": ["deepin-*"],
+    "skills": ["deepin-*", "dde-*", "dtk-*"],
     "platform": "linux"
   },
   {
@@ -105,7 +105,7 @@
   {
     "id": "security",
     "name": "安全扫描 / Security",
-    "description": "SkillSpector — AI skill/MCP 安全扫描器。68 漏洞模式，prompt injection / 数据外泄 / 供应链 CVE / MCP 最小权限 / MCP 工具投毒检测。\nSkillSpector — AI skill/MCP security scanner (68 vulnerability patterns).",
+    "description": "SkillSpector — AI skill/MCP 安全扫描器。68 漏洞模式，prompt injection / 数据外泄 / 供应链 CVE / MCP 最小权限 / MCP 工具投毒检测。源自 NVIDIA/SkillSpector。\nSkillSpector — AI skill/MCP security scanner (68 vulnerability patterns). From NVIDIA/SkillSpector.",
     "category": "security",
     "mcp": ["skill-spector"]
   },

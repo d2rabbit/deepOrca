@@ -133,3 +133,78 @@ test("compileDdToHtml includes seed CSS classes", () => {
   assert.ok(html.includes(".container"));
   assert.ok(html.includes(".eyebrow"));
 });
+
+// ── Security: sanitizeDdBody strips XSS vectors ──────────────────────────────
+
+test("sanitizeDdBody strips <script> blocks from body", () => {
+  const doc = parseDdFile('<section><script>alert("xss")</script><h1>ok</h1></section>');
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(!html.includes("<script>alert"));
+  assert.ok(!/alert\("xss"\)/.test(html));
+  // Legit content survives.
+  assert.ok(html.includes("ok"));
+});
+
+test("compileDdToHtml sanitizes <script> injected via .dd body", () => {
+  const malicious = "---\nname: t\n---\n\n<section><script>fetch('//evil')</script><p>hi</p></section>";
+  const doc = parseDdFile(malicious);
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(!html.includes("fetch('//evil')"));
+  // The body <script> must not survive — only the Tailwind <script> tag may
+  // appear, and only when a tailwindScript is passed.
+  assert.ok(!/<script>alert|<script>fetch/.test(html));
+});
+
+test("sanitizeDdBody strips inline event handlers", () => {
+  const doc = parseDdFile('<section><img src=x onerror="alert(1)"><a href="#" onclick="steal()">link</a></section>');
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(!/onerror/i.test(html));
+  assert.ok(!/onclick/i.test(html));
+  assert.ok(html.includes("link"));
+});
+
+test("sanitizeDdBody neutralizes javascript: URLs", () => {
+  const doc = parseDdFile('<section><a href="javascript:alert(1)">x</a><a href="/ok">y</a></section>');
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(!/javascript:alert/i.test(html));
+  assert.ok(html.includes('href="/ok"'));
+});
+
+test("sanitizeDdBody strips form/input elements", () => {
+  const doc = parseDdFile(
+    "<section><form action='//evil'><input name='pw' type='password'></form><p>content</p></section>"
+  );
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(!/<form/i.test(html));
+  assert.ok(!/<input/i.test(html));
+  assert.ok(html.includes("content"));
+});
+
+test("sanitizeDdBody strips iframe/object/embed", () => {
+  const doc = parseDdFile(
+    "<section><iframe src='//evil'></iframe><object data='//x'></object><embed src='//y'></section>"
+  );
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(!/<iframe/i.test(html));
+  assert.ok(!/<object/i.test(html));
+  assert.ok(!/<embed/i.test(html));
+});
+
+test("tokensToCss drops values capable of CSS injection", () => {
+  const doc = parseDdFile("<section>x</section>");
+  doc.meta.tokens = { bg: "red;} *{background:url(//evil)} .x{", accent: "#3b82f6" };
+  const html = compileDdToHtml(doc, undefined);
+  // Malicious bg token is rejected entirely; only the safe accent survives.
+  assert.ok(!html.includes("//evil"));
+  assert.ok(!html.includes("--bg:"));
+  assert.ok(html.includes("--accent: #3b82f6"));
+});
+
+test("parser accepts hyphenated token keys (e.g. font-display)", () => {
+  const dd = "---\nname: t\ntokens:\n  font-display: Inter\n  font-body: system-ui\n---\n\n<section>x</section>";
+  const doc = parseDdFile(dd);
+  assert.equal(doc.meta.tokens["font-display"], "Inter");
+  assert.equal(doc.meta.tokens["font-body"], "system-ui");
+  const html = compileDdToHtml(doc, undefined);
+  assert.ok(html.includes("--font-display: Inter"));
+});

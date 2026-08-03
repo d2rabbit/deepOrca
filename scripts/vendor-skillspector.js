@@ -20,7 +20,7 @@
 //
 // Env overrides:
 //   SKILLSPECTOR_REPO  (default https://github.com/NVIDIA/SkillSpector.git)
-//   SKILLSPECTOR_REF   (default master — SkillSpector's default branch)
+//   SKILLSPECTOR_REF   (default main — SkillSpector's default branch)
 // Mirror repos are tried automatically whenever the primary GitHub clone or fetch fails,
 // so builds keep working when github.com is unreachable.
 
@@ -40,7 +40,7 @@ const shaFile = join(targetDir, ".vendored-skillspector-sha");
 // Primary GitHub source first; gitcode mirror backs it up when GitHub is blocked.
 // (No known gitcode mirror for SkillSpector yet — add one here if it appears.)
 const REPOS = [process.env.SKILLSPECTOR_REPO || "https://github.com/NVIDIA/SkillSpector.git"];
-const REF = process.env.SKILLSPECTOR_REF || "master";
+const REF = process.env.SKILLSPECTOR_REF || "main";
 const force = process.argv.includes("--force");
 
 function log(message) {

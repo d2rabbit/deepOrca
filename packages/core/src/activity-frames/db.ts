@@ -9,8 +9,13 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { createRequire } from "node:module";
 import type { RawFrame, RawEvent } from "./types";
 import { parseEpoch } from "./time";
+
+// ESM-safe dynamic require (core runs as "type": "module"; bare require() is
+// undefined under Node ESM). Mirrors the pattern in common/codegraph.ts.
+const moduleRequire = createRequire(import.meta.url);
 
 /** Default DB locations (checked in order, most recent mtime wins). */
 const DB_CANDIDATES = [
@@ -53,12 +58,12 @@ export class ActivityDb {
     }
     // Try node:sqlite first (Node 22+ with --experimental-sqlite, or Node 24+ native).
     try {
-      // Dynamic require to avoid import errors on older Node.
-      const { DatabaseSync } = require("node:sqlite");
+      // Dynamic require via createRequire — bare require() is undefined under ESM.
+      const { DatabaseSync } = moduleRequire("node:sqlite");
       this.conn = new DatabaseSync(dbPath, { readOnly: true });
     } catch {
       // Fallback: better-sqlite3 (available in Electron environment).
-      const Database = require("better-sqlite3");
+      const Database = moduleRequire("better-sqlite3");
       this.conn = new Database(dbPath, { readonly: true, timeout: 3000 });
       this.conn.exec("PRAGMA query_only = ON");
     }

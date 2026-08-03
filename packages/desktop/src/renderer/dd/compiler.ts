@@ -25,6 +25,10 @@ export function compileDdToHtml(doc: DdDocument, tailwindScript?: string): strin
   const seedCss = getSeedCss();
   const tailwindTag = tailwindScript ? `<script>${tailwindScript}</script>` : "";
   const title = doc.meta.name || "DeepDesign";
+  // Sanitize the body before embedding — .dd body is LLM-produced HTML rendered
+  // in a sandboxed iframe with allow-scripts, so strip script/event-handler/
+  // javascript: vectors. See sanitizeDdBody for the threat model.
+  const safeBody = sanitizeDdBody(doc.body);
 
   return `<!doctype html>
 <html lang="en">
@@ -39,7 +43,7 @@ ${seedCss}
 ${tailwindTag}
 </head>
 <body>
-${doc.body}
+${safeBody}
 </body>
 </html>`;
 }
@@ -48,8 +52,67 @@ ${doc.body}
 function tokensToCss(tokens: DdTokens): string {
   const entries = Object.entries(tokens);
   if (entries.length === 0) return "";
-  const lines = entries.map(([key, value]) => `  --${key}: ${value};`);
+  // Token keys become CSS custom-property names; validate against an identifier
+  // pattern (allow letters, digits, `-`, `_`) to keep the generated CSS well-formed.
+  // Token values are interpolated raw into a declaration, so reject any that
+  // contain characters capable of breaking out of the declaration (`;`, `}`,
+  // `<`, `>`) — this prevents CSS injection from malicious/accidental input.
+  const lines = entries
+    .filter(([key]) => /^[A-Za-z0-9_-]+$/.test(key))
+    .filter(([, value]) => !/[;}<>]/.test(value))
+    .map(([key, value]) => `  --${key}: ${value};`);
+  if (lines.length === 0) return "";
   return `:root {\n${lines.join("\n")}\n}`;
+}
+
+/**
+ * Tags whose entire subtree must be removed from the .dd body. These can either
+ * execute script directly (script, svg with onload), load external resources
+ * (iframe, object, embed, link, video, audio, source), or steal form input
+ * (form/input/textarea/button with formaction). We delete the element and its
+ * inner content rather than just the tag.
+ */
+const DANGEROUS_BLOCK_TAGS =
+  "script|iframe|object|embed|link|style|meta|base|form|input|textarea|button|select|option|svg|math|video|audio|source|track|frame|frameset|applet";
+
+/**
+ * Sanitize the HTML body of a .dd document for safe embedding in a sandboxed
+ * iframe (`sandbox="allow-scripts"`).
+ *
+ * Threat model: the .dd body is produced by an LLM and rendered with scripts
+ * allowed (Tailwind JIT must run). The sandbox already blocks same-origin
+ * access, but an attacker controlling the body could still exfiltrate data via
+ * network requests, render phishing UI, or consume CPU. This sanitizer strips:
+ *   1. Entire dangerous element subtrees (script/iframe/form/svg/...)
+ *   2. All inline event handlers (on* attributes)
+ *   3. `javascript:`, `vbscript:`, `data:` URLs in href/src (data: can carry
+ *      HTML/JS in some contexts)
+ *
+ * This is a defense-in-depth string sanitizer for LLM-generated layout HTML,
+ * not a general-purpose HTML sanitizer; it assumes reasonably well-formed input.
+ */
+export function sanitizeDdBody(body: string): string {
+  let out = body;
+  // 1. Remove dangerous element subtrees (open tag → matching close tag).
+  //    Non-void tags with content; void/self-closing variants handled below.
+  const blockRe = new RegExp(`<(${DANGEROUS_BLOCK_TAGS})\\b[^>]*>[\\s\\S]*?</\\1\\s*>`, "gi");
+  out = out.replace(blockRe, "");
+  // Self-closing / void forms of the same tags (e.g. <iframe .../> , <input ...>).
+  const voidRe = new RegExp(`<(${DANGEROUS_BLOCK_TAGS})\\b[^>]*/?>`, "gi");
+  out = out.replace(voidRe, "");
+  // 2. Strip all inline event handlers: on*=  (onclick, onload, onerror, ...).
+  out = out.replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  // 3. Neutralize dangerous URL schemes in href/src. Allow http(s), relative,
+  //    anchor, mailto. Replace the whole attribute value when it matches a
+  //    blocked scheme.
+  out = out.replace(/(href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi, (full, attr, dq, sq) => {
+    const val = (dq ?? sq ?? "").trim();
+    if (/^(javascript|vbscript|data):/i.test(val)) {
+      return `${attr}="#"`;
+    }
+    return full;
+  });
+  return out;
 }
 
 /** Escape HTML special characters in text content. */

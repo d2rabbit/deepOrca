@@ -23,7 +23,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { McpServerConfig } from "../settings";
 import { getUserConfigRoot } from "./app-dirs";
 
@@ -116,11 +116,20 @@ export function isSerenaAvailable(): boolean {
  */
 const SERENA_CONFIG_DIR_NAME = "serena-config";
 const SERENA_CONFIG_FILE_NAME = "serena_config.yml";
+// Serena's SerenaConfig.from_config_file() HARD-requires a top-level `projects`
+// key — without it the Python process raises SerenaConfigError on startup. On
+// Windows that exception is caught by Serena's own handler and shown via a
+// native tkinter "Log Viewer" window (is_headless_environment() is always
+// false on Windows, so the GUI always pops). We pass projects per-project via
+// `--project`, so an empty list here satisfies the schema without binding
+// Serena to a fixed project. web_dashboard_open_on_launch:false suppresses the
+// browser popup; the dashboard server stays available via open_dashboard.
 const SERENA_CONFIG_CONTENT =
-  "# Managed by DeepOrca — suppresses Serena's default dashboard auto-open so\n" +
-  "# Serena runs silently as a stdio MCP server. The dashboard server itself\n" +
-  "# stays enabled; use the `open_dashboard` tool to open it on demand.\n" +
-  "web_dashboard_open_on_launch: false\n";
+  "# Managed by DeepOrca — runs Serena silently as a stdio MCP server.\n" +
+  "# The `projects` key is REQUIRED by SerenaConfig; we activate the real\n" +
+  "# project via --project on the CLI, so an empty list just satisfies the schema.\n" +
+  "web_dashboard_open_on_launch: false\n" +
+  "projects: []\n";
 
 let serenaHomeEnsured = false;
 
@@ -128,6 +137,10 @@ let serenaHomeEnsured = false;
  * Ensure a DeepOrca-managed `SERENA_HOME` directory exists with a config file
  * that disables Serena's dashboard auto-open. Returns the absolute path to use
  * as `SERENA_HOME`. Idempotent — only writes once per process.
+ *
+ * Also upgrades a pre-existing config that lacks the required `projects` key
+ * (older DeepOrca versions wrote a config without it, which makes Serena crash
+ * and pop a native error window on Windows). Such stale files are rewritten.
  */
 export function ensureSerenaHeadlessHome(): string {
   const home = path.join(getUserConfigRoot(), SERENA_CONFIG_DIR_NAME);
@@ -135,7 +148,13 @@ export function ensureSerenaHeadlessHome(): string {
     try {
       mkdirSync(home, { recursive: true });
       const configFile = path.join(home, SERENA_CONFIG_FILE_NAME);
-      if (!existsSync(configFile)) {
+      const needsWrite =
+        // No config yet → create it.
+        !existsSync(configFile) ||
+        // Stale config missing the required `projects` key → upgrade it, or
+        // Serena will crash on startup (and pop a native error window on Win).
+        !readFileSync(configFile, "utf8").includes("projects:");
+      if (needsWrite) {
         writeFileSync(configFile, SERENA_CONFIG_CONTENT, "utf8");
       }
     } catch {

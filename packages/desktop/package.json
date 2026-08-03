@@ -23,7 +23,6 @@
     "package": "node ../../scripts/package-desktop.js && electron-builder --config electron-builder.yml --publish never"
   },
   "dependencies": {
-    "@a2ui/web_core": "^0.10.5",
     "@alibaba-group/open-code-review": "^1.8.0",
     "@deeporca/core": "file:../core",
     "@monaco-editor/react": "^4.7.0",

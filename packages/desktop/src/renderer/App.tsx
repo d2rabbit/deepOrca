@@ -1523,6 +1523,7 @@ export function App(): JSX.Element {
             onRefreshSkills={handleRefreshPluginSkills}
             selected={selectedPlugin}
             onSelect={handleSelectPlugin}
+            platform={platform}
           />
         )}
       </div>
@@ -1687,12 +1688,6 @@ export function App(): JSX.Element {
                   a2uiJson={prototypeJson ?? ""}
                   openuiCode={prototypeOpenuiCode}
                   mode={prototypeMode === "design" ? "a2ui" : prototypeMode}
-                  onClose={() => {
-                    setPreviewOpen(false);
-                    setPrototypeJson(null);
-                    setPrototypeOpenuiCode("");
-                    setDesignContent(null);
-                  }}
                   onIterate={(text) => void runPrompt({ text })}
                 />
               )}

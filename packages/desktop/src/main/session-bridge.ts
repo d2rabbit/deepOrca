@@ -715,6 +715,8 @@ export class SessionBridge {
           name === SKILL_SPECTOR_MCP_SERVER_NAME ||
           name === HARMONYOS_MCP_SERVER_NAME ||
           name === EXPO_MCP_SERVER_NAME ||
+          name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
+          name === A2UI_MCP_SERVER_NAME ||
           isGitmcpServerName(name),
         status: statuses.get(name),
       });
@@ -850,6 +852,7 @@ export class SessionBridge {
     const settings = resolveCurrentSettings(this.projectRoot);
     const configured = settings.mcpServers ?? {};
     const disabled = new Set(readDisabledMcp(this.projectRoot));
+    const statuses = new Map(this.manager.getMcpStatus().map((s) => [s.name, s]));
     const isBuiltin = (name: string): boolean =>
       name === CODEGRAPH_MCP_SERVER_NAME ||
       name === CRG_MCP_SERVER_NAME ||
@@ -865,36 +868,87 @@ export class SessionBridge {
       name,
       config: cfg,
       builtin: isBuiltin(name),
+      enabled: !disabled.has(name),
+      status: statuses.get(name)?.status,
     }));
     // Built-in servers not yet configured by the user (codegraph, CRG, dart)
     // are synthesized from their builders so the group card lists them regardless.
+    // Each carries enabled/status so the group detail can show a toggle + state dot.
     if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
       const cfg = buildCodegraphMcpServerConfig(this.projectRoot);
-      entries.push({ name: CODEGRAPH_MCP_SERVER_NAME, config: cfg, builtin: true });
+      entries.push({
+        name: CODEGRAPH_MCP_SERVER_NAME,
+        config: cfg,
+        builtin: true,
+        enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
+        status: statuses.get(CODEGRAPH_MCP_SERVER_NAME)?.status,
+      });
     }
     if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
       const cfg = buildCrgMcpServerConfig(this.projectRoot);
-      if (cfg) entries.push({ name: CRG_MCP_SERVER_NAME, config: cfg, builtin: true });
+      if (cfg)
+        entries.push({
+          name: CRG_MCP_SERVER_NAME,
+          config: cfg,
+          builtin: true,
+          enabled: !disabled.has(CRG_MCP_SERVER_NAME),
+          status: statuses.get(CRG_MCP_SERVER_NAME)?.status,
+        });
     }
     if (!Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
       const cfg = buildDartMcpServerConfig();
-      if (cfg) entries.push({ name: DART_MCP_SERVER_NAME, config: cfg, builtin: true });
+      if (cfg)
+        entries.push({
+          name: DART_MCP_SERVER_NAME,
+          config: cfg,
+          builtin: true,
+          enabled: !disabled.has(DART_MCP_SERVER_NAME),
+          status: statuses.get(DART_MCP_SERVER_NAME)?.status,
+        });
     }
     if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
       const cfg = buildSerenaMcpServerConfig(this.projectRoot);
-      if (cfg) entries.push({ name: SERENA_MCP_SERVER_NAME, config: cfg, builtin: true });
+      if (cfg)
+        entries.push({
+          name: SERENA_MCP_SERVER_NAME,
+          config: cfg,
+          builtin: true,
+          enabled: !disabled.has(SERENA_MCP_SERVER_NAME),
+          status: statuses.get(SERENA_MCP_SERVER_NAME)?.status,
+        });
     }
     if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
       const cfg = buildSkillSpectorMcpServerConfig(this.projectRoot);
-      if (cfg) entries.push({ name: SKILL_SPECTOR_MCP_SERVER_NAME, config: cfg, builtin: true });
+      if (cfg)
+        entries.push({
+          name: SKILL_SPECTOR_MCP_SERVER_NAME,
+          config: cfg,
+          builtin: true,
+          enabled: !disabled.has(SKILL_SPECTOR_MCP_SERVER_NAME),
+          status: statuses.get(SKILL_SPECTOR_MCP_SERVER_NAME)?.status,
+        });
     }
     if (!Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)) {
       const cfg = buildHarmonyosMcpServerConfig(this.projectRoot);
-      if (cfg) entries.push({ name: HARMONYOS_MCP_SERVER_NAME, config: cfg, builtin: true });
+      if (cfg)
+        entries.push({
+          name: HARMONYOS_MCP_SERVER_NAME,
+          config: cfg,
+          builtin: true,
+          enabled: !disabled.has(HARMONYOS_MCP_SERVER_NAME),
+          status: statuses.get(HARMONYOS_MCP_SERVER_NAME)?.status,
+        });
     }
     if (!Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)) {
       const cfg = buildExpoMcpServerConfig();
-      if (cfg) entries.push({ name: EXPO_MCP_SERVER_NAME, config: cfg, builtin: true });
+      if (cfg)
+        entries.push({
+          name: EXPO_MCP_SERVER_NAME,
+          config: cfg,
+          builtin: true,
+          enabled: !disabled.has(EXPO_MCP_SERVER_NAME),
+          status: statuses.get(EXPO_MCP_SERVER_NAME)?.status,
+        });
     }
     // Activity-Frames is an in-process MCP server (no command/args). Synthesize a
     // display-only entry so it appears in the "documentation" group card.
@@ -903,6 +957,8 @@ export class SessionBridge {
         name: ACTIVITY_FRAMES_MCP_SERVER_NAME,
         config: { command: "(in-process)", args: [] },
         builtin: true,
+        enabled: !disabled.has(ACTIVITY_FRAMES_MCP_SERVER_NAME),
+        status: statuses.get(ACTIVITY_FRAMES_MCP_SERVER_NAME)?.status,
       });
     }
     // A2UI is an in-process MCP server (no command/args). Synthesize a
@@ -912,9 +968,10 @@ export class SessionBridge {
         name: A2UI_MCP_SERVER_NAME,
         config: { command: "(in-process)", args: [] },
         builtin: true,
+        enabled: !disabled.has(A2UI_MCP_SERVER_NAME),
+        status: statuses.get(A2UI_MCP_SERVER_NAME)?.status,
       });
     }
-    void disabled; // enable state is irrelevant for display grouping
 
     // Only consider built-in (bundled) skills for grouping; user skills stay in
     // the Skills tab as-is.

@@ -27,19 +27,11 @@ type Props = {
   openuiCode?: string;
   /** Rendering mode. Defaults to "a2ui". */
   mode?: "a2ui" | "openui";
-  /** Close the panel and return to chat. */
-  onClose: () => void;
   /** Send an iteration prompt to the agent (from the mini composer). */
   onIterate: (text: string) => void;
 };
 
-export function PrototypePanel({
-  a2uiJson: initialJson,
-  openuiCode,
-  mode = "a2ui",
-  onClose: _onClose,
-  onIterate,
-}: Props): JSX.Element {
+export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui", onIterate }: Props): JSX.Element {
   const [draft, setDraft] = useState("");
   const [liveJson, setLiveJson] = useState(initialJson);
   const [liveOpenuiCode, setLiveOpenuiCode] = useState(openuiCode ?? "");

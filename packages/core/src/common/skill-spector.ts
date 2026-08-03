@@ -12,7 +12,7 @@
  * package to PyPI. We MUST install from the GitHub repo pinned to a commit SHA:
  *   `uv tool install 'skillspector[mcp] @ git+https://github.com/NVIDIA/SkillSpector.git@<SHA>'`
  * There are no release tags, so the build-time vendor script (scripts/vendor-skillspector.js)
- * records the upstream master commit SHA into `packages/desktop/vendor/skillspector/.vendored-skillspector-sha`,
+ * records the upstream main commit SHA into `packages/desktop/vendor/skillspector/.vendored-skillspector-sha`,
  * which this module reads at runtime to pin the install.
  *
  * SkillSpector is Python 3.12+ (LangChain stack + native yara-python). Like CRG/Serena it
@@ -105,7 +105,7 @@ function resolveUvBinary(): string | null {
  * The build-time vendor script records the upstream commit SHA here. We install from
  * `git+...@<SHA>` to pin a known-good version and AVOID the malicious PyPI package.
  * If the marker is missing (build didn't vendor / vendor root not configured), fall
- * back to `master` — best-effort, less reproducible, but still safe (installs from
+ * back to `main` — best-effort, less reproducible, but still safe (installs from
  * GitHub, never PyPI).
  */
 const VENDOR_SHA_FILENAME = ".vendored-skillspector-sha";
@@ -139,7 +139,7 @@ export function ensureSkillSpectorInstalled(): boolean {
   const uvBinary = resolveUvBinary();
   if (!uvBinary) return false;
 
-  const targetSha = readPinnedSha() ?? "master";
+  const targetSha = readPinnedSha() ?? "main";
   if (installedSha === targetSha) return true;
 
   const spec = `'skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@${targetSha}'`;
@@ -183,7 +183,7 @@ export function buildSkillSpectorMcpServerConfig(_projectRoot: string): McpServe
 
   // `uv tool run` reuses the persistent environment created by `uv tool install`.
   // `skillspector mcp` defaults to stdio transport (issue #199 initialize hang is fixed
-  // on master, which is what the pinned SHA tracks).
+  // on main, which is what the pinned SHA tracks).
   return {
     command: uvBinary,
     args: ["tool", "run", "skillspector", "mcp"],

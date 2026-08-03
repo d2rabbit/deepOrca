@@ -1,9 +1,13 @@
 // Vendor the Tailwind CSS standalone JIT script for local/offline use.
 //
-// The Tailwind Play CDN (cdn.tailwindcss.com) is a ~400KB JIT compiler that
-// generates utility classes at runtime in the browser. DeepDesign compiles
-// .dd files into self-contained HTML with this script inlined, so designs
-// work offline without depending on an external CDN.
+// DeepDesign compiles .dd files into self-contained HTML with this script
+// inlined, so designs work offline without depending on an external CDN.
+//
+// IMPORTANT: pin to a single Tailwind major version. Mixing the v3 Play CDN
+// (cdn.tailwindcss.com) with v4 (@tailwindcss/browser@4) yields incompatible
+// runtimes — which one you get depended on network reachability. Both sources
+// below serve the SAME v4 package (@tailwindcss/browser@4) from different hosts,
+// so the generated classes are deterministic regardless of which host answers.
 //
 // Usage:
 //   node scripts/vendor-tailwind.js          # download/refresh
@@ -22,10 +26,15 @@ const versionFile = join(targetDir, ".vendored-version");
 
 const force = process.argv.includes("--force");
 
-// Tailwind Play CDN URLs — the script is versionless but we track the download
-// date so we can refresh periodically. Primary: cdn.tailwindcss.com.
-// Fallback: unpkg.com/@tailwindcss/browser (same script, different host).
-const SOURCES = ["https://cdn.tailwindcss.com", "https://unpkg.com/@tailwindcss/browser@4"];
+// Pinned to Tailwind v4 (@tailwindcss/browser). Two hosts, same package+version
+// — used as primary/fallback for reachability, NOT as version alternatives.
+// jsDelivr mirrors npm 1:1 and serves a integrity-stable tarball; unpkg is the
+// canonical npm CDN. When upgrading, bump the @4 suffix in BOTH entries.
+const TAILWIND_VERSION = "4";
+const SOURCES = [
+  `https://unpkg.com/@tailwindcss/browser@${TAILWIND_VERSION}`,
+  `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@${TAILWIND_VERSION}`,
+];
 
 function log(msg) {
   console.log(`[vendor-tailwind] ${msg}`);

@@ -437,20 +437,32 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
   const { t } = useI18n();
   const [group, setGroup] = useState<BuiltinPluginGroup | null>(null);
 
+  const reload = useCallback(async () => {
+    const list = await api.pluginBuiltinGroups();
+    setGroup(list.find((g) => g.id === groupId) ?? null);
+  }, [groupId]);
+
   useEffect(() => {
     let cancelled = false;
-    api
-      .pluginBuiltinGroups()
-      .then((list) => {
-        if (!cancelled) setGroup(list.find((g) => g.id === groupId) ?? null);
-      })
-      .catch(() => {
-        /* noop */
-      });
+    reload().catch(() => {
+      /* noop */
+    });
     return () => {
       cancelled = true;
     };
-  }, [groupId]);
+    void cancelled;
+  }, [reload]);
+
+  // Toggle a built-in MCP server's enable state, then refresh the group so the
+  // switch reflects the new state. Built-in servers are managed here (in the
+  // group detail), NOT in the MCP tab — this is the only management surface.
+  const toggleMcp = useCallback(
+    async (name: string, enabled: boolean) => {
+      await api.pluginSetMcpEnabled(name, enabled);
+      await reload();
+    },
+    [reload]
+  );
 
   if (!group) {
     return (
@@ -522,11 +534,19 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
               <span className="ui-plugin-cap-label">
                 {t("plugins.detail.includesMcp")} · {group.mcpServers.length}
               </span>
-              <div className="ui-plugin-cap-list">
+              <div className="ui-plugin-mcp-list">
                 {group.mcpServers.map((m) => (
-                  <span key={m.name} className="ui-plugin-cap-chip">
-                    {m.name}
-                  </span>
+                  <div key={m.name} className={`ui-plugin-mcp-row${m.enabled === false ? " disabled" : ""}`}>
+                    <span className="ui-plugin-mcp-name">
+                      <StatusDot status={m.status} />
+                      {m.name}
+                    </span>
+                    <Switch
+                      checked={m.enabled !== false}
+                      onChange={() => void toggleMcp(m.name, m.enabled === false)}
+                      title={t("mcp.enableTitle")}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
