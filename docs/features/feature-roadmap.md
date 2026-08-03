@@ -41,10 +41,10 @@
 
 | 功能域                              | 已集成                                                                                                     | 规划中                                                                                                                                                    | 核心目标                                       |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [一、代码智能](#一代码智能)         | codegraph, CRG, ocr                                                                                        | serena                                                                                                                                                    | 让 Agent 从"文本级"升级为"语义级"代码操作      |
-| [二、知识中心](#二知识中心)         | openwiki, TencentDB-Agent-Memory                                                                           | **行为记忆（activity-frames TS 重写）**, Open Deep Research 理念                                                                                          | 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究     |
-| [三、移动开发](#三移动开发)         | Flutter Development（24 skills + Dart MCP）, Android Kit, HarmonyOS Kit, React Native（Expo + Callstack）  | —                                                                                                                                                         | Flutter + Android + HarmonyOS + React Native   |
-| [四、桌面开发](#四桌面开发)         | —                                                                                                          | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）                                                                                    | macOS/iOS + Qt/KDE + Tauri 桌面应用开发        |
+| [一、代码智能](#一代码智能)         | codegraph, CRG, ocr, **serena**                                                                            | —                                                                                                                                                         | 让 Agent 从"文本级"升级为"语义级"代码操作      |
+| [二、知识中心](#二知识中心)         | openwiki, TencentDB-Agent-Memory, **activity-frames**                                                      | Open Deep Research 理念                                                                                                                                   | 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究     |
+| [三、移动开发](#三移动开发)         | —                                                                                                          | **Flutter Development（dart+flutter skills + Dart MCP）**, **Android Kit（skills + CLI）**, **HarmonyOS Kit（skills + DevEco MCP）**, **React Native（Expo skills + Expo MCP）** | Flutter + Android + HarmonyOS + React Native   |
+| [四、桌面开发](#四桌面开发)         | —                                                                                                          | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）, .NET（dotnet/skills）, deepin/UOS                                                    | macOS/iOS + Qt/KDE + Tauri + .NET + deepin 桌面应用开发 |
 | [五、.NET 开发](#五net-开发)        | —                                                                                                          | dotnet/skills（Microsoft 官方 12 域）                                                                                                                     | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild    |
 | [六、设计生成](#六设计生成)         | DeepDesign Phase 1 + **`.dd` 格式**, **taste-skill**, **A2UI PM-Design P0-P4 + merge delta**, **OpenUI Lang PoC** | **html-in-canvas（API 提案，flag 可开）**, dashboard/mobile/poster 模板, Uiverse 组件库 | brief→生成→预览→交付 的全流程设计能力          |
 | [七、办公套件](#七办公套件)         | Bento Slides                                                                                               | 文档/表格生成, 办公文档预览面板                                                                                                                           | 单文件办公文档（演示文稿/文档/表格）生成与预览 |
@@ -52,7 +52,7 @@
 | [九、桌面自动化](#九桌面自动化)     | —                                                                                                          | pi-computer-use, ShowUI（VLM 视觉定位）, CLI-Anything, **sim-use（iOS+Android 模拟器，P1）**                                                              | 操控无 API 的桌面软件 + 模拟器交互             |
 | [十、引擎演进](#十引擎演进)         | Plan Mode, UpdatePlan, **Electron 43（Chromium 150）**, **MCP SDK 迁移（官方 @modelcontextprotocol/sdk）** | A2UI 对话交互层, Prewalk, Subagent                                                                                                                        | 模型切换 + 子 agent + 交互层升级               |
 | [十一、自进化](#十一自进化)         | skill-writer, skill-digester（静态）                                                                       | Self-Harness 理念, OpenSpace 理念, **Harness Handbook 行为地图理念**, **JiuwenSwarm 蜂群协作理念**                                                        | harness 脚手架自改进 + 技能执行反馈闭环        |
-| [十二、插件中心](#十二插件中心)     | 分组展示（builtin-plugins.json）, Flutter/Android/HarmonyOS/RN 技能包, Browser 分组                        | **SkillSpector 安全闸门（P1）**, opencli, 远程源集成（8 Hub）                                                                                             | 统一的插件/技能/MCP 管理入口 + 安装安全        |
+| [十二、插件中心](#十二插件中心)     | **7 插件包分组（skill.plugin.md）**, Browser 分组, **SkillSpector 安全扫描（meta-skills）**                | opencli, 远程源集成（8 Hub）                                                                                                                              | 统一的插件/技能/MCP 管理入口 + 安装安全        |
 | [十三、远程接入](#十三远程接入)     | —                                                                                                          | WebSocket 桥 + 静态服务 + 隧道方案                                                                                                                        | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca  |
 | [十四、语音双工](#十四语音双工)     | —                                                                                                          | whisper.cpp 本地 + API 兜底                                                                                                                               | 语音替代键盘输入，实时转录填入 Composer        |
 | [十五、统一模型网关](#十五统一模型网关最低优先级) | —                                                                                                        | OmniRoute（文档引导）                                                                                                                                     | 多提供商路由 + token 压缩                     |
@@ -853,20 +853,16 @@ CREATE TABLE vault_secrets (
 
 | 能力                                              | commit / 分支            | 功能域       |
 | ------------------------------------------------- | ------------------------ | ------------ |
-| codegraph（导航层 MCP）                           | vendored CLI             | 代码智能     |
+| codegraph（导航层 MCP）                           | vendored CLI (GitHub Releases 二进制) | 代码智能     |
 | CRG（分析层 MCP）                                 | `1f5146e` dev            | 代码智能     |
 | ocr（AI 审查）                                    | `873f437` dev            | 代码智能     |
 | Serena（符号级代码操作 MCP）                      | `abb3f78` perf           | 代码智能     |
-| Dart MCP（Flutter 运行时分析）                    | `2b08460` perf           | 移动开发     |
-| openwiki（Wiki 生成）                             | vendored CLI             | 知识中心     |
+| openwiki（Wiki 生成）                             | vendored CLI (npm 预编译包) | 知识中心     |
 | TencentDB-Agent-Memory（记忆）                    | `08308c5` perf           | 知识中心     |
+| activity-frames（多源行为记忆 MCP）               | `ed40428` perf           | 知识中心     |
 | DeepDesign Phase 1（设计生成）                    | `127c912` perf           | 设计生成     |
 | Bento Slides（演示文稿）                          | `08308c5` perf           | 办公套件     |
-| browser-skill（浏览器操控）                       | 内置插件                 | 浏览器与联网 |
-| flutter/agent-plugins（24 技能）                  | 构建 skills              | 移动开发     |
-| Android Development Kit（14 技能 + CLI）          | `16c4b2c` perf           | 移动开发     |
-| HarmonyOS Development Kit（Skills + MCP）         | `16c4b2c` perf           | 移动开发     |
-| React Native Development Kit（Skills + Expo MCP） | `16c4b2c` perf           | 移动开发     |
+| browser-skill（浏览器操控）                       | 内置插件（需用户安装 bsk） | 浏览器与联网 |
 | web-access-strategy（联网策略 Skill）             | `16c4b2c` perf           | 浏览器与联网 |
 | A2UI PM-Design（原型设计模块 P0-P4）              | `9699fbe`→`0699927` perf | 设计生成     |
 | A2UI 审计第二弹（12 bug 修复）                    | v3.14 perf               | 设计生成     |
@@ -874,7 +870,8 @@ CREATE TABLE vault_secrets (
 | Plan Mode（规划+权限强制）                        | 引擎核心                 | 引擎演进     |
 | UpdatePlan（进度跟踪）                            | 引擎核心                 | 引擎演进     |
 | Electron 43（Chromium 150，零外部依赖）           | `d0ebc79` dev            | 引擎演进     |
-| 插件中心分组                                      | `dbf94fb`+`b70a7bb` perf | 插件中心     |
+| SkillSpector（AI Skill/MCP 安全扫描）             | `0e1375d` perf           | 插件中心     |
+| 插件中心 7 包分组（skill.plugin.md 重构）         | `c8c5b55` perf           | 插件中心     |
 | vendor 镜像兜底                                   | `4eb24c0` dev            | 引擎演进     |
 | spawn 修复                                        | `04c1585` dev            | 引擎演进     |
 

@@ -11,7 +11,7 @@ import type { PluginSelection } from "./PluginDetail";
  *
  * Two key prefixes exist in the i18n catalog:
  *  - `builtin.<name>.<field>`   → individual plugins and bundled skills
- *  - `builtin-plugin.<id>.<field>` → plugin group cards (code-intelligence, flutter-dev, …)
+ *  - `builtin-plugin.<id>.<field>` → plugin package cards (meta-skills, code, design, …)
  *
  * i18n rule: zh/zh-TW/zh-HK show Simplified Chinese; en/ja/ko show English.
  */

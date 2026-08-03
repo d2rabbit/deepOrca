@@ -457,11 +457,10 @@ export type LlmStreamProgress = {
  * Platform-specific prefixes:
  * - darwin: apple-, swift-, uikit-, swiftui-
  * - linux: deepin-, dde-, dtk-
- * - win32: (none currently — .NET/Qt are cross-platform)
+ * - win32: (none currently)
  *
- * Cross-platform (no filtering): dotnet-, qt-, flutter-, android-,
- * harmonyos-, react-native-, expo-, bento-, deeporca-, web-, openwiki-,
- * skill-, a2ui-, dart-
+ * Cross-platform (no filtering): all other prefixes including
+ * bento-, deeporca-, web-, openwiki-, skill-, a2ui-, codegraph-
  */
 const DARWIN_PREFIXES = ["apple-", "swift-", "uikit-", "swiftui-"];
 const LINUX_PREFIXES = ["deepin-", "dde-", "dtk-"];
@@ -1293,9 +1292,7 @@ Rules:
     for (const { root, displayRoot } of skillRoots) {
       for (const skill of collectSkills(root, displayRoot)) {
         // Platform-conditional filtering: skills with known platform prefixes
-        // are only loaded on matching OS. Cross-platform skills (no prefix or
-        // recognized cross-platform prefix like flutter-/android-/harmonyos-/
-        // react-native-/bento-/deeporca-/web-/openwiki-/skill-/a2ui-) load on all.
+        // are only loaded on matching OS. All other skills load on all platforms.
         if (!isSkillForCurrentPlatform(skill.name)) {
           continue;
         }
