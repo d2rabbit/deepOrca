@@ -506,6 +506,16 @@ export const ja: Record<MessageKey, string> = {
   "index.reindexing": "インデックス作成中…",
   "index.done": "インデックス完了",
   "index.failed": "インデックス失敗",
+  "index.codegraphTab": "コードグラフ",
+  "index.wikiTab": "Wiki",
+  "index.codegraphAutoSync": "自動同期アクティブ（ファイル監視 + ターン後同期）",
+  "index.wikiReady": "Wiki 生成済み",
+  "index.wikiEmpty": "Wiki 未生成",
+  "index.wikiUnavailable": "OpenWiki はこのビルドでは利用できません。",
+  "index.wikiManualSync": "手動同期 — コード変更後に更新を実行",
+  "index.update": "更新",
+  "index.updating": "更新中…",
+  "index.initializing": "生成中…",
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "コードレビュー",

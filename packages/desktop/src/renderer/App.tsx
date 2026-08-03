@@ -38,7 +38,6 @@ const CodeReviewPanel = lazy(() =>
 const DiffOverlay = lazy(() => import("./components/DiffOverlay").then((m) => ({ default: m.DiffOverlay })));
 import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
-const WikiPanel = lazy(() => import("./components/WikiPanel").then((m) => ({ default: m.WikiPanel })));
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
@@ -92,7 +91,6 @@ import {
   IconIndex,
   IconReview,
   IconGitmcp,
-  IconWiki,
   IconEditor,
   IconReasoningHidden,
   IconReasoningNormal,
@@ -189,7 +187,7 @@ export function App(): JSX.Element {
   const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [sidebarView, setSidebarView] = useState<
-    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor"
+    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "plugins" | "editor"
   >("explorer");
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
@@ -287,7 +285,7 @@ export function App(): JSX.Element {
   // VSCode-style activity bar: selecting a rail view swaps the left panel while
   // the main area stays put. Re-selecting the active view toggles the panel.
   const selectView = useCallback(
-    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor") => {
+    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "plugins" | "editor") => {
       setSidebarView((prev) => {
         if (prev === view) {
           setPanelOpen((wasOpen) => !wasOpen);
@@ -1420,14 +1418,6 @@ export function App(): JSX.Element {
           <IconGitmcp />
         </RailButton>
         <RailButton
-          active={panelOpen && sidebarView === "wiki"}
-          title={t("rail.wiki")}
-          aria-label={t("rail.wiki")}
-          onClick={() => selectView("wiki")}
-        >
-          <IconWiki />
-        </RailButton>
-        <RailButton
           active={panelOpen && sidebarView === "editor"}
           title={t("rail.editor")}
           aria-label={t("rail.editor")}
@@ -1509,10 +1499,6 @@ export function App(): JSX.Element {
           </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />
-        ) : sidebarView === "wiki" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <WikiPanel />
-          </Suspense>
         ) : sidebarView === "editor" ? (
           <EditorPanel onOpenFile={setEditorFile} />
         ) : (

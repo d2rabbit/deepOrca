@@ -504,6 +504,16 @@ export const zhTW: Record<MessageKey, string> = {
   "index.reindexing": "正在索引…",
   "index.done": "索引完成",
   "index.failed": "索引失敗",
+  "index.codegraphTab": "程式碼圖譜",
+  "index.wikiTab": "Wiki",
+  "index.codegraphAutoSync": "自動同步已啟用（檔案監聽 + 輪次後同步）",
+  "index.wikiReady": "Wiki 已生成",
+  "index.wikiEmpty": "Wiki 未生成",
+  "index.wikiUnavailable": "OpenWiki 在目前建置中不可用。",
+  "index.wikiManualSync": "手動同步 — 程式碼變更後點擊更新",
+  "index.update": "更新",
+  "index.updating": "更新中…",
+  "index.initializing": "生成中…",
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "程式碼審查",

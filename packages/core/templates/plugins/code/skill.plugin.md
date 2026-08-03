@@ -6,6 +6,8 @@ icon: code
 skills:
   - name: codegraph-cli
     description: "CodeGraph CLI 驱动 — init/index/sync/serve 代码图谱构建与查询"
+  - name: smart-code-review
+    description: "智能代码审查 — CRG 风险分析 + OCR 语义审查联合编排"
 plugins:
   - open-code-review
 mcp:

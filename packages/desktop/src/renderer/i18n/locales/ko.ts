@@ -505,6 +505,16 @@ export const ko: Record<MessageKey, string> = {
   "index.reindexing": "인덱싱 중…",
   "index.done": "인덱싱 완료",
   "index.failed": "인덱싱 실패",
+  "index.codegraphTab": "코드 그래프",
+  "index.wikiTab": "Wiki",
+  "index.codegraphAutoSync": "자동 동기화 활성 (파일 감시 + 턴 후 동기화)",
+  "index.wikiReady": "Wiki 생성됨",
+  "index.wikiEmpty": "Wiki 미생성",
+  "index.wikiUnavailable": "OpenWiki를 사용할 수 없습니다.",
+  "index.wikiManualSync": "수동 동기화 — 코드 변경 후 업데이트 실행",
+  "index.update": "업데이트",
+  "index.updating": "업데이트 중…",
+  "index.initializing": "생성 중…",
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "코드 리뷰",

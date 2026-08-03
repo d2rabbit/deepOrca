@@ -506,8 +506,8 @@ export const en = {
 
   // ── Index library (CodeGraph) ─────────────────────────────
   "rail.index": "Index Library",
-  "index.title": "Index Library",
-  "index.empty": "No workspaces to index.",
+  "index.title": "Index & Knowledge",
+  "index.empty": "No project open.",
   "index.indexed": "Indexed",
   "index.uninitialized": "Not indexed",
   "index.reindex": "Reset index",
@@ -515,6 +515,16 @@ export const en = {
   "index.reindexing": "Indexing…",
   "index.done": "Index complete",
   "index.failed": "Index failed",
+  "index.codegraphTab": "CodeGraph",
+  "index.wikiTab": "Wiki",
+  "index.codegraphAutoSync": "Auto-sync active (file watcher + post-turn)",
+  "index.wikiReady": "Wiki generated",
+  "index.wikiEmpty": "Wiki not generated",
+  "index.wikiUnavailable": "OpenWiki is not available in this build.",
+  "index.wikiManualSync": "Manual sync — run Update after significant changes",
+  "index.update": "Update",
+  "index.updating": "Updating…",
+  "index.initializing": "Generating…",
 
   // ── Code Review (ocr + crg) ───────────────────────────────
   "rail.review": "Code Review",
@@ -1114,8 +1124,8 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Index library (CodeGraph) ─────────────────────────────
   "rail.index": "索引库",
-  "index.title": "索引库",
-  "index.empty": "暂无可索引的工作区。",
+  "index.title": "索引与知识",
+  "index.empty": "未打开项目。",
   "index.indexed": "已索引",
   "index.uninitialized": "未索引",
   "index.reindex": "重置索引",
@@ -1123,6 +1133,16 @@ export const zh: Record<MessageKey, string> = {
   "index.reindexing": "正在索引…",
   "index.done": "索引完成",
   "index.failed": "索引失败",
+  "index.codegraphTab": "代码图谱",
+  "index.wikiTab": "Wiki",
+  "index.codegraphAutoSync": "自动同步已激活（文件监听 + 轮次后同步）",
+  "index.wikiReady": "Wiki 已生成",
+  "index.wikiEmpty": "Wiki 未生成",
+  "index.wikiUnavailable": "OpenWiki 在当前构建中不可用。",
+  "index.wikiManualSync": "手动同步 — 代码变更后点击更新",
+  "index.update": "更新",
+  "index.updating": "更新中…",
+  "index.initializing": "生成中…",
 
   // ── Code Review (ocr + crg) ───────────────────────────────
   "rail.review": "代码审查",
