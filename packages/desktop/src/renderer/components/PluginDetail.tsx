@@ -453,17 +453,6 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
     void cancelled;
   }, [reload]);
 
-  // Toggle a built-in MCP server's enable state, then refresh the group so the
-  // switch reflects the new state. Built-in servers are managed here (in the
-  // group detail), NOT in the MCP tab — this is the only management surface.
-  const toggleMcp = useCallback(
-    async (name: string, enabled: boolean) => {
-      await api.pluginSetMcpEnabled(name, enabled);
-      await reload();
-    },
-    [reload]
-  );
-
   if (!group) {
     return (
       <div className="ui-plugin-detail">
@@ -536,16 +525,12 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
               </span>
               <div className="ui-plugin-mcp-list">
                 {group.mcpServers.map((m) => (
-                  <div key={m.name} className={`ui-plugin-mcp-row${m.enabled === false ? " disabled" : ""}`}>
+                  <div key={m.name} className="ui-plugin-mcp-row">
                     <span className="ui-plugin-mcp-name">
                       <StatusDot status={m.status} />
                       {m.name}
                     </span>
-                    <Switch
-                      checked={m.enabled !== false}
-                      onChange={() => void toggleMcp(m.name, m.enabled === false)}
-                      title={t("mcp.enableTitle")}
-                    />
+                    <span className="ui-mcp-badge builtin">🔒</span>
                   </div>
                 ))}
               </div>

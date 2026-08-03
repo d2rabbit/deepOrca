@@ -349,6 +349,8 @@ export type SkillInfo = {
   description: string;
   isLoaded?: boolean;
   allowImplicitInvocation?: boolean;
+  /** True when this skill lives inside a plugin package (hidden from Skills tab). */
+  pluginOwned?: boolean;
 };
 
 /**
@@ -1211,6 +1213,38 @@ Rules:
     return fs.existsSync(distRoot) ? distRoot : sourceRoot;
   }
 
+  /**
+   * Resolve skill directories inside plugin packages. Each plugin package at
+   * `templates/plugins/<pkg>/skills/<skill>/SKILL.md` contributes skills that
+   * are tagged `pluginOwned: true` so the Skills tab can filter them out.
+   */
+  private getPluginSkillRoots(): Array<{ root: string; displayRoot: string; pkgName: string }> {
+    const extensionRoot = getExtensionRoot();
+    const pluginsDir = path.join(extensionRoot, "templates", "plugins");
+    const distPluginsDir = path.join(extensionRoot, "plugins");
+    const base =
+      fs.existsSync(distPluginsDir) && !fs.existsSync(path.join(extensionRoot, "src", "session.ts"))
+        ? distPluginsDir
+        : pluginsDir;
+    if (!fs.existsSync(base)) return [];
+    const roots: Array<{ root: string; displayRoot: string; pkgName: string }> = [];
+    try {
+      for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        const pkgSkillsDir = path.join(base, entry.name, "skills");
+        if (!fs.existsSync(pkgSkillsDir)) continue;
+        roots.push({
+          root: pkgSkillsDir,
+          displayRoot: `plugin:${entry.name}`,
+          pkgName: entry.name,
+        });
+      }
+    } catch {
+      // unreadable — skip
+    }
+    return roots;
+  }
+
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
     const skillRoots = this.getSkillScanRoots();
     const enabledSkills = this.getResolvedSettings().enabledSkills ?? {};
@@ -1271,6 +1305,20 @@ Rules:
       }
     }
 
+    // Scan skills inside plugin packages (templates/plugins/<pkg>/skills/).
+    // These are tagged pluginOwned so the Skills tab can hide them — they are
+    // surfaced via the Plugins tab group cards instead. LLM auto-matching and
+    // prompt injection still work exactly the same as standalone skills.
+    for (const { root, displayRoot } of this.getPluginSkillRoots()) {
+      for (const skill of collectSkills(root, displayRoot)) {
+        if (!isSkillForCurrentPlatform(skill.name)) continue;
+        if (!skillsByName.has(skill.name)) {
+          skill.pluginOwned = true;
+          skillsByName.set(skill.name, skill);
+        }
+      }
+    }
+
     if (sessionId) {
       const loadedSkillKeys = this.getLoadedSkillKeys(sessionId);
       for (const skill of skillsByName.values()) {
@@ -1325,43 +1373,59 @@ Rules:
   }
 
   /**
-   * List all built-in plugins. These are first-class extensions that ship with
-   * the core package and can never be uninstalled or disabled.
+   * List all built-in plugins. Plugin packages live at
+   * `templates/plugins/<pkg>/` and may contain nested sub-plugins at
+   * `templates/plugins/<pkg>/plugins/<sub>/plugin.json`.
+   * We scan BOTH the top level (for packages that ARE plugins themselves) and
+   * the nested `plugins/` subdirectory inside each package.
    */
   listBuiltinPlugins(): BuiltinPluginInfo[] {
     const root = this.getBuiltinPluginsRoot();
     if (!fs.existsSync(root)) {
       return [];
     }
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true });
-    } catch {
-      return [];
-    }
-
     const plugins: BuiltinPluginInfo[] = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) {
-        continue;
-      }
-      const manifestPath = path.join(root, entry.name, "plugin.json");
+
+    const tryReadPlugin = (dir: string, entryName: string): void => {
+      const manifestPath = path.join(dir, entryName, "plugin.json");
       try {
-        if (!fs.existsSync(manifestPath)) {
-          continue;
-        }
+        if (!fs.existsSync(manifestPath)) return;
         const raw = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
         plugins.push({
-          name: typeof raw.name === "string" ? raw.name : entry.name,
+          name: typeof raw.name === "string" ? raw.name : entryName,
           version: typeof raw.version === "string" ? raw.version : "1.0.0",
           description: typeof raw.description === "string" ? raw.description : "",
           category: typeof raw.category === "string" ? raw.category : "general",
           removable: false,
-          path: `builtin-plugin:${entry.name}`,
+          path: `builtin-plugin:${entryName}`,
         });
       } catch {
-        continue;
+        // skip
       }
+    };
+
+    try {
+      const packages = fs.readdirSync(root, { withFileTypes: true });
+      for (const pkgEntry of packages) {
+        if (!pkgEntry.isDirectory() && !pkgEntry.isSymbolicLink()) continue;
+        const pkgDir = path.join(root, pkgEntry.name);
+        // Check if the package itself has a plugin.json (legacy flat layout)
+        tryReadPlugin(root, pkgEntry.name);
+        // Scan nested plugins/ subdirectory
+        const nestedPluginsDir = path.join(pkgDir, "plugins");
+        if (fs.existsSync(nestedPluginsDir)) {
+          try {
+            for (const subEntry of fs.readdirSync(nestedPluginsDir, { withFileTypes: true })) {
+              if (!subEntry.isDirectory() && !subEntry.isSymbolicLink()) continue;
+              tryReadPlugin(nestedPluginsDir, subEntry.name);
+            }
+          } catch {
+            // unreadable — skip
+          }
+        }
+      }
+    } catch {
+      // unreadable — return empty
     }
     return plugins.sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -1401,10 +1465,11 @@ Rules:
   }
 
   /**
-   * Resolve the built-in plugin groups defined in `templates/builtin-plugins.json`
-   * against the live skill/MCP/plugin lists. Each manifest glob (e.g. `dart-*`,
-   * `gitmcp:*`) is expanded into concrete members. Items not matched by any group
-   * fall through to an auto-generated "other" group so nothing is silently hidden.
+   * Resolve built-in plugin groups from `skill.plugin.md` files. Each plugin
+   * package directory `templates/plugins/<pkg>/skill.plugin.md` defines one
+   * group via YAML frontmatter (name, description, category, skills[], mcp[],
+   * plugins[]). The skill/mcp/plugin arrays are matched against the live lists
+   * to produce concrete group members.
    *
    * This is display-only metadata — it never affects loading, enabling, or
    * execution of skills/MCP/plugins.
@@ -1414,22 +1479,43 @@ Rules:
     mcpServers: McpServerConfigEntry[],
     builtinPlugins: BuiltinPluginInfo[]
   ): BuiltinPluginGroup[] {
-    const extensionRoot = getExtensionRoot();
-    const sourceManifest = path.join(extensionRoot, "templates", "builtin-plugins.json");
-    // Published bundle: copied next to plugins/ under dist/.
-    const distManifest = path.join(extensionRoot, "builtin-plugins.json");
-    const manifestPath = fs.existsSync(sourceManifest)
-      ? sourceManifest
-      : fs.existsSync(distManifest)
-        ? distManifest
-        : sourceManifest;
+    const root = this.getBuiltinPluginsRoot();
+    if (!fs.existsSync(root)) return [];
 
-    let manifests: BuiltinPluginGroupManifest[] = [];
+    // Collect manifests from skill.plugin.md files.
+    const manifests: BuiltinPluginGroupManifest[] = [];
     try {
-      const raw = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-      if (Array.isArray(raw)) manifests = raw as BuiltinPluginGroupManifest[];
+      for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        const pluginMdPath = path.join(root, entry.name, "skill.plugin.md");
+        if (!fs.existsSync(pluginMdPath)) continue;
+        try {
+          const raw = fs.readFileSync(pluginMdPath, "utf8");
+          const parsed = matter(raw);
+          const data = parsed.data as Record<string, unknown>;
+          // Extract skill names from frontmatter `skills` array (each item has {name, description})
+          const skillItems = Array.isArray(data.skills) ? (data.skills as Array<Record<string, unknown>>) : [];
+          const skillNames = skillItems.map((s) => (typeof s?.name === "string" ? s.name : "")).filter(Boolean);
+          // Extract mcp names
+          const mcpNames = Array.isArray(data.mcp) ? (data.mcp as string[]) : [];
+          // Extract plugin names
+          const pluginNames = Array.isArray(data.plugins) ? (data.plugins as string[]) : [];
+          manifests.push({
+            id: typeof data.name === "string" ? data.name : entry.name,
+            name: typeof data.description === "string" ? data.description : entry.name,
+            description: typeof data.description === "string" ? data.description : "",
+            category: typeof data.category === "string" ? data.category : "general",
+            icon: typeof data.icon === "string" ? data.icon : undefined,
+            skills: skillNames.length > 0 ? skillNames : undefined,
+            mcp: mcpNames.length > 0 ? mcpNames : undefined,
+            plugins: pluginNames.length > 0 ? pluginNames : undefined,
+          });
+        } catch {
+          // unreadable plugin.md — skip
+        }
+      }
     } catch {
-      // Missing/unreadable manifest → no groups; everything is "other".
+      // unreadable dir — return empty
     }
 
     const matchName = (patterns: string[] | undefined, name: string): boolean => {
@@ -1445,21 +1531,14 @@ Rules:
     const matchedMcp = new Set<string>();
     const matchedPlugins = new Set<string>();
 
-    // Skills that are ALSO shipped as plugins (e.g. android-cli exists as both
-    // a bundled skill and a plugins/ entry). Exclude them from the skills list
-    // so the same tool doesn't appear twice within a group.
-    const pluginNames = new Set(builtinPlugins.map((p) => p.name));
+    // Skills that are ALSO shipped as plugins — exclude from skills list to
+    // avoid duplicate display within a group.
+    const pluginNamesSet = new Set(builtinPlugins.map((p) => p.name));
 
     const groups: BuiltinPluginGroup[] = manifests.map((m) => {
       const groupSkills = skills.filter((s) => {
-        if (pluginNames.has(s.name)) return false; // shown as a plugin, not a skill
-        // Match against the skill's frontmatter name AND its directory name.
-        // Some upstream skill repos strip the category prefix from the `name`
-        // field (e.g. dir `android-adaptive` → name `adaptive`), so a glob like
-        // `android-*` would miss it if we only checked `name`. The directory
-        // name (last path segment of `bundled:<dir>`) always carries the prefix.
-        const dirName = s.path.startsWith("bundled:") ? (s.path.slice("bundled:".length).split("/").pop() ?? "") : "";
-        if (matchName(m.skills, s.name) || matchName(m.skills, dirName)) {
+        if (pluginNamesSet.has(s.name)) return false;
+        if (matchName(m.skills, s.name)) {
           matchedSkills.add(s.name);
           return true;
         }
@@ -1492,7 +1571,7 @@ Rules:
       };
     });
 
-    // Catch-all "other" group for built-in items not claimed by any manifest entry.
+    // Catch-all "other" group for built-in items not claimed by any plugin package.
     const leftoverSkills = skills.filter((s) => !matchedSkills.has(s.name));
     const leftoverMcp = mcpServers.filter((e) => !matchedMcp.has(e.name));
     const leftoverPlugins = builtinPlugins.filter((p) => !matchedPlugins.has(p.name));
@@ -1500,7 +1579,7 @@ Rules:
       groups.push({
         id: "other",
         name: "Other",
-        description: "Built-in items not assigned to a plugin group.",
+        description: "Built-in items not assigned to a plugin package.",
         category: "other",
         skills: leftoverSkills,
         mcpServers: leftoverMcp,
@@ -1553,8 +1632,10 @@ Rules:
   }
 
   /**
-   * Build the combined prompt from all built-in plugins' PLUGIN.md documents.
-   * Returns empty string when no plugins are available.
+   * Build the combined prompt from all built-in plugin packages. Each package's
+   * `skill.plugin.md` body (markdown after frontmatter) is injected. Additionally,
+   * any nested `plugins/<sub>/PLUGIN.md` files are included for backwards
+   * compatibility with legacy plugin descriptors.
    */
   private getBuiltinPluginPrompt(): string {
     const root = this.getBuiltinPluginsRoot();
@@ -1573,19 +1654,44 @@ Rules:
       if (!entry.isDirectory() && !entry.isSymbolicLink()) {
         continue;
       }
-      const docPath = path.join(root, entry.name, "PLUGIN.md");
+      const pkgDir = path.join(root, entry.name);
+
+      // 1. Read skill.plugin.md body (primary — the package-level agent doc)
+      const pluginMdPath = path.join(pkgDir, "skill.plugin.md");
       try {
-        if (!fs.existsSync(docPath)) {
-          continue;
-        }
-        const content = fs.readFileSync(docPath, "utf8").trim();
-        if (content) {
-          blocks.push(`<builtin-plugin name="${entry.name}">
+        if (fs.existsSync(pluginMdPath)) {
+          const raw = fs.readFileSync(pluginMdPath, "utf8");
+          const parsed = matter(raw);
+          const content = (parsed.content ?? "").trim();
+          if (content) {
+            const name = (parsed.data as Record<string, unknown>)?.name ?? entry.name;
+            blocks.push(`<builtin-plugin name="${name}">
 ${content}
 </builtin-plugin>`);
+          }
         }
       } catch {
-        continue;
+        // skip
+      }
+
+      // 2. Read nested plugins/<sub>/PLUGIN.md (sub-plugin descriptors)
+      const nestedPluginsDir = path.join(pkgDir, "plugins");
+      if (fs.existsSync(nestedPluginsDir)) {
+        try {
+          for (const sub of fs.readdirSync(nestedPluginsDir, { withFileTypes: true })) {
+            if (!sub.isDirectory() && !sub.isSymbolicLink()) continue;
+            const subDoc = path.join(nestedPluginsDir, sub.name, "PLUGIN.md");
+            if (!fs.existsSync(subDoc)) continue;
+            const content = fs.readFileSync(subDoc, "utf8").trim();
+            if (content) {
+              blocks.push(`<builtin-plugin name="${sub.name}">
+${content}
+</builtin-plugin>`);
+            }
+          }
+        } catch {
+          // skip
+        }
       }
     }
 

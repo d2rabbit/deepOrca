@@ -269,9 +269,9 @@ export function PluginMcpPanel({
           </>
         ) : section === "skills" ? (
           (() => {
-            // Bundled skills are shown under the Plugins tab as built-in items;
+            // Bundled/plugin-owned skills are shown under the Plugins tab;
             // the Skills tab only lists user-authored skills.
-            const userSkills = skills.filter((s) => !isBundledSkill(s));
+            const userSkills = skills.filter((s) => !isBundledSkill(s) && !s.pluginOwned);
             return (
               <>
                 <div className="ui-skill-toolbar">
