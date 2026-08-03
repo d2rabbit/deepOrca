@@ -46,13 +46,13 @@ export const CODEGRAPH_DIR_NAME = ".codegraph";
 export const CODEGRAPH_VENDOR_ENTRY = path.join("dist", "bin", "codegraph.js");
 
 /**
- * Absolute path of the vendored CodeGraph checkout, or `null` when unset. The
+ * Absolute path of the vendored CodeGraph directory, or `null` when unset. The
  * desktop client sets this at boot to the copy it ships; other hosts leave it unset
  * and rely on the npx fallback.
  */
 let configuredVendorRoot: string | null = null;
 
-/** Point the resolver at a vendored CodeGraph checkout (or clear it with `null`). */
+/** Point the resolver at a vendored CodeGraph directory (or clear it with `null`). */
 export function configureCodegraphVendorRoot(root: string | null): void {
   configuredVendorRoot = root ? path.resolve(root) : null;
 }
@@ -72,39 +72,80 @@ export type CodegraphExecutable = {
   env?: Record<string, string>;
 };
 
-/** Resolve the compiled CLI entry inside the configured vendor root, if it exists. */
-function resolveVendorEntry(): string | null {
-  if (!configuredVendorRoot) {
-    return null;
+/**
+ * Resolve the prebuilt CodeGraph binary for the current platform inside the
+ * configured vendor root. The prebuilt binary is self-contained (bundled Node
+ * 24 + sqlite + app), so it can be executed directly without a host Node runtime.
+ *
+ * Layout (after vendor-codegraph.js download):
+ *   <vendorRoot>/<platform>-<arch>/bin/codegraph      (unix)
+ *   <vendorRoot>/<platform>-<arch>/bin/codegraph.exe  (windows)
+ *
+ * Fallback for legacy source-build vendoring:
+ *   <vendorRoot>/dist/bin/codegraph.js  (needs Node runtime — see below)
+ */
+function resolveVendorExecutable(): CodegraphExecutable | null {
+  if (!configuredVendorRoot) return null;
+
+  // 1. Try prebuilt binary (new direct-download approach).
+  const platformArch = getPlatformArch();
+  if (platformArch) {
+    const binaryName = process.platform === "win32" ? "codegraph.exe" : "codegraph";
+    // Try several layouts: <root>/<plat>/bin/codegraph, <root>/<plat>/codegraph
+    const candidates = [
+      path.join(configuredVendorRoot, platformArch, "bin", binaryName),
+      path.join(configuredVendorRoot, platformArch, binaryName),
+      path.join(configuredVendorRoot, "bin", binaryName),
+    ];
+    for (const candidate of candidates) {
+      try {
+        if (fs.statSync(candidate).isFile()) {
+          return { command: candidate, prefixArgs: [] };
+        }
+      } catch {
+        // try next
+      }
+    }
   }
-  const entry = path.join(configuredVendorRoot, CODEGRAPH_VENDOR_ENTRY);
+
+  // 2. Fallback: legacy source-build entry (needs Node + sqlite runtime).
+  const legacyEntry = path.join(configuredVendorRoot, CODEGRAPH_VENDOR_ENTRY);
   try {
-    return fs.statSync(entry).isFile() ? entry : null;
+    if (fs.statSync(legacyEntry).isFile()) {
+      const runtime = resolveSqliteRuntimeForEntry(legacyEntry);
+      if (runtime) return runtime;
+    }
   } catch {
-    return null;
+    // not found
   }
+
+  return null;
+}
+
+/** Map host platform/arch to CodeGraph's platform-arch identifier. */
+function getPlatformArch(): string | null {
+  const plat = process.platform;
+  const arch = process.arch;
+  let platformName: string;
+  let archName: string;
+  if (plat === "darwin") platformName = "darwin";
+  else if (plat === "linux") platformName = "linux";
+  else if (plat === "win32") platformName = "win32";
+  else return null;
+  if (arch === "arm64") archName = "arm64";
+  else if (arch === "x64") archName = "x64";
+  else return null;
+  return `${platformName}-${archName}`;
 }
 
 /**
- * Decide how to invoke CodeGraph. Prefers the vendored build, run through a Node
- * runtime that actually ships `node:sqlite` (CodeGraph's storage backend) — see
- * {@link resolveSqliteRuntimeForEntry} for the resolution order. In Electron ≥35
- * the vendored entry runs on the bundled Node (self-contained, no host dep).
- *
- * Only when the vendored build is entirely missing do we fall back to `npx`,
- * which resolves the published package without a global install (and will
- * surface CodeGraph's own Node-version error if the PATH Node is too old). This
- * branch is a last resort for unpackaged/CLI use — the desktop app always ships
- * the vendored build, so it is never reached there.
+ * Decide how to invoke CodeGraph. Prefers the vendored prebuilt binary (self-
+ * contained, no host dependency). Falls back to legacy source-build entry run
+ * through a sqlite-capable Node runtime. Last resort: `npx`.
  */
 export function resolveCodegraphExecutable(): CodegraphExecutable {
-  const entry = resolveVendorEntry();
-  if (entry) {
-    const runtime = resolveSqliteRuntimeForEntry(entry);
-    if (runtime) {
-      return runtime;
-    }
-  }
+  const vendored = resolveVendorExecutable();
+  if (vendored) return vendored;
   return { command: "npx", prefixArgs: ["-y", CODEGRAPH_PACKAGE] };
 }
 

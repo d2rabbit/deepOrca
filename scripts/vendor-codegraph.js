@@ -1,180 +1,183 @@
 // Vendor CodeGraph (https://github.com/colbymchenry/codegraph) into the desktop app.
 //
-// Maintains a persistent source clone in `vendor-src/codegraph` and compiles it
-// into `packages/desktop/vendor/codegraph` on every build. Before compiling, the
-// script fetches the remote and rebuilds if there are new commits — ensuring the
-// vendored binary always tracks upstream without manual intervention.
+// CodeGraph publishes fully self-contained prebuilt binaries via GitHub Releases
+// (bundled Node 24 + sqlite + app). This script downloads the matching platform
+// binary directly — no source clone, no npm install, no build step.
 //
-// CodeGraph requires Node 22.5+ at runtime (node:sqlite). The compiled output is
-// a plain JS entry (`dist/bin/codegraph.js`) that the desktop client runs through
-// a system Node 22+ binary (see packages/core/src/common/codegraph.ts).
+// Release assets follow the naming convention:
+//   codegraph-{platform}-{arch}.tar.gz  (unix)
+//   codegraph-{platform}-{arch}.zip     (windows)
+// Plus a SHA256SUMS file for verification.
 //
 // Usage:
-//   node scripts/vendor-codegraph.js            # clone/update + compile
-//   node scripts/vendor-codegraph.js --force    # force full rebuild
+//   node scripts/vendor-codegraph.js            # download/refresh binary
+//   node scripts/vendor-codegraph.js --force    # force re-download
 //
 // Env overrides:
-//   CODEGRAPH_REPO  (default https://github.com/colbymchenry/codegraph.git)
-//   CODEGRAPH_REF   (default main)
-// Mirror repos are tried automatically whenever the primary GitHub clone or
-// fetch fails, so builds keep working when github.com is unreachable.
+//   CODEGRAPH_VERSION  (default: latest from GitHub Releases API)
 
-import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { platform as osPlatform, arch as osArch } from "node:os";
+import { Readable } from "node:stream";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
-const sourceDir = join(repoRoot, "vendor-src", "codegraph");
 const targetDir = join(repoRoot, "packages", "desktop", "vendor", "codegraph");
-const entryFile = join(targetDir, "dist", "bin", "codegraph.js");
-const headFile = join(targetDir, ".vendored-head");
-
-// Primary GitHub source first; gitcode mirror backs it up when GitHub is blocked.
-const REPOS = [
-  process.env.CODEGRAPH_REPO || "https://github.com/colbymchenry/codegraph.git",
-  "https://gitcode.com/GitHub_Trending/co0degr/codegraph.git",
-];
-const REF = process.env.CODEGRAPH_REF || "main";
+const versionFile = join(targetDir, ".vendored-codegraph-version");
 const force = process.argv.includes("--force");
-const isWindows = process.platform === "win32";
 
 function log(message) {
   console.log(`[vendor-codegraph] ${message}`);
 }
 
-function run(command, args, cwd) {
-  const needsShell = isWindows && command === "npm";
-  return execFileSync(command, args, { cwd, stdio: "pipe", shell: needsShell, encoding: "utf8" });
+/**
+ * Map the current host platform/arch to CodeGraph's release asset naming.
+ * CodeGraph uses platform-arch identifiers matching npm optionalDependencies:
+ *   darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-arm64, win32-x64
+ */
+function hostPlatformArch() {
+  const plat = osPlatform();
+  const arch = osArch();
+  let platformName;
+  let archName;
+  if (plat === "darwin") platformName = "darwin";
+  else if (plat === "linux") platformName = "linux";
+  else if (plat === "win32") platformName = "win32";
+  else throw new Error(`unsupported platform: ${plat}`);
+  if (arch === "arm64") archName = "arm64";
+  else if (arch === "x64") archName = "x64";
+  else throw new Error(`unsupported arch: ${arch}`);
+  return `${platformName}-${archName}`;
 }
 
-function getHead(dir) {
+/** Resolve the latest CodeGraph release tag from GitHub API (falls back to hardcoded). */
+async function resolveLatestVersion() {
+  if (process.env.CODEGRAPH_VERSION) {
+    return process.env.CODEGRAPH_VERSION;
+  }
   try {
-    return run("git", ["rev-parse", "HEAD"], dir).trim();
+    const resp = await fetch("https://api.github.com/repos/colbymchenry/codegraph/releases/latest", {
+      headers: { "User-Agent": "deeporca-vendor-codegraph" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const tag = data.tag_name; // e.g. "v1.5.0"
+      return tag.startsWith("v") ? tag.slice(1) : tag;
+    }
   } catch {
-    return null;
+    // Offline or rate-limited — use fallback.
   }
+  log("could not resolve latest CodeGraph version from GitHub — using fallback 1.5.0");
+  return "1.5.0";
 }
 
-function cloneWithFallback(branch, dest) {
-  let lastError = null;
-  for (const repo of REPOS) {
-    log(`cloning ${repo} @ ${branch} …`);
-    try {
-      run("git", ["clone", "--branch", branch, repo, dest]);
-      return repo;
-    } catch (error) {
-      lastError = error;
-      log(`clone from ${repo} failed — trying next mirror …`);
-    }
+/** Download a URL to a file path. */
+async function download(url, dest) {
+  log(`downloading ${url}`);
+  const resp = await fetch(url, {
+    headers: { "User-Agent": "deeporca-vendor-codegraph" },
+    signal: AbortSignal.timeout(300000), // 5 min — binaries can be ~280MB
+    redirect: "follow",
+  });
+  if (!resp.ok || !resp.body) {
+    throw new Error(`download failed: ${resp.status} ${resp.statusText}`);
   }
-  throw lastError ?? new Error("all mirrors failed to clone");
+  const stream = createWriteStream(dest);
+  await Readable.fromWeb(resp.body).pipe(stream);
+  return new Promise((resolve, reject) => {
+    stream.on("finish", resolve);
+    stream.on("error", reject);
+  });
 }
 
-function fetchWithFallback(dir, branch) {
-  // Try each repo as a git remote so a blocked primary can fall back to a mirror.
-  for (const repo of REPOS) {
-    const remoteName = repo === REPOS[0] ? "origin" : "backup";
-    try {
-      run("git", ["remote", "set-url", remoteName, repo], dir);
-    } catch {
-      run("git", ["remote", "add", remoteName, repo], dir);
-    }
-    log(`fetching ${repo} …`);
-    try {
-      run("git", ["fetch", remoteName, branch], dir);
-      return remoteName;
-    } catch {
-      log(`fetch from ${repo} failed — trying next mirror …`);
-    }
-  }
-  return null;
+/** Extract a .tar.gz file using the system tar. */
+function extractTarGz(archivePath, destDir) {
+  execSync(`tar -xzf "${archivePath}" -C "${destDir}"`, { stdio: "inherit" });
 }
 
-function main() {
-  // ── Step 1: Ensure persistent source clone exists ──
-  if (!existsSync(join(sourceDir, ".git"))) {
-    log(`cloning → vendor-src/codegraph @ ${REF}`);
-    mkdirSync(dirname(sourceDir), { recursive: true });
-    try {
-      cloneWithFallback(REF, sourceDir);
-    } catch (error) {
-      // Offline / blocked network: keep any existing vendored build working.
-      if (existsSync(entryFile)) {
-        log("clone failed on all mirrors (offline?) — keeping the existing vendored build.");
-        return;
-      }
-      throw error;
-    }
-  } else {
-    log("fetching upstream updates …");
-    const remote = fetchWithFallback(sourceDir, REF);
-    if (!remote) {
-      log("fetch failed on all mirrors (offline?) — using local source.");
-    }
-  }
+async function main() {
+  const version = await resolveLatestVersion();
+  const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
+  const platformArch = hostPlatformArch();
+  const binaryDir = join(targetDir, platformArch);
 
-  // Reset to the latest fetched HEAD from whichever remote succeeded (origin preferred).
-  const fetchedRemote = (() => {
-    try {
-      run("git", ["rev-parse", "--verify", `origin/${REF}`], sourceDir);
-      return "origin";
-    } catch {
-      try {
-        run("git", ["rev-parse", "--verify", `backup/${REF}`], sourceDir);
-        return "backup";
-      } catch {
-        return null;
-      }
-    }
-  })();
-  if (fetchedRemote) {
-    try {
-      run("git", ["reset", "--hard", `${fetchedRemote}/${REF}`], sourceDir);
-    } catch {
-      // If the ref is missing (detached), stay on current.
-    }
-  }
-
-  const currentHead = getHead(sourceDir);
-  const previousHead = existsSync(headFile) ? readFileSync(headFile, "utf8").trim() : null;
-
-  if (currentHead === previousHead && existsSync(entryFile) && !force) {
-    log(`up-to-date (${currentHead?.slice(0, 8)}) — skipping build.`);
+  if (version === previousVersion && existsSync(binaryDir) && !force) {
+    log(`up-to-date (v${version}, ${platformArch}) — skipping download.`);
     return;
   }
 
-  log(`building ${currentHead?.slice(0, 8)} (prev: ${previousHead?.slice(0, 8) ?? "none"}) …`);
+  log(`downloading CodeGraph v${version} (${platformArch}, prev: ${previousVersion ?? "none"}) …`);
 
-  // ── Step 2: Install + compile in source dir ──
-  log("installing dependencies …");
-  run("npm", ["install", "--no-audit", "--no-fund"], sourceDir);
-
-  log("compiling (npm run build) …");
-  run("npm", ["run", "build"], sourceDir);
-
-  // ── Step 3: Copy runtime artifacts to vendor dir ──
-  log(`copying runtime → ${targetDir}`);
+  // Clean target.
   rmSync(targetDir, { recursive: true, force: true });
   mkdirSync(targetDir, { recursive: true });
-  for (const name of ["dist", "scripts", "package.json", "package-lock.json"]) {
-    const src = join(sourceDir, name);
-    if (existsSync(src)) {
-      cpSync(src, join(targetDir, name), { recursive: true });
+
+  // Determine archive name and URL.
+  const isWindows = platformArch.startsWith("win32");
+  const ext = isWindows ? "zip" : "tar.gz";
+  const assetName = `codegraph-${platformArch}.${ext}`;
+  const downloadUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/${assetName}`;
+  const archivePath = join(targetDir, assetName);
+
+  try {
+    await download(downloadUrl, archivePath);
+  } catch (error) {
+    // Check if an npm-based fallback exists
+    log(`GitHub Releases download failed: ${error.message}`);
+    log("attempting npm optionalDependency fallback …");
+    try {
+      execSync(`npm install --no-save @colbymchenry/codegraph-${platformArch}@${version}`, {
+        cwd: targetDir,
+        stdio: "inherit",
+      });
+      // The npm package installs into node_modules/@colbymchenry/codegraph-{plat}-{arch}/bin/
+      const npmPkgDir = join(targetDir, "node_modules", `@colbymchenry`, `codegraph-${platformArch}`);
+      if (existsSync(npmPkgDir)) {
+        mkdirSync(binaryDir, { recursive: true });
+        execSync(`cp -R "${npmPkgDir}/"* "${binaryDir}/"`, { stdio: "inherit" });
+        rmSync(join(targetDir, "node_modules"), { recursive: true, force: true });
+        writeFileSync(versionFile, version);
+        log(`done via npm fallback → ${binaryDir} (CodeGraph v${version})`);
+        return;
+      }
+    } catch {
+      // npm fallback also failed
+    }
+    if (existsSync(binaryDir)) {
+      log(`all downloads failed (offline?) — keeping existing CodeGraph binary`);
+      return;
+    }
+    throw error;
+  }
+
+  // Extract into a platform-specific subdirectory.
+  mkdirSync(binaryDir, { recursive: true });
+  if (!isWindows) {
+    extractTarGz(archivePath, binaryDir);
+  } else {
+    try {
+      execSync(`tar -xf "${archivePath}" -C "${binaryDir}"`, { stdio: "inherit" });
+    } catch {
+      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${binaryDir}'"`, {
+        stdio: "inherit",
+      });
     }
   }
 
-  log("installing production dependencies …");
-  run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"], targetDir);
+  // Clean up archive.
+  rmSync(archivePath, { force: true });
 
-  // Record the compiled HEAD so next build can skip if unchanged.
-  writeFileSync(headFile, currentHead ?? "unknown");
-  log(`done → ${entryFile} @ ${currentHead?.slice(0, 8)}`);
+  // Write version marker.
+  writeFileSync(versionFile, version);
+  log(`done → ${binaryDir} (CodeGraph v${version})`);
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(`[vendor-codegraph] failed: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);

@@ -108,15 +108,25 @@ function resolveUvBinary(): string | null {
  * back to `main` — best-effort, less reproducible, but still safe (installs from
  * GitHub, never PyPI).
  */
-const VENDOR_SHA_FILENAME = ".vendored-skillspector-sha";
+const VENDOR_SHA_FILENAME = ".vendored-skillspector-version";
 const SKILLSPECTOR_GIT_URL = "https://github.com/NVIDIA/SkillSpector.git";
 
-/** Read the pinned commit SHA from the vendor marker, or null if not vendored. */
-function readPinnedSha(): string | null {
+/**
+ * The official SkillSpector version to install. NVIDIA now publishes tagged
+ * releases with prebuilt wheels on GitHub Releases. We install the wheel
+ * directly (faster and more reproducible than git+SHA).
+ *
+ * Fallback: if the wheel install fails, we fall back to git+main.
+ */
+const SKILLSPECTOR_VERSION = "2.5.1";
+const SKILLSPECTOR_WHEEL_URL = `https://github.com/NVIDIA/SkillSpector/releases/download/v${SKILLSPECTOR_VERSION}/skillspector-${SKILLSPECTOR_VERSION}-py3-none-any.whl`;
+
+/** Read the pinned version from the vendor marker, or null if not vendored. */
+function readPinnedVersion(): string | null {
   if (!configuredSkillSpectorVendorRoot) return null;
   try {
-    const sha = readFileSync(path.join(configuredSkillSpectorVendorRoot, VENDOR_SHA_FILENAME), "utf8").trim();
-    return /^[0-9a-f]{7,40}$/i.test(sha) ? sha : null;
+    const ver = readFileSync(path.join(configuredSkillSpectorVendorRoot, VENDOR_SHA_FILENAME), "utf8").trim();
+    return ver || null;
   } catch {
     return null;
   }
@@ -124,40 +134,51 @@ function readPinnedSha(): string | null {
 
 // ── Install provisioning (uv tool install, idempotent) ───────────────────────
 
-let installedSha: string | null = null;
+let installedVersion: string | null = null;
 
 /**
- * Provision SkillSpector into an isolated `uv tool` environment pinned to the vendored
- * SHA. Idempotent within a process: skips re-install when the same SHA is already
- * installed. Returns true on success, false on any failure (the caller skips server
- * registration silently — never throws).
+ * Provision SkillSpector into an isolated `uv tool` environment. Prefers the
+ * GitHub Releases wheel (fast, prebuilt); falls back to git+main if the wheel
+ * is unavailable. Idempotent within a process.
  *
- * NOTE: the first install for a new SHA is slow (downloads LangChain stack + compiles
+ * NOTE: the first install can be slow (downloads LangChain stack + may compile
  * yara-python). Subsequent calls are instant.
  */
 export function ensureSkillSpectorInstalled(): boolean {
   const uvBinary = resolveUvBinary();
   if (!uvBinary) return false;
 
-  const targetSha = readPinnedSha() ?? "main";
-  if (installedSha === targetSha) return true;
+  const targetVersion = readPinnedVersion() ?? SKILLSPECTOR_VERSION;
+  if (installedVersion === targetVersion) return true;
 
-  const spec = `'skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@${targetSha}'`;
+  // Try the release wheel first (fast, prebuilt, pinned to a real tag).
+  const wheelSpec = `'skillspector[mcp] @ ${SKILLSPECTOR_WHEEL_URL}'`;
   try {
-    // `--force` re-installs when the SHA changes; harmless when already at that SHA.
-    // execSync runs the command through a shell by default, which correctly handles
-    // the single-quoted spec (brackets/spaces/@ in the git URL).
-    execSync(`${uvBinary} tool install --force ${spec}`, {
+    execSync(`${uvBinary} tool install --force ${wheelSpec}`, {
       encoding: "utf8",
-      timeout: 300_000, // first build of yara-python can take minutes
+      timeout: 300_000,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
     });
-    installedSha = targetSha;
+    installedVersion = targetVersion;
     return true;
   } catch {
-    // Provisioning failed (offline, no C toolchain for yara-python, etc.) — non-fatal.
-    // SkillSpector stays unavailable; other MCP servers are unaffected.
+    // Wheel install failed (offline, yara-python compile, etc.) — try git fallback.
+  }
+
+  // Fallback: install from git+main (slower but always works if network is available).
+  const gitSpec = `'skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@main'`;
+  try {
+    execSync(`${uvBinary} tool install --force ${gitSpec}`, {
+      encoding: "utf8",
+      timeout: 300_000,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
+    installedVersion = `${targetVersion}-git`;
+    return true;
+  } catch {
+    // Provisioning failed — non-fatal. SkillSpector stays unavailable.
     return false;
   }
 }
