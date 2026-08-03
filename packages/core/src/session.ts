@@ -14,25 +14,12 @@ import {
   runCodegraphSync,
 } from "./common/codegraph";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
-import { buildDartMcpServerConfig, DART_MCP_SERVER_NAME, hasDartProject, isDartDisabled } from "./common/dart-mcp";
 import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import {
   buildSkillSpectorMcpServerConfig,
   SKILL_SPECTOR_MCP_SERVER_NAME,
   isSkillSpectorDisabled,
 } from "./common/skill-spector";
-import {
-  buildHarmonyosMcpServerConfig,
-  HARMONYOS_MCP_SERVER_NAME,
-  hasHarmonyosProject,
-  isHarmonyosDisabled,
-} from "./common/harmonyos-mcp";
-import {
-  buildExpoMcpServerConfig,
-  EXPO_MCP_SERVER_NAME,
-  hasReactNativeProject,
-  isExpoDisabled,
-} from "./common/expo-mcp";
 import {
   A2UI_MCP_SERVER_NAME,
   buildA2uiServer,
@@ -612,21 +599,6 @@ export class SessionManager {
       }
     }
 
-    // Dart/Flutter MCP server — runtime layout analysis, widget tree inspection,
-    // pub.dev search, test execution, code formatting. Activated for Dart/Flutter
-    // projects (pubspec.yaml present) when `dart` is on PATH (Dart SDK 3.9+).
-    if (hasDartProject(this.projectRoot) && !isDartDisabled(this.projectRoot)) {
-      if (!(result && Object.prototype.hasOwnProperty.call(result, DART_MCP_SERVER_NAME))) {
-        const dartConfig = buildDartMcpServerConfig();
-        if (dartConfig) {
-          result = {
-            ...(result ?? {}),
-            [DART_MCP_SERVER_NAME]: dartConfig,
-          };
-        }
-      }
-    }
-
     // Serena — semantic code retrieval, editing, refactoring (symbol-level
     // operations via SolidLSP, 40+ languages). Activated for all projects when
     // uv is available and not disabled. Complements the built-in text-level
@@ -655,36 +627,6 @@ export class SessionManager {
           result = {
             ...(result ?? {}),
             [SKILL_SPECTOR_MCP_SERVER_NAME]: skillSpectorConfig,
-          };
-        }
-      }
-    }
-
-    // HarmonyOS MCP server — DevEco CLI (project creation/build/run/emulator/
-    // screenshot/layout/docs). Activated for HarmonyOS projects (build-profile.json5
-    // or oh-package.json5) when `devecocli` is on PATH.
-    if (hasHarmonyosProject(this.projectRoot) && !isHarmonyosDisabled(this.projectRoot)) {
-      if (!(result && Object.prototype.hasOwnProperty.call(result, HARMONYOS_MCP_SERVER_NAME))) {
-        const harmonyosConfig = buildHarmonyosMcpServerConfig(this.projectRoot);
-        if (harmonyosConfig) {
-          result = {
-            ...(result ?? {}),
-            [HARMONYOS_MCP_SERVER_NAME]: harmonyosConfig,
-          };
-        }
-      }
-    }
-
-    // Expo / React Native MCP server — SDK knowledge + simulator interaction +
-    // RN DevTools. Activated for RN/Expo projects (app.json with expo config
-    // or package.json with react-native dep) when `npx expo` is available.
-    if (hasReactNativeProject(this.projectRoot) && !isExpoDisabled(this.projectRoot)) {
-      if (!(result && Object.prototype.hasOwnProperty.call(result, EXPO_MCP_SERVER_NAME))) {
-        const expoConfig = buildExpoMcpServerConfig();
-        if (expoConfig) {
-          result = {
-            ...(result ?? {}),
-            [EXPO_MCP_SERVER_NAME]: expoConfig,
           };
         }
       }

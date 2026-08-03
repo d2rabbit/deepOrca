@@ -158,14 +158,6 @@ export {
 export type { CrgExecutable } from "./common/crg";
 
 export {
-  DART_MCP_SERVER_NAME,
-  buildDartMcpServerConfig,
-  hasDartProject,
-  isDartMcpAvailable,
-  setDartDisabled,
-  isDartDisabled,
-} from "./common/dart-mcp";
-export {
   SERENA_MCP_SERVER_NAME,
   buildSerenaMcpServerConfig,
   configureSerenaUvResolver,
@@ -182,23 +174,6 @@ export {
   setSkillSpectorDisabled,
   isSkillSpectorDisabled,
 } from "./common/skill-spector";
-
-export {
-  HARMONYOS_MCP_SERVER_NAME,
-  buildHarmonyosMcpServerConfig,
-  hasHarmonyosProject,
-  isHarmonyosAvailable,
-  setHarmonyosDisabled,
-  isHarmonyosDisabled,
-} from "./common/harmonyos-mcp";
-export {
-  EXPO_MCP_SERVER_NAME,
-  buildExpoMcpServerConfig,
-  hasReactNativeProject,
-  isExpoAvailable,
-  setExpoDisabled,
-  isExpoDisabled,
-} from "./common/expo-mcp";
 
 export { ACTIVITY_FRAMES_MCP_SERVER_NAME } from "./activity-frames/index";
 

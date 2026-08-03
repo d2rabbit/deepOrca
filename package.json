@@ -14,10 +14,6 @@
   },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "install-dotnet-skills": "node scripts/install-dotnet-skills.js",
-    "install-qt-skills": "node scripts/install-qt-skills.js",
-    "install-apple-skills": "node scripts/install-apple-skills.js",
-    "install-deepin-skills": "node scripts/install-deepin-skills.js",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
     "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\" --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",

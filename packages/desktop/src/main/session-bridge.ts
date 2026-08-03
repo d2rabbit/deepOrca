@@ -8,21 +8,12 @@ import {
   buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
   CRG_MCP_SERVER_NAME,
-  DART_MCP_SERVER_NAME,
-  buildDartMcpServerConfig,
-  setDartDisabled,
   SERENA_MCP_SERVER_NAME,
   buildSerenaMcpServerConfig,
   setSerenaDisabled,
   SKILL_SPECTOR_MCP_SERVER_NAME,
   buildSkillSpectorMcpServerConfig,
   setSkillSpectorDisabled,
-  HARMONYOS_MCP_SERVER_NAME,
-  buildHarmonyosMcpServerConfig,
-  setHarmonyosDisabled,
-  EXPO_MCP_SERVER_NAME,
-  buildExpoMcpServerConfig,
-  setExpoDisabled,
   ACTIVITY_FRAMES_MCP_SERVER_NAME,
   A2UI_MCP_SERVER_NAME,
   setCrgDisabled,
@@ -322,11 +313,8 @@ export class SessionBridge {
     const disabled = readDisabledMcp(this.projectRoot);
     setCodegraphDisabled(this.projectRoot, disabled.includes(CODEGRAPH_MCP_SERVER_NAME));
     setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
-    setDartDisabled(this.projectRoot, disabled.includes(DART_MCP_SERVER_NAME));
     setSerenaDisabled(this.projectRoot, disabled.includes(SERENA_MCP_SERVER_NAME));
     setSkillSpectorDisabled(this.projectRoot, disabled.includes(SKILL_SPECTOR_MCP_SERVER_NAME));
-    setHarmonyosDisabled(this.projectRoot, disabled.includes(HARMONYOS_MCP_SERVER_NAME));
-    setExpoDisabled(this.projectRoot, disabled.includes(EXPO_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
   }
 
@@ -710,11 +698,8 @@ export class SessionBridge {
         builtin:
           name === CODEGRAPH_MCP_SERVER_NAME ||
           name === CRG_MCP_SERVER_NAME ||
-          name === DART_MCP_SERVER_NAME ||
           name === SERENA_MCP_SERVER_NAME ||
           name === SKILL_SPECTOR_MCP_SERVER_NAME ||
-          name === HARMONYOS_MCP_SERVER_NAME ||
-          name === EXPO_MCP_SERVER_NAME ||
           name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
           name === A2UI_MCP_SERVER_NAME ||
           isGitmcpServerName(name),
@@ -748,23 +733,6 @@ export class SessionBridge {
           enabled: !disabled.has(CRG_MCP_SERVER_NAME),
           builtin: true,
           status: statuses.get(CRG_MCP_SERVER_NAME),
-        });
-      }
-    }
-    // Built-in Dart/Flutter MCP server: runtime analysis, widget inspection,
-    // pub.dev search, test execution. Shown unconditionally when `dart` (≥ 3.9)
-    // is available on PATH (like codegraph/CRG — toggleable before project setup).
-    if (!Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
-      const cfg = buildDartMcpServerConfig();
-      if (cfg) {
-        list.push({
-          name: DART_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(DART_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(DART_MCP_SERVER_NAME),
         });
       }
     }
@@ -802,38 +770,6 @@ export class SessionBridge {
         });
       }
     }
-    // Built-in HarmonyOS MCP server: DevEco CLI (create/build/run/emulator/
-    // screenshot/layout/docs). Shown for HarmonyOS projects when devecocli is available.
-    if (!Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)) {
-      const cfg = buildHarmonyosMcpServerConfig(this.projectRoot);
-      if (cfg) {
-        list.push({
-          name: HARMONYOS_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(HARMONYOS_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(HARMONYOS_MCP_SERVER_NAME),
-        });
-      }
-    }
-    // Built-in Expo MCP server: SDK knowledge + simulator interaction + RN DevTools.
-    // Shown for React Native / Expo projects when npx expo is available.
-    if (!Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)) {
-      const cfg = buildExpoMcpServerConfig();
-      if (cfg) {
-        list.push({
-          name: EXPO_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(EXPO_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(EXPO_MCP_SERVER_NAME),
-        });
-      }
-    }
     return list;
   }
 
@@ -856,11 +792,8 @@ export class SessionBridge {
     const isBuiltin = (name: string): boolean =>
       name === CODEGRAPH_MCP_SERVER_NAME ||
       name === CRG_MCP_SERVER_NAME ||
-      name === DART_MCP_SERVER_NAME ||
       name === SERENA_MCP_SERVER_NAME ||
       name === SKILL_SPECTOR_MCP_SERVER_NAME ||
-      name === HARMONYOS_MCP_SERVER_NAME ||
-      name === EXPO_MCP_SERVER_NAME ||
       name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
       name === A2UI_MCP_SERVER_NAME ||
       isGitmcpServerName(name);
@@ -895,17 +828,6 @@ export class SessionBridge {
           status: statuses.get(CRG_MCP_SERVER_NAME)?.status,
         });
     }
-    if (!Object.prototype.hasOwnProperty.call(configured, DART_MCP_SERVER_NAME)) {
-      const cfg = buildDartMcpServerConfig();
-      if (cfg)
-        entries.push({
-          name: DART_MCP_SERVER_NAME,
-          config: cfg,
-          builtin: true,
-          enabled: !disabled.has(DART_MCP_SERVER_NAME),
-          status: statuses.get(DART_MCP_SERVER_NAME)?.status,
-        });
-    }
     if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
       const cfg = buildSerenaMcpServerConfig(this.projectRoot);
       if (cfg)
@@ -926,28 +848,6 @@ export class SessionBridge {
           builtin: true,
           enabled: !disabled.has(SKILL_SPECTOR_MCP_SERVER_NAME),
           status: statuses.get(SKILL_SPECTOR_MCP_SERVER_NAME)?.status,
-        });
-    }
-    if (!Object.prototype.hasOwnProperty.call(configured, HARMONYOS_MCP_SERVER_NAME)) {
-      const cfg = buildHarmonyosMcpServerConfig(this.projectRoot);
-      if (cfg)
-        entries.push({
-          name: HARMONYOS_MCP_SERVER_NAME,
-          config: cfg,
-          builtin: true,
-          enabled: !disabled.has(HARMONYOS_MCP_SERVER_NAME),
-          status: statuses.get(HARMONYOS_MCP_SERVER_NAME)?.status,
-        });
-    }
-    if (!Object.prototype.hasOwnProperty.call(configured, EXPO_MCP_SERVER_NAME)) {
-      const cfg = buildExpoMcpServerConfig();
-      if (cfg)
-        entries.push({
-          name: EXPO_MCP_SERVER_NAME,
-          config: cfg,
-          builtin: true,
-          enabled: !disabled.has(EXPO_MCP_SERVER_NAME),
-          status: statuses.get(EXPO_MCP_SERVER_NAME)?.status,
         });
     }
     // Activity-Frames is an in-process MCP server (no command/args). Synthesize a

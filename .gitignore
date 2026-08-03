@@ -35,11 +35,6 @@ packages/core/src/generated/
 packages/desktop/vendor/
 vendor-src/
 
-# Bundled skills: android/harmonyos/expo/dotnet/qt are committed (cross-platform).
-# Platform-specific skills (apple/deepin) are generated on matching OS only.
-packages/core/templates/skills/bundled/deepin-*/
-packages/core/templates/skills/bundled/apple-*/
-
 # Local verification scratch dir
 .tmp-verify/
 .tmp-orca/
