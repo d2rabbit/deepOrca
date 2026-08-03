@@ -368,6 +368,43 @@ export async function runCrgResetWithOutput(
   return runCrgBuildWithOutput(projectRoot, onOutput);
 }
 
+/**
+ * Run `code-review-graph visualize` to generate a D3.js interactive HTML graph.
+ * Returns the HTML content as a string, or null on failure.
+ *
+ * The visualize command writes a self-contained HTML file (D3.js force-directed
+ * graph with community detection, hub/bridge nodes, search). We capture its
+ * stdout to get the HTML content directly.
+ */
+export function runCrgVisualize(projectRoot: string): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
+    try {
+      const cp = spawnCrgPiped(projectRoot, ["visualize"]);
+      if (!cp) {
+        resolve(null);
+        return;
+      }
+      let output = "";
+      cp.stdout?.on("data", (d: Buffer) => {
+        output += d.toString();
+      });
+      cp.stderr?.on("data", () => {
+        // Ignore stderr — visualize may print progress messages.
+      });
+      cp.on("error", () => resolve(null));
+      cp.on("close", (code) => {
+        if (code === 0 && output.trim()) {
+          resolve(output);
+        } else {
+          resolve(null);
+        }
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 // ── Incremental sync (fire-and-forget) ───────────────────────────────────────
 
 const inFlightSyncs = new Set<string>();

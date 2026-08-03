@@ -154,6 +154,7 @@ export {
   runCrgSync,
   runCrgBuildWithOutput,
   runCrgResetWithOutput,
+  runCrgVisualize,
   spawnCrgPiped,
 } from "./common/crg";
 export type { CrgExecutable } from "./common/crg";

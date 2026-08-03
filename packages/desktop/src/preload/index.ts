@@ -106,6 +106,7 @@ const api: DesktopApi = {
   crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),
   crgList: () => ipcRenderer.invoke(IpcRequest.CrgList),
   crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
+  crgVisualize: () => ipcRenderer.invoke(IpcRequest.CrgVisualize),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────

@@ -21,6 +21,7 @@ import {
   hasCrgProject,
   resolveUvBinary,
   runCrgResetWithOutput,
+  runCrgVisualize,
   configureSerenaUvResolver,
   configureSerenaVendorRoot,
   configureSkillSpectorUvResolver,
@@ -585,6 +586,13 @@ function registerIpc(): void {
       action: "reset" as const,
       error: exitCode !== 0 ? `exit code ${exitCode}` : undefined,
     };
+  });
+
+  handle(IpcRequest.CrgVisualize, async (): Promise<{ html: string | null; error?: string }> => {
+    const root = getBridge().projectRoot;
+    if (!root) return { html: null, error: "No project open" };
+    const html = await runCrgVisualize(root);
+    return { html, error: html ? undefined : "Visualization failed — is the graph built?" };
   });
 
   // ── Memory Gateway (TencentDB-Agent-Memory sidecar) ──────────────────────

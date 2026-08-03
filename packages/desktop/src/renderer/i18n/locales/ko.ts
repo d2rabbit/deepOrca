@@ -543,6 +543,7 @@ export const ko: Record<MessageKey, string> = {
   "crg.build": "그래프 빌드",
   "crg.rebuild": "재빌드",
   "crg.building": "빌드 중…",
+  "crg.viewGraph": "그래프 보기",
   "crg.askAgent": "이제 에이전트가 CRG의 분석 도구를 사용하여 리스크 질문에 답할 수 있습니다. 시도해 보세요:",
   "crg.exampleRisk": "「현재 변경 사항의 리스크를 분석해 줘」",
   "crg.exampleImpact": "「loginUser를 수정하면 영향을 받는 범위가 뭐야?」",

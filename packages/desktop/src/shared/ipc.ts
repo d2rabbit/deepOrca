@@ -112,6 +112,7 @@ export const IpcRequest = {
   CrgCheckAvailable: "crg:checkAvailable",
   CrgList: "crg:list",
   CrgReindex: "crg:reindex",
+  CrgVisualize: "crg:visualize",
 
   // Wiki knowledge graph (openwiki CLI)
   WikiCheckAvailable: "wiki:checkAvailable",
@@ -583,6 +584,8 @@ export type DesktopApi = {
   crgList(): Promise<CrgIndexEntry[]>;
   /** Build (or rebuild) the CRG graph for a workspace, streaming via onCrgProgress. */
   crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
+  /** Generate a D3.js interactive graph HTML via CRG visualize. Returns HTML or null. */
+  crgVisualize(): Promise<{ html: string | null; error?: string }>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 

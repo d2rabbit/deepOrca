@@ -544,6 +544,7 @@ export const ja: Record<MessageKey, string> = {
   "crg.build": "グラフを構築",
   "crg.rebuild": "再構築",
   "crg.building": "構築中…",
+  "crg.viewGraph": "グラフを表示",
   "crg.askAgent":
     "エージェントが CRG の分析ツールを使ってリスクに関する質問に回答できるようになりました。試してみてください：",
   "crg.exampleRisk": "「現在の変更のリスクを分析して」",

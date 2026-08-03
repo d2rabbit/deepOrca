@@ -542,6 +542,7 @@ export const zhHK: Record<MessageKey, string> = {
   "crg.build": "建構圖譜",
   "crg.rebuild": "重建",
   "crg.building": "建構中…",
+  "crg.viewGraph": "查看圖譜",
   "crg.askAgent": "Agent 現在可以使用 CRG 的分析工具回答風險問題。試試問：",
   "crg.exampleRisk": "「分析我當前改動的風險」",
   "crg.exampleImpact": "「修改 loginUser 的影響範圍是甚麼？」",

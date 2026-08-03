@@ -3,7 +3,6 @@ import type { CrgIndexEntry, CrgProgressEvent, ReviewComment, ReviewProgressEven
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
-import { MermaidDiagram } from "./MermaidDiagram";
 
 type ReviewTab = "quality" | "risk" | "architecture";
 
@@ -21,7 +20,7 @@ type ReviewTab = "quality" | "risk" | "architecture";
  * CRG answers "what does this change affect?" (graph algorithms).
  * They are complementary, not redundant.
  */
-export function CodeReviewPanel(): JSX.Element {
+export function CodeReviewPanel({ onShowGraph }: { onShowGraph?: (html: string) => void }): JSX.Element {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<ReviewTab>("quality");
 
@@ -60,7 +59,7 @@ export function CodeReviewPanel(): JSX.Element {
       <div className="ui-side-panel-body">
         {activeTab === "quality" && <QualityReviewTab />}
         {activeTab === "risk" && <RiskAnalysisTab />}
-        {activeTab === "architecture" && <ArchitectureTab />}
+        {activeTab === "architecture" && <ArchitectureTab onShowGraph={onShowGraph} />}
       </div>
     </div>
   );
@@ -315,10 +314,11 @@ function RiskAnalysisTab(): JSX.Element {
 // Tab 3: Architecture Overview (CRG — communities + hub/bridge)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ArchitectureTab(): JSX.Element {
+function ArchitectureTab({ onShowGraph }: { onShowGraph?: (html: string) => void }): JSX.Element {
   const { t } = useI18n();
   const [available, setAvailable] = useState<boolean | null>(null);
   const [hasGraph, setHasGraph] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     void api.crgCheckAvailable().then((res) => setAvailable(res.available));
@@ -326,6 +326,15 @@ function ArchitectureTab(): JSX.Element {
       setHasGraph(res.some((e) => e.hasGraph));
     });
   }, []);
+
+  const viewGraph = useCallback(async () => {
+    setLoading(true);
+    const result = await api.crgVisualize();
+    setLoading(false);
+    if (result.html && onShowGraph) {
+      onShowGraph(result.html);
+    }
+  }, [onShowGraph]);
 
   if (available === null) {
     return <div className="ui-side-panel-empty">{t("review.checking")}</div>;
@@ -350,6 +359,9 @@ function ArchitectureTab(): JSX.Element {
 
   return (
     <div className="ui-crg-architecture-guide">
+      <Button size="sm" variant="primary" disabled={loading} onClick={() => void viewGraph()}>
+        {loading ? t("review.checking") : t("crg.viewGraph")}
+      </Button>
       <p className="ui-crg-hint">{t("crg.askAgentArchitecture")}</p>
       <ul className="ui-crg-examples">
         <li>{t("crg.exampleArchitecture")}</li>
@@ -357,18 +369,6 @@ function ArchitectureTab(): JSX.Element {
         <li>{t("crg.exampleHubBridge")}</li>
         <li>{t("crg.exampleSurprise")}</li>
       </ul>
-
-      {/* Preview placeholder for Mermaid diagram.
-          The agent generates the Mermaid graph text via the CRG MCP server's
-          get_architecture_overview_tool, then renders it in chat. When we add
-          direct CLI integration, this panel will render the graph inline. */}
-      <div className="ui-crg-mermaid-placeholder">
-        <MermaidDiagram
-          chart={
-            'graph TD\n  subgraph "Module A"\n    A1[Function 1]\n    A2[Function 2]\n  end\n  subgraph "Module B"\n    B1[Handler]\n  end\n  A1 -->|calls| A2\n  A2 -.->|depends| B1'
-          }
-        />
-      </div>
     </div>
   );
 }

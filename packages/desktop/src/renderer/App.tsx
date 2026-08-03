@@ -183,6 +183,7 @@ export function App(): JSX.Element {
   const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design">("a2ui");
   const [prototypeOpenuiCode, setPrototypeOpenuiCode] = useState<string>("");
   const [designContent, setDesignContent] = useState<string | null>(null);
+  const [graphHtml, setGraphHtml] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
@@ -1495,7 +1496,7 @@ export function App(): JSX.Element {
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel />
+            <CodeReviewPanel onShowGraph={setGraphHtml} />
           </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />
@@ -1678,6 +1679,27 @@ export function App(): JSX.Element {
                 />
               )}
             </Suspense>
+          </div>
+        </div>
+      ) : null}
+
+      {graphHtml ? (
+        <div className="ui-preview-panel">
+          <div className="ui-preview-panel-head">
+            <div className="ui-preview-tabs">
+              <span className="ui-preview-tab active"> ◈ Architecture Graph</span>
+            </div>
+            <button className="ui-preview-close" onClick={() => setGraphHtml(null)} title="Close graph">
+              ✕
+            </button>
+          </div>
+          <div className="ui-preview-panel-body">
+            <iframe
+              srcDoc={graphHtml}
+              title="Code Architecture Graph"
+              sandbox="allow-scripts"
+              style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+            />
           </div>
         </div>
       ) : null}
