@@ -5,16 +5,16 @@ import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
 
 /**
- * Unified Index & Knowledge panel. Single view — no tabs.
+ * Unified Index & Knowledge panel. Single view — no tabs, no tool names.
  *
- * Two knowledge layers, executed in sequence:
- * 1. CodeGraph — Agent's code symbol index (invisible to humans, powers symbol
- *    navigation via MCP). Auto-syncs via file watcher + post-turn hook.
- * 2. OpenWiki — Human + Agent project documentation (visible markdown wiki).
- *    Manual sync only.
+ * Two knowledge layers execute in sequence behind the scenes:
+ * 1. Code symbol index (auto-syncs via file watcher + post-turn hook)
+ * 2. Project documentation wiki (manual sync)
  *
- * The "Build Index" button runs both in sequence: CodeGraph init → OpenWiki init.
- * The "Update" button runs incremental sync for both: CodeGraph sync → OpenWiki update.
+ * The user sees only: project name, single status dot, one button, and a
+ * progress bar during build/update. No internal tool names are exposed.
+ *
+ * All operations are scoped to the current workspace/project root.
  */
 export function IndexLibraryPanel(): JSX.Element {
   const { t } = useI18n();
@@ -23,42 +23,13 @@ export function IndexLibraryPanel(): JSX.Element {
   const [wikiAvailable, setWikiAvailable] = useState(false);
   const [projectRoot, setProjectRoot] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [logLines, setLogLines] = useState<string[]>([]);
-  const [showLog, setShowLog] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
-  const logEndRef = useRef<HTMLDivElement | null>(null);
   const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const closeLog = useCallback(() => {
-    if (autoCloseRef.current) {
-      clearTimeout(autoCloseRef.current);
-      autoCloseRef.current = null;
-    }
-    setShowLog(false);
-    setLogLines([]);
-    setPercent(null);
-  }, []);
 
   useEffect(() => {
     return () => {
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
-  }, []);
-
-  const appendLog = useCallback((text: string) => {
-    setLogLines((prev) => {
-      const next = [...prev, ...text.split("\n")];
-      return next.length > 300 ? next.slice(next.length - 300) : next;
-    });
-  }, []);
-
-  const appendLogRaw = useCallback((chunk: string) => {
-    const text = chunk.replace(/\n$/, "");
-    if (!text) return;
-    setLogLines((prev) => {
-      const next = [...prev, ...text.split("\n")];
-      return next.length > 300 ? next.slice(next.length - 300) : next;
-    });
   }, []);
 
   const reload = useCallback(async () => {
@@ -82,57 +53,39 @@ export function IndexLibraryPanel(): JSX.Element {
     void reload();
   }, [reload]);
 
-  // CodeGraph progress handler.
-  const onCodegraphDone = useRef<((exitCode: number) => void) | null>(null);
+  // Progress handlers — update the bar only, no text output.
+  const onCodegraphDone = useRef<(() => void) | null>(null);
   useEffect(() => {
     const off = api.onCodegraphProgress((event: CodegraphProgressEvent) => {
       if (event.done) {
-        setPercent(100);
-        appendLog(
-          `\n✓ CodeGraph: ${event.exitCode === 0 ? t("index.done") : `${t("index.failed")} (exit ${event.exitCode})`}`
-        );
         if (event.exitCode === 0) void reload();
-        onCodegraphDone.current?.(event.exitCode ?? 1);
+        onCodegraphDone.current?.();
         return;
       }
-      setShowLog(true);
       const pctMatch = event.chunk.match(/(\d{1,3})(?:\.\d+)?\s*%/g);
       if (pctMatch && pctMatch.length > 0) {
         const last = pctMatch[pctMatch.length - 1] ?? "";
-        const value = Math.min(100, parseInt(last, 10));
+        const value = Math.min(50, parseInt(last, 10) / 2); // first half
         if (!Number.isNaN(value)) setPercent(value);
       }
-      appendLogRaw(event.chunk);
     });
     return off;
-  }, [reload, t, appendLog, appendLogRaw]);
+  }, [reload]);
 
-  // OpenWiki progress handler.
-  const onWikiDone = useRef<((exitCode: number) => void) | null>(null);
+  const onWikiDone = useRef<(() => void) | null>(null);
   useEffect(() => {
     const off = api.onWikiProgress((event: WikiProgressEvent) => {
       if (event.done) {
-        appendLog(
-          `\n✓ OpenWiki: ${event.exitCode === 0 ? t("index.done") : `${t("index.failed")} (exit ${event.exitCode})`}`
-        );
         if (event.exitCode === 0) void reload();
-        onWikiDone.current?.(event.exitCode ?? 1);
+        onWikiDone.current?.();
         return;
       }
-      setShowLog(true);
-      appendLogRaw(event.chunk);
+      // Wiki is second half of progress (50-100%).
+      setPercent((prev) => Math.max(prev ?? 50, 50));
     });
     return off;
-  }, [reload, t, appendLog, appendLogRaw]);
+  }, [reload]);
 
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logLines]);
-
-  /**
-   * Full build: CodeGraph init → OpenWiki init (sequential).
-   * Incremental update: CodeGraph reindex → OpenWiki update (sequential).
-   */
   const runSequential = useCallback(
     async (mode: "init" | "update") => {
       if (!projectRoot) return;
@@ -141,21 +94,17 @@ export function IndexLibraryPanel(): JSX.Element {
         autoCloseRef.current = null;
       }
       setBusy(true);
-      setShowLog(true);
-      setLogLines([]);
       setPercent(null);
 
-      // Phase 1: CodeGraph
-      appendLog(`=== CodeGraph ${mode === "init" ? "Init" : "Reindex"} ===`);
+      // Phase 1: symbol index
       await new Promise<void>((resolve) => {
         onCodegraphDone.current = () => resolve();
         void api.codegraphReindex(projectRoot);
       });
 
-      // Phase 2: OpenWiki (only if available)
+      // Phase 2: wiki (only if available)
       if (wikiAvailable) {
-        setPercent(null);
-        appendLog(`\n=== OpenWiki ${mode === "init" ? "Init" : "Update"} ===`);
+        setPercent(50);
         await new Promise<void>((resolve) => {
           onWikiDone.current = () => resolve();
           if (mode === "init") {
@@ -168,18 +117,14 @@ export function IndexLibraryPanel(): JSX.Element {
 
       setBusy(false);
       setPercent(100);
-      appendLog(`\n✓ ${t("index.allDone")}`);
       void reload();
 
-      // Auto-close log after success.
       autoCloseRef.current = setTimeout(() => {
         autoCloseRef.current = null;
-        setShowLog(false);
-        setLogLines([]);
         setPercent(null);
-      }, 3000);
+      }, 2500);
     },
-    [projectRoot, wikiAvailable, appendLog, reload, t]
+    [projectRoot, wikiAvailable, reload]
   );
 
   const projectLabel = projectRoot ? projectRoot.split("/").pop() || projectRoot : "";
@@ -198,54 +143,36 @@ export function IndexLibraryPanel(): JSX.Element {
         {!projectRoot ? (
           <div className="ui-side-panel-empty">{t("index.empty")}</div>
         ) : (
-          <>
-            {/* Single unified status */}
-            <div className="ui-index-current">
-              <div className="ui-index-current-info">
-                <div className="ui-index-name">{projectLabel}</div>
-                <div className="ui-index-path" title={projectRoot}>
-                  {projectRoot}
-                </div>
-                <div className={`ui-index-state${indexReady ? " on" : ""}`}>
-                  {indexReady ? t("index.indexed") : t("index.uninitialized")}
-                </div>
+          <div className="ui-index-current">
+            <div className="ui-index-current-info">
+              <div className="ui-index-name">{projectLabel}</div>
+              <div className="ui-index-path" title={projectRoot}>
+                {projectRoot}
               </div>
-              <Button
-                size="sm"
-                variant="subtle"
-                disabled={!canBuild}
-                onClick={() => void runSequential(indexReady ? "update" : "init")}
-              >
-                {busy ? t("index.building") : indexReady ? t("index.updateAll") : t("index.buildIndex")}
-              </Button>
+              <div className={`ui-index-state${indexReady ? " on" : ""}`}>
+                {indexReady ? t("index.indexed") : t("index.uninitialized")}
+              </div>
             </div>
 
-            {/* Progress log */}
-            {showLog ? (
-              <div className="ui-index-log">
-                <div className="ui-index-log-head">
-                  <span>{projectLabel}</span>
-                  {!busy ? (
-                    <IconButton onClick={closeLog} title={t("common.close")} aria-label={t("common.close")}>
-                      ✕
-                    </IconButton>
-                  ) : null}
-                </div>
-                {busy || percent !== null ? (
-                  <div className="ui-index-progress">
-                    <div
-                      className={`ui-index-progress-fill${busy && percent === null ? " indeterminate" : ""}`}
-                      style={percent !== null ? { width: `${percent}%` } : undefined}
-                    />
-                  </div>
-                ) : null}
-                <pre className="ui-index-log-body">
-                  {logLines.join("\n")}
-                  <div ref={logEndRef} />
-                </pre>
+            {/* Progress bar — only visible during build/update */}
+            {busy || percent !== null ? (
+              <div className="ui-index-progress">
+                <div
+                  className={`ui-index-progress-fill${busy && percent === null ? " indeterminate" : ""}`}
+                  style={percent !== null ? { width: `${percent}%` } : undefined}
+                />
               </div>
             ) : null}
-          </>
+
+            <Button
+              size="sm"
+              variant="subtle"
+              disabled={!canBuild}
+              onClick={() => void runSequential(indexReady ? "update" : "init")}
+            >
+              {busy ? t("index.building") : indexReady ? t("index.updateAll") : t("index.buildIndex")}
+            </Button>
+          </div>
         )}
       </div>
     </div>

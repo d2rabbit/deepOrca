@@ -75,10 +75,8 @@ function QualityReviewTab(): JSX.Element {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [version, setVersion] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [logLines, setLogLines] = useState<string[]>([]);
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [summary, setSummary] = useState<string>("");
-  const logEndRef = useRef<HTMLDivElement | null>(null);
   const rawOutputRef = useRef("");
 
   useEffect(() => {
@@ -134,27 +132,15 @@ function QualityReviewTab(): JSX.Element {
       if (event.stream === "stdout") {
         rawOutputRef.current += event.chunk;
       }
-      setLogLines((prev) => {
-        const text = event.chunk.replace(/\n$/, "");
-        if (!text) return prev;
-        const lines = text.split("\n");
-        const next = [...prev, ...lines];
-        return next.length > 300 ? next.slice(next.length - 300) : next;
-      });
     });
     return off;
   }, [parseReviewOutput]);
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logLines]);
 
   const runReview = useCallback(async () => {
     setBusy(true);
     setComments([]);
     setSummary("");
     rawOutputRef.current = "";
-    setLogLines(["$ ocr review --format json"]);
     await api.reviewRun();
   }, []);
 
@@ -209,16 +195,10 @@ function QualityReviewTab(): JSX.Element {
           ))}
         </div>
       ) : null}
-      {logLines.length > 0 ? (
-        <ReviewLog
-          lines={logLines}
-          logEndRef={logEndRef}
-          onClear={() => {
-            setLogLines([]);
-            setComments([]);
-            setSummary("");
-          }}
-        />
+      {busy ? (
+        <div className="ui-index-progress">
+          <div className="ui-index-progress-fill indeterminate" />
+        </div>
       ) : null}
     </>
   );
