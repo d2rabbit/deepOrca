@@ -873,10 +873,10 @@ export class SessionBridge {
       });
     }
 
-    // Only consider built-in (bundled) skills for grouping; user skills stay in
-    // the Skills tab as-is.
-    const bundledSkills = skills.filter((s) => s.path.startsWith("bundled:"));
-    return this.manager.listBuiltinPluginGroups(bundledSkills, entries, plugins);
+    // Only consider built-in skills for grouping; user skills stay in the
+    // Skills tab. Built-in skills have either a "bundled:" or "plugin:" path prefix.
+    const builtinSkills = skills.filter((s) => s.path.startsWith("bundled:") || s.pluginOwned);
+    return this.manager.listBuiltinPluginGroups(builtinSkills, entries, plugins);
   }
 
   /** Toggle a server's enable state and re-initialize MCP so it takes effect. */

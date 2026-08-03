@@ -30,9 +30,10 @@ export function builtinLabel(
   return groupValue === groupKey ? fallback : groupValue;
 }
 
-/** A skill is "built-in" (shipped with the product) when its path is bundled:. */
+/** A skill is "built-in" (shipped with the product) when its path is bundled:
+ *  or plugin: prefixed. */
 export function isBundledSkill(skill: SkillInfo): boolean {
-  return skill.path.startsWith("bundled:");
+  return skill.path.startsWith("bundled:") || skill.path.startsWith("plugin:") || !!skill.pluginOwned;
 }
 
 type Props = {

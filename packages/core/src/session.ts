@@ -1440,13 +1440,7 @@ Rules:
    */
   readBuiltinPluginDoc(pluginName: string, locale?: string): string {
     const root = this.getBuiltinPluginsRoot();
-    const docPath = path.join(root, pluginName, "PLUGIN.md");
-    const resolvedPath = path.resolve(docPath);
     const resolvedRoot = path.resolve(root);
-    // Traversal guard
-    if (!resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {
-      return "";
-    }
     const tryRead = (p: string): string | null => {
       try {
         return fs.readFileSync(p, "utf8");
@@ -1454,14 +1448,35 @@ Rules:
         return null;
       }
     };
-    if (isChineseLocale(locale)) {
-      const zhPath = resolvedPath.replace(/\.md$/i, ".zh.md");
-      const zh = tryRead(zhPath);
-      if (zh !== null) {
-        return zh;
+
+    // Search candidate paths: top-level (legacy flat layout) and nested inside
+    // any plugin package's plugins/ subdirectory.
+    const candidates: string[] = [path.join(root, pluginName, "PLUGIN.md")];
+    try {
+      for (const pkgEntry of fs.readdirSync(root, { withFileTypes: true })) {
+        if (!pkgEntry.isDirectory() && !pkgEntry.isSymbolicLink()) continue;
+        const nestedDir = path.join(root, pkgEntry.name, "plugins", pluginName);
+        candidates.push(path.join(nestedDir, "PLUGIN.md"));
       }
+    } catch {
+      // unreadable root — top-level candidate is enough
     }
-    return tryRead(resolvedPath) ?? "";
+
+    for (const candidate of candidates) {
+      const resolvedPath = path.resolve(candidate);
+      // Traversal guard
+      if (!resolvedPath.startsWith(`${resolvedRoot}${path.sep}`) && resolvedPath !== resolvedRoot) {
+        continue;
+      }
+      if (isChineseLocale(locale)) {
+        const zhPath = resolvedPath.replace(/\.md$/i, ".zh.md");
+        const zh = tryRead(zhPath);
+        if (zh !== null) return zh;
+      }
+      const content = tryRead(resolvedPath);
+      if (content !== null) return content;
+    }
+    return "";
   }
 
   /**
@@ -1502,7 +1517,7 @@ Rules:
           const pluginNames = Array.isArray(data.plugins) ? (data.plugins as string[]) : [];
           manifests.push({
             id: typeof data.name === "string" ? data.name : entry.name,
-            name: typeof data.description === "string" ? data.description : entry.name,
+            name: typeof data.name === "string" ? data.name : entry.name,
             description: typeof data.description === "string" ? data.description : "",
             category: typeof data.category === "string" ? data.category : "general",
             icon: typeof data.icon === "string" ? data.icon : undefined,
@@ -1591,6 +1606,26 @@ Rules:
   }
 
   private resolveSkillPath(skillPath: string): string {
+    if (skillPath.startsWith("plugin:")) {
+      // Plugin-owned skill: path format is "plugin:<pkgName>/<skillDir>/SKILL.md"
+      const relativePath = skillPath.slice("plugin:".length);
+      const sepIdx = relativePath.indexOf("/");
+      if (sepIdx > 0) {
+        const pkgName = relativePath.slice(0, sepIdx);
+        const skillRelPath = relativePath.slice(sepIdx + 1);
+        const pluginRoots = this.getPluginSkillRoots();
+        const root = pluginRoots.find((r) => r.pkgName === pkgName);
+        if (root) {
+          const resolvedPath = path.resolve(root.root, skillRelPath);
+          const resolvedRoot = path.resolve(root.root);
+          if (resolvedPath === resolvedRoot || !resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {
+            return path.join(root.root, "__invalid_plugin_skill__");
+          }
+          return resolvedPath;
+        }
+      }
+      return path.join(os.homedir(), "__unresolved_plugin_skill__");
+    }
     if (skillPath.startsWith("bundled:")) {
       const relativePath = skillPath.slice("bundled:".length);
       const root = this.getBundledSkillsRoot();
