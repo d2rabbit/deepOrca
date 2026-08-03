@@ -517,6 +517,7 @@ export const ja: Record<MessageKey, string> = {
   "index.updating": "更新中…",
   "index.initializing": "生成中…",
   "index.buildIndex": "インデックス構築",
+  "index.building": "ビルド中…",
   "index.updateAll": "すべて更新",
   "index.allDone": "インデックスと Wiki の更新が完了",
   "index.processing": "処理中…",

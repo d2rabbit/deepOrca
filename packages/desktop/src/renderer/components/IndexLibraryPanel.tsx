@@ -4,8 +4,6 @@ import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
 
-type IndexPhase = "codegraph" | "wiki" | null;
-
 /**
  * Unified Index & Knowledge panel. Single view — no tabs.
  *
@@ -25,7 +23,6 @@ export function IndexLibraryPanel(): JSX.Element {
   const [wikiAvailable, setWikiAvailable] = useState(false);
   const [projectRoot, setProjectRoot] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<IndexPhase>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
@@ -149,7 +146,6 @@ export function IndexLibraryPanel(): JSX.Element {
       setPercent(null);
 
       // Phase 1: CodeGraph
-      setPhase("codegraph");
       appendLog(`=== CodeGraph ${mode === "init" ? "Init" : "Reindex"} ===`);
       await new Promise<void>((resolve) => {
         onCodegraphDone.current = () => resolve();
@@ -158,7 +154,6 @@ export function IndexLibraryPanel(): JSX.Element {
 
       // Phase 2: OpenWiki (only if available)
       if (wikiAvailable) {
-        setPhase("wiki");
         setPercent(null);
         appendLog(`\n=== OpenWiki ${mode === "init" ? "Init" : "Update"} ===`);
         await new Promise<void>((resolve) => {
@@ -171,7 +166,6 @@ export function IndexLibraryPanel(): JSX.Element {
         });
       }
 
-      setPhase(null);
       setBusy(false);
       setPercent(100);
       appendLog(`\n✓ ${t("index.allDone")}`);
@@ -189,7 +183,7 @@ export function IndexLibraryPanel(): JSX.Element {
   );
 
   const projectLabel = projectRoot ? projectRoot.split("/").pop() || projectRoot : "";
-  const bothReady = cgInitialized && wikiExists;
+  const indexReady = cgInitialized && (!wikiAvailable || wikiExists);
   const canBuild = !!projectRoot && !busy;
 
   return (
@@ -205,45 +199,24 @@ export function IndexLibraryPanel(): JSX.Element {
           <div className="ui-side-panel-empty">{t("index.empty")}</div>
         ) : (
           <>
-            {/* Status overview */}
-            <div className="ui-index-status-grid">
-              <div className="ui-index-status-item">
-                <div className="ui-index-status-label">CodeGraph</div>
-                <div className={`ui-index-status-dot${cgInitialized ? " on" : ""}`} />
-                <div className="ui-index-status-text">
-                  {cgInitialized ? t("index.indexed") : t("index.uninitialized")}
+            {/* Single unified status */}
+            <div className="ui-index-current">
+              <div className="ui-index-current-info">
+                <div className="ui-index-name">{projectLabel}</div>
+                <div className="ui-index-path" title={projectRoot}>
+                  {projectRoot}
+                </div>
+                <div className={`ui-index-state${indexReady ? " on" : ""}`}>
+                  {indexReady ? t("index.indexed") : t("index.uninitialized")}
                 </div>
               </div>
-              {wikiAvailable ? (
-                <div className="ui-index-status-item">
-                  <div className="ui-index-status-label">OpenWiki</div>
-                  <div className={`ui-index-status-dot${wikiExists ? " on" : ""}`} />
-                  <div className="ui-index-status-text">{wikiExists ? t("index.wikiReady") : t("index.wikiEmpty")}</div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Sync info */}
-            {cgInitialized ? <div className="ui-index-hint">{t("index.codegraphAutoSync")}</div> : null}
-            {wikiExists ? <div className="ui-index-hint">{t("index.wikiManualSync")}</div> : null}
-
-            {/* Action buttons */}
-            <div className="ui-index-actions">
               <Button
                 size="sm"
-                variant="primary"
+                variant="subtle"
                 disabled={!canBuild}
-                onClick={() => void runSequential(bothReady ? "update" : "init")}
+                onClick={() => void runSequential(indexReady ? "update" : "init")}
               >
-                {busy
-                  ? phase === "codegraph"
-                    ? t("index.reindexing")
-                    : phase === "wiki"
-                      ? t("index.updating")
-                      : t("index.processing")
-                  : bothReady
-                    ? t("index.updateAll")
-                    : t("index.buildIndex")}
+                {busy ? t("index.building") : indexReady ? t("index.updateAll") : t("index.buildIndex")}
               </Button>
             </div>
 
@@ -251,10 +224,7 @@ export function IndexLibraryPanel(): JSX.Element {
             {showLog ? (
               <div className="ui-index-log">
                 <div className="ui-index-log-head">
-                  <span>
-                    {projectLabel}
-                    {phase ? ` · ${phase}` : ""}
-                  </span>
+                  <span>{projectLabel}</span>
                   {!busy ? (
                     <IconButton onClick={closeLog} title={t("common.close")} aria-label={t("common.close")}>
                       ✕

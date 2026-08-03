@@ -515,6 +515,7 @@ export const zhHK: Record<MessageKey, string> = {
   "index.updating": "更新中…",
   "index.initializing": "生成中…",
   "index.buildIndex": "建構索引",
+  "index.building": "建構中…",
   "index.updateAll": "全部更新",
   "index.allDone": "索引與 Wiki 更新完成",
   "index.processing": "處理中…",

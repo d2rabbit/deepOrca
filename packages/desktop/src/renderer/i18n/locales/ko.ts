@@ -516,6 +516,7 @@ export const ko: Record<MessageKey, string> = {
   "index.updating": "업데이트 중…",
   "index.initializing": "생성 중…",
   "index.buildIndex": "인덱스 빌드",
+  "index.building": "빌드 중…",
   "index.updateAll": "전체 업데이트",
   "index.allDone": "인덱스 및 Wiki 업데이트 완료",
   "index.processing": "처리 중…",
