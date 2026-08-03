@@ -516,10 +516,15 @@ export const ja: Record<MessageKey, string> = {
   "index.update": "更新",
   "index.updating": "更新中…",
   "index.initializing": "生成中…",
+  "index.buildIndex": "インデックス構築",
+  "index.updateAll": "すべて更新",
+  "index.allDone": "インデックスと Wiki の更新が完了",
+  "index.processing": "処理中…",
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "コードレビュー",
   "review.title": "コードレビュー",
+  "review.smartReview": "スマートレビュー",
   "review.checking": "ocr の可用性を確認中…",
   "review.notInstalled": "このビルドでは Open Code Review を利用できません。",
   "review.scope": "レビュー範囲：現在のプロジェクトの未コミットの変更（HEAD 比）。",

@@ -25,10 +25,17 @@ export function CodeReviewPanel(): JSX.Element {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<ReviewTab>("quality");
 
+  const triggerSmartReview = useCallback(async () => {
+    await api.sendPrompt({ text: "审查我的代码变更" } as never);
+  }, []);
+
   return (
     <div className="ui-side-panel">
       <div className="ui-side-panel-head">
         <span>{t("review.title")}</span>
+        <Button size="sm" variant="primary" onClick={() => void triggerSmartReview()}>
+          {t("review.smartReview")}
+        </Button>
       </div>
       <div className="ui-review-tabs">
         <button

@@ -515,10 +515,15 @@ export const ko: Record<MessageKey, string> = {
   "index.update": "업데이트",
   "index.updating": "업데이트 중…",
   "index.initializing": "생성 중…",
+  "index.buildIndex": "인덱스 빌드",
+  "index.updateAll": "전체 업데이트",
+  "index.allDone": "인덱스 및 Wiki 업데이트 완료",
+  "index.processing": "처리 중…",
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "코드 리뷰",
   "review.title": "코드 리뷰",
+  "review.smartReview": "스마트 리뷰",
   "review.checking": "ocr 사용 가능 여부 확인 중…",
   "review.notInstalled": "이 빌드에서는 Open Code Review를 사용할 수 없습니다.",
   "review.scope": "리뷰 범위: 현재 프로젝트 워크스페이스의 커밋되지 않은 변경 사항(HEAD 대비).",

@@ -514,10 +514,15 @@ export const zhTW: Record<MessageKey, string> = {
   "index.update": "更新",
   "index.updating": "更新中…",
   "index.initializing": "生成中…",
+  "index.buildIndex": "建置索引",
+  "index.updateAll": "全部更新",
+  "index.allDone": "索引與 Wiki 更新完成",
+  "index.processing": "處理中…",
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "程式碼審查",
   "review.title": "程式碼審查",
+  "review.smartReview": "智慧審查",
   "review.checking": "正在檢測 ocr 可用性…",
   "review.notInstalled": "目前版本未內建 Open Code Review。",
   "review.scope": "審查範圍：目前專案工作區未提交的變更（相對 HEAD）。",
