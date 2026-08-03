@@ -94,11 +94,6 @@ async function download(url, dest) {
   });
 }
 
-/** Extract a .tar.gz file using the system tar. */
-function extractTarGz(archivePath, destDir) {
-  execSync(`tar -xzf "${archivePath}" -C "${destDir}"`, { stdio: "inherit" });
-}
-
 async function main() {
   const version = await resolveLatestVersion();
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
@@ -125,6 +120,33 @@ async function main() {
 
   try {
     await download(downloadUrl, archivePath);
+
+    // Verify checksum if SHA256SUMS is available.
+    try {
+      const sumsUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/SHA256SUMS`;
+      const sumsResp = await fetch(sumsUrl, {
+        headers: { "User-Agent": "deeporca-vendor-codegraph" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (sumsResp.ok) {
+        const sumsText = await sumsResp.text();
+        const expectedHash = sumsText
+          .split("\n")
+          .find((line) => line.includes(assetName))
+          ?.split(/\s+/)[0];
+        if (expectedHash) {
+          const { createHash } = await import("node:crypto");
+          const archiveBuffer = readFileSync(archivePath);
+          const actualHash = createHash("sha256").update(archiveBuffer).digest("hex");
+          if (actualHash !== expectedHash) {
+            throw new Error(`checksum mismatch: expected ${expectedHash}, got ${actualHash}`);
+          }
+          log(`checksum verified ✓ (${assetName})`);
+        }
+      }
+    } catch (verifyError) {
+      log(`WARNING: checksum verification skipped — ${verifyError.message}`);
+    }
   } catch (error) {
     // Check if an npm-based fallback exists
     log(`GitHub Releases download failed: ${error.message}`);
@@ -155,17 +177,30 @@ async function main() {
   }
 
   // Extract into a platform-specific subdirectory.
+  // The tarball has a nested top-level dir (codegraph-<target>/) — strip it.
   mkdirSync(binaryDir, { recursive: true });
   if (!isWindows) {
-    extractTarGz(archivePath, binaryDir);
+    execSync(`tar -xzf "${archivePath}" --strip-components=1 -C "${binaryDir}"`, { stdio: "inherit" });
   } else {
+    // Windows: extract to temp then move contents up (no --strip-components in Windows tar).
+    const tempExtract = join(targetDir, "_extract");
+    mkdirSync(tempExtract, { recursive: true });
     try {
-      execSync(`tar -xf "${archivePath}" -C "${binaryDir}"`, { stdio: "inherit" });
+      execSync(`tar -xf "${archivePath}" -C "${tempExtract}"`, { stdio: "inherit" });
     } catch {
-      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${binaryDir}'"`, {
+      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${tempExtract}'"`, {
         stdio: "inherit",
       });
     }
+    // Move the nested dir's contents up to binaryDir.
+    const nested = join(tempExtract, `codegraph-${platformArch}`);
+    if (existsSync(nested)) {
+      execSync(`xcopy /E /I /Y "${nested}" "${binaryDir}"`, { stdio: "inherit" });
+    } else {
+      // Fallback: move all contents directly.
+      execSync(`xcopy /E /I /Y "${tempExtract}" "${binaryDir}"`, { stdio: "inherit" });
+    }
+    rmSync(tempExtract, { recursive: true, force: true });
   }
 
   // Clean up archive.

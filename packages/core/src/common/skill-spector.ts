@@ -108,7 +108,7 @@ function resolveUvBinary(): string | null {
  * back to `main` — best-effort, less reproducible, but still safe (installs from
  * GitHub, never PyPI).
  */
-const VENDOR_SHA_FILENAME = ".vendored-skillspector-version";
+const VENDOR_SHA_FILENAME = ".vendored-skillspector-version"; // version marker (not SHA anymore)
 const SKILLSPECTOR_GIT_URL = "https://github.com/NVIDIA/SkillSpector.git";
 
 /**
@@ -166,8 +166,8 @@ export function ensureSkillSpectorInstalled(): boolean {
     // Wheel install failed (offline, yara-python compile, etc.) — try git fallback.
   }
 
-  // Fallback: install from git+main (slower but always works if network is available).
-  const gitSpec = `'skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@main'`;
+  // Fallback: install from git pinned to the release tag (slower but reproducible).
+  const gitSpec = `'skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@v${targetVersion}'`;
   try {
     execSync(`${uvBinary} tool install --force ${gitSpec}`, {
       encoding: "utf8",
