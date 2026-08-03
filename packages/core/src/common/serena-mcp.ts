@@ -29,6 +29,26 @@ import { getUserConfigRoot } from "./app-dirs";
 
 export const SERENA_MCP_SERVER_NAME = "serena";
 
+// ── Version pinning (vendor-managed) ─────────────────────────────────────────
+
+let configuredSerenaVendorRoot: string | null = null;
+
+/** Point the resolver at the vendor dir containing `.vendored-serena-version`. */
+export function configureSerenaVendorRoot(root: string | null): void {
+  configuredSerenaVendorRoot = root ? path.resolve(root) : null;
+}
+
+/** Read the pinned version from the vendor marker, or null if not vendored. */
+function readPinnedVersion(): string | null {
+  if (!configuredSerenaVendorRoot) return null;
+  try {
+    const ver = readFileSync(path.join(configuredSerenaVendorRoot, ".vendored-serena-version"), "utf8").trim();
+    return ver || null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Disable flag (host-managed, per project root) ────────────────────────────
 
 import path from "node:path";
@@ -190,9 +210,14 @@ export function buildSerenaMcpServerConfig(projectRoot: string): McpServerConfig
   // bare `uvx` (hopes system uv is on PATH).
   const uvBinary = uvResolver?.() ?? null;
   const command = uvBinary ?? "uvx";
+
+  // Version pin: if the vendor marker has a version, use ==pin for reproducibility.
+  const pinnedVersion = readPinnedVersion();
+  const serenaSpec = pinnedVersion ? `serena-agent==${pinnedVersion}` : "serena-agent";
+
   const prefixArgs = uvBinary
-    ? ["tool", "run", "--python", "3.13", "serena-agent"]
-    : ["--python", "3.13", "serena-agent"];
+    ? ["tool", "run", "--python", "3.13", "--from", serenaSpec, "serena-agent"]
+    : ["--python", "3.13", "--from", serenaSpec, "serena-agent"];
 
   return {
     command,

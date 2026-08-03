@@ -17,10 +17,12 @@ import {
   resolveCurrentSettings,
   resolveModernNode,
   configureCrgVendorRoot,
+  configureCrgVersionRoot,
   hasCrgProject,
   resolveUvBinary,
   runCrgResetWithOutput,
   configureSerenaUvResolver,
+  configureSerenaVendorRoot,
   configureSkillSpectorUvResolver,
   configureSkillSpectorVendorRoot,
   MemoryGatewayClient,
@@ -90,14 +92,22 @@ configureCodegraphVendorRoot(join(__dirname, "..", "vendor", "codegraph"));
 // isolated environment — no host Python required when uv is vendored.
 configureCrgVendorRoot(join(__dirname, "..", "vendor", "uv"));
 
+// CRG version pin: read from vendor/crg/.vendored-crg-version (written by
+// scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.
+configureCrgVersionRoot(join(__dirname, "..", "vendor", "crg"));
+
 // Share the same vendored uv binary with Serena's MCP resolver. Serena is also
 // Python-based and runs through `uvx --python 3.13 serena-agent` — the same
 // vendored uv that CRG uses handles the isolated Python provisioning.
 configureSerenaUvResolver(() => resolveUvBinary());
 
+// Serena version pin: read from vendor/serena/.vendored-serena-version (written by
+// scripts/vendor-serena.js). Pins `uv tool run --from serena-agent==<version>`.
+configureSerenaVendorRoot(join(__dirname, "..", "vendor", "serena"));
+
 // SkillSpector (AI skill/MCP security scanner) shares the same vendored uv and reads
-// its pinned commit SHA from the vendored skillspector dir (written by
-// scripts/vendor-skillspector.js at build time). Installs from git+SHA at runtime.
+// its pinned version from the vendored skillspector dir (written by
+// scripts/vendor-skillspector.js at build time). Installs wheel from GitHub Releases.
 configureSkillSpectorUvResolver(() => resolveUvBinary());
 configureSkillSpectorVendorRoot(join(__dirname, "..", "vendor", "skillspector"));
 
@@ -109,7 +119,7 @@ function refreshVendoredToolsInBackground(): void {
   if (app.isPackaged) {
     return;
   }
-  for (const name of ["codegraph", "openwiki", "uv", "skillspector"]) {
+  for (const name of ["codegraph", "openwiki", "uv", "skillspector", "browser-skill", "serena", "crg", "bento"]) {
     const script = join(__dirname, "..", "..", "..", "scripts", `vendor-${name}.js`);
     try {
       const child = spawn(process.execPath, [script], {

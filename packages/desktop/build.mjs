@@ -202,12 +202,20 @@ async function run() {
   ensureVendored("tailwind", ["tailwind.js"], "cdn.tailwindcss.com (online fallback)");
   // Generate tailwind-script.ts from the vendored file so esbuild can bundle it.
   generateTailwindSource();
-  // uv: shared by CRG + Serena. The version marker file is the stable existence
-  // check (the binary lives under a host-specific <target>/ subdir).
+  // uv: shared by CRG + Serena + SkillSpector. Binary download from GitHub Releases.
   ensureVendored("uv", [".vendored-uv-version"], "system uv on PATH");
-  // SkillSpector: Python security scanner. The vendor script writes a version marker.
-  // Runtime installs from the GitHub Releases wheel, avoiding the malicious PyPI package.
+  // BrowserSkill (bsk): prebuilt Rust CLI from GitHub Releases.
+  ensureVendored("browser-skill", [".vendored-bsk-version"], "user-installed bsk on PATH");
+  // Serena: version pin marker. Runtime installs via uv from PyPI with ==pin.
+  ensureVendored("serena", [".vendored-serena-version"], "uvx serena-agent (unpinned)");
+  // CRG: version pin marker. Runtime installs via uv from PyPI with ==pin.
+  ensureVendored("crg", [".vendored-crg-version"], "uvx code-review-graph (unpinned)");
+  // SkillSpector: version pin marker. Runtime installs wheel from GitHub Releases.
   ensureVendored("skillspector", [".vendored-skillspector-version"], "uv tool install from GitHub Releases");
+  // Bento Slides: single-file HTML template from GitHub Releases.
+  // NOTE: vendored into core templates, not desktop vendor/ — ensureVendored checks
+  // the version marker in the skill's references/ dir.
+  ensureVendored("bento", [".vendored-bento-version"], "bundled template (offline)");
   if (isDev) {
     const contexts = await Promise.all([context(mainConfig), context(preloadConfig), context(rendererConfig)]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));

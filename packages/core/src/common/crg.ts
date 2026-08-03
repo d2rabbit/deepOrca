@@ -29,6 +29,26 @@ import type { McpServerConfig } from "../settings";
 /** PyPI package for code-review-graph. */
 export const CRG_PACKAGE = "code-review-graph";
 
+// ── Version pinning (vendor-managed) ─────────────────────────────────────────
+
+let configuredCrgVersionRoot: string | null = null;
+
+/** Point the resolver at the vendor dir containing `.vendored-crg-version`. */
+export function configureCrgVersionRoot(root: string | null): void {
+  configuredCrgVersionRoot = root ? path.resolve(root) : null;
+}
+
+/** Read the pinned CRG version from the vendor marker, or null if not vendored. */
+function readCrgPinnedVersion(): string | null {
+  if (!configuredCrgVersionRoot) return null;
+  try {
+    const ver = fs.readFileSync(path.join(configuredCrgVersionRoot, ".vendored-crg-version"), "utf8").trim();
+    return ver || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Name under which the CRG MCP server is registered. */
 export const CRG_MCP_SERVER_NAME = "code-review-graph";
 
@@ -166,10 +186,12 @@ export function resolveCrgExecutable(): CrgExecutable | null {
     return null;
   }
   // `uv tool run` (stable form) runs a tool in an isolated env.
-  // `--from code-review-graph` pins the package providing the entry point.
+  // `--from code-review-graph==<version>` pins the package for reproducibility.
+  const pinnedVersion = readCrgPinnedVersion();
+  const pkgSpec = pinnedVersion ? `${CRG_PACKAGE}==${pinnedVersion}` : CRG_PACKAGE;
   return {
     command: uvBin,
-    prefixArgs: ["tool", "run", "--from", CRG_PACKAGE, "code-review-graph"],
+    prefixArgs: ["tool", "run", "--from", pkgSpec, "code-review-graph"],
   };
 }
 
