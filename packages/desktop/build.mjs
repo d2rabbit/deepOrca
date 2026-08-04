@@ -146,13 +146,20 @@ function ensureVendored(name, entryRel, fallbackHint) {
 async function ensureCoreBuilt() {
   const root = resolve(__dirname, "..", "..");
   const corePkg = resolve(root, "packages", "core");
+  const memoryPkg = resolve(root, "packages", "memory");
   const buildinfo = resolve(corePkg, "tsconfig.tsbuildinfo");
   const rewriteScript = resolve(root, "scripts", "rewrite-esm-imports.js");
   if (existsSync(buildinfo)) {
     await rm(buildinfo, { force: true });
   }
-  console.log("[desktop] building @deeporca/core …");
   const tscBin = resolve(root, "node_modules", ".bin", "tsc");
+  // Build memory first (core depends on it at runtime via dynamic import).
+  console.log("[desktop] building @deeporca/memory …");
+  execFileSync(process.execPath, [tscBin, "-p", memoryPkg], {
+    stdio: "inherit",
+    cwd: memoryPkg,
+  });
+  console.log("[desktop] building @deeporca/core …");
   execFileSync(process.execPath, [tscBin, "-p", corePkg], {
     stdio: "inherit",
     cwd: corePkg,

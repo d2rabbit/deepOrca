@@ -17,7 +17,8 @@ console.log("=========================================");
 console.log("  DeepOrca — Build");
 console.log("=========================================");
 
-run("npm", ["run", "build", "--workspace=@deeporca/core"], "1/2");
-run("node", ["scripts/rewrite-esm-imports.js"], "2/2");
+run("npm", ["run", "build", "--workspace=@deeporca/memory"], "1/3");
+run("npm", ["run", "build", "--workspace=@deeporca/core"], "2/3");
+run("node", ["scripts/rewrite-esm-imports.js"], "3/3");
 
 console.log("\n✅  Build complete.\n\n");
