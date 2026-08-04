@@ -774,14 +774,26 @@ function registerIpc(): void {
     protoWin.on("closed", () => {
       prototypeWindows.delete(winId);
     });
+    // Register the payload listener BEFORE loadFile: loadFile resolves only
+    // after the page has finished loading, by which point the matching
+    // did-finish-load event has already fired. Registering .once afterwards
+    // means the handler is never called and the window stays on
+    // "Waiting for prototype data…" forever.
+    const sendPayload = (): void => {
+      protoWin.webContents.send(IpcEvent.A2uiWindowPayload, { a2uiJson, title });
+    };
+    protoWin.webContents.once("did-finish-load", sendPayload);
     // Load renderer with query param so it knows it's a prototype window.
     await protoWin.loadFile(join(__dirname, "renderer/index.html"), {
       query: { view: "prototype" },
     });
-    // Send the A2UI payload to the new window's renderer after load.
-    protoWin.webContents.once("did-finish-load", () => {
-      protoWin.webContents.send(IpcEvent.A2uiWindowPayload, { a2uiJson, title });
-    });
+    // If loadFile resolved but the event already fired (race window between
+    // the page's own load and our listener attach), send directly. The
+    // renderer's onA2uiWindowPayload subscription is set up during first paint,
+    // so it's safe to send here too; a duplicate is harmless (idempotent set).
+    if (!protoWin.isDestroyed()) {
+      sendPayload();
+    }
   });
 
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
