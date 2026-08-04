@@ -36,5 +36,9 @@
     "openai": "^6.35.0",
     "undici": "^7.25.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/ejs": "^3.1.5",
+    "@types/node": "^22.20.1"
   }
 }

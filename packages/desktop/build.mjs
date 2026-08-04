@@ -152,10 +152,10 @@ async function ensureCoreBuilt() {
     await rm(buildinfo, { force: true });
   }
   console.log("[desktop] building @deeporca/core …");
-  execFileSync("npm", ["run", "build", "--workspace=@deeporca/core"], {
+  const tscBin = resolve(root, "node_modules", ".bin", "tsc");
+  execFileSync(process.execPath, [tscBin, "-p", corePkg], {
     stdio: "inherit",
-    cwd: root,
-    shell: true,
+    cwd: corePkg,
   });
   execFileSync(process.execPath, [rewriteScript], { stdio: "inherit", cwd: root });
 }

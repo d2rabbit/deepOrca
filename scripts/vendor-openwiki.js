@@ -68,9 +68,14 @@ async function main() {
   // --omit=dev: skip devDependencies.
   // --ignore-scripts: skip postinstall scripts for safety.
   try {
+    // Use a temp dir outside the workspace to avoid npm workspace interference.
+    const tempInstall = join(targetDir, "_npm_install");
+    mkdirSync(tempInstall, { recursive: true });
+    // Write a dummy package.json so npm doesn't traverse up to the workspace root.
+    writeFileSync(join(tempInstall, "package.json"), '{"name":"_openwiki_vendor","private":true}');
     execSync(
       `npm install --no-save --no-package-lock --legacy-peer-deps --omit=dev --ignore-scripts openwiki@${version}`,
-      { cwd: targetDir, stdio: "inherit" }
+      { cwd: tempInstall, stdio: "inherit" }
     );
   } catch (error) {
     if (existsSync(entryFile)) {
@@ -82,15 +87,22 @@ async function main() {
 
   // Move node_modules/openwiki/* up to the vendor root so the entry is at
   // <vendorRoot>/dist/cli.js (matching the path the desktop main expects).
-  const npmPkgDir = join(targetDir, "node_modules", "openwiki");
+  const npmPkgDir = join(targetDir, "_npm_install", "node_modules", "openwiki");
   if (existsSync(npmPkgDir)) {
-    for (const item of ["dist", "package.json"]) {
-      const src = join(npmPkgDir, item);
-      if (existsSync(src)) {
+    // Copy dist + package.json + node_modules (runtime deps) to vendor root.
+    for (const item of ["dist", "package.json", "node_modules"]) {
+      const src = join(npmPkgDir, "..", item === "node_modules" ? "" : item);
+      if (item === "node_modules") {
+        // Copy the full node_modules from the temp install (runtime deps).
+        cpSync(join(targetDir, "_npm_install", "node_modules"), join(targetDir, "node_modules"), { recursive: true });
+      } else if (existsSync(src)) {
         cpSync(src, join(targetDir, item), { recursive: true });
       }
     }
   }
+
+  // Clean up temp install dir.
+  rmSync(join(targetDir, "_npm_install"), { recursive: true, force: true });
 
   // Verify entry exists.
   if (!existsSync(entryFile)) {

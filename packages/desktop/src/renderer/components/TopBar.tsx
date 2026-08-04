@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { Pill, Select } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
-import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "@deeporca/core";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
 
 type Props = {
   platform: string;

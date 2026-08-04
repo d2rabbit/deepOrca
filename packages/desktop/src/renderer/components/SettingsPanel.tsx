@@ -1,12 +1,7 @@
 import { useEffect, useState, type JSX } from "react";
 import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
-import {
-  collectAllModelKeys,
-  parseModelKey,
-  resolveModelCapability,
-  type EndpointConfig,
-  type ModelRegistration,
-} from "@deeporca/core";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
+import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
