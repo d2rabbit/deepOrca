@@ -610,13 +610,23 @@ export function resolveSettingsSources(
     trimString(userEnv.MODEL) ||
     defaults.model;
 
+  // Merge endpoints early — needed for thinkingEnabled fallback below.
+  const mergedEndpoints = mergeEndpoints(userSettings, projectSettings);
+
   const thinkingEnabled =
     parseBoolean(systemEnv.THINKING_ENABLED) ??
     parseBoolean(projectSettings?.thinkingEnabled) ??
     parseBoolean(projectEnv.THINKING_ENABLED) ??
     parseBoolean(userSettings?.thinkingEnabled) ??
     parseBoolean(userEnv.THINKING_ENABLED) ??
-    defaultsToThinkingMode(model);
+    // Check endpoint model registration first, then fall back to hardcoded table.
+    (() => {
+      for (const ep of mergedEndpoints) {
+        const reg = ep.models?.find((m) => m.id === model);
+        if (reg) return reg.thinking ?? false;
+      }
+      return defaultsToThinkingMode(model);
+    })();
 
   const reasoningEffort =
     resolveReasoningEffort(systemEnv.REASONING_EFFORT) ??
@@ -664,7 +674,6 @@ export function resolveSettingsSources(
   // single-endpoint setups). The synthesized endpoint carries the env key so
   // runtime resolution works, but is NOT surfaced by getEditableSettings (which
   // reads the raw file), preventing env secrets from leaking to the GUI.
-  const mergedEndpoints = mergeEndpoints(userSettings, projectSettings);
   const resolvedApiKey = trimString(env.API_KEY) || undefined;
   const resolvedBaseURL = trimString(env.BASE_URL) || defaults.baseURL;
 
