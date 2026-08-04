@@ -7,7 +7,7 @@ import {
   type NotifyContext,
   type NotifySpawn,
 } from "../common/notify";
-import { applyModelConfigSelection, resolveSettings, resolveSettingsSources } from "../settings";
+import { applyModelConfigSelection, normalizeEndpoints, resolveSettings, resolveSettingsSources } from "../settings";
 
 const TEST_PROCESS_ENV = {};
 
@@ -251,6 +251,109 @@ test("resolveSettingsSources merges enabledSkills with project precedence", () =
     "project-disabled": false,
     projectOnly: true,
   });
+});
+
+// ── Multi-endpoint normalization & merge ──────────────────────────────────
+
+test("normalizeEndpoints rejects non-arrays, malformed entries, and duplicate ids", () => {
+  // Non-array → empty.
+  assert.deepEqual(normalizeEndpoints({}), []);
+  assert.deepEqual(normalizeEndpoints(null), []);
+  assert.deepEqual(normalizeEndpoints("deepseek"), []);
+
+  // Array with malformed entries: null, missing fields, non-object all dropped.
+  const malformed = normalizeEndpoints([
+    null,
+    42,
+    "string",
+    { id: "ok", name: "OK", baseURL: "https://ok.example.com", apiKey: "k" },
+    { id: "", name: "Empty", baseURL: "https://e.example.com" }, // empty id dropped
+    { id: "no-baseurl", name: "NoBase" }, // missing baseURL dropped
+    { id: "no-name", baseURL: "https://nn.example.com" }, // missing name dropped
+    { id: "ok", name: "Dup", baseURL: "https://dup.example.com" }, // duplicate id dropped
+  ]);
+  assert.equal(malformed.length, 1);
+  assert.equal(malformed[0]?.id, "ok");
+  assert.equal(malformed[0]?.apiKey, "k");
+
+  // Missing apiKey defaults to empty string (not undefined).
+  const noKey = normalizeEndpoints([{ id: "a", name: "A", baseURL: "https://a.example.com" }]);
+  assert.equal(noKey[0]?.apiKey, "");
+
+  // Non-string apiKey coerced to "".
+  const badKey = normalizeEndpoints([{ id: "b", name: "B", baseURL: "https://b.example.com", apiKey: 12345 }]);
+  assert.equal(badKey[0]?.apiKey, "");
+});
+
+test("resolveSettingsSources merges endpoints with project overriding user by id", () => {
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [
+        { id: "deepseek", name: "User DS", baseURL: "https://user.deepseek.com", apiKey: "user-key" },
+        { id: "extra", name: "Extra", baseURL: "https://extra.example.com", apiKey: "extra-key" },
+      ],
+    },
+    {
+      endpoints: [
+        // Project overrides user's "deepseek" id.
+        { id: "deepseek", name: "Project DS", baseURL: "https://project.deepseek.com", apiKey: "project-key" },
+      ],
+      primaryEndpointId: "deepseek",
+    },
+    {
+      model: "default-model",
+      baseURL: "https://default.example.com",
+    },
+    TEST_PROCESS_ENV
+  );
+
+  // Both endpoints present (no user leak into project, no duplication).
+  assert.equal(resolved.endpoints.length, 2);
+  const ds = resolved.endpoints.find((e) => e.id === "deepseek");
+  assert.equal(ds?.name, "Project DS");
+  assert.equal(ds?.baseURL, "https://project.deepseek.com");
+  assert.equal(ds?.apiKey, "project-key");
+  // "extra" (user-only) still present.
+  assert.ok(resolved.endpoints.find((e) => e.id === "extra"));
+  // Primary resolves to the project-overridden entry.
+  assert.equal(resolved.primaryEndpointId, "deepseek");
+  assert.equal(resolved.baseURL, "https://project.deepseek.com");
+});
+
+test("resolveSettingsSources: env API_KEY has highest priority over endpoint apiKey", () => {
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [{ id: "deepseek", name: "DS", baseURL: "https://api.deepseek.com", apiKey: "file-key" }],
+      primaryEndpointId: "deepseek",
+    },
+    null,
+    {
+      model: "default-model",
+      baseURL: "https://default.example.com",
+    },
+    { DEEPORCA_API_KEY: "env-key" }
+  );
+
+  // Env key wins — CI/credential rotation can override the file-stored key.
+  assert.equal(resolved.apiKey, "env-key");
+  assert.equal(resolved.baseURL, "https://api.deepseek.com");
+});
+
+test("resolveSettingsSources synthesizes default endpoint from env but apiKey stays top-level only", () => {
+  // No endpoints configured at all → synthetic default. The endpoint carries the
+  // env key for runtime, but this is NOT surfaced by getEditableSettings (which
+  // reads raw files). Here we verify the resolved shape is consistent.
+  const resolved = resolveSettingsSources(
+    null,
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    { DEEPORCA_API_KEY: "env-key" }
+  );
+
+  assert.equal(resolved.endpoints.length, 1);
+  assert.equal(resolved.endpoints[0]?.id, "deepseek");
+  assert.equal(resolved.endpoints[0]?.apiKey, "env-key");
+  assert.equal(resolved.apiKey, "env-key");
 });
 
 test("resolveSettingsSources merges MCP env with documented priority", () => {

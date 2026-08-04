@@ -108,6 +108,15 @@ export type DeepcodingSettings = {
   enabledSkills?: EnabledSkillsSettings;
   statusline?: StatusLineSettings;
   memory?: MemorySettings;
+  /** Multi-endpoint configuration (new). When absent, a single default DeepSeek
+   * endpoint is synthesized from env.API_KEY + env.BASE_URL (backward compat). */
+  endpoints?: EndpointConfig[];
+  /** Which endpoint the primary (main conversation) model uses. */
+  primaryEndpointId?: string;
+  /** Secondary model name (code review, indexing, subagent). Default: flash. */
+  secondaryModel?: string;
+  /** Which endpoint the secondary model uses. Falls back to primary if unset. */
+  secondaryEndpointId?: string;
 };
 
 export type ResolvedDeepcodingSettings = {
@@ -127,6 +136,17 @@ export type ResolvedDeepcodingSettings = {
   enabledSkills: EnabledSkillsSettings;
   statusline: ResolvedStatusLineSettings;
   memory: Required<MemorySettings>;
+  /** Resolved endpoint list (synthesized from env if not configured). */
+  endpoints: EndpointConfig[];
+  /** Endpoint id used by the primary model. */
+  primaryEndpointId: string;
+  /** Secondary model name (default deepseek-v4-flash). */
+  secondaryModel: string;
+  /** Endpoint id used by the secondary model. */
+  secondaryEndpointId: string;
+  /** Resolved secondary endpoint config (baseURL + apiKey). */
+  secondaryBaseURL: string;
+  secondaryApiKey?: string;
 };
 
 export type ModelConfigSelection = {
@@ -274,6 +294,60 @@ const DEFAULT_STATUSLINE_SEPARATOR = " · ";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// ── Multi-endpoint normalization & merge ──────────────────────────────────
+
+/**
+ * Normalize an untrusted `endpoints` value from a settings file into a clean
+ * {@link EndpointConfig} array. Rejects non-arrays, non-object or
+ * field-missing entries, and drops duplicate ids (keeping the first).
+ *
+ * Mirrors the existing pattern of `normalizeEnabledSkills` /
+ * `normalizePermissionList`: validate untrusted JSON before use so a
+ * syntactically-valid-but-malformed file cannot crash `resolveCurrentSettings`.
+ */
+export function normalizeEndpoints(value: unknown): EndpointConfig[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const result: EndpointConfig[] = [];
+  for (const entry of value) {
+    if (!isPlainObject(entry)) {
+      continue;
+    }
+    const id = typeof entry.id === "string" ? entry.id.trim() : "";
+    const name = typeof entry.name === "string" ? entry.name.trim() : "";
+    const baseURL = typeof entry.baseURL === "string" ? entry.baseURL.trim() : "";
+    // id/name/baseURL are required; skip entries missing any of them.
+    if (!id || !name || !baseURL) {
+      continue;
+    }
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    const apiKey = typeof entry.apiKey === "string" ? entry.apiKey : "";
+    result.push({ id, name, baseURL, apiKey });
+  }
+  return result;
+}
+
+/**
+ * Merge user-level and project-level endpoints, with project overriding user
+ * for matching ids (mirrors `mergeStatusLine`'s provider de-dup). Returns the
+ * combined list; primary/secondary lookups later use `find()`, so order does
+ * not affect resolution.
+ */
+function mergeEndpoints(
+  userSettings: DeepcodingSettings | null | undefined,
+  projectSettings: DeepcodingSettings | null | undefined
+): EndpointConfig[] {
+  const userEps = normalizeEndpoints(userSettings?.endpoints);
+  const projectEps = normalizeEndpoints(projectSettings?.endpoints);
+  const projectIds = new Set(projectEps.map((e) => e.id));
+  return [...userEps.filter((e) => !projectIds.has(e.id)), ...projectEps];
 }
 
 function normalizeStatusLineProvider(value: unknown): StatusLineProviderConfig | null {
@@ -567,10 +641,52 @@ export function resolveSettingsSources(
     trimString(userSettings?.webSearchTool) ||
     "";
 
+  // ── Multi-endpoint resolution ────────────────────────────────────────────
+  // Merge endpoints from user + project settings (project overrides user by id,
+  // mirroring mergeStatusLine). If none configured, synthesize a default
+  // "deepseek" endpoint from env.API_KEY + env.BASE_URL (backward compat with
+  // single-endpoint setups). The synthesized endpoint carries the env key so
+  // runtime resolution works, but is NOT surfaced by getEditableSettings (which
+  // reads the raw file), preventing env secrets from leaking to the GUI.
+  const mergedEndpoints = mergeEndpoints(userSettings, projectSettings);
+  const resolvedApiKey = trimString(env.API_KEY) || undefined;
+  const resolvedBaseURL = trimString(env.BASE_URL) || defaults.baseURL;
+
+  const endpoints: EndpointConfig[] =
+    mergedEndpoints.length > 0
+      ? mergedEndpoints
+      : // Backward compat: no endpoints configured → synthesize a single default
+        // from the legacy env.API_KEY / env.BASE_URL values.
+        [{ id: "deepseek", name: "DeepSeek", baseURL: resolvedBaseURL, apiKey: resolvedApiKey ?? "" }];
+
+  const primaryEndpointId =
+    trimString(projectSettings?.primaryEndpointId) || trimString(userSettings?.primaryEndpointId) || endpoints[0]!.id;
+
+  const secondaryModel =
+    trimString(projectSettings?.secondaryModel) || trimString(userSettings?.secondaryModel) || DEFAULT_SECONDARY_MODEL;
+
+  const secondaryEndpointId =
+    trimString(projectSettings?.secondaryEndpointId) ||
+    trimString(userSettings?.secondaryEndpointId) ||
+    primaryEndpointId;
+
+  // Resolve the secondary endpoint's actual baseURL/apiKey.
+  const secondaryEndpoint = endpoints.find((e) => e.id === secondaryEndpointId) ?? endpoints[0]!;
+  const secondaryBaseURL = secondaryEndpoint?.baseURL ?? resolvedBaseURL;
+  const secondaryApiKey = secondaryEndpoint?.apiKey || undefined;
+
+  // Primary endpoint's apiKey/baseURL. Environment variable (the final merged
+  // env, system > project > user) has the highest priority for the api key, so
+  // CI/credential rotation can override a key stored in settings. This matches
+  // the documented "system environment precedence" contract.
+  const primaryEndpoint = endpoints.find((e) => e.id === primaryEndpointId);
+  const primaryApiKey = resolvedApiKey ?? primaryEndpoint?.apiKey ?? "";
+  const primaryBaseURL = primaryEndpoint?.baseURL || resolvedBaseURL;
+
   return {
     env,
-    apiKey: trimString(env.API_KEY) || undefined,
-    baseURL: trimString(env.BASE_URL) || defaults.baseURL,
+    apiKey: primaryApiKey,
+    baseURL: primaryBaseURL,
     model,
     temperature,
     thinkingEnabled,
@@ -584,6 +700,12 @@ export function resolveSettingsSources(
     enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
     statusline: mergeStatusLine(userSettings, projectSettings),
     memory: mergeMemory(userSettings, projectSettings),
+    endpoints,
+    primaryEndpointId,
+    secondaryModel,
+    secondaryEndpointId,
+    secondaryBaseURL,
+    secondaryApiKey,
   };
 }
 
@@ -631,6 +753,28 @@ export function applyModelConfigSelection(
 
 export const DEFAULT_MODEL = "deepseek-v4-pro";
 export const DEFAULT_BASE_URL = "https://api.deepseek.com";
+export const DEFAULT_SECONDARY_MODEL = "deepseek-v4-flash";
+
+// ── Multi-endpoint support ──────────────────────────────────────────────────
+
+/** A configured API endpoint (provider gateway + credentials). */
+export type EndpointConfig = {
+  /** Stable id used to reference this endpoint from primary/secondary roles. */
+  id: string;
+  /** Display name shown in the settings panel. */
+  name: string;
+  /** API base URL (without trailing slash). */
+  baseURL: string;
+  /** API key for this endpoint (stored in settings.json, never in env). */
+  apiKey: string;
+};
+
+/** Built-in endpoint presets offered in the settings panel. */
+export const ENDPOINT_PRESETS: ReadonlyArray<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
+  { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
+  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
+  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
+];
 
 // ---------------------------------------------------------------------------
 // Settings file I/O

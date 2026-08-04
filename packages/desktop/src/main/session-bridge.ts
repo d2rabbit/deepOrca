@@ -27,6 +27,7 @@ import {
   GitmcpStore,
   indexRepository,
   isGitmcpServerName,
+  normalizeEndpoints,
   parseRepoSlug,
   readGitmcpRepoMeta,
   readProjectSettings,
@@ -222,6 +223,10 @@ export function toSettingsSummary(root: string): SettingsSummary {
     reasoningEffort: s.reasoningEffort,
     hasApiKey: Boolean(s.apiKey),
     statusSeparator: s.statusline?.separator ?? " ",
+    endpoints: s.endpoints.map((e) => ({ id: e.id, name: e.name, baseURL: e.baseURL })),
+    primaryEndpointId: s.primaryEndpointId,
+    secondaryModel: s.secondaryModel,
+    secondaryEndpointId: s.secondaryEndpointId,
   };
 }
 
@@ -457,6 +462,16 @@ export class SessionBridge {
         args: (cfg.args ?? []).join(" "),
         env: stringifyEnv(cfg.env),
       })),
+      // Read endpoints directly from the target settings file (raw, normalized),
+      // never the env-resolved merged list. This prevents:
+      //   1. env-provided API keys from leaking to the renderer / being baked
+      //      into the file on save (violates the EditableSettings contract);
+      //   2. user-level endpoints + keys being written into the project file;
+      //   3. the synthesized default (carrying the env key) reaching the GUI.
+      endpoints: normalizeEndpoints(raw.endpoints),
+      primaryEndpointId: raw.primaryEndpointId ?? "",
+      secondaryModel: raw.secondaryModel ?? "",
+      secondaryEndpointId: raw.secondaryEndpointId ?? "",
     };
   }
 
@@ -466,15 +481,43 @@ export class SessionBridge {
     const next: DeepcodingSettings = { ...raw };
 
     const env: Record<string, string | undefined> = { ...(raw.env ?? {}) };
-    const apiKey = patch.apiKey.trim();
-    if (apiKey) {
-      env.API_KEY = apiKey;
+
+    // Multi-endpoint: normalize then write the endpoint list + role assignments.
+    // normalizeEndpoints guards against malformed/empty-id/duplicate entries
+    // coming from the GUI (e.g. two adds in the same millisecond).
+    const endpoints = normalizeEndpoints(patch.endpoints);
+    if (endpoints.length > 0) {
+      next.endpoints = endpoints;
+      // Only persist role ids that actually point at a kept endpoint.
+      const ids = new Set(endpoints.map((e) => e.id));
+      const primaryId = ids.has(patch.primaryEndpointId) ? patch.primaryEndpointId : endpoints[0]!.id;
+      next.primaryEndpointId = primaryId;
+      next.secondaryModel = patch.secondaryModel.trim() || "deepseek-v4-flash";
+      next.secondaryEndpointId = ids.has(patch.secondaryEndpointId) ? patch.secondaryEndpointId : primaryId;
+      // Sync the primary endpoint's key + baseURL into env so createOpenAIClient
+      // (which reads env.API_KEY / env.BASE_URL) picks up the primary config.
+      // NOTE: if an env key is already provided externally (DEEPORCA_API_KEY),
+      // resolveSettingsSources will still let env win — this env.API_KEY is a
+      // file-level mirror for the legacy single-client code path.
+      const primary = endpoints.find((e) => e.id === primaryId);
+      if (primary) {
+        env.API_KEY = primary.apiKey.trim() || undefined;
+        env.BASE_URL = primary.baseURL.trim() || undefined;
+      }
     } else {
+      delete next.endpoints;
+      delete next.primaryEndpointId;
+    }
+
+    // Also keep env.API_KEY in sync with the legacy single apiKey field (when
+    // the panel edits it directly via the old field). The endpoints block above
+    // takes precedence when present.
+    const apiKey = patch.apiKey.trim();
+    if (apiKey && !next.endpoints) {
+      env.API_KEY = apiKey;
+    } else if (!apiKey && !next.endpoints) {
       delete env.API_KEY;
     }
-    // The endpoint is locked to DeepSeek's first-party API in this release —
-    // the GUI no longer edits BASE_URL. Any value already present in the
-    // settings file (power-user escape hatch) is preserved untouched.
     if (Object.keys(env).length > 0) {
       next.env = env;
     } else {

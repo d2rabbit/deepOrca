@@ -25,6 +25,9 @@ export {
   getProjectSettingsPath,
   DEFAULT_MODEL,
   DEFAULT_BASE_URL,
+  DEFAULT_SECONDARY_MODEL,
+  ENDPOINT_PRESETS,
+  normalizeEndpoints,
 } from "./settings";
 export type {
   DeepcodingSettings,
@@ -38,6 +41,7 @@ export type {
   StatusLineSettings,
   ResolvedStatusLineSettings,
   StatusLineProviderConfig,
+  EndpointConfig,
 } from "./settings";
 
 // Session
@@ -105,7 +109,7 @@ export type { McpServerStatus } from "./mcp/mcp-manager";
 export { createMcpSpawnSpec, type McpSpawnSpec } from "./mcp/spawn-spec";
 
 // Common utilities
-export { createOpenAIClient } from "./common/openai-client";
+export { createOpenAIClient, createSecondaryClient } from "./common/openai-client";
 export { buildThinkingRequestOptions } from "./common/openai-thinking";
 export { readTextFileWithMetadata, writeTextFile, buildDiffPreview, ensureParentDirectory } from "./common/file-utils";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
