@@ -1,4 +1,4 @@
-import { defaultsToThinkingMode } from "./common/model-capabilities";
+import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
 import { getProjectConfigRoot, getUserConfigRoot } from "./common/app-dirs";
 import * as fs from "fs";
 import * as path from "path";
@@ -329,7 +329,23 @@ export function normalizeEndpoints(value: unknown): EndpointConfig[] {
     }
     seen.add(id);
     const apiKey = typeof entry.apiKey === "string" ? entry.apiKey : "";
-    result.push({ id, name, baseURL, apiKey });
+    // Parse models array — each model has {id, thinking?, vision?}
+    const models: ModelRegistration[] = [];
+    if (Array.isArray(entry.models)) {
+      const modelSeen = new Set<string>();
+      for (const m of entry.models) {
+        if (!isPlainObject(m)) continue;
+        const mid = typeof m.id === "string" ? m.id.trim() : "";
+        if (!mid || modelSeen.has(mid)) continue;
+        modelSeen.add(mid);
+        models.push({
+          id: mid,
+          thinking: typeof m.thinking === "boolean" ? m.thinking : undefined,
+          vision: typeof m.vision === "boolean" ? m.vision : undefined,
+        });
+      }
+    }
+    result.push({ id, name, baseURL, apiKey, models: models.length > 0 ? models : undefined });
   }
   return result;
 }
@@ -757,6 +773,20 @@ export const DEFAULT_SECONDARY_MODEL = "deepseek-v4-flash";
 
 // ── Multi-endpoint support ──────────────────────────────────────────────────
 
+/**
+ * A model registered under a specific endpoint, with its declared capabilities.
+ * Capabilities are user-configured per endpoint+model pair, because the same
+ * model ID may have different capabilities when served through different gateways.
+ */
+export type ModelRegistration = {
+  /** Model ID as the API expects it, e.g. "deepseek-v4-pro". */
+  id: string;
+  /** Whether this model supports thinking/reasoning output via this endpoint. */
+  thinking?: boolean;
+  /** Whether this model supports vision/multimodal input via this endpoint. */
+  vision?: boolean;
+};
+
 /** A configured API endpoint (provider gateway + credentials). */
 export type EndpointConfig = {
   /** Stable id used to reference this endpoint from primary/secondary roles. */
@@ -767,6 +797,8 @@ export type EndpointConfig = {
   baseURL: string;
   /** API key for this endpoint (stored in settings.json, never in env). */
   apiKey: string;
+  /** Models registered under this endpoint with their capabilities. */
+  models?: ModelRegistration[];
 };
 
 /** Built-in endpoint presets offered in the settings panel. */
@@ -775,6 +807,77 @@ export const ENDPOINT_PRESETS: ReadonlyArray<Pick<EndpointConfig, "id" | "name" 
   { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
   { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
 ];
+
+/**
+ * Build the unique identifier for a model registered under an endpoint.
+ * Format: `endpointId/modelId` (e.g. "deepseek/deepseek-v4-pro").
+ * Same model ID under different endpoints produces different keys.
+ */
+export function buildModelKey(endpointId: string, modelId: string): string {
+  return `${endpointId}/${modelId}`;
+}
+
+/**
+ * Parse a model key back into `{ endpointId, modelId }`.
+ * Returns `null` if the key is not in the expected `endpointId/modelId` format.
+ */
+export function parseModelKey(key: string): { endpointId: string; modelId: string } | null {
+  const idx = key.indexOf("/");
+  if (idx <= 0 || idx >= key.length - 1) return null;
+  return { endpointId: key.slice(0, idx), modelId: key.slice(idx + 1) };
+}
+
+/**
+ * Resolve the capability (thinking/vision) for a given model key from the
+ * endpoint configuration. Falls back to the hardcoded capability tables when
+ * the endpoint/models data is absent or the model is not registered.
+ */
+export function resolveModelCapability(
+  endpoints: EndpointConfig[],
+  modelKey: string
+): { thinking: boolean; vision: boolean } {
+  const parsed = parseModelKey(modelKey);
+  if (parsed) {
+    const ep = endpoints.find((e) => e.id === parsed.endpointId);
+    const reg = ep?.models?.find((m) => m.id === parsed.modelId);
+    if (reg) {
+      return {
+        thinking: reg.thinking ?? false,
+        vision: reg.vision ?? false,
+      };
+    }
+  }
+  // Fallback: use the raw modelId against hardcoded tables.
+  const modelId = parsed?.modelId ?? modelKey;
+  return {
+    thinking: DEEPSEEK_V4_MODELS.has(modelId),
+    vision: !NON_MULTIMODAL_MODELS.has(modelId.trim()),
+  };
+}
+
+/**
+ * Collect all registered model keys across all endpoints.
+ * Returns `endpointId/modelId` strings for use in dropdown selectors.
+ */
+export function collectAllModelKeys(endpoints: EndpointConfig[]): string[] {
+  const keys: string[] = [];
+  for (const ep of endpoints) {
+    if (!ep.apiKey) continue; // skip endpoints without credentials
+    for (const model of ep.models ?? []) {
+      keys.push(buildModelKey(ep.id, model.id));
+    }
+  }
+  return keys;
+}
+
+/**
+ * Find the endpoint config for a given model key.
+ */
+export function findEndpointForModel(endpoints: EndpointConfig[], modelKey: string): EndpointConfig | null {
+  const parsed = parseModelKey(modelKey);
+  if (!parsed) return null;
+  return endpoints.find((e) => e.id === parsed.endpointId) ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Settings file I/O

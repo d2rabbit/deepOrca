@@ -483,6 +483,10 @@ export class SessionBridge {
       primaryEndpointId: raw.primaryEndpointId ?? "",
       secondaryModel: raw.secondaryModel ?? "",
       secondaryEndpointId: raw.secondaryEndpointId ?? "",
+      memory: {
+        enabled: raw.memory?.enabled ?? false,
+        port: raw.memory?.port ?? 8420,
+      },
     };
   }
 
@@ -582,6 +586,14 @@ export class SessionBridge {
       next.mcpServers = servers;
     } else {
       delete next.mcpServers;
+    }
+
+    // Memory settings
+    if (patch.memory) {
+      next.memory = {
+        enabled: patch.memory.enabled,
+        port: patch.memory.port || 8420,
+      };
     }
 
     if (target === "project") {

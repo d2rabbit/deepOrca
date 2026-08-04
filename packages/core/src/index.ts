@@ -28,6 +28,11 @@ export {
   DEFAULT_SECONDARY_MODEL,
   ENDPOINT_PRESETS,
   normalizeEndpoints,
+  buildModelKey,
+  parseModelKey,
+  resolveModelCapability,
+  collectAllModelKeys,
+  findEndpointForModel,
 } from "./settings";
 export type {
   DeepcodingSettings,
@@ -42,6 +47,7 @@ export type {
   ResolvedStatusLineSettings,
   StatusLineProviderConfig,
   EndpointConfig,
+  ModelRegistration,
 } from "./settings";
 
 // Session

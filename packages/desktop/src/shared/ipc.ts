@@ -428,6 +428,7 @@ export type EditableSettings = {
   /** True when an API key is provided via environment and would override the file value. */
   hasEnvApiKey: boolean;
   apiKey: string;
+  /** Primary model key in endpointId/modelId format (e.g. "deepseek/deepseek-v4-pro"). */
   model: string;
   /** Empty string means "unset". */
   temperature: string;
@@ -438,14 +439,16 @@ export type EditableSettings = {
   permissionDefaultMode: PermissionDefaultMode;
   permissions: Partial<Record<PermissionScope, PermissionDecision>>;
   mcpServers: EditableMcpServer[];
-  /** Multi-endpoint list (each carries its own apiKey for editing). */
+  /** Multi-endpoint list (each carries its own apiKey + models for editing). */
   endpoints: EndpointConfig[];
   /** Which endpoint the primary model uses. */
   primaryEndpointId: string;
-  /** Secondary model name (code review / index / subagent). */
+  /** Secondary model key in endpointId/modelId format. Empty = inherit primary. */
   secondaryModel: string;
   /** Which endpoint the secondary model uses. */
   secondaryEndpointId: string;
+  /** Memory system settings (TencentDB-Agent-Memory sidecar). */
+  memory: { enabled: boolean; port: number };
 };
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };

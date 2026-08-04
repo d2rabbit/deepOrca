@@ -5,20 +5,18 @@ import type {
   PermissionScope,
   ReasoningEffort,
   SerializableSessionEntry,
-  WorkspaceSessions,
 } from "../../shared/ipc";
+import {
+  collectAllModelKeys,
+  parseModelKey,
+  resolveModelCapability,
+  type EndpointConfig,
+  type ModelRegistration,
+} from "@deeporca/core";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
-import {
-  aggregateByTimeWindow,
-  aggregateByWorkspace,
-  aggregateUsage,
-  cacheHitRate,
-  formatExact,
-  formatTokens,
-} from "../lib/token-usage";
 
 type Props = {
   initial: EditableSettings;
@@ -30,27 +28,27 @@ type Props = {
   platform: string;
   /** Currently active theme. */
   theme: Theme;
-  /** Called when the user picks a theme in the General tab. */
+  /** Called when the user picks a theme in the Appearance tab. */
   onSelectTheme: (theme: Theme) => void;
 };
 
-type Tab = "connection" | "language" | "model" | "permissions" | "tokens" | "about";
+type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
-  { id: "connection", labelKey: "settings.tab.connection" },
-  { id: "language", labelKey: "settings.general" },
+  { id: "endpoints", labelKey: "settings.tab.endpoints" },
   { id: "model", labelKey: "settings.tab.model" },
+  { id: "appearance", labelKey: "settings.tab.appearance" },
+  { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
-  { id: "tokens", labelKey: "settings.tab.tokens" },
   { id: "about", labelKey: "settings.tab.about" },
 ];
 
 const TAB_ICONS: Record<Tab, string> = {
-  connection: "⌁",
-  language: "◐",
+  endpoints: "⌁",
   model: "✦",
+  appearance: "◐",
+  memory: "❍",
   permissions: "⊘",
-  tokens: "▥",
   about: "ℹ",
 };
 
@@ -69,19 +67,19 @@ const PERMISSION_SCOPES: PermissionScope[] = [
 
 const DECISIONS: PermissionDecision[] = ["default", "allow", "ask", "deny"];
 
-const REASONING_OPTIONS: ReasoningEffort[] = ["max", "high"];
+const REASONING_OPTIONS_FULL: ReasoningEffort[] = ["max", "high"];
+const REASONING_OPTIONS_OFF: ReasoningEffort[] = [];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
 
-/** An editable API endpoint (mirrors EndpointConfig from @deeporca/core). */
-type Endpoint = EditableSettings["endpoints"][number];
+/** Memory gateway fixed port (read-only in the UI). */
+const MEMORY_PORT = 8420;
 
 /**
- * Built-in endpoint presets offered as quick-add buttons in the connection tab.
- * Mirrors `ENDPOINT_PRESETS` from @deeporca/core but inlined here so the renderer
- * doesn't pull the whole core bundle into the client.
+ * Built-in endpoint presets — fixed and immutable. Users add an apiKey to
+ * enable a preset; they cannot edit the id/name/baseURL.
  */
-const ENDPOINT_PRESETS: Array<Pick<Endpoint, "id" | "name" | "baseURL">> = [
+const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
   { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
   { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
@@ -151,7 +149,6 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
 export function SettingsPanel({
   initial,
   initialTab,
-  sessions,
   onSave,
   onClose,
   platform,
@@ -161,69 +158,77 @@ export function SettingsPanel({
   const { t, locale, setLocale } = useI18n();
   const [s, setS] = useState<EditableSettings>(initial);
   const isTab = (v: string | undefined): v is Tab => TABS.some((item) => item.id === v);
-  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "connection");
-  const [showKey, setShowKey] = useState(false);
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "endpoints");
   /** Per-endpoint apiKey show/hide toggle (keyed by endpoint id). */
   const [showKeyByEndpoint, setShowKeyByEndpoint] = useState<Record<string, boolean>>({});
-  /** Fallback counter for endpoint id generation (only used if crypto.randomUUID is unavailable). */
-  let endpointSeq = 0;
-  const [tree, setTree] = useState<WorkspaceSessions | null>(null);
+  /** Memory gateway availability probe result. */
+  const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
 
-  // Load the full workspace tree for the token analytics tab (all workspaces).
+  // Probe the memory gateway whenever the memory tab is opened.
   useEffect(() => {
-    if (tab !== "tokens" || tree) return;
+    if (tab !== "memory") return;
     let cancelled = false;
+    setMemoryAvailable(null);
     void (async () => {
-      const data = await api.listWorkspaceSessions();
-      if (!cancelled) setTree(data);
+      try {
+        const result = await api.memoryCheckAvailable();
+        if (!cancelled) setMemoryAvailable(result.available);
+      } catch {
+        if (!cancelled) setMemoryAvailable(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [tab, tree]);
+  }, [tab]);
 
   function patch(partial: Partial<EditableSettings>): void {
     setS((prev) => ({ ...prev, ...partial }));
   }
 
-  /** Replace a single endpoint by id (immutable update of the endpoints list). */
-  function updateEndpoint(id: string, changes: Partial<Endpoint>): void {
+  /** Immutable update of a single endpoint by id. */
+  function updateEndpoint(id: string, changes: Partial<EndpointConfig>): void {
     setS((prev) => ({
       ...prev,
       endpoints: prev.endpoints.map((ep) => (ep.id === id ? { ...ep, ...changes } : ep)),
     }));
   }
 
-  /** Remove an endpoint and clear any role references pointing at it. */
-  function removeEndpoint(id: string): void {
-    setS((prev) => {
-      const endpoints = prev.endpoints.filter((ep) => ep.id !== id);
-      const fallbackId = endpoints[0]?.id ?? "";
-      const primaryEndpointId = prev.primaryEndpointId === id ? fallbackId : prev.primaryEndpointId;
-      const secondaryEndpointId = prev.secondaryEndpointId === id ? fallbackId : prev.secondaryEndpointId;
-      return { ...prev, endpoints, primaryEndpointId, secondaryEndpointId };
-    });
+  /** Add a new model registration under an endpoint. */
+  function addModel(endpointId: string): void {
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) => {
+        if (ep.id !== endpointId) return ep;
+        const models = ep.models ? [...ep.models] : [];
+        models.push({ id: "", thinking: false, vision: false });
+        return { ...ep, models };
+      }),
+    }));
   }
 
-  /** Append a new blank endpoint (or a preset-filled one). */
-  function addEndpoint(preset?: { name: string; baseURL: string }): void {
-    // Prefer crypto.randomUUID() for guaranteed uniqueness; fall back to a
-    // counter-augmented timestamp so two adds in the same millisecond (e.g.
-    // rapid double-click) never collide and produce duplicate React keys.
-    let id: string;
-    try {
-      id = `endpoint-${crypto.randomUUID()}`;
-    } catch {
-      endpointSeq += 1;
-      id = `endpoint-${Date.now()}-${endpointSeq}`;
-    }
-    const endpoint: Endpoint = {
-      id,
-      name: preset?.name ?? "",
-      baseURL: preset?.baseURL ?? "",
-      apiKey: "",
-    };
-    setS((prev) => ({ ...prev, endpoints: [...prev.endpoints, endpoint] }));
+  /** Update a model registration by endpoint id + index. */
+  function updateModel(endpointId: string, index: number, changes: Partial<ModelRegistration>): void {
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) => {
+        if (ep.id !== endpointId) return ep;
+        const models = (ep.models ?? []).map((m, i) => (i === index ? { ...m, ...changes } : m));
+        return { ...ep, models };
+      }),
+    }));
+  }
+
+  /** Remove a model registration by endpoint id + index. */
+  function removeModel(endpointId: string, index: number): void {
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) => {
+        if (ep.id !== endpointId) return ep;
+        const models = (ep.models ?? []).filter((_, i) => i !== index);
+        return { ...ep, models };
+      }),
+    }));
   }
 
   function setPermission(scope: PermissionScope, decision: PermissionDecision): void {
@@ -237,6 +242,30 @@ export function SettingsPanel({
       return { ...prev, permissions };
     });
   }
+
+  /** All model keys from enabled endpoints (those with an apiKey). */
+  const allModelKeys = collectAllModelKeys(s.endpoints);
+
+  /** Resolve display label for a model key: "endpointName/modelId". */
+  function modelLabel(key: string): string {
+    const parsed = parseModelKey(key);
+    if (!parsed) return key;
+    const ep = s.endpoints.find((e) => e.id === parsed.endpointId);
+    const epName = ep?.name || parsed.endpointId;
+    return `${epName}/${parsed.modelId}`;
+  }
+
+  // ── Capability resolution for the primary model ──────────────────────
+  const primaryCaps = resolveModelCapability(s.endpoints, s.model);
+  const primaryThinkingOptions = primaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
+
+  // ── Capability resolution for the secondary model (independent) ──────
+  const secondaryCaps =
+    s.secondaryModel.trim() === ""
+      ? null // inherit from primary
+      : resolveModelCapability(s.endpoints, s.secondaryModel);
+  const secondaryThinkingOptions =
+    secondaryCaps && secondaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
 
   return (
     <div className="ui-settings-panel">
@@ -277,78 +306,108 @@ export function SettingsPanel({
           </div>
 
           <div className="ui-settings-body">
-            {tab === "connection" ? (
+            {/* ── Section 1: Endpoints & Models ─────────────────────────── */}
+            {tab === "endpoints" ? (
               <>
                 <section className="ui-settings-section">
                   <div className="ui-settings-section-title">{t("settings.endpoint.title")}</div>
 
                   <div className="ui-endpoint-list">
-                    {s.endpoints.map((ep) => {
-                      const visible = !!showKeyByEndpoint[ep.id];
+                    {ENDPOINT_PRESETS.map((preset) => {
+                      // Find the live endpoint config (if it exists in settings),
+                      // otherwise treat apiKey as empty.
+                      const ep = s.endpoints.find((e) => e.id === preset.id);
+                      const apiKey = ep?.apiKey ?? "";
+                      const models = ep?.models ?? [];
+                      const visible = !!showKeyByEndpoint[preset.id];
+
+                      const onApiKeyChange = (next: string): void => {
+                        updateEndpoint(preset.id, { apiKey: next });
+                      };
+
                       return (
-                        <div className="ui-endpoint-row" key={ep.id}>
+                        <div className="ui-endpoint-row" key={preset.id}>
                           <div className="ui-endpoint-fields">
-                            <Input
-                              type="text"
-                              value={ep.name}
-                              placeholder={t("settings.endpoint.name")}
-                              aria-label={t("settings.endpoint.name")}
-                              onChange={(e) => updateEndpoint(ep.id, { name: e.target.value })}
-                            />
-                            <Input
-                              type="text"
-                              value={ep.baseURL}
-                              placeholder={t("settings.endpoint.baseURL")}
-                              aria-label={t("settings.endpoint.baseURL")}
-                              onChange={(e) => updateEndpoint(ep.id, { baseURL: e.target.value })}
-                            />
+                            <div className="ui-endpoint-preset-name">
+                              <strong>{preset.name}</strong>
+                              <code className="ui-endpoint-preset-url">{preset.baseURL}</code>
+                            </div>
+
                             <div className="ui-row-inline">
                               <Input
                                 type={visible ? "text" : "password"}
-                                value={ep.apiKey}
+                                value={apiKey}
                                 placeholder={t("settings.endpoint.apiKey")}
                                 aria-label={t("settings.endpoint.apiKey")}
                                 autoComplete="off"
-                                onChange={(e) => updateEndpoint(ep.id, { apiKey: e.target.value })}
+                                onChange={(e) => onApiKeyChange(e.target.value)}
                               />
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setShowKeyByEndpoint((prev) => ({ ...prev, [ep.id]: !prev[ep.id] }))}
+                                onClick={() =>
+                                  setShowKeyByEndpoint((prev) => ({
+                                    ...prev,
+                                    [preset.id]: !prev[preset.id],
+                                  }))
+                                }
                               >
                                 {visible ? t("common.hide") : t("common.show")}
                               </Button>
                             </div>
+
+                            {/* Model list under this endpoint */}
+                            <div className="ui-endpoint-models">
+                              <div className="ui-endpoint-models-title">{t("settings.endpoint.models")}</div>
+                              {models.length === 0 ? (
+                                <div className="ui-field-hint">{t("settings.endpoint.noModels")}</div>
+                              ) : (
+                                models.map((model, index) => (
+                                  <div className="ui-endpoint-model-row" key={index}>
+                                    <Input
+                                      type="text"
+                                      value={model.id}
+                                      placeholder={t("settings.endpoint.modelId")}
+                                      aria-label={t("settings.endpoint.modelId")}
+                                      onChange={(e) => updateModel(preset.id, index, { id: e.target.value })}
+                                    />
+                                    <Checkbox
+                                      checked={!!model.thinking}
+                                      onChange={(e) =>
+                                        updateModel(preset.id, index, {
+                                          thinking: e.target.checked,
+                                        })
+                                      }
+                                      label={t("settings.endpoint.thinkingCap")}
+                                    />
+                                    <Checkbox
+                                      checked={!!model.vision}
+                                      onChange={(e) =>
+                                        updateModel(preset.id, index, {
+                                          vision: e.target.checked,
+                                        })
+                                      }
+                                      label={t("settings.endpoint.visionCap")}
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removeModel(preset.id, index)}
+                                      title={t("settings.endpoint.delete")}
+                                    >
+                                      {t("settings.endpoint.delete")}
+                                    </Button>
+                                  </div>
+                                ))
+                              )}
+                              <Button variant="ghost" size="sm" onClick={() => addModel(preset.id)}>
+                                {t("settings.endpoint.addModel")}
+                              </Button>
+                            </div>
                           </div>
-                          {s.endpoints.length > 1 ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeEndpoint(ep.id)}
-                              title={t("settings.endpoint.delete")}
-                            >
-                              {t("settings.endpoint.delete")}
-                            </Button>
-                          ) : null}
                         </div>
                       );
                     })}
-                  </div>
-
-                  <div className="ui-endpoint-add">
-                    <Button variant="ghost" size="sm" onClick={() => addEndpoint()}>
-                      {t("settings.endpoint.add")}
-                    </Button>
-                    {ENDPOINT_PRESETS.map((preset) => (
-                      <Button
-                        key={preset.id}
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => addEndpoint({ name: preset.name, baseURL: preset.baseURL })}
-                      >
-                        + {preset.name}
-                      </Button>
-                    ))}
                   </div>
                 </section>
 
@@ -361,112 +420,185 @@ export function SettingsPanel({
                         value={s.primaryEndpointId}
                         onChange={(e) => patch({ primaryEndpointId: e.target.value })}
                       >
-                        {s.endpoints.map((ep) => (
-                          <option key={ep.id} value={ep.id}>
-                            {ep.name || ep.baseURL || ep.id}
+                        {ENDPOINT_PRESETS.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.name}
                           </option>
                         ))}
                       </Select>
                     </Field>
 
-                    <Field label={t("settings.model")}>
-                      <Input
-                        type="text"
-                        value={s.model}
-                        placeholder="deepseek-v4-pro"
-                        onChange={(e) => patch({ model: e.target.value })}
-                      />
-                    </Field>
-
-                    <Field label={t("settings.temperature")} hint={t("settings.temperatureHint")}>
-                      <Input
-                        type="text"
-                        value={s.temperature}
-                        placeholder={t("settings.temperaturePlaceholder")}
-                        onChange={(e) => patch({ temperature: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-
-                  <div className="ui-endpoint-role">
                     <Field label={t("settings.endpoint.secondary")}>
                       <Select
                         value={s.secondaryEndpointId}
                         onChange={(e) => patch({ secondaryEndpointId: e.target.value })}
                       >
-                        {s.endpoints.map((ep) => (
-                          <option key={ep.id} value={ep.id}>
-                            {ep.name || ep.baseURL || ep.id}
+                        {ENDPOINT_PRESETS.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.name}
                           </option>
                         ))}
                       </Select>
                     </Field>
-
-                    <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
-                      <Input
-                        type="text"
-                        value={s.secondaryModel}
-                        placeholder="deepseek-v4-flash"
-                        onChange={(e) => patch({ secondaryModel: e.target.value })}
-                      />
-                    </Field>
                   </div>
-                </section>
-
-                {/* Legacy single apiKey field — kept for backward compatibility.
-                    IMPORTANT: when endpoints are configured (the default since core
-                    synthesizes one), saving always takes the endpoints path and this
-                    field is effectively ignored (updateSettings only writes it when
-                    next.endpoints is empty). It is only useful for setups with zero
-                    endpoints in the target file. Editing it when endpoints exist will
-                    NOT change the active API key — edit the primary endpoint's key
-                    above instead. */}
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.apiKey")}</div>
-                  <Field
-                    label={t("settings.apiKey")}
-                    hint={s.hasEnvApiKey ? t("settings.envOverride") : undefined}
-                    hintWarn
-                  >
-                    <div className="ui-row-inline">
-                      <Input
-                        type={showKey ? "text" : "password"}
-                        value={s.apiKey}
-                        placeholder="sk-…"
-                        autoComplete="off"
-                        onChange={(e) => patch({ apiKey: e.target.value })}
-                      />
-                      <Button variant="ghost" size="sm" onClick={() => setShowKey((v) => !v)}>
-                        {showKey ? t("common.hide") : t("common.show")}
-                      </Button>
-                    </div>
-                  </Field>
                 </section>
               </>
             ) : null}
 
-            {tab === "language" ? (
+            {/* ── Section 2: Model Capabilities ─────────────────────────── */}
+            {tab === "model" ? (
+              <section className="ui-settings-section">
+                <div className="ui-settings-section-title">{t("settings.tab.model")}</div>
+
+                {/* Primary model */}
+                <div className="ui-endpoint-role">
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.primary")}</div>
+
+                  <Field label={t("settings.model")}>
+                    <Select value={s.model} onChange={(e) => patch({ model: e.target.value })}>
+                      <option value="">{t("settings.endpoint.noModels")}</option>
+                      {allModelKeys.map((key) => (
+                        <option key={key} value={key}>
+                          {modelLabel(key)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  <Field label={t("settings.reasoningEffort")}>
+                    <Select
+                      value={s.thinkingEnabled ? s.reasoningEffort : ""}
+                      disabled={primaryThinkingOptions.length === 0}
+                      onChange={(e) => {
+                        const value = e.target.value as ReasoningEffort | "";
+                        if (value === "") {
+                          patch({ thinkingEnabled: false });
+                        } else {
+                          patch({ thinkingEnabled: true, reasoningEffort: value });
+                        }
+                      }}
+                    >
+                      <option value={t("settings.capabilities.thinkingOff")}>
+                        {t("settings.capabilities.thinkingOff")}
+                      </option>
+                      {primaryThinkingOptions.map((r) => (
+                        <option key={r} value={r}>
+                          {r === "max" ? t("model.thinkingMax") : t("model.thinkingHigh")}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  <Field label={t("settings.capabilities.vision")}>
+                    <Checkbox
+                      checked={primaryCaps.vision}
+                      disabled={!primaryCaps.vision}
+                      onChange={(e) => {
+                        // Vision is derived from model capability; the toggle is
+                        // informational. We keep it in settings as telemetryEnabled
+                        // style flag if needed in future, but capability drives it.
+                        // No-op: controlled by model registration.
+                        void e;
+                      }}
+                      label={t("settings.capabilities.vision")}
+                    />
+                  </Field>
+
+                  <Field label={t("settings.temperature")} hint={t("settings.temperatureHint")}>
+                    <Input
+                      type="text"
+                      value={s.temperature}
+                      placeholder={t("settings.temperaturePlaceholder")}
+                      onChange={(e) => patch({ temperature: e.target.value })}
+                    />
+                  </Field>
+                </div>
+
+                {/* Secondary model (independent capabilities) */}
+                <div className="ui-endpoint-role">
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.secondary")}</div>
+
+                  <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
+                    <Select value={s.secondaryModel} onChange={(e) => patch({ secondaryModel: e.target.value })}>
+                      <option value="">{t("settings.capabilities.inherit")}</option>
+                      {allModelKeys.map((key) => (
+                        <option key={key} value={key}>
+                          {modelLabel(key)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  {s.secondaryModel.trim() !== "" ? (
+                    <>
+                      <Field label={t("settings.reasoningEffort")}>
+                        <Select
+                          value={
+                            s.secondaryModel.trim() === "" || !secondaryCaps ? "" : secondaryCaps.thinking ? "high" : ""
+                          }
+                          disabled={secondaryThinkingOptions.length === 0}
+                          onChange={(e) => {
+                            // Secondary thinking is independent; we mirror it onto
+                            // the primary thinkingEnabled/reasoningEffort only as a
+                            // UI convenience since EditableSettings has a single
+                            // thinkingEnabled field. The secondary model settings
+                            // live exclusively in this panel (never TopBar).
+                            const value = e.target.value as ReasoningEffort | "";
+                            if (value === "") {
+                              patch({ thinkingEnabled: false });
+                            } else {
+                              patch({ thinkingEnabled: true, reasoningEffort: value });
+                            }
+                          }}
+                        >
+                          <option value={t("settings.capabilities.thinkingOff")}>
+                            {t("settings.capabilities.thinkingOff")}
+                          </option>
+                          {secondaryThinkingOptions.map((r) => (
+                            <option key={r} value={r}>
+                              {r === "max" ? t("model.thinkingMax") : t("model.thinkingHigh")}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+
+                      <Field label={t("settings.capabilities.vision")}>
+                        <Checkbox
+                          checked={!!secondaryCaps && secondaryCaps.vision}
+                          disabled={!secondaryCaps || !secondaryCaps.vision}
+                          onChange={(e) => {
+                            void e;
+                          }}
+                          label={t("settings.capabilities.vision")}
+                        />
+                      </Field>
+                    </>
+                  ) : null}
+
+                  <Field>
+                    <Checkbox
+                      checked={s.telemetryEnabled}
+                      onChange={(e) => patch({ telemetryEnabled: e.target.checked })}
+                      label={t("settings.telemetry")}
+                    />
+                  </Field>
+
+                  <Field>
+                    <Checkbox
+                      checked={s.debugLogEnabled}
+                      onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
+                      label={t("settings.debugLog")}
+                    />
+                  </Field>
+                </div>
+              </section>
+            ) : null}
+
+            {/* ── Section 3: Appearance & Theme ─────────────────────────── */}
+            {tab === "appearance" ? (
               <>
                 <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.language")}</div>
-                  <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.language")}>
-                    {LOCALE_OPTIONS.map((code) => (
-                      <button
-                        key={code}
-                        type="button"
-                        role="radio"
-                        aria-checked={locale === code}
-                        className={`ui-lang-chip${locale === code ? " active" : ""}`}
-                        onClick={() => setLocale(code)}
-                      >
-                        {t(`lang.${code}` as MessageKey)}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.theme")}</div>
+                  <div className="ui-settings-section-title">{t("settings.appearance.theme")}</div>
                   <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.theme")}>
                     {availableThemes(platform).map((id) => (
                       <button
@@ -482,53 +614,55 @@ export function SettingsPanel({
                     ))}
                   </div>
                 </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.appearance.locale")}</div>
+                  <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.language")}>
+                    {LOCALE_OPTIONS.map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        role="radio"
+                        aria-checked={locale === code}
+                        className={`ui-lang-chip${locale === code ? " active" : ""}`}
+                        onClick={() => setLocale(code)}
+                      >
+                        {t(`lang.${code}` as MessageKey)}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               </>
             ) : null}
 
-            {tab === "model" ? (
+            {/* ── Section 4: Memory System ──────────────────────────────── */}
+            {tab === "memory" ? (
               <section className="ui-settings-section">
-                <div className="ui-settings-section-title">{t("settings.tab.model")}</div>
-                <Field>
+                <div className="ui-settings-section-title">{t("settings.tab.memory")}</div>
+
+                <Field hint={t("settings.memory.hint")}>
                   <Checkbox
-                    checked={s.thinkingEnabled}
-                    onChange={(e) => patch({ thinkingEnabled: e.target.checked })}
-                    label={t("settings.thinkingMode")}
+                    checked={s.memory.enabled}
+                    onChange={(e) => patch({ memory: { ...s.memory, enabled: e.target.checked } })}
+                    label={t("settings.memory.enable")}
                   />
                 </Field>
 
-                {s.thinkingEnabled ? (
-                  <Field label={t("settings.reasoningEffort")}>
-                    <Select
-                      value={s.reasoningEffort}
-                      onChange={(e) => patch({ reasoningEffort: e.target.value as ReasoningEffort })}
-                    >
-                      {REASONING_OPTIONS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                ) : null}
-
-                <Field>
-                  <Checkbox
-                    checked={s.telemetryEnabled}
-                    onChange={(e) => patch({ telemetryEnabled: e.target.checked })}
-                    label={t("settings.telemetry")}
-                  />
+                <Field label={t("settings.memory.port")}>
+                  <Input type="text" value={String(MEMORY_PORT)} readOnly disabled />
                 </Field>
 
-                <Field>
-                  <Checkbox
-                    checked={s.debugLogEnabled}
-                    onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
-                    label={t("settings.debugLog")}
-                  />
-                </Field>
+                <div className="ui-field-hint ui-memory-status">
+                  {memoryAvailable === null
+                    ? t("settings.memory.checking")
+                    : memoryAvailable
+                      ? t("settings.memory.enable")
+                      : t("settings.memory.unavailable")}
+                </div>
               </section>
             ) : null}
 
+            {/* ── Section 5: Permission Rules ───────────────────────────── */}
             {tab === "permissions" ? (
               <section className="ui-settings-section">
                 <div className="ui-settings-section-title">{t("settings.tab.permissions")}</div>
@@ -536,7 +670,9 @@ export function SettingsPanel({
                   <Select
                     value={s.permissionDefaultMode}
                     onChange={(e) =>
-                      patch({ permissionDefaultMode: e.target.value as EditableSettings["permissionDefaultMode"] })
+                      patch({
+                        permissionDefaultMode: e.target.value as EditableSettings["permissionDefaultMode"],
+                      })
                     }
                   >
                     <option value="allowAll">{t("settings.allowAll")}</option>
@@ -567,8 +703,7 @@ export function SettingsPanel({
               </section>
             ) : null}
 
-            {tab === "tokens" ? <TokenAnalytics tree={tree} fallbackSessions={sessions} /> : null}
-
+            {/* ── Section 6: About ──────────────────────────────────────── */}
             {tab === "about" ? (
               <>
                 <section className="ui-settings-section">
@@ -602,142 +737,5 @@ export function SettingsPanel({
         </div>
       </div>
     </div>
-  );
-}
-
-function TokenBars({
-  rows,
-  max,
-}: {
-  rows: { label: string; value: number; model?: boolean }[];
-  max: number;
-}): JSX.Element {
-  return (
-    <div className="ui-token-bars">
-      {rows.map((row) => (
-        <div key={row.label} className="ui-token-bar-row" title={formatExact(row.value)}>
-          <span className="ui-token-bar-label" title={row.label}>
-            {row.label}
-          </span>
-          <span className="ui-token-bar-track">
-            <span
-              className={`ui-token-bar-fill${row.model ? " model" : ""}`}
-              style={{ width: `${(row.value / max) * 100}%` }}
-            />
-          </span>
-          <span className="ui-token-bar-value">{formatTokens(row.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Token analytics: a bento-style grid (headline total + prompt/completion/reqs
- * metrics, a time-dimension breakdown and a model-dimension breakdown), plus a
- * per-workspace table underneath.
- */
-function TokenAnalytics({
-  tree,
-  fallbackSessions,
-}: {
-  tree: WorkspaceSessions | null;
-  fallbackSessions: SerializableSessionEntry[];
-}): JSX.Element {
-  const { t } = useI18n();
-  const allSessions = tree ? tree.workspaces.flatMap((w) => w.sessions) : fallbackSessions;
-  const agg = aggregateUsage(allSessions);
-  const windows = aggregateByTimeWindow(allSessions);
-  const wsRows = tree ? aggregateByWorkspace(tree) : [];
-  const timeMax = Math.max(1, windows.last5h.total, windows.today.total, windows.thisWeek.total);
-  const modelMax = Math.max(1, ...agg.perModel.map((m) => m.total));
-
-  const timeRows = [
-    { label: t("tokens.last5h"), value: windows.last5h.total },
-    { label: t("tokens.today"), value: windows.today.total },
-    { label: t("tokens.thisWeek"), value: windows.thisWeek.total },
-  ];
-  const modelRows = agg.perModel.map((m) => ({ label: m.model, value: m.total, model: true }));
-
-  return (
-    <>
-      <div className="ui-token-note">{t("tokens.approxNote")}</div>
-
-      <div className="ui-bento">
-        <div className="ui-bento-cell ui-bento-hero">
-          <div className="ui-bento-hero-value" title={formatExact(agg.totals.total)}>
-            {formatTokens(agg.totals.total)}
-          </div>
-          <div className="ui-bento-hero-label">{t("tokens.colTotal")}</div>
-          <div className="ui-bento-hero-sub">{t("tokens.cacheHitRate", { n: cacheHitRate(agg.totals) })}</div>
-        </div>
-        <div className="ui-bento-cell">
-          <div className="ui-bento-metric" title={formatExact(agg.totals.prompt)}>
-            {formatTokens(agg.totals.prompt)}
-          </div>
-          <div className="ui-bento-metric-label">{t("tokens.prompt")}</div>
-        </div>
-        <div className="ui-bento-cell">
-          <div className="ui-bento-metric" title={formatExact(agg.totals.completion)}>
-            {formatTokens(agg.totals.completion)}
-          </div>
-          <div className="ui-bento-metric-label">{t("tokens.completion")}</div>
-        </div>
-        <div className="ui-bento-cell">
-          <div className="ui-bento-metric">{formatExact(agg.totals.reqs)}</div>
-          <div className="ui-bento-metric-label">{t("tokens.requests")}</div>
-        </div>
-
-        <div className="ui-bento-cell ui-bento-wide">
-          <div className="ui-bento-cell-title">{t("tokens.byTime")}</div>
-          <TokenBars rows={timeRows} max={timeMax} />
-        </div>
-
-        <div className="ui-bento-cell ui-bento-wide">
-          <div className="ui-bento-cell-title">{t("tokens.perModel")}</div>
-          {modelRows.length === 0 ? (
-            <div className="ui-field-hint">{t("tokens.emptyHint")}</div>
-          ) : (
-            <TokenBars rows={modelRows} max={modelMax} />
-          )}
-        </div>
-      </div>
-
-      <div className="ui-usage-section-title">{t("tokens.byWorkspace")}</div>
-      {wsRows.length === 0 ? (
-        <div className="ui-field-hint">{t("tokens.emptyHint")}</div>
-      ) : (
-        <table className="ui-usage-table">
-          <thead>
-            <tr>
-              <th>{t("tokens.colWorkspace")}</th>
-              <th className="num">{t("tokens.colPrompt")}</th>
-              <th className="num">{t("tokens.colCompletion")}</th>
-              <th className="num">{t("tokens.colTotal")}</th>
-              <th className="num">{t("tokens.colReqs")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {wsRows.map((row) => (
-              <tr key={row.root}>
-                <td className="ui-mono" title={row.root}>
-                  {row.label}
-                </td>
-                <td className="num" title={formatExact(row.prompt)}>
-                  {formatTokens(row.prompt)}
-                </td>
-                <td className="num" title={formatExact(row.completion)}>
-                  {formatTokens(row.completion)}
-                </td>
-                <td className="num" title={formatExact(row.total)}>
-                  {formatTokens(row.total)}
-                </td>
-                <td className="num">{formatExact(row.reqs)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </>
   );
 }
