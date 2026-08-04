@@ -354,6 +354,17 @@ export class SessionBridge {
     return resolveCurrentSettings(this.projectRoot);
   }
 
+  /**
+   * User-configured MCP servers minus any disabled by the desktop sidecar.
+   * Public so {@link PluginManager} applies the same disable filter that
+   * {@link initMcp} uses — without this, PluginManager.initialize() would
+   * re-init previously-disabled servers via the raw (unfiltered) settings,
+   * bypassing the user's disable choice.
+   */
+  getEffectiveMcpServers(): Record<string, McpServerConfig> | undefined {
+    return this.effectiveMcpServers();
+  }
+
   // ── Sessions ──────────────────────────────────────────────────────────────
   listSessions(): SerializableSessionEntry[] {
     return this.manager.listSessions().map(toSerializableEntry);

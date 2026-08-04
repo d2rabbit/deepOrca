@@ -211,11 +211,12 @@ function getPluginManager(): PluginManager {
     pluginManager = new PluginManager(
       () => b.getSessionManager(),
       () => {
-        // De-typed access to resolveCurrentSettings via the bridge's own method
-        const settings = b.getRawSettings();
+        // MCP servers must go through the same disable-filter (readDisabledMcp
+        // sidecar) that SessionBridge.initMcp uses, otherwise a disabled server
+        // gets re-initialized here and bypasses the user's disable choice.
         return {
-          mcpServers: settings.mcpServers,
-          enabledSkills: settings.enabledSkills,
+          mcpServers: b.getEffectiveMcpServers(),
+          enabledSkills: b.getRawSettings().enabledSkills,
         };
       }
     );
