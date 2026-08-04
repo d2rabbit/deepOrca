@@ -144,44 +144,72 @@ const SERENA_CONFIG_FILE_NAME = "serena_config.yml";
 // `--project`, so an empty list here satisfies the schema without binding
 // Serena to a fixed project. web_dashboard_open_on_launch:false suppresses the
 // browser popup; the dashboard server stays available via open_dashboard.
+//
+// IMPORTANT: we set `web_dashboard: false` (not just `web_dashboard_open_on_launch: false`).
+// On Windows, Serena's `app`/`tray_manager` dashboard interface launches a native
+// window + tray icon even when `web_dashboard_open_on_launch` is false — the
+// "open on launch" flag only controls the *browser tab*, not the native window.
+// Setting `web_dashboard: false` disables the entire dashboard subsystem, which
+// is what we want: DeepOrca runs Serena as a silent stdio MCP server. The
+// `open_dashboard` tool will return an error if invoked, but that's acceptable
+// — DeepOrca never calls it.
 const SERENA_CONFIG_CONTENT =
   "# Managed by DeepOrca — runs Serena silently as a stdio MCP server.\n" +
   "# The `projects` key is REQUIRED by SerenaConfig; we activate the real\n" +
-  "# project via --project on the CLI, so an empty list just satisfies the schema.\n" +
+  "# via --project on the CLI, so an empty list just satisfies the schema.\n" +
+  "web_dashboard: false\n" +
   "web_dashboard_open_on_launch: false\n" +
   "projects: []\n";
 
-let serenaHomeEnsured = false;
-
 /**
  * Ensure a DeepOrca-managed `SERENA_HOME` directory exists with a config file
- * that disables Serena's dashboard auto-open. Returns the absolute path to use
- * as `SERENA_HOME`. Idempotent — only writes once per process.
+ * that disables Serena's dashboard. Returns the absolute path to use as
+ * `SERENA_HOME`.
  *
- * Also upgrades a pre-existing config that lacks the required `projects` key
- * (older DeepOrca versions wrote a config without it, which makes Serena crash
- * and pop a native error window on Windows). Such stale files are rewritten.
+ * Serena rewrites this config file on every startup (adding default fields,
+ * expanding the schema). If `web_dashboard` is absent it defaults to `true`,
+ * which on Windows pops a native app window + tray icon even when
+ * `web_dashboard_open_on_launch: false`. Therefore we check (and patch) the
+ * config every time Serena is about to start, not just once — Serena's rewrite
+ * between two DeepOrca launches can silently re-enable the dashboard.
  */
 export function ensureSerenaHeadlessHome(): string {
   const home = path.join(getUserConfigRoot(), SERENA_CONFIG_DIR_NAME);
-  if (!serenaHomeEnsured) {
-    try {
-      mkdirSync(home, { recursive: true });
-      const configFile = path.join(home, SERENA_CONFIG_FILE_NAME);
-      const needsWrite =
-        // No config yet → create it.
-        !existsSync(configFile) ||
-        // Stale config missing the required `projects` key → upgrade it, or
-        // Serena will crash on startup (and pop a native error window on Win).
-        !readFileSync(configFile, "utf8").includes("projects:");
-      if (needsWrite) {
+  try {
+    mkdirSync(home, { recursive: true });
+    const configFile = path.join(home, SERENA_CONFIG_FILE_NAME);
+    const existing = existsSync(configFile) ? readFileSync(configFile, "utf8") : "";
+    // Rewrite when: no config yet, stale config missing the required `projects`
+    // key, OR a config that doesn't disable the web dashboard. Serena rewrites
+    // this file on startup (adding default fields), and if `web_dashboard` was
+    // absent it defaults to `true` — which on Windows pops a native app window
+    // + tray icon even when `web_dashboard_open_on_launch: false`. We must
+    // ensure `web_dashboard: false` is present every time we get a chance to
+    // write, otherwise Serena's rewrite reintroduces the popup.
+    const needsWrite = !existing || !existing.includes("projects:") || !existing.includes("web_dashboard: false");
+    if (needsWrite) {
+      // If Serena already expanded the config (it adds many fields), preserve
+      // those fields and only force the dashboard off. Otherwise write our
+      // minimal managed config.
+      if (existing && existing.includes("projects:")) {
+        // Serena rewrote the file — patch the two dashboard keys in place
+        // rather than replacing the whole file (preserves Serena's additions).
+        let patched = existing;
+        patched = patched.replace(/^web_dashboard:.*$/m, "web_dashboard: false");
+        patched = patched.replace(/^web_dashboard_open_on_launch:.*$/m, "web_dashboard_open_on_launch: false");
+        // If web_dashboard wasn't present at all (Serena may omit it when it
+        // equals the default), inject it at the top.
+        if (!/^web_dashboard:\s*false/m.test(patched)) {
+          patched = `web_dashboard: false\n` + patched;
+        }
+        writeFileSync(configFile, patched, "utf8");
+      } else {
         writeFileSync(configFile, SERENA_CONFIG_CONTENT, "utf8");
       }
-    } catch {
-      // Best-effort: if we can't write the config, Serena falls back to its
-      // own defaults (dashboard may pop up). Non-fatal — the server still runs.
     }
-    serenaHomeEnsured = true;
+  } catch {
+    // Best-effort: if we can't write the config, Serena falls back to its
+    // own defaults (dashboard may pop up). Non-fatal — the server still runs.
   }
   return home;
 }
