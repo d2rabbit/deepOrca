@@ -214,6 +214,10 @@ export function App(): JSX.Element {
   projectRootRef.current = projectRoot;
   const pendingSelectRef = useRef<string | null>(null);
   const prevBusyRef = useRef(false);
+  // Monotonic counter for loadSession race protection: only the latest call
+  // should commit its fetched state. An older, slower request that resolves
+  // after a newer one is discarded.
+  const loadSeqRef = useRef(0);
 
   const bumpTree = useCallback(() => setTreeRefreshKey((k) => k + 1), []);
 
@@ -329,7 +333,11 @@ export function App(): JSX.Element {
 
   const loadSession = useCallback(
     async (id: string | null) => {
+      // Claim this load slot; a newer call will have incremented past us.
+      const seq = ++loadSeqRef.current;
+      const isStale = (): boolean => seq !== loadSeqRef.current;
       await api.setActiveSession(id);
+      if (isStale()) return; // a newer loadSession started — abandon
       setActiveId(id);
       setPendingPlan(null);
       setErrorLine(null);
@@ -353,6 +361,10 @@ export function App(): JSX.Element {
         return;
       }
       const [entry, msgs] = await Promise.all([api.getSession(id), api.listMessages(id)]);
+      // Guard against races: if the user selected another session (or switched
+      // workspaces) while these fetches were in flight, discard the stale data
+      // so it can't overwrite the newer session's view.
+      if (isStale()) return;
       setMessages(msgs);
       setActiveStatus(entry?.status ?? null);
       setAskPermissions(entry?.askPermissions);
@@ -564,6 +576,13 @@ export function App(): JSX.Element {
       offMcp();
       offPlugin();
       offRoot();
+      // Cancel any pending throttled stream-progress flush so a detached timer
+      // can't call setStreamProgress after the effect (and possibly the App)
+      // has unmounted — important under React StrictMode double-invoke too.
+      if (streamFlushTimer) {
+        clearTimeout(streamFlushTimer);
+        streamFlushTimer = null;
+      }
     };
   }, [
     bumpTree,
