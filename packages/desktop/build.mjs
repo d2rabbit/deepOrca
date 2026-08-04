@@ -196,7 +196,8 @@ async function copyStaticAssets() {
 
 async function run() {
   await ensureCoreBuilt();
-  ensureVendored("codegraph", [".vendored-codegraph-version"], "npx @colbymchenry/codegraph");
+  // CodeGraph: installed as npm dependency (@colbymchenry/codegraph) — no vendor script needed.
+  // The npm-shim.js auto-selects the platform binary from optionalDependencies.
   ensureVendored("openwiki", [".vendored-openwiki-version"], "npx openwiki");
   // Tailwind JIT script: downloaded as a single JS file for offline DeepDesign.
   ensureVendored("tailwind", ["tailwind.js"], "cdn.tailwindcss.com (online fallback)");

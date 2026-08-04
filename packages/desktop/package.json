@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@alibaba-group/open-code-review": "^1.8.0",
+    "@colbymchenry/codegraph": "^1.5.0",
     "@deeporca/core": "file:../core",
     "@monaco-editor/react": "^4.7.0",
     "@openuidev/lang-core": "^0.2.10",

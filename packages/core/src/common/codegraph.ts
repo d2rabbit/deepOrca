@@ -139,13 +139,34 @@ function getPlatformArch(): string | null {
 }
 
 /**
- * Decide how to invoke CodeGraph. Prefers the vendored prebuilt binary (self-
- * contained, no host dependency). Falls back to legacy source-build entry run
- * through a sqlite-capable Node runtime. Last resort: `npx`.
+ * Decide how to invoke CodeGraph. Resolution order:
+ * 1. npm package (preferred): @colbymchenry/codegraph installed as a
+ *    dependency. The npm-shim.js auto-selects the platform binary from
+ *    optionalDependencies and runs it on bundled Node 24 (with sqlite).
+ * 2. Vendored prebuilt binary (from GitHub Releases download).
+ * 3. Legacy source-build entry (needs Node + sqlite runtime).
+ * 4. npx fallback (last resort).
  */
 export function resolveCodegraphExecutable(): CodegraphExecutable {
+  // 1. Try npm package first (like OCR: require.resolve → shim → platform binary).
+  try {
+    const shimEntry = moduleRequire.resolve("@colbymchenry/codegraph/npm-shim.js");
+    if (fs.existsSync(shimEntry)) {
+      return {
+        command: process.execPath,
+        prefixArgs: [shimEntry],
+        env: process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : undefined,
+      };
+    }
+  } catch {
+    // npm package not installed — try vendored binary.
+  }
+
+  // 2. Vendored prebuilt binary.
   const vendored = resolveVendorExecutable();
   if (vendored) return vendored;
+
+  // 3. npx fallback.
   return { command: "npx", prefixArgs: ["-y", CODEGRAPH_PACKAGE] };
 }
 
