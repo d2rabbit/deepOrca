@@ -83,6 +83,11 @@ function main() {
     dependencies: {
       ...corePkg.dependencies,
       "@alibaba-group/open-code-review": desktopPkg.dependencies["@alibaba-group/open-code-review"],
+      // Memory Gateway (TencentDB-Agent-Memory): resolveGatewayEntry() /
+      // resolveTsxBinary() do moduleRequire.resolve against this package at
+      // runtime. Without it in the staging node_modules, memory features
+      // silently fail with "gateway not found". tsx is pulled transitively.
+      "@tencentdb-agent-memory/memory-tencentdb": desktopPkg.dependencies["@tencentdb-agent-memory/memory-tencentdb"],
     },
     // Lets electron-builder resolve the Electron version for this app dir.
     devDependencies: { electron: electronVersion },

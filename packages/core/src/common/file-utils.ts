@@ -57,13 +57,25 @@ export function ensureParentDirectory(filePath: string): void {
 
 export function hasFileChangedSinceState(filePath: string, state: FileState): boolean {
   const current = readTextFileWithMetadata(filePath);
-  if (current.timestamp <= state.timestamp) {
-    return false;
+  // Timestamp strictly increased → definitely changed (fast path, no content
+  // comparison). This is the common case and has zero extra cost.
+  if (current.timestamp > state.timestamp) {
+    const isFullRead =
+      !state.isPartialView && typeof state.offset === "undefined" && typeof state.limit === "undefined";
+    return !(isFullRead && current.content === state.content);
   }
 
+  // Timestamp did not advance (same ms, rolled back, or low-resolution FS).
+  // Previously this returned false unconditionally, silently dropping external
+  // edits that didn't bump the mtime. Fall back to a content comparison when we
+  // have the full prior content; otherwise treat as changed (safer).
   const isFullRead = !state.isPartialView && typeof state.offset === "undefined" && typeof state.limit === "undefined";
-
-  return !(isFullRead && current.content === state.content);
+  if (isFullRead) {
+    return current.content !== state.content;
+  }
+  // Partial view — can't compare content reliably, and timestamp didn't move,
+  // so conservatively report unchanged to avoid false-positive edit/write loops.
+  return false;
 }
 
 export function buildDiffPreview(

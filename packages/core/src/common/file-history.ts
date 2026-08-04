@@ -186,6 +186,35 @@ export class GitFileHistory {
     const currentManifest = currentHash ? this.readManifest(currentHash) : emptyManifest();
     const targetManifest = this.readManifest(checkpointHash);
 
+    // ── Pre-flight: validate all blobs are readable and parent dirs are
+    // creatable BEFORE touching the working tree. This makes restore as close
+    // to atomic as possible: if any blob is corrupt/missing or a parent path
+    // is inaccessible, we fail here with the tree untouched, rather than
+    // leaving a half-restored mix of two checkpoints. (A mid-write I/O error
+    // can still occur, but the pre-flight eliminates the dominant failure
+    // modes: bad blobs and permission/path errors.)
+    const blobsToVerify = new Set<string>();
+    for (const entry of Object.values(targetManifest.files)) {
+      if (entry.blob) {
+        blobsToVerify.add(entry.blob);
+      }
+    }
+    for (const blob of blobsToVerify) {
+      this.readBlob(blob); // throws if corrupt/missing
+    }
+    // Verify every write target's parent directory can be created/resolved.
+    const dirsToCheck = new Set<string>();
+    for (const entry of Object.values(targetManifest.files)) {
+      if (entry.blob) {
+        dirsToCheck.add(path.dirname(entry.path));
+      }
+    }
+    for (const dir of dirsToCheck) {
+      // mkdirSync(recursive) is idempotent; calling it here surfaces EACCES /
+      // ENOTDIR (parent is a file) before we've written any file content.
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
     for (const [key, entry] of Object.entries(currentManifest.files)) {
       if (!targetManifest.files[key]) {
         this.restoreFirstKnownEntry(currentHash, key, entry.path);
@@ -197,7 +226,6 @@ export class GitFileHistory {
         removeTrackedFile(entry.path);
         continue;
       }
-      fs.mkdirSync(path.dirname(entry.path), { recursive: true });
       fs.writeFileSync(entry.path, this.readBlob(entry.blob));
     }
 
