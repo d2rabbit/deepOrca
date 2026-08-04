@@ -842,7 +842,13 @@ export function App(): JSX.Element {
       const result = await api.gitStashCheckout(target);
       if (result.ok) {
         setBranchConflict(null);
-        pushToast("success", t("scm.stashSwitchDone", { branch: target }));
+        if (result.stashWarning) {
+          // Checkout succeeded but the stashed changes could not be restored —
+          // surface as an error toast so the user recovers via `git stash pop`.
+          pushToast("error", result.stashWarning);
+        } else {
+          pushToast("success", t("scm.stashSwitchDone", { branch: target }));
+        }
         await refreshGit();
         await refreshSessions();
         bumpTree();

@@ -4,6 +4,7 @@
 import type {
   BuiltinPluginGroup,
   BuiltinPluginInfo,
+  EndpointConfig,
   ModelConfigSelection,
   ModelUsage,
   PermissionDefaultMode,
@@ -395,6 +396,11 @@ export type SettingsSummary = {
   reasoningEffort: ReasoningEffort;
   hasApiKey: boolean;
   statusSeparator: string;
+  /** Endpoint display info (no apiKey — renderer never sees keys via summary). */
+  endpoints: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">>;
+  primaryEndpointId: string;
+  secondaryModel: string;
+  secondaryEndpointId: string;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -432,6 +438,14 @@ export type EditableSettings = {
   permissionDefaultMode: PermissionDefaultMode;
   permissions: Partial<Record<PermissionScope, PermissionDecision>>;
   mcpServers: EditableMcpServer[];
+  /** Multi-endpoint list (each carries its own apiKey for editing). */
+  endpoints: EndpointConfig[];
+  /** Which endpoint the primary model uses. */
+  primaryEndpointId: string;
+  /** Secondary model name (code review / index / subagent). */
+  secondaryModel: string;
+  /** Which endpoint the secondary model uses. */
+  secondaryEndpointId: string;
 };
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };
@@ -543,8 +557,12 @@ export type DesktopApi = {
   gitListBranches(): Promise<string[]>;
   /** Switch branch. `conflict: true` means local changes block the checkout (commit/stash first). */
   gitCheckout(branch: string): Promise<{ ok: boolean; error?: string; conflict?: boolean }>;
-  /** Auto-stash local changes (incl. untracked), then switch branch. Stash is popped back on failure. */
-  gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Auto-stash local changes (incl. untracked), then switch branch. The stash is
+   * popped back after a successful switch; if the pop fails, `stashWarning`
+   * explains how to recover via `git stash pop` (the switch itself succeeded).
+   */
+  gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string; stashWarning?: string }>;
   gitDiff(file: string, staged: boolean): Promise<DiffPayload>;
   /** Recent commits (newest first), capped by `limit` (default 50). */
   gitLog(limit?: number): Promise<GitLogEntry[]>;

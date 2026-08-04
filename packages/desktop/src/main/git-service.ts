@@ -101,8 +101,16 @@ export async function checkout(
   }
 }
 
-/** Stash local changes (incl. untracked), then check out `branch`. Pops the stash back if checkout fails. */
-export async function stashCheckout(cwd: string, branch: string): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Stash local changes (incl. untracked), then check out `branch`. The stash is
+ * popped back after a successful switch so the user's changes reappear on the
+ * new branch; if the pop fails the changes are still recoverable via
+ * `git stash list`.
+ */
+export async function stashCheckout(
+  cwd: string,
+  branch: string
+): Promise<{ ok: boolean; error?: string; stashWarning?: string }> {
   const trimmed = branch.trim();
   if (!trimmed) {
     return { ok: false, error: "Empty branch name" };
@@ -120,9 +128,8 @@ export async function stashCheckout(cwd: string, branch: string): Promise<{ ok: 
   }
   try {
     await git(cwd, ["checkout", trimmed]);
-    return { ok: true };
   } catch (err) {
-    // Restore the working tree so a failed switch does not strand changes in the stash.
+    // Checkout failed — restore the working tree so changes aren't stranded.
     try {
       await git(cwd, ["stash", "pop"]);
     } catch {
@@ -130,6 +137,18 @@ export async function stashCheckout(cwd: string, branch: string): Promise<{ ok: 
     }
     return { ok: false, error: toError(err) };
   }
+  // Checkout succeeded — pop the stash so the user's changes follow them to
+  // the new branch. Previously this was skipped, leaving changes marooned in
+  // the stash with the UI reporting success.
+  let stashWarning: string | undefined;
+  try {
+    await git(cwd, ["stash", "pop"]);
+  } catch (popErr) {
+    // The stash still exists; surface a warning rather than failing the whole
+    // operation (the checkout itself succeeded).
+    stashWarning = `Switched to ${trimmed}, but could not restore stashed changes automatically. Recover them with \`git stash pop\`. (${toError(popErr)})`;
+  }
+  return { ok: true, stashWarning };
 }
 
 /** Parse one `git status --porcelain=v1` line into a structured file entry. */
@@ -197,10 +216,23 @@ export async function unstage(cwd: string, file: string): Promise<{ ok: boolean;
   }
 }
 
-/** Discard working-tree changes for a file (`git checkout -- <file>`). */
+/**
+ * Discard working-tree changes for a file. For tracked files this runs
+ * `git checkout -- <file>` (restore to HEAD). For untracked files (`??`),
+ * `git checkout --` is a no-op, so we use `git clean -f -- <file>` to actually
+ * remove the file — otherwise the "Discard" button appears to do nothing.
+ */
 export async function discard(cwd: string, file: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await git(cwd, ["checkout", "--", file]);
+    // Determine tracked vs untracked via porcelain status for this path.
+    const { stdout } = await git(cwd, ["status", "--porcelain=v1", "--", file]);
+    const line = stdout.split(/\r?\n/).find((l) => l.trim());
+    // Porcelain "XY path": untracked is "?? path".
+    if (line && line[0] === "?" && line[1] === "?") {
+      await git(cwd, ["clean", "-f", "--", file]);
+    } else {
+      await git(cwd, ["checkout", "--", file]);
+    }
     return { ok: true };
   } catch (err) {
     return { ok: false, error: toError(err) };
