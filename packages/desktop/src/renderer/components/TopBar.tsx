@@ -174,7 +174,7 @@ export const TopBar = memo(function TopBar({
   }, [settings?.endpoints]);
 
   // Check if current model supports thinking (for the thinking dropdown gating).
-  const currentModel = settings?.model ?? FALLBACK_MODELS[0]!;
+  const currentModel = settings?.model || FALLBACK_MODELS[0]!;
   const modelCap = settings
     ? resolveModelCapability(settings.endpoints, currentModel)
     : { thinking: true, vision: false };

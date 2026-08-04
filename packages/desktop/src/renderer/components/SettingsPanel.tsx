@@ -1,11 +1,5 @@
 import { useEffect, useState, type JSX } from "react";
-import type {
-  EditableSettings,
-  PermissionDecision,
-  PermissionScope,
-  ReasoningEffort,
-  SerializableSessionEntry,
-} from "../../shared/ipc";
+import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
 import {
   collectAllModelKeys,
   parseModelKey,
@@ -21,7 +15,6 @@ import { availableThemes, type Theme } from "../lib/appearance";
 type Props = {
   initial: EditableSettings;
   initialTab?: string;
-  sessions: SerializableSessionEntry[];
   onSave: (next: EditableSettings) => void;
   onClose: () => void;
   /** Platform string (e.g. "win32") — scopes which themes are offered. */
@@ -534,6 +527,22 @@ export function SettingsPanel({
                       onChange={(e) => patch({ temperature: e.target.value })}
                     />
                   </Field>
+
+                  <Field>
+                    <Checkbox
+                      checked={s.telemetryEnabled}
+                      onChange={(e) => patch({ telemetryEnabled: e.target.checked })}
+                      label={t("settings.telemetry")}
+                    />
+                  </Field>
+
+                  <Field>
+                    <Checkbox
+                      checked={s.debugLogEnabled}
+                      onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
+                      label={t("settings.debugLog")}
+                    />
+                  </Field>
                 </div>
 
                 {/* Secondary model (capabilities inherited from primary if not set) */}
@@ -565,22 +574,6 @@ export function SettingsPanel({
                   ) : s.secondaryModel.trim() === "" ? (
                     <div className="ui-field-hint">{t("settings.capabilities.inherit")}</div>
                   ) : null}
-
-                  <Field>
-                    <Checkbox
-                      checked={s.telemetryEnabled}
-                      onChange={(e) => patch({ telemetryEnabled: e.target.checked })}
-                      label={t("settings.telemetry")}
-                    />
-                  </Field>
-
-                  <Field>
-                    <Checkbox
-                      checked={s.debugLogEnabled}
-                      onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
-                      label={t("settings.debugLog")}
-                    />
-                  </Field>
                 </div>
               </section>
             ) : null}

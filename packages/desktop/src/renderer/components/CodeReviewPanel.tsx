@@ -25,7 +25,7 @@ export function CodeReviewPanel({ onShowGraph }: { onShowGraph?: (html: string) 
   const [activeTab, setActiveTab] = useState<ReviewTab>("quality");
 
   const triggerSmartReview = useCallback(async () => {
-    await api.sendPrompt({ text: "审查我的代码变更" } as never);
+    await api.sendPrompt({ text: "审查我的代码变更" });
   }, []);
 
   return (

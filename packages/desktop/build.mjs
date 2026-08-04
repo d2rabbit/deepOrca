@@ -213,8 +213,9 @@ async function run() {
   // SkillSpector: version pin marker. Runtime installs wheel from GitHub Releases.
   ensureVendored("skillspector", [".vendored-skillspector-version"], "uv tool install from GitHub Releases");
   // Bento Slides: single-file HTML template from GitHub Releases.
-  // NOTE: vendored into core templates, not desktop vendor/ — ensureVendored checks
-  // the version marker in the skill's references/ dir.
+  // Vendored into core templates (not desktop vendor/), so the existence
+  // check below is just a no-op marker — the actual file lives at
+  // packages/core/templates/plugins/work/skills/bento-slides/references/.
   ensureVendored("bento", [".vendored-bento-version"], "bundled template (offline)");
   if (isDev) {
     const contexts = await Promise.all([context(mainConfig), context(preloadConfig), context(rendererConfig)]);

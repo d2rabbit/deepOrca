@@ -1576,7 +1576,6 @@ export function App(): JSX.Element {
           <SettingsPanel
             initial={editable}
             initialTab={settingsInitialTab}
-            sessions={sessions}
             onSave={handleSaveSettings}
             onClose={handleBackToChat}
             platform={platform}

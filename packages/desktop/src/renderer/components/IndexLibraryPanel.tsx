@@ -96,21 +96,29 @@ export function IndexLibraryPanel(): JSX.Element {
       setBusy(true);
       setPercent(null);
 
-      // Phase 1: symbol index
+      // Phase 1: symbol index (with 5-min timeout safety net)
       await new Promise<void>((resolve) => {
-        onCodegraphDone.current = () => resolve();
-        void api.codegraphReindex(projectRoot);
+        const timer = setTimeout(() => resolve(), 300_000);
+        onCodegraphDone.current = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        void api.codegraphReindex(projectRoot).catch(() => resolve());
       });
 
       // Phase 2: wiki (only if available)
       if (wikiAvailable) {
         setPercent(50);
         await new Promise<void>((resolve) => {
-          onWikiDone.current = () => resolve();
+          const timer = setTimeout(() => resolve(), 300_000);
+          onWikiDone.current = () => {
+            clearTimeout(timer);
+            resolve();
+          };
           if (mode === "init") {
-            void api.wikiInit();
+            void api.wikiInit().catch(() => resolve());
           } else {
-            void api.wikiUpdate();
+            void api.wikiUpdate().catch(() => resolve());
           }
         });
       }
