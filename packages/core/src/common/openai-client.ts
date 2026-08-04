@@ -124,3 +124,54 @@ function getMachineId(): string | undefined {
     return undefined;
   }
 }
+
+// ── Secondary model client ──────────────────────────────────────────────────
+// Used by code review, index building, subagent triggers — anything that should
+// run on the cheaper/faster model (default deepseek-v4-flash) instead of the
+// primary conversation model. Has its own OpenAI client cache keyed by the
+// secondary endpoint's apiKey::baseURL so it doesn't collide with the primary.
+//
+// NOTE: This client is exported and fully implemented, but as of this commit no
+// production code path calls createSecondaryClient(). The settings fields
+// (secondaryModel / secondaryEndpointId) are parsed and surfaced in the UI, but
+// code review / indexing / subagent tasks still use the primary client. This is
+// reserved infrastructure for a future wiring change — do not assume configuring
+// a secondary model in the UI changes request routing today.
+
+let cachedSecondary: OpenAI | null = null;
+let cachedSecondaryKey = "";
+
+/**
+ * Create (or return cached) a secondary-model client configured from the
+ * `secondaryModel` + `secondaryEndpointId` settings. Returns null if no API
+ * key is configured for the secondary endpoint.
+ */
+export function createSecondaryClient(projectRoot: string = process.cwd()): {
+  client: OpenAI | null;
+  model: string;
+  baseURL: string;
+} {
+  const settings = resolveCurrentSettings(projectRoot);
+  const apiKey = settings.secondaryApiKey;
+  const baseURL = settings.secondaryBaseURL;
+  const model = settings.secondaryModel;
+
+  if (!apiKey) {
+    return { client: null, model, baseURL };
+  }
+
+  const cacheKey = `${apiKey}::${baseURL}`;
+  if (cachedSecondary && cachedSecondaryKey === cacheKey) {
+    return { client: cachedSecondary, model, baseURL };
+  }
+
+  cachedSecondary = new OpenAI({
+    apiKey,
+    baseURL: baseURL || undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
+  });
+  cachedSecondaryKey = cacheKey;
+
+  return { client: cachedSecondary, model, baseURL };
+}

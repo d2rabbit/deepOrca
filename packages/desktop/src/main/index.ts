@@ -601,6 +601,14 @@ function registerIpc(): void {
   // Electron's bundled Node (ELECTRON_RUN_AS_NODE) using tsx to handle the
   // TypeScript entry point. The Gateway handles all memory operations:
   // recall, capture, search — DeepOrca communicates via HTTP.
+  //
+  // NOTE: The IPC handlers below (MemoryCheckAvailable / MemorySetEnabled) are
+  // fully wired through main → preload → shared IPC, but the renderer currently
+  // has NO call site for memoryCheckAvailable / memorySetEnabled. Additionally,
+  // startMemoryGateway() is only invoked from the MemorySetEnabled handler's
+  // enable branch — it is NOT auto-started from settings.memory.enabled on app
+  // boot. This means the memory feature is dormant today: configuring it has no
+  // observable effect until the UI wiring and auto-start are added.
 
   let memoryGatewayProcess: ChildProcess | null = null;
   let memoryClient: MemoryGatewayClient | null = null;

@@ -73,6 +73,20 @@ const REASONING_OPTIONS: ReasoningEffort[] = ["max", "high"];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
 
+/** An editable API endpoint (mirrors EndpointConfig from @deeporca/core). */
+type Endpoint = EditableSettings["endpoints"][number];
+
+/**
+ * Built-in endpoint presets offered as quick-add buttons in the connection tab.
+ * Mirrors `ENDPOINT_PRESETS` from @deeporca/core but inlined here so the renderer
+ * doesn't pull the whole core bundle into the client.
+ */
+const ENDPOINT_PRESETS: Array<Pick<Endpoint, "id" | "name" | "baseURL">> = [
+  { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
+  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
+  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
+];
+
 /** DeepOrca desktop changelog. */
 const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
   {
@@ -149,6 +163,10 @@ export function SettingsPanel({
   const isTab = (v: string | undefined): v is Tab => TABS.some((item) => item.id === v);
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "connection");
   const [showKey, setShowKey] = useState(false);
+  /** Per-endpoint apiKey show/hide toggle (keyed by endpoint id). */
+  const [showKeyByEndpoint, setShowKeyByEndpoint] = useState<Record<string, boolean>>({});
+  /** Fallback counter for endpoint id generation (only used if crypto.randomUUID is unavailable). */
+  let endpointSeq = 0;
   const [tree, setTree] = useState<WorkspaceSessions | null>(null);
 
   // Load the full workspace tree for the token analytics tab (all workspaces).
@@ -166,6 +184,46 @@ export function SettingsPanel({
 
   function patch(partial: Partial<EditableSettings>): void {
     setS((prev) => ({ ...prev, ...partial }));
+  }
+
+  /** Replace a single endpoint by id (immutable update of the endpoints list). */
+  function updateEndpoint(id: string, changes: Partial<Endpoint>): void {
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) => (ep.id === id ? { ...ep, ...changes } : ep)),
+    }));
+  }
+
+  /** Remove an endpoint and clear any role references pointing at it. */
+  function removeEndpoint(id: string): void {
+    setS((prev) => {
+      const endpoints = prev.endpoints.filter((ep) => ep.id !== id);
+      const fallbackId = endpoints[0]?.id ?? "";
+      const primaryEndpointId = prev.primaryEndpointId === id ? fallbackId : prev.primaryEndpointId;
+      const secondaryEndpointId = prev.secondaryEndpointId === id ? fallbackId : prev.secondaryEndpointId;
+      return { ...prev, endpoints, primaryEndpointId, secondaryEndpointId };
+    });
+  }
+
+  /** Append a new blank endpoint (or a preset-filled one). */
+  function addEndpoint(preset?: { name: string; baseURL: string }): void {
+    // Prefer crypto.randomUUID() for guaranteed uniqueness; fall back to a
+    // counter-augmented timestamp so two adds in the same millisecond (e.g.
+    // rapid double-click) never collide and produce duplicate React keys.
+    let id: string;
+    try {
+      id = `endpoint-${crypto.randomUUID()}`;
+    } catch {
+      endpointSeq += 1;
+      id = `endpoint-${Date.now()}-${endpointSeq}`;
+    }
+    const endpoint: Endpoint = {
+      id,
+      name: preset?.name ?? "",
+      baseURL: preset?.baseURL ?? "",
+      apiKey: "",
+    };
+    setS((prev) => ({ ...prev, endpoints: [...prev.endpoints, endpoint] }));
   }
 
   function setPermission(scope: PermissionScope, decision: PermissionDecision): void {
@@ -222,7 +280,149 @@ export function SettingsPanel({
             {tab === "connection" ? (
               <>
                 <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.endpoint.title")}</div>
+
+                  <div className="ui-endpoint-list">
+                    {s.endpoints.map((ep) => {
+                      const visible = !!showKeyByEndpoint[ep.id];
+                      return (
+                        <div className="ui-endpoint-row" key={ep.id}>
+                          <div className="ui-endpoint-fields">
+                            <Input
+                              type="text"
+                              value={ep.name}
+                              placeholder={t("settings.endpoint.name")}
+                              aria-label={t("settings.endpoint.name")}
+                              onChange={(e) => updateEndpoint(ep.id, { name: e.target.value })}
+                            />
+                            <Input
+                              type="text"
+                              value={ep.baseURL}
+                              placeholder={t("settings.endpoint.baseURL")}
+                              aria-label={t("settings.endpoint.baseURL")}
+                              onChange={(e) => updateEndpoint(ep.id, { baseURL: e.target.value })}
+                            />
+                            <div className="ui-row-inline">
+                              <Input
+                                type={visible ? "text" : "password"}
+                                value={ep.apiKey}
+                                placeholder={t("settings.endpoint.apiKey")}
+                                aria-label={t("settings.endpoint.apiKey")}
+                                autoComplete="off"
+                                onChange={(e) => updateEndpoint(ep.id, { apiKey: e.target.value })}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowKeyByEndpoint((prev) => ({ ...prev, [ep.id]: !prev[ep.id] }))}
+                              >
+                                {visible ? t("common.hide") : t("common.show")}
+                              </Button>
+                            </div>
+                          </div>
+                          {s.endpoints.length > 1 ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeEndpoint(ep.id)}
+                              title={t("settings.endpoint.delete")}
+                            >
+                              {t("settings.endpoint.delete")}
+                            </Button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="ui-endpoint-add">
+                    <Button variant="ghost" size="sm" onClick={() => addEndpoint()}>
+                      {t("settings.endpoint.add")}
+                    </Button>
+                    {ENDPOINT_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.id}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => addEndpoint({ name: preset.name, baseURL: preset.baseURL })}
+                      >
+                        + {preset.name}
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="ui-settings-section">
                   <div className="ui-settings-section-title">{t("settings.tab.connection")}</div>
+
+                  <div className="ui-endpoint-role">
+                    <Field label={t("settings.endpoint.primary")}>
+                      <Select
+                        value={s.primaryEndpointId}
+                        onChange={(e) => patch({ primaryEndpointId: e.target.value })}
+                      >
+                        {s.endpoints.map((ep) => (
+                          <option key={ep.id} value={ep.id}>
+                            {ep.name || ep.baseURL || ep.id}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label={t("settings.model")}>
+                      <Input
+                        type="text"
+                        value={s.model}
+                        placeholder="deepseek-v4-pro"
+                        onChange={(e) => patch({ model: e.target.value })}
+                      />
+                    </Field>
+
+                    <Field label={t("settings.temperature")} hint={t("settings.temperatureHint")}>
+                      <Input
+                        type="text"
+                        value={s.temperature}
+                        placeholder={t("settings.temperaturePlaceholder")}
+                        onChange={(e) => patch({ temperature: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="ui-endpoint-role">
+                    <Field label={t("settings.endpoint.secondary")}>
+                      <Select
+                        value={s.secondaryEndpointId}
+                        onChange={(e) => patch({ secondaryEndpointId: e.target.value })}
+                      >
+                        {s.endpoints.map((ep) => (
+                          <option key={ep.id} value={ep.id}>
+                            {ep.name || ep.baseURL || ep.id}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
+                      <Input
+                        type="text"
+                        value={s.secondaryModel}
+                        placeholder="deepseek-v4-flash"
+                        onChange={(e) => patch({ secondaryModel: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                </section>
+
+                {/* Legacy single apiKey field — kept for backward compatibility.
+                    IMPORTANT: when endpoints are configured (the default since core
+                    synthesizes one), saving always takes the endpoints path and this
+                    field is effectively ignored (updateSettings only writes it when
+                    next.endpoints is empty). It is only useful for setups with zero
+                    endpoints in the target file. Editing it when endpoints exist will
+                    NOT change the active API key — edit the primary endpoint's key
+                    above instead. */}
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.apiKey")}</div>
                   <Field
                     label={t("settings.apiKey")}
                     hint={s.hasEnvApiKey ? t("settings.envOverride") : undefined}
@@ -240,30 +440,6 @@ export function SettingsPanel({
                         {showKey ? t("common.hide") : t("common.show")}
                       </Button>
                     </div>
-                  </Field>
-
-                  <Field label={t("settings.baseUrl")} hint={t("settings.baseUrlHint")}>
-                    {/* Endpoint is locked to DeepSeek's first-party API in this
-                       release — shown read-only so the user knows where requests go. */}
-                    <Input type="text" value="https://api.deepseek.com" disabled readOnly />
-                  </Field>
-
-                  <Field label={t("settings.model")}>
-                    <Input
-                      type="text"
-                      value={s.model}
-                      placeholder="deepseek-v4-pro"
-                      onChange={(e) => patch({ model: e.target.value })}
-                    />
-                  </Field>
-
-                  <Field label={t("settings.temperature")} hint={t("settings.temperatureHint")}>
-                    <Input
-                      type="text"
-                      value={s.temperature}
-                      placeholder={t("settings.temperaturePlaceholder")}
-                      onChange={(e) => patch({ temperature: e.target.value })}
-                    />
                   </Field>
                 </section>
               </>
