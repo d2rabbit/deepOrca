@@ -1,22 +1,16 @@
 /**
  * @deeporca/memory — In-process L0-L3 memory pipeline.
  *
- * This package integrates TDAI Core (TencentDB Agent Memory) as an in-process
- * library, replacing the previous HTTP sidecar architecture. It provides:
+ * Integrates TDAI Core (TencentDB Agent Memory) as an in-process library.
+ * Provides cross-session semantic memory: L0 raw conversations → L1 atomic
+ * facts → L2 scene segments → L3 user persona.
  *
- * - L0: Raw conversation recording
- * - L1: Atomic fact extraction (LLM-powered)
- * - L2: Scene segmentation and accumulation
- * - L3: User persona generation
+ * Complementary to activity-frames (session-level behavioral context):
+ *   - @deeporca/memory: "User prefers TypeScript and React across all projects"
+ *   - activity-frames: "In the last 5 minutes, edited auth.ts and ran git commit"
  *
- * The pipeline runs entirely within the Electron main process using the
- * bundled Node runtime — no external processes, no HTTP overhead.
- *
- * Integration with DeepOrca is via the `MemoryProvider` interface (defined
- * in @deeporca/core), which this package implements.
+ * MIT License — see tdai/NOTICE.md for Tencent copyright attribution.
  */
 
-// Public API — will be populated as implementation progresses.
-// For now this is a placeholder export.
-
-export const MEMORY_PACKAGE_VERSION = "0.1.34";
+export { MemoryManager } from "./memory-manager.js";
+export { DeepOrcaHostAdapter, type DeepOrcaMemoryConfig } from "./adapter.js";

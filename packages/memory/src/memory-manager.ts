@@ -1,0 +1,125 @@
+/**
+ * MemoryManager — in-process L0-L3 memory pipeline manager.
+ *
+ * Wraps TdaiCore for direct in-process calls (no HTTP overhead).
+ * Replaces the previous MemoryGatewayClient HTTP sidecar architecture.
+ *
+ * Lifecycle:
+ *   const mgr = new MemoryManager(config);
+ *   await mgr.init();
+ *   const recall = await mgr.recall("user query", "session-1");
+ *   await mgr.capture({ userText, assistantText, sessionKey });
+ *   await mgr.destroy();
+ */
+
+import { TdaiCore } from "./tdai/core/tdai-core.js";
+import type { RecallResult, CaptureResult, CompletedTurn } from "./tdai/core/types.js";
+import type { MemoryTdaiConfig } from "./tdai/config.js";
+import { DeepOrcaHostAdapter, type DeepOrcaMemoryConfig } from "./adapter.js";
+
+export class MemoryManager {
+  private core: TdaiCore | null = null;
+  private adapter: DeepOrcaHostAdapter;
+  private config: DeepOrcaMemoryConfig;
+  private initialized = false;
+
+  constructor(config: DeepOrcaMemoryConfig) {
+    this.config = config;
+    this.adapter = new DeepOrcaHostAdapter(config);
+  }
+
+  /** Initialize the TdaiCore pipeline (SQLite, stores, schedulers). */
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    // Parse a minimal TDAI config — use defaults, only set llm and storeBackend.
+    const tdaiConfig: MemoryTdaiConfig = {
+      capture: { enabled: true },
+      extraction: { enabled: true },
+      persona: { triggerEveryN: 50 },
+      pipeline: { everyNConversations: 5 },
+      recall: { enabled: true, strategy: "hybrid", timeoutMs: 5000 },
+      embedding: { enabled: false, provider: "none" },
+      storeBackend: "sqlite",
+      bm25: { enabled: true, language: "zh" },
+      memoryCleanup: { enabled: false },
+      report: { enabled: false },
+      llm: { enabled: false },
+      offload: { enabled: false },
+    } as unknown as MemoryTdaiConfig;
+
+    this.core = new TdaiCore({
+      hostAdapter: this.adapter,
+      config: tdaiConfig,
+    });
+
+    await this.core.initialize();
+    this.initialized = true;
+  }
+
+  /** Recall memories relevant to the user's query. */
+  async recall(query: string, sessionKey: string): Promise<RecallResult | null> {
+    if (!this.core || !this.initialized) return null;
+    try {
+      this.adapter.updateContext({ sessionKey });
+      return await this.core.handleBeforeRecall(query, sessionKey);
+    } catch (err) {
+      console.warn(`[memory] recall failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  /** Capture a completed conversation turn. */
+  async capture(turn: {
+    userText: string;
+    assistantText: string;
+    sessionKey: string;
+    sessionId?: string;
+  }): Promise<CaptureResult | null> {
+    if (!this.core || !this.initialized) return null;
+    try {
+      const completedTurn: CompletedTurn = {
+        userText: turn.userText,
+        assistantText: turn.assistantText,
+        messages: [],
+        sessionKey: turn.sessionKey,
+        sessionId: turn.sessionId,
+        startedAt: Date.now(),
+      };
+      return await this.core.handleTurnCommitted(completedTurn);
+    } catch (err) {
+      console.warn(`[memory] capture failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  /** Search memories by query. */
+  async searchMemories(query: string, limit: number = 5): Promise<{ text: string; total: number } | null> {
+    if (!this.core || !this.initialized) return null;
+    try {
+      const result = await this.core.searchMemories({ query, limit });
+      return { text: result.text, total: result.total };
+    } catch (err) {
+      console.warn(`[memory] searchMemories failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  /** Flush and destroy the pipeline. */
+  async destroy(): Promise<void> {
+    if (this.core) {
+      try {
+        await this.core.destroy();
+      } catch {
+        // best-effort cleanup
+      }
+      this.core = null;
+    }
+    this.initialized = false;
+  }
+
+  /** Check if the memory pipeline is active. */
+  isAvailable(): boolean {
+    return this.initialized && this.core !== null;
+  }
+}

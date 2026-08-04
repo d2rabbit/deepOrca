@@ -131,6 +131,19 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "顶栏修复:模型与思考模式下拉框按内容自适应宽度,窄窗口下不再截断文案。",
     ],
   },
+  {
+    version: "v0.7.0",
+    date: "2026-08",
+    changes: [
+      "插件体系重构:7 个插件包目录(meta-skills/browser/design/code/knowledge/memory/work),skill.plugin.md 统一识别格式。",
+      "记忆系统源码级集成:TDAI Core (L0-L3) 从 HTTP 侧车改为进程内 @deeporca/memory 工作区,零 HTTP 开销。",
+      "索引与知识面板统一:CodeGraph + OpenWiki 顺序执行,单一状态,进度条驱动,不暴露内部工具名。",
+      "设置面板重构:端点与模型引入(预设端点 + 模型能力勾选)、模型能力配置(思考/视觉受限于端点)、记忆系统 UI。",
+      "代码审查:smart-code-review 技能编排 CRG 风险分析 + OCR 语义审查;架构图谱 D3.js 渲染。",
+      "Vendor 统一:CodeGraph 改 npm 包,所有 GitHub 下载加代理兜底,BrowserSkill/Serena/CRG/Bento 版本锁定。",
+      "清理:删除 WikiPanel/MermaidDiagram/mermaid 依赖等 412 行死代码;三遍深度审查修复 15+ Bug。",
+    ],
+  },
 ];
 
 /** Settings surface rendered inline in the main area (no modal shell). */
@@ -708,6 +721,49 @@ export function SettingsPanel({
                         </ul>
                       </div>
                     ))}
+                  </div>
+                </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">Open Source Credits</div>
+                  <div className="ui-changelog">
+                    <div className="ui-changelog-entry">
+                      <p className="ui-about-desc">
+                        DeepOrca is built on the shoulders of these outstanding open-source projects:
+                      </p>
+                      <ul className="ui-about-desc" style={{ paddingLeft: "1.2em", lineHeight: 1.8 }}>
+                        <li>
+                          <strong>TDAI Core</strong> (TencentDB Agent Memory) — L0-L3 memory pipeline. MIT License.
+                        </li>
+                        <li>
+                          <strong>CodeGraph</strong> — Code knowledge graph & symbol navigation. MIT License.
+                        </li>
+                        <li>
+                          <strong>Open Code Review</strong> — AI-powered code review (ocr CLI). Apache 2.0.
+                        </li>
+                        <li>
+                          <strong>Code Review Graph</strong> — Structural risk analysis. MIT License.
+                        </li>
+                        <li>
+                          <strong>Serena</strong> — Semantic code operations via SolidLSP. AGPL-3.0.
+                        </li>
+                        <li>
+                          <strong>SkillSpector</strong> — AI Skill/MCP security scanner. Apache 2.0.
+                        </li>
+                        <li>
+                          <strong>BrowserSkill</strong> — Real browser automation. Apache 2.0.
+                        </li>
+                        <li>
+                          <strong>Bento</strong> — Single-file office suite. MIT License.
+                        </li>
+                        <li>
+                          <strong>uv</strong> — Python package manager. MIT License.
+                        </li>
+                        <li>
+                          <strong>OpenWiki</strong> — Project documentation generation. MIT License.
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </section>
               </>

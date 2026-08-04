@@ -16,6 +16,7 @@ import {
   runCodegraphResetWithOutput,
   resolveCurrentSettings,
   resolveModernNode,
+  getUserConfigRoot,
   configureCrgVendorRoot,
   configureCrgVersionRoot,
   hasCrgProject,
@@ -26,10 +27,7 @@ import {
   configureSerenaVendorRoot,
   configureSkillSpectorUvResolver,
   configureSkillSpectorVendorRoot,
-  MemoryGatewayClient,
-  resolveGatewayEntry,
-  resolveTsxBinary,
-  buildGatewayEnv,
+  type MemoryProvider,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -596,139 +594,68 @@ function registerIpc(): void {
     return { html, error: html ? undefined : "Visualization failed — is the graph built?" };
   });
 
-  // ── Memory Gateway (TencentDB-Agent-Memory sidecar) ──────────────────────
-  // TDAM runs as an HTTP Gateway daemon on localhost:8420. We launch it via
-  // Electron's bundled Node (ELECTRON_RUN_AS_NODE) using tsx to handle the
   // TypeScript entry point. The Gateway handles all memory operations:
   // recall, capture, search — DeepOrca communicates via HTTP.
   //
   // NOTE: The IPC handlers below (MemoryCheckAvailable / MemorySetEnabled) are
   // fully wired through main → preload → shared IPC, but the renderer currently
   // has NO call site for memoryCheckAvailable / memorySetEnabled. Additionally,
-  // startMemoryGateway() is only invoked from the MemorySetEnabled handler's
-  // enable branch — it is NOT auto-started from settings.memory.enabled on app
-  // boot. This means the memory feature is dormant today: configuring it has no
-  // observable effect until the UI wiring and auto-start are added.
+  // ── Memory (in-process @deeporca/memory) ─────────────────────────────────
+  // Memory runs as an in-process pipeline (TdaiCore), not an HTTP sidecar.
+  // The MemoryManager is initialized from settings when memory is enabled.
 
-  let memoryGatewayProcess: ChildProcess | null = null;
-  let memoryClient: MemoryGatewayClient | null = null;
-  let memoryStarting: Promise<{ ok: boolean; error?: string }> | null = null;
+  let memoryManager: { init(): Promise<void>; destroy(): Promise<void>; isAvailable(): boolean } | null = null;
+  let memoryStarting = false;
 
-  async function startMemoryGateway(): Promise<{ ok: boolean; error?: string }> {
-    // Prevent concurrent start attempts (I10).
-    if (memoryGatewayProcess) {
-      return { ok: true };
-    }
-    if (memoryStarting) {
-      return memoryStarting;
-    }
+  async function startMemory(): Promise<{ ok: boolean; error?: string }> {
+    if (memoryManager?.isAvailable()) return { ok: true };
+    if (memoryStarting) return { ok: true };
+    memoryStarting = true;
 
-    memoryStarting = (async () => {
-      const entry = resolveGatewayEntry();
-      if (!entry) {
-        return { ok: false, error: "TencentDB-Agent-Memory package is not installed." };
-      }
-      // Resolve tsx from the TDAM package's dependency tree, not from cwd.
-      const tsxBin = resolveTsxBinary();
-      if (!tsxBin) {
-        return { ok: false, error: "tsx is required to run the memory Gateway but was not found." };
-      }
+    try {
       const settings = resolveCurrentSettings(getBridge().projectRoot);
       if (!settings.apiKey) {
         return { ok: false, error: "LLM API key is required for memory extraction." };
       }
-      const port = settings.memory.port || 8420;
-      const env = {
-        ...buildGatewayEnv({
-          apiKey: settings.apiKey,
-          baseUrl: settings.baseURL,
-          model: settings.model,
-          port,
-        }),
-        ELECTRON_RUN_AS_NODE: "1",
-      };
-      try {
-        // Run the Gateway server.ts via tsx binary (not --import, to avoid cwd
-        // resolution issues). tsxBin is an absolute path resolved from the TDAM
-        // package's dependency tree.
-        const cp = spawn(process.execPath, [tsxBin, entry], {
-          cwd: getBridge().projectRoot,
-          env: { ...(process.env as Record<string, string>), ...env },
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-        trackHelperProcess(cp);
-        memoryGatewayProcess = cp;
 
-        // Detect gateway crashes after startup (I1).
-        cp.on("exit", () => {
-          memoryGatewayProcess = null;
-          memoryClient?.markUnhealthy();
-          memoryClient = null;
-          getBridge().setMemoryClient(null);
-        });
-        cp.stderr?.on("data", (d: Buffer) => {
-          const text = d.toString().trim();
-          if (text) console.error("[memory-gateway]", text);
-        });
-
-        // Wait for the Gateway to be ready (poll /health for up to 15 seconds).
-        // Check immediately first (common case: gateway starts fast), then poll.
-        const client = new MemoryGatewayClient({
-          port,
-          userId: settings.memory.userId || undefined,
-          apiKey: settings.memory.apiKey || undefined,
-        });
-        for (let i = 0; i < 30; i++) {
-          if (i > 0) await new Promise((r) => setTimeout(r, 500));
-          if (await client.healthCheck()) {
-            memoryClient = client;
-            getBridge().setMemoryClient(client);
-            return { ok: true };
-          }
-        }
-        // Gateway didn't become healthy in time — clean up.
-        stopMemoryGateway();
-        return { ok: false, error: "Gateway failed to start within 15 seconds." };
-      } catch (err) {
-        memoryGatewayProcess = null;
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
-    })();
-
-    const result = await memoryStarting;
-    memoryStarting = null;
-    return result;
+      // Dynamically import @deeporca/memory (avoids hard dep if not installed).
+      const { MemoryManager } = await import("@deeporca/memory");
+      const dataDir = join(getUserConfigRoot(), "memory");
+      const mgr = new MemoryManager({
+        baseUrl: settings.baseURL,
+        apiKey: settings.apiKey,
+        model: settings.secondaryModel || "deepseek-v4-flash",
+        dataDir,
+        workspaceDir: getBridge().projectRoot,
+      });
+      await mgr.init();
+      memoryManager = mgr;
+      getBridge().setMemoryProvider(mgr as unknown as MemoryProvider);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    } finally {
+      memoryStarting = false;
+    }
   }
 
-  function stopMemoryGateway(): void {
-    if (memoryGatewayProcess) {
-      memoryGatewayProcess.kill();
-      memoryGatewayProcess = null;
+  async function stopMemory(): Promise<void> {
+    if (memoryManager) {
+      await memoryManager.destroy();
+      memoryManager = null;
     }
-    memoryClient?.markUnhealthy();
-    memoryClient = null;
-    getBridge().setMemoryClient(null);
+    getBridge().setMemoryProvider(null);
   }
 
   handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
-    const entry = resolveGatewayEntry();
-    if (!entry) {
-      return { available: false, healthy: false };
-    }
-    // Active probe: re-check health if we have a client (I2).
-    if (memoryClient) {
-      const healthy = await memoryClient.healthCheck();
-      return { available: true, healthy };
-    }
-    // Gateway isn't running but the package is installed.
-    return { available: true, healthy: false };
+    return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
   });
 
   handle(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
     if (enabled) {
-      return startMemoryGateway();
+      return startMemory();
     }
-    stopMemoryGateway();
+    await stopMemory();
     return { ok: true };
   });
 

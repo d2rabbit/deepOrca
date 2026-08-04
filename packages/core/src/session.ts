@@ -28,7 +28,13 @@ import {
   restoreSurfaces,
 } from "./mcp/a2ui-mcp";
 import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames/index";
-import type { MemoryGatewayClient } from "./common/memory";
+/** Memory provider interface — implemented by @deeporca/memory or any compatible provider. */
+export interface MemoryProvider {
+  recall(query: string, sessionKey: string): Promise<{ appendSystemContext?: string; strategy?: string } | null>;
+  capture(turn: { userText: string; assistantText: string; sessionKey: string; sessionId?: string }): Promise<unknown>;
+  searchMemories(query: string, limit?: number): Promise<{ text: string; total: number } | null>;
+  isAvailable(): boolean;
+}
 import {
   buildGitmcpMcpServerConfig,
   gitmcpSlugFromServerName,
@@ -509,7 +515,8 @@ export class SessionManager {
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
   private readonly crgDirtySessions = new Set<string>();
   /** Memory Gateway client (null when memory is disabled or Gateway unavailable). */
-  private memoryClient: MemoryGatewayClient | null = null;
+  /** Memory provider (null when memory is disabled or not yet initialized). */
+  private memoryProvider: MemoryProvider | null = null;
   private readonly messageConverter: OpenAIMessageConverter;
 
   /**
@@ -541,13 +548,13 @@ export class SessionManager {
    * Configure the memory Gateway client. Called by the desktop host after the
    * Gateway sidecar has started (or with null to disable memory).
    */
-  setMemoryClient(client: MemoryGatewayClient | null): void {
-    this.memoryClient = client;
+  setMemoryProvider(provider: MemoryProvider | null): void {
+    this.memoryProvider = provider;
   }
 
-  /** True when the memory Gateway is healthy and available. */
+  /** True when the memory provider is available. */
   isMemoryAvailable(): boolean {
-    return this.memoryClient?.isAvailable() ?? false;
+    return this.memoryProvider?.isAvailable() ?? false;
   }
 
   /**
@@ -1971,10 +1978,10 @@ ${content}
     // Uses a 2s race: if the Gateway responds fast, memories are injected
     // synchronously before the LLM sees the first message. If it's slow,
     // we proceed without memories rather than blocking session creation.
-    if (this.memoryClient?.isAvailable() && userPrompt.text) {
+    if (this.memoryProvider?.isAvailable() && userPrompt.text) {
       try {
         const recall = await Promise.race([
-          this.memoryClient.recall(userPrompt.text, sessionId),
+          this.memoryProvider.recall(userPrompt.text, sessionId),
           new Promise<null>((r) => setTimeout(() => r(null), 2000)),
         ]);
         if (recall) {
@@ -2885,7 +2892,7 @@ ${content}
    * to the TDAM Gateway for L0 storage and pipeline processing.
    */
   private maybeCaptureMemory(sessionId: string): void {
-    if (!this.memoryClient?.isAvailable()) {
+    if (!this.memoryProvider?.isAvailable()) {
       return;
     }
     const messages = this.listSessionMessages(sessionId);
@@ -2910,7 +2917,7 @@ ${content}
     if (!userText || !assistantText) {
       return;
     }
-    void this.memoryClient.capture({ userText, assistantText, sessionKey: sessionId }).catch(() => {
+    void this.memoryProvider.capture({ userText, assistantText, sessionKey: sessionId }).catch(() => {
       // Swallow — best-effort memory capture.
     });
   }

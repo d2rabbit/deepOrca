@@ -40,7 +40,7 @@ import {
   writeProjectSettings,
   writeSettings,
 } from "@deeporca/core";
-import type { MemoryGatewayClient } from "@deeporca/core";
+import type { MemoryProvider } from "@deeporca/core";
 import type {
   BuiltinPluginGroup,
   DeepcodingSettings,
@@ -292,8 +292,8 @@ export class SessionBridge {
   }
 
   /** Set the memory Gateway client on the active SessionManager. */
-  setMemoryClient(client: MemoryGatewayClient | null): void {
-    this.manager.setMemoryClient(client);
+  setMemoryProvider(provider: MemoryProvider | null): void {
+    this.manager.setMemoryProvider(provider);
   }
 
   /**
