@@ -17,11 +17,11 @@
 //   CODEGRAPH_VERSION  (default: latest from GitHub Releases API)
 
 import { execSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform as osPlatform, arch as osArch } from "node:os";
-import { Readable } from "node:stream";
+import { download as sharedDownload, fetchText, GITHUB_PROXY } from "./vendor-download.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -59,10 +59,18 @@ async function resolveLatestVersion() {
     return process.env.CODEGRAPH_VERSION;
   }
   try {
-    const resp = await fetch("https://api.github.com/repos/colbymchenry/codegraph/releases/latest", {
+    const apiUrl = "https://api.github.com/repos/colbymchenry/codegraph/releases/latest";
+    const proxyApiUrl = `${GITHUB_PROXY}${apiUrl}`;
+    let resp = await fetch(apiUrl, {
       headers: { "User-Agent": "deeporca-vendor-codegraph" },
       signal: AbortSignal.timeout(10000),
     });
+    if (!resp.ok) {
+      resp = await fetch(proxyApiUrl, {
+        headers: { "User-Agent": "deeporca-vendor-codegraph" },
+        signal: AbortSignal.timeout(10000),
+      });
+    }
     if (resp.ok) {
       const data = await resp.json();
       const tag = data.tag_name; // e.g. "v1.5.0"
@@ -75,23 +83,9 @@ async function resolveLatestVersion() {
   return "1.5.0";
 }
 
-/** Download a URL to a file path. */
+/** Download with proxy fallback. */
 async function download(url, dest) {
-  log(`downloading ${url}`);
-  const resp = await fetch(url, {
-    headers: { "User-Agent": "deeporca-vendor-codegraph" },
-    signal: AbortSignal.timeout(300000), // 5 min — binaries can be ~280MB
-    redirect: "follow",
-  });
-  if (!resp.ok || !resp.body) {
-    throw new Error(`download failed: ${resp.status} ${resp.statusText}`);
-  }
-  const stream = createWriteStream(dest);
-  await Readable.fromWeb(resp.body).pipe(stream);
-  return new Promise((resolve, reject) => {
-    stream.on("finish", resolve);
-    stream.on("error", reject);
-  });
+  return sharedDownload(url, dest, log);
 }
 
 async function main() {
@@ -124,12 +118,8 @@ async function main() {
     // Verify checksum if SHA256SUMS is available.
     try {
       const sumsUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/SHA256SUMS`;
-      const sumsResp = await fetch(sumsUrl, {
-        headers: { "User-Agent": "deeporca-vendor-codegraph" },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (sumsResp.ok) {
-        const sumsText = await sumsResp.text();
+      const sumsText = await fetchText(sumsUrl, log);
+      if (sumsText) {
         const expectedHash = sumsText
           .split("\n")
           .find((line) => line.includes(assetName))

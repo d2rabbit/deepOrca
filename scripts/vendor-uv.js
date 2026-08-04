@@ -17,11 +17,11 @@
 //   UV_VERSION  (default: latest stable from GitHub Releases)
 
 import { execSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { download as sharedDownload, GITHUB_PROXY } from "./vendor-download.js";
 import { platform as osPlatform, arch as osArch } from "node:os";
-import { Readable } from "node:stream";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -62,10 +62,17 @@ async function resolveLatestVersion() {
     return process.env.UV_VERSION;
   }
   try {
-    const resp = await fetch("https://api.github.com/repos/astral-sh/uv/releases/latest", {
+    const apiUrl = "https://api.github.com/repos/astral-sh/uv/releases/latest";
+    let resp = await fetch(apiUrl, {
       headers: { "User-Agent": "deeporca-vendor-uv" },
       signal: AbortSignal.timeout(10000),
     });
+    if (!resp.ok) {
+      resp = await fetch(`${GITHUB_PROXY}${apiUrl}`, {
+        headers: { "User-Agent": "deeporca-vendor-uv" },
+        signal: AbortSignal.timeout(10000),
+      });
+    }
     if (resp.ok) {
       const data = await resp.json();
       const tag = data.tag_name; // e.g. "0.11.32"
@@ -78,23 +85,9 @@ async function resolveLatestVersion() {
   return "0.11.32";
 }
 
-/** Download a URL to a file path. */
+/** Download with proxy fallback. */
 async function download(url, dest) {
-  log(`downloading ${url}`);
-  const resp = await fetch(url, {
-    headers: { "User-Agent": "deeporca-vendor-uv" },
-    signal: AbortSignal.timeout(120000),
-    redirect: "follow",
-  });
-  if (!resp.ok || !resp.body) {
-    throw new Error(`download failed: ${resp.status} ${resp.statusText}`);
-  }
-  const stream = createWriteStream(dest);
-  await Readable.fromWeb(resp.body).pipe(stream);
-  return new Promise((resolve, reject) => {
-    stream.on("finish", resolve);
-    stream.on("error", reject);
-  });
+  return sharedDownload(url, dest, log);
 }
 
 /** Extract a .tar.gz file using the system tar (available on all supported platforms). */

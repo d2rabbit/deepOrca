@@ -11,10 +11,10 @@
 // Env overrides:
 //   BENTO_VERSION  (default: latest from GitHub Releases API)
 
-import { createWriteStream, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Readable } from "node:stream";
+import { download as sharedDownload, GITHUB_PROXY } from "./vendor-download.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -42,10 +42,17 @@ async function resolveLatestVersion() {
     return process.env.BENTO_VERSION;
   }
   try {
-    const resp = await fetch("https://api.github.com/repos/nyblnet/bento/releases/latest", {
+    const apiUrl = "https://api.github.com/repos/nyblnet/bento/releases/latest";
+    let resp = await fetch(apiUrl, {
       headers: { "User-Agent": "deeporca-vendor-bento" },
       signal: AbortSignal.timeout(10000),
     });
+    if (!resp.ok) {
+      resp = await fetch(`${GITHUB_PROXY}${apiUrl}`, {
+        headers: { "User-Agent": "deeporca-vendor-bento" },
+        signal: AbortSignal.timeout(10000),
+      });
+    }
     if (resp.ok) {
       const data = await resp.json();
       const tag = data.tag_name; // e.g. "v1.0.15"
@@ -59,21 +66,7 @@ async function resolveLatestVersion() {
 }
 
 async function download(url, dest) {
-  log(`downloading ${url}`);
-  const resp = await fetch(url, {
-    headers: { "User-Agent": "deeporca-vendor-bento" },
-    signal: AbortSignal.timeout(60000),
-    redirect: "follow",
-  });
-  if (!resp.ok || !resp.body) {
-    throw new Error(`download failed: ${resp.status} ${resp.statusText}`);
-  }
-  const stream = createWriteStream(dest);
-  await Readable.fromWeb(resp.body).pipe(stream);
-  return new Promise((resolve, reject) => {
-    stream.on("finish", resolve);
-    stream.on("error", reject);
-  });
+  return sharedDownload(url, dest, log);
 }
 
 async function main() {
