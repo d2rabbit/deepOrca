@@ -201,22 +201,9 @@ export {
   clearAllSurfaces,
 } from "./mcp/a2ui-mcp";
 
-// Memory — HTTP Gateway client (legacy, being replaced by @deeporca/memory in-process).
-// Kept for backward compatibility during transition.
-export {
-  MemoryGatewayClient,
-  resolveGatewayEntry,
-  resolveTsxBinary,
-  buildGatewayEnv,
-  DEFAULT_GATEWAY_PORT,
-} from "./common/memory";
-export type {
-  RecallResult,
-  CompletedTurn,
-  CaptureResult,
-  MemorySearchResult,
-  MemoryGatewayConfig,
-} from "./common/memory";
+// Memory — in-process provider interface.
+// The HTTP Gateway client (legacy) is retained in common/memory.ts for reference
+// but no longer exported — @deeporca/memory replaces it entirely.
 export type { MemoryProvider } from "./session";
 export {
   GITMCP_SERVER_PREFIX,
