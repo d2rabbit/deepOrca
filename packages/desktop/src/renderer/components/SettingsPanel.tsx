@@ -243,7 +243,7 @@ export function SettingsPanel({
     });
   }
 
-  /** All model keys from enabled endpoints (those with an apiKey). */
+  /** All model keys from endpoints that have registered models. */
   const allModelKeys = collectAllModelKeys(s.endpoints);
 
   /** Resolve display label for a model key: "endpointName/modelId". */
@@ -255,17 +255,41 @@ export function SettingsPanel({
     return `${epName}/${parsed.modelId}`;
   }
 
+  /**
+   * Extract the bare modelId from an endpointId/modelId key.
+   * If the value has no "/" (legacy bare name), returns it as-is.
+   */
+  function bareModelId(key: string): string {
+    const parsed = parseModelKey(key);
+    return parsed ? parsed.modelId : key;
+  }
+
+  /**
+   * Find the model key in allModelKeys that matches the current bare model name.
+   * Used to set the <Select> value from the stored bare model name.
+   */
+  function findKeyForModel(modelName: string): string {
+    if (!modelName) return "";
+    // Exact key match first
+    if (allModelKeys.includes(modelName)) return modelName;
+    // Find by modelId part
+    for (const key of allModelKeys) {
+      if (bareModelId(key) === modelName) return key;
+    }
+    return "";
+  }
+
   // ── Capability resolution for the primary model ──────────────────────
-  const primaryCaps = resolveModelCapability(s.endpoints, s.model);
+  const primaryModelKey = findKeyForModel(s.model);
+  const primaryCaps = resolveModelCapability(s.endpoints, primaryModelKey || s.model);
   const primaryThinkingOptions = primaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
 
   // ── Capability resolution for the secondary model (independent) ──────
+  const secondaryModelKey = s.secondaryModel.trim() === "" ? "" : findKeyForModel(s.secondaryModel);
   const secondaryCaps =
     s.secondaryModel.trim() === ""
       ? null // inherit from primary
-      : resolveModelCapability(s.endpoints, s.secondaryModel);
-  const secondaryThinkingOptions =
-    secondaryCaps && secondaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
+      : resolveModelCapability(s.endpoints, secondaryModelKey || s.secondaryModel);
 
   return (
     <div className="ui-settings-panel">
@@ -455,7 +479,7 @@ export function SettingsPanel({
                   <div className="ui-capabilities-group-title">{t("settings.capabilities.primary")}</div>
 
                   <Field label={t("settings.model")}>
-                    <Select value={s.model} onChange={(e) => patch({ model: e.target.value })}>
+                    <Select value={primaryModelKey} onChange={(e) => patch({ model: bareModelId(e.target.value) })}>
                       <option value="">{t("settings.endpoint.noModels")}</option>
                       {allModelKeys.map((key) => (
                         <option key={key} value={key}>
@@ -478,9 +502,7 @@ export function SettingsPanel({
                         }
                       }}
                     >
-                      <option value={t("settings.capabilities.thinkingOff")}>
-                        {t("settings.capabilities.thinkingOff")}
-                      </option>
+                      <option value="">{t("settings.capabilities.thinkingOff")}</option>
                       {primaryThinkingOptions.map((r) => (
                         <option key={r} value={r}>
                           {r === "max" ? t("model.thinkingMax") : t("model.thinkingHigh")}
@@ -514,12 +536,15 @@ export function SettingsPanel({
                   </Field>
                 </div>
 
-                {/* Secondary model (independent capabilities) */}
+                {/* Secondary model (capabilities inherited from primary if not set) */}
                 <div className="ui-endpoint-role">
                   <div className="ui-capabilities-group-title">{t("settings.capabilities.secondary")}</div>
 
                   <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
-                    <Select value={s.secondaryModel} onChange={(e) => patch({ secondaryModel: e.target.value })}>
+                    <Select
+                      value={secondaryModelKey}
+                      onChange={(e) => patch({ secondaryModel: bareModelId(e.target.value) })}
+                    >
                       <option value="">{t("settings.capabilities.inherit")}</option>
                       {allModelKeys.map((key) => (
                         <option key={key} value={key}>
@@ -529,50 +554,16 @@ export function SettingsPanel({
                     </Select>
                   </Field>
 
-                  {s.secondaryModel.trim() !== "" ? (
-                    <>
-                      <Field label={t("settings.reasoningEffort")}>
-                        <Select
-                          value={
-                            s.secondaryModel.trim() === "" || !secondaryCaps ? "" : secondaryCaps.thinking ? "high" : ""
-                          }
-                          disabled={secondaryThinkingOptions.length === 0}
-                          onChange={(e) => {
-                            // Secondary thinking is independent; we mirror it onto
-                            // the primary thinkingEnabled/reasoningEffort only as a
-                            // UI convenience since EditableSettings has a single
-                            // thinkingEnabled field. The secondary model settings
-                            // live exclusively in this panel (never TopBar).
-                            const value = e.target.value as ReasoningEffort | "";
-                            if (value === "") {
-                              patch({ thinkingEnabled: false });
-                            } else {
-                              patch({ thinkingEnabled: true, reasoningEffort: value });
-                            }
-                          }}
-                        >
-                          <option value={t("settings.capabilities.thinkingOff")}>
-                            {t("settings.capabilities.thinkingOff")}
-                          </option>
-                          {secondaryThinkingOptions.map((r) => (
-                            <option key={r} value={r}>
-                              {r === "max" ? t("model.thinkingMax") : t("model.thinkingHigh")}
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
-
-                      <Field label={t("settings.capabilities.vision")}>
-                        <Checkbox
-                          checked={!!secondaryCaps && secondaryCaps.vision}
-                          disabled={!secondaryCaps || !secondaryCaps.vision}
-                          onChange={(e) => {
-                            void e;
-                          }}
-                          label={t("settings.capabilities.vision")}
-                        />
-                      </Field>
-                    </>
+                  {/* Secondary capability info (read-only — derived from endpoint registration) */}
+                  {s.secondaryModel.trim() !== "" && secondaryCaps ? (
+                    <Field label={t("settings.capabilities.vision")}>
+                      <div className="ui-field-hint">
+                        {t("settings.endpoint.thinkingCap")}: {secondaryCaps.thinking ? "✓" : "✗"} ·{" "}
+                        {t("settings.capabilities.vision")}: {secondaryCaps.vision ? "✓" : "✗"}
+                      </div>
+                    </Field>
+                  ) : s.secondaryModel.trim() === "" ? (
+                    <div className="ui-field-hint">{t("settings.capabilities.inherit")}</div>
                   ) : null}
 
                   <Field>
@@ -656,7 +647,7 @@ export function SettingsPanel({
                   {memoryAvailable === null
                     ? t("settings.memory.checking")
                     : memoryAvailable
-                      ? t("settings.memory.enable")
+                      ? t("settings.memory.available")
                       : t("settings.memory.unavailable")}
                 </div>
               </section>

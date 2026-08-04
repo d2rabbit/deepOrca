@@ -163,30 +163,26 @@ export const TopBar = memo(function TopBar({
 
   // Build the model list from settings endpoints. Falls back to hardcoded
   // list when endpoints have no registered models (backward compat).
+  // We store/display bare modelId names (not endpointId/modelId keys).
   const availableModels = useMemo(() => {
     if (!settings?.endpoints?.length) return FALLBACK_MODELS;
-    const keys = collectAllModelKeys(settings.endpoints as never);
+    const keys = collectAllModelKeys(settings.endpoints);
     if (keys.length === 0) return FALLBACK_MODELS;
-    return keys;
+    // Extract bare modelId from each key, deduplicate.
+    const ids = keys.map((k) => parseModelKey(k)?.modelId ?? k);
+    return [...new Set(ids)];
   }, [settings?.endpoints]);
 
-  // For display: show modelId only (strip endpointId/ prefix) in the dropdown.
-  const modelDisplayName = (key: string): string => {
-    const parsed = parseModelKey(key);
-    return parsed ? parsed.modelId : key;
-  };
-
   // Check if current model supports thinking (for the thinking dropdown gating).
-  const currentModelKey = settings?.model ?? FALLBACK_MODELS[0]!;
+  const currentModel = settings?.model ?? FALLBACK_MODELS[0]!;
   const modelCap = settings
-    ? resolveModelCapability(settings.endpoints as never, currentModelKey)
+    ? resolveModelCapability(settings.endpoints, currentModel)
     : { thinking: true, vision: false };
   const thinkingOptions = modelCap.thinking ? THINKING_OPTIONS : THINKING_OPTIONS.filter((o) => o.key === "off");
 
-  const modelSelectValue =
-    availableModels.includes(currentModelKey) || availableModels.includes(settings?.model ?? "")
-      ? (settings?.model ?? FALLBACK_MODELS[0]!)
-      : (availableModels[0] ?? FALLBACK_MODELS[0]!);
+  const modelSelectValue = availableModels.includes(currentModel)
+    ? currentModel
+    : (availableModels[0] ?? FALLBACK_MODELS[0]!);
 
   return (
     <div className="ui-window-bar">
@@ -266,7 +262,7 @@ export const TopBar = memo(function TopBar({
           >
             {availableModels.map((m) => (
               <option key={m} value={m}>
-                {modelDisplayName(m)}
+                {m}
               </option>
             ))}
           </Select>

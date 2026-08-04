@@ -283,6 +283,7 @@ export const zhTW: Record<MessageKey, string> = {
   "settings.memory.port": "閘道埠",
   "settings.memory.checking": "檢查中…",
   "settings.memory.unavailable": "記憶閘道不可用",
+  "settings.memory.available": "記憶閘道可用",
   "settings.appearance.theme": "主題",
   "settings.appearance.locale": "語言",
   "settings.apiKey": "API Key",

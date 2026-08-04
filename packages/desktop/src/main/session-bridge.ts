@@ -507,7 +507,7 @@ export class SessionBridge {
       const ids = new Set(endpoints.map((e) => e.id));
       const primaryId = ids.has(patch.primaryEndpointId) ? patch.primaryEndpointId : endpoints[0]!.id;
       next.primaryEndpointId = primaryId;
-      next.secondaryModel = patch.secondaryModel.trim() || "deepseek-v4-flash";
+      next.secondaryModel = patch.secondaryModel.trim(); // empty = inherit primary
       next.secondaryEndpointId = ids.has(patch.secondaryEndpointId) ? patch.secondaryEndpointId : primaryId;
       // Sync the primary endpoint's key + baseURL into env so createOpenAIClient
       // (which reads env.API_KEY / env.BASE_URL) picks up the primary config.

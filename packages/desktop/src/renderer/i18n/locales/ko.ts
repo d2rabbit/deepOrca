@@ -283,6 +283,7 @@ export const ko: Record<MessageKey, string> = {
   "settings.memory.port": "게이트웨이 포트",
   "settings.memory.checking": "확인 중…",
   "settings.memory.unavailable": "메모리 게이트웨이를 사용할 수 없습니다",
+  "settings.memory.available": "메모리 게이트웨이 사용 가능",
   "settings.appearance.theme": "테마",
   "settings.appearance.locale": "언어",
   "settings.apiKey": "API 키",

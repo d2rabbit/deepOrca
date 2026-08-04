@@ -833,7 +833,7 @@ export function parseModelKey(key: string): { endpointId: string; modelId: strin
  * the endpoint/models data is absent or the model is not registered.
  */
 export function resolveModelCapability(
-  endpoints: EndpointConfig[],
+  endpoints: ReadonlyArray<Pick<EndpointConfig, "id" | "models">>,
   modelKey: string
 ): { thinking: boolean; vision: boolean } {
   const parsed = parseModelKey(modelKey);
@@ -858,11 +858,12 @@ export function resolveModelCapability(
 /**
  * Collect all registered model keys across all endpoints.
  * Returns `endpointId/modelId` strings for use in dropdown selectors.
+ * Does NOT filter by apiKey — the caller (TopBar/SettingsPanel) decides
+ * whether to show all endpoints or only configured ones.
  */
-export function collectAllModelKeys(endpoints: EndpointConfig[]): string[] {
+export function collectAllModelKeys(endpoints: ReadonlyArray<Pick<EndpointConfig, "id" | "models">>): string[] {
   const keys: string[] = [];
   for (const ep of endpoints) {
-    if (!ep.apiKey) continue; // skip endpoints without credentials
     for (const model of ep.models ?? []) {
       keys.push(buildModelKey(ep.id, model.id));
     }
@@ -873,7 +874,10 @@ export function collectAllModelKeys(endpoints: EndpointConfig[]): string[] {
 /**
  * Find the endpoint config for a given model key.
  */
-export function findEndpointForModel(endpoints: EndpointConfig[], modelKey: string): EndpointConfig | null {
+export function findEndpointForModel(
+  endpoints: ReadonlyArray<Pick<EndpointConfig, "id">>,
+  modelKey: string
+): Pick<EndpointConfig, "id"> | null {
   const parsed = parseModelKey(modelKey);
   if (!parsed) return null;
   return endpoints.find((e) => e.id === parsed.endpointId) ?? null;

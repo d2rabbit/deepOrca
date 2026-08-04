@@ -283,6 +283,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.memory.port": "ゲートウェイポート",
   "settings.memory.checking": "確認中…",
   "settings.memory.unavailable": "メモリゲートウェイが利用できません",
+  "settings.memory.available": "メモリゲートウェイ利用可能",
   "settings.appearance.theme": "テーマ",
   "settings.appearance.locale": "言語",
   "settings.apiKey": "API キー",
