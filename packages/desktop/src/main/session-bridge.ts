@@ -223,7 +223,7 @@ export function toSettingsSummary(root: string): SettingsSummary {
     reasoningEffort: s.reasoningEffort,
     hasApiKey: Boolean(s.apiKey),
     statusSeparator: s.statusline?.separator ?? " ",
-    endpoints: s.endpoints.map((e) => ({ id: e.id, name: e.name, baseURL: e.baseURL })),
+    endpoints: s.endpoints.map((e) => ({ id: e.id, name: e.name, baseURL: e.baseURL, models: e.models })),
     primaryEndpointId: s.primaryEndpointId,
     secondaryModel: s.secondaryModel,
     secondaryEndpointId: s.secondaryEndpointId,

@@ -1,9 +1,10 @@
-import { memo, type JSX } from "react";
+import { memo, useMemo, type JSX } from "react";
 import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { Pill, Select } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "@deeporca/core";
 
 type Props = {
   platform: string;
@@ -35,7 +36,7 @@ type Props = {
   streamElapsedSecs?: number;
 };
 
-const MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
+const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
 
 type ThinkingOption = {
   key: string;
@@ -160,12 +161,32 @@ export const TopBar = memo(function TopBar({
     </div>
   );
 
-  const modelKnown = settings ? MODELS.includes(settings.model) : true;
-  // Fallback for safety: if the persisted model isn't one of the two
-  // supported DeepSeek variants, surface the first known option so the
-  // <select> always has a valid current value. The user can pick the
-  // intended one without the model list going blank.
-  const modelSelectValue = modelKnown && settings ? settings.model : MODELS[0]!;
+  // Build the model list from settings endpoints. Falls back to hardcoded
+  // list when endpoints have no registered models (backward compat).
+  const availableModels = useMemo(() => {
+    if (!settings?.endpoints?.length) return FALLBACK_MODELS;
+    const keys = collectAllModelKeys(settings.endpoints as never);
+    if (keys.length === 0) return FALLBACK_MODELS;
+    return keys;
+  }, [settings?.endpoints]);
+
+  // For display: show modelId only (strip endpointId/ prefix) in the dropdown.
+  const modelDisplayName = (key: string): string => {
+    const parsed = parseModelKey(key);
+    return parsed ? parsed.modelId : key;
+  };
+
+  // Check if current model supports thinking (for the thinking dropdown gating).
+  const currentModelKey = settings?.model ?? FALLBACK_MODELS[0]!;
+  const modelCap = settings
+    ? resolveModelCapability(settings.endpoints as never, currentModelKey)
+    : { thinking: true, vision: false };
+  const thinkingOptions = modelCap.thinking ? THINKING_OPTIONS : THINKING_OPTIONS.filter((o) => o.key === "off");
+
+  const modelSelectValue =
+    availableModels.includes(currentModelKey) || availableModels.includes(settings?.model ?? "")
+      ? (settings?.model ?? FALLBACK_MODELS[0]!)
+      : (availableModels[0] ?? FALLBACK_MODELS[0]!);
 
   return (
     <div className="ui-window-bar">
@@ -227,10 +248,8 @@ export const TopBar = memo(function TopBar({
         ) : null}
       </div>
 
-      {/* Dual model selectors: model + thinking model, paired inside one
-         pill. The project ships against DeepSeek's official API only,
-         so the model dropdown is the fixed pair of deepseek-v4-pro /
-         deepseek-v4-flash — no custom / OpenAI-compatible option. */}
+      {/* Dual model selectors: model + thinking mode, paired inside one pill.
+         The model list is derived from the endpoint configuration in settings. */}
       {settings ? (
         <div className="ui-topbar-pill ui-topbar-models">
           <Select
@@ -245,9 +264,9 @@ export const TopBar = memo(function TopBar({
               });
             }}
           >
-            {MODELS.map((m) => (
+            {availableModels.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {modelDisplayName(m)}
               </option>
             ))}
           </Select>
@@ -257,7 +276,7 @@ export const TopBar = memo(function TopBar({
             value={currentThinkingKey(settings)}
             title={t("topbar.thinkingModel")}
             onChange={(e) => {
-              const opt = THINKING_OPTIONS.find((o) => o.key === e.target.value) ?? THINKING_OPTIONS[0]!;
+              const opt = thinkingOptions.find((o) => o.key === e.target.value) ?? thinkingOptions[0]!;
               onSetModel({
                 model: settings.model,
                 thinkingEnabled: opt.thinkingEnabled,
@@ -265,7 +284,7 @@ export const TopBar = memo(function TopBar({
               });
             }}
           >
-            {THINKING_OPTIONS.map((o) => (
+            {thinkingOptions.map((o) => (
               <option key={o.key} value={o.key}>
                 {t(o.labelKey)}
               </option>

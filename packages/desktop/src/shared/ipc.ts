@@ -397,7 +397,7 @@ export type SettingsSummary = {
   hasApiKey: boolean;
   statusSeparator: string;
   /** Endpoint display info (no apiKey — renderer never sees keys via summary). */
-  endpoints: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">>;
+  endpoints: Array<Pick<EndpointConfig, "id" | "name" | "baseURL" | "models">>;
   primaryEndpointId: string;
   secondaryModel: string;
   secondaryEndpointId: string;

@@ -3899,6 +3899,67 @@ button.ui-tool-head:hover {
   gap: var(--ui-space-3);
 }
 
+/* ── Endpoint preset + model registration ─────────────────────────────────── */
+.ui-endpoint-preset-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+}
+.ui-endpoint-preset-url {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-endpoint-models {
+  margin-top: var(--ui-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+}
+.ui-endpoint-models-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.ui-endpoint-model-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-1) 0;
+}
+.ui-endpoint-model-row .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+.ui-endpoint-model-row .ui-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
+}
+
+/* ── Capabilities section ─────────────────────────────────────────────────── */
+.ui-capabilities-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+  margin: var(--ui-space-3) 0 var(--ui-space-1);
+  padding-top: var(--ui-space-2);
+  border-top: 1px solid var(--ui-border-subtle, rgba(128, 128, 128, 0.12));
+}
+
+/* ── Memory status ────────────────────────────────────────────────────────── */
+.ui-memory-status {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  margin-top: var(--ui-space-1);
+}
+
 /* ── About / changelog (Settings › About) ───────────────────────────────── */
 .ui-about-desc {
   margin: 6px 0 0;
