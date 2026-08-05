@@ -166,23 +166,30 @@ function handleUpdateComponents(msg: Record<string, unknown>): void {
 
 /**
  * Garbage-collect components unreachable from root components.
- * A root component has no parentId (or parentId pointing to a non-existent
- * component). We BFS from all roots, removing any component whose parentId
- * chain doesn't lead to a root.
+ *
+ * A root is a component with NO parentId. A component whose parentId points to
+ * a non-existent component is an ORPHAN, not a root — it (and its subtree)
+ * must be removed. Earlier code treated orphans as roots, so deleting a parent
+ * left its children promoted to the top level (deleted dialogs/cards lingered).
+ *
+ * Cycle-safe: the `reachable` set guarantees each node is enqueued at most once,
+ * so a parental cycle cannot loop forever.
  */
 function gcUnreachableComponents(surface: InternalSurface): void {
   const reachable = new Set<string>();
   const queue: string[] = [];
 
-  // Seed: components with no parent (roots)
+  // Seed: ONLY true roots (no parentId). Orphans (parentId set but missing)
+  // are deliberately NOT seeded — they will be unreachable and pruned.
   for (const [id, comp] of surface.components) {
-    if (!comp.parentId || !surface.components.has(comp.parentId)) {
+    if (!comp.parentId) {
       reachable.add(id);
       queue.push(id);
     }
   }
 
-  // BFS: mark children as reachable
+  // BFS: mark children as reachable. The reachable check before enqueue makes
+  // this safe against parental cycles (a node is enqueued only once).
   while (queue.length > 0) {
     const id = queue.pop()!;
     for (const [childId, comp] of surface.components) {
@@ -193,7 +200,7 @@ function gcUnreachableComponents(surface: InternalSurface): void {
     }
   }
 
-  // Remove unreachable
+  // Remove unreachable (orphans + their descendants + cycle-only nodes).
   for (const id of surface.components.keys()) {
     if (!reachable.has(id)) {
       surface.components.delete(id);

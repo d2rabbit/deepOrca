@@ -25,6 +25,15 @@ type Props = {
 
 export function A2uiSurface({ messagesJson, onAction, surfaceId }: Props): JSX.Element {
   const [surfaceStates, setSurfaceStates] = useState<A2uiSurfaceState[]>([]);
+  // Per-component form values keyed by component id. Captured from input/
+  // checkbox/select onChange so a button click can return the user-entered
+  // values to the agent (earlier controls were uncontrolled and button actions
+  // only sent { componentId }, so email/password/checkbox/selection values were
+  // silently dropped).
+  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+  const setFormValue = (id: string, value: unknown): void => {
+    setFormValues((prev) => ({ ...prev, [id]: value }));
+  };
 
   // Process messages on mount and when messagesJson changes.
   useEffect(() => {
@@ -49,7 +58,7 @@ export function A2uiSurface({ messagesJson, onAction, surfaceId }: Props): JSX.E
         <div key={surface.surfaceId} className="ui-a2ui-surface">
           {surface.title ? <div className="ui-a2ui-surface-title">{surface.title}</div> : null}
           <div className="ui-a2ui-surface-body">
-            {renderComponents(surface, surface.components, undefined, onAction)}
+            {renderComponents(surface, surface.components, undefined, onAction, formValues, setFormValue)}
           </div>
         </div>
       ))}
@@ -62,7 +71,9 @@ function renderComponents(
   surface: A2uiSurfaceState,
   allComponents: A2uiComponent[],
   parentId: string | undefined,
-  onAction?: (surfaceId: string, actionName: string, context: Record<string, unknown>) => void
+  onAction?: (surfaceId: string, actionName: string, context: Record<string, unknown>) => void,
+  formValues?: Record<string, unknown>,
+  setFormValue?: (id: string, value: unknown) => void
 ): JSX.Element[] {
   // Build a set of all valid IDs for orphan detection.
   const allIds = new Set(allComponents.map((c) => c.id));
@@ -76,13 +87,15 @@ function renderComponents(
     return false;
   });
   return children.map((comp) => {
-    const childElements = renderComponents(surface, allComponents, comp.id, onAction);
+    const childElements = renderComponents(surface, allComponents, comp.id, onAction, formValues, setFormValue);
     return (
       <ComponentRenderer
         key={comp.id}
         component={comp}
         dataModel={surface.dataModel}
         childElements={childElements}
+        formValues={formValues}
+        setFormValue={setFormValue}
         onAction={onAction ? (actionName, context) => onAction(surface.surfaceId, actionName, context) : undefined}
       />
     );
@@ -95,11 +108,17 @@ function ComponentRenderer({
   dataModel,
   childElements,
   onAction,
+  formValues,
+  setFormValue,
 }: {
   component: A2uiComponent;
   dataModel: Record<string, unknown>;
   childElements: JSX.Element[];
   onAction?: (actionName: string, context: Record<string, unknown>) => void;
+  /** Current per-component form values (for button actions to return). */
+  formValues?: Record<string, unknown>;
+  /** Update a form value when an input/checkbox/select changes. */
+  setFormValue?: (id: string, value: unknown) => void;
 }): JSX.Element {
   const props = component.properties ?? {};
   const type = component.type.toLowerCase();
@@ -160,7 +179,17 @@ function ComponentRenderer({
       const label = String(resolve(props.label) ?? resolve(props.text) ?? "Button");
       const actionName = String(resolve(props.action) ?? props.action ?? "click");
       return (
-        <button className="ui-a2ui-button" onClick={() => onAction?.(actionName, { componentId: component.id })}>
+        <button
+          className="ui-a2ui-button"
+          onClick={() =>
+            onAction?.(actionName, {
+              componentId: component.id,
+              // Include the current form state so the agent receives the values
+              // the user entered (email/password/checkbox/selection).
+              formState: formValues ?? {},
+            })
+          }
+        >
           {label}
         </button>
       );
@@ -168,24 +197,41 @@ function ComponentRenderer({
     case "textfield":
     case "input": {
       const placeholder = String(resolve(props.placeholder) ?? resolve(props.label) ?? "");
-      const value = String(resolve(props.value) ?? "");
-      return <input className="ui-a2ui-textfield" placeholder={placeholder} defaultValue={value} />;
+      // Controlled value: prefer the captured form value, fall back to the
+      // initial value declared in the component. Earlier code used defaultValue
+      // (uncontrolled), so the entered text never reached the agent.
+      const value = String(formValues?.[component.id] ?? resolve(props.value) ?? "");
+      return (
+        <input
+          className="ui-a2ui-textfield"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => setFormValue?.(component.id, e.target.value)}
+        />
+      );
     }
-    case "checkbox":
+    case "checkbox": {
+      const checked = Boolean(formValues?.[component.id] ?? resolve(props.checked));
       return (
         <label className="ui-a2ui-checkbox">
-          <input type="checkbox" defaultChecked={Boolean(resolve(props.checked))} />
+          <input type="checkbox" checked={checked} onChange={(e) => setFormValue?.(component.id, e.target.checked)} />
           <span>{String(resolve(props.label) ?? "")}</span>
         </label>
       );
+    }
     case "choicepicker":
     case "select": {
       const options = (resolve(props.options) ?? resolve(props.choices) ?? []) as Array<{
         label?: string;
         value?: string;
       }>;
+      const value = String(formValues?.[component.id] ?? "");
       return (
-        <select className="ui-a2ui-choicepicker">
+        <select
+          className="ui-a2ui-choicepicker"
+          value={value}
+          onChange={(e) => setFormValue?.(component.id, e.target.value)}
+        >
           {Array.isArray(options)
             ? options.map((opt, i) => (
                 <option key={i} value={opt.value ?? opt.label ?? ""}>
