@@ -4,8 +4,8 @@
 // archive sidecar so the renderer can render a VSCode-style workspace tree.
 
 import { getUserConfigRoot, type SessionsIndex } from "@deeporca/core";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import type { SerializableSessionEntry, WorkspaceGroup, WorkspaceSessions } from "../shared/ipc.js";
 import { toSerializableEntry } from "./session-bridge.js";
@@ -14,6 +14,43 @@ import { readArchivedIds } from "./archive-store.js";
 /** Root directory holding every project's session index. */
 function projectsDir(): string {
   return path.join(getUserConfigRoot(), "projects");
+}
+
+/**
+ * Canonicalized OS temp dir. Test suites create throwaway workspaces under
+ * `$TMPDIR` (e.g. `/var/folders/.../deepcode-*-workspace-*`); those must never
+ * surface in the sidebar tree or win the initial-root pick. Returns null when
+ * the temp dir itself can't be resolved.
+ */
+function canonicalTmpdir(): string | null {
+  try {
+    return realpathSync(tmpdir());
+  } catch {
+    return null;
+  }
+}
+
+/** True when `root` lives inside the OS temp directory. */
+function isTempRoot(root: string, canonicalTmp: string | null): boolean {
+  if (!canonicalTmp) {
+    return false;
+  }
+  let real: string;
+  try {
+    real = realpathSync(root);
+  } catch {
+    return false; // unresolvable roots are handled by the existence check
+  }
+  return real === canonicalTmp || real.startsWith(canonicalTmp + path.sep);
+}
+
+/** True when the workspace root no longer exists on disk (moved/deleted). */
+function isStaleRoot(root: string): boolean {
+  try {
+    return !statSync(root).isDirectory();
+  } catch {
+    return true;
+  }
 }
 
 /** Read and parse a single `sessions-index.json`, tolerating malformed files. */
@@ -51,6 +88,8 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
   const archivedIds = new Set(readArchivedIds());
   const workspaces: WorkspaceGroup[] = [];
   const archived: WorkspaceSessions["archived"] = [];
+  const tmp = canonicalTmpdir();
+  const seenRoots = new Set<string>();
 
   let projectDirs: string[] = [];
   if (existsSync(dir)) {
@@ -74,6 +113,28 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
     if (root === homedir() || root === homedir() + "/" || root === homedir() + "\\") {
       continue;
     }
+    // Skip stale roots (deleted/moved) — their sessions are unreadable anyway,
+    // and test suites leave hundreds of dead temp-workspace indexes behind.
+    if (isStaleRoot(root)) {
+      continue;
+    }
+    // Skip throwaway temp-dir workspaces (test artifacts) — but never filter
+    // out the workspace the user is actively looking at right now.
+    if (root !== currentRoot && isTempRoot(root, tmp)) {
+      continue;
+    }
+    // Dedupe roots that resolve to the same directory (e.g. /var vs
+    // /private/var aliases recorded under different project codes).
+    let canonicalRoot: string;
+    try {
+      canonicalRoot = realpathSync(root);
+    } catch {
+      canonicalRoot = root;
+    }
+    if (seenRoots.has(canonicalRoot)) {
+      continue;
+    }
+    seenRoots.add(canonicalRoot);
     const label = path.basename(root) || root;
     const sessions: SerializableSessionEntry[] = [];
     for (const entry of index.entries) {

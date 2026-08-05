@@ -1174,6 +1174,14 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   isQuitting = true;
   killHelperProcesses();
+  // Hard-exit watchdog: if the async cleanup below hangs (e.g. a wedged memory
+  // pipeline or an unkillable helper), force-quit anyway. Without this, the
+  // blocked quit leaves a zombie instance whose window never paints — the
+  // next launch then appears "white screened" alongside the stuck one.
+  const watchdog = setTimeout(() => {
+    app.exit(0);
+  }, 5000);
+  watchdog.unref();
   (async () => {
     try {
       await stopMemory();
@@ -1182,6 +1190,7 @@ app.on("before-quit", (event) => {
     }
     bridge?.dispose();
     bridge = null;
+    clearTimeout(watchdog);
     app.quit();
   })();
 });
