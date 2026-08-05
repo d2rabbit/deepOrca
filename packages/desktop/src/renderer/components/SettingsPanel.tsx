@@ -187,25 +187,65 @@ export function SettingsPanel({
     setS((prev) => ({ ...prev, ...partial }));
   }
 
-  /** Immutable update of a single endpoint by id. */
-  function updateEndpoint(id: string, changes: Partial<EndpointConfig>): void {
-    setS((prev) => ({
-      ...prev,
-      endpoints: prev.endpoints.map((ep) => (ep.id === id ? { ...ep, ...changes } : ep)),
-    }));
+  /** Return the preset definition (id/name/baseURL) for an endpoint id, or null
+   *  if it isn't one of the built-in presets. */
+  function presetFor(id: string): Pick<EndpointConfig, "id" | "name" | "baseURL"> | null {
+    return ENDPOINT_PRESETS.find((p) => p.id === id) ?? null;
   }
 
-  /** Add a new model registration under an endpoint. */
+  /**
+   * Immutable update of a single endpoint by id. Materializes a built-in preset
+   * entry when the id does not yet exist in the list — without this, a fresh
+   * install (endpoints: []) cannot add an API key or model because map() has
+   * nothing to update.
+   */
+  function updateEndpoint(id: string, changes: Partial<EndpointConfig>): void {
+    setS((prev) => {
+      const exists = prev.endpoints.some((ep) => ep.id === id);
+      if (exists) {
+        return {
+          ...prev,
+          endpoints: prev.endpoints.map((ep) => (ep.id === id ? { ...ep, ...changes } : ep)),
+        };
+      }
+      const preset = presetFor(id);
+      if (!preset) {
+        // Not a preset and not present — nothing to materialize.
+        return prev;
+      }
+      const materialized: EndpointConfig = {
+        ...preset,
+        ...changes,
+        apiKey: changes.apiKey ?? "",
+        models: changes.models ?? [],
+      };
+      return { ...prev, endpoints: [...prev.endpoints, materialized] };
+    });
+  }
+
+  /**
+   * Add a new model registration under an endpoint. Materializes the preset
+   * first if the endpoint does not yet exist (fresh-install onboarding).
+   */
   function addModel(endpointId: string): void {
-    setS((prev) => ({
-      ...prev,
-      endpoints: prev.endpoints.map((ep) => {
-        if (ep.id !== endpointId) return ep;
-        const models = ep.models ? [...ep.models] : [];
-        models.push({ id: "", thinking: false, vision: false });
-        return { ...ep, models };
-      }),
-    }));
+    setS((prev) => {
+      const exists = prev.endpoints.some((ep) => ep.id === endpointId);
+      if (!exists) {
+        const preset = presetFor(endpointId);
+        if (!preset) return prev;
+        const seeded: EndpointConfig = { ...preset, apiKey: "", models: [{ id: "", thinking: false, vision: false }] };
+        return { ...prev, endpoints: [...prev.endpoints, seeded] };
+      }
+      return {
+        ...prev,
+        endpoints: prev.endpoints.map((ep) => {
+          if (ep.id !== endpointId) return ep;
+          const models = ep.models ? [...ep.models] : [];
+          models.push({ id: "", thinking: false, vision: false });
+          return { ...ep, models };
+        }),
+      };
+    });
   }
 
   /** Update a model registration by endpoint id + index. */
@@ -285,12 +325,11 @@ export function SettingsPanel({
   const primaryCaps = resolveModelCapability(s.endpoints, primaryModelKey || s.model);
   const primaryThinkingOptions = primaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
 
-  // ── Capability resolution for the secondary model (independent) ──────
+  // ── Capability resolution for the secondary model ─────────────────────
+  // (secondaryCaps no longer rendered — the secondary controls are disabled
+  // pending the P1 rollout — but secondaryModelKey is still used for the
+  // disabled dropdown's selected value.)
   const secondaryModelKey = s.secondaryModel.trim() === "" ? "" : findKeyForModel(s.secondaryModel);
-  const secondaryCaps =
-    s.secondaryModel.trim() === ""
-      ? null // inherit from primary
-      : resolveModelCapability(s.endpoints, secondaryModelKey || s.secondaryModel);
 
   return (
     <div className="ui-settings-panel">
@@ -453,11 +492,12 @@ export function SettingsPanel({
                       </Select>
                     </Field>
 
-                    <Field label={t("settings.endpoint.secondary")}>
-                      <Select
-                        value={s.secondaryEndpointId}
-                        onChange={(e) => patch({ secondaryEndpointId: e.target.value })}
-                      >
+                    {/* Secondary endpoint selection is deferred to the P1
+                        secondary-model rollout (createSecondaryClient has no
+                        production callers yet — see roadmap §十). Shown as a
+                        disabled placeholder so the field isn't silently gone. */}
+                    <Field label={t("settings.endpoint.secondary")} hint={t("settings.secondaryComingSoon")}>
+                      <Select value={s.secondaryEndpointId} disabled onChange={() => {}}>
                         {ENDPOINT_PRESETS.map((preset) => (
                           <option key={preset.id} value={preset.id}>
                             {preset.name}
@@ -553,15 +593,21 @@ export function SettingsPanel({
                   </Field>
                 </div>
 
-                {/* Secondary model (capabilities inherited from primary if not set) */}
+                {/* Secondary model — disabled pending the P1 secondary-model
+                    rollout (createSecondaryClient has no production callers;
+                    compaction/skill-matching/prompt-enhance still use the
+                    primary client + hardcoded flash model). Shown as a
+                    non-functional placeholder to avoid implying it works. */}
                 <div className="ui-endpoint-role">
-                  <div className="ui-capabilities-group-title">{t("settings.capabilities.secondary")}</div>
+                  <div className="ui-capabilities-group-title">
+                    {t("settings.capabilities.secondary")}
+                    <span className="ui-field-hint" style={{ marginLeft: 8 }}>
+                      {t("settings.secondaryComingSoon")}
+                    </span>
+                  </div>
 
                   <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
-                    <Select
-                      value={secondaryModelKey}
-                      onChange={(e) => patch({ secondaryModel: bareModelId(e.target.value) })}
-                    >
+                    <Select value={secondaryModelKey} disabled onChange={() => {}}>
                       <option value="">{t("settings.capabilities.inherit")}</option>
                       {allModelKeys.map((key) => (
                         <option key={key} value={key}>
@@ -570,18 +616,6 @@ export function SettingsPanel({
                       ))}
                     </Select>
                   </Field>
-
-                  {/* Secondary capability info (read-only — derived from endpoint registration) */}
-                  {s.secondaryModel.trim() !== "" && secondaryCaps ? (
-                    <Field label={t("settings.capabilities.vision")}>
-                      <div className="ui-field-hint">
-                        {t("settings.endpoint.thinkingCap")}: {secondaryCaps.thinking ? "✓" : "✗"} ·{" "}
-                        {t("settings.capabilities.vision")}: {secondaryCaps.vision ? "✓" : "✗"}
-                      </div>
-                    </Field>
-                  ) : s.secondaryModel.trim() === "" ? (
-                    <div className="ui-field-hint">{t("settings.capabilities.inherit")}</div>
-                  ) : null}
                 </div>
               </section>
             ) : null}

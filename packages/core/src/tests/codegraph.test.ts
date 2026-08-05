@@ -86,12 +86,35 @@ test("hasCodegraphProject detects the project-local .codegraph directory", () =>
   }
 });
 
-test("resolveCodegraphExecutable falls back to npx when no vendored build is configured", () => {
+/** Resolve the on-disk npm-shim.js the same way the production resolver does,
+ *  so tests can tell whether the npm-package path is available in this environment
+ *  (it is, when @colbymchenry/codegraph is installed as a dependency). */
+function npmShimPath(): string | null {
+  try {
+    const require = createRequire(import.meta.url);
+    const pkgJsonPath = require.resolve("@colbymchenry/codegraph/package.json");
+    const shim = path.join(path.dirname(pkgJsonPath), "npm-shim.js");
+    return fs.existsSync(shim) ? shim : null;
+  } catch {
+    return null;
+  }
+}
+
+test("resolveCodegraphExecutable prefers the npm package when installed", () => {
   configureCodegraphVendorRoot(null);
   const exe = resolveCodegraphExecutable();
-  assert.equal(exe.command, "npx");
-  assert.ok(exe.prefixArgs.includes(CODEGRAPH_PACKAGE), "npx fallback should reference the package");
-  assert.ok(exe.prefixArgs.includes("-y"), "npx fallback should be non-interactive");
+  const shim = npmShimPath();
+  if (shim) {
+    // npm package installed → run its shim on the current Node (Electron uses
+    // ELECTRON_RUN_AS_NODE=1). This is the preferred path and must NOT be npx.
+    assert.equal(exe.command, process.execPath);
+    assert.equal(exe.prefixArgs[0], shim);
+  } else {
+    // npm package not installed → npx fallback.
+    assert.equal(exe.command, "npx");
+    assert.ok(exe.prefixArgs.includes(CODEGRAPH_PACKAGE), "npx fallback should reference the package");
+    assert.ok(exe.prefixArgs.includes("-y"), "npx fallback should be non-interactive");
+  }
 });
 
 test("resolveCodegraphExecutable prefers a vendored build and runs it through a sqlite-capable Node", () => {
@@ -99,6 +122,13 @@ test("resolveCodegraphExecutable prefers a vendored build and runs it through a 
   try {
     configureCodegraphVendorRoot(vendorRoot);
     const exe = resolveCodegraphExecutable();
+    // Note: the npm package (if installed) takes precedence over the vendored
+    // build per resolveCodegraphExecutable's documented resolution order.
+    const shim = npmShimPath();
+    if (shim && exe.command === process.execPath && exe.prefixArgs[0] === shim) {
+      // npm-package path won — that's valid, nothing more to assert.
+      return;
+    }
     if (exe.command === "npx") {
       // No sqlite-capable Node found anywhere on this machine — npx fallback is correct.
       assert.ok(exe.prefixArgs.includes(CODEGRAPH_PACKAGE));
@@ -118,13 +148,21 @@ test("resolveCodegraphExecutable prefers a vendored build and runs it through a 
   }
 });
 
-test("buildCodegraphMcpServerConfig pins cwd and uses the resolved executable (npx fallback)", () => {
+test("buildCodegraphMcpServerConfig pins cwd and serves via the resolved executable", () => {
   configureCodegraphVendorRoot(null);
   const root = "/tmp/some-project";
   const config = buildCodegraphMcpServerConfig(root);
-  assert.equal(config.command, "npx");
-  assert.deepEqual(config.args, ["-y", CODEGRAPH_PACKAGE, "serve", "--mcp"]);
   assert.equal(config.cwd, root);
+  const shim = npmShimPath();
+  if (shim) {
+    // npm package path: node <shim> serve --mcp
+    assert.equal(config.command, process.execPath);
+    assert.deepEqual(config.args, [shim, "serve", "--mcp"]);
+  } else {
+    // npx fallback
+    assert.equal(config.command, "npx");
+    assert.deepEqual(config.args, ["-y", CODEGRAPH_PACKAGE, "serve", "--mcp"]);
+  }
 });
 
 test("buildCodegraphMcpServerConfig uses the vendored entry when configured", () => {
@@ -133,6 +171,13 @@ test("buildCodegraphMcpServerConfig uses the vendored entry when configured", ()
     configureCodegraphVendorRoot(vendorRoot);
     const config = buildCodegraphMcpServerConfig("/tmp/proj");
     assert.ok(config.args, "config should carry args");
+    const shim = npmShimPath();
+    // npm package (if installed) wins over vendored; otherwise vendored/npx.
+    if (shim && config.command === process.execPath && config.args![0] === shim) {
+      assert.deepEqual(config.args!.slice(-2), ["serve", "--mcp"]);
+      assert.equal(config.cwd, "/tmp/proj");
+      return;
+    }
     if (config.command !== "npx") {
       const entry = path.resolve(vendorRoot, CODEGRAPH_VENDOR_ENTRY);
       assert.ok(config.args!.includes(entry), "args should reference the vendored entry");
@@ -168,9 +213,15 @@ test("runCodegraphSync spawns `codegraph sync <root>` for an enabled project", (
     // On Windows createMcpSpawnSpec folds args into the command string, so assert
     // on the flattened invocation to stay cross-platform.
     const flattened = `${call.command} ${call.args.join(" ")}`;
-    assert.ok(flattened.includes(CODEGRAPH_PACKAGE), "should invoke the codegraph package");
+    // The resolver now prefers the npm package (node + npm-shim.js) when
+    // installed; otherwise it falls back to npx @colbymchenry/codegraph. Either
+    // way, the sync subcommand + project root must be present.
     assert.ok(flattened.includes("sync"), "should run the sync subcommand");
     assert.ok(flattened.includes(root), "should target the project root");
+    const shim = npmShimPath();
+    if (!shim) {
+      assert.ok(flattened.includes(CODEGRAPH_PACKAGE), "npx fallback should invoke the codegraph package");
+    }
     assert.equal((call.options as { cwd?: string }).cwd, root);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -163,25 +163,38 @@ export const TopBar = memo(function TopBar({
 
   // Build the model list from settings endpoints. Falls back to hardcoded
   // list when endpoints have no registered models (backward compat).
-  // We store/display bare modelId names (not endpointId/modelId keys).
+  // Selection values are endpointId/modelId keys (so selecting a model also
+  // selects its endpoint) — except in the fallback case, where bare model
+  // names are used (no endpoints configured).
   const availableModels = useMemo(() => {
     if (!settings?.endpoints?.length) return FALLBACK_MODELS;
     const keys = collectAllModelKeys(settings.endpoints);
-    if (keys.length === 0) return FALLBACK_MODELS;
-    // Extract bare modelId from each key, deduplicate.
-    const ids = keys.map((k) => parseModelKey(k)?.modelId ?? k);
-    return [...new Set(ids)];
+    return keys.length === 0 ? FALLBACK_MODELS : keys;
   }, [settings?.endpoints]);
 
   // Check if current model supports thinking (for the thinking dropdown gating).
   const currentModel = settings?.model || FALLBACK_MODELS[0]!;
+  // Resolve capability against the primary endpoint's registration when the
+  // current model is registered there; falls back to the hardcoded tables.
+  const currentKey = useMemo(() => {
+    if (!settings?.endpoints?.length) return currentModel;
+    const primaryId = settings.primaryEndpointId;
+    const keys = collectAllModelKeys(settings.endpoints);
+    // Prefer the key on the primary endpoint; else any key whose modelId matches.
+    const onPrimary = keys.find((k) => {
+      const p = parseModelKey(k);
+      return p?.endpointId === primaryId && p.modelId === currentModel;
+    });
+    if (onPrimary) return onPrimary;
+    return keys.find((k) => parseModelKey(k)?.modelId === currentModel) ?? currentModel;
+  }, [settings?.endpoints, settings?.primaryEndpointId, currentModel]);
   const modelCap = settings
-    ? resolveModelCapability(settings.endpoints, currentModel)
+    ? resolveModelCapability(settings.endpoints, currentKey)
     : { thinking: true, vision: false };
   const thinkingOptions = modelCap.thinking ? THINKING_OPTIONS : THINKING_OPTIONS.filter((o) => o.key === "off");
 
-  const modelSelectValue = availableModels.includes(currentModel)
-    ? currentModel
+  const modelSelectValue = availableModels.includes(currentKey)
+    ? currentKey
     : (availableModels[0] ?? FALLBACK_MODELS[0]!);
 
   return (
@@ -253,18 +266,32 @@ export const TopBar = memo(function TopBar({
             value={modelSelectValue}
             title={t("topbar.model")}
             onChange={(e) => {
+              const val = e.target.value;
+              const parsed = parseModelKey(val);
+              const modelId = parsed?.modelId ?? val;
+              // Resolve capability of the newly selected model so we never send
+              // thinking options to a model that declares it unsupported.
+              const cap = settings ? resolveModelCapability(settings.endpoints, val) : { thinking: true };
+              const wantThinking = cap.thinking && settings.thinkingEnabled;
               onSetModel({
-                model: e.target.value,
-                thinkingEnabled: settings.thinkingEnabled,
+                model: modelId,
+                endpointId: parsed?.endpointId,
+                thinkingEnabled: wantThinking,
                 reasoningEffort: settings.reasoningEffort,
               });
             }}
           >
-            {availableModels.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
+            {availableModels.map((m) => {
+              const parsed = parseModelKey(m);
+              const label = parsed
+                ? `${settings?.endpoints?.find((e) => e.id === parsed.endpointId)?.name ?? parsed.endpointId} / ${parsed.modelId}`
+                : m;
+              return (
+                <option key={m} value={m}>
+                  {label}
+                </option>
+              );
+            })}
           </Select>
           <span className="ui-topbar-divider" aria-hidden="true" />
           <Select

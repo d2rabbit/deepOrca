@@ -339,6 +339,87 @@ test("resolveSettingsSources: env API_KEY has highest priority over endpoint api
   assert.equal(resolved.baseURL, "https://api.deepseek.com");
 });
 
+test("resolveSettingsSources: env BASE_URL overrides a configured endpoint baseURL (parity with API_KEY)", () => {
+  // Regression: previously env API_KEY won via `??` but env BASE_URL only
+  // applied as a `||` fallback, so a configured endpoint baseURL silently
+  // ignored DEEPORCA_BASE_URL — sending the env credential to the wrong host.
+  // Both env values must now have the same top priority.
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [{ id: "deepseek", name: "DS", baseURL: "https://api.deepseek.com", apiKey: "file-key" }],
+      primaryEndpointId: "deepseek",
+    },
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    { DEEPORCA_API_KEY: "env-key", DEEPORCA_BASE_URL: "https://gateway.example.com/v1" }
+  );
+
+  assert.equal(resolved.apiKey, "env-key");
+  assert.equal(resolved.baseURL, "https://gateway.example.com/v1");
+});
+
+test("resolveSettingsSources: env BASE_URL absent keeps the configured endpoint baseURL", () => {
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [{ id: "deepseek", name: "DS", baseURL: "https://api.deepseek.com", apiKey: "file-key" }],
+      primaryEndpointId: "deepseek",
+    },
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    { DEEPORCA_API_KEY: "env-key" }
+  );
+  assert.equal(resolved.baseURL, "https://api.deepseek.com");
+});
+
+test("applyModelConfigSelection writes primaryEndpointId when endpointId is supplied", () => {
+  // Selecting model "m-b" on endpoint "provider-b" must persist primaryEndpointId
+  // atomically so runtime routes to provider-b (not the previously-primary provider-a).
+  const result = applyModelConfigSelection(
+    {
+      endpoints: [
+        { id: "provider-a", name: "A", baseURL: "https://a", apiKey: "ka", models: [{ id: "m-a", thinking: true }] },
+        { id: "provider-b", name: "B", baseURL: "https://b", apiKey: "kb", models: [{ id: "m-b", thinking: false }] },
+      ],
+      primaryEndpointId: "provider-a",
+      model: "m-a",
+    },
+    { model: "m-a", thinkingEnabled: true, reasoningEffort: "max" },
+    { model: "m-b", endpointId: "provider-b", thinkingEnabled: false, reasoningEffort: "max" }
+  );
+  assert.equal(result.changed, true);
+  assert.equal(result.settings.model, "m-b");
+  assert.equal(result.settings.primaryEndpointId, "provider-b");
+});
+
+test("applyModelConfigSelection forces thinking off when the selected model declares it unsupported", () => {
+  // Switching from a thinking-capable model to a non-thinking one must clear
+  // thinkingEnabled — otherwise activateSession sends thinking options to a
+  // model that rejects them.
+  const result = applyModelConfigSelection(
+    {
+      endpoints: [
+        {
+          id: "ep",
+          name: "E",
+          baseURL: "https://e",
+          apiKey: "k",
+          models: [
+            { id: "m-think", thinking: true },
+            { id: "m-plain", thinking: false },
+          ],
+        },
+      ],
+      primaryEndpointId: "ep",
+      model: "m-think",
+    },
+    { model: "m-think", thinkingEnabled: true, reasoningEffort: "max" },
+    // Renderer (incorrectly) carries over thinkingEnabled=true:
+    { model: "m-plain", endpointId: "ep", thinkingEnabled: true, reasoningEffort: "max" }
+  );
+  assert.equal(result.settings.model, "m-plain");
+  assert.equal(result.settings.thinkingEnabled, false);
+});
+
 test("resolveSettingsSources synthesizes default endpoint from env but apiKey stays top-level only", () => {
   // No endpoints configured at all → synthetic default. The endpoint carries the
   // env key for runtime, but this is NOT surfaced by getEditableSettings (which

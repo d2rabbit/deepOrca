@@ -151,6 +151,10 @@ export type ResolvedDeepcodingSettings = {
 
 export type ModelConfigSelection = {
   model: string;
+  /** Endpoint the selected model lives on. When set, primaryEndpointId is
+   *  updated atomically with model so requests route to the right provider.
+   *  Optional for backward compat with callers that only know the model. */
+  endpointId?: string;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
 };
@@ -613,14 +617,28 @@ export function resolveSettingsSources(
   // Merge endpoints early — needed for thinkingEnabled fallback below.
   const mergedEndpoints = mergeEndpoints(userSettings, projectSettings);
 
+  // Resolve primaryEndpointId early so the capability fallback below can honour
+  // the configured primary endpoint instead of scanning every endpoint by bare
+  // model id (which returns the wrong provider's declaration when the same model
+  // id is registered on multiple endpoints).
+  const resolvedEndpointsForPrimary =
+    mergedEndpoints.length > 0 ? mergedEndpoints : [{ id: "deepseek", name: "DeepSeek", baseURL: "", apiKey: "" }];
+  const primaryEndpointId =
+    trimString(projectSettings?.primaryEndpointId) ||
+    trimString(userSettings?.primaryEndpointId) ||
+    resolvedEndpointsForPrimary[0]!.id;
+
   const thinkingEnabled =
     parseBoolean(systemEnv.THINKING_ENABLED) ??
     parseBoolean(projectSettings?.thinkingEnabled) ??
     parseBoolean(projectEnv.THINKING_ENABLED) ??
     parseBoolean(userSettings?.thinkingEnabled) ??
     parseBoolean(userEnv.THINKING_ENABLED) ??
-    // Check endpoint model registration first, then fall back to hardcoded table.
+    // Check the PRIMARY endpoint's model registration first, then fall back to
+    // any endpoint, then to the hardcoded table.
     (() => {
+      const primaryReg = mergedEndpoints.find((e) => e.id === primaryEndpointId)?.models?.find((m) => m.id === model);
+      if (primaryReg) return primaryReg.thinking ?? false;
       for (const ep of mergedEndpoints) {
         const reg = ep.models?.find((m) => m.id === model);
         if (reg) return reg.thinking ?? false;
@@ -675,7 +693,12 @@ export function resolveSettingsSources(
   // runtime resolution works, but is NOT surfaced by getEditableSettings (which
   // reads the raw file), preventing env secrets from leaking to the GUI.
   const resolvedApiKey = trimString(env.API_KEY) || undefined;
-  const resolvedBaseURL = trimString(env.BASE_URL) || defaults.baseURL;
+  // Track whether BASE_URL was explicitly supplied via env, separately from the
+  // default fallback. The default is used only to synthesize a legacy endpoint
+  // when no endpoints are configured — it must NOT override a configured
+  // endpoint's baseURL (env precedence applies only to explicitly-set values).
+  const explicitEnvBaseURL = trimString(env.BASE_URL) || undefined;
+  const resolvedBaseURL = explicitEnvBaseURL ?? defaults.baseURL;
 
   const endpoints: EndpointConfig[] =
     mergedEndpoints.length > 0
@@ -684,8 +707,8 @@ export function resolveSettingsSources(
         // from the legacy env.API_KEY / env.BASE_URL values.
         [{ id: "deepseek", name: "DeepSeek", baseURL: resolvedBaseURL, apiKey: resolvedApiKey ?? "" }];
 
-  const primaryEndpointId =
-    trimString(projectSettings?.primaryEndpointId) || trimString(userSettings?.primaryEndpointId) || endpoints[0]!.id;
+  // primaryEndpointId was resolved above (before the thinkingEnabled fallback)
+  // so the capability lookup can honour it.
 
   const secondaryModel =
     trimString(projectSettings?.secondaryModel) || trimString(userSettings?.secondaryModel) || DEFAULT_SECONDARY_MODEL;
@@ -700,13 +723,17 @@ export function resolveSettingsSources(
   const secondaryBaseURL = secondaryEndpoint?.baseURL ?? resolvedBaseURL;
   const secondaryApiKey = secondaryEndpoint?.apiKey || undefined;
 
-  // Primary endpoint's apiKey/baseURL. Environment variable (the final merged
-  // env, system > project > user) has the highest priority for the api key, so
-  // CI/credential rotation can override a key stored in settings. This matches
-  // the documented "system environment precedence" contract.
+  // Primary endpoint's apiKey/baseURL. Environment variables (the final merged
+  // env, system > project > user) have the highest priority for BOTH apiKey and
+  // baseURL, so CI/credential rotation can override either value stored in
+  // settings. This matches the documented "system environment precedence"
+  // contract. (Earlier code gave env API_KEY precedence via `??` but used env
+  // BASE_URL only as a `||` fallback, so a configured endpoint baseURL silently
+  // ignored DEEPORCA_BASE_URL while DEEPORCA_API_KEY still won — sending the
+  // env credential to the wrong service.)
   const primaryEndpoint = endpoints.find((e) => e.id === primaryEndpointId);
   const primaryApiKey = resolvedApiKey ?? primaryEndpoint?.apiKey ?? "";
-  const primaryBaseURL = primaryEndpoint?.baseURL || resolvedBaseURL;
+  const primaryBaseURL = explicitEnvBaseURL ?? primaryEndpoint?.baseURL ?? resolvedBaseURL;
 
   return {
     env,
@@ -764,9 +791,35 @@ export function applyModelConfigSelection(
     delete next.model;
   }
 
-  next.thinkingEnabled = selected.thinkingEnabled;
-  if (selected.thinkingEnabled) {
-    next.reasoningEffort = selected.reasoningEffort;
+  // 2.3: when the caller supplies the endpoint the selected model lives on,
+  // persist primaryEndpointId atomically with the model so runtime routing
+  // (resolveSettingsSources) sends requests to the right provider. Without this,
+  // selecting provider-b/model-x while primaryEndpointId stays provider-a sends
+  // model-x to provider-a's baseURL/credentials.
+  if (selected.endpointId) {
+    next.primaryEndpointId = selected.endpointId;
+  }
+
+  // 2.4: thinking override must reflect the newly selected model's actual
+  // declared capability, not be carried over verbatim from the previous model.
+  // If the renderer passed thinkingEnabled=true for a model that (per the
+  // endpoint registration) does not support thinking, force it off and clear the
+  // effort so activateSession() never sends thinking options to an unsupported
+  // model. The capability is resolved against the selected endpoint's models.
+  let effectiveThinking = selected.thinkingEnabled;
+  let effectiveEffort = selected.thinkingEnabled ? selected.reasoningEffort : undefined;
+  if (effectiveThinking && selected.endpointId) {
+    const endpoints = mergeEndpoints(settings ?? null, null);
+    const reg = endpoints.find((e) => e.id === selected.endpointId)?.models?.find((m) => m.id === selected.model);
+    if (reg && reg.thinking === false) {
+      effectiveThinking = false;
+      effectiveEffort = undefined;
+    }
+  }
+
+  next.thinkingEnabled = effectiveThinking;
+  if (effectiveThinking && effectiveEffort) {
+    next.reasoningEffort = effectiveEffort;
   }
 
   return { settings: next, changed: true };

@@ -34,6 +34,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Clean-check: delete all generated declarations/buildinfo, then build +
+      # typecheck from scratch. Catches the class of bug where typecheck passes
+      # only because a stale dist/ declaration exists (the dist/ is gitignored,
+      # so `npm ci` does not regenerate it). Run on a single matrix lane to keep
+      # CI fast — the full matrix runs the regular `check` below.
+      - name: Clean typecheck (no stale dist)
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22'
+        run: |
+          npm run clean
+          npm run build
+          npm run typecheck
+
       - name: TypeCheck + Lint + Format Check
         run: npm run check
 

@@ -300,6 +300,7 @@ export const zhHK: Record<MessageKey, string> = {
   "settings.endpoint.secondary": "輔助模型端點",
   "settings.secondaryModel": "輔助模型",
   "settings.secondaryModelHint": "用於程式碼審查、索引構建及 subagent 任務",
+  "settings.secondaryComingSoon": "P1 計劃中（輔助客戶端接線）",
   "settings.model": "模型",
   "settings.temperature": "溫度",
   "settings.temperaturePlaceholder": "未設定（0–2）",

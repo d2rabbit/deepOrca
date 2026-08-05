@@ -301,6 +301,7 @@ export const ko: Record<MessageKey, string> = {
   "settings.endpoint.secondary": "보조 모델 엔드포인트",
   "settings.secondaryModel": "보조 모델",
   "settings.secondaryModelHint": "코드 리뷰, 인덱싱 및 서브에이전트 작업에 사용",
+  "settings.secondaryComingSoon": "P1에서 지원 예정(보조 클라이언트 연결)",
   "settings.model": "모델",
   "settings.temperature": "온도",
   "settings.temperaturePlaceholder": "미설정(0–2)",

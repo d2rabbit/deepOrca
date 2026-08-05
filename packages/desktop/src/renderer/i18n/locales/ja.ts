@@ -301,6 +301,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.endpoint.secondary": "セカンダリモデルのエンドポイント",
   "settings.secondaryModel": "セカンダリモデル",
   "settings.secondaryModelHint": "コードレビュー、インデックス構築、サブエージェントタスクに使用",
+  "settings.secondaryComingSoon": "P1 で対応予定（補助クライアント接続）",
   "settings.model": "モデル",
   "settings.temperature": "温度",
   "settings.temperaturePlaceholder": "未設定（0〜2）",
