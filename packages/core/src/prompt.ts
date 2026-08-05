@@ -349,15 +349,26 @@ export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
  * Build a system-prompt block from recalled memories. Uses XML-tagged wrapping
  * (matching the skill-document pattern) so the LLM can clearly identify the
  * memory context. Returns empty string when no memories were recalled.
+ *
+ * Two recall channels:
+ *  - `prependContext`: dynamic, per-turn L1 memories relevant to the current
+ *    query. Rendered FIRST inside the block so the model sees them ahead of
+ *    stable persona/scene context.
+ *  - `appendSystemContext`: stable persona + scene navigation + tools guide.
+ *
+ * Note: `appendSystemContext` may already contain a `<user-persona>` block
+ * (TDAI inlines persona there), so this function does NOT re-wrap a separate
+ * `persona` field. The `persona` parameter is kept only for legacy callers.
  */
 export function getMemoryPrompt(recall: {
+  prependContext?: string;
   appendSystemContext?: string;
   persona?: string | null;
-  strategy?: string;
+  recallStrategy?: string;
 }): string {
   const parts: string[] = [];
-  if (recall.persona) {
-    parts.push(`<user-persona>\n${recall.persona}\n</user-persona>`);
+  if (recall.prependContext) {
+    parts.push(`<recalled-memories>\n${recall.prependContext}\n</recalled-memories>`);
   }
   if (recall.appendSystemContext) {
     parts.push(`<cross-session-memory>\n${recall.appendSystemContext}\n</cross-session-memory>`);
@@ -365,7 +376,7 @@ export function getMemoryPrompt(recall: {
   if (parts.length === 0) {
     return "";
   }
-  return `<memory-context strategy="${recall.strategy ?? "none"}">\n${parts.join("\n\n")}\n</memory-context>`;
+  return `<memory-context strategy="${recall.recallStrategy ?? "none"}">\n${parts.join("\n\n")}\n</memory-context>`;
 }
 
 export function getRuntimeContext(projectRoot: string, model?: string): string {

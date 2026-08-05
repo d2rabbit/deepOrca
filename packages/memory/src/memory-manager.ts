@@ -14,7 +14,7 @@
 
 import { TdaiCore } from "./tdai/core/tdai-core.js";
 import type { RecallResult, CaptureResult, CompletedTurn } from "./tdai/core/types.js";
-import type { MemoryTdaiConfig } from "./tdai/config.js";
+import { parseConfig } from "./tdai/config.js";
 import { DeepOrcaHostAdapter, type DeepOrcaMemoryConfig } from "./adapter.js";
 
 export class MemoryManager {
@@ -32,8 +32,12 @@ export class MemoryManager {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    // Parse a minimal TDAI config — use defaults, only set llm and storeBackend.
-    const tdaiConfig: MemoryTdaiConfig = {
+    // Parse via the official parser so every required sub-field is populated
+    // with validated defaults. Earlier code hand-built a partial object and
+    // cast it via `as unknown as MemoryTdaiConfig`, leaving pipeline/store
+    // code reading undefined timeouts, embedding dimensions, dedup settings,
+    // etc. — which could produce NaN delays or eager tight-looping.
+    const tdaiConfig = parseConfig({
       capture: { enabled: true },
       extraction: { enabled: true },
       persona: { triggerEveryN: 50 },
@@ -46,7 +50,7 @@ export class MemoryManager {
       report: { enabled: false },
       llm: { enabled: false },
       offload: { enabled: false },
-    } as unknown as MemoryTdaiConfig;
+    });
 
     this.core = new TdaiCore({
       hostAdapter: this.adapter,
@@ -75,13 +79,28 @@ export class MemoryManager {
     assistantText: string;
     sessionKey: string;
     sessionId?: string;
+    /** Last user + assistant messages. When omitted, two messages are
+     * synthesized from userText/assistantText. The L0 recorder only persists
+     * entries it finds in messages[], so this MUST be non-empty for capture
+     * to actually record anything. */
+    messages?: Array<{ role: "user" | "assistant"; content: string; id?: string; timestamp?: number }>;
   }): Promise<CaptureResult | null> {
     if (!this.core || !this.initialized) return null;
     try {
+      // Build the messages payload for L0. Prefer the structured messages
+      // passed by the caller (they carry real ids/timestamps); fall back to
+      // synthesizing two entries from the flat text fields.
+      const messages: unknown[] =
+        turn.messages && turn.messages.length > 0
+          ? turn.messages
+          : [
+              { role: "user", content: turn.userText, timestamp: Date.now() },
+              { role: "assistant", content: turn.assistantText, timestamp: Date.now() },
+            ];
       const completedTurn: CompletedTurn = {
         userText: turn.userText,
         assistantText: turn.assistantText,
-        messages: [],
+        messages,
         sessionKey: turn.sessionKey,
         sessionId: turn.sessionId,
         startedAt: Date.now(),

@@ -9,7 +9,7 @@
   "scripts": {
     "typecheck": "tsc -p ./ --noEmit",
     "build": "tsc -p ./",
-    "test": "echo 'no tests yet'"
+    "test": "node src/tests/run-tests.mjs"
   },
   "dependencies": {
     "@node-rs/jieba": "^2.0.1",

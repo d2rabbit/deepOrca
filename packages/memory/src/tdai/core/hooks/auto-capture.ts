@@ -316,9 +316,13 @@ export async function performAutoCapture(params: {
   // ============================
   // Step 3: Notify scheduler of this conversation round
   // ============================
+  // Only notify when L0 actually recorded ≥1 message. Earlier code notified
+  // unconditionally, which advanced warm-up/conversation counters and armed
+  // L1 runs even when nothing was captured — producing empty extraction
+  // cycles and falsely reporting memory as active.
   const tNotifyStart = performance.now();
   // Pass empty array: L1 Runner reads from VectorStore DB (or L0 JSONL fallback), not from in-memory buffers.
-  if (scheduler) {
+  if (scheduler && filteredMessages.length > 0) {
     await scheduler.notifyConversation(sessionKey, []);
     logger?.debug?.(`${TAG} Scheduler notified of conversation round (sessionKey=${sessionKey})`);
 

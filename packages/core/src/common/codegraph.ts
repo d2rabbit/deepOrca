@@ -149,8 +149,13 @@ function getPlatformArch(): string | null {
  */
 export function resolveCodegraphExecutable(): CodegraphExecutable {
   // 1. Try npm package first (like OCR: require.resolve → shim → platform binary).
+  // The npm-shim.js is NOT in @colbymchenry/codegraph's `exports` map (only "."
+  // and "./package.json" are), so resolving the subpath directly throws
+  // ERR_PACKAGE_PATH_NOT_EXPORTED. Resolve the package.json instead — which IS
+  // exported — and derive npm-shim.js from its directory.
   try {
-    const shimEntry = moduleRequire.resolve("@colbymchenry/codegraph/npm-shim.js");
+    const pkgJsonPath = moduleRequire.resolve("@colbymchenry/codegraph/package.json");
+    const shimEntry = path.join(path.dirname(pkgJsonPath), "npm-shim.js");
     if (fs.existsSync(shimEntry)) {
       return {
         command: process.execPath,

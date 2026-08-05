@@ -9,7 +9,7 @@
 // left external so they resolve from node_modules at runtime, exactly like the CLI.
 
 import { build, context } from "esbuild";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { cp, mkdir, rm } from "node:fs/promises";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -59,6 +59,20 @@ const preloadConfig = {
   ...shared,
   entryPoints: [resolve(__dirname, "src/preload/index.ts")],
   outfile: resolve(outdir, "preload.cjs"),
+  platform: "node",
+  format: "cjs",
+  target: "node24",
+  external: ["electron"],
+};
+
+/** Prototype-window preload: minimal CJS bundle exposing only the A2UI surface
+ *  + window-close surface (no file/settings/Git/MCP access). Used by the
+ *  popout prototype BrowserWindow so a prototype surface cannot reach the
+ *  privileged bridge even if it loads untrusted content. */
+const prototypePreloadConfig = {
+  ...shared,
+  entryPoints: [resolve(__dirname, "src/preload/prototype.ts")],
+  outfile: resolve(outdir, "prototype.cjs"),
   platform: "node",
   format: "cjs",
   target: "node24",
@@ -152,18 +166,25 @@ async function ensureCoreBuilt() {
   if (existsSync(buildinfo)) {
     await rm(buildinfo, { force: true });
   }
-  const tscBin = resolve(root, "node_modules", ".bin", "tsc");
+  // Run the workspace `tsc -p ./` through `npm run build --workspace=…` with a
+  // shell, mirroring scripts/build.js. On Windows, node_modules/.bin/tsc is a
+  // POSIX shell shim that must not be fed to node as JS — going through npm
+  // resolves the correct .cmd/.sh launcher and is the path already proven by
+  // `npm run build` at the repo root.
+  const run = (ws) => {
+    console.log(`[desktop] building @deeporca/${ws} …`);
+    const result = spawnSync("npm", ["run", "build", `--workspace=@deeporca/${ws}`], {
+      stdio: "inherit",
+      cwd: root,
+      shell: true,
+    });
+    if (result.status !== 0) {
+      throw new Error(`building @deeporca/${ws} failed (exit ${result.status ?? "null"})`);
+    }
+  };
   // Build memory first (core depends on it at runtime via dynamic import).
-  console.log("[desktop] building @deeporca/memory …");
-  execFileSync(process.execPath, [tscBin, "-p", memoryPkg], {
-    stdio: "inherit",
-    cwd: memoryPkg,
-  });
-  console.log("[desktop] building @deeporca/core …");
-  execFileSync(process.execPath, [tscBin, "-p", corePkg], {
-    stdio: "inherit",
-    cwd: corePkg,
-  });
+  run("memory");
+  run("core");
   execFileSync(process.execPath, [rewriteScript], { stdio: "inherit", cwd: root });
 }
 
@@ -226,14 +247,19 @@ async function run() {
   // packages/core/templates/plugins/work/skills/bento-slides/references/.
   ensureVendored("bento", [".vendored-bento-version"], "bundled template (offline)");
   if (isDev) {
-    const contexts = await Promise.all([context(mainConfig), context(preloadConfig), context(rendererConfig)]);
+    const contexts = await Promise.all([
+      context(mainConfig),
+      context(preloadConfig),
+      context(prototypePreloadConfig),
+      context(rendererConfig),
+    ]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));
     await copyStaticAssets();
     console.log("[desktop] watching for changes… (run `npm run start` in another terminal)");
     return;
   }
 
-  await Promise.all([build(mainConfig), build(preloadConfig), build(rendererConfig)]);
+  await Promise.all([build(mainConfig), build(preloadConfig), build(prototypePreloadConfig), build(rendererConfig)]);
   await copyStaticAssets();
   console.log("[desktop] build complete → dist/");
 }

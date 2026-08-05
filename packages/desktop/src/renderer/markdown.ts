@@ -80,10 +80,48 @@ export function renderMarkdown(text: string): string {
     return cached;
   }
   const html = marked.parse(text, { async: false }) as string;
-  // Defensive: neutralise any javascript: URLs that could slip through.
-  const safe = html.replace(/javascript:/gi, "");
+  const safe = sanitizeHtml(html);
   setCached(text, safe);
   return safe;
+}
+
+/**
+ * Sanitize rendered markdown HTML.
+ *
+ * Model output can contain markdown links, and marked emits raw HTML for
+ * inline HTML. The main window loads this HTML directly and (before the
+ * navigation guards in main) a link click could navigate the privileged
+ * window. Even with those guards, we must prevent:
+ *   - <script>, <iframe>, <object>, <embed>, <form> (spoofing/execution);
+ *   - inline event handlers (onerror=, onclick=, …);
+ *   - javascript:/vbscript:/data: URLs in href/src;
+ *   - styles that could overlay the UI.
+ *
+ * This is an allowlist sanitizer operating on marked's output — cheaper than a
+ * full DOM parser and sufficient because we control the input grammar (GFM).
+ */
+const DANGEROUS_TAGS =
+  /<\/?(script|iframe|object|embed|form|input|button|textarea|select|style|link|meta|base)\b[^>]*>/gi;
+const EVENT_HANDLER_ATTR = /\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
+const DANGEROUS_URL =
+  /\b(href|src|xlink:href)\s*=\s*("(?:javascript|vbscript|data):[^"]*"|'(?:javascript|vbscript|data):[^']*'|(?:javascript|vbscript|data):[^\s>]+)/gi;
+const STYLE_ATTR = /\sstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
+
+function sanitizeHtml(html: string): string {
+  let out = html;
+  // Strip dangerous elements entirely (tags only — their text content, if any,
+  // stays as it was already emitted as escaped text by marked for unknown tags).
+  out = out.replace(DANGEROUS_TAGS, "");
+  // Remove inline event handlers.
+  out = out.replace(EVENT_HANDLER_ATTR, "");
+  // Neutralize javascript:/vbscript:/data: URLs in link/media attributes.
+  out = out.replace(DANGEROUS_URL, (match) => match.replace(/(javascript|vbscript|data):/gi, "blocked:"));
+  // Drop inline styles (prevent UI overlay / clickjacking via CSS).
+  out = out.replace(STYLE_ATTR, "");
+  // Force every link to open externally and without opener access. Target the
+  // opening tag so the href attribute itself is preserved.
+  out = out.replace(/<a\b(?![^>]*\brel=)([^>]*)>/gi, '<a$1 target="_blank" rel="noopener noreferrer">');
+  return out;
 }
 
 /** Clear the markdown cache (useful when switching projects to free memory). */

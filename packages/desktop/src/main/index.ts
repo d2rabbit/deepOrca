@@ -2,7 +2,7 @@
 // Boots a BrowserWindow, wires the SessionBridge to IPC, and forwards engine
 // events to the renderer.
 
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -68,6 +68,38 @@ function killHelperProcesses(): void {
     }
   }
   activeHelperProcesses.clear();
+}
+
+// ── Renderer origin allowlist ──────────────────────────────────────────────
+// The privileged preload (file writes, settings, Git, MCP, prompt execution,
+// destructive index ops) must only be callable from our own packaged renderer.
+// In development the renderer may also be served from a localhost dev server.
+const RENDERER_URL = (() => {
+  const htmlPath = join(__dirname, "renderer", "index.html");
+  return `file://${htmlPath.replace(/\\/g, "/")}`;
+})();
+
+/** True when an IPC invocation originated from the privileged main renderer. */
+function isFromMainRenderer(event: Electron.IpcMainInvokeEvent): boolean {
+  // Development allows a localhost dev server as the renderer origin.
+  const senderUrl = event.senderFrame?.url ?? "";
+  if (senderUrl.startsWith("http://localhost") || senderUrl.startsWith("http://127.0.0.1")) {
+    return true;
+  }
+  // Packaged: the sender must be the main window's webContents loading our
+  // own renderer file, and its URL must match the packaged renderer origin.
+  if (mainWindow && event.sender.id === mainWindow.webContents.id) {
+    return senderUrl === RENDERER_URL || senderUrl.startsWith("file://");
+  }
+  return false;
+}
+
+/** Reject invocations from any frame other than the privileged main renderer.
+ *  Used to harden destructive IPC channels. */
+function assertMainRenderer(event: Electron.IpcMainInvokeEvent, channel: string): void {
+  if (!isFromMainRenderer(event)) {
+    throw new Error(`${channel}: invoked from unauthorized sender (${event.senderFrame?.url ?? "?"})`);
+  }
 }
 
 // Product/brand name — drives the macOS menu-bar app name and Windows taskbar grouping.
@@ -256,6 +288,30 @@ function createWindow(): void {
   // Rasterize + apply the orca brand icon (window/taskbar/dock). Best-effort.
   void applyAppIcon(mainWindow);
 
+  // ── Security: prevent the privileged window from navigating away from the
+  // packaged renderer. The preload exposes file/settings/Git/MCP capabilities
+  // through window.deeporca; if a document we rendered (e.g. model markdown
+  // containing a link) could navigate this window to a remote page, that page
+  // would inherit the full privileged bridge. Block all top-level navigation
+  // to anything other than our own renderer file.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url === RENDERER_URL || url.startsWith("file://")) {
+      return;
+    }
+    event.preventDefault();
+    // External http(s) links open in the user's browser, not in our window.
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      void shell.openExternal(url);
+    }
+  });
+  // window.open / target=_blank: never allow a child privileged window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
@@ -272,6 +328,23 @@ function registerIpc(): void {
   const handle = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
     ipcMain.handle(channel, async (_event, ...args) => {
       try {
+        return await fn(...(args as never[]));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[ipc] ${channel} failed:`, message);
+        throw new Error(`${channel}: ${message}`);
+      }
+    });
+  };
+  // Privileged variant: asserts the call originates from the main renderer
+  // before running. Use for any channel that mutates the filesystem, settings,
+  // Git state, MCP config, or runs destructive index operations. The handler
+  // signature matches `handle` (no event param) — sender validation happens
+  // uniformly inside the wrapper.
+  const handlePrivileged = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      try {
+        assertMainRenderer(event, channel);
         return await fn(...(args as never[]));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -319,7 +392,7 @@ function registerIpc(): void {
     return result.filePaths[0] ?? null;
   });
 
-  handle(IpcRequest.SetProjectRoot, (root: string) => {
+  handlePrivileged(IpcRequest.SetProjectRoot, (root: string) => {
     getBridge().setProjectRoot(root);
     emit(IpcEvent.ProjectRootChanged, getBridge().projectRoot);
     return { projectRoot: getBridge().projectRoot };
@@ -330,10 +403,10 @@ function registerIpc(): void {
   handle(IpcRequest.SessionMessages, (id: string) => getBridge().listMessages(id));
   handle(IpcRequest.SessionSetActive, (id: string | null) => getBridge().setActiveSession(id));
   handle(IpcRequest.SessionGetActive, () => getBridge().getActiveSession());
-  handle(IpcRequest.SessionDelete, (id: string) => getBridge().deleteSession(id));
-  handle(IpcRequest.SessionRename, (id: string, summary: string) => getBridge().renameSession(id, summary));
+  handlePrivileged(IpcRequest.SessionDelete, (id: string) => getBridge().deleteSession(id));
+  handlePrivileged(IpcRequest.SessionRename, (id: string, summary: string) => getBridge().renameSession(id, summary));
 
-  handle(IpcRequest.PromptSend, async (prompt: UserPromptContent) => {
+  handlePrivileged(IpcRequest.PromptSend, async (prompt: UserPromptContent) => {
     try {
       await getBridge().sendPrompt(prompt);
       return { ok: true };
@@ -341,9 +414,9 @@ function registerIpc(): void {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
-  handle(IpcRequest.PromptInterrupt, () => getBridge().interrupt());
-  handle(IpcRequest.PromptPause, () => getBridge().pause());
-  handle(IpcRequest.PromptResume, async (sessionId: string) => {
+  handlePrivileged(IpcRequest.PromptInterrupt, () => getBridge().interrupt());
+  handlePrivileged(IpcRequest.PromptPause, () => getBridge().pause());
+  handlePrivileged(IpcRequest.PromptResume, async (sessionId: string) => {
     try {
       await getBridge().resume(sessionId);
       return { ok: true };
@@ -365,14 +438,14 @@ function registerIpc(): void {
   handle(IpcRequest.SkillsList, (sessionId?: string) => getPluginManager().listSkills(sessionId));
   handle(IpcRequest.SettingsGet, () => getBridge().getSettings());
   handle(IpcRequest.SettingsGetEditable, () => getBridge().getEditableSettings());
-  handle(IpcRequest.SettingsUpdate, (patch: EditableSettings) => getBridge().updateSettings(patch));
-  handle(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
+  handlePrivileged(IpcRequest.SettingsUpdate, (patch: EditableSettings) => getBridge().updateSettings(patch));
+  handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
 
   handle(IpcRequest.McpStatus, () => getPluginManager().getMcpStatus());
   handle(IpcRequest.McpReconnect, (name: string) => getPluginManager().reconnectMcp(name));
 
   handle(IpcRequest.UndoList, (sessionId: string) => getBridge().listUndoTargets(sessionId));
-  handle(IpcRequest.UndoRestore, (sessionId: string, messageId: string, mode: UndoRestoreMode) => {
+  handlePrivileged(IpcRequest.UndoRestore, (sessionId: string, messageId: string, mode: UndoRestoreMode) => {
     try {
       getBridge().restoreUndo(sessionId, messageId, mode);
       return { ok: true };
@@ -394,7 +467,7 @@ function registerIpc(): void {
     (name: string, command: string, args?: string[], env?: Record<string, string>) =>
       getBridge().pluginUpsertMcpServer(name, command, args, env)
   );
-  handle(IpcRequest.PluginRemoveMcpServer, (name: string) => getBridge().pluginRemoveMcpServer(name));
+  handlePrivileged(IpcRequest.PluginRemoveMcpServer, (name: string) => getBridge().pluginRemoveMcpServer(name));
   handle(IpcRequest.PluginBuiltinList, () => getBridge().pluginBuiltinList());
   handle(IpcRequest.PluginBuiltinReadDoc, (name: string, locale?: string) =>
     getBridge().pluginBuiltinReadDoc(name, locale)
@@ -408,23 +481,23 @@ function registerIpc(): void {
 
   // ── Workspace-grouped sessions + archive ──────────────────────────────────
   handle(IpcRequest.WorkspaceListSessions, () => listWorkspaceSessions(getBridge().projectRoot));
-  handle(IpcRequest.SessionArchive, (id: string) => {
+  handlePrivileged(IpcRequest.SessionArchive, (id: string) => {
     archiveSession(id);
   });
-  handle(IpcRequest.SessionUnarchive, (id: string) => {
+  handlePrivileged(IpcRequest.SessionUnarchive, (id: string) => {
     unarchiveSession(id);
   });
 
   // ── Git source control ────────────────────────────────────────────────────
   handle(IpcRequest.GitStatus, () => getBridge().gitStatus());
-  handle(IpcRequest.GitStage, (file: string) => getBridge().gitStage(file));
-  handle(IpcRequest.GitUnstage, (file: string) => getBridge().gitUnstage(file));
-  handle(IpcRequest.GitDiscard, (file: string) => getBridge().gitDiscard(file));
-  handle(IpcRequest.GitCommit, (message: string) => getBridge().gitCommit(message));
+  handlePrivileged(IpcRequest.GitStage, (file: string) => getBridge().gitStage(file));
+  handlePrivileged(IpcRequest.GitUnstage, (file: string) => getBridge().gitUnstage(file));
+  handlePrivileged(IpcRequest.GitDiscard, (file: string) => getBridge().gitDiscard(file));
+  handlePrivileged(IpcRequest.GitCommit, (message: string) => getBridge().gitCommit(message));
   handle(IpcRequest.GitCurrentBranch, () => getBridge().gitCurrentBranch());
   handle(IpcRequest.GitListBranches, () => getBridge().gitListBranches());
-  handle(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
-  handle(IpcRequest.GitStashCheckout, (branch: string) => getBridge().gitStashCheckout(branch));
+  handlePrivileged(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
+  handlePrivileged(IpcRequest.GitStashCheckout, (branch: string) => getBridge().gitStashCheckout(branch));
   handle(IpcRequest.GitDiff, (file: string, staged: boolean) => getBridge().gitDiff(file, staged));
   handle(IpcRequest.GitLog, (limit?: number) => getBridge().gitLog(limit));
   handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
@@ -444,7 +517,7 @@ function registerIpc(): void {
       },
     ];
   });
-  handle(IpcRequest.CodegraphReindex, async (root: string) => {
+  handlePrivileged(IpcRequest.CodegraphReindex, async (root: string) => {
     const exitCode = await runCodegraphResetWithOutput(root, (chunk, stream) => {
       emit(IpcEvent.CodegraphProgress, { root, chunk, stream, done: false });
     });
@@ -575,7 +648,7 @@ function registerIpc(): void {
     }));
   });
 
-  handle(IpcRequest.CrgReindex, async (root: string) => {
+  handlePrivileged(IpcRequest.CrgReindex, async (root: string) => {
     const exitCode = await runCrgResetWithOutput(root, (chunk: string, stream: "stdout" | "stderr") => {
       emit(IpcEvent.CrgProgress, { root, chunk, stream, done: false });
     });
@@ -651,7 +724,7 @@ function registerIpc(): void {
     return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
   });
 
-  handle(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
+  handlePrivileged(IpcRequest.MemorySetEnabled, async (enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
     if (enabled) {
       return startMemory();
     }
@@ -698,16 +771,34 @@ function registerIpc(): void {
       autoHideMenuBar: true,
       frame: false,
       webPreferences: {
-        preload: join(__dirname, "preload.cjs"),
+        // Minimal preload: prototype surfaces only need the A2UI payload/update
+        // + action + window-close surface. Using the full preload.cjs here would
+        // expose file/settings/Git/MCP/prompt capabilities to the prototype page.
+        preload: join(__dirname, "prototype.cjs"),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         spellcheck: false,
       },
     });
     prototypeWindows.set(winId, protoWin);
     protoWin.on("closed", () => {
       prototypeWindows.delete(winId);
+    });
+    // Same navigation hardening as the main window: a prototype surface must
+    // never navigate to a remote page.
+    protoWin.webContents.on("will-navigate", (event, url) => {
+      if (url === RENDERER_URL || url.startsWith("file://")) return;
+      event.preventDefault();
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        void shell.openExternal(url);
+      }
+    });
+    protoWin.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        void shell.openExternal(url);
+      }
+      return { action: "deny" };
     });
     // Register the payload listener BEFORE loadFile: loadFile resolves only
     // after the page has finished loading, by which point the matching
@@ -899,19 +990,19 @@ function registerIpc(): void {
 
   // ── MCP management (plugin module) ────────────────────────────────────────
   handle(IpcRequest.PluginMcpList, () => getBridge().pluginMcpList());
-  handle(IpcRequest.PluginSetMcpEnabled, (name: string, enabled: boolean) =>
+  handlePrivileged(IpcRequest.PluginSetMcpEnabled, (name: string, enabled: boolean) =>
     getBridge().pluginSetMcpEnabled(name, enabled)
   );
 
   // ── GitMCP module ──────────────────────────────────────────────────────
   handle(IpcRequest.GitmcpList, () => getBridge().gitmcpList());
-  handle(IpcRequest.GitmcpAdd, (input: string) => getBridge().gitmcpAdd(input));
-  handle(IpcRequest.GitmcpRemove, (slug: string) => getBridge().gitmcpRemove(slug));
-  handle(IpcRequest.GitmcpReindex, (slug: string) => getBridge().gitmcpReindex(slug));
+  handlePrivileged(IpcRequest.GitmcpAdd, (input: string) => getBridge().gitmcpAdd(input));
+  handlePrivileged(IpcRequest.GitmcpRemove, (slug: string) => getBridge().gitmcpRemove(slug));
+  handlePrivileged(IpcRequest.GitmcpReindex, (slug: string) => getBridge().gitmcpReindex(slug));
 
   // ── Editor module ───────────────────────────────────────────────────────
   handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
-  handle(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
+  handlePrivileged(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
     handleEditorWriteFile(getBridge().projectRoot, filePath, content)
   );
   handle(IpcRequest.EditorListFiles, (dirPath: string) => handleEditorListFiles(getBridge().projectRoot, dirPath));

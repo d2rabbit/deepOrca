@@ -6,13 +6,15 @@
  * Node.js ESM requires `from "./foo.js"`. This script bridges the gap.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const distDir = join(root, "packages", "core", "dist");
+// Allow callers (e.g. package-desktop.js staging a built core into the app
+// dir) to target a different dist tree. Defaults to the dev core dist.
+const distDir = process.env.DIST_DIR ? resolve(process.env.DIST_DIR) : join(root, "packages", "core", "dist");
 
 const files = globSync("**/*.js", { cwd: distDir, absolute: true });
 

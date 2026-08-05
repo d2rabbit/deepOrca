@@ -30,8 +30,20 @@ import {
 import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames/index";
 /** Memory provider interface — implemented by @deeporca/memory or any compatible provider. */
 export interface MemoryProvider {
-  recall(query: string, sessionKey: string): Promise<{ appendSystemContext?: string; strategy?: string } | null>;
-  capture(turn: { userText: string; assistantText: string; sessionKey: string; sessionId?: string }): Promise<unknown>;
+  recall(
+    query: string,
+    sessionKey: string
+  ): Promise<{ prependContext?: string; appendSystemContext?: string; recallStrategy?: string } | null>;
+  capture(turn: {
+    userText: string;
+    assistantText: string;
+    sessionKey: string;
+    sessionId?: string;
+    /** Last user + assistant messages, so the provider can persist them to L0.
+     * Each entry: { role: "user"|"assistant", content: string, id?: string, timestamp?: number(epoch-ms) }.
+     * Provider falls back to synthesizing two messages from userText/assistantText when omitted. */
+    messages?: Array<{ role: "user" | "assistant"; content: string; id?: string; timestamp?: number }>;
+  }): Promise<unknown>;
   searchMemories(query: string, limit?: number): Promise<{ text: string; total: number } | null>;
   isAvailable(): boolean;
 }
@@ -2899,27 +2911,48 @@ ${content}
     if (messages.length < 2) {
       return;
     }
-    // Find the last user message and the last assistant message.
+    // Find the last user message and the last assistant message, and capture
+    // them as structured records so the provider can persist them to L0.
+    // Passing the actual messages (not just flat text) is required: the TDAI
+    // L0 recorder only writes entries found in `messages[]`, so without these
+    // the pipeline captures nothing and recall stays permanently empty.
     let userText = "";
     let assistantText = "";
+    let lastUser: SessionMessage | undefined;
+    let lastAssistant: SessionMessage | undefined;
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       if (!msg) continue;
       const text = msg.content ?? "";
       if (msg.role === "user" && !userText) {
         userText = text;
+        lastUser = msg;
       }
       if (msg.role === "assistant" && !assistantText) {
         assistantText = text;
+        lastAssistant = msg;
       }
       if (userText && assistantText) break;
     }
     if (!userText || !assistantText) {
       return;
     }
-    void this.memoryProvider.capture({ userText, assistantText, sessionKey: sessionId }).catch(() => {
-      // Swallow — best-effort memory capture.
-    });
+    const captureMessages: Array<{ role: "user" | "assistant"; content: string; id?: string; timestamp?: number }> = [];
+    for (const msg of [lastUser, lastAssistant]) {
+      if (!msg || !msg.content || !msg.content.trim()) continue;
+      const ts = Date.parse(msg.createTime);
+      captureMessages.push({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        id: msg.id,
+        timestamp: Number.isNaN(ts) ? Date.now() : ts,
+      });
+    }
+    void this.memoryProvider
+      .capture({ userText, assistantText, sessionKey: sessionId, sessionId, messages: captureMessages })
+      .catch(() => {
+        // Swallow — best-effort memory capture.
+      });
   }
 
   private updateLatestUserCheckpointHash(sessionId: string, previousHash: string | undefined, nextHash: string): void {

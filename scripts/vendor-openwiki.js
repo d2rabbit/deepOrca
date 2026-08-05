@@ -87,26 +87,31 @@ async function main() {
 
   // Move node_modules/openwiki/* up to the vendor root so the entry is at
   // <vendorRoot>/dist/cli.js (matching the path the desktop main expects).
-  const npmPkgDir = join(targetDir, "_npm_install", "node_modules", "openwiki");
-  if (existsSync(npmPkgDir)) {
-    // Copy dist + package.json + node_modules (runtime deps) to vendor root.
-    for (const item of ["dist", "package.json", "node_modules"]) {
-      const src = join(npmPkgDir, "..", item === "node_modules" ? "" : item);
-      if (item === "node_modules") {
-        // Copy the full node_modules from the temp install (runtime deps).
-        cpSync(join(targetDir, "_npm_install", "node_modules"), join(targetDir, "node_modules"), { recursive: true });
-      } else if (existsSync(src)) {
-        cpSync(src, join(targetDir, item), { recursive: true });
-      }
+  const tempNodeModules = join(targetDir, "_npm_install", "node_modules");
+  const npmPkgDir = join(tempNodeModules, "openwiki");
+  if (!existsSync(npmPkgDir)) {
+    throw new Error(
+      `install succeeded but openwiki package dir missing (${npmPkgDir}) — refusing to write a broken vendor marker`
+    );
+  }
+  // Copy openwiki's own dist + package.json up to the vendor root.
+  for (const item of ["dist", "package.json"]) {
+    const src = join(npmPkgDir, item);
+    if (existsSync(src)) {
+      cpSync(src, join(targetDir, item), { recursive: true });
     }
   }
+  // Copy the full node_modules from the temp install (openwiki's runtime deps).
+  cpSync(tempNodeModules, join(targetDir, "node_modules"), { recursive: true });
 
   // Clean up temp install dir.
   rmSync(join(targetDir, "_npm_install"), { recursive: true, force: true });
 
-  // Verify entry exists.
+  // Verify the entry exists before committing the version marker. Earlier code
+  // only warned and still wrote the marker, which made every later build skip
+  // vendoring and ship a broken OpenWiki. Fail closed instead.
   if (!existsSync(entryFile)) {
-    log(`WARNING: dist/cli.js not found after install — openwiki may not work`);
+    throw new Error(`dist/cli.js not found after install — openwiki vendoring failed`);
   }
 
   // Write version marker.
