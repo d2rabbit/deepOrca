@@ -8,20 +8,25 @@
  * tool returning a risk score + recommendation (SAFE / CAUTION / DO_NOT_INSTALL).
  *
  * ⚠️ SECURITY: the `skillspector` package on PyPI is MALWARE (advisory MAL-2026-6561,
- * CVSS 10.0 — a credential-exfiltrating typosquat). NVIDIA has NOT published the official
- * package to PyPI. We MUST install from the GitHub repo pinned to a commit SHA:
- *   `uv tool install 'skillspector[mcp] @ git+https://github.com/NVIDIA/SkillSpector.git@<SHA>'`
- * There are no release tags, so the build-time vendor script (scripts/vendor-skillspector.js)
- * records the upstream main commit SHA into `packages/desktop/vendor/skillspector/.vendored-skillspector-sha`,
- * which this module reads at runtime to pin the install.
+ * CVSS 10.0 — a credential-exfiltrating typosquat). We install ONLY from GitHub Releases:
+ *   1. Preferred: the release wheel (fast, prebuilt):
+ *      `uv tool install 'skillspector[mcp] @ https://github.com/NVIDIA/SkillSpector/releases/download/v<ver>/skillspector-<ver>-py3-none-any.whl'`
+ *   2. Fallback: git pinned to the release tag:
+ *      `uv tool install 'skillspector[mcp] @ git+https://github.com/NVIDIA/SkillSpector.git@v<ver>'`
+ *
+ * NVIDIA now publishes tagged releases (v2.5.0+) with prebuilt wheels on GitHub Releases.
+ * The build-time vendor script (scripts/vendor-skillspector.js) writes the target version
+ * to `packages/desktop/vendor/skillspector/.vendored-skillspector-version`. This module
+ * reads that marker at runtime to pin the install. `--force` re-installs when the
+ * pinned version changes.
  *
  * SkillSpector is Python 3.12+ (LangChain stack + native yara-python). Like CRG/Serena it
  * runs through `uv` (shared vendored binary). `uv tool install` provisions an isolated,
  * persistent Python environment on first use — slow the first time (yara-python compiles),
- * fast thereafter. `--force` re-installs only when the pinned SHA changes.
+ * fast thereafter.
  *
- * The `mcp` runtime dependency is an optional extra — installing `skillspector[mcp]` is
- * required for the `skillspector mcp` stdio subcommand.
+ * The `mcp` runtime dependency is an optional extra — installing `skillspector[mcp]`
+ * is required for the `skillspector mcp` stdio subcommand.
  *
  * Prerequisites: the vendored `uv` binary (or system `uv` on PATH) + a C toolchain for the
  * one-time yara-python build (most platforms ship a wheel, so this is often a no-op).
