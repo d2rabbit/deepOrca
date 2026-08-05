@@ -152,13 +152,43 @@ function main() {
   log("copying dist/ …");
   cpSync(join(desktopDir, "dist"), join(stagingDir, "dist"), { recursive: true });
 
-  for (const name of ["codegraph", "openwiki", "uv", "skillspector"]) {
-    if (!existsSync(join(desktopDir, "vendor", name))) {
-      log(
-        `vendor/${name} missing — packaged app will fall back to ${name === "uv" ? "system uv on PATH" : name === "skillspector" ? "uv tool install from git" : "npx"} at runtime.`
-      );
+  // ── Vendor validation ──────────────────────────────────────────────────
+  // In dev/best-effort mode we only warn when a vendor dir is missing (the
+  // packaged app falls back to npx/system binaries). In release mode
+  // (--required or CI_RELEASE=1) we hard-fail unless each vendor's real entry
+  // file exists — this prevents shipping a release with a structurally
+  // invalid/empty vendor tree that earlier code only warned about.
+  const isRelease = process.argv.includes("--required") || process.env.CI_RELEASE === "1";
+  // Vendor entry paths are platform/arch-specific; derive them the same way the
+  // vendor scripts name their platform subdirs.
+  const hostCodegraphArch = `${process.platform}-${process.arch}`;
+  const hostUvTarget =
+    process.platform === "darwin"
+      ? `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`
+      : process.platform === "linux"
+        ? `${process.arch === "arm64" ? "aarch64" : "x86_64"}-unknown-linux-gnu`
+        : `${process.arch === "arm64" ? "aarch64" : "x86_64"}-pc-windows-msvc`;
+  /** Entry file each vendor component must expose for the app to use it offline. */
+  const vendorEntries = {
+    codegraph: join("codegraph", hostCodegraphArch),
+    openwiki: join("openwiki", "dist", "cli.js"),
+    uv: join("uv", hostUvTarget),
+    skillspector: join("skillspector", ".vendored-skillspector-version"),
+  };
+  for (const [name, rel] of Object.entries(vendorEntries)) {
+    const entry = join(desktopDir, "vendor", rel);
+    if (existsSync(entry)) continue;
+    const msg = `vendor/${name} entry missing (${rel}) — packaged app will fall back to ${
+      name === "uv" ? "system uv on PATH" : name === "skillspector" ? "uv tool install from git" : "npx"
+    } at runtime.`;
+    if (isRelease) {
+      throw new Error(`[release] vendor/${name} incomplete: ${rel} missing. Run 'npm run desktop:build' first.`);
     }
+    log(msg);
   }
+
+  // Third-party notice: generate always (cheap), and verify in release mode.
+  run(process.execPath, [join(repoRoot, "scripts", "vendor-notice.js"), ...(isRelease ? ["--check"] : [])], repoRoot);
 
   log("staging complete — run electron-builder next (npm run package --workspace @deeporca/desktop).");
 

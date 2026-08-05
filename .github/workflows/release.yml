@@ -49,6 +49,9 @@ jobs:
         env:
           # Never attempt macOS code signing on CI.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # Strict release validation: hard-fail on incomplete vendor trees or a
+          # missing third-party notice instead of shipping a degraded app.
+          CI_RELEASE: "1"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
