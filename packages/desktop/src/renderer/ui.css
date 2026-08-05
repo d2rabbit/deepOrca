@@ -4022,6 +4022,64 @@ button.ui-tool-head:hover {
   line-height: 1.65;
   color: var(--ui-text-dim);
 }
+/* ── Open-source credits (bilingual, with upstream repo links) ────────────── */
+.ui-credit-list {
+  list-style: none;
+  margin: var(--ui-space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-credit-item {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-credit-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-credit-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: 12.5px;
+  color: var(--ui-text-primary);
+}
+.ui-credit-license {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  letter-spacing: 0.02em;
+}
+.ui-credit-item:hover .ui-credit-license {
+  background: var(--ui-surface);
+}
+.ui-credit-desc {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+}
+.ui-credit-url {
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11px;
+  color: var(--ui-accent);
+  text-decoration: none;
+  word-break: break-all;
+}
+.ui-credit-url:hover {
+  text-decoration: underline;
+}
 .ui-changelog {
   display: flex;
   flex-direction: column;

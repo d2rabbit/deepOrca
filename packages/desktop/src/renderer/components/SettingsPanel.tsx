@@ -146,6 +146,90 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
   },
 ];
 
+/**
+ * Open-source acknowledgements — bilingual (zh + en) with the upstream
+ * repository URL for each third-party project. DeepCode is the kernel itself
+ * (not third-party), so it carries no external URL.
+ */
+const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license: string; url?: string }> = [
+  {
+    name: "DeepCode",
+    zh: "编码智能体内核 —— DeepOrca 在 DeepCode 之上衍生而来,特别致谢 DeepCode 项目。",
+    en: "The coding-agent kernel DeepOrca is derived from. Special thanks to the DeepCode project.",
+    license: "MIT",
+  },
+  {
+    name: "TDAI Core",
+    zh: "TencentDB Agent Memory —— L0–L3 记忆管线。",
+    en: "TencentDB Agent Memory — the L0–L3 memory pipeline.",
+    license: "MIT",
+    url: "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+  },
+  {
+    name: "CodeGraph",
+    zh: "代码知识图谱与符号导航。",
+    en: "Code knowledge graph & symbol navigation.",
+    license: "MIT",
+    url: "https://github.com/colbymchenry/codegraph",
+  },
+  {
+    name: "Open Code Review",
+    zh: "AI 驱动的代码审查(ocr CLI)。",
+    en: "AI-powered code review (ocr CLI).",
+    license: "Apache-2.0",
+    url: "https://github.com/alibaba/open-code-review",
+  },
+  {
+    name: "Code Review Graph",
+    zh: "结构化风险分析。",
+    en: "Structural risk analysis.",
+    license: "MIT",
+    url: "https://github.com/tirth8205/code-review-graph",
+  },
+  {
+    name: "Serena",
+    zh: "基于 SolidLSP 的语义级代码操作。",
+    en: "Semantic code operations via SolidLSP.",
+    license: "AGPL-3.0",
+    url: "https://github.com/oraios/serena",
+  },
+  {
+    name: "SkillSpector",
+    zh: "AI Skill/MCP 安全扫描器。",
+    en: "AI Skill/MCP security scanner.",
+    license: "Apache-2.0",
+    url: "https://github.com/NVIDIA/SkillSpector",
+  },
+  {
+    name: "BrowserSkill",
+    zh: "真实浏览器自动化。",
+    en: "Real browser automation.",
+    license: "Apache-2.0",
+    url: "https://github.com/Tencent/BrowserSkill",
+  },
+  {
+    name: "Bento",
+    zh: "单文件办公套件。",
+    en: "Single-file office suite.",
+    license: "MIT",
+    url: "https://github.com/nyblnet/bento",
+  },
+  {
+    name: "uv",
+    zh: "Python 包管理器。",
+    en: "Python package manager.",
+    license: "MIT",
+    url: "https://github.com/astral-sh/uv",
+  },
+  {
+    name: "OpenWiki",
+    zh: "项目文档自动生成。",
+    en: "Project documentation generation.",
+    license: "MIT",
+    url: "https://github.com/langchain-ai/openwiki",
+  },
+];
+
 /** Settings surface rendered inline in the main area (no modal shell). */
 export function SettingsPanel({
   initial,
@@ -807,47 +891,39 @@ export function SettingsPanel({
                 </section>
 
                 <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">Open Source Credits</div>
+                  <div className="ui-settings-section-title">Open Source Credits · 开源致谢</div>
                   <div className="ui-changelog">
                     <div className="ui-changelog-entry">
                       <p className="ui-about-desc">
-                        DeepOrca is built on the shoulders of these outstanding open-source projects:
+                        DeepOrca 站在这些优秀开源项目的肩膀上，特此致谢。
+                        <br />
+                        DeepOrca is built on the shoulders of these outstanding open-source projects — thank you.
                       </p>
-                      <ul className="ui-about-desc" style={{ paddingLeft: "1.2em", lineHeight: 1.8 }}>
-                        <li>
-                          <strong>DeepCode</strong> — the coding-agent kernel DeepOrca is derived from. Special thanks
-                          to the DeepCode project.
-                        </li>
-                        <li>
-                          <strong>TDAI Core</strong> (TencentDB Agent Memory) — L0-L3 memory pipeline. MIT License.
-                        </li>
-                        <li>
-                          <strong>CodeGraph</strong> — Code knowledge graph & symbol navigation. MIT License.
-                        </li>
-                        <li>
-                          <strong>Open Code Review</strong> — AI-powered code review (ocr CLI). Apache 2.0.
-                        </li>
-                        <li>
-                          <strong>Code Review Graph</strong> — Structural risk analysis. MIT License.
-                        </li>
-                        <li>
-                          <strong>Serena</strong> — Semantic code operations via SolidLSP. AGPL-3.0.
-                        </li>
-                        <li>
-                          <strong>SkillSpector</strong> — AI Skill/MCP security scanner. Apache 2.0.
-                        </li>
-                        <li>
-                          <strong>BrowserSkill</strong> — Real browser automation. Apache 2.0.
-                        </li>
-                        <li>
-                          <strong>Bento</strong> — Single-file office suite. MIT License.
-                        </li>
-                        <li>
-                          <strong>uv</strong> — Python package manager. MIT License.
-                        </li>
-                        <li>
-                          <strong>OpenWiki</strong> — Project documentation generation. MIT License.
-                        </li>
+                      <ul className="ui-credit-list">
+                        {OPEN_SOURCE_CREDITS.map((credit) => (
+                          <li key={credit.name} className="ui-credit-item">
+                            <div className="ui-credit-head">
+                              <strong>{credit.name}</strong>
+                              <span className="ui-credit-license">{credit.license}</span>
+                            </div>
+                            <div className="ui-credit-desc">
+                              {credit.zh}
+                              <br />
+                              {credit.en}
+                            </div>
+                            {credit.url ? (
+                              <a
+                                className="ui-credit-url"
+                                href={credit.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={credit.url}
+                              >
+                                {credit.url.replace(/^https:\/\//, "")}
+                              </a>
+                            ) : null}
+                          </li>
+                        ))}
                       </ul>
                     </div>
                   </div>
