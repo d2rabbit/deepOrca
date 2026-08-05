@@ -189,6 +189,20 @@ export class McpManager {
       this.serverConfigs[name] = config;
     }
 
+    // Close any existing clients for this server BEFORE reconnecting. Without
+    // this, connectServer() pushed a second client while the old client/process
+    // stayed alive (pruneDisconnectedClients kept it because the server name
+    // was still in connectedServers), leaking the old transport/subprocess.
+    // A late onclose from the old client could also flip the new connection's
+    // status to failed and drop the new tools. Drop the name from
+    // connectedServers so pruneDisconnectedClients cannot retain the old entry.
+    this.connectedServers.delete(name);
+    const existing = this.clients.filter((c) => c.serverName === name);
+    this.clients = this.clients.filter((c) => c.serverName !== name);
+    for (const old of existing) {
+      await this.silentlyClose(old);
+    }
+
     this.setStatus({
       name,
       status: "reconnecting",

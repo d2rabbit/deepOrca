@@ -28,15 +28,38 @@ export function PrototypeWindow(): JSX.Element {
   // scope the update subscription to THIS surface only.
   const scopedSurfaceId = a2uiJson ? extractSurfaceId(a2uiJson) : null;
 
-  // 1. Initial payload from the main process (sent once on did-finish-load).
+  // 1. Initial payload — pull by token on mount (race-free handshake). The
+  //    earlier push-only path (did-finish-load) could fire before this effect
+  //    subscribed, leaving the window on "Waiting for prototype data…".
+  //    The push subscription below is kept as a back-compat fallback.
   useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      void (async () => {
+        try {
+          const payload = await api.getPrototypePayload(token);
+          if (cancelled || !payload) return;
+          processA2uiMessages(payload.a2uiJson);
+          setTitle(payload.title || "Prototype");
+          setA2uiJson(payload.a2uiJson);
+          setRefreshKey((k) => k + 1);
+        } catch {
+          // Fall back to the push subscription below.
+        }
+      })();
+    }
     const off = api.onA2uiWindowPayload((event) => {
       processA2uiMessages(event.a2uiJson);
       setTitle(event.title || "Prototype");
       setA2uiJson(event.a2uiJson);
       setRefreshKey((k) => k + 1);
     });
-    return off;
+    return () => {
+      cancelled = true;
+      off();
+    };
   }, []);
 
   // 2. Live surface updates pushed after a2ui_action mutations.

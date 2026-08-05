@@ -36,6 +36,7 @@ import {
   resolveCurrentSettings,
   SessionManager,
   setCodegraphDisabled,
+  setA2uiDisabled,
   writeModelConfigSelection,
   writeProjectSettings,
   writeSettings,
@@ -341,6 +342,10 @@ export class SessionBridge {
     setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
     setSerenaDisabled(this.projectRoot, disabled.includes(SERENA_MCP_SERVER_NAME));
     setSkillSpectorDisabled(this.projectRoot, disabled.includes(SKILL_SPECTOR_MCP_SERVER_NAME));
+    // A2UI is toggleable in the plugin UI and has a core disable gate, but the
+    // disable state was never propagated here — so disabling it and reloading
+    // reconnected the server. Propagate it like the other built-ins.
+    setA2uiDisabled(this.projectRoot, disabled.includes(A2UI_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
   }
 

@@ -84,6 +84,13 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
     [onIterate]
   );
 
+  // Forward A2UI button clicks to the agent (matches PrototypeWindow's handler).
+  // Without this the buttons rendered in this panel were inert (A2uiSurface
+  // calls onAction only when provided).
+  const handleA2uiAction = useCallback((surfaceId: string, actionName: string, context: Record<string, unknown>) => {
+    void api.a2uiAction(surfaceId, actionName, context);
+  }, []);
+
   return (
     <div className="ui-prototype-panel">
       <div className="ui-prototype-panel-body">
@@ -94,7 +101,12 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
             <OpenuiRenderer code={liveOpenuiCode} onAction={handleOpenuiAction} />
           </Suspense>
         ) : (
-          <A2uiSurface key={refreshKey} messagesJson={liveJson} surfaceId={scopedSurfaceId ?? undefined} />
+          <A2uiSurface
+            key={refreshKey}
+            messagesJson={liveJson}
+            onAction={handleA2uiAction}
+            surfaceId={scopedSurfaceId ?? undefined}
+          />
         )}
       </div>
       <div className="ui-prototype-panel-composer">

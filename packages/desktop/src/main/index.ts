@@ -613,7 +613,11 @@ function registerIpc(): void {
       },
     ];
   });
-  handlePrivileged(IpcRequest.CodegraphReindex, async (root: string) => {
+  handlePrivileged(IpcRequest.CodegraphReindex, async (_rootFromRenderer: string) => {
+    // Derive the workspace root server-side. Earlier code trusted a renderer-
+    // supplied root and recursively removed .codegraph under it — a compromised
+    // renderer could target any accessible directory.
+    const root = getBridge().projectRoot;
     const exitCode = await runCodegraphResetWithOutput(root, (chunk, stream) => {
       emit(IpcEvent.CodegraphProgress, { root, chunk, stream, done: false });
     });
@@ -744,7 +748,10 @@ function registerIpc(): void {
     }));
   });
 
-  handlePrivileged(IpcRequest.CrgReindex, async (root: string) => {
+  handlePrivileged(IpcRequest.CrgReindex, async (_rootFromRenderer: string) => {
+    // Derive the workspace root server-side. Earlier code trusted a renderer-
+    // supplied root and recursively removed .code-review-graph under it.
+    const root = getBridge().projectRoot;
     const exitCode = await runCrgResetWithOutput(root, (chunk: string, stream: "stdout" | "stderr") => {
       emit(IpcEvent.CrgProgress, { root, chunk, stream, done: false });
     });
@@ -793,7 +800,11 @@ function registerIpc(): void {
   // A2UI MCP server, which the agent receives as a tool result.
   handle(
     IpcRequest.A2uiAction,
-    async (surfaceId: string, actionName: string, context: Record<string, unknown>): Promise<void> => {
+    async (
+      surfaceId: string,
+      actionName: string,
+      context: Record<string, unknown>
+    ): Promise<{ ok: boolean; error?: string }> => {
       try {
         const bridge = getBridge();
         // Call the A2UI MCP server's a2ui_action tool via the session manager.
@@ -807,8 +818,14 @@ function registerIpc(): void {
         if (result?.metadata?.a2ui) {
           emit(IpcEvent.A2uiSurfaceUpdate, { a2uiJson: result.metadata.a2ui, surfaceId });
         }
+        return { ok: !!result?.ok, error: result?.ok ? undefined : "a2ui_action returned an error" };
       } catch (err) {
-        console.error("[a2ui-action]", err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[a2ui-action]", message);
+        // Earlier code swallowed the error and resolved the IPC promise as
+        // success (void), so the renderer never learned the action failed and
+        // the user got no feedback. Return a structured error instead.
+        return { ok: false, error: message };
       }
     }
   );
@@ -817,8 +834,15 @@ function registerIpc(): void {
   // Opens a separate Electron BrowserWindow with the prototype Surface at
   // full screen — useful for PM presentations or focused prototype testing.
   const prototypeWindows = new Map<string, BrowserWindow>();
+  // Pending payloads keyed by window token, consumed via A2uiRequestPayload
+  // (pull handshake) so the renderer fetches its payload on mount instead of
+  // depending on a did-finish-load push that can fire before React subscribes.
+  const prototypePayloads = new Map<string, { a2uiJson: string; title: string }>();
   handle(IpcRequest.A2uiOpenWindow, async (a2uiJson: string, title: string): Promise<void> => {
-    const winId = `proto-${Date.now()}`;
+    const winId = `proto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Store the payload up front so the pull handshake can return it even if
+    // the push (kept for back-compat) races the subscription.
+    prototypePayloads.set(winId, { a2uiJson, title });
     const protoWin = new BrowserWindow({
       width: 1024,
       height: 720,
@@ -839,6 +863,7 @@ function registerIpc(): void {
     prototypeWindows.set(winId, protoWin);
     protoWin.on("closed", () => {
       prototypeWindows.delete(winId);
+      prototypePayloads.delete(winId);
     });
     // Same navigation hardening as the main window: a prototype surface must
     // never navigate to a remote page.
@@ -855,26 +880,26 @@ function registerIpc(): void {
       }
       return { action: "deny" };
     });
-    // Register the payload listener BEFORE loadFile: loadFile resolves only
-    // after the page has finished loading, by which point the matching
-    // did-finish-load event has already fired. Registering .once afterwards
-    // means the handler is never called and the window stays on
-    // "Waiting for prototype data…" forever.
+    // Push (kept for back-compat). The renderer ALSO pulls via
+    // A2uiRequestPayload on mount, which is the race-free path.
     const sendPayload = (): void => {
       protoWin.webContents.send(IpcEvent.A2uiWindowPayload, { a2uiJson, title });
     };
     protoWin.webContents.once("did-finish-load", sendPayload);
-    // Load renderer with query param so it knows it's a prototype window.
+    // Load renderer with query params so it knows it's a prototype window AND
+    // which token to pull its payload by.
     await protoWin.loadFile(join(__dirname, "renderer/index.html"), {
-      query: { view: "prototype" },
+      query: { view: "prototype", token: winId },
     });
-    // If loadFile resolved but the event already fired (race window between
-    // the page's own load and our listener attach), send directly. The
-    // renderer's onA2uiWindowPayload subscription is set up during first paint,
-    // so it's safe to send here too; a duplicate is harmless (idempotent set).
     if (!protoWin.isDestroyed()) {
       sendPayload();
     }
+  });
+
+  // Pull handshake: the prototype renderer requests its payload by token on
+  // mount. Returns null if the token is unknown (e.g. already consumed/closed).
+  handle(IpcRequest.A2uiRequestPayload, (token: string): { a2uiJson: string; title: string } | null => {
+    return prototypePayloads.get(token) ?? null;
   });
 
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
@@ -945,6 +970,9 @@ function registerIpc(): void {
    */
   const runWikiAgent = (args: string[]): Promise<{ ok: boolean; error?: string }> => {
     const settings = resolveCurrentSettings(getBridge().projectRoot);
+    // Capture the workspace root once so every progress event carries it —
+    // lets the panel filter out stale events from a previous workspace.
+    const root = getBridge().projectRoot;
     const env: Record<string, string> = { ...(process.env as Record<string, string>) };
     if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
     if (settings.baseURL) env.OPENAI_BASE_URL = settings.baseURL;
@@ -959,15 +987,15 @@ function registerIpc(): void {
         try {
           const { command, prefixArgs, env: exeEnv } = resolved;
           const cp = spawn(command, [...prefixArgs, ...args, "--model", model], {
-            cwd: getBridge().projectRoot,
+            cwd: root,
             env: { ...env, ...exeEnv, OPENWIKI_MODEL: model },
           });
           trackHelperProcess(cp);
           cp.stdout?.on("data", (d: Buffer) => {
-            emit(IpcEvent.WikiProgress, { chunk: d.toString(), stream: "stdout", done: false });
+            emit(IpcEvent.WikiProgress, { root, chunk: d.toString(), stream: "stdout", done: false });
           });
           cp.stderr?.on("data", (d: Buffer) => {
-            emit(IpcEvent.WikiProgress, { chunk: d.toString(), stream: "stderr", done: false });
+            emit(IpcEvent.WikiProgress, { root, chunk: d.toString(), stream: "stderr", done: false });
           });
           cp.on("error", (err) => {
             resolve({ ok: false, error: `Failed to start openwiki: ${err.message}` });
@@ -984,23 +1012,25 @@ function registerIpc(): void {
     return (async () => {
       // Phase 1: try flash model
       emit(IpcEvent.WikiProgress, {
+        root,
         chunk: `[wiki-agent] model: ${WIKI_MODEL_FLASH}\n`,
         stream: "stdout",
         done: false,
       });
       const flashResult = await spawnWith(WIKI_MODEL_FLASH);
       if (flashResult.ok) {
-        emit(IpcEvent.WikiProgress, { chunk: "", stream: "stdout", done: true, exitCode: 0 });
+        emit(IpcEvent.WikiProgress, { root, chunk: "", stream: "stdout", done: true, exitCode: 0 });
         return flashResult;
       }
       // Phase 2: flash failed, fall back to pro
       emit(IpcEvent.WikiProgress, {
+        root,
         chunk: `[wiki-agent] flash unavailable, falling back to ${WIKI_MODEL_PRO}\n`,
         stream: "stderr",
         done: false,
       });
       const proResult = await spawnWith(WIKI_MODEL_PRO);
-      emit(IpcEvent.WikiProgress, { chunk: "", stream: "stdout", done: true, exitCode: proResult.ok ? 0 : 1 });
+      emit(IpcEvent.WikiProgress, { root, chunk: "", stream: "stdout", done: true, exitCode: proResult.ok ? 0 : 1 });
       return proResult;
     })();
   };

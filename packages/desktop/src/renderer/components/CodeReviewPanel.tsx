@@ -20,13 +20,28 @@ type ReviewTab = "quality" | "risk" | "architecture";
  * CRG answers "what does this change affect?" (graph algorithms).
  * They are complementary, not redundant.
  */
-export function CodeReviewPanel({ onShowGraph }: { onShowGraph?: (html: string) => void }): JSX.Element {
+export function CodeReviewPanel({
+  onShowGraph,
+  onSmartReview,
+}: {
+  onShowGraph?: (html: string) => void;
+  /** Dispatch a smart-review prompt through App's runPrompt (busy/optimistic/
+   *  refresh), instead of calling api.sendPrompt directly and bypassing the
+   *  active-turn + result handling. */
+  onSmartReview?: () => void;
+}): JSX.Element {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<ReviewTab>("quality");
 
   const triggerSmartReview = useCallback(async () => {
+    // Prefer the App-level runner when wired; otherwise fall back to a direct
+    // prompt (kept so the panel still works in isolation).
+    if (onSmartReview) {
+      onSmartReview();
+      return;
+    }
     await api.sendPrompt({ text: "审查我的代码变更" });
-  }, []);
+  }, [onSmartReview]);
 
   return (
     <div className="ui-side-panel">

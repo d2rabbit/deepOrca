@@ -144,6 +144,10 @@ export const IpcRequest = {
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
   A2uiOpenWindow: "a2ui:openWindow",
+  /** Pull the initial payload for a prototype window on mount (handshake that
+   *  avoids the did-finish-load race — the renderer requests its payload by the
+   *  window token it was opened with). */
+  A2uiRequestPayload: "a2ui:requestPayload",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -202,6 +206,8 @@ export type ReviewComment = {
 
 /** Payload for the WikiProgress event (streamed openwiki output). */
 export type WikiProgressEvent = {
+  /** The workspace root the wiki agent is running in. */
+  root: string;
   /** A chunk of process output. */
   chunk: string;
   /** Which stream produced the chunk. */
@@ -655,14 +661,23 @@ export type DesktopApi = {
   memorySetEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
-  /** Send a user interaction from an A2UI Surface back to the agent. */
-  a2uiAction(surfaceId: string, actionName: string, context: Record<string, unknown>): Promise<void>;
+  /** Send a user interaction from an AUI Surface back to the agent.
+   *  Returns { ok, error } so the renderer can surface failures (missing MCP
+   *  server, stale surface, tool error) instead of silently doing nothing. */
+  a2uiAction(
+    surfaceId: string,
+    actionName: string,
+    context: Record<string, unknown>
+  ): Promise<{ ok: boolean; error?: string }>;
   /** Open a standalone prototype preview window. */
   a2uiOpenWindow(a2uiJson: string, title: string): Promise<void>;
   /** Subscribe to A2UI surface updates (pushed after a2ui_action mutations). */
   onA2uiSurfaceUpdate(cb: (event: A2uiSurfaceUpdateEvent) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */
   onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
+  /** Pull the initial prototype-window payload by token (race-free handshake,
+   *  preferred over the push subscription). Returns null when unknown/consumed. */
+  getPrototypePayload(token: string): Promise<{ a2uiJson: string; title: string } | null>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */

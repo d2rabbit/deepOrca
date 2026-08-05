@@ -54,9 +54,13 @@ export function IndexLibraryPanel(): JSX.Element {
   }, [reload]);
 
   // Progress handlers — update the bar only, no text output.
+  // Each completion handler MUST verify event.root === projectRoot: a stale
+  // completion from a previous operation (or a concurrent run in another
+  // workspace) would otherwise advance this panel's sequential workflow early.
   const onCodegraphDone = useRef<(() => void) | null>(null);
   useEffect(() => {
     const off = api.onCodegraphProgress((event: CodegraphProgressEvent) => {
+      if (event.root && projectRoot && event.root !== projectRoot) return;
       if (event.done) {
         if (event.exitCode === 0) void reload();
         onCodegraphDone.current?.();
@@ -70,11 +74,12 @@ export function IndexLibraryPanel(): JSX.Element {
       }
     });
     return off;
-  }, [reload]);
+  }, [reload, projectRoot]);
 
   const onWikiDone = useRef<(() => void) | null>(null);
   useEffect(() => {
     const off = api.onWikiProgress((event: WikiProgressEvent) => {
+      if (event.root && projectRoot && event.root !== projectRoot) return;
       if (event.done) {
         if (event.exitCode === 0) void reload();
         onWikiDone.current?.();
@@ -84,7 +89,7 @@ export function IndexLibraryPanel(): JSX.Element {
       setPercent((prev) => Math.max(prev ?? 50, 50));
     });
     return off;
-  }, [reload]);
+  }, [reload, projectRoot]);
 
   const runSequential = useCallback(
     async (mode: "init" | "update") => {

@@ -437,21 +437,26 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
   const { t } = useI18n();
   const [group, setGroup] = useState<BuiltinPluginGroup | null>(null);
 
-  const reload = useCallback(async () => {
-    const list = await api.pluginBuiltinGroups();
-    setGroup(list.find((g) => g.id === groupId) ?? null);
-  }, [groupId]);
-
+  // Fetch the group on mount/groupId change, guarding against the stale-response
+  // race: rapidly selecting group A then B fires both pluginBuiltinGroups()
+  // requests; if A resolves last it would overwrite B. The cancelled flag now
+  // actually gates the setState (earlier code set it but reload() ignored it).
   useEffect(() => {
     let cancelled = false;
-    reload().catch(() => {
-      /* noop */
-    });
+    setGroup(null);
+    void (async () => {
+      try {
+        const list = await api.pluginBuiltinGroups();
+        if (cancelled) return;
+        setGroup(list.find((g) => g.id === groupId) ?? null);
+      } catch {
+        /* noop */
+      }
+    })();
     return () => {
       cancelled = true;
     };
-    void cancelled;
-  }, [reload]);
+  }, [groupId]);
 
   if (!group) {
     return (

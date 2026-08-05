@@ -138,13 +138,27 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
   const [saving, setSaving] = useState(false);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const originalContentRef = useRef<string>("");
+  /**
+   * Guards against the file-load race: open A, then quickly open B. Both reads
+   * run concurrently; if A's response arrives last it would install A's content
+   * while filePath is B, and pressing Save would write A's content to B. Each
+   * load increments this counter and commits its result only when it is still
+   * the latest. Also tracks which path the loaded content came from so Save
+   * refuses to write stale content to a different path.
+   */
+  const loadReqIdRef = useRef(0);
+  const loadedPathRef = useRef<string | null>(null);
 
   const loadFile = useCallback(async () => {
+    const myReqId = ++loadReqIdRef.current;
+    loadedPathRef.current = null;
     setLoading(true);
     setError(null);
     setBinary(false);
     setDirty(false);
     const result = await api.editorReadFile(filePath);
+    // A newer load for a different filePath started — discard this stale result.
+    if (myReqId !== loadReqIdRef.current) return;
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? t("editor.readError"));
@@ -157,6 +171,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     const text = result.content ?? "";
     setContent(text);
     originalContentRef.current = text;
+    loadedPathRef.current = filePath;
   }, [filePath, t]);
 
   useEffect(() => {
@@ -165,6 +180,13 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
 
   const handleSave = useCallback(async () => {
     if (content === null || saving) return;
+    // Refuse to save if the loaded content belongs to a different path than
+    // the one currently open (e.g. a file switch raced in). Writing here would
+    // save the previous file's content to the current path.
+    if (loadedPathRef.current !== filePath) {
+      setError(t("editor.readError"));
+      return;
+    }
     setSaving(true);
     const result = await api.editorWriteFile(filePath, content);
     setSaving(false);
@@ -173,6 +195,8 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
       return;
     }
     originalContentRef.current = content;
+    // The saved content now matches disk for the current path.
+    loadedPathRef.current = filePath;
     setDirty(false);
   }, [content, saving, filePath, t]);
 
