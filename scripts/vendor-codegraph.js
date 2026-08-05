@@ -115,27 +115,35 @@ async function main() {
   try {
     await download(downloadUrl, archivePath);
 
-    // Verify checksum if SHA256SUMS is available.
+    // Verify checksum when SHA256SUMS is available. A present-but-mismatched
+    // (or present-but-missing-this-asset) checksum must FAIL CLOSED — earlier
+    // code caught the mismatch in the same handler as "SHA256SUMS unavailable"
+    // and logged "verification skipped", then shipped the untrusted archive.
+    // Only an unreachable SHA256SUMS endpoint is non-fatal (best-effort).
+    const sumsUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/SHA256SUMS`;
+    let sumsText = null;
     try {
-      const sumsUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/SHA256SUMS`;
-      const sumsText = await fetchText(sumsUrl, log);
-      if (sumsText) {
-        const expectedHash = sumsText
-          .split("\n")
-          .find((line) => line.includes(assetName))
-          ?.split(/\s+/)[0];
-        if (expectedHash) {
-          const { createHash } = await import("node:crypto");
-          const archiveBuffer = readFileSync(archivePath);
-          const actualHash = createHash("sha256").update(archiveBuffer).digest("hex");
-          if (actualHash !== expectedHash) {
-            throw new Error(`checksum mismatch: expected ${expectedHash}, got ${actualHash}`);
-          }
-          log(`checksum verified ✓ (${assetName})`);
-        }
+      sumsText = await fetchText(sumsUrl, log);
+    } catch (sumsErr) {
+      log(`WARNING: SHA256SUMS unavailable — checksum verification skipped: ${sumsErr.message}`);
+    }
+    if (sumsText) {
+      const expectedHash = sumsText
+        .split("\n")
+        .find((line) => line.includes(assetName))
+        ?.split(/\s+/)[0];
+      if (!expectedHash) {
+        // SHA256SUMS exists but has no line for this asset — treat as a
+        // checksum failure (the release manifest does not cover this asset).
+        throw new Error(`SHA256SUMS present but contains no entry for ${assetName}`);
       }
-    } catch (verifyError) {
-      log(`WARNING: checksum verification skipped — ${verifyError.message}`);
+      const { createHash } = await import("node:crypto");
+      const archiveBuffer = readFileSync(archivePath);
+      const actualHash = createHash("sha256").update(archiveBuffer).digest("hex");
+      if (actualHash !== expectedHash) {
+        throw new Error(`checksum mismatch: expected ${expectedHash}, got ${actualHash}`);
+      }
+      log(`checksum verified ✓ (${assetName})`);
     }
   } catch (error) {
     // Check if an npm-based fallback exists
