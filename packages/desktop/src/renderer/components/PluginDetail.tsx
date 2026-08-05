@@ -61,6 +61,15 @@ function deriveMcpSource(command: string, args: string): McpSource {
   }
 
   if (["uvx", "uv", "pipx", "python", "python3"].includes(base)) {
+    // `uv tool run --from <spec> ...` — the spec is the real package reference;
+    // firstPackageArg would misleadingly return "tool". Strip any ==version pin.
+    const tokens = args.split(/\s+/).filter(Boolean);
+    const fromIdx = tokens.indexOf("--from");
+    const fromSpec = fromIdx >= 0 ? tokens[fromIdx + 1] : undefined;
+    if (fromSpec) {
+      const pkg = fromSpec.split("==")[0];
+      return { label: `PyPI · ${pkg}`, registryUrl: `https://pypi.org/project/${pkg}/` };
+    }
     const pkg = firstPackageArg(args);
     if (pkg) return { label: `PyPI · ${pkg}`, registryUrl: `https://pypi.org/project/${pkg}/` };
   }
@@ -492,7 +501,8 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
         <span className="ui-detail-readonly">{t("plugins.builtin.readonly")}</span>
       </section>
 
-      {/* Members */}
+      {/* Members — each skill / plugin (CLI) / MCP server gets its own card
+          with a description and a provenance note. */}
       {hasMembers ? (
         <section className="ui-detail-caps">
           {group.plugins.length > 0 ? (
@@ -500,12 +510,22 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
               <span className="ui-plugin-cap-label">
                 {t("plugins.detail.includesPlugins")} · {group.plugins.length}
               </span>
-              <div className="ui-plugin-cap-list">
-                {group.plugins.map((p) => (
-                  <span key={p.name} className="ui-plugin-cap-chip">
-                    {builtinLabel(t, p.name, "name", p.name)}
-                  </span>
-                ))}
+              <div className="ui-member-list">
+                {group.plugins.map((p) => {
+                  const desc = builtinLabel(t, p.name, "desc", p.description);
+                  return (
+                    <div key={p.name} className="ui-member-row">
+                      <div className="ui-member-head">
+                        <span className="ui-member-name">{builtinLabel(t, p.name, "name", p.name)}</span>
+                        <span className="ui-member-type">{t("plugins.detail.memberCli")}</span>
+                      </div>
+                      {desc ? <div className="ui-member-desc">{desc}</div> : null}
+                      <div className="ui-member-src">
+                        {t("plugins.detail.source")}: {t("plugins.detail.sourceBundled")} · v{p.version} · {p.category}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -514,12 +534,27 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
               <span className="ui-plugin-cap-label">
                 {t("plugins.detail.includesSkills")} · {group.skills.length}
               </span>
-              <div className="ui-plugin-cap-list">
-                {group.skills.map((s) => (
-                  <span key={s.name} className="ui-plugin-cap-chip">
-                    {builtinLabel(t, s.name, "name", s.name)}
-                  </span>
-                ))}
+              <div className="ui-member-list">
+                {group.skills.map((s) => {
+                  const desc = builtinLabel(t, s.name, "desc", s.description);
+                  // Provenance: plugin:<pkg>/… → the owning plugin package;
+                  // anything else in a built-in group is bundled with the app.
+                  const source = s.path.startsWith("plugin:")
+                    ? t("plugins.detail.sourcePackage", { name: s.path.slice("plugin:".length).split("/")[0] ?? "" })
+                    : t("plugins.detail.sourceBundled");
+                  return (
+                    <div key={s.name} className="ui-member-row">
+                      <div className="ui-member-head">
+                        <span className="ui-member-name">{builtinLabel(t, s.name, "name", s.name)}</span>
+                        <span className="ui-member-type">{t("plugins.detail.memberSkill")}</span>
+                      </div>
+                      {desc ? <div className="ui-member-desc">{desc}</div> : null}
+                      <div className="ui-member-src">
+                        {t("plugins.detail.source")}: {source}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -528,16 +563,32 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
               <span className="ui-plugin-cap-label">
                 {t("plugins.detail.includesMcp")} · {group.mcpServers.length}
               </span>
-              <div className="ui-plugin-mcp-list">
-                {group.mcpServers.map((m) => (
-                  <div key={m.name} className="ui-plugin-mcp-row">
-                    <span className="ui-plugin-mcp-name">
-                      <StatusDot status={m.status} />
-                      {m.name}
-                    </span>
-                    <span className="ui-mcp-badge builtin">🔒</span>
-                  </div>
-                ))}
+              <div className="ui-member-list">
+                {group.mcpServers.map((m) => {
+                  // gitmcp:* entries share the generic GitMCP description.
+                  const descName = m.name.startsWith("gitmcp:") ? "gitmcp" : m.name;
+                  const desc = builtinLabel(t, descName, "desc", "");
+                  const derived = deriveMcpSource(m.config.command, (m.config.args ?? []).join(" "));
+                  // The derived label is only informative when it names a
+                  // package (npm/PyPI); a raw binary path adds nothing here.
+                  const informative = /^(npm|PyPI) · /.test(derived.label);
+                  const source = informative
+                    ? `${t("plugins.detail.sourceBundled")} · ${derived.label}`
+                    : t("plugins.detail.sourceBundled");
+                  return (
+                    <div key={m.name} className="ui-member-row">
+                      <div className="ui-member-head">
+                        <StatusDot status={m.status} />
+                        <span className="ui-member-name">{m.name}</span>
+                        <span className="ui-member-type">{t("plugins.detail.memberMcp")}</span>
+                      </div>
+                      {desc ? <div className="ui-member-desc">{desc}</div> : null}
+                      <div className="ui-member-src">
+                        {t("plugins.detail.source")}: {source}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}

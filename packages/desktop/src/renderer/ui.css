@@ -4114,7 +4114,7 @@ button.ui-tool-head:hover {
 .ui-plugin-item-desc {
   font-size: 11.5px;
   color: var(--ui-text-dim);
-  line-height: 1.4;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -4127,9 +4127,9 @@ button.ui-tool-head:hover {
   margin-top: 2px;
 }
 .ui-plugin-tag {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 500;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: var(--ui-radius-pill);
   background: var(--ui-surface-hover);
   color: var(--ui-text-faint);
@@ -4151,16 +4151,29 @@ button.ui-tool-head:hover {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   margin-bottom: var(--ui-space-2);
+  /* The inner .ui-plugin-item-main button carries no padding — without this
+     the card text hugs the left edge. Inset to match .ui-plugin-item. */
+  padding: var(--ui-space-3);
+  /* Reserve room for the corner-pinned "内置" badge so the stats line
+     never slides under it. */
+  padding-bottom: calc(var(--ui-space-3) + 14px);
   overflow: hidden;
   transition:
     border-color 0.15s ease,
-    background 0.15s ease;
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 .ui-plugin-group-card:hover {
   border-color: var(--ui-border-strong);
+  background: var(--ui-surface-hover);
+  transform: translateY(-1px);
 }
 .ui-plugin-group-card.selected {
   border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+/* Keep the selected tint stable on hover (the generic hover would override it). */
+.ui-plugin-group-card.selected:hover {
   background: var(--ui-accent-soft);
 }
 /* Platform-specific group shown on a non-matching OS: greyed out, non-interactive. */
@@ -4181,6 +4194,64 @@ button.ui-tool-head:hover {
   margin-top: 4px;
   font-size: 11.5px;
   color: var(--ui-text-dim);
+  letter-spacing: 0.01em;
+}
+
+/* ── Plugin group member rows (detail pane) ───────────────────────────────── */
+/* Each member (skill / plugin-CLI / MCP server) gets its own card carrying a
+   description + provenance line instead of a bare name chip. */
+.ui-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-1);
+}
+.ui-member-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-member-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-member-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-member-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ui-text-primary);
+}
+.ui-member-type {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.ui-member-row:hover .ui-member-type {
+  background: var(--ui-surface);
+}
+.ui-member-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+  line-height: 1.5;
+}
+.ui-member-src {
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
   letter-spacing: 0.01em;
 }
 .ui-skill-desc {
@@ -5581,11 +5652,11 @@ button.ui-topbar-pill {
   font-weight: 500;
 }
 .ui-mcp-badge {
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: var(--ui-radius-pill);
   background: var(--ui-accent-soft);
   color: var(--ui-accent);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 .ui-mcp-badge.builtin {
