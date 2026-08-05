@@ -22,6 +22,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform as osPlatform, arch as osArch } from "node:os";
 import { download as sharedDownload, fetchText, GITHUB_PROXY } from "./vendor-download.js";
+import { withAtomicSwap } from "./vendor-fs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -101,112 +102,107 @@ async function main() {
 
   log(`downloading CodeGraph v${version} (${platformArch}, prev: ${previousVersion ?? "none"}) …`);
 
-  // Clean target.
-  rmSync(targetDir, { recursive: true, force: true });
-  mkdirSync(targetDir, { recursive: true });
-
-  // Determine archive name and URL.
   const isWindows = platformArch.startsWith("win32");
   const ext = isWindows ? "zip" : "tar.gz";
   const assetName = `codegraph-${platformArch}.${ext}`;
   const downloadUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/${assetName}`;
-  const archivePath = join(targetDir, assetName);
 
-  try {
-    await download(downloadUrl, archivePath);
+  // Atomic swap: build into a staging dir, swap into place only when the
+  // platform binary dir exists. Earlier code did rmSync(targetDir) BEFORE
+  // downloading, so a transient network/proxy/checksum failure destroyed a
+  // known-good cache (the "keep existing" fallback checked a dir that had
+  // just been deleted). On any failure the live cache is left untouched.
+  await withAtomicSwap(targetDir, {
+    log,
+    tag: "codegraph",
+    build: async (staging) => {
+      const archivePath = join(staging, assetName);
+      try {
+        await download(downloadUrl, archivePath);
 
-    // Verify checksum when SHA256SUMS is available. A present-but-mismatched
-    // (or present-but-missing-this-asset) checksum must FAIL CLOSED — earlier
-    // code caught the mismatch in the same handler as "SHA256SUMS unavailable"
-    // and logged "verification skipped", then shipped the untrusted archive.
-    // Only an unreachable SHA256SUMS endpoint is non-fatal (best-effort).
-    const sumsUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/SHA256SUMS`;
-    let sumsText = null;
-    try {
-      sumsText = await fetchText(sumsUrl, log);
-    } catch (sumsErr) {
-      log(`WARNING: SHA256SUMS unavailable — checksum verification skipped: ${sumsErr.message}`);
-    }
-    if (sumsText) {
-      const expectedHash = sumsText
-        .split("\n")
-        .find((line) => line.includes(assetName))
-        ?.split(/\s+/)[0];
-      if (!expectedHash) {
-        // SHA256SUMS exists but has no line for this asset — treat as a
-        // checksum failure (the release manifest does not cover this asset).
-        throw new Error(`SHA256SUMS present but contains no entry for ${assetName}`);
+        // Verify checksum when SHA256SUMS is available. A present-but-mismatched
+        // (or present-but-missing-this-asset) checksum must FAIL CLOSED — only
+        // an unreachable SHA256SUMS endpoint is non-fatal (best-effort).
+        const sumsUrl = `https://github.com/colbymchenry/codegraph/releases/download/v${version}/SHA256SUMS`;
+        let sumsText = null;
+        try {
+          sumsText = await fetchText(sumsUrl, log);
+        } catch (sumsErr) {
+          log(`WARNING: SHA256SUMS unavailable — checksum verification skipped: ${sumsErr.message}`);
+        }
+        if (sumsText) {
+          const expectedHash = sumsText
+            .split("\n")
+            .find((line) => line.includes(assetName))
+            ?.split(/\s+/)[0];
+          if (!expectedHash) {
+            throw new Error(`SHA256SUMS present but contains no entry for ${assetName}`);
+          }
+          const { createHash } = await import("node:crypto");
+          const archiveBuffer = readFileSync(archivePath);
+          const actualHash = createHash("sha256").update(archiveBuffer).digest("hex");
+          if (actualHash !== expectedHash) {
+            throw new Error(`checksum mismatch: expected ${expectedHash}, got ${actualHash}`);
+          }
+          log(`checksum verified ✓ (${assetName})`);
+        }
+
+        // Extract into a platform-specific subdirectory inside staging.
+        // The tarball has a nested top-level dir (codegraph-<target>/) — strip it.
+        const extractBinaryDir = join(staging, platformArch);
+        mkdirSync(extractBinaryDir, { recursive: true });
+        if (!isWindows) {
+          execSync(`tar -xzf "${archivePath}" --strip-components=1 -C "${extractBinaryDir}"`, { stdio: "inherit" });
+        } else {
+          // Windows: extract to temp then move contents up (no --strip-components in Windows tar).
+          const tempExtract = join(staging, "_extract");
+          mkdirSync(tempExtract, { recursive: true });
+          try {
+            execSync(`tar -xf "${archivePath}" -C "${tempExtract}"`, { stdio: "inherit" });
+          } catch {
+            execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${tempExtract}'"`, {
+              stdio: "inherit",
+            });
+          }
+          const nested = join(tempExtract, `codegraph-${platformArch}`);
+          if (existsSync(nested)) {
+            execSync(`xcopy /E /I /Y "${nested}" "${extractBinaryDir}"`, { stdio: "inherit" });
+          } else {
+            execSync(`xcopy /E /I /Y "${tempExtract}" "${extractBinaryDir}"`, { stdio: "inherit" });
+          }
+          rmSync(tempExtract, { recursive: true, force: true });
+        }
+      } catch (error) {
+        // Archive path failed (download/checksum/extract). Try the npm
+        // optionalDependency fallback into the SAME staging dir so the swap is
+        // still atomic — if this also fails, staging is incomplete and verify
+        // rejects it, leaving the live cache untouched.
+        log(`GitHub Releases download failed: ${error.message}`);
+        log("attempting npm optionalDependency fallback …");
+        try {
+          execSync(`npm install --no-save @colbymchenry/codegraph-${platformArch}@${version}`, {
+            cwd: staging,
+            stdio: "inherit",
+          });
+          // The npm package installs into node_modules/@colbymchenry/codegraph-{plat}-{arch}/bin/
+          const npmPkgDir = join(staging, "node_modules", `@colbymchenry`, `codegraph-${platformArch}`);
+          if (existsSync(npmPkgDir)) {
+            const fallbackBinaryDir = join(staging, platformArch);
+            mkdirSync(fallbackBinaryDir, { recursive: true });
+            execSync(`cp -R "${npmPkgDir}/"* "${fallbackBinaryDir}/"`, { stdio: "inherit" });
+            rmSync(join(staging, "node_modules"), { recursive: true, force: true });
+          }
+        } catch {
+          // npm fallback also failed — staging stays incomplete, verify will reject.
+        }
       }
-      const { createHash } = await import("node:crypto");
-      const archiveBuffer = readFileSync(archivePath);
-      const actualHash = createHash("sha256").update(archiveBuffer).digest("hex");
-      if (actualHash !== expectedHash) {
-        throw new Error(`checksum mismatch: expected ${expectedHash}, got ${actualHash}`);
-      }
-      log(`checksum verified ✓ (${assetName})`);
-    }
-  } catch (error) {
-    // Check if an npm-based fallback exists
-    log(`GitHub Releases download failed: ${error.message}`);
-    log("attempting npm optionalDependency fallback …");
-    try {
-      execSync(`npm install --no-save @colbymchenry/codegraph-${platformArch}@${version}`, {
-        cwd: targetDir,
-        stdio: "inherit",
-      });
-      // The npm package installs into node_modules/@colbymchenry/codegraph-{plat}-{arch}/bin/
-      const npmPkgDir = join(targetDir, "node_modules", `@colbymchenry`, `codegraph-${platformArch}`);
-      if (existsSync(npmPkgDir)) {
-        mkdirSync(binaryDir, { recursive: true });
-        execSync(`cp -R "${npmPkgDir}/"* "${binaryDir}/"`, { stdio: "inherit" });
-        rmSync(join(targetDir, "node_modules"), { recursive: true, force: true });
-        writeFileSync(versionFile, version);
-        log(`done via npm fallback → ${binaryDir} (CodeGraph v${version})`);
-        return;
-      }
-    } catch {
-      // npm fallback also failed
-    }
-    if (existsSync(binaryDir)) {
-      log(`all downloads failed (offline?) — keeping existing CodeGraph binary`);
-      return;
-    }
-    throw error;
-  }
+      // Write the version marker atomically with the swap.
+      writeFileSync(join(staging, ".vendored-codegraph-version"), version);
+    },
+    verify: (staging) => existsSync(join(staging, platformArch)),
+  });
 
-  // Extract into a platform-specific subdirectory.
-  // The tarball has a nested top-level dir (codegraph-<target>/) — strip it.
-  mkdirSync(binaryDir, { recursive: true });
-  if (!isWindows) {
-    execSync(`tar -xzf "${archivePath}" --strip-components=1 -C "${binaryDir}"`, { stdio: "inherit" });
-  } else {
-    // Windows: extract to temp then move contents up (no --strip-components in Windows tar).
-    const tempExtract = join(targetDir, "_extract");
-    mkdirSync(tempExtract, { recursive: true });
-    try {
-      execSync(`tar -xf "${archivePath}" -C "${tempExtract}"`, { stdio: "inherit" });
-    } catch {
-      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${tempExtract}'"`, {
-        stdio: "inherit",
-      });
-    }
-    // Move the nested dir's contents up to binaryDir.
-    const nested = join(tempExtract, `codegraph-${platformArch}`);
-    if (existsSync(nested)) {
-      execSync(`xcopy /E /I /Y "${nested}" "${binaryDir}"`, { stdio: "inherit" });
-    } else {
-      // Fallback: move all contents directly.
-      execSync(`xcopy /E /I /Y "${tempExtract}" "${binaryDir}"`, { stdio: "inherit" });
-    }
-    rmSync(tempExtract, { recursive: true, force: true });
-  }
-
-  // Clean up archive.
-  rmSync(archivePath, { force: true });
-
-  // Write version marker.
-  writeFileSync(versionFile, version);
-  log(`done → ${binaryDir} (CodeGraph v${version})`);
+  log(`done → ${join(targetDir, platformArch)} (CodeGraph v${version})`);
 }
 
 try {

@@ -16,6 +16,7 @@ import { execSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { withAtomicSwap } from "./vendor-fs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -59,63 +60,53 @@ async function main() {
 
   log(`installing openwiki v${version} (prev: ${previousVersion ?? "none"}) …`);
 
-  // Clean target.
-  rmSync(targetDir, { recursive: true, force: true });
-  mkdirSync(targetDir, { recursive: true });
+  // Atomic swap: install into a staging dir, swap into place only when the
+  // entry exists. Earlier code did rmSync(targetDir) BEFORE the npm install,
+  // so a transient install/network failure destroyed a known-good cache (the
+  // "keep existing" fallback checked an entry that had just been deleted).
+  await withAtomicSwap(targetDir, {
+    log,
+    tag: "openwiki",
+    build: async (staging) => {
+      // Install the published package into a temp dir under staging.
+      // --legacy-peer-deps: handles upstream peer conflicts.
+      // --omit=dev: skip devDependencies.
+      // --ignore-scripts: skip postinstall scripts for safety.
+      const tempInstall = join(staging, "_npm_install");
+      mkdirSync(tempInstall, { recursive: true });
+      // Dummy package.json so npm doesn't traverse up to the workspace root.
+      writeFileSync(join(tempInstall, "package.json"), '{"name":"_openwiki_vendor","private":true}');
+      execSync(
+        `npm install --no-save --no-package-lock --legacy-peer-deps --omit=dev --ignore-scripts openwiki@${version}`,
+        { cwd: tempInstall, stdio: "inherit" }
+      );
 
-  // Install the published package directly into the vendor dir.
-  // --legacy-peer-deps: handles upstream peer conflicts.
-  // --omit=dev: skip devDependencies.
-  // --ignore-scripts: skip postinstall scripts for safety.
-  try {
-    // Use a temp dir outside the workspace to avoid npm workspace interference.
-    const tempInstall = join(targetDir, "_npm_install");
-    mkdirSync(tempInstall, { recursive: true });
-    // Write a dummy package.json so npm doesn't traverse up to the workspace root.
-    writeFileSync(join(tempInstall, "package.json"), '{"name":"_openwiki_vendor","private":true}');
-    execSync(
-      `npm install --no-save --no-package-lock --legacy-peer-deps --omit=dev --ignore-scripts openwiki@${version}`,
-      { cwd: tempInstall, stdio: "inherit" }
-    );
-  } catch (error) {
-    if (existsSync(entryFile)) {
-      log(`install failed (offline?) — keeping existing openwiki: ${error.message}`);
-      return;
-    }
-    throw error;
-  }
+      // Move node_modules/openwiki/* up to the staging root so the entry is at
+      // <stagingRoot>/dist/cli.js (matching the path the desktop main expects).
+      const tempNodeModules = join(tempInstall, "node_modules");
+      const npmPkgDir = join(tempNodeModules, "openwiki");
+      if (!existsSync(npmPkgDir)) {
+        throw new Error(
+          `install succeeded but openwiki package dir missing (${npmPkgDir}) — refusing to write a broken vendor marker`
+        );
+      }
+      // Copy openwiki's own dist + package.json up to the staging root.
+      for (const item of ["dist", "package.json"]) {
+        const src = join(npmPkgDir, item);
+        if (existsSync(src)) {
+          cpSync(src, join(staging, item), { recursive: true });
+        }
+      }
+      // Copy the full node_modules from the temp install (openwiki's runtime deps).
+      cpSync(tempNodeModules, join(staging, "node_modules"), { recursive: true });
+      // Clean up temp install dir inside staging.
+      rmSync(tempInstall, { recursive: true, force: true });
+      // Write the version marker atomically with the swap.
+      writeFileSync(join(staging, ".vendored-openwiki-version"), version);
+    },
+    verify: (staging) => existsSync(join(staging, "dist", "cli.js")),
+  });
 
-  // Move node_modules/openwiki/* up to the vendor root so the entry is at
-  // <vendorRoot>/dist/cli.js (matching the path the desktop main expects).
-  const tempNodeModules = join(targetDir, "_npm_install", "node_modules");
-  const npmPkgDir = join(tempNodeModules, "openwiki");
-  if (!existsSync(npmPkgDir)) {
-    throw new Error(
-      `install succeeded but openwiki package dir missing (${npmPkgDir}) — refusing to write a broken vendor marker`
-    );
-  }
-  // Copy openwiki's own dist + package.json up to the vendor root.
-  for (const item of ["dist", "package.json"]) {
-    const src = join(npmPkgDir, item);
-    if (existsSync(src)) {
-      cpSync(src, join(targetDir, item), { recursive: true });
-    }
-  }
-  // Copy the full node_modules from the temp install (openwiki's runtime deps).
-  cpSync(tempNodeModules, join(targetDir, "node_modules"), { recursive: true });
-
-  // Clean up temp install dir.
-  rmSync(join(targetDir, "_npm_install"), { recursive: true, force: true });
-
-  // Verify the entry exists before committing the version marker. Earlier code
-  // only warned and still wrote the marker, which made every later build skip
-  // vendoring and ship a broken OpenWiki. Fail closed instead.
-  if (!existsSync(entryFile)) {
-    throw new Error(`dist/cli.js not found after install — openwiki vendoring failed`);
-  }
-
-  // Write version marker.
-  writeFileSync(versionFile, version);
   log(`done → ${targetDir} (openwiki v${version})`);
 }
 

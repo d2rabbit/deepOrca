@@ -17,10 +17,11 @@
 //   UV_VERSION  (default: latest stable from GitHub Releases)
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { download as sharedDownload, GITHUB_PROXY } from "./vendor-download.js";
+import { withAtomicSwap } from "./vendor-fs.js";
 import { platform as osPlatform, arch as osArch } from "node:os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,58 +99,53 @@ function extractTarGz(archivePath, destDir) {
 async function main() {
   const version = await resolveLatestVersion();
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
+  const target = hostTarget();
 
-  if (version === previousVersion && existsSync(join(targetDir, hostTarget())) && !force) {
+  if (version === previousVersion && existsSync(join(targetDir, target)) && !force) {
     log(`up-to-date (v${version}) — skipping download.`);
     return;
   }
 
   log(`downloading uv v${version} (prev: ${previousVersion ?? "none"}) …`);
 
-  // Clean target (keep the version marker file for rollback).
-  rmSync(targetDir, { recursive: true, force: true });
-  mkdirSync(targetDir, { recursive: true });
-
-  // Download the current host platform's binary.
-  const target = hostTarget();
   const ext = target.includes("windows") ? "zip" : "tar.gz";
   const assetName = `uv-${target}.${ext}`;
   const downloadUrl = `https://github.com/astral-sh/uv/releases/download/${version}/${assetName}`;
-  const archivePath = join(targetDir, assetName);
 
-  try {
-    await download(downloadUrl, archivePath);
-  } catch (error) {
-    if (existsSync(join(targetDir, target))) {
-      log(`download failed (offline?) — keeping existing uv binaries: ${error.message}`);
-      return;
-    }
-    throw error;
-  }
+  // Atomic swap: build into a staging dir, swap into place only when the
+  // platform binary dir exists. Earlier code did rmSync(targetDir) BEFORE
+  // downloading, so a transient network/proxy failure destroyed a known-good
+  // cache (the "keep existing" fallback checked a dir that had just been deleted).
+  await withAtomicSwap(targetDir, {
+    log,
+    tag: "uv",
+    build: async (staging) => {
+      const archivePath = join(staging, assetName);
+      await download(downloadUrl, archivePath);
 
-  // Extract into a platform-specific subdirectory.
-  const extractDir = join(targetDir, target);
-  mkdirSync(extractDir, { recursive: true });
+      // Extract into a platform-specific subdirectory inside staging.
+      const extractDir = join(staging, target);
+      mkdirSync(extractDir, { recursive: true });
 
-  if (ext === "tar.gz") {
-    extractTarGz(archivePath, extractDir);
-  } else {
-    // .zip on Windows — use tar (Windows 10+ ships tar.exe) or PowerShell.
-    try {
-      execSync(`tar -xf "${archivePath}" -C "${extractDir}"`, { stdio: "inherit" });
-    } catch {
-      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'"`, {
-        stdio: "inherit",
-      });
-    }
-  }
+      if (ext === "tar.gz") {
+        extractTarGz(archivePath, extractDir);
+      } else {
+        // .zip on Windows — use tar (Windows 10+ ships tar.exe) or PowerShell.
+        try {
+          execSync(`tar -xf "${archivePath}" -C "${extractDir}"`, { stdio: "inherit" });
+        } catch {
+          execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'"`, {
+            stdio: "inherit",
+          });
+        }
+      }
+      // Write the version marker atomically with the swap.
+      writeFileSync(join(staging, ".vendored-uv-version"), version);
+    },
+    verify: (staging) => existsSync(join(staging, target)),
+  });
 
-  // Clean up archive.
-  rmSync(archivePath, { force: true });
-
-  // Write version marker.
-  writeFileSync(versionFile, version);
-  log(`done → ${extractDir} (uv v${version})`);
+  log(`done → ${join(targetDir, target)} (uv v${version})`);
 }
 
 try {

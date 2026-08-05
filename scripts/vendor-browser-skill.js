@@ -11,11 +11,12 @@
 //   BSK_VERSION  (default: latest cli release from GitHub Releases API)
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform as osPlatform, arch as osArch } from "node:os";
 import { download as sharedDownload, GITHUB_PROXY } from "./vendor-download.js";
+import { withAtomicSwap } from "./vendor-fs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -98,53 +99,51 @@ async function main() {
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
   const { assetName, ext } = hostAssetName(version);
   const binaryName = process.platform === "win32" ? "bsk.exe" : "bsk";
-  const binaryPath = join(targetDir, binaryName);
 
-  if (version === previousVersion && existsSync(binaryPath) && !force) {
+  if (version === previousVersion && existsSync(join(targetDir, binaryName)) && !force) {
     log(`up-to-date (v${version}) — skipping download.`);
     return;
   }
 
   log(`downloading bsk v${version} (prev: ${previousVersion ?? "none"}) …`);
 
-  rmSync(targetDir, { recursive: true, force: true });
-  mkdirSync(targetDir, { recursive: true });
-
   const downloadUrl = `https://github.com/Tencent/BrowserSkill/releases/download/cli-v${version}/${assetName}`;
-  const archivePath = join(targetDir, assetName);
 
-  try {
-    await download(downloadUrl, archivePath);
-  } catch (error) {
-    log(`download failed: ${error.message}`);
-    if (existsSync(binaryPath)) {
-      log("keeping existing bsk binary");
-      return;
-    }
-    throw error;
-  }
+  // Atomic swap: build into a staging dir, swap into place only on success.
+  // Earlier code did rmSync(targetDir) BEFORE downloading, so a transient
+  // network/proxy failure destroyed a known-good cache (the "keep existing"
+  // fallback checked a binary that had just been deleted).
+  await withAtomicSwap(targetDir, {
+    log,
+    tag: "browser-skill",
+    build: async (staging) => {
+      const archivePath = join(staging, assetName);
+      await download(downloadUrl, archivePath);
 
-  // Extract.
-  if (ext === "tar.gz") {
-    execSync(`tar -xzf "${archivePath}" -C "${targetDir}"`, { stdio: "inherit" });
-  } else {
-    try {
-      execSync(`tar -xf "${archivePath}" -C "${targetDir}"`, { stdio: "inherit" });
-    } catch {
-      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${targetDir}'"`, {
-        stdio: "inherit",
-      });
-    }
-  }
+      // Extract into staging.
+      if (ext === "tar.gz") {
+        execSync(`tar -xzf "${archivePath}" -C "${staging}"`, { stdio: "inherit" });
+      } else {
+        try {
+          execSync(`tar -xf "${archivePath}" -C "${staging}"`, { stdio: "inherit" });
+        } catch {
+          execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${staging}'"`, {
+            stdio: "inherit",
+          });
+        }
+      }
 
-  rmSync(archivePath, { force: true });
+      const stagingBinary = join(staging, binaryName);
+      // Make binary executable on unix.
+      if (process.platform !== "win32" && existsSync(stagingBinary)) {
+        execSync(`chmod +x "${stagingBinary}"`);
+      }
+      // Write the version marker atomically with the swap.
+      writeFileSync(join(staging, ".vendored-bsk-version"), version);
+    },
+    verify: (staging) => existsSync(join(staging, binaryName)),
+  });
 
-  // Make binary executable on unix.
-  if (process.platform !== "win32" && existsSync(binaryPath)) {
-    execSync(`chmod +x "${binaryPath}"`);
-  }
-
-  writeFileSync(versionFile, version);
   log(`done → ${targetDir} (bsk v${version})`);
 }
 
