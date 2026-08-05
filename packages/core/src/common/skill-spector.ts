@@ -29,7 +29,7 @@
  * Docs: https://github.com/NVIDIA/SkillSpector
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { McpServerConfig } from "../settings";
@@ -67,6 +67,7 @@ let uvResolver: (() => string | null) | null = null;
  */
 export function configureSkillSpectorUvResolver(resolver: (() => string | null) | null): void {
   uvResolver = resolver;
+  installedVersion = null;
 }
 
 // The vendor root holding the pinned-SHA marker file. The desktop client injects this at
@@ -77,6 +78,7 @@ let configuredSkillSpectorVendorRoot: string | null = null;
 /** Set the vendor dir containing `.vendored-skillspector-sha`. Called by the desktop boot. */
 export function configureSkillSpectorVendorRoot(root: string | null): void {
   configuredSkillSpectorVendorRoot = root ? path.resolve(root) : null;
+  installedVersion = null;
 }
 
 /** Resolve the uv binary path (vendored preferred, system fallback), or null if absent. */
@@ -87,26 +89,28 @@ function resolveUvBinary(): string | null {
   }
   // System uv on PATH.
   try {
-    return execSync(process.platform === "win32" ? "where uv" : "which uv", {
-      encoding: "utf8",
-      timeout: 3000,
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")[0]
-      .trim();
+    return (
+      execFileSync(process.platform === "win32" ? "where" : "which", ["uv"], {
+        encoding: "utf8",
+        timeout: 3000,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      })
+        .split(/\r?\n/)[0]
+        ?.trim() || null
+    );
   } catch {
     return null;
   }
 }
 
-// ── Pinned SHA (read from the build-time vendor marker) ──────────────────────
+// ── Pinned release version (read from the build-time vendor marker) ───────────
 
 /**
- * The build-time vendor script records the upstream commit SHA here. We install from
- * `git+...@<SHA>` to pin a known-good version and AVOID the malicious PyPI package.
- * If the marker is missing (build didn't vendor / vendor root not configured), fall
- * back to `main` — best-effort, less reproducible, but still safe (installs from
- * GitHub, never PyPI).
+ * The build-time vendor script records the selected release version here. The
+ * runtime installs that exact GitHub Release wheel or matching git tag. If the
+ * marker is absent, use the hard-coded pinned release; a present malformed or
+ * unreadable marker fails closed.
  */
 const VENDOR_SHA_FILENAME = ".vendored-skillspector-version"; // version marker (not SHA anymore)
 const SKILLSPECTOR_GIT_URL = "https://github.com/NVIDIA/SkillSpector.git";
@@ -116,19 +120,35 @@ const SKILLSPECTOR_GIT_URL = "https://github.com/NVIDIA/SkillSpector.git";
  * releases with prebuilt wheels on GitHub Releases. We install the wheel
  * directly (faster and more reproducible than git+SHA).
  *
- * Fallback: if the wheel install fails, we fall back to git+main.
+ * Fallback: if the wheel install fails, use git pinned to the same release tag.
  */
 const SKILLSPECTOR_VERSION = "2.5.1";
-const SKILLSPECTOR_WHEEL_URL = `https://github.com/NVIDIA/SkillSpector/releases/download/v${SKILLSPECTOR_VERSION}/skillspector-${SKILLSPECTOR_VERSION}-py3-none-any.whl`;
 
-/** Read the pinned version from the vendor marker, or null if not vendored. */
-function readPinnedVersion(): string | null {
-  if (!configuredSkillSpectorVendorRoot) return null;
+function buildWheelUrl(version: string): string {
+  return `https://github.com/NVIDIA/SkillSpector/releases/download/v${version}/skillspector-${version}-py3-none-any.whl`;
+}
+
+/**
+ * Strict version/tag allowlist. `targetVersion` flows from the build-time
+ * vendor marker into a `uv tool install` spec, so it must match a known shape
+ * (PEP 440 version or a git tag). Rejects anything that could break out of the
+ * argv element or inject shell metacharacters.
+ */
+const VERSION_RE = /^[A-Za-z0-9._]+$/;
+function isValidVersion(v: string): boolean {
+  return VERSION_RE.test(v);
+}
+
+type PinnedVersion = { state: "missing" } | { state: "invalid" } | { state: "valid"; version: string };
+
+/** Read and validate the pinned version marker when present. */
+function readPinnedVersion(): PinnedVersion {
+  if (!configuredSkillSpectorVendorRoot) return { state: "missing" };
   try {
     const ver = readFileSync(path.join(configuredSkillSpectorVendorRoot, VENDOR_SHA_FILENAME), "utf8").trim();
-    return ver || null;
-  } catch {
-    return null;
+    return ver && isValidVersion(ver) ? { state: "valid", version: ver } : { state: "invalid" };
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? { state: "missing" } : { state: "invalid" };
   }
 }
 
@@ -136,30 +156,47 @@ function readPinnedVersion(): string | null {
 
 let installedVersion: string | null = null;
 
+export type SkillSpectorExecFile = (
+  file: string,
+  args: readonly string[],
+  options: ExecFileSyncOptionsWithStringEncoding
+) => string | Buffer;
+
 /**
  * Provision SkillSpector into an isolated `uv tool` environment. Prefers the
- * GitHub Releases wheel (fast, prebuilt); falls back to git+main if the wheel
- * is unavailable. Idempotent within a process.
+ * GitHub Releases wheel (fast, prebuilt); falls back to the matching git release
+ * tag if the wheel is unavailable. Idempotent within a process.
  *
  * NOTE: the first install can be slow (downloads LangChain stack + may compile
  * yara-python). Subsequent calls are instant.
  */
-export function ensureSkillSpectorInstalled(): boolean {
+export function ensureSkillSpectorInstalled(execFileImpl: SkillSpectorExecFile = execFileSync): boolean {
   const uvBinary = resolveUvBinary();
   if (!uvBinary) return false;
 
-  const targetVersion = readPinnedVersion() ?? SKILLSPECTOR_VERSION;
+  const pinned = readPinnedVersion();
+  if (pinned.state === "invalid") return false;
+  const targetVersion = pinned.state === "valid" ? pinned.version : SKILLSPECTOR_VERSION;
   if (installedVersion === targetVersion) return true;
+  // Defense in depth: the version flows into a uv install spec. Even though we
+  // now pass argv (not a shell string), reject anything outside the allowlist.
+  if (!isValidVersion(targetVersion)) return false;
 
-  // Try the release wheel first (fast, prebuilt, pinned to a real tag).
-  const wheelSpec = `'skillspector[mcp] @ ${SKILLSPECTOR_WHEEL_URL}'`;
+  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
+    encoding: "utf8",
+    timeout: 300_000,
+    stdio: ["ignore", "pipe", "ignore"],
+    windowsHide: true,
+  };
+
+  // Pass argv as an array (no shell) so a uv binary path containing spaces or
+  // cmd metacharacters (e.g. "C:\Program Files\DeepOrca\...\uv.exe") is invoked
+  // directly, and the install spec is a single argument rather than a
+  // shell-quoted string. Earlier code built a shell command with single quotes
+  // that cmd.exe treats as literal characters.
+  const wheelSpec = `skillspector[mcp] @ ${buildWheelUrl(targetVersion)}`;
   try {
-    execSync(`${uvBinary} tool install --force ${wheelSpec}`, {
-      encoding: "utf8",
-      timeout: 300_000,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-    });
+    execFileImpl(uvBinary, ["tool", "install", "--force", wheelSpec], execOpts);
     installedVersion = targetVersion;
     return true;
   } catch {
@@ -167,14 +204,9 @@ export function ensureSkillSpectorInstalled(): boolean {
   }
 
   // Fallback: install from git pinned to the release tag (slower but reproducible).
-  const gitSpec = `'skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@v${targetVersion}'`;
+  const gitSpec = `skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@v${targetVersion}`;
   try {
-    execSync(`${uvBinary} tool install --force ${gitSpec}`, {
-      encoding: "utf8",
-      timeout: 300_000,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-    });
+    execFileImpl(uvBinary, ["tool", "install", "--force", gitSpec], execOpts);
     installedVersion = `${targetVersion}-git`;
     return true;
   } catch {
@@ -188,7 +220,7 @@ export function ensureSkillSpectorInstalled(): boolean {
 /**
  * Build the MCP server config for SkillSpector.
  *
- * Provisions SkillSpector (pinned to the vendored SHA via `uv tool install`) on first
+ * Provisions SkillSpector (pinned to the vendored release version via `uv tool install`) on first
  * use, then launches `skillspector mcp` over stdio. The single `scan_skill` tool it
  * exposes scans a skill/MCP for vulnerabilities; the caller (the agent) decides
  * `use_llm` — DeepOrca's guidance defaults it to false (pure-static, zero credentials).
@@ -204,7 +236,7 @@ export function buildSkillSpectorMcpServerConfig(_projectRoot: string): McpServe
 
   // `uv tool run` reuses the persistent environment created by `uv tool install`.
   // `skillspector mcp` defaults to stdio transport (issue #199 initialize hang is fixed
-  // on main, which is what the pinned SHA tracks).
+  // in the pinned release).
   return {
     command: uvBinary,
     args: ["tool", "run", "skillspector", "mcp"],

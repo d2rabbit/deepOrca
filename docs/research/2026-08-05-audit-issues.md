@@ -189,7 +189,7 @@
 - **现象**：`initMcp()` 只同步 codegraph/crg/serena/skillspector，不同步 A2UI → UI 禁用后 reload 仍重连。
 - **修复**：`initMcp()` 增加 `setA2uiDisabled`。
 - **提交**：`a40a443`
-- **说明**：Activity Frames 无 disable gate，保持 always-on（审计建议"加 gate 或不再展示为可切换"；当前保持 always-on，未做 UI 移除——见 ⚠️ 项）。
+- **Activity Frames**：无需代码修改。常规 toggle 列表已过滤 builtin MCP，详情页对 builtin 显示锁定状态且不渲染 switch，因此它在 UI 中已是 display-only，不存在“可切换但禁用不生效”的误导。保持 always-on，避免增加虚假 disable gate。
 
 ## H18. Editor 异步读取竞态可能把 A 内容保存到 B ✅
 
@@ -220,11 +220,12 @@
 
 # Medium
 
-## M1. 统一索引工作流失败/超时仍当成功 ⚠️（部分修复）
+## M1. 统一索引工作流失败/超时仍当成功 ✅
 
-- **现象**：reindex reject 被 swallow，非零退出 completion 仍 resolve；5 分钟 timeout 也当成功 → 可能推进到 wiki。
-- **当前**：通过 H19 的 root 过滤缓解了跨操作串扰；但单操作内 `ok/exitCode/timeout` 显式结果传播 + 失败即停仍**未完整实现**。
-- **状态**：⚠️ 有意保留——H19 已覆盖最危险的跨工作流串扰；单操作失败语义属增量增强，建议后续做。
+- **现象**：reindex reject 被 swallow，非零退出 completion 仍 resolve；5 分钟 renderer timeout 未终止后端却被当成功 → 可能推进到 wiki。
+- **修复**：顺序工作流改以 `codegraphReindex` / `wikiInit` / `wikiUpdate` 的结构化 `{ok,error}` IPC 返回作为唯一完成与成功依据；任一阶段失败立即停止并显示具体错误，不再由 progress completion 或未取消后端的本地 timeout 推进。增加同步 active-run guard、卸载/run generation 防陈旧更新，只有两阶段均成功才显示 100%。
+- **边界**：真正的强制超时/取消仍需 main 端持有子进程并引入 operationId；当前不再把 renderer 超时误报为成功，也不会在超时后错误启用重试。
+- **验收**：typecheck + desktop 37/37。
 
 ## M2. A2UI "GC" 保留已删组件的后代 ✅
 
@@ -276,23 +277,22 @@
 - **当前**：env override（`*_VERSION`）+ pinned 硬编码 fallback（API 不可达时）已就绪；codegraph 有 SHA256SUMS fail-closed（H15）；uv/browser-skill 无可验证 per-asset manifest，未单独建哈希注册表。
 - **状态**：⚠️ 有意保留——无 manifest 的组件无法可靠 pin 哈希；codegraph 已有 checksum gate；其余组件用 pinned 版本 fallback 作为弱保证。建议后续为有 manifest 的 release 加 pin。
 
-## M10. SkillSpector provisioning 在 Windows 路径不安全 ❌
+## M10. SkillSpector provisioning 在 Windows 路径不安全 ✅
 
 - **现象**：`execSync` 拼接 `uvBinary` + 版本字符串建 shell 命令；路径含空格（`C:\Program Files\...`）未加引号，单引号在 cmd.exe 非引用字符；version 进 shell 命令。
-- **建议修复**：改 `execFileSync(uvBinary, ["tool","install","--force",wheelSpec], ...)` + 严格 PEP 440 版本 allowlist。
-- **状态**：❌ 未修复——需重测打包路径下首次 provisioning，建议单独 issue。
+- **修复**：全部 provisioning 与 PATH discovery 改为 `execFileSync(executable, argv, ...)`，wheel/git spec 作为单个 argv 元素；版本 marker 使用严格 allowlist，存在但非法或不可读时 fail closed；wheel URL 按 marker 版本构造，git fallback 固定到同一 release tag，不回退 mutable `main`。
+- **验收**：新增 `skill-spector.test.ts`，覆盖含空格/元字符的 Windows 路径、wheel→git argv fallback、非法 marker 零执行、非默认 marker 的 wheel URL；4/4 通过。
 
-## M11. Builtin package discovery 无聚焦回归测试 ❌
+## M11. Builtin package discovery 无聚焦回归测试 ⚠️
 
 - **现象**：新布局有 3 个独立 scanner（package skills / nested plugin manifests / package prompt docs）+ source/dist 路径启发；现有测试仅间接断言。
-- **建议**：fixture-driven 测试（source/dist layouts、优先级、重复名、malformed frontmatter、nested docs、traversal guards、inventory counts）+ 对 `npm pack --dry-run` 产物跑 discovery。
-- **状态**：❌ 未修复。
+- **状态**：⚠️ 有意延期——完整 fixture 需要跨 core/desktop 重构 package template 路径与 scanner 注入，投入明显超出本轮安全/正确性修复；现有 session/desktop IPC 测试保留间接覆盖。后续应单独做 source/dist、优先级、重复名、malformed frontmatter、traversal 与 `npm pack --dry-run` 产物测试。
 
-## M12. API-key 设置文件无强制私有权限 ❌
+## M12. API-key 设置文件无强制私有权限 ✅
 
 - **现象**：`writeSettingsFile` 用普通 `writeFileSync`，POSIX 宽 umask 下新建文件可能 group/world-readable；endpoint 模型增加凭证数量。
-- **建议**：atomic write + `0o600`；避免在 `endpoints[].apiKey` 与 `env.API_KEY` 重复存主 key。
-- **状态**：❌ 未修复。
+- **修复**：用户级与项目级设置统一改为同目录唯一临时文件（PID + UUID）写入后原子 rename；创建时直接指定 `0o600`，POSIX rename 前再次 chmod；写入/rename 失败时清理临时文件并保留原始异常。Windows 跳过 chmod，沿用用户 ACL。
+- **验收**：新增原子替换/无 temp 残留测试；POSIX 新建与覆盖 permissive 文件的 `0600` 测试（Windows 环境按平台跳过）。
 
 ## M13. Plugin group detail 有 stale-response 竞态 ✅
 
@@ -340,17 +340,14 @@
 | settings + codegraph 单测（直接 tsx）                                        | ✅ 42 pass                                 |
 | `npm run desktop:build`（Windows）                                           | ✅ 退出 0                                  |
 | `node scripts/package-desktop.js --smoke`                                    | ✅ memory+core 从 staged 解析+init+destroy |
+| 本轮 M10/M12 聚焦 core 测试（直接 tsx）                                      | ✅ 39 pass / 2 Windows 平台跳过            |
 | lint                                                                         | ✅ 0 errors（20 warnings = 基线）          |
 
 ---
 
-# 未修复项汇总（建议后续 issue）
+# 未修复/延期项汇总（建议后续 issue）
 
-- **M1** 单操作内 `ok/exitCode/timeout` 显式失败传播（H19 已覆盖跨操作串扰）
 - **M9** uv/browser-skill/openwiki/tailwind 哈希 pin（无 manifest，受限）
-- **M10** SkillSpector Windows 路径 quoting（`execFileSync` + 版本 allowlist）
-- **M11** Builtin package discovery fixture 回归测试
-- **M12** settings.json `0o600` 权限
-- **M17** 批量清理 lint warnings
-- **Activity Frames** disable gate 或从可切换 UI 移除（H17 备注）
-- **完整 per-operation ID + main 端 active-op 串行化**（H19 的增量增强）
+- **M11** Builtin package discovery fixture 回归测试（跨层测试重构，单独实施）
+- **M17** 批量清理 lint warnings（第三方派生 TDAI 为主，单独 PR）
+- **完整 per-operation ID + main 端 active-op 串行化/取消**（H19/M1 的增量增强）

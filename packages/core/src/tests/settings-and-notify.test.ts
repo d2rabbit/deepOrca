@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   buildNotifyEnv,
   formatDurationSeconds,
@@ -7,9 +10,54 @@ import {
   type NotifyContext,
   type NotifySpawn,
 } from "../common/notify";
-import { applyModelConfigSelection, normalizeEndpoints, resolveSettings, resolveSettingsSources } from "../settings";
+import {
+  applyModelConfigSelection,
+  getProjectSettingsPath,
+  normalizeEndpoints,
+  readSettingsFile,
+  resolveSettings,
+  resolveSettingsSources,
+  writeProjectSettings,
+} from "../settings";
 
 const TEST_PROCESS_ENV = {};
+
+test("writeProjectSettings atomically replaces settings without temp artifacts", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, '{"model":"old"}\n', "utf8");
+
+    const settings = { model: "deepseek-v4", env: { API_KEY: "sk-private" } };
+    writeProjectSettings(settings, projectRoot);
+
+    assert.deepEqual(readSettingsFile(settingsPath), settings);
+    assert.equal(fs.readFileSync(settingsPath, "utf8").endsWith("\n"), true);
+    assert.deepEqual(fs.readdirSync(path.dirname(settingsPath)), ["settings.json"]);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test(
+  "writeProjectSettings creates and replaces settings with mode 0600",
+  { skip: process.platform === "win32" },
+  () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-mode-"));
+    try {
+      const settingsPath = getProjectSettingsPath(projectRoot);
+      writeProjectSettings({ model: "first" }, projectRoot);
+      assert.equal(fs.statSync(settingsPath).mode & 0o777, 0o600);
+
+      fs.chmodSync(settingsPath, 0o644);
+      writeProjectSettings({ model: "second" }, projectRoot);
+      assert.equal(fs.statSync(settingsPath).mode & 0o777, 0o600);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  }
+);
 
 test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool", () => {
   const resolved = resolveSettings(

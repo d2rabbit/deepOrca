@@ -24,10 +24,16 @@ export function IndexLibraryPanel(): JSX.Element {
   const [projectRoot, setProjectRoot] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRunRef = useRef(false);
+  const runIdRef = useRef(0);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
+      runIdRef.current += 1;
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
   }, []);
@@ -53,17 +59,15 @@ export function IndexLibraryPanel(): JSX.Element {
     void reload();
   }, [reload]);
 
-  // Progress handlers — update the bar only, no text output.
-  // Each completion handler MUST verify event.root === projectRoot: a stale
-  // completion from a previous operation (or a concurrent run in another
-  // workspace) would otherwise advance this panel's sequential workflow early.
-  const onCodegraphDone = useRef<(() => void) | null>(null);
+  // Progress handlers update the bar only. IPC invocation results are the sole
+  // sequencing/success authority, avoiding races between terminal events and
+  // invoke replies. Root filtering still prevents stale workspace output from
+  // changing the current panel.
   useEffect(() => {
     const off = api.onCodegraphProgress((event: CodegraphProgressEvent) => {
       if (event.root && projectRoot && event.root !== projectRoot) return;
       if (event.done) {
         if (event.exitCode === 0) void reload();
-        onCodegraphDone.current?.();
         return;
       }
       const pctMatch = event.chunk.match(/(\d{1,3})(?:\.\d+)?\s*%/g);
@@ -76,13 +80,11 @@ export function IndexLibraryPanel(): JSX.Element {
     return off;
   }, [reload, projectRoot]);
 
-  const onWikiDone = useRef<(() => void) | null>(null);
   useEffect(() => {
     const off = api.onWikiProgress((event: WikiProgressEvent) => {
       if (event.root && projectRoot && event.root !== projectRoot) return;
       if (event.done) {
         if (event.exitCode === 0) void reload();
-        onWikiDone.current?.();
         return;
       }
       // Wiki is second half of progress (50-100%).
@@ -93,49 +95,56 @@ export function IndexLibraryPanel(): JSX.Element {
 
   const runSequential = useCallback(
     async (mode: "init" | "update") => {
-      if (!projectRoot) return;
+      if (!projectRoot || activeRunRef.current) return;
+      activeRunRef.current = true;
+      const runId = ++runIdRef.current;
+      const isCurrentRun = () => mountedRef.current && runIdRef.current === runId;
+
       if (autoCloseRef.current) {
         clearTimeout(autoCloseRef.current);
         autoCloseRef.current = null;
       }
       setBusy(true);
       setPercent(null);
+      setError(null);
 
-      // Phase 1: symbol index (with 5-min timeout safety net)
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => resolve(), 300_000);
-        onCodegraphDone.current = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-        void api.codegraphReindex(projectRoot).catch(() => resolve());
-      });
+      try {
+        // Invocation results are authoritative: terminal progress events and IPC
+        // replies are delivered independently and may arrive in either order.
+        const cgResult = await api.codegraphReindex(projectRoot);
+        if (!cgResult.ok) {
+          throw new Error(cgResult.error || "Symbol index failed");
+        }
+        if (!isCurrentRun()) return;
 
-      // Phase 2: wiki (only if available)
-      if (wikiAvailable) {
-        setPercent(50);
-        await new Promise<void>((resolve) => {
-          const timer = setTimeout(() => resolve(), 300_000);
-          onWikiDone.current = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-          if (mode === "init") {
-            void api.wikiInit().catch(() => resolve());
-          } else {
-            void api.wikiUpdate().catch(() => resolve());
+        // Phase 2: wiki (only if available). Expected operational failures are
+        // structured {ok:false} results rather than rejected promises.
+        if (wikiAvailable) {
+          setPercent(50);
+          const wikiResult = mode === "init" ? await api.wikiInit() : await api.wikiUpdate();
+          if (!wikiResult.ok) {
+            throw new Error(wikiResult.error || "Wiki generation failed");
           }
-        });
-      }
+          if (!isCurrentRun()) return;
+        }
 
-      setBusy(false);
-      setPercent(100);
-      void reload();
-
-      autoCloseRef.current = setTimeout(() => {
-        autoCloseRef.current = null;
+        setPercent(100);
+        void reload();
+        autoCloseRef.current = setTimeout(() => {
+          autoCloseRef.current = null;
+          if (isCurrentRun()) setPercent(null);
+        }, 2500);
+      } catch (cause) {
+        if (!isCurrentRun()) return;
         setPercent(null);
-      }, 2500);
+        setError(cause instanceof Error ? cause.message : String(cause));
+        void reload();
+      } finally {
+        if (isCurrentRun()) {
+          activeRunRef.current = false;
+          setBusy(false);
+        }
+      }
     },
     [projectRoot, wikiAvailable, reload]
   );
@@ -176,6 +185,9 @@ export function IndexLibraryPanel(): JSX.Element {
                 />
               </div>
             ) : null}
+
+            {/* Error from the last build/update. */}
+            {error ? <div className="ui-field-hint ui-index-error">{error}</div> : null}
 
             <Button
               size="sm"

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
 import { getProjectConfigRoot, getUserConfigRoot } from "./common/app-dirs";
 import * as fs from "fs";
@@ -978,8 +979,28 @@ export function readProjectSettings(projectRoot: string = process.cwd()): Deepco
 }
 
 function writeSettingsFile(settingsPath: string, settings: DeepcodingSettings): void {
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  const dir = path.dirname(settingsPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const content = `${JSON.stringify(settings, null, 2)}\n`;
+  // Atomic write: write to a uniquely named temp file in the same directory,
+  // then rename over the target. Avoids collisions and half-written settings.
+  const tmp = `${settingsPath}.tmp.${process.pid}.${randomUUID()}`;
+  try {
+    fs.writeFileSync(tmp, content, { encoding: "utf8", mode: 0o600 });
+    // Re-apply the private mode because an existing temp file or unusual umask
+    // must not leave credentials group/world-readable before the atomic rename.
+    if (process.platform !== "win32") {
+      fs.chmodSync(tmp, 0o600);
+    }
+    fs.renameSync(tmp, settingsPath);
+  } catch (error) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      // Preserve the original write/rename error.
+    }
+    throw error;
+  }
 }
 
 export function writeSettings(settings: DeepcodingSettings): void {
