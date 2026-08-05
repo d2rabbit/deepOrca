@@ -451,6 +451,9 @@ select {
 .ui-session-item.active .ui-session-actions {
   opacity: 1;
   max-height: 40px;
+  /* Once expanded, let content overflow so the action buttons' data-tip
+     tooltips aren't clipped by the collapse animation's overflow:hidden. */
+  overflow: visible;
 }
 
 .ui-session-empty {
@@ -3941,6 +3944,58 @@ button.ui-tool-head:hover {
   font-size: 11px;
   color: var(--ui-text-dim);
   white-space: nowrap;
+}
+
+/* ── Model pool (settings) ────────────────────────────────────────────────── */
+.ui-pool-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  margin-bottom: var(--ui-space-3);
+}
+.ui-pool-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-pool-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-pool-model-id {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-pool-endpoint {
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  padding: 1px 8px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  white-space: nowrap;
+}
+.ui-pool-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  margin-bottom: var(--ui-space-3);
 }
 
 /* ── Capabilities section ─────────────────────────────────────────────────── */

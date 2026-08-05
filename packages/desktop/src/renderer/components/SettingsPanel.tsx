@@ -165,6 +165,15 @@ export function SettingsPanel({
   /** Memory gateway availability probe result. */
   const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
 
+  // ── Add-model form (model pool tab) ──────────────────────────────────────
+  const [addOpen, setAddOpen] = useState(false);
+  const [addEndpointId, setAddEndpointId] = useState<string>(ENDPOINT_PRESETS[0].id);
+  const [addModelId, setAddModelId] = useState("");
+  const [addApiKey, setAddApiKey] = useState("");
+  const [addThinking, setAddThinking] = useState(true);
+  const [addVision, setAddVision] = useState(false);
+  const [addError, setAddError] = useState("");
+
   // Probe the memory gateway whenever the memory tab is opened.
   useEffect(() => {
     if (tab !== "memory") return;
@@ -224,28 +233,48 @@ export function SettingsPanel({
   }
 
   /**
-   * Add a new model registration under an endpoint. Materializes the preset
-   * first if the endpoint does not yet exist (fresh-install onboarding).
+   * Submit the model-pool add form. The endpoint's saved key is reused — the
+   * key field only appears (and is only applied) when the endpoint has none.
    */
-  function addModel(endpointId: string): void {
+  function submitAddModel(): void {
+    const modelId = addModelId.trim();
+    if (!modelId) {
+      setAddError(t("settings.pool.modelIdRequired"));
+      return;
+    }
+    const existing = s.endpoints.find((ep) => ep.id === addEndpointId);
+    if (existing?.models?.some((m) => m.id === modelId)) {
+      setAddError(t("settings.pool.duplicateModel"));
+      return;
+    }
     setS((prev) => {
-      const exists = prev.endpoints.some((ep) => ep.id === endpointId);
-      if (!exists) {
-        const preset = presetFor(endpointId);
+      const ep = prev.endpoints.find((e) => e.id === addEndpointId);
+      const registration: ModelRegistration = { id: modelId, thinking: addThinking, vision: addVision };
+      if (!ep) {
+        const preset = presetFor(addEndpointId);
         if (!preset) return prev;
-        const seeded: EndpointConfig = { ...preset, apiKey: "", models: [{ id: "", thinking: false, vision: false }] };
-        return { ...prev, endpoints: [...prev.endpoints, seeded] };
+        const materialized: EndpointConfig = { ...preset, apiKey: addApiKey.trim(), models: [registration] };
+        return { ...prev, endpoints: [...prev.endpoints, materialized] };
       }
       return {
         ...prev,
-        endpoints: prev.endpoints.map((ep) => {
-          if (ep.id !== endpointId) return ep;
-          const models = ep.models ? [...ep.models] : [];
-          models.push({ id: "", thinking: false, vision: false });
-          return { ...ep, models };
-        }),
+        endpoints: prev.endpoints.map((e) =>
+          e.id === addEndpointId
+            ? {
+                ...e,
+                apiKey: addApiKey.trim() ? addApiKey.trim() : e.apiKey,
+                models: [...(e.models ?? []), registration],
+              }
+            : e
+        ),
       };
     });
+    setAddOpen(false);
+    setAddModelId("");
+    setAddApiKey("");
+    setAddThinking(true);
+    setAddVision(false);
+    setAddError("");
   }
 
   /** Update a model registration by endpoint id + index. */
@@ -286,6 +315,19 @@ export function SettingsPanel({
 
   /** All model keys from endpoints that have registered models. */
   const allModelKeys = collectAllModelKeys(s.endpoints);
+
+  /** Flattened model-pool entries: every registered model + its source endpoint. */
+  const poolEntries = s.endpoints.flatMap((ep) =>
+    (ep.models ?? []).map((model, index) => ({
+      endpointId: ep.id,
+      endpointName: ep.name || ep.id,
+      model,
+      index,
+    }))
+  );
+
+  /** Whether the endpoint currently selected in the add form already has a key. */
+  const addEndpointHasKey = !!s.endpoints.find((ep) => ep.id === addEndpointId)?.apiKey?.trim();
 
   /** Resolve display label for a model key: "endpointName/modelId". */
   function modelLabel(key: string): string {
@@ -370,33 +412,142 @@ export function SettingsPanel({
           </div>
 
           <div className="ui-settings-body">
-            {/* ── Section 1: Endpoints & Models ─────────────────────────── */}
+            {/* ── Section 1: Model Pool ─────────────────────────────────── */}
             {tab === "endpoints" ? (
               <>
                 <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.endpoint.title")}</div>
+                  <div className="ui-settings-section-title">{t("settings.pool.title")}</div>
+                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
+                    {t("settings.pool.hint")}
+                  </div>
+
+                  {poolEntries.length === 0 ? (
+                    <div className="ui-field-hint">{t("settings.pool.empty")}</div>
+                  ) : (
+                    <div className="ui-pool-table">
+                      {poolEntries.map(({ endpointId, endpointName, model, index }) => (
+                        <div className="ui-pool-row" key={`${endpointId}/${model.id}/${index}`}>
+                          <code className="ui-pool-model-id">{model.id}</code>
+                          <span className="ui-pool-endpoint">{endpointName}</span>
+                          <Checkbox
+                            checked={!!model.thinking}
+                            onChange={(e) => updateModel(endpointId, index, { thinking: e.target.checked })}
+                            label={t("settings.endpoint.thinkingCap")}
+                          />
+                          <Checkbox
+                            checked={!!model.vision}
+                            onChange={(e) => updateModel(endpointId, index, { vision: e.target.checked })}
+                            label={t("settings.endpoint.visionCap")}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeModel(endpointId, index)}
+                            title={t("settings.endpoint.delete")}
+                          >
+                            {t("settings.endpoint.delete")}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {addOpen ? (
+                    <div className="ui-pool-add-form">
+                      <Field label={t("settings.pool.endpoint")}>
+                        <Select value={addEndpointId} onChange={(e) => setAddEndpointId(e.target.value)}>
+                          {ENDPOINT_PRESETS.map((preset) => (
+                            <option key={preset.id} value={preset.id}>
+                              {preset.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+
+                      {/* The endpoint's saved key is reused automatically; only
+                          ask for one when the endpoint has none yet. */}
+                      {!addEndpointHasKey ? (
+                        <Field label={t("settings.endpoint.apiKey")}>
+                          <Input
+                            type="password"
+                            value={addApiKey}
+                            placeholder={t("settings.endpoint.apiKey")}
+                            aria-label={t("settings.endpoint.apiKey")}
+                            autoComplete="off"
+                            onChange={(e) => setAddApiKey(e.target.value)}
+                          />
+                        </Field>
+                      ) : null}
+
+                      <Field label={t("settings.endpoint.modelId")} hint={t("settings.pool.modelIdHint")}>
+                        <Input
+                          type="text"
+                          value={addModelId}
+                          placeholder="deepseek-v4-pro"
+                          aria-label={t("settings.endpoint.modelId")}
+                          list="ui-pool-model-suggestions"
+                          onChange={(e) => setAddModelId(e.target.value)}
+                        />
+                        <datalist id="ui-pool-model-suggestions">
+                          <option value="deepseek-v4-pro" />
+                          <option value="deepseek-v4-flash" />
+                        </datalist>
+                      </Field>
+
+                      <div className="ui-row-inline">
+                        <Checkbox
+                          checked={addThinking}
+                          onChange={(e) => setAddThinking(e.target.checked)}
+                          label={t("settings.endpoint.thinkingCap")}
+                        />
+                        <Checkbox
+                          checked={addVision}
+                          onChange={(e) => setAddVision(e.target.checked)}
+                          label={t("settings.endpoint.visionCap")}
+                        />
+                      </div>
+
+                      {addError ? <div className="ui-field-hint warn">{addError}</div> : null}
+
+                      <div className="ui-row-inline">
+                        <Button variant="primary" size="sm" onClick={submitAddModel}>
+                          {t("settings.endpoint.addModel")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setAddOpen(false);
+                            setAddError("");
+                          }}
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => setAddOpen(true)}>
+                      {t("settings.endpoint.addModel")}
+                    </Button>
+                  )}
+                </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.pool.keys")}</div>
+                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
+                    {t("settings.pool.keysHint")}
+                  </div>
 
                   <div className="ui-endpoint-list">
                     {ENDPOINT_PRESETS.map((preset) => {
-                      // Find the live endpoint config (if it exists in settings),
-                      // otherwise treat apiKey as empty.
                       const ep = s.endpoints.find((e) => e.id === preset.id);
                       const apiKey = ep?.apiKey ?? "";
-                      const models = ep?.models ?? [];
                       const visible = !!showKeyByEndpoint[preset.id];
-
-                      const onApiKeyChange = (next: string): void => {
-                        updateEndpoint(preset.id, { apiKey: next });
-                      };
-
                       return (
                         <div className="ui-endpoint-row" key={preset.id}>
                           <div className="ui-endpoint-fields">
                             <div className="ui-endpoint-preset-name">
                               <strong>{preset.name}</strong>
-                              <code className="ui-endpoint-preset-url">{preset.baseURL}</code>
                             </div>
-
                             <div className="ui-row-inline">
                               <Input
                                 type={visible ? "text" : "password"}
@@ -404,7 +555,7 @@ export function SettingsPanel({
                                 placeholder={t("settings.endpoint.apiKey")}
                                 aria-label={t("settings.endpoint.apiKey")}
                                 autoComplete="off"
-                                onChange={(e) => onApiKeyChange(e.target.value)}
+                                onChange={(e) => updateEndpoint(preset.id, { apiKey: e.target.value })}
                               />
                               <Button
                                 variant="ghost"
@@ -419,92 +570,10 @@ export function SettingsPanel({
                                 {visible ? t("common.hide") : t("common.show")}
                               </Button>
                             </div>
-
-                            {/* Model list under this endpoint */}
-                            <div className="ui-endpoint-models">
-                              <div className="ui-endpoint-models-title">{t("settings.endpoint.models")}</div>
-                              {models.length === 0 ? (
-                                <div className="ui-field-hint">{t("settings.endpoint.noModels")}</div>
-                              ) : (
-                                models.map((model, index) => (
-                                  <div className="ui-endpoint-model-row" key={index}>
-                                    <Input
-                                      type="text"
-                                      value={model.id}
-                                      placeholder={t("settings.endpoint.modelId")}
-                                      aria-label={t("settings.endpoint.modelId")}
-                                      onChange={(e) => updateModel(preset.id, index, { id: e.target.value })}
-                                    />
-                                    <Checkbox
-                                      checked={!!model.thinking}
-                                      onChange={(e) =>
-                                        updateModel(preset.id, index, {
-                                          thinking: e.target.checked,
-                                        })
-                                      }
-                                      label={t("settings.endpoint.thinkingCap")}
-                                    />
-                                    <Checkbox
-                                      checked={!!model.vision}
-                                      onChange={(e) =>
-                                        updateModel(preset.id, index, {
-                                          vision: e.target.checked,
-                                        })
-                                      }
-                                      label={t("settings.endpoint.visionCap")}
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeModel(preset.id, index)}
-                                      title={t("settings.endpoint.delete")}
-                                    >
-                                      {t("settings.endpoint.delete")}
-                                    </Button>
-                                  </div>
-                                ))
-                              )}
-                              <Button variant="ghost" size="sm" onClick={() => addModel(preset.id)}>
-                                {t("settings.endpoint.addModel")}
-                              </Button>
-                            </div>
                           </div>
                         </div>
                       );
                     })}
-                  </div>
-                </section>
-
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.tab.connection")}</div>
-
-                  <div className="ui-endpoint-role">
-                    <Field label={t("settings.endpoint.primary")}>
-                      <Select
-                        value={s.primaryEndpointId}
-                        onChange={(e) => patch({ primaryEndpointId: e.target.value })}
-                      >
-                        {ENDPOINT_PRESETS.map((preset) => (
-                          <option key={preset.id} value={preset.id}>
-                            {preset.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-
-                    {/* Secondary endpoint selection is deferred to the P1
-                        secondary-model rollout (createSecondaryClient has no
-                        production callers yet — see roadmap §十). Shown as a
-                        disabled placeholder so the field isn't silently gone. */}
-                    <Field label={t("settings.endpoint.secondary")} hint={t("settings.secondaryComingSoon")}>
-                      <Select value={s.secondaryEndpointId} disabled onChange={() => {}}>
-                        {ENDPOINT_PRESETS.map((preset) => (
-                          <option key={preset.id} value={preset.id}>
-                            {preset.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
                   </div>
                 </section>
               </>
@@ -552,21 +621,6 @@ export function SettingsPanel({
                     </Select>
                   </Field>
 
-                  <Field label={t("settings.capabilities.vision")}>
-                    <Checkbox
-                      checked={primaryCaps.vision}
-                      disabled={!primaryCaps.vision}
-                      onChange={(e) => {
-                        // Vision is derived from model capability; the toggle is
-                        // informational. We keep it in settings as telemetryEnabled
-                        // style flag if needed in future, but capability drives it.
-                        // No-op: controlled by model registration.
-                        void e;
-                      }}
-                      label={t("settings.capabilities.vision")}
-                    />
-                  </Field>
-
                   <Field label={t("settings.temperature")} hint={t("settings.temperatureHint")}>
                     <Input
                       type="text"
@@ -593,21 +647,15 @@ export function SettingsPanel({
                   </Field>
                 </div>
 
-                {/* Secondary model — disabled pending the P1 secondary-model
-                    rollout (createSecondaryClient has no production callers;
-                    compaction/skill-matching/prompt-enhance still use the
-                    primary client + hardcoded flash model). Shown as a
-                    non-functional placeholder to avoid implying it works. */}
+                {/* Secondary model — picked from the same model pool. */}
                 <div className="ui-endpoint-role">
-                  <div className="ui-capabilities-group-title">
-                    {t("settings.capabilities.secondary")}
-                    <span className="ui-field-hint" style={{ marginLeft: 8 }}>
-                      {t("settings.secondaryComingSoon")}
-                    </span>
-                  </div>
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.secondary")}</div>
 
                   <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
-                    <Select value={secondaryModelKey} disabled onChange={() => {}}>
+                    <Select
+                      value={secondaryModelKey}
+                      onChange={(e) => patch({ secondaryModel: bareModelId(e.target.value) })}
+                    >
                       <option value="">{t("settings.capabilities.inherit")}</option>
                       {allModelKeys.map((key) => (
                         <option key={key} value={key}>
@@ -766,6 +814,10 @@ export function SettingsPanel({
                         DeepOrca is built on the shoulders of these outstanding open-source projects:
                       </p>
                       <ul className="ui-about-desc" style={{ paddingLeft: "1.2em", lineHeight: 1.8 }}>
+                        <li>
+                          <strong>DeepCode</strong> — the coding-agent kernel DeepOrca is derived from. Special thanks
+                          to the DeepCode project.
+                        </li>
                         <li>
                           <strong>TDAI Core</strong> (TencentDB Agent Memory) — L0-L3 memory pipeline. MIT License.
                         </li>
