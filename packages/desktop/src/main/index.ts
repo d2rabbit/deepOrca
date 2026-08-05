@@ -17,6 +17,7 @@ import {
   resolveCurrentSettings,
   resolveModernNode,
   getUserConfigRoot,
+  getProjectCode,
   configureCrgVendorRoot,
   configureCrgVersionRoot,
   hasCrgProject,
@@ -194,6 +195,12 @@ function resolvePlatform(): string {
 let bridge: SessionBridge | null = null;
 let pluginManager: PluginManager | null = null;
 
+// In-process memory manager (TdaiCore). Held at module scope so the startup
+// (whenReady), settings-save, project-switch, and shutdown (before-quit) paths
+// can all reach it without going through an IPC handler closure.
+let memoryManager: { init(): Promise<void>; destroy(): Promise<void>; isAvailable(): boolean } | null = null;
+let memoryStarting = false;
+
 function emit(channel: string, payload?: unknown): void {
   // Broadcast to every BrowserWindow so popout prototype windows also receive
   // A2UI surface updates (and any other emit-channel event). Each window's
@@ -321,6 +328,81 @@ function createWindow(): void {
   });
 }
 
+// ── In-process memory lifecycle (module-scoped) ─────────────────────────────
+// These run on app startup, settings save, project switch, and shutdown — not
+// just from IPC handlers — so they live at module scope.
+
+async function startMemory(): Promise<{ ok: boolean; error?: string }> {
+  if (memoryManager?.isAvailable()) return { ok: true };
+  if (memoryStarting) return { ok: true };
+  memoryStarting = true;
+
+  try {
+    const settings = resolveCurrentSettings(getBridge().projectRoot);
+    if (!settings.apiKey) {
+      return { ok: false, error: "LLM API key is required for memory extraction." };
+    }
+
+    // Dynamically import @deeporca/memory (avoids hard dep if not installed).
+    const { MemoryManager } = await import("@deeporca/memory");
+    // Project-scoped data dir: each project gets its own memory store so a
+    // secret/fact learned in project A cannot be recalled while working in
+    // project B. Earlier code used a single global dir (~/.deeporca/memory)
+    // for every project — a cross-project data-leak vector.
+    const dataDir = join(getUserConfigRoot(), "memory", getProjectCode(getBridge().projectRoot));
+    const mgr = new MemoryManager({
+      baseUrl: settings.baseURL,
+      apiKey: settings.apiKey,
+      model: settings.secondaryModel || "deepseek-v4-flash",
+      dataDir,
+      workspaceDir: getBridge().projectRoot,
+    });
+    await mgr.init();
+    memoryManager = mgr;
+    getBridge().setMemoryProvider(mgr as unknown as MemoryProvider);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    memoryStarting = false;
+  }
+}
+
+async function stopMemory(): Promise<void> {
+  if (memoryManager) {
+    await memoryManager.destroy();
+    memoryManager = null;
+  }
+  getBridge().setMemoryProvider(null);
+}
+
+/**
+ * Idempotently reconcile the in-process memory pipeline with the resolved
+ * `settings.memory.enabled` value. Called on app startup and after every
+ * settings save — the renderer's checkbox only edits the draft, so without
+ * this, enabling memory and saving did nothing (the manager stayed null and
+ * memory was silently off forever).
+ *
+ * Also handles project switches: startMemory() derives a project-scoped
+ * dataDir, so when the project root changes the caller stops the old manager
+ * first (see SetProjectRoot) and reconcile starts a fresh one.
+ */
+async function reconcileMemory(): Promise<{ ok: boolean; error?: string }> {
+  const settings = resolveCurrentSettings(getBridge().projectRoot);
+  const wantEnabled = !!settings.memory?.enabled;
+  const isRunning = !!memoryManager?.isAvailable();
+  if (wantEnabled === isRunning) {
+    // Already in the desired state. But still (re)bind the provider on the
+    // current SessionManager — reload()/setProjectRoot() recreate the manager
+    // and lose the provider binding even when the manager object is unchanged.
+    if (wantEnabled && memoryManager) {
+      getBridge().setMemoryProvider(memoryManager as unknown as MemoryProvider);
+    }
+    return { ok: true };
+  }
+  return wantEnabled ? startMemory() : stopMemory().then(() => ({ ok: true }));
+}
+
 function registerIpc(): void {
   // Uniform error normalization: log main-side failures with their channel and
   // rethrow a clean Error so the renderer receives a readable message instead
@@ -392,9 +474,15 @@ function registerIpc(): void {
     return result.filePaths[0] ?? null;
   });
 
-  handlePrivileged(IpcRequest.SetProjectRoot, (root: string) => {
+  handlePrivileged(IpcRequest.SetProjectRoot, async (root: string) => {
+    // Memory uses a project-scoped dataDir, so switching projects must stop the
+    // old manager (flushing its SQLite/checkpoint state) before the bridge
+    // swaps roots. reconcileMemory() then starts a fresh manager for the new
+    // project when memory is enabled.
+    await stopMemory();
     getBridge().setProjectRoot(root);
     emit(IpcEvent.ProjectRootChanged, getBridge().projectRoot);
+    void reconcileMemory();
     return { projectRoot: getBridge().projectRoot };
   });
 
@@ -438,7 +526,15 @@ function registerIpc(): void {
   handle(IpcRequest.SkillsList, (sessionId?: string) => getPluginManager().listSkills(sessionId));
   handle(IpcRequest.SettingsGet, () => getBridge().getSettings());
   handle(IpcRequest.SettingsGetEditable, () => getBridge().getEditableSettings());
-  handlePrivileged(IpcRequest.SettingsUpdate, (patch: EditableSettings) => getBridge().updateSettings(patch));
+  handlePrivileged(IpcRequest.SettingsUpdate, (patch: EditableSettings) => {
+    const result = getBridge().updateSettings(patch);
+    // Reconcile memory (start/stop) after a settings save — the renderer's
+    // checkbox only edits the draft, so the runtime state must be re-derived
+    // from the now-persisted settings.memory.enabled value. Fire-and-forget:
+    // the save itself has already succeeded synchronously.
+    void reconcileMemory();
+    return result;
+  });
   handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
 
   handle(IpcRequest.McpStatus, () => getPluginManager().getMcpStatus());
@@ -676,49 +772,8 @@ function registerIpc(): void {
   // ── Memory (in-process @deeporca/memory) ─────────────────────────────────
   // Memory runs as an in-process pipeline (TdaiCore), not an HTTP sidecar.
   // The MemoryManager is initialized from settings when memory is enabled.
-
-  let memoryManager: { init(): Promise<void>; destroy(): Promise<void>; isAvailable(): boolean } | null = null;
-  let memoryStarting = false;
-
-  async function startMemory(): Promise<{ ok: boolean; error?: string }> {
-    if (memoryManager?.isAvailable()) return { ok: true };
-    if (memoryStarting) return { ok: true };
-    memoryStarting = true;
-
-    try {
-      const settings = resolveCurrentSettings(getBridge().projectRoot);
-      if (!settings.apiKey) {
-        return { ok: false, error: "LLM API key is required for memory extraction." };
-      }
-
-      // Dynamically import @deeporca/memory (avoids hard dep if not installed).
-      const { MemoryManager } = await import("@deeporca/memory");
-      const dataDir = join(getUserConfigRoot(), "memory");
-      const mgr = new MemoryManager({
-        baseUrl: settings.baseURL,
-        apiKey: settings.apiKey,
-        model: settings.secondaryModel || "deepseek-v4-flash",
-        dataDir,
-        workspaceDir: getBridge().projectRoot,
-      });
-      await mgr.init();
-      memoryManager = mgr;
-      getBridge().setMemoryProvider(mgr as unknown as MemoryProvider);
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    } finally {
-      memoryStarting = false;
-    }
-  }
-
-  async function stopMemory(): Promise<void> {
-    if (memoryManager) {
-      await memoryManager.destroy();
-      memoryManager = null;
-    }
-    getBridge().setMemoryProvider(null);
-  }
+  // (startMemory/stopMemory/reconcileMemory are module-scoped so the startup,
+  // settings-save, project-switch, and shutdown paths can reach them.)
 
   handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
     return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
@@ -1053,6 +1108,12 @@ app.whenReady().then(() => {
   // fetches git repos and compiles, which is I/O-heavy and shouldn't
   // compete with first paint for CPU/disk bandwidth.
   setImmediate(refreshVendoredToolsInBackground);
+  // Start the memory pipeline if settings.memory.enabled is set. Without this,
+  // memory stayed off until the user toggled the checkbox (the renderer only
+  // edits the draft; the runtime state must be derived from persisted settings).
+  setImmediate(() => {
+    void reconcileMemory();
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -1072,6 +1133,25 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
+// Controlled shutdown: drain the memory pipeline (flush L0/checkpoint state,
+// close SQLite) before the process exits. The scheduler/checkpoint/SQLite
+// cleanup only runs through MemoryManager.destroy(); without this gate the app
+// could exit with pending writes or an open DB handle (especially on Windows
+// where open handles block later launches).
+let isQuitting = false;
+app.on("before-quit", (event) => {
+  if (isQuitting) return; // re-entrant after our forced quit
+  event.preventDefault();
+  isQuitting = true;
   killHelperProcesses();
+  (async () => {
+    try {
+      await stopMemory();
+    } catch {
+      // Best-effort — never block exit on cleanup failure.
+    }
+    bridge?.dispose();
+    bridge = null;
+    app.quit();
+  })();
 });

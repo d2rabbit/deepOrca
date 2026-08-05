@@ -273,6 +273,11 @@ export class SessionBridge {
     this.manager.dispose();
     this.projectRoot = root;
     this.manager = this.createManager(root);
+    // The memory provider is bound per-bridge (not per-manager) so it survives
+    // manager recreation. createManager() already re-applies it via
+    // rebindMemoryProvider(); the desktop main reconciles the actual
+    // start/stop of the memory manager on project change.
+    this.rebindMemoryProvider();
     this.initMcp();
   }
 
@@ -285,14 +290,30 @@ export class SessionBridge {
     const active = this.manager.getActiveSessionId();
     this.manager.dispose();
     this.manager = this.createManager(this.projectRoot);
+    this.rebindMemoryProvider();
     this.initMcp();
     if (active) {
       this.manager.setActiveSessionId(active);
     }
   }
 
-  /** Set the memory Gateway client on the active SessionManager. */
+  /** The memory provider, retained across manager recreations (reload/switch).
+   *  Without this, saving any settings or switching projects detached the
+   *  provider (the new manager had memoryProvider=null) while the global
+   *  memoryManager still reported healthy — a silent regression. */
+  private memoryProvider: MemoryProvider | null = null;
+
+  /** Re-apply the retained provider to the current manager. Called after every
+   *  manager recreation. */
+  private rebindMemoryProvider(): void {
+    this.manager.setMemoryProvider(this.memoryProvider);
+  }
+
+  /** Set the memory provider on this bridge AND the current manager. The bridge
+   *  retains it so a later reload()/setProjectRoot() re-binds it on the new
+   *  manager instead of dropping it. */
   setMemoryProvider(provider: MemoryProvider | null): void {
+    this.memoryProvider = provider;
     this.manager.setMemoryProvider(provider);
   }
 

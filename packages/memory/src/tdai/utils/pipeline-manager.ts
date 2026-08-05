@@ -1096,8 +1096,10 @@ export class MemoryPipelineManager {
    * On restart, message buffers are empty (in-memory only). Sessions with
    * non-zero conversation_count had messages that were either:
    * 1. Already processed by L1 (l2_pending_l1_count > 0) → arm L2 timer
-   * 2. Never reached L1 (conversation_count > 0, messages lost) → arm L2
-   *    as best-effort recovery
+   * 2. Never reached L1 (conversation_count > 0, in-memory messages lost) →
+   *    the L0 records ARE durable, so enqueue L1 to re-process them. Earlier
+   *    code only armed L2 (which reads L1, not L0), leaving crashed-but-captured
+   *    conversations permanently raw-only and never searchable.
    *
    * We arm L2 timers (with delay) rather than enqueuing immediately,
    * because the pipeline may be starting during management commands.
@@ -1106,17 +1108,26 @@ export class MemoryPipelineManager {
     for (const [sessionKey, state] of this.sessionStates) {
       if (state.conversation_count === 0 && state.l2_pending_l1_count === 0) continue;
 
+      const hadUnprocessedL0 = state.conversation_count > 0;
       this.logger?.debug?.(
         `${TAG} [${sessionKey}] Recovery: conversation_count=${state.conversation_count}, ` +
-          `l2_pending_l1_count=${state.l2_pending_l1_count}, arming L2 timer`
+          `l2_pending_l1_count=${state.l2_pending_l1_count}, ` +
+          `${hadUnprocessedL0 ? "enqueueing L1 (durable L0)" : "arming L2 timer"}`
       );
 
-      // Reset conversation_count since we can't recover the messages
+      // Reset conversation_count since we can't recover the in-memory messages.
       state.l2_pending_l1_count = Math.max(state.l2_pending_l1_count, state.conversation_count);
       state.conversation_count = 0;
 
-      // Arm L2 timer with delay (gives the system time to fully start)
-      this.advanceL2Timer(sessionKey);
+      if (hadUnprocessedL0) {
+        // L0 is durable; the L1 runner reads from the store (not the in-memory
+        // buffer), so enqueueing L1 re-processes the persisted records instead
+        // of dropping them.
+        this.enqueueL1(sessionKey);
+      } else {
+        // Arm L2 timer with delay (gives the system time to fully start).
+        this.advanceL2Timer(sessionKey);
+      }
     }
   }
 

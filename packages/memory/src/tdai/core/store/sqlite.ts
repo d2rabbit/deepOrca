@@ -748,14 +748,19 @@ export class VectorStore implements IMemoryStore {
       `);
     }
 
-    // L0 query statements for L1 runner (newest-first + LIMIT to bound memory)
-    // Sort/filter by recorded_at (write time) instead of timestamp (conversation time)
-    // because L1 cursor uses recorded_at semantics. ISO 8601 string comparison preserves time order.
+    // L0 query statements for L1 runner (oldest-first + LIMIT to bound memory).
+    // Oldest-first is essential: the L1 cursor advances to the max recorded_at of
+    // the returned page. With newest-first, any backlog >LIMIT strands the oldest
+    // records permanently behind the cursor. Oldest-first processes the oldest
+    // unprocessed page, advancing the cursor only through contiguous work.
+    // Sort/filter by recorded_at (write time) instead of timestamp (conversation
+    // time) because the L1 cursor uses recorded_at semantics. ISO 8601 string
+    // comparison preserves time order.
     this.stmtL0QueryAll = this.db.prepare(`
       SELECT record_id, session_key, session_id, role, message_text, recorded_at, timestamp
       FROM l0_conversations
       WHERE session_key = ?
-      ORDER BY recorded_at DESC
+      ORDER BY recorded_at ASC
       LIMIT ?
     `);
 
@@ -763,7 +768,7 @@ export class VectorStore implements IMemoryStore {
       SELECT record_id, session_key, session_id, role, message_text, recorded_at, timestamp
       FROM l0_conversations
       WHERE session_key = ? AND recorded_at > ?
-      ORDER BY recorded_at DESC
+      ORDER BY recorded_at ASC
       LIMIT ?
     `);
 
@@ -1958,18 +1963,16 @@ export class VectorStore implements IMemoryStore {
           `limit=${limit}, returned ${rows.length} row(s)`
       );
 
-      // Reverse: SQL returns newest-first (DESC), callers expect chronological order
-      return rows
-        .map((r) => ({
-          record_id: r.record_id as string,
-          session_key: r.session_key as string,
-          session_id: (r.session_id as string) || "",
-          role: r.role as string,
-          message_text: r.message_text as string,
-          recorded_at: (r.recorded_at as string) || "",
-          timestamp: (r.timestamp as number) || 0,
-        }))
-        .reverse();
+      // Rows are already chronological (oldest-first ASC). No reverse needed.
+      return rows.map((r) => ({
+        record_id: r.record_id as string,
+        session_key: r.session_key as string,
+        session_id: (r.session_id as string) || "",
+        role: r.role as string,
+        message_text: r.message_text as string,
+        recorded_at: (r.recorded_at as string) || "",
+        timestamp: (r.timestamp as number) || 0,
+      }));
     } catch (err) {
       this.logger?.warn(
         `${TAG} [L0-query] FAILED (non-fatal, returning empty): ${err instanceof Error ? err.message : String(err)}`

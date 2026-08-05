@@ -139,6 +139,8 @@ const DEFAULT_CHECKPOINT: Checkpoint = {
   total_memories_extracted: 0,
 };
 
+const TAG = "[checkpoint]";
+
 export interface CheckpointLogger {
   info(msg: string): void;
   warn?(msg: string): void;
@@ -194,8 +196,23 @@ export class CheckpointManager {
   // ============================
 
   private async readRaw(): Promise<Checkpoint> {
+    let raw: string;
     try {
-      const raw = await fs.readFile(this.filePath, "utf-8");
+      raw = await fs.readFile(this.filePath, "utf-8");
+    } catch (readErr) {
+      // Missing file is normal (first run) — silently use defaults. Any other
+      // read error (permissions, I/O) is logged but still falls back to defaults
+      // so the pipeline can run; we do NOT overwrite the file here.
+      const code = (readErr as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
+        (this.logger.warn ?? this.logger.info)(
+          `${TAG} checkpoint read failed (${code ?? "unknown"}): ${readErr instanceof Error ? readErr.message : String(readErr)} — using defaults`
+        );
+      }
+      return structuredClone(DEFAULT_CHECKPOINT);
+    }
+
+    try {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       // Merge with defaults for backward compat (old checkpoints lack new fields).
       // structuredClone avoids shallow-copy pitfall: without it, the nested
@@ -239,7 +256,23 @@ export class CheckpointManager {
         }
       }
       return cp;
-    } catch {
+    } catch (parseErr) {
+      // Corrupt checkpoint (truncated/invalid JSON). Earlier code swallowed this
+      // and returned defaults, and the NEXT mutation overwrote the file with
+      // those defaults — destroying cursors, persona counters, and pipeline
+      // state, causing duplicate capture/extraction. Quarantine the bad file so
+      // recovery state is preserved, and log prominently.
+      (this.logger.warn ?? this.logger.info)(
+        `${TAG} checkpoint CORRUPT (unparseable): ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. ` +
+          `Quarantining the bad file and using defaults; cursors will re-process from L0.`
+      );
+      try {
+        const ts = Date.now();
+        await fs.rename(this.filePath, `${this.filePath}.corrupt-${ts}`);
+      } catch {
+        // If rename fails (e.g. lock), leave the file in place — we still return
+        // defaults and the next successful write replaces it.
+      }
       return structuredClone(DEFAULT_CHECKPOINT);
     }
   }

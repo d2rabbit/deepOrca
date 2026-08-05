@@ -188,6 +188,17 @@ async function _doInitStores(
 
     if (vectorStore.isDegraded()) {
       logger.warn(`${TAG} Store is in degraded mode, falling back to keyword dedup`);
+      // Close the open DB handle before discarding the reference — otherwise the
+      // DatabaseSync leaks (the destroy path only closes the retained store), and
+      // on Windows a leaked handle can block later re-enable/rebuild with a
+      // locked-file error.
+      try {
+        bundle.store.close();
+      } catch (closeErr) {
+        logger.warn(
+          `${TAG} Failed to close degraded store: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`
+        );
+      }
       vectorStore = undefined;
       embeddingService = undefined;
     } else {

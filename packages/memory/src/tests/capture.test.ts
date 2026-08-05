@@ -1,15 +1,17 @@
 /**
- * Memory capture-path tests.
+ * Memory capture-path + lifecycle tests.
  *
- * These lock in the fix for the critical defect where the integration passed
- * `messages: []` to the L0 recorder, so capture recorded nothing and recall
- * stayed permanently empty. We verify, without any LLM dependency, that:
+ * capture.test: locks in the fix for the critical defect where the integration
+ * passed `messages: []` to the L0 recorder, so capture recorded nothing and
+ * recall stayed permanently empty. We verify, without any LLM dependency, that:
  *   - recordConversation persists user/assistant messages to the L0 JSONL;
  *   - extractUserAssistantMessages (via recordConversation) honours the
  *     {role, content, id?, timestamp?} shape that the core MemoryProvider now
  *     sends;
- *   - parseConfig returns a fully-populated config (no `as unknown as` cast);
- *   - the recall prompt contract (prependContext + recallStrategy) renders.
+ *   - parseConfig returns a fully-populated config (no `as unknown as` cast).
+ *
+ * lifecycle.test: L1 oldest-first paging (no stranded records), checkpoint
+ * corruption quarantine (no silent default-overwrite).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,8 +19,12 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { recordConversation } from "../tdai/core/conversation/l0-recorder.js";
+import {
+  recordConversation,
+  readConversationMessagesGroupedBySessionId,
+} from "../tdai/core/conversation/l0-recorder.js";
 import { parseConfig } from "../tdai/config.js";
+import { CheckpointManager } from "../tdai/utils/checkpoint.js";
 
 function tmpDataDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-mem-test-"));
@@ -102,4 +108,80 @@ test("parseConfig with undefined raw yields valid zero-config defaults", () => {
   assert.equal(cfg.storeBackend, "sqlite");
   assert.equal(typeof cfg.recall.timeoutMs, "number");
   assert.equal(typeof cfg.capture.l0l1RetentionDays, "number");
+});
+
+// ── Phase 3: L1 oldest-first paging ─────────────────────────────────────────
+
+test("L1 JSONL reader returns the OLDEST page when backlog > limit (no stranding)", async () => {
+  // Regression: the JSONL reader used allMessages.slice(-limit) (newest), so a
+  // 100-message backlog processed in pages of 50 would process msgs 51-100,
+  // advance the cursor past all 100, and leave msgs 1-50 permanently behind.
+  // Oldest-first (slice(0, limit)) processes 1-50 first; the next page reads
+  // 51-100 via the cursor.
+  const baseDir = tmpDataDir();
+  const sessionKey = "sess-page";
+  // Record 100 messages with strictly increasing timestamps.
+  const base = Date.now();
+  for (let i = 0; i < 100; i++) {
+    await recordConversation({
+      sessionKey,
+      rawMessages: [{ role: "user", content: `msg-${i}`, timestamp: base + i }],
+      baseDir,
+      afterTimestamp: base + i - 1,
+    });
+  }
+
+  // First page (limit 50): must be the OLDEST 50 (msg-0 .. msg-49).
+  const page1 = await readConversationMessagesGroupedBySessionId(sessionKey, baseDir, undefined, undefined, 50);
+  const page1Texts = (page1[0]?.messages ?? []).map((m) => m.content);
+  assert.equal(page1Texts.length, 50, "first page must contain 50 messages");
+  assert.equal(page1Texts[0], "msg-0", "first page must start at the oldest message");
+  assert.equal(page1Texts[49], "msg-49", "first page must end at the 50th oldest");
+
+  fs.rmSync(baseDir, { recursive: true, force: true });
+});
+
+// ── Phase 3: checkpoint corruption quarantine ────────────────────────────────
+
+test("CheckpointManager quarantines a corrupt checkpoint instead of silently resetting", async () => {
+  // Regression: a corrupt (unparseable) checkpoint was caught and replaced with
+  // defaults silently; the next mutation then OVERWROTE the file with defaults,
+  // destroying cursors/persona state. Now the bad file is renamed aside.
+  const dataDir = tmpDataDir();
+  const cp = new CheckpointManager(dataDir);
+  // Write a valid checkpoint first.
+  const valid = await cp.read();
+  valid.total_processed = 42;
+  await cp.write(valid);
+
+  // Corrupt the file on disk.
+  const cpPath = path.join(dataDir, ".metadata", "recall_checkpoint.json");
+  assert.ok(fs.existsSync(cpPath), "checkpoint file must exist after write");
+  fs.writeFileSync(cpPath, "{ this is not valid json", "utf8");
+
+  // Read must return defaults (graceful), not throw.
+  const recovered = await cp.read();
+  assert.equal(recovered.total_processed, 0, "corrupt read falls back to defaults");
+
+  // The corrupt file must have been quarantined (renamed to .corrupt-<ts>),
+  // NOT left in place to be overwritten on the next write.
+  const metaFiles = fs.readdirSync(path.join(dataDir, ".metadata"));
+  const quarantined = metaFiles.find((f) => f.startsWith("recall_checkpoint.json.corrupt-"));
+  assert.ok(quarantined, "corrupt checkpoint must be quarantined (renamed)");
+
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test("CheckpointManager returns defaults silently when the file is missing (first run)", async () => {
+  const dataDir = tmpDataDir();
+  const cp = new CheckpointManager(dataDir);
+  const recovered = await cp.read();
+  assert.equal(recovered.total_processed, 0);
+  // No quarantine file should be created for a simple missing-file case.
+  const metaDir = path.join(dataDir, ".metadata");
+  if (fs.existsSync(metaDir)) {
+    const quarantined = fs.readdirSync(metaDir).find((f) => f.includes(".corrupt-"));
+    assert.equal(quarantined, undefined, "missing file must not be quarantined");
+  }
+  fs.rmSync(dataDir, { recursive: true, force: true });
 });
