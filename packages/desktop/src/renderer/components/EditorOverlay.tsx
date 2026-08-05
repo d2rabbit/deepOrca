@@ -9,10 +9,28 @@ import { Button, IconButton } from "../ui/index";
 // React.lazy() in App.tsx and esbuild splitting, Monaco is fully deferred.
 // The loader is configured once (on first mount) to use the local npm
 // package instead of a CDN — eliminating the network dependency.
+
+/**
+ * Load this chunk's CSS. esbuild splits lazily-imported chunk CSS into a
+ * sibling file but never injects it at runtime — Monaco's layout rules
+ * (including the one that hides the IME textarea, which otherwise shows up
+ * as a white UA-styled box) live in that file. build.mjs republishes each
+ * chunk's CSS under a stable hash-free name so it can be linked here.
+ */
+function ensureEditorChunkCss(): void {
+  const href = "./chunks/EditorOverlay.css";
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
 let monacoInitialized = false;
 async function ensureMonacoLoaded(): Promise<void> {
   if (monacoInitialized) return;
   monacoInitialized = true;
+  ensureEditorChunkCss();
   const [{ loader: monacoLoader }, monacoEditor] = await Promise.all([
     import("@monaco-editor/react"),
     import("monaco-editor"),

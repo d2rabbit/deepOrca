@@ -188,6 +188,29 @@ async function ensureCoreBuilt() {
   execFileSync(process.execPath, [rewriteScript], { stdio: "inherit", cwd: root });
 }
 
+/** Remove stale chunks from previous builds (hashed names accumulate). */
+async function cleanRendererChunks() {
+  await rm(resolve(rendererOutdir, "chunks"), { recursive: true, force: true });
+}
+
+/**
+ * esbuild splits lazily-imported chunk CSS into `chunks/<name>-<hash>.css`
+ * files but never injects them at runtime (no CSS loader for dynamic
+ * imports). Republish each chunk's CSS under a stable hash-free alias
+ * (`chunks/<name>.css`) so lazily loaded components can link their own
+ * styles deterministically (see EditorOverlay's ensureEditorChunkCss).
+ */
+async function aliasChunkCss() {
+  const chunksDir = resolve(rendererOutdir, "chunks");
+  if (!existsSync(chunksDir)) return;
+  const { readdir } = await import("node:fs/promises");
+  for (const file of await readdir(chunksDir)) {
+    const match = file.match(/^([A-Za-z0-9_-]+)-[A-Za-z0-9_-]+\.css$/);
+    if (!match) continue;
+    await cp(resolve(chunksDir, file), resolve(chunksDir, `${match[1]}.css`), { force: true });
+  }
+}
+
 async function copyStaticAssets() {
   await mkdir(resolve(outdir, "renderer"), { recursive: true });
   await cp(resolve(__dirname, "src/renderer/index.html"), resolve(outdir, "renderer/index.html"));
@@ -247,6 +270,7 @@ async function run() {
   // packages/core/templates/plugins/work/skills/bento-slides/references/.
   ensureVendored("bento", [".vendored-bento-version"], "bundled template (offline)");
   if (isDev) {
+    await cleanRendererChunks();
     const contexts = await Promise.all([
       context(mainConfig),
       context(preloadConfig),
@@ -259,7 +283,9 @@ async function run() {
     return;
   }
 
+  await cleanRendererChunks();
   await Promise.all([build(mainConfig), build(preloadConfig), build(prototypePreloadConfig), build(rendererConfig)]);
+  await aliasChunkCss();
   await copyStaticAssets();
   console.log("[desktop] build complete → dist/");
 }
