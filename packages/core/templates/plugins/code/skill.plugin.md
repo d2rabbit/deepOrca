@@ -8,6 +8,8 @@ skills:
     description: "CodeGraph CLI 驱动 — init/index/sync/serve 代码图谱构建与查询"
   - name: smart-code-review
     description: "智能代码审查 — CRG 风险分析 + OCR 语义审查联合编排"
+  - name: arch-scan
+    description: "架构扫描 — 多视角递归分析代码库，生成 A2UI 交互式架构图（adopted from oh-my-mermaid）"
 plugins:
   - open-code-review
 mcp:
