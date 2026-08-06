@@ -41,7 +41,7 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
 | 文档级 | **OpenWiki**                      | 项目文档/wiki    | 文档索引 + MCP 查询               |
 | 架构级 | **arch-scan**（本技能）           | 模块/数据流/依赖 | A2UI Surface 架构图               |
 
-**同步构建**：首次索引项目时，三者一起运行（CodeGraph index → OpenWiki → arch-scan）。架构图与符号索引互补 —— CodeGraph 回答"这个符号在哪/谁调用了它"，arch-scan 回答"整个系统的架构长什么样/数据怎么流动"。
+**同步构建**：在桌面端左侧「构建索引」按钮中，三者顺序自动执行：**索引（CodeGraph index）→ Wiki（OpenWiki）→ 架构图（arch-scan）**。单独使用本 skill 时（如对话中输入 `/arch-scan`）只执行架构图扫描本身，不触发前两步。架构图与符号索引互补 —— CodeGraph 回答"这个符号在哪/谁调用了它"，arch-scan 回答"整个系统的架构长什么样/数据怎么流动"。
 
 **增量更新**：代码变更后 `codegraph sync` 增量更新符号索引；架构变更较大时重新运行 `arch-scan` 刷新架构图（架构图不每轮自动同步，因为需要 LLM 分析，成本较高）。
 

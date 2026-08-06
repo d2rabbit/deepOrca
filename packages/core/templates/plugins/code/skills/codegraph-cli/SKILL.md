@@ -30,14 +30,12 @@ CodeGraph 是一个代码知识图谱工具，将源代码解析为可查询的�
 
 ## 工作流
 
-工作区索引三步走：**索引 → Wiki → 架构图**。
-
 1. **初始化**: 在项目根目录运行 `codegraph init`，创建 `.codegraph/` 目录。
-2. **索引**: 运行 `codegraph index` 解析所有源文件，构建符号表和调用关系（符号级索引）。
-3. **Wiki**: 索引完成后，运行 OpenWiki 构建项目文档索引（文档级索引）。
-4. **架构图**: Wiki 完成后，运行 `arch-scan` 技能构建工作区的 A2UI 架构图（架构级索引，多视角 + 递归分析）。三步构成完整的工作区索引：CodeGraph（符号在哪）→ OpenWiki（文档说了什么）→ arch-scan（整体架构长什么样）。
-5. **增量同步**: 代码变更后运行 `codegraph sync` 增量更新符号索引；架构变更较大时可重新运行 `arch-scan` 刷新架构图。
-6. **查询**: 图谱构建完成后，CodeGraph MCP 服务器自动激活，Agent 可通过 MCP 工具查询符号、调用链等。
+2. **索引**: 运行 `codegraph index` 解析所有源文件，构建符号表和调用关系。
+3. **增量同步**: 代码变更后运行 `codegraph sync` 增量更新图谱。
+4. **查询**: 图谱构建完成后，CodeGraph MCP 服务器自动激活，Agent 可通过 MCP 工具查询符号、调用链等。
+
+> **工作区索引编排**：在桌面端左侧「构建索引」按钮中，CodeGraph（符号级）→ OpenWiki（文档级）→ arch-scan（架构级）三步顺序自动执行。单独使用本 skill 时只管 CodeGraph 自身的 init/index/sync。
 
 ## 注意事项
 
