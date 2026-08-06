@@ -661,21 +661,30 @@ export class McpManager {
       };
     };
   }> {
-    return this.tools.map((t) => ({
-      type: "function" as const,
-      function: {
-        name: t.namespacedName,
-        description: this.buildMcpToolDescription(t),
-        parameters: {
-          type: "object" as const,
-          properties: t.definition.inputSchema.properties,
-          required: t.definition.inputSchema.required,
-          ...(t.definition.inputSchema.additionalProperties !== undefined
-            ? { additionalProperties: t.definition.inputSchema.additionalProperties }
-            : {}),
-        },
-      },
-    }));
+    return (
+      this.tools
+        .map((t) => ({
+          type: "function" as const,
+          function: {
+            name: t.namespacedName,
+            description: this.buildMcpToolDescription(t),
+            parameters: {
+              type: "object" as const,
+              properties: t.definition.inputSchema.properties,
+              required: t.definition.inputSchema.required,
+              ...(t.definition.inputSchema.additionalProperties !== undefined
+                ? { additionalProperties: t.definition.inputSchema.additionalProperties }
+                : {}),
+            },
+          },
+        }))
+        // Deterministic order by tool name so the `tools:` array (part of the
+        // DeepSeek cache-stable prefix) is byte-identical regardless of the order
+        // MCP servers connected/reconnected in. Without this, a different connect
+        // order across restarts reorders the tool list and invalidates the prefix
+        // cache for the entire session.
+        .sort((a, b) => a.function.name.localeCompare(b.function.name))
+    );
   }
 
   isMcpTool(name: string): boolean {

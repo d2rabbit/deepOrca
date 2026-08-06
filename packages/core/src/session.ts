@@ -63,7 +63,8 @@ import {
   getExtensionRoot,
   getMemoryPrompt,
   getPlanModePrompt,
-  getRuntimeContext,
+  getCurrentTurnTail,
+  getStableRuntimeContext,
   getSystemPrompt,
   getTools,
   type ToolDefinition,
@@ -553,6 +554,11 @@ export class SessionManager {
     this.mcpManager.prepare(this.augmentMcpServersWithBuiltins(this.getResolvedSettings().mcpServers));
     this.messageConverter = new OpenAIMessageConverter({
       renderInitPrompt: () => this.renderInitCommandPrompt(),
+      // Inject the current date + active model as a transient user-message tail
+      // per request, never into the persisted prefix — keeps the DeepSeek prefix
+      // cache warm across days/model switches (the date no longer lives in the
+      // system-prompt prefix).
+      buildTurnTail: (model) => getCurrentTurnTail(model),
     });
   }
 
@@ -1957,34 +1963,37 @@ ${content}
     }
 
     const promptToolOptions = this.getPromptToolOptions();
+
+    // System-message prefix — ordered MOST → LEAST stable so the DeepSeek prefix
+    // cache (which keys on the contiguous leading bytes) shares the largest
+    // possible stable head across sessions. The date/model line is intentionally
+    // absent here: it varies day-to-day and per model switch, so it is injected
+    // per-turn as a transient user-message tail (see activateSession) instead of
+    // baked into this cache-stable prefix.
+    //   1. base system prompt + tool docs        — immutable per build
+    //   2. AGENTS.md standing instructions        — rarely change within a project
+    //   3. default skill + built-in plugin docs   — stable per skill/plugin set
+    //   4. machine-level workspace environment    — stable per machine/project
     const systemPrompt = getSystemPrompt(this.projectRoot, promptToolOptions);
-    const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
-    this.appendSessionMessage(sessionId, systemMessage);
+    this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, systemPrompt));
+
+    const agentInstructions = this.loadAgentInstructions();
+    if (agentInstructions) {
+      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, agentInstructions));
+    }
 
     const defaultSkillPrompt = getDefaultSkillPrompt({ enabledSkills: this.getResolvedSettings().enabledSkills });
     if (defaultSkillPrompt) {
-      const defaultSkillMessage = this.buildSystemMessage(sessionId, defaultSkillPrompt);
-      this.appendSessionMessage(sessionId, defaultSkillMessage);
+      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, defaultSkillPrompt));
     }
 
     // Orca built-in plugins: always inject their instruction docs into the session.
     const builtinPluginPrompt = this.getBuiltinPluginPrompt();
     if (builtinPluginPrompt) {
-      const pluginMessage = this.buildSystemMessage(sessionId, builtinPluginPrompt);
-      this.appendSessionMessage(sessionId, pluginMessage);
+      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, builtinPluginPrompt));
     }
 
-    const runtimeContextMessage = this.buildSystemMessage(
-      sessionId,
-      getRuntimeContext(this.projectRoot, promptToolOptions.model)
-    );
-    this.appendSessionMessage(sessionId, runtimeContextMessage);
-
-    const agentInstructions = this.loadAgentInstructions();
-    if (agentInstructions) {
-      const instructionsMessage = this.buildSystemMessage(sessionId, agentInstructions);
-      this.appendSessionMessage(sessionId, instructionsMessage);
-    }
+    this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, getStableRuntimeContext(this.projectRoot)));
 
     // Memory recall — inject cross-session memories before activation.
     // Uses a 2s race: if the Gateway responds fast, memories are injected

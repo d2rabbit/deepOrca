@@ -6,9 +6,11 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import {
   buildSkillDocumentsPrompt,
+  getCurrentTurnTail,
   getDefaultSkillPrompt,
   getPlanModePrompt,
   getRuntimeContext,
+  getStableRuntimeContext,
   getSystemPrompt,
   getTools,
 } from "../prompt";
@@ -207,6 +209,29 @@ test("getRuntimeContext includes current date and model guidance", () => {
   assert.equal(prompt.includes("当前LLM模型为deepseek-v4-pro，对话中可通过/model命令切换模型。"), true);
   assert.equal(prompt.includes("# Local Workspace Environment"), true);
   assert.equal(prompt.includes('"root path": "/tmp/project"'), true);
+});
+
+test("getStableRuntimeContext excludes the date (cache-stable prefix)", () => {
+  const prompt = getStableRuntimeContext("/tmp/project");
+  // The machine-level environment block is present …
+  assert.equal(prompt.includes("# Local Workspace Environment"), true);
+  assert.equal(prompt.includes('"root path": "/tmp/project"'), true);
+  // … but the day-varying date line is NOT — it would break the prefix cache.
+  assert.equal(prompt.includes("今天是"), false);
+  assert.equal(prompt.includes("随着对话的进行"), false);
+});
+
+test("getCurrentTurnTail includes the date and model guidance", () => {
+  const now = new Date();
+  const expectedDate = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日。随着对话的进行，时间在流逝。`;
+  assert.equal(getCurrentTurnTail("deepseek-v4-pro").includes(expectedDate), true);
+  assert.equal(
+    getCurrentTurnTail("deepseek-v4-pro").includes("当前LLM模型为deepseek-v4-pro，对话中可通过/model命令切换模型。"),
+    true
+  );
+  // Without a model the model line is omitted but the date is still present.
+  assert.equal(getCurrentTurnTail().includes(expectedDate), true);
+  assert.equal(getCurrentTurnTail().includes("当前LLM模型"), false);
 });
 
 test("getSystemPrompt renders Read docs for non-multimodal models", () => {

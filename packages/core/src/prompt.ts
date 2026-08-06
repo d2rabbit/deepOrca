@@ -379,7 +379,15 @@ export function getMemoryPrompt(recall: {
   return `<memory-context strategy="${recall.recallStrategy ?? "none"}">\n${parts.join("\n\n")}\n</memory-context>`;
 }
 
-export function getRuntimeContext(projectRoot: string, model?: string): string {
+/**
+ * The machine-level workspace environment block. This is byte-stable for a
+ * given machine/project (root path, uname, shell, runtime versions, installed
+ * tools) and therefore safe to bake into the cache-stable system-prompt prefix.
+ * The date and model line — which change every day / on model switch and would
+ * invalidate the DeepSeek prefix cache — are split out into {@link getCurrentTurnTail}
+ * and injected per-turn as a transient tail instead.
+ */
+export function getStableRuntimeContext(projectRoot: string): string {
   const uname = getUnameInfo();
   const shellPath = getShellPathInfo();
   const shellModeOpts = process.platform === "win32" ? { "shell mode": "git-bash" } : {};
@@ -397,13 +405,34 @@ export function getRuntimeContext(projectRoot: string, model?: string): string {
       jq: checkToolInstalled("jq"),
     },
   };
-  return `${getCurrentDateAndModelPrompt(model)}
-
-# Local Workspace Environment
+  return `# Local Workspace Environment
 
 \`\`\`json
 ${JSON.stringify(env, null, 2)}
 \`\`\``;
+}
+
+/**
+ * The per-turn transient tail: current date + active model. Evaluated fresh on
+ * every API request (the OpenAIMessageConverter appends it to the last user
+ * message at conversion time, never to the persisted JSONL). Keeping the date
+ * out of the system-prompt prefix means the cross-session/cross-day DeepSeek
+ * prefix cache stays warm; baking it in would invalidate the whole prefix the
+ * moment the day changes or a new session opens.
+ */
+export function getCurrentTurnTail(model?: string): string {
+  return getCurrentDateAndModelPrompt(model);
+}
+
+/**
+ * Legacy composite: stable environment block + date/model line. Kept for
+ * backward compatibility (tests/CLI flows); the session loop uses the split
+ * {@link getStableRuntimeContext} + {@link getCurrentTurnTail} pair instead.
+ */
+export function getRuntimeContext(projectRoot: string, model?: string): string {
+  return `${getCurrentDateAndModelPrompt(model)}
+
+${getStableRuntimeContext(projectRoot)}`;
 }
 
 function checkToolInstalled(tool: string): boolean {

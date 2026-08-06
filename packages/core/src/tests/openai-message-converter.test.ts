@@ -66,7 +66,7 @@ function userMsg(id: string, content: string): SessionMessage {
 // Converter fixtures
 // ---------------------------------------------------------------------------
 
-function converter(opts?: { renderInitPrompt?: () => string }) {
+function converter(opts?: { renderInitPrompt?: () => string; buildTurnTail?: (model: string) => string }) {
   return new OpenAIMessageConverter(opts);
 }
 
@@ -509,4 +509,78 @@ test("OpenAIMessageConverter.findToolFunction handles null/empty toolCalls", () 
 
   const toolCalls = [null, undefined, { noId: true }];
   assert.equal(c.findToolFunction(toolCalls as unknown[], "call-1"), null);
+});
+
+// ---------------------------------------------------------------------------
+// buildTurnTail — transient per-turn tail injection (cache-stable prefix)
+// ---------------------------------------------------------------------------
+
+test("buildTurnTail appends the tail to the last user message only", () => {
+  const tailText = "今天是2026年1月1日。";
+  const c = converter({ buildTurnTail: () => tailText });
+  const messages = [
+    msg({ id: "sys", role: "system", content: "system prompt" }),
+    userMsg("u1", "first question"),
+    assistantMsg("a1"),
+    userMsg("u2", "second question"),
+  ];
+
+  const result = c.buildMessages(messages, false, "deepseek-chat");
+
+  // The LAST user message gets the tail …
+  const lastUser = result.filter((m) => m.role === "user").at(-1);
+  assert.equal((lastUser?.content as string).includes("second question"), true);
+  assert.equal((lastUser?.content as string).includes(tailText), true);
+  // … earlier user messages do NOT.
+  const firstUser = result.filter((m) => m.role === "user")[0];
+  assert.equal((firstUser.content as string).includes(tailText), false);
+});
+
+test("buildTurnTail does not mutate the persisted SessionMessage (request-time only)", () => {
+  const tailText = "tail-marker";
+  const c = converter({ buildTurnTail: () => tailText });
+  const original = userMsg("u1", "hello");
+  const snapshot = original.content;
+
+  c.buildMessages([original], false, "deepseek-chat");
+
+  // The original SessionMessage must be untouched — the tail is transient.
+  assert.equal(original.content, snapshot);
+});
+
+test("buildTurnTail handles multimodal user content (content-parts array)", () => {
+  const tailText = "tail-marker";
+  const c = converter({ buildTurnTail: () => tailText });
+  const messages = [
+    msg({
+      id: "u1",
+      role: "user",
+      content: "look at this",
+      contentParams: [{ type: "image_url", image_url: { url: "data:image/png;base64,abc" } }],
+    }),
+  ];
+
+  const result = c.buildMessages(messages, false, "gpt-4o");
+  const lastUser = result.at(-1);
+  const content = lastUser?.content as Array<{ type: string; text?: string }>;
+  assert.equal(Array.isArray(content), true);
+  // Original text + image parts are intact, and the tail is appended as text.
+  assert.equal(
+    content.some((p) => p.type === "image_url"),
+    true
+  );
+  assert.equal(content.at(-1)?.text, tailText);
+});
+
+test("buildTurnTail receives the request model", () => {
+  let capturedModel = "";
+  const c = converter({ buildTurnTail: (model) => ((capturedModel = model), `model:${model}`) });
+  c.buildMessages([userMsg("u1", "hi")], false, "deepseek-v4-pro");
+  assert.equal(capturedModel, "deepseek-v4-pro");
+});
+
+test("buildTurnTail omitted → no tail injected (backwards compatible)", () => {
+  const c = converter();
+  const result = c.buildMessages([userMsg("u1", "hello")], false, "deepseek-chat");
+  assert.equal(result.at(-1)?.content, "hello");
 });
