@@ -109,6 +109,7 @@ export function IndexLibraryPanel(): JSX.Element {
       setError(null);
 
       try {
+        // Phase 1: CodeGraph symbol index (0-50%).
         // Invocation results are authoritative: terminal progress events and IPC
         // replies are delivered independently and may arrive in either order.
         const cgResult = await api.codegraphReindex(projectRoot);
@@ -117,8 +118,8 @@ export function IndexLibraryPanel(): JSX.Element {
         }
         if (!isCurrentRun()) return;
 
-        // Phase 2: wiki (only if available). Expected operational failures are
-        // structured {ok:false} results rather than rejected promises.
+        // Phase 2: OpenWiki document index (50-90%). Expected operational failures
+        // are structured {ok:false} results rather than rejected promises.
         if (wikiAvailable) {
           setPercent(50);
           const wikiResult = mode === "init" ? await api.wikiInit() : await api.wikiUpdate();
@@ -126,6 +127,20 @@ export function IndexLibraryPanel(): JSX.Element {
             throw new Error(wikiResult.error || "Wiki generation failed");
           }
           if (!isCurrentRun()) return;
+        }
+
+        setPercent(90);
+
+        // Phase 3: Architecture diagram (arch-scan). Fire-and-forget via prompt —
+        // arch-scan is an LLM skill (not a CLI), so it runs asynchronously in the
+        // conversation. We don't block the index panel on it (LLM analysis takes
+        // tens of seconds). Only triggered on init (first-time index), not update.
+        if (mode === "init") {
+          try {
+            await api.sendPrompt({ text: "/arch-scan" });
+          } catch {
+            // Non-fatal: arch-scan is a bonus layer, index is complete without it.
+          }
         }
 
         setPercent(100);
