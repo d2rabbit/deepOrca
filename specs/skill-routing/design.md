@@ -203,4 +203,18 @@ const routed = (await this.toolRouter?.select(currentTurnContext, allMcpTools)) 
 - 不引入 FAISS/向量数据库（规模不够，纯内存点积足够）。
 - 不训练自定义 bi-encoder。
 - 不在启动路径做模型下载/加载（全部懒加载 + 异步）。
-- 不改动记忆系统现有 BM25 召回（嵌入与记忆管线的整合独立评估，避免一次动两个系统）。
+
+---
+
+## 八、与记忆系统的关系：一套嵌入基建，两个消费方（2026-08-06 补充）
+
+TDAI 记忆的向量召回当前是关闭的（`memory-manager.ts` 里 `embedding: { enabled: false, provider: "none" }`，`hybrid` 策略实际只剩 BM25 关键词半边）。启用它同样需要向量模型，而 TDAI 自带的两条路都不合适：远端 `openai` provider 依赖 DeepSeek 端点没有的 embeddings 服务；`local` provider 的 node-llama-cpp 是原生模块，Electron ABI 适配成本高。
+
+**决策：本设计的 EmbeddingService 作为 core 级共享基建，同时供两处消费，不各搞一套。**
+
+1. **路由侧**：进程内直接调用（本文 §3）。
+2. **TDAI 侧**：二选一——
+   - 首选（零侵入）：由宿主把共享服务包一层 127.0.0.1 回环 HTTP shim（`POST /v1/embeddings`，OpenAI 兼容），TDAI 配 `provider: "openai"` 指向它，向量召回自动并入现有 hybrid 策略；
+   - 备选（更干净）：`packages/memory` 是自有 workspace，给 TdaiCore 加一个注入外部 EmbeddingService 的口子。
+3. 模型只下载/加载一份，维度以共享模型为准（bge-base-zh-v1.5 = 768），TDAI 的 `dimensions` 配置随之对齐。
+4. 启用顺序：M1–M2 先把路由跑通并积累准确率数据，再开 TDAI 向量召回（配置翻转即可），避免一次动两个系统时无法归因回归。
