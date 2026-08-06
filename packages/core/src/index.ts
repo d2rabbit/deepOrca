@@ -181,6 +181,7 @@ export {
 export {
   SKILL_SPECTOR_MCP_SERVER_NAME,
   buildSkillSpectorMcpServerConfig,
+  configureSkillSpectorLogger,
   configureSkillSpectorUvResolver,
   configureSkillSpectorVendorRoot,
   ensureSkillSpectorInstalled,

@@ -28,6 +28,7 @@ import {
   configureSerenaVendorRoot,
   configureSkillSpectorUvResolver,
   configureSkillSpectorVendorRoot,
+  configureSkillSpectorLogger,
   type MemoryProvider,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
@@ -142,6 +143,12 @@ configureSerenaVendorRoot(join(__dirname, "..", "vendor", "serena"));
 // scripts/vendor-skillspector.js at build time). Installs wheel from GitHub Releases.
 configureSkillSpectorUvResolver(() => resolveUvBinary());
 configureSkillSpectorVendorRoot(join(__dirname, "..", "vendor", "skillspector"));
+// Surface background SkillSpector install failures (e.g. no network / blocked
+// proxy) instead of letting them vanish silently — otherwise the MCP server
+// just never appears with no clue why.
+configureSkillSpectorLogger((message, detail) => {
+  console.error("[skill-spector]", message, detail ?? "");
+});
 
 // Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
 // kick off the vendor scripts in the background at boot so they fetch upstream

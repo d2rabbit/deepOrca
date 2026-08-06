@@ -87,6 +87,17 @@ export function configureSkillSpectorVendorRoot(root: string | null): void {
   installedVersion = null;
 }
 
+// Optional host logger. Core never calls console.* directly (it must stay
+// host-agnostic); the desktop client injects a `[skill-spector]`-prefixed
+// console.error here at boot so background provisioning failures surface
+// instead of vanishing silently. Null in tests/CLI → failures stay quiet.
+let logger: ((message: string, detail?: unknown) => void) | null = null;
+
+/** Inject a host logger for background provisioning diagnostics. */
+export function configureSkillSpectorLogger(log: ((message: string, detail?: unknown) => void) | null): void {
+  logger = log;
+}
+
 /** Resolve the uv binary path (vendored preferred, system fallback), or null if absent. */
 function resolveUvBinary(): string | null {
   if (uvResolver) {
@@ -260,11 +271,11 @@ function isSkillSpectorProvisioned(targetVersion: string): boolean {
 
 let provisioning = false;
 
-/** Single async `uv tool install` attempt. Resolves false on any failure. */
-function tryInstallAsync(uvBinary: string, spec: string): Promise<boolean> {
+/** Single async `uv tool install` attempt. Resolves null on success, an Error on failure. */
+function tryInstallAsync(uvBinary: string, spec: string): Promise<Error | null> {
   return new Promise((resolve) => {
     execFile(uvBinary, ["tool", "install", "--force", spec], { timeout: 300_000, windowsHide: true }, (error) =>
-      resolve(!error)
+      resolve(error ?? null)
     );
   });
 }
@@ -284,14 +295,24 @@ async function provisionSkillSpectorInBackground(uvBinary: string, targetVersion
   provisioning = true;
   try {
     const wheelSpec = `skillspector[mcp] @ ${buildWheelUrl(targetVersion)}`;
-    if (await tryInstallAsync(uvBinary, wheelSpec)) {
+    const wheelErr = await tryInstallAsync(uvBinary, wheelSpec);
+    if (!wheelErr) {
       installedVersion = targetVersion;
       return;
     }
     const gitSpec = `skillspector[mcp] @ git+${SKILLSPECTOR_GIT_URL}@v${targetVersion}`;
-    if (await tryInstallAsync(uvBinary, gitSpec)) {
+    const gitErr = await tryInstallAsync(uvBinary, gitSpec);
+    if (!gitErr) {
       installedVersion = `${targetVersion}-git`;
+      return;
     }
+    // Both install paths failed (likely no network / blocked proxy). Without a
+    // log this is indistinguishable from "uv missing" — the server just never
+    // appears. Surface the wheel error so the host/user can diagnose it.
+    logger?.(
+      `background install failed (v${targetVersion}); SkillSpector MCP will be unavailable until the next reload`,
+      wheelErr instanceof Error ? wheelErr.message : String(wheelErr)
+    );
   } finally {
     provisioning = false;
   }
