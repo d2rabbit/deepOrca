@@ -20,20 +20,21 @@ CodeGraph 是一个代码知识图谱工具，将源代码解析为可查询的�
 
 ## 命令
 
-| 命令 | 用途 |
-|------|------|
-| `codegraph init` | 在当前项目初始化 `.codegraph/` 目录 |
-| `codegraph index` | 索引源代码到图谱（全量） |
-| `codegraph sync` | 增量同步代码变更到图谱 |
+| 命令                    | 用途                                             |
+| ----------------------- | ------------------------------------------------ |
+| `codegraph init`        | 在当前项目初始化 `.codegraph/` 目录              |
+| `codegraph index`       | 索引源代码到图谱（全量）                         |
+| `codegraph sync`        | 增量同步代码变更到图谱                           |
 | `codegraph serve --mcp` | 启动 MCP 服务模式（通常由内置 MCP 注册自动管理） |
-| `codegraph reset` | 重置图谱数据（删除并重建） |
+| `codegraph reset`       | 重置图谱数据（删除并重建）                       |
 
 ## 工作流
 
 1. **初始化**: 在项目根目录运行 `codegraph init`，创建 `.codegraph/` 目录。
 2. **索引**: 运行 `codegraph index` 解析所有源文件，构建符号表和调用关系。
-3. **同步**: 代码变更后运行 `codegraph sync` 增量更新图谱。
-4. **查询**: 图谱构建完成后，CodeGraph MCP 服务器自动激活，Agent 可通过 MCP 工具查询符号、调用链等。
+3. **同步架构图**: 索引完成后，同步运行 `arch-scan` 技能构建工作区的 A2UI 架构图（多视角 + 递归分析）。两者构成完整的工作区索引：CodeGraph 提供符号级查询，arch-scan 提供架构级可视化。
+4. **增量同步**: 代码变更后运行 `codegraph sync` 增量更新图谱；架构变更较大时可重新运行 `arch-scan` 刷新架构图。
+5. **查询**: 图谱构建完成后，CodeGraph MCP 服务器自动激活，Agent 可通过 MCP 工具查询符号、调用链等。
 
 ## 注意事项
 

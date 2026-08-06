@@ -31,6 +31,20 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
 > component trees rendered in-app. See
 > `docs/research/2026-08-06-oh-my-mermaid-research.md`.
 
+## 归属：工作区索引模块
+
+本技能属于 DeepOrca 的**工作区索引**能力域，与 CodeGraph（符号级索引）、OpenWiki（文档级索引）构成三件套：
+
+| 索引层 | 工具                              | 粒度             | 输出                              |
+| ------ | --------------------------------- | ---------------- | --------------------------------- |
+| 符号级 | **CodeGraph** (`codegraph index`) | 函数/类/调用链   | `.codegraph/` 知识图谱 + MCP 查询 |
+| 文档级 | **OpenWiki**                      | 项目文档/wiki    | 文档索引 + MCP 查询               |
+| 架构级 | **arch-scan**（本技能）           | 模块/数据流/依赖 | A2UI Surface 架构图               |
+
+**同步构建**：首次索引项目时，三者一起运行（CodeGraph index → OpenWiki → arch-scan）。架构图与符号索引互补 —— CodeGraph 回答"这个符号在哪/谁调用了它"，arch-scan 回答"整个系统的架构长什么样/数据怎么流动"。
+
+**增量更新**：代码变更后 `codegraph sync` 增量更新符号索引；架构变更较大时重新运行 `arch-scan` 刷新架构图（架构图不每轮自动同步，因为需要 LLM 分析，成本较高）。
+
 ---
 
 ## Step 0: Detect Language

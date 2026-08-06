@@ -1,6 +1,6 @@
 ---
 name: code
-description: "代码行为插件 — 符号导航、风险分析、语义重构、AI 代码审查"
+description: "代码行为插件 — 工作区索引（符号/文档/架构）、风险分析、语义重构、AI 代码审查"
 category: code
 icon: code
 skills:
