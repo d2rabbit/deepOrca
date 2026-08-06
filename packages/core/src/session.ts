@@ -634,6 +634,70 @@ export class SessionManager {
 
   /**
    * G2: route MCP tool definitions for the current turn context.
+  /**
+   * Create an LLMDecomposer for the SkillWeaver SAD pipeline (G3 compositional
+   * routing). Uses the flash model to split a complex query into atomic
+   * sub-tasks, with optional skill hints on the second pass.
+   * Returns null when no LLM client is available (SAD will fail-open).
+   */
+  private createSkillDecomposer(options?: {
+    signal?: AbortSignal;
+    sessionId?: string;
+  }): import("./routing/types.js").LLMDecomposer {
+    return {
+      decompose: async (query, hints) => {
+        const { client, baseURL } = this.createOpenAIClient();
+        if (!client) return null;
+
+        const sysPrompt = `You are a task decomposition assistant. Given a complex user query, break it down into atomic sub-tasks — each requiring exactly one skill/tool to complete.
+Respond in JSON format:
+\`\`\`
+{"steps": ["sub-task 1 description", "sub-task 2 description", ...]}
+\`\`\`
+If the query is simple (single intent), respond with a single-element array.`;
+
+        const userContent =
+          hints && hints.length > 0
+            ? `Available skills that may be relevant:\n${JSON.stringify(
+                hints.map((s) => ({ name: s.name, description: s.description })),
+                null,
+                2
+              )}\n\nQuery: ${query}`
+            : `Query: ${query}`;
+
+        try {
+          const response = await this.createChatCompletionStream(
+            client,
+            {
+              model: LIGHTWEIGHT_TASK_MODEL,
+              temperature: 0.1,
+              max_tokens: 512,
+              messages: [
+                { role: "system", content: sysPrompt },
+                { role: "user", content: userContent },
+              ],
+              response_format: { type: "json_object" },
+              ...buildThinkingRequestOptions(false, baseURL),
+            },
+            options?.signal ? { signal: options.signal } : undefined,
+            options?.sessionId,
+            { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL }
+          );
+
+          const raw = response.choices?.[0]?.message?.content;
+          const text = typeof raw === "string" ? raw : "";
+          const parsed = JSON.parse(text) as { steps?: string[] };
+          const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
+          return steps.map((desc, i) => ({ step: i + 1, description: String(desc) }));
+        } catch {
+          return null; // fail-open
+        }
+      },
+    };
+  }
+
+  /**
+   * G2: route MCP tool definitions for the current turn context.
    * Returns a (possibly reduced) subset of this.mcpToolDefinitions based on
    * embedding relevance. Built-in tools are never routed (they're added by
    * getTools separately). Fail-open: any error → return full list.
@@ -1191,6 +1255,35 @@ If none of the available skills match, respond with an empty array, i.e. \`{"ski
       return [];
     }
     const candidateSkillNames = new Set(simpleSkills.map((skill) => skill.name));
+
+    // G3 compositional routing: for complex multi-step queries, decompose →
+    // retrieve → compose (SkillWeaver pipeline). Returns a plan with per-step
+    // skills; if successful, we return the union of selected skill names
+    // directly (SAD already did the decomposition + classification).
+    // Fail-open (null) → fall through to G1 shortlist + flash LLM.
+    try {
+      const { skillRouter } = await this.getRouters();
+      if (skillRouter) {
+        // Build compositional skills (SkillInfo lacks categories/I-O metadata,
+        // but composeRoute tolerates missing fields).
+        const compSkills = simpleSkills.map((s) => ({ ...s }));
+        // LLM decomposer: uses flash model to split query into atomic sub-tasks.
+        const decomposer = this.createSkillDecomposer(options);
+        const plan = await skillRouter.composeRoute(userPrompt, compSkills, decomposer);
+        if (plan && plan.steps.length > 1) {
+          // Collect all matched skill names from the plan.
+          const matched = new Set<string>();
+          for (const step of plan.steps) {
+            if (step.skill) matched.add(step.skill.name);
+          }
+          if (matched.size > 0) {
+            return [...matched];
+          }
+        }
+      }
+    } catch {
+      // Compositional routing error → fail-open to G1.
+    }
 
     // G1 routing: reduce the candidate pool via embedding recall before sending
     // to the flash LLM. Fail-open (null) → use full simpleSkills list.
