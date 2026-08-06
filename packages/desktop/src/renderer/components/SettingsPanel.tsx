@@ -144,6 +144,17 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "清理:删除 WikiPanel/MermaidDiagram/mermaid 依赖等 412 行死代码;三遍深度审查修复 15+ Bug。",
     ],
   },
+  {
+    version: "v0.8.0",
+    date: "2026-08",
+    changes: [
+      "DeepSeek 前缀缓存强化(借鉴 Reasonix cache-first 理念):将随天变化的日期/模型信息从系统提示前缀剥离,改为每轮瞬态注入到当前用户消息尾部;系统消息按稳定度重排序(AGENTS.md 前置);MCP 工具定义按名称确定序排序。跨天/跨会话的前缀缓存命中率显著提升。",
+      "SkillSpector 后台安装失败不再静默:通过宿主注入的 logger 输出诊断日志,便于排查网络受限导致的 MCP 不可用。",
+      "编辑器修复:加载懒加载 chunk 的 CSS(消除中文输入白色框);文件树改用矢量图标 + VSCode 风格。",
+      "设置页模型池重设计:扁平模型表 + 端点 API Key 复用 + 会话操作 tooltip。",
+      "启动白屏修复:SkillSpector 同步安装改为异步后台执行;工作区列表过滤失效/临时目录;退出增加 5s 看门狗。",
+    ],
+  },
 ];
 
 /**
@@ -157,6 +168,13 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
     zh: "编码智能体内核 —— DeepOrca 在 DeepCode 之上衍生而来,特别致谢 DeepCode 项目。",
     en: "The coding-agent kernel DeepOrca is derived from. Special thanks to the DeepCode project.",
     license: "MIT",
+  },
+  {
+    name: "DeepSeek-Reasonix",
+    zh: "DeepSeek 原生代码智能体 —— 其 cache-first(前缀缓存优先)理念指导了 DeepOrca 的系统提示分层与缓存命中优化。",
+    en: "A DeepSeek-native coding agent — its cache-first principles (stable prefix + transient turn tail) shaped DeepOrca's prompt layering and prefix-cache optimizations.",
+    license: "MIT",
+    url: "https://github.com/esengine/DeepSeek-Reasonix",
   },
   {
     name: "TDAI Core",
