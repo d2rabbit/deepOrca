@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 不引入 omm CLI/Mermaid/`.omm/` 文件树；60/60 结构校验通过
   - 调研详见 `docs/research/2026-08-06-oh-my-mermaid-research.md`
 
+- **DeepSeek 前缀缓存优化（cache-first）** (2026-08-06, `6a9b70f`)
+  - 系统提示前缀按**稳定度排序**（最稳定→最易变），最大化 DeepSeek prefix cache 命中率
+  - 日期 + 模型信息从系统提示前缀**拆出**，改为每轮注入的 transient 尾部消息（不进持久前缀）—— 跨天/切换模型不再破坏缓存
+  - MCP 工具定义排列保持缓存友好；`getStableRuntimeContext()` + `getCurrentTurnTail()` 分离稳定/易变上下文
+  - 直接降低 DeepSeek API 成本（缓存命中段按缓存价计费）+ 降低首 token 延迟
+
 - **Monaco Editor 集成** (2026-07-26, `35fd032`)
   - 集成 Monaco Editor 代码编辑器模块到桌面客户端
   - 支持代码编辑、语法高亮、智能提示

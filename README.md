@@ -89,6 +89,7 @@ DeepOrca 提供三种并列的扩展能力：
 
 - 专门为 DeepSeek 模型性能调优
 - 通过[上下文缓存](https://api-docs.deepseek.com/guides/kv_cache)降低成本
+- **前缀缓存热度优化（cache-first）** — 系统提示按稳定度排序，日期/模型信息拆为每轮 transient 尾部消息，跨天/切模型不破坏 DeepSeek prefix cache，直接降低 API 成本 + 首 token 延迟
 - 原生支持[思考模式](https://api-docs.deepseek.com/guides/thinking_mode)和思考强度控制
 
 ---
