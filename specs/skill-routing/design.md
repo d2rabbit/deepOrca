@@ -36,10 +36,10 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  EmbeddingService（新增，packages/core/src/routing/）         │
 │  • transformers.js feature-extraction，懒加载                 │
-│  • 模型：bge-base-zh-v1.5 int8 ONNX（默认，中文场景）          │
+│  • 模型：granite-embedding-97m-multilingual-r2 ONNX（默认）   │
 │  • 模型文件在 userData 按需下载（vendor 代理兜底）             │
 └──────────────┬──────────────────────────────────────────────┘
-               │ Float32Array[768]
+               │ Float32Array[384]
                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  VectorIndex（纯内存，暴力点积；数百条目 × 768 维 < 1ms）      │
@@ -83,9 +83,12 @@ export interface EmbeddingService {
 ```
 
 - 实现基于 `@huggingface/transformers`（新增 core 依赖，`env.allowLocalModels` 指向下载目录）。
-- 模型选型：默认 `BAAI/bge-base-zh-v1.5`（int8，约 100MB）；备选 `paraphrase-multilingual-MiniLM-L12-v2`（约 50MB，更快）。
-  - **不选** all-MiniLM-L6-v2 / BGE-base-en-v1.5：英文模型，DeepOrca 主场景是中文提示 × 中文技能描述（前序评估 §3.2 的风险结论）。
-- 查询侧前缀：BGE 系列查询需加 `"为这个句子生成表示以用于检索相关文章："` 指令前缀（zh v1.5 官方用法）；文档侧（技能/工具描述）不加。配置项可关。
+- 模型选型（2026-08-06 候选对比后定稿）：默认 **`ibm-granite/granite-embedding-97m-multilingual-r2`**（ONNX，97M 参数，384 维，Apache 2.0，200+ 语言含中文，32K 上下文，<100M 参数档 MTEB 检索最高 60.3）。
+  - 备选/回退：`BAAI/bge-base-zh-v1.5`（中文专精，768 维）——若中文抽查不达标则切换；`Bekko-Embedding a8m/a25m`（MIT，极端轻量）作为低端兜底。
+  - **不选** all-MiniLM-L6-v2 / BGE-base-en-v1.5 / paraphrase-MiniLM：英文模型，DeepOrca 主场景是中文提示 × 中文技能描述（前序评估 §3.2 的风险结论）。
+  - **不选** Potion（model2vec 蒸馏）/ Ogma / FastTextEmbed：代码检索特化或质量不足，且与 transformers.js 运行时不匹配。
+  - Granite 官方随附 ONNX + OpenVINO 权重，transformers.js 可直接加载，无需自导出。
+- 查询侧前缀：Granite 使用 `"query: "` / `"passage: "` 任务前缀（其模型卡约定）；BGE 回退路径则用 `"为这个句子生成表示以用于检索相关文章："`。前缀由模型配置驱动，可关。
 - 加载策略：首次 `embed()` 触发加载；加载中返回 null（fail-open）；加载失败记录并 30 分钟内不再重试。
 - 文本预处理：技能描述截断到 256 token；批量 encode（batch=16）。
 
@@ -150,7 +153,7 @@ const routed = (await this.toolRouter?.select(currentTurnContext, allMcpTools)) 
 
 ### 3.5 模型下载（model-download.ts）
 
-- 目标目录：`getUserConfigRoot()/models/bge-base-zh-v1.5/`（userData 级，不进 git、不进 vendor 构建产物）。
+- 目标目录：`getUserConfigRoot()/models/granite-embedding-97m-multilingual-r2/`（userData 级，不进 git、不进 vendor 构建产物）。
 - 来源：HuggingFace resolve URL（model.onnx + tokenizer 等 4–6 个文件），走现有 vendor 代理兜底模式（参考 `scripts/vendor-*.js` 的 proxy fallback）。
 - 断点续传 + 版本标记文件（`.model-version`）；下载失败保持未就绪态，不阻塞任何功能。
 - 首用 UX：设置页显示「路由模型：未下载 / 下载中 x% / 就绪」，下载只由用户启用开关或首次预热触发。
@@ -163,7 +166,7 @@ const routed = (await this.toolRouter?.select(currentTurnContext, allMcpTools)) 
 {
   "routing": {
     "enabled": true, // 总开关（默认开，模型未就绪时自动 fail-open）
-    "model": "bge-base-zh-v1.5", // | "paraphrase-multilingual-minilm"
+    "model": "granite-97m-multilingual", // | "bge-base-zh-v1.5" | "bekko-a8m"
     "skillTopK": 8, // G1 短名单长度
     "skillMinPool": 12, // 候选数 ≤ 此值不走召回
     "mcpToolGating": true, // G2 开关
@@ -216,5 +219,5 @@ TDAI 记忆的向量召回当前是关闭的（`memory-manager.ts` 里 `embeddin
 2. **TDAI 侧**：二选一——
    - 首选（零侵入）：由宿主把共享服务包一层 127.0.0.1 回环 HTTP shim（`POST /v1/embeddings`，OpenAI 兼容），TDAI 配 `provider: "openai"` 指向它，向量召回自动并入现有 hybrid 策略；
    - 备选（更干净）：`packages/memory` 是自有 workspace，给 TdaiCore 加一个注入外部 EmbeddingService 的口子。
-3. 模型只下载/加载一份，维度以共享模型为准（bge-base-zh-v1.5 = 768），TDAI 的 `dimensions` 配置随之对齐。
+3. 模型只下载/加载一份，维度以共享模型为准（granite-97m = 384），TDAI 的 `dimensions` 配置随之对齐。向量召回当前关闭、无存量索引，切换维度无迁移负担。
 4. 启用顺序：M1–M2 先把路由跑通并积累准确率数据，再开 TDAI 向量召回（配置翻转即可），避免一次动两个系统时无法归因回归。
