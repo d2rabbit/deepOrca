@@ -102,6 +102,8 @@ import {
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
+import { DEFAULT_ROUTING_CONFIG, type RoutingConfig, type RoutableTool } from "./routing";
+import { createRouters, type RouterBundle } from "./routing";
 
 export type { PermissionScope } from "./settings";
 export type {
@@ -451,6 +453,7 @@ type SessionManagerOptions = {
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
     enabledSkills?: Record<string, boolean>;
+    routing?: import("./settings.js").RoutingSettings;
   };
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
@@ -507,6 +510,7 @@ export class SessionManager {
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
     enabledSkills?: Record<string, boolean>;
+    routing?: import("./settings.js").RoutingSettings;
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -523,6 +527,9 @@ export class SessionManager {
   private readonly toolExecutor: ToolExecutor;
   private readonly mcpManager = new McpManager();
   private mcpToolDefinitions: ToolDefinition[] = [];
+  /** Skill/tool routers (lazy-initialized; null when routing disabled/unavailable). */
+  private routerBundle: RouterBundle | null = null;
+  private routerInitPromise: Promise<RouterBundle> | null = null;
   /** Sessions that mutated files during the current turn and need a CodeGraph index sync. */
   private readonly codegraphDirtySessions = new Set<string>();
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
@@ -568,6 +575,106 @@ export class SessionManager {
    */
   setMemoryProvider(provider: MemoryProvider | null): void {
     this.memoryProvider = provider;
+  }
+
+  /**
+   * Lazily initialize and return the skill/tool router bundle.
+   * Returns null when routing is disabled or the embedding package is
+   * unavailable — callers must fail-open (use full candidate sets).
+   *
+   * The model directory is resolved from the vendored path relative to the
+   * desktop app, or from DEEPORCA_ROUTING_MODEL_DIR env (for dev/CLI use).
+   */
+  private async getRouters(): Promise<RouterBundle> {
+    if (this.routerBundle) return this.routerBundle;
+    if (this.routerInitPromise) return this.routerInitPromise;
+
+    this.routerInitPromise = (async () => {
+      const settings = this.getResolvedSettings();
+      const routingRaw = settings.routing ?? {};
+      const config: RoutingConfig = {
+        ...DEFAULT_ROUTING_CONFIG,
+        ...routingRaw,
+        pinnedServers: routingRaw.pinnedServers ?? DEFAULT_ROUTING_CONFIG.pinnedServers,
+      };
+      const modelDir =
+        process.env.DEEPORCA_ROUTING_MODEL_DIR ??
+        process.env.DEEPCODE_ROUTING_MODEL_DIR ??
+        // Vendored path: resolve relative to this source file.
+        // dist/ is under packages/core; vendor is under packages/desktop.
+        (() => {
+          try {
+            const { join, dirname } = require("node:path") as typeof import("node:path");
+            const { fileURLToPath } = require("node:url") as typeof import("node:url");
+            const here = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+            return join(here, "..", "..", "packages", "desktop", "vendor", "granite-embedding");
+          } catch {
+            return "";
+          }
+        })();
+      // Cache dir: project-level .deeporca/cache (best-effort).
+      const cacheDir = (() => {
+        try {
+          const { join } = require("node:path") as typeof import("node:path");
+          return join(this.projectRoot, ".deeporca", "cache");
+        } catch {
+          return undefined;
+        }
+      })();
+      const bundle = await createRouters(config, { modelDir, cacheDir });
+      this.routerBundle = bundle;
+      return bundle;
+    })();
+
+    return this.routerInitPromise.catch(() => {
+      this.routerInitPromise = null;
+      return { skillRouter: null, toolRouter: null } as RouterBundle;
+    });
+  }
+
+  /**
+   * G2: route MCP tool definitions for the current turn context.
+   * Returns a (possibly reduced) subset of this.mcpToolDefinitions based on
+   * embedding relevance. Built-in tools are never routed (they're added by
+   * getTools separately). Fail-open: any error → return full list.
+   */
+  private async getRoutedMcpTools(sessionId: string): Promise<ToolDefinition[]> {
+    const all = this.mcpToolDefinitions;
+    if (all.length === 0) return all;
+    try {
+      const { toolRouter } = await this.getRouters();
+      if (!toolRouter) return all;
+
+      // Build turn context: last user message + last assistant message.
+      const msgs = this.listSessionMessages(sessionId);
+      let userMessage = "";
+      let assistantSummary = "";
+      for (let i = msgs.length - 1; i >= 0 && (!userMessage || !assistantSummary); i--) {
+        const m = msgs[i]!;
+        if (m.role === "user" && !userMessage) {
+          userMessage = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        } else if (m.role === "assistant" && !assistantSummary) {
+          const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+          assistantSummary = text.slice(0, 512);
+        }
+      }
+      if (!userMessage) return all; // no context → fail-open
+
+      const routable: RoutableTool[] = all.map((t) => ({
+        name: t.function.name,
+        description: t.function.description ?? "",
+        serverName: t.function.name.startsWith("mcp__") ? t.function.name.split("__")[1] : undefined,
+      }));
+
+      const selected = await toolRouter.select({ userMessage, assistantSummary }, routable);
+      if (!selected) return all; // undefined → fail-open
+
+      // Filter original definitions to selected names.
+      const selectedNames = new Set(selected.map((t) => t.name));
+      return all.filter((t) => selectedNames.has(t.function.name));
+    } catch {
+      return all; // fail-open
+    }
   }
 
   /** True when the memory provider is available. */
@@ -1085,6 +1192,21 @@ If none of the available skills match, respond with an empty array, i.e. \`{"ski
     }
     const candidateSkillNames = new Set(simpleSkills.map((skill) => skill.name));
 
+    // G1 routing: reduce the candidate pool via embedding recall before sending
+    // to the flash LLM. Fail-open (null) → use full simpleSkills list.
+    let pool = simpleSkills;
+    try {
+      const { skillRouter } = await this.getRouters();
+      if (skillRouter) {
+        const shortlist = await skillRouter.shortlist(userPrompt, simpleSkills);
+        if (shortlist && shortlist.length > 0) {
+          pool = shortlist;
+        }
+      }
+    } catch {
+      // Routing error → fail-open, use full pool.
+    }
+
     const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
     if (!client) {
       return [];
@@ -1103,7 +1225,7 @@ ${agentInstructions}
 `;
     }
     systemPrompt += "The candidate skills are as follows:\n\n";
-    systemPrompt += "```\n" + JSON.stringify(simpleSkills, null, 2) + "\n```";
+    systemPrompt += "```\n" + JSON.stringify(pool, null, 2) + "\n```";
 
     try {
       const response = await this.createChatCompletionStream(
@@ -2250,7 +2372,7 @@ ${content}
             model,
             ...(temperature !== undefined ? { temperature } : {}),
             messages,
-            tools: getTools(this.getPromptToolOptions(), this.mcpToolDefinitions),
+            tools: getTools(this.getPromptToolOptions(), await this.getRoutedMcpTools(sessionId)),
             ...thinkingOptions,
           },
           { signal: sessionController.signal },

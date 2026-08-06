@@ -118,6 +118,27 @@ export type DeepcodingSettings = {
   secondaryModel?: string;
   /** Which endpoint the secondary model uses. Falls back to primary if unset. */
   secondaryEndpointId?: string;
+  /** Skill/tool routing config (embedding-based context reduction). */
+  routing?: RoutingSettings;
+};
+
+/**
+ * Routing settings — controls embedding-based skill/tool recall.
+ * All fields optional; merged with DEFAULT_ROUTING_CONFIG at runtime.
+ */
+export type RoutingSettings = {
+  /** Master switch (default true). */
+  enabled?: boolean;
+  /** G1: skill shortlist size (default 8). */
+  skillTopK?: number;
+  /** G1: skip routing when candidate count ≤ this (default 12). */
+  skillMinPool?: number;
+  /** G2: MCP tool gating switch (default true). */
+  mcpToolGating?: boolean;
+  /** G2: token budget threshold for full injection (default 2000). */
+  mcpTokenBudget?: number;
+  /** G2: server names that always pass through (never gated). */
+  pinnedServers?: string[];
 };
 
 export type ResolvedDeepcodingSettings = {

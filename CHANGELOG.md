@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能
 
+- **本地向量嵌入模型 (Granite 97M R2)** (2026-08-06)
+  - 新增 `@deeporca/embedding` workspace 包：transformers.js + onnxruntime-node，IBM Granite Embedding 97M multilingual R2（384 维，Apache 2.0，200+ 语言含中文）
+  - 构建期 vendor 模型（`scripts/vendor-granite.js`，hf-mirror 兜底），不走运行时下载
+  - 接入 memory 包 sqlite-vec 后端（`provider: "local-onnx"`），Fail-open 契约与现有 LocalEmbeddingService 一致
+  - 记忆召回测试：20 条中文记忆 × 12 条查询，向量召回命中率 100%（FTS 关键词召回 0%，语义同义改写场景向量完胜）
+  - 新增 `scripts/test-embedding.mjs`（模型冒烟）+ `scripts/test-recall.mjs`（召回准确率对比）
+
+- **技能/工具语义路由 (SkillRouter + ToolRouter)** (2026-08-06)
+  - 新增 `packages/core/src/routing/` 模块：基于 embedding 的技能/工具召回，减少每轮注入 LLM 的上下文
+  - **G1 SkillRouter**：技能数 > 阈值时用 embedding 召回 top-K 短名单，flash LLM 只精排短名单（`identifyMatchingSkillNames` 集成）
+  - **G2 ToolRouter**：MCP 工具按服务器级召回，token 超预算时只注入相关服务器工具（`activateSession` getTools 集成）
+  - 纯内存余弦索引 + 磁盘缓存（`VectorIndex`），28 个单测全过
+  - 配置：`settings.routing`（enabled/skillTopK/skillMinPool/mcpToolGating/mcpTokenBudget/pinnedServers）
+  - 全程 fail-open：模型未就绪/加载失败/任何异常 → 回退全量候选，行为与路由前逐字节一致
+  - **G3 组合路由（M4，SkillWeaver Decompose-Retrieve-Compose 三阶段管线）**：
+    - **SAD（迭代技能感知分解）**：复杂查询 → LLM 拆解原子子任务 + 技能 hint 反馈循环（Jaccard 收敛判断，论文 Algorithm 1）
+    - **Retrieve**：bi-encoder top-K 召回（复用 VectorIndex）
+    - **Compose（兼容性规划）**：Eq.4 选择目标 `α·sim + (1-α)·compat`，三种兼容性度量（I/O 类型 coercion + category Jaccard + keyword 共现）+ DAG 依赖检测
+    - `SkillRouter.composeRoute()` 组合入口；单步查询自动降级为 shortlist()
+
 - **Monaco Editor 集成** (2026-07-26, `35fd032`)
   - 集成 Monaco Editor 代码编辑器模块到桌面客户端
   - 支持代码编辑、语法高亮、智能提示
@@ -162,9 +182,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 提交历史详录
 
 ### 2026-07-27
+
 - `e48de0a` - docs: 重构 README + 新增 CHANGELOG
 
 ### 2026-07-26
+
 - `015162b` - docs: 更新 Feature 路线图 v2.1 + 官网交互优化
 - `35fd032` - feat(desktop): 集成 Monaco Editor 代码编辑器模块
 - `18875b2` - docs: update README, GitHub Pages site, and add CI/CD workflows
@@ -172,6 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bcba151` - feat(desktop): 8-item UI enhancement round + vendored openwiki & flutter skills
 
 ### 2026-07-25
+
 - `2062418` - docs: 重写 Feature 路线图 v2 — 8 个项目直接集成方案（含 CLI-Anything/openwiki/open-design）
 - `005bf33` - docs: 修正 Feature 路线图 — 5 个项目定位为直接集成而非参考
 - `92fc182` - docs: 新增 Feature 规划路线图 — 5 个开源项目集成调研 + 近期开发计划
@@ -179,12 +202,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `99051a3` - feat(desktop): integrate Open Code Review plugin + code review panel; Glass Prism theme; research docs
 
 ### 2026-07-24
+
 - `809324d` - feat: GitHub Pages 官网 + 修复 readSkillDoc ENOENT
 - `f51d16b` - fix(codegraph): 修复 Electron 中 codegraph init 命令拼接错误
 - `821d97b` - fix(desktop): 当前工作区始终显示在会话列表中
 - `5d2d0d6` - feat(desktop): 深化 UI 组件交互与 core 能力整合 (v12-v22)
 
 ### 2026-07-23
+
 - `7e36b79` - fix(desktop): fix macOS traffic light buttons not clickable
 - `92b0d76` - merge: integrate main branch (index reset + visualization + compaction model) into qoder
 - `0bc7713` - feat: fix index reset, add visualization pipeline, and use fixed compaction model
@@ -200,3 +225,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `6b2bfaa` - fix(desktop): distinct index icon + don't inject cwd as empty workspace
 - `2d5b56f` - style(desktop): drop accent tile backgrounds from Fusion topbar badges
 - `0231517` - fix(desktop): make Fusion glass frosted, not see-through
+
+---
+
+## 致谢 / Acknowledgements
+
+### SkillWeaver — Compositional Skill Routing
+
+DeepOrca 的技能/工具语义路由（`packages/core/src/routing/`，G1-G3）在设计上借鉴了以下论文提出的 **Decompose-Retrieve-Compose** 三阶段组合路由框架：
+
+> **Xueping Gao** (Alibaba Cloud). _"Compositional Skill Routing for LLM Agents: Decompose, Retrieve, and Compose."_ 2026.
+> 📄 论文：[arxiv.org/abs/2606.18051](https://arxiv.org/abs/2606.18051) · HTML 全文：[arxiv.org/html/2606.18051v1](https://arxiv.org/html/2606.18051v1)
+
+具体复现/参考的论文组件：
+
+| 论文组件                                                           | DeepOrca 实现                                                                                                           | 文件                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **SAD**（Iterative Skill-Aware Decomposition，§3.1 + Algorithm 1） | `runSad()` —— LLM 拆原子子任务 + 技能 hint 反馈循环 + Jaccard 收敛判断                                                  | `packages/core/src/routing/sad.ts`          |
+| **Retrieve**（bi-encoder top-K，§3.2）                             | `VectorIndex.query()` —— 复用 G1/G2 的纯内存余弦索引                                                                    | `packages/core/src/routing/vector-index.ts` |
+| **Compose**（compatibility-aware planner，§3.3 + Eq.4）            | `composePlan()` —— `α·sim + (1-α)·compat` 选择目标 + I/O 类型 coercion + category Jaccard + keyword 共现 + DAG 依赖检测 | `packages/core/src/routing/composer.ts`     |
+| **CompSkillBench 评测指标**（CatR@k / DA，§4）                     | 召回准确率抽查门槛参考（top-8 命中率 ≥ 90%）                                                                            | `specs/skill-routing/design.md` §5          |
+
+**与论文的差异（适配 DeepOrca 场景）：**
+
+- **Embedding 模型**：论文用 `all-MiniLM-L6-v2`（英文 384 维）；DeepOrca 用 `IBM Granite Embedding 97M multilingual R2`（384 维，200+ 语言含中文）—— 主场景是中文提示 × 中文技能描述。
+- **索引**：论文用 FAISS `IndexFlatIP`；DeepOrca 用纯内存暴力点积（规模足够，无原生依赖）。
+- **Fail-open**：论文未强调；DeepOrca 全程 fail-open（模型未就绪/异常 → 回退全量候选），保证路由是纯增益、绝不搞挂会话。
+- **工具级路由（G2）**：论文只做技能级；DeepOrca 额外实现了 MCP 工具的服务器级路由（避免半个服务器的工具链断裂）。
+
+感谢 SkillWeaver 作者团队（Xueping Gao，Alibaba Cloud）公开了清晰的方法论与实验细节，使本实现得以在工程层面忠实复现。任何实现层面的偏差由 DeepOrca 项目自行负责。
