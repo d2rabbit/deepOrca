@@ -65,6 +65,11 @@ export interface TdaiCoreOptions {
   sessionFilter?: SessionFilter;
   /** Plugin instance ID for metric reporting. */
   instanceId?: string;
+  /**
+   * Granite model root directory (HF mirror layout) for embedding
+   * provider="local-onnx". Optional; defaults to <dataDir>/models.
+   */
+  graniteModelDir?: string;
 }
 
 // ============================
@@ -79,6 +84,7 @@ export class TdaiCore {
   private runnerFactory: LLMRunnerFactory;
   private sessionFilter: SessionFilter;
   private instanceId?: string;
+  private graniteModelDir?: string;
 
   // Lazy-initialized resources
   private vectorStore?: IMemoryStore;
@@ -129,6 +135,7 @@ export class TdaiCore {
     this.runnerFactory = opts.hostAdapter.getLLMRunnerFactory();
     this.sessionFilter = opts.sessionFilter ?? new SessionFilter([]);
     this.instanceId = opts.instanceId;
+    this.graniteModelDir = opts.graniteModelDir;
   }
 
   // ============================
@@ -402,7 +409,7 @@ export class TdaiCore {
 
   private async initStores(): Promise<void> {
     try {
-      const stores = await initStores(this.cfg, this.dataDir, this.logger);
+      const stores = await initStores(this.cfg, this.dataDir, this.logger, this.graniteModelDir);
       this.vectorStore = stores.vectorStore;
       this.embeddingService = stores.embeddingService;
       this.logger.debug?.(

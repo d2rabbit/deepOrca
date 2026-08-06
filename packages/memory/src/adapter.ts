@@ -37,6 +37,19 @@ export interface DeepOrcaMemoryConfig {
   userId?: string;
   /** Default workspace directory. */
   workspaceDir?: string;
+  /**
+   * Embedding configuration for vector recall.
+   * - `provider: "none"` (default): no embedding, vector search disabled.
+   * - `provider: "local-onnx"`: Granite 97M R2 via @deeporca/embedding.
+   *   Requires `graniteModelDir` (vendored model path) when set.
+   */
+  embedding?: { provider: "none" | "local-onnx"; dimensions?: number };
+  /**
+   * Granite model root directory (HF mirror layout) for provider="local-onnx".
+   * In the desktop app this is the vendored path
+   * (…/vendor/granite-embedding). Ignored when provider !== "local-onnx".
+   */
+  graniteModelDir?: string;
 }
 
 // ── LLMRunner ────────────────────────────────────────────────────────────────

@@ -350,9 +350,11 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
 
   // provider="none" → embedding disabled (default for zero-config users)
   // provider="local" → no longer exposed to users; treated as disabled at entry level
+  // provider="local-onnx" → Granite 97M R2 via @deeporca/embedding (vendored ONNX)
   // provider="qclaw" → requires proxyUrl for local proxy forwarding
   // Any other value → remote mode (requires apiKey, baseUrl, model, dimensions)
   let embeddingProvider: string;
+  let embeddingForcedDimensions: number | undefined;
   let embeddingEnabled = bool(embeddingGroup, "enabled") ?? true;
 
   if (embeddingProviderRaw === "none") {
@@ -360,13 +362,22 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
     embeddingProvider = "none";
     embeddingEnabled = false;
   } else if (embeddingProviderRaw === "local") {
-    // Local embedding is not exposed to users; treat as disabled at entry level.
+    // Local embedding (node-llama-cpp) is not exposed to users; treat as disabled at entry level.
     // Internal LocalEmbeddingService code is preserved but not reachable from config.
     embeddingProvider = "none";
     embeddingEnabled = false;
     embeddingConfigError =
       "Local embedding provider is not available in user config. " +
       "Please configure a remote embedding provider (e.g. openai, deepseek). Embedding has been disabled.";
+  } else if (embeddingProviderRaw === "local-onnx") {
+    // Local ONNX embedding (Granite 97M R2 via @deeporca/embedding / transformers.js).
+    // Model files are vendored at build time; no remote API credentials needed.
+    // Dimensions default to 384 (Granite); override via the `dimensions` config field.
+    embeddingProvider = "local-onnx";
+    // Force dimensions to 384 when not explicitly set (Granite's output dim).
+    if (embeddingDimensionsRaw == null || embeddingDimensionsRaw <= 0) {
+      embeddingForcedDimensions = 384;
+    }
   } else if (embeddingProviderRaw === "qclaw") {
     // qclaw provider: requires proxyUrl for local proxy forwarding
     const missingFields: string[] = [];
@@ -413,7 +424,9 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
   // creation entirely (deferred until a real embedding provider is configured).
   // This avoids creating vec0 tables with a placeholder dimension that would
   // mismatch if the user later enables a different-dimensional provider.
-  const defaultDimensions = embeddingProvider === "none" ? 0 : (embeddingDimensionsRaw ?? 0);
+  // For local-onnx, dimensions default to 384 (Granite) when unset.
+  const defaultDimensions =
+    embeddingProvider === "none" ? 0 : (embeddingForcedDimensions ?? embeddingDimensionsRaw ?? 0);
   const defaultModel = embeddingProvider === "none" ? "" : embeddingModelRaw;
 
   const cleanTime = normalizeCleanTime(str(captureGroup, "cleanTime")) ?? "03:00";

@@ -269,6 +269,9 @@ async function run() {
   // check below is just a no-op marker — the actual file lives at
   // packages/core/templates/plugins/work/skills/bento-slides/references/.
   ensureVendored("bento", [".vendored-bento-version"], "bundled template (offline)");
+  // Granite Embedding 97M R2 (ONNX): local embedding model for memory recall.
+  // Downloaded via hf-mirror fallback; powers @deeporca/embedding (transformers.js).
+  ensureVendored("granite", [".vendored-granite-version"], "online model download (hf-mirror fallback)");
   if (isDev) {
     await cleanRendererChunks();
     const contexts = await Promise.all([

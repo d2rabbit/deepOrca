@@ -37,13 +37,14 @@ export class MemoryManager {
     // cast it via `as unknown as MemoryTdaiConfig`, leaving pipeline/store
     // code reading undefined timeouts, embedding dimensions, dedup settings,
     // etc. — which could produce NaN delays or eager tight-looping.
+    const embeddingCfg = this.config.embedding ?? { enabled: false, provider: "none" };
     const tdaiConfig = parseConfig({
       capture: { enabled: true },
       extraction: { enabled: true },
       persona: { triggerEveryN: 50 },
       pipeline: { everyNConversations: 5 },
       recall: { enabled: true, strategy: "hybrid", timeoutMs: 5000 },
-      embedding: { enabled: false, provider: "none" },
+      embedding: embeddingCfg,
       storeBackend: "sqlite",
       bm25: { enabled: true, language: "zh" },
       memoryCleanup: { enabled: false },
@@ -55,6 +56,7 @@ export class MemoryManager {
     this.core = new TdaiCore({
       hostAdapter: this.adapter,
       config: tdaiConfig,
+      graniteModelDir: this.config.graniteModelDir,
     });
 
     await this.core.initialize();

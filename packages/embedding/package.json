@@ -1,0 +1,28 @@
+{
+  "name": "@deeporca/embedding",
+  "version": "0.1.0",
+  "description": "DeepOrca local embedding — transformers.js + ONNX (Granite 97M R2)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p ./ --noEmit",
+    "build": "tsc -p ./",
+    "test": "node src/tests/run-tests.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "onnxruntime-node": "^1.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^6.0.3"
+  }
+}

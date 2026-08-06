@@ -35,13 +35,15 @@ export interface StoreBundle {
  * based on plugin configuration.
  *
  * @param config       Fully resolved plugin config.
- * @param options.dataDir    Plugin data directory.
- * @param options.logger     Logger instance.
+ * @param options.dataDir          Plugin data directory.
+ * @param options.logger           Logger instance.
+ * @param options.graniteModelDir  Model root for provider="local-onnx" (HF mirror layout).
+ *                                 When omitted, defaults to <dataDir>/models.
  */
-export function createStoreBundle(
+export async function createStoreBundle(
   config: MemoryTdaiConfig,
-  options: { dataDir: string; logger?: StoreLogger }
-): StoreBundle {
+  options: { dataDir: string; logger?: StoreLogger; graniteModelDir?: string }
+): Promise<StoreBundle> {
   const { logger } = options;
 
   // ── BM25 local encoder ──
@@ -93,7 +95,36 @@ export function createStoreBundle(
     default: {
       // ── Embedding service (only when enabled) ──
       let embeddingService: EmbeddingService | undefined;
-      if (config.embedding.enabled && config.embedding.provider !== "local" && config.embedding.apiKey) {
+
+      // local-onnx: Granite 97M R2 via @deeporca/embedding (transformers.js).
+      // Model files are vendored at build time; dynamic import keeps
+      // transformers.js + onnxruntime-node out of the load path when unused.
+      if (config.embedding.enabled && config.embedding.provider === "local-onnx") {
+        const modelDir = options.graniteModelDir ?? path.join(options.dataDir, "models");
+        try {
+          const { TransformersEmbeddingService } = await import("@deeporca/embedding");
+          const svc = new TransformersEmbeddingService({
+            modelDir,
+            logger: logger as unknown as {
+              debug?: (m: string) => void;
+              info: (m: string) => void;
+              warn: (m: string) => void;
+              error: (m: string) => void;
+            },
+          });
+          // Trigger background model load; embed() will throw EmbeddingNotReadyError
+          // (caught by callers → fail-open to BM25/FTS) until ready.
+          svc.startWarmup();
+          embeddingService = svc as unknown as EmbeddingService;
+          logger?.debug?.(`${TAG} local-onnx embedding created (modelDir=${modelDir}), warmup started`);
+        } catch (err) {
+          // @deeporca/embedding not installed or load failure → fail-open (no embedding).
+          logger?.warn?.(
+            `${TAG} Failed to load @deeporca/embedding: ${err instanceof Error ? err.message : String(err)}. ` +
+              `Falling back to no embedding (BM25/FTS only).`
+          );
+        }
+      } else if (config.embedding.enabled && config.embedding.provider !== "local" && config.embedding.apiKey) {
         embeddingService = createEmbeddingService(
           {
             provider: config.embedding.provider,

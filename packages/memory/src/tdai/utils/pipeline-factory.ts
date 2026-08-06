@@ -67,6 +67,12 @@ export interface PipelineFactoryOptions {
   l1LlmRunner?: import("../core/types.js").LLMRunner;
   /** Host-neutral LLM runner for L2/L3 (tool-call enabled, enableTools=true). */
   l2l3LlmRunner?: import("../core/types.js").LLMRunner;
+  /**
+   * Granite model root directory (HF mirror layout) for provider="local-onnx".
+   * Required only when the embedding provider is local-onnx; defaults to
+   * <pluginDataDir>/models when omitted.
+   */
+  graniteModelDir?: string;
 }
 
 // ============================
@@ -135,11 +141,12 @@ const _storeInitCache = new Map<string, Promise<StoreInitResult>>();
 export function initStores(
   cfg: MemoryTdaiConfig,
   pluginDataDir: string,
-  logger: PipelineLogger
+  logger: PipelineLogger,
+  graniteModelDir?: string
 ): Promise<StoreInitResult> {
   const key = pluginDataDir;
   if (!_storeInitCache.has(key)) {
-    _storeInitCache.set(key, _doInitStores(cfg, pluginDataDir, logger));
+    _storeInitCache.set(key, _doInitStores(cfg, pluginDataDir, logger, graniteModelDir));
   }
   return _storeInitCache.get(key)!;
 }
@@ -168,7 +175,8 @@ export function resetStores(pluginDataDir?: string): void {
 async function _doInitStores(
   cfg: MemoryTdaiConfig,
   pluginDataDir: string,
-  logger: PipelineLogger
+  logger: PipelineLogger,
+  graniteModelDir?: string
 ): Promise<StoreInitResult> {
   let vectorStore: IMemoryStore | undefined;
   let embeddingService: EmbeddingService | undefined;
@@ -176,9 +184,10 @@ async function _doInitStores(
   let reindexReason: string | undefined;
 
   try {
-    const bundle = createStoreBundle(cfg, {
+    const bundle = await createStoreBundle(cfg, {
       dataDir: pluginDataDir,
       logger,
+      graniteModelDir,
     });
     vectorStore = bundle.store;
     embeddingService = bundle.embedding ?? undefined;
@@ -690,13 +699,13 @@ export function createPipelineManager(
  * and `createL3Runner()` from this module.
  */
 export async function createPipeline(opts: PipelineFactoryOptions): Promise<PipelineInstance> {
-  const { pluginDataDir, cfg, openclawConfig, logger, sessionFilter, l1LlmRunner } = opts;
+  const { pluginDataDir, cfg, openclawConfig, logger, sessionFilter, l1LlmRunner, graniteModelDir } = opts;
 
   // Ensure data directories exist
   initDataDirectories(pluginDataDir);
 
   // Initialize stores (once-async: reuses cached result if already initialized)
-  const stores = await initStores(cfg, pluginDataDir, logger);
+  const stores = await initStores(cfg, pluginDataDir, logger, graniteModelDir);
   const { vectorStore, embeddingService } = stores;
 
   // Create pipeline manager
