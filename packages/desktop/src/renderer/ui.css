@@ -7650,10 +7650,10 @@ button.ui-topbar-pill {
 }
 
 /* ── Editor file entry selected state ───────────────────────────────────── */
+/* (see the file-tree block below — background/inset-bar live there) */
 
 .ui-editor-file-entry.is-selected {
   background: var(--ui-accent-soft);
-  color: var(--ui-accent);
 }
 
 .ui-editor-file-entry.is-selected:hover {
@@ -7782,13 +7782,16 @@ button.ui-topbar-pill {
 .ui-editor-file-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
+  gap: 7px;
+  padding: 3px 10px;
   cursor: pointer;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12.5px;
+  line-height: 22px;
   color: var(--ui-text);
-  transition: background 0.1s ease;
+  transition:
+    background 0.1s ease,
+    box-shadow 0.15s ease;
 }
 
 .ui-editor-file-entry:hover {
@@ -7801,7 +7804,18 @@ button.ui-topbar-pill {
 
 .ui-editor-file-icon {
   flex-shrink: 0;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ui-text-faint);
+}
+
+.ui-editor-file-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ui-editor-file-icon.is-dir {
+  color: var(--ui-text-dim);
 }
 
 .ui-editor-file-name {
@@ -7811,10 +7825,18 @@ button.ui-topbar-pill {
   white-space: nowrap;
 }
 
-.ui-editor-file-size {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--ui-text-dim);
+/* Selected file: accent wash + inset bar, same language as the session list. */
+.ui-editor-file-entry.is-selected {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+
+.ui-editor-file-entry.is-selected:hover {
+  background: var(--ui-accent-soft);
+}
+
+.ui-editor-file-entry.is-selected .ui-editor-file-icon {
+  color: var(--ui-accent);
 }
 
 /* ── Diff overlay action button ─────────────────────────────────────────── */
