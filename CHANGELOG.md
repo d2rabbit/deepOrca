@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **Compose（兼容性规划）**：Eq.4 选择目标 `α·sim + (1-α)·compat`，三种兼容性度量（I/O 类型 coercion + category Jaccard + keyword 共现）+ DAG 依赖检测
     - `SkillRouter.composeRoute()` 组合入口；单步查询自动降级为 shortlist()
 
+- **架构扫描技能 (arch-scan) + 工作区索引三步** (2026-08-06)
+  - 新增 `arch-scan` skill（`packages/core/templates/plugins/code/skills/arch-scan/`）：采用 oh-my-mermaid（omm）的 12 视角目录 + 递归下钻 + 7 字段元数据方法论，**渲染用 A2UI**（非 Mermaid + CLI），输出 A2UI Surface（可嵌套组件树）
+  - 构建索引按钮三步顺序执行：**索引（CodeGraph）→ Wiki（OpenWiki）→ 架构图（arch-scan）**；arch-scan 仅首次索引触发，fire-and-forget（LLM 任务不阻塞面板）
+  - 不引入 omm CLI/Mermaid/`.omm/` 文件树；60/60 结构校验通过
+  - 调研详见 `docs/research/2026-08-06-oh-my-mermaid-research.md`
+
 - **Monaco Editor 集成** (2026-07-26, `35fd032`)
   - 集成 Monaco Editor 代码编辑器模块到桌面客户端
   - 支持代码编辑、语法高亮、智能提示
