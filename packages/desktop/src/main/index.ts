@@ -352,6 +352,8 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
 
     // Dynamically import @deeporca/memory (avoids hard dep if not installed).
     const { MemoryManager } = await import("@deeporca/memory");
+    // Vendored Granite model path (HF mirror layout) for embedding provider "local-onnx".
+    const graniteModelDir = join(__dirname, "..", "vendor", "granite-embedding");
     // Project-scoped data dir: each project gets its own memory store so a
     // secret/fact learned in project A cannot be recalled while working in
     // project B. Earlier code used a single global dir (~/.deeporca/memory)
@@ -363,6 +365,12 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
       model: settings.secondaryModel || "deepseek-v4-flash",
       dataDir,
       workspaceDir: getBridge().projectRoot,
+      // Embedding provider: "local-onnx" enables Granite vector recall (hybrid
+      // vector+keyword). "none" (default) keeps keyword-only (BM25/FTS). The
+      // model starts in the background via startWarmup() — non-blocking.
+      embedding: settings.memory?.embedding === "local-onnx" ? { provider: "local-onnx" } : { provider: "none" },
+      // Vendored Granite model path (HF mirror layout).
+      graniteModelDir: settings.memory?.embedding === "local-onnx" ? graniteModelDir : undefined,
     });
     await mgr.init();
     memoryManager = mgr;

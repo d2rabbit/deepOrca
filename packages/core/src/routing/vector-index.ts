@@ -95,7 +95,7 @@ export class VectorIndex {
 
     let queryVec: Float32Array;
     try {
-      queryVec = await this.embeddingService.embed(text);
+      queryVec = await (this.embeddingService.embedQuery ?? this.embeddingService.embed)(text);
     } catch {
       return [];
     }

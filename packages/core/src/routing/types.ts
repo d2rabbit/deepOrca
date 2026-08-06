@@ -128,6 +128,8 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
 
 export interface RoutingEmbeddingService {
   embed(text: string): Promise<Float32Array>;
+  /** Query encoding (optional — falls back to embed when absent). */
+  embedQuery?(text: string): Promise<Float32Array>;
   embedBatch(texts: string[]): Promise<Float32Array[]>;
   getDimensions(): number;
   isReady(): boolean;

@@ -92,6 +92,15 @@ export type MemorySettings = {
   port?: number;
   /** Bearer token for Gateway auth (optional). */
   apiKey?: string;
+  /**
+   * Embedding provider for vector recall:
+   * - `"none"` (default): no embedding, vector search disabled (BM25/FTS only).
+   * - `"local-onnx"`: Granite 97M R2 local embedding via @deeporca/embedding.
+   *   Enables hybrid vector+keyword recall. The model is vendored at build time;
+   *   setting this to "local-onnx" starts the model in the background.
+   *   Set back to "none" to stop the model and revert to keyword-only recall.
+   */
+  embedding?: "none" | "local-onnx";
 };
 
 export type DeepcodingSettings = {
@@ -490,6 +499,7 @@ function mergeMemory(
     userId: project?.userId ?? user?.userId ?? "",
     port: project?.port ?? user?.port ?? 8420,
     apiKey: project?.apiKey ?? user?.apiKey ?? "",
+    embedding: project?.embedding ?? user?.embedding ?? "none",
   };
 }
 

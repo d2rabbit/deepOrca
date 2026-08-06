@@ -27,9 +27,15 @@ export interface EmbeddingProviderInfo {
 }
 
 export interface EmbeddingService {
-  /** Get embedding for a single text */
+  /** Get embedding for a single text (document/passage encoding). */
   embed(text: string, options?: EmbeddingCallOptions): Promise<Float32Array>;
-  /** Get embeddings for multiple texts (batched API call) */
+  /**
+   * Get embedding for a search query (query encoding with "query:" prefix).
+   * Use for retrieval queries; use embed()/embedBatch() for documents.
+   * Optional — providers that don't distinguish query/passage fall back to embed().
+   */
+  embedQuery?(text: string, options?: EmbeddingCallOptions): Promise<Float32Array>;
+  /** Get embeddings for multiple texts (batched API call, document/passage encoding). */
   embedBatch(texts: string[], options?: EmbeddingCallOptions): Promise<Float32Array[]>;
   /** Return the configured vector dimensions */
   getDimensions(): number;

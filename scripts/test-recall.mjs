@@ -160,7 +160,7 @@ async function main() {
   let vectorHits = 0;
   let vectorTotal = 0;
   for (const { q, expect } of QUERIES) {
-    const queryEmb = await embSvc.embed(q);
+    const queryEmb = await embSvc.embedQuery(q);
     const results = store.searchL1Vector(queryEmb, TOP_K);
     const resultIds = results.map((r) => r.record_id);
     const hit = expect.some((id) => resultIds.includes(id));

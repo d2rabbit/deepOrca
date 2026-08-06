@@ -28,10 +28,11 @@ const DEFAULT_MODEL_ID = "ibm-granite/granite-embedding-97m-multilingual-r2";
 
 /**
  * Granite task prefixes (model card convention).
- * For symmetric retrieval we encode both queries and passages with the
- * "passage: " prefix; this is a common MTEB practice for bidirectional
- * compatibility. If recall quality is poor we can split into query/passage.
+ * Queries use "query: ", documents/passages use "passage: ". This asymmetric
+ * encoding is the model card recommendation and produces better separation
+ * (lower cosine for unrelated pairs) than symmetric passage-only encoding.
  */
+const QUERY_PREFIX = "query: ";
 const PASSAGE_PREFIX = "passage: ";
 
 /**
@@ -185,6 +186,21 @@ export class TransformersEmbeddingService implements EmbeddingService {
     this.assertReady();
     const truncated = this.truncateInput(text);
     const output = await this.extractor!(PASSAGE_PREFIX + truncated, {
+      pooling: "mean",
+      normalize: true,
+    });
+    return sanitizeAndNormalize(output.data);
+  }
+
+  /**
+   * Get embedding for a search query (uses "query:" prefix per Granite model card).
+   * Use this for retrieval queries; use embed()/embedBatch() for documents/passages.
+   * @throws {EmbeddingNotReadyError} if model is not yet ready.
+   */
+  async embedQuery(text: string, _options?: EmbeddingCallOptions): Promise<Float32Array> {
+    this.assertReady();
+    const truncated = this.truncateInput(text);
+    const output = await this.extractor!(QUERY_PREFIX + truncated, {
       pooling: "mean",
       normalize: true,
     });

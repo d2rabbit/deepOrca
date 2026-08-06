@@ -496,7 +496,11 @@ async function searchByEmbedding(
   logger?.debug?.(
     `${TAG} [embedding-search] START query="${userText.slice(0, 80)}...", maxResults=${maxResults}, threshold=${threshold}`
   );
-  const queryEmbedding = await embeddingService.embed(userText, embeddingCallOpts);
+  const queryEmbedding = await (embeddingService.embedQuery ?? embeddingService.embed).call(
+    embeddingService,
+    userText,
+    embeddingCallOpts
+  );
   logger?.debug?.(
     `${TAG} [embedding-search] Query embedding OK: dims=${queryEmbedding.length}, ` +
       `norm=${Math.sqrt(Array.from(queryEmbedding).reduce((s, v) => s + v * v, 0)).toFixed(4)}, ` +
@@ -615,7 +619,11 @@ async function searchHybrid(
       const tStart = performance.now();
       try {
         logger?.debug?.(`${TAG} [hybrid-embedding] Generating query embedding...`);
-        const queryEmbedding = await embeddingService.embed(userText, embeddingCallOpts);
+        const queryEmbedding = await (embeddingService.embedQuery ?? embeddingService.embed).call(
+          embeddingService,
+          userText,
+          embeddingCallOpts
+        );
         logger?.debug?.(
           `${TAG} [hybrid-embedding] Embedding OK, dims=${queryEmbedding.length}, searching top-${candidateK}...`
         );
