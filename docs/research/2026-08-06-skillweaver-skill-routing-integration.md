@@ -3,6 +3,7 @@
 > 日期：2026-08-06
 > 研究员：DeepOrca 技能体系预研（第三项研究）
 > 资源：
+>
 > - 论文 [arXiv:2606.18051 SkillWeaver: Compositional Skill Routing for LLM Agents](https://arxiv.org/abs/2606.18051)
 > - 报道 [VentureBeat: New Alibaba AI framework skips loading every tool, cutting agent token use 99%](https://venturebeat.com/orchestration/new-alibaba-ai-framework-skips-loading-every-tool-cutting-agent-token-use-99)
 > - 嵌入模型 [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) · [BGE-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5)
@@ -15,13 +16,13 @@
 
 ## 0. 先说结论
 
-| 对象 | 集成价值 | 集成难度 | 建议 |
-|------|---------|---------|------|
-| **SkillWeaver（思想）** | ★★★★★ 直击两个真实痛点 | 中（无论文代码，自行实现） | **采纳其「检索先行」架构**：嵌入召回 → LLM 精排，分两期落地 |
-| **all-MiniLM-L6-v2** | ★★★★ 召回层候选 | 低（transformers.js 纯 JS） | **英文场景可用；中文主场景需换多语言变体**（见 §3.3） |
-| **BGE-base-en-v1.5** | ★★★★ 召回质量更高 | 低-中（体积 3.8×） | 同上；与 MiniLM 做 A/B 后二选一 |
-| **book-to-skill** | ★★★ 技能生产力工具 | 低（产出即标准 SKILL.md） | 作为**知识插件的一个技能**集成，不做内核改动 |
-| **skill-up** | ★★★ 技能质量保障 | 中（Go 二进制/引擎适配） | **先用于 CI 评估内置技能**；引擎适配（engine.custom）后置 |
+| 对象                    | 集成价值               | 集成难度                    | 建议                                                        |
+| ----------------------- | ---------------------- | --------------------------- | ----------------------------------------------------------- |
+| **SkillWeaver（思想）** | ★★★★★ 直击两个真实痛点 | 中（无论文代码，自行实现）  | **采纳其「检索先行」架构**：嵌入召回 → LLM 精排，分两期落地 |
+| **all-MiniLM-L6-v2**    | ★★★★ 召回层候选        | 低（transformers.js 纯 JS） | **英文场景可用；中文主场景需换多语言变体**（见 §3.3）       |
+| **BGE-base-en-v1.5**    | ★★★★ 召回质量更高      | 低-中（体积 3.8×）          | 同上；与 MiniLM 做 A/B 后二选一                             |
+| **book-to-skill**       | ★★★ 技能生产力工具     | 低（产出即标准 SKILL.md）   | 作为**知识插件的一个技能**集成，不做内核改动                |
+| **skill-up**            | ★★★ 技能质量保障       | 中（Go 二进制/引擎适配）    | **先用于 CI 评估内置技能**；引擎适配（engine.custom）后置   |
 
 一句话：SkillWeaver 没有可下载的代码，但它验证的「**不要把全部技能/工具塞进上下文，先检索再加载**」正是 DeepOrca 当前架构的下一步；嵌入模型是这条路的地基；book-to-skill 和 skill-up 分别补齐「技能从哪来」和「技能好不好」两端。
 
@@ -47,14 +48,14 @@
 
 ### 1.2 all-MiniLM-L6-v2 / BGE-base-en-v1.5（HuggingFace 嵌入模型）
 
-| | all-MiniLM-L6-v2 | BGE-base-en-v1.5 |
-|---|---|---|
-| 维度 | 384 | 768 |
-| 参数量 | ~22M | ~109M |
-| 量化体积 | ~23 MB（ONNX int8） | ~90–100 MB |
-| 特点 | 极快、内存友好 | 检索质量明显更强（MTEB 第一梯队 base 级） |
-| 语言 | **英文为主** | **英文为主** |
-| 许可 | Apache-2.0 | MIT |
+|          | all-MiniLM-L6-v2    | BGE-base-en-v1.5                          |
+| -------- | ------------------- | ----------------------------------------- |
+| 维度     | 384                 | 768                                       |
+| 参数量   | ~22M                | ~109M                                     |
+| 量化体积 | ~23 MB（ONNX int8） | ~90–100 MB                                |
+| 特点     | 极快、内存友好      | 检索质量明显更强（MTEB 第一梯队 base 级） |
+| 语言     | **英文为主**        | **英文为主**                              |
+| 许可     | Apache-2.0          | MIT                                       |
 
 两者都是 sentence-transformers 生态，transformers.js（ONNX Runtime Web/Node）有现成的 feature-extraction pipeline，**可以在 Electron 主进程纯 JS 运行，无需 Python 依赖**。
 
@@ -120,11 +121,11 @@ systemPrompt += "The candidate skills are as follows:\n\n" + JSON.stringify(simp
 
 ### 3.2 嵌入模型选型（MiniLM vs BGE）
 
-| 维度 | all-MiniLM-L6-v2 | BGE-base-en-v1.5 |
-|---|---|---|
-| 冷启动加载 | ~1s 级 | ~3–5s 级 |
-| 常驻内存 | ~90 MB | ~400 MB |
-| 英文检索质量 | 够用 | 更好 |
+| 维度             | all-MiniLM-L6-v2   | BGE-base-en-v1.5   |
+| ---------------- | ------------------ | ------------------ |
+| 冷启动加载       | ~1s 级             | ~3–5s 级           |
+| 常驻内存         | ~90 MB             | ~400 MB            |
+| 英文检索质量     | 够用               | 更好               |
 | **中文检索质量** | **差**（英文训练） | **差**（英文训练） |
 
 **关键约束：DeepOrca 用户提示以中文为主。** 两个候选都是英文模型，直接用于中文提示 ↔ 中文技能描述的召回会明显掉点。建议：
