@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "./api";
+import { useTreeRefresh } from "./hooks/use-tree-refresh";
+import { useDocumentTitle } from "./hooks/use-document-title";
+import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
+import { usePanelLayout } from "./hooks/use-panel-layout";
+import { useAppearance } from "./hooks/use-appearance";
 import type {
   AskPermissionRequest,
   EditableSettings,
@@ -57,24 +62,6 @@ import {
   type AskUserQuestionAnswers,
 } from "./lib/ask-question";
 import { extractProposedPlan, getImplementationPrompt, type PlanImplementationChoice } from "./lib/plan";
-import {
-  defaultAppearance,
-  getStoredReasoningMode,
-  getStoredLineVariant,
-  applyLineVariant,
-  nextReasoningMode,
-  resolveAppearance,
-  resolveTheme,
-  baseTheme,
-  setAppearance as persistAppearance,
-  setTheme as persistTheme,
-  setLineVariant as persistLineVariant,
-  setReasoningMode as persistReasoningMode,
-  type Appearance,
-  type LineVariant,
-  type ReasoningMode,
-  type Theme,
-} from "./lib/appearance";
 import { useI18n } from "./i18n";
 import {
   CommandPalette,
@@ -187,22 +174,34 @@ export function App(): JSX.Element {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
-  const [sidebarView, setSidebarView] = useState<
-    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "plugins" | "editor"
-  >("explorer");
-  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [editorFile, setEditorFile] = useState<string | null>(null);
   const [branch, setBranch] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
 
-  const [appearance, setAppearanceState] = useState<Appearance>("light");
-  const [theme, setThemeState] = useState<Theme>("aqua");
-  const [lineVariant, setLineVariantState] = useState<LineVariant>(() => getStoredLineVariant());
-  const [reasoningMode, setReasoningModeState] = useState<ReasoningMode>(() => getStoredReasoningMode());
+  const {
+    appearance,
+    theme,
+    lineVariant,
+    reasoningMode,
+    initFromPlatform: initAppearanceFromPlatform,
+    handleToggleAppearance,
+    handleToggleTheme,
+    handleToggleLineVariant,
+    handleSelectTheme,
+    handleCycleReasoning,
+  } = useAppearance(platform);
 
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [panelWidth, setPanelWidth] = useState(280);
+  const {
+    sidebarView,
+    panelOpen,
+    setPanelOpen,
+    panelWidth,
+    handleResizeStart,
+    selectView,
+    openTokensView,
+    handleCollapsePanel,
+  } = usePanelLayout();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [showProcessPanel, setShowProcessPanel] = useState(false);
   const [runningProcesses, setRunningProcesses] = useState<SerializableProcess[]>([]);
@@ -219,37 +218,7 @@ export function App(): JSX.Element {
   // after a newer one is discarded.
   const loadSeqRef = useRef(0);
 
-  const bumpTree = useCallback(() => setTreeRefreshKey((k) => k + 1), []);
-
-  // Throttled variant for high-frequency session-entry updates: every bump makes
-  // the sidebar re-fetch the whole workspace tree over IPC, so during streaming
-  // we cap it to once per 1.5s with a trailing call.
-  const bumpTreeThrottleRef = useRef<{ last: number; timer: ReturnType<typeof setTimeout> | null }>({
-    last: 0,
-    timer: null,
-  });
-  const bumpTreeThrottled = useCallback(() => {
-    const state = bumpTreeThrottleRef.current;
-    const elapsed = Date.now() - state.last;
-    if (elapsed >= 1500) {
-      state.last = Date.now();
-      bumpTree();
-      return;
-    }
-    if (state.timer) return;
-    state.timer = setTimeout(() => {
-      state.timer = null;
-      state.last = Date.now();
-      bumpTree();
-    }, 1500 - elapsed);
-  }, [bumpTree]);
-  useEffect(
-    () => () => {
-      const state = bumpTreeThrottleRef.current;
-      if (state.timer) clearTimeout(state.timer);
-    },
-    []
-  );
+  const { refreshKey: treeRefreshKey, bump: bumpTree, bumpThrottled: bumpTreeThrottled } = useTreeRefresh();
 
   // ── Session completion notification ────────────────────────────────────────
   useEffect(() => {
@@ -258,51 +227,6 @@ export function App(): JSX.Element {
     }
     prevBusyRef.current = busy;
   }, [busy, errorLine, pushToast, t]);
-
-  // ── Panel resize handle ──────────────────────────────────────────────────────
-  const resizingRef = useRef(false);
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      resizingRef.current = true;
-      const startX = e.clientX;
-      const startWidth = panelWidth;
-      const onMove = (ev: MouseEvent) => {
-        if (!resizingRef.current) return;
-        const delta = ev.clientX - startX;
-        setPanelWidth(Math.max(200, Math.min(480, startWidth + delta)));
-      };
-      const onUp = () => {
-        resizingRef.current = false;
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      };
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-    },
-    [panelWidth]
-  );
-
-  // VSCode-style activity bar: selecting a rail view swaps the left panel while
-  // the main area stays put. Re-selecting the active view toggles the panel.
-  const selectView = useCallback(
-    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "plugins" | "editor") => {
-      setSidebarView((prev) => {
-        if (prev === view) {
-          setPanelOpen((wasOpen) => !wasOpen);
-          return view;
-        }
-        setPanelOpen(true);
-        return view;
-      });
-    },
-    []
-  );
-  const openTokensView = useCallback(() => selectView("tokens"), [selectView]);
 
   // ── Data loading ────────────────────────────────────────────────────────────
   const refreshSessions = useCallback(async () => {
@@ -384,9 +308,7 @@ export function App(): JSX.Element {
         setProjectRoot(root);
         setHomeDir(home);
         setPlatform(plat);
-        const resolvedTheme = resolveTheme(plat);
-        setAppearanceState(resolveAppearance(plat, resolvedTheme));
-        setThemeState(resolvedTheme);
+        initAppearanceFromPlatform(plat);
         await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
         const active = await api.getActiveSession();
         if (!disposed && active) {
@@ -587,6 +509,7 @@ export function App(): JSX.Element {
   }, [
     bumpTree,
     bumpTreeThrottled,
+    initAppearanceFromPlatform,
     loadSession,
     pushToast,
     refreshGit,
@@ -876,61 +799,6 @@ export function App(): JSX.Element {
     setMainView("settings");
   }, []);
 
-  const handleToggleAppearance = useCallback(() => {
-    setAppearanceState((prev) => {
-      const next: Appearance = prev === "dark" ? "light" : "dark";
-      persistAppearance(next);
-      return next;
-    });
-  }, []);
-
-  const handleToggleTheme = useCallback(() => {
-    setThemeState((prev) => {
-      const next: Theme = prev === "glass" ? baseTheme(platform) : "glass";
-      persistTheme(next);
-      // Auto-switch appearance to match the theme's native tone.
-      const tone = defaultAppearance(platform, next);
-      setAppearanceState(tone);
-      persistAppearance(tone);
-      return next;
-    });
-  }, [platform]);
-
-  // Line theme flavour toggle: original stroke look ↔ punk (2077 tribute).
-  const handleToggleLineVariant = useCallback(() => {
-    setLineVariantState((prev) => {
-      const next: LineVariant = prev === "punk" ? "stroke" : "punk";
-      persistLineVariant(next);
-      return next;
-    });
-  }, []);
-
-  // The punk recolor only applies while the Line theme is active.
-  useEffect(() => {
-    applyLineVariant(theme === "line" ? lineVariant : "stroke");
-  }, [theme, lineVariant]);
-
-  // Theme selection from the settings panel (General tab). Applies immediately
-  // (swaps the stylesheet link) and persists — no reload needed.
-  const handleSelectTheme = useCallback(
-    (next: Theme) => {
-      setThemeState(next);
-      persistTheme(next);
-      const tone = defaultAppearance(platform, next);
-      setAppearanceState(tone);
-      persistAppearance(tone);
-    },
-    [platform]
-  );
-
-  const handleCycleReasoning = useCallback(() => {
-    setReasoningModeState((prev) => {
-      const next = nextReasoningMode(prev);
-      persistReasoningMode(next);
-      return next;
-    });
-  }, []);
-
   const handleUndoRestored = useCallback(async () => {
     const id = activeIdRef.current;
     if (id) {
@@ -1023,7 +891,6 @@ export function App(): JSX.Element {
   const handleAddImage = useCallback((dataUrl: string) => setImageUrls((prev) => [...prev, dataUrl]), []);
   const handleResumeClick = useCallback(() => void handleResume(), [handleResume]);
   const handleEnhanceClick = useCallback(() => void handleEnhance(), [handleEnhance]);
-  const handleCollapsePanel = useCallback(() => setPanelOpen(false), []);
   const handleBackToChat = useCallback(() => setMainView("chat"), []);
   const handleSelectPlugin = useCallback((sel: PluginSelection) => {
     setSelectedPlugin(sel);
@@ -1130,7 +997,7 @@ export function App(): JSX.Element {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleOpenSettings, handleNewSession]);
+  }, [handleOpenSettings, handleNewSession, setPanelOpen]);
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
@@ -1205,7 +1072,17 @@ export function App(): JSX.Element {
         run: () => setModal("shortcuts"),
       },
     ],
-    [handleCycleReasoning, handleNewSession, handleOpenSettings, openTokensView, pushToast, runPrompt, selectView, t]
+    [
+      handleCycleReasoning,
+      handleNewSession,
+      handleOpenSettings,
+      openTokensView,
+      pushToast,
+      runPrompt,
+      selectView,
+      setPanelOpen,
+      t,
+    ]
   );
 
   // ── Derived UI ────────────────────────────────────────────────────────────────
@@ -1255,42 +1132,9 @@ export function App(): JSX.Element {
     }
   }, [runningProcesses, busy]);
 
-  // Reflect session state in the window title so the user can see progress
-  // even when the app is in the background (taskbar / dock tooltip).
-  useEffect(() => {
-    const base = "DeepOrca";
-    if (busy) {
-      document.title = `⚡ ${base}`;
-    } else if (activeStatus === "ask_permission" || activeStatus === "waiting_for_user") {
-      document.title = `⚠️ ${base}`;
-    } else if (activeStatus === "error") {
-      document.title = `✖ ${base}`;
-    } else {
-      document.title = base;
-    }
-  }, [busy, activeStatus]);
+  useDocumentTitle(busy, activeStatus);
 
-  // Keep the conversation's bottom padding in sync with the floating
-  // composer-dock's actual height so the last message can never sit
-  // underneath the input. We measure the dock and write a CSS variable
-  // consumed by .ui-conversation's padding-bottom. The +12px gap is a
-  // small breathing buffer so the last line doesn't kiss the composer.
-  const composerDockRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = composerDockRef.current;
-    if (!el) return;
-    const apply = () => {
-      const h = el.offsetHeight;
-      document.documentElement.style.setProperty("--ui-composer-reserved", `${h + 12}px`);
-    };
-    apply();
-    const ro = new ResizeObserver(apply);
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      document.documentElement.style.removeProperty("--ui-composer-reserved");
-    };
-  }, [mainView]);
+  const composerDockRef = useComposerDockHeight(mainView);
 
   // Memoized: MessageList is React.memo and its scroll effect depends on
   // `footer` — an unstable identity would re-run smooth scrolling every render.
