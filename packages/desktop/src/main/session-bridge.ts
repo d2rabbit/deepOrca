@@ -2,19 +2,14 @@
 // its callbacks to the renderer via the provided `emit` function.
 
 import {
-  buildCodegraphMcpServerConfig,
-  buildCrgMcpServerConfig,
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
   CRG_MCP_SERVER_NAME,
   SERENA_MCP_SERVER_NAME,
-  buildSerenaMcpServerConfig,
   setSerenaDisabled,
   SKILL_SPECTOR_MCP_SERVER_NAME,
-  buildSkillSpectorMcpServerConfig,
   setSkillSpectorDisabled,
-  ACTIVITY_FRAMES_MCP_SERVER_NAME,
   A2UI_MCP_SERVER_NAME,
   setCrgDisabled,
   createOpenAIClient,
@@ -47,7 +42,6 @@ import type {
   DeepcodingSettings,
   GitmcpRepoMeta,
   McpServerConfig,
-  McpServerConfigEntry,
   ModelConfigSelection,
   PermissionDefaultMode,
   PermissionScope,
@@ -76,6 +70,7 @@ import type {
 } from "../shared/ipc.js";
 import { purgeArchivedId } from "./archive-store.js";
 import { readDisabledMcp, setMcpDisabled } from "./mcp-store.js";
+import { buildBuiltinPluginGroups, buildPluginMcpList, stringifyEnv } from "./plugin-mcp-view.js";
 import * as gitService from "./git-service.js";
 
 type Emit = (channel: string, payload?: unknown) => void;
@@ -117,14 +112,6 @@ function parseEnvLines(raw: string): Record<string, string> {
     }
   }
   return env;
-}
-
-function stringifyEnv(env: Record<string, string> | undefined): string {
-  return env
-    ? Object.entries(env)
-        .map(([k, v]) => `${k}=${v}`)
-        .join("\n")
-    : "";
 }
 
 function buildPermissionDecisions(
@@ -773,205 +760,13 @@ export class SessionBridge {
    * enable state (from the disable sidecar) and current runtime status.
    */
   pluginMcpList(): PluginMcpServer[] {
-    const settings = resolveCurrentSettings(this.projectRoot);
-    const configured = settings.mcpServers ?? {};
-    const disabled = new Set(readDisabledMcp(this.projectRoot));
-    const statuses = new Map(this.manager.getMcpStatus().map((s) => [s.name, s]));
-    const list: PluginMcpServer[] = [];
-    for (const [name, cfg] of Object.entries(configured)) {
-      list.push({
-        name,
-        command: cfg.command,
-        args: (cfg.args ?? []).join(" "),
-        env: stringifyEnv(cfg.env),
-        enabled: !disabled.has(name),
-        // GitMCP repositories are managed from the GitMCP module: the MCP tab
-        // may toggle them but never remove them (same contract as codegraph).
-        builtin:
-          name === CODEGRAPH_MCP_SERVER_NAME ||
-          name === CRG_MCP_SERVER_NAME ||
-          name === SERENA_MCP_SERVER_NAME ||
-          name === SKILL_SPECTOR_MCP_SERVER_NAME ||
-          name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
-          name === A2UI_MCP_SERVER_NAME ||
-          isGitmcpServerName(name),
-        status: statuses.get(name),
-      });
-    }
-    // Built-in CodeGraph: shown even when a project has not run `init` yet, so it
-    // can be toggled. A user-provided `codegraph` entry (handled above) wins.
-    if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
-      const cfg = buildCodegraphMcpServerConfig(this.projectRoot);
-      list.push({
-        name: CODEGRAPH_MCP_SERVER_NAME,
-        command: cfg.command,
-        args: (cfg.args ?? []).join(" "),
-        env: stringifyEnv(cfg.env),
-        enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
-        builtin: true,
-        status: statuses.get(CODEGRAPH_MCP_SERVER_NAME),
-      });
-    }
-    // Built-in CRG (code-review-graph): analysis-layer MCP server. Shown even
-    // when the project has not built a graph yet, so it can be toggled.
-    if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
-      const cfg = buildCrgMcpServerConfig(this.projectRoot);
-      if (cfg) {
-        list.push({
-          name: CRG_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(CRG_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(CRG_MCP_SERVER_NAME),
-        });
-      }
-    }
-    // Built-in Serena MCP server: semantic code operations (find symbol,
-    // references, rename, replace body). Shown when uv is available
-    // (vendored or system). Covers 40+ languages via SolidLSP.
-    if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
-      const cfg = buildSerenaMcpServerConfig(this.projectRoot);
-      if (cfg) {
-        list.push({
-          name: SERENA_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(SERENA_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(SERENA_MCP_SERVER_NAME),
-        });
-      }
-    }
-    // Built-in SkillSpector MCP server: AI skill/MCP security scanner. Shown when uv
-    // is available (vendored or system) — installed from git+SHA on first use (the PyPI
-    // package is malware). Exposes `scan_skill`; defaults to pure-static (use_llm=false).
-    if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
-      const cfg = buildSkillSpectorMcpServerConfig(this.projectRoot);
-      if (cfg) {
-        list.push({
-          name: SKILL_SPECTOR_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(SKILL_SPECTOR_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(SKILL_SPECTOR_MCP_SERVER_NAME),
-        });
-      }
-    }
-    return list;
+    return buildPluginMcpList(this.projectRoot, this.manager);
   }
 
-  /**
-   * Resolve built-in plugin groups: related skills, MCP servers, and plugin
-   * descriptors bundled into display cards. Display-only — never affects
-   * loading or execution. Built-in MCP entries are included so a group shows
-   * its full toolset even before the user adds a server.
-   */
   async pluginBuiltinGroups(): Promise<BuiltinPluginGroup[]> {
-    const skills = await this.manager.listSkills(undefined);
-    const plugins = this.manager.listBuiltinPlugins();
-
-    // Reconstruct McpServerConfigEntry[] from the same sources as pluginMcpList,
-    // so built-in servers (codegraph, CRG, gitmcp:*) appear in their groups.
-    const settings = resolveCurrentSettings(this.projectRoot);
-    const configured = settings.mcpServers ?? {};
-    const disabled = new Set(readDisabledMcp(this.projectRoot));
-    const statuses = new Map(this.manager.getMcpStatus().map((s) => [s.name, s]));
-    const isBuiltin = (name: string): boolean =>
-      name === CODEGRAPH_MCP_SERVER_NAME ||
-      name === CRG_MCP_SERVER_NAME ||
-      name === SERENA_MCP_SERVER_NAME ||
-      name === SKILL_SPECTOR_MCP_SERVER_NAME ||
-      name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
-      name === A2UI_MCP_SERVER_NAME ||
-      isGitmcpServerName(name);
-    const entries: McpServerConfigEntry[] = Object.entries(configured).map(([name, cfg]) => ({
-      name,
-      config: cfg,
-      builtin: isBuiltin(name),
-      enabled: !disabled.has(name),
-      status: statuses.get(name)?.status,
-    }));
-    // Built-in servers not yet configured by the user (codegraph, CRG, dart)
-    // are synthesized from their builders so the group card lists them regardless.
-    // Each carries enabled/status so the group detail can show a toggle + state dot.
-    if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
-      const cfg = buildCodegraphMcpServerConfig(this.projectRoot);
-      entries.push({
-        name: CODEGRAPH_MCP_SERVER_NAME,
-        config: cfg,
-        builtin: true,
-        enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
-        status: statuses.get(CODEGRAPH_MCP_SERVER_NAME)?.status,
-      });
-    }
-    if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
-      const cfg = buildCrgMcpServerConfig(this.projectRoot);
-      if (cfg)
-        entries.push({
-          name: CRG_MCP_SERVER_NAME,
-          config: cfg,
-          builtin: true,
-          enabled: !disabled.has(CRG_MCP_SERVER_NAME),
-          status: statuses.get(CRG_MCP_SERVER_NAME)?.status,
-        });
-    }
-    if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
-      const cfg = buildSerenaMcpServerConfig(this.projectRoot);
-      if (cfg)
-        entries.push({
-          name: SERENA_MCP_SERVER_NAME,
-          config: cfg,
-          builtin: true,
-          enabled: !disabled.has(SERENA_MCP_SERVER_NAME),
-          status: statuses.get(SERENA_MCP_SERVER_NAME)?.status,
-        });
-    }
-    if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
-      const cfg = buildSkillSpectorMcpServerConfig(this.projectRoot);
-      if (cfg)
-        entries.push({
-          name: SKILL_SPECTOR_MCP_SERVER_NAME,
-          config: cfg,
-          builtin: true,
-          enabled: !disabled.has(SKILL_SPECTOR_MCP_SERVER_NAME),
-          status: statuses.get(SKILL_SPECTOR_MCP_SERVER_NAME)?.status,
-        });
-    }
-    // Activity-Frames is an in-process MCP server (no command/args). Synthesize a
-    // display-only entry so it appears in the "documentation" group card.
-    if (!Object.prototype.hasOwnProperty.call(configured, ACTIVITY_FRAMES_MCP_SERVER_NAME)) {
-      entries.push({
-        name: ACTIVITY_FRAMES_MCP_SERVER_NAME,
-        config: { command: "(in-process)", args: [] },
-        builtin: true,
-        enabled: !disabled.has(ACTIVITY_FRAMES_MCP_SERVER_NAME),
-        status: statuses.get(ACTIVITY_FRAMES_MCP_SERVER_NAME)?.status,
-      });
-    }
-    // A2UI is an in-process MCP server (no command/args). Synthesize a
-    // display-only entry so it appears in the "design" group card.
-    if (!Object.prototype.hasOwnProperty.call(configured, A2UI_MCP_SERVER_NAME)) {
-      entries.push({
-        name: A2UI_MCP_SERVER_NAME,
-        config: { command: "(in-process)", args: [] },
-        builtin: true,
-        enabled: !disabled.has(A2UI_MCP_SERVER_NAME),
-        status: statuses.get(A2UI_MCP_SERVER_NAME)?.status,
-      });
-    }
-
-    // Only consider built-in skills for grouping; user skills stay in the
-    // Skills tab. Built-in skills have either a "bundled:" or "plugin:" path prefix.
-    const builtinSkills = skills.filter((s) => s.path.startsWith("bundled:") || s.pluginOwned);
-    return this.manager.listBuiltinPluginGroups(builtinSkills, entries, plugins);
+    return buildBuiltinPluginGroups(this.projectRoot, this.manager);
   }
 
-  /** Toggle a server's enable state and re-initialize MCP so it takes effect. */
   pluginSetMcpEnabled(name: string, enabled: boolean): void {
     setMcpDisabled(this.projectRoot, name, !enabled);
     this.reload();
