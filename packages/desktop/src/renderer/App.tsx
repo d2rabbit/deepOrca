@@ -10,16 +10,8 @@ import { useSkills } from "./hooks/use-skills";
 import { useProcessPanel } from "./hooks/use-process-panel";
 import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
-import type {
-  AskPermissionRequest,
-  EditableSettings,
-  McpServerStatus,
-  ModelConfigSelection,
-  SerializableSessionEntry,
-  SessionMessage,
-  SettingsSummary,
-  UserPromptContent,
-} from "../shared/ipc";
+import { useSettingsData } from "./hooks/use-settings-data";
+import type { AskPermissionRequest, SerializableSessionEntry, SessionMessage, UserPromptContent } from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
@@ -135,14 +127,12 @@ export function App(): JSX.Element {
   // Home dir reported by main — used to detect the fresh-install fallback root
   // so the UI never presents the user's home as a real workspace.
   const [homeDir, setHomeDir] = useState("");
-  const [settings, setSettings] = useState<SettingsSummary | null>(null);
   const [platform, setPlatform] = useState<string>("");
   const [sessions, setSessions] = useState<SerializableSessionEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const { skills, selectedSkills, setSelectedSkills, refreshSkills, handleToggleSkill, handleRefreshPluginSkills } =
     useSkills(activeId);
-  const [, setMcpStatuses] = useState<McpServerStatus[]>([]);
 
   const [draft, setDraft] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -162,8 +152,6 @@ export function App(): JSX.Element {
 
   const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
   // Branch the user tried to switch to while the working tree had blocking local changes.
-  const [editable, setEditable] = useState<EditableSettings | null>(null);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
   const {
@@ -254,13 +242,16 @@ export function App(): JSX.Element {
     handleStashAndSwitch,
   } = useGit({ bumpTree, refreshSessions, setErrorLine, pushToast, t });
 
-  const refreshSettings = useCallback(async () => {
-    setSettings(await api.getSettings());
-  }, []);
-
-  const refreshMcp = useCallback(async () => {
-    setMcpStatuses(await api.mcpStatus());
-  }, []);
+  const {
+    settings,
+    editable,
+    settingsInitialTab,
+    refreshSettings,
+    refreshMcp,
+    handleSetModel,
+    handleOpenSettings,
+    handleSaveSettings,
+  } = useSettingsData({ setMainView, setMessages, activeIdRef, refreshSkills });
 
   const loadSession = useCallback(
     async (id: string | null) => {
@@ -666,20 +657,6 @@ export function App(): JSX.Element {
     [loadSession]
   );
 
-  const handleSetModel = useCallback(async (selection: ModelConfigSelection) => {
-    setSettings(await api.setModel(selection));
-    const id = activeIdRef.current;
-    if (id) {
-      setMessages(await api.listMessages(id));
-    }
-  }, []);
-
-  const handleOpenSettings = useCallback(async () => {
-    setEditable(await api.getEditableSettings());
-    setSettingsInitialTab(undefined);
-    setMainView("settings");
-  }, []);
-
   const handleUndoRestored = useCallback(async () => {
     const id = activeIdRef.current;
     if (id) {
@@ -689,17 +666,6 @@ export function App(): JSX.Element {
     }
     await refreshSessions();
   }, [refreshSessions]);
-
-  const handleSaveSettings = useCallback(
-    async (next: EditableSettings) => {
-      const { summary, editable: fresh } = await api.updateSettings(next);
-      setSettings(summary);
-      setEditable(fresh);
-      setMainView("chat");
-      await Promise.all([refreshMcp(), refreshSkills(activeIdRef.current ?? undefined)]);
-    },
-    [refreshMcp, refreshSkills]
-  );
 
   const handleNewSession = useCallback(() => {
     setMainView("chat");
