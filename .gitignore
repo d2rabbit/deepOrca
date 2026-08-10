@@ -31,12 +31,15 @@ out/
 # Generated files
 packages/core/src/generated/
 
-# Vendored CodeGraph/OpenWiki builds (checked out + compiled at build time via scripts/vendor-*.js)
+# Vendored third-party builds (checked out/downloaded + compiled at build time
+# via scripts/vendor-*.js): CodeGraph, OpenWiki, uv, Serena, SkillSpector, CRG,
+# Granite embedding model, …
 packages/desktop/vendor/
 
-# Local verification scratch dir
+# Local verification scratch dirs
 .tmp-verify/
 .tmp-orca/
+.tmp-gitmcp-e2e/
 
-# Site verification screenshots (run artifacts)
-.site-verify-*.png
+# Site verification screenshots (run artifacts, not sources)
+.site-*.png
