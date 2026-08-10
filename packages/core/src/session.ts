@@ -103,7 +103,7 @@ import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
 import { DEFAULT_ROUTING_CONFIG, type RoutingConfig, type RoutableTool } from "./routing";
-import { createRouters, type RouterBundle } from "./routing";
+import { createRouters, getConfiguredRoutingModelDir, type RouterBundle } from "./routing";
 
 export type { PermissionScope } from "./settings";
 export type {
@@ -582,8 +582,10 @@ export class SessionManager {
    * Returns null when routing is disabled or the embedding package is
    * unavailable — callers must fail-open (use full candidate sets).
    *
-   * The model directory is resolved from the vendored path relative to the
-   * desktop app, or from DEEPORCA_ROUTING_MODEL_DIR env (for dev/CLI use).
+   * The model directory comes from the host injection point
+   * (configureRoutingModelDir, called by the desktop main process — the same
+   * pattern as configureCodegraphVendorRoot), or DEEPORCA_ROUTING_MODEL_DIR for
+   * dev/CLI use, with a repo-relative fallback for source checkouts.
    */
   private async getRouters(): Promise<RouterBundle> {
     if (this.routerBundle) return this.routerBundle;
@@ -600,14 +602,19 @@ export class SessionManager {
       const modelDir =
         process.env.DEEPORCA_ROUTING_MODEL_DIR ??
         process.env.DEEPCODE_ROUTING_MODEL_DIR ??
-        // Vendored path: resolve relative to this source file.
-        // dist/ is under packages/core; vendor is under packages/desktop.
+        getConfiguredRoutingModelDir() ??
+        // Fallback for source checkouts (tsx / packages/core/dist), where no host
+        // injection happened. `src/` and `dist/` are both one level under
+        // packages/core, so ../../desktop/vendor lands on packages/desktop/vendor.
+        // (This previously included a redundant "packages" segment, producing
+        // packages/packages/desktop/... — a path that never existed, so routing
+        // silently fail-opened and never actually ran.)
         (() => {
           try {
             const { join, dirname } = require("node:path") as typeof import("node:path");
             const { fileURLToPath } = require("node:url") as typeof import("node:url");
             const here = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-            return join(here, "..", "..", "packages", "desktop", "vendor", "granite-embedding");
+            return join(here, "..", "..", "desktop", "vendor", "granite-embedding");
           } catch {
             return "";
           }
@@ -930,6 +937,12 @@ If the query is simple (single intent), respond with a single-element array.`;
     persistSurfaces(this.projectRoot);
     // Release cached messages to free memory.
     this.messageCache.clear();
+    // Drop the router bundle so a disposed manager cannot keep serving routes.
+    // The embedding service itself is a process-wide singleton shared with other
+    // SessionManagers, so it is deliberately NOT closed here — the host closes it
+    // on app teardown via closeEmbeddingService().
+    this.routerBundle = null;
+    this.routerInitPromise = null;
   }
 
   private estimateStreamTokens(text: string): number {
@@ -2845,6 +2858,10 @@ ${content}
       failReason: reason ?? "Permission denied by user",
       updateTime: now,
     }));
+    // An explicit user denial is a terminal decision, not a high-frequency
+    // streaming update — flush it like session create/delete rather than leaving
+    // it in the debounce window, so a reload cannot come back up as "pending".
+    this.flushSessionsIndex();
   }
 
   adjustActiveBashTimeout(deltaMs: number): BashTimeoutAdjustment | null {
@@ -3218,6 +3235,31 @@ ${content}
   }
 
   private loadSessionsIndex(): SessionsIndex {
+    // A debounced write may still be in flight — until it lands, the in-memory
+    // copy is authoritative and the file on disk is stale. Reading the file here
+    // would not only return pre-update state to getSession()/listSessions(), it
+    // would make consecutive updateSessionEntry() calls inside one debounce
+    // window each rebase on the *stale* disk copy and silently drop the earlier
+    // update (usage accumulation runs ~17x per streaming turn, so that loss is
+    // permanent, not just briefly visible).
+    //
+    // Returned as a shallow copy so callers keep the snapshot semantics they had
+    // when every read hit the disk — they may replace `entries` (createSession,
+    // deleteSession) without mutating the pending index behind our back.
+    //
+    // Deliberately NOT re-normalized: pending entries are already in memory form
+    // (`processes` is a Map, produced by normalizeSessionEntry on the way in), and
+    // normalizeSessionEntry expects the on-disk shape — its deserializeProcesses
+    // uses Object.entries(), which yields [] for a Map and would silently drop
+    // every tracked process.
+    if (this.pendingIndex) {
+      return {
+        version: 1,
+        entries: [...this.pendingIndex.entries],
+        originalPath: this.pendingIndex.originalPath || this.projectRoot,
+      };
+    }
+
     const { sessionsIndexPath } = this.getProjectStorage();
     this.ensureProjectDir();
 

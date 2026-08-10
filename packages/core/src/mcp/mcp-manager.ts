@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { basename } from "path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -458,7 +459,7 @@ export class McpManager {
   private createManagedClient(name: string, config: McpServerConfig): ManagedClient {
     const transport = new StdioClientTransport({
       command: config.command,
-      args: config.args,
+      args: withNpxYesArg(config.command, config.args ?? []),
       env: mergeEnv(process.env, config.env),
       cwd: config.cwd,
       stderr: "pipe",
@@ -901,6 +902,23 @@ function buildRawMcpNamespacedName(serverName: string, toolName: string): string
 function appendStderrRing(prev: string, chunk: Buffer): string {
   const next = prev + chunk.toString("utf8");
   return next.length > STDERR_RING_BUFFER_BYTES ? next.slice(next.length - STDERR_RING_BUFFER_BYTES) : next;
+}
+
+// Inject `-y` when launching an MCP server through npx, so a package that is not
+// yet in the local npx cache installs non-interactively instead of stopping at the
+// "Ok to proceed? (y)" prompt — which the server never sees, leaving startup to
+// hang until the timeout. Restored after the SDK migration (bed96b0) dropped it.
+function withNpxYesArg(command: string, args: string[]): string[] {
+  const executable = basename(command)
+    .toLowerCase()
+    .replace(/\.cmd$/, "");
+  if (executable !== "npx") {
+    return args;
+  }
+  if (args.includes("-y") || args.includes("--yes")) {
+    return args;
+  }
+  return ["-y", ...args];
 }
 
 // Build a Record<string, string> env (dropping any undefined values that

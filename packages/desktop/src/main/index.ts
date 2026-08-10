@@ -29,6 +29,9 @@ import {
   configureSkillSpectorUvResolver,
   configureSkillSpectorVendorRoot,
   configureSkillSpectorLogger,
+  configureRoutingModelDir,
+  configureRoutingLogger,
+  closeEmbeddingService,
   type MemoryProvider,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
@@ -148,6 +151,18 @@ configureSkillSpectorVendorRoot(join(__dirname, "..", "vendor", "skillspector"))
 // just never appears with no clue why.
 configureSkillSpectorLogger((message, detail) => {
   console.error("[skill-spector]", message, detail ?? "");
+});
+
+// Semantic skill/tool routing reads the vendored Granite embedding model from
+// vendor/granite-embedding (written by scripts/vendor-granite.js, copied into
+// Resources/app/vendor by electron-builder's extraResources). Injected for the
+// same reason as CodeGraph above: only the host knows whether it is running from
+// a repo checkout or a packaged app. Failures are logged rather than swallowed —
+// routing fails open, so without a diagnostic a bad model path is
+// indistinguishable from routing simply being disabled.
+configureRoutingModelDir(join(__dirname, "..", "vendor", "granite-embedding"));
+configureRoutingLogger((message, detail) => {
+  console.error("[routing]", message, detail ?? "");
 });
 
 // Keep the vendored CodeGraph/OpenWiki checkouts fresh: in dev (unpackaged),
@@ -1200,6 +1215,14 @@ app.on("before-quit", (event) => {
   (async () => {
     try {
       await stopMemory();
+    } catch {
+      // Best-effort — never block exit on cleanup failure.
+    }
+    try {
+      // Release the shared embedding service: onnxruntime holds native handles
+      // and worker threads that would otherwise keep the process alive (exactly
+      // the "open handles block later launches" failure the watchdog guards).
+      await closeEmbeddingService();
     } catch {
       // Best-effort — never block exit on cleanup failure.
     }

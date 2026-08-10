@@ -9,6 +9,10 @@ jobs:
   build-and-test:
     name: Node ${{ matrix.node-version }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Outer guard. The per-test `--test-timeout` in each run-tests.mjs is the first
+    # line of defence; this catches a hang outside the test runner (install, build,
+    # a stuck child process) which would otherwise burn the 360-minute default.
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false

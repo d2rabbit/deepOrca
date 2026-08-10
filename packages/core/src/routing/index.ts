@@ -28,7 +28,15 @@ export {
   type ComposeStageOptions,
   DEFAULT_COMPOSE_STAGE_OPTIONS,
 } from "./composer";
-export { getEmbeddingService, getEmbeddingLoadError, resetEmbeddingLoader } from "./embedding-loader";
+export {
+  getEmbeddingService,
+  getEmbeddingLoadError,
+  resetEmbeddingLoader,
+  configureRoutingModelDir,
+  getConfiguredRoutingModelDir,
+  configureRoutingLogger,
+  closeEmbeddingService,
+} from "./embedding-loader";
 export type { EmbeddingLoaderOptions } from "./embedding-loader";
 export type {
   ComposeOptions,

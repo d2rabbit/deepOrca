@@ -18,7 +18,13 @@ export function createMcpSpawnSpec(
   // may not expose correctly — causing `spawn cmd.exe ENOENT`. The shell path
   // below is only needed for bare command names (npx, …) that require PATHEXT
   // resolution.
-  if (platform === "win32" && !path.isAbsolute(command)) {
+  //
+  // Use the win32 path rules explicitly rather than the host's `path`: this
+  // function takes `platform` so callers (and tests) can reason about Windows
+  // from any host, but `path.isAbsolute` follows the *running* platform, so on
+  // posix hosts it reports `C:\…` as relative and would pick the shell branch.
+  // On real Windows the two are identical, so behaviour there is unchanged.
+  if (platform === "win32" && !path.win32.isAbsolute(command)) {
     return {
       // On Windows, shell: true lets cmd.exe resolve the command via PATHEXT
       // (npx -> npx.cmd, etc.). Join command and args into a single string

@@ -133,10 +133,15 @@ test("E2E: get_profile returns full behavioral profile JSON", async () => {
   assert.ok(parsed.git, "profile must have git data");
   assert.ok(parsed.shell, "profile must have shell data");
   assert.ok(parsed.file, "profile must have file data");
-  // Verify git has real data.
+  // Verify git has real data (read from this repository, independent of HOME).
   assert.ok(parsed.git.totalCommits > 0, "git.totalCommits should be > 0 for this repo");
-  // Verify shell has real data.
-  assert.ok(parsed.shell.totalCommands > 0, "shell.totalCommands should be > 0");
+  // Shell analysis reads the *user's* history file (~/.zsh_history, …), and the
+  // test runner deliberately isolates HOME to a fresh temp dir so runs cannot
+  // pollute the developer's real session index. So the command count depends on
+  // the host and must not be asserted — verify the shell branch ran and produced
+  // a well-formed result instead.
+  assert.equal(typeof parsed.shell.totalCommands, "number", "shell.totalCommands must be a number");
+  assert.ok(parsed.shell.totalCommands >= 0, "shell.totalCommands must not be negative");
   await client.close();
 });
 

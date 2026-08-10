@@ -6,6 +6,11 @@ import * as os from "os";
 import * as path from "path";
 import { GitFileHistory } from "../common/file-history";
 import { clearSessionState } from "../common/state";
+import { setSerenaDisabled } from "../common/serena-mcp";
+import { setSkillSpectorDisabled } from "../common/skill-spector";
+import { setCodegraphDisabled } from "../common/codegraph";
+import { setCrgDisabled } from "../common/crg";
+import { setA2uiDisabled } from "../mcp/a2ui-mcp";
 import { getProjectCode, SessionManager, type SessionMessage } from "../session";
 
 const originalFetch = globalThis.fetch;
@@ -357,6 +362,57 @@ test("SessionManager normalizes legacy sessions without activeTokens to zero", (
   assert.equal(manager.getSession("legacy-session")?.usagePerModel, null);
 });
 
+test("SessionManager keeps both updates when two sessions are updated inside one debounce window", async () => {
+  const workspace = createTempDir("deepcode-index-debounce-workspace-");
+  const home = createTempDir("deepcode-index-debounce-home-");
+  setHomeDir(home);
+
+  const projectCode = getProjectCode(workspace);
+  const projectDir = path.join(home, ".deepcode", "projects", projectCode);
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(projectDir, "sessions-index.json"),
+    JSON.stringify({
+      version: 1,
+      originalPath: workspace,
+      entries: [
+        {
+          id: "session-a",
+          status: "completed",
+          summary: "old a",
+          createTime: "2026-01-01T00:00:00.000Z",
+          updateTime: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "session-b",
+          status: "completed",
+          summary: "old b",
+          createTime: "2026-01-01T00:00:00.000Z",
+          updateTime: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    }),
+    "utf8"
+  );
+
+  const manager = createSessionManager(workspace, "machine-id-index-debounce");
+
+  // Index writes are debounced, so both renames land inside a single window.
+  // The second update must build on the first — if the read path went to the
+  // (still stale) file, session-a's rename would be silently dropped.
+  manager.renameSession("session-a", "new a");
+  manager.renameSession("session-b", "new b");
+
+  assert.equal(manager.getSession("session-a")?.summary, "new a");
+  assert.equal(manager.getSession("session-b")?.summary, "new b");
+
+  // Both must also survive the debounced flush: a fresh manager sees only the file.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const reloaded = createSessionManager(workspace, "machine-id-index-debounce");
+  assert.equal(reloaded.getSession("session-a")?.summary, "new a");
+  assert.equal(reloaded.getSession("session-b")?.summary, "new b");
+});
+
 test("SessionManager keeps usagePerModel null until response usage is available", async () => {
   const workspace = createTempDir("deepcode-null-usage-per-model-workspace-");
   const home = createTempDir("deepcode-null-usage-per-model-home-");
@@ -473,22 +529,25 @@ test("SessionManager lists skills from Deep Code and .agents roots by priority",
   assert.equal(sharedSkill?.description, "Project .deepcode skill");
 });
 
-test("SessionManager lists bundled skills at lowest priority", async () => {
-  const workspace = createTempDir("deepcode-bundled-skills-workspace-");
-  const home = createTempDir("deepcode-bundled-skills-home-");
+test("SessionManager lists built-in plugin skills at lowest priority", async () => {
+  const workspace = createTempDir("deepcode-plugin-skills-workspace-");
+  const home = createTempDir("deepcode-plugin-skills-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-bundled-skills");
+  const manager = createSessionManager(workspace, "machine-id-plugin-skills");
   const skills = await manager.listSkills();
   const skillWriter = skills.find((skill) => skill.name === "skill-writer");
   const selfRefer = skills.find((skill) => skill.name === "deeporca-self-refer");
 
-  assert.equal(skillWriter?.path, "bundled:skill-writer/SKILL.md");
-  assert.equal(selfRefer?.path, "bundled:deeporca-self-refer/SKILL.md");
+  // Formerly `bundled:<skill>/SKILL.md`. The built-in skills now ship inside
+  // plugin packages (templates/plugins/<pkg>/skills/), so the display path is
+  // `plugin:<pkg>/<skill>/SKILL.md`.
+  assert.equal(skillWriter?.path, "plugin:meta-skills/skill-writer/SKILL.md");
+  assert.equal(selfRefer?.path, "plugin:meta-skills/deeporca-self-refer/SKILL.md");
   assert.match(skillWriter?.description ?? "", /Guide users through creating/);
 });
 
-test("SessionManager lets project skills override bundled skills", async () => {
+test("SessionManager lets project skills override built-in plugin skills", async () => {
   const workspace = createTempDir("deepcode-bundled-override-workspace-");
   const home = createTempDir("deepcode-bundled-override-home-");
   setHomeDir(home);
@@ -508,15 +567,15 @@ test("SessionManager lets project skills override bundled skills", async () => {
   assert.equal(skillWriter?.description, "Project override skill writer");
 });
 
-test("SessionManager resolves bundled skill prompts", () => {
-  const workspace = createTempDir("deepcode-bundled-prompt-workspace-");
-  const home = createTempDir("deepcode-bundled-prompt-home-");
+test("SessionManager resolves built-in plugin skill prompts", () => {
+  const workspace = createTempDir("deepcode-plugin-prompt-workspace-");
+  const home = createTempDir("deepcode-plugin-prompt-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-bundled-prompt");
+  const manager = createSessionManager(workspace, "machine-id-plugin-prompt");
   const prompt = (manager as any).buildSkillPrompt({
     name: "skill-writer",
-    path: "bundled:skill-writer/SKILL.md",
+    path: "plugin:meta-skills/skill-writer/SKILL.md",
     description: "Write skills",
   });
 
@@ -566,10 +625,15 @@ test("SessionManager excludes the former bundled plan skill and defaults legacy 
   );
 
   const sessionId = await manager.createSession({ text: "Default mode" });
+  // Simulate a legacy session persisted before `planMode` existed, then force it
+  // to disk: the normalization under test happens when the file is read back, so
+  // a fresh manager (not the one holding it in memory) is what must see `false`.
   const index = (manager as any).loadSessionsIndex();
   delete index.entries.find((entry: { id: string }) => entry.id === sessionId).planMode;
   (manager as any).saveSessionsIndex(index);
-  assert.equal(manager.getSession(sessionId)?.planMode, false);
+  (manager as any).flushSessionsIndex();
+  const reloaded = createSessionManager(workspace, "machine-id-plan-legacy-reload");
+  assert.equal(reloaded.getSession(sessionId)?.planMode, false);
 
   const autoMatchManager = createMockedClientSessionManagerWithClient(workspace, {
     chat: {
@@ -642,16 +706,17 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
   const skills = await manager.listSkills();
   const skillNames = skills.map((skill) => skill.name);
 
-  // Disabled skills must be excluded regardless of which bundled skills ship alongside.
-  const nonBundled = skills.filter((skill) => !skill.path.startsWith("bundled:"));
+  // Disabled skills must be excluded regardless of which built-in plugin skills
+  // ship alongside (formerly prefixed `bundled:`, now `plugin:<pkg>/…`).
+  const projectOwned = skills.filter((skill) => !skill.path.startsWith("plugin:"));
   assert.deepEqual(
-    nonBundled.map((skill) => skill.name),
+    projectOwned.map((skill) => skill.name),
     ["enabled-skill"]
   );
   for (const disabledName of ["skill-writer", "renamed-disabled", "deeporca-self-refer", "skill-digester"]) {
     assert.equal(skillNames.includes(disabledName), false);
   }
-  assert.equal(nonBundled[0]?.path, "./.deepcode/skills/enabled-skill/SKILL.md");
+  assert.equal(projectOwned[0]?.path, "./.deepcode/skills/enabled-skill/SKILL.md");
 });
 
 test("SessionManager keeps implicit opt-out skills available for manual invocation", async () => {
@@ -791,21 +856,27 @@ rl.on("line", (line) => {
 
   await initPromise;
 
-  assert.deepEqual(manager.getMcpStatus(), [
-    {
-      name: "smoke",
-      status: "ready",
-      connected: true,
-      toolCount: 2,
-      tools: ["mcp__smoke__echo", "mcp__smoke__count"],
-      promptCount: 0,
-      prompts: [],
-      resourceCount: 0,
-      resources: [],
-    },
-  ]);
+  // Select by name: initMcpServers also attaches the always-on in-process servers
+  // (activity-frames), so `smoke` is not the only entry. Still deep-compared in
+  // full, so every field of the configured server stays asserted.
+  assert.deepEqual(mcpStatusFor(manager, "smoke"), {
+    name: "smoke",
+    status: "ready",
+    connected: true,
+    toolCount: 2,
+    tools: ["mcp__smoke__echo", "mcp__smoke__count"],
+    promptCount: 0,
+    prompts: [],
+    resourceCount: 0,
+    resources: [],
+  });
   const mcpManager = (manager as any).mcpManager;
-  assert.equal(mcpManager.getMcpToolDefinitions()[0].function.name, "mcp__smoke__echo");
+  const smokeToolNames = mcpManager
+    .getMcpToolDefinitions()
+    .map((definition: { function: { name: string } }) => definition.function.name)
+    .filter((name: string) => name.startsWith("mcp__smoke__"))
+    .sort();
+  assert.deepEqual(smokeToolNames, ["mcp__smoke__count", "mcp__smoke__echo"]);
   assert.deepEqual(await mcpManager.executeMcpTool("mcp__smoke__echo", { text: "ok" }), {
     ok: true,
     name: "mcp__smoke__echo",
@@ -861,15 +932,18 @@ rl.on("line", (line) => {
   const manager = createSessionManager(workspace, "machine-id-mcp-safe-name");
   await manager.initMcpServers({ "voice.box": { command: process.execPath, args: [serverPath] } });
 
-  const status = manager.getMcpStatus()[0];
+  const status = mcpStatusFor(manager, "voice.box");
   assert.equal(status?.status, "ready");
   assert.deepEqual(status?.tools, ["mcp__voice_box__speak_text", "mcp__voice_box__speak_text_59a610ad"]);
 
   const mcpManager = (manager as any).mcpManager;
   const definitions = mcpManager.getMcpToolDefinitions();
-  assert.equal(definitions[0].function.name, "mcp__voice_box__speak_text");
-  assert.match(definitions[0].function.name, /^[a-zA-Z0-9_-]+$/);
-  assert.match(definitions[0].function.description, /MCP source: voice\.box: speak\.text/);
+  const speakText = definitions.find(
+    (definition: { function: { name: string } }) => definition.function.name === "mcp__voice_box__speak_text"
+  );
+  assert.ok(speakText, "expected the API-safe tool name to be exposed");
+  assert.match(speakText.function.name, /^[a-zA-Z0-9_-]+$/);
+  assert.match(speakText.function.description, /MCP source: voice\.box: speak\.text/);
   assert.deepEqual(await mcpManager.executeMcpTool("mcp__voice_box__speak_text", { text: "ok" }), {
     ok: true,
     name: "mcp__voice_box__speak_text",
@@ -988,12 +1062,19 @@ rl.on("line", (line) => {
   const manager = createSessionManager(workspace, "machine-id-mcp-crash-cache");
   await manager.initMcpServers({ crashy: { command: process.execPath, args: [serverPath] } });
 
-  assert.equal(manager.getMcpStatus()[0]?.status, "ready");
-  assert.equal((manager as any).mcpToolDefinitions.length, 1);
+  // Count only this server's tools — the always-on in-process servers contribute
+  // their own definitions to the same cache.
+  const crashyToolCount = () =>
+    ((manager as any).mcpToolDefinitions as { function: { name: string } }[]).filter((definition) =>
+      definition.function.name.startsWith("mcp__crashy__")
+    ).length;
 
-  await waitForMcpStatus(manager, "failed");
+  assert.equal(mcpStatusFor(manager, "crashy")?.status, "ready");
+  assert.equal(crashyToolCount(), 1);
 
-  assert.equal((manager as any).mcpToolDefinitions.length, 0);
+  await waitForMcpStatus(manager, "failed", "crashy");
+
+  assert.equal(crashyToolCount(), 0);
 
   manager.dispose();
 });
@@ -1148,23 +1229,31 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
     .map((message) => message.content ?? "");
 
   assert.equal(systemContents.length >= 5, true);
+  // Prefix-cache order (most stable first), per createSession:
+  //   [0] base system prompt + tool docs
+  //   [1] AGENTS.md standing instructions
+  //   [2] default skill docs
+  //   [3] built-in plugin docs
+  //   [4] stable workspace environment
   assert.match(systemContents[0] ?? "", /# Available Tools/);
   assert.doesNotMatch(systemContents[0] ?? "", /# Local Workspace Environment/);
-  assert.doesNotMatch(systemContents[0] ?? "", /当前LLM模型为test-model/);
-  assert.match(systemContents[1] ?? "", /<karpathy-guidelines-skill>/);
-  assert.match(systemContents[1] ?? "", /# Karpathy Guidelines/);
-  assert.doesNotMatch(systemContents[1] ?? "", /path="templates\/skills\//);
-  assert.doesNotMatch(systemContents[1] ?? "", /当前LLM模型为test-model/);
-  // [2] = built-in plugin prompt (browser-skill)
-  assert.match(systemContents[2] ?? "", /<builtin-plugin/);
-  // [3] = runtime context
-  assert.match(systemContents[3] ?? "", /# Local Workspace Environment/);
-  assert.match(systemContents[3] ?? "", /当前LLM模型为test-model/);
-  const environmentJsonMatch = (systemContents[3] ?? "").match(/```json\n([\s\S]+?)\n```/);
+  assert.equal(systemContents[1], "root project instructions");
+  assert.match(systemContents[2] ?? "", /<karpathy-guidelines-skill>/);
+  assert.match(systemContents[2] ?? "", /# Karpathy Guidelines/);
+  assert.doesNotMatch(systemContents[2] ?? "", /path="templates\/skills\//);
+  assert.match(systemContents[3] ?? "", /<builtin-plugin/);
+  assert.match(systemContents[4] ?? "", /# Local Workspace Environment/);
+  const environmentJsonMatch = (systemContents[4] ?? "").match(/```json\n([\s\S]+?)\n```/);
   assert.ok(environmentJsonMatch);
   const environmentInfo = JSON.parse(environmentJsonMatch[1] ?? "{}") as { "root path"?: string };
   assert.equal(environmentInfo["root path"], workspace);
-  assert.equal(systemContents[4], "root project instructions");
+
+  // The date/model line is deliberately NOT part of the cached system prefix — it
+  // ships per turn via getCurrentTurnTail so the DeepSeek prefix cache survives
+  // day rollovers and model switches. Guard every system message, not just one.
+  for (const content of systemContents) {
+    assert.doesNotMatch(content, /当前LLM模型为test-model/);
+  }
 });
 
 test("createSession skips disabled default skills", async () => {
@@ -3298,7 +3387,18 @@ test("SessionManager persists session and user message before skill matching is 
           assert.equal(request.temperature, 0.1);
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
-            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            // See the APIUserAbortError test below: the abort may already have
+            // landed before the request is issued, so check `aborted` first —
+            // otherwise this promise never settles and hangs the run.
+            if (!signal) {
+              reject(new Error("expected an abort signal to be forwarded to the OpenAI client"));
+              return;
+            }
+            if (signal.aborted) {
+              reject(new APIUserAbortError());
+              return;
+            }
+            signal.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
             queueMicrotask(() => manager.interruptActiveSession());
           });
         },
@@ -3331,7 +3431,19 @@ test("SessionManager treats OpenAI APIUserAbortError as interrupted", async () =
         create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
-            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            // The request is issued after an await, so the abort can already have
+            // landed by the time we get here. The real SDK rejects immediately on
+            // an already-aborted signal — mirror that. A listener-only mock would
+            // never settle and hang the entire test run instead of failing.
+            if (!signal) {
+              reject(new Error("expected an abort signal to be forwarded to the OpenAI client"));
+              return;
+            }
+            if (signal.aborted) {
+              reject(new APIUserAbortError());
+              return;
+            }
+            signal.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
           });
         },
       },
@@ -3374,10 +3486,14 @@ test("SessionManager marks MCP server as failed on single failed attempt (no aut
   const manager = createSessionManager(workspace, "machine-id-mcp-fail-no");
   await manager.initMcpServers({ broken: { command: process.execPath, args: [serverPath] } });
 
-  const status = manager.getMcpStatus();
-  assert.equal(status.length, 1);
-  assert.equal(status[0]?.status, "failed");
-  assert.match(status[0]?.error ?? "", /exited with code 7/);
+  const status = mcpStatusFor(manager, "broken");
+  assert.equal(status?.status, "failed");
+  // The SDK's StdioClientTransport drops the child exit code (stdio.js maps
+  // `close` to onclose() without it), so the failure surfaces as a transport
+  // error rather than the old "exited with code 7". A server that writes to
+  // stderr before dying still has that appended — covered by the
+  // "reports MCP startup stderr on failure" test.
+  assert.match(status?.error ?? "", /Connection closed/);
 
   manager.dispose();
 });
@@ -3400,7 +3516,7 @@ rl.on("line", (line) => {
     send({
       jsonrpc: "2.0",
       id: request.id,
-      result: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "stub", version: "1.0" } },
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
     });
     return;
   }
@@ -3417,10 +3533,9 @@ rl.on("line", (line) => {
   const manager = createSessionManager(workspace, "machine-id-mcp-reconn-ok");
   await manager.initMcpServers({ fixable: { command: process.execPath, args: [serverPath] } });
 
-  const status = manager.getMcpStatus();
-  assert.equal(status.length, 1);
-  assert.equal(status[0]?.status, "ready");
-  assert.equal(status[0]?.toolCount, 1);
+  const status = mcpStatusFor(manager, "fixable");
+  assert.equal(status?.status, "ready");
+  assert.equal(status?.toolCount, 1);
 
   manager.dispose();
 });
@@ -3856,7 +3971,34 @@ async function* createChatStreamResponse(chunks: Record<string, unknown>[]): Asy
 function createTempDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   tempDirs.push(dir);
+  // Opt every throwaway workspace out of the built-in MCP servers. Serena and
+  // SkillSpector are injected for *every* project when uv is present (see
+  // augmentMcpServersWithBuiltins), so without this a test that configures one
+  // stub server actually gets two or three, shifting getMcpStatus() indices and
+  // paying a 30s startup timeout each — ~180s of the suite's runtime. Disabling
+  // here (the single place every test obtains a directory) also makes results
+  // identical on machines with and without uv installed, rather than depending
+  // on the host. Same reasoning as the process-wide HOME isolation in
+  // run-tests.mjs: do it once, centrally, so individual tests cannot get it wrong.
+  setSerenaDisabled(dir, true);
+  setSkillSpectorDisabled(dir, true);
+  setCodegraphDisabled(dir, true);
+  setCrgDisabled(dir, true);
+  setA2uiDisabled(dir, true);
   return dir;
+}
+
+/**
+ * MCP status for one configured server, by name.
+ *
+ * SessionManager always attaches in-process MCP servers (activity-frames, and
+ * a2ui unless disabled) to every project, so getMcpStatus() is not just the
+ * servers a test configured and index 0 is not necessarily the test's own server.
+ * activity-frames has no opt-out by design, so tests select by name instead of
+ * position.
+ */
+function mcpStatusFor(manager: SessionManager, serverName: string) {
+  return manager.getMcpStatus().find((entry) => entry.name === serverName);
 }
 
 function createNotifyRecorderScript(dir: string): string {
@@ -3898,14 +4040,15 @@ async function waitForNotifyRecords(
   assert.fail(`expected ${expectedCount} notify records in ${outputPath}`);
 }
 
-async function waitForMcpStatus(manager: SessionManager, expectedStatus: string): Promise<void> {
+async function waitForMcpStatus(manager: SessionManager, expectedStatus: string, serverName?: string): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (manager.getMcpStatus()[0]?.status === expectedStatus) {
+    const entry = serverName ? mcpStatusFor(manager, serverName) : manager.getMcpStatus()[0];
+    if (entry?.status === expectedStatus) {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  assert.fail(`expected MCP status ${expectedStatus}`);
+  assert.fail(`expected MCP status ${expectedStatus}${serverName ? ` for ${serverName}` : ""}`);
 }
 
 function escapeRegExp(value: string): string {

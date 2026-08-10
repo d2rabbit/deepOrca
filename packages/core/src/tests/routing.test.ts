@@ -9,6 +9,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as os from "node:os";
 import * as fs from "node:fs";
 
@@ -29,6 +30,16 @@ import type {
   TurnContext,
 } from "../routing/types";
 import { DEFAULT_ROUTING_CONFIG } from "../routing/types";
+import {
+  configureRoutingLogger,
+  configureRoutingModelDir,
+  getConfiguredRoutingModelDir,
+  getEmbeddingLoadError,
+  getEmbeddingService,
+  resetEmbeddingLoader,
+  closeEmbeddingService,
+} from "../routing/embedding-loader";
+import { createRouters } from "../routing";
 
 // ── Mock embedding service ─────────────────────────────────────────────────
 // Maps known keywords to hand-crafted orthogonal-ish vectors so we can test
@@ -532,5 +543,76 @@ describe("Composer (composePlan)", () => {
     // B's compat with A = ioTypeCoercion(A,B)=1.0 (json match) → avg=1.0
     // B score = 0.12 + 0.7 = 0.82 > 0.285 → B wins
     assert.equal(plan.steps[1]!.skill!.name, "B");
+  });
+});
+
+// ── Embedding loader: model dir resolution + lifecycle ───────────────────────
+//
+// Routing shipped enabled-by-default but inert: the vendored model path was
+// built as `<core>/../../packages/desktop/vendor/...`, which resolves to
+// `packages/packages/desktop/...` — a directory that never existed. Because the
+// loader fails open and nothing consumed getEmbeddingLoadError(), there was no
+// symptom. These tests pin the resolution contract and the diagnostics.
+
+describe("embedding loader", () => {
+  test("host-injected model dir is readable and reset clears it", () => {
+    resetEmbeddingLoader();
+    assert.equal(getConfiguredRoutingModelDir(), null);
+
+    configureRoutingModelDir("/tmp/granite-embedding");
+    assert.equal(getConfiguredRoutingModelDir(), "/tmp/granite-embedding");
+
+    // Reset must clear the injection too, so one test cannot leak config into
+    // the next through this module-level state.
+    resetEmbeddingLoader();
+    assert.equal(getConfiguredRoutingModelDir(), null);
+  });
+
+  test("createRouters returns null routers when routing is disabled", async () => {
+    resetEmbeddingLoader();
+    const bundle = await createRouters({ ...DEFAULT_ROUTING_CONFIG, enabled: false }, { modelDir: "/nonexistent" });
+    assert.equal(bundle.skillRouter, null);
+    assert.equal(bundle.toolRouter, null);
+  });
+
+  test("a missing model directory surfaces a diagnostic through the host logger", async () => {
+    resetEmbeddingLoader();
+    const logged: string[] = [];
+    configureRoutingLogger((message) => logged.push(message));
+
+    const service = await getEmbeddingService({ modelDir: "/definitely/not/a/model/dir" });
+
+    // The service constructs successfully — a bad path only fails inside the
+    // fire-and-forget warmup, so the loader cannot return null here. What must
+    // NOT happen is silence: the host logger has to see the warmup start and,
+    // eventually, the failure. (Silence is how the broken vendored path stayed
+    // hidden while routing was enabled by default.)
+    assert.ok(service, "service is constructed even when the model dir is wrong");
+    assert.ok(
+      logged.some((message) => /warmup/i.test(message)),
+      `expected a warmup diagnostic, got: ${JSON.stringify(logged)}`
+    );
+
+    await closeEmbeddingService();
+    configureRoutingLogger(null);
+    resetEmbeddingLoader();
+  });
+
+  test("closeEmbeddingService is safe when nothing was ever loaded", async () => {
+    resetEmbeddingLoader();
+    await closeEmbeddingService();
+    assert.equal(getEmbeddingLoadError(), null);
+  });
+
+  test("the vendored model dir resolves inside the repo, not packages/packages", () => {
+    // Guards the exact regression: from packages/core/{src,dist}, the vendor dir
+    // is ../../desktop/vendor/... — adding a "packages" segment double-counts it.
+    const testsDir = path.dirname(fileURLToPath(import.meta.url));
+    const coreDir = path.resolve(testsDir, "..", "..");
+    const resolved = path.join(coreDir, "src", "..", "..", "desktop", "vendor", "granite-embedding");
+    assert.equal(resolved.includes(`${path.sep}packages${path.sep}packages${path.sep}`), false);
+    assert.equal(path.basename(path.dirname(path.dirname(resolved))), "desktop");
+    // And the vendor script targets that same location.
+    assert.equal(path.basename(resolved), "granite-embedding");
   });
 });

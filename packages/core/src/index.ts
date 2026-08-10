@@ -191,6 +191,16 @@ export {
 
 export { ACTIVITY_FRAMES_MCP_SERVER_NAME } from "./activity-frames/index";
 
+// Semantic skill/tool routing. The host injects the vendored embedding model dir
+// and a logger (same pattern as codegraph/serena above), and closes the shared
+// embedding service — which holds onnxruntime native handles — on app teardown.
+export {
+  configureRoutingModelDir,
+  configureRoutingLogger,
+  closeEmbeddingService,
+  getEmbeddingLoadError,
+} from "./routing";
+
 export {
   A2UI_MCP_SERVER_NAME,
   buildA2uiServer,
@@ -202,9 +212,9 @@ export {
   clearAllSurfaces,
 } from "./mcp/a2ui-mcp";
 
-// Memory — in-process provider interface.
-// The HTTP Gateway client (legacy) is retained in common/memory.ts for reference
-// but no longer exported — @deeporca/memory replaces it entirely.
+// Memory — in-process provider interface, implemented by @deeporca/memory.
+// (The legacy HTTP Gateway sidecar client was removed: it had no call sites and
+// was superseded by the in-process pipeline.)
 export type { MemoryProvider } from "./session";
 export {
   GITMCP_SERVER_PREFIX,
