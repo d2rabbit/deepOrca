@@ -433,7 +433,13 @@ async function reconcileMemory(): Promise<{ ok: boolean; error?: string }> {
   return wantEnabled ? startMemory() : stopMemory().then(() => ({ ok: true }));
 }
 
-function registerIpc(): void {
+/** The two channel registrars shared by every domain registrar below. */
+type IpcHelpers = {
+  handle: <T>(channel: string, fn: (...args: never[]) => T | Promise<T>) => void;
+  handlePrivileged: <T>(channel: string, fn: (...args: never[]) => T | Promise<T>) => void;
+};
+
+function createIpcHelpers(): IpcHelpers {
   // Uniform error normalization: log main-side failures with their channel and
   // rethrow a clean Error so the renderer receives a readable message instead
   // of an opaque serialized rejection.
@@ -465,7 +471,10 @@ function registerIpc(): void {
       }
     });
   };
+  return { handle, handlePrivileged };
+}
 
+function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.Ready, () => ({
     projectRoot: getBridge().projectRoot,
     platform: resolvePlatform(),
@@ -579,7 +588,9 @@ function registerIpc(): void {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
+}
 
+function registerPluginsIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Plugin IPC handlers ───────────────────────────────────────────────────
   handle(IpcRequest.PluginSearchSkills, (query: string, sessionId?: string) =>
     getPluginManager().searchSkills(query, sessionId)
@@ -599,12 +610,16 @@ function registerIpc(): void {
     getBridge().pluginBuiltinReadDoc(name, locale)
   );
   handle(IpcRequest.PluginBuiltinGroups, () => getBridge().pluginBuiltinGroups());
+}
 
+function registerFileScannerIpc({ handle }: IpcHelpers): void {
   // ── File scanner (for @file mentions) ────────────────────────────────────
   handle(IpcRequest.ScanFiles, (query: string) => {
     return scanFiles(getBridge().projectRoot, query);
   });
+}
 
+function registerWorkspaceIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Workspace-grouped sessions + archive ──────────────────────────────────
   handle(IpcRequest.WorkspaceListSessions, () => listWorkspaceSessions(getBridge().projectRoot));
   handlePrivileged(IpcRequest.SessionArchive, (id: string) => {
@@ -613,7 +628,9 @@ function registerIpc(): void {
   handlePrivileged(IpcRequest.SessionUnarchive, (id: string) => {
     unarchiveSession(id);
   });
+}
 
+function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Git source control ────────────────────────────────────────────────────
   handle(IpcRequest.GitStatus, () => getBridge().gitStatus());
   handlePrivileged(IpcRequest.GitStage, (file: string) => getBridge().gitStage(file));
@@ -628,7 +645,9 @@ function registerIpc(): void {
   handle(IpcRequest.GitLog, (limit?: number) => getBridge().gitLog(limit));
   handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
   handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
+}
 
+function registerCodegraphIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── CodeGraph index library ───────────────────────────────────────────────
   handle(IpcRequest.CodegraphList, (): CodegraphIndexEntry[] => {
     const currentRoot = getBridge().projectRoot;
@@ -658,7 +677,9 @@ function registerIpc(): void {
       error: exitCode !== 0 ? `exit code ${exitCode}` : undefined,
     };
   });
+}
 
+function registerCodeReviewIpc({ handle }: IpcHelpers): void {
   // ── Code Review (ocr CLI) ──────────────────────────────────────────────────
   // Open Code Review ships as an npm package (@alibaba-group/open-code-review)
   // whose bin/ocr.js launcher resolves a prebuilt platform binary from an
@@ -745,7 +766,9 @@ function registerIpc(): void {
       }
     });
   });
+}
 
+function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── code-review-graph (CRG — analysis-layer via uv/uvx) ────────────────────
   // CRG is a Python tool. We run it via `uv tool run` (uvx), which auto-provisions
   // an isolated Python 3.12 environment. The vendored uv binary (packages/desktop/
@@ -806,6 +829,9 @@ function registerIpc(): void {
   // NOTE: The IPC handlers below (MemoryCheckAvailable / MemorySetEnabled) are
   // fully wired through main → preload → shared IPC, but the renderer currently
   // has NO call site for memoryCheckAvailable / memorySetEnabled. Additionally,
+}
+
+function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Memory (in-process @deeporca/memory) ─────────────────────────────────
   // Memory runs as an in-process pipeline (TdaiCore), not an HTTP sidecar.
   // The MemoryManager is initialized from settings when memory is enabled.
@@ -823,7 +849,9 @@ function registerIpc(): void {
     await stopMemory();
     return { ok: true };
   });
+}
 
+function registerA2uiIpc({ handle }: IpcHelpers): void {
   // ── A2UI (Surface user interaction → agent) ──────────────────────────────
   // When the user clicks a button on an A2UI Surface, the renderer calls
   // this handler. We forward it as an MCP tool call (a2ui_action) to the
@@ -859,7 +887,9 @@ function registerIpc(): void {
       }
     }
   );
+}
 
+function registerA2uiPrototypeWindowIpc({ handle }: IpcHelpers): void {
   // ── A2UI standalone prototype window ──────────────────────────────────────
   // Opens a separate Electron BrowserWindow with the prototype Surface at
   // full screen — useful for PM presentations or focused prototype testing.
@@ -931,7 +961,9 @@ function registerIpc(): void {
   handle(IpcRequest.A2uiRequestPayload, (token: string): { a2uiJson: string; title: string } | null => {
     return prototypePayloads.get(token) ?? null;
   });
+}
 
+function registerWikiIpc({ handle }: IpcHelpers): void {
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run
@@ -1102,32 +1134,42 @@ function registerIpc(): void {
       return "";
     }
   });
+}
 
+function registerMcpManagementIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── MCP management (plugin module) ────────────────────────────────────────
   handle(IpcRequest.PluginMcpList, () => getBridge().pluginMcpList());
   handlePrivileged(IpcRequest.PluginSetMcpEnabled, (name: string, enabled: boolean) =>
     getBridge().pluginSetMcpEnabled(name, enabled)
   );
+}
 
+function registerGitmcpIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── GitMCP module ──────────────────────────────────────────────────────
   handle(IpcRequest.GitmcpList, () => getBridge().gitmcpList());
   handlePrivileged(IpcRequest.GitmcpAdd, (input: string) => getBridge().gitmcpAdd(input));
   handlePrivileged(IpcRequest.GitmcpRemove, (slug: string) => getBridge().gitmcpRemove(slug));
   handlePrivileged(IpcRequest.GitmcpReindex, (slug: string) => getBridge().gitmcpReindex(slug));
+}
 
+function registerEditorIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Editor module ───────────────────────────────────────────────────────
   handle(IpcRequest.EditorReadFile, (filePath: string) => handleEditorReadFile(getBridge().projectRoot, filePath));
   handlePrivileged(IpcRequest.EditorWriteFile, (filePath: string, content: string) =>
     handleEditorWriteFile(getBridge().projectRoot, filePath, content)
   );
   handle(IpcRequest.EditorListFiles, (dirPath: string) => handleEditorListFiles(getBridge().projectRoot, dirPath));
+}
 
+function registerAgentChangesIpc({ handle }: IpcHelpers): void {
   // ── Agent changes ─────────────────────────────────────────────────────────
   handle(IpcRequest.AgentChangesList, (sessionId: string) => getBridge().agentChangesList(sessionId));
   handle(IpcRequest.AgentChangesDiff, (sessionId: string, file: string) =>
     getBridge().agentChangesDiff(sessionId, file)
   );
+}
 
+function registerSessionExportIpc({ handle }: IpcHelpers): void {
   // ── Session export ──────────────────────────────────────────────────────────
   handle(IpcRequest.SessionExport, async (sessionId: string) => {
     if (!mainWindow) return { ok: false, error: "no window" };
@@ -1156,6 +1198,30 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+}
+
+// Registration order is preserved exactly as it was inline: channels are
+// registered once each, and some renderer flows depend on earlier domains
+// being available first.
+function registerIpc(): void {
+  const helpers = createIpcHelpers();
+  registerCoreIpc(helpers);
+  registerPluginsIpc(helpers);
+  registerFileScannerIpc(helpers);
+  registerWorkspaceIpc(helpers);
+  registerGitIpc(helpers);
+  registerCodegraphIpc(helpers);
+  registerCodeReviewIpc(helpers);
+  registerCrgIpc(helpers);
+  registerMemoryIpc(helpers);
+  registerA2uiIpc(helpers);
+  registerA2uiPrototypeWindowIpc(helpers);
+  registerWikiIpc(helpers);
+  registerMcpManagementIpc(helpers);
+  registerGitmcpIpc(helpers);
+  registerEditorIpc(helpers);
+  registerAgentChangesIpc(helpers);
+  registerSessionExportIpc(helpers);
 }
 
 app.whenReady().then(() => {
