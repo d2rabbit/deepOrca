@@ -5,16 +5,17 @@ import { useDocumentTitle } from "./hooks/use-document-title";
 import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
 import { usePanelLayout } from "./hooks/use-panel-layout";
 import { useAppearance } from "./hooks/use-appearance";
+import { usePreview } from "./hooks/use-preview";
+import { useSkills } from "./hooks/use-skills";
+import { useProcessPanel } from "./hooks/use-process-panel";
 import type {
   AskPermissionRequest,
   EditableSettings,
   McpServerStatus,
   ModelConfigSelection,
-  SerializableProcess,
   SerializableSessionEntry,
   SessionMessage,
   SettingsSummary,
-  SkillInfo,
   UserPromptContent,
 } from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
@@ -48,9 +49,8 @@ const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) =
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
-import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
+import { ProcessOutputPanel } from "./components/ProcessOutputPanel";
 import { TaskProgressPanel } from "./components/TaskProgressPanel";
-import { clearSurfaces as clearA2uiSurfaces } from "./a2ui/processor";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
@@ -138,8 +138,8 @@ export function App(): JSX.Element {
   const [sessions, setSessions] = useState<SerializableSessionEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
-  const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const { skills, selectedSkills, setSelectedSkills, refreshSkills, handleToggleSkill, handleRefreshPluginSkills } =
+    useSkills(activeId);
   const [, setMcpStatuses] = useState<McpServerStatus[]>([]);
 
   const [draft, setDraft] = useState("");
@@ -166,13 +166,20 @@ export function App(): JSX.Element {
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
-  const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
-  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design">("a2ui");
-  const [prototypeOpenuiCode, setPrototypeOpenuiCode] = useState<string>("");
-  const [designContent, setDesignContent] = useState<string | null>(null);
-  const [graphHtml, setGraphHtml] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
+  const {
+    prototypeJson,
+    prototypeMode,
+    prototypeOpenuiCode,
+    designContent,
+    graphHtml,
+    setGraphHtml,
+    previewOpen,
+    previewTab,
+    setPreviewTab,
+    applyToolMessage: applyPreviewToolMessage,
+    resetForSession: resetPreviewForSession,
+    closePreview,
+  } = usePreview();
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [editorFile, setEditorFile] = useState<string | null>(null);
@@ -203,9 +210,14 @@ export function App(): JSX.Element {
     handleCollapsePanel,
   } = usePanelLayout();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [showProcessPanel, setShowProcessPanel] = useState(false);
-  const [runningProcesses, setRunningProcesses] = useState<SerializableProcess[]>([]);
-  const processStdoutRef = useRef<Map<number, string>>(new Map());
+  const {
+    showProcessPanel,
+    setShowProcessPanel,
+    runningProcesses,
+    stdoutRef: processStdoutRef,
+    syncFromEntry: syncProcessesFromEntry,
+    appendStdout: appendProcessStdout,
+  } = useProcessPanel(busy);
 
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
@@ -231,10 +243,6 @@ export function App(): JSX.Element {
   // ── Data loading ────────────────────────────────────────────────────────────
   const refreshSessions = useCallback(async () => {
     setSessions(await api.listSessions());
-  }, []);
-
-  const refreshSkills = useCallback(async (sessionId?: string) => {
-    setSkills(await api.listSkills(sessionId));
   }, []);
 
   const refreshSettings = useCallback(async () => {
@@ -266,16 +274,7 @@ export function App(): JSX.Element {
       setPendingPlan(null);
       setErrorLine(null);
       setPendingPermissionReply((prev) => (prev && prev.sessionId !== id ? null : prev));
-      // M1: drop all cached A2UI surfaces so the new session starts clean and
-      // the global singleton Map doesn't grow unbounded across switches.
-      clearA2uiSurfaces();
-      // F3: reset prototype panel state so switching sessions doesn't reopen
-      // the preview with stale content from the prior session.
-      setPrototypeJson(null);
-      setPrototypeOpenuiCode("");
-      setPrototypeMode("a2ui");
-      setPreviewOpen(false);
-      setDesignContent(null);
+      resetPreviewForSession();
       if (!id) {
         setMessages([]);
         setActiveStatus(null);
@@ -295,7 +294,7 @@ export function App(): JSX.Element {
       setPlanMode(entry?.planMode === true);
       await refreshSkills(id);
     },
-    [refreshSkills]
+    [refreshSkills, resetPreviewForSession]
   );
 
   // ── Startup + event wiring ───────────────────────────────────────────────────
@@ -329,69 +328,7 @@ export function App(): JSX.Element {
       }
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
-        // Auto-switch to prototype panel when a render_prototype/render_surface
-        // tool result arrives with A2UI payload.
-        if (message.role === "tool") {
-          const content = message.content || "";
-          // Check for DeepDesign (.dd format) tool results via metadata.design.
-          if (content.includes("render_design") || content.includes("update_design")) {
-            try {
-              const parsed = JSON.parse(content);
-              const meta = parsed.metadata ?? {};
-              if (meta.design) {
-                const ddContent = typeof meta.design === "string" ? meta.design : String(meta.design);
-                setPrototypeMode("design");
-                setDesignContent(ddContent);
-                setPreviewOpen(true);
-                setPreviewTab("design");
-              }
-            } catch {
-              // Not parseable.
-            }
-          }
-          // Check for OpenUI Lang tool results via metadata.openui.
-          if (content.includes("render_openui") || content.includes("update_openui")) {
-            try {
-              const parsed = JSON.parse(content);
-              const meta = parsed.metadata ?? {};
-              if (meta.openui) {
-                const openuiCode = typeof meta.openui === "string" ? meta.openui : String(meta.openui);
-                setPrototypeMode("openui");
-                setPrototypeOpenuiCode(openuiCode);
-                setPreviewOpen(true);
-                setPreviewTab("prototype");
-              }
-            } catch {
-              // Not parseable.
-            }
-          }
-          // Check for A2UI tool results via metadata.a2ui (set by executor).
-          else if (
-            content.includes("render_prototype") ||
-            content.includes("render_surface") ||
-            content.includes("update_surface")
-          ) {
-            try {
-              const parsed = JSON.parse(content);
-              const meta = parsed.metadata ?? {};
-              if (meta.a2ui) {
-                const a2uiJson = typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
-                if (content.includes("render_prototype") || content.includes("render_surface")) {
-                  setPrototypeMode("a2ui");
-                  setPrototypeJson(a2uiJson);
-                  setPreviewOpen(true);
-                  setPreviewTab("prototype");
-                } else if (content.includes("update_surface")) {
-                  setPrototypeMode("a2ui");
-                  setPrototypeJson(a2uiJson);
-                  setPreviewOpen(true);
-                }
-              }
-            } catch {
-              // Not parseable — stay in chat view.
-            }
-          }
-        }
+        applyPreviewToolMessage(message);
       }
     });
 
@@ -406,21 +343,13 @@ export function App(): JSX.Element {
       if (entry.id === activeIdRef.current) {
         setActiveStatus(entry.status);
         setAskPermissions(entry.askPermissions);
-        setRunningProcesses(entry.processes ?? []);
-        // Clean up stdout buffers for processes that are no longer running.
-        // Without this, the Map retains up to 1MB per dead PID for the app lifetime.
-        const newPids = new Set((entry.processes ?? []).map((p) => Number(p.pid)));
-        for (const pid of processStdoutRef.current.keys()) {
-          if (!newPids.has(pid)) {
-            processStdoutRef.current.delete(pid);
-          }
-        }
+        syncProcessesFromEntry(entry);
       }
       bumpTreeThrottled();
     });
 
     const offProcessStdout = api.onProcessStdout((event) => {
-      accumulateStdout(processStdoutRef.current, event.pid, event.chunk);
+      appendProcessStdout(event.pid, event.chunk);
     });
 
     // Throttle stream progress updates to max 4/sec (250ms). Token streaming
@@ -507,6 +436,8 @@ export function App(): JSX.Element {
       }
     };
   }, [
+    appendProcessStdout,
+    applyPreviewToolMessage,
     bumpTree,
     bumpTreeThrottled,
     initAppearanceFromPlatform,
@@ -517,6 +448,7 @@ export function App(): JSX.Element {
     refreshSessions,
     refreshSettings,
     refreshSkills,
+    syncProcessesFromEntry,
   ]);
 
   // Loading-animation tick — only while busy, so an idle app doesn't re-render
@@ -603,7 +535,7 @@ export function App(): JSX.Element {
       skills: skillObjs.length > 0 ? skillObjs : undefined,
       planMode,
     });
-  }, [draft, imageUrls, planMode, runPrompt, selectedSkills, skills]);
+  }, [draft, imageUrls, planMode, runPrompt, selectedSkills, setSelectedSkills, skills]);
 
   const handleStop = useCallback(() => {
     void api.interrupt();
@@ -882,11 +814,6 @@ export function App(): JSX.Element {
   // handed to them must keep a stable identity across App re-renders (stream
   // ticks, busy ticks) or memoization is defeated.
   const handleTogglePlan = useCallback(() => setPlanMode((v) => !v), []);
-  const handleToggleSkill = useCallback(
-    (name: string) =>
-      setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name])),
-    []
-  );
   const handleRemoveImage = useCallback((i: number) => setImageUrls((prev) => prev.filter((_, idx) => idx !== i)), []);
   const handleAddImage = useCallback((dataUrl: string) => setImageUrls((prev) => [...prev, dataUrl]), []);
   const handleResumeClick = useCallback(() => void handleResume(), [handleResume]);
@@ -896,10 +823,6 @@ export function App(): JSX.Element {
     setSelectedPlugin(sel);
     setMainView("plugins");
   }, []);
-  const handleRefreshPluginSkills = useCallback(async () => {
-    await api.pluginRefreshSkills(activeId ?? undefined);
-    await refreshSkills(activeId ?? undefined);
-  }, [activeId, refreshSkills]);
 
   const handleQuickAction = useCallback(
     (action: "plan" | "init" | "skills" | "undo") => {
@@ -997,7 +920,7 @@ export function App(): JSX.Element {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleOpenSettings, handleNewSession, setPanelOpen]);
+  }, [handleOpenSettings, handleNewSession, setPanelOpen, setShowProcessPanel]);
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
@@ -1124,13 +1047,6 @@ export function App(): JSX.Element {
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
     return `${t("composer.thinking")} (${elapsedSeconds}s) · \u2193 ${streamProgress.formattedTokens} tokens`;
   }, [busy, streamProgress, runningProcesses, nowTick, t]);
-
-  // Auto-show process panel when processes start running.
-  useEffect(() => {
-    if (runningProcesses.length > 0 && busy) {
-      setShowProcessPanel(true);
-    }
-  }, [runningProcesses, busy]);
 
   useDocumentTitle(busy, activeStatus);
 
@@ -1518,16 +1434,7 @@ export function App(): JSX.Element {
                 ✦ Design
               </button>
             </div>
-            <button
-              className="ui-preview-close"
-              onClick={() => {
-                setPreviewOpen(false);
-                setPrototypeJson(null);
-                setPrototypeOpenuiCode("");
-                setDesignContent(null);
-              }}
-              title="Close preview"
-            >
+            <button className="ui-preview-close" onClick={closePreview} title="Close preview">
               ✕
             </button>
           </div>

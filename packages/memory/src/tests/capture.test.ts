@@ -30,6 +30,22 @@ function tmpDataDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-mem-test-"));
 }
 
+/**
+ * Local YYYY-MM-DD, mirroring how the L0 recorder names its daily shard
+ * (`formatLocalDate` in l0-recorder.ts, which is module-private).
+ *
+ * Must NOT use toISOString(), which is UTC: east-of-UTC machines then look for
+ * yesterday's shard between local midnight and the UTC rollover — eight hours a
+ * day in UTC+8. CI runs in UTC, so local date == UTC date there and this never
+ * showed up.
+ */
+function localShardDate(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 test("recordConversation persists user + assistant messages to L0 JSONL", async () => {
   const baseDir = tmpDataDir();
   const sessionKey = "sess-test-1";
@@ -48,7 +64,7 @@ test("recordConversation persists user + assistant messages to L0 JSONL", async 
   assert.equal(filtered.length, 2, "both user and assistant messages must be captured");
 
   // The L0 JSONL shard must contain the records on disk.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localShardDate();
   const shardPath = path.join(baseDir, "conversations", `${today}.jsonl`);
   assert.ok(fs.existsSync(shardPath), "L0 JSONL shard must exist");
   const lines = fs.readFileSync(shardPath, "utf8").trim().split("\n").filter(Boolean);
