@@ -1,5 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
+// Type-only: the fallbacks below deliberately use dynamic require() so they add
+// no module-level dependency, but they still need these module shapes for typing.
+import type * as NodePath from "node:path";
+import type * as NodeUrl from "node:url";
 import * as os from "os";
 import * as crypto from "crypto";
 import matter from "gray-matter";
@@ -78,7 +82,7 @@ import {
   type ToolExecutionHooks,
 } from "./tools/executor";
 import { McpManager } from "./mcp/mcp-manager";
-import type { McpServerConfig, PermissionScope, PermissionSettings } from "./settings";
+import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
 import { getProjectSettingsPath, getUserSettingsPath } from "./settings";
 import { getUserConfigRoot } from "./common/app-dirs";
 import { logApiError } from "./common/error-logger";
@@ -104,6 +108,7 @@ import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
 import { DEFAULT_ROUTING_CONFIG, type RoutingConfig, type RoutableTool } from "./routing";
 import { createRouters, getConfiguredRoutingModelDir, type RouterBundle } from "./routing";
+import type { LLMDecomposer } from "./routing/types";
 
 export type { PermissionScope } from "./settings";
 export type {
@@ -453,7 +458,7 @@ type SessionManagerOptions = {
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
     enabledSkills?: Record<string, boolean>;
-    routing?: import("./settings.js").RoutingSettings;
+    routing?: RoutingSettings;
   };
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
@@ -510,7 +515,7 @@ export class SessionManager {
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
     enabledSkills?: Record<string, boolean>;
-    routing?: import("./settings.js").RoutingSettings;
+    routing?: RoutingSettings;
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -611,8 +616,8 @@ export class SessionManager {
         // silently fail-opened and never actually ran.)
         (() => {
           try {
-            const { join, dirname } = require("node:path") as typeof import("node:path");
-            const { fileURLToPath } = require("node:url") as typeof import("node:url");
+            const { join, dirname } = require("node:path") as typeof NodePath;
+            const { fileURLToPath } = require("node:url") as typeof NodeUrl;
             const here = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
             return join(here, "..", "..", "desktop", "vendor", "granite-embedding");
           } catch {
@@ -622,7 +627,7 @@ export class SessionManager {
       // Cache dir: project-level .deeporca/cache (best-effort).
       const cacheDir = (() => {
         try {
-          const { join } = require("node:path") as typeof import("node:path");
+          const { join } = require("node:path") as typeof NodePath;
           return join(this.projectRoot, ".deeporca", "cache");
         } catch {
           return undefined;
@@ -647,10 +652,7 @@ export class SessionManager {
    * sub-tasks, with optional skill hints on the second pass.
    * Returns null when no LLM client is available (SAD will fail-open).
    */
-  private createSkillDecomposer(options?: {
-    signal?: AbortSignal;
-    sessionId?: string;
-  }): import("./routing/types.js").LLMDecomposer {
+  private createSkillDecomposer(options?: { signal?: AbortSignal; sessionId?: string }): LLMDecomposer {
     return {
       decompose: async (query, hints) => {
         const { client, baseURL } = this.createOpenAIClient();

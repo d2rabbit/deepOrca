@@ -22,7 +22,6 @@ import type {
   RoutableSkill,
   SkillCandidate,
   SkillRouter,
-  SubTask,
 } from "./types";
 import { runSad, type SadOptions } from "./sad";
 import { composePlan } from "./composer";

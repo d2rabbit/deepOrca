@@ -89,6 +89,12 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       // Invalidate any in-flight request when the effect re-runs (query/open
       // changed) so its late-arriving result won't overwrite the newer state.
+      //
+      // exhaustive-deps warns the ref may have changed by cleanup time and
+      // suggests copying it into a local. That advice is wrong here: reading the
+      // *current* value and bumping it is the whole mechanism — copying it would
+      // increment a stale counter and stop invalidating anything.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       reqIdRef.current++;
     };
   }, [open, query]);
