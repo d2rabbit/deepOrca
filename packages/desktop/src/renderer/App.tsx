@@ -8,6 +8,8 @@ import { useAppearance } from "./hooks/use-appearance";
 import { usePreview } from "./hooks/use-preview";
 import { useSkills } from "./hooks/use-skills";
 import { useProcessPanel } from "./hooks/use-process-panel";
+import { useGit } from "./hooks/use-git";
+import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import type {
   AskPermissionRequest,
   EditableSettings,
@@ -160,8 +162,6 @@ export function App(): JSX.Element {
 
   const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
   // Branch the user tried to switch to while the working tree had blocking local changes.
-  const [branchConflict, setBranchConflict] = useState<string | null>(null);
-  const [stashSwitching, setStashSwitching] = useState(false);
   const [editable, setEditable] = useState<EditableSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
@@ -183,8 +183,6 @@ export function App(): JSX.Element {
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [editorFile, setEditorFile] = useState<string | null>(null);
-  const [branch, setBranch] = useState("");
-  const [branches, setBranches] = useState<string[]>([]);
 
   const {
     appearance,
@@ -245,22 +243,23 @@ export function App(): JSX.Element {
     setSessions(await api.listSessions());
   }, []);
 
+  const {
+    branch,
+    branches,
+    branchConflict,
+    setBranchConflict,
+    stashSwitching,
+    refreshGit,
+    handleSwitchBranch,
+    handleStashAndSwitch,
+  } = useGit({ bumpTree, refreshSessions, setErrorLine, pushToast, t });
+
   const refreshSettings = useCallback(async () => {
     setSettings(await api.getSettings());
   }, []);
 
   const refreshMcp = useCallback(async () => {
     setMcpStatuses(await api.mcpStatus());
-  }, []);
-
-  const refreshGit = useCallback(async () => {
-    try {
-      const [current, list] = await Promise.all([api.gitCurrentBranch(), api.gitListBranches()]);
-      setBranch(current);
-      setBranches(list);
-    } catch {
-      // Git may be unavailable in this workspace — keep prior branch state.
-    }
   }, []);
 
   const loadSession = useCallback(
@@ -667,56 +666,6 @@ export function App(): JSX.Element {
     [loadSession]
   );
 
-  const handleSwitchBranch = useCallback(
-    async (next: string) => {
-      const result = await api.gitCheckout(next);
-      if (result.ok) {
-        await refreshGit();
-        await refreshSessions();
-        bumpTree();
-      } else if (result.conflict) {
-        // Dirty tree: offer stash-and-switch instead of dumping raw git stderr.
-        setBranchConflict(next);
-        await refreshGit();
-      } else {
-        setErrorLine(result.error ?? t("app.requestFailed"));
-        // Keep the dropdown in sync with the real branch after a failed switch.
-        await refreshGit();
-      }
-    },
-    [bumpTree, refreshGit, refreshSessions, t]
-  );
-
-  const handleStashAndSwitch = useCallback(async () => {
-    const target = branchConflict;
-    if (!target || stashSwitching) {
-      return;
-    }
-    setStashSwitching(true);
-    try {
-      const result = await api.gitStashCheckout(target);
-      if (result.ok) {
-        setBranchConflict(null);
-        if (result.stashWarning) {
-          // Checkout succeeded but the stashed changes could not be restored —
-          // surface as an error toast so the user recovers via `git stash pop`.
-          pushToast("error", result.stashWarning);
-        } else {
-          pushToast("success", t("scm.stashSwitchDone", { branch: target }));
-        }
-        await refreshGit();
-        await refreshSessions();
-        bumpTree();
-      } else {
-        setBranchConflict(null);
-        setErrorLine(result.error ?? t("app.requestFailed"));
-        await refreshGit();
-      }
-    } finally {
-      setStashSwitching(false);
-    }
-  }, [branchConflict, stashSwitching, bumpTree, pushToast, refreshGit, refreshSessions, t]);
-
   const handleSetModel = useCallback(async (selection: ModelConfigSelection) => {
     setSettings(await api.setModel(selection));
     const id = activeIdRef.current;
@@ -884,43 +833,14 @@ export function App(): JSX.Element {
   );
 
   // ── ⌘K command palette + global keyboard shortcuts ─────────────────────────
-  useEffect(() => {
-    function onKey(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "o" || e.key === "O")) {
-        e.preventDefault();
-        setShowProcessPanel((v) => !v);
-      }
-      // ⌘B / Ctrl+B — toggle sidebar panel
-      if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
-        e.preventDefault();
-        setPanelOpen((v) => !v);
-      }
-      // ⌘J / Ctrl+J — toggle bottom process panel
-      if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
-        e.preventDefault();
-        setShowProcessPanel((v) => !v);
-      }
-      // ⌘N / Ctrl+N — new session
-      if ((e.metaKey || e.ctrlKey) && (e.key === "n" || e.key === "N")) {
-        e.preventDefault();
-        handleNewSession();
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-        e.preventDefault();
-        void handleOpenSettings();
-      }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "?" || e.key === "/")) {
-        e.preventDefault();
-        setModal((v) => (v === "shortcuts" ? null : "shortcuts"));
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [handleOpenSettings, handleNewSession, setPanelOpen, setShowProcessPanel]);
+  useGlobalShortcuts({
+    togglePalette: () => setPaletteOpen((v) => !v),
+    toggleProcessPanel: () => setShowProcessPanel((v) => !v),
+    togglePanel: () => setPanelOpen((v) => !v),
+    newSession: handleNewSession,
+    openSettings: handleOpenSettings,
+    toggleShortcutsModal: () => setModal((v) => (v === "shortcuts" ? null : "shortcuts")),
+  });
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
