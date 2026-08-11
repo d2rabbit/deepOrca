@@ -109,7 +109,7 @@ export function initDataDirectories(dataDir: string): void {
 }
 
 // ============================
-// Store init (once-async singleton)
+// Store init (config-aware cached singleton with refcount)
 // ============================
 
 export interface StoreInitResult {
@@ -121,22 +121,83 @@ export interface StoreInitResult {
 }
 
 /**
- * Cached store init promises — keyed by `pluginDataDir` so that different
- * data directories (e.g. live runtime vs. seed output) each get their own
- * store instance, while concurrent callers for the *same* directory share
- * one initialization.
+ * Build the cache key for a store binding.
+ *
+ * The cache used to be keyed only by `pluginDataDir`, which meant a config
+ * change (embedding provider, model, dimensions, granite model dir, or a
+ * switch between sqlite/tcvdb) silently reused the *old* store/embedding
+ * bundle. It also meant two owners pointing at the same data dir shared one
+ * SQLite handle, and either owner's `resetStores()` could close resources the
+ * other was still using.
+ *
+ * The key is now derived from everything that affects the on-disk schema and
+ * the native resource bundle:
+ *   - canonicalised data directory (realpath if it exists, else resolved path)
+ *   - store backend (sqlite | tcvdb)
+ *   - embedding provider / model / dimensions
+ *   - granite model directory (the local-onnx ONNX file tree)
+ *
+ * `apiKey`/`baseUrl` are intentionally excluded — rotating a credential must
+ * NOT spin up a second store (it would re-create the SQLite/vector index with
+ * the same schema). Only identity-affecting fields participate.
  */
-const _storeInitCache = new Map<string, Promise<StoreInitResult>>();
+function buildStoreCacheKey(cfg: MemoryTdaiConfig, pluginDataDir: string, graniteModelDir?: string): string {
+  let canonicalDir: string;
+  try {
+    canonicalDir = fs.realpathSync(pluginDataDir);
+  } catch {
+    canonicalDir = path.resolve(pluginDataDir);
+  }
+  const emb = cfg.embedding;
+  const parts = [
+    `dir=${canonicalDir}`,
+    `backend=${cfg.storeBackend}`,
+    `provider=${emb.provider}`,
+    `model=${emb.model || ""}`,
+    `dims=${emb.dimensions ?? 0}`,
+    `granite=${graniteModelDir ? path.resolve(graniteModelDir) : ""}`,
+  ];
+  return parts.join("|");
+}
+
+/**
+ * Cached store entry. The cache holds one {@link StoreCacheEntry} per
+ * config-aware key. Concurrent callers share the same `initPromise`; each
+ * caller MUST pair its successful acquire with a `release()` so the last
+ * owner closes the store/embedding resources.
+ *
+ * `initPromise` auto-evicts on rejection, so a failed init does not poison
+ * the cache for the lifetime of the process — the next caller re-creates.
+ */
+interface StoreCacheEntry {
+  key: string;
+  initPromise: Promise<StoreInitResult>;
+  /** Number of live owners. The last release() closes the bundle. */
+  refCount: number;
+  /** Resolved result, set after initPromise fulfils (for release()). */
+  result?: StoreInitResult;
+  /** True once release() has started tearing the bundle down. */
+  closing: boolean;
+}
+
+const _storeInitCache = new Map<string, StoreCacheEntry>();
 
 /**
  * Initialize store backend and (optionally) EmbeddingService.
  *
- * **Once-async semantics per dataDir**: the first call for a given
- * `pluginDataDir` creates the store and caches the result; subsequent
- * calls with the same dir return the cached Promise immediately.
- * Call `resetStores()` during shutdown to clear the cache.
+ * **Once-async + refcount semantics per config binding**: the first call for a
+ * given (dataDir, backend, embedding config) tuple creates the store, caches
+ * the in-flight promise, and returns a {@link StoreLease}. Subsequent calls
+ * with the same effective config share the same bundle and bump its refcount.
  *
- * Supports both SQLite (sync init) and TCVDB (async init) backends.
+ * The caller MUST call `release()` on the returned lease when it is done
+ * (typically in `TdaiCore.destroy()`). The last release closes the store and
+ * embedding service and removes the cache entry, so a hot-restart can
+ * re-initialise fresh instances. Failing to release leaks the SQLite/ONNX
+ * handles until process exit.
+ *
+ * Rejected inits are evicted automatically — the next caller gets a fresh
+ * attempt instead of a permanently-rejected promise.
  */
 export function initStores(
   cfg: MemoryTdaiConfig,
@@ -144,11 +205,86 @@ export function initStores(
   logger: PipelineLogger,
   graniteModelDir?: string
 ): Promise<StoreInitResult> {
-  const key = pluginDataDir;
-  if (!_storeInitCache.has(key)) {
-    _storeInitCache.set(key, _doInitStores(cfg, pluginDataDir, logger, graniteModelDir));
+  const key = buildStoreCacheKey(cfg, pluginDataDir, graniteModelDir);
+  const existing = _storeInitCache.get(key);
+  if (existing && !existing.closing) {
+    existing.refCount += 1;
+    return existing.initPromise;
   }
-  return _storeInitCache.get(key)!;
+  // The placeholder is overwritten on the next line; typed as `any` purely so
+  // the partial object literal type-checks before assignment.
+  const entry = {
+    key,
+    initPromise: null as unknown as Promise<StoreInitResult>,
+    refCount: 1,
+    closing: false,
+  } as StoreCacheEntry;
+  // Build the init promise and wire auto-eviction on rejection so a transient
+  // failure (locked DB, missing model dir, OOM) does not poison the cache for
+  // the rest of the process.
+  const promise = _doInitStores(cfg, pluginDataDir, logger, graniteModelDir).then(
+    (result) => {
+      entry.result = result;
+      return result;
+    },
+    (err) => {
+      // Evict this failed entry so a retry re-creates the store instead of
+      // forever returning the same rejected promise.
+      if (_storeInitCache.get(key) === entry) {
+        _storeInitCache.delete(key);
+      }
+      throw err;
+    }
+  );
+  entry.initPromise = promise;
+  _storeInitCache.set(key, entry);
+  return promise;
+}
+
+/**
+ * Release one reference on the store bundle identified by `cfg` +
+ * `pluginDataDir`. When the last owner releases, the store and embedding
+ * service are closed and the cache entry is removed.
+ *
+ * Safe to call after a failed `initStores()` (no-op: the entry was already
+ * evicted) and idempotent for an already-closed binding.
+ */
+export async function releaseStores(
+  cfg: MemoryTdaiConfig,
+  pluginDataDir: string,
+  logger: PipelineLogger,
+  graniteModelDir?: string
+): Promise<void> {
+  const key = buildStoreCacheKey(cfg, pluginDataDir, graniteModelDir);
+  const entry = _storeInitCache.get(key);
+  if (!entry) return; // already closed or never created (e.g. init rejected)
+  entry.refCount = Math.max(0, entry.refCount - 1);
+  if (entry.refCount > 0 || entry.closing) return;
+  entry.closing = true;
+  _storeInitCache.delete(key);
+  // Wait for init to settle before closing — if init is still in flight we
+  // must not yank resources out from under it.
+  let result: StoreInitResult | undefined;
+  try {
+    result = await entry.initPromise;
+  } catch {
+    // Init failed; nothing to close (entry was auto-evicted already).
+    return;
+  }
+  if (result?.embeddingService?.close) {
+    try {
+      await result.embeddingService.close();
+    } catch (err) {
+      logger.warn(
+        `${TAG} EmbeddingService close error on release: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  try {
+    result?.vectorStore?.close();
+  } catch (err) {
+    logger.warn(`${TAG} VectorStore close error on release: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -158,15 +294,59 @@ export function initStores(
  * resources) so that a subsequent `register()` on hot-restart can
  * re-initialize fresh instances.
  *
- * @param pluginDataDir  If provided, only clear the cache for that dir.
- *                       If omitted, clear all cached stores.
+ * @param pluginDataDir  If provided, only clear cache entries whose data dir
+ *                       resolves to the same path. If omitted, clear all.
+ *
+ * NOTE: this drops the entries WITHOUT closing their resources. New owners
+ * should use {@link releaseStores} for refcounted teardown; this function is
+ * kept for the legacy `TdaiCore.destroy()` path that closes resources itself
+ * before calling reset.
  */
 export function resetStores(pluginDataDir?: string): void {
   if (pluginDataDir) {
-    _storeInitCache.delete(pluginDataDir);
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync(pluginDataDir);
+    } catch {
+      canonical = path.resolve(pluginDataDir);
+    }
+    for (const [key, entry] of _storeInitCache) {
+      if (key.startsWith(`dir=${canonical}|`)) {
+        entry.closing = true;
+        _storeInitCache.delete(key);
+      }
+    }
   } else {
+    for (const entry of _storeInitCache.values()) {
+      entry.closing = true;
+    }
     _storeInitCache.clear();
   }
+}
+
+/**
+ * Test-only: drop every cache entry WITHOUT closing resources. Used between
+ * tests so one test's store binding cannot leak into the next. Not exported
+ * through the package surface — only tests in this workspace import it.
+ */
+export function __resetStoreCacheForTests(): void {
+  for (const entry of _storeInitCache.values()) {
+    entry.closing = true;
+  }
+  _storeInitCache.clear();
+}
+
+/**
+ * Test-only: inspect the live refcount for a binding. Returns undefined when
+ * no cache entry exists for the given config.
+ */
+export function __storeCacheRefcountForTests(
+  cfg: MemoryTdaiConfig,
+  pluginDataDir: string,
+  graniteModelDir?: string
+): number | undefined {
+  const key = buildStoreCacheKey(cfg, pluginDataDir, graniteModelDir);
+  return _storeInitCache.get(key)?.refCount;
 }
 
 /**

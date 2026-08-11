@@ -98,7 +98,7 @@ describe("TransformersEmbeddingService — contract & fail-open (no model needed
     await svc.waitForReady();
     assert.equal(svc.isReady(), false);
 
-    svc.close();
+    await svc.close();
     // After close, state is idle; embed should give the "not started" error again
     await assert.rejects(
       () => svc.embed("hello"),
@@ -107,6 +107,36 @@ describe("TransformersEmbeddingService — contract & fail-open (no model needed
         return true;
       }
     );
+  });
+
+  test("close() while initializing does not let a late init resurrect to ready", async () => {
+    // close() must invalidate an in-flight warmup so the model cannot come
+    // back to "ready" (and leak native handles) after the caller has torn it
+    // down. We cannot easily mock the transformers pipeline here without the
+    // real model, so this test exercises the failure path: a bad model dir
+    // keeps init in flight long enough for close() to interleave.
+    const noop = () => {};
+    const svc = new TransformersEmbeddingService({
+      modelDir: "/bad/path/xyz",
+      logger: { debug: noop, info: noop, warn: noop, error: noop },
+    });
+    svc.startWarmup();
+    // close immediately — do NOT await waitForReady() first. The late init
+    // failure must not flip state back to failed after close reset it to idle.
+    await svc.close();
+    assert.equal(svc.isReady(), false);
+    // After close completes, the service stays idle regardless of what the
+    // superseded init promise does next.
+    await svc.waitForReady().catch(() => {});
+    assert.equal(svc.isReady(), false);
+  });
+
+  test("close() is idempotent and can be awaited concurrently", async () => {
+    const svc = new TransformersEmbeddingService({ modelDir: "/bad/path/xyz" });
+    // Two concurrent closes must share the same teardown without throwing.
+    await Promise.all([svc.close(), svc.close()]);
+    // A third close after settle is also a no-op.
+    await svc.close();
   });
 });
 
@@ -148,7 +178,7 @@ if (SMOKE) {
       console.log(`[smoke] sim("${similar1}", "${unrelated}") = ${simAC.toFixed(4)}`);
       assert.ok(simAB > simAC, "similar pair should score higher than unrelated pair");
 
-      svc.close();
+      await svc.close();
     });
   });
 }

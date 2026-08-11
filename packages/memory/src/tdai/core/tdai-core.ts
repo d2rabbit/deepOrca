@@ -39,6 +39,7 @@ import { executeConversationSearch, formatConversationSearchResponse } from "./t
 import {
   initDataDirectories,
   initStores,
+  releaseStores,
   resetStores,
   createPipelineManager,
   createL1Runner,
@@ -180,8 +181,12 @@ export class TdaiCore {
     // Wait for store init to complete before tearing down
     await this.storeReady?.catch(() => {});
 
-    if (this.scheduler && this.schedulerStartPromise) {
-      await this.scheduler.destroy();
+    if (this.scheduler) {
+      try {
+        await this.scheduler.destroy();
+      } catch (err) {
+        this.logger.warn(`${TAG} Scheduler destroy error: ${err instanceof Error ? err.message : String(err)}`);
+      }
       this.schedulerStartPromise = undefined;
       this.logger.debug?.(`${TAG} Scheduler destroyed`);
     }
@@ -217,21 +222,21 @@ export class TdaiCore {
       }
     }
 
-    if (this.vectorStore) {
-      this.vectorStore.close();
-      this.vectorStore = undefined;
-      this.logger.debug?.(`${TAG} VectorStore closed`);
-    }
-
-    if (this.embeddingService?.close) {
-      try {
-        await this.embeddingService.close();
-      } catch (err) {
-        this.logger.warn(`${TAG} EmbeddingService close error: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      this.embeddingService = undefined;
-    }
-
+    // Drop our local references BEFORE releasing the cache entry. The
+    // refcounted release closes the shared store/embedding bundle only when
+    // the LAST owner releases — so two TdaiCore instances pointing at the same
+    // data dir no longer race to close each other's SQLite handle. The
+    // previous code manually closed this.vectorStore/embeddingService and then
+    // called resetStores(), which would yank the bundle out from under any
+    // other owner still using it.
+    this.vectorStore = undefined;
+    this.embeddingService = undefined;
+    await releaseStores(this.cfg, this.dataDir, this.logger, this.graniteModelDir).catch((err: unknown) => {
+      this.logger.warn(`${TAG} releaseStores error: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    // Defensive: clear any lingering cache entries for this data dir in case a
+    // legacy caller bypassed releaseStores. No-op when release already removed
+    // the entry.
     resetStores(this.dataDir);
     this.logger.debug?.(`${TAG} TDAI Core destroyed`);
   }

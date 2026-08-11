@@ -127,6 +127,9 @@ export class TransformersEmbeddingService implements EmbeddingService {
   private initPromise: Promise<void> | null = null;
   private initError: Error | null = null;
   private extractor: FeatureExtractionPipeline | null = null;
+  /** Invalidates late completions from an initialization superseded by close(). */
+  private lifecycleGeneration = 0;
+  private closePromise: Promise<void> | null = null;
 
   constructor(config: TransformersEmbeddingConfig) {
     this.modelDir = config.modelDir;
@@ -159,23 +162,34 @@ export class TransformersEmbeddingService implements EmbeddingService {
     if (this.initState === "initializing" || this.initState === "ready") {
       return; // already in progress or done
     }
+    const generation = ++this.lifecycleGeneration;
     this.logger?.info(`${TAG} Starting background warmup for Granite embedding (model=${this.modelId})...`);
     this.initState = "initializing";
     this.initError = null;
 
-    this.initPromise = this._doInitialize()
-      .then(() => {
+    this.initPromise = this._doInitialize().then(
+      () => {
+        if (generation !== this.lifecycleGeneration) {
+          // close() superseded this load. Dispose a late-created extractor and
+          // never publish it as ready.
+          const lateExtractor = this.extractor;
+          this.extractor = null;
+          void lateExtractor?.dispose?.();
+          return;
+        }
         this.initState = "ready";
         this.logger?.info(`${TAG} Background warmup complete — Granite embedding ready (dims=${GRANITE_DIMENSIONS})`);
-      })
-      .catch((err) => {
+      },
+      (err) => {
+        if (generation !== this.lifecycleGeneration) return;
         this.initState = "failed";
         this.initError = err instanceof Error ? err : new Error(String(err));
         this.logger?.error(
           `${TAG} Background warmup failed: ${this.initError.message}. ` +
             `embed() calls will throw EmbeddingNotReadyError until retried.`
         );
-      });
+      }
+    );
   }
 
   /**
@@ -238,26 +252,37 @@ export class TransformersEmbeddingService implements EmbeddingService {
 
   /**
    * Release the ONNX model resources. Safe to call multiple times (idempotent).
-   * Resets the state machine to "idle" so the instance can be warmed up again.
+   * Closing invalidates any in-flight warmup and waits for it before disposing
+   * a late-created extractor, so a closed service cannot resurrect to ready.
    */
-  close(): void {
-    if (this.extractor) {
-      try {
-        this.extractor.dispose?.();
-      } catch {
-        // best-effort cleanup
+  async close(): Promise<void> {
+    if (this.closePromise) {
+      return this.closePromise;
+    }
+    const generation = ++this.lifecycleGeneration;
+    const pendingInit = this.initPromise;
+    this.closePromise = (async () => {
+      if (pendingInit) {
+        await pendingInit.catch(() => {});
       }
+      if (generation !== this.lifecycleGeneration) return;
+      const extractor = this.extractor;
       this.extractor = null;
       this.initPromise = null;
       this.initState = "idle";
       this.initError = null;
+      try {
+        await extractor?.dispose?.();
+      } catch (err) {
+        this.logger?.error(
+          `${TAG} Failed to release Granite embedding resources: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
       this.logger?.info(`${TAG} Granite embedding resources released`);
-    } else if (this.initState !== "idle") {
-      // Also reset state when init failed (extractor never set).
-      this.initPromise = null;
-      this.initState = "idle";
-      this.initError = null;
-    }
+    })().finally(() => {
+      this.closePromise = null;
+    });
+    return this.closePromise;
   }
 
   /**
