@@ -130,7 +130,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 问题修复
 
-- **CodeGraph 修复** (2026-07-24, `f51d16b`)
+- **会话索引数据丢失修复 + 测试套件解卡死 + 语义路由首次真正激活** (2026-08-10, 分支 `fix/stabilize-data-loss-and-test-suite`)
+  - **会话索引读写不一致（线上数据丢失）**：`4d5575a` 把索引写入防抖进 `pendingIndex`，但每次读仍走磁盘。`updateSessionEntry` 是 load→mutate→save 且流式时约 17 次/轮 —— 同一 250ms 窗口内两次更新都以旧磁盘态为基准，**前者永久丢失**。这损坏了 `usage`/`usagePerModel` 累计，并完全丢弃了 `permission_denied`。`loadSessionsIndex` 现优先读 `pendingIndex`；`denySessionPermission` 改为立即 flush（与 session 创建/删除一致）。新增回归测试覆盖"丢更新"这一半（验证：禁用修复后 rename 变回旧值）。
+  - **测试套件无限挂死**：`APIUserAbortError` 测试的 mock 只在 abort 事件上 settle，而 `ec11350` 在"标记 processing"与"发请求"间插入了 `await getRoutedMcpTools()`，导致 abort 先于监听器注册触发 → promise 永不 resolve。mock 改为先判 `signal.aborted`（对齐真实 SDK 语义）。全部 4 个 runner 加 `--test-timeout` + `--test-force-exit`，ci.yml 加 `timeout-minutes: 45`。套件 **196s + 无限挂死 → 21s 全绿**。
+  - **恢复 npx `-y`**：`bed96b0` 迁移到 SDK 时静默删除了 `withNpxYesArg`，导致 npx 启动的 MCP server 卡在安装提示。已恢复。
+  - **语义路由从未运行**：模型路径多一个 `packages` 段（`packages/packages/desktop/...`）。根因是架构性的 —— core 自己猜 vendor 路径，而 codegraph/serena 都用 host 注入。新增 `configureRoutingModelDir`（对齐既有模式），desktop 在 boot 注入。端到端验证通过（warmup 完成 384 维、embed 成功、close 正常释放）。
+  - **memory 时区 bug**：`capture.test.ts` 用 UTC 算 shard 名、产品用本地时间，东八区**每天 8 小时必败**，CI 跑 UTC 永不暴露。已修。
+  - **清理死代码**：删除零调用点的 HTTP memory gateway 客户端（`core/common/memory.ts`，396 行）+ 移除 `memory-tencentdb` 依赖及其打包 stage（lockfile **−1294 行**）。`tcvdb-text` 是不同包，保留。
+  - **renderer 测试安全网**：新增 jsdom + @testing-library/react（保留 node:test），App.tsx **首次可渲染测试**。3 个守护测试锁住拆分最易破坏的行为。desktop 测试 37→40。
+
+### 🔧 重构
+
+- **App.tsx 域提取** (2026-08-10, 同分支)：1773 → 1410 行（−20%），11 个 per-domain custom hook（`useTreeRefresh`/`usePanelLayout`/`useAppearance`/`usePreview`/`useSkills`/`useProcessPanel`/`useGit`/`useSettingsData`/`useGlobalShortcuts`/`useComposerDockHeight`/`useDocumentTitle`）。纯提取，props 与渲染行为不变；`useConversation`（HUB，12 注入依赖）与 Context 化未做。详见 `docs/stabilization-2026-08-10.md`。
+- **registerIpc 拆分** (同分支)：765 行单函数 → 17 个 per-domain registrar（最大 172 行），85 channel 数与注册顺序不变。
+- **SessionBridge 提取** (同分支)：1216 → 1011 行，只读 plugin/MCP 投影移入 `plugin-mcp-view.ts`（沿用 git-service 无状态函数先例）。
+- **lint 警告清零** (同分支)：27 → 0。自有代码 8 个实际修复；vendored TDAI fork 19 个改为 eslint ignore（改 vendored 代码会加大上游漂移）。
+
+### 📝 文档更新
+
+- **AGENTS.md 校正** (2026-08-10)：2 → 4 包（`memory`/`embedding` 此前缺失，~36% 源码在文档地图外）、补 `routing/` 章节、2 → 13 vendor 脚本、修正 `ipc.ts`"纯类型"说法（实际导出 98 个运行时常量）、删除不存在的 `generated/`、记录 RC1 索引不变量（含 Map 陷阱）。
+- **新增 `docs/stabilization-2026-08-10.md`**：本次修复的完整报告（诊断、triage、过程纠正、已做/未做及理由）。
+
   - 修复 Electron 中 codegraph init 命令拼接错误
   - 解决代码索引功能异常问题
 
