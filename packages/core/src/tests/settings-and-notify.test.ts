@@ -12,9 +12,13 @@ import {
 } from "../common/notify";
 import {
   applyModelConfigSelection,
+  failClosedPermissionDefault,
+  getLastSettingsReadError,
   getProjectSettingsPath,
   normalizeEndpoints,
   readSettingsFile,
+  readSettingsFileWithStatus,
+  resetLastSettingsReadError,
   resolveSettings,
   resolveSettingsSources,
   writeProjectSettings,
@@ -266,6 +270,85 @@ test("resolveSettingsSources merges permission settings", () => {
   assert.deepEqual(resolved.permissions.ask, ["write-out-cwd"]);
   assert.deepEqual(resolved.permissions.deny, ["delete-out-cwd"]);
   assert.equal(resolved.permissions.defaultMode, "allowAll");
+});
+
+test("readSettingsFileWithStatus distinguishes missing / valid / invalid", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-status-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+
+    // Missing — no file written yet.
+    resetLastSettingsReadError();
+    assert.equal(readSettingsFileWithStatus(settingsPath).kind, "missing");
+    assert.equal(getLastSettingsReadError(), null);
+
+    // Valid JSON object.
+    fs.writeFileSync(settingsPath, '{"model":"x"}\n', "utf8");
+    const valid = readSettingsFileWithStatus(settingsPath);
+    assert.equal(valid.kind, "valid");
+    if (valid.kind === "valid") assert.equal(valid.value.model, "x");
+
+    // Corrupt JSON.
+    fs.writeFileSync(settingsPath, "{not valid json\n", "utf8");
+    const invalid = readSettingsFileWithStatus(settingsPath);
+    assert.equal(invalid.kind, "invalid");
+    if (invalid.kind === "invalid") assert.ok(invalid.error.length > 0);
+
+    // JSON but not an object (an array).
+    fs.writeFileSync(settingsPath, "[1,2,3]\n", "utf8");
+    const invalidArr = readSettingsFileWithStatus(settingsPath);
+    assert.equal(invalidArr.kind, "invalid");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    resetLastSettingsReadError();
+  }
+});
+
+test("readSettingsFile records a diagnostic for corrupt settings (getLastSettingsReadError)", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-diag-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    resetLastSettingsReadError();
+
+    // Missing file → no diagnostic.
+    readSettingsFile(settingsPath);
+    assert.equal(getLastSettingsReadError(), null);
+
+    // Corrupt → diagnostic recorded, readSettingsFile still returns null.
+    fs.writeFileSync(settingsPath, "{broken\n", "utf8");
+    const result = readSettingsFile(settingsPath);
+    assert.equal(result, null);
+    const diag = getLastSettingsReadError();
+    assert.ok(diag, "expected a diagnostic for corrupt settings");
+    assert.equal(diag?.kind, "invalid");
+    assert.ok(diag?.error.length > 0);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    resetLastSettingsReadError();
+  }
+});
+
+test("failClosedPermissionDefault upgrades to askAll after a corrupt read", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-fc-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    resetLastSettingsReadError();
+
+    // No error yet → preferred default passes through.
+    assert.equal(failClosedPermissionDefault("allowAll"), "allowAll");
+
+    // Trigger a corrupt read, then the guard MUST upgrade to askAll.
+    fs.writeFileSync(settingsPath, "{broken\n", "utf8");
+    readSettingsFile(settingsPath);
+    assert.equal(failClosedPermissionDefault("allowAll"), "askAll");
+    assert.equal(failClosedPermissionDefault("askAll"), "askAll");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    resetLastSettingsReadError();
+  }
 });
 
 test("resolveSettingsSources merges enabledSkills with project precedence", () => {

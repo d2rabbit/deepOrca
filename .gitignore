@@ -47,3 +47,6 @@ packages/desktop/vendor/
 
 # Site verification screenshots (run artifacts, not sources)
 .site-*.png
+
+# Local security-tool scratch (not sources)
+.mimosa/

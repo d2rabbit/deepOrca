@@ -20,6 +20,8 @@
     "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
     "check": "npm run build && npm run typecheck && npm run lint && npm run format:check",
     "clean": "node scripts/clean.js",
+    "clean:artifacts": "node scripts/clean.js",
+    "clean:all": "node scripts/clean.js --all",
     "build": "node scripts/build.js",
     "desktop:build": "npm run build --workspace @deeporca/desktop",
     "desktop:package": "npm run package --workspace @deeporca/desktop",
