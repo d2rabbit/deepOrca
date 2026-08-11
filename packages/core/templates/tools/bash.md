@@ -30,12 +30,12 @@ Before executing the command, please follow these steps:
 Usage notes:
 
 - The command argument is required.
-- The sideEffects argument is required. Declare the minimum permission scopes the command may need.
+- The sideEffects argument is required. Declare every scope the command touches — the executor independently infers scopes from the command text and unions them with your declaration, so under-reporting cannot bypass the permission policy (a `rm` declared as `read-in-cwd` still picks up `delete-*`).
 - You can use `run_in_background: true` to run a command in the background. Only use this if you need to perform a blocking task, like running a server for the upcoming test scripts.
 - When using `run_in_background`, do NOT add `&` to the command. Output is written to a log file.
 - Before your final response, stop background tasks that has not reported a completed state, unless the user explicitly asks to keep it running.
 - To stop a background command, use the `stopCommand` returned in the tool result metadata.
-- Use `sideEffects: []` only for commands that do not read, write, delete, query Git history, mutate Git history, or access the network, such as `date` or `node --version`.
+- Use `sideEffects: []` only for commands that do not read, write, delete, query Git history, mutate Git history, or access the network, such as `date` or `node --version`. Note that `[]` is a declaration of "no side effects" — the executor still infers scopes from the command, so an empty array on a destructive command will not suppress the relevant permission ask.
 - Use `*-out-cwd` when the command accesses paths outside the current workspace. For example, `cat /etc/hosts` requires `["read-out-cwd"]`.
 - Use `query-git-log` for commands such as `git log`, `git show HEAD`, `git blame`, or history diffs. Use `mutate-git-log` for commands such as `git commit`, `git reset`, `git rebase`, `git merge`, `git cherry-pick`, or `git tag`.
 - Use `["unknown"]` when you cannot classify the command safely.

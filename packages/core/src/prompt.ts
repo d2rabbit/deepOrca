@@ -555,7 +555,7 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
             },
             sideEffects: {
               description:
-                'Permission scopes required by this bash command. Use [] only for commands that do not read, write, delete, or access the network. Use ["unknown"] when the effects cannot be classified safely.',
+                'Permission scopes required by this bash command. Declare every scope the command touches: the executor independently infers scopes from the command text and unions them with your declaration, so under-reporting cannot bypass the permission policy (a `rm` declared as `read-in-cwd` still picks up `delete-*`). Use ["unknown"] only when the command is genuinely unclassifiable.',
               type: "array",
               items: {
                 type: "string",

@@ -141,6 +141,7 @@ export class McpManager {
   private onToolsListChanged: (() => void) | null = null;
   private onStatusChanged: (() => void) | null = null;
   private serverConfigs: Record<string, McpServerConfig> = {};
+  private disconnectPromise: Promise<void> | null = null;
 
   prepare(servers?: Record<string, McpServerConfig>): void {
     if (!servers || Object.keys(servers).length === 0) return;
@@ -811,20 +812,27 @@ export class McpManager {
     }
   }
 
-  // Kept synchronous to preserve the public contract. SDK close() is async, so
-  // we fire-and-forget it; the Client/transport tear themselves down in the
-  // background and we clear local state immediately.
-  disconnect(): void {
+  /**
+   * Close all MCP clients/transports and wait for teardown to settle.
+   * Idempotent: concurrent callers share the same closing promise.
+   *
+   * Synchronously clears local state (clients, tools, statuses, initialized)
+   * so a caller that does not `await` still observes an empty projection —
+   * matching the historical contract. The returned promise resolves only
+   * after the SDK close() calls settle, so hosts that need to know the child
+   * processes/transports are actually gone can await it.
+   */
+  async disconnect(): Promise<void> {
+    if (this.disconnectPromise) return this.disconnectPromise;
     this.disposed = true;
-    for (const entry of this.clients) {
-      this.intentionallyClosing.add(entry.serverName);
-      void entry.client.close().catch(() => {});
-      void entry.transport.close().catch(() => {});
-    }
+    const clients = this.clients;
     this.clients = [];
+    for (const entry of clients) {
+      this.intentionallyClosing.add(entry.serverName);
+    }
+    // Clear projections synchronously — callers that don't await still see the
+    // post-disconnect shape immediately.
     this.connectedServers.clear();
-    this.intentionallyClosing.clear();
-    this.inProcessServers.clear();
     this.tools = [];
     this.prompts = [];
     this.resources = [];
@@ -832,6 +840,18 @@ export class McpManager {
     this.configuredServerNames = [];
     this.serverConfigs = {};
     this.initialized = false;
+
+    this.disconnectPromise = Promise.allSettled(
+      clients.flatMap((entry) => [entry.client.close(), entry.transport.close()])
+    )
+      .then(() => undefined)
+      .catch(() => undefined)
+      .finally(() => {
+        this.intentionallyClosing.clear();
+        this.inProcessServers.clear();
+        this.disconnectPromise = null;
+      });
+    return this.disconnectPromise;
   }
 
   private async refreshServerTools(serverName: string, client: Client): Promise<void> {

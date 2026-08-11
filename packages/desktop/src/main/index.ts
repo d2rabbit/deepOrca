@@ -3,9 +3,9 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
-import { dirname, join, normalize } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
@@ -50,6 +50,8 @@ import { scanFiles } from "./file-scanner.js";
 import { listWorkspaceSessions } from "./workspace-registry.js";
 import { archiveSession, unarchiveSession } from "./archive-store.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
+import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
+import { safeWikiPath } from "./safe-path.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -79,22 +81,43 @@ function killHelperProcesses(): void {
 // The privileged preload (file writes, settings, Git, MCP, prompt execution,
 // destructive index ops) must only be callable from our own packaged renderer.
 // In development the renderer may also be served from a localhost dev server.
-const RENDERER_URL = (() => {
-  const htmlPath = join(__dirname, "renderer", "index.html");
-  return `file://${htmlPath.replace(/\\/g, "/")}`;
-})();
+//
+// The policy is pure (lives in ./ipc-security.ts) so it can be unit-tested
+// without booting Electron. The production renderer URL is computed via
+// `pathToFileURL` and matched exactly — no `file://` prefix, no `localhost`
+// string prefix. Dev origins must be configured with an explicit host+port.
+const RENDERER_HTML_PATH = join(__dirname, "renderer", "index.html");
+const DEV_RENDERER_ORIGIN = process.env.DEEPORCA_DEV_RENDERER_ORIGIN ?? null;
+
+const rendererPolicy: RendererPolicy = createRendererPolicy({
+  mainWindowId: () => mainWindow?.webContents.id ?? null,
+  rendererHtmlPath: RENDERER_HTML_PATH,
+  devRendererOrigin: DEV_RENDERER_ORIGIN,
+});
+const { toSenderInfo } = createElectronEventAdapter();
 
 /** True when an IPC invocation originated from the privileged main renderer. */
 function isFromMainRenderer(event: Electron.IpcMainInvokeEvent): boolean {
-  // Development allows a localhost dev server as the renderer origin.
-  const senderUrl = event.senderFrame?.url ?? "";
-  if (senderUrl.startsWith("http://localhost") || senderUrl.startsWith("http://127.0.0.1")) {
-    return true;
-  }
-  // Packaged: the sender must be the main window's webContents loading our
-  // own renderer file, and its URL must match the packaged renderer origin.
-  if (mainWindow && event.sender.id === mainWindow.webContents.id) {
-    return senderUrl === RENDERER_URL || senderUrl.startsWith("file://");
+  return rendererPolicy.isMainRenderer(toSenderInfo(event));
+}
+
+/**
+ * True when an IPC invocation originated from one of the tracked prototype
+ * (popout) windows — those load the minimal prototype preload and may only
+ * call the three channels that surface explicitly forwards to them
+ * (WindowClose, A2uiAction, A2uiRequestPayload). Identified by webContents id,
+ * not by URL: prototype windows load the same renderer HTML as the main
+ * window, so a URL check would be ambiguous.
+ */
+function isFromPrototypeRenderer(event: Electron.IpcMainInvokeEvent): boolean {
+  const senderId = event.sender?.id;
+  if (senderId === undefined) return false;
+  for (const win of prototypeWindows.values()) {
+    if (!win.isDestroyed() && win.webContents.id === senderId) {
+      // Subframes inside a prototype window are not trusted either.
+      const mainFrame = event.sender.mainFrame;
+      return Boolean(mainFrame && event.senderFrame && mainFrame === event.senderFrame);
+    }
   }
   return false;
 }
@@ -105,6 +128,13 @@ function assertMainRenderer(event: Electron.IpcMainInvokeEvent, channel: string)
   if (!isFromMainRenderer(event)) {
     throw new Error(`${channel}: invoked from unauthorized sender (${event.senderFrame?.url ?? "?"})`);
   }
+}
+
+/** Reject invocations from anything other than the main renderer or a tracked
+ *  prototype window. Used for the three channels the prototype preload exposes. */
+function assertMainOrPrototypeRenderer(event: Electron.IpcMainInvokeEvent, channel: string): void {
+  if (isFromMainRenderer(event) || isFromPrototypeRenderer(event)) return;
+  throw new Error(`${channel}: invoked from unauthorized sender (${event.senderFrame?.url ?? "?"})`);
 }
 
 // Product/brand name — drives the macOS menu-bar app name and Windows taskbar grouping.
@@ -217,6 +247,13 @@ function resolvePlatform(): string {
 let bridge: SessionBridge | null = null;
 let pluginManager: PluginManager | null = null;
 
+// Tracked prototype (popout) windows. Module-scoped so the IPC sender policy
+// can recognise calls coming from one of them (WindowClose, A2uiAction,
+// A2uiRequestPayload are shared between the main renderer and prototype
+// windows). Populated by registerA2uiPrototypeWindowIpc; entries removed on
+// window close.
+const prototypeWindows = new Map<string, BrowserWindow>();
+
 // In-process memory manager (TdaiCore). Held at module scope so the startup
 // (whenReady), settings-save, project-switch, and shutdown (before-quit) paths
 // can all reach it without going through an IPC handler closure.
@@ -320,11 +357,12 @@ function createWindow(): void {
   // ── Security: prevent the privileged window from navigating away from the
   // packaged renderer. The preload exposes file/settings/Git/MCP capabilities
   // through window.deeporca; if a document we rendered (e.g. model markdown
-  // containing a link) could navigate this window to a remote page, that page
-  // would inherit the full privileged bridge. Block all top-level navigation
-  // to anything other than our own renderer file.
+  // containing a link) could navigate this window to another page — local or
+  // remote — that page would inherit the full privileged bridge. Block all
+  // top-level navigation to anything other than our own renderer file (or the
+  // configured dev origin in development).
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (url === RENDERER_URL || url.startsWith("file://")) {
+    if (rendererPolicy.isAllowedRendererNavigationUrl(url)) {
       return;
     }
     event.preventDefault();
@@ -433,10 +471,34 @@ async function reconcileMemory(): Promise<{ ok: boolean; error?: string }> {
   return wantEnabled ? startMemory() : stopMemory().then(() => ({ ok: true }));
 }
 
-/** The two channel registrars shared by every domain registrar below. */
+/**
+ * The channel registrars shared by every domain registrar below.
+ *
+ * Sender-authorization tiers (each layer adds a check; never relaxes one):
+ *  - `handle`          : main renderer only. The default — every channel that
+ *                        is not explicitly prototype-shared must prove it came
+ *                        from the privileged main window's main frame. This
+ *                        closes the "read-only channels leak data" hole: even
+ *                        though e.g. SettingsGet does not mutate state, an
+ *                        unauthorized page must not be able to read settings.
+ *  - `handlePrivileged`: main renderer only + audit log. Use for channels that
+ *                        mutate the filesystem, settings, Git state, MCP
+ *                        config, run external processes, or perform destructive
+ *                        index operations. The sender check is the same as
+ *                        `handle`; the wrapper additionally logs the call so
+ *                        high-risk actions are traceable.
+ *  - `handleShared`    : main renderer OR a tracked prototype window. Reserved
+ *                        for the three channels the prototype preload exposes
+ *                        (WindowClose, A2uiAction, A2uiRequestPayload).
+ *
+ * Never add a new channel that calls raw `ipcMain.handle` — pick one of these
+ * three so sender authorization stays uniform. The ipc-contract test enforces
+ * that every IpcRequest is reachable through one of these tiers.
+ */
 type IpcHelpers = {
   handle: <T>(channel: string, fn: (...args: never[]) => T | Promise<T>) => void;
   handlePrivileged: <T>(channel: string, fn: (...args: never[]) => T | Promise<T>) => void;
+  handleShared: <T>(channel: string, fn: (...args: never[]) => T | Promise<T>) => void;
 };
 
 function createIpcHelpers(): IpcHelpers {
@@ -444,22 +506,6 @@ function createIpcHelpers(): IpcHelpers {
   // rethrow a clean Error so the renderer receives a readable message instead
   // of an opaque serialized rejection.
   const handle = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
-    ipcMain.handle(channel, async (_event, ...args) => {
-      try {
-        return await fn(...(args as never[]));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[ipc] ${channel} failed:`, message);
-        throw new Error(`${channel}: ${message}`);
-      }
-    });
-  };
-  // Privileged variant: asserts the call originates from the main renderer
-  // before running. Use for any channel that mutates the filesystem, settings,
-  // Git state, MCP config, or runs destructive index operations. The handler
-  // signature matches `handle` (no event param) — sender validation happens
-  // uniformly inside the wrapper.
-  const handlePrivileged = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
     ipcMain.handle(channel, async (event, ...args) => {
       try {
         assertMainRenderer(event, channel);
@@ -471,10 +517,41 @@ function createIpcHelpers(): IpcHelpers {
       }
     });
   };
-  return { handle, handlePrivileged };
+  // Privileged variant: same main-renderer check as `handle`, plus an audit
+  // log line for high-risk mutations (filesystem, settings, Git, MCP config,
+  // external process spawn, destructive index ops).
+  const handlePrivileged = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      try {
+        assertMainRenderer(event, channel);
+        console.log(`[ipc:privileged] ${channel} from main renderer`);
+        return await fn(...(args as never[]));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[ipc] ${channel} failed:`, message);
+        throw new Error(`${channel}: ${message}`);
+      }
+    });
+  };
+  // Shared variant: the call may come from the main renderer OR a tracked
+  // prototype window. Used only for the three channels the prototype preload
+  // exposes (WindowClose, A2uiAction, A2uiRequestPayload).
+  const handleShared = <T>(channel: string, fn: (...args: never[]) => T | Promise<T>): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      try {
+        assertMainOrPrototypeRenderer(event, channel);
+        return await fn(...(args as never[]));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[ipc] ${channel} failed:`, message);
+        throw new Error(`${channel}: ${message}`);
+      }
+    });
+  };
+  return { handle, handlePrivileged, handleShared };
 }
 
-function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
+function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers): void {
   handle(IpcRequest.Ready, () => ({
     projectRoot: getBridge().projectRoot,
     platform: resolvePlatform(),
@@ -495,7 +572,10 @@ function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
       mainWindow.maximize();
     }
   });
-  handle(IpcRequest.WindowClose, () => {
+  // WindowClose is shared with prototype popout windows (their title-bar
+  // close button calls the same channel via the prototype preload). Minimize
+  // and maximize are main-renderer only — prototype windows don't expose them.
+  handleShared(IpcRequest.WindowClose, () => {
     mainWindow?.close();
   });
 
@@ -528,7 +608,7 @@ function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.SessionList, () => getBridge().listSessions());
   handle(IpcRequest.SessionGet, (id: string) => getBridge().getSession(id));
   handle(IpcRequest.SessionMessages, (id: string) => getBridge().listMessages(id));
-  handle(IpcRequest.SessionSetActive, (id: string | null) => getBridge().setActiveSession(id));
+  handlePrivileged(IpcRequest.SessionSetActive, (id: string | null) => getBridge().setActiveSession(id));
   handle(IpcRequest.SessionGetActive, () => getBridge().getActiveSession());
   handlePrivileged(IpcRequest.SessionDelete, (id: string) => getBridge().deleteSession(id));
   handlePrivileged(IpcRequest.SessionRename, (id: string, summary: string) => getBridge().renameSession(id, summary));
@@ -551,7 +631,7 @@ function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
-  handle(IpcRequest.PromptEnhance, async (text: string) => {
+  handlePrivileged(IpcRequest.PromptEnhance, async (text: string) => {
     try {
       const enhanced = await getBridge().enhancePrompt(text);
       return { ok: true, text: enhanced };
@@ -559,8 +639,10 @@ function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
-  handle(IpcRequest.PermissionDeny, (reason?: string) => getBridge().denyPermission(reason));
-  handle(IpcRequest.AdjustBashTimeout, (deltaMs: number) => getBridge().adjustBashTimeout(deltaMs));
+  // PermissionDeny and AdjustBashTimeout mutate live agent/permission state
+  // (denyPermission is terminal and flushes session persistence).
+  handlePrivileged(IpcRequest.PermissionDeny, (reason?: string) => getBridge().denyPermission(reason));
+  handlePrivileged(IpcRequest.AdjustBashTimeout, (deltaMs: number) => getBridge().adjustBashTimeout(deltaMs));
 
   handle(IpcRequest.SkillsList, (sessionId?: string) => getPluginManager().listSkills(sessionId));
   handle(IpcRequest.SettingsGet, () => getBridge().getSettings());
@@ -577,7 +659,8 @@ function registerCoreIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
 
   handle(IpcRequest.McpStatus, () => getPluginManager().getMcpStatus());
-  handle(IpcRequest.McpReconnect, (name: string) => getPluginManager().reconnectMcp(name));
+  // McpReconnect spawns/restarts MCP server processes.
+  handlePrivileged(IpcRequest.McpReconnect, (name: string) => getPluginManager().reconnectMcp(name));
 
   handle(IpcRequest.UndoList, (sessionId: string) => getBridge().listUndoTargets(sessionId));
   handlePrivileged(IpcRequest.UndoRestore, (sessionId: string, messageId: string, mode: UndoRestoreMode) => {
@@ -599,7 +682,12 @@ function registerPluginsIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.PluginReadSkillDoc, (path: string, locale?: string) =>
     getPluginManager().readSkillDoc(path, locale)
   );
-  handle(
+  // PluginUpsertMcpServer persists MCP server config (name/command/args/env)
+  // to settings and reloads the bridge, which spawns the configured MCP child
+  // process. This is the highest-blast-radius channel in the app — a malicious
+  // renderer could otherwise persist an arbitrary command as an MCP server and
+  // have it executed by the main process. It MUST be privileged.
+  handlePrivileged(
     IpcRequest.PluginUpsertMcpServer,
     (name: string, command: string, args?: string[], env?: Record<string, string>) =>
       getBridge().pluginUpsertMcpServer(name, command, args, env)
@@ -679,7 +767,7 @@ function registerCodegraphIpc({ handle, handlePrivileged }: IpcHelpers): void {
   });
 }
 
-function registerCodeReviewIpc({ handle }: IpcHelpers): void {
+function registerCodeReviewIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Code Review (ocr CLI) ──────────────────────────────────────────────────
   // Open Code Review ships as an npm package (@alibaba-group/open-code-review)
   // whose bin/ocr.js launcher resolves a prebuilt platform binary from an
@@ -731,7 +819,8 @@ function registerCodeReviewIpc({ handle }: IpcHelpers): void {
   });
   // Review scope is fixed: uncommitted workspace changes (vs HEAD) in the current
   // project — no branch/commit selection, the UI states the scope directly.
-  handle(IpcRequest.ReviewRun, (): Promise<{ ok: boolean; error?: string }> => {
+  // ReviewRun spawns an external code-review process over the workspace.
+  handlePrivileged(IpcRequest.ReviewRun, (): Promise<{ ok: boolean; error?: string }> => {
     const args = ["review", "--format", "json"];
     return new Promise((resolve) => {
       const resolved = resolveOcrCommand();
@@ -851,12 +940,13 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
   });
 }
 
-function registerA2uiIpc({ handle }: IpcHelpers): void {
+function registerA2uiIpc({ handleShared }: IpcHelpers): void {
   // ── A2UI (Surface user interaction → agent) ──────────────────────────────
   // When the user clicks a button on an A2UI Surface, the renderer calls
   // this handler. We forward it as an MCP tool call (a2ui_action) to the
-  // A2UI MCP server, which the agent receives as a tool result.
-  handle(
+  // A2UI MCP server, which the agent receives as a tool result. Callable from
+  // the main renderer OR a prototype popout window (both can host a Surface).
+  handleShared(
     IpcRequest.A2uiAction,
     async (
       surfaceId: string,
@@ -889,16 +979,20 @@ function registerA2uiIpc({ handle }: IpcHelpers): void {
   );
 }
 
-function registerA2uiPrototypeWindowIpc({ handle }: IpcHelpers): void {
+function registerA2uiPrototypeWindowIpc({ handleShared, handlePrivileged }: IpcHelpers): void {
   // ── A2UI standalone prototype window ──────────────────────────────────────
   // Opens a separate Electron BrowserWindow with the prototype Surface at
   // full screen — useful for PM presentations or focused prototype testing.
-  const prototypeWindows = new Map<string, BrowserWindow>();
+  // `prototypeWindows` is module-scoped so the IPC sender policy can recognise
+  // calls coming from a prototype window (the three handleShared channels).
   // Pending payloads keyed by window token, consumed via A2uiRequestPayload
   // (pull handshake) so the renderer fetches its payload on mount instead of
   // depending on a did-finish-load push that can fire before React subscribes.
   const prototypePayloads = new Map<string, { a2uiJson: string; title: string }>();
-  handle(IpcRequest.A2uiOpenWindow, async (a2uiJson: string, title: string): Promise<void> => {
+  // Opening a prototype window is a privileged main-renderer action (it spawns
+  // a new BrowserWindow); it must NOT be callable from a prototype window or
+  // any other sender.
+  handlePrivileged(IpcRequest.A2uiOpenWindow, async (a2uiJson: string, title: string): Promise<void> => {
     const winId = `proto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     // Store the payload up front so the pull handshake can return it even if
     // the push (kept for back-compat) races the subscription.
@@ -926,9 +1020,10 @@ function registerA2uiPrototypeWindowIpc({ handle }: IpcHelpers): void {
       prototypePayloads.delete(winId);
     });
     // Same navigation hardening as the main window: a prototype surface must
-    // never navigate to a remote page.
+    // never navigate to a remote page. The renderer file URL with query params
+    // (view=prototype&token=…) is allowed; everything else is blocked.
     protoWin.webContents.on("will-navigate", (event, url) => {
-      if (url === RENDERER_URL || url.startsWith("file://")) return;
+      if (rendererPolicy.isAllowedRendererNavigationUrl(url)) return;
       event.preventDefault();
       if (url.startsWith("http://") || url.startsWith("https://")) {
         void shell.openExternal(url);
@@ -958,12 +1053,13 @@ function registerA2uiPrototypeWindowIpc({ handle }: IpcHelpers): void {
 
   // Pull handshake: the prototype renderer requests its payload by token on
   // mount. Returns null if the token is unknown (e.g. already consumed/closed).
-  handle(IpcRequest.A2uiRequestPayload, (token: string): { a2uiJson: string; title: string } | null => {
+  // Callable from a prototype window (the normal path) or the main renderer.
+  handleShared(IpcRequest.A2uiRequestPayload, (token: string): { a2uiJson: string; title: string } | null => {
     return prototypePayloads.get(token) ?? null;
   });
 }
 
-function registerWikiIpc({ handle }: IpcHelpers): void {
+function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Wiki knowledge graph (openwiki — vendored Node CLI) ────────────────────
   // OpenWiki is a TypeScript CLI (langchain-ai/openwiki). We vendor it at build
   // time (scripts/vendor-openwiki.js → packages/desktop/vendor/openwiki) and run
@@ -1097,8 +1193,10 @@ function registerWikiIpc({ handle }: IpcHelpers): void {
     })();
   };
 
-  handle(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
-  handle(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
+  // WikiInit/Update spawn the openwiki agent against the current project and
+  // write to <project>/openwiki/.
+  handlePrivileged(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
+  handlePrivileged(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
 
   handle(IpcRequest.WikiListPages, async (): Promise<WikiPageEntry[]> => {
     const wikiDir = join(getBridge().projectRoot, "openwiki");
@@ -1124,13 +1222,36 @@ function registerWikiIpc({ handle }: IpcHelpers): void {
     }
   });
 
-  handle(IpcRequest.WikiReadPage, async (path: string): Promise<string> => {
-    // Prevent path traversal
-    const safe = normalize(path).replace(/^(\.\.[/\\])+/, "");
-    const filePath = join(getBridge().projectRoot, "openwiki", safe);
+  handle(IpcRequest.WikiReadPage, async (pagePath: string): Promise<string> => {
+    // Containment: page must be a strictly-relative .md file under
+    // <project>/openwiki, with no symlink/junction escape. The previous
+    // string-only `normalize + regex strip ../` guard was defeated by absolute
+    // paths, drive letters, UNC paths, and symlinks inside openwiki/. The
+    // shared safeWikiPath uses the same lexical + realpath containment that
+    // editor-handlers uses, and additionally restricts to .md files.
+    const wikiRoot = join(getBridge().projectRoot, "openwiki");
+    const check = safeWikiPath(wikiRoot, pagePath);
+    if (!check.ok) {
+      // Surface the rejection in the main log so an attack or a bug is
+      // diagnosable. The IPC return stays the existing "" for back-compat.
+      console.warn(`[wiki:readPage] rejected path (${check.reason}): ${pagePath}`);
+      return "";
+    }
     try {
-      return await readFile(filePath, "utf-8");
-    } catch {
+      const fileStat = await stat(check.absPath);
+      if (!fileStat.isFile()) {
+        // A directory or special file masquerading as a .md page.
+        console.warn(`[wiki:readPage] not a regular file: ${pagePath}`);
+        return "";
+      }
+      // Cap read size (2 MB) so a pathological page can't exhaust memory.
+      if (fileStat.size > 2 * 1024 * 1024) {
+        console.warn(`[wiki:readPage] page too large (${fileStat.size} bytes): ${pagePath}`);
+        return "";
+      }
+      return await readFile(check.absPath, "utf-8");
+    } catch (err) {
+      console.warn(`[wiki:readPage] read failed: ${err instanceof Error ? err.message : String(err)}`);
       return "";
     }
   });
@@ -1169,9 +1290,10 @@ function registerAgentChangesIpc({ handle }: IpcHelpers): void {
   );
 }
 
-function registerSessionExportIpc({ handle }: IpcHelpers): void {
+function registerSessionExportIpc({ handlePrivileged }: IpcHelpers): void {
   // ── Session export ──────────────────────────────────────────────────────────
-  handle(IpcRequest.SessionExport, async (sessionId: string) => {
+  // SessionExport opens a native save dialog and writes a file to disk.
+  handlePrivileged(IpcRequest.SessionExport, async (sessionId: string) => {
     if (!mainWindow) return { ok: false, error: "no window" };
     const messages = await getBridge().listMessages(sessionId);
     if (!messages || messages.length === 0) return { ok: false, error: "empty session" };

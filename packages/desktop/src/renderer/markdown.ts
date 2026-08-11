@@ -1,4 +1,5 @@
 import { marked, type Tokens, type RendererObject } from "marked";
+import DOMPurify from "dompurify";
 
 /** Pretty-print fenced ```json blocks so model output reads cleanly. */
 function prettyPrintJsonBlocks(token: Tokens.Generic): void {
@@ -86,42 +87,108 @@ export function renderMarkdown(text: string): string {
 }
 
 /**
- * Sanitize rendered markdown HTML.
+ * Sanitize rendered markdown HTML with DOMPurify.
  *
- * Model output can contain markdown links, and marked emits raw HTML for
- * inline HTML. The main window loads this HTML directly and (before the
- * navigation guards in main) a link click could navigate the privileged
- * window. Even with those guards, we must prevent:
- *   - <script>, <iframe>, <object>, <embed>, <form> (spoofing/execution);
- *   - inline event handlers (onerror=, onclick=, …);
- *   - javascript:/vbscript:/data: URLs in href/src;
- *   - styles that could overlay the UI.
+ * Model output (and plugin docs, wiki pages, task plans) can contain markdown
+ * links, and `marked` emits raw HTML for inline HTML. The main window loads
+ * this HTML via `dangerouslySetInnerHTML`, and the preload exposes
+ * file/settings/Git/MCP/prompt capabilities through `window.deeporca` — so an
+ * XSS in rendered markdown is a path to privileged IPC. CSP and the
+ * main-process navigation guards are defense-in-depth, but the sanitizer is
+ * the primary boundary.
  *
- * This is an allowlist sanitizer operating on marked's output — cheaper than a
- * full DOM parser and sufficient because we control the input grammar (GFM).
+ * Previous implementation was a regex denylist (strip dangerous tags, on*
+ * handlers, javascript:/vbscript:/data: URLs, style attributes). HTML is not
+ * regular, and parser differentials (malformed tags, entity-encoded schemes,
+ * SVG/MathML payloads) defeat regex approaches. DOMPurify parses the HTML with
+ * the real browser DOM parser and walks the resulting tree against an
+ * allowlist, which is robust against parser-differential attacks.
+ *
+ * Allowlist policy:
+ *  - Only Markdown-output tags are permitted (no <script>, <iframe>,
+ *    <object>, <embed>, <form>, <style>, <link>, <meta>, <base>, SVG, MathML).
+ *  - Only `class`, `href`, `src`, `title`, `alt`, `data-lang` attributes pass;
+ *    everything else (including `style` and all `on*` handlers) is stripped.
+ *  - URI schemes are restricted to http, https, mailto and relative refs.
+ *  - Every link is forced to `target="_blank" rel="noopener noreferrer"` via an
+ *    afterSanitizeAttributes hook so model-authored links can't reach back into
+ *    the privileged window via `window.opener`.
  */
-const DANGEROUS_TAGS =
-  /<\/?(script|iframe|object|embed|form|input|button|textarea|select|style|link|meta|base)\b[^>]*>/gi;
-const EVENT_HANDLER_ATTR = /\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
-const DANGEROUS_URL =
-  /\b(href|src|xlink:href)\s*=\s*("(?:javascript|vbscript|data):[^"]*"|'(?:javascript|vbscript|data):[^']*'|(?:javascript|vbscript|data):[^\s>]+)/gi;
-const STYLE_ATTR = /\sstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
+const PURIFY_CONFIG = {
+  ALLOWED_TAGS: [
+    // Block / paragraph structure.
+    "p",
+    "br",
+    "hr",
+    "blockquote",
+    "pre",
+    "code",
+    "span",
+    "div",
+    // Headings.
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    // Lists.
+    "ul",
+    "ol",
+    "li",
+    "dl",
+    "dt",
+    "dd",
+    // Tables (GFM).
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    // Inline formatting.
+    "a",
+    "strong",
+    "em",
+    "del",
+    "s",
+    "sup",
+    "sub",
+    "mark",
+    "abbr",
+    "code",
+    "b",
+    "i",
+    "u",
+    "kbd",
+    "small",
+    // Custom blocks emitted by the marked renderer below (code-block copy
+    // button, language label). No form/input elements.
+    "button",
+  ],
+  ALLOWED_ATTR: ["class", "href", "src", "title", "alt", "data-lang", "type", "aria-label"],
+  // Restrict URI schemes. Empty string allows relative refs (e.g. "#section").
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/[^/\\]|[^:/?#]+(?:[?#]|$))/i,
+  // Forbid all custom data- attributes except the explicit allowlist above.
+  ALLOW_DATA_ATTR: false,
+  // Explicitly keep SVG/MathML off — they are common XSS vectors and the
+  // markdown surface never needs them.
+  FORBID_TAGS: ["svg", "math", "use"],
+  FORBID_ATTR: ["style", "srcset", "formaction", "xlink:href"],
+};
+
+// After-attribute hook: force safe link target/rel on every anchor. DOMPurify
+// runs hooks after it has already stripped dangerous attributes, so we only
+// add the safe ones here.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A" && node.getAttribute("href")) {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+});
 
 function sanitizeHtml(html: string): string {
-  let out = html;
-  // Strip dangerous elements entirely (tags only — their text content, if any,
-  // stays as it was already emitted as escaped text by marked for unknown tags).
-  out = out.replace(DANGEROUS_TAGS, "");
-  // Remove inline event handlers.
-  out = out.replace(EVENT_HANDLER_ATTR, "");
-  // Neutralize javascript:/vbscript:/data: URLs in link/media attributes.
-  out = out.replace(DANGEROUS_URL, (match) => match.replace(/(javascript|vbscript|data):/gi, "blocked:"));
-  // Drop inline styles (prevent UI overlay / clickjacking via CSS).
-  out = out.replace(STYLE_ATTR, "");
-  // Force every link to open externally and without opener access. Target the
-  // opening tag so the href attribute itself is preserved.
-  out = out.replace(/<a\b(?![^>]*\brel=)([^>]*)>/gi, '<a$1 target="_blank" rel="noopener noreferrer">');
-  return out;
+  return DOMPurify.sanitize(html, PURIFY_CONFIG) as unknown as string;
 }
 
 /** Clear the markdown cache (useful when switching projects to free memory). */

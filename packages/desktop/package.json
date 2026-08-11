@@ -10,7 +10,8 @@
     "url": "git+https://github.com/d2rabbit/deepOrca.git"
   },
   "scripts": {
-    "typecheck": "tsc -p ./ --noEmit",
+    "ensure-stub": "node ./ensure-tailwind-stub.mjs",
+    "typecheck": "npm run ensure-stub && tsc -p ./ --noEmit",
     "test": "node src/tests/run-tests.mjs",
     "build": "node ./build.mjs",
     "dev": "node ./build.mjs --dev",
@@ -27,6 +28,7 @@
     "@colbymchenry/codegraph": "^1.5.0",
     "@deeporca/core": "file:../core",
     "@deeporca/memory": "file:../memory",
+    "dompurify": "^3.4.8",
     "@monaco-editor/react": "^4.7.0",
     "@openuidev/lang-core": "^0.2.10",
     "@openuidev/react-lang": "^0.2.9",

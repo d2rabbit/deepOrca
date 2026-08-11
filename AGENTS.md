@@ -10,16 +10,16 @@ a shared core engine.
 
 Packages (under `packages/`):
 
-| Package | Scope npm name | Role |
-|---|---|---|
-| `core/` | `@deeporca/core` | Engine: LLM session loop, 7 built-in tools, MCP client, permissions, settings, semantic routing. No UI deps. |
-| `desktop/` | `@deeporca/desktop` | Electron GUI built on the core engine. Depends on core + memory. |
-| `memory/` | `@deeporca/memory` | In-process L0–L3 memory pipeline (vendored TDAI Core). Consumed by desktop, injected into core as a `MemoryProvider`. |
-| `embedding/` | `@deeporca/embedding` | Local embeddings (transformers.js + ONNX, IBM Granite 97M R2). Lazily `import()`ed by core's routing. |
+| Package      | Scope npm name        | Role                                                                                                                  |
+| ------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `core/`      | `@deeporca/core`      | Engine: LLM session loop, 7 built-in tools, MCP client, permissions, settings, semantic routing. No UI deps.          |
+| `desktop/`   | `@deeporca/desktop`   | Electron GUI built on the core engine. Depends on core + memory.                                                      |
+| `memory/`    | `@deeporca/memory`    | In-process L0–L3 memory pipeline (vendored TDAI Core). Consumed by desktop, injected into core as a `MemoryProvider`. |
+| `embedding/` | `@deeporca/embedding` | Local embeddings (transformers.js + ONNX, IBM Granite 97M R2). Lazily `import()`ed by core's routing.                 |
 
 `memory/src/tdai/` is a **complete self-contained fork** of TDAI Core (~17k LOC,
 MIT — see `memory/src/NOTICE.md`); it does not import the upstream npm package.
-`@tencentdb-agent-memory/tcvdb-text` is a *different* package and is a live
+`@tencentdb-agent-memory/tcvdb-text` is a _different_ package and is a live
 runtime dependency (BM25, statically imported and on by default) — don't remove it.
 
 `docs/` = user-facing docs. `scripts/` = build/release/packaging JS. `.deeporca/` =
@@ -49,7 +49,7 @@ does not track it, don't edit or commit it.
   `AskUserQuestion`, `UpdatePlan`, `WebSearch`. External capabilities come via MCP —
   do not add new built-in tools lightly.
 - **Snippet editing contract:** the `read` tool returns a `snippet_id`; the `edit`
-  tool *requires* that `snippet_id` and only searches within the snippet. Preserve
+  tool _requires_ that `snippet_id` and only searches within the snippet. Preserve
   this when touching `packages/core/src/tools/read-handler.ts` / `edit-handler.ts`.
 - **Desktop IPC:** the contract lives in `packages/desktop/src/shared/ipc.ts`
   (dependency-free so both sides can bundle it — mostly types, plus the
@@ -63,18 +63,18 @@ does not track it, don't edit or commit it.
 
 ## Commands (run from repo root)
 
-| Command | Purpose |
-|---|---|
-| `npm run typecheck` | `tsc --noEmit` across all workspaces |
-| `npm run lint` / `npm run lint:fix` | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js` |
-| `npm run format` / `npm run format:check` | Prettier |
-| `npm run check` | typecheck + lint + format:check (run before pushing) |
-| `npm run build` | core tsc → rewrite ESM imports |
-| `npm test` | run every workspace's tests |
-| `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run |
-| `npm run desktop:startMac` / `startWin` / `startLx` | build+run with per-OS setup via `scripts/desktop-start.js` |
-| `npm run release:version` | bump version across all packages |
-| `npm run clean` | remove generated files and `dist/` |
+| Command                                                   | Purpose                                                                                                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                       | `tsc --noEmit` across all workspaces                                                                                                                     |
+| `npm run lint` / `npm run lint:fix`                       | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js`                                                                                                |
+| `npm run format` / `npm run format:check`                 | Prettier                                                                                                                                                 |
+| `npm run check`                                           | typecheck + lint + format:check (run before pushing)                                                                                                     |
+| `npm run build`                                           | all `@deeporca/*` tsc packages in dependency-topological order → rewrite ESM imports (core/dist). `desktop` is excluded — it builds via `desktop:build`. |
+| `npm test`                                                | run every workspace's tests                                                                                                                              |
+| `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run                                                                                                                     |
+| `npm run desktop:startMac` / `startWin` / `startLx`       | build+run with per-OS setup via `scripts/desktop-start.js`                                                                                               |
+| `npm run release:version`                                 | bump version across all packages                                                                                                                         |
+| `npm run clean`                                           | remove generated files and `dist/`                                                                                                                       |
 
 Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/src/tests/<file>.test.ts`
 (tests use Node's native runner `node:test` + `node:assert/strict`, executed via `tsx`).
@@ -89,7 +89,7 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
   width 120, LF endings. **File names:** `kebab-case.ts(.tsx)`; tests `*.test.ts`.
 - **Core ESM gotcha:** `tsc` emits extensionless relative imports; Node ESM needs
   `.js`. `scripts/rewrite-esm-imports.js` fixes this in `core/dist/` after build.
-  When adding files to core, write source imports *without* extensions (the script
+  When adding files to core, write source imports _without_ extensions (the script
   adds them) — match existing core files.
 - **Lint:** `no-console` is off. Unused vars/params may be `_`-prefixed.
   `@typescript-eslint/consistent-type-imports` is on (warn) — reinforces `import type`.
@@ -133,10 +133,10 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
    so **reads must prefer `pendingIndex` over the file**. `updateSessionEntry` is
    load→mutate→save, and it runs ~17× per streaming turn — if the read goes to the
    now-stale file, two updates in one window each rebase on the old state and the
-   first is *permanently lost* (this corrupted `usage`/`usagePerModel` accounting and
+   first is _permanently lost_ (this corrupted `usage`/`usagePerModel` accounting and
    dropped `permission_denied`). Terminal, user-visible decisions
    (create/delete/deny) call `flushSessionsIndex()` to bypass the debounce.
-   Note `pendingIndex` holds the *in-memory* shape (`processes` is a `Map`), so it
+   Note `pendingIndex` holds the _in-memory_ shape (`processes` is a `Map`), so it
    must **not** be passed through `normalizeSessionEntry` — that expects the on-disk
    shape and its `Object.entries()` would silently drop every tracked process.
 
@@ -237,6 +237,7 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 ## Areas that need extra care
 
 Before changing these, read the corresponding doc first:
+
 - Session/compaction, prompt layout, cache ordering → `docs/architecture.md` +
   `docs/session-persistence.md`.
 - Tool permission scopes → `docs/permission.md` + `packages/core/src/common/permissions.ts`.

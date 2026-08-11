@@ -287,15 +287,20 @@ function mergePermissions(
 ): Required<PermissionSettings> {
   const userPermissions = normalizePermissions(userSettings?.permissions);
   const projectPermissions = normalizePermissions(projectSettings?.permissions);
+  // Choose the effective default mode BEFORE applying the fail-closed guard:
+  // project > user > allowAll (first-run). The guard then upgrades it to
+  // askAll if the underlying settings file was corrupt/unreadable, so a parse
+  // error can never silently downgrade a restrictive policy to allowAll.
+  const effectiveDefault: PermissionDefaultMode = projectSettings?.permissions
+    ? projectPermissions.defaultMode
+    : userSettings?.permissions
+      ? userPermissions.defaultMode
+      : "allowAll";
   return {
     allow: mergePermissionLists(userPermissions.allow, projectPermissions.allow),
     deny: mergePermissionLists(userPermissions.deny, projectPermissions.deny),
     ask: mergePermissionLists(userPermissions.ask, projectPermissions.ask),
-    defaultMode: projectSettings?.permissions
-      ? projectPermissions.defaultMode
-      : userSettings?.permissions
-        ? userPermissions.defaultMode
-        : "allowAll",
+    defaultMode: failClosedPermissionDefault(effectiveDefault),
   };
 }
 
@@ -989,16 +994,111 @@ export function getProjectSettingsPath(projectRoot: string): string {
   return path.join(getProjectConfigRoot(projectRoot), "settings.json");
 }
 
-export function readSettingsFile(settingsPath: string): DeepcodingSettings | null {
+/**
+ * Discriminated read result.
+ *
+ * `readSettingsFile` collapses every failure into `null`, which makes a
+ * corrupt permission file indistinguishable from "no settings yet" — and the
+ * permission normaliser then defaults to `allowAll`, silently turning a
+ * parse error into a fail-open security hole. This type lets callers tell the
+ * cases apart so they can fail closed and surface a diagnostic instead.
+ */
+export type SettingsReadResult =
+  | { kind: "missing" }
+  | { kind: "valid"; value: DeepcodingSettings }
+  | { kind: "invalid"; error: string; raw?: string }
+  | { kind: "io-error"; error: string };
+
+/**
+ * Read a settings file with a discriminated result that distinguishes
+ * "file not present" from "file present but unparseable" from "I/O error".
+ *
+ * Callers that act on permissions should treat `invalid` and `io-error` as
+ * fail-closed (do NOT default to `allowAll`) and surface the diagnostic.
+ */
+export function readSettingsFileWithStatus(settingsPath: string): SettingsReadResult {
+  let exists = false;
   try {
-    if (!fs.existsSync(settingsPath)) {
-      return null;
+    exists = fs.existsSync(settingsPath);
+  } catch (err) {
+    return { kind: "io-error", error: err instanceof Error ? err.message : String(err) };
+  }
+  if (!exists) {
+    return { kind: "missing" };
+  }
+  let raw: string;
+  try {
+    raw = fs.readFileSync(settingsPath, "utf8");
+  } catch (err) {
+    return { kind: "io-error", error: err instanceof Error ? err.message : String(err) };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { kind: "invalid", error: "settings file is not a JSON object", raw };
     }
-    const raw = fs.readFileSync(settingsPath, "utf8");
-    return JSON.parse(raw) as DeepcodingSettings;
-  } catch {
+    return { kind: "valid", value: parsed as DeepcodingSettings };
+  } catch (err) {
+    return {
+      kind: "invalid",
+      error: err instanceof Error ? err.message : String(err),
+      raw,
+    };
+  }
+}
+
+/**
+ * Tracks whether the most recent settings read hit a non-fatal parse or I/O
+ * error. Hosts can surface this as a diagnostic so a corrupt settings file
+ * does not silently fall back to defaults.
+ */
+let lastSettingsReadError: { path: string; kind: "invalid" | "io-error"; error: string } | null = null;
+
+/** Returns the most recent settings-read diagnostic, or null if the last read was clean/missing. */
+export function getLastSettingsReadError(): { path: string; kind: "invalid" | "io-error"; error: string } | null {
+  return lastSettingsReadError;
+}
+
+/** Reset the diagnostic (for tests). */
+export function resetLastSettingsReadError(): void {
+  lastSettingsReadError = null;
+}
+
+export function readSettingsFile(settingsPath: string): DeepcodingSettings | null {
+  const result = readSettingsFileWithStatus(settingsPath);
+  if (result.kind === "valid") {
+    lastSettingsReadError = null;
+    return result.value;
+  }
+  if (result.kind === "missing") {
+    // Genuinely no settings file — the historical "default to allowAll"
+    // behaviour is intentional here (first-run experience).
+    lastSettingsReadError = null;
     return null;
   }
+  // `invalid` or `io-error`: record the diagnostic. We deliberately return
+  // null (not an empty object) so callers that only check `null` keep working,
+  // BUT we also fail the permission policy closed by surfacing the error via
+  // getLastSettingsReadError(). Callers that resolve permissions SHOULD check
+  // that diagnostic and force defaultMode to "askAll" instead of inheriting
+  // the historical "allowAll" default — a corrupt permission file must not
+  // silently downgrade to "allow everything". See resolveSettingsGuard.
+  lastSettingsReadError = { path: settingsPath, kind: result.kind, error: result.error };
+  return null;
+}
+
+/**
+ * Fail-closed guard for permission default mode.
+ *
+ * Returns `"askAll"` when the most recent settings read hit a parse or I/O
+ * error (so a corrupt `settings.json` cannot silently downgrade the permission
+ * policy to `allowAll`), otherwise returns the caller's preferred default
+ * (`allowAll` for the first-run / unset case). Permission resolvers should
+ * route their `defaultMode` through this instead of using the raw normalised
+ * value.
+ */
+export function failClosedPermissionDefault(preferredDefault: PermissionDefaultMode): PermissionDefaultMode {
+  return lastSettingsReadError ? "askAll" : preferredDefault;
 }
 
 export function readSettings(): DeepcodingSettings | null {

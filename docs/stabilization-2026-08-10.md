@@ -9,6 +9,10 @@ actually run** — all hidden because the suite never completed.
 
 > **Acceptance:** `npm run check` and `npm test` exit 0. Suite **196s + indefinite
 > hang → 21s**, 449 tests green, lint warnings **27 → 0**.
+>
+> _Timing is machine-dependent — measured on the author's host. On a slower Windows +
+> tsx setup the core suite alone is ~5 min (session.test.ts dominates at ~8 min for a
+> single-file run) and totals ~6 min; all green, 0 fail. The hang is gone regardless._
 
 ---
 
@@ -45,9 +49,13 @@ never settles → `node --test` hangs at 0% CPU forever.
 **Fix:** mock checks `signal.aborted` first (mirrors the real SDK). Every runner
 gains `--test-timeout` + `--test-force-exit`; `ci.yml` gains `timeout-minutes: 45`.
 
-> **Gotcha:** `--test-timeout` for files built from top-level `test()` applies to
-> the _whole file_, not per-test. 60 s truncated the entire run. Sized to 300 s
-> against measured total runtime.
+> **Gotcha:** `--test-timeout` is per-test, not file-level. A test that exceeds it
+> is marked failed/cancelled, but `node --test` does **not** truncate the process —
+> the slow test still runs to completion, so the flag bounds what _passes_, not how
+> long the run takes. A separate per-run guard is still needed; that's what
+> `timeout-minutes: 45` in ci.yml is for. Sized to 300 s against the slowest single
+> test (the index-debounce regression waits out one full 250 ms debounce window;
+> MCP startup tests hold for the connect timeout).
 
 ### RC3 — Semantic routing never ran
 
@@ -93,7 +101,10 @@ select-by-name) cleared 5 and removed ~180 s of serena startup timeouts.
 ### P1 — make the signal trustworthy
 
 - Routing activated (host injection + logger + close + tests)
-- Dead memory-gateway code removed (3 places, −1294 lockfile lines; `tcvdb-text` kept)
+- Dead memory-gateway code removed (3 places). The `memory-tencentdb` dep and its
+  transitive tree (`@ai-sdk/*`, `ai`, `opik`, `google-auth-library`, `jest-*`, …)
+  dropped 1238 lockfile lines + 5 packaging-stage lines; jsdom + @testing-library
+  added 732 back, so the net is ~−510. `tcvdb-text` is a different package and stays.
 - AGENTS.md corrected (4 packages, `routing/` section, 13 vendor scripts, RC1 invariant)
 - Repo hygiene (screenshots untracked, `.tmp-*` cleaned, `.gitignore` tightened)
 
@@ -128,7 +139,10 @@ select-by-name) cleared 5 and removed ~180 s of serena startup timeouts.
   after checking the actual handler.
 - **Nearly introduced data destruction** by re-normalizing pending entries (the
   `Map`/`Object.entries` trap above).
-- **Misread `--test-timeout`** as per-test; it is file-level for top-level `test()`.
+- **Misread `--test-timeout`** as file-level for top-level `test()`; it is actually
+  per-test, and a cancelled test still runs to completion (the flag marks failures,
+  it does not truncate the process). Corrected the gotcha in §1 RC2 and relied on
+  ci.yml's `timeout-minutes` for the true outer bound.
 
 ---
 
@@ -150,9 +164,10 @@ select-by-name) cleared 5 and removed ~180 s of serena startup timeouts.
 
 ---
 
-## 6. Commit log (10 commits, all on `fix/stabilize-data-loss-and-test-suite`)
+## 6. Commit log (11 commits, all on `fix/stabilize-data-loss-and-test-suite`)
 
 ```
+38c69f2 docs: record the stabilization pass in CHANGELOG and a standalone report
 035159b chore(lint): clear the warning backlog — 27 -> 0
 0f1133c refactor(desktop): extract the read-only plugin/MCP projections from SessionBridge
 e3fa579 refactor(desktop): split the 765-line registerIpc into per-domain registrars

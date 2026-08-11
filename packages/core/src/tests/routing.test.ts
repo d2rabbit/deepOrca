@@ -604,6 +604,36 @@ describe("embedding loader", () => {
     assert.equal(getEmbeddingLoadError(), null);
   });
 
+  test("concurrent getEmbeddingService callers share one load and one service", async () => {
+    resetEmbeddingLoader();
+    const [a, b] = await Promise.all([
+      getEmbeddingService({ modelDir: "/definitely/not/a/model/dir/concurrent" }),
+      getEmbeddingService({ modelDir: "/definitely/not/a/model/dir/concurrent" }),
+    ]);
+    // Both callers must receive the same service instance — the previous
+    // loadAttempted-boolean gate would have returned null for the second
+    // caller because it observed loadAttempted=true before `shared` was set.
+    assert.ok(a, "first caller must receive a service");
+    assert.equal(b, a, "concurrent callers must share the same service");
+    await closeEmbeddingService();
+    resetEmbeddingLoader();
+  });
+
+  test("closeEmbeddingService during in-flight load drops the late-created service", async () => {
+    // Start a load, then close before it resolves. The late load must not
+    // publish a resurrected service into `shared`.
+    resetEmbeddingLoader();
+    const loading = getEmbeddingService({ modelDir: "/definitely/not/a/model/dir/race" });
+    await closeEmbeddingService();
+    const service = await loading;
+    assert.equal(service, null, "a load superseded by close must resolve null");
+    // And `shared` must remain null after the race.
+    const again = await getEmbeddingService({ modelDir: "/definitely/not/a/model/dir/race-2" });
+    assert.ok(again, "loader must remain usable after a close race");
+    await closeEmbeddingService();
+    resetEmbeddingLoader();
+  });
+
   test("the vendored model dir resolves inside the repo, not packages/packages", () => {
     // Guards the exact regression: from packages/core/{src,dist}, the vendor dir
     // is ../../desktop/vendor/... — adding a "packages" segment double-counts it.

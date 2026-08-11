@@ -79,11 +79,46 @@ export type ProcessTimeoutControl = {
   setTimeoutMs: (timeoutMs: number) => ProcessTimeoutInfo;
 };
 
+/**
+ * Structured error classification for a tool execution failure.
+ *
+ * The human-readable message stays in {@link ToolExecutionResult.error}; this
+ * enum lets the UI, telemetry and the agent itself distinguish "fix your
+ * input and retry" from "you don't have permission" from "the tool crashed".
+ * Handlers and the executor set it; consumers may fall back to `INTERNAL`
+ * when it is absent (older callers).
+ */
+export type ToolErrorType =
+  | "INVALID_INPUT"
+  | "PERMISSION_DENIED"
+  | "NOT_FOUND"
+  | "TIMEOUT"
+  | "ABORTED"
+  | "PROCESS_FAILED"
+  | "INVALID_TOOL_CALL"
+  | "INTERNAL";
+
 export type ToolExecutionResult = {
   ok: boolean;
   name: string;
   output?: string;
   error?: string;
+  /**
+   * Structured error classification. Present whenever `ok` is false and the
+   * failure was produced (or re-wrapped) by the executor/handlers. Legacy
+   * handlers that only populate `error` leave this undefined; consumers
+   * treat undefined as `INTERNAL`.
+   */
+  errorType?: ToolErrorType;
+  /**
+   * Hint that a retry with the same input is sensible (e.g. a transient
+   * network blip, a tool still initialising). `false` for permission/input
+   * errors where retrying without changes will fail the same way. Absent on
+   * success.
+   */
+  retryable?: boolean;
+  /** Optional machine-readable details (filtered/size-capped before display). */
+  details?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   awaitUserResponse?: boolean;
   followUpMessages?: ToolExecutionFollowUpMessage[];

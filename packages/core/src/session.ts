@@ -3324,7 +3324,27 @@ ${content}
       })),
       originalPath: this.projectRoot,
     };
-    fs.writeFileSync(sessionsIndexPath, JSON.stringify(normalized, null, 2), "utf8");
+    const content = JSON.stringify(normalized, null, 2);
+    const tmpPath = `${sessionsIndexPath}.tmp.${process.pid}.${crypto.randomUUID()}`;
+    try {
+      // Write beside the target and rename only after the complete payload is
+      // present. This preserves the last valid index if the process or disk
+      // fails halfway through a write. Keep pendingIndex until rename succeeds
+      // so a later explicit flush can retry the exact in-memory snapshot.
+      fs.writeFileSync(tmpPath, content, { encoding: "utf8", mode: 0o600 });
+      if (process.platform !== "win32") {
+        fs.chmodSync(tmpPath, 0o600);
+      }
+      fs.renameSync(tmpPath, sessionsIndexPath);
+      this.pendingIndex = null;
+    } catch (error) {
+      try {
+        fs.rmSync(tmpPath, { force: true });
+      } catch {
+        // Preserve the original persistence error.
+      }
+      throw error;
+    }
   }
 
   private pendingIndex: SessionsIndex | null = null;

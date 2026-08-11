@@ -15,7 +15,22 @@ function ensureLogDir(): void {
 /**
  * Mask sensitive values (API keys, tokens) that may appear in error messages
  * or response bodies.
+ *
+ * Two layers:
+ *  - `maskSensitiveString` runs a regex pass over a string (catches values
+ *    that were inlined into a free-text error message).
+ *  - `redactSensitiveKeys` walks a structured object/array and replaces the
+ *    VALUE of any key whose name looks sensitive (case-insensitive), so a
+ *    structured `headers: { Authorization: "Bearer ..." }` response is masked
+ *    even when the regex never sees the literal.
  */
+const SENSITIVE_KEY_RE =
+  /^(authorization|x-api-key|api[-_]?key|apikey|secret|secret[-_]?key|access[-_]?token|refresh[-_]?token|token|bearer|password|passwd|cookie|set-cookie|api[-_]?secret|client[-_]?secret)$/i;
+
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEY_RE.test(key);
+}
+
 function maskSensitive(text: string): string {
   return (
     text
@@ -27,6 +42,7 @@ function maskSensitive(text: string): string {
 }
 
 const CONTENT_TRUNCATE_PREVIEW = 100;
+const MASKED = "***MASKED***";
 
 /**
  * Truncate a content string for logging: keep a short prefix and append the
@@ -41,35 +57,50 @@ function truncateContent(value: string): string {
 }
 
 /**
- * Deep-clone a request payload, only truncating `content` fields whose value
- * is a string.  Every other field is kept exactly as-is so the logged request
- * mirrors the original API payload (no fields added or removed).
+ * Recursively walk a value and return a sanitised copy where:
+ *  - any key whose name matches {@link SENSITIVE_KEY_RE} has its value
+ *    replaced with {@link MASKED}, no matter how deeply nested (object or
+ *    array, string or sub-object);
+ *  - `content` string values are truncated to a preview;
+ *  - any remaining string value also gets the free-text {@link maskSensitive}
+ *    regex pass (catches JSON serialised inside a string field).
+ *
+ * This is applied to request, response and error cause payloads so structured
+ * headers/auth/cookies cannot leak into logs.
+ */
+function redactSensitiveKeys(value: unknown): unknown {
+  // Primitive leaf: run the string masker on strings.
+  if (value === null || typeof value !== "object") {
+    return typeof value === "string" ? maskSensitive(value) : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactSensitiveKeys);
+  }
+  const record = value as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(record)) {
+    if (isSensitiveKey(key)) {
+      // Mask the whole value regardless of type — a structured auth object is
+      // just as sensitive as a bare string.
+      result[key] = MASKED;
+      continue;
+    }
+    if (key === "content" && typeof val === "string") {
+      result[key] = truncateContent(maskSensitive(val));
+      continue;
+    }
+    result[key] = redactSensitiveKeys(val);
+  }
+  return result;
+}
+
+/**
+ * Deep-clone a request payload, truncating `content` strings and masking any
+ * sensitive keys. Every non-sensitive field is kept exactly as-is so the
+ * logged request mirrors the original API payload structure.
  */
 function sanitizeRequestPayload(request: Record<string, unknown>): Record<string, unknown> {
-  function walk(value: unknown): unknown {
-    if (!value || typeof value !== "object") {
-      return value;
-    }
-
-    if (Array.isArray(value)) {
-      return value.map(walk);
-    }
-
-    const record = value as Record<string, unknown>;
-    const result: Record<string, unknown> = {};
-
-    for (const [key, val] of Object.entries(record)) {
-      if (key === "content" && typeof val === "string") {
-        result[key] = truncateContent(val);
-      } else {
-        result[key] = walk(val);
-      }
-    }
-
-    return result;
-  }
-
-  return walk(request) as Record<string, unknown>;
+  return redactSensitiveKeys(request) as Record<string, unknown>;
 }
 
 export type ApiErrorLogEntry = {
@@ -103,7 +134,11 @@ export function logApiError(entry: ApiErrorLogEntry): void {
     };
 
     if (entry.response !== undefined) {
-      logLine.response = typeof entry.response === "string" ? maskSensitive(entry.response) : entry.response;
+      // Response may be a structured object (provider JSON, headers map) or a
+      // string. Both paths must go through the redactor — the previous code
+      // ran maskSensitive only on strings and passed objects through verbatim,
+      // so a response with `headers: { Authorization: ... }` leaked verbatim.
+      logLine.response = redactSensitiveKeys(entry.response);
     }
 
     const newLine = JSON.stringify(logLine) + "\n";

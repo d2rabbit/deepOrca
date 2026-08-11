@@ -13,9 +13,10 @@
 import type { RoutingEmbeddingService } from "./types";
 
 let shared: RoutingEmbeddingService | null = null;
-let loadAttempted = false;
+let sharedPromise: Promise<RoutingEmbeddingService | null> | null = null;
 let loadError: string | null = null;
 let configuredModelDir: string | null = null;
+let loaderGeneration = 0;
 
 /**
  * Point the loader at the vendored embedding model directory.
@@ -56,33 +57,36 @@ export interface EmbeddingLoaderOptions {
  */
 export async function getEmbeddingService(opts: EmbeddingLoaderOptions): Promise<RoutingEmbeddingService | null> {
   if (shared) return shared;
-  if (loadAttempted) return null; // Don't retry after a failure (restart resets).
+  if (sharedPromise) return sharedPromise;
 
-  loadAttempted = true;
-  try {
-    const mod = await import("@deeporca/embedding");
-    shared = new mod.TransformersEmbeddingService({
-      modelDir: opts.modelDir,
-      // Forward the host logger into the service. This is where a wrong/missing
-      // model dir actually shows up: the constructor succeeds and startWarmup()
-      // is fire-and-forget, so the failure lands in the service's async warmup
-      // (initState="failed") and would otherwise be invisible — which is exactly
-      // how a broken vendored path went unnoticed while routing was enabled.
-      logger: {
-        info: (message: string) => logger?.(message),
-        warn: (message: string) => logger?.(message),
-        error: (message: string) => logger?.(message),
-      },
-    }) as unknown as RoutingEmbeddingService;
-    shared.startWarmup();
-    return shared;
-  } catch (err) {
-    loadError = err instanceof Error ? err.message : String(err);
-    // Routing fails open by design, but silence made a missing package
-    // indistinguishable from "routing is off".
-    logger?.(`embedding service unavailable — semantic routing disabled (modelDir: ${opts.modelDir})`, loadError);
-    return null;
-  }
+  const generation = loaderGeneration;
+  sharedPromise = (async () => {
+    try {
+      const mod = await import("@deeporca/embedding");
+      const service = new mod.TransformersEmbeddingService({
+        modelDir: opts.modelDir,
+        logger: {
+          info: (message: string) => logger?.(message),
+          warn: (message: string) => logger?.(message),
+          error: (message: string) => logger?.(message),
+        },
+      }) as unknown as RoutingEmbeddingService;
+      if (generation !== loaderGeneration) {
+        await service.close?.();
+        return null;
+      }
+      shared = service;
+      service.startWarmup();
+      return service;
+    } catch (err) {
+      loadError = err instanceof Error ? err.message : String(err);
+      logger?.(`embedding service unavailable — semantic routing disabled (modelDir: ${opts.modelDir})`, loadError);
+      return null;
+    }
+  })().finally(() => {
+    sharedPromise = null;
+  });
+  return sharedPromise;
 }
 
 /** Whether the last load attempt failed (for diagnostics). */
@@ -100,11 +104,15 @@ export function getEmbeddingLoadError(): string | null {
  * shared across managers.
  */
 export async function closeEmbeddingService(): Promise<void> {
+  const generation = ++loaderGeneration;
+  const pending = sharedPromise;
   const service = shared;
   shared = null;
-  loadAttempted = false;
   loadError = null;
-  if (!service?.close) return;
+  if (pending) {
+    await pending.catch(() => {});
+  }
+  if (generation !== loaderGeneration || !service?.close) return;
   try {
     await service.close();
   } catch (err) {
@@ -115,8 +123,9 @@ export async function closeEmbeddingService(): Promise<void> {
 /** Reset state (for tests) — including the host-injected model dir, so one test
  *  cannot leak its configuration into the next through this module-level state. */
 export function resetEmbeddingLoader(): void {
+  ++loaderGeneration;
   shared = null;
-  loadAttempted = false;
+  sharedPromise = null;
   loadError = null;
   configuredModelDir = null;
 }

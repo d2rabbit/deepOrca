@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
-import * as fsSync from "node:fs";
 import * as path from "node:path";
 import type { EditorFileEntry } from "../shared/ipc";
+import { safePathWithinRoot } from "./safe-path";
 
 /** Max file size we'll read into the editor (2 MB). */
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -72,61 +72,12 @@ const BINARY_EXTENSIONS = new Set([
 
 /**
  * Resolve a user-supplied path safely within the project root.
- * Returns the absolute path or null if it escapes the root.
- *
- * Defends against symlink/junction escapes: a lexical `startsWith` check alone
- * is insufficient because `path.resolve` does not follow symlinks. We resolve
- * the real (physical) root and, for the target, walk up to the nearest existing
- * ancestor, realpath it, and verify the resolved physical path stays inside the
- * root. This catches symlinks (Unix), junctions/reparse points (Windows), and
- * relative-path traversals alike.
+ * Returns the absolute path or null if it escapes the root. Delegates to the
+ * shared `safePathWithinRoot` (see `safe-path.ts`) so editor and wiki share the
+ * same lexical + realpath + symlink/junction containment guard.
  */
 function safePath(projectRoot: string, relPath: string): string | null {
-  const resolved = path.resolve(projectRoot, relPath);
-  const normalizedRoot = path.resolve(projectRoot);
-  // Lexical guard first (cheap, catches ".." traversals).
-  if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
-    return null;
-  }
-
-  // Resolve the physical root (root itself may be a symlink).
-  let realRoot: string;
-  try {
-    realRoot = fsSync.realpathSync(normalizedRoot);
-  } catch {
-    return null;
-  }
-
-  // For a path that already exists, realpath and compare directly.
-  try {
-    const realTarget = fsSync.realpathSync(resolved);
-    if (realTarget === realRoot || realTarget.startsWith(realRoot + path.sep)) {
-      return resolved;
-    }
-    return null;
-  } catch {
-    // Target doesn't exist yet (write path) — walk up to the nearest existing
-    // ancestor, realpath it, and check that the remaining suffix can't escape.
-  }
-
-  // Find the deepest existing ancestor and verify it stays inside the root.
-  let probe = resolved;
-  const suffixParts: string[] = [];
-  while (probe !== realRoot && !fsSync.existsSync(probe)) {
-    suffixParts.unshift(path.basename(probe));
-    probe = path.dirname(probe);
-  }
-  try {
-    const realAncestor = fsSync.realpathSync(probe);
-    if (realAncestor !== realRoot && !realAncestor.startsWith(realRoot + path.sep)) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-  // The non-existent suffix segments are under our control (no symlink yet),
-  // so a clean ancestor is sufficient.
-  return resolved;
+  return safePathWithinRoot(projectRoot, relPath);
 }
 
 /** Check if a file is likely binary by extension or content sniffing. */

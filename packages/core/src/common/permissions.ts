@@ -257,12 +257,20 @@ export function describeToolPermissionRequest(options: {
   if (name === "bash" || name === "Bash") {
     const command = typeof args.command === "string" ? args.command : "bash";
     const description = typeof args.description === "string" ? args.description : undefined;
+    // The model's declared sideEffects are a HINT, not a security boundary —
+    // a prompt-injected or careless model can declare `[]` on a `rm -rf`.
+    // Infer the command's side effects from its text and union with the
+    // declared scopes. Inference can only ever ADD risk, never remove it, so
+    // this closes the under-reporting hole without breaking legitimate
+    // over-reporting.
+    const declared = parseBashSideEffects(args.sideEffects);
+    const inferred = inferBashSideEffects(command);
     return {
       toolCallId: options.toolCall.id,
       name: "bash",
       command,
       description,
-      scopes: parseBashSideEffects(args.sideEffects),
+      scopes: unionBashScopes(declared, inferred),
     };
   }
 
@@ -384,7 +392,189 @@ export function parseBashSideEffects(value: unknown): AskPermissionScope[] {
   if (scopes.includes("unknown")) {
     return ["unknown"];
   }
+  // An empty declared array is NOT normalised to ["unknown"] here. Doing so
+  // would discard the concrete scopes inferred from the command text (see
+  // unionBashScopes) — a `rm -rf` with `sideEffects: []` must still pick up
+  // the inferred delete scopes. The union step below guarantees that an empty
+  // declared array never short-circuits to "allow": if neither the model nor
+  // the inference produced a concrete scope, the union returns ["unknown"].
   return scopes;
+}
+
+/**
+ * Conservatively infer permission scopes from the bash command text itself,
+ * rather than trusting the model's declared `sideEffects`.
+ *
+ * This is NOT a shell parser and is deliberately conservative: it only flags
+ * high-confidence patterns (deletions, git-history mutation, output
+ * redirection, well-known network/install tools). Anything it cannot classify
+ * returns `["unknown"]` so the caller can merge it with the declared scopes and
+ * let the normal permission policy decide. The goal is to catch the obvious
+ * "model declares `sideEffects: []` on `rm -rf`" case, not to be a complete
+ * static analysis of shell.
+ *
+ * The returned scopes are unioned with the model's declared scopes (see
+ * {@link unionBashScopes}) — inference can only ever ADD risk, never remove it.
+ */
+export function inferBashSideEffects(command: string): AskPermissionScope[] {
+  if (!command || !command.trim()) {
+    return ["unknown"];
+  }
+  const scopes = new Set<AskPermissionScope>();
+
+  // Tokenise on whitespace and shell metacharacters. We only need a coarse
+  // view — exact quoting/escaping does not change which tool is invoked.
+  const tokens = command.split(/[\s|;&<>()`$]+/).filter(Boolean);
+  const lower = command.toLowerCase();
+
+  // Deletion commands (high confidence).
+  const deleteRe = /\b(rm|rmdir|del|erase|unlink|shred|trash)\b/;
+  if (deleteRe.test(lower)) {
+    scopes.add("delete-in-cwd");
+    // rm can obviously target files outside the cwd too; flag both.
+    scopes.add("delete-out-cwd");
+  }
+
+  // Git history mutation (high confidence — these rewrites are irreversible).
+  const gitHistoryMutationRe =
+    /\bgit\s+(commit\s+--amend|rebase|reset\s+--hard|filter-branch|reflog\s+expire|gc\s+--prune=now)\b/;
+  if (gitHistoryMutationRe.test(lower)) {
+    scopes.add("mutate-git-log");
+  }
+  // `git commit` (non-amend) creates history.
+  if (/\bgit\s+commit\b/.test(lower) && !/\bgit\s+commit\s+--amend\b/.test(lower)) {
+    scopes.add("mutate-git-log");
+  }
+
+  // Output redirection → file write.
+  if (/>>?/.test(command)) {
+    scopes.add("write-in-cwd");
+    scopes.add("write-out-cwd");
+  }
+
+  // tee explicitly writes to a file.
+  if (/\btee\b/.test(lower)) {
+    scopes.add("write-in-cwd");
+    scopes.add("write-out-cwd");
+  }
+
+  // Network tools (high confidence).
+  const networkTools = new Set([
+    "curl",
+    "wget",
+    "nc",
+    "netcat",
+    "ssh",
+    "scp",
+    "sftp",
+    "rsync",
+    "ftp",
+    "telnet",
+    "http",
+    "https",
+    "ping",
+    "dig",
+    "nslookup",
+    "tracert",
+    "tracepath",
+  ]);
+  for (const tok of tokens) {
+    const bare = tok.replace(/^.*\//, ""); // strip path prefix (e.g. /usr/bin/curl)
+    if (networkTools.has(bare.toLowerCase())) {
+      scopes.add("network");
+      break;
+    }
+  }
+
+  // Package managers / installers (high confidence — they mutate the
+  // filesystem outside the cwd and/or hit the network).
+  const installTools = new Set([
+    "npm",
+    "npx",
+    "yarn",
+    "pnpm",
+    "pip",
+    "pip3",
+    "pipx",
+    "uv",
+    "uvx",
+    "poetry",
+    "brew",
+    "apt",
+    "apt-get",
+    "yum",
+    "dnf",
+    "pacman",
+    "choco",
+    "winget",
+    "gem",
+    "cargo",
+  ]);
+  for (const tok of tokens) {
+    const bare = tok.replace(/^.*\//, "");
+    if (installTools.has(bare.toLowerCase())) {
+      // install subcommand specifically — but be conservative and flag any
+      // invocation of these tools, since `npm run`/`pip ...` still executes
+      // arbitrary lifecycle scripts.
+      scopes.add("write-in-cwd");
+      scopes.add("network");
+      break;
+    }
+  }
+
+  // PowerShell / cmd.exe invocation — too broad to classify conservatively.
+  if (/\b(powershell|pwsh|cmd|cmd\.exe)\b/i.test(command)) {
+    return Array.from(scopes).length > 0 ? Array.from(scopes) : ["unknown"];
+  }
+
+  // Subshell / command substitution / backticks — the inner command is opaque
+  // to a tokeniser, so we cannot safely classify the whole thing.
+  if (/[()`$]/.test(command)) {
+    scopes.add("unknown");
+  }
+
+  // Pipe chains — the downstream command may add side effects we can't see in
+  // isolation, so flag as unknown unless we already found concrete scopes.
+  if (/[|]/.test(command) && command.split("|").length - 1 > 0) {
+    // Only add unknown if we found nothing concrete; if we already detected
+    // e.g. rm, the delete scopes dominate.
+    if (scopes.size === 0) {
+      scopes.add("unknown");
+    }
+  }
+
+  // When no danger pattern and no opacity construct matched, return [] (no
+  // additional inferred risk), NOT ["unknown"]. A benign-looking command like
+  // `rg TODO src` should let the model's declared scopes stand; the
+  // `unionBashScopes([], []) -> ["unknown"]` rule is what catches the empty-
+  // array attack vector at the union step. The regression this avoids: a
+  // command that the model correctly classifies as read-only must not be
+  // downgraded to unknown just because the inference found no danger pattern.
+  return Array.from(scopes);
+}
+
+/**
+ * Combine the model-declared bash scopes with the inferred scopes.
+ *
+ * Union semantics: inference can only ever ADD risk, never remove it.
+ *  - If either side explicitly contains `unknown` (the model admits it cannot
+ *    classify, or the inference hit an opaque construct), `unknown` dominates
+ *    and the result is `["unknown"]` — the command is unclassifiable.
+ *  - Otherwise the two concrete scope lists are unioned.
+ *  - If the union is empty (the model declared `[]` AND inference produced
+ *    nothing concrete), the result is `["unknown"]`. A bash command can never
+ *    credibly claim "absolutely no side effects", so an empty union must NOT
+ *    short-circuit to "allow".
+ */
+export function unionBashScopes(declared: AskPermissionScope[], inferred: AskPermissionScope[]): AskPermissionScope[] {
+  if (declared.includes("unknown") || inferred.includes("unknown")) {
+    return ["unknown"];
+  }
+  const merged = new Set<AskPermissionScope>([...declared, ...inferred]);
+  if (merged.size === 0) {
+    return ["unknown"];
+  }
+  return Array.from(merged);
 }
 
 export function parseToolArgumentsForPermissions(rawArguments: string): Record<string, unknown> {

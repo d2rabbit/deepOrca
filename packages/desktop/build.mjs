@@ -11,7 +11,7 @@
 import { build, context } from "esbuild";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cp, mkdir, rm } from "node:fs/promises";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -112,10 +112,19 @@ const rendererConfig = {
  * Called before the esbuild step. If the vendor file is missing (offline),
  * the generated file exports an empty string — designs still render with
  * seed CSS, just without Tailwind utility classes.
+ *
+ * The output lives under `src/generated/` (gitignored, cleaned by clean.js)
+ * so a build never dirties the working tree. The previous location
+ * (`src/renderer/dd/tailwind-script.ts`) was tracked, which meant every
+ * desktop:build rewrote a tracked source file — leaving the tree dirty and
+ * racing with parallel builds. `src/generated/` is also produced before
+ * typecheck so a clean checkout can still resolve the import.
  */
 function generateTailwindSource() {
   const vendorPath = resolve(__dirname, "vendor", "tailwind", "tailwind.js");
-  const outPath = resolve(__dirname, "src", "renderer", "dd", "tailwind-script.ts");
+  const generatedDir = resolve(__dirname, "src", "generated");
+  mkdirSync(generatedDir, { recursive: true });
+  const outPath = resolve(generatedDir, "tailwind-script.ts");
   let content = "";
   try {
     content = readFileSync(vendorPath, "utf8");
@@ -147,45 +156,30 @@ function ensureVendored(name, entryRel, fallbackHint) {
   }
 }
 
-// Ensure @deeporca/core is freshly built before bundling.
-// The desktop main bundle keeps core `external` (resolved from node_modules at
-// runtime), so a stale core/dist/ (e.g. after a `git pull` that changed core
-// source but not its gitignored dist) makes Electron fail to import new
-// exports. Rebuild core + rewrite ESM imports so dist/ always matches src.
+// Ensure the internal @deeporca/* packages are freshly built before bundling.
+// The desktop main bundle keeps core/memory `external` (resolved from
+// node_modules at runtime), so a stale dist/ (e.g. after a `git pull` that
+// changed core source but not its gitignored dist) makes Electron fail to
+// import new exports.
 //
-// Core uses `composite: true` (incremental builds via .tsbuildinfo). When only
-// dist/ is removed (or source changed after a pull), a stale buildinfo can make
-// `tsc` think nothing needs emitting. We delete the buildinfo first so the next
-// `tsc -p` does a full emit, then rewrite ESM imports to add ".js" extensions.
+// We delegate to the root `npm run build` rather than re-implementing the
+// build order here. The root scripts/build.js derives the workspace build
+// order topologically (embedding → memory → core) and rewrites ESM imports;
+// the previous inlined version hardcoded "memory → core" and silently forgot
+// `@deeporca/embedding`, which broke clean builds because core/memory
+// `import type` from embedding's declarations. Reusing the root script means
+// adding a new internal workspace needs no change here.
 async function ensureCoreBuilt() {
   const root = resolve(__dirname, "..", "..");
-  const corePkg = resolve(root, "packages", "core");
-  const memoryPkg = resolve(root, "packages", "memory");
-  const buildinfo = resolve(corePkg, "tsconfig.tsbuildinfo");
-  const rewriteScript = resolve(root, "scripts", "rewrite-esm-imports.js");
-  if (existsSync(buildinfo)) {
-    await rm(buildinfo, { force: true });
+  console.log("[desktop] building @deeporca/* internal workspaces (topological) …");
+  const result = spawnSync("npm", ["run", "build"], {
+    stdio: "inherit",
+    cwd: root,
+    shell: true,
+  });
+  if (result.status !== 0) {
+    throw new Error(`building @deeporca/* workspaces failed (exit ${result.status ?? "null"})`);
   }
-  // Run the workspace `tsc -p ./` through `npm run build --workspace=…` with a
-  // shell, mirroring scripts/build.js. On Windows, node_modules/.bin/tsc is a
-  // POSIX shell shim that must not be fed to node as JS — going through npm
-  // resolves the correct .cmd/.sh launcher and is the path already proven by
-  // `npm run build` at the repo root.
-  const run = (ws) => {
-    console.log(`[desktop] building @deeporca/${ws} …`);
-    const result = spawnSync("npm", ["run", "build", `--workspace=@deeporca/${ws}`], {
-      stdio: "inherit",
-      cwd: root,
-      shell: true,
-    });
-    if (result.status !== 0) {
-      throw new Error(`building @deeporca/${ws} failed (exit ${result.status ?? "null"})`);
-    }
-  };
-  // Build memory first (core depends on it at runtime via dynamic import).
-  run("memory");
-  run("core");
-  execFileSync(process.execPath, [rewriteScript], { stdio: "inherit", cwd: root });
 }
 
 /** Remove stale chunks from previous builds (hashed names accumulate). */

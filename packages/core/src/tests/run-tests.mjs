@@ -7,7 +7,38 @@ import * as os from "os";
 import * as fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const testFiles = globSync("*.test.ts", { cwd: __dirname });
+
+// Allow optional positional file arguments to run a subset of tests. With no
+// args, run every *.test.ts in this directory (sorted for deterministic order).
+// With args, each is resolved against this directory and must live inside it,
+// so a typo or an absolute path from elsewhere cannot pull in an unrelated
+// file. AGENTS.md documents the single-file command:
+//   node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/src/tests/<file>.test.ts
+const cliArgs = process.argv.slice(2);
+let testFiles;
+if (cliArgs.length === 0) {
+  testFiles = globSync("*.test.ts", { cwd: __dirname }).sort();
+} else {
+  testFiles = [];
+  for (const arg of cliArgs) {
+    const resolved = path.resolve(arg);
+    // Must live inside this tests directory.
+    const rel = path.relative(__dirname, resolved);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      console.error(`[run-tests] refusing to run file outside tests dir: ${arg}`);
+      process.exit(2);
+    }
+    if (!fs.existsSync(resolved)) {
+      console.error(`[run-tests] test file does not exist: ${arg}`);
+      process.exit(2);
+    }
+    testFiles.push(path.basename(resolved));
+  }
+}
+if (testFiles.length === 0) {
+  console.error("[run-tests] no test files matched.");
+  process.exit(2);
+}
 
 // Isolate HOME for the entire test run. Tests create throwaway workspaces under
 // $TMPDIR and the session layer persists them under `<HOME>/.deepcode/projects/`
