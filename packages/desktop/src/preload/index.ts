@@ -144,6 +144,11 @@ const api: DesktopApi = {
   onA2uiSurfaceUpdate: (cb) => subscribe(IpcEvent.A2uiSurfaceUpdate, cb as (p: never) => void),
   onA2uiWindowPayload: (cb) => subscribe(IpcEvent.A2uiWindowPayload, cb as (p: never) => void),
 
+  // ── defineAction surface ───────────────────────────────────────
+  actionList: () => ipcRenderer.invoke(IpcRequest.ActionList),
+  actionRun: (id, input) => ipcRenderer.invoke(IpcRequest.ActionRun, id, input),
+  onActionProgress: (cb) => subscribe(IpcEvent.ActionProgress, cb as (p: never) => void),
+
   // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),
   agentChangesDiff: (sessionId, file) => ipcRenderer.invoke(IpcRequest.AgentChangesDiff, sessionId, file),

@@ -1,419 +1,164 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import type { CrgIndexEntry, CrgProgressEvent, ReviewComment, ReviewProgressEvent } from "../../shared/ipc";
+import { useCallback, useEffect, useState, type JSX } from "react";
+import type { ActionProgressEvent, ActionRunResult, CrgIndexEntry } from "../../shared/ipc";
 import { api } from "../api";
-import { useI18n } from "../i18n";
-import { Button, IconButton } from "../ui/index";
-
-type ReviewTab = "quality" | "risk" | "architecture";
+import { useI18n, type MessageKey } from "../i18n";
+import { Button } from "../ui/index";
 
 /**
- * Left-panel code review: three complementary tabs.
+ * Code Review panel — Phase 4 rework (spec §六/§十二).
  *
- * - **Quality** (Tab 1): OCR (Alibaba Open Code Review) — LLM-based code
- *   quality, security, and correctness review of uncommitted changes.
- * - **Risk** (Tab 2): CRG (code-review-graph) — algorithm-driven structural
- *   impact analysis: risk scoring, blast radius, test gaps, affected flows.
- * - **Architecture** (Tab 3): CRG — community detection (Mermaid flow graph),
- *   hub/bridge nodes, surprising cross-module couplings.
+ * Replaces the legacy 3-tab (Quality/Risk/Architecture) + Smart-Review structure
+ * with an IndexLibraryPanel-style workspace-partitioned layout: a single
+ * workspace card + three one-click action buttons that route through the unified
+ * ActionRegistry (the same actions the agent reaches as LLM tools):
+ *   - 审查 (review.run)         → ocr AI semantic review of uncommitted changes
+ *   - 风险图谱构建 (crg.reindex) → build/rebuild the code-review-graph
+ *   - 架构生成 (arch-scan.run)  → architecture map via subagent
  *
- * OCR answers "is this code written well?" (LLM judgment).
- * CRG answers "what does this change affect?" (graph algorithms).
- * They are complementary, not redundant.
+ * Zero props — derives the current workspace from api.crgList() (mirroring
+ * IndexLibraryPanel's api.codegraphList() pattern). Progress streams via the
+ * unified onActionProgress event; results render in-panel.
  */
-export function CodeReviewPanel({
-  onShowGraph,
-  onSmartReview,
-}: {
-  onShowGraph?: (html: string) => void;
-  /** Dispatch a smart-review prompt through App's runPrompt (busy/optimistic/
-   *  refresh), instead of calling api.sendPrompt directly and bypassing the
-   *  active-turn + result handling. */
-  onSmartReview?: () => void;
-}): JSX.Element {
-  const { t } = useI18n();
-  const [activeTab, setActiveTab] = useState<ReviewTab>("quality");
 
-  const triggerSmartReview = useCallback(async () => {
-    // Prefer the App-level runner when wired; otherwise fall back to a direct
-    // prompt (kept so the panel still works in isolation).
-    if (onSmartReview) {
-      onSmartReview();
+type ReviewActionId = "review.full";
+
+export function CodeReviewPanel(): JSX.Element {
+  const { t } = useI18n();
+  const [entry, setEntry] = useState<CrgIndexEntry | null>(null);
+  const [running, setRunning] = useState<ReviewActionId | null>(null);
+  const [progress, setProgress] = useState<string>("");
+  const [result, setResult] = useState<{ id: ReviewActionId; res: ActionRunResult } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Resolve the current workspace + CRG graph state (mirrors IndexLibraryPanel).
+  const reload = useCallback(async () => {
+    try {
+      const entries = await api.crgList();
+      setEntry(entries.length > 0 ? entries[0] : null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  // Subscribe to the unified action progress stream while an action runs.
+  useEffect(() => {
+    if (!running) {
+      setProgress("");
       return;
     }
-    await api.sendPrompt({ text: "审查我的代码变更" });
-  }, [onSmartReview]);
+    const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
+      if (evt.actionId === running) {
+        setProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
+      }
+    });
+    return unsub;
+  }, [running]);
+
+  const run = useCallback(
+    async (id: ReviewActionId) => {
+      setRunning(id);
+      setResult(null);
+      setError(null);
+      setProgress("");
+      try {
+        const res = await api.actionRun(id, {});
+        setResult({ id, res });
+        // Refresh the graph-state dot after a completed review (review.full
+        // may have built/enriched via CRG).
+        void reload();
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setRunning(null);
+      }
+    },
+    [reload]
+  );
+
+  const projectLabel = entry?.label ?? entry?.root ?? "";
+  const hasGraph = entry?.hasGraph ?? false;
+
+  const buttons: { id: ReviewActionId; labelKey: MessageKey; hintKey: MessageKey }[] = [
+    { id: "review.full", labelKey: "review.action.full", hintKey: "review.action.full.hint" },
+  ];
 
   return (
     <div className="ui-side-panel">
       <div className="ui-side-panel-head">
         <span>{t("review.title")}</span>
-        <Button size="sm" variant="primary" onClick={() => void triggerSmartReview()}>
-          {t("review.smartReview")}
-        </Button>
-      </div>
-      <div className="ui-review-tabs">
-        <button
-          className={`ui-review-tab ${activeTab === "quality" ? "active" : ""}`}
-          onClick={() => setActiveTab("quality")}
-        >
-          {t("review.tabQuality")}
-        </button>
-        <button
-          className={`ui-review-tab ${activeTab === "risk" ? "active" : ""}`}
-          onClick={() => setActiveTab("risk")}
-        >
-          {t("review.tabRisk")}
-        </button>
-        <button
-          className={`ui-review-tab ${activeTab === "architecture" ? "active" : ""}`}
-          onClick={() => setActiveTab("architecture")}
-        >
-          {t("review.tabArchitecture")}
-        </button>
       </div>
       <div className="ui-side-panel-body">
-        {activeTab === "quality" && <QualityReviewTab />}
-        {activeTab === "risk" && <RiskAnalysisTab />}
-        {activeTab === "architecture" && <ArchitectureTab onShowGraph={onShowGraph} />}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Tab 1: Quality Review (OCR — LLM-based)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function QualityReviewTab(): JSX.Element {
-  const { t } = useI18n();
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [version, setVersion] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [comments, setComments] = useState<ReviewComment[]>([]);
-  const [summary, setSummary] = useState<string>("");
-  const rawOutputRef = useRef("");
-
-  useEffect(() => {
-    void api.reviewCheckAvailable().then((res) => {
-      setAvailable(res.available);
-      setVersion(res.version ?? "");
-    });
-  }, []);
-
-  const parseReviewOutput = useCallback((raw: string) => {
-    const jsonStart = raw.indexOf("{");
-    const jsonEnd = raw.lastIndexOf("}");
-    if (jsonStart >= 0 && jsonEnd > jsonStart) {
-      try {
-        const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as {
-          comments?: ReviewComment[];
-          summary?: string;
-        };
-        if (Array.isArray(parsed.comments)) {
-          setComments(parsed.comments);
-          setSummary(parsed.summary ?? "");
-          return;
-        }
-      } catch {
-        // Fall through.
-      }
-    }
-    const arrStart = raw.indexOf("[");
-    const arrEnd = raw.lastIndexOf("]");
-    if (arrStart >= 0 && arrEnd > arrStart) {
-      try {
-        const parsed = JSON.parse(raw.slice(arrStart, arrEnd + 1)) as ReviewComment[];
-        if (Array.isArray(parsed)) {
-          setComments(parsed);
-          setSummary(`${parsed.length} comments`);
-          return;
-        }
-      } catch {
-        // Fall through.
-      }
-    }
-    setComments([]);
-    setSummary("");
-  }, []);
-
-  useEffect(() => {
-    const off = api.onReviewProgress((event: ReviewProgressEvent) => {
-      if (event.done) {
-        setBusy(false);
-        parseReviewOutput(rawOutputRef.current);
-        return;
-      }
-      if (event.stream === "stdout") {
-        rawOutputRef.current += event.chunk;
-      }
-    });
-    return off;
-  }, [parseReviewOutput]);
-
-  const runReview = useCallback(async () => {
-    setBusy(true);
-    setComments([]);
-    setSummary("");
-    rawOutputRef.current = "";
-    await api.reviewRun();
-  }, []);
-
-  const severityColor = (sev: string): string => {
-    switch (sev) {
-      case "critical":
-        return "var(--ui-danger, #ef4444)";
-      case "warning":
-        return "var(--ui-warning, #f59e0b)";
-      default:
-        return "var(--ui-text-tertiary, #888)";
-    }
-  };
-
-  if (available === null) {
-    return <div className="ui-side-panel-empty">{t("review.checking")}</div>;
-  }
-
-  if (!available) {
-    return (
-      <div className="ui-review-unavailable">
-        <p>{t("review.notInstalled")}</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="ui-review-controls">
-        <div className="ui-review-scope">{t("review.scope")}</div>
-        <Button size="sm" onClick={() => void runReview()} disabled={busy}>
-          {busy ? t("review.running") : t("review.run")}
-        </Button>
-      </div>
-      {version ? <div className="ui-review-version">{version}</div> : null}
-      {summary ? <div className="ui-review-summary">{summary}</div> : null}
-      {comments.length > 0 ? (
-        <div className="ui-review-comments">
-          {comments.map((c, i) => (
-            <div key={i} className="ui-review-comment">
-              <div className="ui-review-comment-head">
-                <span className="ui-review-severity" style={{ color: severityColor(c.severity) }}>
-                  {c.severity}
-                </span>
-                <span className="ui-review-file">
-                  {c.file}:{c.line}
-                </span>
+        {!projectLabel ? (
+          <div className="ui-side-panel-empty">{t("review.noWorkspace")}</div>
+        ) : (
+          <div className="ui-index-current">
+            <div className="ui-index-current-info">
+              <div className="ui-index-name">{projectLabel}</div>
+              <div className="ui-index-path">{entry?.root}</div>
+              <div className={`ui-index-state${hasGraph ? " on" : ""}`}>
+                {hasGraph ? t("review.graphReady") : t("review.graphUnbuilt")}
               </div>
-              <div className="ui-review-message">{c.message}</div>
-              {c.suggestion ? <div className="ui-review-suggestion">{c.suggestion}</div> : null}
             </div>
-          ))}
-        </div>
-      ) : null}
-      {busy ? (
-        <div className="ui-index-progress">
-          <div className="ui-index-progress-fill indeterminate" />
-        </div>
-      ) : null}
-    </>
+
+            {error ? <div className="ui-error">{error}</div> : null}
+
+            {buttons.map((b) => (
+              <div key={b.id} style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Button size="sm" variant="subtle" onClick={() => void run(b.id)} disabled={running !== null}>
+                    {running === b.id ? t("actions.running") : t(b.labelKey)}
+                  </Button>
+                  {running === b.id && progress ? (
+                    <span className="ui-muted" style={{ fontSize: 11 }}>
+                      {progress}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="ui-muted" style={{ fontSize: 10, margin: 0 }}>
+                  {t(b.hintKey)}
+                </p>
+                {result && result.id === b.id ? (
+                  <pre
+                    className="ui-muted"
+                    style={{
+                      fontSize: 10,
+                      margin: 0,
+                      maxHeight: 200,
+                      overflow: "auto",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {formatResult(result.res)}
+                  </pre>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Tab 2: Risk Analysis (CRG — detect_changes + impact)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function RiskAnalysisTab(): JSX.Element {
-  const { t } = useI18n();
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [hasGraph, setHasGraph] = useState<boolean>(false);
-  const [entries, setEntries] = useState<CrgIndexEntry[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [logLines, setLogLines] = useState<string[]>([]);
-  const logEndRef = useRef<HTMLDivElement | null>(null);
-
-  // CRG analysis results — fetched from the MCP server via the agent.
-  // Since CRG runs as an MCP server, the agent calls detect_changes_tool etc.
-  // directly. This tab provides the graph management UI (build/rebuild) and
-  // surfaces the risk analysis the agent already has access to.
-  // For direct UI integration, the results would be populated by calling
-  // the CRG CLI's `detect-changes` subcommand. For now this tab focuses on
-  // graph lifecycle + instructions to ask the agent.
-
-  useEffect(() => {
-    void api.crgCheckAvailable().then((res) => setAvailable(res.available));
-    void api.crgList().then((res) => {
-      setEntries(res);
-      const current = res.find((e) => e.hasGraph);
-      setHasGraph(!!current);
-    });
-  }, []);
-
-  useEffect(() => {
-    const off = api.onCrgProgress((event: CrgProgressEvent) => {
-      if (event.done) {
-        setBusy(false);
-        void api.crgList().then((res) => {
-          setEntries(res);
-          setHasGraph(res.some((e) => e.hasGraph));
-        });
-        return;
-      }
-      setLogLines((prev) => {
-        const text = event.chunk.replace(/\n$/, "");
-        if (!text) return prev;
-        const lines = text.split("\n");
-        const next = [...prev, ...lines];
-        return next.length > 200 ? next.slice(next.length - 200) : next;
-      });
-    });
-    return off;
-  }, []);
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logLines]);
-
-  const buildGraph = useCallback(async () => {
-    const currentEntry = entries.find((e) => e.hasGraph);
-    const root = currentEntry?.root || entries[0]?.root;
-    if (!root) return;
-    setBusy(true);
-    setLogLines([`$ uvx code-review-graph build`]);
-    await api.crgReindex(root);
-  }, [entries]);
-
-  if (available === null) {
-    return <div className="ui-side-panel-empty">{t("review.checking")}</div>;
-  }
-
-  if (!available) {
-    return (
-      <div className="ui-review-unavailable">
-        <p>{t("crg.notInstalled")}</p>
-        <p className="ui-review-hint">{t("crg.installHint")}</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {/* Graph status + build button */}
-      <div className="ui-review-controls">
-        <div className="ui-review-scope">{hasGraph ? t("crg.graphReady") : t("crg.noGraph")}</div>
-        <Button size="sm" onClick={() => void buildGraph()} disabled={busy}>
-          {busy ? t("crg.building") : hasGraph ? t("crg.rebuild") : t("crg.build")}
-        </Button>
-      </div>
-
-      {/* When graph is ready, show analysis guidance */}
-      {hasGraph ? (
-        <div className="ui-crg-analysis-guide">
-          <p className="ui-crg-hint">{t("crg.askAgent")}</p>
-          <ul className="ui-crg-examples">
-            <li>{t("crg.exampleRisk")}</li>
-            <li>{t("crg.exampleImpact")}</li>
-            <li>{t("crg.exampleGaps")}</li>
-          </ul>
-        </div>
-      ) : null}
-
-      {/* Build log */}
-      {logLines.length > 0 ? (
-        <ReviewLog lines={logLines} logEndRef={logEndRef} onClear={() => setLogLines([])} />
-      ) : null}
-    </>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Tab 3: Architecture Overview (CRG — communities + hub/bridge)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function ArchitectureTab({ onShowGraph }: { onShowGraph?: (html: string) => void }): JSX.Element {
-  const { t } = useI18n();
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [hasGraph, setHasGraph] = useState<boolean>(false);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    void api.crgCheckAvailable().then((res) => setAvailable(res.available));
-    void api.crgList().then((res) => {
-      setHasGraph(res.some((e) => e.hasGraph));
-    });
-  }, []);
-
-  const viewGraph = useCallback(async () => {
-    setLoading(true);
-    const result = await api.crgVisualize();
-    setLoading(false);
-    if (result.html && onShowGraph) {
-      onShowGraph(result.html);
+/** Render an ActionRunResult as readable text for the in-panel result area. */
+function formatResult(res: ActionRunResult): string {
+  if (!res.ok) return `✗ ${res.code}: ${res.error}`;
+  const out = res.output;
+  if (typeof out === "string") return out;
+  if (out && typeof out === "object" && "comments" in out) {
+    const comments = (out as { comments: { file: string; line: number; severity: string; message: string }[] })
+      .comments;
+    if (Array.isArray(comments) && comments.length > 0) {
+      return comments.map((c) => `[${c.severity}] ${c.file}:${c.line} — ${c.message}`).join("\n");
     }
-  }, [onShowGraph]);
-
-  if (available === null) {
-    return <div className="ui-side-panel-empty">{t("review.checking")}</div>;
   }
-
-  if (!available) {
-    return (
-      <div className="ui-review-unavailable">
-        <p>{t("crg.notInstalled")}</p>
-      </div>
-    );
+  try {
+    return JSON.stringify(out, null, 2);
+  } catch {
+    return String(out);
   }
-
-  if (!hasGraph) {
-    return (
-      <div className="ui-review-unavailable">
-        <p>{t("crg.noGraph")}</p>
-        <p className="ui-review-hint">{t("crg.switchToRisk")}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="ui-crg-architecture-guide">
-      <Button size="sm" variant="primary" disabled={loading} onClick={() => void viewGraph()}>
-        {loading ? t("review.checking") : t("crg.viewGraph")}
-      </Button>
-      <p className="ui-crg-hint">{t("crg.askAgentArchitecture")}</p>
-      <ul className="ui-crg-examples">
-        <li>{t("crg.exampleArchitecture")}</li>
-        <li>{t("crg.exampleCommunities")}</li>
-        <li>{t("crg.exampleHubBridge")}</li>
-        <li>{t("crg.exampleSurprise")}</li>
-      </ul>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Shared: scrollable log pane
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function ReviewLog({
-  lines,
-  logEndRef,
-  onClear,
-}: {
-  lines: string[];
-  logEndRef: React.RefObject<HTMLDivElement | null>;
-  onClear: () => void;
-}): JSX.Element {
-  const { t } = useI18n();
-  return (
-    <div className="ui-index-log">
-      <div className="ui-index-log-head">
-        <span>{t("review.log")}</span>
-        <IconButton onClick={onClear} title="✕" aria-label="close">
-          ✕
-        </IconButton>
-      </div>
-      <pre className="ui-index-log-body">
-        {lines.join("\n")}
-        <div ref={logEndRef} />
-      </pre>
-    </div>
-  );
 }

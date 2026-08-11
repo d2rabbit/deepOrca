@@ -33,6 +33,9 @@ import {
   configureRoutingLogger,
   closeEmbeddingService,
   type MemoryProvider,
+  configureActionSpawner,
+  configureOcrResolver,
+  configureWikiResolver,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -49,6 +52,7 @@ import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
 import { listWorkspaceSessions } from "./workspace-registry.js";
 import { archiveSession, unarchiveSession } from "./archive-store.js";
+import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { safeWikiPath } from "./safe-path.js";
@@ -151,6 +155,21 @@ app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096 --max-semi-s
 // (packages/desktop/vendor/codegraph). When absent (not yet vendored), the core
 // resolver transparently falls back to `npx @colbymchenry/codegraph`.
 configureCodegraphVendorRoot(join(__dirname, "..", "vendor", "codegraph"));
+
+// Inject the desktop subprocess spawner into core's ActionRegistry (design M2).
+// core stays electron-free by accepting the Spawner interface; this concrete
+// ElectronNodeSpawner (node:child_process) is the real adapter. Without this,
+// spawn-based actions (review.run, crg.reindex, index.buildAll, ...) would hit
+// NULL_SPAWNER. See specs/define-action/design.md §十/M2.
+configureActionSpawner(new ElectronNodeSpawner());
+// Inject the ocr command resolver so the core `review.run` action (Phase 1) can
+// spawn Open Code Review. The npm package + Electron-Node resolution live in
+// desktop; core receives the resolved command via this seam. See review.ts.
+configureOcrResolver(resolveOcrCommand);
+// Inject the openwiki resolver so core's Phase 2 wiki actions + index.buildAll
+// can spawn the vendored openwiki CLI. The resolver reads the current project's
+// LLM creds from settings (desktop owns settings resolution). See wiki.ts.
+configureWikiResolver(resolveWikiCommand);
 
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
@@ -767,37 +786,76 @@ function registerCodegraphIpc({ handle, handlePrivileged }: IpcHelpers): void {
   });
 }
 
+// Module-level ocr command resolver. Open Code Review ships as an npm package
+// (@alibaba-group/open-code-review) whose bin/ocr.js launcher resolves a
+// prebuilt platform binary. We run it through Electron's bundled Node
+// (ELECTRON_RUN_AS_NODE) so no global install is needed. Returns null when the
+// bundled dep is absent. Extracted to module scope so BOTH the legacy
+// ReviewRun IPC handler and core's `review.run` action (via configureOcrResolver)
+// share one resolution path. Function declaration → hoisted, so the boot-time
+// configureOcrResolver(resolveOcrCommand) call can reference it.
+function resolveOcrCommand(): {
+  command: string;
+  prefixArgs: string[];
+  env?: Record<string, string>;
+} | null {
+  try {
+    const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
+    return {
+      command: process.execPath,
+      prefixArgs: [entry],
+      env: { ELECTRON_RUN_AS_NODE: "1", OCR_NO_UPDATE: "1" },
+    };
+  } catch {
+    // Package not installed.
+  }
+  return null;
+}
+
+// Vendored openwiki CLI entry. Module-level so both the legacy wiki IPC handler
+// and core's Phase 2 wiki actions (via the resolver below) share one path.
+const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
+
+/**
+ * Resolve the openwiki launch spec for a wiki action. Runs the vendored entry
+ * through the bundled Node (ELECTRON_RUN_AS_NODE when Electron is the runtime)
+ * and injects the current project's LLM credentials + flash model. The mode
+ * ("init"|"update") flag is appended by the action, not here. Returns null when
+ * the vendored entry or a suitable Node is missing. Injected into core via
+ * configureWikiResolver so wiki.init/update/index.buildAll stay in core.
+ */
+function resolveWikiCommand(_mode: "init" | "update"): {
+  command: string;
+  prefixArgs: string[];
+  env?: Record<string, string>;
+} | null {
+  try {
+    if (!statSync(OPENWIKI_VENDOR_ENTRY).isFile()) return null;
+    const node = resolveModernNode(22);
+    if (!node) return null;
+    const env: Record<string, string> = node === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {};
+    // LLM credentials from the current project's settings (flash-first strategy).
+    const root = getBridge().projectRoot;
+    if (root) {
+      const s = resolveCurrentSettings(root);
+      if (s.apiKey) env.OPENAI_API_KEY = s.apiKey;
+      if (s.baseURL) env.OPENAI_BASE_URL = s.baseURL;
+    }
+    env.OPENWIKI_MODEL = "deepseek-v4-flash";
+    return { command: node, prefixArgs: [OPENWIKI_VENDOR_ENTRY], env };
+  } catch {
+    // Vendored entry not present.
+  }
+  return null;
+}
+
 function registerCodeReviewIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Code Review (ocr CLI) ──────────────────────────────────────────────────
-  // Open Code Review ships as an npm package (@alibaba-group/open-code-review)
-  // whose bin/ocr.js launcher resolves a prebuilt platform binary from an
-  // optionalDependency (@alibaba-group/ocr-<os>-<arch>). We run that launcher
-  // through Electron's bundled Node (ELECTRON_RUN_AS_NODE) so no global install
-  // or external runtime is needed. Returns null when the bundled dep is absent —
-  // the tool is reported unavailable rather than reaching for an external npx.
-  const resolveOcrCommand = (): {
-    command: string;
-    prefixArgs: string[];
-    env?: Record<string, string>;
-  } | null => {
-    try {
-      // bin/ocr.js is CommonJS; require.resolve gives its absolute path from
-      // wherever node_modules is hoisted (app dir in dev, Resources/app in packaged).
-      const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
-      // OCR_NO_UPDATE suppresses the launcher's built-in updater (bin/ocr.js spawns
-      // update.js, which calls `npm i -g` on the host) — we ship a pinned version,
-      // so auto-updating must never reach for an external npm.
-      return {
-        command: process.execPath,
-        prefixArgs: [entry],
-        env: { ELECTRON_RUN_AS_NODE: "1", OCR_NO_UPDATE: "1" },
-      };
-    } catch {
-      // Package not installed.
-    }
-    return null;
-  };
-
+  // Legacy IPC path for the CodeReviewPanel Quality tab. The spawn logic now
+  // also lives in core as the `review.run` action (Phase 1) — both share the
+  // module-level resolveOcrCommand. This handler keeps the existing ReviewProgress
+  // chunk format the panel parses; it will delegate to the action once the panel
+  // migrates to ActionProgress.
   handle(IpcRequest.ReviewCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
     return new Promise((resolve) => {
       const resolved = resolveOcrCommand();
@@ -1070,7 +1128,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // Dedicated wiki agent model strategy: flash-first, pro-fallback.
   const WIKI_MODEL_FLASH = "deepseek-v4-flash";
   const WIKI_MODEL_PRO = "deepseek-v4-pro";
-  const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
 
   /**
    * Resolve how to invoke openwiki. Internal plugins must stay self-contained:
@@ -1344,6 +1401,16 @@ function registerIpc(): void {
   registerEditorIpc(helpers);
   registerAgentChangesIpc(helpers);
   registerSessionExportIpc(helpers);
+  // defineAction IPC surface. Reads the SAME ActionRegistry SessionManager owns
+  // (LLM + IPC + MCP share one instance — no dual state). action-ipc.ts stays
+  // electron-free by receiving emit + getRegistry via deps.
+  registerActionIpc(helpers, {
+    emit,
+    getRegistry: () => {
+      const bridge = getBridge();
+      return bridge?.getSessionManager().getActionRegistry() ?? null;
+    },
+  });
 }
 
 app.whenReady().then(() => {

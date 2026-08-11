@@ -1,6 +1,8 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.16 · 日期：2026-08-06 · 状态：规划中
+> 版本：v3.17 · 日期：2026-08-11 · 状态：规划中
+>
+> **v3.17 更新**：三项外部方案吸收，强化"能力定义→组合→自进化"主轴。① **§十一 自进化层二补强**——引入 **HarnessBank** 论文（[arxiv 2607.13683](https://arxiv.org/abs/2607.13683)）作为 Self-Harness（2606.09498）的互补方法：Harness Gene Bank（带质量元数据+版本谱系的 harness 变体池）+ Gated Harness Screening（门控筛选）+ task/evolver 双 agent（evolver 复用 §十 Subagent 作执行单元）。其结论"gains are model-specific"学术验证 DeepSeek 专项调优策略。② **§十六 能力编排引入 defineAction 范式**——借鉴 **agent-native**（[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native)）"一次定义随处使用"：单个 `defineAction({schema, run})` 自动成为 IPC handler + MCP tool + LLM 工具 + 未来 HTTP/CLI。作为 §十六 双工具编排（OpenWork）的**底层实现机制**，让插件组装与能力组合从"手写多套绑定"收敛为"定义一次自动多表面"；严守 core 无 UI 铁律（schema 落 `shared/`、IPC 落 desktop main、MCP 落 core）。③ **§十二 插件中心新增 Agent Plugins 1.0.0 兼容**——[agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)（Amazon/Cursor/Microsoft/OpenAI/Vercel 共治，7 客户端已采纳）作为**新增兼容格式**，与现有 marketplace.json（claude-plugins-official）双格式共存、加载器自动识别，不互斥不取代。skills 层天然兼容，MCP 层 Phase 0 三传输 union 已对齐。DeepOrca 目标成为同时兼容两格式的客户端（兼装 claude 生态 + 七客户端共享插件）。
 >
 > **v3.16 更新**：① **本地向量嵌入模型已落地**——新增 `@deeporca/embedding` workspace 包（transformers.js + onnxruntime-node + IBM Granite Embedding 97M R2，384 维），构建期 vendor 模型（`scripts/vendor-granite.js`，hf-mirror 兜底），接入 memory 包 sqlite-vec 后端（`provider: "local-onnx"`）。记忆召回测试：20 条中文记忆 × 12 查询，**向量召回命中率 100%**（FTS 关键词 0%，语义同义改写场景向量完胜）。② **技能/工具语义路由已落地**——新增 `packages/core/src/routing/`（SkillRouter G1 + ToolRouter G2 + VectorIndex + embedding-loader），G1 在技能数 > 阈值时召回 top-K 短名单（flash LLM 只精排短名单），G2 在 MCP 工具 token 超预算时按服务器级召回裁剪。**③ G3 组合路由（M4）已落地**——忠实复现 SkillWeaver 论文（[arxiv 2606.18051](https://arxiv.org/abs/2606.18051)，Xueping Gao / Alibaba Cloud）的 **Decompose-Retrieve-Compose** 三阶段管线：SAD 迭代技能感知分解（Algorithm 1 + Jaccard 收敛）→ bi-encoder 召回 → Compose 兼容性规划（Eq.4 `α·sim+(1-α)·compat`，I/O 类型 coercion + category Jaccard + keyword 共现 + DAG 依赖检测）。28 单测全过，全程 fail-open，配置 `settings.routing`。详见 `specs/skill-routing/design.md` + CHANGELOG 致谢区。④ **采纳 oh-my-mermaid（omm）探索方法，实现 `arch-scan` skill 并归入工作区索引模块**——采用 omm 的 12 视角目录（perspective catalog）+ 递归下钻（recursive drill-down）+ 7 字段元数据方法论，**渲染用 A2UI**（非 Mermaid + CLI）。新增 `packages/core/templates/plugins/code/skills/arch-scan/`，与 CodeGraph（符号级）、OpenWiki（文档级）构成**工作区索引三件套**（符号/文档/架构），首次索引时同步构建。输出 A2UI Surface（可嵌套组件树），由 DesignPreview 渲染。60/60 结构校验通过。不引入 omm CLI/Mermaid/`.omm/` 文件树。调研详见 `docs/research/2026-08-06-oh-my-mermaid-research.md`。⑤ **路线图补齐 skill-up + book-to-skill（§十一 自进化）**——前者是 alibaba 的技能评估 CLI（已有 `specs/skill-eval/design.md`，先 CI 后产品内），后者是 virgiliojr94 的书籍/文档→SKILL.md 生成器（17.2k star，作为知识插件的一个技能集成）。两者补齐「技能从哪来（book-to-skill）→ 技能好不好（skill-up）」两端。
 >
@@ -53,12 +55,12 @@
 | [八、浏览器与联网](#八浏览器与联网)               | browser-skill, WebSearch, web-access 理念                                                                         | obscura                                                                                                                                                                          | 登录态操控 + 大规模抓取 + 深度联网策略                   |
 | [九、桌面自动化](#九桌面自动化)                   | —                                                                                                                 | pi-computer-use, ShowUI（VLM 视觉定位）, CLI-Anything, **sim-use（iOS+Android 模拟器，P1）**                                                                                     | 操控无 API 的桌面软件 + 模拟器交互                       |
 | [十、引擎演进](#十引擎演进)                       | Plan Mode, UpdatePlan, **Electron 43（Chromium 150）**, **MCP SDK 迁移（官方 @modelcontextprotocol/sdk）**        | **长程任务可靠执行（LongHorizon-Harness 原生 MEA）**, A2UI 对话交互层, Prewalk, Subagent                                                                                         | 长程任务可靠执行 + 模型切换 + 子 agent + 交互层升级      |
-| [十一、自进化](#十一自进化)                       | skill-writer, skill-digester（静态）                                                                              | **book-to-skill（文档→技能）**, **skill-up（技能评估 CI）**, Self-Harness 理念, OpenSpace 理念, **Harness Handbook 行为地图理念**, **JiuwenSwarm 蜂群协作理念**                  | harness 脚手架自改进 + 技能生命周期（生成→评估→改进）    |
-| [十二、插件中心](#十二插件中心)                   | **7 插件包分组（skill.plugin.md）**, Browser 分组, **SkillSpector 安全扫描（meta-skills）**                       | opencli, 远程源集成（8 Hub）                                                                                                                                                     | 统一的插件/技能/MCP 管理入口 + 安装安全                  |
+| [十一、自进化](#十一自进化)                       | skill-writer, skill-digester（静态）                                                                              | **book-to-skill（文档→技能）**, **skill-up（技能评估 CI）**, Self-Harness 理念, **HarnessBank gene-bank 理念（补强层二）**, OpenSpace 理念, **Harness Handbook 行为地图理念**, **JiuwenSwarm 蜂群协作理念**                  | harness 脚手架自改进 + 技能生命周期（生成→评估→改进）    |
+| [十二、插件中心](#十二插件中心)                   | **7 插件包分组（skill.plugin.md）**, Browser 分组, **SkillSpector 安全扫描（meta-skills）**                       | opencli, 远程源集成（8 Hub）, **Agent Plugins 1.0.0 兼容（双格式）**                                                                                                                                                     | 统一的插件/技能/MCP 管理入口 + 安装安全                  |
 | [十三、远程接入](#十三远程接入)                   | —                                                                                                                 | WebSocket 桥 + 静态服务 + 隧道方案                                                                                                                                               | 手机/远程浏览器通过蒲公英/ngrok 接入 DeepOrca            |
 | [十四、语音双工](#十四语音双工)                   | —                                                                                                                 | whisper.cpp 本地 + API 兜底                                                                                                                                                      | 语音替代键盘输入，实时转录填入 Composer                  |
 | [十五、统一模型网关](#十五统一模型网关最低优先级) | —                                                                                                                 | OmniRoute（文档引导）                                                                                                                                                            | 多提供商路由 + token 压缩                                |
-| [十六、能力编排协议](#十六能力编排协议)           | —                                                                                                                 | OpenWork 双工具 MCP 理念 + 技能/工作流可迁移                                                                                                                                     | 统一能力发现和执行入口（一站化编排层）                   |
+| [十六、能力编排协议](#十六能力编排协议)           | —                                                                                                                 | **defineAction 一次定义多表面（agent-native）**, OpenWork 双工具 MCP 理念, 技能/工作流可迁移                                                                                                                                     | 统一能力发现和执行入口（一站化编排层）                   |
 | [十七、密钥保险库](#十七密钥保险库)               | —                                                                                                                 | OneCLI 理念 SQLite 重构（AES-256-GCM + 注入引擎）                                                                                                                                | Agent 持占位符 key，真实凭证加密存储+按需注入            |
 | [搁置项](#搁置项)                                 | —                                                                                                                 | OpenSpec, Superpowers, OmniGent, Electron 自建                                                                                                                                   | 暂不规划，理由见下                                       |
 
@@ -478,6 +480,7 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 | 能力                               | 来源理念                                                      | 贡献                                                                                                                                                                                                                                                 | 优先级 |
 | ---------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 弱点挖掘→提案→回归测试             | **Self-Harness** 论文（arxiv:2606.09498）                     | Agent 分析自身执行轨迹发现失败模式 → 生成最小化脚手架修改（prompt/工具定义/控制流）→ 回归测试只保留有效改进                                                                                                                                          | P3     |
+| **Harness Gene Bank + 门控筛选** | **HarnessBank** 论文（[arxiv 2607.13683](https://arxiv.org/abs/2607.13683)，互补 Self-Harness） | 高性能 harness 变体的"基因库"（reinvention + recombination）+ Gated Harness Screening 门控筛选。与 Self-Harness 互补：Self-Harness 是"生成器"（弱点→提案），HarnessBank 是"存储+筛选器"（变体池+质量控制）。**evolver agent 复用 §十 Subagent** 作执行单元。关键结论"gains are model-specific"验证 DeepSeek 专项调优策略 | P3 |
 | **harness 行为级地图**（自动生成） | **Harness Handbook** 论文（arxiv:2607.13285，借鉴理念不集成） | 用静态分析 + LLM 结构化自动合成 harness 的三层行为地图（系统流程→细粒度行为→源码位置），解决"行为定位"难题。让 `deeporca-self-refer` 从"读手写 AGENTS.md"升级为"读自动生成的行为地图"。**理念启发**——实现工程量大（静态分析+LLM 结构化），记远期愿景 | P3     |
 
 **三阶段闭环**：
@@ -495,6 +498,8 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 ```
 
 **与技能自演化的关系**：Self-Harness 改"引擎脚手架"（prompt/工具/控制流），OpenSpace 改"技能内容"（SKILL.md）——两者互补，不重叠。
+
+**Self-Harness 与 HarnessBank 的分工**：前者管"怎么提出 harness 改进"（弱点挖掘→提案→回归），后者管"改进池怎么存与筛"（gene-bank 重组+门控）。两者顺序执行——Self-Harness 产出的候选 harness 进入 HarnessBank 的 gene pool，经 Gated Screening 留存高质量变体。HarnessBank 的 evolver agent 即 §十 Subagent 的一个高价值用例（这为 Subagent 从 P2 提级提供依据）。
 
 **实施条件**：层二（harness 自改进）依赖层一（技能自演化）先落地建立执行结果捕获基础设施。建议作为远期方向（P3）。
 
@@ -579,16 +584,28 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 | **P0** | **MCP Registry** (mcp-cn.com / registry.modelcontextprotocol.io) | MCP            | REST API                               | ✅ 无认证 `GET /v0/servers` | 官方 MCP 注册表        |
 | **P1** | **anthropics/skills**                                            | Skill          | SKILL.md                               | Git clone                   | 165k stars, 501 skills |
 
-#### 标准格式：marketplace.json
+#### 标准格式：双格式兼容（marketplace.json + Agent Plugins 1.0.0）
 
-采用 `anthropics/claude-plugins-official` 的格式作为远程源标准（与 DeepOrca 现有模型 1:1 对应）：
+插件中心同时兼容两种包格式，加载器自动识别，不互斥不取代：
+
+- **marketplace.json**（`anthropics/claude-plugins-official`）——保留为远程源发现格式（列表 + SHA-pin）。DeepOrca 现有 `builtin-plugins.json` / `skill.plugin.md` 继续工作，零迁移。claude-plugins-official 是当前最大的远程插件目录（32.8k star，80+ 插件）。
+- **Agent Plugins 1.0.0**（[agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)，Amazon/Cursor/Microsoft/OpenAI/Vercel 共治，7 客户端已采纳：Cursor/GitHub Copilot/VS Code/Codex/Kiro/OpenClaw/Hermes）——**新增兼容格式**。任一 Agent Plugins 插件包（`plugin.json` + `skills/` + `mcp.json`）可直接装入 DeepOrca；DeepOrca 自有插件可逐步按此格式发布，获得跨厂商中立性 + 上 compatible-clients 榜资格。
+
+**兼容性来源**：skills 层两者完全一致（`skills/<name>/SKILL.md`）；manifest 层 Agent Plugins 虽是闭合 schema，但规范 §5.2 明确"未知顶层字段忽略而非致命"，DeepOrca 的 `category`/`icon`/`builtin`/`removable` 等字段不会被拒绝，只是未来逐步下沉 `extensions.deeporca.*` 以通过严格校验；MCP 层 Phase 0 三传输 union 已对齐 Agent Plugins 的 stdio/streamable-http/sse oneOf。
+
+DeepOrca 现状与 Agent Plugins 1.0.0 的差距（渐进收敛，**不阻断双格式加载**）：
 
 ```
-marketplace.json     ≈  DeepOrca 的 builtin-plugins.json（远程 SHA-pin 版）
-plugin.json          ≈  DeepOrca 的 BuiltinPluginInfo manifest
-.mcp.json            ≈  DeepOrca 的 mcpServers settings
-skills/SKILL.md      =  DeepOrca 原生 skill 格式（完全相同）
+Agent Plugins 1.0.0             DeepOrca 现状                    收敛项（渐进，非阻断）
+──────────────────────────────────────────────────────────────────────────────────
+plugin.json ($schema+name 必填)  ≈ BuiltinPluginInfo manifest      厂商字段逐步下沉 extensions.deeporca.*（加载器两层都读）
+skills/<name>/SKILL.md           = 原生 skill 格式（完全相同）      ✅ 零差距
+mcp.json (stdio/http/sse oneOf)  ≈ mcpServers settings             Phase 0 三传输 union 已对齐
+extensions.{namespace}           ≈ 顶层 category/icon 字段          渐进迁移到反向域名命名空间
+PLUGIN_ROOT/PLUGIN_DATA          （无）                             Electron packaged 路径映射为这两个变量
 ```
+
+> **为什么兼容而非取代**：两种格式服务的生态不同——marketplace.json 接 claude 生态（Anthropic 单厂商但量大），Agent Plugins 接跨厂商七客户端共享池。两者 skills 层同构、manifest 层 Agent Plugins 容忍未知字段，技术上可零成本共存。加载器按包内文件特征分发：有 `plugin.json` + `$schema` 指向 agent-plugins.org → Agent Plugins 模式；否则 → 现有 skill.plugin.md/builtin-plugins 模式。详细规范源码 [agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)。
 
 用户可添加任意兼容源（设置 → 插件中心 → 添加来源 → 输入 Git URL 或 marketplace.json URL → 自动解析 → 一键安装）。
 
@@ -765,6 +782,32 @@ DeepOrca 已有/规划中的能力图谱：
 - **Computer-Use**（规划中）——浏览器/桌面控制（§九）
 
 当前问题：每个能力各自是独立 MCP server，工具列表随能力增多而膨胀（codegraph*explore / a2ui_render_surface / crg_analyze / dart_mcp*… → 50+ 工具平铺给 LLM）。LLM 需要知道所有工具名才能调用，认知负担随工具数线性增长。
+
+### 核心机制：defineAction（一次定义，随处使用）
+
+借鉴 **agent-native**（[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native)，MIT）的核心设计模式。开发者用 `defineAction({schema, run})` 定义一个操作，它自动成为：
+
+- **IPC handler**（桌面 UI 按钮/菜单可触发）
+- **MCP tool**（LLM 作为工具调用；同时自动暴露给外部 Agent Plugins 客户端）
+- **LLM 内置工具**（核心引擎工具面）
+- **未来 HTTP endpoint / CLI 命令**（§十三 远程接入 / headless 场景）
+
+这是 §十六 双工具编排（OpenWork `search_capabilities`+`execute_capability`）的**底层实现机制**——编排层负责"发现与路由"，defineAction 负责"定义一次自动多表面绑定"。也是 §十二 插件组装的便利基础：插件作者定义 action，DeepOrca 自动把它接成 UI 动作 + MCP 工具 + IPC，无需手写三套绑定。
+
+**典型受益场景**：索引模块（codegraph 建索引/查询）与代码审查模块（CRG 风险分析、ocr AI 审查）当前各自是独立 MCP server，工具平铺给 LLM。defineAction 化后，这些能力既可在插件中心 UI 一键触发（带进度可视化），又自动作为 MCP 工具供 agent 调用，还能在未来工作流编排界面里拖拽组合成"索引→查询→审查→修复"管线。
+
+**严守 core 无 UI 铁律**（defineAction 在 DeepOrca 的分层落地，区别于 agent-native 原版的 fullstack 共置）：
+
+```
+shared/ipc.ts          schema 类型定义（无运行时，两侧可 bundle）
+core (UI-free)          action 的 run 逻辑 + MCP tool 暴露
+desktop main            IPC handler 注册（委托 core 的 run）
+desktop renderer        UI 按钮/菜单（经 IPC 触发）
+```
+
+> agent-native 框架本体不引入（React+Vite+Nitro 全栈与 Electron+core 分层对立），仅吸收两点：① defineAction 模式（如上）；② `application_state`（UI 焦点/选中/导航实时同步供 agent 读取，补全 A2UI 的反向链路——A2UI 当前是 agent→UI，application_state 补 UI→agent，构成完整 parity）。`application_state` 为纯增量（一张 SQLite 表 + IPC 上报 + runtime context 注入），不碰已有 A2UI 代码。
+>
+> **首批适配模块与详细设计**：defineAction 首先落地于**代码审查**（CRG + ocr，5 个 action）与**知识索引**（codegraph + openwiki + arch-scan，6 个 action）——两模块当前都患"一个功能碎片化到 MCP/IPC/prompt 三种调用机制"的病。完整原语 API、动作清单、三表面映射、迁移阶段见 [`specs/define-action/design.md`](../../specs/define-action/design.md)。关键难点 `arch-scan.run` 需触发 subagent，为 §十 Subagent（P2）提供首个交汇用例。
 
 ### 规划中
 

@@ -148,6 +148,11 @@ export const IpcRequest = {
    *  avoids the did-finish-load race — the renderer requests its payload by the
    *  window token it was opened with). */
   A2uiRequestPayload: "a2ui:requestPayload",
+
+  // defineAction primitive — "define once, surface everywhere" (Phase 0).
+  // ActionList: introspect registered actions; ActionRun: dispatch + progress.
+  ActionList: "action:list",
+  ActionRun: "action:run",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -165,6 +170,8 @@ export const IpcEvent = {
   WikiProgress: "event:wikiProgress",
   A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
   A2uiWindowPayload: "event:a2uiWindowPayload",
+  /** defineAction progress stream (unified; payload carries actionId). */
+  ActionProgress: "event:actionProgress",
 } as const;
 
 /** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
@@ -474,6 +481,24 @@ export type FileMatch = {
   type: "file" | "directory";
 };
 
+/** defineAction surface (spec §六). A registered action's introspection entry. */
+export type ActionListItem = {
+  id: string;
+  description: string;
+  category?: string;
+};
+
+/** Result of an ActionRun IPC call — success carries the action's output. */
+export type ActionRunResult = { ok: true; output: unknown } | { ok: false; error: string; code: string };
+
+/** Unified action progress event (replaces the per-tool event:*Progress family). */
+export type ActionProgressEvent = {
+  actionId: string;
+  message: string;
+  percent?: number;
+  data?: unknown;
+};
+
 /** The typed surface exposed on `window.deeporca` from the preload script. */
 export type DesktopApi = {
   ready(): Promise<{ projectRoot: string; platform: NodeJS.Platform; homeDir: string }>;
@@ -673,6 +698,13 @@ export type DesktopApi = {
   a2uiOpenWindow(a2uiJson: string, title: string): Promise<void>;
   /** Subscribe to A2UI surface updates (pushed after a2ui_action mutations). */
   onA2uiSurfaceUpdate(cb: (event: A2uiSurfaceUpdateEvent) => void): () => void;
+  // ── defineAction surface (spec §六 — "define once, surface everywhere") ──
+  /** List registered actions (introspection for a future actions panel). */
+  actionList(): Promise<ActionListItem[]>;
+  /** Execute an action by id; streams progress via onActionProgress. */
+  actionRun(id: string, input?: unknown): Promise<ActionRunResult>;
+  /** Subscribe to the unified action progress stream. Returns unsubscribe fn. */
+  onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */
   onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
   /** Pull the initial prototype-window payload by token (race-free handshake,

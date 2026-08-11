@@ -5,7 +5,7 @@
  * tsc with moduleResolution:"bundler" emits `from "./foo"` (no extension).
  * Node.js ESM requires `from "./foo.js"`. This script bridges the gap.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
@@ -30,6 +30,15 @@ for (const filePath of files) {
 
   const updated = original.replace(IMPORT_RE, (_match, prefix, specifier, quote) => {
     rewrites++;
+    // Directory (barrel) imports like "./routing" → "./routing/index.js".
+    // tsc emits the extensionless directory path; the dist has <dir>/index.js.
+    // Appending ".js" alone yields "./routing.js" which neither Node ESM nor
+    // tsx can resolve (the target is a directory, not a file). Detect that and
+    // rewrite to the barrel entry instead. File imports keep the ".js" append.
+    const resolved = resolve(dirname(filePath), specifier);
+    if (existsSync(resolved) && statSync(resolved).isDirectory()) {
+      return `${prefix}${specifier}/index.js${quote}`;
+    }
     return `${prefix}${specifier}.js${quote}`;
   });
 

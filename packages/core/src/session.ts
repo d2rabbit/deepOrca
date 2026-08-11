@@ -74,6 +74,41 @@ import {
   type ToolDefinition,
 } from "./prompt";
 import {
+  ActionRegistry,
+  getActionSpawner,
+  pingDefinition,
+  pingRun,
+  reviewRunDefinition,
+  reviewRun,
+  reviewCheckAvailableDefinition,
+  reviewCheckAvailableRun,
+  reviewFullDefinition,
+  reviewFullRun,
+  crgReindexDefinition,
+  crgReindexRun,
+  crgVisualizeDefinition,
+  crgVisualizeRun,
+  crgAnalyzeDefinition,
+  crgAnalyzeRun,
+  codegraphReindexDefinition,
+  codegraphReindexRun,
+  codegraphListDefinition,
+  codegraphListRun,
+  wikiInitDefinition,
+  wikiInitRun,
+  wikiUpdateDefinition,
+  wikiUpdateRun,
+  wikiListPagesDefinition,
+  wikiListPagesRun,
+  wikiReadPageDefinition,
+  wikiReadPageRun,
+  indexBuildAllDefinition,
+  indexBuildAllRun,
+  archScanRunDefinition,
+  archScanRunRun,
+  type RunSubagentOptions,
+} from "./actions";
+import {
   ToolExecutor,
   type CreateOpenAIClient,
   type ProcessTimeoutControl,
@@ -532,6 +567,13 @@ export class SessionManager {
   private readonly toolExecutor: ToolExecutor;
   private readonly mcpManager = new McpManager();
   private mcpToolDefinitions: ToolDefinition[] = [];
+  /**
+   * ActionRegistry — owns the defineAction primitive's registered actions for
+   * this project. Constructed here (core) using the host-injected Spawner
+   * (getActionSpawner); desktop's IPC bridge reaches this same instance via the
+   * engine so IPC + LLM + MCP share one registry. Phase 0 ships system.ping.
+   */
+  private readonly actionRegistry: ActionRegistry;
   /** Skill/tool routers (lazy-initialized; null when routing disabled/unavailable). */
   private routerBundle: RouterBundle | null = null;
   private routerInitPromise: Promise<RouterBundle> | null = null;
@@ -562,7 +604,49 @@ export class SessionManager {
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onProcessStdout = options.onProcessStdout;
-    this.toolExecutor = new ToolExecutor(this.projectRoot, this.createOpenAIClient, this.mcpManager);
+    // ActionRegistry must be constructed before ToolExecutor (which dispatches
+    // action tool calls through it). Uses the host-injected Spawner so core
+    // stays electron-free, and wires the MCP manager's dispatch so actions like
+    // crg.analyze can route to existing MCP servers. system.ping is the Phase-0 proof action.
+    this.actionRegistry = new ActionRegistry({
+      projectRoot: this.projectRoot,
+      spawner: getActionSpawner(),
+      executeMcpTool: (name, args) => this.mcpManager.executeMcpTool(name, args),
+      // Minimal Subagent runtime (§十 P2): lets arch-scan.run dispatch an
+      // isolated sub-session that force-loads+runs a skill. See runSubagent().
+      runSubagent: (opts) => this.runSubagent(opts),
+    });
+    this.actionRegistry.register(pingDefinition, pingRun);
+    // ── Phase 1: code review actions ──────────────────────────────────────
+    // review.run sinks ocr into core (MCP/LLM surface for the first time); the
+    // ocr resolver is host-injected (desktop configureOcrResolver at boot).
+    this.actionRegistry.register(reviewRunDefinition, reviewRun);
+    this.actionRegistry.register(reviewCheckAvailableDefinition, reviewCheckAvailableRun);
+    // review.full: the Code Review module's one-click composite (ocr + CRG risk).
+    this.actionRegistry.register(reviewFullDefinition, reviewFullRun);
+    // crg.reindex/visualize wrap the core crg.ts helpers (uv-resolved spawn);
+    // crg.analyze routes to the 10 CRG analysis MCP tools via executeMcpTool.
+    this.actionRegistry.register(crgReindexDefinition, crgReindexRun);
+    this.actionRegistry.register(crgVisualizeDefinition, crgVisualizeRun);
+    this.actionRegistry.register(crgAnalyzeDefinition, crgAnalyzeRun);
+    // ── Phase 2: knowledge index actions ──────────────────────────────────
+    this.actionRegistry.register(codegraphReindexDefinition, codegraphReindexRun);
+    this.actionRegistry.register(codegraphListDefinition, codegraphListRun);
+    // wiki init/update need the host-injected wiki resolver (desktop configureWikiResolver).
+    this.actionRegistry.register(wikiInitDefinition, wikiInitRun);
+    this.actionRegistry.register(wikiUpdateDefinition, wikiUpdateRun);
+    this.actionRegistry.register(wikiListPagesDefinition, wikiListPagesRun);
+    this.actionRegistry.register(wikiReadPageDefinition, wikiReadPageRun);
+    // The unified trio orchestrator (replaces the renderer promise chain).
+    this.actionRegistry.register(indexBuildAllDefinition, indexBuildAllRun);
+    // ── Phase 3: arch-scan (gated on runSubagent — §十 P2) ─────────────────
+    this.actionRegistry.register(archScanRunDefinition, archScanRunRun);
+    this.toolExecutor = new ToolExecutor(
+      this.projectRoot,
+      this.createOpenAIClient,
+      this.mcpManager,
+      this.actionRegistry
+    );
     this.mcpManager.prepare(this.augmentMcpServersWithBuiltins(this.getResolvedSettings().mcpServers));
     this.messageConverter = new OpenAIMessageConverter({
       renderInitPrompt: () => this.renderInitCommandPrompt(),
@@ -572,6 +656,72 @@ export class SessionManager {
       // system-prompt prefix).
       buildTurnTail: (model) => getCurrentTurnTail(model),
     });
+  }
+
+  /**
+   * The project's ActionRegistry. Desktop's IPC bridge reads this same instance
+   * so the IPC surface and the LLM surface share one registry (no dual state).
+   * Phase 1+ module migrations register their actions here.
+   */
+  getActionRegistry(): ActionRegistry {
+    return this.actionRegistry;
+  }
+
+  /**
+   * Build the user prompt for a subagent invocation (pure — extracted for
+   * testing). arch-scan gets a domain-specific prompt; others reference the
+   * skill name. The matched skill is force-loaded via UserPromptContent.skills
+   * regardless, so this prompt is a fallback trigger, not the only loader.
+   */
+  private buildSubagentPrompt(skill: string, input?: Record<string, unknown>, prompt?: string): string {
+    if (prompt) return prompt;
+    if (skill === "arch-scan") {
+      const perspective = (input as { perspective?: string } | undefined)?.perspective;
+      return perspective
+        ? `Scan the codebase architecture focusing on ${perspective} and generate the interactive architecture map (A2UI Surface).`
+        : "Scan the codebase architecture and generate the interactive architecture map (A2UI Surface).";
+    }
+    return `Execute the ${skill} skill for this project.`;
+  }
+
+  /**
+   * Minimal Subagent runtime (roadmap §十 P2, spec §五). Runs an isolated
+   * sub-session that force-loads the named skill and activates the LLM loop to
+   * completion. The parent's active session is saved and restored so the UI
+   * returns to it. The sub-session currently appears in the sidebar (marked by
+   * its skill prompt) — UI isolation is a follow-up; this is the experimental
+   * first step the roadmap describes ("先做桌面内受控实验").
+   *
+   * Re-entrancy: the engine is subagent-friendly — activateSession is keyed by
+   * sessionId over Map<sessionId> state, so nested invocations don't collide.
+   * No recursion guard yet (arch-scan doesn't recurse); add a depth cap later.
+   */
+  async runSubagent(opts: RunSubagentOptions): Promise<{ sessionId: string; content: string | null }> {
+    const previousActive = this.activeSessionId;
+    // Force-load the named skill (don't rely on auto-match alone).
+    let skillInfo: SkillInfo | undefined;
+    try {
+      const skills = await this.listSkills();
+      skillInfo = skills.find((s) => s.name === opts.skill);
+    } catch {
+      // Skill scan failure is non-fatal — the prompt still triggers auto-match.
+    }
+    const userPrompt: UserPromptContent = {
+      text: this.buildSubagentPrompt(opts.skill, opts.input as Record<string, unknown> | undefined, opts.prompt),
+      skills: skillInfo ? [{ ...skillInfo, isLoaded: false }] : undefined,
+    };
+    try {
+      // createSession sets the sub-session active and runs its LLM loop to
+      // completion (it calls activateSession internally).
+      const subSessionId = await this.createSession(userPrompt);
+      const msgs = this.listSessionMessages(subSessionId);
+      const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
+      const content = typeof lastAssistant?.content === "string" ? lastAssistant.content : null;
+      return { sessionId: subSessionId, content };
+    } finally {
+      // Restore the parent as the active session so the UI returns to it.
+      this.activeSessionId = previousActive;
+    }
   }
 
   /**
@@ -2480,7 +2630,12 @@ ${content}
             model,
             ...(temperature !== undefined ? { temperature } : {}),
             messages,
-            tools: getTools(this.getPromptToolOptions(), await this.getRoutedMcpTools(sessionId)),
+            tools: getTools(this.getPromptToolOptions(), [
+              ...(await this.getRoutedMcpTools(sessionId)),
+              // defineAction LLM surface: registered actions appear as tools the
+              // agent can call (e.g. system_ping). Dispatched in ToolExecutor.
+              ...this.actionRegistry.toToolDefinitions(),
+            ]),
             ...thinkingOptions,
           },
           { signal: sessionController.signal },

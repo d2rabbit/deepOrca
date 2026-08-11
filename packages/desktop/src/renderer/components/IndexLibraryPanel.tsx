@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import type { CodegraphProgressEvent, WikiProgressEvent } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
@@ -59,39 +58,17 @@ export function IndexLibraryPanel(): JSX.Element {
     void reload();
   }, [reload]);
 
-  // Progress handlers update the bar only. IPC invocation results are the sole
-  // sequencing/success authority, avoiding races between terminal events and
-  // invoke replies. Root filtering still prevents stale workspace output from
-  // changing the current panel.
+  // Progress from the unified action stream — index.build-all emits
+  // ActionProgress {actionId, message, percent?}. Replaces the legacy
+  // per-tool onCodegraphProgress / onWikiProgress subscriptions now that the
+  // build is orchestrated by the composite action in core.
   useEffect(() => {
-    const off = api.onCodegraphProgress((event: CodegraphProgressEvent) => {
-      if (event.root && projectRoot && event.root !== projectRoot) return;
-      if (event.done) {
-        if (event.exitCode === 0) void reload();
-        return;
-      }
-      const pctMatch = event.chunk.match(/(\d{1,3})(?:\.\d+)?\s*%/g);
-      if (pctMatch && pctMatch.length > 0) {
-        const last = pctMatch[pctMatch.length - 1] ?? "";
-        const value = Math.min(50, parseInt(last, 10) / 2); // first half
-        if (!Number.isNaN(value)) setPercent(value);
-      }
+    const off = api.onActionProgress((event: { actionId: string; percent?: number; message?: string }) => {
+      if (event.actionId !== "index.build-all") return;
+      if (typeof event.percent === "number") setPercent(event.percent);
     });
     return off;
-  }, [reload, projectRoot]);
-
-  useEffect(() => {
-    const off = api.onWikiProgress((event: WikiProgressEvent) => {
-      if (event.root && projectRoot && event.root !== projectRoot) return;
-      if (event.done) {
-        if (event.exitCode === 0) void reload();
-        return;
-      }
-      // Wiki is second half of progress (50-100%).
-      setPercent((prev) => Math.max(prev ?? 50, 50));
-    });
-    return off;
-  }, [reload, projectRoot]);
+  }, []);
 
   const runSequential = useCallback(
     async (mode: "init" | "update") => {
@@ -105,43 +82,17 @@ export function IndexLibraryPanel(): JSX.Element {
         autoCloseRef.current = null;
       }
       setBusy(true);
-      setPercent(null);
+      setPercent(5);
       setError(null);
 
       try {
-        // Phase 1: CodeGraph symbol index (0-50%).
-        // Invocation results are authoritative: terminal progress events and IPC
-        // replies are delivered independently and may arrive in either order.
-        const cgResult = await api.codegraphReindex(projectRoot);
-        if (!cgResult.ok) {
-          throw new Error(cgResult.error || "Symbol index failed");
+        // The composite index.build-all action orchestrates CodeGraph → OpenWiki
+        // → arch-scan in core (replacing the renderer's per-phase IPC chain).
+        const res = await api.actionRun("index.build-all", { mode });
+        if (!res.ok) {
+          throw new Error(res.error || "Index build failed");
         }
         if (!isCurrentRun()) return;
-
-        // Phase 2: OpenWiki document index (50-90%). Expected operational failures
-        // are structured {ok:false} results rather than rejected promises.
-        if (wikiAvailable) {
-          setPercent(50);
-          const wikiResult = mode === "init" ? await api.wikiInit() : await api.wikiUpdate();
-          if (!wikiResult.ok) {
-            throw new Error(wikiResult.error || "Wiki generation failed");
-          }
-          if (!isCurrentRun()) return;
-        }
-
-        setPercent(90);
-
-        // Phase 3: Architecture diagram (arch-scan). Fire-and-forget via prompt —
-        // arch-scan is an LLM skill (not a CLI), so it runs asynchronously in the
-        // conversation. We don't block the index panel on it (LLM analysis takes
-        // tens of seconds). Only triggered on init (first-time index), not update.
-        if (mode === "init") {
-          try {
-            await api.sendPrompt({ text: "/arch-scan" });
-          } catch {
-            // Non-fatal: arch-scan is a bonus layer, index is complete without it.
-          }
-        }
 
         setPercent(100);
         void reload();
@@ -161,7 +112,7 @@ export function IndexLibraryPanel(): JSX.Element {
         }
       }
     },
-    [projectRoot, wikiAvailable, reload]
+    [projectRoot, reload]
   );
 
   const projectLabel = projectRoot ? projectRoot.split("/").pop() || projectRoot : "";

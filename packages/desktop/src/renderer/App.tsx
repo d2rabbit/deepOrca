@@ -1167,10 +1167,7 @@ export function App(): JSX.Element {
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel
-              onShowGraph={setGraphHtml}
-              onSmartReview={() => void runPrompt({ text: "审查我的代码变更" })}
-            />
+            <CodeReviewPanel />
           </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />

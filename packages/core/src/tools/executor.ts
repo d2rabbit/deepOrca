@@ -6,6 +6,8 @@ import { handleUpdatePlanTool } from "./update-plan-handler";
 import { handleWebSearchTool } from "./web-search-handler";
 import { handleWriteTool } from "./write-handler";
 import type { McpManager } from "../mcp/mcp-manager";
+import { dispatchToolCall } from "../actions";
+import type { ActionRegistry } from "../actions";
 import type {
   CreateOpenAIClient,
   ToolCall,
@@ -42,12 +44,19 @@ export class ToolExecutor {
   private readonly projectRoot: string;
   private readonly createOpenAIClient?: CreateOpenAIClient;
   private readonly mcpManager?: McpManager;
+  private readonly actionRegistry?: ActionRegistry;
   private readonly toolHandlers = new Map<string, ToolHandler>();
 
-  constructor(projectRoot: string, createOpenAIClient?: CreateOpenAIClient, mcpManager?: McpManager) {
+  constructor(
+    projectRoot: string,
+    createOpenAIClient?: CreateOpenAIClient,
+    mcpManager?: McpManager,
+    actionRegistry?: ActionRegistry
+  ) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
+    this.actionRegistry = actionRegistry;
     this.registerToolHandlers();
   }
 
@@ -196,6 +205,35 @@ export class ToolExecutor {
         const parsedArgs = this.parseToolArguments(toolCall.function.arguments);
         const args = parsedArgs.ok ? parsedArgs.args : {};
         return this.mcpManager.executeMcpTool(toolName, args);
+      }
+      // defineAction surface: a tool name that maps to a registered action
+      // (e.g. "system_ping") is dispatched through the ActionRegistry. This is
+      // the LLM leg of "define once, surface everywhere" — the same action is
+      // also reachable via desktop IPC (action-ipc.ts). Action tool names are
+      // dotted-ids with dots→underscores, so they never start with "mcp__".
+      if (this.actionRegistry?.actionIdForToolName(toolName)) {
+        const parsed = this.parseToolArguments(toolCall.function.arguments);
+        if (!parsed.ok) {
+          return {
+            ok: false,
+            name: toolName,
+            error: parsed.error,
+            errorType: "INVALID_INPUT",
+            retryable: false,
+          };
+        }
+        try {
+          const { output } = await dispatchToolCall(this.actionRegistry, toolName, parsed.args);
+          return {
+            ok: true,
+            name: toolName,
+            output: typeof output === "string" ? output : JSON.stringify(output),
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const { errorType, retryable } = this.classifyThrownError(error);
+          return { ok: false, name: toolName, error: message, errorType, retryable };
+        }
       }
       return {
         ok: false,

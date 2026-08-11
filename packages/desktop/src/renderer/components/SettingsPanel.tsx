@@ -6,6 +6,7 @@ import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
+import { ActionsPanel } from "./ActionsPanel";
 
 type Props = {
   initial: EditableSettings;
@@ -20,7 +21,7 @@ type Props = {
   onSelectTheme: (theme: Theme) => void;
 };
 
-type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "about";
+type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "actions" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "endpoints", labelKey: "settings.tab.endpoints" },
@@ -28,6 +29,7 @@ const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "appearance", labelKey: "settings.tab.appearance" },
   { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
+  { id: "actions", labelKey: "settings.tab.actions" },
   { id: "about", labelKey: "settings.tab.about" },
 ];
 
@@ -37,6 +39,7 @@ const TAB_ICONS: Record<Tab, string> = {
   appearance: "◐",
   memory: "❍",
   permissions: "⊘",
+  actions: "⚙",
   about: "ℹ",
 };
 
@@ -880,6 +883,11 @@ export function SettingsPanel({
             ) : null}
 
             {/* ── Section 6: About ──────────────────────────────────────── */}
+            {tab === "actions" ? (
+              <section className="ui-settings-section" style={{ maxWidth: "none", padding: 0 }}>
+                <ActionsPanel />
+              </section>
+            ) : null}
             {tab === "about" ? (
               <>
                 <section className="ui-settings-section">
