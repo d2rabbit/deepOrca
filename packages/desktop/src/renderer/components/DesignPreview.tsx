@@ -13,10 +13,12 @@ import { useMemo, type JSX } from "react";
 import { parseDdFile } from "../dd/parser";
 import { compileDdToHtml } from "../dd/compiler";
 // The vendored Tailwind JIT script — generated at build time by build.mjs
-// as a TypeScript source file exporting the raw script string. If the vendor
-// file is missing (offline), this is an empty string — designs still render
-// with seed CSS, just without Tailwind utility classes.
-import tailwindScript from "../dd/tailwind-script";
+// under src/generated/ (gitignored) as a TypeScript source file exporting the
+// raw script string. If the vendor file is missing (offline), this is an empty
+// string — designs still render with seed CSS, just without Tailwind utility
+// classes. Run `npm run desktop:build` (or `node packages/desktop/build.mjs`)
+// to regenerate before typechecking a clean checkout.
+import tailwindScript from "../../generated/tailwind-script";
 
 type Props = {
   /** The raw .dd file content (YAML front-matter + HTML body). */

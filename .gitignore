@@ -29,7 +29,11 @@ out/
 .env.local
 
 # Generated files
-packages/core/src/generated/
+packages/*/src/generated/
+# Legacy location of the auto-generated Tailwind script (now under
+# packages/desktop/src/generated/). Kept so checkouts that still carry the old
+# file don't re-add it after the move.
+packages/desktop/src/renderer/dd/tailwind-script.ts
 
 # Vendored third-party builds (checked out/downloaded + compiled at build time
 # via scripts/vendor-*.js): CodeGraph, OpenWiki, uv, Serena, SkillSpector, CRG,

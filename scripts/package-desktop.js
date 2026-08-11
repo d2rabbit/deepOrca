@@ -61,12 +61,33 @@ function main() {
   const desktopPkg = readJson(join(desktopDir, "package.json"));
   const corePkg = readJson(join(coreDir, "package.json"));
   const memoryPkg = readJson(join(repoRoot, "packages", "memory", "package.json"));
+  const embeddingPkg = readJson(join(repoRoot, "packages", "embedding", "package.json"));
+  const embeddingDir = join(repoRoot, "packages", "embedding");
   const electronVersion = readJson(join(repoRoot, "node_modules", "electron", "package.json")).version;
 
   // ── Step 1: fresh staging dir with a generated standalone package.json ──
   log(`staging → ${stagingDir}`);
   rmSync(stagingDir, { recursive: true, force: true });
   mkdirSync(stagingDir, { recursive: true });
+
+  // Merge the runtime dependencies of every @deeporca/* package the desktop
+  // app ships, then STRIP every `@deeporca/*` entry. The staging dir is a
+  // standalone app — a leftover `file:../embedding` would point at
+  // `packages/desktop/out/embedding` (which does not exist), breaking
+  // `npm install` and leaving embedding unresolvable at runtime. We copy the
+  // locally-built internal packages into node_modules ourselves below.
+  const mergedDeps = {
+    ...corePkg.dependencies,
+    ...memoryPkg.dependencies,
+    ...embeddingPkg.dependencies,
+    "@alibaba-group/open-code-review": desktopPkg.dependencies["@alibaba-group/open-code-review"],
+    "@colbymchenry/codegraph": desktopPkg.dependencies["@colbymchenry/codegraph"],
+  };
+  const stagingDeps = {};
+  for (const [name, version] of Object.entries(mergedDeps)) {
+    if (name.startsWith("@deeporca/")) continue;
+    stagingDeps[name] = version;
+  }
 
   const stagingPkg = {
     name: "deeporca",
@@ -78,21 +99,15 @@ function main() {
     repository: rootPkg.repository,
     type: "module",
     main: "dist/main.js",
-    // Core + Memory stay external in the main bundle → ship their runtime deps.
-    // ocr (Open Code Review) ships as an npm dep so the app runs the vendored
-    // binary without requiring a global install (see resolveOcrCommand in main).
-    // @deeporca/memory is dynamically imported at runtime (main/index.ts) and
-    // resolves against this staging node_modules — its deps (sqlite-vec,
-    // @node-rs/jieba, @tencentdb-agent-memory/tcvdb-text, …) must be present.
-    // CodeGraph's npm-shim.js is resolved via require.resolve at runtime
+    // Core + Memory + Embedding stay external in the main bundle → ship their
+    // runtime deps. The @deeporca/* packages themselves are copied in below
+    // (built dist/), so they are intentionally absent from this dependencies
+    // map. ocr (Open Code Review) ships as an npm dep so the app runs the
+    // vendored binary without requiring a global install. CodeGraph's
+    // npm-shim.js is resolved via require.resolve at runtime
     // (core/common/codegraph.ts) → stage the npm package + its platform
     // optionalDependency so the shim can launch the platform binary offline.
-    dependencies: {
-      ...corePkg.dependencies,
-      ...memoryPkg.dependencies,
-      "@alibaba-group/open-code-review": desktopPkg.dependencies["@alibaba-group/open-code-review"],
-      "@colbymchenry/codegraph": desktopPkg.dependencies["@colbymchenry/codegraph"],
-    },
+    dependencies: stagingDeps,
     // Lets electron-builder resolve the Electron version for this app dir.
     devDependencies: { electron: electronVersion },
   };
@@ -138,6 +153,24 @@ function main() {
       throw new Error(`packages/memory/${name} missing — run the desktop build first.`);
     }
     cpSync(src, join(memoryTarget, name), { recursive: true });
+  }
+
+  // Copy the locally built @deeporca/embedding. core's routing loader and
+  // memory's store factory both `import("@deeporca/embedding")` at runtime; if
+  // this package is missing from staging, semantic routing silently fails open
+  // and local vector recall degrades to keyword-only — with no diagnostic
+  // because the dynamic import rejection is swallowed. Previously the staging
+  // package.json leaked a `file:../embedding` dep that npm could not resolve,
+  // so the package was never installed AND never copied in.
+  log("copying @deeporca/embedding (built) into node_modules …");
+  const embeddingTarget = join(stagingDir, "node_modules", "@deeporca", "embedding");
+  mkdirSync(embeddingTarget, { recursive: true });
+  for (const name of ["package.json", "dist"]) {
+    const src = join(embeddingDir, name);
+    if (!existsSync(src)) {
+      throw new Error(`packages/embedding/${name} missing — run the desktop build first.`);
+    }
+    cpSync(src, join(embeddingTarget, name), { recursive: true });
   }
 
   // ── Step 3: copy built app output ──
@@ -205,10 +238,22 @@ function main() {
       const fs = require("fs");
       const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-smoke-"));
       (async () => {
+        // Resolve the internal packages from the STAGED node_modules (the same
+        // graph the packaged app uses), not the dev monorepo. Each must export
+        // its public surface AND its runtime deps must be installable here.
         const { MemoryManager } = await import("@deeporca/memory");
         const { SessionManager } = await import("@deeporca/core");
+        const embedding = await import("@deeporca/embedding");
         if (typeof MemoryManager !== "function") throw new Error("MemoryManager export missing");
         if (typeof SessionManager !== "function") throw new Error("SessionManager export missing");
+        if (typeof embedding.TransformersEmbeddingService !== "function") {
+          throw new Error("@deeporca/embedding TransformersEmbeddingService export missing");
+        }
+        // embedding's transitive runtime deps must resolve from staging too —
+        // a missing onnxruntime-node or @huggingface/transformers would only
+        // surface at warmup time in the packaged app.
+        require.resolve("@huggingface/transformers");
+        require.resolve("onnxruntime-node");
         const mgr = new MemoryManager({
           baseUrl: "http://localhost:0", apiKey: "smoke", model: "smoke", dataDir,
         });
@@ -216,7 +261,7 @@ function main() {
         if (!mgr.isAvailable()) throw new Error("memory manager not available after init");
         await mgr.destroy();
         fs.rmSync(dataDir, { recursive: true, force: true });
-        console.log("[smoke] OK: @deeporca/memory + @deeporca/core resolve and init from staged node_modules");
+        console.log("[smoke] OK: @deeporca/core + memory + embedding + transformers + onnxruntime resolve from staged node_modules");
       })().catch((e) => { console.error("[smoke] FAIL:", e.message); process.exit(1); });
     `;
     const smokeFile = join(stagingDir, "_smoke.cjs");
