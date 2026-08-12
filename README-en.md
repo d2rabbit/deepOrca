@@ -1,8 +1,8 @@
 <div align="center">
 
 <p align="center">
-  <a href='https://github.com/asdshuaishuai/deepcode-cli'>
-    <img src='docs-site/assets/orca-icon.png' width='120' alt="DeepOrca"/>
+  <a href="https://github.com/d2rabbit/deepOrca">
+    <img src="docs-site/assets/orca-icon.png" width="120" alt="DeepOrca"/>
   </a>
 </p>
 
@@ -19,45 +19,167 @@ English · [中文](README.md) · [Docs](docs/) · [Changelog](CHANGELOG.md)
 
 ## 🐋 About DeepOrca
 
-**DeepOrca** is a next-generation AI coding assistant optimized for the `deepseek-v4` model. It ships as an Electron desktop client, built from two packages:
+**DeepOrca** is a next-generation AI coding assistant optimized for `deepseek-v4` and delivered primarily as an Electron desktop application. The repository contains four npm workspaces:
 
-| Package | Description |
-|---------|-------------|
-| `@deeporca/core` | Core engine: LLM session loop, built-in tools, Skills/MCP extensions, session persistence |
-| `@deeporca/desktop` | Electron desktop client: full GUI with Monaco editor, multi-panel layout, and themes |
+| Package               | Description                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `@deeporca/core`      | Engine: LLM session loop, seven built-in tools, Skills/MCP, Actions, and session persistence |
+| `@deeporca/desktop`   | Electron main/preload/renderer application with Monaco, panels, and themes                   |
+| `@deeporca/embedding` | Local IBM Granite embedding runtime for semantic routing and retrieval                       |
+| `@deeporca/memory`    | In-process L0-L3 memory pipeline and vector retrieval                                        |
 
 ### 📦 About Deep Code
 
-DeepOrca originated as a fork of [Deep Code](https://github.com/lessweb/deepcode-cli) (`@vegamo/deepcode`) and has since grown into an independent project. We kept Deep Code's excellent core engine architecture (LLM session loop, built-in tools, Skills/MCP extensions, permission control) and extended it substantially — desktop GUI, built-in plugin system, GitMCP module, Monaco Editor integration — while removing the terminal CLI and VSCode extension form factors.
+DeepOrca originated as a fork of [Deep Code](https://github.com/lessweb/deepcode-cli) (`@vegamo/deepcode`) and has since become an independent project. It retains Deep Code's core engine architecture—LLM sessions, built-in tools, Skills/MCP extensions, and permission control—while adding the desktop GUI, the Actions capability layer, local memory and embeddings, bundled extensions, GitMCP, and Monaco Editor. The terminal CLI and VSCode extension form factors were removed.
 
-Deep Code is open-sourced under the MIT License. As required by the license, this repository fully preserves the original copyright notice (see [LICENSE](LICENSE)), and we thank the original authors.
+Deep Code is released under the MIT License. This repository preserves its original copyright notice as required; see [LICENSE](LICENSE).
 
-## ✨ Highlights
+---
 
-- **Extension system** — Skills (`SKILL.md`-driven), MCP servers, and built-in plugins (browser-skill, open-code-review, git-mcp)
-- **Monaco Editor integration** — professional code editing with syntax highlighting
+## ✨ Core Features
+
+### 🧩 Extensions and capabilities
+
+DeepOrca supports three extension sources and uses Actions to provide a common execution layer for selected capabilities:
+
+| Type                               | Description                                                    | Management                      |
+| ---------------------------------- | -------------------------------------------------------------- | ------------------------------- |
+| **Skills**                         | `SKILL.md`-driven Agent capabilities                           | Place under `.deeporca/skills/` |
+| **MCP servers**                    | External services connected through Model Context Protocol     | Configure in `settings.json`    |
+| **Bundled extensions and Actions** | Skills, services, and composed workflows shipped with DeepOrca | Loaded by the desktop host      |
+
+Examples include browser automation, Open Code Review, GitMCP, CodeGraph, OpenWiki, CRG, Serena, and design/knowledge Skills. See the [built-in inventory](docs/builtin-inventory.md) for the full list.
+
+### ⚡ Actions: define once, invoke across surfaces
+
+`defineAction` and `ActionRegistry` turn a project capability into a composable Action. A registered Action can be:
+
+- exposed to the Agent as an LLM function tool;
+- invoked through typed desktop IPC and UI;
+- composed in core through `ActionRegistry.execute()`;
+- observed through shared progress events and structured results; the core API also supports cancellation.
+
+The built-in Actions cover diagnostics, OCR/CRG code review, CodeGraph/OpenWiki indexing, `index.build-all`, and `arch-scan`. Advanced users can open **Settings → Actions** to inspect registered capabilities, run parameterless Actions, and view progress and raw results.
+
+```ts
+import { ActionRegistry, defineAction } from "@deeporca/core";
+
+const registry = new ActionRegistry({ projectRoot });
+
+defineAction(
+  registry,
+  {
+    id: "example.greet",
+    description: "Return a greeting.",
+    parameters: {
+      type: "object",
+      properties: { name: { type: "string" } },
+      additionalProperties: false,
+    },
+  },
+  async (input: { name?: string }, ctx) => {
+    ctx.emit({ message: "Greeting", percent: 50 });
+    return { message: `Hello, ${input.name ?? "world"}` };
+  }
+);
+
+const run = registry.execute("example.greet", { name: "DeepOrca" });
+run.onProgress(console.log);
+const output = await run.result;
+```
+
+> **Current boundaries:** Actions are integrated with LLM tools and desktop IPC/UI. An external MCP Action Server, HTTP/CLI bindings, generated parameter forms, desktop cancellation, and fine-grained Action permissions are still planned. Runtime parameter-schema validation is currently shallow, so Action implementations should validate detailed constraints. See the [defineAction design](specs/define-action/design.md) for architecture and migration notes.
+
+### 🎨 Desktop highlights
+
+- **Monaco Editor** — professional editing with syntax highlighting and completion
+- **Actions panel** — inspect registered capabilities, run parameterless Actions, and view shared progress and structured results
 - **GitMCP panel** — index GitHub repositories locally and search docs/code semantically
-- **Code review / CodeGraph / Git panels** — review changes, visualize the code graph, and manage source control
-- **Multi-theme & i18n** — Aqua / Glass Prism / Punk themes, 6 languages (en / zh / ja / ko / zh-HK / zh-TW)
-- **Optimized for DeepSeek** — context caching, thinking mode, and reasoning-effort control
+- **Code review panel** — review uncommitted workspace changes with structured OCR findings and optional CRG structural-risk enrichment
+- **Index panel** — orchestrate CodeGraph, OpenWiki, and arch-scan with per-stage progress
+- **Source control panel** — stage, commit, diff, and branch operations
+- **Themes and i18n** — Aqua, Glass Prism, and Punk 2077 themes; en / zh / ja / ko / zh-HK / zh-TW
+
+### 🧠 Local embeddings, memory, and semantic routing
+
+- **Granite 97M embeddings** — IBM Granite Embedding 97M multilingual R2 (384 dimensions, 200+ languages), running locally with transformers.js and onnxruntime-node; the model is vendored at build time
+- **Memory retrieval** — `@deeporca/memory` provides an in-process L0-L3 pipeline with a sqlite-vec vector backend
+- **Skill/tool routing** — embedding recall shortlists Skills and trims MCP tools at server granularity
+- **Compositional routing (SkillWeaver)** — query decomposition, multi-Skill recall, compatibility planning, and DAG composition, inspired by [arxiv 2606.18051](https://arxiv.org/abs/2606.18051)
+- Routing is **fail-open**: unavailable models or routing errors fall back to the full candidate set instead of interrupting a session
+
+### 🏗️ One-click workspace indexing
+
+`index.build-all` runs the workspace index stages in order:
+
+| Stage           | Tool          | Layer         | Question answered                               |
+| --------------- | ------------- | ------------- | ----------------------------------------------- |
+| 1. Index        | **CodeGraph** | Symbol        | Where is this symbol, and who calls it?         |
+| 2. Wiki         | **OpenWiki**  | Documentation | What does the project documentation say?        |
+| 3. Architecture | **arch-scan** | Architecture  | What is the overall architecture and data flow? |
+
+An initial build runs all three stages; **Update All** refreshes CodeGraph and OpenWiki only. Each stage reports success, skipped, or error independently, so a partial failure does not hide other results. `arch-scan` applies a 12-perspective recursive exploration method and renders nested component trees through A2UI.
+
+### 🚀 Optimized for DeepSeek
+
+- Tuned specifically for DeepSeek models
+- Uses [context caching](https://api-docs.deepseek.com/guides/kv_cache) to reduce cost
+- **Cache-first prompt ordering** keeps stable system content at the prefix and moves date/model data to transient tail messages
+- Native [thinking-mode](https://api-docs.deepseek.com/guides/thinking_mode) and reasoning-effort controls
+
+---
+
+## 📊 Feature Status
+
+| Area               | Capability                                                    | Status |
+| ------------------ | ------------------------------------------------------------- | ------ |
+| Core engine        | LLM session loop, seven built-in tools, compaction            | ✅     |
+| Actions            | ActionRegistry, LLM tools, desktop IPC/UI, composed workflows | 🧪     |
+| Desktop            | Electron GUI, panels, themes                                  | ✅     |
+| Extensions         | Skills, MCP, and bundled extensions                           | ✅     |
+| Local intelligence | Granite embeddings, L0-L3 memory, semantic routing            | ✅     |
+| Editor             | Monaco Editor integration                                     | ✅     |
+| Workspace indexing | CodeGraph, OpenWiki, and arch-scan                            | ✅     |
+| Code review        | Open Code Review with optional CRG enrichment                 | ✅     |
+| GitMCP             | Local GitMCP service and repository panel                     | ✅     |
+| Browser automation | Bundled browser Skill                                         | ✅     |
+| Source control     | Stage, commit, diff, and branch panel                         | ✅     |
+| Permissions        | Fine-grained scopes for built-in tools                        | ✅     |
+| Persistence        | Session restore, archive, and export                          | ✅     |
+| Web search         | Built-in WebSearch tool                                       | ✅     |
+| Multimodal input   | Paste or drag images into a session                           | ✅     |
+
+> 🧪 The Actions registry, LLM/IPC integration, and desktop browser are available now; additional transports and permission integration are still evolving.
+
+---
+
+## 🗺️ Roadmap
+
+Near-term work includes external MCP/HTTP/CLI Action surfaces, generated Action parameter forms, finer-grained Action permissions, a remote plugin center, custom commands, immersive project graphs/Wiki experiences, and AI-assisted design workflows.
+
+Major integrated open-source capabilities include Flutter/Dart Skills, OpenWiki, CodeGraph, and Code Review Graph (CRG). Serena, OpenCLI, CLI-Anything, Open Design, and related projects remain under integration or evaluation.
+
+See the full [feature roadmap](docs/features/feature-roadmap.md) and [research reports](docs/research/). Roadmap and design documents may describe goals that have not shipped yet; use the implementation and status notes on this page as the current baseline.
+
+---
 
 ## 🚀 Quick Start
 
-```bash
-# Clone the repository
-git clone https://github.com/asdshuaishuai/deepcode-cli.git
-cd deepcode-cli
+> Requires Node.js 22+ and npm 10.9.4. On Windows, the core bash tool also requires Git Bash.
 
-# Install dependencies
+```bash
+# Clone and install
+git clone https://github.com/d2rabbit/deepOrca.git
+cd deepOrca
 npm install
 
-# Run the desktop client in dev mode
+# Run the desktop client in development mode
 npm run desktop:dev
 ```
 
 ### Configuration
 
-Create `~/.deeporca/settings.json` (an existing `~/.deepcode` config directory is picked up automatically — no migration needed):
+Create `~/.deeporca/settings.json`. If `~/.deepcode` already exists, DeepOrca uses it as a compatibility fallback without requiring migration.
 
 ```json
 {
@@ -71,34 +193,79 @@ Create `~/.deeporca/settings.json` (an existing `~/.deepcode` config directory i
 }
 ```
 
-Environment variables with the `DEEPORCA_` prefix (e.g. `DEEPORCA_API_KEY`) are also supported; legacy `DEEPCODE_` variables keep working as a fallback.
+Environment variables with the `DEEPORCA_` prefix, such as `DEEPORCA_API_KEY`, are also supported. Legacy `DEEPCODE_` variables remain a fallback. See the [configuration reference](docs/configuration_en.md).
 
-> 📖 See [docs/configuration.md](docs/configuration.md) for the full configuration reference.
+### Desktop commands
+
+```bash
+npm run desktop:dev    # development mode
+npm run desktop:build  # build the desktop app
+npm run desktop:start  # build and run
+```
+
+---
 
 ## 📚 Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [docs/architecture.md](docs/architecture.md) | Architecture and core flow |
-| [docs/configuration.md](docs/configuration.md) | Configuration reference |
-| [docs/mcp.md](docs/mcp.md) | MCP server setup |
-| [docs/agent-skills.md](docs/agent-skills.md) | Skills development guide |
-| [docs/permission.md](docs/permission.md) | Permission model |
+| Document                                                             | Description                                               |
+| -------------------------------------------------------------------- | --------------------------------------------------------- |
+| [CHANGELOG.md](CHANGELOG.md)                                         | Release notes                                             |
+| [docs/quickstart_en.md](docs/quickstart_en.md)                       | Quick start                                               |
+| [docs/architecture_en.md](docs/architecture_en.md)                   | Architecture and core flow                                |
+| [docs/configuration_en.md](docs/configuration_en.md)                 | Configuration reference                                   |
+| [docs/mcp_en.md](docs/mcp_en.md)                                     | MCP server setup                                          |
+| [docs/agent-skills_en.md](docs/agent-skills_en.md)                   | Skills development guide                                  |
+| [docs/permission_en.md](docs/permission_en.md)                       | Permission model                                          |
+| [docs/session-persistence_en.md](docs/session-persistence_en.md)     | Session persistence                                       |
+| [docs/builtin-inventory.md](docs/builtin-inventory.md)               | Bundled Skills, MCP servers, and tools                    |
+| [specs/define-action/design.md](specs/define-action/design.md)       | Actions/defineAction design and migration notes (Chinese) |
+| [docs/features/feature-roadmap.md](docs/features/feature-roadmap.md) | Feature roadmap (Chinese)                                 |
+| [docs/research/](docs/research/)                                     | Technical research                                        |
 
-## 🤝 Contributing
+---
+
+## 🤝 Contributing and Verification
 
 ```bash
-npm install       # install dependencies
-npm test          # run core tests
-npm run check     # typecheck + lint + format check
-npm run build     # build core
+# Build, typecheck, lint, and verify formatting
+npm run check
+
+# Run all workspace tests
+npm test
+
+# Start desktop development
 npm run desktop:dev
 ```
+
+Focused Actions tests:
+
+```bash
+node packages/core/src/tests/run-tests.mjs packages/core/src/tests/actions.test.ts
+node packages/core/src/tests/run-tests.mjs packages/core/src/tests/phase-actions.test.ts
+node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/action-ipc.test.ts
+```
+
+Run `npm run format` before `npm run check && npm test`. Contributions use Conventional Commits such as `feat:`, `fix:`, and `docs:`.
+
+---
+
+## 📞 Help
+
+- **Issues:** https://github.com/d2rabbit/deepOrca/issues
+- **Documentation:** [docs/](docs/)
+
+---
 
 ## 📄 License
 
 This project is released under the [MIT License](LICENSE).
 
 - DeepOrca is derived from [Deep Code](https://github.com/lessweb/deepcode-cli) (Copyright (c) 2026 lessweb, MIT License).
-- In accordance with the MIT License, the original copyright notice and permission notice are preserved in full; when you use, modify, or redistribute this project (or substantial portions of it), you must also keep the copyright and permission notices in [LICENSE](LICENSE).
-- The software is provided "as is", without warranty of any kind — see the license text for details.
+- The original copyright and permission notices are preserved. They must remain when using, modifying, or redistributing this project or substantial portions of it.
+- The software is provided “as is,” without warranty of any kind; see the full license text.
+
+---
+
+## 🌟 Support
+
+If DeepOrca is useful to you, consider starring the repository, reporting bugs or feature ideas, sharing it with others, or contributing code and documentation.
