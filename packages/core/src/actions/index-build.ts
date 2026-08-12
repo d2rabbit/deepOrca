@@ -11,8 +11,9 @@
  */
 
 import type { ActionDefinition, ActionRun } from "./types";
-import { runCodegraphResetAsync, hasCodegraphProject } from "../common/codegraph";
-import { getWikiResolver } from "./wiki";
+import type { ControllerProgress } from "./codegraph-controller";
+import { getCodegraphController } from "./codegraph-controller";
+import { getWikiController } from "./wiki-controller";
 
 export interface IndexBuildInput {
   /** "init" runs all three stages (incl. arch-scan when subagent is available);
@@ -49,47 +50,38 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
   const mode = input?.mode === "update" ? "update" : "init";
   const stages: IndexBuildStage[] = [];
 
-  // Stage 1: CodeGraph symbol index.
+  // Stage 1: CodeGraph symbol index (via controller — SDK in production).
   ctx.emit({ message: `[1/3] CodeGraph symbol index`, percent: 5 });
-  try {
-    await runCodegraphResetAsync(ctx.projectRoot);
-    stages.push({ stage: "codegraph", ok: true });
-  } catch (err) {
-    stages.push({ stage: "codegraph", ok: false, error: err instanceof Error ? err.message : String(err) });
+  const cgController = getCodegraphController();
+  if (!cgController) {
+    stages.push({ stage: "codegraph", ok: false, skipped: true, error: "no CodegraphController configured" });
+  } else {
+    try {
+      await cgController.reindex(ctx.projectRoot, (p: ControllerProgress) =>
+        ctx.emit({ message: `[1/3] ${p.message}`, percent: p.percent ? Math.floor(p.percent / 3) : undefined })
+      );
+      stages.push({ stage: "codegraph", ok: true });
+    } catch (err) {
+      stages.push({ stage: "codegraph", ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
   }
   ctx.emit({ message: `[1/3] CodeGraph done`, percent: 33 });
 
-  // Stage 2: OpenWiki document index.
+  // Stage 2: OpenWiki document index (via controller — CLI in desktop).
   ctx.emit({ message: `[2/3] OpenWiki document index`, percent: 38 });
-  const wikiResolver = getWikiResolver();
-  if (!wikiResolver) {
-    stages.push({ stage: "wiki", ok: false, skipped: true, error: "no wiki resolver configured" });
+  const wikiController = getWikiController();
+  if (!wikiController) {
+    stages.push({ stage: "wiki", ok: false, skipped: true, error: "no WikiController configured" });
   } else {
-    const resolved = wikiResolver(mode);
-    if (!resolved) {
-      stages.push({ stage: "wiki", ok: false, skipped: true, error: "openwiki not bundled" });
-    } else {
-      try {
-        const flag = mode === "init" ? "--init" : "--update";
-        const proc = ctx.spawner.spawn(resolved.command, [...resolved.prefixArgs, flag], {
-          cwd: ctx.projectRoot,
-          env: resolved.env,
-        });
-        const stderrDrain = (async () => {
-          for await (const _line of proc.stderr) {
-            /* drained */
-          }
-        })();
-        for await (const _line of proc.stdout) {
-          ctx.emit({ message: `[2/3] wiki: progress` });
-        }
-        const { code } = await proc.exited;
-        await stderrDrain;
-        if (code !== 0) throw new Error(`openwiki exited ${code}`);
-        stages.push({ stage: "wiki", ok: true });
-      } catch (err) {
-        stages.push({ stage: "wiki", ok: false, error: err instanceof Error ? err.message : String(err) });
-      }
+    try {
+      const fn =
+        mode === "init" ? wikiController.init.bind(wikiController) : wikiController.update.bind(wikiController);
+      await fn(ctx.projectRoot, (p: ControllerProgress) =>
+        ctx.emit({ message: `[2/3] ${p.message}`, percent: p.percent ? 33 + Math.floor(p.percent / 3) : undefined })
+      );
+      stages.push({ stage: "wiki", ok: true });
+    } catch (err) {
+      stages.push({ stage: "wiki", ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   }
   ctx.emit({ message: `[2/3] wiki done`, percent: 66 });
@@ -116,7 +108,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
     }
   }
   ctx.emit({
-    message: `index.buildAll (${mode}) complete; codegraph=${hasCodegraphProject(ctx.projectRoot)}`,
+    message: `index.buildAll (${mode}) complete; codegraph=${cgController?.hasProject(ctx.projectRoot) ?? false}`,
     percent: 100,
   });
 

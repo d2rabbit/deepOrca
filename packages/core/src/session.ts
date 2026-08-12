@@ -15,8 +15,8 @@ import {
   CODEGRAPH_MCP_SERVER_NAME,
   hasCodegraphProject,
   isCodegraphDisabled,
-  runCodegraphSync,
 } from "./common/codegraph";
+import { getCodegraphController } from "./actions/codegraph-controller";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
 import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import {
@@ -932,7 +932,10 @@ If the query is simple (single intent), respond with a single-element array.`;
   ): Record<string, McpServerConfig> | undefined {
     let result = this.resolveGitmcpServers(servers);
 
-    // CodeGraph (navigation/retrieval layer).
+    // CodeGraph MCP (navigation/retrieval layer). Index/sync operations go
+    // through the SdkCodegraphController, but MCP tools still run as a
+    // subprocess via npm-shim.js (the SDK's MCPServer doesn't expose
+    // connect(transport) for in-process bridging yet).
     if (hasCodegraphProject(this.projectRoot) && !isCodegraphDisabled(this.projectRoot)) {
       if (!(result && Object.prototype.hasOwnProperty.call(result, CODEGRAPH_MCP_SERVER_NAME))) {
         result = {
@@ -1035,6 +1038,10 @@ If the query is simple (single intent), respond with a single-element array.`;
       restoreSurfaces(this.projectRoot);
       await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, a2uiServer);
     }
+
+    // CodeGraph MCP tools stay as subprocess (npm-shim.js) — see augmentMcpServersWithBuiltins.
+    // The SdkCodegraphController handles index/sync only; in-process MCP bridging
+    // is future work (SDK's MCPServer lacks connect(transport)).
 
     // Connect the Activity-Frames in-process MCP server (behavioral memory).
     // Provides 6 tools for querying local screen activity. If no capture DB
@@ -3273,14 +3280,13 @@ ${content}
 
   /**
    * After a task turn ends, run an incremental CodeGraph index update if this turn
-   * mutated files. Fire-and-forget and gated on the project being CodeGraph-enabled;
-   * runCodegraphSync no-ops otherwise.
+   * mutated files. Fire-and-forget; the SDK's sync() is concurrent-safe (FileLock).
    */
   private maybeSyncCodegraphIndex(sessionId: string): void {
     if (!this.codegraphDirtySessions.delete(sessionId)) {
       return;
     }
-    runCodegraphSync(this.projectRoot);
+    void getCodegraphController()?.sync(this.projectRoot);
   }
 
   /**

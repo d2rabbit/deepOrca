@@ -6,14 +6,11 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync } from "node:fs";
+import { statSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
   setShellIfWindows,
-  configureCodegraphVendorRoot,
-  hasCodegraphProject,
-  runCodegraphResetWithOutput,
   resolveCurrentSettings,
   resolveModernNode,
   getUserConfigRoot,
@@ -34,8 +31,9 @@ import {
   closeEmbeddingService,
   type MemoryProvider,
   configureActionSpawner,
-  configureOcrResolver,
-  configureWikiResolver,
+  configureReviewController,
+  configureCodegraphController,
+  configureWikiController,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -53,6 +51,9 @@ import { scanFiles } from "./file-scanner.js";
 import { listWorkspaceSessions } from "./workspace-registry.js";
 import { archiveSession, unarchiveSession } from "./archive-store.js";
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
+import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
+import { OcrCliController } from "./tools/ocr-cli.js";
+import { WikiCliController } from "./tools/wiki-cli.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { safeWikiPath } from "./safe-path.js";
@@ -151,25 +152,41 @@ app.setName("DeepOrca");
 //   that accumulate full conversation history in memory.
 app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096 --max-semi-space-size=64");
 
-// Point the CodeGraph resolver at the copy we vendor next to the built app
-// (packages/desktop/vendor/codegraph). When absent (not yet vendored), the core
-// resolver transparently falls back to `npx @colbymchenry/codegraph`.
-configureCodegraphVendorRoot(join(__dirname, "..", "vendor", "codegraph"));
+// CodeGraph: SDK controller handles init/reindex/sync in-process.
+// MCP tools still use npm-shim.js subprocess (see augmentMcpServersWithBuiltins).
+
+// Vendored openwiki CLI entry. Used by WikiCliController (tools/wiki-cli.ts).
+const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
 
 // Inject the desktop subprocess spawner into core's ActionRegistry (design M2).
-// core stays electron-free by accepting the Spawner interface; this concrete
-// ElectronNodeSpawner (node:child_process) is the real adapter. Without this,
-// spawn-based actions (review.run, crg.reindex, index.buildAll, ...) would hit
-// NULL_SPAWNER. See specs/define-action/design.md §十/M2.
 configureActionSpawner(new ElectronNodeSpawner());
-// Inject the ocr command resolver so the core `review.run` action (Phase 1) can
-// spawn Open Code Review. The npm package + Electron-Node resolution live in
-// desktop; core receives the resolved command via this seam. See review.ts.
-configureOcrResolver(resolveOcrCommand);
-// Inject the openwiki resolver so core's Phase 2 wiki actions + index.buildAll
-// can spawn the vendored openwiki CLI. The resolver reads the current project's
-// LLM creds from settings (desktop owns settings resolution). See wiki.ts.
-configureWikiResolver(resolveWikiCommand);
+// CodeGraph: SDK import (replaces subprocess + vendor binary + node:sqlite
+// resolution). The controller manages per-project CodeGraph instances and
+// exposes an in-process MCPServer for connectInProcessServer.
+configureCodegraphController(new SdkCodegraphController());
+// OCR: CLI adapter (replaces configureOcrResolver + collectOcrReview spawn).
+// Uses correct flags (--audience agent --format json) + correct JSON schema.
+configureReviewController(new OcrCliController());
+// Wiki: CLI controller (replaces configureWikiResolver — vendored openwiki CLI).
+const wikiNode = resolveModernNode(22) ?? process.execPath;
+configureWikiController(
+  new WikiCliController({
+    vendorEntry: OPENWIKI_VENDOR_ENTRY,
+    nodeRunner: wikiNode,
+    electronRunAsNode: wikiNode === process.execPath,
+    getProjectRoot: () => getBridge().projectRoot,
+    getLlmCreds: () => {
+      const root = getBridge().projectRoot;
+      if (!root) return {};
+      try {
+        const s = resolveCurrentSettings(root);
+        return { apiKey: s.apiKey, baseURL: s.baseURL, model: "deepseek-v4-flash" };
+      } catch {
+        return {};
+      }
+    },
+  })
+);
 
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
@@ -754,166 +771,33 @@ function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
 }
 
-function registerCodegraphIpc({ handle, handlePrivileged }: IpcHelpers): void {
+function registerCodegraphIpc({ handle }: IpcHelpers): void {
   // ── CodeGraph index library ───────────────────────────────────────────────
+  // Legacy IPC for the IndexLibraryPanel status dot. The build button now uses
+  // api.actionRun("index.build-all"); this handler only serves the status check.
   handle(IpcRequest.CodegraphList, (): CodegraphIndexEntry[] => {
     const currentRoot = getBridge().projectRoot;
-    // Only show the current workspace, not all historical workspaces.
-    // This prevents a confusing list of unrelated directories.
     if (!currentRoot) return [];
+    const initialized = existsSync(join(currentRoot, ".codegraph"));
     return [
       {
         root: currentRoot,
         label: currentRoot.split("/").pop() || currentRoot,
-        initialized: hasCodegraphProject(currentRoot),
+        initialized,
       },
     ];
   });
-  handlePrivileged(IpcRequest.CodegraphReindex, async (_rootFromRenderer: string) => {
-    // Derive the workspace root server-side. Earlier code trusted a renderer-
-    // supplied root and recursively removed .codegraph under it — a compromised
-    // renderer could target any accessible directory.
-    const root = getBridge().projectRoot;
-    const exitCode = await runCodegraphResetWithOutput(root, (chunk, stream) => {
-      emit(IpcEvent.CodegraphProgress, { root, chunk, stream, done: false });
-    });
-    emit(IpcEvent.CodegraphProgress, { root, chunk: "", stream: "stdout", done: true, exitCode });
-    return {
-      ok: exitCode === 0,
-      action: "reset" as const,
-      error: exitCode !== 0 ? `exit code ${exitCode}` : undefined,
-    };
-  });
+  // codegraph:reindex now delegates to the action system (index.build-all or
+  // codegraph.reindex action). The old privileged handler is removed.
 }
 
-// Module-level ocr command resolver. Open Code Review ships as an npm package
-// (@alibaba-group/open-code-review) whose bin/ocr.js launcher resolves a
-// prebuilt platform binary. We run it through Electron's bundled Node
-// (ELECTRON_RUN_AS_NODE) so no global install is needed. Returns null when the
-// bundled dep is absent. Extracted to module scope so BOTH the legacy
-// ReviewRun IPC handler and core's `review.run` action (via configureOcrResolver)
-// share one resolution path. Function declaration → hoisted, so the boot-time
-// configureOcrResolver(resolveOcrCommand) call can reference it.
-function resolveOcrCommand(): {
-  command: string;
-  prefixArgs: string[];
-  env?: Record<string, string>;
-} | null {
-  try {
-    const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
-    return {
-      command: process.execPath,
-      prefixArgs: [entry],
-      env: { ELECTRON_RUN_AS_NODE: "1", OCR_NO_UPDATE: "1" },
-    };
-  } catch {
-    // Package not installed.
-  }
-  return null;
-}
+// OCR resolution moved to OcrCliController — this file no longer needs
+// resolveOcrCommand (the controller class handles it internally).
 
-// Vendored openwiki CLI entry. Module-level so both the legacy wiki IPC handler
-// and core's Phase 2 wiki actions (via the resolver below) share one path.
-const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
+// OPENWIKI_VENDOR_ENTRY is defined at the top of this file (near boot config).
 
-/**
- * Resolve the openwiki launch spec for a wiki action. Runs the vendored entry
- * through the bundled Node (ELECTRON_RUN_AS_NODE when Electron is the runtime)
- * and injects the current project's LLM credentials + flash model. The mode
- * ("init"|"update") flag is appended by the action, not here. Returns null when
- * the vendored entry or a suitable Node is missing. Injected into core via
- * configureWikiResolver so wiki.init/update/index.buildAll stay in core.
- */
-function resolveWikiCommand(_mode: "init" | "update"): {
-  command: string;
-  prefixArgs: string[];
-  env?: Record<string, string>;
-} | null {
-  try {
-    if (!statSync(OPENWIKI_VENDOR_ENTRY).isFile()) return null;
-    const node = resolveModernNode(22);
-    if (!node) return null;
-    const env: Record<string, string> = node === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {};
-    // LLM credentials from the current project's settings (flash-first strategy).
-    const root = getBridge().projectRoot;
-    if (root) {
-      const s = resolveCurrentSettings(root);
-      if (s.apiKey) env.OPENAI_API_KEY = s.apiKey;
-      if (s.baseURL) env.OPENAI_BASE_URL = s.baseURL;
-    }
-    env.OPENWIKI_MODEL = "deepseek-v4-flash";
-    return { command: node, prefixArgs: [OPENWIKI_VENDOR_ENTRY], env };
-  } catch {
-    // Vendored entry not present.
-  }
-  return null;
-}
-
-function registerCodeReviewIpc({ handle, handlePrivileged }: IpcHelpers): void {
-  // ── Code Review (ocr CLI) ──────────────────────────────────────────────────
-  // Legacy IPC path for the CodeReviewPanel Quality tab. The spawn logic now
-  // also lives in core as the `review.run` action (Phase 1) — both share the
-  // module-level resolveOcrCommand. This handler keeps the existing ReviewProgress
-  // chunk format the panel parses; it will delegate to the action once the panel
-  // migrates to ActionProgress.
-  handle(IpcRequest.ReviewCheckAvailable, (): Promise<{ available: boolean; version?: string }> => {
-    return new Promise((resolve) => {
-      const resolved = resolveOcrCommand();
-      if (!resolved) {
-        resolve({ available: false });
-        return;
-      }
-      const { command, prefixArgs, env } = resolved;
-      const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
-      execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
-        if (!err) {
-          resolve({ available: true, version: stdout.trim().split("\n")[0] });
-        } else {
-          // A bundled install counts as available even when --version probing fails.
-          resolve({ available: true });
-        }
-      });
-    });
-  });
-  // Review scope is fixed: uncommitted workspace changes (vs HEAD) in the current
-  // project — no branch/commit selection, the UI states the scope directly.
-  // ReviewRun spawns an external code-review process over the workspace.
-  handlePrivileged(IpcRequest.ReviewRun, (): Promise<{ ok: boolean; error?: string }> => {
-    const args = ["review", "--format", "json"];
-    return new Promise((resolve) => {
-      const resolved = resolveOcrCommand();
-      if (!resolved) {
-        emit(IpcEvent.ReviewProgress, { chunk: "", stream: "stdout", done: true, exitCode: 1 });
-        resolve({ ok: false, error: "Open Code Review is not bundled with this build." });
-        return;
-      }
-      try {
-        const { command, prefixArgs, env: exeEnv } = resolved;
-        const cp = spawn(command, [...prefixArgs, ...args], {
-          cwd: getBridge().projectRoot,
-          env: { ...(process.env as Record<string, string>), ...exeEnv },
-        });
-        trackHelperProcess(cp);
-        cp.stdout?.on("data", (d: Buffer) => {
-          emit(IpcEvent.ReviewProgress, { chunk: d.toString(), stream: "stdout", done: false });
-        });
-        cp.stderr?.on("data", (d: Buffer) => {
-          emit(IpcEvent.ReviewProgress, { chunk: d.toString(), stream: "stderr", done: false });
-        });
-        cp.on("error", (err) => {
-          emit(IpcEvent.ReviewProgress, { chunk: "", stream: "stdout", done: true, exitCode: 1 });
-          resolve({ ok: false, error: err.message });
-        });
-        cp.on("close", (code) => {
-          emit(IpcEvent.ReviewProgress, { chunk: "", stream: "stdout", done: true, exitCode: code ?? 0 });
-          resolve({ ok: code === 0, error: code !== 0 ? `exit code ${code}` : undefined });
-        });
-      } catch (err) {
-        resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
-      }
-    });
-  });
-}
+// Legacy registerCodeReviewIpc removed — CodeReviewPanel now uses review.full
+// action via api.actionRun(). The OcrCliController handles all OCR spawning.
 
 function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── code-review-graph (CRG — analysis-layer via uv/uvx) ────────────────────
@@ -1390,7 +1274,7 @@ function registerIpc(): void {
   registerWorkspaceIpc(helpers);
   registerGitIpc(helpers);
   registerCodegraphIpc(helpers);
-  registerCodeReviewIpc(helpers);
+  // registerCodeReviewIpc removed — actions replace legacy review IPC.
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerA2uiIpc(helpers);

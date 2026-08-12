@@ -1,12 +1,14 @@
 /**
- * Phase 2 CodeGraph actions (spec §四). Sink the symbol-level index lifecycle
- * into core actions so the agent and the unified index.buildAll orchestrator
- * can trigger it. Wraps the existing core helpers in `common/codegraph.ts`
- * (which own the vendored-binary + node:sqlite spawn). Requires Node 22.5+.
+ * CodeGraph actions — codegraph.reindex / codegraph.list.
+ *
+ * All SDK/subprocess logic has migrated to desktop's `SdkCodegraphController`
+ * (implements `CodegraphController`). These action definitions delegate to the
+ * host-injected controller. Core has zero CodeGraph-specific code.
  */
 
 import type { ActionDefinition, ActionRun } from "./types";
-import { hasCodegraphProject, runCodegraphResetAsync } from "../common/codegraph";
+import type { ControllerProgress } from "./codegraph-controller";
+import { getCodegraphController } from "./codegraph-controller";
 
 export interface CodegraphReindexOutput {
   readonly ok: boolean;
@@ -22,9 +24,13 @@ export const codegraphReindexDefinition: ActionDefinition = {
 };
 
 export const codegraphReindexRun: ActionRun<unknown, CodegraphReindexOutput> = async (_input, ctx) => {
-  ctx.emit({ message: "rebuilding CodeGraph symbol index", percent: 10 });
-  await runCodegraphResetAsync(ctx.projectRoot);
-  ctx.emit({ message: "CodeGraph symbol index built", percent: 100 });
+  const cg = getCodegraphController();
+  if (!cg) {
+    throw new Error(
+      "codegraph.reindex: no CodegraphController configured (host must call configureCodegraphController at boot)"
+    );
+  }
+  await cg.reindex(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
   return { ok: true };
 };
 
@@ -43,12 +49,13 @@ export const codegraphListDefinition: ActionDefinition = {
 };
 
 export const codegraphListRun: ActionRun<unknown, CodegraphIndexEntry[]> = async (_input, ctx) => {
+  const cg = getCodegraphController();
   const root = ctx.projectRoot;
   return [
     {
       root,
       label: root.split("/").pop() || root,
-      initialized: hasCodegraphProject(root),
+      initialized: cg ? cg.hasProject(root) : false,
     },
   ];
 };

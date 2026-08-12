@@ -21,6 +21,12 @@ export type {
   Spawner,
 } from "./types";
 
+// Controller seams (host-injected; core has zero tool-specific code).
+export { configureCodegraphController, getCodegraphController } from "./codegraph-controller";
+export type { CodegraphController, ControllerProgress } from "./codegraph-controller";
+export { configureReviewController, getReviewController } from "./review-controller";
+export type { ReviewController, ReviewResult, ReviewComment, ReviewOptions } from "./review-controller";
+
 // Bundled actions.
 export { pingDefinition, pingRun } from "./actions/ping";
 export type { PingInput, PingOutput } from "./actions/ping";
@@ -31,18 +37,8 @@ export {
   reviewCheckAvailableRun,
   reviewFullDefinition,
   reviewFullRun,
-  configureOcrResolver,
-  getOcrResolver,
 } from "./review";
-export type {
-  OcrCommand,
-  OcrResolver,
-  ReviewInput,
-  ReviewComment,
-  ReviewOutput,
-  ReviewAvailability,
-  ReviewFullOutput,
-} from "./review";
+export type { ReviewInput, ReviewAvailability, ReviewFullOutput } from "./review";
 export {
   crgReindexDefinition,
   crgReindexRun,
@@ -68,10 +64,10 @@ export {
   wikiListPagesRun,
   wikiReadPageDefinition,
   wikiReadPageRun,
-  configureWikiResolver,
-  getWikiResolver,
+  configureWikiController,
+  getWikiController,
 } from "./wiki";
-export type { WikiCommand, WikiResolver, WikiInitOutput, WikiPage } from "./wiki";
+export type { WikiInitOutput, WikiPage, WikiController, WikiResult } from "./wiki";
 export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";

@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { McpServerConfig } from "../settings";
 import { getExtensionRoot } from "../prompt";
-import { resolveSqliteRuntimeForEntry } from "../common/codegraph";
+import { resolveSqliteRuntimeForEntry } from "../common/sqlite-runtime";
 
 /**
  * GitMCP — local documentation MCP for external GitHub repositories.

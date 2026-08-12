@@ -122,29 +122,21 @@ export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getF
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";
 export { launchNotifyScript } from "./common/notify";
+// CodeGraph: constants + settings state + MCP config builder.
+// Index/sync operations migrated to desktop's SdkCodegraphController (SDK).
+// MCP tools still use subprocess via npm-shim.js (SDK's MCPServer lacks
+// connect(transport) for in-process bridging — future work).
 export {
   hasCodegraphProject,
   buildCodegraphMcpServerConfig,
-  configureCodegraphVendorRoot,
   setCodegraphDisabled,
   isCodegraphDisabled,
-  getCodegraphVendorRoot,
-  resolveCodegraphExecutable,
-  resolveModernNode,
-  runCodegraphCommand,
-  runCodegraphInit,
-  runCodegraphInitAsync,
-  runCodegraphSync,
-  runCodegraphSyncAsync,
-  runCodegraphResetAsync,
-  runCodegraphResetWithOutput,
-  spawnCodegraphPiped,
-  CODEGRAPH_PACKAGE,
   CODEGRAPH_MCP_SERVER_NAME,
   CODEGRAPH_DIR_NAME,
-  CODEGRAPH_VENDOR_ENTRY,
 } from "./common/codegraph";
-export type { CodegraphExecutable } from "./common/codegraph";
+// Node runtime resolution (extracted from codegraph.ts — shared by GitMCP + OpenWiki).
+export { resolveModernNode } from "./common/sqlite-runtime";
+export type { CodegraphExecutable } from "./common/sqlite-runtime";
 
 export {
   CRG_PACKAGE,
@@ -298,8 +290,8 @@ export {
   reviewCheckAvailableRun,
   reviewFullDefinition,
   reviewFullRun,
-  configureOcrResolver,
-  getOcrResolver,
+  configureReviewController,
+  getReviewController,
   crgReindexDefinition,
   crgReindexRun,
   crgVisualizeDefinition,
@@ -310,6 +302,8 @@ export {
   codegraphReindexRun,
   codegraphListDefinition,
   codegraphListRun,
+  configureCodegraphController,
+  getCodegraphController,
   wikiInitDefinition,
   wikiInitRun,
   wikiUpdateDefinition,
@@ -318,8 +312,8 @@ export {
   wikiListPagesRun,
   wikiReadPageDefinition,
   wikiReadPageRun,
-  configureWikiResolver,
-  getWikiResolver,
+  configureWikiController,
+  getWikiController,
   indexBuildAllDefinition,
   indexBuildAllRun,
   archScanRunDefinition,
@@ -341,9 +335,17 @@ export type {
   Spawner,
   PingInput,
   PingOutput,
-  OcrCommand,
-  OcrResolver,
   ReviewInput,
+  ReviewAvailability,
+  ReviewFullOutput,
+  CodegraphController,
+  ControllerProgress,
+  ReviewController,
+  ReviewResult,
   ReviewComment,
-  ReviewOutput,
+  ReviewOptions,
+  WikiController,
+  WikiResult,
+  WikiInitOutput,
+  WikiPage,
 } from "./actions";

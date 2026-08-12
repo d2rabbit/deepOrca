@@ -16,10 +16,10 @@ import {
   CRG_MCP_SERVER_NAME,
   SERENA_MCP_SERVER_NAME,
   SKILL_SPECTOR_MCP_SERVER_NAME,
-  buildCodegraphMcpServerConfig,
   buildCrgMcpServerConfig,
   buildSerenaMcpServerConfig,
   buildSkillSpectorMcpServerConfig,
+  hasCodegraphProject,
   isGitmcpServerName,
   resolveCurrentSettings,
 } from "@deeporca/core";
@@ -75,14 +75,13 @@ export function buildPluginMcpList(projectRoot: string, deps: PluginViewDeps): P
     });
   }
   // Built-in CodeGraph: shown even when a project has not run `init` yet, so it
-  // can be toggled. A user-provided `codegraph` entry (handled above) wins.
+  // can be toggled. Now in-process (SDK-backed) — show as initialized or not.
   if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
-    const cfg = buildCodegraphMcpServerConfig(projectRoot);
     list.push({
       name: CODEGRAPH_MCP_SERVER_NAME,
-      command: cfg.command,
-      args: (cfg.args ?? []).join(" "),
-      env: stringifyEnv(cfg.env),
+      command: "(in-process SDK)",
+      args: hasCodegraphProject(projectRoot) ? "initialized" : "not initialized",
+      env: "",
       enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
       builtin: true,
       status: statuses.get(CODEGRAPH_MCP_SERVER_NAME),
@@ -179,10 +178,9 @@ export async function buildBuiltinPluginGroups(
   // are synthesized from their builders so the group card lists them regardless.
   // Each carries enabled/status so the group detail can show a toggle + state dot.
   if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
-    const cfg = buildCodegraphMcpServerConfig(projectRoot);
     entries.push({
       name: CODEGRAPH_MCP_SERVER_NAME,
-      config: cfg,
+      config: { command: "(in-process SDK)", args: [] },
       builtin: true,
       enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
       status: statuses.get(CODEGRAPH_MCP_SERVER_NAME)?.status,

@@ -12,7 +12,8 @@ import { ActionRegistry, defineAction, dispatchToolCall } from "../actions";
 import { ActionError, NULL_SPAWNER } from "../actions";
 import type { ActionDefinition, ActionProgress, Spawner, SpawnedProcess } from "../actions";
 import { pingDefinition, pingRun } from "../actions";
-import { reviewRunDefinition, reviewRun, configureOcrResolver } from "../actions";
+import { reviewRunDefinition, reviewRun, configureReviewController } from "../actions";
+import type { ReviewResult } from "../actions";
 import { ToolExecutor } from "../tools/executor";
 
 const PROJECT_ROOT = "/tmp/test-project";
@@ -280,71 +281,37 @@ describe("defineAction primitive", { concurrency: 1 }, () => {
   });
 
   describe("review.run action (Phase 1 — ocr gains an MCP surface)", () => {
-    // review.run reads a host-injected ocr resolver + ctx.spawner. Each test
-    // configures its own resolver and clears it after, so concurrent tests don't
-    // leak module-level resolver state.
-    const cleanupResolver = (): void => configureOcrResolver(null);
+    const cleanupResolver = (): void => configureReviewController(null);
     afterEach(() => cleanupResolver());
 
-    test("spawns ocr, parses JSON, returns structured comments", async () => {
-      const ocrJson = JSON.stringify({
-        comments: [{ file: "src/a.ts", line: 10, severity: "critical", message: "null deref", suggestion: "guard" }],
-        summary: { total: 1 },
+    const mockResult: ReviewResult = {
+      status: "success",
+      llm: { model: "deepseek-v4-pro" },
+      summary: { filesReviewed: 1, comments: 1, totalTokens: 1000 },
+      comments: [{ path: "src/a.ts", startLine: 10, content: "null deref", suggestionCode: "guard" }],
+    };
+
+    test("returns structured comments via controller", async () => {
+      configureReviewController({
+        isAvailable: () => true,
+        runReview: async () => mockResult,
       });
-      configureOcrResolver(() => ({ command: "node", prefixArgs: ["ocr.js"], env: { ELECTRON_RUN_AS_NODE: "1" } }));
-      const spawner = mockSpawner([ocrJson], [], 0);
-      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT, spawner });
+      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT });
       r.register(reviewRunDefinition, reviewRun);
-      const out = await r.execute<unknown, { comments: { file: string }[]; summary: { total: number } }>(
-        "review.run",
-        {}
-      ).result;
+      const out = await r.execute<unknown, ReviewResult>("review.run", {}).result;
       assert.equal(out.comments.length, 1);
-      assert.equal(out.comments[0].file, "src/a.ts");
-      assert.equal(out.summary.total, 1);
+      assert.equal(out.comments[0].path, "src/a.ts");
+      assert.equal(out.status, "success");
     });
 
-    test("throws ACTION_FAILED when ocr resolver is not configured", async () => {
-      configureOcrResolver(null);
-      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT, spawner: mockSpawner([], [], 0) });
+    test("throws ACTION_FAILED when no ReviewController configured", async () => {
+      configureReviewController(null);
+      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT });
       r.register(reviewRunDefinition, reviewRun);
       await assert.rejects(
         () => r.execute("review.run", {}).result,
         (err: unknown) =>
-          err instanceof ActionError && err.code === "ACTION_FAILED" && /no ocr resolver/.test(err.message)
-      );
-    });
-
-    test("throws ACTION_FAILED when resolver reports ocr not bundled", async () => {
-      configureOcrResolver(() => null);
-      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT, spawner: mockSpawner([], [], 0) });
-      r.register(reviewRunDefinition, reviewRun);
-      await assert.rejects(
-        () => r.execute("review.run", {}).result,
-        (err: unknown) => err instanceof ActionError && err.code === "ACTION_FAILED" && /not bundled/.test(err.message)
-      );
-    });
-
-    test("throws ACTION_FAILED on non-zero ocr exit", async () => {
-      configureOcrResolver(() => ({ command: "node", prefixArgs: ["ocr.js"] }));
-      const r = new ActionRegistry({
-        projectRoot: PROJECT_ROOT,
-        spawner: mockSpawner([], ["boom error"], 2),
-      });
-      r.register(reviewRunDefinition, reviewRun);
-      await assert.rejects(
-        () => r.execute("review.run", {}).result,
-        (err: unknown) => err instanceof ActionError && err.code === "ACTION_FAILED" && /exited 2/.test(err.message)
-      );
-    });
-
-    test("throws ACTION_FAILED on non-JSON output", async () => {
-      configureOcrResolver(() => ({ command: "node", prefixArgs: ["ocr.js"] }));
-      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT, spawner: mockSpawner(["not json{"], [], 0) });
-      r.register(reviewRunDefinition, reviewRun);
-      await assert.rejects(
-        () => r.execute("review.run", {}).result,
-        (err: unknown) => err instanceof ActionError && err.code === "ACTION_FAILED" && /non-JSON/.test(err.message)
+          err instanceof ActionError && err.code === "ACTION_FAILED" && /no ReviewController/.test(err.message)
       );
     });
 
@@ -358,9 +325,11 @@ describe("defineAction primitive", { concurrency: 1 }, () => {
     });
 
     test("ToolExecutor dispatches review_run via the registry (LLM surface)", async () => {
-      const ocrJson = JSON.stringify({ comments: [{ file: "x.ts", line: 1, severity: "info", message: "ok" }] });
-      configureOcrResolver(() => ({ command: "node", prefixArgs: ["ocr.js"] }));
-      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT, spawner: mockSpawner([ocrJson], [], 0) });
+      configureReviewController({
+        isAvailable: () => true,
+        runReview: async () => mockResult,
+      });
+      const r = new ActionRegistry({ projectRoot: PROJECT_ROOT });
       r.register(reviewRunDefinition, reviewRun);
       const executor = new ToolExecutor(PROJECT_ROOT, undefined, undefined, r);
       const res = await executor.executeToolCalls("s1", [
@@ -368,7 +337,7 @@ describe("defineAction primitive", { concurrency: 1 }, () => {
       ]);
       assert.equal(res[0].result.ok, true);
       assert.equal(res[0].result.name, "review_run");
-      assert.match(res[0].result.output ?? "", /x\.ts/);
+      assert.match(res[0].result.output ?? "", /src\/a\.ts/);
     });
   });
 }); // close outer "defineAction primitive" describe
@@ -389,22 +358,5 @@ function asyncIterableOf(lines: string[]): AsyncIterable<string> {
         },
       };
     },
-  };
-}
-
-/** A mock Spawner for spawn-based action tests: returns scripted stdout/stderr
- * lines and an exit code, no real subprocess. Used by review.run tests. */
-function mockSpawner(stdoutLines: string[], stderrLines: string[], exitCode: number): Spawner {
-  return {
-    spawn() {
-      const proc: SpawnedProcess = {
-        stdout: asyncIterableOf(stdoutLines),
-        stderr: asyncIterableOf(stderrLines),
-        exited: Promise.resolve({ code: exitCode }),
-        kill() {},
-      };
-      return proc;
-    },
-    resolveNodeRunner: () => process.execPath,
   };
 }

@@ -25,7 +25,9 @@ import {
   pingRun,
   reviewRunDefinition,
   reviewRun,
-  configureOcrResolver,
+  configureReviewController,
+  type ReviewController,
+  type ReviewResult,
 } from "@deeporca/core";
 
 import {
@@ -97,25 +99,27 @@ describe("ElectronNodeSpawner", () => {
 
 describe("review.run via IPC (Phase 1 — same action, second surface)", () => {
   // Proves the SAME review.run action reachable from the LLM (core's executor
-  // dispatch) is also reachable through the IPC handler. Uses the real
-  // ElectronNodeSpawner + a mock ocr resolver that runs a tiny node script
-  // emitting JSON — so the spawn path through the desktop spawner is exercised.
-  const cleanup = (): void => configureOcrResolver(null);
+  // dispatch) is also reachable through the IPC handler. Uses a mock
+  // ReviewController — the real OcrCliController lives in desktop/main/tools.
+  const cleanup = (): void => configureReviewController(null);
   afterEach(cleanup);
 
-  test("ActionRun('review.run') spawns ocr and returns structured comments", async () => {
-    // Mock resolver: a node one-liner that prints the ocr-shaped JSON. The
-    // trailing "review --format json" args are positional and ignored by -e.
-    const ocrJson = JSON.stringify({
-      comments: [{ file: "src/ipc.ts", line: 5, severity: "warning", message: "ipc finding" }],
-      summary: { total: 1 },
+  test("ActionRun('review.run') returns structured comments via controller", async () => {
+    const mockResult: ReviewResult = {
+      status: "success",
+      llm: { model: "deepseek-v4-pro" },
+      summary: { filesReviewed: 3, comments: 1, totalTokens: 5000 },
+      comments: [{ path: "src/ipc.ts", startLine: 5, content: "ipc finding", suggestionCode: "fix" }],
+    };
+    configureReviewController({
+      isAvailable: () => true,
+      runReview: async (_root, _opts, onProgress) => {
+        onProgress?.({ message: "mock review", percent: 50 });
+        return mockResult;
+      },
     });
-    configureOcrResolver(() => ({
-      command: process.execPath,
-      prefixArgs: ["-e", `process.stdout.write(${JSON.stringify(ocrJson)})`],
-    }));
 
-    const registry = new ActionRegistry({ projectRoot: PROJECT_ROOT, spawner: new ElectronNodeSpawner() });
+    const registry = new ActionRegistry({ projectRoot: PROJECT_ROOT });
     registry.register(pingDefinition, pingRun);
     registry.register(reviewRunDefinition, reviewRun);
 
@@ -128,12 +132,13 @@ describe("review.run via IPC (Phase 1 — same action, second surface)", () => {
     const runFn = handlers.get(IpcActionChannel.Run)! as (id: string, input: unknown) => Promise<unknown>;
     const res = (await runFn("review.run", {})) as {
       ok: boolean;
-      output: { comments: { file: string }[]; summary: { total: number } };
+      output: ReviewResult;
     };
     assert.equal(res.ok, true);
     assert.equal(res.output.comments.length, 1);
-    assert.equal(res.output.comments[0].file, "src/ipc.ts");
-    assert.equal(res.output.summary.total, 1);
+    assert.equal(res.output.comments[0].path, "src/ipc.ts");
+    assert.equal(res.output.comments[0].startLine, 5);
+    assert.equal(res.output.summary?.comments, 1);
     // Progress streamed over the unified action channel.
     assert.ok(emitted.some((e) => e.channel === IpcActionEvent.Progress));
   });
