@@ -10,6 +10,8 @@ mcp:
 skills:
   - name: openwiki
     description: "项目 Wiki 知识图谱自动生成与维护"
+  - name: wiki-qa
+    description: "通过 Wiki 知识库回答架构/模块/工作流问题"
 ---
 
 # 知识行为插件

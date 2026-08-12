@@ -185,6 +185,15 @@ configureWikiController(
         return {};
       }
     },
+    getLanguage: () => {
+      // Derive BCP-47 from app locale (e.g. "zh-CN", "en-US").
+      // Falls back to undefined (OpenWiki defaults to English).
+      try {
+        return Intl?.DateTimeFormat()?.resolvedOptions()?.locale ?? undefined;
+      } catch {
+        return undefined;
+      }
+    },
   })
 );
 

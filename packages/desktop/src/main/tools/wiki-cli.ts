@@ -7,7 +7,11 @@
  * into DeepOrca's dependency graph).
  *
  * LLM credentials are passed via env vars (OPENAI_API_KEY / OPENAI_BASE_URL /
- * OPENWIKI_MODEL) — the controller reads them from the current project settings.
+ * OPENWIKI_MODEL). Language is derived from the app locale and passed via
+ * OPENWIKI_LANGUAGE so wiki pages are generated in the user's language.
+ *
+ * The --print flag is used to get structured output (progress + result) on
+ * stdout instead of the interactive TUI.
  */
 
 import { spawn } from "node:child_process";
@@ -22,6 +26,7 @@ export class WikiCliController implements WikiController {
       electronRunAsNode?: boolean;
       getProjectRoot?: () => string;
       getLlmCreds?: () => { apiKey?: string; baseURL?: string; model?: string };
+      getLanguage?: () => string | undefined;
     }
   ) {}
 
@@ -61,20 +66,31 @@ export class WikiCliController implements WikiController {
     if (creds?.baseURL) env.OPENAI_BASE_URL = creds.baseURL;
     env.OPENWIKI_MODEL = creds?.model ?? "deepseek-v4-flash";
 
+    // Language: derive from app locale so wiki pages are generated in the
+    // user's language (OpenWiki reads OPENWIKI_LANGUAGE as BCP-47).
+    const lang = this.opts.getLanguage?.();
+    if (lang) {
+      env.OPENWIKI_LANGUAGE = lang;
+    }
+
+    // Use --print for structured non-interactive output (no TUI).
     const flag = mode === "init" ? "--init" : "--update";
+    const args = [this.opts.vendorEntry, flag, "--print"];
     onProgress?.({ message: `openwiki ${flag}`, percent: 10 });
 
     return new Promise<WikiResult>((resolve, reject) => {
-      const child = spawn(this.opts.nodeRunner, [this.opts.vendorEntry, flag], {
+      const child = spawn(this.opts.nodeRunner, args, {
         cwd: root,
         env: { ...process.env, ...env },
         stdio: ["ignore", "pipe", "pipe"],
       });
 
       const stderrLines: string[] = [];
+      const stdoutLines: string[] = [];
 
       child.stdout?.on("data", (chunk: Buffer) => {
         const text = chunk.toString();
+        stdoutLines.push(text);
         for (const line of text.split("\n")) {
           if (line.trim()) {
             onProgress?.({ message: `wiki: ${line.slice(0, 120)}` });
@@ -97,7 +113,13 @@ export class WikiCliController implements WikiController {
           return;
         }
         onProgress?.({ message: `wiki ${mode} complete`, percent: 100 });
-        resolve({ ok: true, model: env.OPENWIKI_MODEL });
+        // Try to parse model from stdout output (--print mode).
+        const stdout = stdoutLines.join("");
+        const modelMatch = stdout.match(/model[:\s]+([^\s,]+)/i);
+        resolve({
+          ok: true,
+          model: modelMatch?.[1] ?? env.OPENWIKI_MODEL,
+        });
       });
     });
   }

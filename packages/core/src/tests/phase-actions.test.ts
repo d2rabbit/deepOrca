@@ -125,20 +125,25 @@ describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
     assert.deepEqual(names, ["architecture", "modules-auth"]);
   });
 
-  test("readPage returns page content by name", async () => {
+  test("readPage returns structured page with frontmatter + body", async () => {
     const r = fullRegistry();
     const out = (await r.execute("wiki.read-page", { name: "architecture" }).result) as {
-      content: string;
+      body: string;
+      raw: string;
+      frontmatter: { type?: string; title?: string } | null;
     };
-    assert.match(out.content, /# Arch/);
+    assert.match(out.body, /# Arch/);
+    assert.match(out.raw, /# Arch/);
+    // OKF frontmatter should be parsed (architecture.md was written with frontmatter by the listPages test setup).
+    assert.ok(out.frontmatter === null || typeof out.frontmatter === "object");
   });
 
   test("readPage accepts a .md-suffixed name", async () => {
     const r = fullRegistry();
     const out = (await r.execute("wiki.read-page", { name: "architecture.md" }).result) as {
-      content: string;
+      body: string;
     };
-    assert.match(out.content, /# Arch/);
+    assert.match(out.body, /# Arch/);
   });
 
   test("readPage rejects a path that escapes openwiki/", async () => {

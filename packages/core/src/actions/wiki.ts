@@ -57,17 +57,48 @@ export const wikiUpdateRun: ActionRun<unknown, WikiInitOutput> = async (_input, 
   return wc.update(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
 };
 
-// ── wiki.list-pages / wiki.read-page (pure fs) ───────────────────────────────
+// ── wiki.list-pages / wiki.read-page (pure fs + OKF frontmatter) ─────────────
+
+import matter from "gray-matter";
+
+/** OKF frontmatter fields parsed from each wiki page. */
+export interface WikiFrontmatter {
+  type?: string;
+  title?: string;
+  description?: string;
+  tags?: string[];
+}
 
 export interface WikiPage {
   readonly name: string;
   readonly path: string;
+  readonly title?: string;
+  readonly type?: string;
+}
+
+/** Parse OKF frontmatter from markdown content. Returns null when absent/invalid. */
+function parseFrontmatter(content: string): WikiFrontmatter | null {
+  try {
+    const parsed = matter(content);
+    const d = parsed.data;
+    if (typeof d !== "object" || d === null) return null;
+    const fm: WikiFrontmatter = {};
+    if (typeof d.type === "string") fm.type = d.type;
+    if (typeof d.title === "string") fm.title = d.title;
+    if (typeof d.description === "string") fm.description = d.description;
+    if (Array.isArray(d.tags) && d.tags.every((t: unknown) => typeof t === "string")) {
+      fm.tags = d.tags as string[];
+    }
+    return Object.keys(fm).length > 0 ? fm : null;
+  } catch {
+    return null;
+  }
 }
 
 export const wikiListPagesDefinition: ActionDefinition = {
   id: "wiki.list-pages",
   description:
-    "List the wiki pages (markdown files) in the project's openwiki/ directory. Returns [] if no wiki has been generated.",
+    "List the wiki pages (markdown files) in the project's openwiki/ directory, with OKF frontmatter metadata (title, type). Returns [] if no wiki has been generated.",
   category: "index",
   parameters: { type: "object", properties: {}, additionalProperties: false },
 };
@@ -78,16 +109,39 @@ export const wikiListPagesRun: ActionRun<unknown, WikiPage[]> = async (_input, c
   const pages: WikiPage[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isFile() && entry.name.endsWith(".md")) {
-      pages.push({ name: entry.name.replace(/\.md$/, ""), path: `${OPENWIKI_DIR}/${entry.name}` });
+      const fullPath = path.join(dir, entry.name);
+      let title: string | undefined;
+      let type: string | undefined;
+      try {
+        const fm = parseFrontmatter(fs.readFileSync(fullPath, "utf8"));
+        title = fm?.title;
+        type = fm?.type;
+      } catch {
+        // Read error — skip metadata.
+      }
+      pages.push({
+        name: entry.name.replace(/\.md$/, ""),
+        path: `${OPENWIKI_DIR}/${entry.name}`,
+        title,
+        type,
+      });
     }
   }
-  return pages.sort((a, b) => a.name.localeCompare(b.name));
+  return pages.sort((a, b) => (a.title ?? a.name).localeCompare(b.title ?? b.name));
 };
+
+export interface WikiPageDetail {
+  readonly name: string;
+  readonly path: string;
+  readonly frontmatter: WikiFrontmatter | null;
+  readonly body: string;
+  readonly raw: string;
+}
 
 export const wikiReadPageDefinition: ActionDefinition<{ name: string }> = {
   id: "wiki.read-page",
   description:
-    "Read a wiki page's markdown content by name (e.g. 'architecture', 'modules/auth'). Confined to the project's openwiki/ directory.",
+    "Read a wiki page by name (e.g. 'architecture', 'modules/auth'). Returns structured OKF frontmatter (type/title/description/tags) + body + raw markdown. Confined to the project's openwiki/ directory.",
   category: "index",
   parameters: {
     type: "object",
@@ -97,7 +151,7 @@ export const wikiReadPageDefinition: ActionDefinition<{ name: string }> = {
   },
 };
 
-export const wikiReadPageRun: ActionRun<{ name: string }, { name: string; content: string }> = async (input, ctx) => {
+export const wikiReadPageRun: ActionRun<{ name: string }, WikiPageDetail> = async (input, ctx) => {
   const dir = path.resolve(ctx.projectRoot, OPENWIKI_DIR);
   const raw = input.name.endsWith(".md") ? input.name : `${input.name}.md`;
   const resolved = path.resolve(dir, raw);
@@ -108,5 +162,13 @@ export const wikiReadPageRun: ActionRun<{ name: string }, { name: string; conten
   if (!fs.existsSync(resolved)) {
     throw new Error(`wiki.read-page: no such page "${input.name}"`);
   }
-  return { name: input.name, content: fs.readFileSync(resolved, "utf8") };
+  const rawContent = fs.readFileSync(resolved, "utf8");
+  const parsed = matter(rawContent);
+  return {
+    name: input.name,
+    path: `${OPENWIKI_DIR}/${raw}`,
+    frontmatter: parseFrontmatter(rawContent),
+    body: parsed.content,
+    raw: rawContent,
+  };
 };

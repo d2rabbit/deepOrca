@@ -67,7 +67,7 @@ export {
   configureWikiController,
   getWikiController,
 } from "./wiki";
-export type { WikiInitOutput, WikiPage, WikiController, WikiResult } from "./wiki";
+export type { WikiInitOutput, WikiPage, WikiPageDetail, WikiFrontmatter, WikiController, WikiResult } from "./wiki";
 export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";

@@ -17,6 +17,7 @@ import {
   isCodegraphDisabled,
 } from "./common/codegraph";
 import { getCodegraphController } from "./actions/codegraph-controller";
+import { getWikiController } from "./actions/wiki-controller";
 import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
 import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import {
@@ -581,6 +582,8 @@ export class SessionManager {
   private readonly codegraphDirtySessions = new Set<string>();
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
   private readonly crgDirtySessions = new Set<string>();
+  /** Sessions that mutated files during the current turn and need a wiki update. */
+  private readonly wikiDirtySessions = new Set<string>();
   /** Memory Gateway client (null when memory is disabled or Gateway unavailable). */
   /** Memory provider (null when memory is disabled or not yet initialized). */
   private memoryProvider: MemoryProvider | null = null;
@@ -2787,6 +2790,7 @@ ${content}
       this.maybeNotifyTaskCompletion(sessionId, notify, startedAt, env);
       this.maybeSyncCodegraphIndex(sessionId);
       this.maybeSyncCrgIndex(sessionId);
+      this.maybeSyncWikiIndex(sessionId);
       this.maybeCaptureMemory(sessionId);
     }
   }
@@ -3276,6 +3280,8 @@ ${content}
     this.codegraphDirtySessions.add(sessionId);
     // Same for the CRG graph (see maybeSyncCrgIndex).
     this.crgDirtySessions.add(sessionId);
+    // Same for the wiki (see maybeSyncWikiIndex).
+    this.wikiDirtySessions.add(sessionId);
   }
 
   /**
@@ -3287,6 +3293,19 @@ ${content}
       return;
     }
     void getCodegraphController()?.sync(this.projectRoot);
+  }
+
+  /**
+   * After a task turn ends, run an incremental wiki update if this turn
+   * mutated files. Fire-and-forget; the wiki controller's update() is
+   * safe to call frequently (OpenWiki --update is diff-based, skips when
+   * nothing changed).
+   */
+  private maybeSyncWikiIndex(sessionId: string): void {
+    if (!this.wikiDirtySessions.delete(sessionId)) {
+      return;
+    }
+    void getWikiController()?.update(this.projectRoot);
   }
 
   /**

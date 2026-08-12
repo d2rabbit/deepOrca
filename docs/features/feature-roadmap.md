@@ -100,26 +100,27 @@
 ## 二、知识中心
 
 > 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究——让 Agent 越用越懂项目，不遗忘已学的事实，知道用户做了什么。
+>
+> 索引与知识模块不仅服务于 AI agent 的代码理解，也是**人类用户快速了解项目**的入口。在 vibe coding 时代，非开发者（产品经理、设计师、新成员）可以通过 wiki 首页 + 架构图快速理解项目结构，而无需读源码。
 
 ### 已集成
 
 | 能力                     | 项目                       | 集成形态                        | 定位                                       |
 | ------------------------ | -------------------------- | ------------------------------- | ------------------------------------------ |
-| 项目 Wiki 自动生成与维护 | **openwiki**               | vendored CLI + Skill + 桌面面板 | 为代码库生成 Agent 可引用的结构化文档      |
+| 项目 Wiki 自动生成与维护 | **openwiki**               | vendored CLI + Skill + 桌面面板 | 为代码库生成 Agent 可引用的结构化文档；同时是人类可导航的知识库入口 |
 | 跨会话长期记忆           | **TencentDB-Agent-Memory** | core SDK（perf 分支）           | 四层记忆 + 符号化检索，替换了原规划的 mem0 |
+| Wiki 问答 skill          | **wiki-qa**（内置 skill）  | SKILL.md + openwiki chat 模式  | 通过 OpenWiki 的 DeepAgents RAG 回答架构/模块/工作流问题 |
+| Wiki post-turn 自动更新  | session.ts maybeSyncWikiIndex | fire-and-forget post-turn hook | 代码变更后自动增量更新 wiki（同 CodeGraph sync 模式） |
+| OKF frontmatter 解析     | wiki.read-page / list-pages | gray-matter 解析               | wiki 页面返回结构化元数据(type/title/tags)，agent 可快速定位 |
 
 ### 规划中
 
 | 能力         | 项目                                                     | 集成形态                                                                                    | 贡献                                                                                                                                                                                                                              | 优先级 |
 | ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | **行为记忆** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（~2000 行），InMemoryTransport MCP server，vendor nocta-recorder 二进制 | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）→ 6 个 MCP 工具。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(TDAM) + 行为记忆(frames)」双层记忆。详见 `specs/activity-frames/design.md` | **P2** |
+| **OpenWiki connector 消费 CodeGraph MCP** | OpenWiki connectors 系统 | WikiCliController.init 前写入 connector config | wiki 生成时消费 CodeGraph MCP 作为知识源，获得真实调用图上下文，生成的架构文档基于代码结构而非猜测。配置 `~/.openwiki/connectors/custom-mcp/config.json` 指向当前项目的 CodeGraph MCP | **P2** |
+| **OpenWiki 定时自动更新** | OpenWiki scheduling + 引擎侧定时任务框架 | cron 调度 + Electron 定时器 | 定时（如每天/每次 git pull 后）自动 `openwiki --update`，不依赖代码变更事件。vendored CLI 已有 scheduling 基础设施（`onboarding.d.ts OnboardingSourceScheduleConfig`），需 DeepOrca 引擎侧加定时任务框架 | **P3** |
 | 多轮深度研究 | **Open Deep Research** 理念                              | 借鉴工作流，Node.js 自建轻量版                                                              | 从"单次 WebSearch"升级为"搜索→反思→再搜索→报告"的多轮循环                                                                                                                                                                         | P3     |
-
-**关系说明**：
-
-- **三层记忆体系**：TDAM（对话记忆，「说了什么」）+ activity-frames（行为记忆，「做了什么」）+ openwiki（知识记忆，「项目是什么」）。三者互补不重叠。
-- **activity-frames TS 重写理由**：原项目是纯 Python 零依赖数据变换库（~2500 行），但其 MCP server 是手写 JSON-RPC 子进程。DeepOrca 的「零外部运行时依赖」原则要求 TS 原生实现。重写后走 InMemoryTransport（同 a2ui server），无需 Python/子进程。
-- Open Deep Research 是 Python（LangGraph），违背零依赖。借鉴其 4 阶段工作流（摘要→研究→压缩→报告），用 DeepOrca 的 Node.js 引擎自建轻量版。
 
 ---
 
