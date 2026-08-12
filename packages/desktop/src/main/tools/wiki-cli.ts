@@ -16,7 +16,12 @@
 
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import type { WikiController, WikiResult, ControllerProgress } from "@deeporca/core";
+
+const CONNECTOR_CONFIG_DIR = path.join(os.homedir(), ".openwiki", "connectors", "custom-mcp");
+const CONNECTOR_CONFIG_FILE = path.join(CONNECTOR_CONFIG_DIR, "config.json");
 
 export class WikiCliController implements WikiController {
   constructor(
@@ -39,11 +44,54 @@ export class WikiCliController implements WikiController {
   }
 
   async init(root: string, onProgress?: (p: ControllerProgress) => void): Promise<WikiResult> {
+    this.configureCodegraphConnector(root);
     return this.run("init", root, onProgress);
   }
 
   async update(root: string, onProgress?: (p: ControllerProgress) => void): Promise<WikiResult> {
+    this.configureCodegraphConnector(root);
     return this.run("update", root, onProgress);
+  }
+
+  /**
+   * Write OpenWiki connector config so the wiki agent can consume CodeGraph MCP
+   * as a knowledge source during wiki generation. Only writes when:
+   *   1. A `.codegraph/` index exists in the project (stage 1 completed).
+   *   2. CodeGraph's npm-shim.js is resolvable.
+   * Non-fatal — wiki proceeds without CodeGraph context on any failure.
+   */
+  private configureCodegraphConnector(root: string): void {
+    try {
+      if (!fs.existsSync(path.join(root, ".codegraph"))) return;
+      let shimPath: string;
+      try {
+        const pkgPath = require.resolve("@colbymchenry/codegraph/package.json");
+        shimPath = path.join(path.dirname(pkgPath), "npm-shim.js");
+        if (!fs.existsSync(shimPath)) return;
+      } catch {
+        return;
+      }
+      const config = {
+        enabled: true,
+        mode: "mcp-stdio",
+        transport: {
+          type: "stdio" as const,
+          command: this.opts.nodeRunner,
+          args: [shimPath, "serve", "--mcp"],
+        },
+        allowedTools: [
+          "codegraph_explore",
+          "codegraph_search",
+          "codegraph_callers",
+          "codegraph_callees",
+          "codegraph_impact",
+        ],
+      };
+      fs.mkdirSync(CONNECTOR_CONFIG_DIR, { recursive: true });
+      fs.writeFileSync(CONNECTOR_CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
+    } catch {
+      // Non-fatal: wiki generation proceeds without CodeGraph context.
+    }
   }
 
   private async run(
