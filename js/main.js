@@ -26,7 +26,7 @@ const I18N = {
     "hero.t3": "● 正在编辑文件并验证…",
     "hero.t4": "✓ 原型已生成，预览就绪",
 
-    "pillars.tag": "// 三大核心能力",
+    "pillars.tag": "✦ 三大核心能力",
     "pillars.title": "独立可用 · 按需组合",
     "pillars.sub": "从一句话需求到可交互原型、可交付设计稿、可运行代码 —— 每条管线都由同一个 Agent 引擎驱动。",
     "pillars.p1t": "原型设计",
@@ -48,7 +48,7 @@ const I18N = {
     "pillars.p3c": "版本管理",
     "pillars.p3p": "“把这个模块重构成依赖注入”",
 
-    "modules.tag": "// 核心模块",
+    "modules.tag": "✦ 核心模块",
     "modules.title": "完整的创作工作台",
     "modules.sub": "从会话、编辑到索引、审查、记忆，一应俱全。",
     "mod.1t": "AI 会话工作台",
@@ -68,7 +68,7 @@ const I18N = {
     "mod.8t": "多语言界面",
     "mod.8d": "简/繁中文、English、日本語、한국어、香港繁体 —— 6 种界面语言。",
 
-    "extend.tag": "// 扩展生态",
+    "extend.tag": "✦ 扩展生态",
     "extend.title": "随时给虎鲸换上新装备",
     "extend.sub": "技能、开放协议、自动化 —— 三层扩展体系，能力边界由你决定。",
     "extend.act": "⚡ Actions：能力一次定义，多处调用",
@@ -88,7 +88,7 @@ const I18N = {
     "extend.e3d": "代码索引、安全扫描、浏览器自动化等能力全部内置，开箱即用。",
     "extend.e3s": "安装即用，无需配置环境",
 
-    "gallery.tag": "// 界面预览",
+    "gallery.tag": "✦ 界面预览",
     "gallery.title": "工作区 · 会话 · 源码管理",
     "gallery.sub": "Orca 深色主题实拍 —— 点击查看大图。",
     "gal.welcome": "欢迎页 · 快速开始",
@@ -103,7 +103,7 @@ const I18N = {
     "gal.preview": "实时预览 · 原型即所得",
     "gal.settings": "设置 · 模型与主题",
 
-    "roadmap.tag": "// 发展路线图",
+    "roadmap.tag": "✦ 发展路线图",
     "roadmap.title": "正在发生的下一步",
     "roadmap.sub": "路线图可能包含尚未交付的目标能力，以仓库当前实现为准。",
     "road.1t": "Actions 能力面扩展",
@@ -161,7 +161,7 @@ const I18N = {
     "dom.18t": "3D 与制造",
     "dom.18d": "CAD 模型生成 · 3D 交互预览",
 
-    "boot.tag": "// 快速开始",
+    "boot.tag": "✦ 快速开始",
     "boot.title": "三步部署，即刻创作",
     "boot.sub": "需要 Node.js 22+ 与 npm 10.9+；Windows 上 bash 工具需要 Git Bash。",
     "boot.1t": "获取应用",
@@ -203,7 +203,7 @@ const I18N = {
     "hero.t3": "● Editing files and verifying…",
     "hero.t4": "✓ Prototype ready — preview available",
 
-    "pillars.tag": "// Three Core Capabilities",
+    "pillars.tag": "✦ Three Core Capabilities",
     "pillars.title": "Independent · Composable",
     "pillars.sub":
       "From a one-line brief to an interactive prototype, a deliverable design doc, and runnable code — every pipeline is driven by the same agent engine.",
@@ -229,7 +229,7 @@ const I18N = {
     "pillars.p3c": "Version control",
     "pillars.p3p": "“Refactor this module to dependency injection”",
 
-    "modules.tag": "// Core Modules",
+    "modules.tag": "✦ Core Modules",
     "modules.title": "A Complete Creation Workbench",
     "modules.sub": "Sessions, editing, indexing, review and memory — all included.",
     "mod.1t": "AI Session Workbench",
@@ -249,7 +249,7 @@ const I18N = {
     "mod.8t": "Multilingual UI",
     "mod.8d": "Simplified/Traditional Chinese, English, Japanese, Korean — 6 UI languages.",
 
-    "extend.tag": "// Ecosystem",
+    "extend.tag": "✦ Ecosystem",
     "extend.title": "Gear Up Your Orca",
     "extend.sub": "Skills, open protocols and automation — a three-layer extension system where you define the boundary.",
     "extend.act": "⚡ Actions: Define Once, Surface Everywhere",
@@ -269,7 +269,7 @@ const I18N = {
     "extend.e3d": "Code indexing, security scanning, browser automation and more — all built in and ready to use.",
     "extend.e3s": "Ready to use, zero setup",
 
-    "gallery.tag": "// Screenshots",
+    "gallery.tag": "✦ Screenshots",
     "gallery.title": "Workspace · Sessions · Source Control",
     "gallery.sub": "Shot in the Orca dark theme — click to enlarge.",
     "gal.welcome": "Welcome · Quick start",
@@ -284,7 +284,7 @@ const I18N = {
     "gal.preview": "Live Preview · WYSIWYG prototype",
     "gal.settings": "Settings · Models & themes",
 
-    "roadmap.tag": "// Roadmap",
+    "roadmap.tag": "✦ Roadmap",
     "roadmap.title": "What's Happening Next",
     "roadmap.sub": "The roadmap may describe capabilities not yet shipped — the repo is the source of truth.",
     "road.1t": "Actions Surface Expansion",
@@ -342,7 +342,7 @@ const I18N = {
     "dom.18t": "3D & Manufacturing",
     "dom.18d": "CAD model generation · interactive 3D preview",
 
-    "boot.tag": "// Quickstart",
+    "boot.tag": "✦ Quickstart",
     "boot.title": "Three Steps to Create",
     "boot.sub": "Requires Node.js 22+ and npm 10.9+. On Windows, the bash tool needs Git Bash.",
     "boot.1t": "Get the App",
