@@ -27,14 +27,8 @@ import {
   SKILL_SPECTOR_MCP_SERVER_NAME,
   isSkillSpectorDisabled,
 } from "./common/skill-spector";
-import {
-  A2UI_MCP_SERVER_NAME,
-  buildA2uiServer,
-  isA2uiDisabled,
-  persistSurfaces,
-  restoreSurfaces,
-} from "./mcp/a2ui-mcp";
-import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames/index";
+import { A2UI_MCP_SERVER_NAME, isA2uiDisabled, getA2uiServerBuilder, type A2uiLifecycle } from "./mcp/a2ui-seam";
+import { ACTIVITY_FRAMES_MCP_SERVER_NAME, getActivityFramesServerBuilder } from "./mcp/activity-frames-seam";
 import { VISION_MCP_SERVER_NAME, getVisionServerBuilder } from "./mcp/vision-seam";
 /** Memory provider interface — implemented by @deeporca/memory or any compatible provider. */
 export interface MemoryProvider {
@@ -682,6 +676,8 @@ export class SessionManager {
   /** Memory Gateway client (null when memory is disabled or Gateway unavailable). */
   /** Memory provider (null when memory is disabled or not yet initialized). */
   private memoryProvider: MemoryProvider | null = null;
+  /** A2UI lifecycle bundle (null when A2UI is disabled or builder not injected). */
+  private currentA2uiLifecycle: A2uiLifecycle | null = null;
   private readonly messageConverter: OpenAIMessageConverter;
 
   /**
@@ -1119,13 +1115,19 @@ If the query is simple (single intent), respond with a single-element array.`;
 
     // Connect the A2UI in-process MCP server (runs via InMemoryTransport,
     // no subprocess). Always available unless explicitly disabled.
+    // The server builder + surface lifecycle are injected by the desktop host.
     if (!isA2uiDisabled(this.projectRoot)) {
-      const a2uiServer = buildA2uiServer();
-      // Restore persisted surfaces AFTER buildA2uiServer() (which clears the
-      // module-level surfaces Map to prevent cross-session leaks). This way
-      // restored surfaces survive the clear and are available immediately.
-      restoreSurfaces(this.projectRoot);
-      await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, a2uiServer);
+      const a2uiBuilder = getA2uiServerBuilder();
+      if (a2uiBuilder) {
+        const lifecycle = a2uiBuilder();
+        if (lifecycle) {
+          // Restore persisted surfaces AFTER the builder (which clears the
+          // module-level surfaces Map to prevent cross-session leaks).
+          lifecycle.restoreSurfaces(this.projectRoot);
+          await this.mcpManager.connectInProcessServer(A2UI_MCP_SERVER_NAME, lifecycle.server);
+          this.currentA2uiLifecycle = lifecycle;
+        }
+      }
     }
 
     // CodeGraph MCP tools stay as subprocess (npm-shim.js) — see augmentMcpServersWithBuiltins.
@@ -1135,9 +1137,13 @@ If the query is simple (single intent), respond with a single-element array.`;
     // Connect the Activity-Frames in-process MCP server (behavioral memory).
     // Provides 6 tools for querying local screen activity. If no capture DB
     // exists, tools return "DB not found" errors gracefully.
+    // The server builder is injected by the desktop host via seam.
     try {
-      const afServer = buildActivityFramesServer(undefined, this.projectRoot);
-      await this.mcpManager.connectInProcessServer(ACTIVITY_FRAMES_MCP_SERVER_NAME, afServer);
+      const afBuilder = getActivityFramesServerBuilder();
+      if (afBuilder) {
+        const afServer = afBuilder(undefined, this.projectRoot);
+        await this.mcpManager.connectInProcessServer(ACTIVITY_FRAMES_MCP_SERVER_NAME, afServer);
+      }
     } catch {
       // Activity DB not available — tools will report gracefully.
     }
@@ -1197,7 +1203,8 @@ If the query is simple (single intent), respond with a single-element array.`;
     // Flush any pending debounced index write before teardown.
     this.flushSessionsIndex();
     // Persist prototype surfaces to disk before teardown.
-    persistSurfaces(this.projectRoot);
+    this.currentA2uiLifecycle?.persistSurfaces(this.projectRoot);
+    this.currentA2uiLifecycle = null;
     // Release cached messages to free memory.
     this.messageCache.clear();
     // Drop the router bundle so a disposed manager cannot keep serving routes.

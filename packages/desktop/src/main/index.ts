@@ -34,6 +34,8 @@ import {
   configureCodegraphController,
   configureWikiController,
   configureVisionServerBuilder,
+  configureA2uiServerBuilder,
+  configureActivityFramesServerBuilder,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -59,6 +61,8 @@ import { OcrCliController } from "./tools/ocr-cli.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
+import { a2uiServerBuilder } from "./tools/a2ui/index.js";
+import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { safeWikiPath } from "./safe-path.js";
@@ -206,6 +210,13 @@ configureWikiController(
 // DeepSeek) the ability to understand images via a vision-capable proxy model.
 // The builder is injected here; core connects it when a vision model is configured.
 configureVisionServerBuilder(buildVisionServer);
+
+// A2UI MCP: built-in in-process MCP server for interactive prototypes/designs.
+// The builder + surface lifecycle are injected here; core connects via seam.
+configureA2uiServerBuilder(a2uiServerBuilder);
+
+// Activity-Frames MCP: built-in in-process MCP server for behavioral memory.
+configureActivityFramesServerBuilder(buildActivityFramesServer);
 
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back

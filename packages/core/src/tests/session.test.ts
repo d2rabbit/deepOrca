@@ -10,7 +10,7 @@ import { setSerenaDisabled } from "../common/serena-mcp";
 import { setSkillSpectorDisabled } from "../common/skill-spector";
 import { setCodegraphDisabled } from "../common/codegraph";
 import { setCrgDisabled } from "../common/crg";
-import { setA2uiDisabled } from "../mcp/a2ui-mcp";
+import { setA2uiDisabled } from "../mcp/a2ui-seam";
 import { getProjectCode, SessionManager, type SessionMessage } from "../session";
 
 const originalFetch = globalThis.fetch;

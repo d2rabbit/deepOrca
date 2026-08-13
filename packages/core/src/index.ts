@@ -167,7 +167,13 @@ export {
   isSkillSpectorDisabled,
 } from "./common/skill-spector";
 
-export { ACTIVITY_FRAMES_MCP_SERVER_NAME } from "./activity-frames/index";
+// Activity-Frames MCP seam — desktop injects the server builder at boot.
+export {
+  ACTIVITY_FRAMES_MCP_SERVER_NAME,
+  configureActivityFramesServerBuilder,
+  getActivityFramesServerBuilder,
+  type ActivityFramesServerBuilder,
+} from "./mcp/activity-frames-seam";
 
 // Vision MCP seam — desktop injects the concrete server builder at boot.
 export {
@@ -188,16 +194,16 @@ export {
   getEmbeddingLoadError,
 } from "./routing";
 
+// A2UI MCP seam — desktop injects the server builder + lifecycle at boot.
 export {
   A2UI_MCP_SERVER_NAME,
-  buildA2uiServer,
-  buildA2uiMcpServerConfig,
+  configureA2uiServerBuilder,
+  getA2uiServerBuilder,
   setA2uiDisabled,
   isA2uiDisabled,
-  persistSurfaces,
-  restoreSurfaces,
-  clearAllSurfaces,
-} from "./mcp/a2ui-mcp";
+  type A2uiLifecycle,
+  type A2uiServerBuilder,
+} from "./mcp/a2ui-seam";
 
 // Memory — in-process provider interface, implemented by @deeporca/memory.
 // (The legacy HTTP Gateway sidecar client was removed: it had no call sites and
