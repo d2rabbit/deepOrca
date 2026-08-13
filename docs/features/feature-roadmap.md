@@ -1,6 +1,8 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.17 · 日期：2026-08-11 · 状态：规划中
+> 版本：v3.18 · 日期：2026-08-13 · 状态：规划中
+>
+> **v3.18 更新**：新增 **§十八 3D 与制造** 功能域——基于调研 `docs/research/2026-08-13-text-to-cad-img2threejs.md` 立项：① **text-to-cad**（earthtojake，MIT，13.4k★）agent 技能库，build123d 参数化源码 → STEP 主输出（真实 B-rep），含几何校验 + 修复回路；② **img2threejs**（Apache-2.0，11.5k★）单图 → 纯代码程序化 Three.js 模型（TS 工厂 + Divine Eye 零 token 门禁 + 有界纠正回路）。两者皆为 agent-agnostic SKILL.md 技能包，与 DeepOrca Skills 体系同构，vendored 接入。CAD/3D 预览**纯前端自研**（Three.js loaders + occt-import-js + dxf-parser）；**用户拍板不引入 kkFileView**（Aspose-CAD/CADViewer 商业组件风险 + Java 服务端架构错配）。详细设计见 `specs/cad-3d-generation/design.md`。该域是 PM-Design V2 需求具现化的第四条管线（原型/设计稿/代码 → +3D/制造）。
 >
 > **v3.17 更新**：三项外部方案吸收，强化"能力定义→组合→自进化"主轴。① **§十一 自进化层二补强**——引入 **HarnessBank** 论文（[arxiv 2607.13683](https://arxiv.org/abs/2607.13683)）作为 Self-Harness（2606.09498）的互补方法：Harness Gene Bank（带质量元数据+版本谱系的 harness 变体池）+ Gated Harness Screening（门控筛选）+ task/evolver 双 agent（evolver 复用 §十 Subagent 作执行单元）。其结论"gains are model-specific"学术验证 DeepSeek 专项调优策略。② **§十六 能力编排引入 defineAction 范式**——借鉴 **agent-native**（[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native)）"一次定义随处使用"：单个 `defineAction({schema, run})` 自动成为 IPC handler + MCP tool + LLM 工具 + 未来 HTTP/CLI。作为 §十六 双工具编排（OpenWork）的**底层实现机制**，让插件组装与能力组合从"手写多套绑定"收敛为"定义一次自动多表面"；严守 core 无 UI 铁律（schema 落 `shared/`、IPC 落 desktop main、MCP 落 core）。③ **§十二 插件中心新增 Agent Plugins 1.0.0 兼容**——[agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)（Amazon/Cursor/Microsoft/OpenAI/Vercel 共治，7 客户端已采纳）作为**新增兼容格式**，与现有 marketplace.json（claude-plugins-official）双格式共存、加载器自动识别，不互斥不取代。skills 层天然兼容，MCP 层 Phase 0 三传输 union 已对齐。DeepOrca 目标成为同时兼容两格式的客户端（兼装 claude 生态 + 七客户端共享插件）。
 >
@@ -62,6 +64,7 @@
 | [十五、统一模型网关](#十五统一模型网关最低优先级) | —                                                                                                                 | OmniRoute（文档引导）                                                                                                                                                            | 多提供商路由 + token 压缩                                |
 | [十六、能力编排协议](#十六能力编排协议)           | —                                                                                                                 | **defineAction 一次定义多表面（agent-native）**, OpenWork 双工具 MCP 理念, 技能/工作流可迁移                                                                                                                                     | 统一能力发现和执行入口（一站化编排层）                   |
 | [十七、密钥保险库](#十七密钥保险库)               | —                                                                                                                 | OneCLI 理念 SQLite 重构（AES-256-GCM + 注入引擎）                                                                                                                                | Agent 持占位符 key，真实凭证加密存储+按需注入            |
+| [十八、3D 与制造](#十八3d-与制造)                 | —                                                                                                                 | **text-to-cad（build123d → STEP）**, **img2threejs（图片→Three.js）**, CADPreview 纯前端查看器（occt-import-js）                                                                 | 需求 → 可制造模型 / 可交互 3D —— 具现化第四条管线        |
 | [搁置项](#搁置项)                                 | —                                                                                                                 | OpenSpec, Superpowers, OmniGent, Electron 自建                                                                                                                                   | 暂不规划，理由见下                                       |
 
 ---
@@ -918,6 +921,48 @@ CREATE TABLE vault_secrets (
 未来：  SQLite vault (加密 key) → createOpenAIClient 凭证解析层 → 注入真实 key → API
                                      ↑ Agent 代码看到的是 PLACEHOLDER
 ```
+
+---
+
+## 十八、3D 与制造
+
+> 让 Studio 从"数字原型"延伸到"物理产品"——需求 → 可制造 CAD 模型 / 可交互 3D 模型，PM-Design V2 需求具现化的第四条管线。详细设计见 `specs/cad-3d-generation/design.md`，调研见 `docs/research/2026-08-13-text-to-cad-img2threejs.md`。
+
+### 背景
+
+三大核心能力（原型/设计稿/编码）交付的都是数字产物，硬件 PM/创客/机器人场景在"看起来对"之后断链。两个上游项目都是 **agent-agnostic 的 SKILL.md 技能包**（LLM 判断 + 脚本强制），与 DeepOrca Skills 体系天然同构，vendored 即可接入，无需自研框架。
+
+### 规划中
+
+| 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
+| --- | --- | --- | --- | --- |
+| 参数化 CAD 生成（文本/图片 → STEP） | **text-to-cad** `cad` 技能（earthtojake，MIT） | vendored SKILL.md + uv venv（build123d/ezdxf/trimesh/vtk 懒装） | build123d 参数化源码 → STEP 主输出（真实 B-rep）+ STL/3MF/GLB；10 步管线 + 几何校验 + 修复回路 | **P1** |
+| 图片 → 程序化 Three.js 模型 | **img2threejs**（Apache-2.0） | vendored SKILL.md + forge 脚本（纯 Python stdlib，零 pip），裁剪 CS2 垂直内容 | 单图 → 动画就绪 TS 工厂（pivots/sockets/colliders）；Divine Eye 零 token 门禁 + 有界纠正回路 | **P0** |
+| 3D/CAD 预览查看器（CADPreview） | 自研（借鉴 text-to-cad CAD Explorer / kkFileView 前端思路） | desktop renderer 组件（iframe 隔离）：Three.js loaders + **occt-import-js**（STEP WASM）+ dxf-parser（DXF） | 工作区 .step/.stl/.glb/.3mf/.dxf 点击即预览；固定评审视角截图供评审回路 | **P0 先行** |
+| DXF 2D 工程图 | text-to-cad `dxf` 技能 | vendored SKILL.md（ezdxf） | 型材/垫片/切割排版 2D 图纸 | P1 |
+| 标准件选型 | text-to-cad `step-parts` 技能 | vendored SKILL.md（联网 API，network 权限声明） | 螺丝/轴承/电机/连接器检索与装配插入 | P2 |
+| 机器人描述 | text-to-cad `urdf`/`srdf` 技能 | vendored SKILL.md | URDF/SRDF/SDF + MoveIt 配置 + 仿真世界 | P2 |
+
+### 关键决策（2026-08-13，用户拍板）
+
+- **不引入 kkFileView 任何组件**——其 CAD 2D 路径默认引擎 Aspose-CAD（及备选 CADViewer）是闭源商业库（评估模式水印，绕过涉嫌违反 EULA），且 Java 21 服务端形态与 Electron 桌面端"零外部运行时依赖"原则架构错配。3D 预览需求由纯前端方案覆盖。
+- **VLM 评审默认降级**——DeepSeek 视觉能力验证前，img2threejs 的 vlm_gate / render-review 降级为 AskUserQuestion 用户确认卡；确定性门禁（Divine Eye/几何校验）原样保留（与宿主模型无关，直接受益）。
+- **Actions 化**：`model.generateCad` / `model.fromImage` / `model.preview` 三件套走 defineAction（§十六），LLM 工具 + 会话命令 + 文件树入口多表面。
+
+### 与既有能力的关系
+
+- **§六 设计生成**：互补——DeepDesign/A2UI 管"看起来"，CAD 管线管"做得出"；GLB 是两边的通用预览格式。
+- **PM-Design V2**：新增第 4 条管线路由（零件/外壳/3D 打印/STEP/参考图建模触发），组合交付示例：外观稿 + 外壳结构 + 内嵌 3D 的落地页。
+- **§十二 插件中心**：新增 manufacture 插件包分组；第三方技能一律 SkillSpector 扫描后挂载。
+- **§十一 自进化**：HarnessBank "gains are model-specific" 结论支持对 DeepSeek 做 build123d 专项调优（references 注入 + few-shot 沉淀）。
+
+### 不采纳
+
+| 项目 | 理由 |
+| --- | --- |
+| kkFileView | Aspose-CAD/CADViewer 商业组件授权风险 + Java 服务端架构错配（详见调研附录） |
+| text-to-cad gcode/bambu/sendcutsend 技能 | 依赖外部 slicer/打印机/制造服务，非核心承诺，待需求验证 |
+| img2threejs CS2 武器模块 | 游戏垂直内容与 Studio 定位无关，裁剪 |
 
 ---
 
