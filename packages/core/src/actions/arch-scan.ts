@@ -46,13 +46,11 @@ export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
 
 export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (input, ctx) => {
   if (!ctx.runSubagent) {
-    // §十 Subagent (P2) not yet wired. Return a structured pending result so the
-    // LLM/UI can explain the dependency rather than receiving a hard failure.
     return {
       ok: false,
       pending: true,
       reason:
-        "arch-scan.run requires the Subagent runtime (§十 P2), which is not yet injected. The legacy /arch-scan prompt path remains available.",
+        "arch-scan.run requires the Subagent runtime, which is not available. The skill can still be triggered manually via /arch-scan.",
     };
   }
   ctx.emit({ message: `arch-scan${input?.perspective ? ` (${input.perspective})` : ""} started`, percent: 10 });

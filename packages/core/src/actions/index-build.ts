@@ -86,17 +86,16 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
   }
   ctx.emit({ message: `[2/3] wiki done`, percent: 66 });
 
-  // Stage 3: arch-scan (init only; gated on runSubagent — Phase 3 / §十 Subagent).
+  // Stage 3: arch-scan (init only). Generates an interactive architecture map
+  // by consuming the CodeGraph + OpenWiki indices built in stages 1-2.
   if (mode === "init") {
     ctx.emit({ message: `[3/3] arch-scan`, percent: 70 });
     if (!ctx.runSubagent) {
-      // Subagent infra (§十 P2) not yet wired — skip gracefully. The legacy
-      // /arch-scan prompt path remains available in the meantime.
       stages.push({
         stage: "arch-scan",
         ok: false,
         skipped: true,
-        error: "runSubagent not available (§十 Subagent pending)",
+        error: "runSubagent not available — use /arch-scan to run manually",
       });
     } else {
       try {

@@ -30,6 +30,14 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
 > (omm). DeepOrca replaces omm's Mermaid + CLI + `.omm/` file tree with A2UI
 > component trees rendered in-app. See
 > `docs/research/2026-08-06-oh-my-mermaid-research.md`.
+>
+> **Editorial design discipline**: The density target (4/10), complexity budgets
+> (max 9 nodes / 12 edges), remove test, accent-color discipline, and the
+> "semantic pattern first, visual type second" routing methodology are adopted
+> from [diagram-design](https://github.com/cathrynlavery/diagram-design)
+> (MIT, by Cathryn Lavery) — with thanks. DeepOrca adapts these editorial
+> principles to A2UI component trees instead of self-contained HTML/SVG files.
+> Planned integration detail: `docs/research/2026-08-11-knowledge-memory-materialization-design.md` §改造 4。
 
 ## 归属：工作区索引模块
 
@@ -45,6 +53,8 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
 
 **增量更新**：代码变更后 `codegraph sync` 增量更新符号索引；架构变更较大时重新运行 `arch-scan` 刷新架构图（架构图不每轮自动同步，因为需要 LLM 分析，成本较高）。
 
+**索引消费**：arch-scan 优先消费 CodeGraph（符号级调用图谱）和 OpenWiki（文档级架构概述）的已构建产出，而非从零读文件。三个索引层级形成数据流：CodeGraph 提供调用关系 → OpenWiki 生成文档 → arch-scan 基于前两者生成可视化架构图。
+
 ---
 
 ## Step 0: Detect Language
@@ -54,15 +64,53 @@ content (description, context, concern, etc.) in the detected language
 (Chinese for DeepOrca's default). Element IDs and component keys are always
 English kebab-case.
 
-## Step 1: Explore the Codebase
+## Step 1: Gather Knowledge from Existing Indices
 
-Use `bash` (glob/find) and `read` tools to understand the project:
+**优先消费已构建的索引**，而非从零读文件。arch-scan 通常在 `index.build-all` 的第三步执行，此时 CodeGraph 符号索引（Step 1）和 OpenWiki 文档（Step 2）已经构建完成。直接复用它们的产出，避免重复分析。
 
-- Read `package.json`, `pyproject.toml`, `go.mod`, or equivalent manifests
-- List top-level directories to identify module boundaries
-- Read key entry points (`main`, `index`, `app`, `cmd` files)
-- Look for route definitions, service layers, database connections, external integrations
-- Read `AGENTS.md` / `CLAUDE.md` / architecture docs if present
+### 知识获取优先级（从高到低）
+
+#### 1. OpenWiki 文档（`openwiki/` 目录）——最高效的结构化来源
+
+如果 `openwiki/` 存在，先读这些文件获取已有架构理解：
+
+- `read openwiki/architecture.md` — **已有的架构概述**，可能已经描述了模块划分和依赖关系
+- `read openwiki/modules/*.md` — **已有的模块文档**，每个模块的职责和接口
+- `read openwiki/workflows/*.md` — **已有的工作流文档**，数据流和请求生命周期
+
+这些文档是 LLM 生成的结构化内容，直接消费比重新从代码推理高效得多。
+
+#### 2. CodeGraph 图谱（MCP 工具）——符号级调用关系
+
+如果 CodeGraph 工具可用（`codegraph_*` 系列），用它获取精准的调用关系：
+
+- `codegraph_explore` — 探索项目结构和符号
+- `codegraph_callers` / `codegraph_callees` — **直接获取调用关系**（比手动 grep 精准）
+- `codegraph_impact` — 分析依赖方向，判断哪些是核心模块
+
+这直接为架构图的**边（edges）**提供数据：谁调用了谁，数据从哪流向哪。
+
+#### 3. Serena 符号结构（MCP 工具）——LSP 级模块大纲
+
+如果 Serena 工具可用（`find_symbol` / `get_symbols_overview` 等）：
+
+- `get_symbols_overview` — 获取文件的符号大纲，快速了解模块内部结构
+- `find_symbol` — 精准定位入口函数/类定义
+
+#### 4. 原始文件读取（仅补充索引未覆盖的细节）
+
+当以上索引不存在或未覆盖某些细节时，才回退到原始文件：
+
+- `read package.json` / `pyproject.toml` / `go.mod` — 项目元信息
+- `bash ls` / `find` — 目录结构（仅当 CodeGraph/OpenWiki 未提供时）
+- `read` 入口文件 — 仅当 OpenWiki modules/*.md 未覆盖时
+- `read AGENTS.md` — 项目编码指南
+
+### 判断索引是否可用
+
+- CodeGraph 可用？→ 尝试调用 `codegraph_explore`，如果返回结果则可用
+- OpenWiki 可用？→ 尝试 `read openwiki/architecture.md`，如果文件存在则可用
+- Serena 可用？→ 检查 MCP 工具列表中是否有 `find_symbol` 等工具
 
 ## Step 2: Select Perspectives
 
