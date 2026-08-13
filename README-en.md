@@ -8,7 +8,7 @@
 
 # DeepOrca
 
-**Next-generation AI coding assistant**
+**Prototype · Design · Code — the AI Studio**
 
 English · [中文](README.md) · [Docs](docs/) · [Changelog](CHANGELOG.md)
 
@@ -19,7 +19,19 @@ English · [中文](README.md) · [Docs](docs/) · [Changelog](CHANGELOG.md)
 
 ## 🐋 About DeepOrca
 
-**DeepOrca** is a next-generation AI coding assistant optimized for `deepseek-v4` and delivered primarily as an Electron desktop application. The repository contains four npm workspaces:
+**DeepOrca** is an AI-powered creation Studio. Three core capabilities — **Prototype Design**, **UI Design**, and **Intelligent Coding** — work independently or in combination. Whether you want to quickly build an interactive prototype, generate beautiful UI designs, or dive straight into code, everything lives in one desktop app. Optimized for `deepseek-v4`, delivered as an Electron desktop application.
+
+### 🎯 Three Core Capabilities
+
+| Capability | Description | Technology |
+| --- | --- | --- |
+| **🎯 Prototype** | Describe requirements in natural language; AI generates interactive prototypes (forms/kanban/multi-page) with bidirectional interaction validation | A2UI protocol + OpenUI Lang + 7 templates |
+| **🎨 UI Design** | Generate self-contained HTML designs with 3 design systems, 14 UI styles, Tailwind built-in — deliverable standalone | DeepDesign `.dd` format |
+| **💻 Code** | DeepSeek-powered conversational coding: 7 built-in tools, MCP for infinite extensibility, Monaco editor, Git integration | Core Engine + MCP + Monaco |
+
+Each capability works standalone. Use them independently or combine them — from prototype validation to design mockups to code implementation, flow as needed.
+
+The repository contains four npm workspaces:
 
 | Package               | Description                                                                                  |
 | --------------------- | -------------------------------------------------------------------------------------------- |

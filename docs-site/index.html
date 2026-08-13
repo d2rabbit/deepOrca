@@ -3,94 +3,91 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DeepOrca — AI 编码桌面客户端</title>
-  <meta name="description" content="DeepOrca 是专为 DeepSeek 模型打造的 AI 编码桌面客户端：会话工作台、源码管理、插件中心、代码索引与项目 Wiki，一站式赛博编码体验。源自 Deep Code（MIT），已发展为独立项目。">
+  <title>DeepOrca — 原型 · 设计 · 编码，AI 创作 Studio</title>
+  <meta name="description" content="DeepOrca 是一个 AI 驱动的创作 Studio。原型设计、UI 设计稿、智能编码三大能力独立可用，按需组合。以 Electron 桌面客户端为主要形态，内置 DeepSeek 模型优化。">
   <link rel="icon" href="assets/orca-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Ambient layers -->
-  <div class="bg-grid" aria-hidden="true"></div>
-  <div class="bg-glow bg-glow--cyan" aria-hidden="true"></div>
-  <div class="bg-glow bg-glow--magenta" aria-hidden="true"></div>
-  <div class="scanlines" aria-hidden="true"></div>
+  <!-- Ambient decorations -->
+  <div class="bg-blob bg-blob--sky" aria-hidden="true"></div>
+  <div class="bg-blob bg-blob--mint" aria-hidden="true"></div>
 
   <!-- ══ NAV ══ -->
   <header class="nav" id="nav">
     <div class="nav-inner">
       <a href="#top" class="brand">
         <img src="assets/orca-icon.svg" alt="DeepOrca" class="brand-icon">
-        <span class="brand-word">DEEP<em>ORCA</em></span>
-        <span class="brand-tag">ORCA_v2</span>
+        <span class="brand-word">Deep<em>Orca</em></span>
+        <span class="brand-tag">Studio</span>
       </a>
       <nav class="nav-links">
-        <a href="#modules"><span class="nav-idx">01</span>核心模块</a>
-        <a href="#extend"><span class="nav-idx">02</span>扩展机制</a>
-        <a href="#boot"><span class="nav-idx">03</span>快速开始</a>
-        <a href="#visual"><span class="nav-idx">04</span>界面</a>
+        <a href="#pillars">能力</a>
+        <a href="#modules">核心模块</a>
+        <a href="#extend">扩展生态</a>
+        <a href="#boot">快速开始</a>
+        <a href="#visual">界面预览</a>
       </nav>
       <div class="nav-cta">
         <a class="cbtn cbtn--ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           GitHub
         </a>
-        <a class="cbtn cbtn--primary" href="#boot">开始使用</a>
+        <a class="cbtn cbtn--primary" href="#boot">开始创作</a>
       </div>
     </div>
-    <div class="nav-rule" aria-hidden="true"></div>
   </header>
 
   <!-- ══ HERO ══ -->
   <main id="top">
     <section class="hero">
       <div class="hero-left">
-        <div class="sys-badge">
-          <span class="sys-dot"></span>SYS.ONLINE&nbsp;//&nbsp;v0.1.34&nbsp;·&nbsp;BUILT&nbsp;FOR&nbsp;DEEPSEEK
+        <div class="hero-badge">
+          <span class="hero-dot"></span>
+          ✨ v0.1.34 · AI 创作 Studio
         </div>
         <h1 class="hero-title">
-          <span class="glitch" data-text="DEEPORCA">DEEPORCA</span>
-          <span class="hero-sub">AI 编码桌面客户端</span>
+          <span class="hero-title-main">DeepOrca</span>
+          <span class="hero-sub">原型 · 设计 · 编码</span>
         </h1>
         <p class="hero-desc">
-          专为 <code>deepseek-v4</code> 打造、直连 DeepSeek 官方 API 的桌面级 AI 编码工作台。<br>
-          会话 · Monaco 编辑器 · 源码管理 · 插件中心 · 代码索引 · 项目 Wiki，<br>
-          潜入深海，让虎鲸替你围猎代码。
+          AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用，按需组合。<br>
+          专为 <code>deepseek-v4</code> 优化，以 Electron 桌面客户端为主要形态。
         </p>
         <div class="hero-actions">
-          <a class="cbtn cbtn--primary cbtn--lg" href="#boot">▸ 立即部署</a>
-          <a class="cbtn cbtn--outline cbtn--lg" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener">⤓ 下载客户端</a>
+          <a class="cbtn cbtn--primary cbtn--lg" href="#boot">🚀 开始创作</a>
+          <a class="cbtn cbtn--outline cbtn--lg" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener">⤓ 下载 Studio</a>
         </div>
         <div class="readout">
-          <div class="readout-cell"><span class="readout-num" data-count="8">08</span><span class="readout-key">内置工具</span></div>
+          <div class="readout-cell"><span class="readout-num">7+</span><span class="readout-key">原型模板</span></div>
           <div class="readout-sep"></div>
-          <div class="readout-cell"><span class="readout-num">04</span><span class="readout-key">扩展机制</span></div>
+          <div class="readout-cell"><span class="readout-num">3</span><span class="readout-key">设计系统</span></div>
           <div class="readout-sep"></div>
-          <div class="readout-cell"><span class="readout-num">06</span><span class="readout-key">界面语言</span></div>
+          <div class="readout-cell"><span class="readout-num">8</span><span class="readout-key">内置工具</span></div>
         </div>
       </div>
 
       <div class="hero-right">
         <figure class="orca-stage">
           <div class="orca-ring" aria-hidden="true"></div>
-          <img src="assets/orca-icon.svg" alt="DeepOrca 图标" class="orca-img">
-          <figcaption class="orca-caption">UNIT&nbsp;//&nbsp;ORCA_v2&nbsp;·&nbsp;STATUS&nbsp;:&nbsp;<span class="txt-cyan">HUNTING</span></figcaption>
+          <img src="assets/orca-icon.svg" alt="DeepOrca" class="orca-img">
         </figure>
-        <div class="hud-window">
-          <div class="hud-window-bar">
-            <span class="hud-chip"></span><span class="hud-chip hud-chip--m"></span>
-            <span class="hud-window-title">DEEPORCA :: SESSION</span>
+        <div class="preview-card">
+          <div class="preview-bar">
+            <span class="preview-dot preview-dot--r"></span>
+            <span class="preview-dot preview-dot--y"></span>
+            <span class="preview-dot preview-dot--g"></span>
+            <span class="preview-title">DeepOrca — Session</span>
           </div>
-          <div class="hud-window-body mono">
-            <p><span class="txt-cyan">›</span> 帮我重构这个模块并补上单元测试</p>
-            <p class="dim"><span class="txt-magenta">◆</span> read · edit · bash — 3 个工具调用完成</p>
-            <p class="dim">✓ 重构完成，12 个测试全部通过</p>
-            <p><span class="txt-cyan">›</span> <span class="cursor"></span></p>
+          <div class="preview-body mono">
+            <p><span class="txt-sky">›</span> 帮我设计一个用户登录页面</p>
+            <p class="dim"><span class="txt-mint">◆</span> render_design · .dd 格式设计稿已生成</p>
+            <p class="dim">✓ 支持响应式布局，Tailwind 内置</p>
+            <p><span class="txt-sky">›</span> <span class="cursor"></span></p>
           </div>
-          <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
-          <span class="corner corner--bl"></span><span class="corner corner--br"></span>
         </div>
       </div>
     </section>
@@ -98,48 +95,92 @@
     <!-- ══ TICKER ══ -->
     <div class="ticker" aria-hidden="true">
       <div class="ticker-track">
-        <span>DEEPSEEK-V4 OPTIMIZED</span><i>◇</i><span>MONACO EDITOR</span><i>◇</i><span>PLAN MODE</span><i>◇</i><span>GIT INTEGRATED</span><i>◇</i><span>CODEGRAPH INDEX</span><i>◇</i><span>GITMCP</span><i>◇</i><span>OPENWIKI</span><i>◇</i><span>MCP PROTOCOL</span><i>◇</i><span>AGENT SKILLS</span><i>◇</i><span>PUNK THEME 2077</span><i>◇</i>
-        <span>DEEPSEEK-V4 OPTIMIZED</span><i>◇</i><span>MONACO EDITOR</span><i>◇</i><span>PLAN MODE</span><i>◇</i><span>GIT INTEGRATED</span><i>◇</i><span>CODEGRAPH INDEX</span><i>◇</i><span>GITMCP</span><i>◇</i><span>OPENWIKI</span><i>◇</i><span>MCP PROTOCOL</span><i>◇</i><span>AGENT SKILLS</span><i>◇</i><span>PUNK THEME 2077</span><i>◇</i>
+        <span>🎯 原型设计</span><i>•</i><span>🎨 UI 设计稿</span><i>•</i><span>💻 智能编码</span><i>•</i><span>DeepSeek-V4</span><i>•</i><span>Monaco 编辑器</span><i>•</i><span>A2UI 交互原型</span><i>•</i><span>DeepDesign</span><i>•</i><span>MCP 协议</span><i>•</i><span>Agent Skills</span><i>•</i><span>CodeGraph 索引</span><i>•</i>
+        <span>🎯 原型设计</span><i>•</i><span>🎨 UI 设计稿</span><i>•</i><span>💻 智能编码</span><i>•</i><span>DeepSeek-V4</span><i>•</i><span>Monaco 编辑器</span><i>•</i><span>A2UI 交互原型</span><i>•</i><span>DeepDesign</span><i>•</i><span>MCP 协议</span><i>•</i><span>Agent Skills</span><i>•</i><span>CodeGraph 索引</span><i>•</i>
       </div>
     </div>
+
+    <!-- ══ PILLARS: 三大能力并列 ══ -->
+    <section class="section" id="pillars">
+      <div class="section-head">
+        <span class="section-code">// 三大核心能力</span>
+        <h2 class="section-title">独立可用 · 按需组合</h2>
+        <p class="section-desc">无论你想搭建交互原型、生成 UI 设计稿，还是直接进入代码研发——三大能力各自独立，从任意一个切入即可</p>
+      </div>
+      <div class="pillar-grid">
+        <article class="pillar-card pillar-card--prototype reveal">
+          <span class="pillar-icon">🎯</span>
+          <h3>原型设计</h3>
+          <p>用自然语言描述需求，AI 生成可交互的原型。支持表单、看板、多页面导航，双向交互验证用户流程。</p>
+          <footer class="pillar-tags">
+            <span>A2UI 交互原型</span>
+            <span>OpenUI 组件</span>
+            <span>7 个模板</span>
+          </footer>
+          <div class="pillar-example">"帮我搭一个看板管理原型"</div>
+        </article>
+        <article class="pillar-card pillar-card--design reveal">
+          <span class="pillar-icon">🎨</span>
+          <h3>UI 设计稿</h3>
+          <p>生成自包含的 HTML 设计稿，3 种设计系统、14 种 UI 风格、Tailwind 内置。可脱离宿主独立交付。</p>
+          <footer class="pillar-tags">
+            <span>DeepDesign .dd</span>
+            <span>Tailwind JIT</span>
+            <span>14 种风格</span>
+          </footer>
+          <div class="pillar-example">"设计一个产品落地页"</div>
+        </article>
+        <article class="pillar-card pillar-card--code reveal">
+          <span class="pillar-icon">💻</span>
+          <h3>智能编码</h3>
+          <p>DeepSeek 驱动的会话式编码：7 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成、代码索引。</p>
+          <footer class="pillar-tags">
+            <span>DeepSeek-V4</span>
+            <span>MCP 协议</span>
+            <span>Monaco + Git</span>
+          </footer>
+          <div class="pillar-example">"重构这个模块并补上测试"</div>
+        </article>
+      </div>
+    </section>
 
     <!-- ══ MODULES ══ -->
     <section class="section" id="modules">
       <div class="section-head">
-        <span class="section-code">// 01</span>
-        <h2 class="section-title">核心模块</h2>
-        <p class="section-desc">不止是聊天窗口 — 编码所需的一切都封装在一个客户端里</p>
+        <span class="section-code">// 核心模块</span>
+        <h2 class="section-title">不止是聊天窗口</h2>
+        <p class="section-desc">编码、设计、原型所需的一切都封装在一个桌面客户端里</p>
       </div>
       <div class="mod-grid">
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-01</span><span class="mod-sig"></span></header>
           <h3>AI 会话工作台</h3>
-          <p>气泡对话、思考卡片、工具/终端/JSON 渲染卡片、指令与技能卡片、计划模式、Token 消耗面板 — AI 的每一步都清晰可见。</p>
-          <footer class="mod-tags"><span>计划模式</span><span>渲染引擎</span><span>TOKEN 统计</span></footer>
+          <p>气泡对话、思考卡片、工具/终端/JSON 渲染、计划模式、Token 消耗面板 — AI 的每一步都清晰可见。</p>
+          <footer class="mod-tags"><span>计划模式</span><span>渲染引擎</span><span>Token 统计</span></footer>
         </article>
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-02</span><span class="mod-sig"></span></header>
           <h3>Monaco 编辑器</h3>
           <p>内嵌 VS Code 同款 Monaco Editor：语法高亮、智能提示、文件树浏览，AI 修改即刻查看、即刻编辑。</p>
-          <footer class="mod-tags"><span>MONACO</span><span>语法高亮</span><span>智能提示</span></footer>
+          <footer class="mod-tags"><span>Monaco</span><span>语法高亮</span><span>智能提示</span></footer>
         </article>
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-03</span><span class="mod-sig"></span></header>
           <h3>源码管理</h3>
-          <p>内置 Git 面板：暂存、提交、分支切换（脏工作区自动引导暂存）、提交历史两级浏览、diff 语法高亮。</p>
-          <footer class="mod-tags"><span>GIT</span><span>语法高亮</span><span>历史浏览</span></footer>
+          <p>内置 Git 面板：暂存、提交、分支切换、提交历史两级浏览、diff 语法高亮。</p>
+          <footer class="mod-tags"><span>Git</span><span>diff 高亮</span><span>历史浏览</span></footer>
         </article>
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-04</span><span class="mod-sig"></span></header>
-          <h3>代码索引 &amp; WIKI</h3>
+          <h3>代码索引 &amp; Wiki</h3>
           <p>CodeGraph 索引让 AI 精准理解项目结构，OpenWiki 自动生成项目知识库，索引进度实时可视。</p>
-          <footer class="mod-tags"><span>CODEGRAPH</span><span>OPENWIKI</span></footer>
+          <footer class="mod-tags"><span>CodeGraph</span><span>OpenWiki</span></footer>
         </article>
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-05</span><span class="mod-sig"></span></header>
           <h3>GitMCP 模块</h3>
-          <p>输入 GitHub 仓库地址即可生成本地 MCP 服务器，SQLite FTS5 全文索引实现毫秒级语义搜索，支持文档检索和代码搜索。</p>
-          <footer class="mod-tags"><span>GITMCP</span><span>FTS5</span><span>语义搜索</span></footer>
+          <p>输入 GitHub 仓库地址即可生成本地 MCP 服务器，SQLite FTS5 全文索引实现毫秒级语义搜索。</p>
+          <footer class="mod-tags"><span>GitMCP</span><span>FTS5</span><span>语义搜索</span></footer>
         </article>
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-06</span><span class="mod-sig"></span></header>
@@ -150,14 +191,14 @@
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-07</span><span class="mod-sig"></span></header>
           <h3>主题系统</h3>
-          <p>Line 线条主题默认呈现，一键切换朋克风（致敬 2077），另有 Metro、Fusion、Glass 与日夜模式。</p>
-          <footer class="mod-tags"><span>LINE</span><span>PUNK 2077</span><span>日夜模式</span></footer>
+          <p>海洋清新默认呈现，一键切换 Aqua、Glass Prism 玻璃拟态、Punk 2077 赛博朋克，支持日夜模式。</p>
+          <footer class="mod-tags"><span>海洋清新</span><span>Aqua</span><span>日夜模式</span></footer>
         </article>
         <article class="mod-card reveal">
           <header class="mod-head"><span class="mod-id">MOD-08</span><span class="mod-sig"></span></header>
           <h3>多语言界面</h3>
-          <p>简体中文、繁体中文（台/港）、English、日本語、한국어六种界面语言，自动跟随系统偏好。</p>
-          <footer class="mod-tags"><span>I18N</span><span>6 LANGS</span></footer>
+          <p>简体中文、繁体中文（台/港）、English、日本語、한국어多种界面语言，自动跟随系统偏好。</p>
+          <footer class="mod-tags"><span>i18n</span><span>多语言</span></footer>
         </article>
       </div>
     </section>
@@ -165,14 +206,14 @@
     <!-- ══ EXTEND ══ -->
     <section class="section" id="extend">
       <div class="section-head">
-        <span class="section-code">// 02</span>
-        <h2 class="section-title">扩展机制</h2>
-        <p class="section-desc">Skills · MCP · 内置插件并列，随时给虎鲸换上新装备</p>
+        <span class="section-code">// 扩展生态</span>
+        <h2 class="section-title">随时给虎鲸换上新装备</h2>
+        <p class="section-desc">Skills · MCP · 内置插件，三大扩展机制并行</p>
       </div>
       <div class="ext-grid">
         <article class="ext-card reveal">
           <span class="ext-glyph">◈</span>
-          <h3>SKILLS 技能</h3>
+          <h3>Skills 技能</h3>
           <p>SKILL.md 驱动的 Agent 能力扩展，项目与用户两级作用域，内置 Dart / Flutter 等技能包。</p>
         </article>
         <article class="ext-card reveal">
@@ -183,17 +224,16 @@
         <article class="ext-card reveal">
           <span class="ext-glyph">⬡</span>
           <h3>内置插件</h3>
-          <p>随 DeepOrca 一起发布的核心能力扩展，始终可用：browser-skill 浏览器自动化、open-code-review 代码审查、git-mcp 仓库索引。</p>
+          <p>随 DeepOrca 一起发布的核心能力扩展，始终可用：浏览器自动化、代码审查、仓库索引。</p>
         </article>
       </div>
     </section>
 
-    <!-- ══ BOOT SEQUENCE ══ -->
+    <!-- ══ BOOT ══ -->
     <section class="section" id="boot">
       <div class="section-head">
-        <span class="section-code">// 03</span>
-        <h2 class="section-title">启动序列</h2>
-        <p class="section-desc">三步部署，即刻潜航</p>
+        <span class="section-code">// 快速开始</span>
+        <h2 class="section-title">三步部署，即刻创作</h2>
       </div>
       <div class="boot-list">
         <div class="boot-step reveal">
@@ -212,21 +252,21 @@
             <h3>接入模型</h3>
             <p>在应用「设置」面板填写模型信息，或编辑 <code>~/.deeporca/settings.json</code>：</p>
             <pre class="codeblock mono">{
-  <span class="txt-cyan">"env"</span>: {
-    <span class="txt-cyan">"MODEL"</span>: <span class="txt-magenta">"deepseek-v4-pro"</span>,
-    <span class="txt-cyan">"BASE_URL"</span>: <span class="txt-magenta">"https://api.deepseek.com"</span>,
-    <span class="txt-cyan">"API_KEY"</span>: <span class="txt-magenta">"sk-..."</span>
+  <span class="txt-sky">"env"</span>: {
+    <span class="txt-sky">"MODEL"</span>: <span class="txt-coral">"deepseek-v4-pro"</span>,
+    <span class="txt-sky">"BASE_URL"</span>: <span class="txt-coral">"https://api.deepseek.com"</span>,
+    <span class="txt-sky">"API_KEY"</span>: <span class="txt-coral">"sk-..."</span>
   },
-  <span class="txt-cyan">"thinkingEnabled"</span>: true,
-  <span class="txt-cyan">"reasoningEffort"</span>: <span class="txt-magenta">"max"</span>
+  <span class="txt-sky">"thinkingEnabled"</span>: true,
+  <span class="txt-sky">"reasoningEffort"</span>: <span class="txt-coral">"max"</span>
 }</pre>
           </div>
         </div>
         <div class="boot-step reveal">
           <div class="boot-no">STEP<br><b>03</b></div>
           <div class="boot-body">
-            <h3>开始围猎</h3>
-            <p>打开 DeepOrca，选择项目文件夹，输入需求 — 虎鲸出击，与 AI 结对编程。</p>
+            <h3>开始创作</h3>
+            <p>打开 DeepOrca，选择项目文件夹。无论你想设计原型、生成 UI 稿，还是编写代码——输入需求，虎鲸为你创作。</p>
           </div>
         </div>
       </div>
@@ -235,46 +275,38 @@
     <!-- ══ VISUAL ══ -->
     <section class="section" id="visual">
       <div class="section-head">
-        <span class="section-code">// 04</span>
-        <h2 class="section-title">界面档案</h2>
-        <p class="section-desc">DeepOrca 桌面客户端 — 工作区 · 会话 · 源码管理，一屏尽收</p>
+        <span class="section-code">// 界面预览</span>
+        <h2 class="section-title">工作区 · 会话 · 源码管理</h2>
+        <p class="section-desc">一屏尽收的创作工作台</p>
       </div>
       <figure class="shot reveal">
-        <img src="assets/app-welcome.png" alt="DeepOrca 桌面客户端 — 工作区、会话列表与快速开始" loading="lazy">
-        <figcaption class="shot-cap mono">CAPTURE&nbsp;//&nbsp;DEEPORCA&nbsp;DESKTOP&nbsp;·&nbsp;WORKSPACE&nbsp;+&nbsp;SESSIONS</figcaption>
-        <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
-        <span class="corner corner--bl"></span><span class="corner corner--br"></span>
+        <img src="assets/app-welcome.png" alt="DeepOrca 桌面客户端 — 工作区与会话列表" loading="lazy">
+        <figcaption class="shot-cap">DeepOrca Desktop · Workspace + Sessions</figcaption>
       </figure>
       <div class="shot-grid">
         <figure class="shot reveal">
           <img src="assets/app-composer.png" alt="指令输入区 — 提示词强化与计划模式" loading="lazy">
-          <figcaption class="shot-cap mono">COMPOSER&nbsp;·&nbsp;PROMPT&nbsp;ENHANCE</figcaption>
-          <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
-          <span class="corner corner--bl"></span><span class="corner corner--br"></span>
+          <figcaption class="shot-cap">Composer · Prompt Enhance</figcaption>
         </figure>
         <figure class="shot reveal">
           <img src="assets/app-palette.png" alt="命令面板 — 一键直达全部操作" loading="lazy">
-          <figcaption class="shot-cap mono">COMMAND&nbsp;PALETTE</figcaption>
-          <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
-          <span class="corner corner--bl"></span><span class="corner corner--br"></span>
+          <figcaption class="shot-cap">Command Palette</figcaption>
         </figure>
         <figure class="shot reveal">
           <img src="assets/app-plugins.png" alt="插件中心 — MCP 服务器与技能管理" loading="lazy">
-          <figcaption class="shot-cap mono">PLUGIN&nbsp;HUB&nbsp;·&nbsp;MCP</figcaption>
-          <span class="corner corner--tl"></span><span class="corner corner--tr"></span>
-          <span class="corner corner--bl"></span><span class="corner corner--br"></span>
+          <figcaption class="shot-cap">Plugin Hub · MCP</figcaption>
         </figure>
       </div>
     </section>
 
-    <!-- ══ CTA ══ -->
+    <!-- ══ FINALE ══ -->
     <section class="finale">
       <div class="finale-frame reveal">
         <img src="assets/orca-icon.svg" alt="" class="finale-icon" aria-hidden="true">
-        <h2 class="finale-title">READY&nbsp;TO&nbsp;DIVE&nbsp;?</h2>
-        <p class="finale-desc">下载 DeepOrca，让深海猎手接管你的编码流</p>
+        <h2 class="finale-title">开启你的创作之旅</h2>
+        <p class="finale-desc">原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴</p>
         <div class="finale-actions">
-          <a class="cbtn cbtn--primary cbtn--lg" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener">⤓ 下载客户端</a>
+          <a class="cbtn cbtn--primary cbtn--lg" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener">⤓ 下载 Studio</a>
           <a class="cbtn cbtn--outline cbtn--lg" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">GitHub 仓库</a>
         </div>
       </div>
@@ -286,16 +318,16 @@
     <div class="footer-inner">
       <div class="footer-brand">
         <img src="assets/orca-icon.svg" alt="DeepOrca" class="footer-icon">
-        <span class="mono">DEEPORCA&nbsp;//&nbsp;ORCA_v2</span>
+        <span>DeepOrca · AI 创作 Studio</span>
       </div>
-      <nav class="footer-links mono">
-        <a href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">GITHUB</a>
-        <a href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener">RELEASES</a>
-        <a href="https://github.com/d2rabbit/deepOrca/tree/master/docs" target="_blank" rel="noopener">DOCS</a>
-        <a href="https://github.com/d2rabbit/deepOrca/issues" target="_blank" rel="noopener">ISSUES</a>
-        <a href="https://github.com/d2rabbit/deepOrca/blob/master/LICENSE" target="_blank" rel="noopener">LICENSE</a>
+      <nav class="footer-links">
+        <a href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/d2rabbit/deepOrca/tree/master/docs" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/d2rabbit/deepOrca/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/d2rabbit/deepOrca/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
       </nav>
-      <span class="footer-copy mono">MIT&nbsp;LICENSE&nbsp;·&nbsp;BUILT&nbsp;FOR&nbsp;DEEPSEEK&nbsp;·&nbsp;源自&nbsp;<a href="https://github.com/lessweb/deepcode-cli" target="_blank" rel="noopener">DEEP&nbsp;CODE</a>&nbsp;(©&nbsp;2026&nbsp;lessweb，MIT&nbsp;License)，依照协议完整保留原始版权声明</span>
+      <span class="footer-copy">MIT License · 源自 <a href="https://github.com/lessweb/deepcode-cli" target="_blank" rel="noopener">Deep Code</a> (© 2026 lessweb, MIT License)，依照协议完整保留原始版权声明</span>
     </div>
   </footer>
 

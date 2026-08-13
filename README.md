@@ -11,7 +11,7 @@
 
 # DeepOrca
 
-**AI 驱动的下一代编码助手**
+**原型 · 设计 · 编码 —— AI 创作 Studio**
 
 [English](README-en.md) · 中文 · [文档](docs/) · [更新日志](CHANGELOG.md)
 
@@ -22,7 +22,19 @@
 
 ## 🐋 关于 DeepOrca
 
-**DeepOrca** 是一个 AI 驱动的下一代编码助手，专为 `deepseek-v4` 模型优化，以 Electron 桌面客户端为主要产品形态。项目由四个 npm workspace 组成：
+**DeepOrca** 是一个 AI 驱动的创作 Studio。**原型设计**、**UI 设计稿**、**智能编码**三大能力独立可用，按需组合——无论你想快速搭建交互原型、生成精美的 UI 设计稿，还是直接进入代码研发，都能从一个桌面客户端完成。专为 `deepseek-v4` 模型优化，以 Electron 桌面客户端为主要产品形态。
+
+### 🎯 三大核心能力
+
+| 能力 | 说明 | 技术 |
+| --- | --- | --- |
+| **🎯 原型设计** | 用自然语言描述需求，AI 生成可交互原型（表单/看板/多页面导航），双向交互验证用户流程 | A2UI 协议 + OpenUI Lang + 7 个模板 |
+| **🎨 UI 设计稿** | 生成自包含 HTML 设计稿，3 种设计系统、14 种 UI 风格、Tailwind 内置，可脱离宿主独立交付 | DeepDesign `.dd` 格式 |
+| **💻 智能编码** | DeepSeek 驱动的会话式编码：7 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成 | Core Engine + MCP + Monaco |
+
+三大能力各自独立，从任意一个切入即可。也可以组合使用——从原型验证到设计稿再到代码实现，按需流转。
+
+项目由四个 npm workspace 组成：
 
 | 包                    | 说明                                                                  |
 | --------------------- | --------------------------------------------------------------------- |
@@ -138,6 +150,9 @@ const output = await run.result;
 | 能力域       | 功能                                              | 状态 |
 | ------------ | ------------------------------------------------- | ---- |
 | 核心引擎     | LLM 会话循环、7 个内置工具、上下文压缩            | ✅   |
+| **原型设计** | **A2UI 交互原型 + OpenUI Lang + 7 个模板**        | ✅   |
+| **UI 设计稿** | **DeepDesign `.dd` 格式 + 3 设计系统 + 14 风格** | ✅   |
+| **智能编码** | **DeepSeek 驱动的会话式编码 + Monaco + Git**      | ✅   |
 | Actions      | ActionRegistry、LLM 工具、桌面 IPC/UI、组合工作流 | 🧪   |
 | 桌面客户端   | Electron GUI、多面板、多主题                      | ✅   |
 | 扩展系统     | Skills / MCP / 内置扩展                           | ✅   |
@@ -167,7 +182,7 @@ const output = await run.result;
 | 2   | **远程插件中心**          | 在线插件市场，支持一键安装/更新社区 Skills 和 MCP 服务 | 🔨 规划中 |
 | 3   | **自定义 CLI 与指令**     | 用户可注册斜杠命令和 CLI 子命令                        | 🔨 规划中 |
 | 4   | **项目图谱与沉浸式 Wiki** | 代码知识图谱可视化 + 项目级知识沉淀                    | 📐 设计中 |
-| 5   | **Designer 能力**         | 从自然语言描述生成可预览、可交付的界面原型             | 🔨 规划中 |
+| 5   | **PM-Design V2 需求具现化** | 需求分析 → 管线自动路由 → 原型生成 → 持久化工作台     | 📐 设计中 |
 
 已集成的重点开源能力包括 Flutter/Dart Skills、OpenWiki、CodeGraph 和 Code Review Graph（CRG）；Serena、OpenCLI、CLI-Anything、Open Design 等能力仍在持续集成与评估中。
 
