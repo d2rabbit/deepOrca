@@ -156,7 +156,7 @@ export class MemoryManager {
     const [l0, l1, l2, l3] = await Promise.all([
       countFiles("conversations"),
       countFiles("records"),
-      countFiles("scenes"),
+      countFiles("scene_blocks"),
       fileExists("persona.md"),
     ]);
     return { l0, l1, l2, l3 };

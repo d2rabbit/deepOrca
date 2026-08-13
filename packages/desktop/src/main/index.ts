@@ -879,13 +879,6 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
     const html = await runCrgVisualize(root);
     return { html, error: html ? undefined : "Visualization failed — is the graph built?" };
   });
-
-  // TypeScript entry point. The Gateway handles all memory operations:
-  // recall, capture, search — DeepOrca communicates via HTTP.
-  //
-  // NOTE: The IPC handlers below (MemoryCheckAvailable / MemorySetEnabled) are
-  // fully wired through main → preload → shared IPC, but the renderer currently
-  // has NO call site for memoryCheckAvailable / memorySetEnabled. Additionally,
 }
 
 function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
@@ -994,7 +987,8 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
       ? {
           state: memStats && memStats.l0 > 0 ? "indexed" : "empty",
           count: memStats?.l1 ?? 0,
-          unit: "条",
+          unit: "天",
+          detail: memStats?.l3 ? "L0-L3 全链路" : "L0-L2",
           stats: memStats ?? undefined,
         }
       : { state: "disabled", detail: "未启用" };
