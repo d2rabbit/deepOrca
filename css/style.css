@@ -1109,6 +1109,334 @@ section.veil {
   color: var(--accent);
 }
 
+
+/* ============================================================
+   Narrative layer: hunt scenes, dive path, currents, shadows
+   ============================================================ */
+
+/* ---------- Depth chips ---------- */
+
+.depth-chip {
+  width: max-content;
+  margin: 0 auto 14px;
+  padding: 5px 16px;
+  border-radius: 99px;
+  border: 1px dashed var(--border-strong);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---------- Hunt rows (pillars as hunting scenes) ---------- */
+
+.hunt-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  text-align: left;
+}
+
+.hunt-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 28px;
+  align-items: stretch;
+}
+.hunt-row.flip {
+  grid-template-columns: 0.85fr 1.15fr;
+}
+
+.hunt-depth {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 0 6px;
+}
+.hunt-depth .m {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+}
+.hunt-depth .env {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+.hunt-depth::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-strong), transparent);
+}
+
+.hunt-body {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 40px 36px;
+  overflow: hidden;
+  transition: transform 0.25s var(--ease-out), border-color 0.25s, background 0.25s;
+}
+.hunt-row:hover .hunt-body {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  background: var(--panel-hover);
+}
+
+.hunt-num {
+  position: absolute;
+  top: -14px;
+  right: 14px;
+  font-size: 120px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--accent);
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+/* scene panels */
+.hunt-scene {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  min-height: 220px;
+}
+
+/* scene 1: sonar rings */
+.sonar-scene .ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  transform: translate(-50%, -50%);
+  animation: scene-sonar 4.8s ease-out infinite;
+  opacity: 0;
+}
+.sonar-scene .r1 { width: 60px; height: 60px; animation-delay: 0s; }
+.sonar-scene .r2 { width: 60px; height: 60px; animation-delay: 1.2s; }
+.sonar-scene .r3 { width: 60px; height: 60px; animation-delay: 2.4s; }
+.sonar-scene .r4 { width: 60px; height: 60px; animation-delay: 3.6s; }
+@keyframes scene-sonar {
+  0% { width: 60px; height: 60px; opacity: 0.55; }
+  100% { width: 340px; height: 340px; opacity: 0; }
+}
+
+/* scene 2: current lines */
+.current-scene .cur {
+  position: absolute;
+  left: -30%;
+  width: 160%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.35;
+  animation: current-flow linear infinite;
+}
+.current-scene .c1 { top: 18%; animation-duration: 9s; }
+.current-scene .c2 { top: 36%; animation-duration: 13s; animation-delay: -4s; opacity: 0.25; }
+.current-scene .c3 { top: 52%; animation-duration: 11s; animation-delay: -7s; }
+.current-scene .c4 { top: 68%; animation-duration: 15s; animation-delay: -2s; opacity: 0.22; }
+.current-scene .c5 { top: 84%; animation-duration: 10s; animation-delay: -6s; }
+@keyframes current-flow {
+  from { transform: translateX(-12%); }
+  to { transform: translateX(12%); }
+}
+
+/* scene 3: orca shadow gliding through the deep */
+.shadow-scene img {
+  position: absolute;
+  width: 64%;
+  top: 50%;
+  left: -10%;
+  transform: translateY(-50%) rotate(-6deg);
+  filter: grayscale(1) brightness(0.4);
+  opacity: 0.5;
+  animation: glide 14s ease-in-out infinite;
+}
+[data-theme="dark"] .shadow-scene img {
+  filter: grayscale(1) brightness(2.4);
+  opacity: 0.22;
+}
+.shadow-scene .ray {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-glow);
+}
+@keyframes glide {
+  0%, 100% { transform: translateY(-50%) translateX(0) rotate(-6deg); }
+  50% { transform: translateY(-56%) translateX(58%) rotate(-3deg); }
+}
+
+/* ---------- Modules: drifting current mosaic ---------- */
+
+.mod-grid .mod-card:nth-child(even) {
+  transform: translateY(26px);
+}
+.mod-grid .mod-card:nth-child(even):hover {
+  transform: translateY(23px);
+}
+.mod-grid {
+  padding-bottom: 26px;
+}
+
+/* ---------- Dive path (roadmap) ---------- */
+
+.dive-path {
+  position: relative;
+  max-width: 920px;
+  margin: 0 auto 64px;
+  padding: 12px 0;
+  text-align: left;
+}
+.dive-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(var(--border-strong), var(--border), transparent);
+}
+.dive-stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 34px;
+}
+.dive-stop .road-card {
+  margin: 0;
+}
+.dive-stop.left .road-card {
+  grid-column: 1;
+  margin-right: 44px;
+}
+.dive-stop.right .road-card {
+  grid-column: 2;
+  margin-left: 44px;
+}
+.dive-marker {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+.dive-marker span {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 99px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+/* connector stub from marker to card */
+.dive-stop.left .dive-marker::after,
+.dive-stop.right .dive-marker::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 30px;
+  height: 1px;
+  background: var(--border-strong);
+}
+.dive-stop.left .dive-marker::after { left: 100%; }
+.dive-stop.right .dive-marker::after { right: 100%; }
+
+/* ---------- Orca shadows in the deep ---------- */
+
+.orca-shadow {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  animation: shadow-drift 22s ease-in-out infinite;
+}
+.orca-shadow.os1 {
+  width: 380px;
+  top: 34%;
+  right: -90px;
+  transform: rotate(-8deg);
+}
+.orca-shadow.os2 {
+  width: 460px;
+  bottom: 6%;
+  left: -120px;
+  transform: rotate(7deg);
+  animation-delay: -11s;
+}
+[data-theme="light"] .orca-shadow {
+  filter: grayscale(1) brightness(0.35);
+  opacity: 0.1;
+}
+[data-theme="dark"] .orca-shadow {
+  filter: grayscale(1) brightness(2.2);
+  opacity: 0.07;
+}
+@keyframes shadow-drift {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -26px; }
+}
+
+/* ---------- Narrative responsive ---------- */
+
+@media (max-width: 900px) {
+  .hunt-row,
+  .hunt-row.flip {
+    grid-template-columns: 1fr;
+  }
+  .hunt-scene {
+    min-height: 160px;
+  }
+  .dive-line {
+    left: 14px;
+  }
+  .dive-stop,
+  .dive-stop.left,
+  .dive-stop.right {
+    grid-template-columns: 1fr;
+  }
+  .dive-stop.left .road-card,
+  .dive-stop.right .road-card {
+    grid-column: 1;
+    margin: 0 0 0 48px;
+  }
+  .dive-marker {
+    left: 14px;
+    transform: translateX(-50%);
+  }
+  .dive-stop.left .dive-marker::after,
+  .dive-stop.right .dive-marker::after {
+    left: 100%;
+    right: auto;
+  }
+  .mod-grid .mod-card:nth-child(even),
+  .mod-grid .mod-card:nth-child(even):hover {
+    transform: none;
+  }
+  .mod-grid {
+    padding-bottom: 0;
+  }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1080px) {
