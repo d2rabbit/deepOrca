@@ -215,6 +215,8 @@ export function toSettingsSummary(root: string): SettingsSummary {
     primaryEndpointId: s.primaryEndpointId,
     secondaryModel: s.secondaryModel,
     secondaryEndpointId: s.secondaryEndpointId,
+    visionModel: s.visionModel,
+    visionEndpointId: s.visionEndpointId,
   };
 }
 
@@ -496,6 +498,8 @@ export class SessionBridge {
       primaryEndpointId: raw.primaryEndpointId ?? "",
       secondaryModel: raw.secondaryModel ?? "",
       secondaryEndpointId: raw.secondaryEndpointId ?? "",
+      visionModel: raw.visionModel ?? "",
+      visionEndpointId: raw.visionEndpointId ?? "",
       memory: {
         enabled: raw.memory?.enabled ?? false,
         port: raw.memory?.port ?? 8420,
@@ -522,6 +526,8 @@ export class SessionBridge {
       next.primaryEndpointId = primaryId;
       next.secondaryModel = patch.secondaryModel.trim(); // empty = inherit primary
       next.secondaryEndpointId = ids.has(patch.secondaryEndpointId) ? patch.secondaryEndpointId : primaryId;
+      next.visionModel = patch.visionModel.trim(); // empty = disabled
+      next.visionEndpointId = ids.has(patch.visionEndpointId) ? patch.visionEndpointId : primaryId;
       // Sync the primary endpoint's key + baseURL into env so createOpenAIClient
       // (which reads env.API_KEY / env.BASE_URL) picks up the primary config.
       // NOTE: if an env key is already provided externally (DEEPORCA_API_KEY),

@@ -127,6 +127,10 @@ export type DeepcodingSettings = {
   secondaryModel?: string;
   /** Which endpoint the secondary model uses. Falls back to primary if unset. */
   secondaryEndpointId?: string;
+  /** Vision model for the built-in vision MCP plugin. Empty = disabled. */
+  visionModel?: string;
+  /** Which endpoint the vision model uses. Falls back to primary if unset. */
+  visionEndpointId?: string;
   /** Skill/tool routing config (embedding-based context reduction). */
   routing?: RoutingSettings;
 };
@@ -178,6 +182,13 @@ export type ResolvedDeepcodingSettings = {
   /** Resolved secondary endpoint config (baseURL + apiKey). */
   secondaryBaseURL: string;
   secondaryApiKey?: string;
+  /** Vision model for built-in vision MCP plugin. Empty = disabled. */
+  visionModel: string;
+  /** Endpoint id used by the vision model. */
+  visionEndpointId: string;
+  /** Resolved vision endpoint config (baseURL + apiKey). */
+  visionBaseURL: string;
+  visionApiKey?: string;
 };
 
 export type ModelConfigSelection = {
@@ -760,6 +771,14 @@ export function resolveSettingsSources(
   const secondaryBaseURL = secondaryEndpoint?.baseURL ?? resolvedBaseURL;
   const secondaryApiKey = secondaryEndpoint?.apiKey || undefined;
 
+  // Vision model (built-in vision MCP plugin). Empty = disabled.
+  const visionModel = trimString(projectSettings?.visionModel) || trimString(userSettings?.visionModel) || "";
+  const visionEndpointId =
+    trimString(projectSettings?.visionEndpointId) || trimString(userSettings?.visionEndpointId) || primaryEndpointId;
+  const visionEndpoint = endpoints.find((e) => e.id === visionEndpointId) ?? endpoints[0];
+  const visionBaseURL = visionEndpoint?.baseURL ?? resolvedBaseURL;
+  const visionApiKey = visionModel ? visionEndpoint?.apiKey || undefined : undefined;
+
   // Primary endpoint's apiKey/baseURL. Environment variables (the final merged
   // env, system > project > user) have the highest priority for BOTH apiKey and
   // baseURL, so CI/credential rotation can override either value stored in
@@ -795,6 +814,10 @@ export function resolveSettingsSources(
     secondaryEndpointId,
     secondaryBaseURL,
     secondaryApiKey,
+    visionModel,
+    visionEndpointId,
+    visionBaseURL,
+    visionApiKey,
   };
 }
 

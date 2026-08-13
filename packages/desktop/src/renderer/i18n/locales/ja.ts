@@ -299,6 +299,10 @@ export const ja: Record<MessageKey, string> = {
   "settings.capabilities.primary": "プライマリモデル",
   "settings.capabilities.secondary": "セカンダリモデル",
   "settings.capabilities.inherit": "プライマリから継承",
+  "settings.capabilities.disabled": "無効",
+  "settings.visionModel": "ビジョンモデル",
+  "settings.visionModelHint":
+    "内蔵ビジョンプラグイン — Agentが画像を理解する必要がある時に呼び出されます。ビジョン能力のあるモデルのみ表示されます。",
   "settings.capabilities.vision": "ビジョン",
   "settings.capabilities.thinkingOff": "オフ",
   "settings.memory.enable": "クロスセッションメモリを有効化",

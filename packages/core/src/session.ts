@@ -35,6 +35,7 @@ import {
   restoreSurfaces,
 } from "./mcp/a2ui-mcp";
 import { ACTIVITY_FRAMES_MCP_SERVER_NAME, buildActivityFramesServer } from "./activity-frames/index";
+import { VISION_MCP_SERVER_NAME, getVisionServerBuilder } from "./mcp/vision-seam";
 /** Memory provider interface — implemented by @deeporca/memory or any compatible provider. */
 export interface MemoryProvider {
   recall(
@@ -495,6 +496,8 @@ type SessionManagerOptions = {
     permissions?: Required<PermissionSettings>;
     enabledSkills?: Record<string, boolean>;
     routing?: RoutingSettings;
+    visionModel?: string;
+    visionApiKey?: string;
   };
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
@@ -552,6 +555,8 @@ export class SessionManager {
     permissions?: Required<PermissionSettings>;
     enabledSkills?: Record<string, boolean>;
     routing?: RoutingSettings;
+    visionModel?: string;
+    visionApiKey?: string;
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -1045,6 +1050,21 @@ If the query is simple (single intent), respond with a single-element array.`;
       await this.mcpManager.connectInProcessServer(ACTIVITY_FRAMES_MCP_SERVER_NAME, afServer);
     } catch {
       // Activity DB not available — tools will report gracefully.
+    }
+
+    // Connect the built-in Vision MCP server (vision_chat / vision_ocr tools).
+    // Gives text-only LLMs (like DeepSeek) the ability to understand images via
+    // a vision-capable proxy model. Only connects when a vision model is configured
+    // AND the desktop host has injected the server builder.
+    const visionSettings = this.getResolvedSettings();
+    const visionBuilder = getVisionServerBuilder();
+    if (visionSettings.visionModel && visionSettings.visionApiKey && visionBuilder) {
+      try {
+        const visionServer = visionBuilder(this.projectRoot);
+        await this.mcpManager.connectInProcessServer(VISION_MCP_SERVER_NAME, visionServer);
+      } catch (error) {
+        console.error("[session] vision MCP server failed:", error);
+      }
     }
 
     this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();

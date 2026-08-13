@@ -115,7 +115,7 @@ export type { McpServerStatus } from "./mcp/mcp-manager";
 export { createMcpSpawnSpec, type McpSpawnSpec } from "./mcp/spawn-spec";
 
 // Common utilities
-export { createOpenAIClient, createSecondaryClient } from "./common/openai-client";
+export { createOpenAIClient, createSecondaryClient, createVisionClient } from "./common/openai-client";
 export { buildThinkingRequestOptions } from "./common/openai-thinking";
 export { readTextFileWithMetadata, writeTextFile, buildDiffPreview, ensureParentDirectory } from "./common/file-utils";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
@@ -182,6 +182,15 @@ export {
 } from "./common/skill-spector";
 
 export { ACTIVITY_FRAMES_MCP_SERVER_NAME } from "./activity-frames/index";
+
+// Vision MCP seam — desktop injects the concrete server builder at boot.
+export {
+  VISION_MCP_SERVER_NAME,
+  configureVisionServerBuilder,
+  getVisionServerBuilder,
+  type VisionServerBuilder,
+  type VisionServerLike,
+} from "./mcp/vision-seam";
 
 // Semantic skill/tool routing. The host injects the vendored embedding model dir
 // and a logger (same pattern as codegraph/serena above), and closes the shared

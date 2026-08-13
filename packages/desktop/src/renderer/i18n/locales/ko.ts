@@ -299,6 +299,10 @@ export const ko: Record<MessageKey, string> = {
   "settings.capabilities.primary": "주 모델",
   "settings.capabilities.secondary": "보조 모델",
   "settings.capabilities.inherit": "주 모델에서 상속",
+  "settings.capabilities.disabled": "비활성화",
+  "settings.visionModel": "비전 모델",
+  "settings.visionModelHint":
+    "내장 비전 플러그인 — Agent가 이미지를 이해해야 할 때 호출됩니다. 비전 기능이 있는 모델만 표시됩니다.",
   "settings.capabilities.vision": "비전",
   "settings.capabilities.thinkingOff": "끄기",
   "settings.memory.enable": "크로스 세션 메모리 활성화",

@@ -478,6 +478,15 @@ export function SettingsPanel({
   // disabled dropdown's selected value.)
   const secondaryModelKey = s.secondaryModel.trim() === "" ? "" : findKeyForModel(s.secondaryModel);
 
+  // ── Vision model: filtered to vision-capable models only ─────────────
+  const visionModelKey = s.visionModel.trim() === "" ? "" : findKeyForModel(s.visionModel);
+  const visionModelKeys = allModelKeys.filter((key) => {
+    const parsed = parseModelKey(key);
+    if (!parsed) return false;
+    const ep = s.endpoints.find((e) => e.id === parsed.endpointId);
+    return ep?.models?.some((m) => m.id === parsed.modelId && m.vision);
+  });
+
   return (
     <div className="ui-settings-panel">
       <div className="ui-settings-panel-head">
@@ -763,6 +772,25 @@ export function SettingsPanel({
                     >
                       <option value="">{t("settings.capabilities.inherit")}</option>
                       {allModelKeys.map((key) => (
+                        <option key={key} value={key}>
+                          {modelLabel(key)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+
+                {/* Vision model — only shows models with vision capability. */}
+                <div className="ui-endpoint-role">
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.vision")}</div>
+
+                  <Field label={t("settings.visionModel")} hint={t("settings.visionModelHint")}>
+                    <Select
+                      value={visionModelKey}
+                      onChange={(e) => patch({ visionModel: bareModelId(e.target.value) })}
+                    >
+                      <option value="">{t("settings.capabilities.disabled")}</option>
+                      {visionModelKeys.map((key) => (
                         <option key={key} value={key}>
                           {modelLabel(key)}
                         </option>

@@ -175,3 +175,47 @@ export function createSecondaryClient(projectRoot: string = process.cwd()): {
 
   return { client: cachedSecondary, model, baseURL };
 }
+
+// ── Vision model client ────────────────────────────────────────────────────
+// Used by the built-in vision MCP plugin (vision_chat / vision_ocr tools) to
+// proxy image-understanding requests through a vision-capable model (e.g.
+// Qwen-VL, GPT-4o). The vision model is configured independently from the
+// primary/secondary conversation models — it only serves vision MCP tool calls.
+
+let cachedVision: OpenAI | null = null;
+let cachedVisionKey = "";
+
+/**
+ * Create (or return cached) a vision-model client configured from the
+ * `visionModel` + `visionEndpointId` settings. Returns null if visionModel is
+ * empty or no API key is configured for the vision endpoint.
+ */
+export function createVisionClient(projectRoot: string = process.cwd()): {
+  client: OpenAI | null;
+  model: string;
+  baseURL: string;
+} {
+  const settings = resolveCurrentSettings(projectRoot);
+  const apiKey = settings.visionApiKey;
+  const baseURL = settings.visionBaseURL;
+  const model = settings.visionModel;
+
+  if (!model || !apiKey) {
+    return { client: null, model, baseURL };
+  }
+
+  const cacheKey = `${apiKey}::${baseURL}`;
+  if (cachedVision && cachedVisionKey === cacheKey) {
+    return { client: cachedVision, model, baseURL };
+  }
+
+  cachedVision = new OpenAI({
+    apiKey,
+    baseURL: baseURL || undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
+  });
+  cachedVisionKey = cacheKey;
+
+  return { client: cachedVision, model, baseURL };
+}

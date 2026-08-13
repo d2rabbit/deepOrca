@@ -414,6 +414,8 @@ export type SettingsSummary = {
   primaryEndpointId: string;
   secondaryModel: string;
   secondaryEndpointId: string;
+  visionModel: string;
+  visionEndpointId: string;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -460,6 +462,10 @@ export type EditableSettings = {
   secondaryModel: string;
   /** Which endpoint the secondary model uses. */
   secondaryEndpointId: string;
+  /** Vision model ID (bare name). Empty = disabled. */
+  visionModel: string;
+  /** Which endpoint the vision model uses. */
+  visionEndpointId: string;
   /** Memory system settings (TencentDB-Agent-Memory sidecar). */
   memory: { enabled: boolean; port: number };
 };

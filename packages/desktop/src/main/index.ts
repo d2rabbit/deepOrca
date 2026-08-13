@@ -34,6 +34,7 @@ import {
   configureReviewController,
   configureCodegraphController,
   configureWikiController,
+  configureVisionServerBuilder,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -54,6 +55,7 @@ import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController } from "./tools/ocr-cli.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
+import { buildVisionServer } from "./tools/vision-mcp.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { safeWikiPath } from "./safe-path.js";
@@ -196,6 +198,11 @@ configureWikiController(
     },
   })
 );
+
+// Vision MCP: built-in in-process MCP server that gives text-only LLMs (like
+// DeepSeek) the ability to understand images via a vision-capable proxy model.
+// The builder is injected here; core connects it when a vision model is configured.
+configureVisionServerBuilder(buildVisionServer);
 
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
