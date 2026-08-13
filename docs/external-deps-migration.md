@@ -86,15 +86,19 @@ desktop/main/index.ts              ← boot: configure*ServerBuilder(new XxxCont
 | **Activity-Frames** | `desktop/tools/activity-frames/`（13 文件） | `node:sqlite` 或 `better-sqlite3` | ✅ |
 | **GitMCP** | `desktop/tools/gitmcp/`（5 文件） | `node:sqlite` + GitHub API（联网） | ⚠️ 索引时联网，查询时离线 |
 
-### 已知问题
+### 已知问题（2026-08-13 实地验证）
 
-1. **BrowserSkill** runtime wiring 不完整 — artifact 会下载，但 `bsk` 未自动加入 PATH
-2. **Granite** 默认 tag 是可变 `main`（非 immutable revision），无 checksum，第三方 notices 未登记
-3. **Tailwind** 只固定 major 4，无 patch 或 digest
-4. **Serena/CRG/SkillSpector** 首次使用时联网安装 Python 工具环境
-5. **Bento** marker `1.0.16` 但脚本 fallback `1.0.15`，build existence check 路径不匹配
-6. **release validation** (`scripts/package-desktop.js`) 只覆盖 CodeGraph/OpenWiki/uv/SkillSpector marker，未覆盖 BrowserSkill/Serena/CRG/Granite/Tailwind/Bento
-7. **ThirdPartyNotices.txt** 缺失，且 manifest 遗漏 Granite
+| # | 严重度 | 组件 | 问题 | 现状 |
+|---|---|---|---|---|
+| 1 | **高** | **BrowserSkill** | `vendor/browser-skill/bsk` 二进制已下载（8.4MB），但**无代码将 vendor 目录加入 PATH**。Plugin 文档要求 `bsk on PATH`，但 desktop 不自动注入。用户需自行安装 `bsk` 到系统 PATH | ⚠️ 未修复 |
+| 2 | **高** | **CodeGraph** | **双机制冲突**：`build.mjs` 注释说 "npm dep, no vendor script needed"，不调用 `vendor-codegraph.js`；但 `vendor/codegraph/darwin-arm64/` 有完整二进制（~150MB），且 `package-desktop.js` release 门控**要求**该目录存在。全新 checkout 跑 `desktop:build` 不会填充 vendor/codegraph/，但 release 会失败 | ⚠️ 未修复 |
+| 3 | **中** | **Release 门控覆盖不全** | `package-desktop.js` 只验证 4/10 个 vendor 组件（codegraph/openwiki/uv/skillspector）。browser-skill/tailwind/granite/bento 有真实 payload 但**不被 release 门控**——降级打包会静默缺件 | ⚠️ 未修复 |
+| 4 | **中** | **Granite** | 默认 tag 是可变 `main`（非 immutable revision），无 SHA256 checksum。vendor-notice.js MANIFEST 遗漏 Granite | ⚠️ 未修复 |
+| 5 | **中** | **ThirdPartyNotices.txt** | 文件**不存在**。`vendor-notice.js` 可按需生成（9 组件 MANIFEST），但从未运行过（或输出被 gitignore） | ⚠️ 未生成 |
+| 6 | **低** | **Tailwind** | 只固定 major 4，无 patch 或 digest；marker 是时间戳（30 天刷新） | 可接受 |
+| 7 | **低** | **CRG** | `vendor-crg.js` 头部引用 `github.com/tirth8205/code-review-graph`，但 `vendor-notice.js` MANIFEST 引用 `github.com/colbymchenry/code-review-graph`——上游 URL 不一致 | 文档错误 |
+| 8 | **低** | **Bento** | marker `1.0.16`，脚本 fallback `1.0.15`；`build.mjs` existence check 路径指向 desktop vendor 但实际写入 core templates | 路径不匹配 |
+| 9 | — | **Serena/CRG/SkillSpector** | marker-only 设计（首次联网安装 Python 工具环境）——这是**设计意图**，不是问题 | ✅ 正常 |
 
 ## core 包中的工具相关代码（迁移后状态）
 
