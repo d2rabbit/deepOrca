@@ -1,0 +1,95 @@
+<svg id="svg-orca" xmlns="http://www.w3.org/2000/svg" viewBox="150 20 660 400">
+  <defs>
+    <!-- Orca Black Skin Gradient -->
+    <linearGradient id="orcaSkin" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#2a364f"></stop>
+      <stop offset="25%" stop-color="#141c2e"></stop>
+      <stop offset="70%" stop-color="#090d17"></stop>
+      <stop offset="100%" stop-color="#020408"></stop>
+    </linearGradient>
+
+    <!-- White Patch Soft Gradient -->
+    <linearGradient id="orcaWhitePatch" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"></stop>
+      <stop offset="80%" stop-color="#f1f5f9"></stop>
+      <stop offset="100%" stop-color="#e2e8f0"></stop>
+    </linearGradient>
+
+    <!-- Saddle Patch Texture Gradient -->
+    <linearGradient id="saddlePatch" x1="0%" y1="0%" x2="100%" y2="80%">
+      <stop offset="0%" stop-color="#94a3b8" stop-opacity="0.65"></stop>
+      <stop offset="60%" stop-color="#64748b" stop-opacity="0.35"></stop>
+      <stop offset="100%" stop-color="#334155" stop-opacity="0.1"></stop>
+    </linearGradient>
+
+    <!-- Soft Glow & Shadow Filters -->
+    <filter id="orcaShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity="0.55"></feDropShadow>
+    </filter>
+  </defs>
+
+  <!-- MAIN ORCA GROUP -->
+  <g id="orca-main-group" filter="url(#orcaShadow)">
+
+    <!-- Blowhole Vapor Spray Effect -->
+    <g id="orca-part-spray" opacity="0.8">
+      <circle cx="270" cy="110" r="12" fill="#e0f2fe" opacity="0.4"></circle>
+      <ellipse cx="275" cy="95" rx="8" ry="18" fill="#bae6fd" opacity="0.5"></ellipse>
+      <circle cx="265" cy="80" r="5" fill="#f0f9ff"></circle>
+      <circle cx="282" cy="75" r="3.5" fill="#f0f9ff"></circle>
+      <circle cx="272" cy="65" r="2" fill="#ffffff"></circle>
+    </g>
+
+    <!-- Main Hydrodynamic Dark Body -->
+    <path id="orca-part-body" d="M 180 260
+           C 200 230, 240 185, 320 180
+           C 400 175, 510 195, 600 240
+           C 650 265, 700 282, 735 280
+           C 750 278, 765 268, 775 250
+           C 772 280, 768 298, 788 322
+           C 765 310, 742 310, 700 300
+           C 590 325, 460 340, 360 320
+           C 270 302, 210 285, 175 272
+           C 165 268, 168 262, 180 260 Z" fill="url(#orcaSkin)"></path>
+
+    <!-- Saddle Patch (Grey saddle mark behind dorsal fin) -->
+    <path id="orca-part-saddle" d="M 450 200
+           C 480 205, 510 220, 525 242
+           C 505 248, 470 240, 435 222
+           C 428 208, 438 202, 450 200 Z" fill="url(#saddlePatch)"></path>
+
+    <!-- Signature White Belly & Flank Blaze Patch -->
+    <path id="orca-part-belly" d="M 215 273
+           C 250 288, 300 305, 370 318
+           C 460 332, 540 330, 605 305
+           C 638 292, 665 270, 685 278
+           C 668 298, 620 322, 545 318
+           C 450 312, 360 298, 280 278
+           C 245 269, 222 268, 215 273 Z" fill="url(#orcaWhitePatch)"></path>
+
+    <!-- Distinctive White Oval Eye Patch -->
+    <path id="orca-part-eyepatch" d="M 240 228
+           C 265 218, 292 222, 298 234
+           C 300 244, 278 252, 252 246
+           C 235 242, 228 234, 240 228 Z" fill="url(#orcaWhitePatch)"></path>
+
+    <!-- Iconic Tall Dorsal Fin (with realistic trailing edge curve) -->
+    <path id="orca-part-dorsal" d="M 390 185
+           C 410 135, 435 55, 448 40
+           C 452 36, 456 42, 457 55
+           C 460 95, 470 162, 485 198
+           C 450 200, 415 195, 390 185 Z" fill="url(#orcaSkin)" stroke="#334155" stroke-width="0.8"></path>
+
+    <!-- Paddle-shaped Pectoral Flipper -->
+    <path id="orca-part-flipper" d="M 320 295
+           C 340 325, 365 375, 358 392
+           C 353 400, 342 396, 330 376
+           C 308 342, 292 312, 296 290 Z" fill="#0a101d" stroke="#1e293b" stroke-width="1"></path>
+
+    <!-- Facial Details: Eye, Mouth Seam, Blowhole -->
+    <circle cx="228" cy="248" r="2.5" fill="#020408"></circle>
+    <circle cx="229" cy="247.5" r="0.8" fill="#ffffff" opacity="0.9"></circle>
+    <path d="M 175 272 C 200 274, 230 276, 260 275" stroke="#020408" stroke-width="1.5" opacity="0.7" fill="none"></path>
+    <ellipse cx="270" cy="183" rx="4" ry="1.5" fill="#020408" opacity="0.8"></ellipse>
+  </g>
+</svg>

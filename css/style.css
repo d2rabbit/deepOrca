@@ -1833,20 +1833,20 @@ body::after {
   opacity: 0;
   animation: hunt-pass var(--dur, 24s) linear var(--delay, 0s) forwards;
 }
-.hunt-pod svg {
+.hunt-pod img {
   position: absolute;
   display: block;
-  fill: currentColor;
+  max-width: none;
 }
 .hunt-pod.rtl {
   animation-direction: reverse;
 }
-.hunt-pod.rtl svg {
+.hunt-pod.rtl img {
   transform: scaleX(-1);
 }
-:root .hunt-pod { --po: 0.07; }
-[data-theme="dark"] .hunt-pod { color: #9cc8e2; --po: 0.08; }
-[data-theme="light"] .hunt-pod { color: #0f3d5c; --po: 0.1; }
+:root .hunt-pod { --po: 0.16; }
+[data-theme="dark"] .hunt-pod { --po: 0.22; }
+[data-theme="light"] .hunt-pod { --po: 0.15; }
 @keyframes hunt-pass {
   0% { transform: translateX(-45vw) translateY(0); opacity: 0; }
   10% { opacity: var(--po); }
