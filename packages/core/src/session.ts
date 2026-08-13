@@ -49,12 +49,8 @@ export interface MemoryProvider {
   searchMemories(query: string, limit?: number): Promise<{ text: string; total: number } | null>;
   isAvailable(): boolean;
 }
-import {
-  buildGitmcpMcpServerConfig,
-  gitmcpSlugFromServerName,
-  isGitmcpPlaceholderConfig,
-  isGitmcpServerName,
-} from "./gitmcp/resolve";
+import { gitmcpSlugFromServerName, isGitmcpPlaceholderConfig, isGitmcpServerName } from "./gitmcp/resolve";
+import { getGitmcpConfigBuilder } from "./mcp/gitmcp-seam";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { DEEPSEEK_V4_MODELS, COMPACTION_MODEL, LIGHTWEIGHT_TASK_MODEL } from "./common/model-capabilities";
 import { readTextFileWithMetadata } from "./common/file-utils";
@@ -1095,7 +1091,7 @@ If the query is simple (single intent), respond with a single-element array.`;
       if (!isGitmcpServerName(name) || !isGitmcpPlaceholderConfig(config)) {
         continue;
       }
-      const built = buildGitmcpMcpServerConfig(gitmcpSlugFromServerName(name));
+      const built = getGitmcpConfigBuilder()?.(gitmcpSlugFromServerName(name)) ?? null;
       if (built) {
         result = { ...result, [name]: built };
       }

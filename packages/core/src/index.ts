@@ -175,6 +175,11 @@ export {
   type ActivityFramesServerBuilder,
 } from "./mcp/activity-frames-seam";
 
+// GitMCP seam — desktop injects the config builder at boot.
+// resolve.ts (slug parsing + path resolution) stays in core.
+export { configureGitmcpConfigBuilder, getGitmcpConfigBuilder, type GitmcpConfigBuilder } from "./mcp/gitmcp-seam";
+export { buildGitmcpMcpServerConfig } from "./gitmcp/resolve";
+
 // Vision MCP seam — desktop injects the concrete server builder at boot.
 export {
   VISION_MCP_SERVER_NAME,
@@ -217,20 +222,9 @@ export {
   gitmcpSlugFromServerName,
   parseRepoSlug,
   buildGitmcpPlaceholderConfig,
-  buildGitmcpMcpServerConfig,
   buildGitmcpMaintenanceCommand,
   resolveGitmcpServerEntry,
 } from "./gitmcp/resolve";
-export {
-  GitmcpStore,
-  getGitmcpIndexDbPath,
-  gitmcpSqliteAvailable,
-  removeGitmcpRepoIndex,
-  readGitmcpRepoMeta,
-} from "./gitmcp/store";
-export type { GitmcpRepoMeta, DocChunk, SearchBackend, SearchHit } from "./gitmcp/store";
-export { indexRepository, chunkMarkdown } from "./gitmcp/indexer";
-export type { IndexResult } from "./gitmcp/indexer";
 export { reportNewPrompt } from "./common/telemetry";
 export {
   DEEPSEEK_V4_MODELS,

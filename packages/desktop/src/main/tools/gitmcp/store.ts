@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { createRequire } from "node:module";
-import { getUserConfigRoot } from "../common/app-dirs";
+import { getUserConfigRoot } from "@deeporca/core";
 
 // CommonJS-style require bound to this module — works in both the ESM dist and
 // bundled outputs. `node:sqlite` is loaded lazily so merely importing this file

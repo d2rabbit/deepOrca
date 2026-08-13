@@ -18,16 +18,11 @@ import {
   getUserSettingsPath,
   gitmcpServerNameForSlug,
   gitmcpSlugFromServerName,
-  gitmcpSqliteAvailable,
-  GitmcpStore,
-  indexRepository,
   isGitmcpServerName,
   normalizeEndpoints,
   parseRepoSlug,
-  readGitmcpRepoMeta,
   readProjectSettings,
   readSettings,
-  removeGitmcpRepoIndex,
   resolveCurrentSettings,
   SessionManager,
   setCodegraphDisabled,
@@ -37,10 +32,12 @@ import {
   writeSettings,
 } from "@deeporca/core";
 import type { MemoryProvider } from "@deeporca/core";
+import { GitmcpStore, gitmcpSqliteAvailable, readGitmcpRepoMeta, removeGitmcpRepoIndex } from "./tools/gitmcp/store.js";
+import { indexRepository } from "./tools/gitmcp/indexer.js";
+import type { GitmcpRepoMeta } from "./tools/gitmcp/store.js";
 import type {
   BuiltinPluginGroup,
   DeepcodingSettings,
-  GitmcpRepoMeta,
   McpServerConfig,
   ModelConfigSelection,
   PermissionDefaultMode,

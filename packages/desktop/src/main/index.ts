@@ -36,6 +36,8 @@ import {
   configureVisionServerBuilder,
   configureA2uiServerBuilder,
   configureActivityFramesServerBuilder,
+  configureGitmcpConfigBuilder,
+  buildGitmcpMcpServerConfig,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -217,6 +219,11 @@ configureA2uiServerBuilder(a2uiServerBuilder);
 
 // Activity-Frames MCP: built-in in-process MCP server for behavioral memory.
 configureActivityFramesServerBuilder(buildActivityFramesServer);
+
+// GitMCP: config builder for gitmcp:{owner}/{repo} placeholder resolution.
+// resolve.ts (path resolution + sqlite runtime) stays in core; desktop injects
+// the builder so session.ts can rewrite placeholders via seam.
+configureGitmcpConfigBuilder(buildGitmcpMcpServerConfig);
 
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
