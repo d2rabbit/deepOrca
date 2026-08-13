@@ -347,7 +347,14 @@ DeepOrca 提供多层代码工具（内置工具、Serena 语义工具、CodeGra
 ## 心智模型
 - **Serena = 手术刀**：实时、精准、单符号级操作（LSP 驱动，40+ 语言）
 - **CodeGraph = 全景图**：广度、影响面、调用链分析（图谱驱动）
-- **内置工具 = 基础**：文本读写、shell 命令、搜索`;
+- **内置工具 = 基础**：文本读写、shell 命令、搜索
+
+## 项目知识源
+DeepOrca 有多个项目知识来源，理解它们的定位差异：
+- **\`.serena/memories/\`**：Serena 的项目级记忆（架构理解、模块依赖、构建方式），Markdown 格式，可提交 Git，跨用户/会话共享。首次打开项目时 Serena 可能自动生成。
+- **\`openwiki/\`**：OpenWiki 生成的结构化项目文档（architecture.md、modules/*.md、workflows/*.md），由 CodeGraph 调用图和 Serena 符号结构驱动生成。
+- **AGENTS.md / .deeporca/**：DeepOrca 自身的项目配置和 AI 工作指南。
+当需要了解项目架构时，优先查阅 openwiki/ 和 .serena/memories/。`;
 
 export function getSystemPrompt(_projectRoot: string, options: PromptToolOptions = {}): string {
   const toolDocs = readToolDocs(getExtensionRoot(), options);

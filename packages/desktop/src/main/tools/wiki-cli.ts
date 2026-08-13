@@ -19,9 +19,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import type { WikiController, WikiResult, ControllerProgress } from "@deeporca/core";
+import { getSerenaController } from "@deeporca/core";
 
 const CONNECTOR_CONFIG_DIR = path.join(os.homedir(), ".openwiki", "connectors", "custom-mcp");
 const CONNECTOR_CONFIG_FILE = path.join(CONNECTOR_CONFIG_DIR, "config.json");
+const SERENA_CONNECTOR_DIR = path.join(os.homedir(), ".openwiki", "connectors", "serena-mcp");
+const SERENA_CONNECTOR_FILE = path.join(SERENA_CONNECTOR_DIR, "config.json");
 
 export class WikiCliController implements WikiController {
   constructor(
@@ -45,11 +48,13 @@ export class WikiCliController implements WikiController {
 
   async init(root: string, onProgress?: (p: ControllerProgress) => void): Promise<WikiResult> {
     this.configureCodegraphConnector(root);
+    this.configureSerenaConnector(root);
     return this.run("init", root, onProgress);
   }
 
   async update(root: string, onProgress?: (p: ControllerProgress) => void): Promise<WikiResult> {
     this.configureCodegraphConnector(root);
+    this.configureSerenaConnector(root);
     return this.run("update", root, onProgress);
   }
 
@@ -91,6 +96,40 @@ export class WikiCliController implements WikiController {
       fs.writeFileSync(CONNECTOR_CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
     } catch {
       // Non-fatal: wiki generation proceeds without CodeGraph context.
+    }
+  }
+
+  /**
+   * Write OpenWiki connector config for Serena MCP so the wiki agent can consume
+   * Serena's symbol-level data (get_symbols_overview, find_symbol, find_referencing_symbols)
+   * during wiki generation. Only writes when:
+   *   1. A `.serena/` directory exists in the project.
+   *   2. The SerenaController is injected and can build a server config.
+   * Non-fatal — wiki proceeds without Serena context on any failure.
+   */
+  private configureSerenaConnector(root: string): void {
+    try {
+      if (!fs.existsSync(path.join(root, ".serena"))) return;
+      const serenaController = getSerenaController();
+      if (!serenaController) return;
+      const serenaConfig = serenaController.buildMcpServerConfig(root);
+      if (!serenaConfig) return;
+
+      const config = {
+        enabled: true,
+        mode: "mcp-stdio",
+        transport: {
+          type: "stdio" as const,
+          command: serenaConfig.command,
+          args: serenaConfig.args,
+        },
+        env: serenaConfig.env ?? {},
+        allowedTools: ["get_symbols_overview", "find_symbol", "find_referencing_symbols", "get_diagnostics_for_file"],
+      };
+      fs.mkdirSync(SERENA_CONNECTOR_DIR, { recursive: true });
+      fs.writeFileSync(SERENA_CONNECTOR_FILE, JSON.stringify(config, null, 2), "utf8");
+    } catch {
+      // Non-fatal: wiki generation proceeds without Serena context.
     }
   }
 

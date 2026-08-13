@@ -18,7 +18,7 @@ import * as os from "node:os";
 import * as fs from "node:fs";
 
 import { ActionRegistry, NULL_SPAWNER } from "../actions";
-import type { McpDispatchResult } from "../actions";
+
 import {
   pingDefinition,
   pingRun,
@@ -73,7 +73,7 @@ function fullRegistry(root: string = PROJECT_ROOT): ActionRegistry {
 }
 
 describe("Phase 0-3 actions: registration + surfacing", () => {
-  test("all 13 actions surface as LLM tools via toToolDefinitions", () => {
+  test("all 14 actions surface as LLM tools via toToolDefinitions", () => {
     const r = fullRegistry();
     const names = r.toToolDefinitions().map((t) => t.function.name);
     const expected = [
@@ -83,7 +83,6 @@ describe("Phase 0-3 actions: registration + surfacing", () => {
       "review_full",
       "crg_reindex",
       "crg_visualize",
-      "crg_analyze",
       "codegraph_reindex",
       "codegraph_list",
       "wiki_init",
@@ -164,64 +163,6 @@ describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
     const r = fullRegistry(emptyRoot);
     const pages = (await r.execute("wiki.list-pages", {}).result) as unknown[];
     assert.equal(pages.length, 0);
-  });
-});
-
-describe("crg.analyze (Phase 1, 5/5 — routes to CRG MCP tools)", () => {
-  /** Registry with a mock executeMcpTool capturing the routed call. */
-  function registryWithMcp(
-    respond: (name: string, args: Record<string, unknown>) => McpDispatchResult
-  ): ActionRegistry {
-    const r = new ActionRegistry({
-      projectRoot: PROJECT_ROOT,
-      spawner: NULL_SPAWNER,
-      executeMcpTool: async (name, args) => respond(name, args),
-    });
-    r.register(crgAnalyzeDefinition, crgAnalyzeRun);
-    return r;
-  }
-
-  test("routes detect_changes to mcp__code-review-graph__detect_changes_tool and returns output", async () => {
-    let captured = "";
-    const r = registryWithMcp((name) => {
-      captured = name;
-      return { ok: true, output: '{"changed":["src/a.ts"]}' };
-    });
-    const out = (await r.execute("crg.analyze", { tool: "detect_changes" }).result) as {
-      tool: string;
-      ok: boolean;
-      output: string;
-    };
-    assert.equal(captured, "mcp__code-review-graph__detect_changes_tool");
-    assert.equal(out.ok, true);
-    assert.equal(out.tool, "detect_changes_tool");
-    assert.match(out.output, /src\/a\.ts/);
-  });
-
-  test("accepts the _tool-suffixed name too", async () => {
-    let captured = "";
-    const r = registryWithMcp((name) => {
-      captured = name;
-      return { ok: true, output: "ok" };
-    });
-    await r.execute("crg.analyze", { tool: "get_impact_radius_tool", args: { node: "foo" } }).result;
-    assert.equal(captured, "mcp__code-review-graph__get_impact_radius_tool");
-  });
-
-  test("rejects an unknown CRG tool", async () => {
-    const r = registryWithMcp(() => ({ ok: true, output: "" }));
-    await assert.rejects(
-      () => r.execute("crg.analyze", { tool: "bogus" }).result,
-      (err: unknown) => err instanceof Error && /unknown CRG tool/.test(err.message)
-    );
-  });
-
-  test("surfaces an MCP failure as an error", async () => {
-    const r = registryWithMcp(() => ({ ok: false, error: "graph not built" }));
-    await assert.rejects(
-      () => r.execute("crg.analyze", { tool: "detect_changes" }).result,
-      (err: unknown) => err instanceof Error && /graph not built/.test(err.message)
-    );
   });
 });
 
