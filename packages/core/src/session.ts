@@ -21,7 +21,8 @@ import { getWikiController } from "./actions/wiki-controller";
 import { CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled } from "./common/crg";
 import { getCrgController } from "./actions/crg-controller";
 import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
-import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
+import { SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
+import { getSerenaController } from "./actions/serena-controller";
 import {
   buildSkillSpectorMcpServerConfig,
   SKILL_SPECTOR_MCP_SERVER_NAME,
@@ -960,10 +961,10 @@ If the query is simple (single intent), respond with a single-element array.`;
     // Serena — semantic code retrieval, editing, refactoring (symbol-level
     // operations via SolidLSP, 40+ languages). Activated for all projects when
     // uv is available and not disabled. Complements the built-in text-level
-    // read/edit tools.
+    // read/edit tools. Spawn config is built by the host-injected SerenaController.
     if (!isSerenaDisabled(this.projectRoot)) {
       if (!(result && Object.prototype.hasOwnProperty.call(result, SERENA_MCP_SERVER_NAME))) {
-        const serenaConfig = buildSerenaMcpServerConfig(this.projectRoot);
+        const serenaConfig = getSerenaController()?.buildMcpServerConfig(this.projectRoot) ?? null;
         if (serenaConfig) {
           result = {
             ...(result ?? {}),

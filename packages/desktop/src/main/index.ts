@@ -21,8 +21,7 @@ import {
   resolveUvBinary,
   runCrgResetWithOutput,
   runCrgVisualize,
-  configureSerenaUvResolver,
-  configureSerenaVendorRoot,
+  configureSerenaController,
   configureSkillSpectorUvResolver,
   configureSkillSpectorVendorRoot,
   configureSkillSpectorLogger,
@@ -56,6 +55,7 @@ import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController } from "./tools/ocr-cli.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
+import { SerenaCliController } from "./tools/serena-cli.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
 import { safeWikiPath } from "./safe-path.js";
@@ -214,14 +214,15 @@ configureCrgVendorRoot(join(__dirname, "..", "vendor", "uv"));
 // scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.
 configureCrgVersionRoot(join(__dirname, "..", "vendor", "crg"));
 
-// Share the same vendored uv binary with Serena's MCP resolver. Serena is also
-// Python-based and runs through `uvx --python 3.13 serena-agent` — the same
-// vendored uv that CRG uses handles the isolated Python provisioning.
-configureSerenaUvResolver(() => resolveUvBinary());
-
-// Serena version pin: read from vendor/serena/.vendored-serena-version (written by
-// scripts/vendor-serena.js). Pins `uv tool run --from serena-agent==<version>`.
-configureSerenaVendorRoot(join(__dirname, "..", "vendor", "serena"));
+// Serena: controller-seam pattern (same as CodeGraph/CRG/OCR/Wiki).
+// The adapter handles all spawn/config logic (uv command, SERENA_HOME, version pin).
+// Core accesses it through getSerenaController().
+configureSerenaController(
+  new SerenaCliController({
+    uvBinary: resolveUvBinary(),
+    vendorRoot: join(__dirname, "..", "vendor", "serena"),
+  })
+);
 
 // SkillSpector (AI skill/MCP security scanner) shares the same vendored uv and reads
 // its pinned version from the vendored skillspector dir (written by

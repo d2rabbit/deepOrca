@@ -161,15 +161,10 @@ export {
 } from "./common/crg";
 export type { CrgExecutable } from "./common/crg";
 
-export {
-  SERENA_MCP_SERVER_NAME,
-  buildSerenaMcpServerConfig,
-  configureSerenaUvResolver,
-  configureSerenaVendorRoot,
-  isSerenaAvailable,
-  setSerenaDisabled,
-  isSerenaDisabled,
-} from "./common/serena-mcp";
+export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./common/serena-mcp";
+
+// Serena controller seam — desktop injects SerenaCliController at boot.
+export { type SerenaController, configureSerenaController, getSerenaController } from "./actions/serena-controller";
 export {
   SKILL_SPECTOR_MCP_SERVER_NAME,
   buildSkillSpectorMcpServerConfig,

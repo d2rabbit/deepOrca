@@ -22,7 +22,7 @@ let loaderGeneration = 0;
  * Point the loader at the vendored embedding model directory.
  *
  * Same host-injection pattern as configureCodegraphVendorRoot /
- * configureCrgVendorRoot / configureSerenaUvResolver: only the host knows its own
+ * configureCrgVendorRoot / configureSerenaController: only the host knows its own
  * layout (repo checkout vs packaged `Resources/app/vendor`), so core does not try
  * to derive it from `__dirname`. The desktop main process calls this at boot.
  */

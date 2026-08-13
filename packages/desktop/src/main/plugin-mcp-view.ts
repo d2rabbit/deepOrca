@@ -17,8 +17,8 @@ import {
   SERENA_MCP_SERVER_NAME,
   SKILL_SPECTOR_MCP_SERVER_NAME,
   buildCrgMcpServerConfig,
-  buildSerenaMcpServerConfig,
   buildSkillSpectorMcpServerConfig,
+  getSerenaController,
   hasCodegraphProject,
   isGitmcpServerName,
   resolveCurrentSettings,
@@ -107,7 +107,7 @@ export function buildPluginMcpList(projectRoot: string, deps: PluginViewDeps): P
   // references, rename, replace body). Shown when uv is available
   // (vendored or system). Covers 40+ languages via SolidLSP.
   if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
-    const cfg = buildSerenaMcpServerConfig(projectRoot);
+    const cfg = getSerenaController()?.buildMcpServerConfig(projectRoot) ?? null;
     if (cfg) {
       list.push({
         name: SERENA_MCP_SERVER_NAME,
@@ -198,7 +198,7 @@ export async function buildBuiltinPluginGroups(
       });
   }
   if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
-    const cfg = buildSerenaMcpServerConfig(projectRoot);
+    const cfg = getSerenaController()?.buildMcpServerConfig(projectRoot) ?? null;
     if (cfg)
       entries.push({
         name: SERENA_MCP_SERVER_NAME,
