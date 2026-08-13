@@ -120,7 +120,7 @@ const I18N = {
     "road.design": "📐 设计中",
 
     "dom.title": "功能域全景",
-    "dom.sub": "17 个功能域 —— 已集成 / 部分集成 / 规划中",
+    "dom.sub": "18 个功能域 —— 已集成 / 部分集成 / 规划中",
     "dom.ship": "已集成",
     "dom.partial": "部分集成",
     "dom.plan": "规划中",
@@ -158,6 +158,8 @@ const I18N = {
     "dom.16d": "defineAction · 一次定义多表面",
     "dom.17t": "密钥保险库",
     "dom.17d": "AES-256-GCM · 凭证按需注入",
+    "dom.18t": "3D 与制造",
+    "dom.18d": "text-to-cad · img2threejs · occt-import-js",
 
     "boot.tag": "// 快速开始",
     "boot.title": "三步部署，即刻创作",
@@ -299,7 +301,7 @@ const I18N = {
     "road.design": "📐 Designing",
 
     "dom.title": "Capability Domains",
-    "dom.sub": "17 domains — shipped / partially shipped / planned",
+    "dom.sub": "18 domains — shipped / partially shipped / planned",
     "dom.ship": "Shipped",
     "dom.partial": "Partial",
     "dom.plan": "Planned",
@@ -337,6 +339,8 @@ const I18N = {
     "dom.16d": "defineAction · define once, surface everywhere",
     "dom.17t": "Secret Vault",
     "dom.17d": "AES-256-GCM · credentials injected on demand",
+    "dom.18t": "3D & Manufacturing",
+    "dom.18d": "text-to-cad · img2threejs · occt-import-js",
 
     "boot.tag": "// Quickstart",
     "boot.title": "Three Steps to Create",
