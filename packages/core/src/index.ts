@@ -156,16 +156,12 @@ export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./c
 
 // Serena controller seam — desktop injects SerenaCliController at boot.
 export { type SerenaController, configureSerenaController, getSerenaController } from "./actions/serena-controller";
+export { SKILL_SPECTOR_MCP_SERVER_NAME, setSkillSpectorDisabled, isSkillSpectorDisabled } from "./common/skill-spector";
 export {
-  SKILL_SPECTOR_MCP_SERVER_NAME,
-  buildSkillSpectorMcpServerConfig,
-  configureSkillSpectorLogger,
-  configureSkillSpectorUvResolver,
-  configureSkillSpectorVendorRoot,
-  ensureSkillSpectorInstalled,
-  setSkillSpectorDisabled,
-  isSkillSpectorDisabled,
-} from "./common/skill-spector";
+  type SkillSpectorController,
+  configureSkillSpectorController,
+  getSkillSpectorController,
+} from "./actions/skill-spector-controller";
 
 // Activity-Frames MCP seam — desktop injects the server builder at boot.
 export {

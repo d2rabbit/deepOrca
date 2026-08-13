@@ -22,9 +22,7 @@ import {
   runCrgResetWithOutput,
   runCrgVisualize,
   configureSerenaController,
-  configureSkillSpectorUvResolver,
-  configureSkillSpectorVendorRoot,
-  configureSkillSpectorLogger,
+  configureSkillSpectorController,
   configureRoutingModelDir,
   configureRoutingLogger,
   closeEmbeddingService,
@@ -63,6 +61,7 @@ import { OcrCliController } from "./tools/ocr-cli.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
+import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -247,15 +246,15 @@ configureSerenaController(
 
 // SkillSpector (AI skill/MCP security scanner) shares the same vendored uv and reads
 // its pinned version from the vendored skillspector dir (written by
-// scripts/vendor-skillspector.js at build time). Installs wheel from GitHub Releases.
-configureSkillSpectorUvResolver(() => resolveUvBinary());
-configureSkillSpectorVendorRoot(join(__dirname, "..", "vendor", "skillspector"));
-// Surface background SkillSpector install failures (e.g. no network / blocked
-// proxy) instead of letting them vanish silently — otherwise the MCP server
-// just never appears with no clue why.
-configureSkillSpectorLogger((message, detail) => {
+// SkillSpector: controller-seam pattern (same as Serena). The adapter handles
+// all provisioning (wheel/git fallback, async background install, version pin).
+const skillSpectorController = new SkillSpectorCliController({
+  vendorRoot: join(__dirname, "..", "vendor", "skillspector"),
+});
+skillSpectorController.setLogger((message, detail) => {
   console.error("[skill-spector]", message, detail ?? "");
 });
+configureSkillSpectorController(skillSpectorController);
 
 // Semantic skill/tool routing reads the vendored Granite embedding model from
 // vendor/granite-embedding (written by scripts/vendor-granite.js, copied into

@@ -17,7 +17,7 @@ import {
   SERENA_MCP_SERVER_NAME,
   SKILL_SPECTOR_MCP_SERVER_NAME,
   buildCrgMcpServerConfig,
-  buildSkillSpectorMcpServerConfig,
+  getSkillSpectorController,
   getSerenaController,
   hasCodegraphProject,
   isGitmcpServerName,
@@ -124,7 +124,7 @@ export function buildPluginMcpList(projectRoot: string, deps: PluginViewDeps): P
   // is available (vendored or system) — installed from git+SHA on first use (the PyPI
   // package is malware). Exposes `scan_skill`; defaults to pure-static (use_llm=false).
   if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
-    const cfg = buildSkillSpectorMcpServerConfig(projectRoot);
+    const cfg = getSkillSpectorController()?.buildMcpServerConfig(projectRoot) ?? null;
     if (cfg) {
       list.push({
         name: SKILL_SPECTOR_MCP_SERVER_NAME,
@@ -209,7 +209,7 @@ export async function buildBuiltinPluginGroups(
       });
   }
   if (!Object.prototype.hasOwnProperty.call(configured, SKILL_SPECTOR_MCP_SERVER_NAME)) {
-    const cfg = buildSkillSpectorMcpServerConfig(projectRoot);
+    const cfg = getSkillSpectorController()?.buildMcpServerConfig(projectRoot) ?? null;
     if (cfg)
       entries.push({
         name: SKILL_SPECTOR_MCP_SERVER_NAME,

@@ -22,11 +22,8 @@ import { getCrgController } from "./actions/crg-controller";
 import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
 import { SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import { getSerenaController } from "./actions/serena-controller";
-import {
-  buildSkillSpectorMcpServerConfig,
-  SKILL_SPECTOR_MCP_SERVER_NAME,
-  isSkillSpectorDisabled,
-} from "./common/skill-spector";
+import { SKILL_SPECTOR_MCP_SERVER_NAME, isSkillSpectorDisabled } from "./common/skill-spector";
+import { getSkillSpectorController } from "./actions/skill-spector-controller";
 import { A2UI_MCP_SERVER_NAME, isA2uiDisabled, getA2uiServerBuilder, type A2uiLifecycle } from "./mcp/a2ui-seam";
 import { ACTIVITY_FRAMES_MCP_SERVER_NAME, getActivityFramesServerBuilder } from "./mcp/activity-frames-seam";
 import { VISION_MCP_SERVER_NAME, getVisionServerBuilder } from "./mcp/vision-seam";
@@ -1062,7 +1059,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     // (pure-static, zero credentials). Installed from git+SHA — the PyPI package is malware.
     if (!isSkillSpectorDisabled(this.projectRoot)) {
       if (!(result && Object.prototype.hasOwnProperty.call(result, SKILL_SPECTOR_MCP_SERVER_NAME))) {
-        const skillSpectorConfig = buildSkillSpectorMcpServerConfig(this.projectRoot);
+        const skillSpectorConfig = getSkillSpectorController()?.buildMcpServerConfig(this.projectRoot) ?? null;
         if (skillSpectorConfig) {
           result = {
             ...(result ?? {}),
