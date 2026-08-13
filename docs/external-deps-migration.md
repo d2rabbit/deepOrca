@@ -50,20 +50,51 @@ desktop/main/index.ts              ← boot: configure*ServerBuilder(new XxxCont
 
 ## 需要嵌入（vendored）的外部组件
 
-| 组件 | 嵌入方式 | 位置 | 大小 | 离线可用 |
-|---|---|---|---|---|
-| **CodeGraph** | npm dep (`@colbymchenry/codegraph`) | desktop node_modules | ~30MB | ✅ |
-| **OCR** | npm dep (`@alibaba-group/open-code-review`) | desktop node_modules | ~50MB | ✅ |
-| **OpenUI Lang** | npm dep (`@openuidev/lang-core` + `react-lang`) | desktop node_modules | ~5MB | ✅ |
-| **OpenWiki** | vendored npm install | `desktop/vendor/openwiki/` | ~187MB | ✅ |
-| **uv** | GitHub Release 二进制 | `desktop/vendor/uv/` | ~15MB | ✅ |
-| **BrowserSkill / `bsk`** | GitHub Release 二进制 | `desktop/vendor/browser-skill/` | ~15MB | ⚠️ 计划随包，runtime wiring 不完整 |
-| **Granite Embedding 97M** | HF 模型文件 | `desktop/vendor/granite-embedding/` | ~118MB | ✅ |
-| **Tailwind JIT** | unpkg/jsDelivr 单文件 | `desktop/vendor/tailwind/` | ~300KB | ✅ |
-| **Bento Slides** | GitHub Release 单文件 | `core/templates/plugins/work/` | ~200KB | ✅ |
-| **Serena** | marker-only，首次用 `uv tool run` 下载 | `desktop/vendor/serena/.vendored-serena-version` | — | ❌ 首次联网 |
-| **CRG** | marker-only，首次用 `uv tool run` 下载 | `desktop/vendor/crg/.vendored-crg-version` | — | ❌ 首次联网 |
-| **SkillSpector** | marker-only，GitHub wheel 经 uv 安装 | `desktop/vendor/skillspector/.vendored-skillspector-version` | — | ❌ 首次联网 |
+### npm 依赖（随 `npm install` 自动获取）
+
+| 组件 | npm 包 | 版本 | vendor 脚本 | 随应用打包 | 离线可用 |
+|---|---|---|---|---|---|
+| **CodeGraph** | `@colbymchenry/codegraph` | `^1.5.0` | `scripts/vendor-codegraph.js`（旧路径，npm 为主） | ✅ platform optional deps | ✅ |
+| **OCR** | `@alibaba-group/open-code-review` | `^1.8.0` | 不需要 | ✅ | ✅ |
+| **OpenUI Lang** | `@openuidev/lang-core` + `@openuidev/react-lang` | `^0.2.10` / `^0.2.9` | 不需要 | ✅ | ✅ |
+
+### Vendor 目录下载（`desktop:build` 时刷新）
+
+| 组件 | 来源 | 当前 marker 版本 | vendor 脚本 | 随应用打包 | 离线可用 |
+|---|---|---|---|---|---|
+| **OpenWiki** | npm install 到 vendor | `0.3.1` | `scripts/vendor-openwiki.js` | ✅ extraResources | ✅ |
+| **uv** | astral-sh/uv GitHub Release | `0.12.3` | `scripts/vendor-uv.js` | ✅ | ✅（Serena/CRG/SkillSpector 共用） |
+| **BrowserSkill / `bsk`** | GitHub Release 二进制 | `0.1.10` | `scripts/vendor-browser-skill.js` | ⚠️ 计划随包，runtime PATH wiring 不完整 | ⚠️ |
+| **Granite Embedding 97M** | HuggingFace / hf-mirror | `main#v1` | `scripts/vendor-granite.js` | ✅ ~118MB | ✅（若下载成功） |
+| **Tailwind JIT** | unpkg / jsDelivr 单文件 | build 时刷新 | `scripts/vendor-tailwind.js` | ✅ 内联到 renderer | ✅ |
+| **Bento Slides** | GitHub Release 单文件 | `1.0.16` | `scripts/vendor-bento.js` | ✅ 随 core templates | ✅ |
+
+### Marker-only（首次使用时经 uv 联网安装）
+
+| 组件 | Python 包 | 当前 marker 版本 | vendor 脚本 | 随应用打包 | 离线可用 |
+|---|---|---|---|---|---|
+| **Serena** | `serena-agent` | `1.6.1` | `scripts/vendor-serena.js`（仅写 marker） | ❌ 仅 marker | ❌ 首次联网 |
+| **CRG** | `code-review-graph` | `2.3.7` | `scripts/vendor-crg.js`（仅写 marker） | ❌ 仅 marker | ❌ 首次联网 |
+| **SkillSpector** | `skillspector[mcp]` | `2.5.1` | `scripts/vendor-skillspector.js`（仅写 marker） | ❌ 仅 marker | ❌ 首次联网 |
+
+### 原生 TS（无需 vendor，代码在 desktop）
+
+| 组件 | 代码位置 | 外部依赖 | 离线可用 |
+|---|---|---|---|
+| **Vision MCP** | `desktop/tools/vision-mcp.ts` | 仅 `@modelcontextprotocol/sdk` + OpenAI client | ✅（需配置视觉模型 API key） |
+| **A2UI** | `desktop/tools/a2ui/`（781 + 427 行） | 仅 SDK + zod | ✅ |
+| **Activity-Frames** | `desktop/tools/activity-frames/`（13 文件） | `node:sqlite` 或 `better-sqlite3` | ✅ |
+| **GitMCP** | `desktop/tools/gitmcp/`（5 文件） | `node:sqlite` + GitHub API（联网） | ⚠️ 索引时联网，查询时离线 |
+
+### 已知问题
+
+1. **BrowserSkill** runtime wiring 不完整 — artifact 会下载，但 `bsk` 未自动加入 PATH
+2. **Granite** 默认 tag 是可变 `main`（非 immutable revision），无 checksum，第三方 notices 未登记
+3. **Tailwind** 只固定 major 4，无 patch 或 digest
+4. **Serena/CRG/SkillSpector** 首次使用时联网安装 Python 工具环境
+5. **Bento** marker `1.0.16` 但脚本 fallback `1.0.15`，build existence check 路径不匹配
+6. **release validation** (`scripts/package-desktop.js`) 只覆盖 CodeGraph/OpenWiki/uv/SkillSpector marker，未覆盖 BrowserSkill/Serena/CRG/Granite/Tailwind/Bento
+7. **ThirdPartyNotices.txt** 缺失，且 manifest 遗漏 Granite
 
 ## core 包中的工具相关代码（迁移后状态）
 
