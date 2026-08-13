@@ -137,6 +137,7 @@ const api: DesktopApi = {
   memorySetEnabled: (enabled) => ipcRenderer.invoke(IpcRequest.MemorySetEnabled, enabled),
   memorySearch: (query, limit) => ipcRenderer.invoke(IpcRequest.MemorySearch, query, limit),
   memoryStats: () => ipcRenderer.invoke(IpcRequest.MemoryStats),
+  memoryClear: () => ipcRenderer.invoke(IpcRequest.MemoryClear),
 
   // ── Knowledge dashboard ──────────────────────────────────────────
   knowledgeStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeStatus),

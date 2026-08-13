@@ -503,6 +503,7 @@ export class SessionBridge {
       memory: {
         enabled: raw.memory?.enabled ?? false,
         port: raw.memory?.port ?? 8420,
+        embedding: raw.memory?.embedding ?? "none",
       },
     };
   }
@@ -612,6 +613,7 @@ export class SessionBridge {
       next.memory = {
         enabled: patch.memory.enabled,
         port: patch.memory.port || 8420,
+        embedding: patch.memory.embedding ?? "none",
       };
     }
 

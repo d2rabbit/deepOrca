@@ -852,6 +852,18 @@ export function SettingsPanel({
                   />
                 </Field>
 
+                <Field label={t("settings.memory.embedding")} hint={t("settings.memory.embeddingHint")}>
+                  <Select
+                    value={s.memory.embedding ?? "none"}
+                    onChange={(e) =>
+                      patch({ memory: { ...s.memory, embedding: e.target.value as "none" | "local-onnx" } })
+                    }
+                  >
+                    <option value="none">{t("settings.memory.embeddingNone")}</option>
+                    <option value="local-onnx">{t("settings.memory.embeddingLocal")}</option>
+                  </Select>
+                </Field>
+
                 <div className="ui-field-hint ui-memory-status">
                   {memoryAvailable === null
                     ? t("settings.memory.checking")

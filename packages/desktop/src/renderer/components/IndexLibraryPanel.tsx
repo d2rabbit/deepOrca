@@ -328,6 +328,25 @@ export function IndexLibraryPanel(): JSX.Element {
                 ) : memoryQuery.trim() ? (
                   <div className="ui-field-hint">{t("index.memory.noResults")}</div>
                 ) : null}
+                {status?.memory.state === "indexed" ? (
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    disabled={busySource === "memory"}
+                    onClick={() => {
+                      if (window.confirm(t("index.memory.clearConfirm"))) {
+                        setBusySource("memory");
+                        api.memoryClear().then((res) => {
+                          if (res.ok) void reload();
+                          else setError(res.error ?? "Clear failed");
+                          setBusySource(null);
+                        });
+                      }
+                    }}
+                  >
+                    {t("index.memory.clear")}
+                  </Button>
+                ) : null}
               </div>
             ) : null}
           </div>

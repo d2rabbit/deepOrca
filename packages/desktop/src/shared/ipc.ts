@@ -142,6 +142,7 @@ export const IpcRequest = {
   MemorySetEnabled: "memory:setEnabled",
   MemorySearch: "memory:search",
   MemoryStats: "memory:stats",
+  MemoryClear: "memory:clear",
 
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
@@ -507,7 +508,7 @@ export type EditableSettings = {
   /** Which endpoint the vision model uses. */
   visionEndpointId: string;
   /** Memory system settings (TencentDB-Agent-Memory sidecar). */
-  memory: { enabled: boolean; port: number };
+  memory: { enabled: boolean; port: number; embedding: "none" | "local-onnx" };
 };
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };
@@ -734,6 +735,8 @@ export type DesktopApi = {
   memorySearch(query: string, limit?: number): Promise<{ text: string; total: number }>;
   /** L0-L3 pipeline statistics for the knowledge dashboard. */
   memoryStats(): Promise<MemoryPipelineStats | null>;
+  /** Clear all stored memory data for the current project (L0-L3). */
+  memoryClear(): Promise<{ ok: boolean; error?: string }>;
 
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */

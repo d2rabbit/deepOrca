@@ -319,6 +319,7 @@ let memoryManager: {
   isAvailable(): boolean;
   searchMemories(query: string, limit?: number): Promise<{ text: string; total: number } | null>;
   getStats(): Promise<MemoryPipelineStats | null>;
+  clearProjectMemory(): Promise<void>;
 } | null = null;
 let memoryStarting = false;
 
@@ -908,6 +909,16 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.MemoryStats, async (): Promise<MemoryPipelineStats | null> => {
     if (!memoryManager) return null;
     return memoryManager.getStats();
+  });
+
+  handlePrivileged(IpcRequest.MemoryClear, async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!memoryManager) return { ok: false, error: "Memory pipeline not running" };
+    try {
+      await memoryManager.clearProjectMemory();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 }
 

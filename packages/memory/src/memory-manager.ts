@@ -162,6 +162,43 @@ export class MemoryManager {
     return { l0, l1, l2, l3 };
   }
 
+  /**
+   * Clear all stored memory data for this project (L0-L3). Removes the on-disk
+   * directories and the persona file, then re-initializes the pipeline so it
+   * starts fresh. Used by the knowledge dashboard's "clear memory" button.
+   */
+  async clearProjectMemory(): Promise<void> {
+    if (!this.initialized || !this.core) return;
+    const baseDir = this.config.dataDir;
+    const rmDir = async (dir: string): Promise<void> => {
+      try {
+        await fs.rm(path.join(baseDir, dir), { recursive: true, force: true });
+      } catch {
+        // best-effort
+      }
+    };
+    const rmFile = async (file: string): Promise<void> => {
+      try {
+        await fs.unlink(path.join(baseDir, file));
+      } catch {
+        // best-effort
+      }
+    };
+    await Promise.all([
+      rmDir("conversations"),
+      rmDir("records"),
+      rmDir("scene_blocks"),
+      rmDir(".metadata"),
+      rmDir(".backup"),
+      rmFile("persona.md"),
+    ]);
+    // Re-initialize so the pipeline picks up the clean state.
+    await this.core.destroy();
+    this.core = null;
+    this.initialized = false;
+    await this.init();
+  }
+
   /** Flush and destroy the pipeline. */
   async destroy(): Promise<void> {
     if (this.core) {
