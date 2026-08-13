@@ -785,6 +785,9 @@ section {
   filter: blur(80px);
   pointer-events: none;
 }
+.actions-banner.solo {
+  grid-template-columns: 1fr;
+}
 .actions-banner h3 {
   font-family: var(--font-display);
   font-size: 26px;
