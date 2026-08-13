@@ -15,10 +15,10 @@ import {
   resolveModernNode,
   getUserConfigRoot,
   getProjectCode,
-  configureCrgVendorRoot,
   configureCrgVersionRoot,
   hasCrgProject,
   resolveUvBinary,
+  configureUvVendorRoot,
   runCrgResetWithOutput,
   runCrgVisualize,
   configureSerenaController,
@@ -211,7 +211,7 @@ configureVisionServerBuilder(buildVisionServer);
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
 // to a system `uv`/`uvx` on PATH. CRG is a Python tool run via uv's
 // isolated environment — no host Python required when uv is vendored.
-configureCrgVendorRoot(join(__dirname, "..", "vendor", "uv"));
+configureUvVendorRoot(join(__dirname, "..", "vendor", "uv"));
 
 // CRG version pin: read from vendor/crg/.vendored-crg-version (written by
 // scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.

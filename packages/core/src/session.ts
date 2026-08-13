@@ -18,7 +18,6 @@ import {
 } from "./common/codegraph";
 import { getCodegraphController } from "./actions/codegraph-controller";
 import { getWikiController } from "./actions/wiki-controller";
-import { CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled } from "./common/crg";
 import { getCrgController } from "./actions/crg-controller";
 import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
 import { SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";

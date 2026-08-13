@@ -138,28 +138,19 @@ export {
 export { resolveModernNode } from "./common/sqlite-runtime";
 export type { CodegraphExecutable } from "./common/sqlite-runtime";
 
+// Shared uv binary resolver (used by CRG, Serena, SkillSpector).
+export { resolveUvBinary, configureUvVendorRoot } from "./common/uv";
+
 export {
-  CRG_PACKAGE,
   CRG_MCP_SERVER_NAME,
-  CRG_DIR_NAME,
-  CRG_ANALYSIS_TOOLS,
-  configureCrgVendorRoot,
   configureCrgVersionRoot,
-  getCrgVendorRoot,
-  resolveUvBinary,
-  resolveCrgExecutable,
   setCrgDisabled,
   isCrgDisabled,
   hasCrgProject,
   buildCrgMcpServerConfig,
-  runCrgBuild,
-  runCrgSync,
-  runCrgBuildWithOutput,
   runCrgResetWithOutput,
   runCrgVisualize,
-  spawnCrgPiped,
 } from "./common/crg";
-export type { CrgExecutable } from "./common/crg";
 
 export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./common/serena-mcp";
 
