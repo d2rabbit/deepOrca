@@ -62,7 +62,7 @@ async function resolveLatestVersion() {
     // Offline — use fallback.
   }
   log("could not resolve latest bento version — using fallback 1.0.15");
-  return "1.0.15";
+  return "1.0.16";
 }
 
 async function download(url, dest) {

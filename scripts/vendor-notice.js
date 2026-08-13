@@ -71,7 +71,7 @@ const MANIFEST = [
   },
   {
     name: "code-review-graph (CRG)",
-    upstream: "https://github.com/colbymchenry/code-review-graph",
+    upstream: "https://github.com/tirth8205/code-review-graph",
     license: "MIT",
     notes: "Python package run via uv at runtime; pinned version in scripts/vendor-crg.js.",
   },
@@ -86,6 +86,12 @@ const MANIFEST = [
     upstream: "https://github.com/tailwindlabs/tailwindcss",
     license: "MIT",
     notes: "Standalone JIT script vendored for offline DeepDesign compilation.",
+  },
+  {
+    name: "Granite Embedding 97M",
+    upstream: "https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2",
+    license: "Apache-2.0",
+    notes: "IBM Granite multilingual embedding model (ONNX quantized) for local semantic routing.",
   },
 ];
 

@@ -3,7 +3,7 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
-import { dirname, join } from "node:path";
+import { dirname, join, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
@@ -23,6 +23,7 @@ import {
   runCrgVisualize,
   configureSerenaController,
   configureSkillSpectorController,
+  configureCrgController,
   configureRoutingModelDir,
   configureRoutingLogger,
   closeEmbeddingService,
@@ -62,6 +63,7 @@ import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
 import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
+import { CrgCliController } from "./tools/crg-cli.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -224,6 +226,17 @@ configureActivityFramesServerBuilder(buildActivityFramesServer);
 // the builder so session.ts can rewrite placeholders via seam.
 configureGitmcpConfigBuilder(buildGitmcpMcpServerConfig);
 
+// BrowserSkill: prepend vendor/browser-skill to PATH so the `bsk` CLI is discoverable
+// by both the built-in bash tool and the web-access-strategy skill.
+{
+  const bskDir = join(__dirname, "..", "vendor", "browser-skill");
+  const bskBinary = process.platform === "win32" ? "bsk.exe" : "bsk";
+  if (existsSync(join(bskDir, bskBinary))) {
+    process.env.PATH = `${bskDir}${delimiter}${process.env.PATH ?? ""}`;
+    console.log("[boot] BrowserSkill: added vendor/browser-skill to PATH");
+  }
+}
+
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
 // to a system `uv`/`uvx` on PATH. CRG is a Python tool run via uv's
@@ -233,6 +246,20 @@ configureUvVendorRoot(join(__dirname, "..", "vendor", "uv"));
 // CRG version pin: read from vendor/crg/.vendored-crg-version (written by
 // scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.
 configureCrgVersionRoot(join(__dirname, "..", "vendor", "crg"));
+
+// CRG controller: prefer local wheel (offline), fall back to PyPI spec.
+{
+  const crgVendorDir = join(__dirname, "..", "vendor", "crg");
+  let crgWheel = "code-review-graph==2.3.7";
+  try {
+    const version = readFileSync(join(crgVendorDir, ".vendored-crg-version"), "utf8").trim();
+    const localWheel = join(crgVendorDir, `code_review_graph-${version}-py3-none-any.whl`);
+    crgWheel = existsSync(localWheel) ? localWheel : `code-review-graph==${version}`;
+  } catch {
+    // Marker not found — use default PyPI spec.
+  }
+  configureCrgController(new CrgCliController({ uvBinary: resolveUvBinary() ?? "uvx", crgWheel }));
+}
 
 // Serena: controller-seam pattern (same as CodeGraph/CRG/OCR/Wiki).
 // The adapter handles all spawn/config logic (uv command, SERENA_HOME, version pin).

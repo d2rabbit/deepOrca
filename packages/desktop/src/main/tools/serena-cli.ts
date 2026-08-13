@@ -13,7 +13,7 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import path, { join } from "node:path";
 import type { McpServerConfig } from "@deeporca/core";
 import type { SerenaController } from "@deeporca/core";
 import { getUserConfigRoot } from "@deeporca/core";
@@ -112,8 +112,9 @@ export class SerenaCliController implements SerenaController {
     const command = uvBinary ?? "uvx";
 
     // Version pin: read from vendor marker for reproducibility.
+    // Prefer local wheel (offline) if available; fall back to PyPI spec (online).
     const pinnedVersion = this.readPinnedVersion();
-    const serenaSpec = pinnedVersion ? `serena-agent==${pinnedVersion}` : "serena-agent";
+    const serenaSpec = this.resolveSerenaSpec(pinnedVersion);
 
     const prefixArgs = uvBinary
       ? ["tool", "run", "--python", "3.13", "--from", serenaSpec, "serena-agent"]
@@ -133,5 +134,16 @@ export class SerenaCliController implements SerenaController {
     } catch {
       return null;
     }
+  }
+
+  /** Prefer local wheel (offline), fall back to PyPI spec. */
+  private resolveSerenaSpec(version: string | null): string {
+    if (version) {
+      const wheelName = `serena_agent-${version}-py3-none-any.whl`;
+      const wheelPath = join(this.opts.vendorRoot, wheelName);
+      if (existsSync(wheelPath)) return wheelPath;
+      return `serena-agent==${version}`;
+    }
+    return "serena-agent";
   }
 }

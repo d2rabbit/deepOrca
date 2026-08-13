@@ -77,3 +77,14 @@ export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";
 export type { ArchScanInput, ArchScanOutput } from "./arch-scan";
+export {
+  browserSessionStartDefinition,
+  browserSessionStartRun,
+  browserCommandDefinition,
+  browserCommandRun,
+  browserSessionStopDefinition,
+  browserSessionStopRun,
+} from "./browser";
+export type { BrowserSessionStartOutput, BrowserCommandOutput } from "./browser";
+export { bentoCreateDefinition, bentoCreateRun } from "./bento";
+export type { BentoCreateInput, BentoCreateOutput } from "./bento";

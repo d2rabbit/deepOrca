@@ -95,6 +95,14 @@ import {
   indexBuildAllRun,
   archScanRunDefinition,
   archScanRunRun,
+  browserSessionStartDefinition,
+  browserSessionStartRun,
+  browserCommandDefinition,
+  browserCommandRun,
+  browserSessionStopDefinition,
+  browserSessionStopRun,
+  bentoCreateDefinition,
+  bentoCreateRun,
   type RunSubagentOptions,
 } from "./actions";
 import {
@@ -727,6 +735,12 @@ export class SessionManager {
     this.actionRegistry.register(indexBuildAllDefinition, indexBuildAllRun);
     // ── Phase 3: arch-scan (gated on runSubagent — §十 P2) ─────────────────
     this.actionRegistry.register(archScanRunDefinition, archScanRunRun);
+    // ── Browser actions (BrowserSkill bsk CLI wrappers) ──────────────────────
+    this.actionRegistry.register(browserSessionStartDefinition, browserSessionStartRun);
+    this.actionRegistry.register(browserCommandDefinition, browserCommandRun);
+    this.actionRegistry.register(browserSessionStopDefinition, browserSessionStopRun);
+    // ── Bento presentation generator ─────────────────────────────────────────
+    this.actionRegistry.register(bentoCreateDefinition, bentoCreateRun);
     this.toolExecutor = new ToolExecutor(
       this.projectRoot,
       this.createOpenAIClient,

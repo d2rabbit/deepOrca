@@ -202,6 +202,28 @@ function main() {
     openwiki: join("openwiki", "dist", "cli.js"),
     uv: join("uv", hostUvTarget),
     skillspector: join("skillspector", ".vendored-skillspector-version"),
+    "browser-skill": join("browser-skill", process.platform === "win32" ? "bsk.exe" : "bsk"),
+    tailwind: join("tailwind", "tailwind.js"),
+    "granite-embedding": join(
+      "granite-embedding",
+      "ibm-granite",
+      "granite-embedding-97m-multilingual-r2",
+      "onnx",
+      "model_quantized.onnx"
+    ),
+    bento: join(
+      "..",
+      "..",
+      "packages",
+      "core",
+      "templates",
+      "plugins",
+      "work",
+      "skills",
+      "bento-slides",
+      "references",
+      "bento-template.bento.html"
+    ),
   };
   for (const [name, rel] of Object.entries(vendorEntries)) {
     const entry = join(desktopDir, "vendor", rel);
