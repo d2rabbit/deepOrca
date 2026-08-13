@@ -12,6 +12,8 @@
  *   await mgr.destroy();
  */
 
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { TdaiCore } from "./tdai/core/tdai-core.js";
 import type { RecallResult, CaptureResult, CompletedTurn } from "./tdai/core/types.js";
 import { parseConfig } from "./tdai/config.js";
@@ -124,6 +126,40 @@ export class MemoryManager {
       console.warn(`[memory] searchMemories failed: ${err instanceof Error ? err.message : err}`);
       return null;
     }
+  }
+
+  /**
+   * Pipeline statistics for the knowledge dashboard. Counts are read from the
+   * on-disk store layout (L0 conversations/, L1 records/, L3 persona.md) rather
+   * than through TdaiCore, so this stays cheap and works even when the core is
+   * mid-initialization.
+   */
+  async getStats(): Promise<{ l0: number; l1: number; l2: number; l3: boolean } | null> {
+    if (!this.initialized) return null;
+    const baseDir = this.config.dataDir;
+    const countFiles = async (dir: string): Promise<number> => {
+      try {
+        const entries = await fs.readdir(path.join(baseDir, dir), { withFileTypes: true });
+        return entries.filter((e) => e.isFile()).length;
+      } catch {
+        return 0;
+      }
+    };
+    const fileExists = async (rel: string): Promise<boolean> => {
+      try {
+        await fs.access(path.join(baseDir, rel));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const [l0, l1, l2, l3] = await Promise.all([
+      countFiles("conversations"),
+      countFiles("records"),
+      countFiles("scenes"),
+      fileExists("persona.md"),
+    ]);
+    return { l0, l1, l2, l3 };
   }
 
   /** Flush and destroy the pipeline. */

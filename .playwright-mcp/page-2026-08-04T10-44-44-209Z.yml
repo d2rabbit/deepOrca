@@ -1,0 +1,108 @@
+- generic [active] [ref=f10e1]:
+  - generic [ref=f10e2]:
+    - navigation [ref=f10e3]:
+      - generic [ref=f10e4]: ◈
+    - complementary [ref=f10e29]:
+      - generic [ref=f10e30]:
+        - generic [ref=f10e31] [cursor=pointer]:
+          - generic [ref=f10e32]: ◈
+          - generic [ref=f10e33]:
+            - generic [ref=f10e34]: deepcode-cli
+            - generic [ref=f10e35]: ~/dev/coding/deepcodeUI
+          - generic [ref=f10e36]: ▾
+        - generic [ref=f10e37]:
+          - generic [ref=f10e38]: ⌕
+          - text: 搜索会话…
+          - generic [ref=f10e39]: ⌘P
+      - generic [ref=f10e40]:
+        - text: 进行中
+        - generic [ref=f10e41] [cursor=pointer]: +
+      - generic [ref=f10e42]:
+        - generic [ref=f10e43] [cursor=pointer]:
+          - generic [ref=f10e44]: 重构会话压缩逻辑
+          - generic [ref=f10e47]:
+            - generic [ref=f10e48]: DeepSeek V4
+            - generic [ref=f10e49]: ·
+            - generic [ref=f10e50]: 2 分钟前
+        - generic [ref=f10e51] [cursor=pointer]:
+          - generic [ref=f10e52]: 架构图可视化到工作区
+          - generic [ref=f10e55]:
+            - generic [ref=f10e56]: 已完成
+            - generic [ref=f10e57]: ·
+            - generic [ref=f10e58]: 14:20
+    - generic [ref=f10e59]:
+      - generic [ref=f10e60]:
+        - generic [ref=f10e61] [cursor=pointer]:
+          - generic [ref=f10e62]: ◈
+          - generic [ref=f10e63]: 重构会话压缩逻辑
+          - generic [ref=f10e64]: ✕
+        - generic [ref=f10e65] [cursor=pointer]:
+          - generic [ref=f10e66]: ƒ
+          - generic [ref=f10e67]: session.ts
+          - generic [ref=f10e68]: ●
+        - generic [ref=f10e69] [cursor=pointer]: +
+      - generic [ref=f10e71]:
+        - generic [ref=f10e72]:
+          - generic [ref=f10e73]: 把 compaction 的阈值判断抽成独立函数
+          - generic [ref=f10e77]:
+            - generic [ref=f10e78]: ◈
+            - paragraph [ref=f10e80]:
+              - text: 已将阈值判断抽取为
+              - code [ref=f10e81]: shouldCompact()
+              - text: ，位于
+              - code [ref=f10e82]: packages/core/src/session.ts
+              - text: …
+        - generic [ref=f10e84]:
+          - generic [ref=f10e85]: 继续对话…
+          - generic [ref=f10e86]:
+            - generic [ref=f10e87]:
+              - generic [ref=f10e88] [cursor=pointer]: Agent
+              - generic [ref=f10e89] [cursor=pointer]: Plan
+            - generic [ref=f10e90] [cursor=pointer]: DeepSeek V4 ▾
+            - button "↑" [ref=f10e92] [cursor=pointer]
+    - contentinfo [ref=f10e93]:
+      - generic [ref=f10e94] [cursor=pointer]:
+        - generic [ref=f10e95]: ⌥
+        - text: perf/native-optimizations
+      - generic [ref=f10e96] [cursor=pointer]:
+        - generic [ref=f10e97]: ✓
+        - text: 索引完成 · 1,240 文件
+      - generic [ref=f10e98] [cursor=pointer]:
+        - generic [ref=f10e99]: ●
+        - text: MCP 3
+      - generic [ref=f10e100] [cursor=pointer]: 🔔
+  - generic [ref=f10e102]:
+    - generic [ref=f10e103]:
+      - generic [ref=f10e104]: ⌘
+      - generic [ref=f10e105]: rev
+    - generic [ref=f10e107]:
+      - generic [ref=f10e108]: 命令
+      - generic [ref=f10e109] [cursor=pointer]:
+        - generic [ref=f10e110]: ◎
+        - text: 评审未提交变更
+        - generic [ref=f10e111]: ⌘R
+      - generic [ref=f10e113] [cursor=pointer]:
+        - generic [ref=f10e114]: ◈
+        - text: 评审整个工作区
+      - generic [ref=f10e115] [cursor=pointer]:
+        - generic [ref=f10e116]: ↩
+        - text: 撤销上一次 Agent 变更
+        - generic [ref=f10e117]: ⌘Z
+      - generic [ref=f10e119]: 最近会话
+      - generic [ref=f10e120] [cursor=pointer]:
+        - generic [ref=f10e121]: ◈
+        - text: 重构会话压缩逻辑
+        - generic [ref=f10e122]: 2m
+      - generic [ref=f10e124] [cursor=pointer]:
+        - generic [ref=f10e125]: ◈
+        - text: 架构图可视化到工作区
+        - generic [ref=f10e126]: 2h
+      - generic [ref=f10e128]: 文件
+      - generic [ref=f10e129] [cursor=pointer]:
+        - generic [ref=f10e130]: ƒ
+        - text: session-compaction.test.ts
+    - generic [ref=f10e131]:
+      - generic [ref=f10e132]: ↑↓ 选择
+      - generic [ref=f10e133]: ↵ 执行
+      - generic [ref=f10e134]: esc 关闭
+      - generic [ref=f10e135]: 12 个结果

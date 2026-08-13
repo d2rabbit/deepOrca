@@ -7399,7 +7399,79 @@ button.ui-topbar-pill {
   }
 }
 
-/* ── SCM history: two-level commit → file list ──────────────────────── */
+/* ── Knowledge dashboard: per-source status cards ───────────────────── */
+.ui-knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-3);
+}
+.ui-knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 8px);
+  background: var(--ui-surface-raised, transparent);
+}
+.ui-knowledge-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-knowledge-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.ui-knowledge-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-knowledge-count {
+  font-size: 11px;
+  color: var(--ui-text-dim);
+}
+.ui-knowledge-detail,
+.ui-knowledge-freshness {
+  font-size: 10px;
+  color: var(--ui-text-faint, var(--ui-text-dim));
+  word-break: break-all;
+}
+/* L0-L3 pipeline breakdown inside the memory card. */
+.ui-knowledge-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+/* Stale = index exists but files changed since the last sync. */
+.ui-index-state.stale {
+  color: var(--ui-warning, #d97706);
+}
+.ui-knowledge-search {
+  margin-top: var(--ui-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-knowledge-search-result {
+  margin: 0;
+  padding: var(--ui-space-2);
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 8px);
+  background: var(--ui-surface-sunken, transparent);
+  color: var(--ui-text-dim);
+}
+
 .ui-scm-commit-block {
   display: flex;
   flex-direction: column;

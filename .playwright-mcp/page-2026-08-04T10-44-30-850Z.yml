@@ -1,0 +1,110 @@
+- generic [ref=f9e2]:
+  - navigation [ref=f9e3]:
+    - generic [ref=f9e4]: ◈
+  - complementary [ref=f9e29]:
+    - generic [ref=f9e30]:
+      - generic [ref=f9e31] [cursor=pointer]:
+        - generic [ref=f9e32]: ◈
+        - generic [ref=f9e33]:
+          - generic [ref=f9e34]: deepcode-cli
+          - generic [ref=f9e35]: ~/dev/coding/deepcodeUI
+        - generic [ref=f9e36]: ▾
+      - generic [ref=f9e37]:
+        - generic [ref=f9e38]: ⌕
+        - text: 搜索设置…
+    - generic [ref=f9e39]: 设置
+    - generic [ref=f9e40]:
+      - generic [ref=f9e41] [cursor=pointer]:
+        - generic [ref=f9e42]: ◈
+        - text: 模型与端点
+      - generic [ref=f9e43] [cursor=pointer]:
+        - generic [ref=f9e44]: ✦
+        - text: 外观主题
+      - generic [ref=f9e45] [cursor=pointer]:
+        - generic [ref=f9e46]: ⚿
+        - text: 权限规则
+      - generic [ref=f9e47] [cursor=pointer]:
+        - generic [ref=f9e48]: ⬡
+        - text: MCP 服务器
+      - generic [ref=f9e49] [cursor=pointer]:
+        - generic [ref=f9e50]: ◫
+        - text: 快捷键
+      - generic [ref=f9e51] [cursor=pointer]:
+        - generic [ref=f9e52]: ⚡
+        - text: 用量与账单
+      - generic [ref=f9e53] [cursor=pointer]:
+        - generic [ref=f9e54]: ⓘ
+        - text: 关于
+  - generic [ref=f9e55]:
+    - generic [ref=f9e56]:
+      - generic [ref=f9e57] [cursor=pointer]:
+        - generic [ref=f9e58]: ◈
+        - generic [ref=f9e59]: 重构会话压缩逻辑
+        - generic [ref=f9e60]: ✕
+      - generic [ref=f9e61] [cursor=pointer]:
+        - generic [ref=f9e62]: ⚙
+        - generic [ref=f9e63]: 设置
+        - generic [ref=f9e64]: ✕
+      - generic [ref=f9e65] [cursor=pointer]: +
+    - generic [ref=f9e67]:
+      - heading "模型与端点" [level=3] [ref=f9e68]
+      - generic [ref=f9e69]: 配置 LLM 提供方、API 密钥与默认模型。改动即时生效。
+      - generic [ref=f9e70]:
+        - generic [ref=f9e71]:
+          - generic [ref=f9e72]: 默认模型
+          - text: 新会话使用的模型
+        - generic [ref=f9e74] [cursor=pointer]:
+          - generic [ref=f9e75]: DeepSeek V4 · deepseek-v4-pro
+          - generic [ref=f9e76]: ▾
+      - generic [ref=f9e77]:
+        - generic [ref=f9e78]:
+          - generic [ref=f9e79]: API 端点
+          - text: 自定义 OpenAI 兼容端点
+        - generic [ref=f9e80]: https://api.deepseek.com/v1
+      - generic [ref=f9e82]:
+        - generic [ref=f9e83]:
+          - generic [ref=f9e84]: API 密钥
+          - text: 仅存储在本机 ~/.deeporca
+        - generic [ref=f9e85]:
+          - generic [ref=f9e86]: sk-••••••••••••••••••••4f2a
+          - button "更新" [ref=f9e87] [cursor=pointer]
+      - generic [ref=f9e88]:
+        - generic [ref=f9e89]:
+          - generic [ref=f9e90]: 推理内容
+          - text: thinking 的默认展示方式
+        - generic [ref=f9e92]:
+          - generic [ref=f9e93] [cursor=pointer]: 隐藏
+          - generic [ref=f9e94] [cursor=pointer]: 摘要
+          - generic [ref=f9e95] [cursor=pointer]: 展开
+      - generic [ref=f9e96]:
+        - generic [ref=f9e97]:
+          - generic [ref=f9e98]: 压缩阈值
+          - text: 超过后自动压缩上下文
+        - generic [ref=f9e100] [cursor=pointer]:
+          - generic [ref=f9e101]: 512K tokens
+          - generic [ref=f9e102]: ▾
+      - heading "外观" [level=3] [ref=f9e103]
+      - generic [ref=f9e104]: 主题即时切换，无需重启。
+      - generic [ref=f9e105]:
+        - generic [ref=f9e106]:
+          - generic [ref=f9e107]: 主题
+          - text: Orca 为深色专属
+        - generic [ref=f9e109]:
+          - generic [ref=f9e110] [cursor=pointer]: Orca
+          - generic [ref=f9e114] [cursor=pointer]: Aqua
+          - generic [ref=f9e118] [cursor=pointer]: Glass
+          - generic [ref=f9e122] [cursor=pointer]: Punk
+      - generic [ref=f9e126]:
+        - button "保存更改" [ref=f9e127] [cursor=pointer]
+        - button "重置为默认" [ref=f9e128] [cursor=pointer]
+  - contentinfo [ref=f9e129]:
+    - generic [ref=f9e130] [cursor=pointer]:
+      - generic [ref=f9e131]: ⌥
+      - text: perf/native-optimizations
+    - generic [ref=f9e132] [cursor=pointer]:
+      - generic [ref=f9e133]: ✓
+      - text: 索引完成 · 1,240 文件
+    - generic [ref=f9e134] [cursor=pointer]:
+      - generic [ref=f9e135]: ●
+      - text: MCP 3
+    - generic [ref=f9e136] [cursor=pointer]: 🔔

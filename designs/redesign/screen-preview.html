@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — Preview Split</title>
+<link rel="stylesheet" href="mock.css">
+<style>
+  /* mini landing page rendered inside the preview device frame */
+  .lp { font-family: var(--font); color: #111; flex: 1; display: flex; flex-direction: column; background: #fafbfd; overflow: hidden; }
+  .lp-nav { display: flex; align-items: center; padding: 10px 18px; gap: 14px; font-size: 10px; color: #555; border-bottom: 1px solid #eee; background: #fff; }
+  .lp-logo { width: 16px; height: 16px; border-radius: 5px; background: linear-gradient(135deg, #00c4d6, #7b9dff); }
+  .lp-nav b { color: #111; font-size: 11px; }
+  .lp-nav .sp { flex: 1; }
+  .lp-cta { background: #111; color: #fff; border-radius: 99px; padding: 3px 10px; font-size: 9.5px; }
+  .lp-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; gap: 8px; }
+  .lp-pill { font-size: 8.5px; background: #eef4ff; color: #4a6fd6; border-radius: 99px; padding: 2px 8px; font-weight: 600; }
+  .lp-h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+  .lp-h1 em { font-style: normal; background: linear-gradient(90deg, #00c4d6, #7b9dff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lp-sub { font-size: 9.5px; color: #777; max-width: 240px; }
+  .lp-actions { display: flex; gap: 6px; margin-top: 4px; }
+  .lp-btn { font-size: 9.5px; font-weight: 600; border-radius: 7px; padding: 5px 12px; }
+  .lp-btn.dark { background: #111; color: #fff; }
+  .lp-btn.light { background: #fff; border: 1px solid #ddd; color: #333; }
+  .lp-cards { display: flex; gap: 8px; padding: 0 18px 16px; }
+  .lp-card { flex: 1; background: #fff; border: 1px solid #eee; border-radius: 9px; padding: 8px 10px; }
+  .lp-card .ic { width: 14px; height: 14px; border-radius: 4px; margin-bottom: 5px; }
+  .lp-card b { font-size: 8.5px; display: block; }
+  .lp-card span { font-size: 7.5px; color: #888; line-height: 1.3; display: block; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <nav class="rail">
+    <div class="logo">◈</div>
+    <div class="rail-btn active" title="对话 (⌘1)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="rail-btn" title="代码 (⌘2)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-4 4 4 4M16 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="rail-btn" title="评审 (⌘3)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg>
+    </div>
+    <div class="rail-btn" title="扩展 (⌘4)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <div class="rail-btn" title="命令面板 (⌘K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="m9 10-2 2 2 2M15 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="rail-btn" title="设置 (⌘,)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2 3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" stroke-linejoin="round"/></svg>
+    </div>
+  </nav>
+
+  <!-- Sidebar: sessions (same as chat screen) -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="workspace-chip">
+        <div class="ws-icon">◈</div>
+        <div style="min-width:0">
+          <div class="ws-name">deepcode-cli</div>
+          <div class="ws-path">~/dev/coding/deepcodeUI</div>
+        </div>
+        <span class="chev">▾</span>
+      </div>
+      <div class="search-box"><span>⌕</span> 搜索会话… <kbd>⌘P</kbd></div>
+    </div>
+    <div class="sidebar-section">进行中 <span class="add">+</span></div>
+    <div class="sidebar-scroll">
+      <div class="session-item active">
+        <div class="s-row">
+          <span class="status-dot running"></span>
+          <span class="s-title">落地页原型 · DeepDesign</span>
+        </div>
+        <div class="s-meta"><span>DeepSeek V4</span><span>·</span><span>刚刚</span></div>
+      </div>
+      <div class="session-item">
+        <div class="s-row">
+          <span class="status-dot waiting"></span>
+          <span class="s-title">修复 Windows 下 bash 路径</span>
+        </div>
+        <div class="s-meta"><span>等待回答</span><span>·</span><span>1 小时前</span></div>
+      </div>
+      <div class="session-item">
+        <div class="s-row">
+          <span class="status-dot done"></span>
+          <span class="s-title">架构图可视化到工作区</span>
+        </div>
+        <div class="s-meta"><span>已完成</span><span>·</span><span>14:20</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main stage: chat + preview split -->
+  <div class="main">
+    <div class="tabbar">
+      <div class="tab active">
+        <span class="t-icon">◈</span>
+        <span class="t-label">落地页原型</span>
+        <span class="t-close">✕</span>
+      </div>
+      <div class="tab" style="margin-left: 8px; border-left: 1px solid var(--border)">
+        <span class="t-icon" style="color:var(--magenta)">✦</span>
+        <span class="t-label">预览 · landing.dd</span>
+        <span class="t-close">✕</span>
+      </div>
+      <div class="tab-add">+</div>
+      <div class="tb-right">
+        <div class="tb-action" style="color:var(--cyan)">⿻ 取消分屏</div>
+        <div class="tb-action">⋯</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <!-- left: chat -->
+      <div class="chat-col">
+        <div class="conversation" style="padding-top: 18px; gap: 18px;">
+          <div class="msg-wrap" style="padding: 0 18px;">
+            <div class="msg-user">
+              <div class="bubble" style="font-size: 12.5px;">给我做一个 SaaS 落地页原型，深色渐变点缀，三张特性卡片</div>
+            </div>
+          </div>
+          <div class="msg-wrap" style="padding: 0 18px;">
+            <div class="msg-assistant">
+              <div class="avatar">◈</div>
+              <div class="msg-body" style="font-size: 12.5px;">
+                <div class="tool-group">
+                  <div class="tool-group-head">
+                    <span class="spark">✦</span>
+                    <span><strong>render_design</strong> · landing.dd</span>
+                    <span class="tool-chip ok">已渲染</span>
+                  </div>
+                </div>
+                <p>原型已生成并在右侧预览。结构：导航栏 → Hero（渐变标题 + 双按钮）→ 三张特性卡片。想调整哪里？可以直接说，比如「标题换成左对齐」「卡片加图标动画」。</p>
+                <div class="stream-row">
+                  <span class="stream-dot"></span>
+                  <span>正在等待你的反馈以迭代原型…</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="composer-dock" style="padding: 8px 14px 12px;">
+          <div class="composer">
+            <div class="placeholder" style="font-size: 12.5px;">描述想要的修改，迭代原型…</div>
+            <div class="composer-row">
+              <div class="seg"><span class="seg-item on">Agent</span><span class="seg-item">Plan</span></div>
+              <div class="pill"><span class="pdot"></span>DeepSeek V4 ▾</div>
+              <div class="grow"></div>
+              <button class="send-btn">↑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider-v"></div>
+
+      <!-- right: preview -->
+      <div class="preview-col">
+        <div class="preview-toolbar">
+          <span class="pt-btn">←</span>
+          <span class="pt-btn">→</span>
+          <span class="pt-btn">⟳</span>
+          <div class="url-bar"><span class="lock">●</span>preview://landing.dd</div>
+          <div class="viewport-seg">
+            <span class="on">桌面</span><span>平板</span><span>手机</span>
+          </div>
+          <span class="pt-btn on" title="检查元素">⌖</span>
+          <span class="pt-btn" title="在新窗口打开">⧉</span>
+        </div>
+        <div class="preview-body">
+          <div class="device-frame">
+            <div class="lp">
+              <div class="lp-nav">
+                <div class="lp-logo"></div><b>Nimbus</b>
+                <span>产品</span><span>定价</span><span>文档</span>
+                <span class="sp"></span>
+                <span class="lp-cta">免费开始</span>
+              </div>
+              <div class="lp-hero">
+                <span class="lp-pill">✦ Nimbus 2.0 现已发布</span>
+                <div class="lp-h1">把团队的灵感<br>变成<em>可交付的产品</em></div>
+                <div class="lp-sub">从原型到上线的一站式协作平台，让设计与工程在同一条时间线上前进。</div>
+                <div class="lp-actions">
+                  <span class="lp-btn dark">立即体验 →</span>
+                  <span class="lp-btn light">观看演示</span>
+                </div>
+              </div>
+              <div class="lp-cards">
+                <div class="lp-card"><div class="ic" style="background:#ffe9f3"></div><b>实时协作</b><span>多人同屏编辑，评论即刻同步</span></div>
+                <div class="lp-card"><div class="ic" style="background:#e6fbff"></div><b>AI 生成</b><span>一句话产出可用原型页面</span></div>
+                <div class="lp-card"><div class="ic" style="background:#eef0ff"></div><b>一键交付</b><span>设计稿直接转生产级代码</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="statusbar">
+    <div class="st-item"><span class="st-cyan">⌥</span> perf/native-optimizations</div>
+    <div class="st-item"><span class="st-ok">✓</span> 索引完成 · 1,240 文件</div>
+    <div class="st-item">⚡ 本会话 12.8k tokens</div>
+    <div class="grow"></div>
+    <div class="st-item"><span class="st-ok">●</span> MCP 3</div>
+    <div class="st-item">🔔</div>
+  </footer>
+
+</div>
+</body>
+</html>

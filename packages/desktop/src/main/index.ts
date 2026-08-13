@@ -6,7 +6,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync, existsSync } from "node:fs";
+import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -41,6 +41,9 @@ import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
   EditableSettings,
+  KnowledgeSourceStatus,
+  KnowledgeStatusResponse,
+  MemoryPipelineStats,
   UndoRestoreMode,
   WikiPageEntry,
 } from "../shared/ipc.js";
@@ -310,7 +313,13 @@ const prototypeWindows = new Map<string, BrowserWindow>();
 // In-process memory manager (TdaiCore). Held at module scope so the startup
 // (whenReady), settings-save, project-switch, and shutdown (before-quit) paths
 // can all reach it without going through an IPC handler closure.
-let memoryManager: { init(): Promise<void>; destroy(): Promise<void>; isAvailable(): boolean } | null = null;
+let memoryManager: {
+  init(): Promise<void>;
+  destroy(): Promise<void>;
+  isAvailable(): boolean;
+  searchMemories(query: string, limit?: number): Promise<{ text: string; total: number } | null>;
+  getStats(): Promise<MemoryPipelineStats | null>;
+} | null = null;
 let memoryStarting = false;
 
 function emit(channel: string, payload?: unknown): void {
@@ -897,6 +906,101 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
     await stopMemory();
     return { ok: true };
   });
+
+  handle(IpcRequest.MemorySearch, async (query: string, limit?: number): Promise<{ text: string; total: number }> => {
+    if (!memoryManager) return { text: "", total: 0 };
+    return (await memoryManager.searchMemories(query, limit ?? 5)) ?? { text: "", total: 0 };
+  });
+
+  handle(IpcRequest.MemoryStats, async (): Promise<MemoryPipelineStats | null> => {
+    if (!memoryManager) return null;
+    return memoryManager.getStats();
+  });
+}
+
+/**
+ * Aggregate the status of every knowledge source for the dashboard. Each probe
+ * is best-effort and independent — a failing source degrades to "empty" rather
+ * than failing the whole response.
+ */
+function registerKnowledgeIpc({ handle }: IpcHelpers): void {
+  handle(IpcRequest.KnowledgeStatus, async (): Promise<KnowledgeStatusResponse> => {
+    const root = getBridge().projectRoot;
+    const freshness = getBridge().getKnowledgeFreshness?.() ?? {};
+    const isStale = (syncTime?: string): boolean =>
+      !!(freshness.lastMutation && (!syncTime || freshness.lastMutation > syncTime));
+
+    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
+      try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
+      } catch {
+        return 0;
+      }
+    };
+
+    // CodeGraph — .codegraph/ presence + staleness.
+    const cgDir = join(root, ".codegraph");
+    const codegraph: KnowledgeSourceStatus = existsSync(cgDir)
+      ? {
+          state: isStale(freshness.codegraphSync) ? "stale" : "indexed",
+          lastSync: freshness.codegraphSync,
+          detail: ".codegraph/",
+        }
+      : { state: "empty", detail: "未构建" };
+
+    // OpenWiki — page count under openwiki/ (recursive for modules/ + workflows/).
+    const wikiDir = join(root, "openwiki");
+    let wikiPages = 0;
+    if (existsSync(wikiDir)) {
+      wikiPages = countDirFiles(wikiDir, (n) => n.endsWith(".md"));
+      for (const sub of ["modules", "workflows"]) {
+        wikiPages += countDirFiles(join(wikiDir, sub), (n) => n.endsWith(".md"));
+      }
+    }
+    const openwiki: KnowledgeSourceStatus = existsSync(wikiDir)
+      ? {
+          state: wikiPages === 0 ? "empty" : isStale(freshness.wikiSync) ? "stale" : "indexed",
+          count: wikiPages,
+          unit: "页",
+          lastSync: freshness.wikiSync,
+        }
+      : { state: "empty", detail: "未构建" };
+
+    // Serena — memory file count under .serena/memories/.
+    const serenaMemDir = join(root, ".serena", "memories");
+    const serenaCount = countDirFiles(serenaMemDir, (n) => n.endsWith(".md"));
+    const serena: KnowledgeSourceStatus = existsSync(join(root, ".serena"))
+      ? { state: serenaCount === 0 ? "empty" : "indexed", count: serenaCount, unit: "条", detail: ".serena/memories/" }
+      : { state: "empty", detail: "未初始化" };
+
+    // AGENTS.md — presence + line count.
+    const agentsPath = join(root, "AGENTS.md");
+    let agentLines = 0;
+    if (existsSync(agentsPath)) {
+      try {
+        agentLines = readFileSync(agentsPath, "utf8").split("\n").length;
+      } catch {
+        agentLines = 0;
+      }
+    }
+    const agents: KnowledgeSourceStatus = existsSync(agentsPath)
+      ? { state: "indexed", count: agentLines, unit: "行" }
+      : { state: "empty", detail: "无 AGENTS.md" };
+
+    // Memory — pipeline availability + L0-L3 stats.
+    const memStats = memoryManager ? await memoryManager.getStats() : null;
+    const memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats } = memoryManager?.isAvailable()
+      ? {
+          state: memStats && memStats.l0 > 0 ? "indexed" : "empty",
+          count: memStats?.l1 ?? 0,
+          unit: "条",
+          stats: memStats ?? undefined,
+        }
+      : { state: "disabled", detail: "未启用" };
+
+    return { codegraph, openwiki, serena, agents, memory };
+  });
 }
 
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {
@@ -1294,6 +1398,7 @@ function registerIpc(): void {
   // registerCodeReviewIpc removed — actions replace legacy review IPC.
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
+  registerKnowledgeIpc(helpers);
   registerA2uiIpc(helpers);
   registerA2uiPrototypeWindowIpc(helpers);
   registerWikiIpc(helpers);

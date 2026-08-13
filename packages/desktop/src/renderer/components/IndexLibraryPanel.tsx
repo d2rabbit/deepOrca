@@ -1,29 +1,62 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { Button, IconButton } from "../ui/index";
+import { Button, IconButton, Input } from "../ui/index";
+import type { KnowledgeSourceStatus, KnowledgeStatusResponse, MemoryPipelineStats } from "../../shared/ipc";
 
 /**
- * Unified Index & Knowledge panel. Single view — no tabs, no tool names.
+ * Knowledge dashboard — the unified view over every knowledge source.
  *
- * Two knowledge layers execute in sequence behind the scenes:
- * 1. Code symbol index (auto-syncs via file watcher + post-turn hook)
- * 2. Project documentation wiki (manual sync)
+ * Five sources are surfaced as independent cards, each with its own state,
+ * content count, freshness, and action:
+ *   1. CodeGraph  — symbol-level call graph (.codegraph/)
+ *   2. OpenWiki   — structured project docs (openwiki/)
+ *   3. Serena     — project memories (.serena/memories/)
+ *   4. AGENTS.md  — coding guidelines
+ *   5. Memory     — cross-session L0-L3 pipeline
  *
- * The user sees only: project name, single status dot, one button, and a
- * progress bar during build/update. No internal tool names are exposed.
+ * The composite "build all" button still orchestrates CodeGraph → OpenWiki →
+ * arch-scan via index.build-all; individual cards trigger single-source actions.
  *
  * All operations are scoped to the current workspace/project root.
  */
+
+type SourceKey = keyof KnowledgeStatusResponse;
+
+const SOURCE_ICONS: Record<SourceKey, string> = {
+  codegraph: "📊",
+  openwiki: "📚",
+  memory: "🧠",
+  serena: "🔍",
+  agents: "📋",
+};
+
+/** Card render order — primary indices first, then supplementary sources. */
+const SOURCE_ORDER: SourceKey[] = ["codegraph", "openwiki", "memory", "serena", "agents"];
+
+/** Relative "N ago" label from an ISO timestamp. */
+function formatRelative(iso: string | undefined, justNow: string, never: string): string {
+  if (!iso) return never;
+  const delta = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(delta) || delta < 0) return never;
+  const mins = Math.floor(delta / 60000);
+  if (mins < 1) return justNow;
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
 export function IndexLibraryPanel(): JSX.Element {
   const { t } = useI18n();
-  const [cgInitialized, setCgInitialized] = useState<boolean | null>(null);
-  const [wikiExists, setWikiExists] = useState(false);
-  const [wikiAvailable, setWikiAvailable] = useState(false);
+  const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
   const [projectRoot, setProjectRoot] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [busySource, setBusySource] = useState<SourceKey | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memoryResult, setMemoryResult] = useState<string | null>(null);
   const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRunRef = useRef(false);
   const runIdRef = useRef(0);
@@ -38,40 +71,35 @@ export function IndexLibraryPanel(): JSX.Element {
   }, []);
 
   const reload = useCallback(async () => {
-    const [cgEntries, availInfo, pages] = await Promise.all([
-      api.codegraphList(),
-      api.wikiCheckAvailable(),
-      api.wikiListPages(),
-    ]);
-    if (cgEntries.length > 0) {
-      setCgInitialized(cgEntries[0].initialized);
-      setProjectRoot(cgEntries[0].root);
-    } else {
-      setCgInitialized(null);
-      setProjectRoot("");
-    }
-    setWikiAvailable(availInfo.available);
-    setWikiExists(pages.length > 0);
+    const [cgEntries, knowledge] = await Promise.all([api.codegraphList(), api.knowledgeStatus()]);
+    if (!mountedRef.current) return;
+    setProjectRoot(cgEntries.length > 0 ? cgEntries[0].root : "");
+    setStatus(knowledge);
   }, []);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  // Progress from the unified action stream — index.build-all emits
-  // ActionProgress {actionId, message, percent?}. Replaces the legacy
-  // per-tool onCodegraphProgress / onWikiProgress subscriptions now that the
-  // build is orchestrated by the composite action in core.
+  // Progress from the unified action stream — index.build-all and the
+  // single-source actions all emit ActionProgress {actionId, message, percent?}.
   useEffect(() => {
     const off = api.onActionProgress((event: { actionId: string; percent?: number; message?: string }) => {
-      if (event.actionId !== "index.build-all") return;
+      if (
+        !event.actionId.startsWith("index.") &&
+        !event.actionId.startsWith("codegraph.") &&
+        !event.actionId.startsWith("wiki.")
+      ) {
+        return;
+      }
       if (typeof event.percent === "number") setPercent(event.percent);
     });
     return off;
   }, []);
 
-  const runSequential = useCallback(
-    async (mode: "init" | "update") => {
+  /** Run an action and refresh the dashboard. `source` scopes the busy state. */
+  const runAction = useCallback(
+    async (actionId: string, input: Record<string, unknown>, source: SourceKey | null) => {
       if (!projectRoot || activeRunRef.current) return;
       activeRunRef.current = true;
       const runId = ++runIdRef.current;
@@ -82,16 +110,13 @@ export function IndexLibraryPanel(): JSX.Element {
         autoCloseRef.current = null;
       }
       setBusy(true);
+      setBusySource(source);
       setPercent(5);
       setError(null);
 
       try {
-        // The composite index.build-all action orchestrates CodeGraph → OpenWiki
-        // → arch-scan in core (replacing the renderer's per-phase IPC chain).
-        const res = await api.actionRun("index.build-all", { mode });
-        if (!res.ok) {
-          throw new Error(res.error || "Index build failed");
-        }
+        const res = await api.actionRun(actionId, input);
+        if (!res.ok) throw new Error(res.error || "Action failed");
         if (!isCurrentRun()) return;
 
         setPercent(100);
@@ -109,15 +134,103 @@ export function IndexLibraryPanel(): JSX.Element {
         if (isCurrentRun()) {
           activeRunRef.current = false;
           setBusy(false);
+          setBusySource(null);
         }
       }
     },
     [projectRoot, reload]
   );
 
+  const enableMemory = useCallback(async () => {
+    setBusySource("memory");
+    try {
+      await api.memorySetEnabled(true);
+      await reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusySource(null);
+    }
+  }, [reload]);
+
+  const searchMemory = useCallback(async () => {
+    const q = memoryQuery.trim();
+    if (!q) return;
+    try {
+      const res = await api.memorySearch(q, 5);
+      setMemoryResult(res.total > 0 ? res.text : null);
+    } catch {
+      setMemoryResult(null);
+    }
+  }, [memoryQuery]);
+
   const projectLabel = projectRoot ? projectRoot.split("/").pop() || projectRoot : "";
-  const indexReady = cgInitialized && (!wikiAvailable || wikiExists);
+  /** Composite readiness — drives the "build all" vs "update all" label. */
+  const allReady = useMemo(() => status?.codegraph.state === "indexed" && status?.openwiki.state !== "empty", [status]);
   const canBuild = !!projectRoot && !busy;
+
+  /** State label + CSS modifier for a source card. */
+  const stateInfo = (s: KnowledgeSourceStatus): { label: string; cls: string } => {
+    switch (s.state) {
+      case "indexed":
+        return { label: t("index.indexed"), cls: " on" };
+      case "stale":
+        return { label: t("index.state.stale"), cls: " stale" };
+      case "disabled":
+        return { label: t("index.state.disabled"), cls: "" };
+      default:
+        return { label: t("index.state.empty"), cls: "" };
+    }
+  };
+
+  /** Per-source action button — null when the source has no direct action. */
+  const sourceAction = (key: SourceKey): JSX.Element | null => {
+    if (key === "codegraph") {
+      return (
+        <Button
+          size="sm"
+          variant="subtle"
+          disabled={!canBuild}
+          onClick={() => void runAction("codegraph.reindex", {}, key)}
+        >
+          {t("index.rebuild")}
+        </Button>
+      );
+    }
+    if (key === "openwiki") {
+      return (
+        <Button size="sm" variant="subtle" disabled={!canBuild} onClick={() => void runAction("wiki.update", {}, key)}>
+          {t("index.update")}
+        </Button>
+      );
+    }
+    if (key === "memory" && status?.memory.state === "disabled") {
+      return (
+        <Button size="sm" variant="subtle" disabled={busySource === "memory"} onClick={() => void enableMemory()}>
+          {t("index.enable")}
+        </Button>
+      );
+    }
+    return null;
+  };
+
+  /** L0-L3 breakdown, rendered inside the memory card. */
+  const memoryBreakdown = (stats: MemoryPipelineStats): JSX.Element => (
+    <div className="ui-knowledge-stats">
+      <span>
+        {t("index.memory.l0")}: {stats.l0}
+      </span>
+      <span>
+        {t("index.memory.l1")}: {stats.l1}
+      </span>
+      <span>
+        {t("index.memory.l2")}: {stats.l2}
+      </span>
+      <span>
+        {t("index.memory.l3")}: {stats.l3 ? "✓" : "—"}
+      </span>
+    </div>
+  );
 
   return (
     <div className="ui-side-panel">
@@ -137,10 +250,21 @@ export function IndexLibraryPanel(): JSX.Element {
               <div className="ui-index-path" title={projectRoot}>
                 {projectRoot}
               </div>
-              <div className={`ui-index-state${indexReady ? " on" : ""}`}>
-                {indexReady ? t("index.indexed") : t("index.uninitialized")}
-              </div>
             </div>
+
+            {/* Composite build — orchestrates CodeGraph → OpenWiki → arch-scan. */}
+            <Button
+              size="sm"
+              variant="subtle"
+              disabled={!canBuild}
+              onClick={() => void runAction("index.build-all", { mode: allReady ? "update" : "init" }, null)}
+            >
+              {busy && busySource === null
+                ? t("index.building")
+                : allReady
+                  ? t("index.updateAll")
+                  : t("index.buildIndex")}
+            </Button>
 
             {/* Progress bar — only visible during build/update */}
             {busy || percent !== null ? (
@@ -152,17 +276,60 @@ export function IndexLibraryPanel(): JSX.Element {
               </div>
             ) : null}
 
-            {/* Error from the last build/update. */}
             {error ? <div className="ui-field-hint ui-index-error">{error}</div> : null}
 
-            <Button
-              size="sm"
-              variant="subtle"
-              disabled={!canBuild}
-              onClick={() => void runSequential(indexReady ? "update" : "init")}
-            >
-              {busy ? t("index.building") : indexReady ? t("index.updateAll") : t("index.buildIndex")}
-            </Button>
+            {/* Per-source knowledge cards. */}
+            {status ? (
+              <div className="ui-knowledge-grid">
+                {SOURCE_ORDER.map((key) => {
+                  const src = status[key];
+                  const info = stateInfo(src);
+                  const isBusy = busySource === key;
+                  return (
+                    <div key={key} className="ui-knowledge-card">
+                      <div className="ui-knowledge-card-head">
+                        <span className="ui-knowledge-icon">{SOURCE_ICONS[key]}</span>
+                        <span className="ui-knowledge-title">{t(`index.source.${key}`)}</span>
+                      </div>
+                      <div className={`ui-index-state${info.cls}`}>{isBusy ? t("index.building") : info.label}</div>
+                      {typeof src.count === "number" && src.count > 0 ? (
+                        <div className="ui-knowledge-count">
+                          {src.count} {src.unit ?? ""}
+                        </div>
+                      ) : null}
+                      {src.detail ? <div className="ui-knowledge-detail">{src.detail}</div> : null}
+                      {src.lastSync ? (
+                        <div className="ui-knowledge-freshness">
+                          {formatRelative(src.lastSync, t("index.freshness.justNow"), t("index.freshness.never"))}
+                        </div>
+                      ) : null}
+                      {key === "memory" && status.memory.stats ? memoryBreakdown(status.memory.stats) : null}
+                      {sourceAction(key)}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {/* Memory search — only when the pipeline is live. */}
+            {status?.memory.state !== "disabled" ? (
+              <div className="ui-knowledge-search">
+                <Input
+                  type="text"
+                  value={memoryQuery}
+                  placeholder={t("index.memory.searchPlaceholder")}
+                  onChange={(e) => setMemoryQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void searchMemory();
+                  }}
+                />
+                {memoryResult !== null ? (
+                  <pre className="ui-knowledge-search-result">{memoryResult}</pre>
+                ) : memoryQuery.trim() ? (
+                  <div className="ui-field-hint">{t("index.memory.noResults")}</div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

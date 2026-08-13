@@ -63,9 +63,6 @@ const REASONING_OPTIONS_OFF: ReasoningEffort[] = [];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
 
-/** Memory gateway fixed port (read-only in the UI). */
-const MEMORY_PORT = 8420;
-
 /**
  * Built-in endpoint presets — fixed and immutable. Users add an apiKey to
  * enable a preset; they cannot edit the id/name/baseURL.
@@ -853,10 +850,6 @@ export function SettingsPanel({
                     onChange={(e) => patch({ memory: { ...s.memory, enabled: e.target.checked } })}
                     label={t("settings.memory.enable")}
                   />
-                </Field>
-
-                <Field label={t("settings.memory.port")}>
-                  <Input type="text" value={String(MEMORY_PORT)} readOnly disabled />
                 </Field>
 
                 <div className="ui-field-hint ui-memory-status">

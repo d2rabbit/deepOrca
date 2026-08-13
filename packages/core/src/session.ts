@@ -673,6 +673,13 @@ export class SessionManager {
   private readonly wikiDirtySessions = new Set<string>();
   /** Files mutated during the current turn, per session, for post-edit diagnostics. */
   private readonly diagnosticsDirtyFiles = new Map<string, Set<string>>();
+  /** Knowledge-source freshness timestamps (ISO) surfaced to the dashboard. */
+  private knowledgeFreshness: {
+    lastMutation?: string;
+    codegraphSync?: string;
+    wikiSync?: string;
+    crgSync?: string;
+  } = {};
   /** Memory Gateway client (null when memory is disabled or Gateway unavailable). */
   /** Memory provider (null when memory is disabled or not yet initialized). */
   private memoryProvider: MemoryProvider | null = null;
@@ -3385,6 +3392,8 @@ ${content}
       this.diagnosticsDirtyFiles.set(sessionId, files);
     }
     files.add(filePath);
+    // Stamp the mutation time so the knowledge dashboard can flag stale indices.
+    this.knowledgeFreshness.lastMutation = new Date().toISOString();
   }
 
   /**
@@ -3396,6 +3405,7 @@ ${content}
       return;
     }
     void getCodegraphController()?.sync(this.projectRoot);
+    this.knowledgeFreshness.codegraphSync = new Date().toISOString();
   }
 
   /**
@@ -3409,6 +3419,7 @@ ${content}
       return;
     }
     void getWikiController()?.update(this.projectRoot);
+    this.knowledgeFreshness.wikiSync = new Date().toISOString();
   }
 
   /**
@@ -3421,6 +3432,17 @@ ${content}
       return;
     }
     void getCrgController()?.sync(this.projectRoot);
+    this.knowledgeFreshness.crgSync = new Date().toISOString();
+  }
+
+  /** Knowledge-source freshness timestamps for the desktop dashboard. */
+  getKnowledgeFreshness(): {
+    lastMutation?: string;
+    codegraphSync?: string;
+    wikiSync?: string;
+    crgSync?: string;
+  } {
+    return { ...this.knowledgeFreshness };
   }
 
   /**

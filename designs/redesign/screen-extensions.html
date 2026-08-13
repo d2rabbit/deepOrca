@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — Extensions</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="shell">
+
+  <nav class="rail">
+    <div class="logo">◈</div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-4 4 4 4M16 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></div>
+    <div class="rail-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
+    <div class="spacer"></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="m9 10-2 2 2 2M15 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2 3.4-2.3-1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" stroke-linejoin="round"/></svg></div>
+  </nav>
+
+  <!-- Sidebar: extension categories -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="workspace-chip">
+        <div class="ws-icon">◈</div>
+        <div style="min-width:0">
+          <div class="ws-name">deepcode-cli</div>
+          <div class="ws-path">~/dev/coding/deepcodeUI</div>
+        </div>
+        <span class="chev">▾</span>
+      </div>
+      <div class="search-box"><span>⌕</span> 搜索扩展…</div>
+    </div>
+    <div class="sidebar-section">分类</div>
+    <div class="sidebar-scroll">
+      <div class="tree-item sel"><span class="twisty"></span><span class="f-icon">✦</span>技能<span class="git-badge" style="color:var(--text-faint)">6</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">⬡</span>MCP 服务器<span class="git-badge" style="color:var(--text-faint)">3</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">▣</span>插件<span class="git-badge" style="color:var(--text-faint)">2</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">◫</span>钩子 / Hooks</div>
+    </div>
+    <div class="sidebar-section">来源</div>
+    <div class="sidebar-scroll" style="flex:0 0 auto">
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">◈</span>项目级 .deeporca/</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">⌂</span>用户级 ~/</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">✧</span>内置</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="tabbar">
+      <div class="tab"><span class="t-icon">◈</span><span class="t-label">重构会话压缩逻辑</span><span class="t-close">✕</span></div>
+      <div class="tab active"><span class="t-icon" style="color:var(--info)">▣</span><span class="t-label">扩展</span><span class="t-close">✕</span></div>
+      <div class="tab-add">+</div>
+      <div class="tb-right"><div class="tb-action">⋯</div></div>
+    </div>
+
+    <div class="stage" style="flex-direction:column; overflow:hidden;">
+      <div class="view-head">
+        <h2>扩展中心</h2>
+        <div class="ext-tabs" style="margin-left:12px;">
+          <span class="ext-tab on">技能</span>
+          <span class="ext-tab">MCP 服务器</span>
+          <span class="ext-tab">插件</span>
+        </div>
+        <div style="margin-left:auto; display:flex; gap:6px;">
+          <button class="btn" style="padding:4px 12px; font-size:11px;">⟳ 刷新</button>
+          <button class="btn primary" style="padding:4px 12px; font-size:11px;">+ 安装</button>
+        </div>
+      </div>
+
+      <div class="ext-body">
+        <div class="ext-card">
+          <div class="e-ic">✍️</div>
+          <div class="e-main">
+            <div class="e-name">skill-writer <span class="e-ver">内置</span></div>
+            <div class="e-desc">引导式创建新技能，生成 SKILL.md 与目录骨架</div>
+            <div class="e-meta"><span>来源：内置</span><span>触发：自动匹配</span></div>
+          </div>
+          <div class="switch on"></div>
+        </div>
+        <div class="ext-card">
+          <div class="e-ic">📚</div>
+          <div class="e-main">
+            <div class="e-name">karpathy-guidelines <span class="e-ver">默认</span></div>
+            <div class="e-desc">注入 Karpathy 编码准则作为默认技能模板</div>
+            <div class="e-meta"><span>来源：内置</span><span>触发：每个会话</span></div>
+          </div>
+          <div class="switch on"></div>
+        </div>
+        <div class="ext-card">
+          <div class="e-ic">🔍</div>
+          <div class="e-main">
+            <div class="e-name">code-review-pro <span class="e-ver">v0.3.1</span></div>
+            <div class="e-desc">深度评审：安全扫描 + 性能气味 + 架构违规检测</div>
+            <div class="e-meta"><span>来源：项目级</span><span>触发：/review</span></div>
+          </div>
+          <div class="switch on"></div>
+        </div>
+        <div class="ext-card">
+          <div class="e-ic">🧪</div>
+          <div class="e-main">
+            <div class="e-name">test-gen <span class="e-ver">v1.2.0</span></div>
+            <div class="e-desc">根据变更自动生成 node:test 单元测试骨架</div>
+            <div class="e-meta"><span>来源：用户级</span><span>触发：自动匹配</span></div>
+          </div>
+          <div class="switch"></div>
+        </div>
+
+        <div class="sidebar-section" style="padding-left:2px;">MCP 服务器 · 3</div>
+        <div class="ext-card">
+          <div class="e-ic">⬡</div>
+          <div class="e-main">
+            <div class="e-name">filesystem <span class="e-ver">stdio</span></div>
+            <div class="e-desc">7 个工具 · 平均延迟 12ms</div>
+          </div>
+          <span class="e-status ok"><span class="dot"></span>运行中</span>
+          <div class="switch on"></div>
+        </div>
+        <div class="ext-card">
+          <div class="e-ic">⬡</div>
+          <div class="e-main">
+            <div class="e-name">github <span class="e-ver">stdio</span></div>
+            <div class="e-desc">23 个工具 · 平均延迟 340ms</div>
+          </div>
+          <span class="e-status ok"><span class="dot"></span>运行中</span>
+          <div class="switch on"></div>
+        </div>
+        <div class="ext-card" style="border-color: rgba(255,84,112,.3);">
+          <div class="e-ic">⬡</div>
+          <div class="e-main">
+            <div class="e-name">postgres <span class="e-ver">stdio</span></div>
+            <div class="e-desc" style="color:var(--danger)">启动失败：connection refused · 查看日志</div>
+          </div>
+          <span class="e-status err"><span class="dot"></span>错误</span>
+          <div class="switch"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="statusbar">
+    <div class="st-item"><span class="st-cyan">⌥</span> perf/native-optimizations</div>
+    <div class="st-item"><span class="st-ok">✓</span> 索引完成 · 1,240 文件</div>
+    <div class="grow"></div>
+    <div class="st-item"><span class="st-ok">●</span> MCP 2</div>
+    <div class="st-item"><span style="color:var(--danger)">●</span> MCP 1 错误</div>
+    <div class="st-item">🔔</div>
+  </footer>
+
+</div>
+</body>
+</html>

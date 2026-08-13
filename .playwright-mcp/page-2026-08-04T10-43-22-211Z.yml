@@ -1,0 +1,111 @@
+- generic [ref=f4e2]:
+  - navigation [ref=f4e3]:
+    - generic [ref=f4e4]: ◈
+  - complementary [ref=f4e29]:
+    - generic [ref=f4e30]:
+      - generic [ref=f4e31] [cursor=pointer]:
+        - generic [ref=f4e32]: ◈
+        - generic [ref=f4e33]:
+          - generic [ref=f4e34]: deepcode-cli
+          - generic [ref=f4e35]: ~/dev/coding/deepcodeUI
+        - generic [ref=f4e36]: ▾
+      - generic [ref=f4e37]:
+        - generic [ref=f4e38]: ⌕
+        - text: 搜索会话…
+        - generic [ref=f4e39]: ⌘P
+    - generic [ref=f4e40]:
+      - text: 进行中
+      - generic [ref=f4e41] [cursor=pointer]: +
+    - generic [ref=f4e43] [cursor=pointer]:
+      - generic [ref=f4e44]: 修复 Windows 下 bash 路径
+      - generic [ref=f4e47]:
+        - generic [ref=f4e48]: 等待回答
+        - generic [ref=f4e49]: ·
+        - generic [ref=f4e50]: 1 小时前
+    - generic [ref=f4e51]: 今天
+    - generic [ref=f4e52]:
+      - generic [ref=f4e53] [cursor=pointer]:
+        - generic [ref=f4e54]: 架构图可视化到工作区
+        - generic [ref=f4e57]:
+          - generic [ref=f4e58]: 已完成
+          - generic [ref=f4e59]: ·
+          - generic [ref=f4e60]: 14:20
+      - generic [ref=f4e61] [cursor=pointer]:
+        - generic [ref=f4e62]: 统一索引状态面板
+        - generic [ref=f4e65]:
+          - generic [ref=f4e66]: 已完成
+          - generic [ref=f4e67]: ·
+          - generic [ref=f4e68]: 11:05
+  - generic [ref=f4e69]:
+    - generic [ref=f4e70]:
+      - generic [ref=f4e71] [cursor=pointer]:
+        - generic [ref=f4e72]: ◈
+        - generic [ref=f4e73]: 新会话
+        - generic [ref=f4e74]: ✕
+      - generic [ref=f4e75] [cursor=pointer]: +
+    - generic [ref=f4e77]:
+      - generic [ref=f4e78]:
+        - generic [ref=f4e79]: ◈
+        - heading "DeepOrca" [level=1] [ref=f4e80]
+        - generic [ref=f4e81]: deepcode-cli · 分支 perf/native-optimizations · 已索引 1,240 个文件
+        - generic [ref=f4e82]:
+          - generic [ref=f4e83] [cursor=pointer]:
+            - generic [ref=f4e84]: ✦
+            - generic [ref=f4e85]: 开始构建
+            - generic [ref=f4e86]: 描述需求，Agent 直接改代码并跑测试
+          - generic [ref=f4e87] [cursor=pointer]:
+            - generic [ref=f4e88]: ◫
+            - generic [ref=f4e89]: 计划模式
+            - generic [ref=f4e90]:
+              - text: 先出实现方案，确认后再动手
+              - generic [ref=f4e91]: ⇧Tab
+          - generic [ref=f4e92] [cursor=pointer]:
+            - generic [ref=f4e93]: ◎
+            - generic [ref=f4e94]: 代码评审
+            - generic [ref=f4e95]: 扫描未提交变更，给出分级问题清单
+          - generic [ref=f4e96] [cursor=pointer]:
+            - generic [ref=f4e97]: ✧
+            - generic [ref=f4e98]: 生成原型
+            - generic [ref=f4e99]: 一句话产出可交互的界面设计稿
+        - generic [ref=f4e100]:
+          - generic [ref=f4e101]: 接着上次继续
+          - generic [ref=f4e102] [cursor=pointer]:
+            - generic [ref=f4e103]:
+              - generic [ref=f4e105]: 修复 Windows 下 bash 路径
+              - generic [ref=f4e106]: 待回答
+            - generic [ref=f4e107]:
+              - generic [ref=f4e108]: 等待回答
+              - generic [ref=f4e109]: ·
+              - generic [ref=f4e110]: 1 小时前
+              - generic [ref=f4e111]: ·
+              - generic [ref=f4e112]: 43.6k tokens
+          - generic [ref=f4e113] [cursor=pointer]:
+            - generic [ref=f4e114]: 架构图可视化到工作区
+            - generic [ref=f4e117]:
+              - generic [ref=f4e118]: 已完成
+              - generic [ref=f4e119]: ·
+              - generic [ref=f4e120]: 14:20
+              - generic [ref=f4e121]: ·
+              - generic [ref=f4e122]: 12.1k tokens
+      - generic [ref=f4e124]:
+        - generic [ref=f4e125]: 向 DeepOrca 描述你的任务，或输入 @ 引用文件、/ 执行命令…
+        - generic [ref=f4e126]:
+          - generic [ref=f4e127]:
+            - generic [ref=f4e128] [cursor=pointer]: Agent
+            - generic [ref=f4e129] [cursor=pointer]: Plan
+          - generic [ref=f4e130] [cursor=pointer]: DeepSeek V4 ▾
+          - generic [ref=f4e132] [cursor=pointer]: ✦ 技能
+          - generic [ref=f4e133] [cursor=pointer]: 🖼
+          - generic [ref=f4e134]: 0 / 512k
+          - button "↑" [ref=f4e137] [cursor=pointer]
+  - contentinfo [ref=f4e138]:
+    - generic [ref=f4e139] [cursor=pointer]:
+      - generic [ref=f4e140]: ⌥
+      - text: perf/native-optimizations
+    - generic [ref=f4e141] [cursor=pointer]:
+      - generic [ref=f4e142]: ✓
+      - text: 索引完成 · 1,240 文件
+    - generic [ref=f4e143] [cursor=pointer]:
+      - generic [ref=f4e144]: ●
+      - text: MCP 3
+    - generic [ref=f4e145] [cursor=pointer]: 🔔

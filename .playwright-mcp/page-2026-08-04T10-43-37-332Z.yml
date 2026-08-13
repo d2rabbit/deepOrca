@@ -1,0 +1,125 @@
+- generic [ref=f5e2]:
+  - navigation [ref=f5e3]:
+    - generic [ref=f5e4]: ◈
+  - complementary [ref=f5e29]:
+    - generic [ref=f5e30]:
+      - generic [ref=f5e31] [cursor=pointer]:
+        - generic [ref=f5e32]: ◈
+        - generic [ref=f5e33]:
+          - generic [ref=f5e34]: deepcode-cli
+          - generic [ref=f5e35]: ~/dev/coding/deepcodeUI
+        - generic [ref=f5e36]: ▾
+      - generic [ref=f5e37]:
+        - generic [ref=f5e38]: ⌕
+        - text: 搜索会话…
+        - generic [ref=f5e39]: ⌘P
+    - generic [ref=f5e40]:
+      - text: 进行中
+      - generic [ref=f5e41] [cursor=pointer]: +
+    - generic [ref=f5e42]:
+      - generic [ref=f5e43] [cursor=pointer]:
+        - generic [ref=f5e44]:
+          - generic [ref=f5e46]: UI 重设计方案
+          - generic [ref=f5e47]: 待审批
+        - generic [ref=f5e48]:
+          - generic [ref=f5e49]: Plan 模式
+          - generic [ref=f5e50]: ·
+          - generic [ref=f5e51]: 刚刚
+      - generic [ref=f5e52] [cursor=pointer]:
+        - generic [ref=f5e53]: 架构图可视化到工作区
+        - generic [ref=f5e56]:
+          - generic [ref=f5e57]: 已完成
+          - generic [ref=f5e58]: ·
+          - generic [ref=f5e59]: 14:20
+  - generic [ref=f5e60]:
+    - generic [ref=f5e61]:
+      - generic [ref=f5e62] [cursor=pointer]:
+        - generic [ref=f5e63]: ◈
+        - generic [ref=f5e64]: UI 重设计方案
+        - generic [ref=f5e65]: ✕
+      - generic [ref=f5e66] [cursor=pointer]: +
+      - generic [ref=f5e67]:
+        - generic [ref=f5e68] [cursor=pointer]: ⿻ 分屏
+        - generic [ref=f5e69] [cursor=pointer]: ⋯
+    - generic [ref=f5e71]:
+      - generic [ref=f5e72]:
+        - generic [ref=f5e73]: 重新设计桌面端的布局：把 rail 瘦身、主区改成标签页、加底部状态栏。先别写代码，给我方案。
+        - generic [ref=f5e77]:
+          - generic [ref=f5e78]: ◈
+          - generic [ref=f5e79]:
+            - generic [ref=f5e81] [cursor=pointer]:
+              - generic [ref=f5e82]: ✦
+              - generic [ref=f5e83]:
+                - text: 只读分析了
+                - strong [ref=f5e84]: 9 个文件
+              - generic [ref=f5e85]: read ×7
+              - generic [ref=f5e86]: bash ×2
+              - generic [ref=f5e87]: 展开 ▾
+            - paragraph [ref=f5e88]:
+              - text: 已分析
+              - code [ref=f5e89]: App.tsx
+              - text: 、
+              - code [ref=f5e90]: ui.css
+              - text: 及全部 32 个组件。以下是我的重设计方案：
+            - generic [ref=f5e91]:
+              - generic [ref=f5e92]:
+                - text: ◫ 实施计划
+                - generic [ref=f5e93]: Plan 模式 · 只读
+              - generic [ref=f5e94]:
+                - generic [ref=f5e95]:
+                  - generic [ref=f5e96]: "1"
+                  - generic [ref=f5e97]:
+                    - strong [ref=f5e98]: 壳层重构
+                    - text: ：grid 改为 rail / sidebar / stage / statusbar 四区，移除 TopBar
+                    - generic [ref=f5e99]: App.tsx · ui.css
+                - generic [ref=f5e100]:
+                  - generic [ref=f5e101]: "2"
+                  - generic [ref=f5e102]:
+                    - strong [ref=f5e103]: Tab 系统
+                    - text: ：新增 TabBar 组件，会话/编辑器/预览统一为 Tab，mainView 状态机改为 tab 数组
+                    - generic [ref=f5e104]: components/TabBar.tsx（新增）
+                - generic [ref=f5e105]:
+                  - generic [ref=f5e106]: "3"
+                  - generic [ref=f5e107]:
+                    - strong [ref=f5e108]: 状态栏
+                    - text: ：分支、索引、Token、MCP 健康度聚合到底栏，TokenStatsPanel 改为弹出层
+                    - generic [ref=f5e109]: components/StatusBar.tsx（新增）
+                - generic [ref=f5e110]:
+                  - generic [ref=f5e111]: "4"
+                  - generic [ref=f5e112]:
+                    - strong [ref=f5e113]: Rail 瘦身
+                    - text: ：15 个按钮收敛为 4 导航 + 2 工具，快捷键 ⌘1–4 切换
+                    - generic [ref=f5e114]: ui/Rail.tsx
+                - generic [ref=f5e115]:
+                  - generic [ref=f5e116]: "5"
+                  - generic [ref=f5e117]:
+                    - strong [ref=f5e118]: 迁移样式
+                    - text: ：新设计令牌对齐 orca 主题变量，旧面板样式逐步替换
+                    - generic [ref=f5e119]: styles-orca.css
+              - generic [ref=f5e120]:
+                - button "✓ 批准并开始实施" [ref=f5e121] [cursor=pointer]
+                - button "修改方案" [ref=f5e122] [cursor=pointer]
+                - button "继续讨论" [ref=f5e123] [cursor=pointer]
+      - generic [ref=f5e125]:
+        - generic [ref=f5e126]: 对方案有疑问？继续讨论，或点击「批准并开始实施」…
+        - generic [ref=f5e127]:
+          - generic [ref=f5e128]:
+            - generic [ref=f5e129] [cursor=pointer]: Agent
+            - generic [ref=f5e130] [cursor=pointer]: Plan
+          - generic [ref=f5e131] [cursor=pointer]: DeepSeek V4 ▾
+          - generic [ref=f5e133]: 61.2k / 512k
+          - button "↑" [ref=f5e136] [cursor=pointer]
+  - contentinfo [ref=f5e137]:
+    - generic [ref=f5e138] [cursor=pointer]:
+      - generic [ref=f5e139]: ⌥
+      - text: perf/native-optimizations
+    - generic [ref=f5e140] [cursor=pointer]:
+      - generic [ref=f5e141]: ✓
+      - text: 索引完成 · 1,240 文件
+    - generic [ref=f5e142] [cursor=pointer]:
+      - generic [ref=f5e143]: ◫
+      - text: Plan 模式 · 写操作已锁定
+    - generic [ref=f5e144] [cursor=pointer]:
+      - generic [ref=f5e145]: ●
+      - text: MCP 3
+    - generic [ref=f5e146] [cursor=pointer]: 🔔

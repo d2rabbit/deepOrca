@@ -1,0 +1,144 @@
+- generic [ref=f8e2]:
+  - navigation [ref=f8e3]:
+    - generic [ref=f8e4]: ◈
+  - complementary [ref=f8e29]:
+    - generic [ref=f8e30]:
+      - generic [ref=f8e31] [cursor=pointer]:
+        - generic [ref=f8e32]: ◈
+        - generic [ref=f8e33]:
+          - generic [ref=f8e34]: deepcode-cli
+          - generic [ref=f8e35]: ~/dev/coding/deepcodeUI
+        - generic [ref=f8e36]: ▾
+      - generic [ref=f8e37]:
+        - generic [ref=f8e38]: ⌕
+        - text: 搜索扩展…
+    - generic [ref=f8e39]: 分类
+    - generic [ref=f8e40]:
+      - generic [ref=f8e41] [cursor=pointer]:
+        - generic [ref=f8e42]: ✦
+        - text: 技能
+        - generic [ref=f8e43]: "6"
+      - generic [ref=f8e44] [cursor=pointer]:
+        - generic [ref=f8e45]: ⬡
+        - text: MCP 服务器
+        - generic [ref=f8e46]: "3"
+      - generic [ref=f8e47] [cursor=pointer]:
+        - generic [ref=f8e48]: ▣
+        - text: 插件
+        - generic [ref=f8e49]: "2"
+      - generic [ref=f8e50] [cursor=pointer]:
+        - generic [ref=f8e51]: ◫
+        - text: 钩子 / Hooks
+    - generic [ref=f8e52]: 来源
+    - generic [ref=f8e53]:
+      - generic [ref=f8e54] [cursor=pointer]:
+        - generic [ref=f8e55]: ◈
+        - text: 项目级 .deeporca/
+      - generic [ref=f8e56] [cursor=pointer]:
+        - generic [ref=f8e57]: ⌂
+        - text: 用户级 ~/
+      - generic [ref=f8e58] [cursor=pointer]:
+        - generic [ref=f8e59]: ✧
+        - text: 内置
+  - generic [ref=f8e60]:
+    - generic [ref=f8e61]:
+      - generic [ref=f8e62] [cursor=pointer]:
+        - generic [ref=f8e63]: ◈
+        - generic [ref=f8e64]: 重构会话压缩逻辑
+        - generic [ref=f8e65]: ✕
+      - generic [ref=f8e66] [cursor=pointer]:
+        - generic [ref=f8e67]: ▣
+        - generic [ref=f8e68]: 扩展
+        - generic [ref=f8e69]: ✕
+      - generic [ref=f8e70] [cursor=pointer]: +
+      - generic [ref=f8e71]: ⋯
+    - generic [ref=f8e73]:
+      - generic [ref=f8e74]:
+        - heading "扩展中心" [level=2] [ref=f8e75]
+        - generic [ref=f8e76]:
+          - generic [ref=f8e77] [cursor=pointer]: 技能
+          - generic [ref=f8e78] [cursor=pointer]: MCP 服务器
+          - generic [ref=f8e79] [cursor=pointer]: 插件
+        - generic [ref=f8e80]:
+          - button "⟳ 刷新" [ref=f8e81] [cursor=pointer]
+          - button "+ 安装" [ref=f8e82] [cursor=pointer]
+      - generic [ref=f8e83]:
+        - generic [ref=f8e84]:
+          - generic [ref=f8e85]: ✍️
+          - generic [ref=f8e86]:
+            - generic [ref=f8e87]:
+              - text: skill-writer
+              - generic [ref=f8e88]: 内置
+            - generic [ref=f8e89]: 引导式创建新技能，生成 SKILL.md 与目录骨架
+            - generic [ref=f8e90]:
+              - generic [ref=f8e91]: 来源：内置
+              - generic [ref=f8e92]: 触发：自动匹配
+        - generic [ref=f8e94]:
+          - generic [ref=f8e95]: 📚
+          - generic [ref=f8e96]:
+            - generic [ref=f8e97]:
+              - text: karpathy-guidelines
+              - generic [ref=f8e98]: 默认
+            - generic [ref=f8e99]: 注入 Karpathy 编码准则作为默认技能模板
+            - generic [ref=f8e100]:
+              - generic [ref=f8e101]: 来源：内置
+              - generic [ref=f8e102]: 触发：每个会话
+        - generic [ref=f8e104]:
+          - generic [ref=f8e105]: 🔍
+          - generic [ref=f8e106]:
+            - generic [ref=f8e107]:
+              - text: code-review-pro
+              - generic [ref=f8e108]: v0.3.1
+            - generic [ref=f8e109]: 深度评审：安全扫描 + 性能气味 + 架构违规检测
+            - generic [ref=f8e110]:
+              - generic [ref=f8e111]: 来源：项目级
+              - generic [ref=f8e112]: 触发：/review
+        - generic [ref=f8e114]:
+          - generic [ref=f8e115]: 🧪
+          - generic [ref=f8e116]:
+            - generic [ref=f8e117]:
+              - text: test-gen
+              - generic [ref=f8e118]: v1.2.0
+            - generic [ref=f8e119]: 根据变更自动生成 node:test 单元测试骨架
+            - generic [ref=f8e120]:
+              - generic [ref=f8e121]: 来源：用户级
+              - generic [ref=f8e122]: 触发：自动匹配
+        - generic [ref=f8e124]: MCP 服务器 · 3
+        - generic [ref=f8e125]:
+          - generic [ref=f8e126]: ⬡
+          - generic [ref=f8e127]:
+            - generic [ref=f8e128]:
+              - text: filesystem
+              - generic [ref=f8e129]: stdio
+            - generic [ref=f8e130]: 7 个工具 · 平均延迟 12ms
+          - generic [ref=f8e131]: 运行中
+        - generic [ref=f8e134]:
+          - generic [ref=f8e135]: ⬡
+          - generic [ref=f8e136]:
+            - generic [ref=f8e137]:
+              - text: github
+              - generic [ref=f8e138]: stdio
+            - generic [ref=f8e139]: 23 个工具 · 平均延迟 340ms
+          - generic [ref=f8e140]: 运行中
+        - generic [ref=f8e143]:
+          - generic [ref=f8e144]: ⬡
+          - generic [ref=f8e145]:
+            - generic [ref=f8e146]:
+              - text: postgres
+              - generic [ref=f8e147]: stdio
+            - generic [ref=f8e148]: 启动失败：connection refused · 查看日志
+          - generic [ref=f8e149]: 错误
+  - contentinfo [ref=f8e152]:
+    - generic [ref=f8e153] [cursor=pointer]:
+      - generic [ref=f8e154]: ⌥
+      - text: perf/native-optimizations
+    - generic [ref=f8e155] [cursor=pointer]:
+      - generic [ref=f8e156]: ✓
+      - text: 索引完成 · 1,240 文件
+    - generic [ref=f8e157] [cursor=pointer]:
+      - generic [ref=f8e158]: ●
+      - text: MCP 2
+    - generic [ref=f8e159] [cursor=pointer]:
+      - generic [ref=f8e160]: ●
+      - text: MCP 1 错误
+    - generic [ref=f8e161] [cursor=pointer]: 🔔

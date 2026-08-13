@@ -132,9 +132,14 @@ const api: DesktopApi = {
   editorWriteFile: (filePath, content) => ipcRenderer.invoke(IpcRequest.EditorWriteFile, filePath, content),
   editorListFiles: (dirPath) => ipcRenderer.invoke(IpcRequest.EditorListFiles, dirPath),
 
-  // ── Memory (TencentDB-Agent-Memory) ──────────────────────────────
+  // ── Memory (in-process L0-L3 pipeline) ───────────────────────────
   memoryCheckAvailable: () => ipcRenderer.invoke(IpcRequest.MemoryCheckAvailable),
   memorySetEnabled: (enabled) => ipcRenderer.invoke(IpcRequest.MemorySetEnabled, enabled),
+  memorySearch: (query, limit) => ipcRenderer.invoke(IpcRequest.MemorySearch, query, limit),
+  memoryStats: () => ipcRenderer.invoke(IpcRequest.MemoryStats),
+
+  // ── Knowledge dashboard ──────────────────────────────────────────
+  knowledgeStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeStatus),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>

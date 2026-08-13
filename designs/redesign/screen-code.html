@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — Code</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="shell">
+
+  <nav class="rail">
+    <div class="logo">◈</div>
+    <div class="rail-btn" title="对话 (⌘1)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="rail-btn active" title="代码 (⌘2)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-4 4 4 4M16 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="rail-btn" title="评审 (⌘3)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg>
+    </div>
+    <div class="rail-btn" title="扩展 (⌘4)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <div class="rail-btn" title="命令面板 (⌘K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="m9 10-2 2 2 2M15 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="rail-btn" title="设置 (⌘,)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2 3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" stroke-linejoin="round"/></svg>
+    </div>
+  </nav>
+
+  <!-- Sidebar: file tree + SCM summary -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="workspace-chip">
+        <div class="ws-icon">◈</div>
+        <div style="min-width:0">
+          <div class="ws-name">deepcode-cli</div>
+          <div class="ws-path">~/dev/coding/deepcodeUI</div>
+        </div>
+        <span class="chev">▾</span>
+      </div>
+      <div class="search-box"><span>⌕</span> 搜索文件… <kbd>⌘P</kbd></div>
+    </div>
+    <div class="sidebar-section">资源管理器</div>
+    <div class="sidebar-scroll">
+      <div class="tree-item"><span class="twisty">▾</span><span class="f-icon">📦</span>packages</div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="twisty">▾</span><span class="f-icon">📦</span>core</div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="twisty">▾</span><span class="f-icon">📁</span>src</div>
+          <div class="tree-children">
+            <div class="tree-item sel"><span class="twisty"></span><span class="f-icon">ƒ</span>session.ts<span class="git-badge m">M</span></div>
+            <div class="tree-item"><span class="twisty"></span><span class="f-icon">ƒ</span>prompt.ts</div>
+            <div class="tree-item"><span class="twisty"></span><span class="f-icon">ƒ</span>executor.ts</div>
+            <div class="tree-item"><span class="twisty">▸</span><span class="f-icon">📁</span>tools</div>
+            <div class="tree-item"><span class="twisty">▸</span><span class="f-icon">📁</span>tests</div>
+          </div>
+        </div>
+        <div class="tree-item"><span class="twisty">▸</span><span class="f-icon">📦</span>desktop</div>
+      </div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">𝑓</span>AGENTS.md</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">{}</span>package.json<span class="git-badge m">M</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">✦</span>session-compaction.test.ts<span class="git-badge a">A</span></div>
+    </div>
+    <div class="sidebar-section">源代码管理 · 3 项变更</div>
+    <div class="sidebar-scroll" style="flex:0 0 auto">
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">ƒ</span>session.ts<span class="git-badge m">M</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">✦</span>session-compaction.test.ts<span class="git-badge a">A</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">{}</span>package.json<span class="git-badge m">M</span></div>
+    </div>
+  </aside>
+
+  <!-- Main stage: editor tabs -->
+  <div class="main">
+    <div class="tabbar">
+      <div class="tab">
+        <span class="t-icon">◈</span>
+        <span class="t-label">重构会话压缩逻辑</span>
+        <span class="t-close">✕</span>
+      </div>
+      <div class="tab active">
+        <span class="t-icon" style="color:var(--info)">ƒ</span>
+        <span class="t-label">session.ts</span>
+        <span class="t-close t-dirty">●</span>
+      </div>
+      <div class="tab">
+        <span class="t-icon" style="color:var(--success)">✦</span>
+        <span class="t-label">session-compaction.test.ts</span>
+        <span class="t-close">✕</span>
+      </div>
+      <div class="tab-add">+</div>
+      <div class="tb-right">
+        <div class="tb-action">⿻ 分屏</div>
+        <div class="tb-action">⇄ Diff</div>
+        <div class="tb-action">⋯</div>
+      </div>
+    </div>
+
+    <div class="breadcrumb">
+      <span class="crumb">packages</span><span class="sep">›</span>
+      <span class="crumb">core</span><span class="sep">›</span>
+      <span class="crumb">src</span><span class="sep">›</span>
+      <span class="crumb" style="color:var(--text)">session.ts</span>
+      <div class="agent-tag">✦ Agent 正在编辑此文件 · 跟随中</div>
+    </div>
+
+    <div class="agent-banner">
+      <span class="ab-title">✦ Agent 变更</span>
+      <span>2 个文件 · <span style="color:var(--success)">+42</span> / <span style="color:var(--danger)">−11</span></span>
+      <div class="ab-actions">
+        <span class="ab-btn">查看 Diff</span>
+        <span class="ab-btn reject">全部拒绝</span>
+        <span class="ab-btn accept">全部接受</span>
+      </div>
+    </div>
+
+    <div class="editor-body">
+      <div class="code-area">
+        <div class="cl"><span class="ln">486</span><span><span class="tok-c">// ── Compaction ──────────────────────────────────</span></span></div>
+        <div class="cl"><span class="ln">487</span><span></span></div>
+        <div class="cl add"><span class="ln">488</span><span><span class="tok-k">export function</span> <span class="tok-f">shouldCompact</span>(activeTokens: <span class="tok-t">number</span>, model: <span class="tok-t">string</span>): <span class="tok-t">boolean</span> {</span></div>
+        <div class="cl add"><span class="ln">489</span><span>  <span class="tok-c">// DeepSeek V4 ships a 512K window; everything else gets 128K.</span></span></div>
+        <div class="cl add"><span class="ln">490</span><span>  <span class="tok-k">const</span> threshold = model.<span class="tok-f">toLowerCase</span>().<span class="tok-f">includes</span>(<span class="tok-s">"deepseek-v4"</span>)</span></div>
+        <div class="cl add"><span class="ln">491</span><span>    ? <span class="tok-n">512_000</span></span></div>
+        <div class="cl add"><span class="ln">492</span><span>    : <span class="tok-n">128_000</span>;</span></div>
+        <div class="cl add"><span class="ln">493</span><span>  <span class="tok-k">return</span> activeTokens &gt; threshold;</span></div>
+        <div class="cl add"><span class="ln">494</span><span>}</span></div>
+        <div class="cl del"><span class="ln">495</span><span><span class="tok-c">// const compactionThreshold = isV4 ? 512000 : 128000;</span></span></div>
+        <div class="cl del"><span class="ln">496</span><span><span class="tok-c">// if (activeTokens &gt; compactionThreshold) { … }</span></span></div>
+        <div class="cl"><span class="ln">497</span><span></span></div>
+        <div class="cl"><span class="ln">498</span><span><span class="tok-k">async function</span> <span class="tok-f">compactIfNeeded</span>(session: <span class="tok-t">Session</span>) {</span></div>
+        <div class="cl"><span class="ln">499</span><span>  <span class="tok-k">if</span> (!<span class="tok-f">shouldCompact</span>(session.activeTokens, session.model)) <span class="tok-k">return</span>;</span></div>
+        <div class="cl"><span class="ln">500</span><span>  <span class="tok-k">const</span> summary = <span class="tok-k">await</span> <span class="tok-f">summarizeMiddle</span>(session.messages);</span></div>
+        <div class="cl"><span class="ln">501</span><span>  session.<span class="tok-f">replaceWithSummary</span>(summary);</span></div>
+        <div class="cl"><span class="ln">502</span><span>}</span></div>
+        <div class="cl"><span class="ln">503</span><span></span></div>
+        <div class="cl"><span class="ln">504</span><span><span class="tok-k">export class</span> <span class="tok-t">SessionManager</span> {</span></div>
+        <div class="cl"><span class="ln">505</span><span>  <span class="tok-k">private</span> sessions = <span class="tok-k">new</span> <span class="tok-t">Map</span>&lt;<span class="tok-t">string</span>, <span class="tok-t">Session</span>&gt;();</span></div>
+        <div class="cl"><span class="ln">506</span><span>  …</span></div>
+      </div>
+      <div class="minimap">
+        <div class="mm-line" style="width:70%"></div>
+        <div class="mm-line" style="width:45%"></div>
+        <div class="mm-line" style="width:80%"></div>
+        <div class="mm-line" style="width:60%"></div>
+        <div class="mm-line add" style="width:85%"></div>
+        <div class="mm-line add" style="width:90%"></div>
+        <div class="mm-line add" style="width:75%"></div>
+        <div class="mm-line add" style="width:60%"></div>
+        <div class="mm-line del" style="width:70%"></div>
+        <div class="mm-line" style="width:55%"></div>
+        <div class="mm-line" style="width:78%"></div>
+        <div class="mm-line" style="width:40%"></div>
+        <div class="mm-line" style="width:66%"></div>
+        <div class="mm-line" style="width:82%"></div>
+        <div class="mm-line" style="width:50%"></div>
+        <div class="mm-line" style="width:72%"></div>
+        <div class="mm-line" style="width:58%"></div>
+        <div class="mm-line" style="width:64%"></div>
+        <div class="mm-line" style="width:48%"></div>
+        <div class="mm-line" style="width:76%"></div>
+        <div class="mm-line" style="width:52%"></div>
+        <div class="mm-line" style="width:68%"></div>
+        <div class="mm-line" style="width:42%"></div>
+        <div class="mm-line" style="width:74%"></div>
+        <div class="mm-viewport"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="statusbar">
+    <div class="st-item"><span class="st-cyan">⌥</span> perf/native-optimizations <span style="color:var(--success)">↑2</span></div>
+    <div class="st-item"><span class="st-warn">◐</span> 3 项未提交变更</div>
+    <div class="st-item"><span class="st-ok">✓</span> 索引完成 · 1,240 文件</div>
+    <div class="grow"></div>
+    <div class="st-item">LF · UTF-8 · TypeScript</div>
+    <div class="st-item"><span class="st-ok">●</span> MCP 3</div>
+    <div class="st-item">🔔</div>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — Review</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="shell">
+
+  <nav class="rail">
+    <div class="logo">◈</div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-4 4 4 4M16 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
+    <div class="spacer"></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="m9 10-2 2 2 2M15 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2 3.4-2.3-1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" stroke-linejoin="round"/></svg></div>
+  </nav>
+
+  <!-- Sidebar: review scope -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="workspace-chip">
+        <div class="ws-icon">◈</div>
+        <div style="min-width:0">
+          <div class="ws-name">deepcode-cli</div>
+          <div class="ws-path">~/dev/coding/deepcodeUI</div>
+        </div>
+        <span class="chev">▾</span>
+      </div>
+    </div>
+    <div class="sidebar-section">评审范围</div>
+    <div class="sidebar-scroll" style="flex:0 0 auto">
+      <div class="tree-item sel"><span class="twisty"></span><span class="f-icon">⌥</span>未提交变更<span class="git-badge m">3</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">⌥</span>与 master 对比</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">◈</span>整个工作区</div>
+    </div>
+    <div class="sidebar-section">变更文件 · 3</div>
+    <div class="sidebar-scroll">
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">ƒ</span>session.ts<span class="git-badge m">M</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">✦</span>session-compaction.test.ts<span class="git-badge a">A</span></div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">{}</span>package.json<span class="git-badge m">M</span></div>
+    </div>
+    <div class="sidebar-section">架构洞察</div>
+    <div class="sidebar-scroll" style="flex:0 0 auto">
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">◈</span>查看架构图</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">◈</span>循环依赖检测<span class="git-badge a">0</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="tabbar">
+      <div class="tab"><span class="t-icon">◈</span><span class="t-label">重构会话压缩逻辑</span><span class="t-close">✕</span></div>
+      <div class="tab active"><span class="t-icon" style="color:var(--warning)">◎</span><span class="t-label">评审 · 未提交变更</span><span class="t-close">✕</span></div>
+      <div class="tab-add">+</div>
+      <div class="tb-right"><div class="tb-action">⿻ 分屏</div><div class="tb-action">⋯</div></div>
+    </div>
+
+    <div class="stage" style="flex-direction: column; overflow: hidden;">
+      <div class="view-head">
+        <h2>代码评审</h2>
+        <span class="vh-sub">未提交变更 · 3 个文件 · 由 DeepSeek V4 生成 · 2 分钟前</span>
+        <div style="margin-left:auto; display:flex; gap:6px;">
+          <span class="stat-chip err"><b>1</b> 高</span>
+          <span class="stat-chip warn"><b>2</b> 中</span>
+          <span class="stat-chip ok"><b>3</b> 建议</span>
+          <button class="btn" style="padding:4px 12px; font-size:11px;">⟳ 重新评审</button>
+        </div>
+      </div>
+
+      <div class="review-body">
+        <div class="finding sev-high">
+          <span class="f-sev">高</span>
+          <div class="f-main">
+            <div class="f-title">shouldCompact() 对模型名大小写敏感</div>
+            <div class="f-loc">packages/core/src/session.ts:490</div>
+            <div class="f-desc">配置里若写成 "DeepSeek-V4"（大写），<code>includes("deepseek-v4")</code> 会失配，阈值静默回落到 128K。建议统一 toLowerCase()。</div>
+          </div>
+          <span class="f-fix">✦ 一键修复</span>
+        </div>
+        <div class="finding sev-med">
+          <span class="f-sev">中</span>
+          <div class="f-main">
+            <div class="f-title">compaction 期间新到达的消息可能丢失</div>
+            <div class="f-loc">packages/core/src/session.ts:500</div>
+            <div class="f-desc">replaceWithSummary() 非原子操作，与流式追加存在竞态窗口。建议加会话级互斥锁。</div>
+          </div>
+          <span class="f-fix">✦ 一键修复</span>
+        </div>
+        <div class="finding sev-med">
+          <span class="f-sev">中</span>
+          <div class="f-main">
+            <div class="f-title">测试未覆盖多轮 compaction 场景</div>
+            <div class="f-loc">packages/core/src/tests/session-compaction.test.ts</div>
+            <div class="f-desc">二次压缩时摘要嵌套摘要，token 计算可能重复计入。建议补充回归用例。</div>
+          </div>
+          <span class="f-fix">✦ 补充测试</span>
+        </div>
+        <div class="finding sev-low">
+          <span class="f-sev">建议</span>
+          <div class="f-main">
+            <div class="f-title">阈值常量可提取为命名配置</div>
+            <div class="f-loc">packages/core/src/session.ts:491-492</div>
+            <div class="f-desc">512_000 / 128_000 散落代码中，建议集中到 model-limits.ts，便于新模型接入。</div>
+          </div>
+          <span class="f-fix">忽略</span>
+        </div>
+      </div>
+
+      <div class="graph-card">
+        <span style="font-size:12px; color:var(--text-dim); font-weight:600;">模块依赖</span>
+        <div class="graph-mini">
+          <span class="g-node">session.ts</span><span class="g-edge"></span>
+          <span class="g-node">prompt.ts</span><span class="g-edge"></span>
+          <span class="g-node">executor.ts</span>
+        </div>
+        <span style="font-size:10.5px; color:var(--text-faint);">无循环依赖 · 耦合度低</span>
+        <button class="btn" style="margin-left:auto; padding:4px 12px; font-size:11px;">◈ 打开完整架构图</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="statusbar">
+    <div class="st-item"><span class="st-cyan">⌥</span> perf/native-optimizations <span style="color:var(--warning)">◐ 3</span></div>
+    <div class="st-item"><span class="st-ok">✓</span> 索引完成 · 1,240 文件</div>
+    <div class="grow"></div>
+    <div class="st-item"><span class="st-ok">●</span> MCP 3</div>
+    <div class="st-item">🔔</div>
+  </footer>
+
+</div>
+</body>
+</html>

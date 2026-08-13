@@ -1,0 +1,128 @@
+- generic [ref=f7e2]:
+  - navigation [ref=f7e3]:
+    - generic [ref=f7e4]: ◈
+  - complementary [ref=f7e29]:
+    - generic [ref=f7e31] [cursor=pointer]:
+      - generic [ref=f7e32]: ◈
+      - generic [ref=f7e33]:
+        - generic [ref=f7e34]: deepcode-cli
+        - generic [ref=f7e35]: ~/dev/coding/deepcodeUI
+      - generic [ref=f7e36]: ▾
+    - generic [ref=f7e37]: 评审范围
+    - generic [ref=f7e38]:
+      - generic [ref=f7e39] [cursor=pointer]:
+        - generic [ref=f7e40]: ⌥
+        - text: 未提交变更
+        - generic [ref=f7e41]: "3"
+      - generic [ref=f7e42] [cursor=pointer]:
+        - generic [ref=f7e43]: ⌥
+        - text: 与 master 对比
+      - generic [ref=f7e44] [cursor=pointer]:
+        - generic [ref=f7e45]: ◈
+        - text: 整个工作区
+    - generic [ref=f7e46]: 变更文件 · 3
+    - generic [ref=f7e47]:
+      - generic [ref=f7e48] [cursor=pointer]:
+        - generic [ref=f7e49]: ƒ
+        - text: session.ts
+        - generic [ref=f7e50]: M
+      - generic [ref=f7e51] [cursor=pointer]:
+        - generic [ref=f7e52]: ✦
+        - text: session-compaction.test.ts
+        - generic [ref=f7e53]: A
+      - generic [ref=f7e54] [cursor=pointer]:
+        - generic [ref=f7e55]: "{}"
+        - text: package.json
+        - generic [ref=f7e56]: M
+    - generic [ref=f7e57]: 架构洞察
+    - generic [ref=f7e58]:
+      - generic [ref=f7e59] [cursor=pointer]:
+        - generic [ref=f7e60]: ◈
+        - text: 查看架构图
+      - generic [ref=f7e61] [cursor=pointer]:
+        - generic [ref=f7e62]: ◈
+        - text: 循环依赖检测
+        - generic [ref=f7e63]: "0"
+  - generic [ref=f7e64]:
+    - generic [ref=f7e65]:
+      - generic [ref=f7e66] [cursor=pointer]:
+        - generic [ref=f7e67]: ◈
+        - generic [ref=f7e68]: 重构会话压缩逻辑
+        - generic [ref=f7e69]: ✕
+      - generic [ref=f7e70] [cursor=pointer]:
+        - generic [ref=f7e71]: ◎
+        - generic [ref=f7e72]: 评审 · 未提交变更
+        - generic [ref=f7e73]: ✕
+      - generic [ref=f7e74] [cursor=pointer]: +
+      - generic [ref=f7e75]:
+        - generic [ref=f7e76] [cursor=pointer]: ⿻ 分屏
+        - generic [ref=f7e77] [cursor=pointer]: ⋯
+    - generic [ref=f7e78]:
+      - generic [ref=f7e79]:
+        - heading "代码评审" [level=2] [ref=f7e80]
+        - generic [ref=f7e81]: 未提交变更 · 3 个文件 · 由 DeepSeek V4 生成 · 2 分钟前
+        - generic [ref=f7e82]:
+          - generic [ref=f7e83]:
+            - generic [ref=f7e84]: "1"
+            - text: 高
+          - generic [ref=f7e85]:
+            - generic [ref=f7e86]: "2"
+            - text: 中
+          - generic [ref=f7e87]:
+            - generic [ref=f7e88]: "3"
+            - text: 建议
+          - button "⟳ 重新评审" [ref=f7e89] [cursor=pointer]
+      - generic [ref=f7e90]:
+        - generic [ref=f7e91] [cursor=pointer]:
+          - generic [ref=f7e92]: 高
+          - generic [ref=f7e93]:
+            - generic [ref=f7e94]: shouldCompact() 对模型名大小写敏感
+            - generic [ref=f7e95]: packages/core/src/session.ts:490
+            - generic [ref=f7e96]:
+              - text: 配置里若写成 "DeepSeek-V4"（大写），
+              - code [ref=f7e97]: includes("deepseek-v4")
+              - text: 会失配，阈值静默回落到 128K。建议统一 toLowerCase()。
+          - generic [ref=f7e98]: ✦ 一键修复
+        - generic [ref=f7e99] [cursor=pointer]:
+          - generic [ref=f7e100]: 中
+          - generic [ref=f7e101]:
+            - generic [ref=f7e102]: compaction 期间新到达的消息可能丢失
+            - generic [ref=f7e103]: packages/core/src/session.ts:500
+            - generic [ref=f7e104]: replaceWithSummary() 非原子操作，与流式追加存在竞态窗口。建议加会话级互斥锁。
+          - generic [ref=f7e105]: ✦ 一键修复
+        - generic [ref=f7e106] [cursor=pointer]:
+          - generic [ref=f7e107]: 中
+          - generic [ref=f7e108]:
+            - generic [ref=f7e109]: 测试未覆盖多轮 compaction 场景
+            - generic [ref=f7e110]: packages/core/src/tests/session-compaction.test.ts
+            - generic [ref=f7e111]: 二次压缩时摘要嵌套摘要，token 计算可能重复计入。建议补充回归用例。
+          - generic [ref=f7e112]: ✦ 补充测试
+        - generic [ref=f7e113] [cursor=pointer]:
+          - generic [ref=f7e114]: 建议
+          - generic [ref=f7e115]:
+            - generic [ref=f7e116]: 阈值常量可提取为命名配置
+            - generic [ref=f7e117]: packages/core/src/session.ts:491-492
+            - generic [ref=f7e118]: 512_000 / 128_000 散落代码中，建议集中到 model-limits.ts，便于新模型接入。
+          - generic [ref=f7e119]: 忽略
+      - generic [ref=f7e120]:
+        - generic [ref=f7e121]: 模块依赖
+        - generic [ref=f7e122]:
+          - generic [ref=f7e123]: session.ts
+          - generic [ref=f7e124]: ›
+          - generic [ref=f7e125]: prompt.ts
+          - generic [ref=f7e126]: ›
+          - generic [ref=f7e127]: executor.ts
+        - generic [ref=f7e128]: 无循环依赖 · 耦合度低
+        - button "◈ 打开完整架构图" [ref=f7e129] [cursor=pointer]
+  - contentinfo [ref=f7e130]:
+    - generic [ref=f7e131] [cursor=pointer]:
+      - generic [ref=f7e132]: ⌥
+      - text: perf/native-optimizations
+      - generic [ref=f7e133]: ◐ 3
+    - generic [ref=f7e134] [cursor=pointer]:
+      - generic [ref=f7e135]: ✓
+      - text: 索引完成 · 1,240 文件
+    - generic [ref=f7e136] [cursor=pointer]:
+      - generic [ref=f7e137]: ●
+      - text: MCP 3
+    - generic [ref=f7e138] [cursor=pointer]: 🔔

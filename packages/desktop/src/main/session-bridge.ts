@@ -644,6 +644,11 @@ export class SessionBridge {
     return this.manager.getMcpStatus();
   }
 
+  /** Knowledge-source freshness timestamps, for the knowledge dashboard. */
+  getKnowledgeFreshness() {
+    return this.manager.getKnowledgeFreshness();
+  }
+
   async mcpReconnect(name: string): Promise<void> {
     const latest = resolveCurrentSettings(this.projectRoot);
     const config: McpServerConfig | undefined = latest.mcpServers?.[name];

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — Settings</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="shell">
+
+  <nav class="rail">
+    <div class="logo">◈</div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-4 4 4 4M16 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
+    <div class="spacer"></div>
+    <div class="rail-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="m9 10-2 2 2 2M15 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="rail-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2 3.4-2.3-1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" stroke-linejoin="round"/></svg></div>
+  </nav>
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="workspace-chip">
+        <div class="ws-icon">◈</div>
+        <div style="min-width:0">
+          <div class="ws-name">deepcode-cli</div>
+          <div class="ws-path">~/dev/coding/deepcodeUI</div>
+        </div>
+        <span class="chev">▾</span>
+      </div>
+      <div class="search-box"><span>⌕</span> 搜索设置…</div>
+    </div>
+    <div class="sidebar-section">设置</div>
+    <div class="sidebar-scroll">
+      <div class="tree-item sel"><span class="twisty"></span><span class="f-icon">◈</span>模型与端点</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">✦</span>外观主题</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">⚿</span>权限规则</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">⬡</span>MCP 服务器</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">◫</span>快捷键</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">⚡</span>用量与账单</div>
+      <div class="tree-item"><span class="twisty"></span><span class="f-icon">ⓘ</span>关于</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="tabbar">
+      <div class="tab"><span class="t-icon">◈</span><span class="t-label">重构会话压缩逻辑</span><span class="t-close">✕</span></div>
+      <div class="tab active"><span class="t-icon" style="color:var(--text-faint)">⚙</span><span class="t-label">设置</span><span class="t-close">✕</span></div>
+      <div class="tab-add">+</div>
+    </div>
+
+    <div class="settings-wrap">
+      <div class="settings-body">
+        <h3>模型与端点</h3>
+        <div class="sb-sub">配置 LLM 提供方、API 密钥与默认模型。改动即时生效。</div>
+
+        <div class="field">
+          <div class="f-label"><b>默认模型</b><span>新会话使用的模型</span></div>
+          <div class="f-control">
+            <div class="select"><span>DeepSeek V4 · deepseek-v4-pro</span><span class="chev">▾</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="f-label"><b>API 端点</b><span>自定义 OpenAI 兼容端点</span></div>
+          <div class="f-control">
+            <div class="input mono">https://api.deepseek.com/v1</div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="f-label"><b>API 密钥</b><span>仅存储在本机 ~/.deeporca</span></div>
+          <div class="f-control">
+            <div class="input mono">sk-••••••••••••••••••••4f2a</div>
+            <button class="btn" style="padding:6px 12px; font-size:11px;">更新</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="f-label"><b>推理内容</b><span>thinking 的默认展示方式</span></div>
+          <div class="f-control">
+            <div class="seg"><span class="seg-item">隐藏</span><span class="seg-item on">摘要</span><span class="seg-item">展开</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="f-label"><b>压缩阈值</b><span>超过后自动压缩上下文</span></div>
+          <div class="f-control">
+            <div class="select" style="max-width:180px;"><span>512K tokens</span><span class="chev">▾</span></div>
+          </div>
+        </div>
+
+        <h3 style="margin-top:22px;">外观</h3>
+        <div class="sb-sub">主题即时切换，无需重启。</div>
+        <div class="field" style="border-bottom:none;">
+          <div class="f-label"><b>主题</b><span>Orca 为深色专属</span></div>
+          <div class="f-control">
+            <div class="theme-swatches">
+              <div class="swatch on">
+                <div class="sw-preview" style="background:linear-gradient(135deg,#080a14 60%,#0d1120); border-bottom:1px solid var(--border); position:relative;"><span style="position:absolute;bottom:6px;left:8px;width:20px;height:3px;border-radius:2px;background:#00f3ff;"></span></div>
+                <div class="sw-name">Orca</div>
+              </div>
+              <div class="swatch">
+                <div class="sw-preview" style="background:linear-gradient(135deg,#e8eef7 60%,#f5f8fc); border-bottom:1px solid var(--border); position:relative;"><span style="position:absolute;bottom:6px;left:8px;width:20px;height:3px;border-radius:2px;background:#00c4d6;"></span></div>
+                <div class="sw-name">Aqua</div>
+              </div>
+              <div class="swatch">
+                <div class="sw-preview" style="background:linear-gradient(135deg,rgba(20,26,46,.9),rgba(30,38,66,.7)); border-bottom:1px solid var(--border); position:relative;"><span style="position:absolute;bottom:6px;left:8px;width:20px;height:3px;border-radius:2px;background:#7b9dff;"></span></div>
+                <div class="sw-name">Glass</div>
+              </div>
+              <div class="swatch">
+                <div class="sw-preview" style="background:#0d0d12; border-bottom:1px solid var(--border); position:relative;"><span style="position:absolute;bottom:6px;left:8px;width:20px;height:3px;border-radius:2px;background:#ff007f;"></span></div>
+                <div class="sw-name">Punk</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:22px;">
+          <button class="btn primary">保存更改</button>
+          <button class="btn ghost">重置为默认</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="statusbar">
+    <div class="st-item"><span class="st-cyan">⌥</span> perf/native-optimizations</div>
+    <div class="st-item"><span class="st-ok">✓</span> 索引完成 · 1,240 文件</div>
+    <div class="grow"></div>
+    <div class="st-item"><span class="st-ok">●</span> MCP 3</div>
+    <div class="st-item">🔔</div>
+  </footer>
+
+</div>
+</body>
+</html>

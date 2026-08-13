@@ -137,9 +137,14 @@ export const IpcRequest = {
   EditorWriteFile: "editor:writeFile",
   EditorListFiles: "editor:listFiles",
 
-  // Memory (TencentDB-Agent-Memory Gateway)
+  // Memory (in-process L0-L3 pipeline)
   MemoryCheckAvailable: "memory:checkAvailable",
   MemorySetEnabled: "memory:setEnabled",
+  MemorySearch: "memory:search",
+  MemoryStats: "memory:stats",
+
+  // Knowledge dashboard — aggregated status of all knowledge sources
+  KnowledgeStatus: "knowledge:status",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -402,6 +407,41 @@ export type GitmcpAddResult = {
 };
 
 /** Resolved settings summary surfaced to the renderer (never leaks the API key). */
+/** L0-L3 memory pipeline counts for the knowledge dashboard. */
+export type MemoryPipelineStats = {
+  /** L0 — raw conversation files. */
+  l0: number;
+  /** L1 — extracted atomic facts. */
+  l1: number;
+  /** L2 — scene segments. */
+  l2: number;
+  /** L3 — whether the user persona has been generated. */
+  l3: boolean;
+};
+
+/** Status of a single knowledge source in the dashboard. */
+export type KnowledgeSourceStatus = {
+  /** indexed = ready · empty = present but no content · disabled = off · stale = needs re-sync */
+  state: "indexed" | "empty" | "disabled" | "stale";
+  /** Content count (symbols / pages / memories / lines). */
+  count?: number;
+  /** Unit label for the count ("符号" / "页" / "条" / "行"). */
+  unit?: string;
+  /** ISO timestamp of the last successful sync. */
+  lastSync?: string;
+  /** Extra detail line (e.g. "arch+modules"). */
+  detail?: string;
+};
+
+/** Aggregated status of every knowledge source. */
+export type KnowledgeStatusResponse = {
+  codegraph: KnowledgeSourceStatus;
+  openwiki: KnowledgeSourceStatus;
+  serena: KnowledgeSourceStatus;
+  agents: KnowledgeSourceStatus;
+  memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
+};
+
 export type SettingsSummary = {
   model: string;
   baseURL: string;
@@ -685,11 +725,19 @@ export type DesktopApi = {
   /** List files and directories under a path within the project root. */
   editorListFiles(dirPath: string): Promise<{ ok: boolean; entries?: EditorFileEntry[]; error?: string }>;
 
-  // ── Memory (TencentDB-Agent-Memory Gateway) ───────────────────────────
-  /** Check whether the memory Gateway is available and healthy. */
+  // ── Memory (in-process L0-L3 pipeline) ─────────────────────────────────
+  /** Check whether the memory pipeline is available and healthy. */
   memoryCheckAvailable(): Promise<{ available: boolean; healthy: boolean }>;
-  /** Enable or disable cross-session memory (starts/stops the Gateway sidecar). */
+  /** Enable or disable cross-session memory (starts/stops the in-process pipeline). */
   memorySetEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
+  /** Search stored memories by free-text query. */
+  memorySearch(query: string, limit?: number): Promise<{ text: string; total: number }>;
+  /** L0-L3 pipeline statistics for the knowledge dashboard. */
+  memoryStats(): Promise<MemoryPipelineStats | null>;
+
+  // ── Knowledge dashboard ────────────────────────────────────────────────
+  /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
+  knowledgeStatus(): Promise<KnowledgeStatusResponse>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

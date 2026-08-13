@@ -64,6 +64,41 @@ content (description, context, concern, etc.) in the detected language
 (Chinese for DeepOrca's default). Element IDs and component keys are always
 English kebab-case.
 
+## 设计原则（编辑级质量纪律）
+
+> 以下原则采纳自 [diagram-design](https://github.com/cathrynlavery/diagram-design)（MIT，Cathryn Lavery）。
+
+### 密度目标 4/10
+
+"最高质量的操作通常是删除。"每个节点都要有存在的理由。宁可少画，不要塞满。
+
+### 复杂度预算（硬约束）
+
+- 单图最多 **9 个节点**
+- 单图最多 **12 条边**
+- 最多 **2 个强调元素**（focal elements，如 `concern` 类型节点）
+- **超出预算 → 递归下钻**，把子结构折叠为嵌套图，不要在一张图里塞 30 个节点
+
+### 删除测试（成稿前必做）
+
+自问：能合并或删除任何节点/边/标签吗？如果能，就删。特别检查：
+- 只有一个子节点的分组 → 提升为叶子
+- 语义重复的边（A→B 和 B→A 表达同一关系）→ 合并为双向
+- 无信息量的标签（"uses"、"calls"）→ 换成具体动作或删除
+
+### 强调色纪律
+
+1 个强调色（`concern` 红），1-2 个焦点元素。第二个强调色会抹除焦点信号。
+
+### 何时不画图
+
+如果一段好文字比这张图传达更多信息，就写文字。**不要**为以下内容画图：
+- 简单列表（用 markdown 列表）
+- 前后对比（用表格）
+- 单一概念（用一句话）
+
+自问："读者从这张图学到的，是否比从一段写得好的文字里学到的更多？"
+
 ## Step 1: Gather Knowledge from Existing Indices
 
 **优先消费已构建的索引**，而非从零读文件。arch-scan 通常在 `index.build-all` 的第三步执行，此时 CodeGraph 符号索引（Step 1）和 OpenWiki 文档（Step 2）已经构建完成。直接复用它们的产出，避免重复分析。
@@ -135,6 +170,26 @@ codebase. **Always** include `overall-architecture`.
 | `storage`               | 2+ storage systems                      | Storage topology (DB, cache, queue, object store) |
 
 Don't force perspectives that don't exist in the code.
+
+### 视角 → 最优图表类型
+
+采纳 diagram-design 的**"先选语义模式，再选视觉类型"**方法论。不要所有视角都用
+`graph` —— 选择最贴合语义的 A2UI 组件类型：
+
+| 视角 | 语义本质 | A2UI 组件 | 理由 |
+| --- | --- | --- | --- |
+| `overall-architecture` | 模块 + 连接 | `graph` (LR) | 网状关系 |
+| `data-flow` | 有向管道 | `column` 流式卡片 | 线性流动，箭头冗余 |
+| `dependency-map` | 层级依赖 | `graph` (TD) | 树状结构，自上而下 |
+| `request-lifecycle` | 时序步骤 | `list` 编号 | 顺序执行，无分支 |
+| `state-transitions` | 状态机 | `graph` + 转换标注 | 状态 + 触发条件 |
+| `external-integrations` | 信任边界 | `graph` + 外部节点分组 | 内外区分是重点 |
+| `storage` | 分层存储 | `column` 堆叠卡片 | 层次而非网状 |
+| `command-surface` | 命令树 | `graph` (TD) | 层级分发 |
+| `extension-points` | 注册表 | `list` + `card` | 枚举式，无拓扑 |
+| `route-page-map` | 导航树 | `graph` (TD) | 页面层级 |
+| `pipeline` | 阶段拓扑 | `column` 流式卡片 | 线性阶段 |
+| `orchestration` | 发布订阅 | `graph` (LR) | 多对多拓扑 |
 
 ## Step 3: Generate the A2UI Surface (Recursive)
 
