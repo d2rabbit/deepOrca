@@ -30,9 +30,10 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700;900&family=Playfair+Display:wght@600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+  <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <!-- ============ Nav ============ -->
   <header class="nav" id="nav">
     <div class="nav-inner">
@@ -51,7 +52,7 @@
       </nav>
       <div class="nav-actions">
         <button class="icon-btn lang-btn" id="lang-toggle" aria-label="Switch language">EN</button>
-        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">☀️</button>
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme"></button>
         <a class="icon-btn" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener" aria-label="GitHub">
           <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         </a>
@@ -63,30 +64,15 @@
   <!-- ============ Hero ============ -->
   <section class="hero" id="top">
     <div class="container">
-      <div class="hero-copy">
-        <div class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">v0.1.34 · AI 创作 Studio</span></div>
-        <h1 class="hero-title" data-i18n="hero.title">原型 · 设计 · 编码<br><span class="gtext">AI 创作 Studio</span></h1>
-        <p class="hero-desc" data-i18n="hero.desc">DeepOrca 是一个 AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用，按需组合 —— 从一句想法到可用成果，一站落地。</p>
-        <div class="hero-ctas">
-          <a class="cbtn cbtn-primary" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener" data-i18n="hero.cta1">⤓ 下载 Studio</a>
-          <a class="cbtn cbtn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener" data-i18n="hero.cta2">GitHub →</a>
-        </div>
-      </div>
-      <div class="hero-visual">
-        <img class="orca-float" src="assets/orca-icon.svg" alt="" aria-hidden="true">
-        <div class="preview-card">
-          <div class="preview-bar">
-            <span class="lamp r"></span><span class="lamp y"></span><span class="lamp g"></span>
-            <span class="ttl">DeepOrca — Session</span>
-          </div>
-          <div class="preview-body">
-            <div><span class="ln-u">➜</span> <span data-i18n="hero.t1">帮我搭一个看板管理原型</span></div>
-            <div class="ln-a" data-i18n="hero.t2">● 分析需求 · 生成原型中…</div>
-            <div class="ln-a" data-i18n="hero.t3">● 正在编辑文件并验证…</div>
-            <div class="ln-ok" data-i18n="hero.t4">✓ 原型已生成，预览就绪</div>
-            <div><span class="ln-k">❯</span> <span class="cursor"></span></div>
-          </div>
-        </div>
+      <div class="hero-orca"><span class="sonar s1"></span><span class="sonar s2"></span><span class="sonar s3"></span><img src="assets/orca-icon.svg" alt="DeepOrca"></div>
+      <div class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">v0.1.34 · AI 创作 Studio</span></div>
+      <h1 class="hero-title" data-i18n="hero.title">原型 · 设计 · 编码<br><span class="gtext">AI 创作 Studio</span></h1>
+      <div class="hero-rule"><span>✦</span></div>
+      <p class="hero-desc" data-i18n="hero.desc">DeepOrca 是一个 AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用，按需组合 —— 从一句想法到可用成果，一站落地。</p>
+      <div class="depth-gauge"><span>0m</span><span class="line"></span><span>−1000m</span></div>
+      <div class="hero-ctas">
+        <a class="cbtn cbtn-primary" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg><span data-i18n="hero.cta1">下载 Studio</span></a>
+        <a class="cbtn cbtn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener" data-i18n="hero.cta2">GitHub →</a>
       </div>
     </div>
   </section>
@@ -96,10 +82,11 @@
     <div class="container">
       <div class="sec-tag" data-i18n="pillars.tag">✦ 三大核心能力</div>
       <h2 class="sec-title" data-i18n="pillars.title">独立可用 · 按需组合</h2>
+      <div class="sec-rule">✦</div>
       <p class="sec-sub" data-i18n="pillars.sub">从一句话需求到可交互原型、可交付设计稿、可运行代码 —— 每条管线都由同一个 Agent 引擎驱动。</p>
       <div class="pillar-grid">
         <div class="pillar-card reveal">
-          <div class="pillar-ico">🎯</div>
+          <div class="pillar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg></div>
           <h3 data-i18n="pillars.p1t">原型设计</h3>
           <span class="en">Prototyping</span>
           <p data-i18n="pillars.p1d">用自然语言描述需求，AI 生成可交互原型：表单、看板、多页面导航，双向交互验证用户流程。</p>
@@ -107,7 +94,7 @@
           <div class="pillar-prompt" data-i18n="pillars.p1p">“帮我搭一个看板管理原型”</div>
         </div>
         <div class="pillar-card v2 reveal">
-          <div class="pillar-ico">🎨</div>
+          <div class="pillar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l11-11a2.2 2.2 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></div>
           <h3 data-i18n="pillars.p2t">UI 设计稿</h3>
           <span class="en">Design</span>
           <p data-i18n="pillars.p2d">生成自包含设计稿，多种设计系统与 UI 风格随心切换，可脱离宿主独立交付。</p>
@@ -115,7 +102,7 @@
           <div class="pillar-prompt" data-i18n="pillars.p2p">“出一个玻璃拟态的落地页设计稿”</div>
         </div>
         <div class="pillar-card v3 reveal">
-          <div class="pillar-ico">💻</div>
+          <div class="pillar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/></svg></div>
           <h3 data-i18n="pillars.p3t">智能编码</h3>
           <span class="en">Coding</span>
           <p data-i18n="pillars.p3d">会话式编码：内置丰富工具、开放扩展生态，专业编辑器与版本管理深度集成。</p>
@@ -127,20 +114,22 @@
   </section>
 
   <!-- ============ Modules ============ -->
-  <section id="modules">
+  <section id="modules" class="veil">
+    <div class="wave-edge" aria-hidden="true"><svg viewBox="0 0 2880 80" preserveAspectRatio="none"><path d="M0 40 C240 82 480 0 720 40 C960 82 1200 0 1440 40 C1680 82 1920 0 2160 40 C2400 82 2640 0 2880 40 L2880 80 L0 80 Z"/><path class="w2" d="M0 52 C240 12 480 88 720 52 C960 12 1200 88 1440 52 C1680 12 1920 88 2160 52 C2400 12 2640 88 2880 52 L2880 80 L0 80 Z"/></svg></div>
     <div class="container">
       <div class="sec-tag" data-i18n="modules.tag">✦ 核心模块</div>
       <h2 class="sec-title" data-i18n="modules.title">完整的创作工作台</h2>
+      <div class="sec-rule">✦</div>
       <p class="sec-sub" data-i18n="modules.sub">从会话、编辑到索引、审查、记忆，一应俱全。</p>
       <div class="mod-grid">
-        <div class="mod-card reveal"><span class="mid">MOD-01</span><div class="mico">💬</div><h4 data-i18n="mod.1t">AI 会话工作台</h4><p data-i18n="mod.1d">流式会话循环 + 工具调用 + 上下文压缩，跨会话持久化与恢复。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-02</span><div class="mico">📝</div><h4 data-i18n="mod.2t">专业编辑器</h4><p data-i18n="mod.2d">流畅的编辑体验，内联差异对比，AI 变更一键接受或拒绝。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-03</span><div class="mico">🌿</div><h4 data-i18n="mod.3t">Git 源码管理</h4><p data-i18n="mod.3d">内置源码管理面板，变更审阅、提交、分支一目了然。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-04</span><div class="mico">🗂️</div><h4 data-i18n="mod.4t">项目索引与 Wiki</h4><p data-i18n="mod.4d">符号、文档、架构三个视角，一键读懂整个项目。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-05</span><div class="mico">📚</div><h4 data-i18n="mod.5t">仓库知识库</h4><p data-i18n="mod.5d">任意 GitHub 仓库都能变成可问答的知识库，本地检索，快速又私密。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-06</span><div class="mico">🧠</div><h4 data-i18n="mod.6t">本地智能层</h4><p data-i18n="mod.6d">本地向量嵌入与长期记忆，越用越懂你的项目，数据不出本机。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-07</span><div class="mico">🎭</div><h4 data-i18n="mod.7t">多主题系统</h4><p data-i18n="mod.7d">Orca 深色 / Aqua 原生 / Glass Prism 玻璃拟态 / Punk 2077 赛博朋克。</p></div>
-        <div class="mod-card reveal"><span class="mid">MOD-08</span><div class="mico">🌐</div><h4 data-i18n="mod.8t">多语言界面</h4><p data-i18n="mod.8d">简/繁中文、English、日本語、한국어、香港繁体 —— 6 种界面语言。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-01</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-5 4V6.5z"/></svg></div><h4 data-i18n="mod.1t">AI 会话工作台</h4><p data-i18n="mod.1d">流式会话循环 + 工具调用 + 上下文压缩，跨会话持久化与恢复。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-02</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M6.5 15.5 7 12l9.5-9.5a2.1 2.1 0 0 1 3 3L10 15l-3.5.5z"/></svg></div><h4 data-i18n="mod.2t">专业编辑器</h4><p data-i18n="mod.2d">流畅的编辑体验，内联差异对比，AI 变更一键接受或拒绝。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-03</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="8" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 10.2c0 4.2-4.5 5-8.5 5.6"/></svg></div><h4 data-i18n="mod.3t">Git 源码管理</h4><p data-i18n="mod.3d">内置源码管理面板，变更审阅、提交、分支一目了然。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-04</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg></div><h4 data-i18n="mod.4t">项目索引与 Wiki</h4><p data-i18n="mod.4d">符号、文档、架构三个视角，一键读懂整个项目。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-05</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-4.5-2-8-2v14c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2V4c-3.5 0-6 .5-8 2z"/><path d="M12 6v14"/></svg></div><h4 data-i18n="mod.5t">仓库知识库</h4><p data-i18n="mod.5d">任意 GitHub 仓库都能变成可问答的知识库，本地检索，快速又私密。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-06</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/></svg></div><h4 data-i18n="mod.6t">本地智能层</h4><p data-i18n="mod.6d">本地向量嵌入与长期记忆，越用越懂你的项目，数据不出本机。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-07</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.3-2-.7-1.1 0-2.5 1.7-2.5h2.5A3.5 3.5 0 0 0 21 13c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg></div><h4 data-i18n="mod.7t">多主题系统</h4><p data-i18n="mod.7d">Orca 深色 / Aqua 原生 / Glass Prism 玻璃拟态 / Punk 2077 赛博朋克。</p></div>
+        <div class="mod-card reveal"><span class="mid">MOD-08</span><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c-2.5 2.3-4 5.1-4 8.5s1.5 6.2 4 8.5c2.5-2.3 4-5.1 4-8.5s-1.5-6.2-4-8.5z"/></svg></div><h4 data-i18n="mod.8t">多语言界面</h4><p data-i18n="mod.8d">简/繁中文、English、日本語、한국어、香港繁体 —— 6 种界面语言。</p></div>
       </div>
     </div>
   </section>
@@ -150,11 +139,12 @@
     <div class="container">
       <div class="sec-tag" data-i18n="extend.tag">✦ 扩展生态</div>
       <h2 class="sec-title" data-i18n="extend.title">随时给虎鲸换上新装备</h2>
+      <div class="sec-rule">✦</div>
       <p class="sec-sub" data-i18n="extend.sub">技能、开放协议、自动化 —— 三层扩展体系，能力边界由你决定。</p>
 
       <div class="actions-banner reveal">
         <div>
-          <h3 data-i18n="extend.act">⚡ Actions：能力一次定义，多处调用</h3>
+          <h3 data-i18n="extend.act">Actions：能力一次定义，多处调用</h3>
           <p data-i18n="extend.actd">一次定义的能力，在 AI 会话、桌面界面和自动化工作流中都能直接调用 —— 内置代码审查、知识索引、系统诊断，开箱即用。</p>
           <div class="actions-flow">
             <span class="flow-chip" data-i18n="extend.flow1">一次定义</span>
@@ -170,19 +160,19 @@
 
       <div class="ext-grid">
         <div class="ext-card reveal">
-          <div class="mico">🧩</div>
+          <div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
           <h4 data-i18n="extend.e1t">技能扩展</h4>
           <p data-i18n="extend.e1d">一项技能即是一种新能力，安装后 AI 会在合适的场景自动调用，越用越聪明。</p>
           <div class="ext-stat" data-i18n="extend.e1s">百余项内置技能，持续生长</div>
         </div>
         <div class="ext-card reveal">
-          <div class="mico">🔌</div>
+          <div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3"/><path d="M15 7V3"/><path d="M7 7h10v4a5 5 0 0 1-10 0V7z"/><path d="M12 16v5"/></svg></div>
           <h4 data-i18n="extend.e2t">开放协议互联</h4>
           <p data-i18n="extend.e2d">基于开放标准协议，接入任意兼容的工具、服务与数据源。</p>
           <div class="ext-stat" data-i18n="extend.e2s">常用服务内置就绪</div>
         </div>
         <div class="ext-card reveal">
-          <div class="mico">📦</div>
+          <div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12 4 7.5"/><path d="M12 12l8-4.5"/><path d="M12 12v9"/></svg></div>
           <h4 data-i18n="extend.e3t">内置插件</h4>
           <p data-i18n="extend.e3d">代码索引、安全扫描、浏览器自动化等能力全部内置，开箱即用。</p>
           <div class="ext-stat" data-i18n="extend.e3s">安装即用，无需配置环境</div>
@@ -192,10 +182,12 @@
   </section>
 
   <!-- ============ Gallery ============ -->
-  <section id="gallery">
+  <section id="gallery" class="veil">
+    <div class="wave-edge" aria-hidden="true"><svg viewBox="0 0 2880 80" preserveAspectRatio="none"><path d="M0 40 C240 82 480 0 720 40 C960 82 1200 0 1440 40 C1680 82 1920 0 2160 40 C2400 82 2640 0 2880 40 L2880 80 L0 80 Z"/><path class="w2" d="M0 52 C240 12 480 88 720 52 C960 12 1200 88 1440 52 C1680 12 1920 88 2160 52 C2400 12 2640 88 2880 52 L2880 80 L0 80 Z"/></svg></div>
     <div class="container">
       <div class="sec-tag" data-i18n="gallery.tag">✦ 界面预览</div>
       <h2 class="sec-title" data-i18n="gallery.title">工作区 · 会话 · 源码管理</h2>
+      <div class="sec-rule">✦</div>
       <p class="sec-sub" data-i18n="gallery.sub">Orca 深色主题实拍 —— 点击查看大图。</p>
       <div class="shot-grid">
         <button class="shot hero-shot reveal" data-cap="welcome"><img src="assets/shot-welcome.png" alt="DeepOrca welcome" loading="lazy"><span class="cap" data-i18n="gal.welcome">欢迎页 · 快速开始</span></button>
@@ -218,6 +210,7 @@
     <div class="container">
       <div class="sec-tag" data-i18n="roadmap.tag">✦ 发展路线图</div>
       <h2 class="sec-title" data-i18n="roadmap.title">正在发生的下一步</h2>
+      <div class="sec-rule">✦</div>
       <p class="sec-sub" data-i18n="roadmap.sub">路线图可能包含尚未交付的目标能力，以仓库当前实现为准。</p>
 
       <div class="road-grid">
@@ -225,31 +218,31 @@
           <span class="rnum">NEXT-01</span>
           <h4 data-i18n="road.1t">Actions 能力面扩展</h4>
           <p data-i18n="road.1d">接入更多外部服务，支持参数表单与更细粒度权限。</p>
-          <span class="status plan" data-i18n="road.plan">🔨 规划中</span>
+          <span class="status plan" data-i18n="road.plan">规划中</span>
         </div>
         <div class="road-card reveal">
           <span class="rnum">NEXT-02</span>
           <h4 data-i18n="road.2t">远程插件中心</h4>
           <p data-i18n="road.2d">在线插件市场，一键安装与更新社区技能和扩展服务。</p>
-          <span class="status plan" data-i18n="road.plan">🔨 规划中</span>
+          <span class="status plan" data-i18n="road.plan">规划中</span>
         </div>
         <div class="road-card reveal">
           <span class="rnum">NEXT-03</span>
           <h4 data-i18n="road.3t">自定义 CLI 与指令</h4>
           <p data-i18n="road.3d">注册你自己的快捷指令与命令，常用操作一键完成。</p>
-          <span class="status plan" data-i18n="road.plan">🔨 规划中</span>
+          <span class="status plan" data-i18n="road.plan">规划中</span>
         </div>
         <div class="road-card reveal">
           <span class="rnum">NEXT-04</span>
           <h4 data-i18n="road.4t">项目图谱与沉浸式 Wiki</h4>
           <p data-i18n="road.4d">代码知识图谱可视化 + 项目级知识沉淀。</p>
-          <span class="status design" data-i18n="road.design">📐 设计中</span>
+          <span class="status design" data-i18n="road.design">设计中</span>
         </div>
         <div class="road-card reveal">
           <span class="rnum">NEXT-05</span>
           <h4 data-i18n="road.5t">需求具现化工作台</h4>
           <p data-i18n="road.5d">需求分析 → 智能分配管线 → 原型生成 → 持久化工作台。</p>
-          <span class="status design" data-i18n="road.design">📐 设计中</span>
+          <span class="status design" data-i18n="road.design">设计中</span>
         </div>
       </div>
 
@@ -279,10 +272,12 @@
   </section>
 
   <!-- ============ Quickstart ============ -->
-  <section id="boot">
+  <section id="boot" class="veil">
+    <div class="wave-edge" aria-hidden="true"><svg viewBox="0 0 2880 80" preserveAspectRatio="none"><path d="M0 40 C240 82 480 0 720 40 C960 82 1200 0 1440 40 C1680 82 1920 0 2160 40 C2400 82 2640 0 2880 40 L2880 80 L0 80 Z"/><path class="w2" d="M0 52 C240 12 480 88 720 52 C960 12 1200 88 1440 52 C1680 12 1920 88 2160 52 C2400 12 2640 88 2880 52 L2880 80 L0 80 Z"/></svg></div>
     <div class="container">
       <div class="sec-tag" data-i18n="boot.tag">✦ 快速开始</div>
       <h2 class="sec-title" data-i18n="boot.title">三步部署，即刻创作</h2>
+      <div class="sec-rule">✦</div>
       <p class="sec-sub" data-i18n="boot.sub">需要 Node.js 22+ 与 npm 10.9+；Windows 上 bash 工具需要 Git Bash。</p>
       <div class="boot-steps">
         <div class="step reveal">
@@ -331,11 +326,10 @@ npm run desktop:start</pre>
   <section class="finale">
     <div class="container">
       <img src="assets/orca-icon.svg" alt="" aria-hidden="true">
-      <div class="finale-rule">✦</div>
       <h2 data-i18n="finale.title">开启你的<span class="atext">创作之旅</span></h2>
       <p data-i18n="finale.sub">原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴。</p>
       <div class="hero-ctas">
-        <a class="cbtn cbtn-primary" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener" data-i18n="finale.cta1">⤓ 下载 Studio</a>
+        <a class="cbtn cbtn-primary" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg><span data-i18n="finale.cta1">下载 Studio</span></a>
         <a class="cbtn cbtn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener" data-i18n="finale.cta2">Star on GitHub →</a>
       </div>
     </div>

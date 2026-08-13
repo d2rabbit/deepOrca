@@ -19,12 +19,8 @@ const I18N = {
     "hero.title": '原型 · 设计 · 编码<br><span class="gtext">AI 创作 Studio</span>',
     "hero.desc":
       "DeepOrca 是一个 AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用，按需组合 —— 从一句想法到可用成果，一站落地。",
-    "hero.cta1": "⤓ 下载 Studio",
+    "hero.cta1": "下载 Studio",
     "hero.cta2": "GitHub →",
-    "hero.t1": "帮我搭一个看板管理原型",
-    "hero.t2": "● 分析需求 · 生成原型中…",
-    "hero.t3": "● 正在编辑文件并验证…",
-    "hero.t4": "✓ 原型已生成，预览就绪",
 
     "pillars.tag": "✦ 三大核心能力",
     "pillars.title": "独立可用 · 按需组合",
@@ -71,7 +67,7 @@ const I18N = {
     "extend.tag": "✦ 扩展生态",
     "extend.title": "随时给虎鲸换上新装备",
     "extend.sub": "技能、开放协议、自动化 —— 三层扩展体系，能力边界由你决定。",
-    "extend.act": "⚡ Actions：能力一次定义，多处调用",
+    "extend.act": "Actions：能力一次定义，多处调用",
     "extend.actd":
       "一次定义的能力，在 AI 会话、桌面界面和自动化工作流中都能直接调用 —— 内置代码审查、知识索引、系统诊断，开箱即用。",
     "extend.flow1": "一次定义",
@@ -116,8 +112,8 @@ const I18N = {
     "road.4d": "代码知识图谱可视化 + 项目级知识沉淀。",
     "road.5t": "需求具现化工作台",
     "road.5d": "需求分析 → 智能分配管线 → 原型生成 → 持久化工作台。",
-    "road.plan": "🔨 规划中",
-    "road.design": "📐 设计中",
+    "road.plan": "规划中",
+    "road.design": "设计中",
 
     "dom.title": "功能域全景",
     "dom.sub": "18 个功能域 —— 已集成 / 部分集成 / 规划中",
@@ -173,7 +169,7 @@ const I18N = {
 
     "finale.title": '开启你的<span class="atext">创作之旅</span>',
     "finale.sub": "原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴。",
-    "finale.cta1": "⤓ 下载 Studio",
+    "finale.cta1": "下载 Studio",
     "finale.cta2": "Star on GitHub →",
 
     "foot.docs": "文档",
@@ -196,12 +192,8 @@ const I18N = {
     "hero.title": 'Prototype · Design · Code<br><span class="gtext">The AI Studio</span>',
     "hero.desc":
       "DeepOrca is an AI-driven creation studio. <strong>Prototyping</strong>, <strong>UI design</strong> and <strong>agentic coding</strong> work independently and compose on demand — from a single idea to a usable result, all in one place.",
-    "hero.cta1": "⤓ Download Studio",
+    "hero.cta1": "Download Studio",
     "hero.cta2": "GitHub →",
-    "hero.t1": "Build me a kanban board prototype",
-    "hero.t2": "● Analyzing · generating prototype…",
-    "hero.t3": "● Editing files and verifying…",
-    "hero.t4": "✓ Prototype ready — preview available",
 
     "pillars.tag": "✦ Three Core Capabilities",
     "pillars.title": "Independent · Composable",
@@ -252,7 +244,7 @@ const I18N = {
     "extend.tag": "✦ Ecosystem",
     "extend.title": "Gear Up Your Orca",
     "extend.sub": "Skills, open protocols and automation — a three-layer extension system where you define the boundary.",
-    "extend.act": "⚡ Actions: Define Once, Surface Everywhere",
+    "extend.act": "Actions: Define Once, Surface Everywhere",
     "extend.actd":
       "A capability defined once is callable from the AI chat, the desktop UI and automated workflows — code review, knowledge indexing and diagnostics included out of the box.",
     "extend.flow1": "Define once",
@@ -297,8 +289,8 @@ const I18N = {
     "road.4d": "Code knowledge-graph visualization + project-level knowledge retention.",
     "road.5t": "Requirement Materialization Workbench",
     "road.5d": "Requirement analysis → smart pipeline routing → prototype generation → persistent workbench.",
-    "road.plan": "🔨 Planned",
-    "road.design": "📐 Designing",
+    "road.plan": "Planned",
+    "road.design": "Designing",
 
     "dom.title": "Capability Domains",
     "dom.sub": "18 domains — shipped / partially shipped / planned",
@@ -354,7 +346,7 @@ const I18N = {
 
     "finale.title": 'Start Your <span class="atext">Creation Journey</span>',
     "finale.sub": "Prototype, design, code — let the AI orca be your creation partner.",
-    "finale.cta1": "⤓ Download Studio",
+    "finale.cta1": "Download Studio",
     "finale.cta2": "Star on GitHub →",
 
     "foot.docs": "Docs",
@@ -410,21 +402,31 @@ else {
 
 const themeToggle = document.getElementById("theme-toggle");
 
+const ICON_SUN =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const ICON_MOON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></svg>';
+
 function syncThemeIcon() {
   if (!themeToggle) return;
-  themeToggle.textContent = document.documentElement.dataset.theme === "light" ? "🌙" : "☀️";
+  // light theme shows moon (switch to night), dark shows sun (switch to day)
+  themeToggle.innerHTML = document.documentElement.dataset.theme === "light" ? ICON_MOON : ICON_SUN;
 }
 
 if (themeToggle) {
   themeToggle.addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem("deeporca-theme", next);
-    } catch (e) {
-      /* ignore */
-    }
-    syncThemeIcon();
+    themeToggle.classList.add("set");
+    setTimeout(() => {
+      const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      try {
+        localStorage.setItem("deeporca-theme", next);
+      } catch (e) {
+        /* ignore */
+      }
+      syncThemeIcon();
+      themeToggle.classList.remove("set");
+    }, 260);
   });
 }
 syncThemeIcon();
@@ -538,39 +540,5 @@ if (lightbox) {
     if (e.key === "Escape") closeLightbox();
   });
 }
-
-// ============================================================
-// Card hover tilt
-// ============================================================
-
-document.querySelectorAll(".pillar-card, .mod-card, .ext-card, .road-card").forEach((card) => {
-  card.addEventListener("mousemove", (e) => {
-    const rect = card.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    card.style.transform = `perspective(1000px) rotateY(${x * 3}deg) rotateX(${-y * 3}deg) translateY(-4px)`;
-  });
-  card.addEventListener("mouseleave", () => {
-    card.style.transform = "";
-  });
-});
-
-// ============================================================
-// Button ripple
-// ============================================================
-
-document.querySelectorAll(".cbtn").forEach((btn) => {
-  btn.addEventListener("click", (e) => {
-    const rect = btn.getBoundingClientRect();
-    const ripple = document.createElement("span");
-    ripple.className = "ripple";
-    const size = 80;
-    ripple.style.width = ripple.style.height = `${size}px`;
-    ripple.style.left = `${e.clientX - rect.left - size / 2}px`;
-    ripple.style.top = `${e.clientY - rect.top - size / 2}px`;
-    btn.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 600);
-  });
-});
 
 console.log("%c🐋 DeepOrca %c| AI 创作 Studio · 原型 · 设计 · 编码", "font-weight:bold;font-size:14px", "color:#00c4d6");
