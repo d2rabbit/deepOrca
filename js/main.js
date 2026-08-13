@@ -625,3 +625,66 @@ if (finale && "IntersectionObserver" in window) {
   );
   strikeIO.observe(finale);
 }
+
+// ============================================================
+// The hunt — a hand-drawn orca pod chases a blue whale, irregularly
+// ============================================================
+
+(function orcaHunt() {
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) return;
+
+  // hand-drawn silhouettes (single path each, fill via currentColor)
+  const WHALE_D =
+    "M6 55 C10 38 32 26 72 22 C132 16 192 18 238 26 L244 12 C245 10 247 10 248 13 L252 30 " +
+    "C270 36 284 44 294 52 L316 42 C318 41 319 43 318 45 L304 58 L318 68 C319 70 318 72 316 71 " +
+    "L290 64 C242 82 182 88 122 84 C68 80 20 70 6 55 Z";
+  const ORCA_D =
+    "M10 58 C16 42 36 30 62 26 C84 22 104 22 118 26 L126 4 C127 2 129 2 130 4 L138 30 " +
+    "C158 36 176 42 188 50 L212 38 C214 37 215 39 214 41 L200 56 L214 66 C215 68 214 70 212 69 " +
+    "L184 62 C150 78 108 84 72 78 C44 74 20 68 10 58 Z";
+
+  let hidden = false;
+  document.addEventListener("visibilitychange", () => {
+    hidden = document.hidden;
+  });
+
+  function spawnHunt() {
+    if (!hidden) {
+      const rtl = Math.random() < 0.18;
+      const pod = document.createElement("div");
+      pod.className = "hunt-pod" + (rtl ? " rtl" : "");
+      pod.setAttribute("aria-hidden", "true");
+
+      const y = 14 + Math.random() * 62; // vh
+      const w = 300 + Math.random() * 150; // blue whale width px
+      const dur = 22000 + Math.random() * 10000;
+      const orcas = 3 + Math.floor(Math.random() * 3); // 3-5 hunters
+
+      pod.style.top = `${y}vh`;
+      pod.style.setProperty("--dur", `${Math.round(dur)}ms`);
+
+      // whale leads; orcas chase behind, slightly staggered in depth
+      const whaleLeft = Math.round(w * 1.1);
+      let html = `<svg class="whale" viewBox="0 0 320 100" style="width:${Math.round(w)}px;left:${whaleLeft}px;top:0"><path d="${WHALE_D}"/></svg>`;
+      let cursor = whaleLeft;
+      for (let i = 0; i < orcas; i++) {
+        const ow = Math.round(w * (0.42 + Math.random() * 0.08) * (1 - i * 0.05));
+        cursor -= Math.round(ow * (0.9 + Math.random() * 0.5));
+        const oy = Math.round(6 + Math.random() * 30 + (i % 2) * 16);
+        html += `<svg viewBox="0 0 220 100" style="width:${ow}px;left:${cursor}px;top:${oy}px"><path d="${ORCA_D}"/></svg>`;
+        cursor -= Math.round(20 + Math.random() * 30);
+      }
+      pod.innerHTML = html;
+      document.body.appendChild(pod);
+      setTimeout(() => pod.remove(), dur + 1500);
+    }
+    schedule();
+  }
+
+  function schedule() {
+    setTimeout(spawnHunt, 14000 + Math.random() * 21000); // every 14-35s, irregular
+  }
+
+  setTimeout(spawnHunt, 4000 + Math.random() * 4000);
+})();

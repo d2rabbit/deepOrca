@@ -1819,3 +1819,43 @@ body::after {
     text-align: left;
   }
 }
+
+/* ============================================================
+   The hunt — hand-drawn orca pod chasing a blue whale
+   ============================================================ */
+
+.hunt-pod {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: hunt-pass var(--dur, 24s) linear var(--delay, 0s) forwards;
+}
+.hunt-pod svg {
+  position: absolute;
+  display: block;
+  fill: currentColor;
+}
+.hunt-pod.rtl {
+  animation-direction: reverse;
+}
+.hunt-pod.rtl svg {
+  transform: scaleX(-1);
+}
+:root .hunt-pod { --po: 0.07; }
+[data-theme="dark"] .hunt-pod { color: #9cc8e2; --po: 0.08; }
+[data-theme="light"] .hunt-pod { color: #0f3d5c; --po: 0.1; }
+@keyframes hunt-pass {
+  0% { transform: translateX(-45vw) translateY(0); opacity: 0; }
+  10% { opacity: var(--po); }
+  50% { transform: translateX(28vw) translateY(-1.5vh); }
+  88% { opacity: var(--po); }
+  100% { transform: translateX(135vw) translateY(1vh); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hunt-pod { display: none; }
+}
+
