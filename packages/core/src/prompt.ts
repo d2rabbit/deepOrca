@@ -324,9 +324,36 @@ function getCurrentDateAndModelPrompt(model?: string): string {
   return prompt;
 }
 
+const TOOL_SELECTION_GUIDE = `# 代码工具选择指南
+
+DeepOrca 提供多层代码工具（内置工具、Serena 语义工具、CodeGraph 图谱工具），按场景选择最优工具：
+
+## 编辑代码
+- **简单文本替换**（同一文件内）→ 用内置 \`edit\`（snippet 级精准匹配，轻量）
+- **替换整个函数/方法/类的实现** → 用 Serena \`replace_symbol_body\`（LSP 语义级，不关心行号）
+- **跨文件重命名** → 用 Serena \`rename_symbol\`（原子操作，自动更新所有引用）
+- **在某符号前/后插入新代码** → 用 Serena \`insert_before_symbol\` / \`insert_after_symbol\`
+
+## 查找代码
+- **找某符号的定义位置** → 用 Serena \`find_symbol\`（实时 LSP，最准确）
+- **找谁调用了某符号** → 用 Serena \`find_referencing_symbols\`（实时引用，反映最新代码）
+- **分析修改某符号的影响面** → 用 CodeGraph \`codegraph_impact\`（全代码图谱影响分析）
+- **查看调用链/依赖关系** → 用 CodeGraph \`codegraph_callees\` / \`codegraph_callers\`（图谱遍历）
+- **全文搜索**（非符号级）→ 用内置 \`bash\` + \`rg\`（正则全文搜索）
+
+## 编辑后验证
+- 每次代码修改后，建议用 Serena \`get_diagnostics_for_file\` 检查类型/语法错误
+
+## 心智模型
+- **Serena = 手术刀**：实时、精准、单符号级操作（LSP 驱动，40+ 语言）
+- **CodeGraph = 全景图**：广度、影响面、调用链分析（图谱驱动）
+- **内置工具 = 基础**：文本读写、shell 命令、搜索`;
+
 export function getSystemPrompt(_projectRoot: string, options: PromptToolOptions = {}): string {
   const toolDocs = readToolDocs(getExtensionRoot(), options);
-  return toolDocs ? `${SYSTEM_PROMPT_BASE}\n\n# Available Tools\n\n${toolDocs}` : SYSTEM_PROMPT_BASE;
+  return toolDocs
+    ? `${SYSTEM_PROMPT_BASE}\n\n${TOOL_SELECTION_GUIDE}\n\n# Available Tools\n\n${toolDocs}`
+    : SYSTEM_PROMPT_BASE;
 }
 
 export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
