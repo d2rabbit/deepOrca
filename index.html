@@ -33,6 +33,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+  <div id="depth-meter" aria-hidden="true">
+    <span class="dm-label">0m</span>
+    <div class="dm-track"><span class="dm-marker"><span class="dm-current">0m</span></span></div>
+    <span class="dm-label">−1000m</span>
+  </div>
   <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <!-- ============ Nav ============ -->
   <header class="nav" id="nav">
@@ -63,13 +68,13 @@
 
   <!-- ============ Hero ============ -->
   <section class="hero" id="top">
+    <div class="caustics" aria-hidden="true"></div>
     <div class="container">
       <div class="hero-orca"><span class="sonar s1"></span><span class="sonar s2"></span><span class="sonar s3"></span><img src="assets/orca-icon.svg" alt="DeepOrca"></div>
       <div class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">v0.1.34 · AI 创作 Studio</span></div>
       <h1 class="hero-title" data-i18n="hero.title">原型 · 设计 · 编码<br><span class="gtext">AI 创作 Studio</span></h1>
       <div class="hero-rule"><span>✦</span></div>
       <p class="hero-desc" data-i18n="hero.desc">DeepOrca 是一个 AI 驱动的创作 Studio。<strong>原型设计</strong>、<strong>UI 设计稿</strong>、<strong>智能编码</strong>三大能力独立可用，按需组合 —— 从一句想法到可用成果，一站落地。</p>
-      <div class="depth-gauge"><span>0m</span><span class="line"></span><span>−1000m</span></div>
       <div class="hero-ctas">
         <a class="cbtn cbtn-primary" href="https://github.com/d2rabbit/deepOrca/releases" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg><span data-i18n="hero.cta1">下载 Studio</span></a>
         <a class="cbtn cbtn-ghost" href="https://github.com/d2rabbit/deepOrca" target="_blank" rel="noopener" data-i18n="hero.cta2">GitHub →</a>
@@ -363,6 +368,7 @@ npm run desktop:start</pre>
   <!-- ============ Finale ============ -->
   <section class="finale">
     <img class="orca-shadow os2" src="assets/orca-icon.svg" alt="" aria-hidden="true">
+    <img class="orca-strike" id="orca-strike" src="assets/orca-icon.svg" alt="" aria-hidden="true">
     <div class="container">
       <img src="assets/orca-icon.svg" alt="" aria-hidden="true">
       <h2 data-i18n="finale.title">开启你的<span class="atext">创作之旅</span></h2>

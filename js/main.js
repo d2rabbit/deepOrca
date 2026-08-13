@@ -560,3 +560,68 @@ if (lightbox) {
 }
 
 console.log("%c🐋 DeepOrca %c| AI 创作 Studio · 原型 · 设计 · 编码", "font-weight:bold;font-size:14px", "color:#00c4d6");
+
+// ============================================================
+// Experience layer: live depth meter + abyss pressure + ping + strike
+// ============================================================
+
+const depthMeter = document.getElementById("depth-meter");
+const depthCurrent = depthMeter ? depthMeter.querySelector(".dm-current") : null;
+let depthTicking = false;
+
+function updateDepth() {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  const p = max > 0 ? Math.min(window.scrollY / max, 1) : 0;
+  if (depthMeter) depthMeter.style.setProperty("--p", p.toFixed(4));
+  if (depthCurrent) depthCurrent.textContent = "−" + Math.round(p * 1000) + "m";
+  document.body.style.setProperty("--abyss", (p * 0.38).toFixed(3));
+  depthTicking = false;
+}
+
+window.addEventListener(
+  "scroll",
+  () => {
+    if (!depthTicking) {
+      requestAnimationFrame(updateDepth);
+      depthTicking = true;
+    }
+  },
+  { passive: true }
+);
+updateDepth();
+
+// sonar ping from the cursor — clicks on empty water
+document.addEventListener("click", (e) => {
+  if (e.target.closest("a, button, .shot, input, textarea, pre, .lightbox")) return;
+  const ring = document.createElement("span");
+  ring.className = "ping";
+  ring.style.left = `${e.clientX}px`;
+  ring.style.top = `${e.clientY}px`;
+  const core = document.createElement("span");
+  core.className = "ping core";
+  core.style.left = `${e.clientX}px`;
+  core.style.top = `${e.clientY}px`;
+  document.body.appendChild(ring);
+  document.body.appendChild(core);
+  setTimeout(() => {
+    ring.remove();
+    core.remove();
+  }, 1400);
+});
+
+// the strike — one pass, only once, when the abyss is reached
+const finale = document.querySelector(".finale");
+if (finale && "IntersectionObserver" in window) {
+  const strikeIO = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          finale.classList.add("strike");
+          strikeIO.disconnect();
+        }
+      });
+    },
+    { threshold: 0.35 }
+  );
+  strikeIO.observe(finale);
+}
