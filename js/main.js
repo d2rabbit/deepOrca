@@ -26,17 +26,6 @@ const I18N = {
     "hero.t3": "● 正在编辑文件并验证…",
     "hero.t4": "✓ 原型已生成，预览就绪",
 
-    "tick.0": "原型设计",
-    "tick.1": "UI 设计稿",
-    "tick.2": "智能编码",
-    "tick.3": "代码审查",
-    "tick.4": "项目知识库",
-    "tick.5": "长期记忆",
-    "tick.6": "多语言界面",
-    "tick.7": "主题随心",
-    "tick.8": "本地优先",
-    "tick.9": "持续进化",
-
     "pillars.tag": "// 三大核心能力",
     "pillars.title": "独立可用 · 按需组合",
     "pillars.sub": "从一句话需求到可交互原型、可交付设计稿、可运行代码 —— 每条管线都由同一个 Agent 引擎驱动。",
@@ -182,7 +171,7 @@ const I18N = {
     "boot.3t": "开始创作",
     "boot.3d": "描述你的需求 —— 原型、设计稿、代码，虎鲸接手剩下的工作。",
 
-    "finale.title": '开启你的<span class="gtext">创作之旅</span>',
+    "finale.title": '开启你的<span class="atext">创作之旅</span>',
     "finale.sub": "原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴。",
     "finale.cta1": "⤓ 下载 Studio",
     "finale.cta2": "Star on GitHub →",
@@ -213,17 +202,6 @@ const I18N = {
     "hero.t2": "● Analyzing · generating prototype…",
     "hero.t3": "● Editing files and verifying…",
     "hero.t4": "✓ Prototype ready — preview available",
-
-    "tick.0": "Prototyping",
-    "tick.1": "UI Design",
-    "tick.2": "Agentic Coding",
-    "tick.3": "Code Review",
-    "tick.4": "Project Knowledge",
-    "tick.5": "Long-term Memory",
-    "tick.6": "Multilingual UI",
-    "tick.7": "Themes",
-    "tick.8": "Local-first",
-    "tick.9": "Always Evolving",
 
     "pillars.tag": "// Three Core Capabilities",
     "pillars.title": "Independent · Composable",
@@ -374,7 +352,7 @@ const I18N = {
     "boot.3t": "Start Creating",
     "boot.3d": "Describe what you need — prototype, design doc, code — the orca takes it from there.",
 
-    "finale.title": 'Start Your <span class="gtext">Creation Journey</span>',
+    "finale.title": 'Start Your <span class="atext">Creation Journey</span>',
     "finale.sub": "Prototype, design, code — let the AI orca be your creation partner.",
     "finale.cta1": "⤓ Download Studio",
     "finale.cta2": "Star on GitHub →",
