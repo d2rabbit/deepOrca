@@ -32,8 +32,6 @@ import {
   crgReindexRun,
   crgVisualizeDefinition,
   crgVisualizeRun,
-  crgAnalyzeDefinition,
-  crgAnalyzeRun,
   codegraphReindexDefinition,
   codegraphReindexRun,
   codegraphListDefinition,
@@ -63,7 +61,6 @@ function fullRegistry(root: string = PROJECT_ROOT): ActionRegistry {
   r.register(reviewFullDefinition, reviewFullRun);
   r.register(crgReindexDefinition, crgReindexRun);
   r.register(crgVisualizeDefinition, crgVisualizeRun);
-  r.register(crgAnalyzeDefinition, crgAnalyzeRun);
   r.register(codegraphReindexDefinition, codegraphReindexRun);
   r.register(codegraphListDefinition, codegraphListRun);
   r.register(wikiInitDefinition, wikiInitRun);

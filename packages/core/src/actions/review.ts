@@ -12,6 +12,9 @@
 import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getReviewController, type ReviewResult, type ReviewOptions } from "./review-controller";
+import { getCrgGraphQuery, formatCrgContextForOcr, mergeReviewWithCrgRisk } from "./crg-query";
+import * as path from "node:path";
+import * as fs from "node:fs";
 
 export type ReviewInput = ReviewOptions;
 
@@ -90,38 +93,78 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
     throw new Error("review.full: no ReviewController configured");
   }
 
-  // 1. ocr semantic review (via controller — correct JSON schema).
-  const review = await rc.runReview(ctx.projectRoot, {}, (p: ControllerProgress) => ctx.emit(p));
-
-  // 2. CRG structural risk enrich (non-fatal — skip if no graph / no MCP dispatch).
-  if (!ctx.executeMcpTool) {
-    return { review, risk: { graphBuilt: false, reason: "MCP dispatch unavailable" } };
+  // ① CRG structural analysis (Node.js direct SQLite read — no Python MCP).
+  let crgBackground: string | undefined;
+  let crgChanges: ReturnType<NonNullable<ReturnType<typeof getCrgGraphQuery>>["detectChanges"]> = [];
+  let crgRisks: ReturnType<NonNullable<ReturnType<typeof getCrgGraphQuery>>["getRiskData"]> = [];
+  const crgQuery = getCrgGraphQuery();
+  if (crgQuery?.hasGraph(ctx.projectRoot)) {
+    ctx.emit({ message: "analyzing CRG structural risk", percent: 5 });
+    try {
+      // Get changed files from git diff.
+      const changedFiles = getGitChangedFiles(ctx.projectRoot);
+      crgChanges = crgQuery.detectChanges(ctx.projectRoot, changedFiles);
+      if (crgChanges.length > 0) {
+        const qualifiedNames = crgChanges.map((c) => c.qualifiedName);
+        crgRisks = crgQuery.getRiskData(ctx.projectRoot, qualifiedNames);
+        const testGaps = crgQuery.getTestGaps(ctx.projectRoot, qualifiedNames);
+        crgBackground = formatCrgContextForOcr(crgChanges, crgRisks, testGaps);
+        ctx.emit({ message: `CRG: ${crgChanges.length} functions, ${testGaps.length} test gaps`, percent: 10 });
+      }
+    } catch {
+      // CRG query failed — proceed without structural context.
+    }
   }
-  ctx.emit({ message: "enriching with CRG structural risk", percent: 95 });
-  try {
-    const detect = await ctx.executeMcpTool("mcp__code-review-graph__detect_changes_tool", {});
-    let changedNodes: unknown = undefined;
-    if (detect.ok && detect.output) {
-      try {
-        changedNodes = JSON.parse(detect.output);
-      } catch {
-        changedNodes = detect.output;
-      }
-    }
-    let impactRadius: unknown = undefined;
-    const impact = await ctx.executeMcpTool("mcp__code-review-graph__get_impact_radius_tool", {});
-    if (impact.ok && impact.output) {
-      try {
-        impactRadius = JSON.parse(impact.output);
-      } catch {
-        impactRadius = impact.output;
-      }
-    }
-    return { review, risk: { changedNodes, impactRadius, graphBuilt: true } };
-  } catch (err) {
+
+  // ② OCR review with CRG structural context (--background).
+  const review = await rc.runReview(ctx.projectRoot, { background: crgBackground }, (p: ControllerProgress) =>
+    ctx.emit(p)
+  );
+
+  // ③ Merge: tag each OCR comment with CRG risk level.
+  if (crgChanges.length > 0 && crgRisks.length > 0) {
+    const merged = mergeReviewWithCrgRisk(review.comments, crgRisks, crgChanges);
     return {
-      review,
-      risk: { graphBuilt: false, reason: err instanceof Error ? err.message : String(err) },
+      review: { ...review, comments: merged as unknown as typeof review.comments },
+      risk: {
+        changedNodes: crgChanges,
+        impactRadius: crgRisks,
+        graphBuilt: true as const,
+      },
     };
   }
+
+  // No CRG data — return review with risk.skipped.
+  return {
+    review,
+    risk: crgQuery?.hasGraph(ctx.projectRoot)
+      ? { graphBuilt: true as const, changedNodes: [], impactRadius: [] }
+      : { graphBuilt: false as const, reason: "no .code-review-graph/" },
+  };
 };
+
+/** Get changed files from git diff HEAD (workspace mode). */
+function getGitChangedFiles(root: string): string[] {
+  try {
+    const { execSync } = require("node:child_process");
+    const tracked = execSync("git diff --name-only HEAD", {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const untracked = execSync("git ls-files --others --exclude-standard", {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const files = [...tracked.split("\n"), ...untracked.split("\n")]
+      .map((f) => f.trim())
+      .filter(Boolean)
+      .map((f) => (path.isAbsolute(f) ? f : path.resolve(root, f)));
+    return files;
+  } catch {
+    return [];
+  }
+}

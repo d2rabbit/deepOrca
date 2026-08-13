@@ -18,7 +18,9 @@ import {
 } from "./common/codegraph";
 import { getCodegraphController } from "./actions/codegraph-controller";
 import { getWikiController } from "./actions/wiki-controller";
-import { buildCrgMcpServerConfig, CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled, runCrgSync } from "./common/crg";
+import { CRG_MCP_SERVER_NAME, hasCrgProject, isCrgDisabled } from "./common/crg";
+import { getCrgController } from "./actions/crg-controller";
+import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
 import { buildSerenaMcpServerConfig, SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import {
   buildSkillSpectorMcpServerConfig,
@@ -89,8 +91,6 @@ import {
   crgReindexRun,
   crgVisualizeDefinition,
   crgVisualizeRun,
-  crgAnalyzeDefinition,
-  crgAnalyzeRun,
   codegraphReindexDefinition,
   codegraphReindexRun,
   codegraphListDefinition,
@@ -631,7 +631,6 @@ export class SessionManager {
     // crg.analyze routes to the 10 CRG analysis MCP tools via executeMcpTool.
     this.actionRegistry.register(crgReindexDefinition, crgReindexRun);
     this.actionRegistry.register(crgVisualizeDefinition, crgVisualizeRun);
-    this.actionRegistry.register(crgAnalyzeDefinition, crgAnalyzeRun);
     // ── Phase 2: knowledge index actions ──────────────────────────────────
     this.actionRegistry.register(codegraphReindexDefinition, codegraphReindexRun);
     this.actionRegistry.register(codegraphListDefinition, codegraphListRun);
@@ -651,6 +650,9 @@ export class SessionManager {
       this.actionRegistry
     );
     this.mcpManager.prepare(this.augmentMcpServersWithBuiltins(this.getResolvedSettings().mcpServers));
+    // CRG query layer: Node.js direct SQLite read (replaces Python MCP server).
+    // Auto-initialized; the query gracefully returns [] when no graph exists.
+    configureCrgGraphQuery(createCrgGraphQuery());
     this.messageConverter = new OpenAIMessageConverter({
       renderInitPrompt: () => this.renderInitCommandPrompt(),
       // Inject the current date + active model as a transient user-message tail
@@ -948,19 +950,8 @@ If the query is simple (single intent), respond with a single-element array.`;
       }
     }
 
-    // code-review-graph (analysis/review layer — risk, architecture, impact).
-    if (hasCrgProject(this.projectRoot) && !isCrgDisabled(this.projectRoot)) {
-      if (!(result && Object.prototype.hasOwnProperty.call(result, CRG_MCP_SERVER_NAME))) {
-        const crgConfig = buildCrgMcpServerConfig(this.projectRoot);
-        if (crgConfig) {
-          result = {
-            ...(result ?? {}),
-            [CRG_MCP_SERVER_NAME]: crgConfig,
-          };
-        }
-      }
-    }
-
+    // CRG MCP server removed — queries now go through CrgGraphQuery (Node.js
+    // direct SQLite read). The build step is handled by CrgCliController.
     // Serena — semantic code retrieval, editing, refactoring (symbol-level
     // operations via SolidLSP, 40+ languages). Activated for all projects when
     // uv is available and not disabled. Complements the built-in text-level
@@ -3317,7 +3308,7 @@ ${content}
     if (!this.crgDirtySessions.delete(sessionId)) {
       return;
     }
-    runCrgSync(this.projectRoot);
+    void getCrgController()?.sync(this.projectRoot);
   }
 
   /**

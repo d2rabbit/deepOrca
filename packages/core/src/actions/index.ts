@@ -39,15 +39,20 @@ export {
   reviewFullRun,
 } from "./review";
 export type { ReviewInput, ReviewAvailability, ReviewFullOutput } from "./review";
+export { crgReindexDefinition, crgReindexRun, crgVisualizeDefinition, crgVisualizeRun } from "./crg";
+export type { CrgReindexOutput, CrgVisualizeOutput } from "./crg";
+// CRG query layer (Node.js direct SQLite read — replaces Python MCP server).
 export {
-  crgReindexDefinition,
-  crgReindexRun,
-  crgVisualizeDefinition,
-  crgVisualizeRun,
-  crgAnalyzeDefinition,
-  crgAnalyzeRun,
-} from "./crg";
-export type { CrgReindexOutput, CrgVisualizeOutput, CrgAnalyzeInput, CrgAnalyzeOutput } from "./crg";
+  configureCrgGraphQuery,
+  getCrgGraphQuery,
+  createCrgGraphQuery,
+  formatCrgContextForOcr,
+  mergeReviewWithCrgRisk,
+} from "./crg-query";
+export type { CrgGraphQuery, CrgChangedFunction, CrgImpactNode, CrgRiskData, CrgCommunity } from "./crg-query";
+// CRG build controller (build only — queries go through CrgGraphQuery).
+export { configureCrgController, getCrgController } from "./crg-controller";
+export type { CrgController } from "./crg-controller";
 export {
   codegraphReindexDefinition,
   codegraphReindexRun,
