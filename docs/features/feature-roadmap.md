@@ -247,6 +247,7 @@
 
 | 能力                                     | 项目                                                                             | 集成形态                                                                                                         | 贡献                                                                                                                                                                                                                                                                                                                                                                                 | 优先级               |
 | ---------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| **需求具现化工作台（PM-Design V2）**     | **A2UI + OpenUI + DeepDesign 三管线统一编排**                                    | 左侧 Design 工作区 + `design.materialize` 复合 Action + `pm-analyst` Skill + 设计产物持久化                      | **P0（设计阶段）**：将三管线从"用户三选一"升级为"AI 自动路由"。模拟 PM 完整职责链：需求采集 → 需求分析（pm-analyst 子代理拆解为模块/用户故事/流程）→ 管线路由（交互型→A2UI / 展示型→.dd / 混合型→OpenUI）→ 原型生成 → 预览验证 → 持久化为可管理的设计资产。左侧增加 `design` rail item（位于 Code Review 下方），DesignPanel 提供一键入口 + 产物列表 + 对话迭代闭环。详见 [`specs/pm-design-v2/design.md`](../../specs/pm-design-v2/design.md) | P0（设计完成）       |
 | **AI-native 原型模块**                   | **A2UI** 协议（a2ui-project/a2ui）                                               | 内置 Skill（`a2ui-prototype`）+ 自研 MessageProcessor + 自研渲染器 + A2UI over MCP（InMemoryTransport）          | ✅ **已集成**：PM 用自然语言驱动声明式 Surface 原型。7 个模板 + render_prototype 工具 + 全屏预览面板 + 多页面导航 + 持久化恢复。v3.14 审计第二弹修复 12 bug（surface 作用域隔离 / 内存泄漏 / 独立窗口交互 / 全量快照→快照）。`9699fbe`→`0699927`                                                                                                                                     |
 | **A2UI 增量补丁（merge）**               | OpenUI merge.ts 理念（thesysdev/openui）                                         | `a2ui-mcp.ts` update_surface delta-only + processor 端 merge                                                     | **P0（开发中）**：借鉴 OpenUI `mergeStatements` 的「按 id 合并 + GC 不可达」理念，update_surface 从返回完整快照改为返回 delta-only（仅变更的组件），processor 端 merge 到已有 surface state。首次调用仍返回完整快照。省 70%+ token                                                                                                                                                   |
 | **OpenUI Lang 渲染（PM-Designer 专用）** | **thesysdev/openui**（@openuidev/lang-core + react-lang，MIT）                   | `@openuidev/lang-core`（解析+运行时+prompt）+ `@openuidev/react-lang`（Renderer）+ pm-designer skill prompt 切换 | **P1（PoC 阶段）**：OpenUI Lang 作为 A2UI 的补充，**仅用于 PM-Designer**。紧凑行式语法（`root = Stack([title, form])`）比 JSON 省 3-4x token；响应式 `$variable` 自动依赖追踪；增量编辑按语句名 merge 省 85% token。MCP 原生——`toolProvider` 直接接 DeepOrca MCP client。**不替换通用 A2UI 管线**——PM-Designer 走 OpenUI Lang，其他场景仍走 A2UI JSON                                |
@@ -275,6 +276,17 @@ DeepDesign 和 PM-Design 都采用**插件指令触发 + 右侧分屏预览**模
 - 对话区保持可见（split view），用户边对话边看预览
 - 预览面板支持 tab 切换（prototype / design），关闭即收起
 - 布局：`[Rail] [Sidebar] [Chat Area] [Preview Panel (right)]`
+
+**PM-Design V2：需求具现化工作台（设计阶段）**：
+当前三管线（A2UI / OpenUI / DeepDesign）虽然各自完整可用，但从 PM 视角存在"三选一认知负担、无左侧工作区、缺需求分析前置、产物不持久、无一键入口"五个痛点。V2 将三管线从"用户手动选择"升级为"AI 自动路由"，并增加左侧 `design` 工作区（位于 Code Review 下方）：
+
+- **核心理念**：需求具现化 —— 模拟 PM 完整职责链（需求采集 → 需求分析 → 管线路由 → 原型生成 → 预览验证 → 持久化/交付）
+- **一键入口**：`design.materialize` 复合 Action —— `pm-analyst` 子代理拆解需求 → 自动判断最佳管线 → 调用现有 MCP 工具生成原型
+- **管线路由规则**：交互型（表单/看板/导航）→ A2UI；展示型（着陆页/海报）→ DeepDesign；混合型/token 敏感 → OpenUI Lang
+- **左侧 DesignPanel**：一键按钮 + 设计产物列表（`.deeporca/designs/`）+ 对话迭代闭环
+- **现有 slash 命令保留**：`/pm-design` `/deep-design` `/pm-design-openui` 供高级用户手动选管线
+- **三管线代码零改动**：`design.materialize` 是纯编排层，复用现有 `render_surface` / `render_openui` / `render_design` MCP 工具
+- 详见 [`specs/pm-design-v2/design.md`](../../specs/pm-design-v2/design.md) · [`tasks.md`](../../specs/pm-design-v2/tasks.md)
 
 ---
 
