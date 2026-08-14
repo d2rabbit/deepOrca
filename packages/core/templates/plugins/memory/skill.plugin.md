@@ -5,7 +5,6 @@ category: memory
 icon: memory
 mcp:
   - activity-frames
-  - vision
 ---
 
 # 记忆沉淀插件
@@ -17,7 +16,6 @@ mcp:
 ### MCP 服务器
 
 - **activity-frames** — 进程内 MCP 服务器。多源行为记忆采集，整合 session/git/shell/file 数据源，提供 `get_context`、`get_hotspots`、`get_workflows` 等工具。
-- **vision** — 视觉理解 MCP 服务器。为纯文本 LLM（如 DeepSeek）提供图片理解能力（vision_chat / vision_ocr），通过视觉模型代理。仅在设置中配置视觉模型后激活。
 
 ### 记忆管线（进程内）
 

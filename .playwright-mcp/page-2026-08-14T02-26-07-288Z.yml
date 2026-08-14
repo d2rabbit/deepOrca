@@ -1,0 +1,411 @@
+- generic [active] [ref=f6e1]:
+  - generic:
+    - generic: 0m
+    - generic: −0m
+    - generic: −1000m
+  - banner [ref=f6e2]:
+    - generic [ref=f6e3]:
+      - link "DeepOrca logo DeepOrca Studio" [ref=f6e4] [cursor=pointer]:
+        - /url: "#top"
+        - img "DeepOrca logo" [ref=f6e5]
+        - generic [ref=f6e6]: DeepOrca
+        - generic [ref=f6e7]: Studio
+      - navigation [ref=f6e8]:
+        - link "能力" [ref=f6e9] [cursor=pointer]:
+          - /url: "#pillars"
+        - link "核心模块" [ref=f6e10] [cursor=pointer]:
+          - /url: "#modules"
+        - link "扩展生态" [ref=f6e11] [cursor=pointer]:
+          - /url: "#extend"
+        - link "界面预览" [ref=f6e12] [cursor=pointer]:
+          - /url: "#gallery"
+        - link "路线图" [ref=f6e13] [cursor=pointer]:
+          - /url: "#roadmap"
+        - link "快速开始" [ref=f6e14] [cursor=pointer]:
+          - /url: "#boot"
+      - generic [ref=f6e15]:
+        - button "Switch language" [ref=f6e16] [cursor=pointer]: EN
+        - button "Toggle theme" [ref=f6e17] [cursor=pointer]
+        - link "GitHub" [ref=f6e21] [cursor=pointer]:
+          - /url: https://github.com/d2rabbit/deepOrca
+        - link "开始创作" [ref=f6e24] [cursor=pointer]:
+          - /url: "#boot"
+  - generic [ref=f6e26]:
+    - img "DeepOrca" [ref=f6e31]
+    - generic [ref=f6e32]: v0.1.34 · AI 创作 Studio
+    - heading "原型 · 设计 · 编码 AI 创作 Studio" [level=1] [ref=f6e35]: 原型 · 设计 · 编码AI 创作 Studio
+    - generic [ref=f6e36]: ✦
+    - paragraph [ref=f6e38]:
+      - text: DeepOrca 是一个 AI 驱动的创作 Studio。
+      - strong [ref=f6e39]: 原型设计
+      - text: 、
+      - strong [ref=f6e40]: UI 设计稿
+      - text: 、
+      - strong [ref=f6e41]: 智能编码
+      - text: 三大能力独立可用，按需组合 —— 从一句想法到可用成果，一站落地。
+    - generic [ref=f6e42]:
+      - link "下载 Studio" [ref=f6e43] [cursor=pointer]:
+        - /url: https://github.com/d2rabbit/deepOrca/releases
+      - link "GitHub →" [ref=f6e47] [cursor=pointer]:
+        - /url: https://github.com/d2rabbit/deepOrca
+  - generic [ref=f6e49]:
+    - generic [ref=f6e50]: −50m · 浅海猎场
+    - generic [ref=f6e51]: ✦ 三大核心能力
+    - heading "独立可用 · 按需组合" [level=2] [ref=f6e52]
+    - generic [ref=f6e53]: ✦
+    - paragraph [ref=f6e54]: 从一句话需求到可交互原型、可交付设计稿、可运行代码 —— 每条管线都由同一个 Agent 引擎驱动。
+    - generic [ref=f6e55]:
+      - article [ref=f6e56]:
+        - generic [ref=f6e57]:
+          - generic [ref=f6e58]: −50m
+          - generic [ref=f6e59]: 浅海 · 声呐侦察
+        - generic: "01"
+        - generic [ref=f6e60]:
+          - heading "原型设计" [level=3] [ref=f6e66]
+          - text: Prototyping
+          - paragraph [ref=f6e67]: 用自然语言描述需求，AI 生成可交互原型：表单、看板、多页面导航，双向交互验证用户流程。
+          - generic [ref=f6e68]:
+            - generic [ref=f6e69]: 可交互验证
+            - generic [ref=f6e70]: 多页面导航
+            - generic [ref=f6e71]: 多套模板
+          - generic [ref=f6e72]: “帮我搭一个看板管理原型”
+      - article [ref=f6e78]:
+        - generic [ref=f6e79]:
+          - generic [ref=f6e80]: −300m
+          - generic [ref=f6e81]: 中层 · 协作围猎
+        - generic: "02"
+        - generic [ref=f6e88]:
+          - heading "UI 设计稿" [level=3] [ref=f6e93]
+          - text: Design
+          - paragraph [ref=f6e94]: 生成自包含设计稿，多种设计系统与 UI 风格随心切换，可脱离宿主独立交付。
+          - generic [ref=f6e95]:
+            - generic [ref=f6e96]: 自包含交付
+            - generic [ref=f6e97]: 多设计系统
+            - generic [ref=f6e98]: 多风格
+          - generic [ref=f6e99]: “出一个玻璃拟态的落地页设计稿”
+      - article [ref=f6e100]:
+        - generic [ref=f6e101]:
+          - generic [ref=f6e102]: −800m
+          - generic [ref=f6e103]: 深渊 · 致命一击
+        - generic: "03"
+        - generic [ref=f6e104]:
+          - heading "智能编码" [level=3] [ref=f6e109]
+          - text: Coding
+          - paragraph [ref=f6e110]: 会话式编码：内置丰富工具、开放扩展生态，专业编辑器与版本管理深度集成。
+          - generic [ref=f6e111]:
+            - generic [ref=f6e112]: 会话式
+            - generic [ref=f6e113]: 开放扩展
+            - generic [ref=f6e114]: 版本管理
+          - generic [ref=f6e115]: “把这个模块重构成依赖注入”
+  - generic [ref=f6e119]:
+    - generic [ref=f6e120]: −300m · 洋流层
+    - generic [ref=f6e121]: ✦ 核心模块
+    - heading "完整的创作工作台" [level=2] [ref=f6e122]
+    - generic [ref=f6e123]: ✦
+    - paragraph [ref=f6e124]: 从会话、编辑到索引、审查、记忆，一应俱全。
+    - generic [ref=f6e125]:
+      - generic [ref=f6e126]:
+        - generic [ref=f6e127]: −310m
+        - generic [ref=f6e131]:
+          - heading "AI 会话工作台" [level=4] [ref=f6e132]
+          - paragraph [ref=f6e133]: 流式会话循环 + 工具调用 + 上下文压缩，跨会话持久化与恢复。
+      - generic [ref=f6e134]:
+        - generic [ref=f6e135]: −318m
+        - generic [ref=f6e139]:
+          - heading "专业编辑器" [level=4] [ref=f6e140]
+          - paragraph [ref=f6e141]: 流畅的编辑体验，内联差异对比，AI 变更一键接受或拒绝。
+      - generic [ref=f6e142]:
+        - generic [ref=f6e143]: −326m
+        - generic [ref=f6e150]:
+          - heading "Git 源码管理" [level=4] [ref=f6e151]
+          - paragraph [ref=f6e152]: 内置源码管理面板，变更审阅、提交、分支一目了然。
+      - generic [ref=f6e153]:
+        - generic [ref=f6e154]: −334m
+        - generic [ref=f6e159]:
+          - heading "项目索引与 Wiki" [level=4] [ref=f6e160]
+          - paragraph [ref=f6e161]: 符号、文档、架构三个视角，一键读懂整个项目。
+      - generic [ref=f6e162]:
+        - generic [ref=f6e163]: −342m
+        - generic [ref=f6e167]:
+          - heading "仓库知识库" [level=4] [ref=f6e168]
+          - paragraph [ref=f6e169]: 任意 GitHub 仓库都能变成可问答的知识库，本地检索，快速又私密。
+      - generic [ref=f6e170]:
+        - generic [ref=f6e171]: −350m
+        - generic [ref=f6e177]:
+          - heading "本地智能层" [level=4] [ref=f6e178]
+          - paragraph [ref=f6e179]: 本地向量嵌入与长期记忆，越用越懂你的项目，数据不出本机。
+      - generic [ref=f6e180]:
+        - generic [ref=f6e181]: −358m
+        - generic [ref=f6e188]:
+          - heading "多主题系统" [level=4] [ref=f6e189]
+          - paragraph [ref=f6e190]: Orca 深色 / Aqua 原生 / Glass Prism 玻璃拟态 / Punk 2077 赛博朋克。
+      - generic [ref=f6e191]:
+        - generic [ref=f6e192]: −366m
+        - generic [ref=f6e197]:
+          - heading "多语言界面" [level=4] [ref=f6e198]
+          - paragraph [ref=f6e199]: 简/繁中文、English、日本語、한국어、香港繁体 —— 6 种界面语言。
+  - generic [ref=f6e201]:
+    - generic [ref=f6e202]: −500m · 群猎协作
+    - generic [ref=f6e203]: ✦ 扩展生态
+    - heading "随时给虎鲸换上新装备" [level=2] [ref=f6e204]
+    - generic [ref=f6e205]: ✦
+    - paragraph [ref=f6e206]: 技能、开放协议、自动化 —— 三层扩展体系，能力边界由你决定。
+    - generic [ref=f6e208]:
+      - heading "Actions：能力一次定义，多处调用" [level=3] [ref=f6e209]
+      - paragraph [ref=f6e210]: 一次定义的能力，在 AI 会话、桌面界面和自动化工作流中都能直接调用 —— 内置代码审查、知识索引、系统诊断，开箱即用。
+      - generic [ref=f6e211]:
+        - generic [ref=f6e212]: 一次定义
+        - generic [ref=f6e213]: →
+        - generic [ref=f6e214]: AI 会话
+        - generic [ref=f6e215]: →
+        - generic [ref=f6e216]: 桌面界面
+        - generic [ref=f6e217]: →
+        - generic [ref=f6e218]: 自动化工作流
+    - generic [ref=f6e219]:
+      - generic [ref=f6e220]:
+        - generic [ref=f6e221]: −510m
+        - generic [ref=f6e228]:
+          - heading "技能扩展" [level=4] [ref=f6e229]
+          - paragraph [ref=f6e230]: 一项技能即是一种新能力，安装后 AI 会在合适的场景自动调用，越用越聪明。
+          - generic [ref=f6e231]: 百余项内置技能，持续生长
+      - generic [ref=f6e232]:
+        - generic [ref=f6e233]: −530m
+        - generic [ref=f6e237]:
+          - heading "开放协议互联" [level=4] [ref=f6e238]
+          - paragraph [ref=f6e239]: 基于开放标准协议，接入任意兼容的工具、服务与数据源。
+          - generic [ref=f6e240]: 常用服务内置就绪
+      - generic [ref=f6e241]:
+        - generic [ref=f6e242]: −550m
+        - generic [ref=f6e248]:
+          - heading "内置插件" [level=4] [ref=f6e249]
+          - paragraph [ref=f6e250]: 代码索引、安全扫描、浏览器自动化等能力全部内置，开箱即用。
+          - generic [ref=f6e251]: 安装即用，无需配置环境
+  - generic [ref=f6e253]:
+    - generic [ref=f6e254]: −650m · 猎场实录
+    - generic [ref=f6e255]: ✦ 界面预览
+    - heading "工作区 · 会话 · 源码管理" [level=2] [ref=f6e256]
+    - generic [ref=f6e257]: ✦
+    - paragraph [ref=f6e258]: Orca 深色主题实拍 —— 点击查看大图。
+    - generic [ref=f6e259]:
+      - button "DeepOrca welcome 欢迎页 · 快速开始" [ref=f6e260]:
+        - img "DeepOrca welcome"
+        - generic [ref=f6e261]: 欢迎页 · 快速开始
+      - button "AI chat AI 会话 · 权限授权" [ref=f6e262]:
+        - img "AI chat" [ref=f6e263]
+        - generic [ref=f6e264]: AI 会话 · 权限授权
+      - button "Plan mode 计划模式 · 先规划再实现" [ref=f6e265]:
+        - img "Plan mode" [ref=f6e266]
+        - generic [ref=f6e267]: 计划模式 · 先规划再实现
+      - button "Editor 专业编辑器 · AI 变更" [ref=f6e268]:
+        - img "Editor" [ref=f6e269]
+        - generic [ref=f6e270]: 专业编辑器 · AI 变更
+      - button "Diff view 差异对比 · 变更审阅" [ref=f6e271]:
+        - img "Diff view" [ref=f6e272]
+        - generic [ref=f6e273]: 差异对比 · 变更审阅
+      - button "Code review 代码评审 · 风险分级" [ref=f6e274]:
+        - img "Code review" [ref=f6e275]
+        - generic [ref=f6e276]: 代码评审 · 风险分级
+      - button "Agent question 交互提问 · 结构化输入" [ref=f6e277]:
+        - img "Agent question" [ref=f6e278]
+        - generic [ref=f6e279]: 交互提问 · 结构化输入
+      - button "Command palette 命令面板" [ref=f6e280]:
+        - img "Command palette" [ref=f6e281]
+        - generic [ref=f6e282]: 命令面板
+      - button "Extensions 扩展中心 · 技能与服务" [ref=f6e283]:
+        - img "Extensions" [ref=f6e284]
+        - generic [ref=f6e285]: 扩展中心 · 技能与服务
+      - button "Live preview 实时预览 · 原型即所得" [ref=f6e286]:
+        - img "Live preview" [ref=f6e287]
+        - generic [ref=f6e288]: 实时预览 · 原型即所得
+      - button "Settings 设置 · 模型与主题" [ref=f6e289]:
+        - img "Settings" [ref=f6e290]
+        - generic [ref=f6e291]: 设置 · 模型与主题
+  - generic [ref=f6e293]:
+    - generic [ref=f6e294]: −900m · 下潜航线
+    - generic [ref=f6e295]: ✦ 发展路线图
+    - heading "正在发生的下一步" [level=2] [ref=f6e296]
+    - generic [ref=f6e297]: ✦
+    - paragraph [ref=f6e298]: 路线图可能包含尚未交付的目标能力，以仓库当前实现为准。
+    - generic [ref=f6e299]:
+      - generic [ref=f6e301]:
+        - generic [ref=f6e302]: −100m
+        - generic [ref=f6e304]:
+          - generic [ref=f6e305]: NEXT-01
+          - heading "Actions 能力面扩展" [level=4] [ref=f6e306]
+          - paragraph [ref=f6e307]: 接入更多外部服务，支持参数表单与更细粒度权限。
+          - generic [ref=f6e308]: 规划中
+      - generic [ref=f6e309]:
+        - generic [ref=f6e310]: −300m
+        - generic [ref=f6e312]:
+          - generic [ref=f6e313]: NEXT-02
+          - heading "远程插件中心" [level=4] [ref=f6e314]
+          - paragraph [ref=f6e315]: 在线插件市场，一键安装与更新社区技能和扩展服务。
+          - generic [ref=f6e316]: 规划中
+      - generic [ref=f6e317]:
+        - generic [ref=f6e318]: −500m
+        - generic [ref=f6e320]:
+          - generic [ref=f6e321]: NEXT-03
+          - heading "自定义 CLI 与指令" [level=4] [ref=f6e322]
+          - paragraph [ref=f6e323]: 注册你自己的快捷指令与命令，常用操作一键完成。
+          - generic [ref=f6e324]: 规划中
+      - generic [ref=f6e325]:
+        - generic [ref=f6e326]: −700m
+        - generic [ref=f6e328]:
+          - generic [ref=f6e329]: NEXT-04
+          - heading "项目图谱与沉浸式 Wiki" [level=4] [ref=f6e330]
+          - paragraph [ref=f6e331]: 代码知识图谱可视化 + 项目级知识沉淀。
+          - generic [ref=f6e332]: 设计中
+      - generic [ref=f6e333]:
+        - generic [ref=f6e334]: −900m
+        - generic [ref=f6e336]:
+          - generic [ref=f6e337]: NEXT-05
+          - heading "需求具现化工作台" [level=4] [ref=f6e338]
+          - paragraph [ref=f6e339]: 需求分析 → 智能分配管线 → 原型生成 → 持久化工作台。
+          - generic [ref=f6e340]: 设计中
+    - heading "功能域全景" [level=3] [ref=f6e341]
+    - paragraph [ref=f6e342]: 18 个功能域 —— 已集成 / 部分集成 / 规划中
+    - generic [ref=f6e343]:
+      - generic [ref=f6e344]:
+        - generic [ref=f6e345]:
+          - heading "代码智能" [level=5] [ref=f6e346]
+          - generic [ref=f6e347]: 已集成
+        - paragraph [ref=f6e348]: 语义级代码检索、风险分析与重构
+      - generic [ref=f6e349]:
+        - generic [ref=f6e350]:
+          - heading "知识中心" [level=5] [ref=f6e351]
+          - generic [ref=f6e352]: 已集成
+        - paragraph [ref=f6e353]: 项目 Wiki · 长期记忆 · 行为记忆
+      - generic [ref=f6e354]:
+        - generic [ref=f6e355]:
+          - heading "移动开发" [level=5] [ref=f6e356]
+          - generic [ref=f6e357]: 持续集成
+        - paragraph [ref=f6e358]: Flutter · Android · HarmonyOS · RN
+      - generic [ref=f6e359]:
+        - generic [ref=f6e360]:
+          - heading "桌面开发" [level=5] [ref=f6e361]
+          - generic [ref=f6e362]: 规划中
+        - paragraph [ref=f6e363]: Apple · Qt/KDE · Tauri · deepin
+      - generic [ref=f6e364]:
+        - generic [ref=f6e365]:
+          - heading ".NET 开发" [level=5] [ref=f6e366]
+          - generic [ref=f6e367]: 规划中
+        - paragraph [ref=f6e368]: 覆盖 C#、Web、云原生等 12 个领域
+      - generic [ref=f6e369]:
+        - generic [ref=f6e370]:
+          - heading "设计生成" [level=5] [ref=f6e371]
+          - generic [ref=f6e372]: 已集成
+        - paragraph [ref=f6e373]: 设计稿 · 交互原型 · 视觉特效
+      - generic [ref=f6e374]:
+        - generic [ref=f6e375]:
+          - heading "办公套件" [level=5] [ref=f6e376]
+          - generic [ref=f6e377]: 部分集成
+        - paragraph [ref=f6e378]: 演示文稿 · 文档与表格生成
+      - generic [ref=f6e379]:
+        - generic [ref=f6e380]:
+          - heading "浏览器与联网" [level=5] [ref=f6e381]
+          - generic [ref=f6e382]: 已集成
+        - paragraph [ref=f6e383]: 浏览器自动化 · 联网搜索
+      - generic [ref=f6e384]:
+        - generic [ref=f6e385]:
+          - heading "桌面自动化" [level=5] [ref=f6e386]
+          - generic [ref=f6e387]: 规划中
+        - paragraph [ref=f6e388]: 桌面软件操控 · 模拟器交互
+      - generic [ref=f6e389]:
+        - generic [ref=f6e390]:
+          - heading "引擎演进" [level=5] [ref=f6e391]
+          - generic [ref=f6e392]: 已集成
+        - paragraph [ref=f6e393]: 计划模式 · 长程任务 · 交互升级
+      - generic [ref=f6e394]:
+        - generic [ref=f6e395]:
+          - heading "自进化" [level=5] [ref=f6e396]
+          - generic [ref=f6e397]: 部分集成
+        - paragraph [ref=f6e398]: 技能生成 · 质量评估 · 自我改进
+      - generic [ref=f6e399]:
+        - generic [ref=f6e400]:
+          - heading "插件中心" [level=5] [ref=f6e401]
+          - generic [ref=f6e402]: 部分集成
+        - paragraph [ref=f6e403]: 统一插件管理 · 安装安全扫描
+      - generic [ref=f6e404]:
+        - generic [ref=f6e405]:
+          - heading "远程接入" [level=5] [ref=f6e406]
+          - generic [ref=f6e407]: 规划中
+        - paragraph [ref=f6e408]: 手机与远程浏览器随时接入
+      - generic [ref=f6e409]:
+        - generic [ref=f6e410]:
+          - heading "语音双工" [level=5] [ref=f6e411]
+          - generic [ref=f6e412]: 规划中
+        - paragraph [ref=f6e413]: 语音输入替代键盘，本地优先
+      - generic [ref=f6e414]:
+        - generic [ref=f6e415]:
+          - heading "统一模型网关" [level=5] [ref=f6e416]
+          - generic [ref=f6e417]: 规划中
+        - paragraph [ref=f6e418]: 多模型提供商统一接入
+      - generic [ref=f6e419]:
+        - generic [ref=f6e420]:
+          - heading "能力编排协议" [level=5] [ref=f6e421]
+          - generic [ref=f6e422]: 已集成
+        - paragraph [ref=f6e423]: 能力一次定义，多处调用
+      - generic [ref=f6e424]:
+        - generic [ref=f6e425]:
+          - heading "密钥保险库" [level=5] [ref=f6e426]
+          - generic [ref=f6e427]: 规划中
+        - paragraph [ref=f6e428]: 凭证加密存储，按需安全注入
+      - generic [ref=f6e429]:
+        - generic [ref=f6e430]:
+          - heading "3D 与制造" [level=5] [ref=f6e431]
+          - generic [ref=f6e432]: 规划中
+        - paragraph [ref=f6e433]: CAD 模型生成 · 3D 交互预览
+  - generic [ref=f6e435]:
+    - generic [ref=f6e436]: −1000m · 深渊营地
+    - generic [ref=f6e437]: ✦ 快速开始
+    - heading "三步部署，即刻创作" [level=2] [ref=f6e438]
+    - generic [ref=f6e439]: ✦
+    - paragraph [ref=f6e440]: 需要 Node.js 22+ 与 npm 10.9+；Windows 上 bash 工具需要 Git Bash。
+    - generic [ref=f6e441]:
+      - generic [ref=f6e442]:
+        - generic [ref=f6e443]: "01"
+        - generic [ref=f6e444]:
+          - heading "获取应用" [level=4] [ref=f6e445]
+          - paragraph [ref=f6e446]: 克隆仓库并安装依赖，一条命令构建并启动桌面客户端。
+          - generic [ref=f6e447]: "# clone & install git clone https://github.com/d2rabbit/deepOrca.git cd deepOrca && npm install # build & run desktop client npm run desktop:start"
+      - generic [ref=f6e448]:
+        - generic [ref=f6e449]: "02"
+        - generic [ref=f6e450]:
+          - heading "接入模型" [level=4] [ref=f6e451]
+          - paragraph [ref=f6e452]: 创建 ~/.deeporca/settings.json（已有 ~/.deepcode 配置会直接沿用，无需迁移）。
+          - generic [ref=f6e453]: "{ \"env\": { \"MODEL\": \"deepseek-v4-pro\", \"BASE_URL\": \"https://api.deepseek.com\", \"API_KEY\": \"sk-...\" }, \"thinkingEnabled\": true, \"reasoningEffort\": \"max\" }"
+      - generic [ref=f6e454]:
+        - generic [ref=f6e455]: "03"
+        - generic [ref=f6e456]:
+          - heading "开始创作" [level=4] [ref=f6e457]
+          - paragraph [ref=f6e458]: 描述你的需求 —— 原型、设计稿、代码，虎鲸接手剩下的工作。
+          - generic [ref=f6e459]: "# try in the composer \"帮我搭一个看板管理原型\" \"出一个玻璃拟态的落地页设计稿\""
+  - generic [ref=f6e461]:
+    - heading "开启你的创作之旅" [level=2] [ref=f6e463]
+    - paragraph [ref=f6e464]: 原型、设计、编码 —— 让 AI 虎鲸成为你的创作伙伴。
+    - generic [ref=f6e465]:
+      - link "下载 Studio" [ref=f6e466] [cursor=pointer]:
+        - /url: https://github.com/d2rabbit/deepOrca/releases
+      - link "Star on GitHub →" [ref=f6e470] [cursor=pointer]:
+        - /url: https://github.com/d2rabbit/deepOrca
+  - contentinfo [ref=f6e471]:
+    - generic [ref=f6e472]:
+      - link "DeepOrca" [ref=f6e473] [cursor=pointer]:
+        - /url: "#top"
+      - navigation [ref=f6e475]:
+        - link "GitHub" [ref=f6e476] [cursor=pointer]:
+          - /url: https://github.com/d2rabbit/deepOrca
+        - link "Releases" [ref=f6e477] [cursor=pointer]:
+          - /url: https://github.com/d2rabbit/deepOrca/releases
+        - link "文档" [ref=f6e478] [cursor=pointer]:
+          - /url: https://github.com/d2rabbit/deepOrca/tree/master/docs
+        - link "Issues" [ref=f6e479] [cursor=pointer]:
+          - /url: https://github.com/d2rabbit/deepOrca/issues
+        - link "License" [ref=f6e480] [cursor=pointer]:
+          - /url: https://github.com/d2rabbit/deepOrca/blob/master/LICENSE
+      - paragraph [ref=f6e481]:
+        - text: MIT License · © 2026 DeepOrca · 源自
+        - link "Deep Code" [ref=f6e482] [cursor=pointer]:
+          - /url: https://github.com/lessweb/deepcode-cli
+        - text: （© 2026 lessweb，MIT）
+  - dialog
