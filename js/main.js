@@ -658,16 +658,34 @@ if (finale && "IntersectionObserver" in window) {
       pod.style.top = `${y}vh`;
       pod.style.setProperty("--dur", `${Math.round(dur)}ms`);
 
-      // whale leads; orcas chase behind, slightly staggered in depth
-      const whaleLeft = Math.round(w * 0.95);
-      let html = `<img class="whale" src="${WHALE_SRC}" alt="" style="width:${Math.round(w)}px;left:${whaleLeft}px;top:0">`;
-      let cursor = whaleLeft;
-      for (let i = 0; i < orcas; i++) {
-        const ow = Math.round(w * (0.48 + Math.random() * 0.08) * (1 - i * 0.05));
-        cursor -= Math.round(ow * (0.9 + Math.random() * 0.5));
-        const oy = Math.round(10 + Math.random() * 44 + (i % 2) * 22);
-        html += `<img src="${ORCA_SRC}" alt="" style="width:${ow}px;left:${cursor}px;top:${oy}px">`;
-        cursor -= Math.round(24 + Math.random() * 36);
+      // art faces LEFT natively; CSS flips imgs for rightward travel.
+      // whale always leads in the direction of travel: rightmost for ltr, leftmost for rtl.
+      const whaleW = Math.round(w);
+      let html;
+      if (rtl) {
+        html = `<img class="whale" src="${WHALE_SRC}" alt="" style="width:${whaleW}px;left:0;top:0">`;
+        let cursor = Math.round(w * 0.35);
+        for (let i = 0; i < orcas; i++) {
+          const ow = Math.round(w * (0.48 + Math.random() * 0.08) * (1 - i * 0.05));
+          cursor += Math.round(ow * (0.35 + Math.random() * 0.25));
+          const oy = Math.round(10 + Math.random() * 44 + (i % 2) * 22);
+          const bobt = (4.2 + Math.random() * 1.6).toFixed(2);
+          const bobd = (Math.random() * 2).toFixed(2);
+          html += `<img src="${ORCA_SRC}" alt="" style="width:${ow}px;left:${cursor}px;top:${oy}px;--bobt:${bobt}s;--bobd:${bobd}s">`;
+          cursor += Math.round(24 + Math.random() * 36);
+        }
+      } else {
+        html = `<img class="whale" src="${WHALE_SRC}" alt="" style="width:${whaleW}px;left:${whaleLeft}px;top:0;--bobt:7s">`;
+        let cursor = whaleLeft;
+        for (let i = 0; i < orcas; i++) {
+          const ow = Math.round(w * (0.48 + Math.random() * 0.08) * (1 - i * 0.05));
+          cursor -= Math.round(ow * (0.9 + Math.random() * 0.5));
+          const oy = Math.round(10 + Math.random() * 44 + (i % 2) * 22);
+          const bobt = (4.2 + Math.random() * 1.6).toFixed(2);
+          const bobd = (Math.random() * 2).toFixed(2);
+          html += `<img src="${ORCA_SRC}" alt="" style="width:${ow}px;left:${cursor}px;top:${oy}px;--bobt:${bobt}s;--bobd:${bobd}s">`;
+          cursor -= Math.round(24 + Math.random() * 36);
+        }
       }
       pod.innerHTML = html;
       document.body.appendChild(pod);

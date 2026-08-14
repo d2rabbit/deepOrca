@@ -1841,8 +1841,16 @@ body::after {
 .hunt-pod.rtl {
   animation-direction: reverse;
 }
-.hunt-pod.rtl img {
+.hunt-pod img {
   transform: scaleX(-1);
+  animation: pod-bob var(--bobt, 5s) ease-in-out var(--bobd, 0s) infinite alternate;
+}
+.hunt-pod.rtl img {
+  transform: none;
+}
+@keyframes pod-bob {
+  from { margin-top: 0; }
+  to { margin-top: -12px; }
 }
 :root .hunt-pod { --po: 0.16; }
 [data-theme="dark"] .hunt-pod { --po: 0.22; }
