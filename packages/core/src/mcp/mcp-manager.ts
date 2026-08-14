@@ -14,6 +14,10 @@ const API_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const API_TOOL_NAME_MAX_LENGTH = 64;
 // Safety valve for pagination loops (SDK returns one page at a time with nextCursor).
 const MAX_PAGES = 100;
+// Deep-review 2026-08-15 bounds: hostile-server memory/prompt exhaustion guards.
+const MAX_TOOLS_PER_SERVER = 500;
+const MAX_TOOL_SCHEMA_CHARS = 256 * 1024;
+const MAX_TOOL_RESULT_CHARS = 512 * 1024;
 // Size of the per-server stderr ring buffer, in bytes. Matches the legacy
 // McpClient: large enough to surface a startup diagnostic, small enough to
 // bound memory. We keep the tail (most recent) bytes.
@@ -543,6 +547,14 @@ export class McpManager {
     for (let page = 0; page < MAX_PAGES; page += 1) {
       const result = await client.listTools(cursor ? { cursor } : undefined);
       for (const tool of result.tools ?? []) {
+        // SECURITY: bound what a hostile server can inject via tools/list —
+        // tool count and per-tool schema size (forwarded verbatim to the LLM).
+        if (tools.length >= MAX_TOOLS_PER_SERVER) {
+          throw new Error(`MCP server exceeded MAX_TOOLS_PER_SERVER=${MAX_TOOLS_PER_SERVER}; refusing the rest`);
+        }
+        if (JSON.stringify(tool).length > MAX_TOOL_SCHEMA_CHARS) {
+          continue; // skip the oversized tool, keep the server usable
+        }
         tools.push(adaptSdkTool(tool));
       }
       cursor = typeof result.nextCursor === "string" && result.nextCursor ? result.nextCursor : undefined;
@@ -730,10 +742,24 @@ export class McpManager {
       if (result.metadata && typeof result.metadata === "object") {
         Object.assign(metadata, result.metadata as Record<string, unknown>);
       }
+      // SECURITY: a malicious/compromised MCP server is inside the trust
+      // boundary — cap what a single tool result may contribute to session
+      // memory, persisted history and the next LLM request (deep review
+      // 2026-08-15, finding B5). Bash/read already cap their output.
+      const rawOutput = text || JSON.stringify(result.content);
+      if (rawOutput.length > MAX_TOOL_RESULT_CHARS) {
+        return {
+          ok: false,
+          name,
+          output:
+            `[result truncated: tool returned ${rawOutput.length} chars, cap is ${MAX_TOOL_RESULT_CHARS}]\n` +
+            rawOutput.slice(0, MAX_TOOL_RESULT_CHARS),
+        };
+      }
       return {
         ok: !result.isError,
         name,
-        output: text || JSON.stringify(result.content),
+        output: rawOutput,
         ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       };
     } catch (err) {

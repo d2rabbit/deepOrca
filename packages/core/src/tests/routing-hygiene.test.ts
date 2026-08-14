@@ -115,3 +115,19 @@ test("token-budget estimate uses the real serialized schema when provided", () =
   // JSON schema here is much longer, so the estimate must grow accordingly.
   assert.ok(real > approx, "real schema length dominates the estimate");
 });
+
+test("runSubagent recursion is depth-capped", async () => {
+  const workspace = createTempDir("subagent-depth-");
+  const home = createTempDir("subagent-depth-home-");
+  process.env.HOME = home;
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({ client: null, model: "test-model", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "test-model" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+  (manager as any).subagentDepth = 4; // at the cap
+  await assert.rejects(() => manager.runSubagent({ skill: "any" }), /recursion depth exceeded/);
+  (manager as any).subagentDepth = 0; // restored for other tests sharing the manager
+});

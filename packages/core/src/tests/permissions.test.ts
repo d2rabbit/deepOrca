@@ -668,3 +668,54 @@ function createTempDir(prefix: string): string {
   tempDirs.push(dir);
   return dir;
 }
+
+// ── Deep review 2026-08-15 (B1): previously-evadable destructive commands ──
+
+test("inferBashSideEffects catches find -delete (flag, not word)", () => {
+  const scopes = inferBashSideEffects("find /tmp/scratch -name '*.log' -delete");
+  assert.ok(scopes.includes("delete-in-cwd"));
+  assert.ok(scopes.includes("delete-out-cwd"));
+});
+
+test("inferBashSideEffects catches inline-code interpreters (python -c / node -e)", () => {
+  for (const cmd of [
+    "python3 -c \"import shutil; shutil.rmtree('/x')\"",
+    "node -e \"require('fs').rmSync('/x', {recursive: true})\"",
+    "perl -e 'unlink glob(\"*\")'",
+    "sh -lc 'rm -rf ~'",
+  ]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(
+      scopes.includes("delete-out-cwd") && scopes.includes("write-out-cwd"),
+      `interpreter exec must classify as destructive: ${cmd} → ${JSON.stringify(scopes)}`
+    );
+  }
+});
+
+test("inferBashSideEffects catches decoded-payload pipes (base64 | sh)", () => {
+  for (const cmd of ["echo cm0gLXJmIH4= | base64 -d | sh", "echo … | openssl enc -d -a | bash", "cat payload | zsh"]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(
+      scopes.includes("delete-out-cwd"),
+      `decode-pipe must classify as destructive: ${cmd} → ${JSON.stringify(scopes)}`
+    );
+  }
+});
+
+test("inferBashSideEffects catches raw block-device / truncation utilities", () => {
+  for (const cmd of ["dd if=/dev/zero of=/dev/sda", "truncate -s 0 important.db", "mkfs.ext4 /dev/sdb1"]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(
+      scopes.includes("write-out-cwd") && scopes.includes("delete-out-cwd"),
+      `wrecking utility must classify: ${cmd} → ${JSON.stringify(scopes)}`
+    );
+  }
+});
+
+test("benign commands still classify clean (no regression)", () => {
+  assert.deepEqual(inferBashSideEffects("rg TODO src"), []);
+  assert.deepEqual(inferBashSideEffects("ls -la"), []);
+  assert.deepEqual(inferBashSideEffects("cat package.json"), []);
+  // `git status` with a $VAR-looking token still only unknown (existing behavior).
+  assert.deepEqual(inferBashSideEffects("echo $x"), ["unknown"]);
+});

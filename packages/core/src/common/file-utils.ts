@@ -25,9 +25,21 @@ export function detectEncoding(buffer: Buffer): BufferEncoding {
   return "utf8";
 }
 
+/**
+ * Hard cap on single-file reads (deep review 2026-08-15, B4): the read tool
+ * applies offset/limit AFTER loading, so without this a multi-GB file would
+ * be fully materialized in memory (and images base64-expanded further).
+ */
+export const MAX_READ_FILE_BYTES = 128 * 1024 * 1024;
+
 export function readTextFileWithMetadata(filePath: string): FileReadMetadata {
-  const buffer = fs.readFileSync(filePath);
   const stat = fs.statSync(filePath);
+  if (stat.size > MAX_READ_FILE_BYTES) {
+    throw new Error(
+      `File is too large to read (${(stat.size / 1024 / 1024).toFixed(1)}MB, cap ${MAX_READ_FILE_BYTES / 1024 / 1024}MB)`
+    );
+  }
+  const buffer = fs.readFileSync(filePath);
   const encoding = detectEncoding(buffer);
   const raw = buffer.toString(encoding);
 

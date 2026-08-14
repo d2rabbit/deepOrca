@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import ignore from "ignore";
 import type { ToolExecutionContext, ToolExecutionFollowUpMessage, ToolExecutionResult } from "./executor";
-import { readTextFileWithMetadata } from "../common/file-utils";
+import { readTextFileWithMetadata, MAX_READ_FILE_BYTES } from "../common/file-utils";
 import {
   createFullFileSnippet,
   createSnippet,
@@ -151,6 +151,13 @@ export async function handleReadTool(
     }
 
     if (ext === ".pdf") {
+      if (stat.size > MAX_READ_FILE_BYTES) {
+        return {
+          ok: false,
+          name: "read",
+          error: `File is too large to read (${(stat.size / 1024 / 1024).toFixed(1)}MB, cap ${MAX_READ_FILE_BYTES / 1024 / 1024}MB)`,
+        };
+      }
       const buffer = fs.readFileSync(filePath);
       const pageCount = countPdfPages(buffer);
       markFileRead(context.sessionId, filePath, {
@@ -172,6 +179,13 @@ export async function handleReadTool(
     }
 
     if (isImageExtension(ext)) {
+      if (stat.size > MAX_READ_FILE_BYTES) {
+        return {
+          ok: false,
+          name: "read",
+          error: `File is too large to read (${(stat.size / 1024 / 1024).toFixed(1)}MB, cap ${MAX_READ_FILE_BYTES / 1024 / 1024}MB)`,
+        };
+      }
       const buffer = fs.readFileSync(filePath);
       const mime = getImageMimeType(ext);
       markFileRead(context.sessionId, filePath, {

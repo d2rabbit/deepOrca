@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔒 安全
 
+- **全域深度代码审查第二轮：三通道审查 + 10 项修复**（报告：`docs/security-audit-2026-08-15-deep-review.md`）
+  - **HIGH debug 日志脱敏**：debug.log 此前全量未脱敏落盘（完整 LLM 请求、SDK 错误栈内嵌 Bearer token），0644 且无上限——复用 error-logger 的 redaction 管道（敏感键掩蔽 + content 截断），目录 0700/文件 0600，20MB 容量上限
+  - **HIGH bash 分类器扩充**：`find -delete`、`python -c`/`node -e` 等解释器内联代码、`base64 -d | sh` 解码管道、`dd`/`truncate` 块设备工具此前全部推断为空直放过——现一律归 out-of-cwd 破坏性 scope（+5 组回归测试，良性命令无回归）
+  - **MED design-store id 包含校验**：`../../` 可致递归删除任意目录（含校验 + 回归测试）
+  - **MED MCP 恶意服务器防护**：工具结果 512KB 截断、tools/list 工具数 ≤500/单 schema ≤256KB（传输层无界行为列为已接受风险待上游）
+  - **MED read 工具 128MB 前置大小守卫**（此前整读后分页，多 GB 文件全量入内存）
+  - **MED isPathInProject realpath 加固**（项目内 symlink 指向 /etc 不再按 in-project 归类）
+  - **MED runSubagent 递归上限 4**（互递归技能不再无界嵌套）
+  - **MED 会话 JSONL 0600**（明文对话不再随 umask 可读）
+  - LOW：WebSearch 默认端点结果截断；machineId 去主机名（不再外发机器名）+0600；git checkout 拒绝前导 `-` 分支名
+  - 经核验安全：IPC 三层分级/DOMPurify+CSP/.dd iframe 沙箱/sender 三重验证/bash 无 TOCTOU/sqlite 参数化——详见报告§二
+
 - **2026-08-12 安全审计整改落地 + 全域自查**（跟进报告：`docs/security-audit-2026-08-15-followup.md`）
   - **P0 路径穿越修复**：`profile-sync.ts` 远程 filename 经 `safeBlockFilename` containment（拒绝 `..`/分隔符/绝对路径/重复名，resolve 后校验仍在 tempBlocksDir 内）——此前恶意 store 可把写入逃逸到 live scene_blocks 之外；+2 回归测试
   - **P0 动态 require 修复**：`find-skill.js` 不再从 `process.cwd()` 解析 `gray-matter`（不可信工作区可借恶意 node_modules 执行代码），仅从技能自身目录解析

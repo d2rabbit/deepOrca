@@ -68,7 +68,8 @@ function truncateContent(value: string): string {
  * This is applied to request, response and error cause payloads so structured
  * headers/auth/cookies cannot leak into logs.
  */
-function redactSensitiveKeys(value: unknown): unknown {
+/** Exported for debug-logger — one redaction implementation, two log sinks. */
+export function redactSensitiveKeys(value: unknown): unknown {
   // Primitive leaf: run the string masker on strings.
   if (value === null || typeof value !== "object") {
     return typeof value === "string" ? maskSensitive(value) : value;

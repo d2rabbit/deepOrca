@@ -429,10 +429,34 @@ export function inferBashSideEffects(command: string): AskPermissionScope[] {
 
   // Deletion commands (high confidence).
   const deleteRe = /\b(rm|rmdir|del|erase|unlink|shred|trash)\b/;
-  if (deleteRe.test(lower)) {
+  if (deleteRe.test(lower) || /(^|[\s=])-delete\b/.test(lower)) {
     scopes.add("delete-in-cwd");
     // rm can obviously target files outside the cwd too; flag both.
     scopes.add("delete-out-cwd");
+  }
+
+  // Raw block-device / file-wrecking utilities (deep review 2026-08-15, B1):
+  // none of these matched any previous pattern.
+  if (/\b(dd|truncate|mkfs(\.[a-z0-9]+)?|wipefs|fdisk|sfdisk|parted)\b/.test(lower)) {
+    scopes.add("delete-out-cwd");
+    scopes.add("write-out-cwd");
+  }
+
+  // Inline-code interpreters (`python -c`, `node -e`, `perl -e`, sh -lc …):
+  // the payload is opaque to any tokeniser and can do ANYTHING — classify as
+  // out-of-cwd destructive rather than merely "unknown" so non-allowAll
+  // policies intercept it (previously returned [] and sailed through).
+  if (
+    /\b(python3?|node|deno|bun|perl|ruby|php|lua|osascript|bash|sh|zsh|dash|ksh|powershell|pwsh)\b[^|;&]*\s(-c|-e|-lc|-rc|--eval|--command)\b/.test(
+      lower
+    ) ||
+    // Decoded-payload pipes: `echo …| base64 -d | sh`, `… | openssl enc -d | sh`.
+    /\b(base64|openssl|xxd|uudecode)\b[^|]*\|/.test(lower) ||
+    // Pipe into a shell with no args executes the upstream output as code.
+    /\|\s*(env\s+)?(ba|z|da|k|fish|c|tc)?sh\b/.test(lower)
+  ) {
+    scopes.add("delete-out-cwd");
+    scopes.add("write-out-cwd");
   }
 
   // Git history mutation (high confidence — these rewrites are irreversible).
@@ -609,8 +633,33 @@ export function formatToolPathCommand(toolName: string, filePath: string): strin
 export function isPathInProject(projectRoot: string, filePath: string): boolean {
   const normalized = normalizeFilePath(filePath);
   const absolutePath = isAbsoluteFilePath(normalized) ? normalized : path.resolve(projectRoot, normalized);
+  // Hardening (deep review 2026-08-15, B3): a symlink planted INSIDE the
+  // project could point at /etc while lexical resolution still classifies the
+  // target as in-project (and thus pre-allowed). When both ends exist, prefer
+  // the real paths; fall back to the lexical answer when realpath fails
+  // (file not created yet / permissions), preserving prior behavior.
+  const realPath = safeRealPath(absolutePath);
+  const realRoot = safeRealPath(projectRoot);
+  if (realPath && realRoot) {
+    const realRelative = path.relative(realRoot, realPath);
+    if (realRelative === "" || (!realRelative.startsWith("..") && !path.isAbsolute(realRelative))) {
+      return true;
+    }
+    // realpath resolved and clearly escapes — trust it over the lexical answer.
+    if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
+      return false;
+    }
+  }
   const relative = path.relative(path.resolve(projectRoot), path.resolve(absolutePath));
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function safeRealPath(target: string): string | null {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return null;
+  }
 }
 
 export function isPathInAnyDirectory(

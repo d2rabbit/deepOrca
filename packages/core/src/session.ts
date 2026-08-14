@@ -168,6 +168,8 @@ const PROJECT_CODE_HASH_LENGTH = 16;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 /** Retry window after a failed router/embedding load (R4 backoff). */
 const ROUTING_LOAD_RETRY_BACKOFF_MS = 60_000;
+/** Subagent nesting cap (deep review 2026-08-15, B6). */
+const MAX_SUBAGENT_DEPTH = 4;
 const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
 const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
 // Compaction wants faithful, reproducible summaries — a fixed low temperature
@@ -778,6 +780,8 @@ export class SessionManager {
   private routerInitPromise: Promise<RouterBundle> | null = null;
   /** When the last router load FAILED (0 = never / success) — retry backoff (R4). */
   private routingLoadFailedAt = 0;
+  /** Current subagent nesting depth (recursion cap, deep review 2026-08-15 B6). */
+  private subagentDepth = 0;
   /** Sessions that mutated files during the current turn and need a CodeGraph index sync. */
   private readonly codegraphDirtySessions = new Set<string>();
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
@@ -921,7 +925,8 @@ export class SessionManager {
    *
    * Re-entrancy: the engine is subagent-friendly — activateSession is keyed by
    * sessionId over Map<sessionId> state, so nested invocations don't collide.
-   * No recursion guard yet (arch-scan doesn't recurse); add a depth cap later.
+   * Recursion is capped at MAX_SUBAGENT_DEPTH (deep review 2026-08-15, B6): a
+   * mutually-recursive skill pair would otherwise nest unbounded LLM loops.
    */
   /**
    * LLM single-choice judgment for classification-shaped actions (flash
@@ -971,7 +976,11 @@ export class SessionManager {
   }
 
   async runSubagent(opts: RunSubagentOptions): Promise<{ sessionId: string; content: string | null }> {
+    if (this.subagentDepth >= MAX_SUBAGENT_DEPTH) {
+      throw new Error(`Subagent recursion depth exceeded (>${MAX_SUBAGENT_DEPTH}) — mutually-recursive skills?`);
+    }
     const previousActive = this.activeSessionId;
+    this.subagentDepth += 1;
     // Force-load the named skill (don't rely on auto-match alone).
     let skillInfo: SkillInfo | undefined;
     try {
@@ -995,6 +1004,7 @@ export class SessionManager {
     } finally {
       // Restore the parent as the active session so the UI returns to it.
       this.activeSessionId = previousActive;
+      this.subagentDepth = Math.max(0, this.subagentDepth - 1);
     }
   }
 
@@ -4229,7 +4239,9 @@ ${content}
   private appendSessionMessage(sessionId: string, message: SessionMessage): void {
     this.ensureProjectDir();
     const messagePath = this.getSessionMessagesPath(sessionId);
-    fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, "utf8");
+    // Restrictive perms (deep review 2026-08-15, C2): transcripts carry user
+    // code and tool output — same 0600 treatment settings.json already gets.
+    fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, { encoding: "utf8", mode: 0o600 });
     // Invalidate cache so the next listSessionMessages re-reads from disk.
     this.messageCache.delete(sessionId);
   }
@@ -4238,7 +4250,7 @@ ${content}
     this.ensureProjectDir();
     const messagePath = this.getSessionMessagesPath(sessionId);
     const payload = messages.map((message) => JSON.stringify(message)).join("\n");
-    fs.writeFileSync(messagePath, payload ? `${payload}\n` : "", "utf8");
+    fs.writeFileSync(messagePath, payload ? `${payload}\n` : "", { encoding: "utf8", mode: 0o600 });
     // Update cache with the saved array (avoids a disk re-read).
     this.messageCache.set(sessionId, messages);
   }

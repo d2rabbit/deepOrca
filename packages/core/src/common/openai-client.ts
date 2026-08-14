@@ -1,10 +1,10 @@
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
 import { getUserConfigRoot } from "./app-dirs";
 import { resolveCurrentSettings } from "../settings";
+import { randomUUID as cryptoRandomUUID } from "node:crypto";
 
 // Custom undici Agent with a 180-second keepAlive timeout.  The default
 // global fetch (undici) only keeps connections alive for 4 seconds, which
@@ -116,9 +116,12 @@ function getMachineId(): string | undefined {
         return raw;
       }
     }
-    const generated = `${os.hostname()}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-    fs.mkdirSync(path.dirname(idPath), { recursive: true });
-    fs.writeFileSync(idPath, generated, "utf8");
+    // Privacy (deep review 2026-08-15, C3): the id is sent as a telemetry
+    // header — random only, NO hostname (it used to leak the machine name to
+    // the telemetry/web-search endpoints on every prompt).
+    const generated = `dc-${cryptoRandomUUID()}`;
+    fs.mkdirSync(path.dirname(idPath), { recursive: true, mode: 0o600 });
+    fs.writeFileSync(idPath, generated, { encoding: "utf8", mode: 0o600 });
     return generated;
   } catch {
     return undefined;

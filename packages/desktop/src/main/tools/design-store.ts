@@ -79,8 +79,10 @@ function writeIndex(root: string, index: DesignIndex): void {
 
 /** Full meta (incl. versions) from the artifact directory; null when absent. */
 function readMetaFile(root: string, id: string): DesignArtifactMeta | null {
+  const dir = resolveArtifactDir(root, id);
+  if (!dir) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(getDesignsDir(root), id, "meta.json"), "utf8")) as DesignArtifactMeta;
+    return JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8")) as DesignArtifactMeta;
   } catch {
     return null;
   }
@@ -133,16 +135,17 @@ export function saveDesignArtifact(
       ...(versions.length > 0 ? { versions } : {}),
     };
 
-    const artifactDir = path.join(dir, meta.id);
-    fs.mkdirSync(artifactDir, { recursive: true });
-    fs.writeFileSync(path.join(artifactDir, FILE_BY_PIPELINE[meta.pipeline]), input.content, "utf8");
-    fs.writeFileSync(path.join(artifactDir, "meta.json"), JSON.stringify(meta, null, 2), "utf8");
+    const artifactDirPath = path.join(dir, meta.id);
+    fs.mkdirSync(artifactDirPath, { recursive: true });
+    fs.writeFileSync(path.join(artifactDirPath, FILE_BY_PIPELINE[meta.pipeline]), input.content, "utf8");
+    fs.writeFileSync(path.join(artifactDirPath, "meta.json"), JSON.stringify(meta, null, 2), "utf8");
     if (input.requirement !== undefined && input.requirement !== "") {
-      fs.writeFileSync(path.join(artifactDir, "requirement.md"), input.requirement, "utf8");
+      fs.writeFileSync(path.join(artifactDirPath, "requirement.md"), input.requirement, "utf8");
     }
 
     // Update index (replace or append; index stays light — no versions).
-    const { versions: _versions, ...lightMeta } = meta;
+    const lightMeta: DesignArtifactMeta = { ...meta };
+    delete lightMeta.versions;
     const idx = index.artifacts.findIndex((a) => a.id === meta.id);
     if (idx >= 0) {
       index.artifacts[idx] = lightMeta;
@@ -168,13 +171,15 @@ export function listDesignArtifacts(root: string): DesignArtifactMeta[] {
 
 /** Read a single artifact's full content (incl. requirement and versions). */
 export function readDesignArtifact(root: string, id: string): DesignArtifact | null {
+  const dir = resolveArtifactDir(root, id);
+  if (!dir) return null;
   try {
     const meta = readMetaFile(root, id);
     if (!meta) return null;
-    const content = fs.readFileSync(path.join(getDesignsDir(root), id, FILE_BY_PIPELINE[meta.pipeline]), "utf8");
+    const content = fs.readFileSync(path.join(dir, FILE_BY_PIPELINE[meta.pipeline]), "utf8");
     let requirement: string | undefined;
     try {
-      requirement = fs.readFileSync(path.join(getDesignsDir(root), id, "requirement.md"), "utf8");
+      requirement = fs.readFileSync(path.join(dir, "requirement.md"), "utf8");
     } catch {
       // No requirement recorded.
     }
@@ -184,7 +189,23 @@ export function readDesignArtifact(root: string, id: string): DesignArtifact | n
   }
 }
 
-/** Persist a prototype's interactive form state (called throttled by the UI). */
+/**
+ * SECURITY: artifact ids reach path.join from the renderer. Only a plain
+ * UUID-ish token may become a directory name — traversal/absolute/separator
+ * ids would let a compromised renderer read or (worse) recursively DELETE
+ * outside `.deeporca/designs` (defense in depth on top of the sender policy).
+ */
+function isSafeArtifactId(id: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) && !id.includes("..");
+}
+
+/** Resolve an artifact id to its directory, or null when the id is unsafe. */
+function resolveArtifactDir(root: string, id: string): string | null {
+  if (!isSafeArtifactId(id)) return null;
+  const resolved = path.resolve(getDesignsDir(root), id);
+  const base = path.resolve(getDesignsDir(root));
+  return resolved === path.join(base, id) ? resolved : null;
+}
 export function saveFormState(root: string, id: string, state: unknown): boolean {
   try {
     fs.writeFileSync(
@@ -200,8 +221,10 @@ export function saveFormState(root: string, id: string, state: unknown): boolean
 
 /** Read a persisted form state for hydration; null when none was saved. */
 export function readFormState(root: string, id: string): unknown | null {
+  const dir = resolveArtifactDir(root, id);
+  if (!dir) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(getDesignsDir(root), id, "formState.json"), "utf8")) as unknown;
+    return JSON.parse(fs.readFileSync(path.join(dir, "formState.json"), "utf8")) as unknown;
   } catch {
     return null;
   }
@@ -209,9 +232,10 @@ export function readFormState(root: string, id: string): unknown | null {
 
 /** Delete an artifact (directory + index entry). */
 export function deleteDesignArtifact(root: string, id: string): boolean {
+  const dir = resolveArtifactDir(root, id);
+  if (!dir) return false;
   try {
-    const artifactDir = path.join(getDesignsDir(root), id);
-    fs.rmSync(artifactDir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
     const index = getIndex(root);
     const next = index.artifacts.filter((a) => a.id !== id);
     if (next.length !== index.artifacts.length) {

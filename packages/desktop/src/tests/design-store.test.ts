@@ -110,3 +110,18 @@ test("version snapshots are capped (FIFO beyond the limit)", () => {
   assert.equal(artifact?.versions?.[0]?.content, "v5");
   assert.equal(artifact?.content, "v25");
 });
+
+test("artifact ids with traversal/absolute/separator are rejected (containment)", () => {
+  const root = tempRoot();
+  const meta = saveDesignArtifact(root, { title: "Victim", pipeline: "openui", content: "root = Column([])" });
+  assert.ok(meta);
+
+  const evil = ["../../outside", "..", "/etc", "sub/dir", "a\\b", "."];
+  for (const id of evil) {
+    assert.equal(readDesignArtifact(root, id), null, `read must reject ${id}`);
+    assert.equal(deleteDesignArtifact(root, id), false, `delete must reject ${id}`);
+    assert.equal(readFormState(root, id), null, `formState must reject ${id}`);
+  }
+  // The legitimate artifact is untouched.
+  assert.ok(readDesignArtifact(root, meta!.id));
+});

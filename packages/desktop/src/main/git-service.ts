@@ -92,6 +92,11 @@ export async function checkout(
   if (!trimmed) {
     return { ok: false, error: "Empty branch name" };
   }
+  // A leading dash makes git parse the branch as an option (deep review
+  // 2026-08-15, A3) — reject rather than escape; real branch names don't.
+  if (trimmed.startsWith("-")) {
+    return { ok: false, error: "Invalid branch name (leading dash)" };
+  }
   try {
     await git(cwd, ["checkout", trimmed]);
     return { ok: true };
@@ -114,6 +119,11 @@ export async function stashCheckout(
   const trimmed = branch.trim();
   if (!trimmed) {
     return { ok: false, error: "Empty branch name" };
+  }
+  // A leading dash makes git parse the branch as an option (deep review
+  // 2026-08-15, A3) — reject rather than escape; real branch names don't.
+  if (trimmed.startsWith("-")) {
+    return { ok: false, error: "Invalid branch name (leading dash)" };
   }
   try {
     await git(cwd, [

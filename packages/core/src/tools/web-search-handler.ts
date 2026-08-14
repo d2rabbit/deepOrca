@@ -351,7 +351,15 @@ async function runDefaultWebSearchRequest(
     };
 
     if (typeof payload.result === "string" && payload.result.trim()) {
-      return payload.result.trim();
+      const result = payload.result.trim();
+      // Cap remote-API results (deep review 2026-08-15, B7): the configured-
+      // script path already truncates via MAX_OUTPUT_CHARS; this default path
+      // didn't, letting a compromised endpoint push an unbounded blob into
+      // session history and the next LLM request.
+      if (result.length > MAX_OUTPUT_CHARS) {
+        return `${result.slice(0, MAX_OUTPUT_CHARS)}\n[truncated: ${result.length} chars total]`;
+      }
+      return result;
     }
   } finally {
     context.onProcessExit?.(activityId);
