@@ -770,13 +770,8 @@ export function App(): JSX.Element {
         setModal("undo");
       } else if (cmd === "init") {
         void runPrompt({ text: "/init" });
-      } else if (cmd === "pm-design" || cmd === "prototype") {
-        // PM-Design: trigger prototype creation mode via agent prompt
-        void runPrompt({
-          text: "Create an interactive prototype using the A2UI render_prototype tool. Ask me what to build first.",
-        });
-      } else if (cmd === "pm-design-openui" || cmd === "openui") {
-        // PM-Design (OpenUI Lang mode): use the compact OpenUI Lang syntax
+      } else if (cmd === "pm-design" || cmd === "prototype" || cmd === "pm-design-openui" || cmd === "openui") {
+        // Designer prototypes now use OpenUI Lang as the default pipeline.
         void runPrompt({
           text: "Create an interactive prototype using the render_openui tool with OpenUI Lang syntax. Ask me what to build first.",
         });

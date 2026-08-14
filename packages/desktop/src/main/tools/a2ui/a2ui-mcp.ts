@@ -655,18 +655,16 @@ export function buildA2uiServer(): McpServer {
     }
   );
 
-  // Tool: update_openui — update an existing OpenUI Lang prototype
+  // Tool: update_openui — replace an existing OpenUI Lang prototype with updated code
   registerTool(
     "update_openui",
     {
       description:
-        "Update an OpenUI Lang prototype with new code. Only send changed/new statements — " +
-        "the renderer merges them into the existing program (incremental editing). " +
-        "To delete a statement, set it to null: `oldWidget = null`.",
+        "Replace an existing OpenUI Lang prototype with updated code. " +
+        "Send the complete updated program (full replacement). " +
+        "To iterate efficiently, copy the previous code and modify only the parts that need changing.",
       inputSchema: {
-        code: z
-          .string()
-          .describe("Updated OpenUI Lang code. Can be a full program or just the changed statements (delta)."),
+        code: z.string().describe("Complete updated OpenUI Lang program (full replacement, not delta)."),
       },
     },
     async (args) => {

@@ -34,7 +34,7 @@ export type PreviewState = {
 
 export function usePreview(): PreviewState {
   const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
-  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design">("a2ui");
+  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design">("openui");
   const [prototypeOpenuiCode, setPrototypeOpenuiCode] = useState<string>("");
   const [designContent, setDesignContent] = useState<string | null>(null);
   const [graphHtml, setGraphHtml] = useState<string | null>(null);
@@ -69,6 +69,7 @@ export function usePreview(): PreviewState {
         const meta = parsed.metadata ?? {};
         if (meta.openui) {
           const openuiCode = typeof meta.openui === "string" ? meta.openui : String(meta.openui);
+          // Full replacement — update_openui sends the complete updated program.
           setPrototypeMode("openui");
           setPrototypeOpenuiCode(openuiCode);
           setPreviewOpen(true);

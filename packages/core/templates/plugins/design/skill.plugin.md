@@ -1,15 +1,13 @@
 ---
 name: design
-description: "设计行为插件 — HTML 原型、A2UI 交互原型、设计纪律"
+description: "设计行为插件 — UI 设计稿（.dd）、交互原型（OpenUI Lang）、设计纪律"
 category: design
 icon: design
 skills:
   - name: deep-design
-    description: "DeepDesign — .dd 格式 HTML 原型设计（Tailwind 驱动）"
-  - name: a2ui-prototype
-    description: "A2UI Surfaces 交互原型 — 实时连接 Agent 的增量原型迭代"
+    description: "DeepDesign — .dd 格式 UI 设计稿（自包含 HTML，可脱离宿主交付）"
   - name: pm-designer-openui
-    description: "PM-Designer — OpenUI Lang 原型设计"
+    description: "OpenUI Lang 交互原型 — Designer 默认原型管线"
   - name: taste
     description: "设计纪律规范 — 减少常见设计错误"
 mcp:
@@ -24,11 +22,10 @@ mcp:
 
 ### 技能
 
-- **deep-design** — DeepDesign 格式 HTML 原型设计。使用 `.dd` 格式 + Tailwind CSS 生成高质量 UI 原型。
-- **a2ui-prototype** — 使用 A2UI Surfaces 构建交互式 UI 原型。与 Agent 实时连接，支持增量精炼。适用于原型/模型/线框图/演示场景。
-- **pm-designer-openui** — 使用 OpenUI Lang 进行原型设计。
-- **taste** — 设计纪律规范，减少常见 LLM 设计错误。
+- **deep-design** — DeepDesign 格式 UI 设计稿。使用 `.dd` 格式 + Tailwind CSS 生成自包含 HTML 设计稿，可脱离 DeepOrca 独立交付。适用于落地页/海报/品牌页等纯展示场景。
+- **pm-designer-openui** — OpenUI Lang 交互原型（**Designer 默认管线**）。紧凑行式 DSL，支持 11 组件库、增量编辑。适用于表单/看板/仪表盘/多页面等交互场景。
+- **taste** — 设计质量纪律规范。10 条 P0 规则 + 排版阶梯 + 颜色/动效/布局规范，适用于所有 UI 生成。
 
 ### MCP 服务器
 
-- **a2ui** — A2UI 进程内 MCP 服务器。提供 A2UI Surfaces 的创建、导航、更新能力，支持自定义目录组件。
+- **a2ui** — 提供 `render_openui`/`update_openui`（OpenUI Lang 原型）、`render_design`/`update_design`（.dd 设计稿）工具。A2UI 的 `render_surface` 等批注工具由 meta-skills 组的 a2ui-annotation 技能管理。
