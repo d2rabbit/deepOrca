@@ -25,7 +25,7 @@ const Column = defineComponent({
   description: "Vertical stack container. Children flow top-to-bottom.",
   props: z.object({
     children: childrenSchema,
-    gap: z.string().optional().describe("Gap between children (e.g. '12px', 'var(--ui-gap)')"),
+    gap: z.string().optional().describe("Gap between children (e.g. '12px', '8px')"),
     padding: z.string().optional(),
     align: z.enum(["left", "center", "right", "stretch"]).optional(),
   }),
@@ -34,7 +34,7 @@ const Column = defineComponent({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: (props.gap as string) ?? "var(--ui-gap)",
+        gap: (props.gap as string) ?? "8px",
         padding: (props.padding as string) ?? undefined,
         alignItems:
           props.align === "center"
@@ -66,7 +66,7 @@ const Row = defineComponent({
       style={{
         display: "flex",
         flexDirection: "row",
-        gap: (props.gap as string) ?? "var(--ui-gap)",
+        gap: (props.gap as string) ?? "8px",
         padding: (props.padding as string) ?? undefined,
         alignItems: props.align === "center" ? "center" : props.align === "bottom" ? "flex-end" : "flex-start",
         justifyContent:
@@ -117,7 +117,7 @@ const Card = defineComponent({
       }}
     >
       {props.title ? (
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: "var(--ui-text-secondary)" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: "var(--ui-text-dim)" }}>
           {props.title as string}
         </div>
       ) : null}
@@ -142,13 +142,13 @@ const TextContent = defineComponent({
   component: ({ props }: ComponentRenderProps<Record<string, unknown>>) => {
     const variant = (props.variant as string) ?? "body";
     const styles: Record<string, React.CSSProperties> = {
-      small: { fontSize: 12, color: "var(--ui-text-secondary)" },
+      small: { fontSize: 12, color: "var(--ui-text-dim)" },
       body: { fontSize: 14, color: "var(--ui-text)" },
       large: { fontSize: 18, color: "var(--ui-text)" },
       "large-heavy": { fontSize: 18, fontWeight: 600, color: "var(--ui-text)" },
       title: { fontSize: 24, fontWeight: 700, color: "var(--ui-text)" },
-      caption: { fontSize: 11, color: "var(--ui-text-muted)" },
-      muted: { fontSize: 13, color: "var(--ui-text-muted)" },
+      caption: { fontSize: 11, color: "var(--ui-text-faint, var(--ui-text-dim))" },
+      muted: { fontSize: 13, color: "var(--ui-text-faint, var(--ui-text-dim))" },
     };
     return <span style={styles[variant] ?? styles.body}>{props.text as string}</span>;
   },
@@ -164,7 +164,7 @@ const Badge = defineComponent({
   component: ({ props }: ComponentRenderProps<Record<string, unknown>>) => {
     const variant = (props.variant as string) ?? "default";
     const colors: Record<string, { bg: string; fg: string }> = {
-      default: { bg: "var(--ui-badge-bg, rgba(255,255,255,0.08))", fg: "var(--ui-text-secondary)" },
+      default: { bg: "rgba(128,128,128,0.15)", fg: "var(--ui-text-dim)" },
       success: { bg: "rgba(34,197,94,0.15)", fg: "#4ade80" },
       warning: { bg: "rgba(251,191,36,0.15)", fg: "#fbbf24" },
       error: { bg: "rgba(239,68,68,0.15)", fg: "#f87171" },
@@ -208,11 +208,11 @@ function ButtonComponent({ props }: ComponentRenderProps<Record<string, unknown>
     primary: { ...base, background: "var(--ui-accent, #3b82f6)", color: "#fff" },
     secondary: {
       ...base,
-      background: "var(--ui-surface-alt, rgba(255,255,255,0.08))",
+      background: "var(--ui-surface-sunken, rgba(128,128,128,0.1))",
       color: "var(--ui-text)",
       border: "1px solid var(--ui-border-soft)",
     },
-    ghost: { ...base, background: "transparent", color: "var(--ui-text-secondary)" },
+    ghost: { ...base, background: "transparent", color: "var(--ui-text-dim)" },
   };
   return (
     <button
@@ -252,9 +252,7 @@ function TextFieldComponent({ props }: ComponentRenderProps<Record<string, unkno
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
       {props.label ? (
-        <label style={{ fontSize: 12, color: "var(--ui-text-secondary)", fontWeight: 500 }}>
-          {props.label as string}
-        </label>
+        <label style={{ fontSize: 12, color: "var(--ui-text-dim)", fontWeight: 500 }}>{props.label as string}</label>
       ) : null}
       <input
         type={(props.type as string) ?? "text"}
@@ -310,7 +308,14 @@ const Metric = defineComponent({
         borderRadius: "var(--ui-radius, 8px)",
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--ui-text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+      <span
+        style={{
+          fontSize: 12,
+          color: "var(--ui-text-faint, var(--ui-text-dim))",
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+        }}
+      >
         {props.label as string}
       </span>
       <span style={{ fontSize: 28, fontWeight: 700, color: "var(--ui-text)" }}>{props.value as string}</span>

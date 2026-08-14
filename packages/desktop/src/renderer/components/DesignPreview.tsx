@@ -7,11 +7,10 @@
  *
  * This is the UI-Design counterpart of PrototypePanel (which handles PM-Design
  * OpenUI Lang prototypes). Used when the preview panel is in "design" mode.
- * Includes an inline iteration composer for prompting changes without leaving
- * the panel (mirrors PrototypePanel's mini composer).
+ * Includes an inline iteration composer + PDF export button.
  */
 
-import { useMemo, useState, type JSX } from "react";
+import { useMemo, useRef, useState, type JSX } from "react";
 import { parseDdFile } from "../dd/parser";
 import { compileDdToHtml } from "../dd/compiler";
 // The vendored Tailwind JIT script — generated at build time by build.mjs
@@ -33,6 +32,7 @@ type Props = {
 
 export function DesignPreview({ ddContent, onIterate, title }: Props): JSX.Element {
   const [iteration, setIteration] = useState("");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const html = useMemo(() => {
     try {
       const doc = parseDdFile(ddContent);
@@ -52,59 +52,86 @@ export function DesignPreview({ ddContent, onIterate, title }: Props): JSX.Eleme
     setIteration("");
   };
 
+  const handleExportPdf = () => {
+    try {
+      iframeRef.current?.contentWindow?.print();
+    } catch {
+      // Cross-origin or not loaded — ignore.
+    }
+  };
+
   return (
     <div
       className="ui-design-preview"
       style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column" }}
     >
       <iframe
+        ref={iframeRef}
         srcDoc={html}
         title={title ?? "DeepDesign Preview"}
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-modals"
         style={{ width: "100%", flex: 1, border: "none", background: "#fff" }}
       />
-      {onIterate ? (
-        <div
-          style={{ display: "flex", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--ui-border-soft, #333)" }}
+      <div style={{ display: "flex", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--ui-border-soft, #333)" }}>
+        {onIterate ? (
+          <>
+            <input
+              type="text"
+              value={iteration}
+              placeholder="描述要修改的地方…"
+              onChange={(e) => setIteration(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleIterate();
+              }}
+              style={{
+                flex: 1,
+                padding: "6px 10px",
+                fontSize: 13,
+                background: "var(--ui-input-bg, transparent)",
+                color: "var(--ui-text, inherit)",
+                border: "1px solid var(--ui-border-soft, #444)",
+                borderRadius: 6,
+                outline: "none",
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleIterate}
+              disabled={!iteration.trim()}
+              style={{
+                padding: "6px 14px",
+                fontSize: 13,
+                background: "var(--ui-accent, #3b82f6)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor: iteration.trim() ? "pointer" : "default",
+                opacity: iteration.trim() ? 1 : 0.5,
+              }}
+            >
+              迭代
+            </button>
+          </>
+        ) : (
+          <div style={{ flex: 1 }} />
+        )}
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          title="导出 PDF"
+          style={{
+            padding: "6px 12px",
+            fontSize: 13,
+            background: "transparent",
+            color: "var(--ui-text-dim, #888)",
+            border: "1px solid var(--ui-border-soft, #444)",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
         >
-          <input
-            type="text"
-            value={iteration}
-            placeholder="描述要修改的地方…"
-            onChange={(e) => setIteration(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleIterate();
-            }}
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              fontSize: 13,
-              background: "var(--ui-input-bg, transparent)",
-              color: "var(--ui-text, inherit)",
-              border: "1px solid var(--ui-border-soft, #444)",
-              borderRadius: 6,
-              outline: "none",
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleIterate}
-            disabled={!iteration.trim()}
-            style={{
-              padding: "6px 14px",
-              fontSize: 13,
-              background: "var(--ui-accent, #3b82f6)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              cursor: iteration.trim() ? "pointer" : "default",
-              opacity: iteration.trim() ? 1 : 0.5,
-            }}
-          >
-            迭代
-          </button>
-        </div>
-      ) : null}
+          ⤓ PDF
+        </button>
+      </div>
     </div>
   );
 }

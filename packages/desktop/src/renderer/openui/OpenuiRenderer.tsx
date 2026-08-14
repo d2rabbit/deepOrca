@@ -67,7 +67,7 @@ export function OpenuiRenderer({ code, onAction, enableTools = true }: Props): J
       />
       {errors.length > 0 ? (
         <details style={{ marginTop: 12 }}>
-          <summary style={{ cursor: "pointer", fontSize: 12, color: "var(--ui-text-muted)" }}>
+          <summary style={{ cursor: "pointer", fontSize: 12, color: "var(--ui-text-faint, var(--ui-text-dim))" }}>
             Raw OpenUI Lang code
           </summary>
           <pre
