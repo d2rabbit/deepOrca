@@ -37,7 +37,7 @@ const MANIFEST = [
     name: "CodeGraph",
     upstream: "https://github.com/colbymchenry/codegraph",
     license: "MIT",
-    notes: "Prebuilt binary from GitHub Releases (and npm optionalDependency fallback).",
+    notes: "npm dependency (@colbymchenry/codegraph) with platform-specific optionalDependencies.",
   },
   {
     name: "OpenWiki",

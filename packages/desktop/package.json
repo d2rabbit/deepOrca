@@ -17,7 +17,6 @@
     "dev": "node ./build.mjs --dev",
     "start": "electron .",
     "build-and-start": "npm run build && npm run start",
-    "vendor:codegraph": "node ../../scripts/vendor-codegraph.js",
     "vendor:openwiki": "node ../../scripts/vendor-openwiki.js",
     "vendor:uv": "node ../../scripts/vendor-uv.js",
     "stage": "node ../../scripts/package-desktop.js",

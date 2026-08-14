@@ -187,9 +187,6 @@ function main() {
   // file exists — this prevents shipping a release with a structurally
   // invalid/empty vendor tree that earlier code only warned about.
   const isRelease = process.argv.includes("--required") || process.env.CI_RELEASE === "1";
-  // Vendor entry paths are platform/arch-specific; derive them the same way the
-  // vendor scripts name their platform subdirs.
-  const hostCodegraphArch = `${process.platform}-${process.arch}`;
   const hostUvTarget =
     process.platform === "darwin"
       ? `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`
@@ -198,7 +195,8 @@ function main() {
         : `${process.arch === "arm64" ? "aarch64" : "x86_64"}-pc-windows-msvc`;
   /** Entry file each vendor component must expose for the app to use it offline. */
   const vendorEntries = {
-    codegraph: join("codegraph", hostCodegraphArch),
+    // CodeGraph: installed via npm (@colbymchenry/codegraph) — no vendor dir needed.
+    // Validated separately below by checking the npm package resolves.
     openwiki: join("openwiki", "dist", "cli.js"),
     uv: join("uv", hostUvTarget),
     skillspector: join("skillspector", ".vendored-skillspector-version"),
@@ -235,6 +233,20 @@ function main() {
       throw new Error(`[release] vendor/${name} incomplete: ${rel} missing. Run 'npm run desktop:build' first.`);
     }
     log(msg);
+  }
+
+  // CodeGraph npm package validation (replaces the old vendor/codegraph dir check).
+  // The package provides platform-specific binaries via optionalDependencies.
+  {
+    const cgPkg = join(desktopDir, "node_modules", "@colbymchenry", "codegraph", "package.json");
+    if (!existsSync(cgPkg)) {
+      const msg =
+        "@colbymchenry/codegraph npm package not found in staging — MCP tools will fall back to npx at runtime.";
+      if (isRelease) {
+        throw new Error(`[release] @colbymchenry/codegraph missing in staging. Run 'npm install' first.`);
+      }
+      log(msg);
+    }
   }
 
   // Third-party notice: generate always (cheap), and verify in release mode.
