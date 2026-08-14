@@ -735,7 +735,8 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
           isError: true,
         } as CallToolResult;
       }
-      // Persist as a design artifact (fire-and-forget, best-effort).
+      // Persist as a design artifact (fire-and-forget, best-effort) + store for delta.
+      lastDesignDoc = content;
       if (projectRoot) {
         saveDesignArtifact(projectRoot, {
           title: deriveTitle(content),
@@ -761,14 +762,72 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
     "update_design",
     {
       description:
-        "Update an existing OrcaDesign (.dd) document with new content. " +
-        "Send the full updated .dd content — the renderer will re-compile and refresh the preview.",
+        "Update an existing OrcaDesign (.dd) document. Two modes:\n" +
+        "1. Section delta (preferred): send only the changed sections via `sections` — " +
+        "the server merges them into the stored document. Much more token-efficient.\n" +
+        "2. Full replacement: send the complete updated document via `content`.",
       inputSchema: {
-        content: z.string().describe("The updated .dd document content (full file)."),
+        content: z
+          .string()
+          .optional()
+          .describe("Full updated .dd document (full replacement mode). Omit when using sections."),
+        sections: z
+          .array(
+            z.object({
+              id: z.string().describe("Section id from the front-matter sections list"),
+              html: z.string().describe("New HTML content for this section (without the dd:section markers)"),
+            })
+          )
+          .optional()
+          .describe("Section-level patches (delta mode). Only changed sections needed."),
       },
     },
     async (args) => {
+      // Delta mode: merge section patches into the stored .dd.
+      if (Array.isArray(args.sections) && args.sections.length > 0 && lastDesignDoc) {
+        const merged = mergeDesignSections(lastDesignDoc, args.sections as Array<{ id: string; html: string }>);
+        if (merged) {
+          if (projectRoot) {
+            saveDesignArtifact(projectRoot, {
+              title: deriveTitle(merged),
+              pipeline: "design",
+              content: merged,
+            });
+          }
+          const sectionCount = (merged.match(/<!--\s*dd:section\s/g) || []).length;
+          return {
+            content: [
+              {
+                type: "text",
+                text: `DeepDesign updated via section delta (${args.sections.length} patched, ${sectionCount} total sections).`,
+              },
+            ],
+            metadata: { design: merged },
+          } as CallToolResult;
+        }
+      }
+
+      // Full replacement mode (or delta failed → fall back).
       const content = String(args.content ?? "");
+      if (!content.trim()) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Error: provide either `sections` (delta) or `content` (full replacement).",
+            },
+          ],
+          isError: true,
+        } as CallToolResult;
+      }
+      lastDesignDoc = content;
+      if (projectRoot) {
+        saveDesignArtifact(projectRoot, {
+          title: deriveTitle(content),
+          pipeline: "design",
+          content,
+        });
+      }
       const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
       return {
         content: [
@@ -781,6 +840,33 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
       } as CallToolResult;
     }
   );
+}
+
+// ── .dd section delta merge ──────────────────────────────────────────────────
+
+/** The latest .dd document stored by render_design/update_design (server-side state). */
+let lastDesignDoc: string | null = null;
+
+/**
+ * Merge section patches into a stored .dd document. Replaces the HTML between
+ * the `<!-- dd:section <id> -->` and `<!-- /dd:section -->` markers for each
+ * matched section id. Returns the merged full document, or null if any
+ * section id was not found.
+ */
+function mergeDesignSections(doc: string, patches: Array<{ id: string; html: string }>): string | null {
+  let result = doc;
+  for (const patch of patches) {
+    const open = `<!-- dd:section ${patch.id} -->`;
+    const close = `<!-- /dd:section -->`;
+    const openIdx = result.indexOf(open);
+    if (openIdx === -1) return null; // Unknown section id.
+    const closeIdx = result.indexOf(close, openIdx);
+    if (closeIdx === -1) return null; // Malformed document.
+    const before = result.slice(0, openIdx + open.length);
+    const after = result.slice(closeIdx);
+    result = `${before}\n${patch.html}\n${after}`;
+  }
+  return result;
 }
 
 /**

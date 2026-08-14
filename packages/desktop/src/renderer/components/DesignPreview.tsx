@@ -5,11 +5,13 @@
  * HTML string with design tokens + seed CSS + inlined Tailwind JIT, and
  * displays it in a sandboxed iframe via srcDoc.
  *
- * This is the DeepDesign equivalent of PrototypePanel (which handles A2UI /
+ * This is the UI-Design counterpart of PrototypePanel (which handles PM-Design
  * OpenUI Lang prototypes). Used when the preview panel is in "design" mode.
+ * Includes an inline iteration composer for prompting changes without leaving
+ * the panel (mirrors PrototypePanel's mini composer).
  */
 
-import { useMemo, type JSX } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { parseDdFile } from "../dd/parser";
 import { compileDdToHtml } from "../dd/compiler";
 // The vendored Tailwind JIT script — generated at build time by build.mjs
@@ -23,9 +25,14 @@ import tailwindScript from "../../generated/tailwind-script";
 type Props = {
   /** The raw .dd file content (YAML front-matter + HTML body). */
   ddContent: string;
+  /** Optional: called when the user submits an iteration prompt from the composer. */
+  onIterate?: (prompt: string) => void;
+  /** Optional: iframe title for a11y. */
+  title?: string;
 };
 
-export function DesignPreview({ ddContent }: Props): JSX.Element {
+export function DesignPreview({ ddContent, onIterate, title }: Props): JSX.Element {
+  const [iteration, setIteration] = useState("");
   const html = useMemo(() => {
     try {
       const doc = parseDdFile(ddContent);
@@ -36,14 +43,68 @@ export function DesignPreview({ ddContent }: Props): JSX.Element {
     }
   }, [ddContent]);
 
+  const handleIterate = () => {
+    const prompt = iteration.trim();
+    if (!prompt || !onIterate) return;
+    onIterate(
+      `Update the current .dd design: ${prompt}. Use the update_design tool with section-level patches (send only the changed sections) when possible.`
+    );
+    setIteration("");
+  };
+
   return (
-    <div className="ui-design-preview" style={{ height: "100%", width: "100%" }}>
+    <div
+      className="ui-design-preview"
+      style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column" }}
+    >
       <iframe
         srcDoc={html}
-        title="DeepDesign Preview"
+        title={title ?? "DeepDesign Preview"}
         sandbox="allow-scripts"
-        style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+        style={{ width: "100%", flex: 1, border: "none", background: "#fff" }}
       />
+      {onIterate ? (
+        <div
+          style={{ display: "flex", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--ui-border-soft, #333)" }}
+        >
+          <input
+            type="text"
+            value={iteration}
+            placeholder="描述要修改的地方…"
+            onChange={(e) => setIteration(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleIterate();
+            }}
+            style={{
+              flex: 1,
+              padding: "6px 10px",
+              fontSize: 13,
+              background: "var(--ui-input-bg, transparent)",
+              color: "var(--ui-text, inherit)",
+              border: "1px solid var(--ui-border-soft, #444)",
+              borderRadius: 6,
+              outline: "none",
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleIterate}
+            disabled={!iteration.trim()}
+            style={{
+              padding: "6px 14px",
+              fontSize: 13,
+              background: "var(--ui-accent, #3b82f6)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              cursor: iteration.trim() ? "pointer" : "default",
+              opacity: iteration.trim() ? 1 : 0.5,
+            }}
+          >
+            迭代
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

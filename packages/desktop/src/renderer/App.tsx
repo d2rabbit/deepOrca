@@ -1325,7 +1325,7 @@ export function App(): JSX.Element {
               }
             >
               {previewTab === "design" && designContent ? (
-                <DesignPreview ddContent={designContent} />
+                <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
               ) : (
                 <PrototypePanel
                   a2uiJson={prototypeJson ?? ""}
