@@ -88,7 +88,7 @@ export interface ActionContext {
    * Dispatch an MCP tool call by its fully-qualified namespaced name
    * (e.g. "mcp__code-review-graph__detect_changes_tool"). Injected by the host
    * (SessionManager wires it to mcpManager.executeMcpTool). Only actions that
-   * route to existing MCP servers (e.g. crg.analyze over the 10 CRG tools) need
+   * route to existing MCP servers (e.g. via ctx.executeMcpTool) need
    * it; deterministic actions never touch it (small surface).
    */
   readonly executeMcpTool?: (namespacedToolName: string, args: Record<string, unknown>) => Promise<McpDispatchResult>;

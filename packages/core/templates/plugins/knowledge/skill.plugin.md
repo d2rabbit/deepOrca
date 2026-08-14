@@ -12,6 +12,12 @@ skills:
     description: "项目 Wiki 知识图谱自动生成与维护"
   - name: wiki-qa
     description: "通过 Wiki 知识库回答架构/模块/工作流问题"
+actions:
+  - { id: "wiki.init", description: "初始化项目 Wiki" }
+  - { id: "wiki.update", description: "增量更新项目 Wiki" }
+  - { id: "wiki.list-pages", description: "列出 Wiki 页面" }
+  - { id: "wiki.read-page", description: "读取 Wiki 页面" }
+  - { id: "index.build-all", description: "一键构建全部索引（CodeGraph + Wiki + arch-scan）" }
 ---
 
 # 知识行为插件
@@ -31,3 +37,10 @@ skills:
 ### 技能
 
 - **openwiki** — 使用 `openwiki` CLI 生成和维护项目级 Wiki 知识图谱。分析代码结构、生成文档、维护索引。
+- **wiki-qa** — 通过 Wiki 知识库回答项目架构、模块职责、工作流问题。
+
+### Actions（命令式能力）
+
+- **wiki.init** / **wiki.update** — 初始化或增量更新项目 Wiki
+- **wiki.list-pages** / **wiki.read-page** — 列出和读取 Wiki 页面
+- **index.build-all** — 一键构建全部索引（CodeGraph → OpenWiki → arch-scan 三阶段编排）

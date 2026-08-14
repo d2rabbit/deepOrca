@@ -5,9 +5,7 @@ category: memory
 icon: memory
 mcp:
   - activity-frames
-external:
-  - name: TencentDB-Agent-Memory
-    description: "跨会话长期记忆 — 四层记忆架构（L0原始→L1原子事实→L2场景→L3画像）"
+  - vision
 ---
 
 # 记忆沉淀插件
@@ -19,13 +17,14 @@ external:
 ### MCP 服务器
 
 - **activity-frames** — 进程内 MCP 服务器。多源行为记忆采集，整合 session/git/shell/file 数据源，提供 `get_context`、`get_hotspots`、`get_workflows` 等工具。
+- **vision** — 视觉理解 MCP 服务器。为纯文本 LLM（如 DeepSeek）提供图片理解能力（vision_chat / vision_ocr），通过视觉模型代理。仅在设置中配置视觉模型后激活。
 
-### 外部服务
+### 记忆管线（进程内）
 
-- **TencentDB-Agent-Memory** — 跨会话长期记忆系统（HTTP 侧车）。四层记忆架构：
+- **L0-L3 记忆管线**（`@deeporca/memory`）— 进程内四层记忆架构：
   - L0：原始对话数据
   - L1：原子事实提取
   - L2：场景级关联
   - L3：用户画像
 
-  会话开始时自动 recall 相关记忆注入系统提示；每轮对话后自动 capture 存储。默认关闭，需用户手动启用。
+  会话开始时自动 recall 相关记忆注入系统提示；每轮对话后自动 capture 存储。默认关闭，需用户在设置中启用。支持 BM25 关键词召回和 Granite 97M 向量召回（embedding 配置）。

@@ -28,7 +28,7 @@ export interface RegistryHost {
   readonly spawner?: Spawner;
   /**
    * MCP tool dispatch — injected by SessionManager (wired to mcpManager). Only
-   * actions that route to existing MCP servers (e.g. crg.analyze) read it via
+   * actions that route to existing MCP servers read it via
    * {@link ActionContext.executeMcpTool}; absent otherwise.
    */
   readonly executeMcpTool?: (

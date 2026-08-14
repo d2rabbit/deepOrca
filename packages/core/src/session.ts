@@ -455,6 +455,8 @@ export type BuiltinPluginGroup = {
   mcpServers: McpServerConfigEntry[];
   /** Built-in plugin descriptors matched into this group (by name). */
   plugins: BuiltinPluginInfo[];
+  /** Actions matched into this group (by id prefix, e.g. "review.*" or "browser.*"). */
+  actions: Array<{ id: string; description: string }>;
 };
 
 /** Minimal MCP server shape needed for group resolution (name + enabled). */
@@ -479,6 +481,7 @@ type BuiltinPluginGroupManifest = {
   skills?: string[];
   mcp?: string[];
   plugins?: string[];
+  actions?: string[];
 };
 
 type SessionManagerOptions = {
@@ -702,7 +705,7 @@ export class SessionManager {
     // ActionRegistry must be constructed before ToolExecutor (which dispatches
     // action tool calls through it). Uses the host-injected Spawner so core
     // stays electron-free, and wires the MCP manager's dispatch so actions like
-    // crg.analyze can route to existing MCP servers. system.ping is the Phase-0 proof action.
+    // Actions can route to MCP tools via executeMcpTool. system.ping is the Phase-0 proof action.
     this.actionRegistry = new ActionRegistry({
       projectRoot: this.projectRoot,
       spawner: getActionSpawner(),
@@ -720,7 +723,7 @@ export class SessionManager {
     // review.full: the Code Review module's one-click composite (ocr + CRG risk).
     this.actionRegistry.register(reviewFullDefinition, reviewFullRun);
     // crg.reindex/visualize wrap the core crg.ts helpers (uv-resolved spawn);
-    // crg.analyze routes to the 10 CRG analysis MCP tools via executeMcpTool.
+    // Actions that need MCP tool routing use ctx.executeMcpTool.
     this.actionRegistry.register(crgReindexDefinition, crgReindexRun);
     this.actionRegistry.register(crgVisualizeDefinition, crgVisualizeRun);
     // ── Phase 2: knowledge index actions ──────────────────────────────────
@@ -2042,6 +2045,13 @@ Rules:
           const mcpNames = Array.isArray(data.mcp) ? (data.mcp as string[]) : [];
           // Extract plugin names
           const pluginNames = Array.isArray(data.plugins) ? (data.plugins as string[]) : [];
+          // Extract action ids (each item has {id, description} or is a string)
+          const actionItems = Array.isArray(data.actions)
+            ? (data.actions as Array<Record<string, unknown> | string>)
+            : [];
+          const actionIds = actionItems
+            .map((a) => (typeof a === "string" ? a : typeof a?.id === "string" ? a.id : ""))
+            .filter(Boolean);
           manifests.push({
             id: typeof data.name === "string" ? data.name : entry.name,
             name: typeof data.name === "string" ? data.name : entry.name,
@@ -2051,6 +2061,7 @@ Rules:
             skills: skillNames.length > 0 ? skillNames : undefined,
             mcp: mcpNames.length > 0 ? mcpNames : undefined,
             plugins: pluginNames.length > 0 ? pluginNames : undefined,
+            actions: actionIds.length > 0 ? actionIds : undefined,
           });
         } catch {
           // unreadable plugin.md — skip
@@ -2072,6 +2083,14 @@ Rules:
     const matchedSkills = new Set<string>();
     const matchedMcp = new Set<string>();
     const matchedPlugins = new Set<string>();
+    const matchedActions = new Set<string>();
+
+    // All registered action ids (for matching against group declarations).
+    const allActionDefs = this.actionRegistry.toToolDefinitions();
+    const allActionEntries = allActionDefs.map((d) => ({
+      id: d.function.name,
+      description: d.function.description ?? "",
+    }));
 
     // Skills that are ALSO shipped as plugins — exclude from skills list to
     // avoid duplicate display within a group.
@@ -2100,6 +2119,14 @@ Rules:
         }
         return false;
       });
+      // Match actions by id prefix (e.g. "review.*" matches "review.run", "review.full").
+      const groupActions = allActionEntries.filter((a) => {
+        if (matchName(m.actions, a.id)) {
+          matchedActions.add(a.id);
+          return true;
+        }
+        return false;
+      });
       return {
         id: m.id,
         name: m.name,
@@ -2110,6 +2137,7 @@ Rules:
         skills: groupSkills,
         mcpServers: groupMcp,
         plugins: groupPlugins,
+        actions: groupActions,
       };
     });
 
@@ -2117,7 +2145,8 @@ Rules:
     const leftoverSkills = skills.filter((s) => !matchedSkills.has(s.name));
     const leftoverMcp = mcpServers.filter((e) => !matchedMcp.has(e.name));
     const leftoverPlugins = builtinPlugins.filter((p) => !matchedPlugins.has(p.name));
-    if (leftoverSkills.length || leftoverMcp.length || leftoverPlugins.length) {
+    const leftoverActions = allActionEntries.filter((a) => !matchedActions.has(a.id));
+    if (leftoverSkills.length || leftoverMcp.length || leftoverPlugins.length || leftoverActions.length) {
       groups.push({
         id: "other",
         name: "Other",
@@ -2126,6 +2155,7 @@ Rules:
         skills: leftoverSkills,
         mcpServers: leftoverMcp,
         plugins: leftoverPlugins,
+        actions: leftoverActions,
       });
     }
 
