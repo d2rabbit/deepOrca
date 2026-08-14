@@ -6,23 +6,29 @@
  * code (the compact `root = Column([...])` syntax) and renders it into React
  * components styled with DeepOrca's --ui-* CSS variables.
  *
- * Used exclusively by PM-Designer when mode === "openui".
+ * Used exclusively by Designer (PM-Design pipeline) when mode === "openui".
  */
 
-import { type JSX, useEffect, useState } from "react";
+import { type JSX, useEffect, useMemo, useState } from "react";
 import { Renderer, type ActionEvent } from "@openuidev/react-lang";
 import type { OpenUIError } from "@openuidev/lang-core";
 import { deeporcaLibrary } from "./library";
+import { createDesignerToolProvider } from "./tool-provider";
 
 type Props = {
   /** Raw OpenUI Lang code from the agent's tool output. */
   code: string;
   /** Called when a component triggers an action (e.g. Button click). */
   onAction?: (event: ActionEvent) => void;
+  /** Enable the designer tool provider — prototypes can Query() local data. */
+  enableTools?: boolean;
 };
 
-export function OpenuiRenderer({ code, onAction }: Props): JSX.Element {
+export function OpenuiRenderer({ code, onAction, enableTools = true }: Props): JSX.Element {
   const [errors, setErrors] = useState<OpenUIError[]>([]);
+
+  // Create the tool provider once (stable reference for the SDK).
+  const toolProvider = useMemo(() => (enableTools ? createDesignerToolProvider() : undefined), [enableTools]);
 
   // F6: Clear errors when code becomes empty (SDK's onError([]) doesn't fire
   // for empty response — see react-lang useOpenUIState early return).
@@ -51,7 +57,14 @@ export function OpenuiRenderer({ code, onAction }: Props): JSX.Element {
           ))}
         </div>
       ) : null}
-      <Renderer response={code} library={deeporcaLibrary} isStreaming={false} onAction={onAction} onError={setErrors} />
+      <Renderer
+        response={code}
+        library={deeporcaLibrary}
+        isStreaming={false}
+        onAction={onAction}
+        onError={setErrors}
+        toolProvider={toolProvider}
+      />
       {errors.length > 0 ? (
         <details style={{ marginTop: 12 }}>
           <summary style={{ cursor: "pointer", fontSize: 12, color: "var(--ui-text-muted)" }}>
