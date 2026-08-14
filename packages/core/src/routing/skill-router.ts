@@ -151,9 +151,21 @@ export class SkillRouterImpl implements SkillRouter {
     }
   }
 
+  /**
+   * Single signature builder shared by both index modes (R4): G1 (RoutableSkill)
+   * and G3 (CompositionalSkill) describe the same underlying skill library, so
+   * their signatures must match byte-for-byte — previously they differed
+   * ("name\0desc" vs "name\0desc\0''"), forcing a needless index rebuild on
+   * every G1↔G3 alternation. Optional fields collapse to "" when absent, so
+   * metadata-less skills keep the same signature in both modes.
+   */
+  private skillSignature(skills: Array<{ name: string; description: string; categories?: string[] }>): string {
+    return skills.map((s) => `${s.name}\0${s.description}\0${(s.categories ?? []).join(",")}`).join("\n");
+  }
+
   private async ensureIndexedCompositional(skills: CompositionalSkill[]): Promise<void> {
     // Compositional skills may have richer metadata; index text includes categories.
-    const signature = skills.map((s) => `${s.name}\0${s.description}\0${(s.categories ?? []).join(",")}`).join("\n");
+    const signature = this.skillSignature(skills);
     if (signature === this.indexedSignature && this.index.size > 0) return;
 
     const entries: VectorIndexEntry[] = skills.map((s) => ({
@@ -169,7 +181,7 @@ export class SkillRouterImpl implements SkillRouter {
   }
 
   private async ensureIndexed(skills: RoutableSkill[]): Promise<void> {
-    const signature = skills.map((s) => `${s.name}\0${s.description}`).join("\n");
+    const signature = this.skillSignature(skills);
     if (signature === this.indexedSignature && this.index.size > 0) return;
 
     const entries: VectorIndexEntry[] = skills.map((s) => ({

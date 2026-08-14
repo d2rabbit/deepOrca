@@ -572,6 +572,7 @@ export const zhTW: Record<MessageKey, string> = {
   "index.source.serena": "Serena",
   "index.source.agents": "AGENTS.md",
   "index.source.memory": "記憶",
+  "index.source.routing": "語義路由",
   "index.state.empty": "空",
   "index.state.disabled": "未啟用",
   "index.state.stale": "可能過期",

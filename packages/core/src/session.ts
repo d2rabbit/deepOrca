@@ -140,7 +140,15 @@ import {
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
-import { DEFAULT_ROUTING_CONFIG, type RoutingConfig, type RoutableTool } from "./routing";
+import {
+  DEFAULT_ROUTING_CONFIG,
+  getEmbeddingLoadError,
+  RoutingFacade,
+  timedRoutingEvent,
+  type RoutingConfig,
+  type RoutableTool,
+} from "./routing";
+import { logRoutingEvent } from "./routing";
 import { createRouters, getConfiguredRoutingModelDir, type RouterBundle } from "./routing";
 import type { LLMDecomposer } from "./routing/types";
 
@@ -158,6 +166,8 @@ const MAX_SESSION_ENTRIES = 50;
 const MAX_PROJECT_CODE_LENGTH = 64;
 const PROJECT_CODE_HASH_LENGTH = 16;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
+/** Retry window after a failed router/embedding load (R4 backoff). */
+const ROUTING_LOAD_RETRY_BACKOFF_MS = 60_000;
 const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
 const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
 // Compaction wants faithful, reproducible summaries — a fixed low temperature
@@ -491,6 +501,16 @@ export type SkillInfo = {
   allowImplicitInvocation?: boolean;
   /** True when this skill lives inside a plugin package (hidden from Skills tab). */
   pluginOwned?: boolean;
+  /**
+   * Optional compositional-routing metadata (R2 contract). All may be absent —
+   * skills without them route exactly as before. Consumed by G3's Compose stage
+   * (ioTypeCoercion / categoryJaccard in routing/composer.ts).
+   */
+  categories?: string[];
+  /** Input types this skill consumes (e.g. ["markdown", "file-list"]). */
+  inputs?: string[];
+  /** Output types this skill produces (e.g. ["html", "pdf"]). */
+  outputs?: string[];
 };
 
 /**
@@ -736,6 +756,16 @@ export class SessionManager {
   private readonly toolExecutor: ToolExecutor;
   private readonly mcpManager = new McpManager();
   private mcpToolDefinitions: ToolDefinition[] = [];
+  /** Server names declared (settings + builtins) — lazy-connect eligibility. */
+  private declaredMcpServers = new Set<string>();
+  /**
+   * G2 session-frozen tool injection sets (R1): the routed tool set is decided
+   * ONCE per session and then stays byte-identical — per-iteration re-routing
+   * changed the request prefix every turn, killing DeepSeek's prefix cache and
+   * occasionally dropping tools mid-task. Invalidated when the discovered tool
+   * set changes (tools/list, reconnect) or the session is deleted.
+   */
+  private frozenToolRoutes = new Map<string, ToolDefinition[]>();
   /**
    * ActionRegistry — owns the defineAction primitive's registered actions for
    * this project. Constructed here (core) using the host-injected Spawner
@@ -746,6 +776,8 @@ export class SessionManager {
   /** Skill/tool routers (lazy-initialized; null when routing disabled/unavailable). */
   private routerBundle: RouterBundle | null = null;
   private routerInitPromise: Promise<RouterBundle> | null = null;
+  /** When the last router load FAILED (0 = never / success) — retry backoff (R4). */
+  private routingLoadFailedAt = 0;
   /** Sessions that mutated files during the current turn and need a CodeGraph index sync. */
   private readonly codegraphDirtySessions = new Set<string>();
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
@@ -987,14 +1019,32 @@ export class SessionManager {
   private async getRouters(): Promise<RouterBundle> {
     if (this.routerBundle) return this.routerBundle;
     if (this.routerInitPromise) return this.routerInitPromise;
+    // R4 backoff: a failed load (missing embedding package, bad model dir) is
+    // retried at most once per window — previously every user prompt paid a
+    // fresh dynamic-import attempt that could never succeed.
+    const backoffRemaining = ROUTING_LOAD_RETRY_BACKOFF_MS - (Date.now() - this.routingLoadFailedAt);
+    if (this.routingLoadFailedAt > 0 && backoffRemaining > 0) {
+      return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) };
+    }
 
     this.routerInitPromise = (async () => {
       const settings = this.getResolvedSettings();
       const routingRaw = settings.routing ?? {};
+      // Built-in infrastructure servers are always pinned (R1): they serve
+      // whole-domain capabilities rather than a single turn's intent — serena
+      // (LSP), codegraph (repo graph), a2ui (design + interaction tools) and
+      // activity-frames are in-process or auto-injected, so gating them by
+      // per-turn relevance only destabilizes the tool prefix.
+      const builtinPinned = [
+        SERENA_MCP_SERVER_NAME,
+        CODEGRAPH_MCP_SERVER_NAME,
+        A2UI_MCP_SERVER_NAME,
+        ACTIVITY_FRAMES_MCP_SERVER_NAME,
+      ];
       const config: RoutingConfig = {
         ...DEFAULT_ROUTING_CONFIG,
         ...routingRaw,
-        pinnedServers: routingRaw.pinnedServers ?? DEFAULT_ROUTING_CONFIG.pinnedServers,
+        pinnedServers: [...new Set([...builtinPinned, ...(routingRaw.pinnedServers ?? [])])],
       };
       const modelDir =
         process.env.DEEPORCA_ROUTING_MODEL_DIR ??
@@ -1026,14 +1076,39 @@ export class SessionManager {
         }
       })();
       const bundle = await createRouters(config, { modelDir, cacheDir });
+      // Track load failures for the retry backoff above. A null bundle with
+      // routing enabled means the embedding service failed to load.
+      this.routingLoadFailedAt = config.enabled && !bundle.skillRouter ? Date.now() : 0;
       this.routerBundle = bundle;
       return bundle;
     })();
 
     return this.routerInitPromise.catch(() => {
       this.routerInitPromise = null;
-      return { skillRouter: null, toolRouter: null } as RouterBundle;
+      return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) } as RouterBundle;
     });
+  }
+
+  /**
+   * Hot-reload hook (R4): drop the cached router bundle so the next consumer
+   * re-reads settings.routing (enable/disable, topK, pinned servers…). Called
+   * by the host when a settings patch contains a `routing` key. In-flight
+   * sessions keep their already-frozen tool routes; new decisions use the
+   * fresh configuration.
+   */
+  invalidateRouting(): void {
+    this.routerBundle = null;
+    this.routerInitPromise = null;
+    this.routingLoadFailedAt = 0;
+    this.frozenToolRoutes.clear();
+  }
+
+  /** Routing observability status for the knowledge panel (R4). */
+  getRoutingStatus(): { state: "ready" | "idle" | "error"; error: string | null } {
+    const loadError = getEmbeddingLoadError();
+    if (loadError) return { state: "error", error: loadError };
+    if (!this.routerBundle) return { state: "idle", error: null };
+    return { state: this.routerBundle.skillRouter !== null ? "ready" : "idle", error: null };
   }
 
   /**
@@ -1067,26 +1142,32 @@ If the query is simple (single intent), respond with a single-element array.`;
             : `Query: ${query}`;
 
         try {
-          const response = await this.createChatCompletionStream(
-            client,
-            {
-              model: LIGHTWEIGHT_TASK_MODEL,
-              temperature: 0.1,
-              max_tokens: 512,
-              messages: [
-                { role: "system", content: sysPrompt },
-                { role: "user", content: userContent },
-              ],
-              response_format: { type: "json_object" },
-              ...buildThinkingRequestOptions(false, baseURL),
+          const rawContent = await timedRoutingEvent(
+            "SAD",
+            async () => {
+              const response = await this.createChatCompletionStream(
+                client,
+                {
+                  model: LIGHTWEIGHT_TASK_MODEL,
+                  temperature: 0.1,
+                  max_tokens: 512,
+                  messages: [
+                    { role: "system", content: sysPrompt },
+                    { role: "user", content: userContent },
+                  ],
+                  response_format: { type: "json_object" },
+                  ...buildThinkingRequestOptions(false, baseURL),
+                },
+                options?.signal ? { signal: options.signal } : undefined,
+                options?.sessionId,
+                { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL }
+              );
+              return response.choices?.[0]?.message?.content;
             },
-            options?.signal ? { signal: options.signal } : undefined,
-            options?.sessionId,
-            { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL }
+            () => "hit",
+            { sessionId: options?.sessionId, detail: hints ? "refined (with hints)" : "vanilla" }
           );
-
-          const raw = response.choices?.[0]?.message?.content;
-          const text = typeof raw === "string" ? raw : "";
+          const text = typeof rawContent === "string" ? rawContent : "";
           const parsed = JSON.parse(text) as { steps?: string[] };
           const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
           return steps.map((desc, i) => ({ step: i + 1, description: String(desc) }));
@@ -1106,9 +1187,22 @@ If the query is simple (single intent), respond with a single-element array.`;
   private async getRoutedMcpTools(sessionId: string): Promise<ToolDefinition[]> {
     const all = this.mcpToolDefinitions;
     if (all.length === 0) return all;
+
+    // Session-frozen (R1): decide once, reuse byte-identical for the whole
+    // session — protects the DeepSeek prefix cache across turns/iterations.
+    const frozen = this.frozenToolRoutes.get(sessionId);
+    if (frozen) {
+      return frozen;
+    }
+    const routed = await this.computeRoutedMcpTools(sessionId, all);
+    this.frozenToolRoutes.set(sessionId, routed);
+    return routed;
+  }
+
+  /** One-time G2 routing decision for a session (see getRoutedMcpTools). */
+  private async computeRoutedMcpTools(sessionId: string, all: ToolDefinition[]): Promise<ToolDefinition[]> {
     try {
-      const { toolRouter } = await this.getRouters();
-      if (!toolRouter) return all;
+      const { facade } = await this.getRouters();
 
       // Build turn context: last user message + last assistant message.
       const msgs = this.listSessionMessages(sessionId);
@@ -1129,16 +1223,62 @@ If the query is simple (single intent), respond with a single-element array.`;
         name: t.function.name,
         description: t.function.description ?? "",
         serverName: t.function.name.startsWith("mcp__") ? t.function.name.split("__")[1] : undefined,
+        // Real schema length feeds the G2 token-budget estimate (R4).
+        schemaJson: JSON.stringify(t.function),
       }));
 
-      const selected = await toolRouter.select({ userMessage, assistantSummary }, routable);
-      if (!selected) return all; // undefined → fail-open
+      // RoutingFacade: decide-once-per-session (G2 selection + telemetry live
+      // inside; a frozen decision is reused without re-embedding).
+      const decision = await facade.decideToolRoute({
+        sessionId,
+        context: { userMessage, assistantSummary },
+        tools: routable,
+      });
+      if (decision.selected === routable) return all; // routing declined → full set
 
-      // Filter original definitions to selected names.
-      const selectedNames = new Set(selected.map((t) => t.name));
-      return all.filter((t) => selectedNames.has(t.function.name));
+      // R3/M4 lazy-connect hint: bring any declared-but-down server back up
+      // before its tools are needed. No-op while every server is pinned or
+      // user-configured (connected at boot); activates for future auto-
+      // injected non-pinned servers and as self-healing when a subprocess died.
+      if (decision.serverNames.length > 0) {
+        await this.ensureMcpServersConnected(decision.serverNames);
+      }
+
+      const selectedNames = new Set(decision.selected.map((t) => t.name));
+      const filtered = all.filter((t) => selectedNames.has(t.function.name));
+      return filtered.length > 0 ? filtered : all;
     } catch {
       return all; // fail-open
+    }
+  }
+
+  /**
+   * Lazy-connect (R3/M4): (re)connect declared servers that the session's tool
+   * route depends on but that are currently down. Best-effort — a failure to
+   * reconnect never blocks the turn (the tools will fail-open as unavailable).
+   */
+  private async ensureMcpServersConnected(serverNames: string[]): Promise<void> {
+    try {
+      const statuses = this.mcpManager.getStatus();
+      const connected = new Set(
+        statuses
+          .filter((s) => s.connected)
+          .map((s) => s.name)
+          .filter((name): name is string => typeof name === "string")
+      );
+      const missing = serverNames.filter((name) => !connected.has(name) && this.declaredMcpServers.has(name));
+      if (missing.length === 0) return;
+      logRoutingEvent({ stage: "server", outcome: "hit", detail: `lazy-connecting: ${missing.join(", ")}` });
+      for (const name of missing) {
+        await this.mcpManager.reconnect(name);
+      }
+      this.refreshMcpToolDefinitions();
+    } catch (error) {
+      logRoutingEvent({
+        stage: "server",
+        outcome: "fallback",
+        detail: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -1249,15 +1389,23 @@ If the query is simple (single intent), respond with a single-element array.`;
     return result;
   }
 
+  /** Refresh cached MCP tool definitions; any session-frozen route goes stale. */
+  private refreshMcpToolDefinitions(): void {
+    this.mcpToolDefinitions = augmentMcpToolDescriptions(this.mcpManager.getMcpToolDefinitions());
+    this.frozenToolRoutes.clear();
+  }
+
   async initMcpServers(servers?: Record<string, McpServerConfig>): Promise<void> {
     this.mcpManager.setOnToolsListChanged(() => {
-      this.mcpToolDefinitions = augmentMcpToolDescriptions(this.mcpManager.getMcpToolDefinitions());
+      this.refreshMcpToolDefinitions();
     });
     // 设置状态变更回调，通知 UI 更新
     this.mcpManager.setOnStatusChanged(() => {
       this.onMcpStatusChanged?.();
     });
-    await this.mcpManager.initialize(this.augmentMcpServersWithBuiltins(servers));
+    const augmented = this.augmentMcpServersWithBuiltins(servers) ?? {};
+    this.declaredMcpServers = new Set(Object.keys(augmented));
+    await this.mcpManager.initialize(augmented);
 
     // Connect the A2UI in-process MCP server (runs via InMemoryTransport,
     // no subprocess). Always available unless explicitly disabled.
@@ -1309,7 +1457,7 @@ If the query is simple (single intent), respond with a single-element array.`;
       }
     }
 
-    this.mcpToolDefinitions = augmentMcpToolDescriptions(this.mcpManager.getMcpToolDefinitions());
+    this.refreshMcpToolDefinitions();
   }
 
   getMcpStatus() {
@@ -1328,7 +1476,7 @@ If the query is simple (single intent), respond with a single-element array.`;
 
   async reconnectMcpServer(name: string, config?: McpServerConfig): Promise<void> {
     await this.mcpManager.reconnect(name, config);
-    this.mcpToolDefinitions = augmentMcpToolDescriptions(this.mcpManager.getMcpToolDefinitions());
+    this.refreshMcpToolDefinitions();
   }
 
   dispose(): void {
@@ -1358,6 +1506,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     // SessionManagers, so it is deliberately NOT closed here — the host closes it
     // on app teardown via closeEmbeddingService().
     this.routerBundle = null;
+    this.frozenToolRoutes.clear();
     this.routerInitPromise = null;
   }
 
@@ -1678,57 +1827,40 @@ If the query is simple (single intent), respond with a single-element array.`;
 Response in JSON format:
 \`\`\`
 {
-  "skillNames": ["", ...]
+  "skillNames": ["", ...],
+  "multiIntent": false
 }
 \`\`\`\n
-If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": []}\`.\n
+If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": [], "multiIntent": false}\`.\n
+Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills (e.g. "generate slides AND run the tests"). Single-purpose requests, however complex, are multiIntent: false.\n
 `;
     const simpleSkills = skills
       .filter((x) => !x.isLoaded && x.allowImplicitInvocation !== false)
-      .map((x) => {
-        return { name: x.name, description: x.description };
-      });
+      .map((x) => ({
+        name: x.name,
+        description: x.description,
+        // R2 compositional metadata (optional; absent → behavior unchanged).
+        categories: x.categories,
+        inputs: x.inputs,
+        outputs: x.outputs,
+      }));
     if (simpleSkills.length === 0) {
       return [];
     }
     const candidateSkillNames = new Set(simpleSkills.map((skill) => skill.name));
 
-    // G3 compositional routing: for complex multi-step queries, decompose →
-    // retrieve → compose (SkillWeaver pipeline). Returns a plan with per-step
-    // skills; if successful, we return the union of selected skill names
-    // directly (SAD already did the decomposition + classification).
-    // Fail-open (null) → fall through to G1 shortlist + flash LLM.
-    try {
-      const { skillRouter } = await this.getRouters();
-      if (skillRouter) {
-        // Build compositional skills (SkillInfo lacks categories/I-O metadata,
-        // but composeRoute tolerates missing fields).
-        const compSkills = simpleSkills.map((s) => ({ ...s }));
-        // LLM decomposer: uses flash model to split query into atomic sub-tasks.
-        const decomposer = this.createSkillDecomposer(options);
-        const plan = await skillRouter.composeRoute(userPrompt, compSkills, decomposer);
-        if (plan && plan.steps.length > 1) {
-          // Collect all matched skill names from the plan.
-          const matched = new Set<string>();
-          for (const step of plan.steps) {
-            if (step.skill) matched.add(step.skill.name);
-          }
-          if (matched.size > 0) {
-            return [...matched];
-          }
-        }
-      }
-    } catch {
-      // Compositional routing error → fail-open to G1.
-    }
-
     // G1 routing: reduce the candidate pool via embedding recall before sending
     // to the flash LLM. Fail-open (null) → use full simpleSkills list.
-    let pool = simpleSkills;
+    let pool: Array<{ name: string; description: string }> = simpleSkills;
     try {
       const { skillRouter } = await this.getRouters();
       if (skillRouter) {
-        const shortlist = await skillRouter.shortlist(userPrompt, simpleSkills);
+        const shortlist = await timedRoutingEvent(
+          "G1",
+          () => skillRouter.shortlist(userPrompt, simpleSkills),
+          (result) => (result && result.length > 0 ? "hit" : "skip"),
+          { sessionId: options?.sessionId, counts: { candidates: simpleSkills.length } }
+        );
         if (shortlist && shortlist.length > 0) {
           pool = shortlist;
         }
@@ -1790,10 +1922,22 @@ ${agentInstructions}
 
       const parsed = JSON.parse(content);
       if (parsed && Array.isArray(parsed.skillNames)) {
-        return parsed.skillNames.filter(
+        const skillNames = parsed.skillNames.filter(
           (skillName: unknown): skillName is string =>
             typeof skillName === "string" && candidateSkillNames.has(skillName)
         );
+        // G3 compositional routing — gated on the multi-intent judgment made by
+        // the SAME flash call above: single-intent turns pay zero extra calls
+        // (previously every prompt ran an SAD decomposition first, and a
+        // lower-confidence embedding-only path could short-circuit this
+        // verified one).
+        if (parsed.multiIntent === true) {
+          const composed = await this.composeSkillRoute(userPrompt, simpleSkills, candidateSkillNames, options);
+          if (composed && composed.length > 0) {
+            return [...new Set([...skillNames, ...composed])];
+          }
+        }
+        return skillNames;
       }
 
       return [];
@@ -1803,6 +1947,90 @@ ${agentInstructions}
       }
       return [];
     }
+  }
+
+  /**
+   * G3 compositional routing (multi-intent only — gated by the multiIntent
+   * judgment in identifyMatchingSkillNames). Decompose → retrieve → compose;
+   * returns white-listed skill names, or null (fail-open) when the pipeline
+   * declines or fails — the G1 result is then used unchanged. When a plan is
+   * adopted, its step/DAG orchestration is injected as a hidden system message
+   * so the composition (not just the flat skill list) reaches the agent.
+   */
+  private async composeSkillRoute(
+    userPrompt: string,
+    simpleSkills: Array<{
+      name: string;
+      description: string;
+      categories?: string[];
+      inputs?: string[];
+      outputs?: string[];
+    }>,
+    candidateSkillNames: Set<string>,
+    options?: { signal?: AbortSignal; sessionId?: string }
+  ): Promise<string[] | null> {
+    try {
+      const { skillRouter } = await this.getRouters();
+      if (!skillRouter) return null;
+      // R2: carry the frontmatter metadata contract into the Compose stage —
+      // ioTypeCoercion/categoryJaccard become live instead of always zero.
+      const compSkills = simpleSkills.map((s) => ({
+        name: s.name,
+        description: s.description,
+        ...(s.categories ? { categories: s.categories } : {}),
+        ...(s.inputs ? { inputTypes: s.inputs } : {}),
+        ...(s.outputs ? { outputTypes: s.outputs } : {}),
+      }));
+      const decomposer = this.createSkillDecomposer(options);
+      const plan = await timedRoutingEvent(
+        "G3",
+        () => skillRouter.composeRoute(userPrompt, compSkills, decomposer),
+        (result) => (result && result.steps.length > 1 ? "hit" : "skip"),
+        { sessionId: options?.sessionId, counts: { candidates: simpleSkills.length } }
+      );
+      if (!plan || plan.steps.length <= 1) return null;
+      const matched = new Set<string>();
+      for (const step of plan.steps) {
+        // White-list filter — same anti-hallucination guarantee as the G1 path.
+        if (step.skill && candidateSkillNames.has(step.skill.name)) {
+          matched.add(step.skill.name);
+        }
+      }
+      if (matched.size === 0) return null;
+      const orchestration = this.renderOrchestrationPrompt(plan);
+      if (orchestration && options?.sessionId) {
+        this.appendSessionMessage(options.sessionId, this.buildSystemMessage(options.sessionId, orchestration));
+      }
+      return [...matched];
+    } catch {
+      return null; // fail-open to the G1 result
+    }
+  }
+
+  /** Render a CompositionPlan as an execution-order hint for the agent. */
+  private renderOrchestrationPrompt(plan: {
+    steps: Array<{ subTask?: { description?: string }; skill: { name: string } | null }>;
+    dependencies: Array<[number, number]>;
+  }): string | null {
+    if (plan.steps.length === 0) return null;
+    const lines = plan.steps
+      .map(
+        (s, i) =>
+          `${i + 1}. ${s.subTask?.description ?? "(unnamed step)"}${s.skill ? ` — use the "${s.skill.name}" skill` : ""}`
+      )
+      .join("\n");
+    const deps =
+      plan.dependencies.length > 0
+        ? `\nStep dependencies (earlier steps feed later ones): ${plan.dependencies
+            .map(([from, to]) => `${from + 1} → ${to + 1}`)
+            .join("; ")}`
+        : "";
+    return (
+      `<orchestration-plan>\n` +
+      `The user's request was decomposed into ${plan.steps.length} steps. ` +
+      `Execute them in order unless the dependencies say otherwise:\n${lines}${deps}\n` +
+      `</orchestration-plan>`
+    );
   }
 
   /**
@@ -2455,6 +2683,11 @@ ${content}
         (metadata as Record<string, unknown>)["allow-implicit-invocation"] === false
           ? false
           : undefined;
+      const stringList = (value: unknown): string[] | undefined => {
+        if (!Array.isArray(value)) return undefined;
+        const items = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+        return items.length > 0 ? items : undefined;
+      };
       return {
         name:
           typeof parsed.data.name === "string" && parsed.data.name.trim()
@@ -2463,6 +2696,9 @@ ${content}
         path: displayPath,
         description: typeof parsed.data.description === "string" ? parsed.data.description.trim() : "",
         allowImplicitInvocation,
+        categories: stringList(parsed.data.categories),
+        inputs: stringList(parsed.data.inputs),
+        outputs: stringList(parsed.data.outputs),
       };
     } catch {
       return fallbackSkill;
@@ -2703,7 +2939,7 @@ ${content}
 
     if (userPrompt.text) {
       const skills = await this.listSkills();
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal });
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
       this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
@@ -3429,6 +3665,7 @@ ${content}
    * Returns true if the session was found and deleted, false otherwise.
    */
   deleteSession(sessionId: string): boolean {
+    this.frozenToolRoutes.delete(sessionId);
     const index = this.loadSessionsIndex();
     const targetEntry = index.entries.find((entry) => entry.id === sessionId) ?? null;
     const nextEntries = index.entries.filter((entry) => entry.id !== sessionId);

@@ -578,6 +578,7 @@ export const ja: Record<MessageKey, string> = {
   "index.source.serena": "Serena",
   "index.source.agents": "AGENTS.md",
   "index.source.memory": "メモリ",
+  "index.source.routing": "ルーティング",
   "index.state.empty": "空",
   "index.state.disabled": "無効",
   "index.state.stale": "古い可能性",

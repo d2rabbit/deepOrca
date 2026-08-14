@@ -29,10 +29,11 @@ const SOURCE_ICONS: Record<SourceKey, string> = {
   memory: "🧠",
   serena: "🔍",
   agents: "📋",
+  routing: "🧭",
 };
 
 /** Card render order — primary indices first, then supplementary sources. */
-const SOURCE_ORDER: SourceKey[] = ["codegraph", "openwiki", "memory", "serena", "agents"];
+const SOURCE_ORDER: SourceKey[] = ["codegraph", "openwiki", "memory", "serena", "agents", "routing"];
 
 /** Relative "N ago" label from an ISO timestamp. */
 function formatRelative(iso: string | undefined, justNow: string, never: string): string {

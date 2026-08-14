@@ -576,6 +576,7 @@ export const ko: Record<MessageKey, string> = {
   "index.source.serena": "Serena",
   "index.source.agents": "AGENTS.md",
   "index.source.memory": "메모리",
+  "index.source.routing": "라우팅",
   "index.state.empty": "비어 있음",
   "index.state.disabled": "비활성화",
   "index.state.stale": "오래됨",

@@ -11,6 +11,7 @@
  */
 
 import type { RoutingEmbeddingService } from "./types";
+import { setRoutingEventSink } from "./telemetry";
 
 let shared: RoutingEmbeddingService | null = null;
 let sharedPromise: Promise<RoutingEmbeddingService | null> | null = null;
@@ -40,9 +41,19 @@ export function getConfiguredRoutingModelDir(): string | null {
 // configureSkillSpectorLogger.
 let logger: ((message: string, detail?: unknown) => void) | null = null;
 
-/** Inject a host logger for routing/embedding diagnostics. */
+/** Inject a host logger for routing/embedding diagnostics.
+ *  Also routes structured RoutingTelemetry events to the same logger — one
+ *  host wire feeds both the load diagnostics and the per-stage observability. */
 export function configureRoutingLogger(log: ((message: string, detail?: unknown) => void) | null): void {
   logger = log;
+  setRoutingEventSink((event) => {
+    const counts = event.counts ? ` ${JSON.stringify(event.counts)}` : "";
+    const latency = event.latencyMs !== undefined ? ` ${event.latencyMs}ms` : "";
+    log?.(
+      `[routing:${event.stage}] ${event.outcome}${latency}${counts}${event.detail ? ` — ${event.detail}` : ""}`,
+      event
+    );
+  });
 }
 
 export interface EmbeddingLoaderOptions {

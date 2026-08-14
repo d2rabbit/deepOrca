@@ -130,12 +130,17 @@ export class ToolRouterImpl implements ToolRouter {
   }
 
   private estimateTokens(tools: RoutableTool[]): number {
-    // Rough: name + description chars / 4. Ignores parameters schema (which
-    // is the bulk, but we only need a relative comparison for the budget gate).
+    // Prefer the serialized schema length when the caller provides it — the
+    // parameters schema is the bulk of a tool definition. Fall back to a
+    // name+description approximation with a ×3 schema-overhead factor.
     let chars = 0;
     for (const t of tools) {
-      chars += t.name.length + t.description.length;
+      if (t.schemaJson) {
+        chars += t.schemaJson.length;
+      } else {
+        chars += (t.name.length + t.description.length) * 3;
+      }
     }
-    return Math.ceil((chars * 3) / CHARS_PER_TOKEN); // ×3 to account for schema overhead
+    return Math.ceil(chars / CHARS_PER_TOKEN);
   }
 }

@@ -19,6 +19,7 @@
 export { VectorIndex, type VectorIndexEntry, type VectorIndexHit } from "./vector-index";
 export { SkillRouterImpl } from "./skill-router";
 export { ToolRouterImpl } from "./tool-router";
+export { RoutingFacade, type ToolRouteDecision, type ToolRouteRequest } from "./routing-facade";
 export { runSad, jaccardSet, categoryJaccard, type SadOptions, DEFAULT_SAD_OPTIONS } from "./sad";
 export {
   composePlan,
@@ -38,6 +39,14 @@ export {
   closeEmbeddingService,
 } from "./embedding-loader";
 export type { EmbeddingLoaderOptions } from "./embedding-loader";
+export {
+  logRoutingEvent,
+  timedRoutingEvent,
+  setRoutingEventSink,
+  type RoutingEvent,
+  type RoutingOutcome,
+  type RoutingStage,
+} from "./telemetry";
 export type {
   ComposeOptions,
   CompositionalSkill,
@@ -63,11 +72,14 @@ import type { SkillRouter } from "./types";
 import type { ToolRouter } from "./types";
 import { SkillRouterImpl } from "./skill-router";
 import { ToolRouterImpl } from "./tool-router";
+import { RoutingFacade } from "./routing-facade";
 import { getEmbeddingService } from "./embedding-loader";
 
 export interface RouterBundle {
   skillRouter: SkillRouter | null;
   toolRouter: ToolRouter | null;
+  /** Session-scoped decision point (freeze + invalidate) over toolRouter. */
+  facade: RoutingFacade;
 }
 
 /**
@@ -79,16 +91,18 @@ export async function createRouters(
   opts: { modelDir: string; cacheDir?: string }
 ): Promise<RouterBundle> {
   if (!config.enabled) {
-    return { skillRouter: null, toolRouter: null };
+    return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) };
   }
 
   const embeddingService = await getEmbeddingService({ modelDir: opts.modelDir });
   if (!embeddingService) {
-    return { skillRouter: null, toolRouter: null };
+    return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) };
   }
 
+  const toolRouter = new ToolRouterImpl(config, embeddingService, opts.cacheDir);
   return {
     skillRouter: new SkillRouterImpl(config, embeddingService, opts.cacheDir),
-    toolRouter: new ToolRouterImpl(config, embeddingService, opts.cacheDir),
+    toolRouter,
+    facade: new RoutingFacade({ toolRouter }),
   };
 }

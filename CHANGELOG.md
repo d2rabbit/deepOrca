@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能
 
+- **Router 闭环方案 R1-R4：语义路由的能力闭环 × 数据流闭环** (2026-08-15，方案见 `docs/research/2026-08-15-routing-closure-plan.md`)
+  - **R1 调用经济性 + 前缀守恒**：`multiIntent` 判定合并进 G1 技能精排的同一 flash 调用（此前每条消息都先付一次 SAD 分解调用，且低置信的纯 embedding 路径可短路有验证的精排路径）；G1 先跑、G3 仅多意图触发且结果过防幻觉白名单；**G2 工具路由会话级冻结**（此前逐迭代重路由导致请求前缀每轮变化，DeepSeek 前缀缓存全灭、工具可能中途消失）；内置服务器（serena/codegraph/a2ui/activity-frames）默认 pin
+  - **R2 组合路由能力闭环**：SKILL.md frontmatter 新增可选 `categories/inputs/outputs` 契约（缺失行为与现状逐字节一致），激活 Compose 的 I/O 类型传导与类别兼容度（此前恒零退化为纯相似度）；**DAG 编排提示**以 `<orchestration-plan>` 消息注入（步骤 + 依赖顺序不再丢弃）；skill-writer 模板同步契约
+  - **R3 RoutingFacade + lazy connect 机制**：decide-once/invalidate 会话级决策单点；`ensureMcpServersConnected` 按决策拉起掉线服务器（机制就绪——当前清单全部 pinned/用户配置故行为不变，兼任子进程自愈）
+  - **R4 卫生与观测**：设置保存即热生效（`invalidateRouting`）；加载失败 60s 退避（此前每条消息重试 import）；G1/G3 索引签名统一（交替不再触发重建）；向量缓存 LRU GC（上限 32 文件）；G2 budget 改用序列化 schema 真实长度；**知识面板新增"语义路由"卡片**（ready/idle/error + 载因，6 语言）——"路由静默失效"结构性不可再现
+  - **RoutingTelemetry**：G1/G2/G3/SAD/server 五阶段结构化事件（hit/fallback/skip + 耗时 + 计数），经既有 routingLogger 单点注入
+  - 测试 +22：调用计数（单意图 1 次 flash/轮）、工具集冻结字节一致、多意图 SAD 恰一次、防幻觉、元数据解析/Compose 激活/向后兼容、facade 冻结与失效、lazy-connect 机制、退避、缓存 GC、budget 估算
+
 - **Designer 全域计划 Batch 6-10：三层定位落地（A2UI 全域交互层 × PM-Design × UI-Design）** (2026-08-14，方案见 `docs/research/2026-08-14-openui-full-adoption-plan.md`)
   - **组件契约单一事实源**：抽取 React-free 的 `library-schema.ts`；`library.tsx`（渲染）与 `generate-openui-prompt.mjs`（prompt 生成）共用同一 schema，消灭"schema ↔ 手写 SKILL.md ↔ 脚本 stub"三源漂移；`npm run openui:prompt` 一键再生成，desktop 构建内置防漂移钩子（负向验证：篡改 SKILL.md → 构建失败并自动复原）
   - **P0 活 bug 收口**：pm-designer-openui SKILL.md 仍有 3 处教 LLM "只发增量语句"而实现是全量替换——已全部改为全量替换口径，组件表替换为 `library.prompt()` 生成物（真实签名，修正脚本 stub 里不存在的 variant/danger 等枚举）

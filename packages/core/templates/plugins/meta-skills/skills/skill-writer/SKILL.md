@@ -111,6 +111,18 @@ description: Brief description of what this does and when to use it
   - Security-sensitive workflows
   - Limited-scope operations
 
+- **compositional metadata** (categories / inputs / outputs): enables the skill
+  to participate in compositional routing (multi-intent requests get an ordered
+  execution plan). All optional — skills without them work exactly as before.
+  ```yaml
+  categories: [docs, testing]
+  inputs: [markdown, source-code]
+  outputs: [html, report]
+  ```
+  Use for:
+  - Skills meant to chain with other skills (one's output feeds the next's input)
+  - Skills you want grouped by functional domain in routing
+
 ### Step 5: Write effective descriptions
 
 The description is critical for AI agents to discover your Skill.

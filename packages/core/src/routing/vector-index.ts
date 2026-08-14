@@ -150,11 +150,38 @@ export class VectorIndex {
       const file = path.join(this.cacheDir, `routing-vec-${key}.json`);
       const data = { vectors: vectors.map((v) => Array.from(v)) };
       fs.writeFileSync(file, JSON.stringify(data), "utf8");
+      this.gcCacheFiles();
     } catch {
       // Cache write failure is non-fatal.
     }
   }
+
+  /**
+   * Cap the cache directory (R4): each distinct candidate-set hash leaves a
+   * file, so evolving skill/tool sets would grow the directory forever. Keep
+   * the newest MAX_CACHE_FILES by mtime, delete the rest.
+   */
+  private gcCacheFiles(): void {
+    if (!this.cacheDir) return;
+    try {
+      const files = fs
+        .readdirSync(this.cacheDir)
+        .filter((name) => name.startsWith("routing-vec-") && name.endsWith(".json"))
+        .map((name) => {
+          const full = path.join(this.cacheDir!, name);
+          return { full, mtime: fs.statSync(full).mtimeMs };
+        })
+        .sort((a, b) => b.mtime - a.mtime);
+      for (const stale of files.slice(MAX_CACHE_FILES)) {
+        fs.rmSync(stale.full, { force: true });
+      }
+    } catch {
+      // GC failure is non-fatal.
+    }
+  }
 }
+
+const MAX_CACHE_FILES = 32;
 
 /** Cosine similarity for L2-normalized vectors (= dot product). */
 function cosine(a: Float32Array, b: Float32Array): number {

@@ -448,6 +448,8 @@ export type KnowledgeStatusResponse = {
   serena: KnowledgeSourceStatus;
   agents: KnowledgeSourceStatus;
   memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
+  /** Semantic routing (skill/tool recall) — R4 observability card. */
+  routing: KnowledgeSourceStatus;
 };
 
 /** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */

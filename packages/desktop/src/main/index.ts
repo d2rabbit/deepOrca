@@ -771,6 +771,10 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
     // from the now-persisted settings.memory.enabled value. Fire-and-forget:
     // the save itself has already succeeded synchronously.
     void reconcileMemory();
+    // Routing config lives in the same settings file — drop the cached router
+    // bundle so the next decision re-reads it (R4 hot reload). Cheap when
+    // nothing changed: the embedding service is a process-wide singleton.
+    getBridge().getSessionManager().invalidateRouting();
     return result;
   });
   handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
@@ -1058,7 +1062,17 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
         }
       : { state: "disabled", detail: "未启用" };
 
-    return { codegraph, openwiki, serena, agents, memory };
+    // Semantic routing (R4 observability) — ready / idle (lazy, not yet
+    // activated) / error (embedding failed to load; routing fail-open).
+    const routingState = getBridge().getSessionManager().getRoutingStatus();
+    const routing: KnowledgeSourceStatus =
+      routingState.state === "ready"
+        ? { state: "indexed", detail: "技能/工具语义召回" }
+        : routingState.state === "error"
+          ? { state: "disabled", detail: `路由降级: ${routingState.error ?? "嵌入模型不可用"}` }
+          : { state: "empty", detail: "未激活（首次会话时加载）" };
+
+    return { codegraph, openwiki, serena, agents, memory, routing };
   });
 }
 

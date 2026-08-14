@@ -67,6 +67,12 @@ export interface RoutableTool {
   description: string;
   /** MCP server name (undefined for built-in tools). */
   serverName?: string;
+  /**
+   * Serialized JSON schema of the tool definition (optional). When present,
+   * the token-budget estimate uses its real length instead of a rough
+   * name+description approximation (R4).
+   */
+  schemaJson?: string;
 }
 
 export interface ToolSelectOptions {
