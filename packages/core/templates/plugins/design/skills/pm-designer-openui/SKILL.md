@@ -20,8 +20,10 @@ your prototype in the right-side panel.
 2. Write the prototype as OpenUI Lang code.
 3. Call the `render_openui` tool with the code.
 4. The preview panel renders it immediately.
-5. When the user requests changes, call `update_openui` with only the changed
-   statements (incremental editing — saves tokens).
+5. When the user requests changes, call `update_openui` with the **complete
+   updated program** (full replacement). To iterate efficiently, copy the
+   previous code and modify only the parts that need changing — but always
+   send the whole program, never just the changed statements.
 
 ## OpenUI Lang syntax
 
@@ -34,31 +36,63 @@ Each line is an assignment: `identifier = ComponentName(arg1, arg2, ...)`
 
 ## Available components
 
-| Component | Props (positional order) | Example |
-|-----------|--------------------------|---------|
-| `Column` | children, gap?, padding?, align? | `main = Column([header, body])` |
-| `Row` | children, gap?, padding?, align?, justify? | `toolbar = Row([btn1, btn2], "8px", undefined, "center", "between")` |
-| `Stack` | children, gap? | `group = Stack([label, input])` |
-| `Card` | children, title?, padding? | `card = Card([content], "User Info")` |
-| `TextContent` | text, variant? | `title = TextContent("Dashboard", "title")` |
-| `Badge` | label, variant? | `status = Badge("Active", "success")` |
-| `Button` | label, action?, variant? | `btn = Button("Submit", "submit:form", "primary")` |
-| `TextField` | label?, placeholder?, type?, name? | `email = TextField("Email", "you@test.com", "email", "email")` |
-| `Metric` | label, value, trend? | `rev = Metric("Revenue", "$12.3k", "+15%")` |
-| `Divider` | (none) | `sep = Divider()` |
-| `Spacer` | size? | `gap = Spacer("24px")` |
+<!-- BEGIN generated component prompt (npm run openui:prompt) -->
+## Syntax Rules
 
-### TextContent variants
+1. Each statement is on its own line: `identifier = Expression`
+2. `root` is the entry point — every program must define `root = Root(...)`
+3. Expressions are: strings ("..."), numbers, booleans (true/false), null, arrays ([...]), objects ({...}), or component calls TypeName(arg1, arg2, ...)
+4. Use references for readability: define `name = ...` on one line, then use `name` later
+5. EVERY variable (except root) MUST be referenced by at least one other variable. Unreferenced variables are silently dropped and will NOT render. Always include defined variables in their parent's children/items array.
+6. Arguments are POSITIONAL (order matters, not names). Write `Stack([children], "row", "l")` NOT `Stack([children], direction: "row", gap: "l")` — colon syntax is NOT supported and silently breaks
+7. Optional arguments can be omitted from the end
+- Strings use double quotes with backslash escaping
 
-`small`, `body`, `large`, `large-heavy`, `title`, `caption`, `muted`
+## Component Signatures
 
-### Button variants
+Arguments marked with ? are optional. Sub-components can be inline or referenced; prefer references for better streaming.
 
-`primary` (accent color), `secondary` (subtle), `ghost` (transparent)
+### Layout
+Column(children?: any[], gap?: string, padding?: string, align?: "left" | "center" | "right" | "stretch") — Vertical stack container. Children flow top-to-bottom.
+Row(children?: any[], gap?: string, padding?: string, align?: "top" | "center" | "bottom", justify?: "start" | "center" | "end" | "between") — Horizontal flex container. Children flow left-to-right.
+Stack(children?: any[], gap?: string) — Simple vertical stack with default gap. Use for grouping related elements.
+Card(children?: any[], title?: string, padding?: string) — Surface card with border, background, and padding. Groups content visually.
+Divider() — Horizontal separator line.
+Spacer(size?: string) — Flexible vertical spacer. Use to push content apart in a Column.
 
-### Badge variants
+### Content
+TextContent(text: string, variant?: "small" | "body" | "large" | "large-heavy" | "title" | "caption" | "muted") — Text element. variant controls size/weight: 'small', 'body', 'large', 'large-heavy', 'title', 'caption', 'muted'.
+Badge(label: string, variant?: "default" | "success" | "warning" | "error" | "info") — Small pill-shaped label for status/tags/metadata.
+Metric(label: string, value: string, trend?: string) — KPI metric card — large number + label + optional trend indicator.
 
-`default`, `success`, `warning`, `error`, `info`
+### Interactive
+Button(label: string, action?: string, variant?: "primary" | "secondary" | "ghost", disabled?: boolean) — Clickable button. variant: 'primary' | 'secondary' | 'ghost'. action fires on click.
+TextField(label?: string, placeholder?: string, value?: string, type?: "text" | "email" | "password" | "number", name?: string) — Single-line text input with label and placeholder.
+
+## Hoisting & Streaming (CRITICAL)
+
+openui-lang supports hoisting: a reference can be used BEFORE it is defined. The parser resolves all references after the full input is parsed.
+
+During streaming, the output is re-parsed on every chunk. Undefined references are temporarily unresolved and appear once their definitions stream in. This creates a progressive top-down reveal — structure first, then data fills in.
+
+**Recommended statement order for optimal streaming:**
+1. `root = Root(...)` — UI shell appears immediately
+2. Component definitions — fill in as they stream
+3. Data values — leaf content last
+
+Always write the root = Root(...) statement first so the UI shell appears immediately, even before child data has streamed in.
+## Important Rules
+- When asked about data, generate realistic/plausible data
+- Choose components that best represent the content (tables for comparisons, charts for trends, forms for input, etc.)
+
+## Final Verification
+Before finishing, walk your output and verify:
+1. root = Root(...) is the FIRST line (for optimal streaming).
+2. Every referenced name is defined. Every defined name (other than root) is reachable from root.
+
+- Follow the taste skill's design discipline (one accent, 4/8px spacing, ≥4.5:1 contrast).
+- Use Query('design.readWiki', {name: '...'}) to pull project context into prototypes.
+<!-- END generated component prompt -->
 
 ## Example: Login form
 
@@ -91,20 +125,22 @@ contentTitle = TextContent("Recent Activity", "large-heavy")
 contentBody = TextContent("No recent activity to display.", "muted")
 ```
 
-## Incremental editing (update_openui)
+## Iterating (update_openui)
 
-When the user asks for changes, send **only the changed statements**:
+`update_openui` performs a **full replacement**: send the complete updated
+program every time, not just the changed statements. A partial program
+replaces the whole prototype and leaves it broken.
 
-- **Modify**: resend the statement with new values: `title = TextContent("New Title", "title")`
-- **Add**: send new statements (they're appended)
-- **Delete**: `oldWidget = null`
-
-The renderer merges them into the existing program — no need to resend everything.
+- **Modify**: copy the previous program, change the affected statements,
+  resend everything.
+- **Add / Delete**: same — edit the full program and resend it.
+- **Semantic IDs** (`emailField`, not `field3`) still matter: they keep the
+  diff between versions small and readable for the user.
 
 ## Rules
 
 1. **Always start with `root =`** — it's the entry point.
-2. **Use semantic IDs** — `emailField`, not `field3`. Helps with incremental edits.
+2. **Use semantic IDs** — `emailField`, not `field3`. Keeps successive versions easy to compare.
 3. **Prefer Column/Row for layout** — they handle flexbox automatically.
 4. **One component per line** — no nesting on a single line.
-5. **Call `render_openui` once** for the initial prototype, then `update_openui` for changes.
+5. **Call `render_openui` once** for the initial prototype, then `update_openui` with the full program for every change.

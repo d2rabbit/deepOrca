@@ -92,6 +92,14 @@ export interface ActionContext {
    * it; deterministic actions never touch it (small surface).
    */
   readonly executeMcpTool?: (namespacedToolName: string, args: Record<string, unknown>) => Promise<McpDispatchResult>;
+  /**
+   * LLM single-choice judgment, injected by SessionManager (flash-class model,
+   * JSON mode). Returns one of `choices`, or null when unavailable/failed —
+   * callers MUST fall back to deterministic behavior on null (fail-open).
+   * Lets classification-shaped actions (e.g. design.materialize routing)
+   * upgrade from keyword heuristics without core gaining an LLM dependency.
+   */
+  readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
 }
 
 export interface RunSubagentOptions {

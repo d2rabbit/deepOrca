@@ -1,31 +1,35 @@
 ---
 name: a2ui-annotation
 description: >-
-  交互式批注反馈层 — 当用户对 AI 产出（原型、设计稿、代码审查结果、架构图等）有反馈时，
-  使用 render_surface 构建交互式批注 UI。用户可以点击建议选项、打字描述修改、或标记问题区域。
-  Use when the agent needs to present structured feedback options, interactive
-  annotations, or contextual modification suggestions to the user.
-  触发词: 批注, 标注, 反馈, 建议, annotation, feedback, suggestion.
+  全域交互层 — A2UI 是 agent 与用户之间的结构化交互通道：主动式追问（方案选择、
+  方向确认、对比决策）与批注式交互（对原型/设计稿/代码审查结果等产出的反馈卡）。
+  使用 render_surface 构建交互式 Surface；不生成设计内容。
+  Use when the agent needs to proactively ask the user structured questions or
+  present interactive annotations/feedback options on any artifact.
+  触发词: 批注, 标注, 反馈, 建议, 追问, 确认, annotation, feedback, suggestion.
 ---
 
-# A2UI 交互式批注反馈层
+# A2UI 全域交互层（主动追问 + 批注交互）
 
-A2UI 是 DeepOrca 的全域交互式批注系统。当用户需要对 Agent 的产出提供结构化反馈时，
-Agent 使用 `render_surface` 构建一个交互式 Surface——内嵌上下文、建议选项和输入框，
-用户通过点击或打字回应，比纯文本对话更高效。
+A2UI 是 DeepOrca 的全域交互层：agent 需要用户**结构化回应**时（选择方案、确认方向、
+对产出提出反馈），用 `render_surface` 构建交互式 Surface——内嵌上下文、建议选项和
+输入框，用户通过点击或打字回应，比纯文本对话更高效。
 
-## 与 Designer 的关系
+## 定位与红线
 
-A2UI **不生成设计内容**。设计原型使用 OpenUI Lang（`render_openui`），
-设计稿使用 DeepDesign（`render_design`）。A2UI 专注于**交互反馈**：
-当用户说"这里不好"或需要选择方案时，Agent 弹出一个交互式批注。
+- **职责**：主动式追问 + 批注式交互——一切"agent ↔ 用户"的结构化交互表面。
+- **增量原则**：只承载**新增**交互表面；QuestionCard、权限询问卡片等存量交互
+  组件不迁移、不由本技能替代。
+- **红线**：A2UI **不生成设计内容、不进入 design 子域主流程**。设计原型使用
+  OpenUI Lang（`render_openui`），设计稿使用 DeepDesign（`render_design`）。
 
 ## 何时使用
 
-- 用户对某个产出（原型/设计/代码）提出修改意见，Agent 想给出结构化选项
-- Agent 需要用户在多个方案中选择
-- Agent 需要用户确认某个修改方向
+- Agent 主动追问：需要用户在多个方案中选择、确认某个修改方向
+- 批注交互：用户对某个产出（原型/设计/代码）提出修改意见，Agent 给出结构化选项
 - 展示对比：旧方案 vs 新方案，让用户选择
+- 注意：权限确认走系统内置的权限卡片，文本澄清优先普通对话；本技能用于
+  需要点击/选择/结构化输入的场景。
 
 ## 工作流
 
@@ -49,14 +53,14 @@ A2UI **不生成设计内容**。设计原型使用 OpenUI Lang（`render_openui
 
 ## 组件类型
 
-| 类型 | 用途 |
-|---|---|
-| `card` | 上下文、方案描述、问题说明 |
-| `button` | 确认/取消/选择操作 |
-| `textfield` | 自由文本输入 |
-| `text` | 标签、提示文字 |
-| `badge` | 标记优先级、状态 |
-| `divider` | 视觉分隔 |
+| 类型        | 用途                       |
+| ----------- | -------------------------- |
+| `card`      | 上下文、方案描述、问题说明 |
+| `button`    | 确认/取消/选择操作         |
+| `textfield` | 自由文本输入               |
+| `text`      | 标签、提示文字             |
+| `badge`     | 标记优先级、状态           |
+| `divider`   | 视觉分隔                   |
 
 ## 最佳实践
 

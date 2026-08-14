@@ -32,7 +32,8 @@
     "desktop:startLx": "node scripts/desktop-start.js lx",
     "test": "npm run test --workspaces --if-present",
     "release:version": "node scripts/version.js",
-    "prepare": "husky && npm run build"
+    "prepare": "husky && npm run build",
+    "openui:prompt": "node scripts/generate-openui-prompt.mjs --write"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

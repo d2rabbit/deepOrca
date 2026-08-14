@@ -66,7 +66,14 @@ import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
 import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { CrgCliController } from "./tools/crg-cli.js";
-import { listDesignArtifacts, readDesignArtifact, deleteDesignArtifact } from "./tools/design-store.js";
+import {
+  listDesignArtifacts,
+  readDesignArtifact,
+  deleteDesignArtifact,
+  saveFormState,
+  readFormState,
+  type DesignPipeline,
+} from "./tools/design-store.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -1067,6 +1074,23 @@ function registerDesignIpc({ handle }: IpcHelpers): void {
 
   handle(IpcRequest.DesignDelete, async (id: string) => {
     return deleteDesignArtifact(getBridge().projectRoot, id);
+  });
+
+  // Form-state persistence targets the LATEST artifact of the pipeline — the
+  // live preview always shows the most recent prototype/document, so the
+  // renderer never needs to know artifact ids.
+  const latestArtifactId = (pipeline: DesignPipeline): string | null => {
+    return listDesignArtifacts(getBridge().projectRoot).find((a) => a.pipeline === pipeline)?.id ?? null;
+  };
+
+  handle(IpcRequest.DesignSaveFormState, async (pipeline: DesignPipeline, state: Record<string, unknown>) => {
+    const id = latestArtifactId(pipeline);
+    return id ? saveFormState(getBridge().projectRoot, id, state) : false;
+  });
+
+  handle(IpcRequest.DesignReadFormState, async (pipeline: DesignPipeline) => {
+    const id = latestArtifactId(pipeline);
+    return id ? readFormState(getBridge().projectRoot, id) : null;
   });
 }
 

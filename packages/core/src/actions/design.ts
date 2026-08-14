@@ -1,13 +1,14 @@
 /**
  * design.materialize — one-click requirement materialization for Designer.
  *
- * Takes a natural-language requirement, routes it to the best pipeline
+ * Takes a natural-language requirement, routes it to the best sub-domain
  * (PM-Design OpenUI prototype vs UI-Design .dd document), generates the
  * artifact via the existing MCP tools, and persists it to designs/.
  *
- * Pipeline routing rules:
- *   - Interactive (forms, kanban, dashboards, multi-page navigation) → OpenUI
- *   - Presentation (landing pages, posters, brand pages) → DeepDesign .dd
+ * Pipeline routing (Batch 9): ctx.judgeViaLlm (flash LLM, injected by
+ * SessionManager) decides PM-Design vs UI-Design; the keyword heuristic below
+ * remains the fail-open fallback when the LLM is unavailable or returns
+ * nothing recognizable. A user-specified pipeline always wins.
  *
  * This is a pure orchestration layer — it calls existing tools, implements
  * no rendering itself.
@@ -25,7 +26,9 @@ export interface DesignMaterializeOutput {
   ok: boolean;
   pipeline?: string;
   reasoning?: string;
-  artifactId?: string;
+  /** null when the artifact reference can't be resolved — the DesignPanel
+   *  lists designs/ as the source of truth. */
+  artifactId?: string | null;
   error?: string;
 }
 
@@ -128,16 +131,32 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
 
   ctx.emit({ message: "🎯 分析需求…", percent: 10 });
 
-  // Route pipeline.
-  const route =
-    input.pipeline && input.pipeline !== "auto"
-      ? { pipeline: input.pipeline as "openui" | "design", reasoning: `User-specified pipeline: ${input.pipeline}` }
-      : routePipeline(requirement);
+  // Route pipeline: user override > flash LLM judgment > keyword heuristic.
+  let route: { pipeline: "openui" | "design"; reasoning: string };
+  if (input.pipeline && input.pipeline !== "auto") {
+    route = {
+      pipeline: input.pipeline as "openui" | "design",
+      reasoning: `User-specified pipeline: ${input.pipeline}`,
+    };
+  } else {
+    route = routePipeline(requirement);
+    if (ctx.judgeViaLlm) {
+      const choice = await ctx.judgeViaLlm(
+        "Decide which design sub-domain fits this requirement:\n" +
+          `- "openui" (PM-Design): interactive prototypes — forms, kanban, dashboards, wizards, multi-page navigation, anything the user clicks/types into.\n` +
+          `- "design" (UI-Design): self-contained presentational documents — landing pages, posters, brand/hero/marketing pages, portfolio pieces.\n` +
+          `Mixed requirements: pick by the dominant deliverable.\n\nRequirement: ${requirement}`,
+        ["openui", "design"]
+      );
+      if (choice === "openui" || choice === "design") {
+        route = { pipeline: choice, reasoning: `LLM judgment: ${choice} (heuristic said ${route.pipeline})` };
+      }
+    }
+  }
 
   ctx.emit({ message: `📊 管线路由: ${route.pipeline} — ${route.reasoning}`, percent: 25 });
 
   // Generate via MCP tools (delegate to the a2ui server's tools).
-  const toolName = route.pipeline === "openui" ? "render_openui" : "render_design";
   const promptForTool =
     route.pipeline === "openui"
       ? `Create an OpenUI Lang prototype for: ${requirement}. Use the design discipline from the taste skill. Call the render_openui tool.`
@@ -156,7 +175,7 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
   // call the tool), or return a structured "pending" for the UI to prompt.
   if (ctx.runSubagent) {
     try {
-      const result = await ctx.runSubagent({
+      await ctx.runSubagent({
         skill: route.pipeline === "openui" ? "pm-designer-openui" : "deep-design",
         prompt: promptForTool,
       });
@@ -165,7 +184,10 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         ok: true,
         pipeline: route.pipeline,
         reasoning: route.reasoning,
-        artifactId: String(result ?? ""),
+        // runSubagent returns only the last text message — not a stable
+        // artifact reference. The DesignPanel lists designs/ as the source
+        // of truth instead of guessing an id here.
+        artifactId: null,
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

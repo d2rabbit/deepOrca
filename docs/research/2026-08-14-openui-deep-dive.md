@@ -182,6 +182,28 @@ OpenUI 是三条管线里唯一有"运行时自治"能力的，应成为工作�
 
 **建议节奏**：P0 先修 OpenUI 假增量（correctness）→ P1 解锁 inlineMode/toolProvider/持久化 → P2 PM-Design 工作台以 OpenUI 为默认管线；**A2UI 冻结**（保留现有模板与闭环，不再新增组件/不再写新管线代码），待 OpenUI 持久化与独立窗口补齐后评估退役。Designer 的 .dd 交付稿不受此选型影响，独立保留。
 
+### 5.3 定位修订（2026-08-14，取代上方 §5.2 的"取代/冻结/退役"结论）
+
+> 本节为决策回写：§5.2 的原文保留作历史记录，但**结论已作废**。现行定位以
+> [2026-08-14-openui-full-adoption-plan.md](2026-08-14-openui-full-adoption-plan.md) §〇 为准。
+
+**三层定位**（产品决策钦定）：
+
+- **A2UI = 全域渲染层**——agent 交互表面（主动式追问新增场景 + 批注式交互），不限于任何域，但**永不进入 design 子域主流程**。原"冻结/退役"方向撤销；A2UI 按**增量原则**持续承载新增交互表面（QuestionCard、权限卡片等存量交互组件不迁移）。
+- **PM-Design = 交互原型子域** → OpenUI Lang 管线（specs/pm-design-v2）。
+- **UI-Design = 视觉设计稿子域** → DeepDesign .dd 管线（specs/deep-design）。
+
+**实施偏离记录**（对照本文 §三 落地清单，Batch 1-5 实际走向）：
+
+| 原方案项 | 实际决策 | 依据 |
+| --- | --- | --- |
+| P0-1 update_openui 真增量（推荐 editMode merge） | 改为**全量替换语义**并同步工具描述与 SKILL.md | 实现成本/收益取舍；token 代价可接受，editMode 列为后续观察项 |
+| pm-analyst 拆解路由 | 降级为关键词启发式，Batch 9 升级为 flash LLM 判定（启发式 fail-open 兜底） | pm-analyst 产物无消费方 |
+| ThemeProvider（`--openui-*` 映射） | 变体完成：组件直接改用 `--ui-*` 变量并修复不存在的变量名（Batch 5） | 少一层映射，效果等价 |
+| A2UI 冻结 → 渐进取代 → 退役 | **重定位为全域交互层**（ecc01fd5），后续按增量原则演进 | 批注/追问是真实需求，自研交互层有其独立价值 |
+
+另注：design 插件清单的 `mcp: [a2ui]` 指向**共享进程宿主**（render_openui/render_design 工具寄居 a2ui MCP server），是基础设施耦合而非管线越界；边界不变量由 guard 测试锁定（design 无 a2ui 技能、`DesignPipeline` 不含 a2ui、materialize 路由不触及交互工具）。
+
 ---
 
 ## 附录 A：OpenUI 关键 API 速查

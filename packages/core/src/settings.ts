@@ -140,6 +140,12 @@ export type DeepcodingSettings = {
    * Default: 300000 (5 minutes) — long enough for extended thinking pauses.
    */
   streamIdleTimeoutMs?: number;
+  /**
+   * PM-Design inline mode: render a complete ```openui-lang block embedded in
+   * an assistant reply without waiting for the render_openui tool call.
+   * Opt-in gray-release flag; the tool channel remains authoritative.
+   */
+  openuiInlineMode?: boolean;
 };
 
 /**

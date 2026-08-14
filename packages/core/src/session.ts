@@ -797,6 +797,9 @@ export class SessionManager {
       // Minimal Subagent runtime (§十 P2): lets arch-scan.run dispatch an
       // isolated sub-session that force-loads+runs a skill. See runSubagent().
       runSubagent: (opts) => this.runSubagent(opts),
+      // LLM single-choice judgment for classification-shaped actions
+      // (design.materialize routing). Fail-open: null → caller's heuristic.
+      judgeViaLlm: (prompt, choices) => this.judgeViaLlm(prompt, choices),
     });
     this.actionRegistry.register(pingDefinition, pingRun);
     // ── Phase 1: code review actions ──────────────────────────────────────
@@ -888,6 +891,53 @@ export class SessionManager {
    * sessionId over Map<sessionId> state, so nested invocations don't collide.
    * No recursion guard yet (arch-scan doesn't recurse); add a depth cap later.
    */
+  /**
+   * LLM single-choice judgment for classification-shaped actions (flash
+   * model, JSON mode). Returns one of `choices` or null on any failure —
+   * callers must fail open to their deterministic fallback.
+   */
+  private async judgeViaLlm(prompt: string, choices: readonly string[]): Promise<string | null> {
+    if (choices.length === 0) return null;
+    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    if (!client) return null;
+    const model = LIGHTWEIGHT_TASK_MODEL;
+    try {
+      const response = await this.createChatCompletionStream(
+        client,
+        {
+          model,
+          temperature: 0,
+          max_tokens: 64,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You classify requests. Respond with JSON only: " +
+                `{"choice": "<exactly one of the allowed choices>"}. No other keys.`,
+            },
+            { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
+          ],
+          response_format: { type: "json_object" },
+          ...buildThinkingRequestOptions(false, baseURL),
+        },
+        undefined,
+        undefined,
+        {
+          enabled: debugLogEnabled,
+          location: "SessionManager.judgeViaLlm",
+          baseURL,
+          params: { purpose: "action-judgment", model, temperature: 0 },
+        }
+      );
+      const rawContent = response.choices?.[0]?.message?.content;
+      const parsed = typeof rawContent === "string" ? (JSON.parse(rawContent) as { choice?: unknown }) : null;
+      const choice = parsed?.choice;
+      return typeof choice === "string" && choices.includes(choice) ? choice : null;
+    } catch {
+      return null;
+    }
+  }
+
   async runSubagent(opts: RunSubagentOptions): Promise<{ sessionId: string; content: string | null }> {
     const previousActive = this.activeSessionId;
     // Force-load the named skill (don't rely on auto-match alone).

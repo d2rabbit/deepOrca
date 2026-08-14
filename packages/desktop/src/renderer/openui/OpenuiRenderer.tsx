@@ -22,9 +22,22 @@ type Props = {
   onAction?: (event: ActionEvent) => void;
   /** Enable the designer tool provider — prototypes can Query() local data. */
   enableTools?: boolean;
+  /** Form-state changes (caller throttles persistence). */
+  onStateUpdate?: (state: Record<string, unknown>) => void;
+  /** Hydrate form fields from a persisted state. */
+  initialState?: Record<string, unknown>;
+  /** Render errors surfaced (correction-loop input; see openui/correction.ts). */
+  onErrors?: (errors: OpenUIError[]) => void;
 };
 
-export function OpenuiRenderer({ code, onAction, enableTools = true }: Props): JSX.Element {
+export function OpenuiRenderer({
+  code,
+  onAction,
+  enableTools = true,
+  onStateUpdate,
+  initialState,
+  onErrors,
+}: Props): JSX.Element {
   const [errors, setErrors] = useState<OpenUIError[]>([]);
 
   // Create the tool provider once (stable reference for the SDK).
@@ -62,8 +75,13 @@ export function OpenuiRenderer({ code, onAction, enableTools = true }: Props): J
         library={deeporcaLibrary}
         isStreaming={false}
         onAction={onAction}
-        onError={setErrors}
+        onError={(errs) => {
+          setErrors(errs);
+          onErrors?.(errs);
+        }}
         toolProvider={toolProvider}
+        onStateUpdate={onStateUpdate}
+        initialState={initialState}
       />
       {errors.length > 0 ? (
         <details style={{ marginTop: 12 }}>

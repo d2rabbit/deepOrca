@@ -146,6 +146,8 @@ const api: DesktopApi = {
   designList: () => ipcRenderer.invoke(IpcRequest.DesignList),
   designRead: (id) => ipcRenderer.invoke(IpcRequest.DesignRead, id),
   designDelete: (id) => ipcRenderer.invoke(IpcRequest.DesignDelete, id),
+  designSaveFormState: (pipeline, state) => ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state),
+  designReadFormState: (pipeline) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>

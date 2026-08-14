@@ -151,6 +151,8 @@ export const IpcRequest = {
   DesignList: "design:list",
   DesignRead: "design:read",
   DesignDelete: "design:delete",
+  DesignSaveFormState: "design:saveFormState",
+  DesignReadFormState: "design:readFormState",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -771,6 +773,10 @@ export type DesktopApi = {
   designRead(id: string): Promise<DesignArtifact | null>;
   /** Delete a design artifact. */
   designDelete(id: string): Promise<boolean>;
+  /** Persist the live prototype's form state (caller throttles). Main resolves the latest artifact of the pipeline. */
+  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>): Promise<boolean>;
+  /** Read the persisted form state for hydration; null when none. */
+  designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

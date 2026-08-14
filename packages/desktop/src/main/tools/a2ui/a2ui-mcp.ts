@@ -632,6 +632,10 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
             "The OpenUI Lang program. Each line is `identifier = ComponentName(...)`. " +
               "The `root` statement is the top-level component."
           ),
+        requirement: z
+          .string()
+          .optional()
+          .describe("The user's original requirement text (persisted as requirement.md; pass when known)."),
       },
     },
     async (args) => {
@@ -643,13 +647,13 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         };
       }
       // Persist as a design artifact (fire-and-forget, best-effort).
-      if (projectRoot) {
-        saveDesignArtifact(projectRoot, {
-          title: deriveTitle(code),
-          pipeline: "openui",
-          content: code,
-        });
-      }
+      const requirement =
+        typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      saveArtifactWithLineage(projectRoot, "openui", "render", {
+        title: deriveTitle(code),
+        content: code,
+        requirement,
+      });
       // Return as text content with metadata.openui. The desktop renderer
       // detects this and switches to OpenUI Lang rendering mode.
       return {
@@ -678,6 +682,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     },
     async (args) => {
       const code = String(args.code ?? "");
+      // Iterate on the same artifact (versions[] accumulate; render_openui
+      // starts a fresh lineage for a brand-new prototype).
+      saveArtifactWithLineage(projectRoot, "openui", "update", { title: deriveTitle(code), content: code });
       return {
         content: [
           {
@@ -737,13 +744,7 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
       }
       // Persist as a design artifact (fire-and-forget, best-effort) + store for delta.
       lastDesignDoc = content;
-      if (projectRoot) {
-        saveDesignArtifact(projectRoot, {
-          title: deriveTitle(content),
-          pipeline: "design",
-          content,
-        });
-      }
+      saveArtifactWithLineage(projectRoot, "design", "render", { title: deriveTitle(content), content });
       const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
       return {
         content: [
@@ -787,13 +788,8 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
       if (Array.isArray(args.sections) && args.sections.length > 0 && lastDesignDoc) {
         const merged = mergeDesignSections(lastDesignDoc, args.sections as Array<{ id: string; html: string }>);
         if (merged) {
-          if (projectRoot) {
-            saveDesignArtifact(projectRoot, {
-              title: deriveTitle(merged),
-              pipeline: "design",
-              content: merged,
-            });
-          }
+          lastDesignDoc = merged;
+          saveArtifactWithLineage(projectRoot, "design", "update", { title: deriveTitle(merged), content: merged });
           const sectionCount = (merged.match(/<!--\s*dd:section\s/g) || []).length;
           return {
             content: [
@@ -821,13 +817,7 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
         } as CallToolResult;
       }
       lastDesignDoc = content;
-      if (projectRoot) {
-        saveDesignArtifact(projectRoot, {
-          title: deriveTitle(content),
-          pipeline: "design",
-          content,
-        });
-      }
+      saveArtifactWithLineage(projectRoot, "design", "update", { title: deriveTitle(content), content });
       const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
       return {
         content: [
@@ -846,6 +836,37 @@ export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot
 
 /** The latest .dd document stored by render_design/update_design (server-side state). */
 let lastDesignDoc: string | null = null;
+
+/**
+ * Artifact lineage per project root: `render_*` creates a new artifact and
+ * remembers its id; `update_*` saves onto the SAME id so iterations
+ * accumulate as versions[] of one artifact instead of spawning a new
+ * artifact per turn. `render_*` after a finished design starts a fresh
+ * lineage, which is the intended semantics.
+ */
+const latestArtifactIds = new Map<string, { openui?: string; design?: string }>();
+
+/** Save with lineage: create (render) or version (update), remembering the id. */
+function saveArtifactWithLineage(
+  root: string | undefined,
+  kind: "openui" | "design",
+  mode: "render" | "update",
+  input: { title: string; content: string; requirement?: string }
+): void {
+  if (!root) return;
+  const latest = latestArtifactIds.get(root) ?? {};
+  const id = mode === "update" ? latest[kind] : undefined;
+  const meta = saveDesignArtifact(root, {
+    ...(id ? { id } : {}),
+    title: input.title,
+    pipeline: kind,
+    content: input.content,
+    ...(input.requirement ? { requirement: input.requirement } : {}),
+  });
+  if (meta) {
+    latestArtifactIds.set(root, { ...latest, [kind]: meta.id });
+  }
+}
 
 /**
  * Merge section patches into a stored .dd document. Replaces the HTML between

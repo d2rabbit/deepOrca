@@ -41,6 +41,11 @@ export interface RegistryHost {
    * read it via {@link ActionContext.runSubagent}. See roadmap §十 / spec §五.
    */
   readonly runSubagent?: (opts: import("./types").RunSubagentOptions) => Promise<unknown>;
+  /**
+   * LLM single-choice judgment — injected by SessionManager. Actions read it
+   * via {@link ActionContext.judgeViaLlm} and must fail open when absent.
+   */
+  readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
 }
 
 /** Options passed to {@link ActionRegistry.execute}. */
@@ -79,12 +84,14 @@ export class ActionRegistry {
     args: Record<string, unknown>
   ) => Promise<McpDispatchResult>;
   private readonly subagentDispatch?: (opts: import("./types").RunSubagentOptions) => Promise<unknown>;
+  private readonly judgeDispatch?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
 
   constructor(host: RegistryHost) {
     this.projectRoot = host.projectRoot;
     this.spawner = host.spawner ?? NULL_SPAWNER;
     this.mcpDispatch = host.executeMcpTool;
     this.subagentDispatch = host.runSubagent;
+    this.judgeDispatch = host.judgeViaLlm;
   }
 
   /**
@@ -182,6 +189,7 @@ export class ActionRegistry {
         spawner: this.spawner,
         executeMcpTool: this.mcpDispatch,
         runSubagent: this.subagentDispatch,
+        judgeViaLlm: this.judgeDispatch,
       };
       try {
         return (await entry.run(input, ctx)) as O;

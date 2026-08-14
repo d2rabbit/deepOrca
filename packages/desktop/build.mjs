@@ -143,6 +143,17 @@ function generateTailwindSource() {
 // the build must not break because of it.
 function ensureVendored(name, entryRel, fallbackHint) {
   const entry = resolve(__dirname, "vendor", name, ...entryRel);
+  // Escape hatch for offline / fast iteration builds: vendoring checks the
+  // upstream (network) every time, which can hang on a flaky connection.
+  // With an existing vendored copy the build proceeds on it.
+  if (process.env.DEEPORCA_SKIP_VENDORS) {
+    if (existsSync(entry)) {
+      console.log(`[desktop] vendoring ${name} skipped (DEEPORCA_SKIP_VENDORS) — using existing copy.`);
+    } else {
+      console.warn(`[desktop] vendoring ${name} skipped — runtime will fall back to \`${fallbackHint}\`.`);
+    }
+    return;
+  }
   const script = resolve(__dirname, "..", "..", "scripts", `vendor-${name}.js`);
   try {
     console.log(`[desktop] vendoring ${name} (checking upstream) …`);
@@ -239,8 +250,45 @@ async function copyStaticAssets() {
   }
 }
 
+/**
+ * The pm-designer-openui SKILL.md component table is a generated artifact of
+ * the designer library schema (library-schema.ts). Regenerate it before
+ * bundling and fail when regeneration changes the file — i.e. when a schema
+ * change was not followed by `npm run openui:prompt`. The check compares the
+ * file before/after regeneration (not git state), so uncommitted-but-in-sync
+ * files pass while genuine drift fails.
+ */
+async function ensureOpenuiPromptInSync() {
+  const script = resolve(__dirname, "..", "..", "scripts", "generate-openui-prompt.mjs");
+  const skill = resolve(
+    __dirname,
+    "..",
+    "..",
+    "packages",
+    "core",
+    "templates",
+    "plugins",
+    "design",
+    "skills",
+    "pm-designer-openui",
+    "SKILL.md"
+  );
+  const before = readFileSync(skill, "utf8");
+  const gen = spawnSync(process.execPath, [script, "--write"], { encoding: "utf8" });
+  if (gen.status !== 0) {
+    throw new Error(`openui prompt generation failed:\n${gen.stderr}`);
+  }
+  const after = readFileSync(skill, "utf8");
+  if (before !== after) {
+    throw new Error(
+      "pm-designer-openui SKILL.md is out of sync with library-schema.ts — run `npm run openui:prompt` and commit the result."
+    );
+  }
+}
+
 async function run() {
   await ensureCoreBuilt();
+  await ensureOpenuiPromptInSync();
   // CodeGraph: installed as npm dependency (@colbymchenry/codegraph) — no vendor script needed.
   // The npm-shim.js auto-selects the platform binary from optionalDependencies.
   ensureVendored("openwiki", [".vendored-openwiki-version"], "npx openwiki");

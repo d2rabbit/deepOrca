@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { clearSurfaces as clearA2uiSurfaces } from "../a2ui/processor";
+import { detectPrototypeArtifact } from "../openui/detect-artifact";
 import type { SessionMessage } from "../../shared/ipc";
 
 /**
@@ -8,7 +9,9 @@ import type { SessionMessage } from "../../shared/ipc";
  *
  * Extracted from App.tsx verbatim. The tool-result detection previously lived
  * inline inside the boot effect's onAssistantMessage handler (~60 lines);
- * `applyToolMessage` is that block moved here unchanged.
+ * `applyToolMessage` keeps only the state transitions — which pipeline a tool
+ * result belongs to (and with which payload) is decided by the pure
+ * `detectPrototypeArtifact` function (see openui/detect-artifact.ts).
  *
  * Both `applyToolMessage` and `resetForSession` keep an empty dep array: the first
  * is called from the boot effect (whose dep array must stay identity-stable or the
@@ -43,68 +46,28 @@ export function usePreview(): PreviewState {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState<"prototype" | "design">("prototype");
 
-  // Auto-switch to prototype panel when a render_prototype/render_surface
-  // tool result arrives with A2UI payload.
+  // Auto-switch the matching preview panel when a render/update tool result arrives.
   const applyToolMessage = useCallback((message: SessionMessage) => {
     if (message.role !== "tool") return;
-    const content = message.content || "";
-    // Check for DeepDesign (.dd format) tool results via metadata.design.
-    if (content.includes("render_design") || content.includes("update_design")) {
-      try {
-        const parsed = JSON.parse(content);
-        const meta = parsed.metadata ?? {};
-        if (meta.design) {
-          const ddContent = typeof meta.design === "string" ? meta.design : String(meta.design);
-          setPrototypeMode("design");
-          setDesignContent(ddContent);
-          setPreviewOpen(true);
-          setPreviewTab("design");
-        }
-      } catch {
-        // Not parseable.
-      }
-    }
-    // Check for OpenUI Lang tool results via metadata.openui.
-    if (content.includes("render_openui") || content.includes("update_openui")) {
-      try {
-        const parsed = JSON.parse(content);
-        const meta = parsed.metadata ?? {};
-        if (meta.openui) {
-          const openuiCode = typeof meta.openui === "string" ? meta.openui : String(meta.openui);
-          // Full replacement — update_openui sends the complete updated program.
-          setPrototypeMode("openui");
-          setPrototypeOpenuiCode(openuiCode);
-          setPreviewOpen(true);
-          setPreviewTab("prototype");
-        }
-      } catch {
-        // Not parseable.
-      }
-    }
-    // Check for A2UI tool results via metadata.a2ui (set by executor).
-    else if (
-      content.includes("render_prototype") ||
-      content.includes("render_surface") ||
-      content.includes("update_surface")
-    ) {
-      try {
-        const parsed = JSON.parse(content);
-        const meta = parsed.metadata ?? {};
-        if (meta.a2ui) {
-          const a2uiJson = typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
-          if (content.includes("render_prototype") || content.includes("render_surface")) {
-            setPrototypeMode("a2ui");
-            setPrototypeJson(a2uiJson);
-            setPreviewOpen(true);
-            setPreviewTab("prototype");
-          } else if (content.includes("update_surface")) {
-            setPrototypeMode("a2ui");
-            setPrototypeJson(a2uiJson);
-            setPreviewOpen(true);
-          }
-        }
-      } catch {
-        // Not parseable — stay in chat view.
+    const artifact = detectPrototypeArtifact(message.content || "");
+    if (!artifact) return;
+
+    if (artifact.mode === "design") {
+      setPrototypeMode("design");
+      setDesignContent(artifact.payload);
+      setPreviewOpen(true);
+      setPreviewTab("design");
+    } else if (artifact.mode === "openui") {
+      setPrototypeMode("openui");
+      setPrototypeOpenuiCode(artifact.payload);
+      setPreviewOpen(true);
+      setPreviewTab("prototype");
+    } else {
+      setPrototypeMode("a2ui");
+      setPrototypeJson(artifact.payload);
+      setPreviewOpen(true);
+      if (!artifact.isUpdate) {
+        setPreviewTab("prototype");
       }
     }
   }, []);

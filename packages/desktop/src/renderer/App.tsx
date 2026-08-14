@@ -56,6 +56,7 @@ import { ShortcutsModal } from "./components/ShortcutsModal";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
 import { buildToolSummary, getPlanLines } from "./lib/messages";
+import { extractOpenuiFence } from "./openui/inline-extract";
 import type { PermissionResult } from "./lib/permissions";
 import {
   findPendingAskUserQuestion,
@@ -336,6 +337,22 @@ export function App(): JSX.Element {
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
         applyPreviewToolMessage(message);
+        // Inline-mode (opt-in via settings.openuiInlineMode): render a
+        // complete ```openui-lang block embedded in the assistant reply,
+        // without waiting for a render_openui tool call. The tool channel
+        // always wins — it lands later and overwrites with the same code.
+        if (message.role === "assistant" && message.content?.includes("```openui-lang")) {
+          void api
+            .getSettings()
+            .then((settings) => {
+              if ((settings as { openuiInlineMode?: boolean }).openuiInlineMode !== true) return;
+              const block = extractOpenuiFence(message.content ?? "");
+              if (block?.complete && block.code) {
+                openDesignArtifact("openui", block.code);
+              }
+            })
+            .catch(() => {});
+        }
       }
     });
 
@@ -1355,14 +1372,14 @@ export function App(): JSX.Element {
             >
               {previewTab === "design" && designContent ? (
                 <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
-              ) : (
+              ) : prototypeMode !== "design" ? (
                 <PrototypePanel
                   a2uiJson={prototypeJson ?? ""}
                   openuiCode={prototypeOpenuiCode}
-                  mode={prototypeMode === "design" ? "a2ui" : prototypeMode}
+                  mode={prototypeMode}
                   onIterate={(text) => void runPrompt({ text })}
                 />
-              )}
+              ) : null}
             </Suspense>
           </div>
         </div>

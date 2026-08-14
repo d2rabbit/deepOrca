@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能
 
+- **Designer 全域计划 Batch 6-10：三层定位落地（A2UI 全域交互层 × PM-Design × UI-Design）** (2026-08-14，方案见 `docs/research/2026-08-14-openui-full-adoption-plan.md`)
+  - **组件契约单一事实源**：抽取 React-free 的 `library-schema.ts`；`library.tsx`（渲染）与 `generate-openui-prompt.mjs`（prompt 生成）共用同一 schema，消灭"schema ↔ 手写 SKILL.md ↔ 脚本 stub"三源漂移；`npm run openui:prompt` 一键再生成，desktop 构建内置防漂移钩子（负向验证：篡改 SKILL.md → 构建失败并自动复原）
+  - **P0 活 bug 收口**：pm-designer-openui SKILL.md 仍有 3 处教 LLM "只发增量语句"而实现是全量替换——已全部改为全量替换口径，组件表替换为 `library.prompt()` 生成物（真实签名，修正脚本 stub 里不存在的 variant/danger 等枚举）
+  - **迭代产物血缘 + 版本快照**：`render_openui` 此前每次新建 artifact、`update_openui` 完全不落盘、`update_design` 每次新建——新增 `saveArtifactWithLineage`（render 建档 / update 复用同 id），内容变更自动快照 `versions[]`（上限 20 FIFO）；`requirement.md` 持久化（render_openui 新增 `requirement` 入参）
+  - **formState 持久化与水合**：原型表单状态 2s 节流落盘（`design:saveFormState`/`readFormState` IPC，按 pipeline 解析最新产物），重开会话自动水合
+  - **纠错回路**：渲染错误（unknown-component 等）自动组织为修复反馈回喂 agent 一次（800ms 去抖，同 code 同错不二次回喂，防死循环）
+  - **inlineMode 灰度**：`settings.openuiInlineMode`（默认关）开启后从 assistant 回复提取完整 ```openui-lang 代码块直接渲染，无需等待工具调用；工具通道始终权威
+  - **materialize 路由升级**：新增 `judgeViaLlm` 接缝（ActionContext 可选注入，SessionManager 用 flash 模型 JSON 模式实现、fail-open）——PM-Design vs UI-Design 二选一由 LLM 判定，关键词启发式保留为兜底，用户显式指定优先；`artifactId` 不再从 subagent 末条文本臆测
+  - **边界 guard 测试**：三条不变量锁定三层定位（design 插件无 a2ui 技能、`DesignPipeline` 不含 a2ui、materialize 路由不触及交互工具）；a2ui-annotation skill 定位更新为"全域交互层（主动式追问 + 批注式交互）"并写入增量原则（存量交互组件不迁移）
+  - **管线检测收敛**：use-preview 的三段 60 行 if/else 收敛为纯函数 `detectPrototypeArtifact`（metadata 存在性判定，includes 仅快路径）；新增 6 个测试文件 30 用例（detect/correction/inline-extract/store/prompt 快照/边界 guard + materialize 路由）
+  - 附带基建：build.mjs 新增 `DEEPORCA_SKIP_VENDORS`（离线/快速构建跳过 vendor 网络校验）
+
 - **LLM 稳健性三件套：usage 口径修正 + 溢出自动压缩重试 + 流 idle 看门狗** (2026-08-14, 分支 `fix/stabilize-data-loss-and-test-suite`，dsh 调研 P0 落地)
   - **usage 口径修正**：上下文压力读数 `activeTokens` 从"最近一次请求的 `total_tokens`"切换为 **prompt 侧总量**（`getLastPromptTokens`，cache 命中计入——它们仍占上下文窗口）。旧口径把历史累计输出 token 也算进压缩阈值，长会话会**过早触发压缩**；TopBar/ContextProgress 进度条随之与真实阈值对齐。新增 `getFreshInputTokens()`（prompt − cache 命中，兼容 DeepSeek `prompt_cache_hit_tokens` 与 OpenAI `prompt_tokens_details.cached_tokens` 两种上报，负值钳零）；`compactSession` 完成后 `activeTokens` 归零、由下次真实请求重新计量
   - **LLM 错误分类器 + 溢出自动 compact-and-retry**：`classifyLlmError()` 八类归一化（AUTH / QUOTA / RATE_LIMIT / CONTEXT_WINDOW_EXCEEDED / SERVER / TRANSIENT / TIMEOUT / UNKNOWN，正则族按 DeepSeek 实测文案校准）。上下文溢出不再等于会话死亡——自动插入提示消息 → `compactSession` → 重放一次激活循环；TIMEOUT 同样重试一次；QUOTA 显式不重试；压缩自身失败时上报原始溢出错误；每次激活仅一次重试预算防循环

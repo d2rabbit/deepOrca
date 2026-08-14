@@ -11,14 +11,20 @@
  * going back to the chat view.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useState, type JSX } from "react";
-import type { ActionEvent } from "@openuidev/lang-core";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type JSX } from "react";
+import type { ActionEvent, OpenUIError } from "@openuidev/lang-core";
 import { api } from "../api";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import { processA2uiMessages, extractSurfaceId } from "../a2ui/processor";
+import { buildCorrectionPrompt, correctionFingerprint, shouldRetry } from "../openui/correction";
 
 // Lazy-load the OpenUI renderer so it only adds to the bundle when used.
 const OpenuiRenderer = lazy(() => import("../openui/OpenuiRenderer").then((m) => ({ default: m.OpenuiRenderer })));
+
+/** Throttle window for persisting prototype form state (plan Batch 7: 2s). */
+const FORM_STATE_SAVE_INTERVAL_MS = 2000;
+/** Grace period before feeding render errors back — lets transient parses settle. */
+const CORRECTION_DEBOUNCE_MS = 800;
 
 type Props = {
   /** A2UI JSON messages (used when mode === "a2ui"). */
@@ -91,6 +97,80 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
     void api.a2uiAction(surfaceId, actionName, context);
   }, []);
 
+  // ── Form-state persistence (PM-Design) ─────────────────────────────────
+  // Hydrate once per prototype code version; persist throttled. Main resolves
+  // the target artifact (the pipeline's latest), so this layer stays id-free.
+  const [hydratedFormState, setHydratedFormState] = useState<Record<string, unknown> | undefined>(undefined);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedAt = useRef(0);
+
+  useEffect(() => {
+    if (mode !== "openui") return;
+    let cancelled = false;
+    setHydratedFormState(undefined);
+    api
+      .designReadFormState("openui")
+      .then((state) => {
+        if (!cancelled && state && Object.keys(state).length > 0) setHydratedFormState(state);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, liveOpenuiCode]);
+
+  const handleStateUpdate = useCallback((state: Record<string, unknown>) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    const elapsed = Date.now() - lastSavedAt.current;
+    const flush = () => {
+      lastSavedAt.current = Date.now();
+      saveTimer.current = null;
+      void api.designSaveFormState("openui", state).catch(() => {});
+    };
+    saveTimer.current = setTimeout(
+      flush,
+      elapsed >= FORM_STATE_SAVE_INTERVAL_MS ? 0 : FORM_STATE_SAVE_INTERVAL_MS - elapsed
+    );
+  }, []);
+
+  // Flush any pending form-state save when unmounting / switching modes.
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+    };
+  }, []);
+
+  // ── Correction loop (plan Batch 8, M5) ─────────────────────────────────
+  // Feed structured render errors back to the agent once per prototype
+  // version; the same code failing twice stops the loop (the local error
+  // panel already shows details for the user).
+  const lastFedRef = useRef<{ code: string; errorCodes: string } | null>(null);
+  const correctionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (correctionTimer.current) clearTimeout(correctionTimer.current);
+    };
+  }, []);
+
+  const handleErrors = useCallback(
+    (errors: OpenUIError[]) => {
+      if (correctionTimer.current) clearTimeout(correctionTimer.current);
+      correctionTimer.current = setTimeout(() => {
+        correctionTimer.current = null;
+        if (!shouldRetry(errors, lastFedRef.current, liveOpenuiCode)) return;
+        const prompt = buildCorrectionPrompt(errors, liveOpenuiCode);
+        if (!prompt) return;
+        lastFedRef.current = correctionFingerprint(errors, liveOpenuiCode);
+        onIterate(prompt);
+      }, CORRECTION_DEBOUNCE_MS);
+    },
+    [liveOpenuiCode, onIterate]
+  );
+
   return (
     <div className="ui-prototype-panel">
       <div className="ui-prototype-panel-body">
@@ -98,7 +178,13 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
           <Suspense
             fallback={<div style={{ padding: 20, color: "var(--ui-text-muted)" }}>Loading OpenUI renderer…</div>}
           >
-            <OpenuiRenderer code={liveOpenuiCode} onAction={handleOpenuiAction} />
+            <OpenuiRenderer
+              code={liveOpenuiCode}
+              onAction={handleOpenuiAction}
+              onStateUpdate={handleStateUpdate}
+              initialState={hydratedFormState}
+              onErrors={handleErrors}
+            />
           </Suspense>
         ) : (
           <A2uiSurface
