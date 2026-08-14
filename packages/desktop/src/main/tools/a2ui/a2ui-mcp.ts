@@ -22,6 +22,7 @@ import type { ZodRawShape } from "zod/v3";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
+import { saveDesignArtifact, deriveTitle } from "../design-store.js";
 
 export const A2UI_MCP_SERVER_NAME = "a2ui";
 
@@ -269,7 +270,7 @@ const SERVER_INFO = { name: "deeporca-a2ui", version: "0.1.0" };
  *
  * Also registers `a2ui_action` for bidirectional user interaction flow.
  */
-export function buildA2uiServer(): McpServer {
+export function buildA2uiServer(projectRoot?: string): McpServer {
   // Clear stale surfaces from previous session to prevent cross-session leaks.
   surfaces.clear();
   const server = new McpServer(SERVER_INFO);
@@ -641,6 +642,14 @@ export function buildA2uiServer(): McpServer {
           isError: true,
         };
       }
+      // Persist as a design artifact (fire-and-forget, best-effort).
+      if (projectRoot) {
+        saveDesignArtifact(projectRoot, {
+          title: deriveTitle(code),
+          pipeline: "openui",
+          content: code,
+        });
+      }
       // Return as text content with metadata.openui. The desktop renderer
       // detects this and switches to OpenUI Lang rendering mode.
       return {
@@ -682,7 +691,7 @@ export function buildA2uiServer(): McpServer {
   );
 
   // Register DeepDesign (.dd format) tools on the same server.
-  registerDesignTools(registerTool);
+  registerDesignTools(registerTool, projectRoot);
 
   return server;
 }
@@ -695,7 +704,7 @@ export function buildA2uiServer(): McpServer {
  * Build MCP tools for DeepDesign (.dd format). Registered on the same a2ui
  * server since it's the in-process design server.
  */
-export function registerDesignTools(registerTool: RegisterToolLoose): void {
+export function registerDesignTools(registerTool: RegisterToolLoose, projectRoot?: string): void {
   // Tool: render_design — render a .dd document for preview
   registerTool(
     "render_design",
@@ -725,6 +734,14 @@ export function registerDesignTools(registerTool: RegisterToolLoose): void {
           content: [{ type: "text", text: "Error: empty .dd content." }],
           isError: true,
         } as CallToolResult;
+      }
+      // Persist as a design artifact (fire-and-forget, best-effort).
+      if (projectRoot) {
+        saveDesignArtifact(projectRoot, {
+          title: deriveTitle(content),
+          pipeline: "design",
+          content,
+        });
       }
       const sectionCount = (content.match(/<!--\s*dd:section\s/g) || []).length;
       return {

@@ -25,7 +25,7 @@ export interface A2uiLifecycle {
   persistSurfaces(projectRoot: string): void;
 }
 
-export type A2uiServerBuilder = () => A2uiLifecycle | null;
+export type A2uiServerBuilder = (projectRoot: string) => A2uiLifecycle | null;
 
 let builder: A2uiServerBuilder | null = null;
 

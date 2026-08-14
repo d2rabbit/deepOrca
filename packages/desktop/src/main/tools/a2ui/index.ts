@@ -9,8 +9,8 @@
 import { buildA2uiServer, persistSurfaces, restoreSurfaces } from "./a2ui-mcp.js";
 import type { A2uiLifecycle, A2uiServerBuilder } from "@deeporca/core";
 
-export const a2uiServerBuilder: A2uiServerBuilder = (): A2uiLifecycle | null => {
-  const server = buildA2uiServer();
+export const a2uiServerBuilder: A2uiServerBuilder = (projectRoot: string): A2uiLifecycle | null => {
+  const server = buildA2uiServer(projectRoot);
   if (!server) return null;
   return {
     server,

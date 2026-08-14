@@ -1129,7 +1129,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     if (!isA2uiDisabled(this.projectRoot)) {
       const a2uiBuilder = getA2uiServerBuilder();
       if (a2uiBuilder) {
-        const lifecycle = a2uiBuilder();
+        const lifecycle = a2uiBuilder(this.projectRoot);
         if (lifecycle) {
           // Restore persisted surfaces AFTER the builder (which clears the
           // module-level surfaces Map to prevent cross-session leaks).
