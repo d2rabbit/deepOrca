@@ -137,6 +137,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 问题修复
 
+- **桌面客户端启动崩溃：CodeGraph CJS 命名导出在 ESM main 链接期失败** (2026-08-14)
+  - `9981f6a` 迁移出的 `codegraph-sdk.ts` 用静态 `import { CodeGraph } from "@colbymchenry/codegraph"`，而该包入口是 `module.exports = require(resolveLibrary())` 动态转发——cjs-module-lexer 无法静态探测命名导出，Electron ESM main 进程在**加载期直接崩溃**（`Named export 'CodeGraph' not found`），窗口无法打开。改为 namespace 导入 + 运行时解构，启动恢复且 codegraph MCP server 正常 ready
+
 - **会话索引数据丢失修复 + 测试套件解卡死 + 语义路由首次真正激活** (2026-08-10, 分支 `fix/stabilize-data-loss-and-test-suite`)
   - **会话索引读写不一致（线上数据丢失）**：`4d5575a` 把索引写入防抖进 `pendingIndex`，但每次读仍走磁盘。`updateSessionEntry` 是 load→mutate→save 且流式时约 17 次/轮 —— 同一 250ms 窗口内两次更新都以旧磁盘态为基准，**前者永久丢失**。这损坏了 `usage`/`usagePerModel` 累计，并完全丢弃了 `permission_denied`。`loadSessionsIndex` 现优先读 `pendingIndex`；`denySessionPermission` 改为立即 flush（与 session 创建/删除一致）。新增回归测试覆盖"丢更新"这一半（验证：禁用修复后 rename 变回旧值）。
   - **测试套件无限挂死**：`APIUserAbortError` 测试的 mock 只在 abort 事件上 settle，而 `ec11350` 在"标记 processing"与"发请求"间插入了 `await getRoutedMcpTools()`，导致 abort 先于监听器注册触发 → promise 永不 resolve。mock 改为先判 `signal.aborted`（对齐真实 SDK 语义）。全部 4 个 runner 加 `--test-timeout` + `--test-force-exit`，ci.yml 加 `timeout-minutes: 45`。套件 **196s + 无限挂死 → 21s 全绿**。

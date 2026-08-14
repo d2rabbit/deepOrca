@@ -10,16 +10,23 @@
  * has node:sqlite). tree-sitter grammars are loaded by the SDK internally.
  */
 
-import { CodeGraph } from "@colbymchenry/codegraph";
+// Namespace import + runtime member access: the package's npm-sdk.js entry
+// re-exports dynamically (`module.exports = require(resolveLibrary())`), so
+// cjs-module-lexer cannot statically detect named exports and a static
+// `import { CodeGraph }` crashes Electron's ESM main at link time.
+import * as codegraphModule from "@colbymchenry/codegraph";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { CodegraphController, ControllerProgress } from "@deeporca/core";
 
+const { CodeGraph } = codegraphModule;
+type CodeGraphInstance = codegraphModule.CodeGraph;
+
 export class SdkCodegraphController implements CodegraphController {
   /** Per-project-root CodeGraph instances (session is single-project). */
-  private instances = new Map<string, CodeGraph>();
+  private instances = new Map<string, CodeGraphInstance>();
 
-  private async getOrOpen(root: string): Promise<CodeGraph> {
+  private async getOrOpen(root: string): Promise<CodeGraphInstance> {
     let cg = this.instances.get(root);
     if (!cg) {
       cg = await CodeGraph.open(root, { sync: true });
