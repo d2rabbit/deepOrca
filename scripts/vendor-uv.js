@@ -16,11 +16,11 @@
 // Env overrides:
 //   UV_VERSION  (default: latest stable from GitHub Releases)
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { download as sharedDownload, GITHUB_PROXY } from "./vendor-download.js";
+import { download as sharedDownload, GITHUB_PROXY, assertSafeVersion } from "./vendor-download.js";
 import { withAtomicSwap } from "./vendor-fs.js";
 import { platform as osPlatform, arch as osArch } from "node:os";
 
@@ -60,7 +60,7 @@ function hostTarget() {
 /** Resolve the latest uv release tag from GitHub API (falls back to hardcoded). */
 async function resolveLatestVersion() {
   if (process.env.UV_VERSION) {
-    return process.env.UV_VERSION;
+    return assertSafeVersion(process.env.UV_VERSION, "UV_VERSION");
   }
   try {
     const apiUrl = "https://api.github.com/repos/astral-sh/uv/releases/latest";
@@ -77,7 +77,7 @@ async function resolveLatestVersion() {
     if (resp.ok) {
       const data = await resp.json();
       const tag = data.tag_name; // e.g. "0.11.32"
-      return tag.startsWith("v") ? tag.slice(1) : tag;
+      return assertSafeVersion(tag.startsWith("v") ? tag.slice(1) : tag, "uv release tag");
     }
   } catch {
     // Offline or rate-limited — use fallback.
@@ -93,7 +93,7 @@ async function download(url, dest) {
 
 /** Extract a .tar.gz file using the system tar (available on all supported platforms). */
 function extractTarGz(archivePath, destDir) {
-  execSync(`tar -xzf "${archivePath}" -C "${destDir}"`, { stdio: "inherit" });
+  execFileSync("tar", ["-xzf", archivePath, "-C", destDir], { stdio: "inherit" });
 }
 
 async function main() {
@@ -132,11 +132,15 @@ async function main() {
       } else {
         // .zip on Windows — use tar (Windows 10+ ships tar.exe) or PowerShell.
         try {
-          execSync(`tar -xf "${archivePath}" -C "${extractDir}"`, { stdio: "inherit" });
+          execFileSync("tar", ["-xf", archivePath, "-C", extractDir], { stdio: "inherit" });
         } catch {
-          execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'"`, {
-            stdio: "inherit",
-          });
+          execFileSync(
+            "powershell",
+            ["-Command", `Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'`],
+            {
+              stdio: "inherit",
+            }
+          );
         }
       }
       // Write the version marker atomically with the swap.

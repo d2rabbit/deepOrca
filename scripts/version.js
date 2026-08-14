@@ -44,7 +44,6 @@ function run(cmd, args, opts = {}) {
   const result = spawnSync(cmd, args, {
     stdio: opts.stdio ?? "inherit",
     cwd: opts.cwd ?? root,
-    shell: true,
   });
   if (result.status !== 0) {
     fail(`Command failed: ${cmd} ${args.join(" ")}`);
@@ -56,7 +55,6 @@ function runSilent(cmd, args) {
   const result = spawnSync(cmd, args, {
     cwd: root,
     encoding: "utf-8",
-    shell: true,
   });
   if (result.status !== 0) {
     return null;

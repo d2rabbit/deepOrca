@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔒 安全
+
+- **2026-08-12 安全审计整改落地 + 全域自查**（跟进报告：`docs/security-audit-2026-08-15-followup.md`）
+  - **P0 路径穿越修复**：`profile-sync.ts` 远程 filename 经 `safeBlockFilename` containment（拒绝 `..`/分隔符/绝对路径/重复名，resolve 后校验仍在 tempBlocksDir 内）——此前恶意 store 可把写入逃逸到 live scene_blocks 之外；+2 回归测试
+  - **P0 动态 require 修复**：`find-skill.js` 不再从 `process.cwd()` 解析 `gray-matter`（不可信工作区可借恶意 node_modules 执行代码），仅从技能自身目录解析
+  - **命令注入面收紧**：git-collector 与 prompt.ts 的 shell helper 全部 argv 化（core 内 `execSync` 清零）；vendor 脚本（openwiki/uv/browser-skill/granite/download）版本号与 tag 过 `assertSafeVersion` 校验、curl/npm/tar/chmod/powershell 全 argv 化、下载强制 https、`HF_ENDPOINT` 仅接受 https origin；`version.js` 移除不必要的 `shell: true`
+  - **symlink 防御**：scene-extractor 与 l1-reader 读取目录枚举文件前 `lstat` 拒绝非普通文件（审计 §5.2/§5.3）
+  - **ipc-security 测试套件修复（历史首次全绿）**：测试硬编码 Windows 路径 + 手工拼 URL 在 POSIX 上必然失败（安全网形同虚设数月）——改由 `pathToFileURL` 派生 + 跨平台编码不变量用例，26/26 全绿
+  - 全仓测试首次全绿：core 412 / desktop 149 / memory 14 / embedding 10
+
 ### ✨ 新功能
 
 - **Router 闭环方案 R1-R4：语义路由的能力闭环 × 数据流闭环** (2026-08-15，方案见 `docs/research/2026-08-15-routing-closure-plan.md`)

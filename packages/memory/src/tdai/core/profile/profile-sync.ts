@@ -127,6 +127,22 @@ export async function pullProfilesToLocal(
   const tempBlocksDir = path.join(tempDir, "scene_blocks");
   await fs.mkdir(tempBlocksDir, { recursive: true });
 
+  // SECURITY: remote filenames are untrusted. A malicious/compromised store
+  // could return "../.." or an absolute path and make writeFile land outside
+  // tempBlocksDir (which is later renamed into the live scene_blocks dir).
+  // Only plain basenames are acceptable (security audit 2026-08-12 §5.1).
+  const seenFilenames = new Set<string>();
+  const safeBlockFilename = (filename: string): string | null => {
+    if (!filename || path.basename(filename) !== filename) return null;
+    if (filename === "." || filename === ".." || filename.includes("/")) return null;
+    if (/[\\/]|\0/.test(filename)) return null;
+    if (seenFilenames.has(filename)) return null;
+    const resolved = path.resolve(tempBlocksDir, filename);
+    if (!resolved.startsWith(tempBlocksDir + path.sep)) return null;
+    seenFilenames.add(filename);
+    return resolved;
+  };
+
   try {
     for (const record of records) {
       baseline.set(record.id, {
@@ -136,7 +152,11 @@ export async function pullProfilesToLocal(
       });
 
       if (record.type === "l2") {
-        const target = path.join(tempBlocksDir, record.filename);
+        const target = safeBlockFilename(record.filename);
+        if (!target) {
+          logger.debug?.(`[memory-tdai][profile-sync] rejected unsafe remote filename "${record.filename}" (skipped)`);
+          continue;
+        }
         await fs.writeFile(target, record.content, "utf-8");
         if (md5(record.content) !== record.contentMd5) {
           await fs.rm(target, { force: true });

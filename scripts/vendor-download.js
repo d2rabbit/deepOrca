@@ -10,9 +10,22 @@
  *   await download("https://github.com/owner/repo/releases/download/v1.0/asset.tar.gz", dest);
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 export const GITHUB_PROXY = "https://githubdog.com/";
+
+/**
+ * SECURITY: validate a version/tag before it flows into file paths or child
+ * process arguments (security audit 2026-08-12 §4). Env vars and upstream
+ * release metadata are externally influenceable; reject anything that is not
+ * a plain semver-ish tag.
+ */
+export function assertSafeVersion(version, label = "version") {
+  if (typeof version !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(version)) {
+    throw new Error(`unsafe ${label}: ${JSON.stringify(version)}`);
+  }
+  return version;
+}
 
 /**
  * Build candidate URLs: direct first, then proxied fallback for GitHub URLs.
@@ -30,7 +43,19 @@ export function withProxyFallback(url) {
  * Tries direct first (60s max), then proxy fallback (600s max for large files).
  */
 export async function download(url, dest, log = console.log) {
-  const candidates = withProxyFallback(url);
+  // SECURITY: argv form, never a shell string — URL/dest are interpolated
+  // values (env vars, upstream release metadata) and must not be shell-parsed
+  // (security audit 2026-08-12 §4). URLs must be https.
+  const candidates = withProxyFallback(url).filter((candidate) => {
+    if (!/^https:\/\//i.test(candidate)) {
+      log(`refusing non-https download URL: ${candidate}`);
+      return false;
+    }
+    return true;
+  });
+  if (candidates.length === 0) {
+    throw new Error(`no acceptable https download URL for ${url}`);
+  }
   let lastError = null;
   for (let i = 0; i < candidates.length; i++) {
     const candidate = candidates[i];
@@ -38,9 +63,23 @@ export async function download(url, dest, log = console.log) {
     const maxTime = isProxy ? 600 : 60;
     log(`downloading ${candidate}`);
     try {
-      execSync(`curl -L --fail --retry 2 --connect-timeout 15 --max-time ${maxTime} -o "${dest}" "${candidate}"`, {
-        stdio: "inherit",
-      });
+      execFileSync(
+        "curl",
+        [
+          "-L",
+          "--fail",
+          "--retry",
+          "2",
+          "--connect-timeout",
+          "15",
+          "--max-time",
+          String(maxTime),
+          "-o",
+          dest,
+          candidate,
+        ],
+        { stdio: "inherit" }
+      );
       return; // success
     } catch (error) {
       lastError = error;

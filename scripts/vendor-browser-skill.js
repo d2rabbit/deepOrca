@@ -10,12 +10,12 @@
 // Env overrides:
 //   BSK_VERSION  (default: latest cli release from GitHub Releases API)
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform as osPlatform, arch as osArch } from "node:os";
-import { download as sharedDownload, GITHUB_PROXY } from "./vendor-download.js";
+import { download as sharedDownload, GITHUB_PROXY, assertSafeVersion } from "./vendor-download.js";
 import { withAtomicSwap } from "./vendor-fs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,7 +62,7 @@ function hostAssetName(version) {
 /** Resolve the latest BrowserSkill CLI release tag from GitHub API. */
 async function resolveLatestVersion() {
   if (process.env.BSK_VERSION) {
-    return process.env.BSK_VERSION;
+    return assertSafeVersion(process.env.BSK_VERSION, "BSK_VERSION");
   }
   try {
     const apiUrl = "https://api.github.com/repos/Tencent/BrowserSkill/releases/latest";
@@ -80,7 +80,10 @@ async function resolveLatestVersion() {
       const data = await resp.json();
       const tag = data.tag_name; // e.g. "cli-v0.1.9"
       // Extract version from tag: "cli-v0.1.9" → "0.1.9"
-      return tag.startsWith("cli-v") ? tag.slice(5) : tag.startsWith("v") ? tag.slice(1) : tag;
+      return assertSafeVersion(
+        tag.startsWith("cli-v") ? tag.slice(5) : tag.startsWith("v") ? tag.slice(1) : tag,
+        "bsk release tag"
+      );
     }
   } catch {
     // Offline — use fallback.
@@ -122,21 +125,25 @@ async function main() {
 
       // Extract into staging.
       if (ext === "tar.gz") {
-        execSync(`tar -xzf "${archivePath}" -C "${staging}"`, { stdio: "inherit" });
+        execFileSync("tar", ["-xzf", archivePath, "-C", staging], { stdio: "inherit" });
       } else {
         try {
-          execSync(`tar -xf "${archivePath}" -C "${staging}"`, { stdio: "inherit" });
+          execFileSync("tar", ["-xf", archivePath, "-C", staging], { stdio: "inherit" });
         } catch {
-          execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${staging}'"`, {
-            stdio: "inherit",
-          });
+          execFileSync(
+            "powershell",
+            ["-Command", `Expand-Archive -Path '${archivePath}' -DestinationPath '${staging}'`],
+            {
+              stdio: "inherit",
+            }
+          );
         }
       }
 
       const stagingBinary = join(staging, binaryName);
       // Make binary executable on unix.
       if (process.platform !== "win32" && existsSync(stagingBinary)) {
-        execSync(`chmod +x "${stagingBinary}"`);
+        execFileSync("chmod", ["+x", stagingBinary]);
       }
       // Write the version marker atomically with the swap.
       writeFileSync(join(staging, ".vendored-bsk-version"), version);

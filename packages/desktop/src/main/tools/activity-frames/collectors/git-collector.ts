@@ -5,7 +5,7 @@
  * timing. Uses `git` CLI (already available via bash tool). Cross-platform.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,9 +39,12 @@ export interface GitProfile {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function git(projectRoot: string, args: string): string {
+function git(projectRoot: string, args: readonly string[]): string {
   try {
-    return execSync(`git ${args}`, {
+    // argv form (no shell) — hardening per security audit 2026-08-12 §2.1:
+    // even though current call sites pass fixed git arguments, a shell string
+    // helper invites injection the moment one caller interpolates a path.
+    return execFileSync("git", args as string[], {
       cwd: projectRoot,
       encoding: "utf8",
       timeout: 5000,
@@ -62,7 +65,7 @@ function git(projectRoot: string, args: string): string {
  */
 export function collectGitProfile(projectRoot: string, days = 30): GitProfile {
   // Check if it's a git repo.
-  const isRepo = git(projectRoot, "rev-parse --is-inside-work-tree");
+  const isRepo = git(projectRoot, ["rev-parse", "--is-inside-work-tree"]);
   if (!isRepo) {
     return emptyProfile();
   }
@@ -72,10 +75,13 @@ export function collectGitProfile(projectRoot: string, days = 30): GitProfile {
   // Recent commits. Use ASCII unit separator (\x1f) as delimiter to avoid
   // issues with commit messages containing | characters.
   const SEP = "\x1f";
-  const logOutput = git(
-    projectRoot,
-    `log --since="${since}" --pretty=format:"%h${SEP}%s${SEP}%an${SEP}%ai" --numstat --no-merges`
-  );
+  const logOutput = git(projectRoot, [
+    "log",
+    `--since=${since}`,
+    `--pretty=format:%h${SEP}%s${SEP}%an${SEP}%ai`,
+    "--numstat",
+    "--no-merges",
+  ]);
 
   const commits: GitCommit[] = [];
   const fileCounts = new Map<string, { commits: number; lastChanged: string }>();
@@ -137,7 +143,7 @@ export function collectGitProfile(projectRoot: string, days = 30): GitProfile {
   }
 
   // Branches.
-  const branchOutput = git(projectRoot, "branch --list");
+  const branchOutput = git(projectRoot, ["branch", "--list"]);
   const branches = branchOutput
     .split("\n")
     .map((b) => b.replace(/^\*?\s+/, "").trim())

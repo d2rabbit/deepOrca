@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -491,7 +491,10 @@ function checkToolInstalled(tool: string): boolean {
       });
       return true;
     }
-    execSync(`command -v ${tool}`, { encoding: "utf8", stdio: "ignore" });
+    execFileSync(resolveShellPath(), ["-c", `command -v ${shellSingleQuote(tool)}`], {
+      encoding: "utf8",
+      stdio: "ignore",
+    });
     return true;
   } catch {
     return false;
@@ -534,7 +537,7 @@ function getCommandVersion(command: string, args: string[]): string | null {
         windowsHide: true,
       }).trim();
     }
-    return execSync(`${commandText} 2>&1`, { encoding: "utf8" }).trim();
+    return execFileSync(resolveShellPath(), ["-c", `${commandText} 2>&1`], { encoding: "utf8" }).trim();
   } catch {
     return null;
   }
@@ -548,7 +551,7 @@ function getUnameInfo(): string {
         windowsHide: true,
       }).trim();
     }
-    return execSync("uname -a", { encoding: "utf8" }).trim();
+    return execFileSync(resolveShellPath(), ["-c", "uname -a"], { encoding: "utf8" }).trim();
   } catch {
     return `${os.type()} ${os.release()} ${os.arch()}`;
   }

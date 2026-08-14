@@ -25,10 +25,10 @@
 //   GRANITE_MODEL_TAG    (default: main)
 //   HF_ENDPOINT          (default: https://huggingface.co — set to https://hf-mirror.com to force mirror)
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 
 import { withAtomicSwap } from "./vendor-fs.js";
 
@@ -40,7 +40,15 @@ const versionFile = join(targetDir, ".vendored-granite-version");
 const force = process.argv.includes("--force");
 
 const MODEL_REPO = process.env.GRANITE_MODEL_REPO ?? "ibm-granite/granite-embedding-97m-multilingual-r2";
-const MODEL_TAG = process.env.GRANITE_MODEL_TAG ?? "main";
+// SECURITY: the tag flows into download URLs — validate externally set values.
+const MODEL_TAG = (() => {
+  const t = process.env.GRANITE_MODEL_TAG;
+  if (!t) return "main";
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(t)) {
+    throw new Error(`unsafe GRANITE_MODEL_TAG: ${JSON.stringify(t)}`);
+  }
+  return t;
+})();
 
 /**
  * Files transformers.js needs for feature-extraction. Each entry maps a
@@ -78,7 +86,18 @@ function hfResolveUrls(repo, file, tag) {
   const candidates = [];
   const envEndpoint = process.env.HF_ENDPOINT?.replace(/\/$/, "");
   if (envEndpoint) {
-    candidates.push(`${envEndpoint}/${repo}/resolve/${tag}/${file}`);
+    // SECURITY: HF_ENDPOINT is externally influenceable — only an https
+    // origin (scheme + host [+ port]) may become a download base (audit §4).
+    try {
+      const parsed = new URL(envEndpoint);
+      if (parsed.protocol === "https:" && !parsed.username && !parsed.password && parsed.pathname === "/") {
+        candidates.push(`${parsed.origin}/${repo}/resolve/${tag}/${file}`);
+      } else {
+        log(`ignoring unsafe HF_ENDPOINT: ${envEndpoint}`);
+      }
+    } catch {
+      log(`ignoring unparseable HF_ENDPOINT: ${envEndpoint}`);
+    }
   }
   candidates.push(`https://hf-mirror.com/${repo}/resolve/${tag}/${file}`);
   candidates.push(`https://huggingface.co/${repo}/resolve/${tag}/${file}`);
@@ -98,9 +117,11 @@ function downloadFile(repo, remoteFile, dest, tag) {
     const isLast = i === urls.length - 1;
     log(`downloading ${remoteFile} from ${url}`);
     try {
-      execSync(`curl -L --fail --retry 2 --connect-timeout 12 --max-time 300 -o "${dest}" "${url}"`, {
-        stdio: "inherit",
-      });
+      execFileSync(
+        "curl",
+        ["-L", "--fail", "--retry", "2", "--connect-timeout", "12", "--max-time", "300", "-o", dest, url],
+        { stdio: "inherit" }
+      );
       return; // success
     } catch (err) {
       lastError = err;

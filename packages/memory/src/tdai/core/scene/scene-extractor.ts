@@ -265,6 +265,14 @@ export class SceneExtractor {
       const allFiles = (await fs.readdir(sceneBlocksDir)).filter((f) => f.endsWith(".md"));
       for (const file of allFiles) {
         const filePath = path.join(sceneBlocksDir, file);
+        // SECURITY hardening (audit 2026-08-12 §5.2): a local attacker could
+        // plant a symlink in scene_blocks pointing outside the dir — only
+        // read regular files (lstat does not follow symlinks).
+        try {
+          if (!(await fs.lstat(filePath)).isFile()) continue;
+        } catch {
+          continue;
+        }
         const raw = await fs.readFile(filePath, "utf-8");
         if (raw.trim().length === 0 || raw.trim() === "[DELETED]") {
           // Empty file or [DELETED] marker — soft-delete

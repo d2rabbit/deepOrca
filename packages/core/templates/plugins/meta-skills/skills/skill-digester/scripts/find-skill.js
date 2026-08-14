@@ -10,15 +10,18 @@ function usage() {
 }
 
 function loadMatter() {
-  for (const base of [process.cwd(), __dirname]) {
-    try {
-      const resolved = require.resolve("gray-matter", { paths: [base] });
-      return require(resolved);
-    } catch {
-      // Try the next lookup base, then fall back to the local parser.
-    }
+  // SECURITY: resolve gray-matter ONLY from this skill's own directory (and
+  // upward from it — the product's dependency tree). Resolving from
+  // process.cwd() first would let an untrusted workspace drop a malicious
+  // node_modules/gray-matter and execute its top-level code in our process
+  // (security audit 2026-08-12 §6). The local minimal parser below is the
+  // fallback when the dependency is not installed.
+  try {
+    const resolved = require.resolve("gray-matter", { paths: [__dirname] });
+    return require(resolved);
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function parseFrontmatter(content) {

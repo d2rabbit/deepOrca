@@ -162,6 +162,19 @@ export async function readMemoryRecords(sessionKey: string, baseDir: string, log
 }
 
 /**
+ * SECURITY hardening (audit 2026-08-12 §5.3): directory entries could be
+ * symlinks planted by a local attacker pointing outside the records dir —
+ * only read regular files (lstat does not follow symlinks).
+ */
+async function isRegularFile(filePath: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(filePath)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Read ALL memory records across all session JSONL files.
  */
 export async function readAllMemoryRecords(baseDir: string, logger?: Logger): Promise<MemoryRecord[]> {
@@ -173,6 +186,10 @@ export async function readAllMemoryRecords(baseDir: string, logger?: Logger): Pr
     for (const file of files) {
       if (!file.endsWith(".jsonl")) continue;
       const filePath = path.join(recordsDir, file);
+      if (!(await isRegularFile(filePath))) {
+        logger?.warn?.(`${TAG} Skipping non-regular file ${file}`);
+        continue;
+      }
       try {
         const raw = await fs.readFile(filePath, "utf-8");
         const lines = raw.split("\n").filter((line: string) => line.trim());

@@ -12,7 +12,8 @@
 // Env overrides:
 //   OPENWIKI_VERSION  (default: latest from npm)
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { assertSafeVersion } from "./vendor-download.js";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,7 +32,7 @@ function log(message) {
 /** Resolve the latest openwiki version from npm registry. */
 async function resolveLatestVersion() {
   if (process.env.OPENWIKI_VERSION) {
-    return process.env.OPENWIKI_VERSION;
+    return assertSafeVersion(process.env.OPENWIKI_VERSION, "OPENWIKI_VERSION");
   }
   try {
     const resp = await fetch("https://registry.npmjs.org/openwiki/latest", {
@@ -76,8 +77,17 @@ async function main() {
       mkdirSync(tempInstall, { recursive: true });
       // Dummy package.json so npm doesn't traverse up to the workspace root.
       writeFileSync(join(tempInstall, "package.json"), '{"name":"_openwiki_vendor","private":true}');
-      execSync(
-        `npm install --no-save --no-package-lock --legacy-peer-deps --omit=dev --ignore-scripts openwiki@${version}`,
+      execFileSync(
+        "npm",
+        [
+          "install",
+          "--no-save",
+          "--no-package-lock",
+          "--legacy-peer-deps",
+          "--omit=dev",
+          "--ignore-scripts",
+          `openwiki@${version}`,
+        ],
         { cwd: tempInstall, stdio: "inherit" }
       );
 

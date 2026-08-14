@@ -10,11 +10,16 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 import { createRendererPolicy, type IpcSenderInfo } from "../main/ipc-security.js";
 
+// NOTE: the production URL must be derived with the SAME transformation the
+// policy uses (pathToFileURL). Hand-building "file:///" + slashes diverges on
+// POSIX, where backslashes are legal filename characters and get
+// percent-encoded — which is exactly why these tests failed everywhere except
+// the Windows machine that authored them.
 const PROD_HTML = "D:\\others\\deepOrca\\packages\\desktop\\dist\\renderer\\index.html";
-const PROD_URL = new URL(`file:///${PROD_HTML.replace(/\\/g, "/")}`).href;
+const PROD_URL = pathToFileURL(PROD_HTML).href;
 const DEV_ORIGIN = "http://localhost:5173";
 
 function makePolicy(devOrigin: string | null = null) {
@@ -140,16 +145,19 @@ test("production file URL with a trailing query hash still matches (URL equality
   assert.equal(policy.isMainRenderer(sender({ senderFrameUrl: `${PROD_URL}#evil` })), false);
 });
 
-test("production file URL is computed via pathToFileURL so Windows paths match", () => {
-  // Re-derive the expected URL the same way the policy does, to prove the
-  // comparison is not sensitive to slash/backslash drift in the config path.
-  const samePath = fileURLToPath(PROD_URL).replace(/\//g, "\\");
+test("production file URL is computed via pathToFileURL (encoded paths round-trip)", () => {
+  // Invariant: whatever the config path's platform quirks (Windows drive
+  // letters, spaces, non-ASCII), the policy derives its expected URL with
+  // pathToFileURL — so a sender URL derived the same way always matches and a
+  // naively hand-built URL does not.
+  const htmlPath = "/opt/my app/dist renderer/index.html";
   const policy = createRendererPolicy({
     mainWindowId: () => 1,
-    rendererHtmlPath: samePath,
+    rendererHtmlPath: htmlPath,
     devRendererOrigin: null,
   });
-  assert.equal(policy.isMainRenderer(sender({ senderFrameUrl: PROD_URL })), true);
+  assert.equal(policy.isMainRenderer(sender({ senderFrameUrl: pathToFileURL(htmlPath).href })), true);
+  assert.notEqual(`file://${htmlPath}`, pathToFileURL(htmlPath).href, "naive join must differ (spaces encoded)");
 });
 
 // ── will-navigate predicate (query/hash-tolerant) ───────────────────────────
