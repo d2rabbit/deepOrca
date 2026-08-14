@@ -142,6 +142,11 @@ const api: DesktopApi = {
   // ── Knowledge dashboard ──────────────────────────────────────────
   knowledgeStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeStatus),
 
+  // ── Designer (design artifacts) ────────────────────────────────────
+  designList: () => ipcRenderer.invoke(IpcRequest.DesignList),
+  designRead: (id) => ipcRenderer.invoke(IpcRequest.DesignRead, id),
+  designDelete: (id) => ipcRenderer.invoke(IpcRequest.DesignDelete, id),
+
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>
     ipcRenderer.invoke(IpcRequest.A2uiAction, surfaceId, actionName, context),

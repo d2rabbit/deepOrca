@@ -43,6 +43,8 @@ import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
+  DesignArtifact,
+  DesignArtifactMeta,
   EditableSettings,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
@@ -64,6 +66,7 @@ import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
 import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { CrgCliController } from "./tools/crg-cli.js";
+import { listDesignArtifacts, readDesignArtifact, deleteDesignArtifact } from "./tools/design-store.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -1052,6 +1055,21 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
   });
 }
 
+/** Designer artifact management — bridges the renderer to design-store. */
+function registerDesignIpc({ handle }: IpcHelpers): void {
+  handle(IpcRequest.DesignList, async () => {
+    return listDesignArtifacts(getBridge().projectRoot);
+  });
+
+  handle(IpcRequest.DesignRead, async (id: string) => {
+    return readDesignArtifact(getBridge().projectRoot, id);
+  });
+
+  handle(IpcRequest.DesignDelete, async (id: string) => {
+    return deleteDesignArtifact(getBridge().projectRoot, id);
+  });
+}
+
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {
   // ── A2UI (Surface user interaction → agent) ──────────────────────────────
   // When the user clicks a button on an A2UI Surface, the renderer calls
@@ -1448,6 +1466,7 @@ function registerIpc(): void {
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers);
+  registerDesignIpc(helpers);
   registerA2uiIpc(helpers);
   registerA2uiPrototypeWindowIpc(helpers);
   registerWikiIpc(helpers);

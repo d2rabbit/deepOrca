@@ -27,6 +27,8 @@ export type PreviewState = {
   setPreviewTab: React.Dispatch<React.SetStateAction<"prototype" | "design">>;
   /** Auto-open the matching preview when a render/update tool result arrives. */
   applyToolMessage: (message: SessionMessage) => void;
+  /** Open a stored design artifact in the preview (from DesignPanel). */
+  openDesignArtifact: (pipeline: "openui" | "design", content: string) => void;
   /** Clear preview state (and cached A2UI surfaces) when switching sessions. */
   resetForSession: () => void;
   closePreview: () => void;
@@ -127,6 +129,20 @@ export function usePreview(): PreviewState {
     setDesignContent(null);
   }, []);
 
+  /** Open a stored design artifact in the preview panel (from DesignPanel). */
+  const openDesignArtifact = useCallback((pipeline: "openui" | "design", content: string) => {
+    if (pipeline === "openui") {
+      setPrototypeMode("openui");
+      setPrototypeOpenuiCode(content);
+      setPreviewTab("prototype");
+    } else {
+      setPrototypeMode("design");
+      setDesignContent(content);
+      setPreviewTab("design");
+    }
+    setPreviewOpen(true);
+  }, []);
+
   return {
     prototypeJson,
     prototypeMode,
@@ -138,6 +154,7 @@ export function usePreview(): PreviewState {
     previewTab,
     setPreviewTab,
     applyToolMessage,
+    openDesignArtifact,
     resetForSession,
     closePreview,
   };

@@ -88,3 +88,5 @@ export {
 export type { BrowserSessionStartOutput, BrowserCommandOutput } from "./browser";
 export { bentoCreateDefinition, bentoCreateRun } from "./bento";
 export type { BentoCreateInput, BentoCreateOutput } from "./bento";
+export { designMaterializeDefinition, designMaterializeRun } from "./design";
+export type { DesignMaterializeInput, DesignMaterializeOutput } from "./design";

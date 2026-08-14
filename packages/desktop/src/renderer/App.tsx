@@ -11,7 +11,13 @@ import { useProcessPanel } from "./hooks/use-process-panel";
 import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useSettingsData } from "./hooks/use-settings-data";
-import type { AskPermissionRequest, SerializableSessionEntry, SessionMessage, UserPromptContent } from "../shared/ipc";
+import type {
+  AskPermissionRequest,
+  DesignArtifactMeta,
+  SerializableSessionEntry,
+  SessionMessage,
+  UserPromptContent,
+} from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
@@ -40,6 +46,7 @@ import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
+const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
@@ -165,9 +172,19 @@ export function App(): JSX.Element {
     previewTab,
     setPreviewTab,
     applyToolMessage: applyPreviewToolMessage,
+    openDesignArtifact,
     resetForSession: resetPreviewForSession,
     closePreview,
   } = usePreview();
+  const handleOpenDesignArtifact = useCallback(
+    async (artifact: DesignArtifactMeta) => {
+      const full = await api.designRead(artifact.id);
+      if (full) {
+        openDesignArtifact(full.pipeline, full.content);
+      }
+    },
+    [openDesignArtifact]
+  );
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [editorFile, setEditorFile] = useState<string | null>(null);
@@ -1077,6 +1094,14 @@ export function App(): JSX.Element {
           <IconReview />
         </RailButton>
         <RailButton
+          active={panelOpen && sidebarView === "design"}
+          title={t("rail.design")}
+          aria-label={t("rail.design")}
+          onClick={() => selectView("design")}
+        >
+          <span style={{ fontSize: 16 }}>🎯</span>
+        </RailButton>
+        <RailButton
           active={panelOpen && sidebarView === "gitmcp"}
           title={t("rail.gitmcp")}
           aria-label={t("rail.gitmcp")}
@@ -1163,6 +1188,10 @@ export function App(): JSX.Element {
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
             <CodeReviewPanel />
+          </Suspense>
+        ) : sidebarView === "design" ? (
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
           </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />

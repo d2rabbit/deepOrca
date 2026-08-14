@@ -147,6 +147,11 @@ export const IpcRequest = {
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
 
+  // Designer — design artifact management (PM-Design + UI-Design)
+  DesignList: "design:list",
+  DesignRead: "design:read",
+  DesignDelete: "design:delete",
+
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
   A2uiOpenWindow: "a2ui:openWindow",
@@ -441,6 +446,23 @@ export type KnowledgeStatusResponse = {
   serena: KnowledgeSourceStatus;
   agents: KnowledgeSourceStatus;
   memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
+};
+
+/** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
+export type DesignPipeline = "openui" | "design";
+
+/** A stored design artifact's metadata (index entry). */
+export type DesignArtifactMeta = {
+  id: string;
+  title: string;
+  pipeline: DesignPipeline;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A design artifact with full content. */
+export type DesignArtifact = DesignArtifactMeta & {
+  content: string;
 };
 
 export type SettingsSummary = {
@@ -741,6 +763,14 @@ export type DesktopApi = {
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(): Promise<KnowledgeStatusResponse>;
+
+  // ── Designer (design artifacts) ────────────────────────────────────────
+  /** List all design artifacts (PM-Design prototypes + UI-Design documents). */
+  designList(): Promise<DesignArtifactMeta[]>;
+  /** Read a single design artifact's full content. */
+  designRead(id: string): Promise<DesignArtifact | null>;
+  /** Delete a design artifact. */
+  designDelete(id: string): Promise<boolean>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

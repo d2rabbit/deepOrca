@@ -103,6 +103,8 @@ import {
   browserSessionStopRun,
   bentoCreateDefinition,
   bentoCreateRun,
+  designMaterializeDefinition,
+  designMaterializeRun,
   type RunSubagentOptions,
 } from "./actions";
 import {
@@ -744,6 +746,8 @@ export class SessionManager {
     this.actionRegistry.register(browserSessionStopDefinition, browserSessionStopRun);
     // ── Bento presentation generator ─────────────────────────────────────────
     this.actionRegistry.register(bentoCreateDefinition, bentoCreateRun);
+    // ── Designer — one-click requirement materialization ────────────────────
+    this.actionRegistry.register(designMaterializeDefinition, designMaterializeRun);
     this.toolExecutor = new ToolExecutor(
       this.projectRoot,
       this.createOpenAIClient,
