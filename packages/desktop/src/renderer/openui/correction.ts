@@ -13,8 +13,10 @@ export type RendererErrorLike = {
   message?: string;
 };
 
-/** Build the feedback prompt for the agent; null when not worth feeding back. */
-export function buildCorrectionPrompt(errors: RendererErrorLike[], code: string): string | null {
+/** Build the feedback prompt for the agent; null when not worth feeding back.
+ *  `_code` is kept in the signature for interface symmetry with shouldRetry —
+ *  the agent already has the failing program in its own last tool call. */
+export function buildCorrectionPrompt(errors: RendererErrorLike[], _code: string): string | null {
   if (errors.length === 0) return null;
   const lines = errors.slice(0, 5).map((e) => {
     const codeTag = e.code ? `[${e.code}] ` : "";

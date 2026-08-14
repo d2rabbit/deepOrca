@@ -459,6 +459,10 @@ export function App(): JSX.Element {
         streamFlushTimer = null;
       }
     };
+    // openDesignArtifact (inline-mode renderer) is deliberately omitted: it is
+    // an identity-stable useCallback from usePreview, and this boot effect
+    // must stay identity-stable or the entire boot chain re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     appendProcessStdout,
     applyPreviewToolMessage,
