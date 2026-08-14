@@ -13,6 +13,7 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
   REASONING_EFFORT?: string;
   DEBUG_LOG_ENABLED?: string;
   TELEMETRY_ENABLED?: string;
+  STREAM_IDLE_TIMEOUT_MS?: string;
 };
 
 export type ReasoningEffort = "high" | "max";
@@ -133,6 +134,12 @@ export type DeepcodingSettings = {
   visionEndpointId?: string;
   /** Skill/tool routing config (embedding-based context reduction). */
   routing?: RoutingSettings;
+  /**
+   * Max silence allowed between two reads of an LLM stream before the request
+   * is considered stalled and aborted (idle watchdog). Milliseconds.
+   * Default: 300000 (5 minutes) — long enough for extended thinking pauses.
+   */
+  streamIdleTimeoutMs?: number;
 };
 
 /**
@@ -189,6 +196,8 @@ export type ResolvedDeepcodingSettings = {
   /** Resolved vision endpoint config (baseURL + apiKey). */
   visionBaseURL: string;
   visionApiKey?: string;
+  /** LLM stream idle watchdog timeout in ms (default 300000). */
+  streamIdleTimeoutMs: number;
 };
 
 export type ModelConfigSelection = {
@@ -228,6 +237,14 @@ function parseBoolean(value: unknown): boolean | undefined {
 function parseTemperature(value: unknown): number | undefined {
   const raw = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
   if (!Number.isFinite(raw) || raw < 0 || raw > 2) {
+    return undefined;
+  }
+  return raw;
+}
+
+function parsePositiveInteger(value: unknown): number | undefined {
+  const raw = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isInteger(raw) || raw <= 0) {
     return undefined;
   }
   return raw;
@@ -733,6 +750,14 @@ export function resolveSettingsSources(
     trimString(userSettings?.webSearchTool) ||
     "";
 
+  const streamIdleTimeoutMs =
+    parsePositiveInteger(systemEnv.STREAM_IDLE_TIMEOUT_MS) ??
+    parsePositiveInteger(projectSettings?.streamIdleTimeoutMs) ??
+    parsePositiveInteger(projectEnv.STREAM_IDLE_TIMEOUT_MS) ??
+    parsePositiveInteger(userSettings?.streamIdleTimeoutMs) ??
+    parsePositiveInteger(userEnv.STREAM_IDLE_TIMEOUT_MS) ??
+    DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+
   // ── Multi-endpoint resolution ────────────────────────────────────────────
   // Merge endpoints from user + project settings (project overrides user by id,
   // mirroring mergeStatusLine). If none configured, synthesize a default
@@ -818,6 +843,7 @@ export function resolveSettingsSources(
     visionEndpointId,
     visionBaseURL,
     visionApiKey,
+    streamIdleTimeoutMs,
   };
 }
 
@@ -892,6 +918,8 @@ export function applyModelConfigSelection(
 export const DEFAULT_MODEL = "deepseek-v4-pro";
 export const DEFAULT_BASE_URL = "https://api.deepseek.com";
 export const DEFAULT_SECONDARY_MODEL = "deepseek-v4-flash";
+/** Default LLM stream idle watchdog: 5 minutes of stream silence. */
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
 
 // ── Multi-endpoint support ──────────────────────────────────────────────────
 

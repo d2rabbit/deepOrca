@@ -117,11 +117,11 @@ import {
 } from "./tools/executor";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
-import { getProjectSettingsPath, getUserSettingsPath } from "./settings";
+import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
 import { getUserConfigRoot } from "./common/app-dirs";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
-import { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
+import { describeLlmError, classifyLlmError, getLlmErrorDetails } from "./common/llm-error";
 import { killProcessTree } from "./common/process-tree";
 import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 import { clearSessionState, getSnippet, rebuildSessionStateFromHistory } from "./common/state";
@@ -241,6 +241,57 @@ function summarizeCompletionOptions(options?: Record<string, unknown>): Record<s
   };
 }
 
+/**
+ * Raised by the stream idle watchdog when a single read from the LLM stream
+ * stays silent longer than the configured timeout. Classified as TIMEOUT by
+ * classifyLlmError() and eligible for exactly one automatic retry.
+ */
+export class LlmStreamIdleTimeoutError extends Error {
+  readonly idleTimeoutMs: number;
+
+  constructor(idleTimeoutMs: number) {
+    super(`LLM stream idle timeout: no data received for ${idleTimeoutMs}ms`);
+    this.name = "LlmStreamIdleTimeoutError";
+    this.idleTimeoutMs = idleTimeoutMs;
+  }
+}
+
+/**
+ * Wrap an async iterable so each individual next() must resolve within
+ * `idleTimeoutMs`. Long thinking pauses and a genuinely dead connection are
+ * indistinguishable from the caller's side; this watchdog turns the latter
+ * into a classified TIMEOUT instead of a hung or silently-failed session.
+ */
+export function withStreamIdleTimeout<T>(stream: AsyncIterable<T>, idleTimeoutMs: number): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator]: () => {
+      const iterator = stream[Symbol.asyncIterator]();
+      const next = async (): Promise<IteratorResult<T>> => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            iterator.next(),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new LlmStreamIdleTimeoutError(idleTimeoutMs)), idleTimeoutMs);
+              // A pending watchdog timer must not keep the process alive.
+              timer.unref?.();
+            }),
+          ]);
+        } finally {
+          if (timer) {
+            clearTimeout(timer);
+          }
+        }
+      };
+      const finish = async (): Promise<IteratorResult<T>> => {
+        const terminate = (iterator as { return?: () => Promise<IteratorResult<T>> }).return;
+        return terminate ? terminate.call(iterator) : { done: true, value: undefined as never };
+      };
+      return { next, return: finish };
+    },
+  };
+}
+
 function addUsageValue(current: unknown, next: unknown): unknown {
   if (typeof next === "number") {
     return (typeof current === "number" ? current : 0) + next;
@@ -288,12 +339,41 @@ function accumulateUsagePerModel(
   return usagePerModel;
 }
 
-function getTotalTokens(usage: ModelUsage | null | undefined): number {
+/**
+ * Prompt-side size of the most recent request: every token the model had to
+ * ingest (cache hits included, since they still occupy the context window).
+ * This — not cumulative total_tokens — is the right pressure reading for the
+ * compaction threshold.
+ */
+export function getLastPromptTokens(usage: ModelUsage | null | undefined): number {
   if (!isUsageRecord(usage)) {
     return 0;
   }
-  const totalTokens = usage.total_tokens;
-  return typeof totalTokens === "number" ? totalTokens : 0;
+  const promptTokens = usage.prompt_tokens;
+  return typeof promptTokens === "number" ? promptTokens : 0;
+}
+
+function getCacheReadTokens(usage: ModelUsage | null | undefined): number {
+  if (!isUsageRecord(usage)) {
+    return 0;
+  }
+  const deepseekCacheHit = usage.prompt_cache_hit_tokens;
+  if (typeof deepseekCacheHit === "number") {
+    return deepseekCacheHit;
+  }
+  const details = isUsageRecord(usage.prompt_tokens_details) ? usage.prompt_tokens_details : null;
+  const openAiCached = details?.cached_tokens;
+  return typeof openAiCached === "number" ? openAiCached : 0;
+}
+
+/**
+ * Input tokens that actually hit the model fresh (prompt minus cache reads).
+ * Mirrors dsh's mutually-exclusive conversion: cache hits are already paid for
+ * at the cache-read rate and must not be double-counted as fresh input.
+ */
+export function getFreshInputTokens(usage: ModelUsage | null | undefined): number {
+  const promptTokens = getLastPromptTokens(usage);
+  return Math.max(0, promptTokens - getCacheReadTokens(usage));
 }
 
 export type SessionStatus =
@@ -498,6 +578,7 @@ type SessionManagerOptions = {
     routing?: RoutingSettings;
     visionModel?: string;
     visionApiKey?: string;
+    streamIdleTimeoutMs?: number;
   };
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
@@ -638,6 +719,7 @@ export class SessionManager {
     routing?: RoutingSettings;
     visionModel?: string;
     visionApiKey?: string;
+    streamIdleTimeoutMs?: number;
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -1293,6 +1375,11 @@ If the query is simple (single intent), respond with a single-element array.`;
     throw error;
   }
 
+  private getStreamIdleTimeoutMs(): number {
+    const value = this.getResolvedSettings().streamIdleTimeoutMs;
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  }
+
   private async createChatCompletionStream(
     client: NonNullable<ReturnType<CreateOpenAIClient>["client"]>,
     request: Record<string, unknown>,
@@ -1392,7 +1479,10 @@ If the query is simple (single intent), respond with a single-element array.`;
     };
 
     try {
-      for await (const chunk of response as AsyncIterable<Record<string, unknown>>) {
+      for await (const chunk of withStreamIdleTimeout(
+        response as AsyncIterable<Record<string, unknown>>,
+        this.getStreamIdleTimeoutMs()
+      )) {
         if (debug?.enabled) {
           responseChunks.push(chunk);
         }
@@ -2721,7 +2811,10 @@ ${content}
     // A fresh activation must not inherit a stale pause request from a previous run.
     this.pauseRequestedSessions.delete(sessionId);
 
-    try {
+    // The activation loop as a local closure: all loop state (iteration count,
+    // pending tool calls, consumed permission replies) is per-run, so a failed
+    // run can be replayed cleanly by the auto-recovery wrapper below.
+    const runActivationLoop = async (): Promise<void> => {
       const maxIterations = 80000; // about 1K RMB cost
       let toolCalls: unknown[] | null = null;
 
@@ -2860,7 +2953,7 @@ ${content}
               toolCalls,
               usage: accumulateUsage(entry.usage, responseUsage),
               usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
-              activeTokens: getTotalTokens(responseUsage),
+              activeTokens: getLastPromptTokens(responseUsage),
               status: "ask_permission",
               failReason: null,
               askPermissions: permissionPlan.askPermissions,
@@ -2886,7 +2979,7 @@ ${content}
           toolCalls,
           usage: accumulateUsage(entry.usage, responseUsage),
           usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
-          activeTokens: getTotalTokens(responseUsage),
+          activeTokens: getLastPromptTokens(responseUsage),
           status: refusal ? "failed" : waitingForUser ? "waiting_for_user" : toolCalls ? "processing" : "completed",
           failReason: refusal ? refusal : entry.failReason,
           askPermissions: undefined,
@@ -2919,6 +3012,10 @@ ${content}
         ),
         false
       );
+    };
+
+    try {
+      await this.runActivationLoopWithAutoRecovery(runActivationLoop, sessionId, sessionController);
     } catch (error) {
       const errMessage = describeLlmError(error);
       const aborted = this.isAbortLikeError(error) || sessionController.signal.aborted;
@@ -2942,6 +3039,55 @@ ${content}
       this.maybeSyncWikiIndex(sessionId);
       this.maybeRunDiagnosticsCheck(sessionId);
       this.maybeCaptureMemory(sessionId);
+    }
+  }
+
+  /**
+   * Run one activation loop with exactly one shot of automatic recovery:
+   * a context-window overflow is compacted then retried, an idle-timeout
+   * failure is retried as-is. Everything else — and any second failure —
+   * keeps the original fail path. Aborts always propagate untouched, and
+   * quota errors are never retried (retrying cannot fix an empty balance).
+   */
+  private async runActivationLoopWithAutoRecovery(
+    runLoop: () => Promise<void>,
+    sessionId: string,
+    sessionController: AbortController
+  ): Promise<void> {
+    try {
+      await runLoop();
+    } catch (error) {
+      if (this.isAbortLikeError(error) || sessionController.signal.aborted) {
+        throw error;
+      }
+      const category = classifyLlmError(error);
+      if (category !== "CONTEXT_WINDOW_EXCEEDED" && category !== "TIMEOUT") {
+        throw error;
+      }
+      if (this.isInterrupted(sessionId)) {
+        return;
+      }
+      const notice = this.buildAssistantMessage(
+        sessionId,
+        category === "CONTEXT_WINDOW_EXCEEDED"
+          ? "The conversation exceeded the context window. Compacting the history and retrying once..."
+          : "The model stream stalled. Retrying the request once...",
+        null
+      );
+      notice.meta = { asThinking: true };
+      this.onAssistantMessage(notice, false);
+      if (category === "CONTEXT_WINDOW_EXCEEDED") {
+        try {
+          await this.compactSession(sessionId, sessionController.signal);
+        } catch (compactionError) {
+          if (this.isAbortLikeError(compactionError) || sessionController.signal.aborted) {
+            throw compactionError;
+          }
+          // Compaction itself failed — surface the original overflow error.
+          throw error;
+        }
+      }
+      await runLoop();
     }
   }
 
@@ -3009,7 +3155,9 @@ ${content}
       ...entry,
       usage: accumulateUsage(entry.usage, responseUsage),
       usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
-      activeTokens: getTotalTokens(responseUsage),
+      // The compaction request's prompt size says nothing about the session's
+      // real context pressure — reset and let the next model request re-measure.
+      activeTokens: 0,
       updateTime: now,
     }));
 

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能
 
+- **LLM 稳健性三件套：usage 口径修正 + 溢出自动压缩重试 + 流 idle 看门狗** (2026-08-14, 分支 `fix/stabilize-data-loss-and-test-suite`，dsh 调研 P0 落地)
+  - **usage 口径修正**：上下文压力读数 `activeTokens` 从"最近一次请求的 `total_tokens`"切换为 **prompt 侧总量**（`getLastPromptTokens`，cache 命中计入——它们仍占上下文窗口）。旧口径把历史累计输出 token 也算进压缩阈值，长会话会**过早触发压缩**；TopBar/ContextProgress 进度条随之与真实阈值对齐。新增 `getFreshInputTokens()`（prompt − cache 命中，兼容 DeepSeek `prompt_cache_hit_tokens` 与 OpenAI `prompt_tokens_details.cached_tokens` 两种上报，负值钳零）；`compactSession` 完成后 `activeTokens` 归零、由下次真实请求重新计量
+  - **LLM 错误分类器 + 溢出自动 compact-and-retry**：`classifyLlmError()` 八类归一化（AUTH / QUOTA / RATE_LIMIT / CONTEXT_WINDOW_EXCEEDED / SERVER / TRANSIENT / TIMEOUT / UNKNOWN，正则族按 DeepSeek 实测文案校准）。上下文溢出不再等于会话死亡——自动插入提示消息 → `compactSession` → 重放一次激活循环；TIMEOUT 同样重试一次；QUOTA 显式不重试；压缩自身失败时上报原始溢出错误；每次激活仅一次重试预算防循环
+  - **流 idle 看门狗**：`withStreamIdleTimeout()` 对 SDK 流的**单次读取**计时（timer unref），长思考静默与真断流不再不可区分——超时抛 `LlmStreamIdleTimeoutError`（归 TIMEOUT，可自动重试）而非挂死/静默失败。主会话与压缩请求统一生效；超时可经 `settings.streamIdleTimeoutMs` 或 env `STREAM_IDLE_TIMEOUT_MS` 配置，默认 300 秒
+  - 测试：分类器 9 类 fixture、usage 边界（cache_hit > prompt 钳零、OpenAI 嵌套口径）、看门狗静默超时/慢速完成两路径、溢出→压缩→重试恢复、二次溢出仅重试一次、QUOTA 不重试、TIMEOUT 重试（core 386 用例全绿，3 处存量断言随口径更新）
+  - 设计吸收自 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（纯设计借鉴，零代码依赖），方案与验收详见 `docs/research/2026-08-14-dsh-adoption-plan.md`
+
 - **本地向量嵌入模型 (Granite 97M R2)** (2026-08-06)
   - 新增 `@deeporca/embedding` workspace 包：transformers.js + onnxruntime-node，IBM Granite Embedding 97M multilingual R2（384 维，Apache 2.0，200+ 语言含中文）
   - 构建期 vendor 模型（`scripts/vendor-granite.js`，hf-mirror 兜底），不走运行时下载
@@ -148,6 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📝 文档更新
 
+- **dsh 调研落地计划 + 状态跟踪** (2026-08-14)：新增 `docs/research/2026-08-14-dsh-adoption-plan.md`（对照 deepseek-harness 十点审计的分层吸收方案：P0 正确性修复 / P1 顺势加固 / P2 择机 / P3 明确暂缓），P0 三项落地后已回写状态（对账表、落地记录、分支顺序）；前置调研 `2026-08-14-dsh-deepseek-optimization-takeaways.md` + `2026-08-14-deepseek-harness-deep-dive.md`。
 - **AGENTS.md 校正** (2026-08-10)：2 → 4 包（`memory`/`embedding` 此前缺失，~36% 源码在文档地图外）、补 `routing/` 章节、2 → 13 vendor 脚本、修正 `ipc.ts`"纯类型"说法（实际导出 98 个运行时常量）、删除不存在的 `generated/`、记录 RC1 索引不变量（含 Map 陷阱）。
 - **新增 `docs/stabilization-2026-08-10.md`**：本次修复的完整报告（诊断、triage、过程纠正、已做/未做及理由）。
 
@@ -261,6 +269,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## 致谢 / Acknowledgements
+
+### DeepSeek Harness (dsh) — LLM 稳健性设计借鉴
+
+DeepOrca 的 LLM 会话稳健性层（2026-08-14 落地的 P0 三件套）在设计上借鉴了 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（dsh，MIT License）的以下机制——**纯设计吸收，不包含任何 dsh 代码**：
+
+| dsh 机制                                                                                                      | DeepOrca 实现                                                             | 文件                                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **usage 互斥折算**（`inputTokens = prompt_tokens − cacheRead`，压力读数 = 最近请求的 prompt 大小）            | `getLastPromptTokens()` / `getFreshInputTokens()`，压缩阈值锚定 prompt 侧 | `packages/core/src/session.ts`                                           |
+| **错误归一化 + 溢出 compact-and-retry**（`CONTEXT_WINDOW_EXCEEDED` 归一化 → 上压缩 → 单次重试，QUOTA 不重试） | `classifyLlmError()` 八类分类器 + `runActivationLoopWithAutoRecovery()`   | `packages/core/src/common/llm-error.ts` · `packages/core/src/session.ts` |
+| **流 idle 看门狗**（超时计在单次读取上，默认 300s）                                                           | `withStreamIdleTimeout()` + `LlmStreamIdleTimeoutError`，时长进 settings  | `packages/core/src/session.ts`                                           |
+
+调研全文见 `docs/research/2026-08-14-deepseek-harness-deep-dive.md` 与 `2026-08-14-dsh-adoption-plan.md`（含明确暂缓项的决策记录）。感谢 DeepSeek 团队开源了这套对 DeepSeek 线上怪癖打磨极深的 harness 设计，其"前缀字节守恒"与 token 经济学哲学持续影响本项目的演进方向。实现层面的任何偏差由 DeepOrca 项目自行负责。
 
 ### SkillWeaver — Compositional Skill Routing
 

@@ -23,11 +23,11 @@ English · [中文](README.md) · [Docs](docs/) · [Changelog](CHANGELOG.md)
 
 ### 🎯 Three Core Capabilities
 
-| Capability | Description | Technology |
-| --- | --- | --- |
+| Capability       | Description                                                                                                                                        | Technology                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | **🎯 Prototype** | Describe requirements in natural language; AI generates interactive prototypes (forms/kanban/multi-page) with bidirectional interaction validation | A2UI protocol + OpenUI Lang + 7 templates |
-| **🎨 UI Design** | Generate self-contained HTML designs with 3 design systems, 14 UI styles, Tailwind built-in — deliverable standalone | DeepDesign `.dd` format |
-| **💻 Code** | DeepSeek-powered conversational coding: 7 built-in tools, MCP for infinite extensibility, Monaco editor, Git integration | Core Engine + MCP + Monaco |
+| **🎨 UI Design** | Generate self-contained HTML designs with 3 design systems, 14 UI styles, Tailwind built-in — deliverable standalone                               | DeepDesign `.dd` format                   |
+| **💻 Code**      | DeepSeek-powered conversational coding: 7 built-in tools, MCP for infinite extensibility, Monaco editor, Git integration                           | Core Engine + MCP + Monaco                |
 
 Each capability works standalone. Use them independently or combine them — from prototype validation to design mockups to code implementation, flow as needed.
 
@@ -45,6 +45,8 @@ The repository contains four npm workspaces:
 DeepOrca originated as a fork of [Deep Code](https://github.com/lessweb/deepcode-cli) (`@vegamo/deepcode`) and has since become an independent project. It retains Deep Code's core engine architecture—LLM sessions, built-in tools, Skills/MCP extensions, and permission control—while adding the desktop GUI, the Actions capability layer, local memory and embeddings, bundled extensions, GitMCP, and Monaco Editor. The terminal CLI and VSCode extension form factors were removed.
 
 Deep Code is released under the MIT License. This repository preserves its original copyright notice as required; see [LICENSE](LICENSE).
+
+In addition, DeepOrca's LLM session robustness layer (mutually-exclusive usage/cache accounting, automatic compact-and-retry on context overflow, and the stream idle watchdog) borrows its design from [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) (MIT License) — design adoption only, no code; see the [CHANGELOG acknowledgements](CHANGELOG.md#致谢--acknowledgements).
 
 ---
 
@@ -273,6 +275,7 @@ Run `npm run format` before `npm run check && npm test`. Contributions use Conve
 This project is released under the [MIT License](LICENSE).
 
 - DeepOrca is derived from [Deep Code](https://github.com/lessweb/deepcode-cli) (Copyright (c) 2026 lessweb, MIT License).
+- The design of the LLM session robustness layer is informed by [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (deepseek-ai, MIT License) — design reference only, no code used.
 - The original copyright and permission notices are preserved. They must remain when using, modifying, or redistributing this project or substantial portions of it.
 - The software is provided “as is,” without warranty of any kind; see the full license text.
 

@@ -26,11 +26,11 @@
 
 ### 🎯 三大核心能力
 
-| 能力 | 说明 | 技术 |
-| --- | --- | --- |
-| **🎯 原型设计** | 用自然语言描述需求，AI 生成可交互原型（表单/看板/多页面导航），双向交互验证用户流程 | A2UI 协议 + OpenUI Lang + 7 个模板 |
-| **🎨 UI 设计稿** | 生成自包含 HTML 设计稿，3 种设计系统、14 种 UI 风格、Tailwind 内置，可脱离宿主独立交付 | DeepDesign `.dd` 格式 |
-| **💻 智能编码** | DeepSeek 驱动的会话式编码：7 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成 | Core Engine + MCP + Monaco |
+| 能力             | 说明                                                                                   | 技术                               |
+| ---------------- | -------------------------------------------------------------------------------------- | ---------------------------------- |
+| **🎯 原型设计**  | 用自然语言描述需求，AI 生成可交互原型（表单/看板/多页面导航），双向交互验证用户流程    | A2UI 协议 + OpenUI Lang + 7 个模板 |
+| **🎨 UI 设计稿** | 生成自包含 HTML 设计稿，3 种设计系统、14 种 UI 风格、Tailwind 内置，可脱离宿主独立交付 | DeepDesign `.dd` 格式              |
+| **💻 智能编码**  | DeepSeek 驱动的会话式编码：7 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成     | Core Engine + MCP + Monaco         |
 
 三大能力各自独立，从任意一个切入即可。也可以组合使用——从原型验证到设计稿再到代码实现，按需流转。
 
@@ -48,6 +48,8 @@
 DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli)（`@vegamo/deepcode`）的 fork，现已发展为独立项目。我们保留了 Deep Code 优秀的核心引擎架构（LLM 会话循环、内置工具、Skills/MCP 扩展、权限控制），并在此基础上增加桌面 GUI、Actions 能力层、本地记忆与嵌入、内置扩展、GitMCP、Monaco Editor 等能力，同时移除了终端 CLI 与 VSCode 插件形态。
 
 Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留其原始版权声明（见 [LICENSE](LICENSE)），并在此向原作者致谢。
+
+此外，DeepOrca 的 LLM 会话稳健性层（usage/cache 互斥折算、溢出自动压缩重试、流 idle 看门狗）在设计上借鉴了 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness)（MIT License）——纯设计吸收，不包含其代码，详见 [CHANGELOG 致谢](CHANGELOG.md#致谢--acknowledgements)。感谢 DeepSeek 团队的开源设计。
 
 ---
 
@@ -147,26 +149,26 @@ const output = await run.result;
 
 ## 📊 当前功能全景
 
-| 能力域       | 功能                                              | 状态 |
-| ------------ | ------------------------------------------------- | ---- |
-| 核心引擎     | LLM 会话循环、7 个内置工具、上下文压缩            | ✅   |
-| **原型设计** | **A2UI 交互原型 + OpenUI Lang + 7 个模板**        | ✅   |
-| **UI 设计稿** | **DeepDesign `.dd` 格式 + 3 设计系统 + 14 风格** | ✅   |
-| **智能编码** | **DeepSeek 驱动的会话式编码 + Monaco + Git**      | ✅   |
-| Actions      | ActionRegistry、LLM 工具、桌面 IPC/UI、组合工作流 | 🧪   |
-| 桌面客户端   | Electron GUI、多面板、多主题                      | ✅   |
-| 扩展系统     | Skills / MCP / 内置扩展                           | ✅   |
-| 本地智能层   | Granite 嵌入、L0–L3 记忆、语义路由                | ✅   |
-| 代码编辑器   | Monaco Editor 集成                                | ✅   |
-| 工作区索引   | CodeGraph、OpenWiki、arch-scan                    | ✅   |
-| 代码审查     | Open Code Review + CRG 风险补充                   | ✅   |
-| GitMCP       | 本地 GitMCP 模块 + 仓库索引面板                   | ✅   |
-| 浏览器自动化 | browser-skill 内置扩展                            | ✅   |
-| 源码管理     | Git 面板（stage/commit/diff/branch）              | ✅   |
-| 权限控制     | 内置工具细粒度 scope 策略                         | ✅   |
-| 会话持久化   | 跨会话恢复、归档、导出                            | ✅   |
-| 联网搜索     | 内置 WebSearch 工具                               | ✅   |
-| 多模态       | 图片粘贴/拖拽输入                                 | ✅   |
+| 能力域        | 功能                                              | 状态 |
+| ------------- | ------------------------------------------------- | ---- |
+| 核心引擎      | LLM 会话循环、7 个内置工具、上下文压缩            | ✅   |
+| **原型设计**  | **A2UI 交互原型 + OpenUI Lang + 7 个模板**        | ✅   |
+| **UI 设计稿** | **DeepDesign `.dd` 格式 + 3 设计系统 + 14 风格**  | ✅   |
+| **智能编码**  | **DeepSeek 驱动的会话式编码 + Monaco + Git**      | ✅   |
+| Actions       | ActionRegistry、LLM 工具、桌面 IPC/UI、组合工作流 | 🧪   |
+| 桌面客户端    | Electron GUI、多面板、多主题                      | ✅   |
+| 扩展系统      | Skills / MCP / 内置扩展                           | ✅   |
+| 本地智能层    | Granite 嵌入、L0–L3 记忆、语义路由                | ✅   |
+| 代码编辑器    | Monaco Editor 集成                                | ✅   |
+| 工作区索引    | CodeGraph、OpenWiki、arch-scan                    | ✅   |
+| 代码审查      | Open Code Review + CRG 风险补充                   | ✅   |
+| GitMCP        | 本地 GitMCP 模块 + 仓库索引面板                   | ✅   |
+| 浏览器自动化  | browser-skill 内置扩展                            | ✅   |
+| 源码管理      | Git 面板（stage/commit/diff/branch）              | ✅   |
+| 权限控制      | 内置工具细粒度 scope 策略                         | ✅   |
+| 会话持久化    | 跨会话恢复、归档、导出                            | ✅   |
+| 联网搜索      | 内置 WebSearch 工具                               | ✅   |
+| 多模态        | 图片粘贴/拖拽输入                                 | ✅   |
 
 > 🧪 Actions 的核心注册、LLM/IPC 接入和桌面浏览器已可用；更多调用面与权限集成仍在迭代。
 
@@ -176,13 +178,13 @@ const output = await run.result;
 
 ### 🎯 近期开发
 
-| #   | 特性                      | 说明                                                   | 状态      |
-| --- | ------------------------- | ------------------------------------------------------ | --------- |
-| 1   | **Actions 能力面扩展**    | 外部 MCP、HTTP/CLI、参数表单与更细粒度权限             | 🔨 规划中 |
-| 2   | **远程插件中心**          | 在线插件市场，支持一键安装/更新社区 Skills 和 MCP 服务 | 🔨 规划中 |
-| 3   | **自定义 CLI 与指令**     | 用户可注册斜杠命令和 CLI 子命令                        | 🔨 规划中 |
-| 4   | **项目图谱与沉浸式 Wiki** | 代码知识图谱可视化 + 项目级知识沉淀                    | 📐 设计中 |
-| 5   | **PM-Design V2 需求具现化** | 需求分析 → 管线自动路由 → 原型生成 → 持久化工作台     | 📐 设计中 |
+| #   | 特性                        | 说明                                                   | 状态      |
+| --- | --------------------------- | ------------------------------------------------------ | --------- |
+| 1   | **Actions 能力面扩展**      | 外部 MCP、HTTP/CLI、参数表单与更细粒度权限             | 🔨 规划中 |
+| 2   | **远程插件中心**            | 在线插件市场，支持一键安装/更新社区 Skills 和 MCP 服务 | 🔨 规划中 |
+| 3   | **自定义 CLI 与指令**       | 用户可注册斜杠命令和 CLI 子命令                        | 🔨 规划中 |
+| 4   | **项目图谱与沉浸式 Wiki**   | 代码知识图谱可视化 + 项目级知识沉淀                    | 📐 设计中 |
+| 5   | **PM-Design V2 需求具现化** | 需求分析 → 管线自动路由 → 原型生成 → 持久化工作台      | 📐 设计中 |
 
 已集成的重点开源能力包括 Flutter/Dart Skills、OpenWiki、CodeGraph 和 Code Review Graph（CRG）；Serena、OpenCLI、CLI-Anything、Open Design 等能力仍在持续集成与评估中。
 
@@ -299,6 +301,7 @@ node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/action-
 本项目采用 [MIT License](LICENSE) 开源。
 
 - DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License）。
+- LLM 会话稳健性层的设计借鉴自 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（deepseek-ai，MIT License）——仅设计参考，未使用其代码。
 - 根据 MIT 协议条款，本仓库完整保留原始版权声明与许可声明；使用、修改或分发本项目（及其实质部分）时，也需保留 [LICENSE](LICENSE) 中的版权声明与许可声明。
 - 软件按“原样”提供，不附带任何形式的担保，详见协议全文。
 

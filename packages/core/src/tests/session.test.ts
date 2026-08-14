@@ -11,7 +11,17 @@ import { setSkillSpectorDisabled } from "../common/skill-spector";
 import { setCodegraphDisabled } from "../common/codegraph";
 import { setCrgDisabled } from "../common/crg";
 import { setA2uiDisabled } from "../mcp/a2ui-seam";
-import { getProjectCode, SessionManager, type SessionMessage } from "../session";
+import {
+  getFreshInputTokens,
+  getLastPromptTokens,
+  getProjectCode,
+  LlmStreamIdleTimeoutError,
+  SessionManager,
+  type ModelUsage,
+  type SessionMessage,
+  withStreamIdleTimeout,
+} from "../session";
+import { classifyLlmError } from "../common/llm-error";
 
 const originalFetch = globalThis.fetch;
 const originalConsoleWarn = console.warn;
@@ -3167,7 +3177,8 @@ test("SessionManager accumulates response usage while active tokens track the la
   const session = manager.getSession(sessionId);
   const usage = session?.usage as Record<string, any>;
   const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
-  assert.equal(session?.activeTokens, 27);
+  // activeTokens tracks the latest response's PROMPT side (context pressure), not total_tokens.
+  assert.equal(session?.activeTokens, 20);
   assert.equal(usage.prompt_tokens, 30);
   assert.equal(usage.completion_tokens, 12);
   assert.equal(usage.total_tokens, 42);
@@ -3274,7 +3285,7 @@ test("SessionManager resets active tokens to latest post-compaction response usa
   const manager = createMockedClientSessionManager(workspace, responses);
 
   const sessionId = await manager.createSession({ text: "" });
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 140_000);
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 139_990);
 
   await manager.replySession(sessionId, { text: "" });
 
@@ -3283,7 +3294,7 @@ test("SessionManager resets active tokens to latest post-compaction response usa
   // Compaction uses COMPACTION_MODEL ("deepseek-v4-flash"), so usagePerModel splits.
   const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
   const compactUsage = session?.usagePerModel?.["deepseek-v4-flash"] as Record<string, any>;
-  assert.equal(session?.activeTokens, 7);
+  assert.equal(session?.activeTokens, 5);
   // Total usage across all models.
   assert.equal(usage.prompt_tokens, 140_095);
   assert.equal(usage.completion_tokens, 35);
@@ -3360,7 +3371,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
 
   assert.equal(assistantMessage?.content, "hello");
   assert.equal((assistantMessage?.messageParams as any)?.reasoning_content, "思考");
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 5);
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 2);
   assert.deepEqual(
     progressEvents.map((event) => event.phase),
     ["start", "update", "update", "end"]
@@ -4057,4 +4068,214 @@ function escapeRegExp(value: string): string {
 
 async function flushPromises(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+test("getLastPromptTokens and getFreshInputTokens apply mutually-exclusive cache accounting", () => {
+  const deepseekUsage: ModelUsage = {
+    prompt_tokens: 1000,
+    completion_tokens: 200,
+    total_tokens: 1200,
+    prompt_cache_hit_tokens: 750,
+  };
+  assert.equal(getLastPromptTokens(deepseekUsage), 1000);
+  assert.equal(getFreshInputTokens(deepseekUsage), 250);
+
+  // OpenAI-style nested cache accounting collapses to zero fresh input.
+  const openAiUsage: ModelUsage = {
+    prompt_tokens: 800,
+    completion_tokens: 50,
+    total_tokens: 850,
+    prompt_tokens_details: { cached_tokens: 800 },
+  };
+  assert.equal(getFreshInputTokens(openAiUsage), 0);
+
+  // A provider glitch (cache read larger than prompt) must clamp at zero.
+  const glitchUsage: ModelUsage = {
+    prompt_tokens: 100,
+    completion_tokens: 1,
+    total_tokens: 101,
+    prompt_cache_hit_tokens: 400,
+  };
+  assert.equal(getFreshInputTokens(glitchUsage), 0);
+
+  assert.equal(getLastPromptTokens(null), 0);
+  assert.equal(getFreshInputTokens(null), 0);
+});
+
+test("withStreamIdleTimeout aborts silent streams and passes active ones through", async () => {
+  const silent: AsyncIterable<never> = {
+    [Symbol.asyncIterator]: () => ({
+      next: () => new Promise<IteratorResult<never>>(() => {}),
+    }),
+  };
+  await assert.rejects(
+    async () => {
+      for await (const _chunk of withStreamIdleTimeout(silent, 25)) {
+        // never reached
+      }
+    },
+    (error: unknown) => {
+      assert.ok(error instanceof LlmStreamIdleTimeoutError);
+      assert.equal(classifyLlmError(error), "TIMEOUT");
+      return true;
+    }
+  );
+
+  async function* slowStream(): AsyncGenerator<number> {
+    yield 1;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    yield 2;
+  }
+  const collected: number[] = [];
+  for await (const value of withStreamIdleTimeout(slowStream(), 5000)) {
+    collected.push(value);
+  }
+  assert.deepEqual(collected, [1, 2]);
+});
+
+test("activateSession tracks context pressure as prompt-side tokens, not total tokens", async () => {
+  const workspace = createTempDir("deepcode-prompt-tokens-workspace-");
+  const home = createTempDir("deepcode-prompt-tokens-home-");
+  setHomeDir(home);
+
+  const responses: unknown[] = [
+    createChatResponse("cached answer", {
+      prompt_tokens: 9000,
+      completion_tokens: 4000,
+      total_tokens: 13000,
+      prompt_cache_hit_tokens: 8500,
+    }),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "completed");
+  assert.equal(session?.activeTokens, 9000);
+  assert.equal(getFreshInputTokens(session?.usage ?? null), 500);
+  assert.equal(responses.length, 0);
+});
+
+test("activateSession recovers from context overflow via compact-and-retry", async () => {
+  const workspace = createTempDir("deepcode-overflow-recovery-workspace-");
+  const home = createTempDir("deepcode-overflow-recovery-home-");
+  setHomeDir(home);
+
+  const overflowError = Object.assign(
+    new Error("This model's maximum context length is 65536 tokens. However, you requested 131072 tokens."),
+    { status: 400, code: "invalid_request_error" }
+  );
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    overflowError,
+    createChatResponse("compacted summary", { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 }),
+    createChatResponse("recovered answer", { prompt_tokens: 120, completion_tokens: 6, total_tokens: 126 }),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "tell me more" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "completed");
+  assert.equal(session?.failReason, null);
+  assert.equal(session?.assistantReply, "recovered answer");
+  assert.equal(session?.activeTokens, 120);
+  assert.ok(
+    manager.listSessionMessages(sessionId).some((message) => message.meta?.isSummary === true),
+    "compaction should have inserted a summary message"
+  );
+  assert.equal(responses.length, 0, "all queued responses should have been consumed");
+});
+
+test("activateSession retries exactly once when the stream stalls twice", async () => {
+  const workspace = createTempDir("deepcode-overflow-once-workspace-");
+  const home = createTempDir("deepcode-overflow-once-home-");
+  setHomeDir(home);
+
+  const overflowError = Object.assign(new Error("This model's maximum context length is 65536 tokens."), {
+    status: 400,
+  });
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    overflowError,
+    createChatResponse("still too long summary", { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 }),
+    overflowError,
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "tell me more" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "failed");
+  assert.match(session?.failReason ?? "", /maximum context length/);
+  assert.equal(responses.length, 0);
+});
+
+test("activateSession does not retry quota errors", async () => {
+  const workspace = createTempDir("deepcode-quota-workspace-");
+  const home = createTempDir("deepcode-quota-home-");
+  setHomeDir(home);
+
+  const quotaError = Object.assign(new Error("402 Insufficient Balance"), {
+    status: 402,
+    error: { message: "Insufficient Balance" },
+  });
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    quotaError,
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "again" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "failed");
+  assert.match(session?.failReason ?? "", /Insufficient Balance/);
+  assert.equal(responses.length, 0, "no retry or compaction call should have been made");
+});
+
+test("activateSession retries once after a stalled stream times out", async () => {
+  const workspace = createTempDir("deepcode-timeout-retry-workspace-");
+  const home = createTempDir("deepcode-timeout-retry-home-");
+  setHomeDir(home);
+
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    new Error("Request timed out."),
+    createChatResponse("after retry", { prompt_tokens: 90, completion_tokens: 3, total_tokens: 93 }),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "again" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "completed");
+  assert.equal(session?.assistantReply, "after retry");
+  assert.equal(session?.activeTokens, 90);
+  assert.equal(responses.length, 0);
+});
+
+/**
+ * Mock chat client for recovery-path tests: unlike createMockedClientSessionManager,
+ * queued Error instances are THROWN (not returned as a response body), so they
+ * exercise the activateSession error handling (classify → compact/retry → fail).
+ */
+function createQueuedChatClient(responses: unknown[]): unknown {
+  return {
+    chat: {
+      completions: {
+        create: async (request: any) => {
+          if (isSkillMatchingRequest(request)) {
+            return createSkillMatchingResponse();
+          }
+          const response = responses.shift();
+          assert.ok(response, "expected a queued chat response");
+          if (response instanceof Error) {
+            throw response;
+          }
+          return response;
+        },
+      },
+    },
+  };
 }

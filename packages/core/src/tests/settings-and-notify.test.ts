@@ -12,6 +12,7 @@ import {
 } from "../common/notify";
 import {
   applyModelConfigSelection,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   failClosedPermissionDefault,
   getLastSettingsReadError,
   getProjectSettingsPath,
@@ -927,3 +928,23 @@ test(
     assert.equal(calls[1]?.options.env?.TITLE, "Fix login bug");
   }
 );
+
+test("resolveSettings reads streamIdleTimeoutMs from settings and env with a 5-minute default", () => {
+  const defaults = { model: "default-model", baseURL: "https://default.example.com" };
+
+  assert.equal(resolveSettings({}, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs, DEFAULT_STREAM_IDLE_TIMEOUT_MS);
+  assert.equal(DEFAULT_STREAM_IDLE_TIMEOUT_MS, 300_000);
+  assert.equal(resolveSettings({ streamIdleTimeoutMs: 1500 }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs, 1500);
+  assert.equal(
+    resolveSettings({ env: { STREAM_IDLE_TIMEOUT_MS: "2000" } }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs,
+    2000
+  );
+  assert.equal(
+    resolveSettings({ streamIdleTimeoutMs: -5 }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs,
+    DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  );
+  assert.equal(
+    resolveSettings({ streamIdleTimeoutMs: "not-a-number" }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs,
+    DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  );
+});
