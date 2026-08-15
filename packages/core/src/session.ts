@@ -147,6 +147,7 @@ import {
   buildPermissionToolExecution,
   computeToolCallPermissions,
   DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+  describeToolPermissionRequest,
   hasUserPermissionReplies,
   normalizeAskPermissions,
   parseToolCallForPermissions,
@@ -155,6 +156,7 @@ import {
   type PermissionToolCall,
   type UserToolPermission,
 } from "./common/permissions";
+import { safeRealPath, type PathGrant } from "./common/path-boundary";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
@@ -4769,6 +4771,46 @@ ${content}
     };
   }
 
+  /**
+   * Derive the per-call path capability from the permission layer's scope
+   * classification (specs/sandbox/design.md §4.1, correction R2). Re-runs
+   * describeToolPermissionRequest instead of consuming the permission plan:
+   * any call reaching this point has already resolved to "allow"
+   * (buildPermissionToolExecution blocked the rest), so an out-cwd scope in
+   * the request IS the authorized dynamic grant — whether it came from the
+   * persisted allow list, a one-time override, or a forced-ask approval.
+   * Zero persistence dependency, so the resume/trailing-pending replay
+   * paths (where no permissionPlan object exists) stay consistent by
+   * construction. Returns undefined for non-file tools.
+   */
+  private derivePathGrantForToolCall(sessionId: string, toolCall: PermissionToolCall): PathGrant | undefined {
+    const name = toolCall.function.name;
+    const isRead = name === "read" || name === "Read";
+    const isWrite = name === "write" || name === "Write";
+    const isEdit = name === "edit" || name === "Edit";
+    if (!isRead && !isWrite && !isEdit) {
+      return undefined;
+    }
+    const exemptPaths = this.getSkillScanRoots().map((entry) => entry.root);
+    const request = describeToolPermissionRequest({
+      sessionId,
+      projectRoot: this.projectRoot,
+      toolCall,
+      readPermissionExemptPaths: exemptPaths,
+      resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
+    });
+    const projectRealRoot = safeRealPath(this.projectRoot) ?? path.resolve(this.projectRoot);
+    const exemptRealRoots = exemptPaths
+      .map((entry) => safeRealPath(entry) ?? path.resolve(this.projectRoot, entry))
+      .filter((root) => root !== projectRealRoot);
+    return {
+      writeRoots: [projectRealRoot],
+      readRoots: [projectRealRoot, ...exemptRealRoots],
+      allowWriteOutsideRoots: request.scopes.includes("write-out-cwd"),
+      allowReadOutsideRoots: request.scopes.includes("read-out-cwd"),
+    };
+  }
+
   private async appendToolMessages(
     sessionId: string,
     toolCalls: unknown[],
@@ -4800,7 +4842,10 @@ ${content}
         toolExecutions.push(blockedResult);
         continue;
       }
-      const executions = await this.toolExecutor.executeToolCalls(sessionId, [toolCall], hooks);
+      const pathGrant = this.derivePathGrantForToolCall(sessionId, toolCall);
+      const executions = await this.toolExecutor.executeToolCalls(sessionId, [toolCall], hooks, {
+        pathGrant,
+      });
       toolExecutions.push(...executions);
     }
     if (this.isInterrupted(sessionId)) {
