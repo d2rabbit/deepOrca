@@ -217,6 +217,10 @@ interface TaskTreeService {
 
 P0 已落地：`packages/core/src/tasks/`（types + TaskTreeService，单写者 + pendingIndex→flush 纪律 + reflog append-only + fail-open）+ 6 个 Action（task.create/step/fork/switch/abandon/list，经 RegistryHost 注入服务）+ desktop 只读面板（`TaskTreePanel.tsx`，rail "tasktree"🌳，6 语言）。每个节点携带 **`why` 叙事字段**（fork 强制非空）——人类视角的产品本体。测试 6 用例（fork 双分支/重启恢复/reflog 顺序/损坏树 fail-open/id 形状与防穿越/分支名净化）。
 
+### P1 落地记录（2026-08-15，同日完成）
+
+merge（cherry-pick + 冲突报告不自动裁决）、session 绑定（taskRef 反向指针 + 分支头 sessionRef 单次绑定）、branch 级 resume、Plan Mode 单向物化（标题去重 + 幂等）均已实现并测试（task-tree.test.ts 11 用例）。行为记忆 boot 注入（`settings.behaviorContext`，默认关）同批落地。memory 谱系 L2 增量规格见 `memory-lineage.md`（实现列 P2）。
+
 ### 消歧规则：Plan Mode ↔ 树是单向只读物化
 
 UpdatePlan（LLM 拥有）→ appendStep（树服务拥有）为**单向物化**：plan 步骤可投影为 step 节点，但树**永不回写** plan——两者谁是 source of truth 无歧义（plan 是）。双向映射的提案一律拒绝，直到出现 plan 无法表达的树结构需求。

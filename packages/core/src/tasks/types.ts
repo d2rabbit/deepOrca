@@ -7,7 +7,7 @@
  * The agent operates the tree via task.* actions; humans read it in the panel.
  */
 
-export type TaskNodeKind = "root" | "step" | "fork" | "memory-spawn";
+export type TaskNodeKind = "root" | "step" | "fork" | "merge" | "memory-spawn";
 
 export type TaskNodeStatus = "planned" | "running" | "done" | "abandoned";
 

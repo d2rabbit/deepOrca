@@ -117,6 +117,8 @@ import {
   taskAbandonRun,
   taskListDefinition,
   taskListRun,
+  taskMergeDefinition,
+  taskMergeRun,
   type RunSubagentOptions,
 } from "./actions";
 import { TaskTreeService } from "./tasks/task-tree-service";
@@ -455,6 +457,8 @@ export type SessionEntry = {
   processes: Map<string, SessionProcessEntry> | null; // {pid: process info}
   askPermissions?: AskPermissionRequest[];
   planMode?: boolean;
+  /** Task trajectory binding (specs/task-tree P1): reverse pointer to the branch this session executes. */
+  taskRef?: { treeId: string; branch: string; nodeId: string };
 };
 
 export type SessionsIndex = {
@@ -619,6 +623,8 @@ type SessionManagerOptions = {
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   onSessionEntryUpdated?: (entry: SessionEntry) => void;
   onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+  /** Behavioral-memory provider (activity-frames pipeline B, host-injected). Returns a compact context block or null. */
+  buildBehaviorContext?: () => string | null;
   onMcpStatusChanged?: () => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
 };
@@ -759,6 +765,7 @@ export class SessionManager {
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
   private readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+  private readonly buildBehaviorContext?: () => string | null;
   private readonly onMcpStatusChanged?: () => void;
   private readonly onProcessStdout?: (pid: number, chunk: string) => void;
   private activeSessionId: string | null = null;
@@ -836,6 +843,7 @@ export class SessionManager {
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
+    this.buildBehaviorContext = options.buildBehaviorContext;
     this.onProcessStdout = options.onProcessStdout;
     // ActionRegistry must be constructed before ToolExecutor (which dispatches
     // action tool calls through it). Uses the host-injected Spawner so core
@@ -854,6 +862,10 @@ export class SessionManager {
       // Task trajectory (specs/task-tree P0): the tree service is the single
       // writer of .deeporca/task-trees/** — actions receive it via context.
       taskTrees: () => this.getTaskTreeService(),
+      // Session binding (P1): task.create/fork stamp the session entry's
+      // taskRef reverse pointer and the branch head's sessionRef.
+      activeSessionId: () => this.activeSessionId,
+      setSessionTaskRef: (sessionId, ref) => this.setSessionTaskRef(sessionId, ref),
     });
     this.actionRegistry.register(pingDefinition, pingRun);
     // ── Phase 1: code review actions ──────────────────────────────────────
@@ -896,6 +908,7 @@ export class SessionManager {
     this.actionRegistry.register(taskSwitchDefinition, taskSwitchRun);
     this.actionRegistry.register(taskAbandonDefinition, taskAbandonRun);
     this.actionRegistry.register(taskListDefinition, taskListRun);
+    this.actionRegistry.register(taskMergeDefinition, taskMergeRun);
     this.toolExecutor = new ToolExecutor(
       this.projectRoot,
       this.createOpenAIClient,
@@ -958,6 +971,104 @@ export class SessionManager {
   /** Task trajectory service for the desktop panel bridge (read-only usage). */
   getTaskTreeServiceForPanel(): TaskTreeService | null {
     return this.getTaskTreeService();
+  }
+
+  /**
+   * Behavioral-memory boot context (activity-frames pipeline B, opt-in via
+   * settings.behaviorContext): prepend the compact "how this user works"
+   * block as a hidden system message on session creation. Fail-open.
+   */
+  private appendBehaviorContext(sessionId: string): void {
+    try {
+      if ((this.getResolvedSettings() as { behaviorContext?: boolean }).behaviorContext !== true) return;
+      const block = this.buildBehaviorContext?.();
+      if (!block || !block.trim()) return;
+      this.appendSessionMessage(
+        sessionId,
+        this.buildSystemMessage(
+          sessionId,
+          `<behavior-context>\nHow this user usually works (behavioral memory summary):\n${block}\n</behavior-context>`
+        )
+      );
+    } catch {
+      // Fail-open: no behavioral context rather than a broken session start.
+    }
+  }
+
+  /** Bind/unbind a session entry's taskRef (task.* actions call this via context). */
+  private setSessionTaskRef(sessionId: string, ref: { treeId: string; branch: string; nodeId: string } | null): void {
+    try {
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        ...(ref ? { taskRef: ref } : { taskRef: undefined }),
+        updateTime: new Date().toISOString(),
+      }));
+    } catch {
+      // Binding is best-effort — never block the task action.
+    }
+  }
+
+  /**
+   * Plan Mode → task-tree materialization (spec §十一, one-way read-only).
+   * Extracts checklist lines from an UpdatePlan call's `plan` argument and
+   * appends the ones not yet present as step nodes on the session's bound
+   * branch. Best-effort and fail-open: materialization issues never affect
+   * the plan tool's own result.
+   */
+  private materializePlanToTaskTree(sessionId: string, toolFunction: unknown | null): void {
+    try {
+      const fn = toolFunction as { name?: string; arguments?: string | Record<string, unknown> } | null;
+      if (!fn || fn.name !== "UpdatePlan") return;
+      const ref = this.getSession(sessionId)?.taskRef;
+      if (!ref) return;
+      let plan: unknown = null;
+      if (typeof fn.arguments === "string") {
+        plan = (JSON.parse(fn.arguments) as Record<string, unknown>)["plan"];
+      } else if (fn.arguments && typeof fn.arguments === "object") {
+        plan = (fn.arguments as Record<string, unknown>)["plan"];
+      }
+      if (typeof plan !== "string" || !plan.trim()) return;
+      const lines = plan
+        .split("\n")
+        .map((line) => line.match(/^\s*[-*]\s+\[( |x)\]\s*(.+?)\s*$/))
+        .filter((m): m is RegExpMatchArray => m !== null)
+        .map((m) => m[2]!)
+        .filter((title) => title.length > 0)
+        .slice(0, 20);
+      if (lines.length === 0) return;
+      const svc = this.getTaskTreeService();
+      if (!svc) return;
+      // Switch to the bound branch for this materialization (P1: a session's
+      // plan belongs to its bound branch, wherever the tree was left).
+      svc.switchBranch(ref.treeId, ref.branch);
+      const tree = svc.getTree(ref.treeId);
+      if (!tree) return;
+      const existing = new Set(tree.nodes.map((n) => n.title));
+      for (const title of lines) {
+        if (!existing.has(title)) {
+          existing.add(title); // duplicates within one plan collapse too
+          svc.appendStep(ref.treeId, { title, why: "Plan step (materialized one-way from UpdatePlan)." });
+        }
+      }
+    } catch {
+      // Fail-open: materialization must never break the plan tool flow.
+    }
+  }
+
+  /**
+   * Branch-level resume (specs/task-tree P1): when a session bound to a tree
+   * branch activates, restore that branch as the tree's active branch so
+   * subsequent task.step calls land where the session left off. Fail-open.
+   */
+  private restoreTaskBranchForSession(sessionId: string): void {
+    try {
+      const ref = this.getSession(sessionId)?.taskRef;
+      if (!ref) return;
+      const svc = this.getTaskTreeService();
+      svc?.switchBranch(ref.treeId, ref.branch);
+    } catch {
+      // Fail-open: a broken tree must not block session resume.
+    }
   }
 
   /** Lazy task-tree service (created once per manager; null-safe). */
@@ -2981,6 +3092,8 @@ ${content}
       }
     }
 
+    this.appendBehaviorContext(sessionId);
+
     this.appendPlanModeTransitionMessages(sessionId, false, Boolean(userPrompt.planMode));
 
     this.recordUserPromptCheckpoint(sessionId);
@@ -3146,6 +3259,8 @@ ${content}
     this.sessionControllers.set(sessionId, sessionController);
     // A fresh activation must not inherit a stale pause request from a previous run.
     this.pauseRequestedSessions.delete(sessionId);
+    // Branch-level resume (task-tree P1): restore the bound branch as active.
+    this.restoreTaskBranchForSession(sessionId);
 
     // The activation loop as a local closure: all loop state (iteration count,
     // pending tool calls, consumed permission replies) is per-run, so a failed
@@ -4591,6 +4706,11 @@ ${content}
       const toolMessage = this.buildToolMessage(sessionId, execution.toolCallId, execution.content, toolFunction);
       this.appendSessionMessage(sessionId, toolMessage);
       this.onAssistantMessage(toolMessage, true);
+      // Plan Mode → tree materialization (ONE-WAY, read-only per spec §十一:
+      // the plan is the source of truth; the tree never writes back). When a
+      // session is bound to a task tree, new plan checklist lines become step
+      // nodes on the bound branch (matched by title — no duplicates).
+      this.materializePlanToTaskTree(sessionId, toolFunction);
 
       for (const followUpMessage of execution.result.followUpMessages ?? []) {
         if (followUpMessage.role !== "system") {
@@ -5023,7 +5143,22 @@ ${content}
       processes: this.deserializeProcesses(value.processes),
       askPermissions: normalizeAskPermissions(value.askPermissions),
       planMode: value.planMode === true,
+      taskRef: this.normalizeTaskRef(value.taskRef),
     };
+  }
+
+  private normalizeTaskRef(value: unknown): { treeId: string; branch: string; nodeId: string } | undefined {
+    if (!value || typeof value !== "object") return undefined;
+    const ref = value as Record<string, unknown>;
+    if (
+      typeof ref.treeId === "string" &&
+      typeof ref.branch === "string" &&
+      typeof ref.nodeId === "string" &&
+      /^[0-9a-f-]{36}$/i.test(ref.treeId)
+    ) {
+      return { treeId: ref.treeId, branch: ref.branch, nodeId: ref.nodeId };
+    }
+    return undefined;
   }
 
   private normalizeSessionStatus(status: unknown): SessionStatus {

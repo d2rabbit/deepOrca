@@ -4,8 +4,33 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { TaskTreeService } from "../tasks/task-tree-service";
+import { SessionManager } from "../session";
 
 const tempRoots: string[] = [];
+
+/** Insert a minimal session entry into the index (test seam for binding paths). */
+function injectSessionEntry(manager: SessionManager, sessionId: string, taskRef?: unknown): void {
+  const index = (manager as any).loadSessionsIndex();
+  index.entries.push({
+    id: sessionId,
+    summary: null,
+    assistantReply: null,
+    assistantThinking: null,
+    assistantRefusal: null,
+    toolCalls: null,
+    status: "pending",
+    failReason: null,
+    usage: null,
+    usagePerModel: null,
+    activeTokens: 0,
+    createTime: new Date().toISOString(),
+    updateTime: new Date().toISOString(),
+    processes: null,
+    ...(taskRef ? { taskRef } : {}),
+  });
+  (manager as any).saveSessionsIndex(index);
+  (manager as any).flushSessionsIndex();
+}
 
 function tempRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "task-tree-test-"));
@@ -128,4 +153,154 @@ test("branch names are sanitized (no path/metacharacters)", () => {
     names.every((n) => /^[A-Za-z0-9._-]+$/.test(n)),
     `sanitized: ${names.join(",")}`
   );
+});
+
+// ── P1: merge / bindSession / plan materialization / branch resume ──────────
+
+test("merge cherry-picks nodes onto the active branch and reports artifact conflicts", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Merge scenario", { why: "test" })!;
+  // main gets an artifact
+  const mainStep = svc.appendStep(treeId, { title: "Main work", artifactRefs: ["designs/a"] })!;
+  // fork, add a conflicting + a fresh artifact
+  const forkId = svc.fork(treeId, { name: "alt", why: "alt approach" })!;
+  const altStep = svc.appendStep(treeId, { title: "Alt work", artifactRefs: ["designs/a", "designs/b"] })!;
+
+  // back to main, merge the alt step
+  assert.equal(svc.switchBranch(treeId!, "main"), true);
+  const result = svc.merge(treeId!, "alt", [altStep!]);
+  assert.ok(result, "merge succeeds");
+  const mergeNode = svc.getNode(treeId!, result!.mergeNodeId)!;
+  assert.equal(mergeNode.kind, "merge");
+  assert.ok(mergeNode.artifactRefs.includes("designs/b"), "fresh artifact transferred");
+  // conflicting artifact reported for human confirmation, not auto-resolved
+  assert.deepEqual(
+    result!.conflicts.map((c) => c.artifactRef),
+    ["designs/a"]
+  );
+
+  // self-merge rejected; foreign-lineage picks rejected
+  assert.equal(svc.merge(treeId!, "main", [mainStep!]), null);
+  assert.equal(svc.merge(treeId!, "alt", ["deadbeefdead"]), null);
+  void forkId;
+});
+
+test("bindSession stamps the branch head once and refuses silent rebinds", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Binding")!;
+  assert.equal(svc.bindSession(treeId!, "main", "session-1"), true);
+  assert.equal(svc.getNode(treeId!, svc.getTree(treeId!)!.index.branches["main"]!.headId)!.sessionRef, "session-1");
+  // idempotent same-session rebind
+  assert.equal(svc.bindSession(treeId!, "main", "session-1"), true);
+  // a different session cannot silently take over the branch
+  assert.equal(svc.bindSession(treeId!, "main", "session-2"), false);
+  // but a NEW branch can be bound to that session
+  svc.fork(treeId!, { name: "second", why: "second branch" });
+  assert.equal(svc.bindSession(treeId!, "second", "session-2"), true);
+});
+
+test("plan materialization: UpdatePlan checklist lines become steps one-way, no duplicates", () => {
+  const root = tempRoot();
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: null, model: "m", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }),
+    renderMarkdown: (t: string) => t,
+    onAssistantMessage: () => {},
+  });
+  const svc = (manager as any).getTaskTreeService() as TaskTreeService;
+  const treeId = svc.createTree("Planned feature")!;
+  // simulate the task.create binding path (entry must exist for the ref write)
+  const tree = svc.getTree(treeId!)!;
+  injectSessionEntry(manager, "fake-session");
+  svc.bindSession(treeId!, tree.index.activeBranch, "fake-session");
+  (manager as any).setSessionTaskRef("fake-session", {
+    treeId: treeId!,
+    branch: tree.index.activeBranch,
+    nodeId: tree.index.branches[tree.index.activeBranch]!.headId,
+  });
+
+  // Fire the materialization hook exactly as appendToolMessages would.
+  (manager as any).materializePlanToTaskTree("fake-session", {
+    name: "UpdatePlan",
+    arguments: JSON.stringify({
+      plan: "## Steps\n- [ ] Design the schema\n- [x] Write migration\n- prose line (ignored)\n- [ ] Write migration",
+    }),
+  });
+
+  const nodes = svc.getTree(treeId!)!.nodes;
+  const titles = nodes.map((n) => n.title);
+  assert.ok(titles.includes("Design the schema"));
+  assert.ok(titles.includes("Write migration"));
+  assert.equal(titles.filter((t) => t === "Write migration").length, 1, "duplicate checklist lines collapse");
+
+  // Re-firing the same plan adds nothing (title match).
+  (manager as any).materializePlanToTaskTree("fake-session", {
+    name: "UpdatePlan",
+    arguments: JSON.stringify({ plan: "- [ ] Design the schema\n- [ ] Write migration" }),
+  });
+  assert.equal(svc.getTree(treeId!)!.nodes.length, nodes.length, "idempotent materialization");
+
+  // Non-UpdatePlan tools are ignored.
+  (manager as any).materializePlanToTaskTree("fake-session", {
+    name: "bash",
+    arguments: JSON.stringify({ command: "- [ ] nope" }),
+  });
+  assert.equal(svc.getTree(treeId!)!.nodes.length, nodes.length);
+});
+
+test("branch-level resume: activating a bound session restores its branch", () => {
+  const root = tempRoot();
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: null, model: "m", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }),
+    renderMarkdown: (t: string) => t,
+    onAssistantMessage: () => {},
+  });
+  const svc = (manager as any).getTaskTreeService() as TaskTreeService;
+  const treeId = svc.createTree("Resume flow")!;
+  svc.fork(treeId!, { name: "elsewhere", why: "someone else worked here" });
+  assert.equal(svc.getTree(treeId!)!.index.activeBranch, "elsewhere");
+
+  // Bind the (synthetic) session to main, then simulate activation.
+  injectSessionEntry(manager, "resume-session", { treeId, branch: "main", nodeId: "x" });
+  (manager as any).restoreTaskBranchForSession("resume-session");
+  assert.equal(svc.getTree(treeId!)!.index.activeBranch, "main", "activation restored the bound branch");
+});
+
+test("behaviorContext boot injection: gated off by default, prepends block when enabled", async () => {
+  const root = tempRoot();
+  const home = tempRoot();
+  process.env.HOME = home;
+  let providerCalls = 0;
+  const responses: unknown[] = [{ choices: [{ message: { content: "ok" } }] }];
+  const client = { chat: { completions: { create: async () => responses.shift() } } };
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: client as any, model: "m", baseURL: "x", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }) as any,
+    renderMarkdown: (t) => t,
+    onAssistantMessage: () => {},
+    buildBehaviorContext: () => {
+      providerCalls += 1;
+      return "uses vim; tests first; prefers small PRs";
+    },
+  });
+
+  // Default (flag absent): no injection, provider not even called.
+  const s1 = await manager.createSession({ text: "hello" });
+  assert.equal(providerCalls, 0);
+  assert.ok(!manager.listSessionMessages(s1!).some((m) => m.content?.includes("<behavior-context>")));
+
+  // Flag on: hidden system message prepended with the provider block.
+  (manager as any).getResolvedSettings = () => ({ model: "m", behaviorContext: true }) as any;
+  const s2 = await manager.createSession({ text: "hello again" });
+  assert.equal(providerCalls, 1);
+  const ctx = manager.listSessionMessages(s2!).find((m) => m.content?.includes("<behavior-context>"));
+  assert.ok(ctx, "context block injected");
+  assert.match(ctx!.content!, /vim/);
+  assert.equal(ctx!.visible, false, "hidden system message");
 });

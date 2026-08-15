@@ -219,6 +219,135 @@ export class TaskTreeService {
     return true;
   }
 
+  /**
+   * Cherry-pick merge (spec §4): pick nodes from a SOURCE branch onto the
+   * ACTIVE (target) branch. Merged content = the picked nodes' artifactRefs
+   * (reference transfer, source-branch picks win) + a decision summary.
+   * Conflicts are REPORTED, never auto-resolved: artifact refs that already
+   * exist on the target lineage collide with the incoming ones — the human
+   * confirmation list the spec requires. No text-level three-way merge.
+   */
+  merge(
+    treeId: string,
+    srcBranch: string,
+    picks: string[],
+    opts?: { why?: string }
+  ): { mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> } | null {
+    const index = this.loadIndex(treeId);
+    if (!index) return null;
+    const source = index.branches[srcBranch];
+    if (!source || srcBranch === index.activeBranch) return null;
+    const target = index.branches[index.activeBranch]!;
+    if (target.abandoned) return null;
+
+    // Validate picks: each must sit on the source branch's lineage.
+    const picked = picks.map((id) => this.readNodeFile(treeId, id)).filter((n): n is TaskNode => n !== null);
+    if (picked.length === 0) return null;
+    const sourceLineage = this.lineageOf(treeId, source.headId);
+    if (!picked.every((n) => sourceLineage.has(n.id))) return null;
+
+    // Target-side existing refs (for conflict detection).
+    const targetLineage = this.lineageOf(treeId, target.headId);
+    const targetRefs = new Map<string, string>();
+    for (const id of targetLineage) {
+      const node = this.readNodeFile(treeId, id);
+      for (const ref of node?.artifactRefs ?? []) {
+        if (!targetRefs.has(ref)) targetRefs.set(ref, node?.title ?? id);
+      }
+    }
+
+    const incomingRefs = [...new Set(picked.flatMap((n) => n.artifactRefs))];
+    const conflicts = incomingRefs
+      .filter((ref) => targetRefs.has(ref))
+      .map((ref) => ({ artifactRef: ref, targetTitle: targetRefs.get(ref) ?? "" }));
+
+    const at = nowIso();
+    const parent = this.readNodeFile(treeId, target.headId);
+    if (!parent) return null;
+    const why =
+      opts?.why?.trim() ||
+      `Merged ${picked.length} pick(s) from "${srcBranch}": ${picked
+        .map((n) => n.title)
+        .join("; ")
+        .slice(0, 200)}`;
+    const node: TaskNode = {
+      id: nodeIdFor(parent.id, `merge\0${srcBranch}\0${picks.join(",")}\0${at}`),
+      treeId,
+      parentId: parent.id,
+      kind: "merge",
+      title: `Merge from ${srcBranch}`.slice(0, 120),
+      why,
+      contextSummary: parent.contextSummary,
+      // Reference transfer: union, incoming (picked) refs win on collision.
+      artifactRefs: [...new Set([...incomingRefs, ...(parent.artifactRefs ?? [])])],
+      memoryRefs: [],
+      status: "done",
+      createdAt: at,
+      meta: { createdBy: "user" },
+    };
+
+    try {
+      this.writeNodeFile(this.treeDir(treeId), node);
+      const next: TaskTreeIndex = {
+        ...index,
+        branches: { ...index.branches, [index.activeBranch]: { ...target, headId: node.id } },
+        updatedAt: at,
+      };
+      this.pendingIndexes.set(treeId, next);
+      this.appendReflog(treeId, {
+        at,
+        op: "append",
+        branch: index.activeBranch,
+        nodeId: node.id,
+        detail: `merge ← ${srcBranch} (${picks.join(",")})`,
+      });
+      this.saveIndex(treeId, { flush: true });
+      return { mergeNodeId: node.id, conflicts };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Bind a session to a branch (P1): stamps the branch head's sessionRef so
+   * the panel can show which session executed where. The session ENTRY side
+   * (taskRef reverse pointer) is owned by SessionManager, not the service —
+   * single-writer discipline.
+   */
+  bindSession(treeId: string, branch: string, sessionId: string): boolean {
+    const index = this.loadIndex(treeId);
+    if (!index) return false;
+    const branchEntry = index.branches[branch];
+    if (!branchEntry) return false;
+    const head = this.readNodeFile(treeId, branchEntry.headId);
+    if (!head) return false;
+    // Nodes are immutable — a binding rewrite writes a NEW file for the same id
+    // only when sessionRef actually changes (first binding wins).
+    if (head.sessionRef === sessionId) return true;
+    if (head.sessionRef && head.sessionRef !== sessionId) {
+      return false; // already bound to a different session — no silent rebind
+    }
+    try {
+      this.writeNodeFile(this.treeDir(treeId), { ...head, sessionRef: sessionId });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** All node ids from the root down to `headId` (inclusive) — a lineage set. */
+  private lineageOf(treeId: string, headId: string): Set<string> {
+    const lineage = new Set<string>();
+    let cursor: TaskNode | null = this.readNodeFile(treeId, headId);
+    let guard = 0;
+    while (cursor && guard < 4096) {
+      lineage.add(cursor.id);
+      cursor = cursor.parentId ? this.readNodeFile(treeId, cursor.parentId) : null;
+      guard += 1;
+    }
+    return lineage;
+  }
+
   abandon(treeId: string, branch: string): boolean {
     const index = this.loadIndex(treeId);
     if (!index || !index.branches[branch] || branch === index.activeBranch) return false; // never abandon HEAD

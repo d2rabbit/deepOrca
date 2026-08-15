@@ -146,6 +146,13 @@ export type DeepcodingSettings = {
    * Opt-in gray-release flag; the tool channel remains authoritative.
    */
   openuiInlineMode?: boolean;
+  /**
+   * Behavioral-memory boot context (activity-frames pipeline B): when true,
+   * new sessions prepend a compact BehavioralProfile summary ("how this user
+   * usually works") as a hidden system message. Opt-in — costs prompt tokens
+   * on every session; the MCP tools remain available either way.
+   */
+  behaviorContext?: boolean;
 };
 
 /**

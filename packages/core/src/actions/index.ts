@@ -103,4 +103,6 @@ export {
   taskAbandonRun,
   taskListDefinition,
   taskListRun,
+  taskMergeDefinition,
+  taskMergeRun,
 } from "./task";

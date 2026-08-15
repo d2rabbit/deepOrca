@@ -106,6 +106,16 @@ export interface ActionContext {
    * host; task.* actions read it via ctx and fail open when absent.
    */
   readonly taskTrees?: () => TaskTreeService | null;
+  /** Current active session id (for session-binding actions like task.create). */
+  readonly activeSessionId?: () => string | null;
+  /**
+   * Reverse-pointer writer: binds/unbinds a session entry's taskRef. Host
+   * (SessionManager) owns the entry mutation — actions only request it.
+   */
+  readonly setSessionTaskRef?: (
+    sessionId: string,
+    ref: { treeId: string; branch: string; nodeId: string } | null
+  ) => void;
 }
 
 export interface RunSubagentOptions {

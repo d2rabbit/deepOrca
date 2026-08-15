@@ -1,6 +1,7 @@
 // Wraps a DeepOrca core `SessionManager` for a single project root and forwards
 // its callbacks to the renderer via the provided `emit` function.
 
+import { collectProfile, formatContextBlock } from "./tools/activity-frames/collectors/aggregator";
 import {
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
@@ -233,6 +234,16 @@ export class SessionBridge {
       projectRoot,
       createOpenAIClient: () => createOpenAIClient(projectRoot),
       getResolvedSettings: () => resolveCurrentSettings(projectRoot),
+      // Behavioral-memory boot context (activity-frames pipeline B, opt-in via
+      // settings.behaviorContext): desktop owns the collectors, core consumes
+      // the compact block — same host-injection seam pattern as memory recall.
+      buildBehaviorContext: () => {
+        try {
+          return formatContextBlock(collectProfile(projectRoot));
+        } catch {
+          return null; // fail-open
+        }
+      },
       renderMarkdown: (text) => text,
       onAssistantMessage: (message: SessionMessage) => {
         this.emit(IpcEvent.AssistantMessage, message);

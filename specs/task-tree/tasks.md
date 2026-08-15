@@ -12,12 +12,13 @@
 - [x] 测试：6 用例（fork/switch/abandon/recovery/fail-open/id 防穿越/分支名净化）
 - [x] 消歧规则写入 design.md：plan→tree 单向只读物化
 
-## P1（未开始）
+## P1（2026-08-15 完成，除注记项）
 
-- [ ] merge + 冲突确认清单（artifact 级 cherry-pick）
-- [ ] session 绑定：SessionEntry 扩展 `taskRef: {treeId, nodeId}` 反向指针；`/resume` branch 级
-- [ ] Plan Mode 步骤物化（单向只读，按 §十一 规则）
-- [ ] memory 谱系：L2 增加 fork 谱系字段（增量 spec 先行）
+- [x] merge + 冲突报告（artifact 级 cherry-pick；task.merge 返回冲突清单供人确认——确认清单 UI 列入 P2 树图改版）
+- [x] session 绑定：SessionEntry 扩展 `taskRef: {treeId, branch, nodeId}` + normalize；task.create/fork 自动绑定；分支头 sessionRef 单次绑定防抢占
+- [x] `/resume` branch 级：activateSession 恢复绑定分支为 active（fail-open）
+- [x] Plan Mode 步骤物化（单向只读，§十一 规则；标题去重、计划内重复行折叠、幂等）
+- [x] memory 谱系：L2 增量 spec 先行 → `specs/task-tree/memory-lineage.md`（实现列 P2）
 
 ## P2（未开始）
 

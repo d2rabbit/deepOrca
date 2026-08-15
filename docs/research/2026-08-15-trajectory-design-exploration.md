@@ -106,6 +106,12 @@ spec（8-02）只描绘了管线 A；实现演化出了管线 B：
 - **P2 任务轨迹 P0**：core TaskTreeService（单写者 + flush 纪律 + reflog + fail-open）+ 6 个 task.\* Action + desktop 只读面板（含 why 叙事渲染）+ 6 用例测试。spec 追加 §十一（P0 记录 + plan→tree 单向物化消歧）+ tasks.md 核对表。
 - 未做（按计划）：merge/记忆驱动 fork（P1+）、session taskRef 绑定（P1）、BehavioralProfile boot 注入（待评估产品决策）。
 
+### 后续批次（2026-08-15 同日续执行）
+
+- **任务树 P1 全量**：merge（cherry-pick + 冲突报告）、session 绑定（taskRef + sessionRef 单次绑定）、branch 级 resume、Plan Mode 单向物化（幂等去重）——11 用例测试。
+- **行为记忆 boot 注入**：`settings.behaviorContext`（默认关）+ host 注入 provider seam（desktop collectors → core 隐藏系统消息），fail-open。
+- **memory 谱系 L2 增量规格**：`specs/task-tree/memory-lineage.md`（单向馈赠 tree→memory，实现列 P2）。
+
 ## 四、落地清单（汇总）
 
 | 优先级 | 事项                                                                                                                      | 归属     |

@@ -49,6 +49,13 @@ export interface RegistryHost {
   readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
   /** Task trajectory service provider (injected by SessionManager). */
   readonly taskTrees?: () => TaskTreeService | null;
+  /** Current active session id provider (session-binding actions). */
+  readonly activeSessionId?: () => string | null;
+  /** Session taskRef reverse-pointer writer (host-owned mutation). */
+  readonly setSessionTaskRef?: (
+    sessionId: string,
+    ref: { treeId: string; branch: string; nodeId: string } | null
+  ) => void;
 }
 
 /** Options passed to {@link ActionRegistry.execute}. */
@@ -89,6 +96,11 @@ export class ActionRegistry {
   private readonly subagentDispatch?: (opts: import("./types").RunSubagentOptions) => Promise<unknown>;
   private readonly judgeDispatch?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
   private readonly taskTreeProvider?: () => TaskTreeService | null;
+  private readonly activeSessionProvider?: () => string | null;
+  private readonly setTaskRef?: (
+    sessionId: string,
+    ref: { treeId: string; branch: string; nodeId: string } | null
+  ) => void;
 
   constructor(host: RegistryHost) {
     this.projectRoot = host.projectRoot;
@@ -97,6 +109,8 @@ export class ActionRegistry {
     this.subagentDispatch = host.runSubagent;
     this.judgeDispatch = host.judgeViaLlm;
     this.taskTreeProvider = host.taskTrees;
+    this.activeSessionProvider = host.activeSessionId;
+    this.setTaskRef = host.setSessionTaskRef;
   }
 
   /**
@@ -196,6 +210,8 @@ export class ActionRegistry {
         runSubagent: this.subagentDispatch,
         judgeViaLlm: this.judgeDispatch,
         taskTrees: this.taskTreeProvider,
+        activeSessionId: this.activeSessionProvider,
+        setSessionTaskRef: this.setTaskRef,
       };
       try {
         return (await entry.run(input, ctx)) as O;

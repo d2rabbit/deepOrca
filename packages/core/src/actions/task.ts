@@ -45,6 +45,28 @@ function service(ctx: ActionContext): TaskTreeService | null {
   }
 }
 
+/**
+ * Session binding (P1): when a task tree is created/forked from inside a
+ * session, stamp the branch head's sessionRef and the session entry's taskRef
+ * reverse pointer. Both are best-effort — binding failure never fails the task
+ * action (the tree works unbound too).
+ */
+function bindSessionToTree(ctx: ActionContext, svc: TaskTreeService, treeId: string): void {
+  try {
+    const sessionId = ctx.activeSessionId?.();
+    if (!sessionId) return;
+    const tree = svc.getTree(treeId);
+    if (!tree) return;
+    const branch = tree.index.activeBranch;
+    const headId = tree.index.branches[branch]?.headId;
+    if (!headId) return;
+    svc.bindSession(treeId, branch, sessionId);
+    ctx.setSessionTaskRef?.(sessionId, { treeId, branch, nodeId: headId });
+  } catch {
+    // Binding is best-effort.
+  }
+}
+
 export const taskCreateDefinition: ActionDefinition<TaskCreateInput> = {
   id: "task.create",
   description:
@@ -74,7 +96,9 @@ export const taskCreateRun: ActionRun<TaskCreateInput, { ok: boolean; treeId?: s
   if (!prompt) return { ok: false, error: "prompt is required" };
   ctx.emit({ message: "🌳 创建任务树…", percent: 50 });
   const treeId = svc.createTree(prompt, { why: input.why, branchName: input.branchName });
-  return treeId ? { ok: true, treeId } : { ok: false, error: "failed to create task tree" };
+  if (!treeId) return { ok: false, error: "failed to create task tree" };
+  bindSessionToTree(ctx, svc, treeId);
+  return { ok: true, treeId };
 };
 
 export const taskStepDefinition: ActionDefinition<TaskStepInput> = {
@@ -207,4 +231,64 @@ export const taskListRun: ActionRun<Record<string, never>, { ok: boolean; trees?
   const svc = service(ctx);
   if (!svc) return { ok: false, error: "task tree service unavailable" };
   return { ok: true, trees: svc.listTrees() };
+};
+
+export interface TaskMergeInput {
+  treeId: string;
+  srcBranch: string;
+  picks: string[];
+  why?: string;
+}
+
+export const taskMergeDefinition: ActionDefinition<TaskMergeInput> = {
+  id: "task.merge",
+  description:
+    "Cherry-pick merge: pick nodes from a source branch onto the tree's ACTIVE branch. " +
+    "Merged content is the picked nodes' artifact references (references transfer, picks win) + a decision summary. " +
+    "Returns a conflict list when an artifact already exists on the target — surface it to the human; nothing is auto-resolved.",
+  category: "tasks",
+  parameters: {
+    type: "object",
+    properties: {
+      treeId: { type: "string" },
+      srcBranch: { type: "string", description: "Branch to merge FROM (must differ from the active branch)" },
+      picks: {
+        type: "array",
+        items: { type: "string" },
+        description: "Node ids on the source branch lineage to merge",
+      },
+      why: { type: "string", description: "Why this merge — the human-facing decision summary" },
+    },
+    required: ["treeId", "srcBranch", "picks"],
+    additionalProperties: false,
+  },
+  sideEffects: ["write-in-cwd"],
+};
+
+export const taskMergeRun: ActionRun<
+  TaskMergeInput,
+  { ok: boolean; mergeNodeId?: string; conflicts?: Array<{ artifactRef: string; targetTitle: string }>; error?: string }
+> = async (input, ctx) => {
+  const svc = service(ctx);
+  if (!svc) return { ok: false, error: "task tree service unavailable" };
+  const treeId = input?.treeId?.trim();
+  const srcBranch = input?.srcBranch?.trim();
+  const picks = Array.isArray(input?.picks) ? input.picks.filter((p) => typeof p === "string" && p.trim()) : [];
+  if (!treeId || !srcBranch || picks.length === 0) {
+    return { ok: false, error: "treeId, srcBranch and non-empty picks are required" };
+  }
+  ctx.emit({ message: `⇄ 从 ${srcBranch} 合并 ${picks.length} 个节点…`, percent: 50 });
+  const result = svc.merge(treeId, srcBranch, picks, { why: input.why });
+  if (!result) {
+    return { ok: false, error: "merge rejected (tree/branch missing, self-merge, or invalid picks)" };
+  }
+  return {
+    ok: true,
+    mergeNodeId: result.mergeNodeId,
+    ...(result.conflicts.length > 0
+      ? {
+          conflicts: result.conflicts,
+        }
+      : {}),
+  };
 };
