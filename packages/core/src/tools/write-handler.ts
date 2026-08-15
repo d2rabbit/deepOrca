@@ -51,6 +51,7 @@ export async function handleWriteTool(
       // enforce the granted path capability before any fs effect — past this
       // point ensureParentDirectory would create the escaping parent chain.
       const gate = gateWrite(context.pathGrant, filePath, context.projectRoot);
+      context.onPathGateVerdict?.({ tool: "write", verdict: gate, filePath });
       if (!gate.ok) {
         return {
           ok: false,
@@ -116,7 +117,7 @@ export async function handleWriteTool(
         const bytes = writeTextFile(filePath, normalizedContent, encoding, lineEndings, {
           pathGrant: context.pathGrant,
         });
-        context.onAfterFileMutation?.(filePath);
+        context.onAfterFileMutation?.(filePath, "write");
         const freshMetadata = readTextFileWithMetadata(filePath);
 
         recordFileState(

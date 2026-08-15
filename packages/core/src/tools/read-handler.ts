@@ -112,6 +112,7 @@ export async function handleReadTool(
   // Every downstream branch (text/notebook/pdf/image) shares this filePath,
   // so one checkpoint covers them all (R5).
   const gate = gateRead(context.pathGrant, filePath, context.projectRoot);
+  context.onPathGateVerdict?.({ tool: "read", verdict: gate, filePath });
   if (!gate.ok) {
     return {
       ok: false,

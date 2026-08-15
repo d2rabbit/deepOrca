@@ -114,6 +114,7 @@ export async function handleEditTool(
       // the authorized write (R4): gating it with readRoots would kill a
       // legitimate out-of-project edit whose write scope was approved.
       const gate = gateWrite(context.pathGrant, filePath, context.projectRoot);
+      context.onPathGateVerdict?.({ tool: "edit", verdict: gate, filePath });
       if (!gate.ok) {
         return {
           ok: false,
@@ -337,7 +338,7 @@ export async function handleEditTool(
         writeTextFile(filePath, updated, metadata.encoding, metadata.lineEndings, {
           pathGrant: context.pathGrant,
         });
-        context.onAfterFileMutation?.(filePath);
+        context.onAfterFileMutation?.(filePath, "edit");
         const freshMetadata = readTextFileWithMetadata(filePath);
         recordFileState(
           context.sessionId,

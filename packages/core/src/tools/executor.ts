@@ -272,6 +272,7 @@ export class ToolExecutor {
         onBackgroundProcessComplete: hooks?.onBackgroundProcessComplete,
         onBeforeFileMutation: hooks?.onBeforeFileMutation,
         onAfterFileMutation: hooks?.onAfterFileMutation,
+        onPathGateVerdict: hooks?.onPathGateVerdict,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

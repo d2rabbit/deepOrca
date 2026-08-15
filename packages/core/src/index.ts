@@ -126,6 +126,19 @@ export {
   PathBoundaryError,
 } from "./common/file-utils";
 export { gateWrite, gateRead, type PathGrant, type GateVerdict } from "./common/path-boundary";
+// P1 side-effect audit bus
+export {
+  AuditLog,
+  buildAuditEvent,
+  canonicalJson,
+  computeAuditChecksum,
+  parseAuditLine,
+  readAuditEvents,
+  serializeAuditEvent,
+  verifyAuditChain,
+  type AuditEvent,
+  type AuditEventType,
+} from "./sandbox/audit";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";

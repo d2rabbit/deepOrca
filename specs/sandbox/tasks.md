@@ -68,12 +68,17 @@
 
 ---
 
-## PR 2 — P1 副作用审计总线（任务 10-11，P0 合入后动工）
+## PR 2 — P1 副作用审计总线（任务 10-11，已落地本分支）
 
-- [ ] `sandbox/audit.ts`：`process.hrtime.bigint()` 单调纳秒 + `node:crypto createHash("sha256")` 同步摘要 + 会话目录 append-only JSONL，链式 hash（前一条 checksum 参与本条计算）。**不做** LZ4/CRC64/page index（那是 celld 为对象存储设计的）。
-- [ ] `onPathGateVerdict` 钩子（`tool-types.ts` + executor 接线）：P0 闸门判决（含被拒项）全部落审计。
-- [ ] spawn 事件接入：复用 `onProcessStart`，bash/bsk/WebSearch 子进程启动落审计。
-- [ ] `tests/audit.test.ts`：append→serialize→verify 往返 + 篡改任一条后 `verify()` 返回 false。
+- [x] `sandbox/audit.ts`：`process.hrtime.bigint()` 单调纳秒（string 序列化）+ `node:crypto createHash("sha256")` 同步摘要 + 会话目录 `audit/<sessionId>.jsonl` append-only，链式 hash（记录内含 `prevChecksum`，checksum 覆盖去除自身后的 canonical JSON——键排序确定性序列化）。**不做** LZ4/CRC64/page index。
+  - 纯函数核心（sans-IO）：`buildAuditEvent` / `computeAuditChecksum` / `serializeAuditEvent` / `verifyAuditChain` / `canonicalJson` / `parseAuditLine` / `readAuditEvents`。
+  - `AuditLog` 写入器 **fail-open**：任何 I/O 失败不抛出（审计永不断工具执行），落 `droppedEvents`/`lastFailure` 计数；重开自动续链（读取尾条 checksum）；0o600 权限。
+  - 事件四类：`path_gate` / `process_start`（命令截断 512 字符）/ `file_write` / `sandbox_backend`（P3 预留）。
+- [x] `onPathGateVerdict` 钩子（`tool-types.ts` 新增 `PathGateVerdictRecord` + context/hooks 双挂载 + executor 透传）：三 handler 闸门后发射（**含被拒项**）。
+- [x] spawn 事件接入：session 侧 `onProcessStart` 钩子追加审计（bash `:213/:296` 与 WebSearch `:167/:332` 的 spawn 一处接线全覆盖）。
+- [x] fs 写入事件：`onAfterFileMutation` 扩可选 `source` 参数（write/edit handler 传入），session 侧追加 `file_write` 审计。
+- [x] session 生命周期：`getSessionAuditLog` 惰性缓存；`removeSessionMessages` 同步清理审计文件；`dispose` 清缓存。
+- [x] `tests/audit.test.ts` **7 用例**：append→serialize→parse→verify 往返；**逐条篡改**（5 条链每条单独改）verify=false 且 `firstBadIndex` 定位 + 前缀计数；断链检测（合法 checksum 但 prevChecksum 不衔接）；canonicalJson 键序无关/undefined 剔除；写入器跨重开续链；fail-open（EISDIR 不抛、计数暴露）；executor 端到端（deny+allow 判决都到达钩子）。
 
 ## PR 3+ — P2 Sans-IO PolicyEngine（任务 12-14，可与 PR 2 并行）
 

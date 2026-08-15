@@ -157,6 +157,7 @@ import {
   type UserToolPermission,
 } from "./common/permissions";
 import { safeRealPath, type PathGrant } from "./common/path-boundary";
+import { AuditLog } from "./sandbox/audit";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
@@ -1731,6 +1732,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     this.killLiveProcesses();
     this.sessionControllers.clear();
     this.processTimeoutControls.clear();
+    this.sessionAuditLogs.clear();
     this.mcpManager.disconnect();
     // Flush any pending debounced index write before teardown.
     this.flushSessionsIndex();
@@ -4464,8 +4466,31 @@ ${content}
     return path.join(projectDir, `${sessionId}.jsonl`);
   }
 
+  private readonly sessionAuditLogs = new Map<string, AuditLog>();
+
+  /** P1 audit bus: one hash-chained JSONL log per session (fail-open writer). */
+  private getSessionAuditLog(sessionId: string): AuditLog {
+    let log = this.sessionAuditLogs.get(sessionId);
+    if (!log) {
+      const { projectDir } = this.getProjectStorage();
+      log = AuditLog.open(path.join(projectDir, "audit", `${sessionId}.jsonl`), sessionId);
+      this.sessionAuditLogs.set(sessionId, log);
+    }
+    return log;
+  }
+
   private removeSessionMessages(sessionIds: string[]): void {
     for (const sessionId of sessionIds) {
+      this.sessionAuditLogs.delete(sessionId);
+      const { projectDir } = this.getProjectStorage();
+      const auditPath = path.join(projectDir, "audit", `${sessionId}.jsonl`);
+      try {
+        if (fs.existsSync(auditPath)) {
+          fs.unlinkSync(auditPath);
+        }
+      } catch {
+        // ignore delete failures
+      }
       const messagePath = this.getSessionMessagesPath(sessionId);
       try {
         if (fs.existsSync(messagePath)) {
@@ -4820,13 +4845,31 @@ ${content}
     } = {}
   ): Promise<{ waitingForUser: boolean }> {
     const hooks: ToolExecutionHooks = {
-      onProcessStart: (pid, command) => this.addSessionProcess(sessionId, pid, command),
+      onProcessStart: (pid, command) => {
+        this.addSessionProcess(sessionId, pid, command);
+        // P1 audit bus: every spawn (bash, WebSearch, …) is recorded.
+        this.getSessionAuditLog(sessionId).appendProcessStart(command);
+      },
       onProcessExit: (pid) => this.removeSessionProcess(sessionId, pid),
       onProcessStdout: (pid, chunk) => this.onProcessStdout?.(Number(pid), chunk),
       onProcessTimeoutControl: (pid, control) => this.setSessionProcessTimeoutControl(sessionId, pid, control),
       onBackgroundProcessComplete: (completion) => this.addBackgroundProcessCompletionMessage(sessionId, completion),
       onBeforeFileMutation: (filePath) => this.prepareFileMutationCheckpoint(sessionId, filePath),
-      onAfterFileMutation: (filePath) => this.recordFileMutationCheckpoint(sessionId, filePath),
+      onAfterFileMutation: (filePath, source) => {
+        this.recordFileMutationCheckpoint(sessionId, filePath);
+        // P1 audit bus: mutations that actually happened (post-gate).
+        this.getSessionAuditLog(sessionId).appendFileWrite(source ?? "unknown", filePath);
+      },
+      onPathGateVerdict: (record) => {
+        // P1 audit bus: every gate verdict, denials included.
+        const verdict = record.verdict;
+        this.getSessionAuditLog(sessionId).appendPathGate({
+          tool: record.tool,
+          verdict: verdict.ok ? "allow" : "deny",
+          scope: verdict.ok ? undefined : verdict.scope,
+          filePath: record.filePath,
+        });
+      },
       shouldStop: () => this.isInterrupted(sessionId),
     };
     const parsedToolCalls = toolCalls

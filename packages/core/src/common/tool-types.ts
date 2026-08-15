@@ -1,6 +1,6 @@
 import type OpenAI from "openai";
 import type { ReasoningEffort } from "../settings";
-import type { PathGrant } from "./path-boundary";
+import type { GateVerdict, PathGrant } from "./path-boundary";
 
 export type CreateOpenAIClient = () => {
   client: OpenAI | null;
@@ -26,6 +26,13 @@ export type ToolCall = {
   };
 };
 
+/** Outcome of an execution-time path gate check, for the audit bus (P1). */
+export type PathGateVerdictRecord = {
+  tool: string;
+  verdict: GateVerdict;
+  filePath: string;
+};
+
 export type ToolExecutionContext = {
   sessionId: string;
   projectRoot: string;
@@ -44,7 +51,8 @@ export type ToolExecutionContext = {
   onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
   onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
   onBeforeFileMutation?: (filePath: string) => void;
-  onAfterFileMutation?: (filePath: string) => void;
+  onAfterFileMutation?: (filePath: string, source?: string) => void;
+  onPathGateVerdict?: (record: PathGateVerdictRecord) => void;
   bashTimeoutMs?: number;
   bashMinTimeoutMs?: number;
 };
@@ -56,7 +64,8 @@ export type ToolExecutionHooks = {
   onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
   onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
   onBeforeFileMutation?: (filePath: string) => void;
-  onAfterFileMutation?: (filePath: string) => void;
+  onAfterFileMutation?: (filePath: string, source?: string) => void;
+  onPathGateVerdict?: (record: PathGateVerdictRecord) => void;
   shouldStop?: () => boolean;
 };
 
