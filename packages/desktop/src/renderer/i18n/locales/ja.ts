@@ -596,6 +596,10 @@ export const ja: Record<MessageKey, string> = {
   "index.freshness.never": "未同期",
 
   "design.title": "デザイナー",
+  "design.materializePrompt": "要件を記述して具現化…",
+  "design.materializeBtn": "具現化",
+  "design.materializing": "具現化中（agent 実行中）…",
+  "design.materialized": "具現化済み——下のリストを確認。",
   "design.empty": "デザイン成果物がありません。プロトタイプまたはデザインドキュメントを生成してください。",
   "design.filter.all": "すべて",
   "design.filter.prototypes": "プロトタイプ",

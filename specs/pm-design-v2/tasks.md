@@ -1,3 +1,7 @@
+# PM-Design V2 — 任务核对表
+
+> 实现状态对账（2026-08-15 差距审计）：P0 存储与 Action、P2 面板已实现（design-store.ts / actions/design.ts / DesignPanel.tsx），下方未勾选框为历史遗留未更新；本批补齐「一键具现化」按钮。**明确偏差**：管线集合为 2（openui|design，A2UI 交互层按三层定位决策排除）；analysis.json 与 pm-analyst 显式缓期（路由已降级 flash 判定，无消费方）；版本切换 UI 与导出（iframe 内打印已有，独立导出通道）列为后续。
+
 # PM-Design V2 任务分解
 
 > **关联设计文档**：[design.md](./design.md)
@@ -184,10 +188,10 @@ P0 设计文档可独立完成（本次交付）。P0 实现到 P4 严格顺序�
 
 ## 风险与注意事项
 
-| 风险 | 缓解措施 |
-| --- | --- |
-| pm-analyst 子代理输出不稳定（JSON 格式漂移） | Skill 中提供严格的 JSON schema + 2-3 个 few-shot 示例；runSubagent 增加输出校验 + 重试 |
-| 管线路由判断错误（推荐 A2UI 但用户想要 .dd） | `pipeline` 参数支持用户手动覆盖（`"auto"` 为默认，但可显式指定） |
-| design.materialize 与现有 slash 命令功能重叠 | 不冲突：slash 命令是手动单管线入口，materialize 是自动路由一站式入口，两者并存 |
-| 持久化文件膨胀（多次迭代产生大量版本） | P3 版本快照设上限（默认保留最近 10 个版本），meta.json 记录总数 |
+| 风险                                                    | 缓解措施                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| pm-analyst 子代理输出不稳定（JSON 格式漂移）            | Skill 中提供严格的 JSON schema + 2-3 个 few-shot 示例；runSubagent 增加输出校验 + 重试      |
+| 管线路由判断错误（推荐 A2UI 但用户想要 .dd）            | `pipeline` 参数支持用户手动覆盖（`"auto"` 为默认，但可显式指定）                            |
+| design.materialize 与现有 slash 命令功能重叠            | 不冲突：slash 命令是手动单管线入口，materialize 是自动路由一站式入口，两者并存              |
+| 持久化文件膨胀（多次迭代产生大量版本）                  | P3 版本快照设上限（默认保留最近 10 个版本），meta.json 记录总数                             |
 | A2UI surface 持久化（`prototypes/`）与 designs 索引重复 | 不合并：prototypes 是管线内部状态，designs 是 PM 视角索引；a2ui 产物在 designs 中存快照副本 |

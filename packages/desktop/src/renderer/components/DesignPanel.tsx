@@ -36,6 +36,10 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
   const { t } = useI18n();
   const [artifacts, setArtifacts] = useState<DesignArtifactMeta[]>([]);
   const [filter, setFilter] = useState<FilterTab>("all");
+  // One-click materialize (specs/pm-design-v2 P0): requirement in, artifact out.
+  const [requirement, setRequirement] = useState("");
+  const [materializing, setMaterializing] = useState(false);
+  const [materializeNote, setMaterializeNote] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -49,6 +53,28 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const handleMaterialize = useCallback(async () => {
+    const text = requirement.trim();
+    if (!text || materializing) return;
+    setMaterializing(true);
+    setMaterializeNote(t("design.materializing"));
+    try {
+      const result = await api.actionRun("design.materialize", { requirement: text });
+      const output = (result as { output?: { ok?: boolean; error?: string; pipeline?: string } }).output;
+      if (output && "ok" in output && output.ok !== true) {
+        setMaterializeNote(output.error ?? "failed");
+      } else {
+        setMaterializeNote(t("design.materialized"));
+        setRequirement("");
+        await reload();
+      }
+    } catch (err) {
+      setMaterializeNote(err instanceof Error ? err.message : String(err));
+    } finally {
+      setMaterializing(false);
+    }
+  }, [requirement, materializing, reload, t]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -72,6 +98,47 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
         </IconButton>
       </div>
       <div className="ui-side-panel-body">
+        {/* One-click materialize (specs/pm-design-v2 P0): requirement → routed pipeline → artifact. */}
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            padding: "8px 12px",
+            borderBottom: "1px solid var(--ui-border-soft, #333)",
+          }}
+        >
+          <input
+            style={{
+              flex: 1,
+              fontSize: 11,
+              padding: "4px 6px",
+              borderRadius: 4,
+              border: "1px solid var(--ui-border-soft, #444)",
+              background: "var(--ui-input-bg, rgba(0,0,0,0.15))",
+              color: "var(--ui-text)",
+            }}
+            placeholder={t("design.materializePrompt")}
+            value={requirement}
+            disabled={materializing}
+            onChange={(e) => setRequirement(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleMaterialize();
+              }
+            }}
+          />
+          <button
+            style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}
+            disabled={materializing || !requirement.trim()}
+            onClick={() => void handleMaterialize()}
+          >
+            🎯 {t("design.materializeBtn")}
+          </button>
+        </div>
+        {materializeNote ? (
+          <div style={{ padding: "2px 12px 6px", fontSize: 10, color: "var(--ui-accent)" }}>{materializeNote}</div>
+        ) : null}
         {artifacts.length === 0 ? (
           <div className="ui-side-panel-empty">{t("design.empty")}</div>
         ) : (

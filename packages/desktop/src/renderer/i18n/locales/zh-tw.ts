@@ -590,6 +590,10 @@ export const zhTW: Record<MessageKey, string> = {
   "index.freshness.never": "未同步",
 
   "design.title": "設計",
+  "design.materializePrompt": "描述一個需求，一鍵具現化…",
+  "design.materializeBtn": "具現化",
+  "design.materializing": "具現化中（agent 執行中）…",
+  "design.materialized": "已具現化——見下方列表。",
   "design.empty": "尚無設計產物。生成原型或設計稿後自動保存。",
   "design.filter.all": "全部",
   "design.filter.prototypes": "原型",

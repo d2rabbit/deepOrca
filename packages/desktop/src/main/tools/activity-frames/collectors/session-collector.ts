@@ -58,18 +58,31 @@ export interface SessionProfile {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Compute the project code exactly as session.ts does (getLegacyProjectCode). */
-function computeProjectCode(projectRoot: string): string {
-  // Match session.ts: getLegacyProjectCode = replace(/[\\/]/g, "-").replace(/:/g, "")
-  return projectRoot.replace(/[\\/]/g, "-").replace(/:/g, "");
+/**
+ * Candidate project storage codes for a root. Uses core's own getProjectCode
+ * (which falls back to a hashed basename-<hash> code for paths >64 chars —
+ * the legacy replace alone missed those, audit 2026-08-15 linkage L5) plus
+ * the legacy form for pre-hash sessions.
+ */
+function projectCodeCandidates(projectRoot: string): string[] {
+  const codes: string[] = [];
+  try {
+    const core = require("@deeporca/core") as { getProjectCode: (root: string) => string };
+    codes.push(core.getProjectCode(projectRoot));
+  } catch {
+    // core unavailable — fall through to legacy computation only.
+  }
+  codes.push(projectRoot.replace(/[\\/]/g, "-").replace(/:/g, ""));
+  return [...new Set(codes)];
 }
 
 /** Find the DeepOrca project storage dir for a given project root. */
 function findProjectDir(projectRoot: string): string | null {
-  const code = computeProjectCode(projectRoot);
-  const candidates = [join(homedir(), ".deeporca", "projects", code), join(homedir(), ".deepcode", "projects", code)];
-  for (const c of candidates) {
-    if (existsSync(c) && statSync(c).isDirectory()) return c;
+  for (const code of projectCodeCandidates(projectRoot)) {
+    for (const root of [join(homedir(), ".deeporca", "projects"), join(homedir(), ".deepcode", "projects")]) {
+      const dir = join(root, code);
+      if (existsSync(dir) && statSync(dir).isDirectory()) return dir;
+    }
   }
   return null;
 }

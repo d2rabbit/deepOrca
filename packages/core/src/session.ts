@@ -4263,6 +4263,35 @@ ${content}
         timestamp: Number.isNaN(ts) ? Date.now() : ts,
       });
     }
+    // Lineage closure (task-tree recycle channel): <task-lineage> and
+    // <task-recall-hints> are hidden SYSTEM messages the plain user/assistant
+    // pair above never includes — without this, merge/abandon outcomes and
+    // recall hints silently never reach memory. Append them to assistantText
+    // so the provider's flat path and the structured messages[] path both
+    // carry them (audit 2026-08-15 linkage L3).
+    const lineageTail = messages
+      .filter(
+        (m) =>
+          m.role === "system" &&
+          !m.compacted &&
+          typeof m.content === "string" &&
+          (m.content.includes("<task-lineage>") || m.content.includes("<task-recall-hints>"))
+      )
+      .slice(-3);
+    for (const msg of lineageTail) {
+      const content = msg.content ?? "";
+      if (!content.trim()) continue;
+      const ts = Date.parse(msg.createTime);
+      captureMessages.push({
+        role: "assistant",
+        content,
+        id: msg.id,
+        timestamp: Number.isNaN(ts) ? Date.now() : ts,
+      });
+    }
+    if (lineageTail.length > 0) {
+      assistantText = `${assistantText}\n${lineageTail.map((m) => m.content).join("\n")}`;
+    }
     void this.memoryProvider
       .capture({ userText, assistantText, sessionKey: sessionId, sessionId, messages: captureMessages })
       .catch(() => {

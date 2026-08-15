@@ -117,6 +117,11 @@ export function TaskTreePanel(): JSX.Element {
 
   useEffect(() => {
     void refresh();
+    // Gentle polling: tree mutations also arrive from agent-side task.*
+    // actions (plan materialization, LLM-driven forks) which have no push
+    // channel — 15s polling keeps the human view eventually-consistent.
+    const timer = setInterval(() => void refresh(), 15_000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

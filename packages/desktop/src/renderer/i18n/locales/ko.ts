@@ -594,6 +594,10 @@ export const ko: Record<MessageKey, string> = {
   "index.freshness.never": "동기화 안 됨",
 
   "design.title": "디자이너",
+  "design.materializePrompt": "요구사항을 입력해 구체화…",
+  "design.materializeBtn": "구체화",
+  "design.materializing": "구체화 중(에이전트 실행 중)…",
+  "design.materialized": "구체화 완료 — 아래 목록 확인.",
   "design.empty": "디자인 산출물이 없습니다. 프로토타입 또는 디자인 문서를 생성하세요.",
   "design.filter.all": "전체",
   "design.filter.prototypes": "프로토타입",

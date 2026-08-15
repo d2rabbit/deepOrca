@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 问题修复
+
+- **规范差距审计轮：修复任务树↔记忆真断链 + 2 处边界缺口（报告：`docs/research/2026-08-15-spec-gap-audit.md`）**
+  - **L3 断链修复（真 bug）**：task.merge/abandon 写入的 `<task-lineage>` 与决策点 `<task-recall-hints>` 隐藏系统消息此前**永远进不了记忆**——maybeCaptureMemory 只取 user/assistant 对，"谱系经现有记忆管道回收"的声称为假。现纳入 capture 的 flat 与结构化双路径（+回归测试锁定，任务树套件 18/18）
+  - L1：TaskTreePanel 15s 温和轮询——plan 物化/agent 侧 task.\* 变更不再需要手动刷新才可见
+  - L5：行为画像采集器改用 core `getProjectCode`——路径 >64 字符的项目（哈希变体存储码）不再漏采
+
 ### ✨ 新功能
+
+- **DesignPanel 一键具现化（specs/pm-design-v2 P0 核对项补齐）**：需求输入框 + 🎯 按钮 → `actionRun("design.materialize")` → 管线路由（用户指定 > flash 判定 > 启发式）→ 产物落盘 → 列表自动刷新；执行中禁用与状态提示；6 语言
 
 - **任务树面板操作化 + 工作区绑定（模块完成）**
   - 面板自有完整操作面：新建任务树（prompt+why 必填）、分叉（why 必填——分支的故事）、切换⇄、合并⇦（整支世系去重挑选）、放弃✕（二次确认，归档可见）；5 个 mutation IPC 全部特权层级 + 参数校验（treeId UUID / 分支名白名单 / why 非空）

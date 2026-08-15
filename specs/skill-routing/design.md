@@ -1,6 +1,6 @@
 # SkillWeaver 式技能/工具路由 — 详细设计
 
-> 日期：2026-08-06 · 状态：规划中
+> 日期：2026-08-06 · 状态：已实现并超越（2026-08-15 闭环方案 R1-R4 落地：调用合并/会话级冻结/facade/观测/热生效——两处设计演进记录于 docs/research/2026-08-15-routing-closure-plan.md）
 >
 > 灵感来源：[arXiv:2606.18051](https://arxiv.org/abs/2606.18051)（无论文代码，本设计为自行实现）
 > 前序评估：`docs/research/2026-08-06-skillweaver-skill-routing-integration.md`

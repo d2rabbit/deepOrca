@@ -368,7 +368,10 @@ test("decision probe: AskUserQuestion in a bound session emits recall hints exac
   const home = tempRoot();
   process.env.HOME = home;
   // Historical fork resembling the decision.
-  const responses: unknown[] = [];
+  const responses: unknown[] = [
+    { choices: [{ message: { content: JSON.stringify({ skillNames: [], multiIntent: false }) } }] },
+    { choices: [{ message: { content: "assistant did the thing" } }] },
+  ];
   const client = { chat: { completions: { create: async () => responses.shift() } } };
   const manager = new SessionManager({
     projectRoot: root,
@@ -408,7 +411,10 @@ test("merge/abandon actions recycle a <task-lineage> message into the active ses
   const root = tempRoot();
   const home = tempRoot();
   process.env.HOME = home;
-  const responses: unknown[] = [];
+  const responses: unknown[] = [
+    { choices: [{ message: { content: JSON.stringify({ skillNames: [], multiIntent: false }) } }] },
+    { choices: [{ message: { content: "assistant did the thing" } }] },
+  ];
   const client = { chat: { completions: { create: async () => responses.shift() } } };
   const manager = new SessionManager({
     projectRoot: root,
@@ -454,4 +460,53 @@ test("workspace isolation: each root's trees are invisible to the other root", (
   assert.equal(svcB.getTree(a), null);
   // Disk layout: each root has its own .deeporca/task-trees.
   assert.ok(fs.existsSync(path.join(rootA, ".deeporca", "task-trees", a)));
+});
+
+test("lineage recycle reaches memory capture (L3 closure)", async () => {
+  const root = tempRoot();
+  const home = tempRoot();
+  process.env.HOME = home;
+  const responses: unknown[] = [
+    { choices: [{ message: { content: JSON.stringify({ skillNames: [], multiIntent: false }) } }] },
+    { choices: [{ message: { content: "assistant did the thing" } }] },
+  ];
+  const client = { chat: { completions: { create: async () => responses.shift() } } };
+  const captures: unknown[] = [];
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: client as any, model: "m", baseURL: "x", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }) as any,
+    renderMarkdown: (t) => t,
+    onAssistantMessage: () => {},
+  });
+  manager.setMemoryProvider({
+    recall: async () => null,
+    capture: async (turn: unknown) => {
+      captures.push(turn);
+      return null;
+    },
+    searchMemories: async () => null,
+    isAvailable: () => true,
+  });
+  const sessionId = await manager.createSession({ text: "user asks something" });
+  // Append the lineage + hint system messages exactly as the recycle channel does.
+  (manager as any).appendSessionSystemMessage(
+    sessionId,
+    '<task-lineage>\ntask-tree branch "alt" outcome: abandoned.\nFork rationale: try X\n</task-lineage>'
+  );
+  (manager as any).appendSessionSystemMessage(
+    sessionId,
+    "<task-recall-hints>\nSimilar fork found\n</task-recall-hints>"
+  );
+  // Trigger the capture exactly as the activation-loop finally would.
+  (manager as any).maybeCaptureMemory(sessionId);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok(captures.length >= 1, "capture fired");
+  const turn = captures[captures.length - 1] as { assistantText: string; messages: Array<{ content: string }> };
+  assert.match(turn.assistantText, /<task-lineage>/, "lineage in flat capture");
+  assert.match(turn.assistantText, /<task-recall-hints>/, "hints in flat capture");
+  assert.ok(
+    turn.messages.some((m) => m.content.includes("<task-lineage>")),
+    "lineage in structured messages[]"
+  );
 });

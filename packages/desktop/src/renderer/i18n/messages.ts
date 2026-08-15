@@ -605,6 +605,10 @@ export const en = {
   "index.freshness.never": "never synced",
 
   "design.title": "Designer",
+  "design.materializePrompt": "Describe a requirement to materialize…",
+  "design.materializeBtn": "Materialize",
+  "design.materializing": "Materializing (agent at work)…",
+  "design.materialized": "Materialized — check the list below.",
   "tasktree.title": "Task Tree",
   "tasktree.refresh": "Refresh",
   "tasktree.abandoned": "abandoned",
@@ -1355,6 +1359,10 @@ export const zh: Record<MessageKey, string> = {
   "index.freshness.never": "未同步",
 
   "design.title": "设计",
+  "design.materializePrompt": "描述一个需求，一键具现化…",
+  "design.materializeBtn": "具现化",
+  "design.materializing": "具现化中（agent 执行中）…",
+  "design.materialized": "已具现化——见下方列表。",
   "tasktree.title": "任务树",
   "tasktree.refresh": "刷新",
   "tasktree.abandoned": "已放弃",
