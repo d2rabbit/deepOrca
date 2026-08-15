@@ -6,6 +6,18 @@ import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
 
+// Node version guard: the repo pins Node 22 (.nvmrc) and core/memory use
+// node:sqlite (needs >= 22.5). Under an older Node the sqlite layers degrade
+// SILENTLY and tests fail with confusing assertions instead of a clear error
+// (observed: store-cache tests failing under nvm-default Node 20). Fail fast.
+{
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  if (major < 22 || (major === 22 && minor < 5)) {
+    console.error(`✖ Node >= 22.5 required (node:sqlite); current is ${process.versions.node}. Run: nvm use 22`);
+    process.exit(1);
+  }
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Allow optional positional file arguments to run a subset of tests. With no
