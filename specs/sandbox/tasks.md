@@ -21,82 +21,41 @@
 
 ### 任务 1 — `common/path-boundary.ts`：原语迁移 + 闸门函数
 
-- [ ] 新建 `packages/core/src/common/path-boundary.ts`，自 `permissions.ts:705-746` **原样搬移**（不改动函数体）：`isPathInProject`、`safeRealPath`（改为 export）、`isPathInAnyDirectory`。
-- [ ] `permissions.ts` 改为 `import { isPathInProject, isPathInAnyDirectory } from "./path-boundary.js"` 并保留同名 re-export（`export { isPathInProject } from "./path-boundary.js"`），调用点（`:301,302,313,324`）不动。
-- [ ] 新增类型与闸门（纯函数，realpath 之外零 I/O）：
-  ```ts
-  export type PathGrant = {
-    readonly writeRoots: readonly string[];   // 始终含 realpath(projectRoot)
-    readonly readRoots: readonly string[];    // projectRoot + readPermissionExemptPaths
-    readonly allowWriteOutsideRoots: boolean; // 本次调用 write-out-cwd 已判 allow（R1）
-    readonly allowReadOutsideRoots: boolean;  // 本次调用 read-out-cwd 已判 allow（R1）
-  };
-  export type GateVerdict = { ok: true } | { ok: false; reason: string; scope: PermissionScope };
-  export function gateWrite(grant: PathGrant | undefined, filePath: string): GateVerdict;
-  export function gateRead(grant: PathGrant | undefined, filePath: string): GateVerdict;
-  ```
-  判定顺序：路径 ∈ roots ⇒ ok → 布尔位 ⇒ ok → 拒（带 scope + reason）。`grant === undefined` ⇒ 退化为 roots=[projectRoot]、布尔全 false（**fail-closed**）。
-- [ ] **TOCTOU**：目标文件可能不存在 —— 对**父目录** `dirname(filePath)` 做 `safeRealPath`，拼回 basename 后做 roots 包含判定；父目录 realpath 失败回退词法路径（沿用 `isPathInProject` 既有策略，不引入新语义）。
-- [ ] `PermissionScope` 以 `import type` 自 `settings.ts` 引入（types 模块，无分层问题；`verbatimModuleSyntax` 要求 type-only）。
-- [ ] 闸门拒绝的 `reason` 措辞对齐 `permissions.ts:88-108` 风格（含目标路径、越界 scope、放行方式提示）。
+- [x] 新建 `packages/core/src/common/path-boundary.ts`，自 `permissions.ts:705-746` **原样搬移**（不改动函数体）：`isPathInProject`、`safeRealPath`（改为 export）、`isPathInAnyDirectory`。（commit `3f3311a1`）
+- [x] `permissions.ts` 改为 `import { isPathInProject, isPathInAnyDirectory } from "./path-boundary.js"` 并保留同名 re-export，调用点不动。
+- [x] `PathGrant` / `GateVerdict` / `gateWrite` / `gateRead` 落地；判定顺序 roots → 布尔位 → 拒；`grant === undefined` + `projectRoot` 参数退化为 projectRoot-only（**fail-closed**）。施工补充：`gate*` 增可选第 3 参 `projectRoot?: string` 供退化判定取根（设计文档未指定退化根来源）。
+- [x] TOCTOU：父目录 realpath 拼回 basename；**悬垂 symlink 链手动追踪**（realpath 对悬垂目标失败回退词法，`<root>/link -> /etc/new-file` 会成为逃逸口——原语级新增 `followSymlinkChain`，深度上限 10）。
+- [x] `PermissionScope` 以 `import type` 引入；reason 措辞对齐权限层风格（含目标路径 + scope + 放行指引）。
 
 ### 任务 2 — `ToolExecutionContext.pathGrant` + executor 透传
 
-- [ ] `common/tool-types.ts`：`ToolExecutionContext`（`:28-42`）新增 `pathGrant?: PathGrant`（`import type` 自 `./path-boundary.js`），JSDoc 注明"缺省 undefined ⇒ handler fail-closed 退化为仅 projectRoot，派生算法见 specs/sandbox/design.md §4.1"。
-- [ ] `tools/executor.ts:63`：`executeToolCalls` 加第 4 参 `extras?: { pathGrant?: PathGrant }`；`:258` 附近构建 context 时透传 `pathGrant: extras?.pathGrant`。**不改** hooks 既有形状。
+- [x] `common/tool-types.ts`：`ToolExecutionContext` 新增 `pathGrant?: PathGrant`（`import type` + JSDoc）。（commit `6b54d8c0`）
+- [x] `tools/executor.ts`：`executeToolCalls` 加第 4 参 `extras?: { pathGrant?: PathGrant }`，经 `executeToolCall` 透传至 context；hooks 形状不变。
 
 ### 任务 3 — session.ts 按 R2 算法派生 per-call PathGrant
 
-- [ ] `appendToolMessages`（`session.ts:4772`）执行循环内、`executeToolCalls` 调用（`:4803`）之前，对每个通过 `buildPermissionToolExecution` 的 call 派生：
-  ```
-  const request = describeToolPermissionRequest({
-    sessionId, projectRoot: this.projectRoot, toolCall,
-    readPermissionExemptPaths: this.getSkillScanRoots().map(e => e.root),
-    resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
-  });
-  // R2 关键观察：能走到执行阶段的 call，resolved 决策必然已是 allow（:4798 已拦截其余）
-  const grant: PathGrant = {
-    writeRoots: [safeRealPathOf(this.projectRoot)],
-    readRoots:  [safeRealPathOf(this.projectRoot), ...exemptPaths],
-    allowWriteOutsideRoots: request.scopes.includes("write-out-cwd"),
-    allowReadOutsideRoots:  request.scopes.includes("read-out-cwd"),
-  };
-  ```
-- [ ] 派生只对 `read`/`Read`、`write`/`Write`、`edit`/`Edit`（含别名归一）计算 grant，其余工具不传（undefined ⇒ fail-closed 对非文件工具无消费点，无行为差异）。
-- [ ] bash 调用不派生（其 scope 是副作用推断而非路径判定，P0 不触碰 bash 执行路径）。
-- [ ] `session.ts:4803` 调用点传入 `extras: { pathGrant }`。
+- [x] `appendToolMessages` 循环内、`executeToolCalls` 之前派生：新私有方法 `derivePathGrantForToolCall`，重跑 `describeToolPermissionRequest`（含 snippet 解析与 skill 扫描根），`allowWriteOutsideRoots = scopes.includes("write-out-cwd")`、read 同理；roots 取 `safeRealPath(projectRoot)` + exempt 根。（commit `5638bcad`）
+- [x] 只对 read/write/edit（含大小写别名）派生；bash 不派生。
 
 ### 任务 4 — write / edit / read handler 接闸门
 
-- [ ] **write**（`write-handler.ts`）：`filePath` 归一后、`:94 ensureParentDirectory` **之前**接 `gateWrite(context.pathGrant, filePath)` —— 保证越界时父目录链也不创建（验收断言 #2）。拒绝返回结构化错误：`ok:false`、`errorType:"PERMISSION_DENIED"`、`retryable:false`、error 措辞用闸门 `reason`（不是 INTERNAL）。
-- [ ] **edit**（`edit-handler.ts`）：filePath 经 stat/isDirectory 校验后（≈`:152`）、`getFileState`（`:155`）之前接 `gateWrite` —— 早于内部读（`:173`）与变更钩子（`:320`），语义满足设计文档"writeTextFile 之前"且失败更快。**只接 gateWrite**（R4：edit 的授权维度只有 write scope，内部读是写的必要前置，套 read grant 会误杀"已授权 write-out-cwd 但 read-out-cwd 未单独授权"的合法编辑）。
-- [ ] **read**（`read-handler.ts`）：`filePath` 定型为最终绝对路径后（相对路径 suffix-match 解析块 `:67-107` 之后）、首次 fs 触碰（`:109 existsSync`）之前接 `gateRead` —— 单点闸，notebook/pdf/image/gitignore 各分支共享同一 `filePath`，无需逐分支埋点（R5）。`findSuffixMatches`/`loadGitignoreMatcher` 在 projectRoot 内遍历，天然在 readRoots 内，不受闸门影响。
-- [ ] 三处拒绝的错误结构统一走一个小的本地 helper（或直接复用 `buildPermissionDeniedResult(toolName, verdict)` 形状），保证 `errorType` 一致。
+- [x] **write**：绝对路径校验后（早于 `existsSync`/`ensureParentDirectory`）接 `gateWrite`；拒绝返回 `errorType:"PERMISSION_DENIED"` / `retryable:false`。（commit `967ffef5`）
+- [x] **edit**：filePath/snippet 归属定型后接 `gateWrite`（仅 write 侧，R4），早于 `getFileState`/内部读，fail-fast。
+- [x] **read**：最终绝对路径定型后、首次 fs 触碰（`existsSync`）前单点接 `gateRead`（R5）。
 
 ### 任务 5 — file-utils.ts 底层兜底断言
 
-- [ ] `file-utils.ts`（`:54-68` `writeTextFile` / `ensureParentDirectory`）加模块级**可选**写边界：`configureFileUtilsWriteBoundary(roots | null)`，未初始化（null）时行为零变化（不破坏 desktop 直接调用与全部现有测试默认态）。
-- [ ] 初始化后 `writeTextFile` / `ensureParentDirectory` 对目标路径做 roots 包含断言，越界抛带标记的错误（如 `PathBoundaryError`）。这是纵深防御兜底（防绕过主闸门的直调路径），**不是**主闸门；抛出后由 executor 归类为权限类错误的映射放在 handler 层已来不及，接受其以 INTERNAL 形态出现并靠测试锁定主闸门在前。
-- [ ] 接线点：SessionManager 构造时以 `[realpath(projectRoot)]` 初始化（单项目进程模型；多项目进程为已知限制，登记即可）。
+- [x] `configureFileUtilsWriteBoundary(roots | null)` + `PathBoundaryError`；`writeTextFile` / `ensureParentDirectory` 增可选 `options.pathGrant`。（commit `e77c3237`）
+- [x] **R7 施工修正（2026-08-16）**：原任务方案"SessionManager 构造时以 `[realpath(projectRoot)]` 静态初始化"有两处缺陷——①静态根会误杀 R1 布尔位授权的合法越界写（兜底在 `writeTextFile` 内抛出，破坏「仅本次允许」UX）；②5 个测试文件直接构造 SessionManager，构造器内初始化模块级全局会跨测试泄漏。修正：断言改为 **grant 感知**（grant 在场 → `gateWrite` 全语义判定；无 grant → 静态 roots 包含判定），初始化走**宿主注入**（desktop `session-bridge.createManager`），core 保持休眠、测试天然封闭。
+- [x] handler 将 `context.pathGrant` 下行至 `writeTextFile` / `ensureParentDirectory`；core index 导出 `configureFileUtilsWriteBoundary` / `PathBoundaryError` / `gateWrite` / `gateRead` / `PathGrant` / `GateVerdict`。
 
-### 任务 9 — 测试（随各任务同行，此处汇总验收）
+### 任务 9 — 测试（已随各任务同行，汇总验收）
 
-- [ ] 新增 `tests/path-boundary.test.ts`（纯函数级）：
-  - roots 包含判定（项目内 ok / 项目外拒）；
-  - 布尔位放行（`allowWriteOutsideRoots=true` ⇒ 越界 ok，read 同理）；
-  - `grant === undefined` ⇒ fail-closed（write/read 双向）；
-  - TOCTOU：目标文件不存在时按父目录 realpath 判定（`<root>/../evil` 拒，且不依赖目标存在）；
-  - symlink：项目内 symlink 指向 `/etc`（tmpdir 模拟）被拒；
-  - `writeRoots` 多根（projectRoot + 显式追加根）判定。
-- [ ] handler 级用例（`tool-handlers.test.ts` 增补，`createContext` overrides 注入 grant）：
-  - allowAll 语义下 `write` 到项目外（grant 布尔 false）被拒，且**父目录未创建**；
-  - 「仅本次允许」模拟：grant 布尔 true ⇒ 该次放行；下一次（新 grant 布尔 false）再拒；
-  - edit 越界目标（write-out-cwd 已授权，布尔 true）内部读不被误杀（R4 防回退）；
-  - read 越界（布尔 false）拒 / `read-out-cwd` 显式 allow（布尔 true）放行；
-  - readRoots 含 exemptPaths（skill 扫描根）时越界读放行。
-- [ ] R6 基线回归：接线后重跑全量 `node src/tests/run-tests.mjs`；转红用例**在测试 context 显式注入 pathGrant**，禁止放宽默认 fail-closed。
-- [ ] 既有 `permissions.test.ts` 43/43 保持全绿（P0.5 零扰动）。
-- [ ] 全仓 `npm run check` + `npm test` 通过（PR 门禁）。
+- [x] `tests/path-boundary.test.ts` **16 用例**：包含判定 / 布尔位正交性 / fail-closed 退化（含无根全拒）/ TOCTOU 穿越（目标不存在按父目录判）/ 存量 symlink / 悬垂 symlink / symlink 目录 / 多根 exempt / symlink 别名根 / 迁移原语回归 / file-utils 兜底 4 例（休眠默认、越界抛出含父链不创建、R1 布尔位放行与未授权拒、多根）/ **executor extras 透传端到端**（拒 + 布尔位放行）。
+- [x] `tool-handlers.test.ts` 增补 **5 用例**（commit 见任务 9 收口提交）：越界 write 拒且父目录未创建 / 无 grant 时根内写照常（fail-closed 默认不伤日常工作）/ R1「仅本次允许」模拟（批准放行 → 下次新 grant 再拒）/ read 越界拒 + 显式 allow 放行 + exempt 根放行 / R4 edit 已授权越界写内部读不误杀 + 未授权越界 edit 拒。
+- [x] R6 基线回归：接线后全量重跑，**零转红**（既有 fixture 均与 projectRoot 同根）。
+- [x] `permissions.test.ts` 43/43 保持全绿。
+- [x] 全仓门禁：`npm run check` 0 errors（11 个 warning 均为非本次改动文件的存量）；`npm test` core 465（464 pass / 1 存量 skip / 0 fail）+ desktop 163/163 + embedding 10/10 + memory 14/14。
 
 ### PR 1 提交切分建议（Conventional Commits）
 

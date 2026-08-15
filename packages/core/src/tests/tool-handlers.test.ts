@@ -5,6 +5,7 @@ import * as os from "os";
 import * as path from "path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { BackgroundProcessCompletion, ProcessTimeoutControl, ToolExecutionContext } from "../tools/executor";
+import type { PathGrant } from "../common/path-boundary";
 import { handleBashTool } from "../tools/bash-handler";
 import { handleEditTool } from "../tools/edit-handler";
 import { handleReadTool } from "../tools/read-handler";
@@ -1068,3 +1069,171 @@ async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<voi
   }
   assert.equal(predicate(), true);
 }
+
+// --- P0 execution-time path boundary gates (specs/sandbox/design.md §4.1) ---
+
+function makeHandlerGrant(overrides: Partial<PathGrant> = {}): PathGrant {
+  return {
+    writeRoots: [],
+    readRoots: [],
+    allowWriteOutsideRoots: false,
+    allowReadOutsideRoots: false,
+    ...overrides,
+  };
+}
+
+test("write outside the boundary is denied and creates no parent chain", async () => {
+  const workspace = createTempWorkspace();
+  const outside = createTempWorkspace();
+  const target = path.join(outside, "new-dir", "evil.txt");
+
+  const result = await handleWriteTool(
+    { file_path: target, content: "payload" },
+    createContext("gate-write-deny", workspace, {
+      pathGrant: makeHandlerGrant({ writeRoots: [workspace] }),
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errorType, "PERMISSION_DENIED");
+  assert.equal(result.retryable, false);
+  assert.equal(fs.existsSync(target), false);
+  assert.equal(fs.existsSync(path.join(outside, "new-dir")), false, "escaping parent chain must not be created");
+});
+
+test("write inside the boundary passes without any grant (fail-closed default keeps ordinary work)", async () => {
+  const workspace = createTempWorkspace();
+  const target = path.join(workspace, "normal.txt");
+
+  // pathGrant undefined ⇒ degenerate projectRoot-only grant.
+  const result = await handleWriteTool(
+    { file_path: target, content: "ok" },
+    createContext("gate-write-default", workspace)
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(fs.readFileSync(target, "utf8"), "ok");
+});
+
+test("one-time out-of-bounds write approval is honored per call only (R1)", async () => {
+  const workspace = createTempWorkspace();
+  const outside = createTempWorkspace();
+
+  const approved = await handleWriteTool(
+    { file_path: path.join(outside, "approved.txt"), content: "x" },
+    createContext("gate-write-once", workspace, {
+      pathGrant: makeHandlerGrant({ writeRoots: [workspace], allowWriteOutsideRoots: true }),
+    })
+  );
+  assert.equal(approved.ok, true);
+
+  // Next call: fresh grant derivation, no dynamic authorization — asked again.
+  const rejected = await handleWriteTool(
+    { file_path: path.join(outside, "next.txt"), content: "x" },
+    createContext("gate-write-once", workspace, {
+      pathGrant: makeHandlerGrant({ writeRoots: [workspace], allowWriteOutsideRoots: false }),
+    })
+  );
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.errorType, "PERMISSION_DENIED");
+  assert.equal(fs.existsSync(path.join(outside, "next.txt")), false);
+});
+
+test("read outside the boundary is denied; explicit allowance and exempt roots pass", async () => {
+  const workspace = createTempWorkspace();
+  const outside = createTempWorkspace();
+  const secret = path.join(outside, "secret.txt");
+  fs.writeFileSync(secret, "s3cret");
+
+  const denied = await handleReadTool(
+    { file_path: secret },
+    createContext("gate-read", workspace, {
+      pathGrant: makeHandlerGrant({ readRoots: [workspace] }),
+    })
+  );
+  assert.equal(denied.ok, false);
+  assert.equal(denied.errorType, "PERMISSION_DENIED");
+  assert.equal(denied.retryable, false);
+
+  const allowed = await handleReadTool(
+    { file_path: secret },
+    createContext("gate-read", workspace, {
+      pathGrant: makeHandlerGrant({ readRoots: [workspace], allowReadOutsideRoots: true }),
+    })
+  );
+  assert.equal(allowed.ok, true);
+
+  // Exempt roots (skill scan roots) extend the read boundary without any boolean.
+  const exempt = path.join(outside, "skill-doc.md");
+  fs.writeFileSync(exempt, "docs");
+  const viaExempt = await handleReadTool(
+    { file_path: exempt },
+    createContext("gate-read", workspace, {
+      pathGrant: makeHandlerGrant({ readRoots: [workspace, outside] }),
+    })
+  );
+  assert.equal(viaExempt.ok, true);
+});
+
+test("edit with approved write-out-cwd is not killed by its internal read (R4)", async () => {
+  const workspace = createTempWorkspace();
+  const outside = createTempWorkspace();
+  const sessionId = "gate-edit-r4";
+
+  const target = path.join(outside, "editable.txt");
+  fs.writeFileSync(target, "alpha beta\n");
+  const readResult = await handleReadTool(
+    { file_path: target },
+    createContext(sessionId, workspace, {
+      pathGrant: makeHandlerGrant({ readRoots: [workspace], allowReadOutsideRoots: true }),
+    })
+  );
+  assert.equal(readResult.ok, true);
+  const snippet = (readResult.metadata?.snippet ?? null) as { id: string } | null;
+  assert.ok(snippet);
+
+  // The edit grant authorizes the out-of-roots WRITE but not the read — the
+  // internal readTextFileWithMetadata must still succeed (edit gates writes
+  // only; gating the internal read with readRoots would kill legitimate edits).
+  const editResult = await handleEditTool(
+    { snippet_id: snippet.id, old_string: "alpha", new_string: "gamma" },
+    createContext(sessionId, workspace, {
+      pathGrant: makeHandlerGrant({
+        writeRoots: [workspace],
+        allowWriteOutsideRoots: true,
+        readRoots: [workspace],
+        allowReadOutsideRoots: false,
+      }),
+    })
+  );
+  assert.equal(editResult.ok, true, JSON.stringify(editResult));
+  assert.equal(fs.readFileSync(target, "utf8").includes("gamma"), true);
+
+  // Counter-case: an out-of-bounds edit WITHOUT write authorization is
+  // rejected by the gate before any mutation.
+  const blockedTarget = path.join(outside, "blocked.txt");
+  fs.writeFileSync(blockedTarget, "alpha beta\n");
+  const blockedRead = await handleReadTool(
+    { file_path: blockedTarget },
+    createContext(sessionId, workspace, {
+      pathGrant: makeHandlerGrant({ readRoots: [workspace], allowReadOutsideRoots: true }),
+    })
+  );
+  assert.equal(blockedRead.ok, true);
+  const blockedSnippet = (blockedRead.metadata?.snippet ?? null) as { id: string } | null;
+  assert.ok(blockedSnippet);
+  const blocked = await handleEditTool(
+    { snippet_id: blockedSnippet.id, old_string: "alpha", new_string: "gamma" },
+    createContext(sessionId, workspace, {
+      pathGrant: makeHandlerGrant({
+        writeRoots: [workspace],
+        allowWriteOutsideRoots: false,
+        readRoots: [workspace],
+        allowReadOutsideRoots: false,
+      }),
+    })
+  );
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.errorType, "PERMISSION_DENIED");
+  assert.equal(fs.readFileSync(blockedTarget, "utf8"), "alpha beta\n");
+});

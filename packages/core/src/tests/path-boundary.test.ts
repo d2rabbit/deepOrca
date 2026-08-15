@@ -10,6 +10,7 @@ import {
   PathBoundaryError,
   writeTextFile,
 } from "../common/file-utils";
+import { ToolExecutor } from "../tools/executor";
 
 // Gate semantics tests for the P0 execution-time path boundary
 // (specs/sandbox/design.md §4.1, acceptance table). All filesystem fixtures
@@ -237,4 +238,35 @@ test("isPathWithinRoots checks every configured root", () => {
   assert.equal(isPathWithinRoots([rootA, rootB], path.join(rootB, "file.txt")), true);
   assert.equal(isPathWithinRoots([rootA, rootB], path.join(rootA, "file.txt")), true);
   assert.equal(isPathWithinRoots([rootA, rootB], path.join(createWorkspace(), "file.txt")), false);
+});
+
+test("executor threads extras.pathGrant into the handler context end-to-end", async () => {
+  const workspace = createWorkspace();
+  const outside = createWorkspace();
+  const executor = new ToolExecutor(workspace);
+  const toolCall = {
+    id: "gate-exec-1",
+    type: "function",
+    function: {
+      name: "write",
+      arguments: JSON.stringify({ file_path: path.join(outside, "exec-write.txt"), content: "x" }),
+    },
+  };
+
+  const denied = await executor.executeToolCalls("gate-exec-session", [toolCall], undefined, {
+    pathGrant: makeGrant({ writeRoots: [workspace], readRoots: [workspace] }),
+  });
+  assert.equal(denied.length, 1);
+  assert.equal(denied[0].result.ok, false);
+  assert.equal(denied[0].result.errorType, "PERMISSION_DENIED");
+  assert.equal(fs.existsSync(path.join(outside, "exec-write.txt")), false);
+
+  const approved = await executor.executeToolCalls(
+    "gate-exec-session",
+    [{ ...toolCall, id: "gate-exec-2" }],
+    undefined,
+    { pathGrant: makeGrant({ writeRoots: [workspace], readRoots: [workspace], allowWriteOutsideRoots: true }) }
+  );
+  assert.equal(approved[0].result.ok, true);
+  assert.equal(fs.readFileSync(path.join(outside, "exec-write.txt"), "utf8"), "x");
 });
