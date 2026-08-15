@@ -31,6 +31,8 @@
 >
 > **v3.5 更新**：新增"远程接入"功能域（WebSocket 桥 + 静态服务 + 隧道方案，架构可行性已验证）和"语音双工"功能域（whisper.cpp 本地优先 + API 兜底）。
 >
+> **v3.6 更新**：§十三"远程接入"方案定稿——采用向日葵式内外网映射（内置 TunnelClient + 自建/官方 relay，识别码+配对码零配置），原"用户自配隧道"降级为高级附录。方案见 `docs/research/2026-08-15-remote-access-sunlogin-mapping.md`。
+>
 > **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
 >
 > **v3.11 更新**：总览表全面对齐各域具体规划（以细节为准）。① html-in-canvas 实测：Electron 43/Chromium 150 **已支持全套 API**（`drawElementImage`/`layoutSubtree`/`requestPaint`），默认关，`--enable-features=CanvasDrawElement` 可开——"阻塞于平台"前提已满足，修正为"flag 可开"。② 补齐总览漏项：§七 办公文档预览面板、§九 ShowUI + sim-use、§十一 JiuwenSwarm 蜂群协作、§十二 已集成的 Flutter/Android/HarmonyOS/RN/Browser 分组。③ Electron 35→43（Chromium 150）。④ §六 html-in-canvas 状态从"阻塞"改为"flag 可开"。实测见 `docs/research/2026-07-30-html-in-canvas.md`。
@@ -664,7 +666,7 @@ PLUGIN_ROOT/PLUGIN_DATA          （无）                             Electron 
 
 ## 十三、远程接入
 
-> 让用户从手机或远程浏览器接入 DeepOrca——本地启动服务端，通过蒲公英/ngrok/frp 等隧道映射到外网，远程打开完整 UI。
+> 让用户从手机或远程浏览器接入 DeepOrca——本地启动服务端，**内置向日葵式内外网映射**（被控端主动外连 + 云端公网映射 + 识别码/验证码配对，零配置）；公网直连与自带隧道作为高级档保留。具体方案见 `docs/research/2026-08-15-remote-access-sunlogin-mapping.md`。
 
 ### 架构（已验证可行性）
 
@@ -700,12 +702,13 @@ DeepOrca 本地服务端（Electron 主进程内置，新增）
 | WebSocket 服务端 | Electron 主进程内 `ws` 库，提取现有 IPC handler 为共享 dispatch           | 复用 100% 引擎和 UI，远程浏览器获得完整 DeepOrca 体验 | P1     |
 | 浏览器端 shim    | 注入 `window.deeporca` 的 `<script>`，通过 WS marshalling 实现 DesktopApi | 浏览器中无缝运行现有 React UI                         | P1     |
 | HTTP 静态服务    | 同源 serve `dist/renderer/`（避免 CSP 问题）                              | 远程加载完整前端                                      | P1     |
-| 隧道配置文档     | 文档 + 配置引导（蒲公英/ngrok/frp）                                       | 用户一键配置外网访问                                  | P2     |
-| 访问鉴权         | WS 连接 token + 可选 HTTPS                                                | 防止未授权访问                                        | P1     |
+| 隧道配置文档     | 降级为附录「高级：自带隧道」（relay-url 指向自建 frps/nginx）                | 高级用户自定义链路                                    | P3     |
+| 内置公网映射     | TunnelClient + `@deeporca/relay`（向日葵式：主动外连 + 识别码/配对码 + QR） | 零配置公网访问，手机扫码即连                          | P1     |
+| 访问鉴权         | WS 连接 token + 设备端配对确认 + 远程审计日志                                | 防止未授权访问                                        | P1     |
 
 ### 设计原则
 
-1. **DeepOrca 只提供服务端**——隧道/映射/HTTPS 由用户自行配置（蒲公英/ngrok/frp/Cloudflare Tunnel 等）
+1. **内置零配置映射**——向日葵式内外网映射为默认路径（relay 可官方运营也可用户自建）；公网直连/自带隧道为高级档
 2. **本地优先**——服务端跑在 Electron 主进程内，不需要独立进程
 3. **同源策略**——HTTP 静态服务和 WebSocket 跑在同一端口，避免 CSP 放宽
 4. **完整体验**——远程浏览器获得与桌面端完全一致的 UI（因为是同一份 renderer bundle）
