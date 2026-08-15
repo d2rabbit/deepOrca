@@ -3,6 +3,7 @@ import * as path from "path";
 import ignore from "ignore";
 import type { ToolExecutionContext, ToolExecutionFollowUpMessage, ToolExecutionResult } from "./executor";
 import { readTextFileWithMetadata, MAX_READ_FILE_BYTES } from "../common/file-utils";
+import { gateRead } from "../common/path-boundary";
 import {
   createFullFileSnippet,
   createSnippet,
@@ -104,6 +105,21 @@ export async function handleReadTool(
     }
 
     filePath = resolvedPath;
+  }
+
+  // Execution-time read boundary (P0, specs/sandbox/design.md §4.1): single
+  // gate once the final absolute path is known, before the first fs touch.
+  // Every downstream branch (text/notebook/pdf/image) shares this filePath,
+  // so one checkpoint covers them all (R5).
+  const gate = gateRead(context.pathGrant, filePath, context.projectRoot);
+  if (!gate.ok) {
+    return {
+      ok: false,
+      name: "read",
+      error: gate.reason,
+      errorType: "PERMISSION_DENIED",
+      retryable: false,
+    };
   }
 
   if (!fs.existsSync(filePath)) {
