@@ -1,5 +1,6 @@
 import type OpenAI from "openai";
 import type { ReasoningEffort } from "../settings";
+import type { PathGrant } from "./path-boundary";
 
 export type CreateOpenAIClient = () => {
   client: OpenAI | null;
@@ -29,6 +30,13 @@ export type ToolExecutionContext = {
   sessionId: string;
   projectRoot: string;
   toolCall: ToolCall;
+  /**
+   * Path capability granted to this tool call, derived by the session from
+   * the permission plan (specs/sandbox/design.md §4.1). Absent ⇒ handlers
+   * degrade to projectRoot-only enforcement, i.e. fail-closed for
+   * out-of-project paths.
+   */
+  pathGrant?: PathGrant;
   createOpenAIClient?: CreateOpenAIClient;
   onProcessStart?: (processId: string | number, command: string) => void;
   onProcessExit?: (processId: string | number) => void;

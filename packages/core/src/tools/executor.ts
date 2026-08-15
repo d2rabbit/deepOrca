@@ -17,6 +17,7 @@ import type {
   ToolHandler,
   ToolCallExecution,
 } from "../common/tool-types";
+import type { PathGrant } from "../common/path-boundary";
 
 export type {
   CreateOpenAIClient,
@@ -63,7 +64,8 @@ export class ToolExecutor {
   async executeToolCalls(
     sessionId: string,
     toolCalls: unknown[],
-    hooks?: ToolExecutionHooks
+    hooks?: ToolExecutionHooks,
+    extras?: { pathGrant?: PathGrant }
   ): Promise<ToolCallExecution[]> {
     // Parse every input call. A malformed envelope (missing id, missing
     // function block, non-string name) used to be silently filtered out,
@@ -88,7 +90,7 @@ export class ToolExecutor {
         });
         continue;
       }
-      const result = await this.executeToolCall(sessionId, parsed.call, hooks);
+      const result = await this.executeToolCall(sessionId, parsed.call, hooks, extras?.pathGrant);
       executions.push({
         toolCallId: parsed.call.id,
         content: this.formatToolResult(result),
@@ -195,7 +197,8 @@ export class ToolExecutor {
   private async executeToolCall(
     sessionId: string,
     toolCall: ToolCall,
-    hooks?: ToolExecutionHooks
+    hooks?: ToolExecutionHooks,
+    pathGrant?: PathGrant
   ): Promise<ToolExecutionResult> {
     const toolName = toolCall.function.name;
     const handlerName = BUILT_IN_TOOL_NAME_ALIASES.get(toolName) ?? toolName;
@@ -260,6 +263,7 @@ export class ToolExecutor {
         sessionId,
         projectRoot: this.projectRoot,
         toolCall,
+        pathGrant,
         createOpenAIClient: this.createOpenAIClient,
         onProcessStart: hooks?.onProcessStart,
         onProcessExit: hooks?.onProcessExit,
