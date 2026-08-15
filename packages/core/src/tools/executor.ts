@@ -18,6 +18,7 @@ import type {
   ToolCallExecution,
 } from "../common/tool-types";
 import type { PathGrant } from "../common/path-boundary";
+import type { BashSandboxSpawner } from "../common/tool-types";
 
 export type {
   CreateOpenAIClient,
@@ -65,7 +66,7 @@ export class ToolExecutor {
     sessionId: string,
     toolCalls: unknown[],
     hooks?: ToolExecutionHooks,
-    extras?: { pathGrant?: PathGrant }
+    extras?: { pathGrant?: PathGrant; bashSandbox?: BashSandboxSpawner }
   ): Promise<ToolCallExecution[]> {
     // Parse every input call. A malformed envelope (missing id, missing
     // function block, non-string name) used to be silently filtered out,
@@ -90,7 +91,7 @@ export class ToolExecutor {
         });
         continue;
       }
-      const result = await this.executeToolCall(sessionId, parsed.call, hooks, extras?.pathGrant);
+      const result = await this.executeToolCall(sessionId, parsed.call, hooks, extras?.pathGrant, extras?.bashSandbox);
       executions.push({
         toolCallId: parsed.call.id,
         content: this.formatToolResult(result),
@@ -198,7 +199,8 @@ export class ToolExecutor {
     sessionId: string,
     toolCall: ToolCall,
     hooks?: ToolExecutionHooks,
-    pathGrant?: PathGrant
+    pathGrant?: PathGrant,
+    bashSandbox?: BashSandboxSpawner
   ): Promise<ToolExecutionResult> {
     const toolName = toolCall.function.name;
     const handlerName = BUILT_IN_TOOL_NAME_ALIASES.get(toolName) ?? toolName;
@@ -264,6 +266,7 @@ export class ToolExecutor {
         projectRoot: this.projectRoot,
         toolCall,
         pathGrant,
+        bashSandbox,
         createOpenAIClient: this.createOpenAIClient,
         onProcessStart: hooks?.onProcessStart,
         onProcessExit: hooks?.onProcessExit,

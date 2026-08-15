@@ -150,6 +150,16 @@ export {
   type SandboxGeneration,
   type SandboxLease,
 } from "./sandbox/types";
+// P3 sandbox backends
+export type { SandboxBackend, SandboxBackendName, SandboxProbeResult } from "./sandbox/backend/interface";
+export { NoopSandboxBackend } from "./sandbox/backend/noop";
+export {
+  MacosSandboxExecBackend,
+  buildSeatbeltProfile,
+  createMacosBackend,
+  defaultTempWriteRoots,
+} from "./sandbox/backend/macos-sandbox-exec";
+export { detectBashSandboxBackend } from "./sandbox/backend/detect";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";

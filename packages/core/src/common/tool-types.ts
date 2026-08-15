@@ -33,6 +33,21 @@ export type PathGateVerdictRecord = {
   filePath: string;
 };
 
+/**
+ * P3 bash sandbox seam: wraps the bash tool's shell invocation in a
+ * kernel-mediated sandbox (macOS sandbox-exec; bwrap/WSL2 to follow).
+ * Same source as pathGrant — constructed by the session, threaded through
+ * the executor. Returning null runs the shell unwrapped (noop backend).
+ */
+export type BashSandboxSpawner = {
+  readonly backend: string;
+  wrapShell(
+    shellPath: string,
+    shellArgs: string[],
+    cwd: string
+  ): { argv: string[]; env?: Record<string, string> } | null;
+};
+
 export type ToolExecutionContext = {
   sessionId: string;
   projectRoot: string;
@@ -44,6 +59,7 @@ export type ToolExecutionContext = {
    * out-of-project paths.
    */
   pathGrant?: PathGrant;
+  bashSandbox?: BashSandboxSpawner;
   createOpenAIClient?: CreateOpenAIClient;
   onProcessStart?: (processId: string | number, command: string) => void;
   onProcessExit?: (processId: string | number) => void;

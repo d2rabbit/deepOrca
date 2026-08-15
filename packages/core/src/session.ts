@@ -132,6 +132,9 @@ import {
   type ToolCallExecution,
   type ToolExecutionHooks,
 } from "./tools/executor";
+import type { BashSandboxSpawner } from "./common/tool-types";
+import { resolveScopeVerdict } from "./sandbox/policy";
+import { detectBashSandboxBackend } from "./sandbox/backend/detect";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
 import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
@@ -1733,6 +1736,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     this.sessionControllers.clear();
     this.processTimeoutControls.clear();
     this.sessionAuditLogs.clear();
+    this.bashSandboxBySession.clear();
     this.mcpManager.disconnect();
     // Flush any pending debounced index write before teardown.
     this.flushSessionsIndex();
@@ -4482,6 +4486,7 @@ ${content}
   private removeSessionMessages(sessionIds: string[]): void {
     for (const sessionId of sessionIds) {
       this.sessionAuditLogs.delete(sessionId);
+      this.bashSandboxBySession.delete(sessionId);
       const { projectDir } = this.getProjectStorage();
       const auditPath = path.join(projectDir, "audit", `${sessionId}.jsonl`);
       try {
@@ -4836,6 +4841,56 @@ ${content}
     };
   }
 
+  private readonly bashSandboxBySession = new Map<string, BashSandboxSpawner>();
+
+  /**
+   * P3 bash sandbox (design.md §4.5/§4.5 task 19): lazily constructed per
+   * session on the first bash call, same extras channel as pathGrant. The
+   * backend selection — active OR degraded — is written to the session's
+   * audit log; degradation is never silent. The network clause is snapshotted
+   * at construction; settings changes apply to new sessions.
+   */
+  private deriveBashSandbox(sessionId: string, toolCall: PermissionToolCall): BashSandboxSpawner | undefined {
+    const name = toolCall.function.name;
+    if (name !== "bash" && name !== "Bash") {
+      return undefined;
+    }
+    const cached = this.bashSandboxBySession.get(sessionId);
+    if (cached) {
+      return cached;
+    }
+    const audit = this.getSessionAuditLog(sessionId);
+    // Network on ⇒ allow, or ask (a declined ask never reaches execution;
+    // an approved one did). Off ⇒ deny.
+    const networkAllowed = resolveScopeVerdict("network", this.getResolvedSettings().permissions ?? {}) !== "deny";
+    const backend = detectBashSandboxBackend({
+      projectRoot: this.projectRoot,
+      networkAllowed,
+      extraReadRoots: this.getSkillScanRoots().map((entry) => entry.root),
+      onDegradation: (degradation) =>
+        audit.appendSandboxBackend({
+          backend: degradation.backend,
+          outcome: "degraded",
+          detail: degradation.detail,
+        }),
+    });
+    const probe = backend.probe();
+    audit.appendSandboxBackend({
+      backend: backend.name,
+      outcome: probe.available ? "active" : "degraded",
+      detail: probe.detail,
+    });
+    const spawner: BashSandboxSpawner = {
+      backend: backend.name,
+      wrapShell: (shellPath, shellArgs, cwd) => {
+        const wrapped = backend.wrapShell({ shellPath, shellArgs, cwd });
+        return wrapped ? { argv: wrapped.argv, env: wrapped.env } : null;
+      },
+    };
+    this.bashSandboxBySession.set(sessionId, spawner);
+    return spawner;
+  }
+
   private async appendToolMessages(
     sessionId: string,
     toolCalls: unknown[],
@@ -4886,8 +4941,10 @@ ${content}
         continue;
       }
       const pathGrant = this.derivePathGrantForToolCall(sessionId, toolCall);
+      const bashSandbox = this.deriveBashSandbox(sessionId, toolCall);
       const executions = await this.toolExecutor.executeToolCalls(sessionId, [toolCall], hooks, {
         pathGrant,
+        bashSandbox,
       });
       toolExecutions.push(...executions);
     }

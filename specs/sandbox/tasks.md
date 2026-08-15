@@ -89,13 +89,21 @@
 
 ## PR 4+ — P3 三平台进程隔离 + quarantine（任务 15-19、22）
 
-- [ ] `sandbox/backend/interface.ts` + `noop.ts` + `detect.ts`：probe + 降级链，**每次降级落审计 + UI 可见，禁止静默**（约束 6）。
-- [ ] macOS `sandbox-exec` 后端：profile 由 PolicyEngine 从 PathGrant 生成（`deny default` + 子树限定 + network 视 scope）；probe 失败 fail-open 到 noop + 审计告警 + UI 提示。
-- [ ] Linux 系统 bwrap 后端（**不 vendor**，Ubuntu 24.04+ AppArmor 只放行有 profile 的打包二进制）：`--ro-bind / /` 起步、`--bind <projectRoot>` 可写、`--unshare-net` 视 scope、proc/tmpfs 显式声明；AppImage 嵌套 userns 雷区，probe 必须在真实运行环境做。
-- [ ] Windows WSL2 后端：`wsl.exe` 探测 + 专用 distro（`wsl.conf` 关 interop）+ cwd 映射校验（默认 `/mnt/c` 暴露整盘，只承诺 projectRoot 映射内操作）；未装 WSL 是常态 → noop + 诚实宣称。
-- [ ] bash-handler 接隔离器（`bash-handler.ts:161`，经 `ToolExecutionContext` 与 pathGrant 同源；bash 不走 `Spawner`）；后端选择结果（含 probe 失败原因）落审计。
-- [ ] 任务 22 quarantine 信任分级（§十，零新基础设施）：项目级 settings 存 `trusted|quarantine`；quarantine 会话 bash 副作用 scope 全集塞 `forceAskScopes`（plan mode 同款机制）、grant 派生布尔恒 false（out-cwd 读写 fail-closed 全拒）、mcpServers 不自动加载（`settings.ts:640` 合并策略加信任条件）。
+- [x] `sandbox/backend/interface.ts` + `noop.ts` + `detect.ts`（任务 15）：probe + 降级链，**每次降级必经 `onDegradation` 回调**（session 侧落 `sandbox_backend` 审计）；probe 为"编译并真实运行"最小 profile（防 sandbox_init 运行期失败被语法检查漏过）。
+- [x] macOS `sandbox-exec` 后端（任务 16，本机实测定稿）：读侧黑名单（broad read + deny HOME + 项目/skill 根再放行）+ 写侧白名单（projectRoot + temp 根 + 设备字面量）+ **终局 HOME 写围栏**（防 HOME⊂TMPDIR 时被 temp 写根按 last-match-wins 重开——测试运行器实际暴露的边缘）+ network 视 scope。实证约束：`process-fork` 无星号（`process-fork*` 为 unbound variable）、subpath 读白名单方案会 SIGABRT（弃）、zsh 在 deny-default 下无法启动（沙箱内强制 `/bin/bash`）、git 需 `GIT_CONFIG_GLOBAL=/dev/null`（HOME 不可读时 EPERM 致 fatal）。
+- [ ] Linux 系统 bwrap 后端（任务 17，未动工）：`--ro-bind / /` 起步、`--bind <projectRoot>` 可写、`--unshare-net` 视 scope、proc/tmpfs 显式声明；**不 vendor**（Ubuntu 24.04+ AppArmor 只放行有 profile 的打包二进制）；AppImage 嵌套 userns 雷区，probe 必须在真实运行环境做。detect.ts 已登记"未实现"降级记录（不静默）。
+- [ ] Windows WSL2 后端（任务 18，未动工）：`wsl.exe` 探测 + 专用 distro（`wsl.conf` 关 interop）+ cwd 映射校验；未装 WSL 是常态 → noop + 诚实宣称。detect.ts 已登记"未实现"降级记录（不静默）。
+- [x] bash-handler 接隔离器（任务 19）：`ToolExecutionContext.bashSandbox`（与 pathGrant 同 extras 通道）；前台（:161）与后台（:272）两个 spawn 点统一经 `wrapShell` 包装（noop 返回 null → 原样 spawn）；session 侧 `deriveBashSandbox` 惰性构造（仅 bash 调用触发，网络条款快照自 `resolveScopeVerdict("network") !== "deny"`——ask 被拒的调用不会到执行层，故 allow+ask ⇒ on），激活与降级**双落审计**；会话删除/dispose 清缓存。
+- [ ] 任务 22 quarantine 信任分级（未动工，§十零新基础设施）：项目级 settings 存 `trusted|quarantine`；quarantine 会话 bash 副作用 scope 全集塞 `forceAskScopes`、grant 派生布尔恒 false、mcpServers 不自动加载。
 - [ ] 平台能力矩阵（§六）逐格与实现核对后对外宣称。
+
+**P3 本批实测证据**（`tests/sandbox-backend.test.ts` 7 用例，darwin 实跑）：profile 生成纯断言（HOME 写围栏次序/转义/network 条款）×2、noop 语义、detect 降级必报、wrapShell 强制 bash + git env、darwin 实测矩阵（HOME secret 读拒且零泄漏 / 项目内写读 / HOME 越界写拒含 HOME⊂TMPDIR 边缘 / loopback 网络双向——deny 拒 allow 通）、**handler 端到端**（经 `handleBashTool` 完整路径 + 真实沙箱，项目内命令成功、HOME secret 不泄漏）。
+
+**已知边界（登记不阻塞）**：
+1. **降级的 UI 可见性缺口**：降级已落审计（`sandbox_backend` 事件），但 desktop 尚无对应 IPC 事件/提示渲染——需在 `shared/ipc.ts` 加事件 + renderer 提示（下批 desktop 改动）。
+2. **DNS/mach 依赖未验证**：loopback TCP/HTTP 已验证 `network*` 足够；真实 DNS（mDNSResponder mach 服务）在 deny-default 下的行为未测——若沙箱内 DNS 失败需补 `(allow mach-lookup (global-name …))` 细则。
+3. **沙箱内 bash 强制 /bin/bash**：用户 shell 偏好（zsh）在沙箱内被覆盖（zsh 在 deny-default 下无法启动，实证）；wrapped command 为 POSIX，行为等价。
+4. **网络条款按会话快照**：settings 中途修改只对新会话生效（代码已注释）。
 
 ## 独立轨道（不阻塞 PR 1-4）
 
