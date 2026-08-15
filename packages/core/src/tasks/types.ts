@@ -36,6 +36,8 @@ export interface TaskNode {
   meta: {
     createdBy: "user" | "agent" | "memory";
     memorySeed?: { unitIds: string[]; similarity: number; sourceTaskId: string };
+    /** Merge-time artifact collisions — REPORTED for human confirmation, never auto-resolved. */
+    mergeConflicts?: Array<{ artifactRef: string; targetTitle: string }>;
   };
 }
 
@@ -75,4 +77,16 @@ export interface TaskTreeSummary {
   branchCount: number;
   nodeCount: number;
   updatedAt: string;
+}
+
+/** A historical fork proposal surfaced at a decision point (memory-driven fork). */
+export interface MemoryForkCandidate {
+  treeId: string;
+  treeTitle: string;
+  branch: string;
+  forkWhy: string;
+  /** abandoned | merged | open — what happened to that branch. */
+  outcome: "abandoned" | "merged" | "open";
+  similarity: number;
+  sourceNodeId: string;
 }

@@ -112,6 +112,10 @@ spec（8-02）只描绘了管线 A；实现演化出了管线 B：
 - **行为记忆 boot 注入**：`settings.behaviorContext`（默认关）+ host 注入 provider seam（desktop collectors → core 隐藏系统消息），fail-open。
 - **memory 谱系 L2 增量规格**：`specs/task-tree/memory-lineage.md`（单向馈赠 tree→memory，实现列 P2）。
 
+### P2 收官（2026-08-15）
+
+任务树 P2 最小可用环完成（记忆驱动 fork 六步 / 泳道树图 / 冲突清单 / PM-Design 整合；快照切换缓期并记录理由）；真机功能验收通过（CDP 实跑 task.create→step→fork→recall 全链路 + 磁盘/reflog 核验 + rail 挂载确认）。轨迹计划至此收官。
+
 ## 四、落地清单（汇总）
 
 | 优先级 | 事项                                                                                                                      | 归属     |

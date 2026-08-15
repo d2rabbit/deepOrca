@@ -22,7 +22,14 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
-import type { TaskBranch, TaskNode, TaskNodeKind, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "./types";
+import type {
+  MemoryForkCandidate,
+  TaskNode,
+  TaskNodeKind,
+  TaskReflogEntry,
+  TaskTreeIndex,
+  TaskTreeSummary,
+} from "./types";
 
 const INDEX_WRITE_DELAY_MS = 250;
 const TREE_VERSION = 1;
@@ -172,6 +179,14 @@ export class TaskTreeService {
     const why = opts.why.trim();
     if (!why) return null; // a fork without a story is a UI lie — require it
 
+    // Memory seeding (spec §3.2 step 5): the snapshot rides the branch as
+    // context so any consumer of the lineage sees WHY-seeded memory.
+    const seeded = [
+      parent.contextSummary,
+      ...(opts.memorySnapshot?.length ? [`Seeded memory: ${opts.memorySnapshot.join("; ")}`] : []),
+    ]
+      .filter((part): part is string => Boolean(part && part.trim()))
+      .join("\n");
     const node: TaskNode = {
       id: nodeIdFor(parent.id, `${kind}\0${branchName}\0${why}\0${at}`),
       treeId,
@@ -179,7 +194,7 @@ export class TaskTreeService {
       kind,
       title: `${branchName}: ${why}`.slice(0, 120),
       why,
-      contextSummary: parent.contextSummary,
+      ...(seeded ? { contextSummary: seeded } : {}),
       artifactRefs: [...parent.artifactRefs],
       memoryRefs: opts.memorySnapshot ?? [],
       status: "planned",
@@ -283,7 +298,10 @@ export class TaskTreeService {
       memoryRefs: [],
       status: "done",
       createdAt: at,
-      meta: { createdBy: "user" },
+      meta: {
+        createdBy: "user",
+        ...(conflicts.length > 0 ? { mergeConflicts: conflicts } : {}),
+      },
     };
 
     try {
@@ -423,6 +441,64 @@ export class TaskTreeService {
     }
   }
 
+  /**
+   * Memory-driven fork recall (spec §3.2 steps 2-3): scan persisted trees for
+   * historical FORKS whose (task + why) resembles the query, and report what
+   * happened to that branch. Divergence judgment stays with the consumer
+   * (agent/user) — this only surfaces "same crossroads, different choice"
+   * candidates with their outcomes. Token-Jaccard similarity; cheap, offline,
+   * deterministic. Fail-open: any error → empty list.
+   */
+  recallAtDecision(query: string, opts?: { excludeTreeId?: string; topK?: number }): MemoryForkCandidate[] {
+    const topK = opts?.topK ?? 3;
+    const queryTokens = tokenizeTaskText(query);
+    if (queryTokens.size === 0) return [];
+    const candidates: MemoryForkCandidate[] = [];
+    try {
+      for (const summary of this.listTrees()) {
+        if (summary.id === opts?.excludeTreeId) continue;
+        const tree = this.getTree(summary.id);
+        if (!tree) continue;
+        const reflog = this.readReflog(summary.id, 500);
+        const mergedBranches = new Set(
+          reflog
+            .filter((e) => e.op === "append" && (e.detail ?? "").startsWith("merge ←"))
+            .map((e) => (e.detail ?? "").match(/^merge ← (\S+)/)?.[1] ?? "")
+        );
+        // Map each fork node to its branch BY LINEAGE (a fork stops being the
+        // branch head once steps land on it — head equality would miss it).
+        const branchLineage = new Map<string, Set<string>>();
+        for (const branchName of Object.keys(tree.index.branches)) {
+          const headId = tree.index.branches[branchName]?.headId;
+          if (headId) branchLineage.set(branchName, this.lineageOf(summary.id, headId));
+        }
+        for (const node of tree.nodes) {
+          if (node.kind !== "fork" && node.kind !== "memory-spawn") continue;
+          const branch = [...branchLineage.entries()].find(([, lineage]) => lineage.has(node.id))?.[0];
+          if (!branch) continue;
+          const textTokens = tokenizeTaskText(`${tree.index.title} ${node.why}`);
+          if (textTokens.size === 0) continue;
+          const similarity = jaccardTokens(queryTokens, textTokens);
+          if (similarity < 0.1) continue;
+          const abandoned = tree.index.branches[branch]?.abandoned === true;
+          candidates.push({
+            treeId: summary.id,
+            treeTitle: tree.index.title,
+            branch,
+            forkWhy: node.why,
+            outcome: abandoned ? "abandoned" : mergedBranches.has(branch) ? "merged" : "open",
+            similarity,
+            sourceNodeId: node.id,
+          });
+        }
+      }
+    } catch {
+      return []; // fail-open
+    }
+    candidates.sort((a, b) => b.similarity - a.similarity);
+    return candidates.slice(0, topK);
+  }
+
   // ── Persistence (single writer) ────────────────────────────────────────────
 
   private treeDir(treeId: string): string {
@@ -532,4 +608,22 @@ export class TaskTreeService {
       // Journal loss is non-fatal.
     }
   }
+}
+
+/** Tokenize for task-recall similarity: latin words + CJK bigrams, stopword-free (short texts). */
+function tokenizeTaskText(text: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const w of text.toLowerCase().match(/[a-z][a-z0-9_-]{1,}/g) ?? []) tokens.add(w);
+  for (const seg of text.match(/[\u4e00-\u9fff]+/g) ?? []) {
+    for (let i = 0; i < seg.length - 1; i++) tokens.add(seg.slice(i, i + 2));
+  }
+  return tokens;
+}
+
+function jaccardTokens(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const t of a) if (b.has(t)) intersection += 1;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
 }

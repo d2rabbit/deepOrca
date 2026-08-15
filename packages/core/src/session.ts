@@ -119,6 +119,8 @@ import {
   taskListRun,
   taskMergeDefinition,
   taskMergeRun,
+  taskRecallDefinition,
+  taskRecallRun,
   type RunSubagentOptions,
 } from "./actions";
 import { TaskTreeService } from "./tasks/task-tree-service";
@@ -866,6 +868,8 @@ export class SessionManager {
       // taskRef reverse pointer and the branch head's sessionRef.
       activeSessionId: () => this.activeSessionId,
       setSessionTaskRef: (sessionId, ref) => this.setSessionTaskRef(sessionId, ref),
+      getSessionTaskRef: (sessionId) => this.getSession(sessionId)?.taskRef ?? null,
+      appendSessionSystemMessage: (sessionId, text) => this.appendSessionSystemMessage(sessionId, text),
     });
     this.actionRegistry.register(pingDefinition, pingRun);
     // ── Phase 1: code review actions ──────────────────────────────────────
@@ -909,6 +913,7 @@ export class SessionManager {
     this.actionRegistry.register(taskAbandonDefinition, taskAbandonRun);
     this.actionRegistry.register(taskListDefinition, taskListRun);
     this.actionRegistry.register(taskMergeDefinition, taskMergeRun);
+    this.actionRegistry.register(taskRecallDefinition, taskRecallRun);
     this.toolExecutor = new ToolExecutor(
       this.projectRoot,
       this.createOpenAIClient,
@@ -995,6 +1000,16 @@ export class SessionManager {
     }
   }
 
+  /** Hidden system message channel for actions (lineage recycle, hints). Fail-open. */
+  private appendSessionSystemMessage(sessionId: string, text: string): void {
+    try {
+      if (!text.trim()) return;
+      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, text));
+    } catch {
+      // Fail-open: messaging issues never break the calling action.
+    }
+  }
+
   /** Bind/unbind a session entry's taskRef (task.* actions call this via context). */
   private setSessionTaskRef(sessionId: string, ref: { treeId: string; branch: string; nodeId: string } | null): void {
     try {
@@ -1005,6 +1020,65 @@ export class SessionManager {
       }));
     } catch {
       // Binding is best-effort — never block the task action.
+    }
+  }
+
+  /** Sessions that already received a task-recall hint (once per session). */
+  private taskRecallHinted = new Set<string>();
+
+  /**
+   * Decision-point recall hint (spec §3.2 steps 1-4, minimal loop): when
+   * AskUserQuestion executes in a tree-bound session and historical forks
+   * resemble the decision, append a hidden <task-recall-hints> message so the
+   * agent can offer a memory-seeded fork alongside the question. The human
+   * still decides — nothing forks automatically.
+   */
+  private probeTaskRecallAtDecision(sessionId: string, toolFunction: unknown | null): void {
+    try {
+      const fn = toolFunction as { name?: string; arguments?: string | Record<string, unknown> } | null;
+      if (!fn || fn.name !== "AskUserQuestion") return;
+      if (this.taskRecallHinted.has(sessionId)) return;
+      this.taskRecallHinted.add(sessionId);
+      const ref = this.getSession(sessionId)?.taskRef;
+      if (!ref) return;
+      let raw: unknown = null;
+      if (typeof fn.arguments === "string") {
+        raw = (JSON.parse(fn.arguments) as Record<string, unknown>)["questions"];
+      } else if (fn.arguments && typeof fn.arguments === "object") {
+        raw = (fn.arguments as Record<string, unknown>)["questions"];
+      }
+      const query =
+        typeof raw === "string"
+          ? raw
+          : Array.isArray(raw)
+            ? raw
+                .map((q) =>
+                  typeof q === "object" && q !== null
+                    ? Object.values(q as Record<string, unknown>)
+                        .filter((v) => typeof v === "string")
+                        .join(" ")
+                    : ""
+                )
+                .join(" ")
+            : "";
+      if (!query.trim()) return;
+      const svc = this.getTaskTreeService();
+      const candidates = svc?.recallAtDecision(query, { excludeTreeId: ref.treeId }) ?? [];
+      if (candidates.length === 0) return;
+      const lines = candidates
+        .map(
+          (c) =>
+            `- task "${c.treeTitle}" forked "${c.branch}" (${Math.round(c.similarity * 100)}% similar) — why: ${c.forkWhy}; outcome: ${c.outcome}`
+        )
+        .join("\n");
+      this.appendSessionSystemMessage(
+        sessionId,
+        `<task-recall-hints>\nSimilar historical forks exist for the current decision:\n${lines}\n` +
+          `If the user's choice matches one of these directions, you may OFFER task.fork with a memorySnapshot ` +
+          `(proposal only — the user must approve).\n</task-recall-hints>`
+      );
+    } catch {
+      // Fail-open: the hint never breaks the question flow.
     }
   }
 
@@ -4711,6 +4785,10 @@ ${content}
       // session is bound to a task tree, new plan checklist lines become step
       // nodes on the bound branch (matched by title — no duplicates).
       this.materializePlanToTaskTree(sessionId, toolFunction);
+      // Decision-point probe (spec §3.2 step 1): when the agent asks the user
+      // to choose between approaches, surface similar historical forks once
+      // per session as a hidden hint — proposals only, never auto-forks.
+      this.probeTaskRecallAtDecision(sessionId, toolFunction);
 
       for (const followUpMessage of execution.result.followUpMessages ?? []) {
         if (followUpMessage.role !== "system") {

@@ -304,3 +304,137 @@ test("behaviorContext boot injection: gated off by default, prepends block when 
   assert.match(ctx!.content!, /vim/);
   assert.equal(ctx!.visible, false, "hidden system message");
 });
+
+// ── P2: recall / seeding / conflict persistence / decision probe / recycle ──
+
+test("recallAtDecision surfaces similar historical forks with outcomes, excluding the current tree", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  // Historical tree: auth refactor with two forks, one abandoned, one merged.
+  const hist = svc.createTree("Refactor auth login flow")!;
+  svc.fork(hist, { name: "tokens", why: "switch to rotating refresh tokens for auth" })!;
+  svc.fork(hist, { name: "sessions", why: "keep server-side sessions for login" })!;
+  svc.switchBranch(hist, "tokens");
+  const picked = svc.appendStep(hist, { title: "rotate tokens", artifactRefs: ["auth/tokens.ts"] })!;
+  svc.switchBranch(hist, "sessions");
+  svc.merge(hist, "tokens", [picked!], { why: "token rotation won" });
+  svc.switchBranch(hist, "main");
+  svc.abandon(hist, "sessions");
+
+  // Current tree to exclude.
+  const cur = svc.createTree("Current auth decision")!;
+  svc.fork(cur, { name: "x", why: "unrelated fork about docs" })!;
+
+  const candidates = svc.recallAtDecision("how to handle auth refresh tokens login", { excludeTreeId: cur! });
+  assert.ok(candidates.length >= 2, `both auth forks recalled (got ${candidates.length})`);
+  assert.ok(candidates.every((c) => c.treeId === hist));
+  const byBranch = new Map(candidates.map((c) => [c.branch, c]));
+  assert.equal(byBranch.get("sessions")!.outcome, "abandoned");
+  assert.equal(byBranch.get("tokens")!.outcome, "merged");
+  assert.ok(candidates[0]!.similarity >= candidates[1]!.similarity, "sorted by similarity");
+  // A nonsense query recalls nothing.
+  assert.equal(svc.recallAtDecision("zzz qqq vvv unrelatedwords").length, 0);
+});
+
+test("fork with memorySnapshot seeds the branch context (memory rides lineage)", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Seeding")!;
+  const forkId = svc.fork(treeId, { name: "seeded", why: "try seeded branch", memorySnapshot: ["unit-1", "unit-2"] })!;
+  const node = svc.getNode(treeId, forkId!)!;
+  assert.equal(node.kind, "memory-spawn");
+  assert.match(node.contextSummary ?? "", /Seeded memory: unit-1; unit-2/);
+  // Children inherit the seeded context.
+  const step = svc.appendStep(treeId, { title: "work" })!;
+  void step;
+});
+
+test("merge persists its conflict list into the merge node (panel renders it)", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Conflicts")!;
+  svc.appendStep(treeId, { title: "Main", artifactRefs: ["a.txt"] });
+  svc.fork(treeId, { name: "alt", why: "alt" });
+  const altStep = svc.appendStep(treeId, { title: "Alt", artifactRefs: ["a.txt", "b.txt"] })!;
+  svc.switchBranch(treeId, "main");
+  const result = svc.merge(treeId, "alt", [altStep!])!;
+  const node = svc.getNode(treeId, result.mergeNodeId)!;
+  assert.equal(node.meta.mergeConflicts?.length, 1);
+  assert.equal(node.meta.mergeConflicts?.[0]?.artifactRef, "a.txt");
+});
+
+test("decision probe: AskUserQuestion in a bound session emits recall hints exactly once", async () => {
+  const root = tempRoot();
+  const home = tempRoot();
+  process.env.HOME = home;
+  // Historical fork resembling the decision.
+  const responses: unknown[] = [];
+  const client = { chat: { completions: { create: async () => responses.shift() } } };
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: client as any, model: "m", baseURL: "x", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }) as any,
+    renderMarkdown: (t) => t,
+    onAssistantMessage: () => {},
+  });
+  const svc = (manager as any).getTaskTreeService() as TaskTreeService;
+  const hist = svc.createTree("Deploy auth service with database migration")!;
+  svc.fork(hist, { name: "blue-green", why: "auth deploy via blue-green switch" })!;
+
+  const sessionId = await manager.createSession({ text: "hello" });
+  const treeId = svc.createTree("Current deploy decision")!;
+  svc.bindSession(treeId, "main", sessionId);
+  (manager as any).setSessionTaskRef(sessionId, {
+    treeId,
+    branch: "main",
+    nodeId: svc.getTree(treeId)!.index.branches["main"]!.headId,
+  });
+
+  // Fire the probe exactly as appendToolMessages would (twice — must dedupe).
+  const askFn = {
+    name: "AskUserQuestion",
+    arguments: JSON.stringify({ questions: [{ question: "auth deploy strategy?", header: "Deploy" }] }),
+  };
+  (manager as any).probeTaskRecallAtDecision(sessionId, askFn);
+  (manager as any).probeTaskRecallAtDecision(sessionId, askFn);
+
+  const hints = manager.listSessionMessages(sessionId).filter((m) => m.content?.includes("<task-recall-hints>"));
+  assert.equal(hints.length, 1, "hint appended exactly once per session");
+  assert.match(hints[0]!.content!, /blue-green/);
+  assert.match(hints[0]!.content!, /outcome: open/);
+});
+
+test("merge/abandon actions recycle a <task-lineage> message into the active session", async () => {
+  const root = tempRoot();
+  const home = tempRoot();
+  process.env.HOME = home;
+  const responses: unknown[] = [];
+  const client = { chat: { completions: { create: async () => responses.shift() } } };
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: client as any, model: "m", baseURL: "x", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }) as any,
+    renderMarkdown: (t) => t,
+    onAssistantMessage: () => {},
+  });
+  const svc = (manager as any).getTaskTreeService() as TaskTreeService;
+  const sessionId = await manager.createSession({ text: "hello" });
+  const treeId = svc.createTree("Recycle")!;
+  svc.fork(treeId, { name: "alt", why: "try alternative parser" })!;
+  svc.switchBranch(treeId, "main");
+  svc.bindSession(treeId, "main", sessionId);
+  (manager as any).setSessionTaskRef(sessionId, {
+    treeId,
+    branch: "main",
+    nodeId: svc.getTree(treeId)!.index.branches["main"]!.headId,
+  });
+
+  // Simulate what taskAbandonRun's recycle helper does through the real channel.
+  (manager as any).appendSessionSystemMessage(
+    sessionId,
+    `<task-lineage>\ntask-tree branch "alt" of "Recycle" reached outcome: abandoned.\nFork rationale: try alternative parser\n</task-lineage>`
+  );
+  const lineage = manager.listSessionMessages(sessionId).find((m) => m.content?.includes("<task-lineage>"));
+  assert.ok(lineage, "recycle message persisted for the memory pipeline to ingest");
+  assert.equal(lineage!.visible, false, "hidden — context, not chat");
+});

@@ -221,6 +221,10 @@ P0 已落地：`packages/core/src/tasks/`（types + TaskTreeService，单写者 
 
 merge（cherry-pick + 冲突报告不自动裁决）、session 绑定（taskRef 反向指针 + 分支头 sessionRef 单次绑定）、branch 级 resume、Plan Mode 单向物化（标题去重 + 幂等）均已实现并测试（task-tree.test.ts 11 用例）。行为记忆 boot 注入（`settings.behaviorContext`，默认关）同批落地。memory 谱系 L2 增量规格见 `memory-lineage.md`（实现列 P2）。
 
+### P2 落地记录（2026-08-15）
+
+记忆驱动 fork 以**最小可用环**落地（六步全通，但召回用任务树自身持久 + token-Jaccard 而非 L2 谱系字段——谱系回收走"隐藏 <task-lineage> 消息 + 现有记忆 capture"通道，memory 包零改动；memory-lineage.md 的 L2 字段降级为可选增强）。树图 UI 升级为泳道画布（每分支一列、冲突清单 ⚠ 渲染）。PM-Design 整合：materialize 产出 → 绑定分支 step。快照切换缓期（见 tasks.md 理由）。真机验收通过：rail 挂载、task.create/step/fork/recall 经真实 IPC 全链路、磁盘持久化与 reflog 流水核验。
+
 ### 消歧规则：Plan Mode ↔ 树是单向只读物化
 
 UpdatePlan（LLM 拥有）→ appendStep（树服务拥有）为**单向物化**：plan 步骤可投影为 step 节点，但树**永不回写** plan——两者谁是 source of truth 无歧义（plan 是）。双向映射的提案一律拒绝，直到出现 plan 无法表达的树结构需求。

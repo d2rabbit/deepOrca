@@ -1,11 +1,13 @@
 /**
  * TaskTreePanel — the HUMAN-facing view of the agent's task trajectory
- * (specs/task-tree P0, minimal list-style panel).
+ * (specs/task-tree, P2 swimlane upgrade).
  *
  * Design rule from the trajectory exploration: this tree is FOR PEOPLE. Every
  * node renders its `why` — a branch without a story is structure without
- * meaning. Simplified git-graph: indented nodes, branch color bars, abandoned
- * branches greyed out, memory-spawn nodes get a ✦ badge. No DAG canvas (P2).
+ * meaning. Layout: one swimlane column per branch (the "simplified DAG
+ * canvas" of spec §九 P2 — lineage flows top-to-bottom inside a lane), active
+ * lane highlighted, abandoned lanes greyed, merge nodes carry their conflict
+ * confirmation list (⚠, reported-not-resolved), memory-spawn nodes get ✦.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -14,7 +16,7 @@ import { api } from "../api";
 import type { TaskNode, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import { useI18n } from "../i18n";
 
-/** Stable color per branch name (P0: hash-based palette, no config). */
+/** Stable color per branch name (hash-based palette, no config). */
 const BRANCH_COLORS = ["#4f8ef7", "#f7a04f", "#6fcf7c", "#c77fd6", "#ef6f8e", "#f7d24f"];
 function branchColor(name: string): string {
   let hash = 0;
@@ -22,16 +24,25 @@ function branchColor(name: string): string {
   return BRANCH_COLORS[hash % BRANCH_COLORS.length]!;
 }
 
-/** Depth of a node in its lineage (for indentation). */
-function depthOf(node: TaskNode, byId: Map<string, TaskNode>): number {
-  let depth = 0;
-  let cur: TaskNode | undefined = node;
-  while (cur?.parentId) {
-    cur = byId.get(cur.parentId);
-    depth += 1;
-    if (depth > 32) break; // cycle guard
+/** Node lineage of a branch: root → … → head (top-to-bottom). */
+function laneNodes(index: TaskTreeIndex, nodes: TaskNode[], branch: string): TaskNode[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const headId = index.branches[branch]?.headId;
+  const lane: TaskNode[] = [];
+  let cursor = headId ? byId.get(headId) : undefined;
+  let guard = 0;
+  while (cursor && guard < 512) {
+    lane.unshift(cursor);
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    guard += 1;
   }
-  return depth;
+  return lane;
+}
+
+function NodeIcon({ kind }: { kind: TaskNode["kind"] }): JSX.Element {
+  const glyph =
+    kind === "root" ? "🌳" : kind === "fork" || kind === "memory-spawn" ? "⑂" : kind === "merge" ? "⇄" : "·";
+  return kind === "memory-spawn" ? <span title="memory-spawn">✦</span> : <span>{glyph}</span>;
 }
 
 export function TaskTreePanel(): JSX.Element {
@@ -77,7 +88,7 @@ export function TaskTreePanel(): JSX.Element {
     };
   }, [selected]);
 
-  const byId = new Map((detail?.nodes ?? []).map((n) => [n.id, n]));
+  const branches = detail ? Object.keys(detail.index.branches) : [];
 
   return (
     <div className="ui-panel" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -93,7 +104,7 @@ export function TaskTreePanel(): JSX.Element {
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* Tree list */}
-        <div style={{ width: 220, borderRight: "1px solid var(--ui-border-soft, #333)", overflowY: "auto" }}>
+        <div style={{ width: 200, borderRight: "1px solid var(--ui-border-soft, #333)", overflowY: "auto" }}>
           {trees.length === 0 ? (
             <div style={{ padding: 14, fontSize: 12, color: "var(--ui-text-dim)" }}>{t("tasktree.empty")}</div>
           ) : (
@@ -101,7 +112,6 @@ export function TaskTreePanel(): JSX.Element {
               <button
                 key={tree.id}
                 onClick={() => setSelected(tree.id)}
-                className="ui-side-item"
                 style={{
                   display: "block",
                   width: "100%",
@@ -123,8 +133,8 @@ export function TaskTreePanel(): JSX.Element {
           )}
         </div>
 
-        {/* Tree detail */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
+        {/* Swimlane tree canvas */}
+        <div style={{ flex: 1, overflow: "auto", padding: "10px 14px" }}>
           {!detail ? (
             <div style={{ fontSize: 12, color: "var(--ui-text-dim)" }}>
               {trees.length > 0 ? t("tasktree.selectPrompt") : t("tasktree.empty")}
@@ -133,62 +143,86 @@ export function TaskTreePanel(): JSX.Element {
             <>
               <div style={{ marginBottom: 10, fontSize: 13 }}>
                 <strong>{detail.index.title}</strong>
-                <span style={{ marginLeft: 8, fontSize: 11, color: "var(--ui-text-dim)" }}>
-                  {t("tasktree.active")}: {detail.index.activeBranch}
-                </span>
               </div>
-              {detail.nodes.map((node) => {
-                const branchName =
-                  Object.entries(detail.index.branches).find(([, b]) => b.headId === node.id)?.[0] ?? null;
-                const isHead = branchName != null;
-                const depth = depthOf(node, byId);
-                const abandoned = branchName != null && detail.index.branches[branchName]?.abandoned;
-                return (
-                  <div
-                    key={node.id}
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "flex-start",
-                      marginLeft: depth * 18,
-                      marginBottom: 6,
-                      padding: "6px 8px",
-                      borderRadius: 6,
-                      background:
-                        branchName === detail.index.activeBranch
-                          ? "var(--ui-surface-sunken, rgba(128,128,128,0.08))"
-                          : "transparent",
-                      opacity: abandoned ? 0.45 : 1,
-                    }}
-                  >
-                    <span
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: "max-content" }}>
+                {branches.map((branch) => {
+                  const branchEntry = detail.index.branches[branch]!;
+                  const lane = laneNodes(detail.index, detail.nodes, branch);
+                  const isActive = branch === detail.index.activeBranch;
+                  const abandoned = branchEntry.abandoned === true;
+                  const color = branchColor(branch);
+                  return (
+                    <div
+                      key={branch}
                       style={{
-                        marginTop: 3,
-                        width: 8,
-                        height: 8,
-                        borderRadius: 4,
-                        flexShrink: 0,
-                        background: branchColor(branchName ?? node.kind),
+                        width: 210,
+                        borderRadius: 8,
+                        border: `1px solid ${isActive ? color : "var(--ui-border-soft, #333)"}`,
+                        opacity: abandoned ? 0.45 : 1,
+                        background: isActive ? "var(--ui-surface-sunken, rgba(128,128,128,0.06))" : "transparent",
                       }}
-                      title={branchName ?? node.kind}
-                    />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500 }}>
-                        {node.kind === "memory-spawn" ? "✦ " : ""}
-                        {node.kind === "root"
-                          ? "🌳 "
-                          : node.kind === "fork" || node.kind === "memory-spawn"
-                            ? "⑂ "
-                            : "· "}
-                        {node.title}
-                        {isHead ? <span style={{ fontSize: 10, color: "var(--ui-accent)" }}> ⎇</span> : null}
+                    >
+                      <div
+                        style={{
+                          padding: "6px 8px",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color,
+                          borderBottom: `2px solid ${color}`,
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>⎇ {branch}</span>
+                        <span style={{ fontSize: 9, color: "var(--ui-text-dim)" }}>
+                          {abandoned ? t("tasktree.abandoned") : `${lane.length}n`}
+                        </span>
                       </div>
-                      {/* The story — the reason this panel exists for humans. */}
-                      <div style={{ fontSize: 11, color: "var(--ui-text-dim)", marginTop: 2 }}>{node.why}</div>
+                      <div style={{ padding: 6 }}>
+                        {lane.map((node) => {
+                          const conflicts = node.meta?.mergeConflicts ?? [];
+                          return (
+                            <div
+                              key={node.id}
+                              style={{
+                                padding: "5px 6px",
+                                marginBottom: 4,
+                                borderRadius: 6,
+                                background: "var(--ui-surface, rgba(128,128,128,0.08))",
+                                fontSize: 11,
+                              }}
+                            >
+                              <div style={{ fontWeight: 500, display: "flex", gap: 4 }}>
+                                <NodeIcon kind={node.kind} />
+                                <span style={{ wordBreak: "break-word" }}>{node.title}</span>
+                              </div>
+                              <div style={{ color: "var(--ui-text-dim)", marginTop: 2, wordBreak: "break-word" }}>
+                                {node.why}
+                              </div>
+                              {conflicts.length > 0 ? (
+                                <div
+                                  style={{
+                                    marginTop: 4,
+                                    padding: "3px 5px",
+                                    borderRadius: 4,
+                                    background: "rgba(251,191,36,0.12)",
+                                    color: "#fbbf24",
+                                    fontSize: 10,
+                                  }}
+                                  title={t("tasktree.conflictHint")}
+                                >
+                                  ⚠ {t("tasktree.conflicts", { count: conflicts.length })}:{" "}
+                                  {conflicts.map((c) => c.artifactRef).join(", ")}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </>
           )}
         </div>

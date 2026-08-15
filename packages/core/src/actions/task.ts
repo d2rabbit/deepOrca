@@ -212,9 +212,44 @@ export const taskAbandonDefinition: ActionDefinition<TaskAbandonInput> = {
 export const taskAbandonRun: ActionRun<TaskAbandonInput, { ok: boolean; error?: string }> = async (input, ctx) => {
   const svc = service(ctx);
   if (!svc) return { ok: false, error: "task tree service unavailable" };
-  const ok = svc.abandon(input?.treeId?.trim() ?? "", input?.branch?.trim() ?? "");
+  const treeId = input?.treeId?.trim() ?? "";
+  const branch = input?.branch?.trim() ?? "";
+  const ok = svc.abandon(treeId, branch);
+  if (ok) recycleLineageMessage(ctx, treeId, branch, "abandoned", "");
   return ok ? { ok: true } : { ok: false, error: "branch not found or is the active branch" };
 };
+
+/**
+ * Lineage recycle (spec §3.2 step 6): terminal branch events become a hidden
+ * <task-lineage> system message in the active session — the existing memory
+ * capture pipeline ingests it, so "the cost and payoff of forking" enters
+ * long-term memory without any memory-package surgery.
+ */
+function recycleLineageMessage(
+  ctx: ActionContext,
+  treeId: string,
+  branch: string,
+  outcome: "merged" | "abandoned",
+  note: string
+): void {
+  try {
+    const sessionId = ctx.activeSessionId?.();
+    if (!sessionId) return;
+    const svc = ctx.taskTrees?.();
+    const tree = svc?.getTree(treeId);
+    const forkNode = tree?.nodes.find((n) => n.id === tree.index.branches[branch]?.headId) ?? null;
+    const why = forkNode?.why ?? "(fork rationale not recorded)";
+    ctx.appendSessionSystemMessage?.(
+      sessionId,
+      `<task-lineage>\ntask-tree branch "${branch}" of "${tree?.index.title ?? treeId}" reached outcome: ${outcome}.` +
+        `\nFork rationale: ${why}` +
+        (note ? `\nNote: ${note}` : "") +
+        `\n</task-lineage>`
+    );
+  } catch {
+    // Recycle is best-effort.
+  }
+}
 
 export const taskListDefinition: ActionDefinition<Record<string, never>> = {
   id: "task.list",
@@ -282,6 +317,7 @@ export const taskMergeRun: ActionRun<
   if (!result) {
     return { ok: false, error: "merge rejected (tree/branch missing, self-merge, or invalid picks)" };
   }
+  recycleLineageMessage(ctx, treeId, srcBranch, "merged", input.why ?? "");
   return {
     ok: true,
     mergeNodeId: result.mergeNodeId,
@@ -290,5 +326,56 @@ export const taskMergeRun: ActionRun<
           conflicts: result.conflicts,
         }
       : {}),
+  };
+};
+
+export interface TaskRecallInput {
+  query: string;
+  excludeCurrentTree?: boolean;
+}
+
+export const taskRecallDefinition: ActionDefinition<TaskRecallInput> = {
+  id: "task.recall",
+  description:
+    "At a decision point (before choosing between approaches), recall historical task-tree forks similar to the " +
+    "current situation — each candidate carries the fork rationale AND what happened to that branch " +
+    "(merged/abandoned/open). Present them to the user when relevant; a fork proposal needs their approval " +
+    "(task.fork with a memorySnapshot seeds the branch).",
+  category: "tasks",
+  parameters: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "The current task/decision description to match against" },
+      excludeCurrentTree: { type: "boolean", description: "Exclude the current session's tree (default true)" },
+    },
+    required: ["query"],
+    additionalProperties: false,
+  },
+  sideEffects: [],
+};
+
+export const taskRecallRun: ActionRun<
+  TaskRecallInput,
+  { ok: boolean; candidates?: Array<Record<string, unknown>> }
+> = async (input, ctx) => {
+  const svc = service(ctx);
+  if (!svc) return { ok: false };
+  const query = input?.query?.trim();
+  if (!query) return { ok: true, candidates: [] };
+  let excludeTreeId: string | undefined;
+  if (input?.excludeCurrentTree !== false) {
+    const sessionId = ctx.activeSessionId?.();
+    excludeTreeId = sessionId ? (ctx.getSessionTaskRef?.(sessionId)?.treeId ?? undefined) : undefined;
+  }
+  const candidates = svc.recallAtDecision(query, { excludeTreeId });
+  return {
+    ok: true,
+    candidates: candidates.map((c) => ({
+      tree: c.treeTitle,
+      branch: c.branch,
+      why: c.forkWhy,
+      outcome: c.outcome,
+      similarity: Math.round(c.similarity * 100) / 100,
+    })),
   };
 };

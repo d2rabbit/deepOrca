@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能
 
+- **任务树 P2 收官：记忆驱动 fork 闭环 + 泳道树图（轨迹计划完毕）**
+  - **记忆驱动 fork（六步最小环）**：AskUserQuestion 决策点自动埋点（一次/会话）→ `recallAtDecision` 召回相似历史分叉（token-Jaccard + 世系映射，带 merged/abandoned/open 结局）→ 隐藏 `<task-recall-hints>` 提示 agent 可提议 → `task.recall` Action 供主动查询 → `task.fork(memorySnapshot)` 播种（memory-spawn ✦，快照注入分支 contextSummary）→ merge/abandon 写 `<task-lineage>` 隐藏消息经现有记忆 capture 回收（**memory 包零改动**）
+  - **泳道式树图**：面板升级为每分支一列的简化 DAG 画布（世系自上而下、active 高亮、abandoned 灰显）；merge 冲突清单持久化进节点 meta 并以 ⚠ 渲染（报告不裁决）
+  - **PM-Design 整合**：design.materialize 在绑定会话中产出 → 分支 step 节点（需求变更 = fork 而非重跑）
+  - 真机验收：rail 挂载 + task.create/step/fork/recall 真实 IPC 全链路 + 磁盘/reflog 流水核验
+  - artifact 快照切换明确缓期（理由记录于 tasks.md）
+
 - **任务树 P1 + 行为记忆 boot 注入（轨迹计划续执行）**
   - **task.merge**（cherry-pick）：从源分支挑选节点合并到 active 分支（artifact 引用转移、picks 优先）；**冲突只报告不自动裁决**——同名 artifact 返回冲突清单供人确认；merge 节点进树与面板（⇄ 图标）
   - **会话绑定**：SessionEntry 扩展 `taskRef` 反向指针（treeId/branch/nodeId + normalize 防伪）；task.create/fork 在会话内自动绑定；分支头 `sessionRef` 单次绑定防会话抢占

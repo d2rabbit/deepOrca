@@ -180,6 +180,21 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         prompt: promptForTool,
       });
       ctx.emit({ message: "✅ 完成", percent: 100 });
+      // Task-tree integration (spec §八 PM-Design = first consumer): when the
+      // session is bound to a task branch, the materialized design becomes a
+      // step on that branch — requirement changes then read as forks, not reruns.
+      try {
+        const sessionId = ctx.activeSessionId?.();
+        const ref = sessionId ? ctx.getSessionTaskRef?.(sessionId) : undefined;
+        if (ref) {
+          ctx.taskTrees?.()?.appendStep(ref.treeId, {
+            title: `Design materialized: ${requirement.slice(0, 80)}`,
+            why: `design.materialize produced a ${route.pipeline} artifact for this branch.`,
+          });
+        }
+      } catch {
+        // Best-effort — the materialize result stands without the tree step.
+      }
       return {
         ok: true,
         pipeline: route.pipeline,

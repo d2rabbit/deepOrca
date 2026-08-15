@@ -116,6 +116,12 @@ export interface ActionContext {
     sessionId: string,
     ref: { treeId: string; branch: string; nodeId: string } | null
   ) => void;
+  /** Read a session's taskRef binding (PM-Design / materialize integration). */
+  readonly getSessionTaskRef?: (
+    sessionId: string
+  ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
+  /** Append a hidden system message to a session (lineage recycle channel). */
+  readonly appendSessionSystemMessage?: (sessionId: string, text: string) => void;
 }
 
 export interface RunSubagentOptions {

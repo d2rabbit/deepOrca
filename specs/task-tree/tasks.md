@@ -20,9 +20,10 @@
 - [x] Plan Mode 步骤物化（单向只读，§十一 规则；标题去重、计划内重复行折叠、幂等）
 - [x] memory 谱系：L2 增量 spec 先行 → `specs/task-tree/memory-lineage.md`（实现列 P2）
 
-## P2（未开始）
+## P2（2026-08-15 完成，快照切换除外）
 
-- [ ] 记忆驱动 fork 六步闭环（埋点→召回→分歧→提议→播种→回收）
-- [ ] 树图 UI（分支色条升级为简化 DAG 画布）
-- [ ] PM-Design 工作台整合（design.materialize = branch 产出）
-- [ ] artifact 快照切换（file-history 复用）
+- [x] 记忆驱动 fork 闭环（最小可用环）：①埋点 = AskUserQuestion 触发 `probeTaskRecallAtDecision`（一次/会话，隐藏 <task-recall-hints> 提示）；②召回 = `TaskTreeService.recallAtDecision`（token-Jaccard，世系映射 fork→分支）；③分歧判断留给 agent/人（候选带 outcome）；④提议 = task.recall Action 输出候选；⑤播种 = fork(memorySnapshot) 注入 contextSummary（memory-spawn ✦）；⑥回收 = merge/abandon 经 `appendSessionSystemMessage` 写 <task-lineage> 隐藏消息——现有记忆 capture 管道自然摄取，**零 memory 包改动**（memory-lineage.md 的 L2 字段实现因此降级为可选增强）
+- [x] 树图 UI：泳道式画布（每分支一列、世系自上而下、active 高亮、abandoned 灰显、⚠ 冲突清单渲染、✦ 徽章）
+- [x] merge 冲突确认清单：冲突持久化进 merge 节点 meta + 面板渲染
+- [x] PM-Design 整合：design.materialize 在绑定会话中产出 → 分支 step 节点
+- [ ] artifact 快照切换（file-history 复用）——**明确缓期**：需按分支管理文件快照模式，改动面大且与 file-history 的 per-session 语义冲突，待出现真实需求再立项

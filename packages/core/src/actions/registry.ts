@@ -56,6 +56,10 @@ export interface RegistryHost {
     sessionId: string,
     ref: { treeId: string; branch: string; nodeId: string } | null
   ) => void;
+  readonly getSessionTaskRef?: (
+    sessionId: string
+  ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
+  readonly appendSessionSystemMessage?: (sessionId: string, text: string) => void;
 }
 
 /** Options passed to {@link ActionRegistry.execute}. */
@@ -101,6 +105,10 @@ export class ActionRegistry {
     sessionId: string,
     ref: { treeId: string; branch: string; nodeId: string } | null
   ) => void;
+  private readonly getTaskRef?: (
+    sessionId: string
+  ) => { treeId: string; branch: string; nodeId: string } | null | undefined;
+  private readonly appendSysMessage?: (sessionId: string, text: string) => void;
 
   constructor(host: RegistryHost) {
     this.projectRoot = host.projectRoot;
@@ -111,6 +119,8 @@ export class ActionRegistry {
     this.taskTreeProvider = host.taskTrees;
     this.activeSessionProvider = host.activeSessionId;
     this.setTaskRef = host.setSessionTaskRef;
+    this.getTaskRef = host.getSessionTaskRef;
+    this.appendSysMessage = host.appendSessionSystemMessage;
   }
 
   /**
@@ -212,6 +222,8 @@ export class ActionRegistry {
         taskTrees: this.taskTreeProvider,
         activeSessionId: this.activeSessionProvider,
         setSessionTaskRef: this.setTaskRef,
+        getSessionTaskRef: this.getTaskRef,
+        appendSessionSystemMessage: this.appendSysMessage,
       };
       try {
         return (await entry.run(input, ctx)) as O;
