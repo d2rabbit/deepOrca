@@ -767,6 +767,13 @@ export const en = {
   "lang.zh-HK": "繁體中文（香港）",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
+  "trust.title": "Trust this workspace?",
+  "trust.body":
+    "Untrusted repositories can run arbitrary commands via project settings and bash. Quarantine mode denies out-of-project reads/writes outright, force-asks every bash command when no sandbox backend is available, and skips project-level MCP servers.",
+  "trust.trusted": "Trust — my own project",
+  "trust.quarantine": "Quarantine — untrusted repository",
+  "trust.applied.quarantine": "Quarantine enabled. Already-running project MCP servers stop after an app restart.",
+  "sandbox.degradedToast": "Bash sandbox unavailable ({backend}): {detail}",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1521,6 +1528,13 @@ export const zh: Record<MessageKey, string> = {
   "lang.zh-HK": "繁體中文（香港）",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
+  "trust.title": "信任此工作区？",
+  "trust.body":
+    "不可信仓库可通过项目配置与 bash 执行任意命令。隔离模式将直接拒绝项目外读写、无沙箱后端时逐条询问 bash 命令，并跳过项目级 MCP 服务器。",
+  "trust.trusted": "信任 — 我自己的项目",
+  "trust.quarantine": "隔离 — 不可信仓库",
+  "trust.applied.quarantine": "已启用隔离模式。已运行的项目级 MCP 服务器将在重启应用后停用。",
+  "sandbox.degradedToast": "Bash 沙箱不可用（{backend}）：{detail}",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

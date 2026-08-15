@@ -17,6 +17,7 @@ import type {
   SerializableSessionEntry,
   SessionMessage,
   UserPromptContent,
+  WorkspaceTrustLevel,
 } from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
@@ -54,6 +55,7 @@ import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel } from "./components/ProcessOutputPanel";
 import { TaskProgressPanel } from "./components/TaskProgressPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
 import { buildToolSummary, getPlanLines } from "./lib/messages";
@@ -132,6 +134,8 @@ function syntheticUserMessage(sessionId: string, content: string): SessionMessag
 export function App(): JSX.Element {
   const { t } = useI18n();
   const { toasts, push: pushToast } = useToasts();
+  const [trustAskOpen, setTrustAskOpen] = useState(false);
+  const [trustBusy, setTrustBusy] = useState(false);
   const [projectRoot, setProjectRoot] = useState("");
   // Home dir reported by main — used to detect the fresh-install fallback root
   // so the UI never presents the user's home as a real workspace.
@@ -307,6 +311,38 @@ export function App(): JSX.Element {
   );
 
   // ── Startup + event wiring ───────────────────────────────────────────────────
+  // First-open workspace trust question (specs/sandbox/design.md §10.3):
+  // explicit=false means the project was never asked — show the dialog once.
+  const checkWorkspaceTrust = useCallback(async () => {
+    try {
+      const status = await api.getWorkspaceTrust();
+      if (!status.explicit) {
+        setTrustAskOpen(true);
+      }
+    } catch (error) {
+      console.error("[trust] getWorkspaceTrust failed:", error);
+    }
+  }, []);
+
+  const handleTrustSelect = useCallback(
+    async (level: WorkspaceTrustLevel) => {
+      setTrustBusy(true);
+      try {
+        await api.setWorkspaceTrust(level);
+        setTrustAskOpen(false);
+        if (level === "quarantine") {
+          pushToast("info", t("trust.applied.quarantine"));
+        }
+        await refreshSettings();
+      } catch (error) {
+        pushToast("error", error instanceof Error ? error.message : String(error));
+      } finally {
+        setTrustBusy(false);
+      }
+    },
+    [pushToast, refreshSettings, t]
+  );
+
   useEffect(() => {
     let disposed = false;
     void (async () => {
@@ -318,6 +354,7 @@ export function App(): JSX.Element {
         setPlatform(plat);
         initAppearanceFromPlatform(plat);
         await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
+        await checkWorkspaceTrust();
         const active = await api.getActiveSession();
         if (!disposed && active) {
           await loadSession(active);
@@ -427,11 +464,19 @@ export function App(): JSX.Element {
         pushToast("error", `${event.payload.source}: ${event.payload.error}`);
       }
     });
+    const offSandbox = api.onSandboxStatusChanged((event) => {
+      // Degradation must be visible (design constraint 6) — the audit log
+      // already records it; this surfaces it to the user.
+      if (event.outcome === "degraded") {
+        pushToast("error", t("sandbox.degradedToast", { backend: event.backend, detail: event.detail }));
+      }
+    });
     const offRoot = api.onProjectRootChanged((root) => {
       setProjectRoot(root);
       void (async () => {
         try {
           await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
+          await checkWorkspaceTrust();
           const pending = pendingSelectRef.current;
           pendingSelectRef.current = null;
           await loadSession(pending);
@@ -451,6 +496,7 @@ export function App(): JSX.Element {
       offStreamProgress();
       offMcp();
       offPlugin();
+      offSandbox();
       offRoot();
       // Cancel any pending throttled stream-progress flush so a detached timer
       // can't call setStreamProgress after the effect (and possibly the App)
@@ -1434,6 +1480,10 @@ export function App(): JSX.Element {
       ) : null}
 
       {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}
+
+      {trustAskOpen ? (
+        <WorkspaceTrustDialog busy={trustBusy} onSelect={(level) => void handleTrustSelect(level)} />
+      ) : null}
 
       {branchConflict ? (
         <Modal

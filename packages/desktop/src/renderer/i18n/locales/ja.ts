@@ -762,4 +762,13 @@ export const ja: Record<MessageKey, string> = {
   "lang.zh-HK": "繁體中文（香港）",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
+  // ── Workspace trust / sandbox ────────────────────────────
+  "trust.title": "このワークスペースを信頼しますか？",
+  "trust.body":
+    "信頼できないリポジトリはプロジェクト設定や bash 経由で任意のコマンドを実行できます。隔離モードではプロジェクト外の読み書きを即時拒否し、サンドボックスバックエンドがない場合は bash コマンドを毎回確認し、プロジェクトレベルの MCP サーバーを読み込みません。",
+  "trust.trusted": "信頼 — 自分のプロジェクト",
+  "trust.quarantine": "隔離 — 信頼できないリポジトリ",
+  "trust.applied.quarantine":
+    "隔離モードを有効にしました。実行中のプロジェクト MCP サーバーはアプリ再起動後に停止します。",
+  "sandbox.degradedToast": "Bash サンドボックス利用不可（{backend}）：{detail}",
 };

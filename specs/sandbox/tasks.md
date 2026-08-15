@@ -100,13 +100,13 @@
   - **bash 无后端必问**：`computeToolCallPermissions` 新增 `forceAskTools`（按工具名整体 force-ask，deny 仍优先）——scope 级 forceAsk 无法表达"每条 bash 都问"（bash 的副作用 scope 名与文件工具同命名空间，scope 集会误伤同轮 write/read），这是对设计"一行编排"设想的施工修正；session 侧 `quarantined && !probe.available ⇒ ["bash"]`，后端探针经 `getOrCreateBashBackend` 缓存复用（权限计划期即可用）。
   - **grant 收紧**：`grantOutsideRootsFlags(scopes, quarantined)`——quarantine 下布尔恒 false（执行侧保险带，权限层已拒）。
   - **测试**（`tests/quarantine.test.ts` 5 用例）：clamp 拒越界（含显式 allow 授权也被拒）+ 根内照常 + deny 去重形状；forceAskTools 同轮 bash×2（含别名 Bash）全问 + write 不受影响；deny 优先不被 forceAsk 升级；grant 布尔 clamp；settings 解析（trusted 加载项目服务器 / quarantine 跳过 / 非法值回退 trusted）。
-  - 已知边界：首次打开项目时"询问信任级别"的 UI 属 desktop 改动（与降级 UI 可见性同批）；当前信任级别只能手工编辑项目 settings.json。
+  - ~~已知边界：首次打开询问信任级别的 UI~~ ✅ 已闭环（desktop UI 批次）：`IpcRequest.WorkspaceTrustGet/Set`（set 走特权通道）+ preload 暴露 + App.tsx 首开/切项目时 `getWorkspaceTrust().explicit === false` 弹 `WorkspaceTrustDialog`（六语言），选择后写项目 settings 并 refreshSettings；quarantine 选择提示"已运行的项目级 MCP 服务器重启后停用"。bridge 侧抽取纯 helper `readWorkspaceTrustStatus`/`writeWorkspaceTrust`（无需 Electron 可测，`tests/workspace-trust.test.ts` round-trip）；`SettingsSummary.workspaceTrust` 供 UI 徽标。core 侧 `tests/sandbox-status.test.ts` 锁定回调契约（最终结果通知 + 缓存去重 + 降级必报）。
 - [ ] 平台能力矩阵（§六）逐格与实现核对后对外宣称。
 
 **P3 本批实测证据**（`tests/sandbox-backend.test.ts` 7 用例，darwin 实跑）：profile 生成纯断言（HOME 写围栏次序/转义/network 条款）×2、noop 语义、detect 降级必报、wrapShell 强制 bash + git env、darwin 实测矩阵（HOME secret 读拒且零泄漏 / 项目内写读 / HOME 越界写拒含 HOME⊂TMPDIR 边缘 / loopback 网络双向——deny 拒 allow 通）、**handler 端到端**（经 `handleBashTool` 完整路径 + 真实沙箱，项目内命令成功、HOME secret 不泄漏）。
 
 **已知边界（登记不阻塞）**：
-1. **降级的 UI 可见性缺口**：降级已落审计（`sandbox_backend` 事件），但 desktop 尚无对应 IPC 事件/提示渲染——需在 `shared/ipc.ts` 加事件 + renderer 提示（下批 desktop 改动）。
+1. ~~**降级的 UI 可见性缺口**~~ ✅ 已闭环（desktop UI 批次）：core `SessionManagerOptions.onSandboxStatusChanged`（active/degraded 双通知，缓存去重）→ session-bridge 发射 `IpcEvent.SandboxStatusChanged` → preload `onSandboxStatusChanged` → App.tsx 降级 toast（六语言 i18n `sandbox.degradedToast`）。
 2. **DNS/mach 依赖未验证**：loopback TCP/HTTP 已验证 `network*` 足够；真实 DNS（mDNSResponder mach 服务）在 deny-default 下的行为未测——若沙箱内 DNS 失败需补 `(allow mach-lookup (global-name …))` 细则。
 3. **沙箱内 bash 强制 /bin/bash**：用户 shell 偏好（zsh）在沙箱内被覆盖（zsh 在 deny-default 下无法启动，实证）；wrapped command 为 POSIX，行为等价。
 4. **网络条款按会话快照**：settings 中途修改只对新会话生效（代码已注释）。

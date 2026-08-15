@@ -53,6 +53,7 @@ import type {
 import { existsSync, realpathSync } from "node:fs";
 import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
+import type { WorkspaceTrustLevel, WorkspaceTrustStatus } from "../shared/ipc.js";
 import type {
   AgentChangeFile,
   DiffPayload,
@@ -201,6 +202,21 @@ function isSerializableProcess(value: unknown): value is SerializableProcess {
   return typeof v.pid === "string" && typeof v.startTime === "string" && typeof v.command === "string";
 }
 
+/** Trust state for the UI: `explicit: false` means never asked (first open). */
+export function readWorkspaceTrustStatus(root: string): WorkspaceTrustStatus {
+  const explicitTrust = readProjectSettings(root)?.workspaceTrust;
+  return {
+    level: resolveCurrentSettings(root).workspaceTrust,
+    explicit: explicitTrust === "trusted" || explicitTrust === "quarantine",
+  };
+}
+
+/** Trust is inherently project-level — always writes the project file. */
+export function writeWorkspaceTrust(level: WorkspaceTrustLevel, root: string): void {
+  const raw = readProjectSettings(root) ?? {};
+  writeProjectSettings({ ...raw, workspaceTrust: level }, root);
+}
+
 export function toSettingsSummary(root: string): SettingsSummary {
   const s = resolveCurrentSettings(root);
   return {
@@ -216,6 +232,7 @@ export function toSettingsSummary(root: string): SettingsSummary {
     secondaryEndpointId: s.secondaryEndpointId,
     visionModel: s.visionModel,
     visionEndpointId: s.visionEndpointId,
+    workspaceTrust: s.workspaceTrust,
   };
 }
 
@@ -237,6 +254,11 @@ export class SessionBridge {
     // authorized out-of-roots write is not affected.
     configureFileUtilsWriteBoundary([realpathSync(projectRoot)]);
     return new SessionManager({
+      // Sandbox degradation must be visible (design constraint 6): the
+      // audit log records it, this event surfaces it in the renderer.
+      onSandboxStatusChanged: (status) => {
+        this.emit(IpcEvent.SandboxStatusChanged, status);
+      },
       projectRoot,
       createOpenAIClient: () => createOpenAIClient(projectRoot),
       getResolvedSettings: () => resolveCurrentSettings(projectRoot),
@@ -468,6 +490,14 @@ export class SessionBridge {
 
   getSettings(): SettingsSummary {
     return toSettingsSummary(this.projectRoot);
+  }
+
+  getWorkspaceTrust(): WorkspaceTrustStatus {
+    return readWorkspaceTrustStatus(this.projectRoot);
+  }
+
+  setWorkspaceTrust(level: WorkspaceTrustLevel): void {
+    writeWorkspaceTrust(level, this.projectRoot);
   }
 
   private resolveSaveTarget(): "user" | "project" {

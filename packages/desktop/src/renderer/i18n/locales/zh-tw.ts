@@ -753,4 +753,12 @@ export const zhTW: Record<MessageKey, string> = {
   "lang.zh-HK": "繁體中文（香港）",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
+  // ── Workspace trust / sandbox ────────────────────────────
+  "trust.title": "信任此工作區？",
+  "trust.body":
+    "不可信儲存庫可透過專案設定與 bash 執行任意命令。隔離模式將直接拒絕專案外讀寫、無沙箱後端時逐條詢問 bash 命令，並跳過專案級 MCP 伺服器。",
+  "trust.trusted": "信任 — 我自己的專案",
+  "trust.quarantine": "隔離 — 不可信儲存庫",
+  "trust.applied.quarantine": "已啟用隔離模式。執行中的專案級 MCP 伺服器將在重新啟動應用後停用。",
+  "sandbox.degradedToast": "Bash 沙箱不可用（{backend}）：{detail}",
 };

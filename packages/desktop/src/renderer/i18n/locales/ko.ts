@@ -758,4 +758,12 @@ export const ko: Record<MessageKey, string> = {
   "lang.zh-HK": "繁體中文（香港）",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
+  // ── Workspace trust / sandbox ────────────────────────────
+  "trust.title": "이 워크스페이스를 신뢰합니까?",
+  "trust.body":
+    "신뢰할 수 없는 저장소는 프로젝트 설정과 bash를 통해 임의 명령을 실행할 수 있습니다. 격리 모드는 프로젝트 외부 읽기/쓰기를 즉시 거부하고, 샌드박스 백엔드가 없으면 bash 명령을 매번 확인하며, 프로젝트 수준 MCP 서버를 건너뜁니다.",
+  "trust.trusted": "신뢰 — 내 프로젝트",
+  "trust.quarantine": "격리 — 신뢰할 수 없는 저장소",
+  "trust.applied.quarantine": "격리 모드가 활성화되었습니다. 실행 중인 프로젝트 MCP 서버는 앱 재시작 후 중지됩니다.",
+  "sandbox.degradedToast": "Bash 샌드박스 사용 불가({backend}): {detail}",
 };

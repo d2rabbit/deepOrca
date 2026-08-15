@@ -51,6 +51,7 @@ import type {
   MemoryPipelineStats,
   UndoRestoreMode,
   WikiPageEntry,
+  WorkspaceTrustLevel,
 } from "../shared/ipc.js";
 import { SessionBridge } from "./session-bridge.js";
 import { applyAppIcon } from "./app-icon.js";
@@ -778,6 +779,13 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
     return result;
   });
   handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
+
+  handle(IpcRequest.WorkspaceTrustGet, () => getBridge().getWorkspaceTrust());
+  // Trust switches the quarantine clamps (permissions live-re-read) — a
+  // privileged write, same class as settings updates.
+  handlePrivileged(IpcRequest.WorkspaceTrustSet, (level: WorkspaceTrustLevel) => {
+    getBridge().setWorkspaceTrust(level);
+  });
 
   handle(IpcRequest.McpStatus, () => getPluginManager().getMcpStatus());
   // McpReconnect spawns/restarts MCP server processes.

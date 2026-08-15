@@ -154,7 +154,12 @@ export {
 export { applyQuarantinePermissionClamp, QUARANTINE_DENIED_SCOPES } from "./common/permissions";
 
 // P3 sandbox backends
-export type { SandboxBackend, SandboxBackendName, SandboxProbeResult } from "./sandbox/backend/interface";
+export type {
+  SandboxBackend,
+  SandboxBackendName,
+  SandboxProbeResult,
+  SandboxBackendStatus,
+} from "./sandbox/backend/interface";
 export { NoopSandboxBackend } from "./sandbox/backend/noop";
 export {
   MacosSandboxExecBackend,

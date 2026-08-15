@@ -30,3 +30,12 @@ export interface SandboxBackend {
   /** null ⇒ backend cannot wrap this invocation; caller runs unwrapped. */
   wrapShell(request: SandboxWrapRequest): SandboxWrapResult | null;
 }
+
+/** Backend selection outcome for one session, surfaced to the host (audit +
+ * UI notice — degradation must never be silent, design constraint 6). */
+export type SandboxBackendStatus = {
+  sessionId: string;
+  backend: SandboxBackendName;
+  outcome: "active" | "degraded";
+  detail: string;
+};

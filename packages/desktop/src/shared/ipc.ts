@@ -54,6 +54,8 @@ export const IpcRequest = {
   SettingsGet: "settings:get",
   SettingsGetEditable: "settings:getEditable",
   SettingsUpdate: "settings:update",
+  WorkspaceTrustGet: "workspace:getTrust",
+  WorkspaceTrustSet: "workspace:setTrust",
   ModelSet: "model:set",
 
   McpStatus: "mcp:status",
@@ -195,6 +197,8 @@ export const IpcEvent = {
   A2uiWindowPayload: "event:a2uiWindowPayload",
   /** defineAction progress stream (unified; payload carries actionId). */
   ActionProgress: "event:actionProgress",
+  /** Sandbox backend selection outcome per session (degradation is never silent). */
+  SandboxStatusChanged: "event:sandboxStatusChanged",
 } as const;
 
 /** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
@@ -482,6 +486,23 @@ export type DesignArtifact = DesignArtifactMeta & {
   content: string;
 };
 
+/** Workspace trust level (specs/sandbox/design.md §10.3), project-level setting. */
+export type WorkspaceTrustLevel = "trusted" | "quarantine";
+
+/** Trust state as seen by the UI: `explicit: false` means never asked (first open). */
+export type WorkspaceTrustStatus = {
+  level: WorkspaceTrustLevel;
+  explicit: boolean;
+};
+
+/** Sandbox backend outcome for one session (mirrors core SandboxBackendStatus). */
+export type SandboxStatusEvent = {
+  sessionId: string;
+  backend: string;
+  outcome: "active" | "degraded";
+  detail: string;
+};
+
 export type SettingsSummary = {
   model: string;
   baseURL: string;
@@ -496,6 +517,7 @@ export type SettingsSummary = {
   secondaryEndpointId: string;
   visionModel: string;
   visionEndpointId: string;
+  workspaceTrust: WorkspaceTrustLevel;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -624,6 +646,9 @@ export type DesktopApi = {
   mcpStatus(): Promise<McpServerStatus[]>;
   mcpReconnect(name: string): Promise<void>;
 
+  getWorkspaceTrust(): Promise<WorkspaceTrustStatus>;
+  setWorkspaceTrust(level: WorkspaceTrustLevel): Promise<void>;
+
   listUndoTargets(sessionId: string): Promise<UndoTarget[]>;
   restoreUndo(sessionId: string, messageId: string, mode: UndoRestoreMode): Promise<{ ok: boolean; error?: string }>;
 
@@ -653,6 +678,7 @@ export type DesktopApi = {
   onProcessStdout(cb: (event: ProcessStdoutEvent) => void): () => void;
   onProjectRootChanged(cb: (root: string) => void): () => void;
   onPluginEvent(cb: (event: PluginEventPayload) => void): () => void;
+  onSandboxStatusChanged(cb: (event: SandboxStatusEvent) => void): () => void;
 
   // ── File scanning (for @file mentions) ──────────────────────────────────
   /** Scan workspace files matching a query. Returns up to 20 results. */

@@ -44,6 +44,8 @@ const api: DesktopApi = {
   setModel: (selection) => ipcRenderer.invoke(IpcRequest.ModelSet, selection),
 
   mcpStatus: () => ipcRenderer.invoke(IpcRequest.McpStatus),
+  getWorkspaceTrust: () => ipcRenderer.invoke(IpcRequest.WorkspaceTrustGet),
+  setWorkspaceTrust: (level) => ipcRenderer.invoke(IpcRequest.WorkspaceTrustSet, level),
   mcpReconnect: (name) => ipcRenderer.invoke(IpcRequest.McpReconnect, name),
 
   listUndoTargets: (sessionId) => ipcRenderer.invoke(IpcRequest.UndoList, sessionId),
@@ -65,6 +67,7 @@ const api: DesktopApi = {
 
   // ── Events ────────────────────────────────────────────────────────────────
   onMcpStatusChanged: (cb) => subscribe(IpcEvent.McpStatusChanged, cb as (p: never) => void),
+  onSandboxStatusChanged: (cb) => subscribe(IpcEvent.SandboxStatusChanged, cb as (p: never) => void),
   onProcessStdout: (cb) => subscribe(IpcEvent.ProcessStdout, cb as (p: never) => void),
   onProjectRootChanged: (cb) => subscribe(IpcEvent.ProjectRootChanged, cb as (p: never) => void),
   onPluginEvent: (cb) => subscribe(IpcEvent.PluginEvent, cb as (p: never) => void),

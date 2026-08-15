@@ -135,7 +135,7 @@ import {
 import type { BashSandboxSpawner } from "./common/tool-types";
 import { resolveScopeVerdict } from "./sandbox/policy";
 import { detectBashSandboxBackend } from "./sandbox/backend/detect";
-import type { SandboxBackend, SandboxProbeResult } from "./sandbox/backend/interface";
+import type { SandboxBackend, SandboxBackendStatus, SandboxProbeResult } from "./sandbox/backend/interface";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
 import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
@@ -638,6 +638,8 @@ type SessionManagerOptions = {
   /** Behavioral-memory provider (activity-frames pipeline B, host-injected). Returns a compact context block or null. */
   buildBehaviorContext?: () => string | null;
   onMcpStatusChanged?: () => void;
+  /** Sandbox backend selection outcome per session (active or degraded). */
+  onSandboxStatusChanged?: (status: SandboxBackendStatus) => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
 };
 
@@ -780,6 +782,7 @@ export class SessionManager {
   private readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
   private readonly buildBehaviorContext?: () => string | null;
   private readonly onMcpStatusChanged?: () => void;
+  private readonly onSandboxStatusChanged?: (status: SandboxBackendStatus) => void;
   private readonly onProcessStdout?: (pid: number, chunk: string) => void;
   private activeSessionId: string | null = null;
   private activePromptController: AbortController | null = null;
@@ -856,6 +859,7 @@ export class SessionManager {
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
+    this.onSandboxStatusChanged = options.onSandboxStatusChanged;
     this.buildBehaviorContext = options.buildBehaviorContext;
     this.onProcessStdout = options.onProcessStdout;
     // ActionRegistry must be constructed before ToolExecutor (which dispatches
@@ -4913,19 +4917,24 @@ ${content}
       projectRoot: this.projectRoot,
       networkAllowed,
       extraReadRoots: this.getSkillScanRoots().map((entry) => entry.root),
-      onDegradation: (degradation) =>
+      onDegradation: (degradation) => {
         audit.appendSandboxBackend({
           backend: degradation.backend,
           outcome: "degraded",
           detail: degradation.detail,
-        }),
+        });
+        this.onSandboxStatusChanged?.({
+          sessionId,
+          backend: degradation.backend,
+          outcome: "degraded",
+          detail: degradation.detail,
+        });
+      },
     });
     const probe = backend.probe();
-    audit.appendSandboxBackend({
-      backend: backend.name,
-      outcome: probe.available ? "active" : "degraded",
-      detail: probe.detail,
-    });
+    const outcome = probe.available ? "active" : "degraded";
+    audit.appendSandboxBackend({ backend: backend.name, outcome, detail: probe.detail });
+    this.onSandboxStatusChanged?.({ sessionId, backend: backend.name, outcome, detail: probe.detail });
     const entry = { backend, probe };
     this.bashBackendBySession.set(sessionId, entry);
     return entry;
