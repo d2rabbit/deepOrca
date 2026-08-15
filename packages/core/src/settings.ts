@@ -116,6 +116,14 @@ export type DeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions?: PermissionSettings;
+  /**
+   * Workspace trust level (specs/sandbox/design.md §10.3). Project-level
+   * only. "quarantine" is for untrusted checkouts (code-review scenarios):
+   * out-of-cwd read/write/delete denied outright, bash force-asked without a
+   * sandbox backend, project-level mcpServers not auto-loaded. Absent or
+   * invalid values behave as "trusted".
+   */
+  workspaceTrust?: "trusted" | "quarantine";
   enabledSkills?: EnabledSkillsSettings;
   statusline?: StatusLineSettings;
   memory?: MemorySettings;
@@ -188,6 +196,7 @@ export type ResolvedDeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions: Required<PermissionSettings>;
+  workspaceTrust: "trusted" | "quarantine";
   enabledSkills: EnabledSkillsSettings;
   statusline: ResolvedStatusLineSettings;
   memory: Required<MemorySettings>;
@@ -623,7 +632,10 @@ function mergeMcpServers(
   systemEnv: Record<string, string>
 ): Record<string, McpServerConfig> | undefined {
   const userServers = userSettings?.mcpServers ?? {};
-  const projectServers = projectSettings?.mcpServers ?? {};
+  // Quarantined workspaces (untrusted checkouts, design.md §10.3): the
+  // project file is attacker-controlled, so its servers are NOT auto-loaded.
+  // User-level servers are the user's own choice and keep loading.
+  const projectServers = projectSettings?.workspaceTrust === "quarantine" ? {} : (projectSettings?.mcpServers ?? {});
   const serverNames = new Set([...Object.keys(userServers), ...Object.keys(projectServers)]);
   if (serverNames.size === 0) {
     return undefined;
@@ -843,6 +855,7 @@ export function resolveSettingsSources(
     webSearchTool: webSearchTool || undefined,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
     permissions: mergePermissions(userSettings, projectSettings),
+    workspaceTrust: projectSettings?.workspaceTrust === "quarantine" ? "quarantine" : "trusted",
     enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
     statusline: mergeStatusLine(userSettings, projectSettings),
     memory: mergeMemory(userSettings, projectSettings),

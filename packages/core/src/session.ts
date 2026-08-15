@@ -135,6 +135,7 @@ import {
 import type { BashSandboxSpawner } from "./common/tool-types";
 import { resolveScopeVerdict } from "./sandbox/policy";
 import { detectBashSandboxBackend } from "./sandbox/backend/detect";
+import type { SandboxBackend, SandboxProbeResult } from "./sandbox/backend/interface";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
 import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
@@ -150,6 +151,7 @@ import {
   buildPermissionToolExecution,
   computeToolCallPermissions,
   DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+  applyQuarantinePermissionClamp,
   describeToolPermissionRequest,
   hasUserPermissionReplies,
   normalizeAskPermissions,
@@ -159,7 +161,7 @@ import {
   type PermissionToolCall,
   type UserToolPermission,
 } from "./common/permissions";
-import { safeRealPath, type PathGrant } from "./common/path-boundary";
+import { grantOutsideRootsFlags, safeRealPath, type PathGrant } from "./common/path-boundary";
 import { AuditLog } from "./sandbox/audit";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
@@ -622,6 +624,7 @@ type SessionManagerOptions = {
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
+    workspaceTrust?: "trusted" | "quarantine";
     enabledSkills?: Record<string, boolean>;
     routing?: RoutingSettings;
     visionModel?: string;
@@ -765,6 +768,7 @@ export class SessionManager {
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
+    workspaceTrust?: "trusted" | "quarantine";
     enabledSkills?: Record<string, boolean>;
     routing?: RoutingSettings;
     visionModel?: string;
@@ -1737,6 +1741,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     this.processTimeoutControls.clear();
     this.sessionAuditLogs.clear();
     this.bashSandboxBySession.clear();
+    this.bashBackendBySession.clear();
     this.mcpManager.disconnect();
     // Flush any pending debounced index write before teardown.
     this.flushSessionsIndex();
@@ -3448,18 +3453,27 @@ ${content}
           return;
         }
         const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls, thinking);
+        // Quarantine (design.md §10.3): out-of-cwd R/W/D denied outright at
+        // the permission layer (never asked), and bash force-asked when no
+        // sandbox backend is available — a quarantined repo must not ask its
+        // way out of the boundary.
+        const quarantined = this.isWorkspaceQuarantined();
         const permissionPlan = toolCalls
           ? computeToolCallPermissions({
               sessionId,
               projectRoot: this.projectRoot,
               toolCalls,
-              settings: this.getResolvedSettings().permissions,
+              settings: quarantined
+                ? applyQuarantinePermissionClamp(this.getResolvedSettings().permissions)
+                : this.getResolvedSettings().permissions,
               forceAskScopes: this.getSession(sessionId)?.planMode ? PLAN_MODE_FORCE_ASK_SCOPES : undefined,
               // Baseline (plan mode or not): allowAll must not silently cover
               // out-of-cwd write/delete. Explicit allow-list grants survive —
               // only the defaultMode fallback is forced to ask (§4.2, decision
               // 2026-08-15).
               forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+              forceAskTools:
+                quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
               readPermissionExemptPaths: this.getSkillScanRoots().map((entry) => entry.root),
               resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
             })
@@ -4487,6 +4501,7 @@ ${content}
     for (const sessionId of sessionIds) {
       this.sessionAuditLogs.delete(sessionId);
       this.bashSandboxBySession.delete(sessionId);
+      this.bashBackendBySession.delete(sessionId);
       const { projectDir } = this.getProjectStorage();
       const auditPath = path.join(projectDir, "audit", `${sessionId}.jsonl`);
       try {
@@ -4833,15 +4848,24 @@ ${content}
     const exemptRealRoots = exemptPaths
       .map((entry) => safeRealPath(entry) ?? path.resolve(this.projectRoot, entry))
       .filter((root) => root !== projectRealRoot);
+    // Quarantine (§10.3) clamps both outside-roots booleans to false: the
+    // out-of-cwd scopes are already denied at the permission layer — this is
+    // the execution-side belt-and-braces.
+    const flags = grantOutsideRootsFlags(request.scopes, this.isWorkspaceQuarantined());
     return {
       writeRoots: [projectRealRoot],
       readRoots: [projectRealRoot, ...exemptRealRoots],
-      allowWriteOutsideRoots: request.scopes.includes("write-out-cwd"),
-      allowReadOutsideRoots: request.scopes.includes("read-out-cwd"),
+      allowWriteOutsideRoots: flags.allowWriteOutsideRoots,
+      allowReadOutsideRoots: flags.allowReadOutsideRoots,
     };
   }
 
   private readonly bashSandboxBySession = new Map<string, BashSandboxSpawner>();
+  private readonly bashBackendBySession = new Map<string, { backend: SandboxBackend; probe: SandboxProbeResult }>();
+
+  private isWorkspaceQuarantined(): boolean {
+    return this.getResolvedSettings().workspaceTrust === "quarantine";
+  }
 
   /**
    * P3 bash sandbox (design.md §4.5/§4.5 task 19): lazily constructed per
@@ -4856,6 +4880,28 @@ ${content}
       return undefined;
     }
     const cached = this.bashSandboxBySession.get(sessionId);
+    if (cached) {
+      return cached;
+    }
+    const { backend } = this.getOrCreateBashBackend(sessionId);
+    const spawner: BashSandboxSpawner = {
+      backend: backend.name,
+      wrapShell: (shellPath, shellArgs, cwd) => {
+        const wrapped = backend.wrapShell({ shellPath, shellArgs, cwd });
+        return wrapped ? { argv: wrapped.argv, env: wrapped.env } : null;
+      },
+    };
+    this.bashSandboxBySession.set(sessionId, spawner);
+    return spawner;
+  }
+
+  /**
+   * Backend construction + probe, cached per session. Shared by the
+   * permission plan (quarantine needs probe availability BEFORE execution to
+   * decide bash force-ask) and the execution wrapper.
+   */
+  private getOrCreateBashBackend(sessionId: string): { backend: SandboxBackend; probe: SandboxProbeResult } {
+    const cached = this.bashBackendBySession.get(sessionId);
     if (cached) {
       return cached;
     }
@@ -4880,15 +4926,9 @@ ${content}
       outcome: probe.available ? "active" : "degraded",
       detail: probe.detail,
     });
-    const spawner: BashSandboxSpawner = {
-      backend: backend.name,
-      wrapShell: (shellPath, shellArgs, cwd) => {
-        const wrapped = backend.wrapShell({ shellPath, shellArgs, cwd });
-        return wrapped ? { argv: wrapped.argv, env: wrapped.env } : null;
-      },
-    };
-    this.bashSandboxBySession.set(sessionId, spawner);
-    return spawner;
+    const entry = { backend, probe };
+    this.bashBackendBySession.set(sessionId, entry);
+    return entry;
   }
 
   private async appendToolMessages(

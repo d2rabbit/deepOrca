@@ -94,7 +94,13 @@
 - [ ] Linux 系统 bwrap 后端（任务 17，未动工）：`--ro-bind / /` 起步、`--bind <projectRoot>` 可写、`--unshare-net` 视 scope、proc/tmpfs 显式声明；**不 vendor**（Ubuntu 24.04+ AppArmor 只放行有 profile 的打包二进制）；AppImage 嵌套 userns 雷区，probe 必须在真实运行环境做。detect.ts 已登记"未实现"降级记录（不静默）。
 - [ ] Windows WSL2 后端（任务 18，未动工）：`wsl.exe` 探测 + 专用 distro（`wsl.conf` 关 interop）+ cwd 映射校验；未装 WSL 是常态 → noop + 诚实宣称。detect.ts 已登记"未实现"降级记录（不静默）。
 - [x] bash-handler 接隔离器（任务 19）：`ToolExecutionContext.bashSandbox`（与 pathGrant 同 extras 通道）；前台（:161）与后台（:272）两个 spawn 点统一经 `wrapShell` 包装（noop 返回 null → 原样 spawn）；session 侧 `deriveBashSandbox` 惰性构造（仅 bash 调用触发，网络条款快照自 `resolveScopeVerdict("network") !== "deny"`——ask 被拒的调用不会到执行层，故 allow+ask ⇒ on），激活与降级**双落审计**；会话删除/dispose 清缓存。
-- [ ] 任务 22 quarantine 信任分级（未动工，§十零新基础设施）：项目级 settings 存 `trusted|quarantine`；quarantine 会话 bash 副作用 scope 全集塞 `forceAskScopes`、grant 派生布尔恒 false、mcpServers 不自动加载。
+- [x] 任务 22 quarantine 信任分级（已落地，零新基础设施）：
+  - **settings**：`DeepcodingSettings.workspaceTrust?: "trusted"|"quarantine"`（项目级，缺省/非法值 = trusted，不因 typo 突然隔离）；`ResolvedDeepcodingSettings.workspaceTrust` 透出；`mergeMcpServers` 在 quarantine 下**跳过项目级 mcpServers**（项目文件是攻击面；用户级服务器是用户自己的选择，照常加载）。
+  - **权限层收紧**：`applyQuarantinePermissionClamp`——out-cwd 读/写/删三 scope 注入 deny 列表（**直接拒，不询问**——不可信仓库无权"批准出去"）；deny 对 allow/ask 优先的既有短路不变。
+  - **bash 无后端必问**：`computeToolCallPermissions` 新增 `forceAskTools`（按工具名整体 force-ask，deny 仍优先）——scope 级 forceAsk 无法表达"每条 bash 都问"（bash 的副作用 scope 名与文件工具同命名空间，scope 集会误伤同轮 write/read），这是对设计"一行编排"设想的施工修正；session 侧 `quarantined && !probe.available ⇒ ["bash"]`，后端探针经 `getOrCreateBashBackend` 缓存复用（权限计划期即可用）。
+  - **grant 收紧**：`grantOutsideRootsFlags(scopes, quarantined)`——quarantine 下布尔恒 false（执行侧保险带，权限层已拒）。
+  - **测试**（`tests/quarantine.test.ts` 5 用例）：clamp 拒越界（含显式 allow 授权也被拒）+ 根内照常 + deny 去重形状；forceAskTools 同轮 bash×2（含别名 Bash）全问 + write 不受影响；deny 优先不被 forceAsk 升级；grant 布尔 clamp；settings 解析（trusted 加载项目服务器 / quarantine 跳过 / 非法值回退 trusted）。
+  - 已知边界：首次打开项目时"询问信任级别"的 UI 属 desktop 改动（与降级 UI 可见性同批）；当前信任级别只能手工编辑项目 settings.json。
 - [ ] 平台能力矩阵（§六）逐格与实现核对后对外宣称。
 
 **P3 本批实测证据**（`tests/sandbox-backend.test.ts` 7 用例，darwin 实跑）：profile 生成纯断言（HOME 写围栏次序/转义/network 条款）×2、noop 语义、detect 降级必报、wrapShell 强制 bash + git env、darwin 实测矩阵（HOME secret 读拒且零泄漏 / 项目内写读 / HOME 越界写拒含 HOME⊂TMPDIR 边缘 / loopback 网络双向——deny 拒 allow 通）、**handler 端到端**（经 `handleBashTool` 完整路径 + 真实沙箱，项目内命令成功、HOME secret 不泄漏）。

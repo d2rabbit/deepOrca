@@ -79,6 +79,15 @@ export type ComputeToolCallPermissionsOptions = {
    * "always allow" button.
    */
   forceAskDefaultedScopes?: readonly PermissionScope[];
+  /**
+   * Force-ask EVERY scope of calls whose tool name matches (case-insensitive;
+   * deny still wins). Scope-level force-ask cannot express "every bash asks"
+   * — bash side-effect scopes (write-in-cwd, …) are namespaced identically to
+   * file-tool scopes, so a scope set would over-block write/read tools in the
+   * same turn. Used by quarantine sessions without a sandbox backend
+   * (design.md §10.3).
+   */
+  forceAskTools?: readonly string[];
   readPermissionExemptPaths?: string[];
   resolveSnippetPath?: (sessionId: string, snippetId: string) => string | null | undefined;
 };
@@ -183,12 +192,16 @@ export function computeToolCallPermissions(options: ComputeToolCallPermissionsOp
       resolveSnippetPath: options.resolveSnippetPath,
     });
     const evaluatedPermission = evaluatePermissionScopes(request.scopes, options.settings);
+    const toolForceAsked = evaluatedPermission === "allow" && isForceAskedTool(request.name, options.forceAskTools);
     const forcedAskScopes =
       evaluatedPermission === "deny"
         ? []
         : mergeAskScopes(
-            getAllowedForcedAskScopes(request.scopes, options.settings, options.forceAskScopes),
-            getAllowedDefaultedForcedAskScopes(request.scopes, options.settings, options.forceAskDefaultedScopes)
+            toolForceAsked ? request.scopes : [],
+            mergeAskScopes(
+              getAllowedForcedAskScopes(request.scopes, options.settings, options.forceAskScopes),
+              getAllowedDefaultedForcedAskScopes(request.scopes, options.settings, options.forceAskDefaultedScopes)
+            )
           );
     const permission = forcedAskScopes.length > 0 ? "ask" : evaluatedPermission;
     permissions.push({ toolCallId: toolCall.id, permission });
@@ -252,6 +265,30 @@ function getAllowedDefaultedForcedAskScopes(
 
 /** Whether a scope's allow verdict stems from the defaultMode fallback rather
  * than an explicit allow-list grant (deny/ask entries short-circuit first). */
+function isForceAskedTool(name: string, forceAskTools: readonly string[] | undefined): boolean {
+  if (!forceAskTools?.length) {
+    return false;
+  }
+  const lowered = name.toLowerCase();
+  return forceAskTools.some((candidate) => candidate.toLowerCase() === lowered);
+}
+
+/**
+ * Quarantine permission clamp (design.md §10.3): out-of-cwd read/write/delete
+ * is DENIED outright, never asked — an untrusted checkout gets no path to
+ * approve its way out of the boundary. Deny entries win over allow/ask.
+ */
+export const QUARANTINE_DENIED_SCOPES: readonly PermissionScope[] = ["read-out-cwd", "write-out-cwd", "delete-out-cwd"];
+
+export function applyQuarantinePermissionClamp(settings: PermissionSettings | undefined): Required<PermissionSettings> {
+  return {
+    allow: settings?.allow ?? [],
+    ask: settings?.ask ?? [],
+    deny: [...new Set([...(settings?.deny ?? []), ...QUARANTINE_DENIED_SCOPES])],
+    defaultMode: settings?.defaultMode ?? "allowAll",
+  };
+}
+
 export function isDefaultedAllow(
   scope: PermissionScope,
   settings: Required<PermissionSettings> = {

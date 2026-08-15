@@ -125,7 +125,7 @@ export {
   configureFileUtilsWriteBoundary,
   PathBoundaryError,
 } from "./common/file-utils";
-export { gateWrite, gateRead, type PathGrant, type GateVerdict } from "./common/path-boundary";
+export { gateWrite, gateRead, grantOutsideRootsFlags, type PathGrant, type GateVerdict } from "./common/path-boundary";
 // P1 side-effect audit bus
 export {
   AuditLog,
@@ -150,6 +150,9 @@ export {
   type SandboxGeneration,
   type SandboxLease,
 } from "./sandbox/types";
+// Quarantine trust level (design.md §10.3)
+export { applyQuarantinePermissionClamp, QUARANTINE_DENIED_SCOPES } from "./common/permissions";
+
 // P3 sandbox backends
 export type { SandboxBackend, SandboxBackendName, SandboxProbeResult } from "./sandbox/backend/interface";
 export { NoopSandboxBackend } from "./sandbox/backend/noop";

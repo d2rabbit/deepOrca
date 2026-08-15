@@ -91,6 +91,25 @@ export type PathGrant = {
 export type GateVerdict = { ok: true } | { ok: false; reason: string; scope: PermissionScope };
 
 /**
+ * Derive the per-call outside-roots booleans from the permission request's
+ * scopes (design.md §4.1 R2). Quarantined workspaces clamp both to false
+ * regardless of scopes (§10.3): the out-of-cwd scopes are already denied at
+ * the permission layer — this is the belt-and-braces for execution paths.
+ */
+export function grantOutsideRootsFlags(
+  scopes: readonly string[],
+  quarantined: boolean
+): { allowWriteOutsideRoots: boolean; allowReadOutsideRoots: boolean } {
+  if (quarantined) {
+    return { allowWriteOutsideRoots: false, allowReadOutsideRoots: false };
+  }
+  return {
+    allowWriteOutsideRoots: scopes.includes("write-out-cwd"),
+    allowReadOutsideRoots: scopes.includes("read-out-cwd"),
+  };
+}
+
+/**
  * Write boundary gate. `projectRoot` is only consulted when `grant` is
  * undefined (direct handler invocations without the session plumbing): the
  * grant then degenerates to projectRoot-only with both outside-roots flags
