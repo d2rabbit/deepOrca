@@ -61,7 +61,19 @@ export type ComputeToolCallPermissionsOptions = {
   projectRoot: string;
   toolCalls: unknown[];
   settings?: Required<PermissionSettings>;
+  /**
+   * Force-ask: unconditionally overrides allow, INCLUDING explicit user
+   * grants (allow-list entries). Used by plan mode — "touch nothing".
+   */
   forceAskScopes?: readonly PermissionScope[];
+  /**
+   * Force-ask: only overrides allows that come from the defaultMode fallback
+   * ("allowAll"), never a user's explicit allow-list grant. Used to narrow
+   * allowAll's implicit coverage of out-of-cwd write/delete (decision
+   * 2026-08-15, specs/sandbox/design.md §4.2) without breaking the
+   * "always allow" button.
+   */
+  forceAskDefaultedScopes?: readonly PermissionScope[];
   readPermissionExemptPaths?: string[];
   resolveSnippetPath?: (sessionId: string, snippetId: string) => string | null | undefined;
 };
@@ -169,7 +181,10 @@ export function computeToolCallPermissions(options: ComputeToolCallPermissionsOp
     const forcedAskScopes =
       evaluatedPermission === "deny"
         ? []
-        : getAllowedForcedAskScopes(request.scopes, options.settings, options.forceAskScopes);
+        : mergeAskScopes(
+            getAllowedForcedAskScopes(request.scopes, options.settings, options.forceAskScopes),
+            getAllowedDefaultedForcedAskScopes(request.scopes, options.settings, options.forceAskDefaultedScopes)
+          );
     const permission = forcedAskScopes.length > 0 ? "ask" : evaluatedPermission;
     permissions.push({ toolCallId: toolCall.id, permission });
     if (permission === "ask") {
@@ -205,7 +220,64 @@ function getAllowedForcedAskScopes(
   );
 }
 
-function mergeAskScopes(existing: AskPermissionScope[], forced: PermissionScope[]): AskPermissionScope[] {
+/**
+ * The defaulted-only twin of {@link getAllowedForcedAskScopes}: a scope
+ * qualifies only when its allow verdict comes from the defaultMode fallback,
+ * not from an explicit allow-list grant. This is what lets the baseline narrow
+ * allowAll's implicit coverage without breaking the "always allow" button
+ * (an explicit grant survives; see specs/sandbox/design.md §4.2(a)).
+ */
+function getAllowedDefaultedForcedAskScopes(
+  scopes: AskPermissionScope[],
+  settings: Required<PermissionSettings> | undefined,
+  forceAskDefaultedScopes: readonly PermissionScope[] | undefined
+): PermissionScope[] {
+  if (!forceAskDefaultedScopes?.length) {
+    return [];
+  }
+
+  return scopes.filter(
+    (scope): scope is PermissionScope =>
+      scope !== "unknown" &&
+      forceAskDefaultedScopes.includes(scope) &&
+      isDefaultedAllow(scope, settings) &&
+      evaluatePermissionScopes([scope], settings) === "allow"
+  );
+}
+
+/** Whether a scope's allow verdict stems from the defaultMode fallback rather
+ * than an explicit allow-list grant (deny/ask entries short-circuit first). */
+export function isDefaultedAllow(
+  scope: PermissionScope,
+  settings: Required<PermissionSettings> = {
+    allow: [],
+    deny: [],
+    ask: [],
+    defaultMode: "allowAll",
+  }
+): boolean {
+  return (
+    !settings.deny.includes(scope) &&
+    !settings.ask.includes(scope) &&
+    !settings.allow.includes(scope) &&
+    settings.defaultMode === "allowAll"
+  );
+}
+
+/**
+ * Scopes that `defaultMode: "allowAll"` no longer implicitly covers
+ * (decision 2026-08-15, specs/sandbox/design.md §4.2(c)). Deliberately only
+ * the out-cwd pair: in-cwd write/delete is the agent's daily work (including
+ * it would defeat allowAll), `mutate-git-log` is destructive but undoable via
+ * the file-history checkpoint, and `read-out-cwd` is covered by the P0 gate +
+ * audit instead (adding it would prompt on every config/global-skill read).
+ */
+export const DEFAULT_FORCE_ASK_DEFAULTED_SCOPES = [
+  "write-out-cwd",
+  "delete-out-cwd",
+] as const satisfies readonly PermissionScope[];
+
+function mergeAskScopes(existing: AskPermissionScope[], forced: readonly AskPermissionScope[]): AskPermissionScope[] {
   return [...existing, ...forced.filter((scope) => !existing.includes(scope))];
 }
 

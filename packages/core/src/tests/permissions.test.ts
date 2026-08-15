@@ -6,6 +6,7 @@ import * as path from "path";
 import {
   appendProjectPermissionAllows,
   computeToolCallPermissions,
+  DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
   evaluatePermissionScopes,
   getPermissionScopesRequiringAsk,
   hasUserPermissionReplies,
@@ -719,3 +720,104 @@ test("benign commands still classify clean (no regression)", () => {
   // `git status` with a $VAR-looking token still only unknown (existing behavior).
   assert.deepEqual(inferBashSideEffects("echo $x"), ["unknown"]);
 });
+
+// ── P0.5: allowAll no longer implicitly covers out-of-cwd write/delete ──────
+// (decision 2026-08-15, specs/sandbox/design.md §4.2 — acceptance table)
+
+test("P0.5 baseline: allowAll + empty allow list asks on write-out-cwd", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-baseline-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-1", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-1", permission: "ask" }]);
+  assert.ok(plan.askPermissions[0]?.scopes.includes("write-out-cwd"));
+});
+
+test("P0.5 anti-regression core: explicit allow-list grant is NOT squashed by the baseline", () => {
+  // The user clicked "always allow" (or hand-wrote the allow entry) — that is
+  // an explicit grant, not a defaultMode fallback, so the narrowing must not
+  // re-prompt. Otherwise appendProjectPermissionAllows' persistence is dead.
+  const projectRoot = createTempDir("deepcode-permissions-p05-explicit-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: ["write-out-cwd"], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-2", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-2", permission: "allow" }]);
+  assert.equal(plan.askPermissions.length, 0);
+});
+
+test("P0.5 + plan mode: the two force-ask semantics coexist (explicit grant still asks in plan mode)", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-plan-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: ["write-out-cwd"], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskScopes: ["write-in-cwd", "write-out-cwd", "delete-in-cwd", "delete-out-cwd", "mutate-git-log"],
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-3", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-3", permission: "ask" }]);
+});
+
+test("P0.5 does not touch the deny short-circuit: deny still denies (not ask)", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-deny-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: ["write-out-cwd"], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-4", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-4", permission: "deny" }]);
+});
+
+test("P0.5 is not over-tight: write-in-cwd stays allowed under allowAll", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-in-cwd-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-5", `${projectRoot}/inside.txt`)],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-5", permission: "allow" }]);
+});
+
+test("P0.5附带收益: out-of-cwd destructive bash asks under allowAll", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-bash-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [
+      {
+        id: "call-p05-6",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({ command: "rm -rf /definitely/outside/the/project", sideEffects: [] }),
+        },
+      },
+    ],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-6", permission: "ask" }]);
+  const scopes = plan.askPermissions[0]?.scopes ?? [];
+  assert.ok(scopes.includes("delete-out-cwd"), "inferred delete-out-cwd triggers the ask");
+});
+
+/** Helper: a write tool call with an explicit file path. */
+function writeCall(id: string, filePath: string): unknown {
+  return {
+    id,
+    type: "function",
+    function: { name: "write", arguments: JSON.stringify({ file_path: filePath, content: "x" }) },
+  };
+}

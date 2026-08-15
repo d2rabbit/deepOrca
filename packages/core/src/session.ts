@@ -146,6 +146,7 @@ import {
   appendProjectPermissionAllows,
   buildPermissionToolExecution,
   computeToolCallPermissions,
+  DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
   hasUserPermissionReplies,
   normalizeAskPermissions,
   parseToolCallForPermissions,
@@ -3446,6 +3447,11 @@ ${content}
               toolCalls,
               settings: this.getResolvedSettings().permissions,
               forceAskScopes: this.getSession(sessionId)?.planMode ? PLAN_MODE_FORCE_ASK_SCOPES : undefined,
+              // Baseline (plan mode or not): allowAll must not silently cover
+              // out-of-cwd write/delete. Explicit allow-list grants survive —
+              // only the defaultMode fallback is forced to ask (§4.2, decision
+              // 2026-08-15).
+              forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
               readPermissionExemptPaths: this.getSkillScanRoots().map((entry) => entry.root),
               resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
             })

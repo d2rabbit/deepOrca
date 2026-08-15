@@ -1,8 +1,10 @@
 # 沙箱与副作用收口 — 设计方案
 
-> 日期：2026-08-15 · 状态：设计（未实现）
+> 日期：2026-08-15 · 状态：设计定稿（P0.5 已实现，其余未实现）
 >
 > 起因：外部提出的「借鉴 celld 模式构建 OS 级沙箱」方案评审。评审结论是**架构骨架可用、集成层与后端层需重写、优先级需倒置**，故重写为本方案。
+>
+> **决策记录（2026-08-15）**：`allowAll` 下的项目外写/删 —— 采纳「收窄为强制 ask」。实现语义见 §4.2，其中的"显式授权 vs 默认放行"区分是本决策能否不破坏 UX 的关键。**已于同日落地**：`forceAskDefaultedScopes` 双参数方案 + `DEFAULT_FORCE_ASK_DEFAULTED_SCOPES` baseline 接线（`session.ts` 权限编排），验收用例见 `packages/core/src/tests/permissions.test.ts`（P0.5 系列 6 条）。
 > 关联：`packages/core/src/common/permissions.ts`（权限判定）、`packages/core/src/tools/executor.ts`（工具分发 seam）、`packages/core/src/session.ts`（权限编排）
 > 前序审计：本文 §二 全部结论均来自 2026-08-15 对当前分支 `fix/stabilize-data-loss-and-test-suite` 的代码审计，带 `file:line` 证据。
 >
@@ -31,10 +33,11 @@
 **修正后的三层定位：**
 
 ```
-第 1 层 执行期边界闸门（P0）  ← 真实漏洞在这里，1-2 天，无隔离依赖
+第 1 层 执行期边界闸门（P0 + P0.5）  ← 真实漏洞在这里，2-3 天，无隔离依赖
         权限决策下传 handler，fs 调用层强制校验
+        + allowAll 不再隐式覆盖越界写/删
 第 2 层 副作用审计总线（P1）  ← 可观测性，用真实数据决定第 3 层做多重
-        所有 spawn + fs 写入落链式审计日志
+        所有 spawn + fs 写入 + 闸门判决落链式审计日志
 第 3 层 OS 级隔离（P2/P3）    ← 纵深防御，单后端起步，诚实宣称
         Sans-IO PolicyEngine + macOS sandbox-exec
 ```
@@ -94,9 +97,9 @@
 
 | ID | 威胁 | 载体 | 现状 | 本方案覆盖 |
 | --- | --- | --- | --- | --- |
-| **T1** | 模型被诱导写/删项目外文件（`~/.ssh/authorized_keys`、shell rc、`~/.claude/settings.json`） | `write`/`edit` 工具，A 级 | ⛔ **allowAll 下无任何阻挡** | **P0**（主目标） |
-| **T2** | 模型读取项目外敏感文件并外泄（凭据、密钥） | `read` 工具 + 网络，A 级 | ⛔ 仅 128MB 上限 | **P0**（读侧闸门） |
-| **T3** | bash 命令内的任意副作用（含绕过 T1/T2 闸门） | bash 工具，A 级 | ⛔ 无隔离 | **P3**（OS 隔离，仅 macOS） |
+| **T1** | 模型被诱导写/删项目外文件（`~/.ssh/authorized_keys`、shell rc、`~/.claude/settings.json`） | `write`/`edit` 工具，A 级 | ⛔ **allowAll 下无任何阻挡** | **P0 + P0.5**（主目标，两者互为补全） |
+| **T2** | 模型读取项目外敏感文件并外泄（凭据、密钥） | `read` 工具 + 网络，A 级 | ⛔ 仅 128MB 上限 | **P0** 闸门 + **P1** 审计（读侧刻意不强制 ask，理由见 §4.2c） |
+| **T3** | bash 命令内的任意副作用（含绕过 T1/T2 闸门） | bash 工具，A 级 | ⛔ 无隔离 | **P0.5** 削减越界破坏性命令（`inferBashSideEffects`）+ **P3** OS 隔离（仅 macOS） |
 | **T4** | 不可信仓库通过项目级 `settings.json` 的 `mcpServers` 执行任意命令 | 配置期，C 级 | ⛔ 项目级覆盖用户级 | **P4**（独立课题） |
 | **T5** | `bsk` argv 注入触达非预期浏览器能力 | `browser.*` action，B 级 | ⚠️ 无 allowlist | **P1** 审计 + **P2** 策略 |
 | T6 | 资源耗尽（fork bomb、磁盘填满） | bash | ⚠️ 有超时无资源限制 | P3 附带 |
@@ -174,13 +177,94 @@ pathGrant?: PathGrant;
 
 ---
 
-### 4.2 P0.5 — `allowAll` 语义收窄（产品决策，需拍板）
+### 4.2 P0.5 — `allowAll` 语义收窄（已决策：收窄为强制 ask）
 
-`defaultMode:"allowAll"` 目前让 `write-out-cwd`/`delete-out-cwd` 静默通过。建议：**即使 allowAll，越界写/删仍强制 ask**（`forceAskScopes` 机制已存在，`permissions.ts:64,193`，plan mode 就是这么用的）。
+**决策**：即使 `defaultMode: "allowAll"`，项目外写/删仍强制询问。
 
-- 代价：越界写场景多一次确认
-- 收益：T1 从"默认敞开"变成"默认询问"
-- 这是产品取舍，不是纯技术问题 —— **需要你拍板**，P0 的技术实现两种都支持。
+**这不是加一行常量就完事的改动** —— 现有 `forceAskScopes` 机制承载不了这个语义，直接复用会毁掉「始终允许」按钮。以下是必须处理的三件事。
+
+#### (a) 机制缺口：现有 forceAsk 无法区分"显式授权"与"默认放行"
+
+`evaluatePermissionScopes`（`permissions.ts:304-330`）里有**两条**不同的 allow 路径：
+
+| 路径 | 位置 | 语义 |
+| --- | --- | --- |
+| 显式授权 | `:326` `permissionScopes.every(s => settings.allow.includes(s))` | 用户/项目配置**主动**把该 scope 写进了 allow 列表（含点过「始终允许」） |
+| 默认放行 | `:329` `settings.defaultMode === "askAll" ? "ask" : "allow"` | 谁都没表态，靠 `allowAll` 兜底 |
+
+而 `getAllowedForcedAskScopes`（`permissions.ts:202-205`）的过滤条件是 `evaluatePermissionScopes([scope], settings) === "allow"` —— **把两条路径混为一谈**。
+
+对 plan mode 而言混同是**正确**的：plan mode 的语义是"什么都别碰"，理应压制显式授权。所以 `PLAN_MODE_FORCE_ASK_SCOPES`（`session.ts:197-203`，含 `write-in-cwd`/`write-out-cwd`/`delete-in-cwd`/`delete-out-cwd`/`mutate-git-log`）沿用现状，**不动**。
+
+对本决策而言混同是**错误**的：若基线 forceAsk 也压制显式授权，用户点了「始终允许 write-out-cwd」之后**依然每次被问**，`appendProjectPermissionAllows`（`permissions.ts:696`）的持久化形同废纸。这是必须避免的功能回退。
+
+#### (b) 设计：两种 forceAsk 语义，两个独立参数
+
+不给现有参数加模式标志（会让 plan mode 与基线互相纠缠），而是并列新增一个语义不同的参数：
+
+```ts
+// computeToolCallPermissions options 新增
+/**
+ * 强制询问：无条件压制 allow，含用户显式授权。用于 plan mode
+ * ——"什么都别碰"。沿用现状，语义不变。
+ */
+forceAskScopes?: readonly PermissionScope[];
+
+/**
+ * 强制询问：仅压制"由 defaultMode 兜底得来"的 allow，不动用户显式
+ * 授权。用于收窄 allowAll 的隐式覆盖面（决策 2026-08-15）。
+ */
+forceAskDefaultedScopes?: readonly PermissionScope[];
+```
+
+配套新增一个纯判定函数（与 `evaluatePermissionScopes` 同文件、同风格）：
+
+```ts
+/** 该 scope 的 allow 是否来自 defaultMode 兜底而非显式 allow 列表。 */
+export function isDefaultedAllow(scope: PermissionScope, settings: Required<PermissionSettings>): boolean;
+// = !deny.includes(s) && !ask.includes(s) && !allow.includes(s) && defaultMode === "allowAll"
+```
+
+`getAllowedForcedAskScopes` 拆成两个过滤器，结果并入现有的 `mergeAskScopes`（`permissions.ts:208`）—— 该函数已做去重，无需改动。`permissions.ts:169-173` 的 `forcedAskScopes.length > 0 ? "ask" : evaluatedPermission` 结构保持不变。
+
+#### (c) 基线 scope 集合：只放 out-cwd 两项
+
+```ts
+/**
+ * allowAll 不再隐式覆盖的 scope。刻意只含 out-cwd 两项：
+ * 项目内写/删是 agent 的日常工作，纳入会让 allowAll 失去意义。
+ */
+const DEFAULT_FORCE_ASK_DEFAULTED_SCOPES = ["write-out-cwd", "delete-out-cwd"] as const;
+```
+
+**不含** `write-in-cwd`/`delete-in-cwd`（日常工作，纳入等于废掉 allowAll）、不含 `mutate-git-log`（破坏性但可 undo，且 `file-history` 有 checkpoint）、不含 `read-out-cwd`（T2 的读侧靠 P0 闸门 + 审计覆盖；纳入会让读配置文件、读全局 skill 等常规操作频繁弹窗）。
+
+**附带收益：bash 也一并收紧。** `inferBashSideEffects`（`permissions.ts:419`）会把越界破坏性命令推断为 out-cwd 类 scope 而非仅 `unknown`（见 `:447` 注释），因此基线 forceAsk 对 bash 路径同样生效 —— 这在不做任何 OS 隔离的前提下就削减了 T3 的一部分。
+
+#### (d) 与「始终允许」的交互（收敛后的行为）
+
+| 场景 | 收窄前 | 收窄后 |
+| --- | --- | --- |
+| allowAll，首次越界写 | 静默通过 ⛔ | **询问** ✅ |
+| allowAll，用户点「始终允许」后再次越界写 | 静默通过 | 静默通过（显式授权已生效，不再问）✅ |
+| allowAll，用户点「仅本次允许」后下次越界写 | 静默通过 ⛔ | **再次询问** ✅ |
+| plan mode 下越界写（即使已始终允许） | 询问 | 询问（`forceAskScopes` 语义不变）✅ |
+| `deny` 列表含 write-out-cwd | 拒绝 | 拒绝（`:170-171` 提前短路，forceAsk 不参与）✅ |
+
+**残余风险**：「始终允许 write-out-cwd」是 **scope 级**授权，一次点击等于永久放开全盘越界写。路径级授权（把 `PathGrant` 的 `writeRoots` 持久化，而非持久化 scope）是正确解，但涉及 settings schema 变更与 UI 改动，归入 P2 后续，不在 P0 范围。P0 完成后，越界写至少**每个新项目都会被问一次**且**全部落审计**（P1），风险面已从"默认敞开"降到可接受。
+
+**验收补充**（并入 §4.1 的测试）
+
+| 断言 | 说明 |
+| --- | --- |
+| allowAll + 空 allow 列表 ⇒ `write-out-cwd` 判为 `ask` | 基线生效 |
+| allowAll + allow 列表含 `write-out-cwd` ⇒ 判为 `allow` | **显式授权未被误伤（防回退核心用例）** |
+| allowAll + allow 列表含 `write-out-cwd` + plan mode ⇒ 判为 `ask` | 两种语义正确共存 |
+| deny 列表含 `write-out-cwd` ⇒ 判为 `deny`（不是 ask） | `:170-171` 短路未被破坏 |
+| allowAll ⇒ `write-in-cwd` 仍为 `allow` | 未过度收紧 |
+| 越界 `rm -rf` 的 bash 调用 ⇒ `ask` | 附带收益验证 |
+| 既有 `permissions.test.ts` 全绿 | plan mode 行为零变化 |
+
 
 ---
 
@@ -261,13 +345,13 @@ T4 的收益可能高于 T3，但改造面在 `mcp-manager.ts:455-529` 与 setti
 
 P3 完成后对外可宣称的能力，逐格必须与实现一致：
 
-| 平台 | 路径边界（P0） | 审计（P1） | 策略引擎（P2） | OS 隔离（P3） | 对外表述 |
+| 平台 | 边界闸门 + ask 收窄（P0/P0.5） | 审计（P1） | 策略引擎（P2） | OS 隔离（P3） | 对外表述 |
 | --- | --- | --- | --- | --- | --- |
 | macOS arm64/x64 | ✅ | ✅ | ✅ | ✅ `sandbox-exec` | "进程级隔离 + 路径边界" |
 | Windows | ✅ | ✅ | ✅ | ❌ noop | **"仅策略层与路径边界，无 OS 隔离"** |
 | Linux (AppImage/deb) | ✅ | ✅ | ✅ | ❌ noop | **"仅策略层与路径边界，无 OS 隔离"** |
 
-三个平台的 P0/P1/P2 完全一致（纯 TS，无平台依赖）—— 这也是把它们排在 OS 隔离之前的另一个理由：**一次投入，三平台受益**。
+三个平台的 P0/P0.5/P1/P2 完全一致（纯 TS，无平台依赖）—— 这也是把它们排在 OS 隔离之前的另一个理由：**一次投入，三平台受益**；而 P3 只覆盖三分之一的分发面。
 
 ---
 
@@ -280,18 +364,27 @@ P3 完成后对外可宣称的能力，逐格必须与实现一致：
 | 3 | `session.ts` 从 `permissionPlan` 派生 `PathGrant` | P0 | `session.ts:4663` 附近 | 2 |
 | 4 | `write`/`edit`/`read` handler 接闸门（写侧须在 `ensureParentDirectory` 之前） | P0 | 三个 handler | 3 |
 | 5 | `file-utils.ts` 底层兜底断言（可选初始化，默认不改行为） | P0 | `file-utils.ts:54-68` | 1 |
-| 6 | `tests/path-boundary.test.ts` + 兼容性回归 | P0 | 新测试 | 4,5 |
-| 7 | **拍板：`allowAll` 是否收窄越界写/删为强制 ask** | P0.5 | `forceAskScopes` 机制 | 需决策 |
-| 8 | `sandbox/audit.ts`（hrtime + createHash + JSONL） | P1 | 新目录 | — |
-| 9 | `onPathGateVerdict` 钩子 + spawn 事件接入审计 | P1 | `tool-types.ts`、`session.ts` | 6,8 |
-| 10 | `sandbox/types.ts` + `sandbox/policy.ts`（真实 10 scope） | P2 | 新文件 | — |
-| 11 | 3 态 lifecycle + generation fencing | P2 | 新文件 | 10 |
-| 12 | `backend/interface.ts` + `noop.ts` + `detect.ts` | P3 | 新文件 | 11 |
-| 13 | `backend/macos-sandbox-exec.ts` + profile 生成 | P3 | 新文件 | 12 |
-| 14 | `bash-handler` 接隔离器 | P3 | `bash-handler.ts:161` | 13 |
-| 15 | 项目级 `mcpServers` 变更强制确认 | P4 | 独立立项 | — |
+| 6 | `isDefaultedAllow()` 纯判定函数 | P0.5 | `permissions.ts:330` 后 | — |
+| 7 | `getAllowedForcedAskScopes` 拆为两个过滤器 + `forceAskDefaultedScopes` 参数 | P0.5 | `permissions.ts:169-206`、`:64` options 类型 | 6 |
+| 8 | `DEFAULT_FORCE_ASK_DEFAULTED_SCOPES` 常量 + 在 `computeToolCallPermissions` 调用处始终传入 | P0.5 | `session.ts:197` 附近 + `:3448` | 7 |
+| 9 | `tests/path-boundary.test.ts` + `permissions.test.ts` 补 §4.2(d) 七条断言 | P0 | 测试 | 4,5,8 |
+| 10 | `sandbox/audit.ts`（`hrtime.bigint` + `createHash` + JSONL 链式 hash） | P1 | 新目录 | — |
+| 11 | `onPathGateVerdict` 钩子 + spawn 事件接入审计 | P1 | `tool-types.ts`、`session.ts` | 9,10 |
+| 12 | `sandbox/types.ts` + `sandbox/policy.ts`（真实 10 scope） | P2 | 新文件 | — |
+| 13 | 3 态 lifecycle + generation fencing | P2 | 新文件 | 12 |
+| 14 | 路径级「始终允许」（持久化 `writeRoots` 取代 scope）—— 消化 §4.2(d) 残余风险 | P2 | settings schema + PermissionCard UI | 12 |
+| 15 | `backend/interface.ts` + `noop.ts` + `detect.ts` | P3 | 新文件 | 13 |
+| 16 | `backend/macos-sandbox-exec.ts` + profile 生成 | P3 | 新文件 | 15 |
+| 17 | `bash-handler` 接隔离器 | P3 | `bash-handler.ts:161` | 16 |
+| 18 | 项目级 `mcpServers` 变更强制确认 | P4 | 独立立项 | — |
 
-**建议执行顺序**：1→6 一个 PR（P0 完整闭环，可独立发布）；7 需你先拍板；8→9 第二个 PR；10→14 第三批。P2 的 10/11 与当前 routing 分支正交，可并行。
+**建议执行顺序**：
+
+- **PR 1 = 任务 1-9**（P0 + P0.5 完整闭环）。两者必须同批：只做 P0 而不收窄 allowAll，闸门会忠实放行 allowAll 的越界写，T1 依旧敞开；只做 P0.5 而不做 P0，权限层判 ask 之后 handler 仍无二次校验，绕过路径（如 snippet_id 解析、`file-utils` 直接调用）依旧存在。**两者互为补全，分开发布任一半都是假修复。**
+- **PR 2 = 任务 10-11**（审计总线）。
+- **PR 3+ = 任务 12-17**。其中 12/13 为纯逻辑、零 I/O，与当前 routing 分支正交，可并行动工。
+- 任务 18 独立立项。
+
 
 ---
 

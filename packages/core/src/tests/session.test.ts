@@ -2007,28 +2007,37 @@ test("Write checkpoints restore tool-touched files outside the workspace and lea
 
   const outsideFilePath = path.join(outsideDir, "outside.txt");
   const unrelatedWorkspaceFilePath = path.join(workspace, "unrelated.txt");
-  const manager = createMockedClientSessionManager(workspace, [
-    {
-      choices: [
-        {
-          message: {
-            content: "",
-            tool_calls: [
-              {
-                id: "call-write-outside",
-                type: "function",
-                function: {
-                  name: "write",
-                  arguments: JSON.stringify({ file_path: outsideFilePath, content: "outside\n" }),
+  // P0.5 (2026-08-15): allowAll no longer implicitly covers write-out-cwd —
+  // out-of-workspace writes force an ask unless explicitly granted. This test
+  // exercises the checkpoint machinery, so grant the scope explicitly (the
+  // "always allow" path), which also pins the anti-regression semantics: an
+  // explicit allow-list entry survives the forceAskDefaulted baseline.
+  const manager = createPermissionSessionManager(
+    workspace,
+    [
+      {
+        choices: [
+          {
+            message: {
+              content: "",
+              tool_calls: [
+                {
+                  id: "call-write-outside",
+                  type: "function",
+                  function: {
+                    name: "write",
+                    arguments: JSON.stringify({ file_path: outsideFilePath, content: "outside\n" }),
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
-        },
-      ],
-    },
-    createChatResponse("done", { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }),
-  ]);
+        ],
+      },
+      createChatResponse("done", { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }),
+    ],
+    { allow: ["write-out-cwd"], deny: [], ask: [], defaultMode: "allowAll" }
+  );
 
   const sessionId = await manager.createSession({ text: "create an outside file" });
   const userMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "user");
