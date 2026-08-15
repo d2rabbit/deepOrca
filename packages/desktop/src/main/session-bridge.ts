@@ -28,6 +28,7 @@ import {
   SessionManager,
   setCodegraphDisabled,
   setA2uiDisabled,
+  configureFileUtilsWriteBoundary,
   writeModelConfigSelection,
   writeProjectSettings,
   writeSettings,
@@ -49,7 +50,7 @@ import type {
   SessionProcessEntry,
   UserPromptContent,
 } from "@deeporca/core";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
 import type {
@@ -230,6 +231,11 @@ export class SessionBridge {
   }
 
   private createManager(projectRoot: string): SessionManager {
+    // Bottom-line write boundary for direct file-utils imports (P0 task 5,
+    // specs/sandbox/design.md §4.1(c)): host injection, core stays dormant so
+    // tests stay hermetic. Handler flows carry their per-call pathGrant, so an
+    // authorized out-of-roots write is not affected.
+    configureFileUtilsWriteBoundary([realpathSync(projectRoot)]);
     return new SessionManager({
       projectRoot,
       createOpenAIClient: () => createOpenAIClient(projectRoot),

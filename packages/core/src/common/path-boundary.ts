@@ -187,3 +187,12 @@ function isWithinRoot(root: string, candidate: string): boolean {
 function isPathInRoots(roots: readonly string[], candidate: string): boolean {
   return roots.some((root) => isWithinRoot(root, candidate));
 }
+
+/**
+ * Containment of a (possibly non-existent) path against a root set, using
+ * the gate's resolution strategy (symlink chains, parent realpath for
+ * creation-time TOCTOU). Public for the file-utils bottom-line boundary.
+ */
+export function isPathWithinRoots(roots: readonly string[], filePath: string): boolean {
+  return isPathInRoots(roots, resolveGateCandidate(filePath));
+}

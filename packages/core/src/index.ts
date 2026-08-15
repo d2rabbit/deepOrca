@@ -117,7 +117,15 @@ export { createMcpSpawnSpec, type McpSpawnSpec } from "./mcp/spawn-spec";
 // Common utilities
 export { createOpenAIClient, createSecondaryClient, createVisionClient } from "./common/openai-client";
 export { buildThinkingRequestOptions } from "./common/openai-thinking";
-export { readTextFileWithMetadata, writeTextFile, buildDiffPreview, ensureParentDirectory } from "./common/file-utils";
+export {
+  readTextFileWithMetadata,
+  writeTextFile,
+  buildDiffPreview,
+  ensureParentDirectory,
+  configureFileUtilsWriteBoundary,
+  PathBoundaryError,
+} from "./common/file-utils";
+export { gateWrite, gateRead, type PathGrant, type GateVerdict } from "./common/path-boundary";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";

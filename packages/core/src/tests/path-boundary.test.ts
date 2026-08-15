@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { gateRead, gateWrite, isPathInProject, type PathGrant } from "../common/path-boundary";
+import { gateRead, gateWrite, isPathInProject, isPathWithinRoots, type PathGrant } from "../common/path-boundary";
+import {
+  configureFileUtilsWriteBoundary,
+  ensureParentDirectory,
+  PathBoundaryError,
+  writeTextFile,
+} from "../common/file-utils";
 
 // Gate semantics tests for the P0 execution-time path boundary
 // (specs/sandbox/design.md §4.1, acceptance table). All filesystem fixtures
@@ -173,4 +179,62 @@ test("moved primitives behave identically: isPathInProject still classifies via 
   const root = createWorkspace();
   assert.equal(isPathInProject(root, path.join(root, "a.ts")), true);
   assert.equal(isPathInProject(root, path.join(os.tmpdir(), "elsewhere.ts")), false);
+});
+
+// --- file-utils bottom-line boundary (task 5) -------------------------------
+
+test("file-utils write boundary is dormant until configured", () => {
+  const root = createWorkspace();
+  configureFileUtilsWriteBoundary(null);
+  const outside = path.join(createWorkspace(), "direct-write.txt");
+  // No boundary configured: direct writes anywhere behave exactly as before.
+  assert.doesNotThrow(() => writeTextFile(outside, "x", "utf8", "LF"));
+  assert.equal(fs.readFileSync(outside, "utf8"), "x");
+});
+
+test("file-utils write boundary throws outside configured roots after initialization", () => {
+  const root = createWorkspace();
+  configureFileUtilsWriteBoundary([root]);
+  try {
+    const outside = path.join(createWorkspace(), "escape.txt");
+    assert.throws(() => writeTextFile(outside, "x", "utf8", "LF"), PathBoundaryError);
+    assert.throws(() => ensureParentDirectory(path.join(outside, "child", "file.txt")), PathBoundaryError);
+    assert.equal(fs.existsSync(outside), false);
+    // In-root writes keep working without a grant.
+    const inside = path.join(root, "ok.txt");
+    assert.doesNotThrow(() => writeTextFile(inside, "x", "utf8", "LF"));
+  } finally {
+    configureFileUtilsWriteBoundary(null);
+  }
+});
+
+test("file-utils write boundary honors the per-call grant (R1 not broken)", () => {
+  const root = createWorkspace();
+  configureFileUtilsWriteBoundary([root]);
+  try {
+    const outside = path.join(createWorkspace(), "authorized.txt");
+    // An authorized out-of-roots write must pass the bottom line too —
+    // otherwise the R1 one-time-approval semantics would be killed here.
+    const grant = makeGrant({ writeRoots: [root], allowWriteOutsideRoots: true });
+    assert.doesNotThrow(() => writeTextFile(outside, "x", "utf8", "LF", { pathGrant: grant }));
+    // Same path WITHOUT the dynamic authorization is still blocked.
+    const unauthorized = makeGrant({ writeRoots: [root], allowWriteOutsideRoots: false });
+    assert.throws(
+      () =>
+        writeTextFile(path.join(createWorkspace(), "blocked.txt"), "x", "utf8", "LF", {
+          pathGrant: unauthorized,
+        }),
+      PathBoundaryError
+    );
+  } finally {
+    configureFileUtilsWriteBoundary(null);
+  }
+});
+
+test("isPathWithinRoots checks every configured root", () => {
+  const rootA = createWorkspace();
+  const rootB = createWorkspace();
+  assert.equal(isPathWithinRoots([rootA, rootB], path.join(rootB, "file.txt")), true);
+  assert.equal(isPathWithinRoots([rootA, rootB], path.join(rootA, "file.txt")), true);
+  assert.equal(isPathWithinRoots([rootA, rootB], path.join(createWorkspace(), "file.txt")), false);
 });

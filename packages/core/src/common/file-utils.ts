@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { FileState, FileLineEnding } from "./state";
+import { gateWrite, isPathWithinRoots, type PathGrant } from "./path-boundary";
 
 export type FileReadMetadata = {
   content: string;
@@ -55,16 +56,54 @@ export function writeTextFile(
   filePath: string,
   content: string,
   encoding: BufferEncoding,
-  lineEndings: FileLineEnding
+  lineEndings: FileLineEnding,
+  options?: WriteBoundaryOptions
 ): number {
+  assertWithinWriteBoundary(filePath, options?.pathGrant);
   const normalized = normalizeContent(content);
   const toWrite = lineEndings === "CRLF" ? normalized.replace(/\n/g, "\r\n") : normalized;
   fs.writeFileSync(filePath, toWrite, { encoding });
   return Buffer.byteLength(toWrite, encoding === "utf16le" ? "utf16le" : "utf8");
 }
 
-export function ensureParentDirectory(filePath: string): void {
+export function ensureParentDirectory(filePath: string, options?: WriteBoundaryOptions): void {
+  assertWithinWriteBoundary(filePath, options?.pathGrant);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+
+// Bottom-line write boundary (P0 task 5, specs/sandbox/design.md §4.1(c)):
+// defense-in-depth for callers that bypass the handlers' gateWrite (direct
+// imports of these public exports). Dormant until a host initializes it via
+// configureFileUtilsWriteBoundary — core never initializes it itself, so
+// tests and library consumers stay unaffected. Handler flows pass their
+// per-call pathGrant down, which keeps R1 semantics intact: an authorized
+// out-of-roots write (allowWriteOutsideRoots) must NOT be killed here.
+export type WriteBoundaryOptions = { pathGrant?: PathGrant };
+
+export class PathBoundaryError extends Error {
+  constructor(filePath: string) {
+    super(`Path is outside the configured write boundary: ${filePath}`);
+    this.name = "PathBoundaryError";
+  }
+}
+
+let writeBoundaryRoots: readonly string[] | null = null;
+
+export function configureFileUtilsWriteBoundary(roots: readonly string[] | null): void {
+  writeBoundaryRoots = roots ? [...roots] : null;
+}
+
+function assertWithinWriteBoundary(filePath: string, grant: PathGrant | undefined): void {
+  if (!writeBoundaryRoots) {
+    return;
+  }
+  if (grant && gateWrite(grant, filePath).ok) {
+    return;
+  }
+  if (isPathWithinRoots(writeBoundaryRoots, filePath)) {
+    return;
+  }
+  throw new PathBoundaryError(filePath);
 }
 
 export function hasFileChangedSinceState(filePath: string, state: FileState): boolean {

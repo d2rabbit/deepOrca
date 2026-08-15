@@ -106,14 +106,16 @@ export async function handleWriteTool(
       const normalizedContent = normalizeContent(input.content);
 
       try {
-        ensureParentDirectory(filePath);
+        ensureParentDirectory(filePath, { pathGrant: context.pathGrant });
 
         const existingMetadata = existingFile ? readTextFileWithMetadata(filePath) : null;
         const encoding = existingMetadata?.encoding ?? "utf8";
         const lineEndings = existingMetadata?.lineEndings ?? (input.content.includes("\r\n") ? "CRLF" : "LF");
         const diffPreview = buildDiffPreview(filePath, existingMetadata?.content ?? null, normalizedContent);
         context.onBeforeFileMutation?.(filePath);
-        const bytes = writeTextFile(filePath, normalizedContent, encoding, lineEndings);
+        const bytes = writeTextFile(filePath, normalizedContent, encoding, lineEndings, {
+          pathGrant: context.pathGrant,
+        });
         context.onAfterFileMutation?.(filePath);
         const freshMetadata = readTextFileWithMetadata(filePath);
 
