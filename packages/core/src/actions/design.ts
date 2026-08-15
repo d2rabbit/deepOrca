@@ -187,7 +187,11 @@ export const designMaterializeRun: ActionRun<DesignMaterializeInput, DesignMater
         const sessionId = ctx.activeSessionId?.();
         const ref = sessionId ? ctx.getSessionTaskRef?.(sessionId) : undefined;
         if (ref) {
-          ctx.taskTrees?.()?.appendStep(ref.treeId, {
+          const svc = ctx.taskTrees?.();
+          // Land on the session's BOUND branch — the tree's global active
+          // branch may have been moved by another session or a manual switch.
+          svc?.switchBranch(ref.treeId, ref.branch);
+          svc?.appendStep(ref.treeId, {
             title: `Design materialized: ${requirement.slice(0, 80)}`,
             why: `design.materialize produced a ${route.pipeline} artifact for this branch.`,
           });

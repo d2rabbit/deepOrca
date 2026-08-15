@@ -3905,6 +3905,7 @@ ${content}
    */
   deleteSession(sessionId: string): boolean {
     this.frozenToolRoutes.delete(sessionId);
+    this.taskRecallHinted.delete(sessionId);
     const index = this.loadSessionsIndex();
     const targetEntry = index.entries.find((entry) => entry.id === sessionId) ?? null;
     const nextEntries = index.entries.filter((entry) => entry.id !== sessionId);

@@ -1118,7 +1118,7 @@ function registerDesignIpc({ handle }: IpcHelpers): void {
 function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   const service = () => getBridge().getSessionManager().getTaskTreeServiceForPanel();
   const validTreeId = (treeId: unknown): treeId is string =>
-    typeof treeId === "string" && /^[0-9a-f-]{36}$/i.test(treeId);
+    typeof treeId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(treeId);
   const validBranch = (branch: unknown): branch is string =>
     typeof branch === "string" && /^[A-Za-z0-9._-]{1,48}$/.test(branch) && !branch.includes("..");
 

@@ -21,6 +21,8 @@ export interface TaskForkInput {
   name?: string;
   why: string;
   fromBranch?: string;
+  /** Memory unit ids to seed the branch with (memory-driven fork, spec §3.2 step 5). */
+  memorySnapshot?: string[];
 }
 export interface TaskSwitchInput {
   treeId: string;
@@ -147,6 +149,13 @@ export const taskForkDefinition: ActionDefinition<TaskForkInput> = {
       name: { type: "string", description: "New branch name (auto-generated when omitted)" },
       why: { type: "string", description: "Why fork here — the story shown next to the branch" },
       fromBranch: { type: "string", description: "Branch to fork from (default: active branch)" },
+      memorySnapshot: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Optional memory unit ids recalled via task.recall to seed the branch (creates a memory-spawn node " +
+          "whose context carries the recalled rationale)",
+      },
     },
     required: ["treeId", "why"],
     additionalProperties: false,
@@ -164,8 +173,17 @@ export const taskForkRun: ActionRun<
   const why = input?.why?.trim();
   if (!treeId || !why) return { ok: false, error: "treeId and why are required" };
   ctx.emit({ message: "🌱 分叉任务分支…", percent: 50 });
-  const nodeId = svc.fork(treeId, { name: input.name, why, fromBranch: input.fromBranch });
+  const nodeId = svc.fork(treeId, {
+    name: input.name,
+    why,
+    fromBranch: input.fromBranch,
+    memorySnapshot: input.memorySnapshot,
+  });
   if (!nodeId) return { ok: false, error: "fork rejected (tree missing, duplicate name, or empty why)" };
+  // Follow the fork: rebind the session to the new branch head so later
+  // plan materialization / design steps land on the branch the session is
+  // now working on, not wherever the tree was left (spec §3.1 "fork switches").
+  bindSessionToTree(ctx, svc, treeId);
   const tree = svc.getTree(treeId);
   return { ok: true, nodeId, branch: tree?.index.activeBranch };
 };

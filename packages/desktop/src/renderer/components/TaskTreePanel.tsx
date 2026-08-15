@@ -10,7 +10,7 @@
  * memory-spawn ✦).
  */
 
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import type { TaskNode, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import { useI18n } from "../i18n";
@@ -77,25 +77,30 @@ export function TaskTreePanel(): JSX.Element {
   const [newWhy, setNewWhy] = useState("");
   // Fork form (per tree)
   const [forkWhy, setForkWhy] = useState("");
+  // Mirror of `selected` for stable callbacks — the 15s poll and the workspace
+  // listener must read the CURRENT selection, not the one captured at mount
+  // (a stale closure here resets the user's selection back to the first tree).
+  const selectedRef = useRef<string | null>(null);
 
-  const refresh = useCallback(
-    async (keepSelection?: string | null) => {
-      try {
-        const list = await api.taskTreeList();
-        setTrees(list);
-        setError(null);
-        const current = keepSelection ?? selected;
-        if (current && list.some((tr) => tr.id === current)) {
-          setSelected(current);
-        } else {
-          setSelected(list.length > 0 ? list[0]!.id : null);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+  const refresh = useCallback(async (keepSelection?: string | null) => {
+    try {
+      const list = await api.taskTreeList();
+      setTrees(list);
+      setError(null);
+      const current = keepSelection ?? selectedRef.current;
+      if (current && list.some((tr) => tr.id === current)) {
+        setSelected(current);
+      } else {
+        setSelected(list.length > 0 ? list[0]!.id : null);
       }
-    },
-    [selected]
-  );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   // Workspace binding: resolve the current root once, then follow changes —
   // the tree store is per-workspace, so a root switch resets the view.
@@ -146,7 +151,10 @@ export function TaskTreePanel(): JSX.Element {
 
   const reloadDetail = useCallback(
     async (treeId: string) => {
-      const tree = await api.taskTreeGet(treeId).catch(() => null);
+      const tree = await api.taskTreeGet(treeId).catch((err: Error) => {
+        setError(err.message);
+        return null;
+      });
       setDetail(tree);
       await refresh(treeId);
     },

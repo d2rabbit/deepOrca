@@ -5,6 +5,7 @@ import * as os from "os";
 import * as path from "path";
 import { TaskTreeService } from "../tasks/task-tree-service";
 import { SessionManager } from "../session";
+import { taskForkRun } from "../actions/task";
 
 const tempRoots: string[] = [];
 
@@ -509,4 +510,77 @@ test("lineage recycle reaches memory capture (L3 closure)", async () => {
     turn.messages.some((m) => m.content.includes("<task-lineage>")),
     "lineage in structured messages[]"
   );
+});
+
+test("task.fork action: binds the session to the new branch, seeds memory, materialized plan follows", async () => {
+  const root = tempRoot();
+  const home = tempRoot();
+  process.env.HOME = home;
+  const responses: unknown[] = [
+    { choices: [{ message: { content: JSON.stringify({ skillNames: [], multiIntent: false }) } }] },
+    { choices: [{ message: { content: "assistant did the thing" } }] },
+  ];
+  const client = { chat: { completions: { create: async () => responses.shift() } } };
+  const manager = new SessionManager({
+    projectRoot: root,
+    createOpenAIClient: () => ({ client: client as any, model: "m", baseURL: "x", thinkingEnabled: false }),
+    getResolvedSettings: () => ({ model: "m" }) as any,
+    renderMarkdown: (t) => t,
+    onAssistantMessage: () => {},
+  });
+  const svc = (manager as any).getTaskTreeService() as TaskTreeService;
+  const sessionId = await manager.createSession({ text: "hello" });
+  const treeId = svc.createTree("Refactor parser")!;
+  svc.bindSession(treeId, "main", sessionId);
+  (manager as any).setSessionTaskRef(sessionId, {
+    treeId,
+    branch: "main",
+    nodeId: svc.getTree(treeId)!.index.branches["main"]!.headId,
+  });
+
+  // Realistic ActionContext for the fork action (only the task-tree seams).
+  const ctx = {
+    projectRoot: root,
+    signal: new AbortController().signal,
+    emit: () => {},
+    spawner: undefined,
+    taskTrees: () => svc,
+    activeSessionId: () => sessionId,
+    setSessionTaskRef: (sid: string, ref: unknown) => (manager as any).setSessionTaskRef(sid, ref),
+    getSessionTaskRef: (sid: string) => (manager as any).getSession(sid)?.taskRef,
+  } as any;
+  const result = await taskForkRun(
+    { treeId, why: "try a streaming parser instead", memorySnapshot: ["parser-fork-lesson-1"] },
+    ctx
+  );
+
+  assert.ok(result.ok, `fork succeeded: ${result.error ?? ""}`);
+  const newBranch = result.branch!;
+  assert.notEqual(newBranch, "main", "fork switched to the new branch");
+
+  // Memory snapshot is reachable from the ACTION surface (production path):
+  // the branch head must be a memory-spawn node seeded with the unit ids.
+  const forkNode = svc
+    .getTree(treeId)!
+    .nodes.find((n) => n.id === svc.getTree(treeId)!.index.branches[newBranch]!.headId)!;
+  assert.equal(forkNode.kind, "memory-spawn");
+  assert.deepEqual(forkNode.memoryRefs, ["parser-fork-lesson-1"]);
+  assert.ok(forkNode.contextSummary?.includes("parser-fork-lesson-1"), "context carries the seed");
+
+  // Session rebinding: taskRef now points at the fork branch head.
+  const ref = (manager as any).getSession(sessionId).taskRef;
+  assert.equal(ref.branch, newBranch);
+  assert.equal(ref.nodeId, forkNode.id);
+
+  // The interaction that motivated the fix: a later UpdatePlan materialization
+  // must land on the FORK branch, not switch the tree back to main.
+  (manager as any).materializePlanToTaskTree(sessionId, {
+    name: "UpdatePlan",
+    arguments: JSON.stringify({ plan: "- [ ] stream tokens incrementally" }),
+  });
+  const tree = svc.getTree(treeId)!;
+  assert.equal(tree.index.activeBranch, newBranch, "materialization did not revert the branch");
+  const stepOnFork = tree.nodes.find((n) => n.title === "stream tokens incrementally");
+  assert.ok(stepOnFork, "plan step materialized");
+  assert.equal(stepOnFork.parentId, forkNode.id, "step landed on the fork branch head");
 });
