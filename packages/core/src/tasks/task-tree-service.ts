@@ -56,6 +56,14 @@ function sanitizeBranchName(name: string, fallback: string): string {
   return cleaned || fallback;
 }
 
+/**
+ * treeId containment (path join safety). Callers include LLM-supplied action
+ * input (`task.step`/`task.fork` carry the id verbatim) and IPC payloads — an
+ * unvalidated id could traverse out of the store root via `../`. Mirrors the
+ * nodeId check in readNodeFile.
+ */
+const VALID_TREE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class TaskTreeService {
   private readonly rootDir: string;
   /** treeId → in-memory index (the pending state reads must prefer). */
@@ -502,7 +510,9 @@ export class TaskTreeService {
   // ── Persistence (single writer) ────────────────────────────────────────────
 
   private treeDir(treeId: string): string {
-    return path.join(this.rootDir, treeId);
+    // Invalid ids map to a fixed nonexistent dir — every subsequent fs call
+    // fails and the fail-open paths return null/false instead of throwing.
+    return VALID_TREE_ID.test(treeId) ? path.join(this.rootDir, treeId) : path.join(this.rootDir, "__invalid__");
   }
 
   /** Reads prefer the pending in-memory index (sessions-index lesson). */

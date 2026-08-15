@@ -584,3 +584,28 @@ test("task.fork action: binds the session to the new branch, seeds memory, mater
   assert.ok(stepOnFork, "plan step materialized");
   assert.equal(stepOnFork.parentId, forkNode.id, "step landed on the fork branch head");
 });
+
+test("task-tree service: treeId path containment — traversal ids cannot escape the store root", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  // A legit tree first, so the store root exists.
+  const treeId = svc.createTree("Real task", { why: "control" });
+  assert.ok(treeId);
+
+  // Every public seam must fail-open on traversal-shaped ids — and must not
+  // touch anything outside .deeporca/task-trees/.
+  const evil = "../../../../../etc";
+  assert.equal(svc.getTree(evil), null, "getTree rejects traversal id");
+  assert.equal(svc.appendStep(evil, { title: "nope" }), null, "appendStep rejects traversal id");
+  assert.equal(svc.fork(evil, { why: "nope" }), null, "fork rejects traversal id");
+  assert.equal(svc.switchBranch(evil, "main"), false, "switchBranch rejects traversal id");
+  assert.equal(svc.readReflog(evil).length, 0, "readReflog rejects traversal id");
+
+  // No traversal artifacts: nothing new created inside or above the store root.
+  const storeRoot = path.join(root, ".deeporca", "task-trees");
+  const siblings = fs.readdirSync(storeRoot).filter((name) => name !== treeId);
+  assert.deepEqual(siblings, [], "no stray dirs inside the store root");
+  assert.equal(fs.existsSync(path.join(root, "etc")), false, "no escape above the store root");
+  // The control tree is untouched by the rejected calls.
+  assert.ok(svc.getTree(treeId!), "legit tree still readable");
+});
