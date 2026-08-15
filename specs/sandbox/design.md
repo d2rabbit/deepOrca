@@ -1,6 +1,12 @@
 # 沙箱与副作用收口 — 设计方案
 
-> 日期：2026-08-15 · 状态：设计定稿（P0.5 已实现，其余未实现）
+> 日期：2026-08-15 · 状态：设计定稿（P0.5 已实现并复验，P0 已细化为可施工方案 §4.1-R，其余未实现）
+>
+> **bash 沙箱定稿（2026-08-16）**：P3 由"仅 macOS"扩为**三平台内核进程隔离 + 禁止静默降级**（§4.5 修订）；VM 级方案（v86/vfkit）经评审**否决——太重**（用户决策 2026-08-16）。强化隔离诉求由 §十 的**轻量 quarantine 信任分级**承接：零新基础设施，复用 P0 闸门与 forceAsk 机制。
+>
+> **WASM/WASI 路线评审（2026-08-15）**：已评审并记录决策 —— WASI 作为主威胁（T1/T2/T3）的隔离机制是**范畴错误**（它隔离 WASM guest 代码，而我们的 A 级出口是宿主进程内代码与原生 shell 子进程），但作为**不可信扩展代码**（MCP/第三方工具）的执行底座是正解，其 preopen 模型与 P0 的 `PathGrant` 同构。评审全文见 §九；任务清单新增 #19（P5，独立预研）。P0/P0.5/P1/P3 路线不变。
+>
+> **复验记录（2026-08-15，二轮）**：P0.5 落地与本文一致 —— `forceAskDefaultedScopes`（`permissions.ts:76` 参数、`:186` 接线、`:233-250` 过滤器）、`isDefaultedAllow`（`:250`）、`DEFAULT_FORCE_ASK_DEFAULTED_SCOPES`（`:275`）、session 编排（`session.ts:3454`），验收 6 条在 `permissions.test.ts:724-800`，单文件 43/43 全绿（Node 22）。P0 未动工（无 `path-boundary.ts`、无 `sandbox/`、`ToolExecutionContext` 无 `pathGrant`）。二轮审计发现原 §4.1 有三处施工级缺陷（PathGrant 形状无法表达"已授权越界"、派生点拿不到 per-scope 信息、透传点描述错误），已在 §4.1-R 修正。§二 行号锚点已按当前代码刷新。
 >
 > 起因：外部提出的「借鉴 celld 模式构建 OS 级沙箱」方案评审。评审结论是**架构骨架可用、集成层与后端层需重写、优先级需倒置**，故重写为本方案。
 >
@@ -11,7 +17,7 @@
 > 设计约束：
 >
 > 1. **先堵执行期边界，再谈 OS 隔离**——当前真实缺口不是"缺少沙箱"，而是"权限判定完了不落地执行"（§三 T1）。OS 隔离是纵深防御的第二层，不是第一层。
-> 2. **能力传递取代环境权限（capability over ambient authority）**——权限决策已在 `session.ts:3369` 算出，但只用于"是否放行分发"，放行后 handler 以宿主全权限运行。核心改造是把决策**下传**给 handler 强制执行。
+> 2. **能力传递取代环境权限（capability over ambient authority）**——权限决策已在 `session.ts:3444` 算出，但只用于"是否放行分发"，放行后 handler 以宿主全权限运行。核心改造是把决策**下传**给 handler 强制执行。
 > 3. **core 无 UI、core 不依赖 electron**——沿用既有 `Spawner` / controller-seam 铁律，隔离后端走 seam 注入。
 > 4. **不新增原生构建**——`electron-builder.yml:21-22` 显式关闭 `npmRebuild`/`nodeGypRebuild`，仓库无 `binding.gyp`/`Cargo.toml`。任何需要编译原生 helper 的方案（如 Landlock）本阶段直接否决。
 > 5. **不引入宿主 Python**——仓库刻意 vendor `uv` 以规避宿主 Python（`scripts/vendor-uv.js`），沙箱 bootstrap 不得依赖 `python3`。
@@ -38,8 +44,9 @@
         + allowAll 不再隐式覆盖越界写/删
 第 2 层 副作用审计总线（P1）  ← 可观测性，用真实数据决定第 3 层做多重
         所有 spawn + fs 写入 + 闸门判决落链式审计日志
-第 3 层 OS 级隔离（P2/P3）    ← 纵深防御，单后端起步，诚实宣称
-        Sans-IO PolicyEngine + macOS sandbox-exec
+第 3 层 执行基质隔离（P2/P3） ← 内核进程隔离三后端（sandbox-exec/bwrap/WSL2）
+        + quarantine 信任分级（§十，轻量）；VM 方案已否决（太重）
+        Sans-IO PolicyEngine 统一供策略
 ```
 
 ---
@@ -68,7 +75,7 @@
 
 | 能力 | 位置 | 状态 |
 | --- | --- | --- |
-| 符号链接加固的项目边界判定 | `permissions.ts:633-655` `isPathInProject` + `:657-663` `safeRealPath` | ✅ 已加固（双端 realpath，失败回退词法 `path.relative`），注释标注 "deep review 2026-08-15, B3" |
+| 符号链接加固的项目边界判定 | `permissions.ts:705-735` `isPathInProject` + `safeRealPath` | ✅ 已加固（双端 realpath，失败回退词法 `path.relative`），注释标注 "deep review 2026-08-15, B3" |
 | 10 个权限 scope + 判定引擎 | `settings.ts:28-38`、`permissions.ts:304` | ✅ 完整 |
 | 配置损坏 fail-closed | `settings.ts:328-346` `failClosedPermissionDefault` | ✅ 损坏时 `allowAll`→`askAll` |
 | 进程组杀 + Windows taskkill | `process-tree.ts:36,43` | ✅ 负 pid 组杀，有回退 |
@@ -82,8 +89,8 @@
 
 | 缺口 | 证据 | 后果 |
 | --- | --- | --- |
-| **G1. 边界检查不参与执行** | `isPathInProject` 的调用点只有 `permissions.ts:230,241,252`，全部在 `describeToolPermissionRequest` 内做 scope 归类。`write-handler` / `edit-handler` / `read-handler` / `file-utils` **均不调用** | 一旦 `write-out-cwd` 被判为 allow（`defaultMode:"allowAll"` 即默认如此），`write` 可写入磁盘任意绝对路径并创建父目录链，**无第二道检查** |
-| **G2. 权限决策不下传** | 决策在 `session.ts:3369` 算出，在 `:4688` 用于"是否放行分发"；`ToolExecutionContext`（`tool-types.ts:28-42`）**不含任何权限字段** | handler 放行后以宿主全权限运行 = 环境权限（ambient authority）。持久化的 always-allow（`permissions.ts:696`）会把一次授权变成永久全盘授权 |
+| **G1. 边界检查不参与执行** | `isPathInProject` 的调用点只有 `permissions.ts:301,313,324`，全部在 `describeToolPermissionRequest` 内做 scope 归类。`write-handler` / `edit-handler` / `read-handler` / `file-utils` **均不调用** | 一旦 `write-out-cwd` 被判为 allow，`write` 可写入磁盘任意绝对路径并创建父目录链，**无第二道检查** |
+| **G2. 权限决策不下传** | 决策在 `session.ts:3444` 算出，在 `:4797-4801`（`buildPermissionToolExecution`）用于"是否放行分发"；`ToolExecutionContext`（`common/tool-types.ts:28-42`）**不含任何权限字段** | handler 放行后以宿主全权限运行 = 环境权限（ambient authority）。持久化的 always-allow（`permissions.ts:696` 附近 `appendProjectPermissionAllows`）会把一次授权变成永久全盘授权 |
 | **G3. `onBeforeFileMutation` 无法否决** | 签名 `(filePath: string) => void`（`tool-types.ts:38`），同步、可选链调用、无 `if`/`await`/`try`（`write-handler.ts:100`、`edit-handler.ts:320`） | 不能作为策略拦截点。抛异常虽能中断写入，但被 `executor.ts:271-284` 归类为 `INTERNAL` 错误，与崩溃不可区分 |
 | **G4. 无 OS 级隔离** | `bash-handler.ts:161` 裸 spawn 继承父进程全部权限 | 命令内的任意行为不受约束（这是原方案唯一说对的缺口） |
 
@@ -97,9 +104,9 @@
 
 | ID | 威胁 | 载体 | 现状 | 本方案覆盖 |
 | --- | --- | --- | --- | --- |
-| **T1** | 模型被诱导写/删项目外文件（`~/.ssh/authorized_keys`、shell rc、`~/.claude/settings.json`） | `write`/`edit` 工具，A 级 | ⛔ **allowAll 下无任何阻挡** | **P0 + P0.5**（主目标，两者互为补全） |
+| **T1** | 模型被诱导写/删项目外文件（`~/.ssh/authorized_keys`、shell rc、`~/.claude/settings.json`） | `write`/`edit` 工具，A 级 | ⚠️ P0.5 后 allowAll 下转为强制 ask，但执行层仍无第二道检查（G1/G2），任何放行路径都是全权限 | **P0 + P0.5**（主目标，两者互为补全） |
 | **T2** | 模型读取项目外敏感文件并外泄（凭据、密钥） | `read` 工具 + 网络，A 级 | ⛔ 仅 128MB 上限 | **P0** 闸门 + **P1** 审计（读侧刻意不强制 ask，理由见 §4.2c） |
-| **T3** | bash 命令内的任意副作用（含绕过 T1/T2 闸门） | bash 工具，A 级 | ⛔ 无隔离 | **P0.5** 削减越界破坏性命令（`inferBashSideEffects`）+ **P3** OS 隔离（仅 macOS） |
+| **T3** | bash 命令内的任意副作用（含绕过 T1/T2 闸门） | bash 工具，A 级 | ⛔ 无隔离 | **P0.5** 削减越界破坏性命令（`inferBashSideEffects`）+ **P3** 三后端内核进程隔离 + quarantine 下 bash 全量强制 ask（§十） |
 | **T4** | 不可信仓库通过项目级 `settings.json` 的 `mcpServers` 执行任意命令 | 配置期，C 级 | ⛔ 项目级覆盖用户级 | **P4**（独立课题） |
 | **T5** | `bsk` argv 注入触达非预期浏览器能力 | `browser.*` action，B 级 | ⚠️ 无 allowlist | **P1** 审计 + **P2** 策略 |
 | T6 | 资源耗尽（fork bomb、磁盘填满） | bash | ⚠️ 有超时无资源限制 | P3 附带 |
@@ -125,38 +132,73 @@
 
 ```ts
 export type PathGrant = {
-  /** 允许写入的根目录集合（已 realpath 归一化） */
+  /** 允许写入的根目录集合（已 realpath 归一化）。始终含 realpath(projectRoot) */
   readonly writeRoots: readonly string[];
-  /** 允许读取的根目录集合 */
+  /** 允许读取的根目录集合。projectRoot + readPermissionExemptPaths */
   readonly readRoots: readonly string[];
-  /** 显式放行的单个路径（快照/临时文件等豁免，对应现有 readPermissionExemptPaths） */
-  readonly exemptPaths: readonly string[];
+  /** 本次调用的 write-out-cwd 已判 allow（显式授权 / 用户本次批准） */
+  readonly allowWriteOutsideRoots: boolean;
+  /** 本次调用的 read-out-cwd 已判 allow */
+  readonly allowReadOutsideRoots: boolean;
 };
 
 export type GateVerdict = { ok: true } | { ok: false; reason: string; scope: PermissionScope };
 
-export function gateWrite(grant: PathGrant, filePath: string): GateVerdict;
-export function gateRead(grant: PathGrant, filePath: string): GateVerdict;
+export function gateWrite(grant: PathGrant | undefined, filePath: string): GateVerdict;
+export function gateRead(grant: PathGrant | undefined, filePath: string): GateVerdict;
 ```
+
+> **修正 R1（二轮审计）**：原设计的 `PathGrant{writeRoots, readRoots, exemptPaths}` **无法表达"已授权的越界放行"**——用户点「仅本次允许」后，该次调用应能写任意路径，而 root 列表无法枚举"全盘"。必须加两个布尔位。布尔位与 roots 是正交的两层：roots 是静态边界，布尔位是本次调用的动态授权。P2 任务 14（路径级「始终允许」）落地时，持久化的路径直接追加进 roots，布尔语义不变，形状向后兼容。
 
 **TOCTOU 处理**：对**父目录**做 `realpath`（目标文件可能尚不存在），再拼回 basename 做包含判定 —— 复用 `safeRealPath` 现有的"realpath 失败回退词法"策略。这与 `isPathInProject` 已有的加固思路一致，不引入新语义。
 
-**(b) 决策下传**
+**闸门语义**：
 
-`ToolExecutionContext`（`tool-types.ts:28-42`）新增一个字段：
+| 调用 | 判定顺序 |
+| --- | --- |
+| `gateWrite` | 路径 ∈ writeRoots ⇒ ok；否则 `allowWriteOutsideRoots` ⇒ ok；否则拒（scope=`write-out-cwd`）。grant 为 `undefined` ⇒ 退化为 writeRoots=[projectRoot]、布尔全 false（**fail-closed**） |
+| `gateRead` | 路径 ∈ readRoots ⇒ ok；否则 `allowReadOutsideRoots` ⇒ ok；否则拒（scope=`read-out-cwd`）。grant 为 `undefined` ⇒ 退化为 readRoots=[projectRoot]（fail-closed） |
+
+**(b) 决策下传 — 派生算法（修正 R2/R3）**
+
+`ToolExecutionContext`（`common/tool-types.ts:28-42`）新增字段：
 
 ```ts
 /**
- * 本次工具调用被授予的路径能力。由 SessionManager 从已算出的权限计划派生
- * （见 session.ts:3369 computeToolCallPermissions）。缺省 undefined ⇒ handler
- * 退化为"仅 projectRoot"，即 fail-closed。
+ * 本次工具调用被授予的路径能力。缺省 undefined ⇒ handler 退化为
+ * "仅 projectRoot"，即 fail-closed。派生算法见 specs/sandbox/design.md §4.1。
  */
 pathGrant?: PathGrant;
 ```
 
-- 派生点：`session.ts:4663` `appendToolMessages` 内，已有 `permissionPlan`，据其把 `write-out-cwd`/`read-out-cwd` 是否 allow 翻译成 `writeRoots`/`readRoots`。
-- 消费点：`write-handler.ts`（`ensureParentDirectory` **之前**）、`edit-handler.ts:321` 之前、`read-handler.ts` 读取之前。
-- 拒绝时返回**权限类错误**（复用 `permissions.ts:88-108` 的措辞风格），不是 `INTERNAL`。
+> **修正 R2（二轮审计）**：原设计写"在 `appendToolMessages` 内据 `permissionPlan` 派生"——**做不到**。`PermissionPlan.permissions`（`permissions.ts:54-57`）只有 per-call 三态决策，`appendToolMessages` 收到的 `options.messagePermissions` 不含 per-scope 信息，直接派生会丢失 scope 维度。且 resume/trailing-pending 路径重放的是持久化的 toolCalls + 用户 overrides，`permissionPlan` 对象此时根本不存在。
+>
+> **修正后的派生算法**（零持久化依赖、与 resume 路径天然一致）：对每个即将执行的 call，在 `appendToolMessages`（`session.ts:4771`）的循环内重跑 `describeToolPermissionRequest`（已导出，`permissions.ts:284`）拿到 scopes。关键观察：**能走到执行阶段的 call，其 resolved 决策必然已是 "allow"**（否则 `:4797` 的 `buildPermissionToolExecution` 已拦截）——无论这个 allow 来自 settings、显式授权、还是用户本次批准。因此：
+>
+> ```
+> 对 write/edit 调用：allowWriteOutsideRoots = scopes.includes("write-out-cwd")
+> 对 read 调用：     allowReadOutsideRoots  = scopes.includes("read-out-cwd")
+> writeRoots = [realpath(projectRoot)]
+> readRoots  = [realpath(projectRoot), ...readPermissionExemptPaths]
+> ```
+>
+> 该算法按构造与权限层永远一致：「始终允许」（scope 在 allow 列表→决策 allow→布尔 true）、「仅本次允许」（override allow→本次布尔 true，下次重新 ask）、P0.5 强制 ask 后批准（同 override）全部正确覆盖，且**不需要改动 `PermissionPlan` 类型**。
+
+> **修正 R3（二轮审计）**：透传点不是"`executor.ts:250-271` 加字段就完事"。`executeToolCalls` 的生产调用点全仓只有 `session.ts:4803` 一处，且就是**单 call 调用**（`[toolCall]`）——pathGrant 天然 per-call，无需解决"一个 turn 内混合决策"的问题。签名加第 4 参 `extras?: { pathGrant?: PathGrant }`，executor 在 `:258` 构建 context 时透传。爆炸半径 = 1 个调用点。
+
+**消费点**：
+
+| Handler | 闸门位置 | 说明 |
+| --- | --- | --- |
+| `write-handler.ts` | `:94` `ensureParentDirectory` **之前** | 保证越界时父目录链也不创建（验收断言 #2） |
+| `edit-handler.ts` | `:321` `writeTextFile` 之前、`onBeforeFileMutation` 之前 | **只接 gateWrite**（见 R4） |
+| `read-handler.ts` | 相对路径经 suffix match 解析为绝对路径之后、首次 `fs` 触碰之前 | 单点闸，notebook/pdf/image 各分支共享同一 `filePath`，无需逐分支埋点（见 R5） |
+
+拒绝时返回**权限类错误**（`errorType: "PERMISSION_DENIED"`，`retryable: false`，措辞复用 `permissions.ts:88-108` 风格），不是 `INTERNAL`。
+
+> **R4 — edit 的内部读不走 gateRead**：edit 的授权维度只有 write scope（`permissions.ts:313,324`），handler 内部 `readTextFileWithMetadata` 读取目标文件是写的必要前置。若对内部读套 read grant，会在"已授权 write-out-cwd 但 read-out-cwd 未被单独授权"时误杀一次合法编辑。
+>
+> **R5 — snippet_id 路径天然被覆盖**：edit 经 `resolveSnippetPath` 解析出的目标文件参与 `describeToolPermissionRequest` 的 scope 归类（`session.ts:3456` 已接线），越界 snippet 目标会被归类为 `write-out-cwd` → P0.5 强制 ask → 闸门布尔位按授权结果设置。snippet 不是绕过路径。
 
 **(c) 底层兜底**
 
@@ -166,14 +208,19 @@ pathGrant?: PathGrant;
 
 | 断言 | 方式 |
 | --- | --- |
-| `defaultMode:"allowAll"` 下，`write` 到 `/etc/xxx` 被拒 | 新增 `tests/path-boundary.test.ts` |
+| `defaultMode:"allowAll"` 且无显式授权时，`write` 到 `/etc/xxx` 被拒（P0.5 ask 未批准 ⇒ 不执行；若绕过权限层直接执行 ⇒ 闸门 fail-closed 拒） | 新增 `tests/path-boundary.test.ts` |
 | `write` 到 `<root>/../evil` 被拒，且**父目录未被创建** | 同上（验证 `mkdir -p` 也在闸门内） |
 | 项目内经符号链接指向 `/etc` 的路径被拒 | 复用 `isPathInProject` 已有的 symlink 用例形态 |
 | `read-out-cwd` 显式 allow 时，越界读放行 | 同上 |
 | `pathGrant` 缺省时退化为 projectRoot-only（fail-closed） | 同上 |
+| 用户「仅本次允许」越界写 ⇒ 该次放行（布尔位 true），下一次调用重新 ask | handler 级测试：显式构造 grant 模拟 override 后的派生结果 |
+| edit 越界目标（已授权 write-out-cwd）的内部读不被误杀 | handler 级测试（R4 防回退用例） |
 | 既有 `permissions.test.ts` / `tool-handlers.test.ts` 全绿 | `npm test -w @deeporca/core` |
 
-**风险**：现有 always-allow 用户升级后可能突然被拒 —— 需确认 `writeRoots` 派生逻辑忠实反映持久化的 allow 列表，否则是功能回退。这是本阶段唯一的兼容性风险点，必须有测试覆盖。
+**风险**
+
+1. **兼容性**：现有 always-allow 用户升级后行为必须不变 —— R2 的派生算法按构造忠实反映持久化 allow 列表与 override，但仍需"显式授权未被误伤"的测试兜底（P0.5 已有同型用例，模式照搬）。
+2. **测试基线（R6，二轮审计新增）**：`tool-handlers.test.ts:1040` 用 `os.tmpdir()` 建 fixture。需逐套件确认 `context.projectRoot` 与 fixture 同根；个别读/写 projectRoot 外路径的用例会被 fail-closed 默认值拦截——修法是在测试 context 里**显式注入 pathGrant**，而不是放宽默认值。施工第一步先跑 `npm test -w @deeporca/core` 建立全绿基线，接线后立即重跑定位受影响用例。
 
 ---
 
@@ -301,22 +348,29 @@ const DEFAULT_FORCE_ASK_DEFAULTED_SCOPES = ["write-out-cwd", "delete-out-cwd"] a
 
 ---
 
-### 4.5 P3 — 单后端 OS 隔离：macOS `sandbox-exec`（1-2 周）
+### 4.5 P3 — OS 级进程隔离：三后端 + 降级链（1-2 周，2026-08-16 扩展）
 
-只做 macOS（主力平台）+ `noop`（其余平台）。
+**修订背景**：原方案只做 macOS + noop。决策 2026-08-16：bash 不得裸跑宿主机，三平台都要有后端，且**禁止静默降级** —— 每次降级落审计 + UI 可见提示。VM 级方案已否决（§十），本层是 bash 隔离的唯一执行档，quarantine 强化诉求由 §十 的信任分级以零新基础设施承接。
 
-- 机制：`sandbox-exec -p <profile>` 包裹 `bash-handler.ts:161` 的 shell。profile 由 PolicyEngine 从 `PathGrant` 生成（`deny default` + `allow file-read*`/`file-write*` 限定子树 + `deny network*` 视 `network` scope）。
-- **已知约束**：`sandbox_init` 自 macOS 10.14 起 deprecated，`sandbox-exec` CLI 仍可用（Claude Code / Codex 走同一条路）。需在 profile 生成处注释标注，并在 probe 失败时 fail-open 到 noop + 审计告警。
-- 集成点：**不是**原方案设想的"扩展 `Spawner`" —— bash 不走 `Spawner`（`bash-handler.ts:1` 直接 `import { spawn }`）。改为在 `bash-handler` 内经 `ToolExecutionContext` 取隔离器，与 `pathGrant` 同源。
-- 验收：沙箱内 `cat ~/.ssh/id_rsa` 失败；`touch /tmp/x` 视 profile 成败符合预期；`network` deny 时 `curl` 失败；probe 失败时退化 noop 且审计有记录。
+**后端矩阵（默认档，按探测顺序）**：
 
-**明确否决 Linux/bwrap 进入本阶段**，理由见 §五。
+| 平台 | 首选 | 回退 | 最终 |
+| --- | --- | --- | --- |
+| macOS | `sandbox-exec -p <profile>` | — | noop + 明示 |
+| Linux | 系统 `bwrap`（PATH 探测 + userns 可用性 probe） | — | noop + 明示（提示用户安装 bwrap） |
+| Windows | WSL2（`wsl.exe` 探测，专用 distro 内执行） | — | noop + 诚实宣称 |
+
+- **macOS**：`sandbox-exec` 包裹 `bash-handler.ts:161` 的 shell。profile 由 PolicyEngine 从 `PathGrant` 生成（`deny default` + `allow file-read*`/`file-write*` 限定子树 + `deny network*` 视 `network` scope）。已知约束不变：`sandbox_init` 自 10.14 deprecated，CLI 仍可用（Claude Code / Codex 同路）；probe 失败 fail-open 到 noop + 审计告警 + UI 提示。
+- **Linux（bwrap 修订）**：§五 否决的是**原方案那组错误的 bwrap  flags 与"假定已安装"**，不是 bwrap 本身。修订后：flags 重写（`--ro-bind / /` 起步、`--bind <projectRoot>` 可写、`--unshare-net` 视 scope、proc/tmpfs 显式声明）；**不 vendored** —— Ubuntu 24.04+ 的 AppArmor userns 管控只放行有 profile 的打包二进制（distro 装的 bwrap 有，随机路径的 vendored 副本没有），vendor 了也会被打回。探测系统 bwrap，缺失/被打回 → noop + 明确提示「安装 bubblewrap 可启用进程隔离」。AppImage 嵌套 userns 雷区不变，probe 必须在真实运行环境做，不能只看 PATH。
+- **Windows（WSL2 修订）**：`wsl.exe` 是系统自带命令，零原生构建。真实 VM 边界（Hyper-V）。三个必须处理的坑：①默认挂载 `\mnt\c` 暴露整盘 —— 命令执行前校验 cwd 映射，只承诺 projectRoot 映射目录内的操作；②WSL interop 允许 guest 调宿主 Windows exe —— 需在专用 distro 的 `wsl.conf` 关闭 interop，否则隔离形同虚设；③WSL 未安装是常态，探测失败 → noop + 诚实宣称。性能注意：`/mnt/c` 下 I/O 慢，重度命令体验下降，属已知折衷。
+- **集成点**：不是"扩展 `Spawner`" —— bash 不走 `Spawner`（`bash-handler.ts:1` 直接 `import { spawn }`）。在 `bash-handler` 内经 `ToolExecutionContext` 取隔离器，与 `pathGrant` 同源。后端选择结果（含 probe 失败原因）写入 P1 审计。
+- **验收**：沙箱内 `cat ~/.ssh/id_rsa` 失败；`touch /tmp/x` 视 profile 成败符合预期；`network` deny 时 `curl` 失败；各平台 probe 失败时退化路径符合降级链且审计/UI 均有记录。
 
 ---
 
 ### 4.6 P4 — MCP 进程隔离（独立课题）
 
-T4 的收益可能高于 T3，但改造面在 `mcp-manager.ts:455-529` 与 settings 合并策略（`settings.ts:640` 项目级覆盖用户级）。建议独立立项，本方案只登记不展开。最小可行改动：**项目级 `settings.json` 新增/修改 `mcpServers` 时强制用户确认**，成本远低于进程隔离。
+T4 的收益可能高于 T3，但改造面在 `mcp-manager.ts:455-529` 与 settings 合并策略（`settings.ts:640` 项目级覆盖用户级）。建议独立立项，本方案只登记不展开。最小可行改动：**项目级 `settings.json` 新增/修改 `mcpServers` 时强制用户确认**，成本远低于进程隔离。长期方向见 §九 —— MCP/第三方工具的 WASM 化执行底座（P5）是 T4 的根治路径，进程隔离只是过渡。
 
 ---
 
@@ -329,7 +383,7 @@ T4 的收益可能高于 T3，但改造面在 `mcp-manager.ts:455-529` 与 setti
 | `permissionsToSandboxPolicy(permConfig)`（§4.2） | ❌ | 实际类型 `PermissionSettings{allow,deny,ask,defaultMode}`，无 `network`/`timeoutMs`/`env` 字段；6/9 个 scope 名不存在。编译不过 |
 | 6 态生命周期 + Draining/grace（§2.2） | ❌ | 桌面应用无会话结束事件，无触发条件。为不存在的问题建模 |
 | deadline expiry + alarm/wake（§2.4/2.5） | ❌ | 现有 `bash-timeout` + `killProcessTree` 已覆盖真实需求（含中途延长，原方案未提） |
-| Linux bwrap 后端（§3.6） | ❌ 本阶段 | ①`--dev-bind / /` 是**可读写**挂载全根并授予设备访问，注释却写"只读"，这一行抵消整个沙箱；②`--proc /proc` 与随后 `--ro-bind /proc /proc` 冲突；③`--unshare-all` 已含 `--unshare-net`；④Landlock 只在注释里，无实际调用（需原生 helper，违反约束 4）；⑤AppImage 内嵌套 user namespace 是已知雷区；⑥bwrap 非默认安装 |
+| Linux bwrap 后端（§3.6） | ⚠️ 部分修订（2026-08-16） | 否决**原方案的错误 flags 与"假定已安装"**：①`--dev-bind / /` 是**可读写**挂载全根并授予设备访问，注释却写"只读"，这一行抵消整个沙箱；②`--proc /proc` 与随后 `--ro-bind /proc /proc` 冲突；③`--unshare-all` 已含 `--unshare-net`；④Landlock 只在注释里，无实际调用（需原生 helper，违反约束 4）；⑤AppImage 内嵌套 user namespace 是已知雷区；⑥vendored bwrap 在 Ubuntu 24.04+ 会被 AppArmor userns 管控打回（无 profile）。**修订**：flags 重写 + 探测系统 bwrap 的 P3 后端已采纳，见 §4.5 |
 | `BOOTSTRAP_SCRIPT`（§3.6） | ❌ | ①Python 里写 JS 字面量 `null`/`true`（应 `None`/`True`）⇒ **SyntaxError**；②socket 绑 `/tmp/sandbox-init.sock` 而 `/tmp` 被挂为 tmpfs ⇒ **宿主永不可达**，exec 路径根本不通；③依赖沙箱内有 `python3`，违反约束 5 |
 | Windows Job Objects 作为对等后端 | ❌ | 范畴错误。Job Objects 提供内存/CPU/进程数限制与 kill-on-close，**零文件系统与网络隔离**。真隔离需 AppContainer/受限令牌或 WSL2 |
 | `crypto.subtle.digestSync`（§3.7） | ❌ | **该 API 不存在**。改用 `node:crypto` `createHash` |
@@ -343,47 +397,51 @@ T4 的收益可能高于 T3，但改造面在 `mcp-manager.ts:455-529` 与 setti
 
 ## 六、平台能力矩阵（诚实宣称）
 
-P3 完成后对外可宣称的能力，逐格必须与实现一致：
+P3 + quarantine 完成后对外可宣称的能力，逐格必须与实现一致：
 
-| 平台 | 边界闸门 + ask 收窄（P0/P0.5） | 审计（P1） | 策略引擎（P2） | OS 隔离（P3） | 对外表述 |
-| --- | --- | --- | --- | --- | --- |
-| macOS arm64/x64 | ✅ | ✅ | ✅ | ✅ `sandbox-exec` | "进程级隔离 + 路径边界" |
-| Windows | ✅ | ✅ | ✅ | ❌ noop | **"仅策略层与路径边界，无 OS 隔离"** |
-| Linux (AppImage/deb) | ✅ | ✅ | ✅ | ❌ noop | **"仅策略层与路径边界，无 OS 隔离"** |
+| 平台 | 边界闸门 + ask 收窄（P0/P0.5） | 审计（P1） | 策略引擎（P2） | 进程隔离（P3） | quarantine（§十） | 对外表述 |
+| --- | --- | --- | --- | --- | --- | --- |
+| macOS arm64/x64 | ✅ | ✅ | ✅ | ✅ `sandbox-exec` | ✅ 强制沙箱 | "进程级隔离 + 路径边界 + 不可信仓库隔离模式" |
+| Windows | ✅ | ✅ | ✅ | ⚠️ WSL2（有则有，无则 noop） | ⚠️ 有后端强制沙箱，无则全量 ask | "路径边界 + 隔离模式；进程隔离视 WSL2" |
+| Linux (AppImage/deb) | ✅ | ✅ | ✅ | ⚠️ 系统 bwrap（probe，无则 noop） | ⚠️ 有后端强制沙箱，无则全量 ask | "路径边界 + 隔离模式；进程隔离视 bwrap" |
 
-三个平台的 P0/P0.5/P1/P2 完全一致（纯 TS，无平台依赖）—— 这也是把它们排在 OS 隔离之前的另一个理由：**一次投入，三平台受益**；而 P3 只覆盖三分之一的分发面。
+三个平台的 P0/P0.5/P1/P2 完全一致（纯 TS，无平台依赖）—— **一次投入，三平台受益**。P3/quarantine 的 bash 隔离强度依赖平台能力，故 ⚠️ 诚实标注；所有 noop 降级必须 UI 可见，禁止静默（约束 6）。VM 级隔离经评审否决（§10.2），不在宣称范围内。
 
 ---
 
 ## 七、任务清单
 
-| # | 任务 | 阶段 | 落点 | 依赖 |
-| --- | --- | --- | --- | --- |
-| 1 | `common/path-boundary.ts`：迁移 `isPathInProject`/`safeRealPath`/`isPathInAnyDirectory`，新增 `gateWrite`/`gateRead` | P0 | 新文件 + `permissions.ts` 反向 import | — |
-| 2 | `ToolExecutionContext.pathGrant` 字段 + `executor.ts` 透传 | P0 | `tool-types.ts:28-42`、`executor.ts:250-271` | 1 |
-| 3 | `session.ts` 从 `permissionPlan` 派生 `PathGrant` | P0 | `session.ts:4663` 附近 | 2 |
-| 4 | `write`/`edit`/`read` handler 接闸门（写侧须在 `ensureParentDirectory` 之前） | P0 | 三个 handler | 3 |
-| 5 | `file-utils.ts` 底层兜底断言（可选初始化，默认不改行为） | P0 | `file-utils.ts:54-68` | 1 |
-| 6 | `isDefaultedAllow()` 纯判定函数 | P0.5 | `permissions.ts:330` 后 | — |
-| 7 | `getAllowedForcedAskScopes` 拆为两个过滤器 + `forceAskDefaultedScopes` 参数 | P0.5 | `permissions.ts:169-206`、`:64` options 类型 | 6 |
-| 8 | `DEFAULT_FORCE_ASK_DEFAULTED_SCOPES` 常量 + 在 `computeToolCallPermissions` 调用处始终传入 | P0.5 | `session.ts:197` 附近 + `:3448` | 7 |
-| 9 | `tests/path-boundary.test.ts` + `permissions.test.ts` 补 §4.2(d) 七条断言 | P0 | 测试 | 4,5,8 |
-| 10 | `sandbox/audit.ts`（`hrtime.bigint` + `createHash` + JSONL 链式 hash） | P1 | 新目录 | — |
-| 11 | `onPathGateVerdict` 钩子 + spawn 事件接入审计 | P1 | `tool-types.ts`、`session.ts` | 9,10 |
-| 12 | `sandbox/types.ts` + `sandbox/policy.ts`（真实 10 scope） | P2 | 新文件 | — |
-| 13 | 3 态 lifecycle + generation fencing | P2 | 新文件 | 12 |
-| 14 | 路径级「始终允许」（持久化 `writeRoots` 取代 scope）—— 消化 §4.2(d) 残余风险 | P2 | settings schema + PermissionCard UI | 12 |
-| 15 | `backend/interface.ts` + `noop.ts` + `detect.ts` | P3 | 新文件 | 13 |
-| 16 | `backend/macos-sandbox-exec.ts` + profile 生成 | P3 | 新文件 | 15 |
-| 17 | `bash-handler` 接隔离器 | P3 | `bash-handler.ts:161` | 16 |
-| 18 | 项目级 `mcpServers` 变更强制确认 | P4 | 独立立项 | — |
+| # | 任务 | 阶段 | 落点 | 依赖 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `common/path-boundary.ts`：迁移 `isPathInProject`/`safeRealPath`/`isPathInAnyDirectory`（`permissions.ts:705-746`），新增 `gateWrite`/`gateRead`（含 R1 布尔位语义） | P0 | 新文件 + `permissions.ts` 反向 import | — | 未动工 |
+| 2 | `ToolExecutionContext.pathGrant` 字段 + `executeToolCalls` 第 4 参 `extras` 透传 | P0 | `common/tool-types.ts:28-42`、`executor.ts:63` 签名 + `:258` context 构建 | 1 | 未动工 |
+| 3 | `appendToolMessages` 循环内按 R2 算法派生 per-call `PathGrant`（重跑 `describeToolPermissionRequest`，`permissions.ts:284` 已导出） | P0 | `session.ts:4792-4805` 循环 + `:4803` 调用点 | 2 | 未动工 |
+| 4 | `write`/`edit`/`read` handler 接闸门（写侧须在 `ensureParentDirectory` 之前；edit 只接 gateWrite——R4；read 在路径解析后单点闸——R5） | P0 | `write-handler.ts:94`、`edit-handler.ts:321`、`read-handler.ts` | 3 | 未动工 |
+| 5 | `file-utils.ts` 底层兜底断言（可选初始化，默认不改行为） | P0 | `file-utils.ts:54-68` | 1 | 未动工 |
+| 6 | `isDefaultedAllow()` 纯判定函数 | P0.5 | `permissions.ts:250` | — | ✅ 已完成 |
+| 7 | `getAllowedDefaultedForcedAskScopes` 过滤器 + `forceAskDefaultedScopes` 参数 | P0.5 | `permissions.ts:76,186,233-248` | 6 | ✅ 已完成 |
+| 8 | `DEFAULT_FORCE_ASK_DEFAULTED_SCOPES` 常量 + 编排接线 | P0.5 | `permissions.ts:275`、`session.ts:149,3454` | 7 | ✅ 已完成 |
+| 9 | `tests/path-boundary.test.ts` + handler 级防回退用例（§4.1 验收表 8 条）；先建全绿基线再接线，tmpdir fixture 破例处显式注入 grant（R6） | P0 | 测试 | 4,5 | 未动工 |
+| 10 | `sandbox/audit.ts`（`hrtime.bigint` + `createHash` + JSONL 链式 hash） | P1 | 新目录 | — | 未动工 |
+| 11 | `onPathGateVerdict` 钩子 + spawn 事件接入审计 | P1 | `tool-types.ts`、`session.ts` | 9,10 | 未动工 |
+| 12 | `sandbox/types.ts` + `sandbox/policy.ts`（真实 10 scope） | P2 | 新文件 | — | 未动工 |
+| 13 | 3 态 lifecycle + generation fencing | P2 | 新文件 | 12 | 未动工 |
+| 14 | 路径级「始终允许」（持久化路径追加进 `writeRoots`/`readRoots`，取代 scope 级授权）—— 消化 §4.2(d) 残余风险；R1 的 PathGrant 形状已为此预留 | P2 | settings schema + PermissionCard UI | 12 | 未动工 |
+| 15 | `backend/interface.ts` + `noop.ts` + `detect.ts`（probe + 降级链；每次降级落审计 + UI 可见，禁止静默） | P3 | 新文件 | 13 | 未动工 |
+| 16 | `backend/macos-sandbox-exec.ts` + profile 生成 | P3 | 新文件 | 15 | 未动工 |
+| 17 | `backend/linux-bwrap.ts`：修正 flags + 系统 bwrap probe（**不 vendor**，Ubuntu 24.04+ AppArmor 管控）+ AppImage 环境实测 | P3 | 新文件 | 15 | 未动工 |
+| 18 | `backend/windows-wsl2.ts`：wsl.exe 探测 + 专用 distro（关 interop）+ cwd 映射校验 | P3 | 新文件 | 15 | 未动工 |
+| 19 | `bash-handler` 接隔离器（经 `ToolExecutionContext`，与 `pathGrant` 同源；后端选择落审计） | P3 | `bash-handler.ts:161` | 16,17,18 | 未动工 |
+| 20 | 项目级 `mcpServers` 变更强制确认 | P4 | 独立立项 | — | 未动工 |
+| 21 | WASM/WASI 工具 ABI 预研（不可信扩展代码的 capability 执行底座，preopen≅PathGrant） | P5 | 独立预研，见 §九 | 1 | 未动工 |
+| 22 | quarantine 信任分级：项目级 settings 存级别 + bash 全量 forceAsk 编排 + grant 派生收紧 + mcpServers 信任条件（§十，零新基础设施） | P3 同期 | `settings.ts`、`session.ts:3444-3456` 编排 | 8,15 | 未动工 |
 
 **建议执行顺序**：
 
-- **PR 1 = 任务 1-9**（P0 + P0.5 完整闭环）。两者必须同批：只做 P0 而不收窄 allowAll，闸门会忠实放行 allowAll 的越界写，T1 依旧敞开；只做 P0.5 而不做 P0，权限层判 ask 之后 handler 仍无二次校验，绕过路径（如 snippet_id 解析、`file-utils` 直接调用）依旧存在。**两者互为补全，分开发布任一半都是假修复。**
+- **PR 1 = 任务 1-5 + 9**（P0 闭环；P0.5 的 6-8 已在本分支完成）。两者必须同批发布的理由不变：只做 P0 而不收窄 allowAll，闸门会忠实放行 allowAll 的越界写，T1 依旧敞开；只做 P0.5 而不做 P0，权限层判 ask 之后 handler 仍无二次校验。**两者互为补全，分开发布任一半都是假修复。** 当前 P0.5 已先行落地在本分支，P0 必须跟上才能闭环。
 - **PR 2 = 任务 10-11**（审计总线）。
-- **PR 3+ = 任务 12-17**。其中 12/13 为纯逻辑、零 I/O，与当前 routing 分支正交，可并行动工。
-- 任务 18 独立立项。
+- **PR 3+ = 任务 12-19**。其中 12/13 为纯逻辑、零 I/O，与当前 routing 分支正交，可并行动工；15-19 是三后端与 bash 接线（P3 修订后范围）。任务 22（quarantine 信任分级）与 P3 同期，是编排层小改动。
+- 任务 20 独立立项；21（P5 WASI ABI）为独立预研轨道，不阻塞 PR 1-3。
 
 
 ---
@@ -393,3 +451,97 @@ P3 完成后对外可宣称的能力，逐格必须与实现一致：
 当前分支 `fix/stabilize-data-loss-and-test-suite` 的改动（`routing/telemetry.ts`、`routing-gating.test.ts`、`skill-metadata.test.ts`）与本方案**无文件级冲突**。
 
 但 P0 会触碰 `session.ts`（5108 行）与三个 tool handler —— 这是全仓测试刚转全绿的区域（见 commit `ef1050f1`）。建议 P0 单独成 PR 并跑全量 `npm test`，不与 routing 工作混在同一提交。
+
+**二轮复验（2026-08-15）确认的施工前提**：
+
+1. 注意 Node 版本：测试要求 Node ≥ 22.5（`node:sqlite`），本机默认 shell 是 Node 20，跑测试前 `nvm use 22`。
+2. P0.5 已落地且 `permissions.test.ts` 43/43 全绿 —— P0 施工从全绿基线出发，任何转红都是 P0 引入的，归因零成本。
+3. `executeToolCalls` 生产调用点只有 `session.ts:4803` 一处（grep 确认），executor 签名变更无第二个受害者。
+4. `describeToolPermissionRequest`（`permissions.ts:284`）与 `evaluatePermissionScopes`（`:376`）均已导出，R2 派生算法不需要新增导出。
+
+---
+
+## 九、WASM/WASI 路线评审（2026-08-15 决策）
+
+**提议**：借鉴 celld，把沙箱构建在 WASM 之上 —— WASM/WASI 是天然的隔离机制，黑白名单可以在 WASI 层设计。
+
+**先说结论：提议的方向判断一半正确。** WASI 确实是天然的 capability 沙箱，黑白名单（preopen 目录 = fs 白名单、默认无网络、env/argv/clock 全由宿主控制）正是它的设计核心。但把它用在 DeepOrca 的主威胁上是一个**范畴错误**；用在另一个真实缺口（不可信扩展代码）上则是正解。以下逐条论证。
+
+### 9.1 先澄清 celld 本体是什么
+
+ celld（denoland/celld）不是 OS 级沙箱项目。它是「自托管的分布式 Durable Objects」：每个节点**内嵌 V8** 执行 Wrangler bundle，每个 cell 一个 SQLite 库，经 S3 CAS 做 ownership fencing 与复制。它对隔离的回答是 **V8 isolate + 运行时层 capability 门控**（Workers 模型），不是 bwrap/seatbelt。本文 §五批评的 bwrap 后端、Python bootstrap、LZ4/CRC64 审计格式，来自外部评审方案而非 celld 本体。celld 对我们的真实启示有两条，且**已被本方案吸收**：capability 应在运行时层显式传递（= §一约束 2，能力传递取代环境权限）；fencing 要廉价且防悬垂（= P2 保留的 generation fencing）。它并不支持"用 WASM 沙箱化任意宿主进程"这一主张——celld 自己也做不到。
+
+### 9.2 范畴分析：WASI 的边界在哪里
+
+WASI 沙箱的生效前提是**被隔离的代码编译为 WASM guest**，其全部副作用经 WASI host function 出去，宿主按 capability 授予。逐条对照 §2.1 的模型可控出口：
+
+| 出口 | 执行基质 | WASI 能否覆盖 | 原因 |
+| --- | --- | --- | --- |
+| `write`/`edit`/`read` 工具 | **宿主进程内 TS 代码**（`fs.writeFileSync`，零子进程） | ❌ | WASM 无法约束宿主自己的 syscall。唯一走法是把 handler 逻辑整体编译成 WASM guest、fs 全走 preopen——这是对 17k 行深度集成的 handler（snippet/checkpoint/diff/状态跟踪）的重写，且 P0 的进程内 fail-closed 闸门已提供同等等价的边界，成本 2 天 vs 重写，收益为零 |
+| `bash` 工具 | **原生 shell 子进程**（zsh/bash + 命令内任意原生二进制：git/node/rg/curl/rm） | ❌ | WASI guest 必须是 wasm 编译产物；`spawn(shell, -c, 任意命令)` 执行的是原生代码，WASI 边界根本不在场。要走 WASI 就得换成 wasm userland（wasm shell + wasm coreutils），而 coding agent 的真实工作流依赖宿主工具链（编译器、测试 runner、git），wasm userland 的覆盖面是玩具级 |
+| `browser.*` / WebSearch | 原生子进程（bsk / 脚本） | ❌ | 同上，原生二进制 |
+| **MCP stdio 服务器（T4）** | 原生 node/python 子进程 | ⚠️ 现状不能，**方向正确** | 今天的 MCP 服务器是任意 npm 包/二进制，不是 wasm 模块。但这是唯一一个"不可信**代码**（而非不可信参数）"的出口 —— 见 9.3 |
+
+**最简洁的判据**：WASI 隔离的是「不可信代码的执行」；DeepOrca 的 A 级出口是「可信代码（handler/shell）携带不可信**参数**（路径、命令字符串）以宿主全权限执行」。对前者 WASI 是正解；对后者要么管参数（P0 闸门）、要么管进程（P3 OS 隔离）——WASI 两样都够不着。模型生成的 bash 命令字符串虽然是"代码"，但它以原生 shell 为执行基质，换成 WASM 执行基质等于重建整个用户态，不可行。
+
+### 9.3 采纳的部分：WASI 作为不可信扩展代码的执行底座（新增 P5 预研，任务 #19）
+
+T4（不可信仓库的 MCP 服务器）是目前**唯一**以"执行不可信代码"为核心的威胁，也是 WASI 的甜点区。长期方向：
+
+- 定义 DeepOrca 的 **WASM 工具 ABI**（component-model 或 Extism 风格）：第三方工具/MCP 风格的扩展以 wasm 模块分发，**WASI preopen = P0 的 `PathGrant.writeRoots/readRoots`**（同构映射：preopen 授予的目录就是授权根，guest 对宿主 fs 没有其他任何视图）；网络默认无（preview1 无 socket API，preview2 需显式授予）；env/argv 由宿主注入。黑白名单就此落在 WASI 层 —— 这正是提议中有价值的部分，且与 P0 的能力模型无缝衔接。
+- **运行时选型受约束 4（不新增原生构建）限制**：wasmtime/extism 均为原生依赖，否决。可行路径：`node:wasi`（Node 22 内置，preview1、实验 flag，需在 vendored Node 与 Electron main 双侧验证）或 `jco transpile` + `@bytecodealliance/preview2-shim`（纯 JS 跑 component，无原生依赖）。工具侧可用 `componentize-js` 把 JS 工具逻辑编译为组件（纯 JS 工具链）。
+- **这不是 MCP 隔离的近期答案**：现有 MCP 生态是原生进程，P4 的最小可行改动不变（项目级 `mcpServers` 变更强制确认）。P5 是面向未来第三方工具生态的独立预研，不阻塞任何现有阶段。
+
+### 9.4 否决的部分与理由
+
+| 提议项 | 判定 | 理由 |
+| --- | --- | --- |
+| 用 WASI 沙箱化 write/edit/read 工具 | ❌ | 范畴错误：宿主进程内代码不在 WASI 边界内；等价边界 P0 闸门 2 天可得，重写 handler 为 wasm guest 成本数量级更高且零增量收益 |
+| 用 WASI 沙箱化 bash（wasm shell + wasm userland） | ❌ | 执行基质错配：模型命令依赖原生工具链；wasm userland 覆盖面玩具级。可作为远期"不可信仓库隔离模式"的创意登记，不进路线图 |
+| 引入 wasmtime/extism 作为运行时 | ❌ | 原生依赖，违反约束 4 |
+| "WASI 替代 sandbox-exec 成为 P3 后端" | ❌ | P3 隔离的是原生 shell 子进程，WASI 不构成其后端。P3 维持 sandbox-exec（macOS）+ noop |
+| WASI preopen ≅ PathGrant 的黑白名单层 | ✅ 采纳 | 移入 P5（任务 #19），用于不可信扩展代码，而非宿主工具 |
+
+### 9.5 对总路线的净影响
+
+**零改动**。第 1 层（P0/P0.5 边界闸门 + ask 收窄）、第 2 层（P1 审计）、第 3 层（P3 进程隔离）的定位与顺序全部维持——WASI 路线即便全部落地也不覆盖它们任何一个的威胁面，因为它们处理的是宿主代码与原生进程，而 WASI 处理的是 wasm guest。P5 作为第 4 条独立轨道登记：等 P0 的 `PathGrant` 落地后，它就是 WASI preopen 的直接输入，届时黑白名单层的设计可以直接复用 P0 的判定结果。
+
+> 注（2026-08-16）：曾考虑用 v86（跑在 WASM 上的完整 x86 虚拟机）承接"真·不碰宿主机"诉求，当日即否决——太重，见 §十。
+
+---
+
+## 十、quarantine 信任分级（轻量版）+ VM 方案否决记录（2026-08-16）
+
+**需求演化**：bash 不得裸跑宿主机 → 评审了 VM 级方案 → **用户决策：不上 VM，太重，要更轻量的**。
+
+### 10.1 技术事实：为什么"轻量"的终点是内核进程隔离
+
+要约束**原生 shell 命令**只有两条路：内核调解（seatbelt/bwrap/WSL2，毫秒级开销）或虚拟化（VM/v86，重）。**中间没有第三种机制** —— WASM 管不了原生进程（§9.2），Node `vm` 模块不是安全边界（官方文档明示）。所以轻量方案 = 把 P3 内核进程隔离做扎实 + 用信任分级把"没有后端可用的场景"管起来，而不是堆更重的隔离。
+
+### 10.2 VM 方案否决记录
+
+| 方案 | 否决理由 |
+| --- | --- |
+| v86（纯 JS/WASM x86 VM） | RSS 300-500MB + CPU 慢 1-2 个数量级 + rootfs 200-400MB 供应链；边际收益是防内核级逃逸，而 T7（提权/内核逃逸）本就不在威胁模型内（§三） |
+| vfkit（macOS Virtualization.framework） | 仅 macOS，引入 VM 生命周期管理；同上，收益不抵重量 |
+
+### 10.3 轻量替代：workspace 信任分级
+
+两级信任（持久化于项目级 settings，首次打开项目时询问）：
+
+| 级别 | 语义 | bash | write/edit/read | mcpServers |
+| --- | --- | --- | --- | --- |
+| **trusted**（默认） | 用户自己的项目 | P3 后端（有则隔离，无则现状 + UI 提示） | P0 闸门 + P0.5 ask 收窄（现状） | 现状 |
+| **quarantine** | 新 clone 的不可信仓库、代码审查场景 | 有 P3 后端 ⇒ **强制沙箱**；**无后端 ⇒ 每条 bash 强制 ask** | `PathGrant` 收紧：out-cwd 读写全 deny（fail-closed，不询问） | 不自动加载，先确认（与任务 #20 叠加） |
+
+**关键设计点：quarantine 零新基础设施。**
+
+- "每条 bash 强制 ask"直接复用现有 `forceAskScopes` 机制（`session.ts:3449` plan mode 同款）：quarantine 会话把 bash 相关的副作用 scope 全集塞进 `forceAskScopes`，一行编排改动，无新子系统。
+- "out-cwd 读写全 deny"是 P0 闸门的 grant 派生参数变化（`allowWriteOutsideRoots`/`allowReadOutsideRoots` 恒 false + forceAsk 不豁免），同样是编排层改动。
+- mcpServers 不自动加载是 settings 合并策略（`settings.ts:640`）加一个信任级别条件。
+
+### 10.4 诚实边界（必须写进 UI 与文档）
+
+1. **quarantine 无 P3 后端时，bash 的隔离强度 = "每条都问 + 全量审计"，不是真隔离。** UI 必须明示当前级别与后端状态（约束 6 延伸）。真隔离需求（防内核逃逸）明确不做 —— T7 不在威胁模型。
+2. **VM 否决不影响 P0 优先级**：P0 闸门在 quarantine 下是主防线（out-cwd 全 deny），它依然是全方案的施工起点。
+3. **WSL2 的定位说明**：WSL2 技术上也是 VM，但它是 OS 管理的轻量工具 VM（近原生 CPU、秒级启动、动态内存），与被否决的 v86（模拟 CPU、解释执行）不在一个重量级；它是 Windows 平台上不新增原生构建的**唯一**真实隔离，保留为 P3 后端。若未来用户连 WSL2 也不要，Windows 回退为"P0 闸门 + quarantine 全量 ask + 诚实宣称"，这是已声明的可接受残余风险。
