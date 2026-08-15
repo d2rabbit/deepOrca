@@ -351,3 +351,14 @@ export type {
   CrgRiskData,
   CrgCommunity,
 } from "./actions";
+
+export type {
+  TaskBranch,
+  TaskNode,
+  TaskNodeKind,
+  TaskNodeStatus,
+  TaskReflogEntry,
+  TaskTreeIndex,
+  TaskTreeSummary,
+} from "./tasks/types";
+export { TaskTreeService } from "./tasks/task-tree-service";

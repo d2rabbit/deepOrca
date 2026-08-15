@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新功能
+
+- **任务轨迹 P0（task-tree，给人类看的 agent 工作视图）**（方案：`specs/task-tree/`，定位：`docs/research/2026-08-15-trajectory-design-exploration.md`）
+  - core `TaskTreeService`：git 语义的任务树（create/append/fork/switch/abandon/list + reflog 操作流水）；单写者 + pendingIndex→flush 纪律（吸收 sessions-index 丢数教训）；节点内容寻址 id + 路径防穿越；损坏树 fail-open 降级不阻塞会话
+  - **每个节点携带 `why` 叙事字段（fork 强制非空）**——人类视角的产品本体：岔路口永远有故事
+  - 6 个 Action：task.create / task.step / task.fork / task.switch / task.abandon / task.list——agent 会话内可直接分叉（"这个方案我先开条分支试"）
+  - desktop 任务树面板（rail 🌳 "tasktree"）：树列表 + 缩进节点视图（分支色条、abandoned 灰显、✦ memory-spawn 徽章预留、每节点渲染 why）；只读 IPC tasktree:list/get；6 语言
+  - spec 消歧：Plan Mode ↔ 树为**单向只读物化**（plan 是 source of truth，树永不回写 plan）
+  - 测试 6 用例：fork 双分支/重启恢复/reflog 顺序/损坏树 fail-open/id 防穿越/分支名净化
+- **activity-frames 行为记忆补测试（spec Phase 5 兑现）+ 修复两个移植缺陷**
+  - 13 用例（sessionize 分段/闪烁/dwell cap/coverage/appLedger、entities 站点解析、frames 编译 + 输入归因），fake-db 接缝零 SQLite 依赖
+  - 修复①：闪烁合并（A→B→A）比较了错误的一侧——Pass 2 死代码，从不合并
+  - 修复②：断段判定用"当前帧→下一帧"间隙——breakReason 误标 + 末帧恒被甩成零活跃独立段；现按 spec §5.1 语义（到当前帧的间隙判断段，向后间隙只计 dwell）
+  - spec 回写：实现状态对账（双管线/desktop 位置/9 工具/nocta 不 vendor 决策）
+
 ### 🔒 安全
 
 - **全域深度代码审查第二轮：三通道审查 + 10 项修复**（报告：`docs/security-audit-2026-08-15-deep-review.md`）

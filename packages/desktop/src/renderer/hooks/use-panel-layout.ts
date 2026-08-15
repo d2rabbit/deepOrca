@@ -9,6 +9,7 @@ export type SidebarView =
   | "index"
   | "review"
   | "design"
+  | "tasktree"
   | "gitmcp"
   | "plugins"
   | "editor";

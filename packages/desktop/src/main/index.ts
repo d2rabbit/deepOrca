@@ -1108,6 +1108,18 @@ function registerDesignIpc({ handle }: IpcHelpers): void {
   });
 }
 
+/** Task trajectory panel (specs/task-tree P0) — read-only bridge to core's service. */
+function registerTaskTreeIpc({ handle }: IpcHelpers): void {
+  const service = () => getBridge().getSessionManager().getTaskTreeServiceForPanel();
+  handle(IpcRequest.TaskTreeList, async () => {
+    return service()?.listTrees() ?? [];
+  });
+  handle(IpcRequest.TaskTreeGet, async (treeId: string) => {
+    if (typeof treeId !== "string" || !/^[0-9a-f-]{36}$/i.test(treeId)) return null;
+    return service()?.getTree(treeId) ?? null;
+  });
+}
+
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {
   // ── A2UI (Surface user interaction → agent) ──────────────────────────────
   // When the user clicks a button on an A2UI Surface, the renderer calls
@@ -1504,6 +1516,7 @@ function registerIpc(): void {
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers);
+  registerTaskTreeIpc(helpers);
   registerDesignIpc(helpers);
   registerA2uiIpc(helpers);
   registerA2uiPrototypeWindowIpc(helpers);

@@ -1,3 +1,4 @@
+import type { TaskTreeService } from "../tasks/task-tree-service";
 /**
  * defineAction primitive — "define once, surface everywhere".
  *
@@ -100,6 +101,11 @@ export interface ActionContext {
    * upgrade from keyword heuristics without core gaining an LLM dependency.
    */
   readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
+  /**
+   * Task trajectory service (specs/task-tree P0) — lazily provided by the
+   * host; task.* actions read it via ctx and fail open when absent.
+   */
+  readonly taskTrees?: () => TaskTreeService | null;
 }
 
 export interface RunSubagentOptions {

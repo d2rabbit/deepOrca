@@ -149,6 +149,10 @@ const api: DesktopApi = {
   designSaveFormState: (pipeline, state) => ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state),
   designReadFormState: (pipeline) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline),
 
+  // ── Task trajectory (read-only panel surface) ────────────────────────────
+  taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
+  taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
+
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>
     ipcRenderer.invoke(IpcRequest.A2uiAction, surfaceId, actionName, context),

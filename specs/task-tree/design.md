@@ -1,6 +1,6 @@
 # Agent 任务树（Task Tree）— 详细设计
 
-> 日期：2026-08-14 · 状态：设计中（本文档仅为设计，不含实现）
+> 日期：2026-08-14 · 状态：P0 已实现（2026-08-15，见文末"P0 落地记录"）；P1+ 设计中
 >
 > 灵感来源：git 对象模型（commit / branch / fork / merge / reflog）× DeepOrca L0–L3 记忆管道的"记忆驱动分支"
 > 关联路线：feature-roadmap §十 引擎演进（Subagent）、§二 知识中心（记忆）、§十六 能力编排（defineAction）、PM-Design V2 工作台（`specs/pm-design-v2/design.md`）、会话持久化（`docs/session-persistence.md`）
@@ -22,11 +22,11 @@
 
 当前会话模型是**线性流 + 全局记忆**，缺三种结构性能力：
 
-| 缺失 | 现状的痛 | 任务树给的解 |
-| --- | --- | --- |
-| 探索性并行 | agent 试错只能 `/undo` 或重开会话；PM 的 A/B 方案对比无载体 | fork：任意节点分叉，平行推进 |
-| 可回溯分支 | 放弃的尝试直接丢失，无法"回到当时那个岔路口" | branch + reflog：岔路口永远在 |
-| 记忆主动参与 | 记忆只被动召回；历史任务的"另一种选择"从未被结构化利用 | 记忆驱动 fork：相似历史的不同选择，主动提议成带记忆的平行分支 |
+| 缺失         | 现状的痛                                                    | 任务树给的解                                                  |
+| ------------ | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| 探索性并行   | agent 试错只能 `/undo` 或重开会话；PM 的 A/B 方案对比无载体 | fork：任意节点分叉，平行推进                                  |
+| 可回溯分支   | 放弃的尝试直接丢失，无法"回到当时那个岔路口"                | branch + reflog：岔路口永远在                                 |
+| 记忆主动参与 | 记忆只被动召回；历史任务的"另一种选择"从未被结构化利用      | 记忆驱动 fork：相似历史的不同选择，主动提议成带记忆的平行分支 |
 
 git 的对象模型是"可回溯并行工作"最成熟的抽象，直接借鉴其语义但**替换内容模型**（commit 存的是任务上下文而非文件快照）。同时该结构是 §十 未来 Subagent 的天然调度底座：**一个 subagent = 一个 branch 的执行者**。
 
@@ -34,31 +34,31 @@ git 的对象模型是"可回溯并行工作"最成熟的抽象，直接借鉴�
 
 ## 二、核心模型（git 语义映射）
 
-| git | Task Tree | 说明 |
-| --- | --- | --- |
-| commit | `TaskNode` | 不可变节点：规划/步骤/分叉/合并事件 |
-| branch | `TaskBranch` | 命名指针 → head nodeId |
-| HEAD | `activeBranch` | 当前执行上下文所在分支 |
-| working tree | 节点的进行中状态 | 绑定 session 的 messages / artifacts |
-| fork | `fork()` | 从任意 node 建新 branch，可携带 memory snapshot |
-| merge | `merge()` | cherry-pick 式：挑选源分支 artifacts/决策摘要挂到目标 |
-| reflog | `reflog.jsonl` | fork/switch/merge/abandon 操作流水 |
-| clone | （不引入） | 树随项目走，无跨项目 clone 语义 |
+| git          | Task Tree        | 说明                                                  |
+| ------------ | ---------------- | ----------------------------------------------------- |
+| commit       | `TaskNode`       | 不可变节点：规划/步骤/分叉/合并事件                   |
+| branch       | `TaskBranch`     | 命名指针 → head nodeId                                |
+| HEAD         | `activeBranch`   | 当前执行上下文所在分支                                |
+| working tree | 节点的进行中状态 | 绑定 session 的 messages / artifacts                  |
+| fork         | `fork()`         | 从任意 node 建新 branch，可携带 memory snapshot       |
+| merge        | `merge()`        | cherry-pick 式：挑选源分支 artifacts/决策摘要挂到目标 |
+| reflog       | `reflog.jsonl`   | fork/switch/merge/abandon 操作流水                    |
+| clone        | （不引入）       | 树随项目走，无跨项目 clone 语义                       |
 
 ### 2.1 TaskNode
 
 ```ts
 interface TaskNode {
-  id: string;                 // 内容寻址短 hash（parentId+payload 摘要）
+  id: string; // 内容寻址短 hash（parentId+payload 摘要）
   treeId: string;
-  parentId: string | null;    // root 为 null
+  parentId: string | null; // root 为 null
   kind: "root" | "step" | "fork" | "merge" | "memory-spawn";
   title: string;
-  prompt?: string;            // 该节点的任务描述
-  contextSummary?: string;    // fork 继承的祖先上下文摘要（compaction 产物）
-  sessionRef?: string;        // 绑定的 session id（执行载体，可选）
-  artifactRefs: string[];     // 产出物：designs/、文件快照、原型 surface
-  memoryRefs: string[];       // 注入/产出的记忆单元 id
+  prompt?: string; // 该节点的任务描述
+  contextSummary?: string; // fork 继承的祖先上下文摘要（compaction 产物）
+  sessionRef?: string; // 绑定的 session id（执行载体，可选）
+  artifactRefs: string[]; // 产出物：designs/、文件快照、原型 surface
+  memoryRefs: string[]; // 注入/产出的记忆单元 id
   status: "planned" | "running" | "done" | "abandoned";
   meta: {
     createdBy: "user" | "agent" | "memory";
@@ -73,13 +73,18 @@ interface TaskNode {
 ### 2.2 TaskBranch / Tree
 
 ```ts
-interface TaskBranch { name: string; headId: string; createdAt: number; abandoned?: boolean; }
+interface TaskBranch {
+  name: string;
+  headId: string;
+  createdAt: number;
+  abandoned?: boolean;
+}
 interface TaskTree {
   id: string;
   rootId: string;
   branches: Record<string, TaskBranch>;
   activeBranch: string;
-  nodes: Record<string, TaskNode>;   // 存储上分片为 nodes/<id>.json
+  nodes: Record<string, TaskNode>; // 存储上分片为 nodes/<id>.json
 }
 ```
 
@@ -168,39 +173,54 @@ interface TaskTreeService {
 
 ## 八、与现有能力的关系
 
-| 能力 | 关系 |
-| --- | --- |
-| Plan Mode | plan 步骤可物化为 step 节点（`UpdatePlan` ↔ `appendStep` 双向映射，P1） |
-| Subagent（§十） | subagent = branch + 独立执行 session；任务树是 subagent 调度的数据结构前置 |
-| PM-Design V2 | 第一消费方；需求变更 fork 而非重跑 |
-| 会话持久化 | session entry 扩展 `taskRef`；`/resume` 扩展 branch 级（P1） |
-| 记忆管道 | L2 增加 fork 谱系字段；recall API 增加谱系过滤；决策点埋点消费 `DecisionPoint` 事件 |
-| compaction | fork 的 `contextSummary` 直接复用压缩器 |
+| 能力            | 关系                                                                                |
+| --------------- | ----------------------------------------------------------------------------------- |
+| Plan Mode       | plan 步骤可物化为 step 节点（`UpdatePlan` ↔ `appendStep` 双向映射，P1）             |
+| Subagent（§十） | subagent = branch + 独立执行 session；任务树是 subagent 调度的数据结构前置          |
+| PM-Design V2    | 第一消费方；需求变更 fork 而非重跑                                                  |
+| 会话持久化      | session entry 扩展 `taskRef`；`/resume` 扩展 branch 级（P1）                        |
+| 记忆管道        | L2 增加 fork 谱系字段；recall API 增加谱系过滤；决策点埋点消费 `DecisionPoint` 事件 |
+| compaction      | fork 的 `contextSummary` 直接复用压缩器                                             |
 
 ---
 
 ## 九、阶段规划
 
-| 阶段 | 内容 | 验收 |
-| --- | --- | --- |
-| P0 | core TaskTreeService（create/append/fork/switch/abandon + 存储 + reflog）；defineAction 暴露；最小面板（列表式，无图） | agent 会话内可 `task.fork`；面板可见双分支；重启后树恢复 |
-| P1 | merge + 冲突确认清单；session 绑定（`taskRef`）；Plan Mode 步骤物化；`/resume` branch 级 | A/B 分支产出可 merge 回主线；plan 与树同步 |
-| P2 | 记忆驱动 fork 全闭环（埋点→召回→分歧→提议→播种→回收）；树图 UI；PM-Design 整合；artifact 快照切换 | 相似历史任务触发 fork 提案；批准后分支带记忆运行 |
-| P3 | subagent 执行模型对接（branch = subagent 载体） | 并行 subagent 各占一 branch，结果 merge 回主线 |
+| 阶段 | 内容                                                                                                                   | 验收                                                     |
+| ---- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| P0   | core TaskTreeService（create/append/fork/switch/abandon + 存储 + reflog）；defineAction 暴露；最小面板（列表式，无图） | agent 会话内可 `task.fork`；面板可见双分支；重启后树恢复 |
+| P1   | merge + 冲突确认清单；session 绑定（`taskRef`）；Plan Mode 步骤物化；`/resume` branch 级                               | A/B 分支产出可 merge 回主线；plan 与树同步               |
+| P2   | 记忆驱动 fork 全闭环（埋点→召回→分歧→提议→播种→回收）；树图 UI；PM-Design 整合；artifact 快照切换                      | 相似历史任务触发 fork 提案；批准后分支带记忆运行         |
+| P3   | subagent 执行模型对接（branch = subagent 载体）                                                                        | 并行 subagent 各占一 branch，结果 merge 回主线           |
 
 ---
 
 ## 十、风险与开放问题
 
-| 风险 | 缓解 |
-| --- | --- |
-| 分支爆炸 | abandon 归档 + 树剪枝策略（abandoned > N 天折叠）；UI 默认只显示 active + 最近 5 分支 |
-| fork 摘要质量差导致分支漂移 | 摘要可手动补充（节点编辑）；P2 评估"摘要 + 关键消息指针"混合继承 |
-| 树与 session 双写一致性 | 单写者（树服务）+ session 侧只存反向指针只读 |
-| 记忆相似度误触发 | 只提议不自动 fork；相似度阈值可配；谱系回收让阈值自学习 |
-| 存储膨胀 | nodes 分片 + artifact 引用不复制 + abandoned 归档压缩 |
+| 风险                        | 缓解                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| 分支爆炸                    | abandon 归档 + 树剪枝策略（abandoned > N 天折叠）；UI 默认只显示 active + 最近 5 分支 |
+| fork 摘要质量差导致分支漂移 | 摘要可手动补充（节点编辑）；P2 评估"摘要 + 关键消息指针"混合继承                      |
+| 树与 session 双写一致性     | 单写者（树服务）+ session 侧只存反向指针只读                                          |
+| 记忆相似度误触发            | 只提议不自动 fork；相似度阈值可配；谱系回收让阈值自学习                               |
+| 存储膨胀                    | nodes 分片 + artifact 引用不复制 + abandoned 归档压缩                                 |
 
 **开放问题**：
+
 1. merge 冲突 UI 的最终形态（并排 vs 清单）——P1 实现前出交互稿
 2. branch 切换是否切工作区文件——P0/P1 不切（只切上下文），P2 用 file-history 快照评估完整体验
 3. 一棵树 vs 每需求一棵树——PM-Design 默认"每需求一棵树"，自由会话默认"每会话一棵树"，可配置
+
+---
+
+## 十一、P0 落地记录（2026-08-15）
+
+P0 已落地：`packages/core/src/tasks/`（types + TaskTreeService，单写者 + pendingIndex→flush 纪律 + reflog append-only + fail-open）+ 6 个 Action（task.create/step/fork/switch/abandon/list，经 RegistryHost 注入服务）+ desktop 只读面板（`TaskTreePanel.tsx`，rail "tasktree"🌳，6 语言）。每个节点携带 **`why` 叙事字段**（fork 强制非空）——人类视角的产品本体。测试 6 用例（fork 双分支/重启恢复/reflog 顺序/损坏树 fail-open/id 形状与防穿越/分支名净化）。
+
+### 消歧规则：Plan Mode ↔ 树是单向只读物化
+
+UpdatePlan（LLM 拥有）→ appendStep（树服务拥有）为**单向物化**：plan 步骤可投影为 step 节点，但树**永不回写** plan——两者谁是 source of truth 无歧义（plan 是）。双向映射的提案一律拒绝，直到出现 plan 无法表达的树结构需求。
+
+### 与受众定位的关系
+
+本树是**给人类看的任务轨迹**；activity-frames 是**给 agent 看的行为记忆**——受众相反的两个产品，仅共享原始事实源（见 `docs/research/2026-08-15-trajectory-design-exploration.md`）。

@@ -58,13 +58,19 @@ function segmentStream(frames: RawFrame[], dwellCap: number, sessionGap: number,
   if (frames.length === 0) return [];
 
   // Pass 1: raw segmentation by (app, domain) key changes and session gaps.
+  // Split decisions use the gap TO the current frame (f - cur.endEpoch);
+  // the gap AFTER the current frame only feeds dwell credit. The original
+  // port inverted this — breakReason was mislabeled (a context switch got
+  // "session_gap" whenever a big gap followed) and the trailing frame was
+  // always split off into a zero-activity segment (found by the 2026-08-15
+  // test batch).
   const raw: Segment[] = [];
   let cur: Segment | null = null;
 
   for (let i = 0; i < frames.length; i++) {
     const f = frames[i];
     const next = frames[i + 1];
-    const gap = next ? next.epoch - f.epoch : Infinity;
+    const gapAfter = next ? next.epoch - f.epoch : Infinity;
     const key = `${f.app}\0${domain(f.url) ?? ""}`;
 
     if (cur === null) {
@@ -80,7 +86,8 @@ function segmentStream(frames: RawFrame[], dwellCap: number, sessionGap: number,
       };
     } else {
       const curKey = `${cur.app}\0${cur.domain ?? ""}`;
-      if (gap > sessionGap) {
+      const gapBefore = f.epoch - cur.endEpoch;
+      if (gapBefore > sessionGap) {
         cur.breakReason = "session_gap";
         raw.push(cur);
         cur = null;
@@ -106,9 +113,9 @@ function segmentStream(frames: RawFrame[], dwellCap: number, sessionGap: number,
       }
     }
 
-    // Add dwell time.
-    if (gap <= sessionGap) {
-      cur.activeSeconds += Math.min(gap, dwellCap);
+    // Add dwell time (credit toward the NEXT frame, capped).
+    if (gapAfter <= sessionGap) {
+      cur.activeSeconds += Math.min(gapAfter, dwellCap);
     }
   }
   if (cur !== null) raw.push(cur);
@@ -125,12 +132,18 @@ function segmentStream(frames: RawFrame[], dwellCap: number, sessionGap: number,
       const flicker = raw[i + 1];
       const after = raw[i + 2];
       const flickerWall = flicker.endEpoch - flicker.startEpoch;
-      const flickerKey = `${flicker.app}\0${flicker.domain ?? ""}`;
       const segKey = `${seg.app}\0${seg.domain ?? ""}`;
+      // The merge pattern is A→B→A: the AFTER segment returns to seg's
+      // context, and the brief B (different context — Pass 1 only splits on
+      // key change or session gap) is folded in as an interruption. The
+      // original port compared the FLICKER's key to seg's, which Pass 1
+      // guarantees can never match — dead code caught by the 2026-08-15 test
+      // batch (flicker merge never fired).
+      const afterKey = `${after.app}\0${after.domain ?? ""}`;
 
       if (
         flickerWall <= mergeFlicker &&
-        flickerKey === segKey &&
+        afterKey === segKey &&
         flicker.startEpoch - seg.endEpoch <= sessionGap &&
         after.startEpoch - flicker.endEpoch <= sessionGap
       ) {

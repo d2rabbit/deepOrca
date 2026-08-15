@@ -20,6 +20,7 @@ import type {
 /** Per-model token usage accounting, re-exported for renderer consumers. */
 export type { ModelUsage };
 import type { McpServerStatus } from "@deeporca/core";
+import type { TaskNode, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
@@ -153,6 +154,10 @@ export const IpcRequest = {
   DesignDelete: "design:delete",
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
+
+  // Task trajectory (specs/task-tree P0) — read-only panel surface
+  TaskTreeList: "tasktree:list",
+  TaskTreeGet: "tasktree:get",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -451,6 +456,9 @@ export type KnowledgeStatusResponse = {
   /** Semantic routing (skill/tool recall) — R4 observability card. */
   routing: KnowledgeSourceStatus;
 };
+
+// ── Task trajectory (specs/task-tree P0) ─────────────────────────────────────
+export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 
 /** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
 export type DesignPipeline = "openui" | "design";
@@ -779,6 +787,12 @@ export type DesktopApi = {
   designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>): Promise<boolean>;
   /** Read the persisted form state for hydration; null when none. */
   designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
+
+  // ── Task trajectory (read-only panel surface) ────────────────────────────
+  /** List task trees (id, title, active branch, counts). */
+  taskTreeList(): Promise<TaskTreeSummary[]>;
+  /** Read one tree (index + all nodes) for the panel view. */
+  taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

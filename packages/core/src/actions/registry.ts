@@ -14,6 +14,7 @@
  */
 
 import type { ToolDefinition } from "../prompt";
+import type { TaskTreeService } from "../tasks/task-tree-service";
 import type { ActionContext, ActionDefinition, ActionProgress, ActionRun, McpDispatchResult, Spawner } from "./types";
 import { ActionError, NULL_SPAWNER } from "./types";
 
@@ -46,6 +47,8 @@ export interface RegistryHost {
    * via {@link ActionContext.judgeViaLlm} and must fail open when absent.
    */
   readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
+  /** Task trajectory service provider (injected by SessionManager). */
+  readonly taskTrees?: () => TaskTreeService | null;
 }
 
 /** Options passed to {@link ActionRegistry.execute}. */
@@ -85,6 +88,7 @@ export class ActionRegistry {
   ) => Promise<McpDispatchResult>;
   private readonly subagentDispatch?: (opts: import("./types").RunSubagentOptions) => Promise<unknown>;
   private readonly judgeDispatch?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
+  private readonly taskTreeProvider?: () => TaskTreeService | null;
 
   constructor(host: RegistryHost) {
     this.projectRoot = host.projectRoot;
@@ -92,6 +96,7 @@ export class ActionRegistry {
     this.mcpDispatch = host.executeMcpTool;
     this.subagentDispatch = host.runSubagent;
     this.judgeDispatch = host.judgeViaLlm;
+    this.taskTreeProvider = host.taskTrees;
   }
 
   /**
@@ -190,6 +195,7 @@ export class ActionRegistry {
         executeMcpTool: this.mcpDispatch,
         runSubagent: this.subagentDispatch,
         judgeViaLlm: this.judgeDispatch,
+        taskTrees: this.taskTreeProvider,
       };
       try {
         return (await entry.run(input, ctx)) as O;

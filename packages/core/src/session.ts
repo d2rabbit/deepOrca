@@ -105,8 +105,21 @@ import {
   bentoCreateRun,
   designMaterializeDefinition,
   designMaterializeRun,
+  taskCreateDefinition,
+  taskCreateRun,
+  taskStepDefinition,
+  taskStepRun,
+  taskForkDefinition,
+  taskForkRun,
+  taskSwitchDefinition,
+  taskSwitchRun,
+  taskAbandonDefinition,
+  taskAbandonRun,
+  taskListDefinition,
+  taskListRun,
   type RunSubagentOptions,
 } from "./actions";
+import { TaskTreeService } from "./tasks/task-tree-service";
 import {
   ToolExecutor,
   type CreateOpenAIClient,
@@ -782,6 +795,8 @@ export class SessionManager {
   private routingLoadFailedAt = 0;
   /** Current subagent nesting depth (recursion cap, deep review 2026-08-15 B6). */
   private subagentDepth = 0;
+  /** Task trajectory service (specs/task-tree P0) — single writer, lazily built. */
+  private taskTreeServiceInstance: TaskTreeService | null = null;
   /** Sessions that mutated files during the current turn and need a CodeGraph index sync. */
   private readonly codegraphDirtySessions = new Set<string>();
   /** Sessions that mutated files during the current turn and need a CRG graph sync. */
@@ -836,6 +851,9 @@ export class SessionManager {
       // LLM single-choice judgment for classification-shaped actions
       // (design.materialize routing). Fail-open: null → caller's heuristic.
       judgeViaLlm: (prompt, choices) => this.judgeViaLlm(prompt, choices),
+      // Task trajectory (specs/task-tree P0): the tree service is the single
+      // writer of .deeporca/task-trees/** — actions receive it via context.
+      taskTrees: () => this.getTaskTreeService(),
     });
     this.actionRegistry.register(pingDefinition, pingRun);
     // ── Phase 1: code review actions ──────────────────────────────────────
@@ -869,6 +887,15 @@ export class SessionManager {
     this.actionRegistry.register(bentoCreateDefinition, bentoCreateRun);
     // ── Designer — one-click requirement materialization ────────────────────
     this.actionRegistry.register(designMaterializeDefinition, designMaterializeRun);
+    // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
+    // The tree service is the single writer of .deeporca/task-trees/** and is
+    // exposed to actions via the context (accept-dependencies rule).
+    this.actionRegistry.register(taskCreateDefinition, taskCreateRun);
+    this.actionRegistry.register(taskStepDefinition, taskStepRun);
+    this.actionRegistry.register(taskForkDefinition, taskForkRun);
+    this.actionRegistry.register(taskSwitchDefinition, taskSwitchRun);
+    this.actionRegistry.register(taskAbandonDefinition, taskAbandonRun);
+    this.actionRegistry.register(taskListDefinition, taskListRun);
     this.toolExecutor = new ToolExecutor(
       this.projectRoot,
       this.createOpenAIClient,
@@ -928,6 +955,19 @@ export class SessionManager {
    * Recursion is capped at MAX_SUBAGENT_DEPTH (deep review 2026-08-15, B6): a
    * mutually-recursive skill pair would otherwise nest unbounded LLM loops.
    */
+  /** Task trajectory service for the desktop panel bridge (read-only usage). */
+  getTaskTreeServiceForPanel(): TaskTreeService | null {
+    return this.getTaskTreeService();
+  }
+
+  /** Lazy task-tree service (created once per manager; null-safe). */
+  private getTaskTreeService(): TaskTreeService | null {
+    if (!this.taskTreeServiceInstance) {
+      this.taskTreeServiceInstance = new TaskTreeService(this.projectRoot);
+    }
+    return this.taskTreeServiceInstance;
+  }
+
   /**
    * LLM single-choice judgment for classification-shaped actions (flash
    * model, JSON mode). Returns one of `choices` or null on any failure —

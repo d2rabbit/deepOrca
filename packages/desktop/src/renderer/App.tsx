@@ -47,6 +47,7 @@ const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) =
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
+const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
@@ -1123,6 +1124,14 @@ export function App(): JSX.Element {
           <span style={{ fontSize: 16 }}>🎯</span>
         </RailButton>
         <RailButton
+          active={panelOpen && sidebarView === "tasktree"}
+          title={t("rail.tasktree")}
+          aria-label={t("rail.tasktree")}
+          onClick={() => selectView("tasktree")}
+        >
+          <span style={{ fontSize: 16 }}>🌳</span>
+        </RailButton>
+        <RailButton
           active={panelOpen && sidebarView === "gitmcp"}
           title={t("rail.gitmcp")}
           aria-label={t("rail.gitmcp")}
@@ -1213,6 +1222,10 @@ export function App(): JSX.Element {
         ) : sidebarView === "design" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
             <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+          </Suspense>
+        ) : sidebarView === "tasktree" ? (
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <TaskTreePanel />
           </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />

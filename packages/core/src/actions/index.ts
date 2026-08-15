@@ -90,3 +90,17 @@ export { bentoCreateDefinition, bentoCreateRun } from "./bento";
 export type { BentoCreateInput, BentoCreateOutput } from "./bento";
 export { designMaterializeDefinition, designMaterializeRun } from "./design";
 export type { DesignMaterializeInput, DesignMaterializeOutput } from "./design";
+export {
+  taskCreateDefinition,
+  taskCreateRun,
+  taskStepDefinition,
+  taskStepRun,
+  taskForkDefinition,
+  taskForkRun,
+  taskSwitchDefinition,
+  taskSwitchRun,
+  taskAbandonDefinition,
+  taskAbandonRun,
+  taskListDefinition,
+  taskListRun,
+} from "./task";
