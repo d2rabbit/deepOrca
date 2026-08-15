@@ -80,11 +80,12 @@
 - [x] session 生命周期：`getSessionAuditLog` 惰性缓存；`removeSessionMessages` 同步清理审计文件；`dispose` 清缓存。
 - [x] `tests/audit.test.ts` **7 用例**：append→serialize→parse→verify 往返；**逐条篡改**（5 条链每条单独改）verify=false 且 `firstBadIndex` 定位 + 前缀计数；断链检测（合法 checksum 但 prevChecksum 不衔接）；canonicalJson 键序无关/undefined 剔除；写入器跨重开续链；fail-open（EISDIR 不抛、计数暴露）；executor 端到端（deny+allow 判决都到达钩子）。
 
-## PR 3+ — P2 Sans-IO PolicyEngine（任务 12-14，可与 PR 2 并行）
+## PR 3+ — P2 Sans-IO PolicyEngine（任务 12-13，已落地本分支）
 
-- [ ] `sandbox/types.ts` + `sandbox/policy.ts`：**真实 10 scope**（`settings.ts:28-38`），非编造值；纯逻辑零 I/O，`node --import tsx --test` 直跑，10 scope × allow/deny/ask 全组合。
-- [ ] 3 态 lifecycle（`Creating → Active → Dead`）+ generation fencing；唯一销毁点 `dispose()`（`session.ts:1643`），不做 Draining/grace（无触发条件）。
-- [ ] 任务 14 路径级「始终允许」：持久化路径追加进 `writeRoots`/`readRoots`（R1 形状已预留），settings schema + PermissionCard UI 改动，消化 §4.2(d) scope 级授权残余风险。
+- [x] `sandbox/types.ts` + `sandbox/policy.ts`：**真实 10 scope**（`settings.ts:29-40` 全集 + `ALL_SANDBOX_SCOPES` 常量自证）；纯逻辑零 I/O。`resolveScopeVerdict` 判定优先级镜像 `evaluatePermissionScopes`（deny > ask > allow > defaultMode 兜底，双模式 allowAll/askAll）；`buildPolicyMatrix` 一次解析全矩阵。
+- [x] 3 态 lifecycle（`creating → active → dead`）+ generation fencing：`beginGeneration()` 发放能力句柄，新代开启即围栏旧代（悬垂句柄永久失能）；dead 终态不可复活（activate/updateSettings 均无效）；`decide` 对非 active 引擎或围栏句柄一律 fail-closed 拒绝；唯一销毁点宿主 `dispose()`。
+- [x] `tests/sandbox-policy.test.ts` **6 用例**：scope 集合自证 = 真实 10 值；**10 scope × 7 种 settings 组合**（deny/ask/allow 列表、优先级覆盖×2、双 defaultMode 兜底）逐格断言；矩阵构建；lifecycle 三态全拒/全矩阵/死态终局；fencing（旧代句柄被围栏）；updateSettings 仅影响当前代未来判定。
+- [ ] 任务 14 路径级「始终允许」：持久化路径追加进 `writeRoots`/`readRoots`（R1 形状已预留），settings schema + PermissionCard UI 改动，消化 §4.2(d) scope 级授权残余风险。（未动工——涉及 desktop UI，独立动工）
 
 ## PR 4+ — P3 三平台进程隔离 + quarantine（任务 15-19、22）
 

@@ -139,6 +139,17 @@ export {
   type AuditEvent,
   type AuditEventType,
 } from "./sandbox/audit";
+// P2 sans-IO policy engine
+export { SandboxPolicyEngine, buildPolicyMatrix, resolveScopeVerdict } from "./sandbox/policy";
+export {
+  ALL_SANDBOX_SCOPES,
+  type SandboxScope,
+  type SandboxVerdict,
+  type SandboxPolicyMatrix,
+  type SandboxState,
+  type SandboxGeneration,
+  type SandboxLease,
+} from "./sandbox/types";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";
