@@ -25,6 +25,7 @@ export const zhHK: Record<MessageKey, string> = {
   "topbar.modelTitle": "模型設定",
   "topbar.settingsTitle": "設定",
   "topbar.model": "模型",
+  "topbar.configureModelPool": "設定模型池…",
   "topbar.noApiKey": "⚠ 未設定 API Key",
   "topbar.configureApiKey": "設定 API Key",
   "topbar.languageTitle": "語言",

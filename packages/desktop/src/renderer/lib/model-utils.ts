@@ -32,13 +32,15 @@ export function parseModelKey(key: string): { endpointId: string; modelId: strin
 }
 
 export function collectAllModelKeys(endpoints: ReadonlyArray<EndpointLike>): string[] {
-  const keys: string[] = [];
+  // Dedupe: the same model id registered twice on one endpoint (hand-edited
+  // settings file) must not produce duplicate select options / React keys.
+  const seen = new Set<string>();
   for (const ep of endpoints) {
     for (const model of ep.models ?? []) {
-      keys.push(buildModelKey(ep.id, model.id));
+      seen.add(buildModelKey(ep.id, model.id));
     }
   }
-  return keys;
+  return [...seen];
 }
 
 export function resolveModelCapability(

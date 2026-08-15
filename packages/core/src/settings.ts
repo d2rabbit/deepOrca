@@ -1025,13 +1025,15 @@ export function resolveModelCapability(
  * whether to show all endpoints or only configured ones.
  */
 export function collectAllModelKeys(endpoints: ReadonlyArray<Pick<EndpointConfig, "id" | "models">>): string[] {
-  const keys: string[] = [];
+  // Dedupe: a duplicate registration (hand-edited settings file) must not
+  // surface twice in dropdown selectors. Mirrors the renderer's model-utils.
+  const seen = new Set<string>();
   for (const ep of endpoints) {
     for (const model of ep.models ?? []) {
-      keys.push(buildModelKey(ep.id, model.id));
+      seen.add(buildModelKey(ep.id, model.id));
     }
   }
-  return keys;
+  return [...seen];
 }
 
 /**

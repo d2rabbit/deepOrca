@@ -38,6 +38,11 @@ type Props = {
 
 const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
 
+/** Sentinel option value: opens the settings panel's model pool (endpoints
+ * tab). Selecting it never changes the model — the DOM select is snapped back
+ * to the current value because no state change triggers a re-render. */
+const POOL_CONFIG_VALUE = "__configure_model_pool__";
+
 type ThinkingOption = {
   key: string;
   labelKey: MessageKey;
@@ -267,6 +272,12 @@ export const TopBar = memo(function TopBar({
             title={t("topbar.model")}
             onChange={(e) => {
               const val = e.target.value;
+              if (val === POOL_CONFIG_VALUE) {
+                // Snap the DOM select back — the controlled value never moved.
+                e.target.value = modelSelectValue;
+                onOpenSettings();
+                return;
+              }
               const parsed = parseModelKey(val);
               const modelId = parsed?.modelId ?? val;
               // Resolve capability of the newly selected model so we never send
@@ -292,6 +303,11 @@ export const TopBar = memo(function TopBar({
                 </option>
               );
             })}
+            {/* Pool entry point: one click from the top bar to the model pool
+                (endpoints tab). Makes the pool the visible source of truth —
+                especially when it is empty and the list above is the hardcoded
+                fallback pair. */}
+            <option value={POOL_CONFIG_VALUE}>{`⚙ ${t("topbar.configureModelPool")}`}</option>
           </Select>
           <span className="ui-topbar-divider" aria-hidden="true" />
           <Select

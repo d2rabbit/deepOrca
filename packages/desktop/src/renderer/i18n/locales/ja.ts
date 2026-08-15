@@ -24,6 +24,7 @@ export const ja: Record<MessageKey, string> = {
   "topbar.modelTitle": "モデル設定",
   "topbar.settingsTitle": "設定",
   "topbar.model": "モデル",
+  "topbar.configureModelPool": "モデルプールを設定…",
   "topbar.noApiKey": "⚠ API キーが未設定",
   "topbar.configureApiKey": "API キーを設定",
   "topbar.languageTitle": "言語",

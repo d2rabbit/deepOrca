@@ -24,6 +24,7 @@ export const ko: Record<MessageKey, string> = {
   "topbar.modelTitle": "모델 설정",
   "topbar.settingsTitle": "설정",
   "topbar.model": "모델",
+  "topbar.configureModelPool": "모델 풀 구성…",
   "topbar.noApiKey": "⚠ API 키가 설정되지 않음",
   "topbar.configureApiKey": "API 키 설정",
   "topbar.languageTitle": "언어",
