@@ -2,7 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 import type { DeepcodingSettings, PermissionScope, PermissionSettings } from "../settings";
 import { getProjectConfigRoot } from "./app-dirs";
-import { isAbsoluteFilePath, normalizeFilePath } from "./state";
+import { isPathInAnyDirectory, isPathInProject } from "./path-boundary";
+
+// Path primitives moved to path-boundary.ts (2026-08-16) so handlers can
+// import the boundary gate without the permission engine. Re-exported here
+// for existing importers.
+export { isPathInProject, safeRealPath, isPathInAnyDirectory } from "./path-boundary";
 
 export type BashPermissionScope = Exclude<PermissionScope, "mcp"> | "unknown";
 
@@ -700,62 +705,6 @@ export function resolveEditPermissionPath(
 
 export function formatToolPathCommand(toolName: string, filePath: string): string {
   return filePath ? `${toolName} ${filePath}` : toolName;
-}
-
-export function isPathInProject(projectRoot: string, filePath: string): boolean {
-  const normalized = normalizeFilePath(filePath);
-  const absolutePath = isAbsoluteFilePath(normalized) ? normalized : path.resolve(projectRoot, normalized);
-  // Hardening (deep review 2026-08-15, B3): a symlink planted INSIDE the
-  // project could point at /etc while lexical resolution still classifies the
-  // target as in-project (and thus pre-allowed). When both ends exist, prefer
-  // the real paths; fall back to the lexical answer when realpath fails
-  // (file not created yet / permissions), preserving prior behavior.
-  const realPath = safeRealPath(absolutePath);
-  const realRoot = safeRealPath(projectRoot);
-  if (realPath && realRoot) {
-    const realRelative = path.relative(realRoot, realPath);
-    if (realRelative === "" || (!realRelative.startsWith("..") && !path.isAbsolute(realRelative))) {
-      return true;
-    }
-    // realpath resolved and clearly escapes — trust it over the lexical answer.
-    if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
-      return false;
-    }
-  }
-  const relative = path.relative(path.resolve(projectRoot), path.resolve(absolutePath));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-function safeRealPath(target: string): string | null {
-  try {
-    return fs.realpathSync(target);
-  } catch {
-    return null;
-  }
-}
-
-export function isPathInAnyDirectory(
-  projectRoot: string,
-  filePath: string,
-  directories: string[] | undefined
-): boolean {
-  if (!directories?.length) {
-    return false;
-  }
-
-  const normalized = normalizeFilePath(filePath);
-  const absolutePath = isAbsoluteFilePath(normalized) ? normalized : path.resolve(projectRoot, normalized);
-  for (const directory of directories) {
-    const normalizedDirectory = normalizeFilePath(directory);
-    const absoluteDirectory = isAbsoluteFilePath(normalizedDirectory)
-      ? normalizedDirectory
-      : path.resolve(projectRoot, normalizedDirectory);
-    const relative = path.relative(path.resolve(absoluteDirectory), path.resolve(absolutePath));
-    if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
-      return true;
-    }
-  }
-  return false;
 }
 
 export function hasUserPermissionReplies(value: { permissions?: unknown; alwaysAllows?: unknown }): boolean {
