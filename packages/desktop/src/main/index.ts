@@ -1108,15 +1108,102 @@ function registerDesignIpc({ handle }: IpcHelpers): void {
   });
 }
 
-/** Task trajectory panel (specs/task-tree P0) — read-only bridge to core's service. */
-function registerTaskTreeIpc({ handle }: IpcHelpers): void {
+/**
+ * Task trajectory panel bridge — WORKSPACE-SCOPED: the service is resolved
+ * through the bridge's current SessionManager, which is recreated on
+ * setProjectRoot, so every channel below always talks to the tree store of
+ * the workspace the user is looking at. Mutations are privileged (they write
+ * into the workspace's .deeporca/task-trees/).
+ */
+function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   const service = () => getBridge().getSessionManager().getTaskTreeServiceForPanel();
+  const validTreeId = (treeId: unknown): treeId is string =>
+    typeof treeId === "string" && /^[0-9a-f-]{36}$/i.test(treeId);
+  const validBranch = (branch: unknown): branch is string =>
+    typeof branch === "string" && /^[A-Za-z0-9._-]{1,48}$/.test(branch) && !branch.includes("..");
+
   handle(IpcRequest.TaskTreeList, async () => {
     return service()?.listTrees() ?? [];
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string) => {
-    if (typeof treeId !== "string" || !/^[0-9a-f-]{36}$/i.test(treeId)) return null;
+    if (!validTreeId(treeId)) return null;
     return service()?.getTree(treeId) ?? null;
+  });
+
+  handlePrivileged(IpcRequest.TaskTreeCreate, async (prompt: string, why: string, branchName?: string) => {
+    const svc = service();
+    if (!svc) return { error: "task tree service unavailable" };
+    const p = typeof prompt === "string" ? prompt.trim() : "";
+    const w = typeof why === "string" ? why.trim() : "";
+    if (!p || !w) return { error: "prompt and why are required" };
+    const treeId = svc.createTree(p, { why: w, branchName });
+    return treeId ? { treeId } : { error: "failed to create task tree" };
+  });
+
+  handlePrivileged(
+    IpcRequest.TaskTreeFork,
+    async (treeId: string, why: string, opts?: { name?: string; fromBranch?: string }) => {
+      const svc = service();
+      if (!svc) return { error: "task tree service unavailable" };
+      if (!validTreeId(treeId)) return { error: "invalid treeId" };
+      const w = typeof why === "string" ? why.trim() : "";
+      if (!w) return { error: "why is required (the branch's story)" };
+      const nodeId = svc.fork(treeId, {
+        why: w,
+        ...(opts?.name ? { name: opts.name } : {}),
+        ...(opts?.fromBranch ? { fromBranch: opts.fromBranch } : {}),
+      });
+      if (!nodeId) return { error: "fork rejected (tree missing, duplicate name, or empty why)" };
+      const tree = svc.getTree(treeId);
+      return { nodeId, branch: tree?.index.activeBranch ?? "" };
+    }
+  );
+
+  handlePrivileged(IpcRequest.TaskTreeSwitch, async (treeId: string, branch: string) => {
+    const svc = service();
+    if (!svc || !validTreeId(treeId) || !validBranch(branch)) return { ok: false, error: "invalid arguments" };
+    return svc.switchBranch(treeId, branch) ? { ok: true } : { ok: false, error: "branch not found or abandoned" };
+  });
+
+  handlePrivileged(IpcRequest.TaskTreeAbandon, async (treeId: string, branch: string) => {
+    const svc = service();
+    if (!svc || !validTreeId(treeId) || !validBranch(branch)) return { ok: false, error: "invalid arguments" };
+    return svc.abandon(treeId, branch)
+      ? { ok: true }
+      : { ok: false, error: "branch not found or is the active branch" };
+  });
+
+  handlePrivileged(IpcRequest.TaskTreeMerge, async (treeId: string, srcBranch: string) => {
+    const svc = service();
+    if (!svc || !validTreeId(treeId) || !validBranch(srcBranch)) return { ok: false, error: "invalid arguments" };
+    const tree = svc.getTree(treeId);
+    if (!tree) return { ok: false, error: "tree not found" };
+    // Panel merge = merge the WHOLE branch: pick every node on the source
+    // lineage that is not already on the target lineage.
+    const target = tree.index.branches[tree.index.activeBranch];
+    const source = tree.index.branches[srcBranch];
+    if (!target || !source || srcBranch === tree.index.activeBranch) {
+      return { ok: false, error: "branch missing or is the active branch" };
+    }
+    const byId = new Map(tree.nodes.map((n) => [n.id, n]));
+    const lineage = (headId: string | undefined): Set<string> => {
+      const ids = new Set<string>();
+      let cur = headId ? byId.get(headId) : undefined;
+      let guard = 0;
+      while (cur && guard < 4096) {
+        ids.add(cur.id);
+        cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+        guard += 1;
+      }
+      return ids;
+    };
+    const targetIds = lineage(target.headId);
+    const picks = [...lineage(source.headId)].filter((id) => !targetIds.has(id));
+    if (picks.length === 0) return { ok: false, error: "nothing to merge (branch fully contained)" };
+    const result = svc.merge(treeId, srcBranch, picks);
+    return result
+      ? { ok: true, mergeNodeId: result.mergeNodeId, conflicts: result.conflicts }
+      : { ok: false, error: "merge rejected" };
   });
 }
 

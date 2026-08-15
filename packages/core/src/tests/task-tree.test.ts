@@ -438,3 +438,20 @@ test("merge/abandon actions recycle a <task-lineage> message into the active ses
   assert.ok(lineage, "recycle message persisted for the memory pipeline to ingest");
   assert.equal(lineage!.visible, false, "hidden — context, not chat");
 });
+
+test("workspace isolation: each root's trees are invisible to the other root", () => {
+  const rootA = tempRoot();
+  const rootB = tempRoot();
+  const svcA = new TaskTreeService(rootA);
+  const svcB = new TaskTreeService(rootB);
+  const a = svcA.createTree("Workspace A task")!;
+  svcB.createTree("Workspace B task");
+  assert.equal(svcA.listTrees().length, 1);
+  assert.equal(svcB.listTrees().length, 1);
+  assert.equal(svcA.listTrees()[0]!.title, "Workspace A task");
+  assert.equal(svcB.listTrees()[0]!.title, "Workspace B task");
+  // Cross-root access is refused (a B-service cannot read A's tree).
+  assert.equal(svcB.getTree(a), null);
+  // Disk layout: each root has its own .deeporca/task-trees.
+  assert.ok(fs.existsSync(path.join(rootA, ".deeporca", "task-trees", a)));
+});

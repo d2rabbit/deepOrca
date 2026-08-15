@@ -12,6 +12,12 @@
 - [x] 测试：6 用例（fork/switch/abandon/recovery/fail-open/id 防穿越/分支名净化）
 - [x] 消歧规则写入 design.md：plan→tree 单向只读物化
 
+## 面板操作化 + 工作区绑定（2026-08-15 补充完成）
+
+- [x] 面板自有完整操作面：tasktree:create/fork/switch/abandon/merge 五个 mutation IPC（特权层级 + 参数校验：treeId UUID、分支名白名单、why 必填）；UI 含建树表单、fork 表单（why 必填）、分支级 switch⇄/merge⇦/abandon✕ 按钮、abandon 二次确认、merge 冲突清单提示
+- [x] 工作区绑定：面板订阅 onProjectRootChanged（切换即重置选择+刷新+提示），头部显示当前工作区名；main 侧 service 经 bridge 当前 SessionManager 解析（setProjectRoot 重建 manager → 惰性 service 自动指向新根）；跨根隔离测试锁定（root 互不可见 + 各自磁盘目录）
+- [x] 真机验收：面板五操作经真实 IPC 全链路通过；工作区切换 → 列表重置 → 新工作区建树仅在新根可见 → 恢复原工作区
+
 ## P1（2026-08-15 完成，除注记项）
 
 - [x] merge + 冲突报告（artifact 级 cherry-pick；task.merge 返回冲突清单供人确认——确认清单 UI 列入 P2 树图改版）

@@ -155,9 +155,14 @@ export const IpcRequest = {
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
 
-  // Task trajectory (specs/task-tree P0) — read-only panel surface
+  // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
+  TaskTreeCreate: "tasktree:create",
+  TaskTreeFork: "tasktree:fork",
+  TaskTreeSwitch: "tasktree:switch",
+  TaskTreeAbandon: "tasktree:abandon",
+  TaskTreeMerge: "tasktree:merge",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -793,6 +798,26 @@ export type DesktopApi = {
   taskTreeList(): Promise<TaskTreeSummary[]>;
   /** Read one tree (index + all nodes) for the panel view. */
   taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
+  /** Create a tree in the CURRENT workspace (prompt + why are required). */
+  taskTreeCreate(prompt: string, why: string, branchName?: string): Promise<{ treeId: string } | { error: string }>;
+  /** Fork a branch (why is the human-facing story; required). */
+  taskTreeFork(
+    treeId: string,
+    why: string,
+    opts?: { name?: string; fromBranch?: string }
+  ): Promise<{ nodeId: string; branch: string } | { error: string }>;
+  /** Switch the tree's active branch. */
+  taskTreeSwitch(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  /** Abandon a non-active branch. */
+  taskTreeAbandon(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  /** Merge a whole branch (all its lineage-unique nodes) onto the active branch. */
+  taskTreeMerge(
+    treeId: string,
+    srcBranch: string
+  ): Promise<
+    | { ok: true; mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> }
+    | { ok: false; error: string }
+  >;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

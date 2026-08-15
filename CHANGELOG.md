@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能
 
+- **任务树面板操作化 + 工作区绑定（模块完成）**
+  - 面板自有完整操作面：新建任务树（prompt+why 必填）、分叉（why 必填——分支的故事）、切换⇄、合并⇦（整支世系去重挑选）、放弃✕（二次确认，归档可见）；5 个 mutation IPC 全部特权层级 + 参数校验（treeId UUID / 分支名白名单 / why 非空）
+  - **工作区绑定**：面板订阅 `onProjectRootChanged`（切换工作区即重置+刷新+提示），头部显示当前工作区；树存储严格 `<workspace>/.deeporca/task-trees/`（跨根隔离测试锁定）；main 侧经 bridge 当前 SessionManager 解析服务，工作区切换自动跟随
+  - merge 冲突清单在合并后以提示展示（refs 列出，人工裁决）
+  - 真机验收：面板五操作 + 工作区切换（列表重置 → 新根建树仅新根可见 → 恢复）全链路通过
+
 - **任务树 P2 收官：记忆驱动 fork 闭环 + 泳道树图（轨迹计划完毕）**
   - **记忆驱动 fork（六步最小环）**：AskUserQuestion 决策点自动埋点（一次/会话）→ `recallAtDecision` 召回相似历史分叉（token-Jaccard + 世系映射，带 merged/abandoned/open 结局）→ 隐藏 `<task-recall-hints>` 提示 agent 可提议 → `task.recall` Action 供主动查询 → `task.fork(memorySnapshot)` 播种（memory-spawn ✦，快照注入分支 contextSummary）→ merge/abandon 写 `<task-lineage>` 隐藏消息经现有记忆 capture 回收（**memory 包零改动**）
   - **泳道式树图**：面板升级为每分支一列的简化 DAG 画布（世系自上而下、active 高亮、abandoned 灰显）；merge 冲突清单持久化进节点 meta 并以 ⚠ 渲染（报告不裁决）

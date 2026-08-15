@@ -152,6 +152,11 @@ const api: DesktopApi = {
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
   taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
+  taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
+  taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
+  taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),
+  taskTreeAbandon: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch),
+  taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>
