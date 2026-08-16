@@ -296,10 +296,13 @@ export function applyQuarantinePermissionClamp(settings: PermissionSettings | un
     ask: settings?.ask ?? [],
     deny: [...new Set([...(settings?.deny ?? []), ...QUARANTINE_DENIED_SCOPES])],
     defaultMode: settings?.defaultMode ?? "allowAll",
-    // Path-level grants survive the clamp: they ARE the narrow authorization
-    // the clamp wants (a specific directory, not the whole disk).
-    allowedWritePaths: settings?.allowedWritePaths ?? [],
-    allowedReadPaths: settings?.allowedReadPaths ?? [],
+    // Path grants are ZEROED under quarantine (review finding, 2026-08-16):
+    // they persist inside the project settings file — attacker-authored
+    // content for a quarantined repo — so preserving them would let the repo
+    // pre-ship allowedWritePaths:["/"] and bypass the out-cwd deny silently.
+    // §10.3 is explicit: out-of-cwd R/W is fail-closed deny, no exceptions.
+    allowedWritePaths: [],
+    allowedReadPaths: [],
   };
 }
 

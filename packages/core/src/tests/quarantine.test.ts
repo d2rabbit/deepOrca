@@ -10,6 +10,7 @@ import {
 } from "../common/permissions";
 import { grantOutsideRootsFlags } from "../common/path-boundary";
 import { resolveCurrentSettings } from "../settings";
+import { readWorkspaceTrustStore, writeWorkspaceTrustStore } from "../common/app-dirs";
 
 // Quarantine trust level tests (specs/sandbox/design.md §10.3, task 22):
 // out-of-cwd R/W/D denied outright, bash force-asked without a sandbox
@@ -152,34 +153,43 @@ test("grantOutsideRootsFlags: quarantine clamps both booleans regardless of scop
   });
 });
 
-test("settings resolution: quarantine skips project mcpServers and surfaces the trust level", () => {
+test("settings resolution: quarantine skips project mcpServers and is user-store driven", () => {
   const project = createWorkspace();
   const projectSettingsPath = path.join(project, ".deeporca", "settings.json");
-
-  // Trusted (absent flag): project servers merge normally.
   fs.mkdirSync(path.dirname(projectSettingsPath), { recursive: true });
   fs.writeFileSync(
     projectSettingsPath,
     JSON.stringify({ mcpServers: { "repo-tool": { command: "node", args: ["server.js"] } } })
   );
-  const trusted = resolveCurrentSettings(project);
-  assert.equal(trusted.workspaceTrust, "trusted");
-  assert.ok(trusted.mcpServers?.["repo-tool"], "trusted project servers load");
 
-  // Quarantined: the project file is attacker-controlled — its servers are
-  // NOT auto-loaded (user-level servers are the user's own choice).
-  fs.writeFileSync(
-    projectSettingsPath,
-    JSON.stringify({
-      workspaceTrust: "quarantine",
-      mcpServers: { "repo-tool": { command: "node", args: ["server.js"] } },
-    })
-  );
+  // Never asked (no user-store entry): trusted, project servers load.
+  const unasked = resolveCurrentSettings(project);
+  assert.equal(unasked.workspaceTrust, "trusted");
+  assert.ok(unasked.mcpServers?.["repo-tool"]);
+
+  // Quarantined via the USER-level store: the project file is attacker
+  // content — its servers must not auto-load (design.md §10.3).
+  writeWorkspaceTrustStore(project, "quarantine");
   const quarantined = resolveCurrentSettings(project);
   assert.equal(quarantined.workspaceTrust, "quarantine");
   assert.equal(quarantined.mcpServers?.["repo-tool"], undefined, "quarantined project servers must not auto-load");
 
-  // Invalid values behave as trusted (no sudden quarantine from a typo).
-  fs.writeFileSync(projectSettingsPath, JSON.stringify({ workspaceTrust: "banana" }));
-  assert.equal(resolveCurrentSettings(project).workspaceTrust, "trusted");
+  // The repo cannot un-quarantine itself: a project-file workspaceTrust
+  // field is ignored entirely (review finding — marker must live outside
+  // the repo).
+  fs.writeFileSync(
+    projectSettingsPath,
+    JSON.stringify({
+      workspaceTrust: "trusted",
+      mcpServers: { "repo-tool": { command: "node", args: ["server.js"] } },
+    })
+  );
+  const stillQuarantined = resolveCurrentSettings(project);
+  assert.equal(stillQuarantined.workspaceTrust, "quarantine", "project-file trust field is ignored");
+  assert.equal(stillQuarantined.mcpServers?.["repo-tool"], undefined);
+
+  // Explicit trust is a first-class state; store shape round-trips.
+  writeWorkspaceTrustStore(project, "trusted");
+  assert.deepEqual(readWorkspaceTrustStore(project), { level: "trusted", explicit: true });
+  assert.ok(resolveCurrentSettings(project).mcpServers?.["repo-tool"]);
 });

@@ -64,6 +64,25 @@ export function buildResult(
 }
 
 /**
+ * Unified "already granted" predicate for one ask prompt. MUST be used by
+ * both the render-time skip loop and the submit-time remaining loop with the
+ * SAME arguments — divergent conditions stall the card (review finding: the
+ * card rendered null without submitting after a scope-level always-allow).
+ */
+export function isPromptGranted(
+  scope: Scope,
+  filePath: string | undefined,
+  alwaysScopes: readonly string[],
+  pathGrants: { write: readonly string[]; read: readonly string[] }
+): boolean {
+  if (alwaysScopes.includes(scope)) {
+    return true;
+  }
+  const grant = pathGrantFor(scope, filePath);
+  return grant ? pathGrants[grant.kind].some((path) => path === grant.path) : false;
+}
+
+/**
  * For a file-tool ask with a known path, "always allow" persists the PATH
  * (task 14) instead of the whole-disk scope. Returns the grant kind, or null
  * when the scope has no path to bind (bash, network, …).

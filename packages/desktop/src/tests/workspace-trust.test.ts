@@ -12,7 +12,7 @@ import { readProjectSettings } from "@deeporca/core";
 // helpers are pure settings I/O so they run without Electron or a bridge.
 
 test("workspace trust helpers round-trip the project settings file", async () => {
-  const { mkdtempSync, rmSync, realpathSync } = await import("node:fs");
+  const { mkdtempSync, rmSync, realpathSync, existsSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const workspace = realpathSync(mkdtempSync(join(tmpdir(), "deeporca-trust-ui-")));
@@ -23,7 +23,10 @@ test("workspace trust helpers round-trip the project settings file", async () =>
 
     writeWorkspaceTrust("quarantine", workspace);
     assert.deepEqual(readWorkspaceTrustStatus(workspace), { level: "quarantine", explicit: true });
-    assert.equal(readProjectSettings(workspace)?.workspaceTrust, "quarantine");
+    // The trust marker lives OUTSIDE the repo: the project settings file is
+    // never touched (attacker-controlled content, review finding 2026-08-16).
+    assert.equal(readProjectSettings(workspace), null);
+    assert.equal(existsSync(join(workspace, ".deeporca", "settings.json")), false);
 
     // Explicit trust is a first-class state, not just an absent flag.
     writeWorkspaceTrust("trusted", workspace);

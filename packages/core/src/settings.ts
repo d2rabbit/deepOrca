@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
-import { getProjectConfigRoot, getUserConfigRoot } from "./common/app-dirs";
+import {
+  getProjectConfigRoot,
+  getUserConfigRoot,
+  readWorkspaceTrustStore,
+  type WorkspaceTrustLevel,
+} from "./common/app-dirs";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -124,14 +129,6 @@ export type DeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions?: PermissionSettings;
-  /**
-   * Workspace trust level (specs/sandbox/design.md §10.3). Project-level
-   * only. "quarantine" is for untrusted checkouts (code-review scenarios):
-   * out-of-cwd read/write/delete denied outright, bash force-asked without a
-   * sandbox backend, project-level mcpServers not auto-loaded. Absent or
-   * invalid values behave as "trusted".
-   */
-  workspaceTrust?: "trusted" | "quarantine";
   enabledSkills?: EnabledSkillsSettings;
   statusline?: StatusLineSettings;
   memory?: MemorySettings;
@@ -204,7 +201,8 @@ export type ResolvedDeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions: Required<PermissionSettings>;
-  workspaceTrust: "trusted" | "quarantine";
+  /** Store-driven (user-level trust store) — never read from the project file. */
+  workspaceTrust: WorkspaceTrustLevel;
   enabledSkills: EnabledSkillsSettings;
   statusline: ResolvedStatusLineSettings;
   memory: Required<MemorySettings>;
@@ -648,13 +646,16 @@ function mergeMcpServers(
   projectSettings: DeepcodingSettings | null | undefined,
   userEnv: Record<string, string>,
   projectEnv: Record<string, string>,
-  systemEnv: Record<string, string>
+  systemEnv: Record<string, string>,
+  workspaceTrust: WorkspaceTrustLevel = "trusted"
 ): Record<string, McpServerConfig> | undefined {
   const userServers = userSettings?.mcpServers ?? {};
   // Quarantined workspaces (untrusted checkouts, design.md §10.3): the
   // project file is attacker-controlled, so its servers are NOT auto-loaded.
-  // User-level servers are the user's own choice and keep loading.
-  const projectServers = projectSettings?.workspaceTrust === "quarantine" ? {} : (projectSettings?.mcpServers ?? {});
+  // User-level servers are the user's own choice and keep loading. The trust
+  // level comes from the user-level store — a repo cannot un-quarantine
+  // itself (review finding, 2026-08-16).
+  const projectServers = workspaceTrust === "quarantine" ? {} : (projectSettings?.mcpServers ?? {});
   const serverNames = new Set([...Object.keys(userServers), ...Object.keys(projectServers)]);
   if (serverNames.size === 0) {
     return undefined;
@@ -704,7 +705,8 @@ export function resolveSettingsSources(
   userSettings: DeepcodingSettings | null | undefined,
   projectSettings: DeepcodingSettings | null | undefined,
   defaults: { model: string; baseURL: string },
-  processEnv: SettingsProcessEnv = process.env
+  processEnv: SettingsProcessEnv = process.env,
+  workspaceTrust: WorkspaceTrustLevel = "trusted"
 ): ResolvedDeepcodingSettings {
   const userEnv = normalizeEnv(userSettings?.env);
   const projectEnv = normalizeEnv(projectSettings?.env);
@@ -872,9 +874,9 @@ export function resolveSettingsSources(
     telemetryEnabled,
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
-    mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
+    mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv, workspaceTrust),
     permissions: mergePermissions(userSettings, projectSettings),
-    workspaceTrust: projectSettings?.workspaceTrust === "quarantine" ? "quarantine" : "trusted",
+    workspaceTrust,
     enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
     statusline: mergeStatusLine(userSettings, projectSettings),
     memory: mergeMemory(userSettings, projectSettings),
@@ -1272,6 +1274,7 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
       model: DEFAULT_MODEL,
       baseURL: DEFAULT_BASE_URL,
     },
-    process.env
+    process.env,
+    readWorkspaceTrustStore(projectRoot).level
   );
 }

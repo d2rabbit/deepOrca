@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildResult, pathGrantFor } from "../renderer/lib/permissions";
+import { buildResult, isPromptGranted, pathGrantFor } from "../renderer/lib/permissions";
 import type { AskPermissionRequest } from "../shared/ipc";
 
 // Renderer-side path-level always-allow (task 14): binding the grant to the
@@ -33,4 +33,18 @@ test("buildResult aggregates path grants alongside scope grants", () => {
   assert.deepEqual(result.alwaysAllows, ["network"]);
   assert.deepEqual(result.alwaysAllowPaths, { write: ["/etc/app.conf"], read: [] });
   assert.equal(result.hasDeny, false);
+});
+
+test("isPromptGranted: scope grant covers path-bound prompts — both loops share one predicate (review deadlock fix)", () => {
+  const pathGrants = { write: [], read: [] };
+  // The deadlock repro: bash prompt always-allowed at scope level, followed
+  // by a write prompt bound to a filePath. The scope grant must count as
+  // granted for BOTH prompts so the submit loop terminates and submits.
+  assert.equal(isPromptGranted("write-out-cwd", undefined, ["write-out-cwd"], pathGrants), true);
+  assert.equal(isPromptGranted("write-out-cwd", "/etc/app.conf", ["write-out-cwd"], pathGrants), true);
+  // Without the scope grant, only the path grant counts.
+  assert.equal(isPromptGranted("write-out-cwd", "/etc/app.conf", [], { write: ["/etc/app.conf"], read: [] }), true);
+  assert.equal(isPromptGranted("write-out-cwd", "/etc/other.conf", [], { write: ["/etc/app.conf"], read: [] }), false);
+  // Read grants never satisfy write prompts (orthogonal kinds).
+  assert.equal(isPromptGranted("write-out-cwd", "/x", [], { write: [], read: ["/x"] }), false);
 });

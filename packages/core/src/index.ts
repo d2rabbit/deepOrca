@@ -152,6 +152,12 @@ export {
 } from "./sandbox/types";
 // Quarantine trust level (design.md §10.3)
 export { applyQuarantinePermissionClamp, QUARANTINE_DENIED_SCOPES } from "./common/permissions";
+export {
+  readWorkspaceTrustStore,
+  writeWorkspaceTrustStore,
+  type WorkspaceTrustLevel,
+  type WorkspaceTrustStatus,
+} from "./common/app-dirs";
 
 // P3 sandbox backends
 export type {

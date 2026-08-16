@@ -163,3 +163,15 @@
 
 1. **设置面板不可见/不可撤销路径授权**：`allowedWritePaths`/`allowedReadPaths` 只能经 PermissionCard 累积、手工编辑 settings.json 撤销——需要在 EditableSettings 中展示与移除（下批 desktop UI）。
 2. Linux bwrap（任务 17）/ Windows WSL2（任务 18）未实现，detect 降级必报；沙箱内 DNS（mDNSResponder mach 服务）未验证。
+
+### 二轮复审（评审 agent 流水线，2026-08-16）
+
+按 /code-review 流程（摘要 + 5 并行评审 agent + 逐 issue 置信度评分，<80 过滤）对 14 个沙箱提交复核，15 个候选问题中 **3 个通过 80 分阈值**，全部当日修复（防回退测试随行）：
+
+| # | 问题（评分） | 修复 |
+| --- | --- | --- |
+| F1（85） | PermissionCard 渲染期跳过循环与提交期 remaining 循环判定不一致——bash scope 级始终允许后，同批 filePath 绑定的 write 提示"既不提交也不渲染"，权限卡静默卡死 | 判定抽为共享纯函数 `isPromptGranted`（renderer lib/permissions.ts），双循环统一使用；permissions-lib.test.ts 防回退 |
+| F2（88） | 信任标记存于项目级 settings——被隔离仓库可自带 `workspaceTrust:"trusted"` 使首开对话框永不出现、整套 clamp 静默失效（防御自拆，mcpServers 隔离自己的注释都写明"项目文件是攻击面"） | 信任标记移到**用户级存储** `~/.deeporca/projects/<code>/trust.json`（core app-dirs.ts read/writeWorkspaceTrustStore）；`DeepcodingSettings.workspaceTrust` 字段移除（项目文件该字段被忽略）；mergeMcpServers 改经参数取信任值；getProjectCode 迁至 app-dirs（避免 settings→session 循环）；quarantine.test.ts 含"仓库无法自我解除隔离"防回退 |
+| F3（85） | quarantine clamp 保留 allowedWritePaths/allowedReadPaths——被隔离仓库可预置 `allowedWritePaths:["/"]` 静默绕过 out-cwd 全拒（"保留窄授权"的记档只考虑了用户来源，未考虑攻击者来源） | clamp 清零两列表；session 新增 `effectivePermissions()` 单一权限真源（计划评估 + 读写豁免 + grant 派生全部走 clamp 后形态，堵住"豁免列表从未 clamp 取值"的残余旁路）；path-grants.test.ts 断言翻转（预置授权在 quarantine 下 buys nothing） |
+
+未过阈值（≤75）的 12 项归因存档：4 项注释措辞类（50-55）、3 项设计明示权衡（macos 沙箱硬边界 vs 授权 75、quarantine 网络快照 30、policy 引擎消费者 70）、3 项条件触发缺陷（symlink 深链 55、路径授权 symlink 首写 75、renderer 去重字面等值 50）、PascalCase 命名 40、trust 设置后未 reload 48（toast 已诚实披露）。

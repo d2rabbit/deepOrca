@@ -107,24 +107,28 @@ test("describeToolPermissionRequest carries filePath for file tools", () => {
   assert.equal(request.filePath, path.join(project, "a.txt"));
 });
 
-test("path grants survive the quarantine clamp and keep working there", () => {
+test("quarantine zeroes path grants — an attacker-authored settings file cannot self-authorize", () => {
   const project = createWorkspace();
   const granted = createWorkspace();
+  // A quarantined repo pre-ships path grants in its own settings file.
+  // The clamp (and the session's exempt wiring, which uses the clamped
+  // shape) must treat them as absent: §10.3 out-of-cwd is fail-closed deny.
   const clamped = applyQuarantinePermissionClamp({
     ...ALLOW_ALL,
     allowedWritePaths: [granted],
     allowedReadPaths: [granted],
   });
+  assert.deepEqual(clamped.allowedWritePaths, [], "path grants are zeroed under quarantine");
+  assert.deepEqual(clamped.allowedReadPaths, []);
   const plan = computeToolCallPermissions({
     sessionId: "pg",
     projectRoot: project,
-    toolCalls: [writeCall(path.join(granted, "file.txt")), writeCall(path.join(createWorkspace(), "x.txt"))],
+    toolCalls: [writeCall(path.join(granted, "file.txt"))],
     settings: clamped,
     writePermissionExemptPaths: clamped.allowedWritePaths,
     readPermissionExemptPaths: clamped.allowedReadPaths,
   });
-  const byOrder = plan.permissions.map((permission) => permission.permission);
-  assert.deepEqual(byOrder, ["allow", "deny"], "narrow path grant is honored; everything else stays denied");
+  assert.equal(plan.permissions[0]?.permission, "deny", "pre-shipped grants buy nothing in quarantine");
 });
 
 test("session derivation: granted paths become write roots and the gate admits exactly them", () => {

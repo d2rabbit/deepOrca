@@ -29,6 +29,8 @@ import {
   setCodegraphDisabled,
   setA2uiDisabled,
   configureFileUtilsWriteBoundary,
+  readWorkspaceTrustStore,
+  writeWorkspaceTrustStore,
   writeModelConfigSelection,
   writeProjectSettings,
   writeSettings,
@@ -213,19 +215,18 @@ function isSerializableProcess(value: unknown): value is SerializableProcess {
   return typeof v.pid === "string" && typeof v.startTime === "string" && typeof v.command === "string";
 }
 
-/** Trust state for the UI: `explicit: false` means never asked (first open). */
+/**
+ * Trust state for the UI (`explicit: false` = never asked). Backed by the
+ * USER-level store keyed by project — never the project's own settings file,
+ * which is attacker-controlled content in exactly the scenarios quarantine
+ * exists for (review finding, 2026-08-16).
+ */
 export function readWorkspaceTrustStatus(root: string): WorkspaceTrustStatus {
-  const explicitTrust = readProjectSettings(root)?.workspaceTrust;
-  return {
-    level: resolveCurrentSettings(root).workspaceTrust,
-    explicit: explicitTrust === "trusted" || explicitTrust === "quarantine",
-  };
+  return readWorkspaceTrustStore(root);
 }
 
-/** Trust is inherently project-level — always writes the project file. */
 export function writeWorkspaceTrust(level: WorkspaceTrustLevel, root: string): void {
-  const raw = readProjectSettings(root) ?? {};
-  writeProjectSettings({ ...raw, workspaceTrust: level }, root);
+  writeWorkspaceTrustStore(root, level);
 }
 
 export function toSettingsSummary(root: string): SettingsSummary {

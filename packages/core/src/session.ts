@@ -139,7 +139,7 @@ import type { SandboxBackend, SandboxBackendStatus, SandboxProbeResult } from ".
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
 import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
-import { getUserConfigRoot } from "./common/app-dirs";
+import { getUserConfigRoot, getProjectCode } from "./common/app-dirs";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { describeLlmError, classifyLlmError, getLlmErrorDetails } from "./common/llm-error";
@@ -191,8 +191,6 @@ export type {
 } from "./common/permissions";
 
 const MAX_SESSION_ENTRIES = 50;
-const MAX_PROJECT_CODE_LENGTH = 64;
-const PROJECT_CODE_HASH_LENGTH = 16;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 /** Retry window after a failed router/embedding load (R4 backoff). */
 const ROUTING_LOAD_RETRY_BACKOFF_MS = 60_000;
@@ -220,29 +218,12 @@ type ChatCompletionDebugOptions = {
   params?: Record<string, unknown>;
 };
 
+export { getProjectCode } from "./common/app-dirs";
+
 export function getCompactPromptTokenThreshold(model: string): number {
   return DEEPSEEK_V4_MODELS.has(model)
     ? DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD
     : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
-}
-
-// Keep project storage paths short enough for Git's internal files on Windows.
-export function getProjectCode(projectRoot: string): string {
-  const legacyCode = getLegacyProjectCode(projectRoot);
-  if (legacyCode.length <= MAX_PROJECT_CODE_LENGTH) {
-    return legacyCode;
-  }
-
-  const normalizedRoot = path.resolve(projectRoot);
-  const hashInput = process.platform === "win32" ? normalizedRoot.toLowerCase() : normalizedRoot;
-  const hash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, PROJECT_CODE_HASH_LENGTH);
-  const prefixLimit = MAX_PROJECT_CODE_LENGTH - PROJECT_CODE_HASH_LENGTH - 1;
-  const basename = path.basename(normalizedRoot);
-  const prefix =
-    sanitizeProjectCodePart(basename)
-      .slice(0, prefixLimit)
-      .replace(/[-.]+$/g, "") || "project";
-  return `${prefix}-${hash}`;
 }
 
 /**
@@ -254,17 +235,6 @@ export function isChineseLocale(locale?: string): boolean {
   if (!locale) return false;
   const lower = locale.toLowerCase();
   return lower === "zh" || lower.startsWith("zh-");
-}
-
-function getLegacyProjectCode(projectRoot: string): string {
-  return projectRoot.replace(/[\\/]/g, "-").replace(/:/g, "");
-}
-
-function sanitizeProjectCodePart(value: string): string {
-  return value
-    .replace(/[^A-Za-z0-9._-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "");
 }
 
 function isUsageRecord(value: unknown): value is Record<string, unknown> {
@@ -3469,14 +3439,13 @@ ${content}
         // sandbox backend is available — a quarantined repo must not ask its
         // way out of the boundary.
         const quarantined = this.isWorkspaceQuarantined();
+        const effectivePermissions = this.effectivePermissions();
         const permissionPlan = toolCalls
           ? computeToolCallPermissions({
               sessionId,
               projectRoot: this.projectRoot,
               toolCalls,
-              settings: quarantined
-                ? applyQuarantinePermissionClamp(this.getResolvedSettings().permissions)
-                : this.getResolvedSettings().permissions,
+              settings: effectivePermissions,
               forceAskScopes: this.getSession(sessionId)?.planMode ? PLAN_MODE_FORCE_ASK_SCOPES : undefined,
               // Baseline (plan mode or not): allowAll must not silently cover
               // out-of-cwd write/delete. Explicit allow-list grants survive —
@@ -3487,9 +3456,9 @@ ${content}
                 quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
               readPermissionExemptPaths: [
                 ...this.getSkillScanRoots().map((entry) => entry.root),
-                ...(this.getResolvedSettings().permissions?.allowedReadPaths ?? []),
+                ...(effectivePermissions?.allowedReadPaths ?? []),
               ],
-              writePermissionExemptPaths: this.getResolvedSettings().permissions?.allowedWritePaths ?? [],
+              writePermissionExemptPaths: effectivePermissions?.allowedWritePaths ?? [],
               resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
             })
           : null;
@@ -4852,8 +4821,9 @@ ${content}
       return undefined;
     }
     const skillRoots = this.getSkillScanRoots().map((entry) => entry.root);
-    const allowedReadPaths = this.getResolvedSettings().permissions?.allowedReadPaths ?? [];
-    const allowedWritePaths = this.getResolvedSettings().permissions?.allowedWritePaths ?? [];
+    const effectivePermissions = this.effectivePermissions();
+    const allowedReadPaths = effectivePermissions?.allowedReadPaths ?? [];
+    const allowedWritePaths = effectivePermissions?.allowedWritePaths ?? [];
     const request = describeToolPermissionRequest({
       sessionId,
       projectRoot: this.projectRoot,
@@ -4885,6 +4855,18 @@ ${content}
 
   private isWorkspaceQuarantined(): boolean {
     return this.getResolvedSettings().workspaceTrust === "quarantine";
+  }
+
+  /**
+   * The single source of permission truth for plan-time evaluation AND the
+   * exempt lists. Under quarantine this is the clamped shape (path grants
+   * zeroed) — computing the exempts from the raw resolved settings would let
+   * a quarantined repo's own settings file re-open its out-of-cwd paths
+   * (review finding, 2026-08-16).
+   */
+  private effectivePermissions(): Required<PermissionSettings> | undefined {
+    const resolved = this.getResolvedSettings().permissions;
+    return this.isWorkspaceQuarantined() ? applyQuarantinePermissionClamp(resolved) : resolved;
   }
 
   /**

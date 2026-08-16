@@ -6,6 +6,7 @@ import {
   buildScopePrompts,
   describeScope,
   isAlwaysAllowedScope,
+  isPromptGranted,
   pathGrantFor,
   scopeRiskColor,
   type PermissionResult,
@@ -35,16 +36,8 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
   });
 
   // Skip scopes already granted "always" during this run.
-  const isAlwaysGranted = (scope: Scope, filePath?: string): boolean => {
-    if (alwaysAllows.includes(scope as PermissionScope)) {
-      return true;
-    }
-    const grant = pathGrantFor(scope, filePath);
-    if (grant) {
-      return alwaysAllowPaths[grant.kind].some((path) => path === grant.path);
-    }
-    return false;
-  };
+  const isAlwaysGranted = (scope: Scope, filePath?: string): boolean =>
+    isPromptGranted(scope, filePath, alwaysAllows, alwaysAllowPaths);
 
   let effectiveIndex = index;
   while (effectiveIndex < prompts.length) {
@@ -108,19 +101,18 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
     setAlwaysAllowPaths(nextPaths);
     setIndex(nextIndex);
 
-    // Determine if any prompts remain after this decision.
+    // Determine if any prompts remain after this decision. Same predicate
+    // as the render-time skip loop — divergence here once stalled the card
+    // (rendered null without submitting) after a scope-level always-allow.
     let remaining = nextIndex;
     while (remaining < prompts.length) {
       const prompt = prompts[remaining]!;
-      if (isAlwaysAllowedScope(prompt.scope)) {
-        const grant = pathGrantFor(prompt.scope, prompt.request.filePath);
-        const granted = grant
-          ? nextPaths[grant.kind].some((path) => path === grant.path)
-          : nextAlways.includes(prompt.scope as PermissionScope);
-        if (granted) {
-          remaining += 1;
-          continue;
-        }
+      if (
+        isAlwaysAllowedScope(prompt.scope) &&
+        isPromptGranted(prompt.scope, prompt.request.filePath, nextAlways, nextPaths)
+      ) {
+        remaining += 1;
+        continue;
       }
       break;
     }
