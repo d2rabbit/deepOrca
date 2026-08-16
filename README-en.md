@@ -270,6 +270,30 @@ Run `npm run format` before `npm run check && npm test`. Contributions use Conve
 
 ---
 
+## 🙏 Open-Source Acknowledgements
+
+DeepOrca builds on these open-source projects. The complete list — including attribution and full license texts for everything shipped inside the installer — is generated at build time as `packages/desktop/vendor/ThirdPartyNotices.txt` (maintained by [scripts/vendor-notice.js](scripts/vendor-notice.js)). License compliance across the entire dependency tree is enforced by `npm run license:check` ([scripts/check-licenses.js](scripts/check-licenses.js)) as part of `npm run check`.
+
+| Project | Role | License |
+| --- | --- | --- |
+| [Deep Code](https://github.com/lessweb/deepcode-cli) | Upstream project DeepOrca is derived from | MIT |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | Design reference for the LLM session robustness layer (no code used) | MIT |
+| [TencentDB Agent Memory (TDAI Core)](https://github.com/TencentCloud/TencentDB-Agent-Memory) | L0–L3 memory pipeline (full fork under `packages/memory/src/tdai/`, see NOTICE.md there) | MIT |
+| [Electron](https://github.com/electron/electron) | Desktop runtime | MIT |
+| [Monaco Editor](https://github.com/microsoft/monaco-editor) | Code editor | MIT |
+| [OpenAI Node SDK](https://github.com/openai/openai-node) | LLM API client | Apache-2.0 |
+| [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk) | MCP tool-extension protocol | MIT |
+| [transformers.js](https://github.com/huggingface/transformers.js) + [ONNX Runtime](https://github.com/microsoft/onnxruntime) | Local embedding inference | Apache-2.0 / MIT |
+| [IBM Granite Embedding 97M R2](https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2) | Embedding model weights for semantic routing | Apache-2.0 |
+| [CodeGraph](https://github.com/colbymchenry/codegraph) · [OpenWiki](https://github.com/langchain-ai/openwiki) · [CRG](https://github.com/tirth8205/code-review-graph) · [Serena](https://github.com/oraios/serena) · [SkillSpector](https://github.com/NVIDIA/SkillSpector) · [BrowserSkill](https://github.com/Tencent/BrowserSkill) · [uv](https://github.com/astral-sh/uv) · [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) · [Bento](https://github.com/nyblnet/bento) | Capability components vendored with the product | MIT / Apache-2.0 (fonts embedded in Bento are SIL OFL 1.1) |
+| [sharp](https://github.com/lovell/sharp) + [libvips](https://github.com/libvips/libvips) | Image processing for transformers.js (DeepOrca uses text embeddings only) | Apache-2.0 / **LGPL-3.0-or-later** |
+
+**About libvips (LGPL-3.0):** libvips is a standalone prebuilt native library dynamically loaded by sharp. It is distributed **unmodified and user-replaceable** (dynamic linking, asar disabled), so it creates no copyleft obligation for DeepOrca, which remains MIT-licensed and commercially usable. As required by LGPL-3.0, `ThirdPartyNotices.txt` ships its notice, the full LGPL-3.0 and GPL-3.0 texts, and a pointer to the corresponding source.
+
+All other npm dependencies are permissively licensed (MIT/ISC/BSD/Apache-2.0, etc.); there are no copyleft or commercially restrictive licenses (GPL/AGPL/SSPL/Commons Clause/BUSL) anywhere in the tree.
+
+---
+
 ## 📄 License
 
 This project is released under the [MIT License](LICENSE).

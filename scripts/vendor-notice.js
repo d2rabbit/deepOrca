@@ -77,9 +77,10 @@ const MANIFEST = [
   },
   {
     name: "Bento Slides runtime",
-    upstream: "https://bento.page",
-    license: "See source — open source, embedded DEFLATE-compressed runtime",
-    notes: "Embedded in bento template reference; not a separate binary.",
+    upstream: "https://github.com/nyblnet/bento",
+    license: "MIT",
+    notes:
+      "Single self-contained HTML runtime (LICENSE confirmed in upstream repo). Embedded fonts are SIL OFL 1.1; their notices travel inside the HTML itself.",
   },
   {
     name: "Tailwind CSS (JIT script)",
@@ -92,6 +93,21 @@ const MANIFEST = [
     upstream: "https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2",
     license: "Apache-2.0",
     notes: "IBM Granite multilingual embedding model (ONNX quantized) for local semantic routing.",
+  },
+  {
+    name: "sharp",
+    upstream: "https://github.com/lovell/sharp",
+    license: "Apache-2.0",
+    notes:
+      "npm dependency of @huggingface/transformers. Only exercised for vision models; DeepOrca uses text embeddings only, but the package ships in the installer.",
+  },
+  {
+    name: "libvips (prebuilt, via sharp)",
+    upstream: "https://github.com/libvips/libvips",
+    license: "LGPL-3.0-or-later",
+    licenseTexts: ["LGPL-3.0", "GPL-3.0"],
+    notes:
+      "Prebuilt native library dynamically loaded by sharp (@img/sharp-libvips-*). Distributed UNMODIFIED and replaceable (dynamic loading, asar disabled), satisfying LGPL-3.0 relinking terms. Corresponding source: https://github.com/libvips/libvips (build recipes: https://github.com/lovell/sharp). The prebuilt binary bundles additional libraries under their own permissive licenses — see upstream documentation. LGPL-3.0 incorporates GPL-3.0 by reference; both full texts are appended below.",
   },
 ];
 
@@ -115,8 +131,29 @@ function generate() {
   lines.push("The full license text for the DeepOrca project itself is in the LICENSE");
   lines.push("file at the repository root.");
   lines.push("");
+
+  // Components whose license REQUIRES the full text to accompany distribution
+  // (e.g. LGPL-3.0 §4) declare `licenseTexts`; the canonical texts live in
+  // scripts/license-texts/ and are appended verbatim below.
+  const textsDir = join(repoRoot, "scripts", "license-texts");
+  const appended = new Set();
+  for (const c of MANIFEST) {
+    for (const id of c.licenseTexts ?? []) {
+      if (appended.has(id)) continue;
+      appended.add(id);
+      const text = readFileSync(join(textsDir, `${id}.txt`), "utf8").trimEnd();
+      lines.push("=".repeat(76));
+      lines.push(`Full license text: ${id} (required by: ${c.name})`);
+      lines.push("=".repeat(76));
+      lines.push("");
+      lines.push(text);
+      lines.push("");
+    }
+  }
   writeFileSync(noticeFile, lines.join("\n"), "utf8");
-  console.log(`[vendor-notice] wrote ${noticeFile} (${MANIFEST.length} components)`);
+  console.log(
+    `[vendor-notice] wrote ${noticeFile} (${MANIFEST.length} components, ${appended.size} full license texts)`
+  );
 }
 
 function check() {

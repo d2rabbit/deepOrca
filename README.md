@@ -296,6 +296,30 @@ node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/action-
 
 ---
 
+## 🙏 开源引用与第三方组件
+
+DeepOrca 站在这些开源项目的肩膀上。完整清单（含随安装包分发的组件声明与协议全文）见构建时生成的 `packages/desktop/vendor/ThirdPartyNotices.txt`（由 [scripts/vendor-notice.js](scripts/vendor-notice.js) 维护）；全依赖树的协议合规由 `npm run license:check`（[scripts/check-licenses.js](scripts/check-licenses.js)）在 `npm run check` 中强制把关。
+
+| 项目 | 用途 | 协议 |
+| --- | --- | --- |
+| [Deep Code](https://github.com/lessweb/deepcode-cli) | 本项目上游来源 | MIT |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | LLM 会话稳健性层设计参考（未使用其代码） | MIT |
+| [TencentDB Agent Memory (TDAI Core)](https://github.com/TencentCloud/TencentDB-Agent-Memory) | L0–L3 记忆管线（完整 fork 于 `packages/memory/src/tdai/`，见该目录 NOTICE.md） | MIT |
+| [Electron](https://github.com/electron/electron) | 桌面客户端运行时 | MIT |
+| [Monaco Editor](https://github.com/microsoft/monaco-editor) | 代码编辑器 | MIT |
+| [OpenAI Node SDK](https://github.com/openai/openai-node) | LLM API 客户端 | Apache-2.0 |
+| [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk) | MCP 工具扩展协议 | MIT |
+| [transformers.js](https://github.com/huggingface/transformers.js) + [ONNX Runtime](https://github.com/microsoft/onnxruntime) | 本地嵌入推理 | Apache-2.0 / MIT |
+| [IBM Granite Embedding 97M R2](https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2) | 语义路由嵌入模型权重 | Apache-2.0 |
+| [CodeGraph](https://github.com/colbymchenry/codegraph) · [OpenWiki](https://github.com/langchain-ai/openwiki) · [CRG](https://github.com/tirth8205/code-review-graph) · [Serena](https://github.com/oraios/serena) · [SkillSpector](https://github.com/NVIDIA/SkillSpector) · [BrowserSkill](https://github.com/Tencent/BrowserSkill) · [uv](https://github.com/astral-sh/uv) · [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) · [Bento](https://github.com/nyblnet/bento) | 随产品 vendored 的能力组件 | MIT / Apache-2.0（Bento 内嵌字体为 SIL OFL 1.1） |
+| [sharp](https://github.com/lovell/sharp) + [libvips](https://github.com/libvips/libvips) | transformers.js 的图像处理（本项目仅使用文本嵌入） | Apache-2.0 / **LGPL-3.0-or-later** |
+
+**关于 libvips（LGPL-3.0）的说明**：libvips 是 sharp 动态加载的独立预编译原生库，随安装包**原样分发、可被用户替换**（未修改、动态链接、未启用 asar），因此不对 DeepOrca 产生 copyleft 传染，本项目可继续以 MIT 分发并用于商业用途。我们按 LGPL-3.0 要求在 `ThirdPartyNotices.txt` 中附带其声明、LGPL-3.0 与 GPL-3.0 协议全文及源码获取方式。
+
+除上表外，全部 npm 依赖均为 MIT/ISC/BSD/Apache-2.0 等宽松协议；无 GPL/AGPL/SSPL/Commons Clause/BUSL 等传染性或商业限制协议。
+
+---
+
 ## 📄 开源协议
 
 本项目采用 [MIT License](LICENSE) 开源。
