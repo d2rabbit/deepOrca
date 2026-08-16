@@ -195,6 +195,18 @@ function resolveGateCandidate(filePath: string): string {
   return realParent ? path.join(realParent, path.basename(resolved)) : resolved;
 }
 
+/**
+ * Canonicalize a GRANT ROOT with exactly the strategy the gate applies to
+ * candidates (deepest-existing-ancestor realpath + remainder). Grant roots
+ * stored lexically (e.g. a not-yet-existing file under macOS' /tmp symlink)
+ * otherwise never match gate candidates resolved through /private/tmp —
+ * the user-approved write was deterministically denied (review finding,
+ * 2026-08-16). Roots and candidates MUST share one canonicalizer.
+ */
+export function resolveGateRoot(root: string): string {
+  return resolveGateCandidate(root);
+}
+
 function isWithinRoot(root: string, candidate: string): boolean {
   // The root must be realpath-normalized too: on macOS a lexical
   // /var/folders/... root never contains a /private/var/folders/... candidate.

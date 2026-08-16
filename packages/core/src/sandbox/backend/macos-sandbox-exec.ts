@@ -152,11 +152,24 @@ export function createMacosBackend(options: {
   projectRoot: string;
   networkAllowed: boolean;
   extraReadRoots?: readonly string[];
+  /** Additional writable roots (path-level grants; caller canonicalizes). */
+  writeRoots?: readonly string[];
 }): MacosSandboxExecBackend {
   const projectRoot = safeRealPath(options.projectRoot) ?? path.resolve(options.projectRoot);
   const homeDir = safeRealPath(os.homedir()) ?? os.homedir();
   const extraReadRoots = (options.extraReadRoots ?? [])
     .map((root) => safeRealPath(root) ?? path.resolve(projectRoot, root))
     .filter((root) => root !== projectRoot);
-  return new MacosSandboxExecBackend({ projectRoot, homeDir, extraReadRoots, networkAllowed: options.networkAllowed });
+  // projectRoot is ALWAYS write root #1 — buildSeatbeltProfile uses
+  // `input.writeRoots ?? [projectRoot]`, so an explicit list must include it.
+  const grantedWriteRoots = [
+    ...new Set((options.writeRoots ?? []).map((root) => safeRealPath(root) ?? path.resolve(projectRoot, root))),
+  ].filter((root) => root !== projectRoot);
+  return new MacosSandboxExecBackend({
+    projectRoot,
+    homeDir,
+    extraReadRoots,
+    writeRoots: [projectRoot, ...grantedWriteRoots],
+    networkAllowed: options.networkAllowed,
+  });
 }

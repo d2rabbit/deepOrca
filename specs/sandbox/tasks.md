@@ -175,3 +175,8 @@
 | F3（85） | quarantine clamp 保留 allowedWritePaths/allowedReadPaths——被隔离仓库可预置 `allowedWritePaths:["/"]` 静默绕过 out-cwd 全拒（"保留窄授权"的记档只考虑了用户来源，未考虑攻击者来源） | clamp 清零两列表；session 新增 `effectivePermissions()` 单一权限真源（计划评估 + 读写豁免 + grant 派生全部走 clamp 后形态，堵住"豁免列表从未 clamp 取值"的残余旁路）；path-grants.test.ts 断言翻转（预置授权在 quarantine 下 buys nothing） |
 
 未过阈值（≤75）的 12 项归因存档：4 项注释措辞类（50-55）、3 项设计明示权衡（macos 沙箱硬边界 vs 授权 75、quarantine 网络快照 30、policy 引擎消费者 70）、3 项条件触发缺陷（symlink 深链 55、路径授权 symlink 首写 75、renderer 去重字面等值 50）、PascalCase 命名 40、trust 设置后未 reload 48（toast 已诚实披露）。
+
+**两项 75 分经用户确认影响较大，同日修复（G 批次，2026-08-16）**：
+
+- **G1 路径授权 symlink 首写（75）**：授权根此前用 `safeRealPath ?? resolve`——目标文件不存在时保持词法形态（如 macOS `/tmp/x`），而闸门候选经父目录 realpath 解析为 `/private/tmp/x`，永不匹配 → 用户批准的写入被拒且不自愈。修复：`resolveGateRoot` 导出**闸门同源 canonicalizer**（最深存在祖先 realpath + 余段），派生侧 `toRealRoot` 改用之——根与候选共用一个规范化器。防回退：symlink 目录下不存在目标文件的授权写入放行、链接真实位置同判定、兄弟树仍拒。
+- **G2 macOS profile 接入授权（75）**：设计 §4.5"profile 由 PathGrant 生成"此前未兑现——沙箱内 bash 对已授权路径（`cp x ~/granted/`、读已授权的 HOME 子树）一律 EPERM，比文件工具更窄且无解释。修复：`getOrCreateBashBackend` 经 `effectivePermissions()` 把 `allowedWritePaths`（writeRoots）与 `allowedReadPaths`（extraReadRoots，HOME 读拒后再放行）喂进 profile；**scope 级 write-out-cwd 授权刻意不进沙箱**（硬边界语义，跨边界 bash 需求走路径级授权）；quarantine 下 effectivePermissions 清零列表——被隔离仓库无法自行放宽沙箱。快照语义不变（会话构造期取值，与网络条款一致）。darwin 实测：授权目录沙箱内可写可读、未授权 HOME 仍拒。

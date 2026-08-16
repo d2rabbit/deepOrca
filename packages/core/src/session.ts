@@ -163,7 +163,7 @@ import {
   type PermissionToolCall,
   type UserToolPermission,
 } from "./common/permissions";
-import { grantOutsideRootsFlags, safeRealPath, type PathGrant } from "./common/path-boundary";
+import { grantOutsideRootsFlags, resolveGateRoot, safeRealPath, type PathGrant } from "./common/path-boundary";
 import { AuditLog } from "./sandbox/audit";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
@@ -4833,7 +4833,8 @@ ${content}
       resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
     });
     const projectRealRoot = safeRealPath(this.projectRoot) ?? path.resolve(this.projectRoot);
-    const toRealRoot = (entry: string): string => safeRealPath(entry) ?? path.resolve(this.projectRoot, entry);
+    // Same canonicalizer as the gate's candidates — see resolveGateRoot.
+    const toRealRoot = (entry: string): string => resolveGateRoot(entry);
     const readRealRoots = [...skillRoots, ...allowedReadPaths]
       .map(toRealRoot)
       .filter((root) => root !== projectRealRoot);
@@ -4911,10 +4912,21 @@ ${content}
     // Network on ⇒ allow, or ask (a declined ask never reaches execution;
     // an approved one did). Off ⇒ deny.
     const networkAllowed = resolveScopeVerdict("network", this.getResolvedSettings().permissions ?? {}) !== "deny";
+    // Design §4.5: "profile 由 PathGrant 生成" — the sandbox honors the
+    // session's path-level grants (allowedWritePaths/allowedReadPaths) so
+    // bash is not strictly narrower than the file tools for the SAME user
+    // grant (review finding, 2026-08-16). Scope-level write-out-cwd allows
+    // stay OUT of the profile: the sandbox is a hard boundary — cross-boundary
+    // bash needs go through path grants. Under quarantine effectivePermissions
+    // zeroes the lists, so a quarantined repo cannot widen its own sandbox.
+    const effectivePermissions = this.effectivePermissions();
+    const grantedWriteRoots = (effectivePermissions?.allowedWritePaths ?? []).map((entry) => resolveGateRoot(entry));
+    const grantedReadRoots = (effectivePermissions?.allowedReadPaths ?? []).map((entry) => resolveGateRoot(entry));
     const backend = detectBashSandboxBackend({
       projectRoot: this.projectRoot,
       networkAllowed,
-      extraReadRoots: this.getSkillScanRoots().map((entry) => entry.root),
+      writeRoots: [safeRealPath(this.projectRoot) ?? path.resolve(this.projectRoot), ...grantedWriteRoots],
+      extraReadRoots: [...this.getSkillScanRoots().map((entry) => entry.root), ...grantedReadRoots],
       onDegradation: (degradation) => {
         audit.appendSandboxBackend({
           backend: degradation.backend,

@@ -194,3 +194,42 @@ test("normalizeAskPermissions preserves the filePath binding across session rest
   assert.equal(restored[1]?.filePath, undefined);
   assert.equal(restored[2]?.filePath, undefined, "non-string filePath is dropped, not coerced");
 });
+
+test("grant through a symlinked directory admits the not-yet-existing target (review 75: first-write)", () => {
+  const project = createWorkspace();
+  const realTargetDir = createWorkspace();
+  const linkDir = path.join(project, "granted-link");
+  fs.symlinkSync(realTargetDir, linkDir);
+  // The user granted the lexical path (as PermissionCard persists it) to a
+  // file that does not exist yet — the exact first-write-after-always-allow
+  // flow. Before the shared canonicalizer, the stored root stayed lexical
+  // while the gate candidate resolved through the symlink -> denied forever.
+  const grantedLexical = path.join(linkDir, "new-file.txt");
+
+  const manager = new SessionManager({
+    projectRoot: project,
+    createOpenAIClient: () => ({
+      client: null,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({
+      model: "test-model",
+      permissions: { ...ALLOW_ALL, allowedWritePaths: [grantedLexical] },
+    }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const seam = manager as unknown as {
+    derivePathGrantForToolCall(sessionId: string, toolCall: never): { writeRoots: string[] };
+  };
+  const grant = seam.derivePathGrantForToolCall("pg-symlink", writeCall(grantedLexical) as never);
+  const verdict = gateWrite(grant, grantedLexical);
+  assert.equal(verdict.ok, true, "symlinked-dir grant must admit its not-yet-existing target");
+  // And the real location behind the link matches the same grant.
+  assert.equal(gateWrite(grant, path.join(realTargetDir, "new-file.txt")).ok, true);
+  // Sibling trees are still denied.
+  assert.equal(gateWrite(grant, path.join(createWorkspace(), "evil.txt")).ok, false);
+});

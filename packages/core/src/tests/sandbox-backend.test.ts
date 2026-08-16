@@ -5,7 +5,7 @@ import * as http from "node:http";
 import * as os from "os";
 import * as path from "path";
 import { once } from "node:events";
-import { buildSeatbeltProfile, defaultTempWriteRoots } from "../sandbox/backend/macos-sandbox-exec";
+import { buildSeatbeltProfile, createMacosBackend, defaultTempWriteRoots } from "../sandbox/backend/macos-sandbox-exec";
 import { createMacosBackend, type MacosSandboxExecBackend } from "../sandbox/backend/macos-sandbox-exec";
 import { detectBashSandboxBackend } from "../sandbox/backend/detect";
 import { NoopSandboxBackend } from "../sandbox/backend/noop";
@@ -254,5 +254,38 @@ test(
     } finally {
       fs.rmSync(homeSecret, { force: true });
     }
+  }
+);
+
+test(
+  "darwin live: path-level grants are honored inside the sandbox (review 75: profile from PathGrant)",
+  { skip: process.platform !== "darwin" },
+  async () => {
+    const workspace = createWorkspace();
+    const grantedWriteDir = createWorkspace();
+    const grantedReadDir = createWorkspace();
+    fs.writeFileSync(path.join(grantedReadDir, "doc.txt"), "readable");
+    const secret = path.join(os.homedir(), `.deeporca-g2-${Date.now()}.secret`);
+    fs.writeFileSync(secret, "s3cret");
+
+    const backend = createMacosBackend({
+      projectRoot: workspace,
+      networkAllowed: false,
+      writeRoots: [grantedWriteDir],
+      extraReadRoots: [grantedReadDir],
+    });
+    const write = await runUnderSandbox(backend, `echo ok > ${JSON.stringify(path.join(grantedWriteDir, "g2.txt"))}`);
+    assert.equal(write.code, 0, `granted write root must work in-sandbox (got ${write.code})`);
+    assert.equal(fs.readFileSync(path.join(grantedWriteDir, "g2.txt"), "utf8").trim(), "ok");
+
+    const read = await runUnderSandbox(backend, `cat ${JSON.stringify(path.join(grantedReadDir, "doc.txt"))}`);
+    assert.equal(read.code, 0, "granted read root must work in-sandbox");
+    assert.ok(read.output.includes("readable"));
+
+    // HOME reads stay denied (the grant list did not include it).
+    const homeRead = await runUnderSandbox(backend, `cat ${JSON.stringify(secret)}`);
+    assert.notEqual(homeRead.code, 0);
+    assert.equal(homeRead.output.includes("s3cret"), false);
+    fs.rmSync(secret, { force: true });
   }
 );

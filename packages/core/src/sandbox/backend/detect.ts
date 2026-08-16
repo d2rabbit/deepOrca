@@ -16,6 +16,7 @@ export type DetectBashSandboxOptions = {
   projectRoot: string;
   networkAllowed: boolean;
   extraReadRoots?: readonly string[];
+  writeRoots?: readonly string[];
   /** Called once per unavailable candidate in the chain order. */
   onDegradation?: (degradation: SandboxDegradation) => void;
 };
@@ -27,6 +28,7 @@ export function detectBashSandboxBackend(options: DetectBashSandboxOptions): San
         projectRoot: options.projectRoot,
         networkAllowed: options.networkAllowed,
         extraReadRoots: options.extraReadRoots,
+        writeRoots: options.writeRoots,
       });
       const probe = backend.probe();
       if (probe.available) {
