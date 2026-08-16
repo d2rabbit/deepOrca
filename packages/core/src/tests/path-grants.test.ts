@@ -5,6 +5,7 @@ import * as os from "os";
 import * as path from "path";
 import {
   appendProjectAllowedPaths,
+  normalizeAskPermissions,
   applyQuarantinePermissionClamp,
   computeToolCallPermissions,
   describeToolPermissionRequest,
@@ -170,4 +171,22 @@ test("hasUserPermissionReplies treats alwaysAllowPaths as a reply", () => {
   assert.equal(hasUserPermissionReplies({ alwaysAllowPaths: { read: ["/tmp/y"] } }), true);
   assert.equal(hasUserPermissionReplies({ alwaysAllowPaths: {} }), false);
   assert.equal(hasUserPermissionReplies({}), false);
+});
+
+test("normalizeAskPermissions preserves the filePath binding across session restore (review R2)", () => {
+  const restored = normalizeAskPermissions([
+    {
+      toolCallId: "t1",
+      name: "write",
+      command: "write /etc/app.conf",
+      scopes: ["write-out-cwd"],
+      filePath: "/etc/app.conf",
+    },
+    { toolCallId: "t2", name: "bash", command: "bash", scopes: ["network"] },
+    { toolCallId: "t3", name: "write", command: "write /bad", scopes: ["write-out-cwd"], filePath: 42 },
+  ]);
+  assert.ok(restored);
+  assert.equal(restored[0]?.filePath, "/etc/app.conf", "path binding must survive restore");
+  assert.equal(restored[1]?.filePath, undefined);
+  assert.equal(restored[2]?.filePath, undefined, "non-string filePath is dropped, not coerced");
 });

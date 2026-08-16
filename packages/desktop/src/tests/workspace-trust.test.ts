@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readWorkspaceTrustStatus, writeWorkspaceTrust, toSettingsSummary } from "../main/session-bridge";
+import {
+  buildPermissionSettings,
+  readWorkspaceTrustStatus,
+  writeWorkspaceTrust,
+  toSettingsSummary,
+} from "../main/session-bridge";
 import { readProjectSettings } from "@deeporca/core";
 
 // Desktop-side trust plumbing (specs/sandbox/tasks.md task 22 UI batch):
@@ -31,4 +36,21 @@ test("workspace trust helpers round-trip the project settings file", async () =>
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
+});
+
+test("settings-panel permission rebuild never wipes path-level grants (review R1)", () => {
+  const preserve = {
+    allowedWritePaths: ["/etc/app.conf"],
+    allowedReadPaths: ["/var/log/x.log"],
+  };
+  const rebuilt = buildPermissionSettings("askAll", { network: "allow" }, preserve);
+  assert.deepEqual(rebuilt.allowedWritePaths, ["/etc/app.conf"]);
+  assert.deepEqual(rebuilt.allowedReadPaths, ["/var/log/x.log"]);
+  assert.deepEqual(rebuilt.allow, ["network"]);
+  assert.equal(rebuilt.defaultMode, "askAll");
+
+  // Without prior path grants, nothing extra is emitted.
+  const clean = buildPermissionSettings("allowAll", {});
+  assert.equal("allowedWritePaths" in clean, false);
+  assert.equal("allowedReadPaths" in clean, false);
 });

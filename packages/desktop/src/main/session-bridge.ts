@@ -130,9 +130,11 @@ function buildPermissionDecisions(
   return result;
 }
 
-function buildPermissionSettings(
+export function buildPermissionSettings(
   defaultMode: PermissionDefaultMode,
-  decisions: Partial<Record<PermissionScope, PermissionDecision>>
+  decisions: Partial<Record<PermissionScope, PermissionDecision>>,
+  /** Existing settings whose path-level grants must survive the rebuild. */
+  preserve?: PermissionSettings
 ): PermissionSettings {
   const allow: PermissionScope[] = [];
   const ask: PermissionScope[] = [];
@@ -147,7 +149,16 @@ function buildPermissionSettings(
       deny.push(scope);
     }
   }
-  return { defaultMode, allow, ask, deny };
+  return {
+    defaultMode,
+    allow,
+    ask,
+    deny,
+    // Path-level grants (task 14) are NOT editable in the settings panel —
+    // rebuilding the scope tables must never wipe them (review R1, 2026-08-16).
+    ...(Array.isArray(preserve?.allowedWritePaths) ? { allowedWritePaths: preserve.allowedWritePaths } : {}),
+    ...(Array.isArray(preserve?.allowedReadPaths) ? { allowedReadPaths: preserve.allowedReadPaths } : {}),
+  };
 }
 
 /**
@@ -626,7 +637,7 @@ export class SessionBridge {
 
     next.telemetryEnabled = patch.telemetryEnabled;
     next.debugLogEnabled = patch.debugLogEnabled;
-    next.permissions = buildPermissionSettings(patch.permissionDefaultMode, patch.permissions);
+    next.permissions = buildPermissionSettings(patch.permissionDefaultMode, patch.permissions, raw.permissions);
 
     const servers: Record<string, McpServerConfig> = {};
     for (const server of patch.mcpServers) {

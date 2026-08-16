@@ -134,3 +134,32 @@
 | file-utils 兜底误伤 desktop 直调 | 未初始化默认关闭；SessionManager 单项目进程模型下接线，多项目限制已登记 |
 | P0 与 routing 工作混提交 | 本分支独立成 PR，跑全量 `npm test`（§八） |
 | 回滚 | 任务 1-3 为加法（新模块/新字段/新参数），单 revert 任务 4 的三个 handler 接线点即可整体失效闸门，无数据迁移 |
+
+---
+
+## 十一、模块审查记录（2026-08-16 链路闭环审查）
+
+对全部 15 个沙箱提交做了一轮系统复查（闸门语义 / 权限层 / 派生 / 后端 / IPC / renderer 全链路），逐项结论：
+
+### 发现并修复的缺陷（2 个，均附防回退测试）
+
+| ID | 缺陷 | 后果 | 修复 |
+| --- | --- | --- | --- |
+| **R1（数据丢失）** | `session-bridge.updateSettings` 经 `buildPermissionSettings` 完全重建 permissions 对象，只保留 defaultMode/allow/ask/deny | 用户在设置面板**任何一次保存**都会抹掉已积累的路径授权（`allowedWritePaths`/`allowedReadPaths`） | `buildPermissionSettings` 增 `preserve` 参数透传 `raw.permissions` 的路径字段；导出供测试（desktop `workspace-trust.test.ts` 防回退） |
+| **R2（功能退化）** | `normalizeAskPermissions`（会话中断/重启后的 pending ask 恢复路径）重建条目时丢 `filePath` | 恢复后的权限卡拿不到路径绑定，「始终允许（仅此路径）」退化回 scope 级全盘授权——正是任务 14 要消除的形态 | 归一化保留 `filePath`（非字符串值剔除不强制转换；core `path-grants.test.ts` 防回退） |
+
+### 复核通过、无需改动的项
+
+- 三 handler 闸门位置（write 早于 `ensureParentDirectory`/`existsSync`；edit 在 snippet 归属定型后、仅 gateWrite；read 单点闸）与 R4/R5 设计一致。
+- `appendProjectPermissionAllows` 写回经 `{...existingPermissions}` 展开保留路径字段；`inheritedPermissions` 重建分支仅在项目文件无 permissions 时触发（无可丢数据，且为增量拷贝语义）。
+- `appendProjectAllowedPaths` 全量读-改-写，不碰其他字段；空输入零副作用（不创建文件）。
+- macos 后端 `wrapShell` 语义：强制 `/bin/bash`（zsh 在 deny-default 下无法启动，实证）、`GIT_CONFIG_GLOBAL=/dev/null`、忽略原 shellPath 但 shellArgs 为 POSIX（marker/init 逻辑 shell 无关）。
+- IPC 安全分类：`WorkspaceTrustGet` 只读走普通 `handle`，`WorkspaceTrustSet`（写 settings）走 `handlePrivileged`（主渲染器来源校验）——与 SettingsUpdate 同级；事件通道无特权语义。
+- quarantine clamp 保留路径授权（窄授权即 clamp 想要的粒度）；`applyQuarantinePermissionClamp` 与 `derivePathGrantForToolCall` 的豁免路径来源一致。
+- 审计链 fail-open、会话删除同步清理、`replySession` 先持久化后派生（`resolveCurrentSettings` 每次重读文件，同轮生效）。
+- PermissionCard 同轮去重（scope 与 path 两个维度）、`hasDeny` 时路径授权仍按用户点击持久化（语义正确：用户确实对该路径点了始终允许）。
+
+### 登记的已知缺口（不阻塞，后续批次）
+
+1. **设置面板不可见/不可撤销路径授权**：`allowedWritePaths`/`allowedReadPaths` 只能经 PermissionCard 累积、手工编辑 settings.json 撤销——需要在 EditableSettings 中展示与移除（下批 desktop UI）。
+2. Linux bwrap（任务 17）/ Windows WSL2（任务 18）未实现，detect 降级必报；沙箱内 DNS（mDNSResponder mach 服务）未验证。

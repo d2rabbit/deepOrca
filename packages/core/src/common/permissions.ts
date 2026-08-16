@@ -936,6 +936,9 @@ export function normalizeAskPermissions(value: unknown): AskPermissionRequest[] 
       name: record.name,
       command: typeof record.command === "string" ? record.command : record.name,
       description: typeof record.description === "string" ? record.description : undefined,
+      // Preserve the path binding so a restored ask still offers the
+      // path-level "always allow" instead of degrading to a scope grant.
+      filePath: typeof record.filePath === "string" ? record.filePath : undefined,
     });
   }
   return result.length > 0 ? result : undefined;
