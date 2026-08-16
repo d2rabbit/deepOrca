@@ -31,6 +31,12 @@ export type AskPermissionRequest = {
   name: string;
   command: string;
   description?: string;
+  /**
+   * Resolved target path for file tools (read/write/edit). Lets the UI offer
+   * a PATH-level "always allow" (task 14) instead of a permanent whole-disk
+   * scope grant; absent for bash and other non-file asks.
+   */
+  filePath?: string;
 };
 
 export type PermissionToolCall = {
@@ -89,6 +95,8 @@ export type ComputeToolCallPermissionsOptions = {
    */
   forceAskTools?: readonly string[];
   readPermissionExemptPaths?: string[];
+  /** Path-level write grants: out-of-cwd writes to these paths need no ask. */
+  writePermissionExemptPaths?: string[];
   resolveSnippetPath?: (sessionId: string, snippetId: string) => string | null | undefined;
 };
 
@@ -189,6 +197,7 @@ export function computeToolCallPermissions(options: ComputeToolCallPermissionsOp
       projectRoot: options.projectRoot,
       toolCall,
       readPermissionExemptPaths: options.readPermissionExemptPaths,
+      writePermissionExemptPaths: options.writePermissionExemptPaths,
       resolveSnippetPath: options.resolveSnippetPath,
     });
     const evaluatedPermission = evaluatePermissionScopes(request.scopes, options.settings);
@@ -216,6 +225,7 @@ export function computeToolCallPermissions(options: ComputeToolCallPermissionsOp
         name: request.name,
         command: request.command,
         description: request.description,
+        filePath: request.filePath,
       });
     }
   }
@@ -286,6 +296,10 @@ export function applyQuarantinePermissionClamp(settings: PermissionSettings | un
     ask: settings?.ask ?? [],
     deny: [...new Set([...(settings?.deny ?? []), ...QUARANTINE_DENIED_SCOPES])],
     defaultMode: settings?.defaultMode ?? "allowAll",
+    // Path-level grants survive the clamp: they ARE the narrow authorization
+    // the clamp wants (a specific directory, not the whole disk).
+    allowedWritePaths: settings?.allowedWritePaths ?? [],
+    allowedReadPaths: settings?.allowedReadPaths ?? [],
   };
 }
 
@@ -296,6 +310,8 @@ export function isDefaultedAllow(
     deny: [],
     ask: [],
     defaultMode: "allowAll",
+    allowedWritePaths: [],
+    allowedReadPaths: [],
   }
 ): boolean {
   return (
@@ -328,6 +344,7 @@ export function describeToolPermissionRequest(options: {
   projectRoot: string;
   toolCall: PermissionToolCall;
   readPermissionExemptPaths?: string[];
+  writePermissionExemptPaths?: string[];
   resolveSnippetPath?: (sessionId: string, snippetId: string) => string | null | undefined;
 }): AskPermissionRequest {
   const name = options.toolCall.function.name;
@@ -339,6 +356,7 @@ export function describeToolPermissionRequest(options: {
       toolCallId: options.toolCall.id,
       name,
       command: formatToolPathCommand("read", filePath),
+      filePath: filePath || undefined,
       scopes:
         filePath && !isPathInAnyDirectory(options.projectRoot, filePath, options.readPermissionExemptPaths)
           ? [isPathInProject(options.projectRoot, filePath) ? "read-in-cwd" : "read-out-cwd"]
@@ -348,22 +366,29 @@ export function describeToolPermissionRequest(options: {
 
   if (name === "write" || name === "Write") {
     const filePath = typeof args.file_path === "string" ? args.file_path : "";
+    const exempt = filePath && isPathInAnyDirectory(options.projectRoot, filePath, options.writePermissionExemptPaths);
     return {
       toolCallId: options.toolCall.id,
       name,
       command: formatToolPathCommand("write", filePath),
-      scopes: filePath ? [isPathInProject(options.projectRoot, filePath) ? "write-in-cwd" : "write-out-cwd"] : [],
+      filePath: filePath || undefined,
+      scopes:
+        filePath && !exempt ? [isPathInProject(options.projectRoot, filePath) ? "write-in-cwd" : "write-out-cwd"] : [],
     };
   }
 
   if (name === "edit" || name === "Edit") {
     const filePath = resolveEditPermissionPath(options.sessionId, args, options.resolveSnippetPath);
+    const exempt = filePath && isPathInAnyDirectory(options.projectRoot, filePath, options.writePermissionExemptPaths);
     return {
       toolCallId: options.toolCall.id,
       name,
       command: formatToolPathCommand("edit", filePath),
+      filePath: filePath || undefined,
       scopes: filePath
-        ? [isPathInProject(options.projectRoot, filePath) ? "write-in-cwd" : "write-out-cwd"]
+        ? exempt
+          ? []
+          : [isPathInProject(options.projectRoot, filePath) ? "write-in-cwd" : "write-out-cwd"]
         : ["write-out-cwd"],
     };
   }
@@ -422,6 +447,8 @@ export function evaluatePermissionScopes(
     deny: [],
     ask: [],
     defaultMode: "allowAll",
+    allowedWritePaths: [],
+    allowedReadPaths: [],
   }
 ): PermissionDecision {
   if (scopes.includes("unknown") && settings.defaultMode !== "allowAll") {
@@ -450,6 +477,8 @@ export function getPermissionScopesRequiringAsk(
     deny: [],
     ask: [],
     defaultMode: "allowAll",
+    allowedWritePaths: [],
+    allowedReadPaths: [],
   }
 ): AskPermissionScope[] {
   const result: AskPermissionScope[] = [];
@@ -744,10 +773,17 @@ export function formatToolPathCommand(toolName: string, filePath: string): strin
   return filePath ? `${toolName} ${filePath}` : toolName;
 }
 
-export function hasUserPermissionReplies(value: { permissions?: unknown; alwaysAllows?: unknown }): boolean {
+export function hasUserPermissionReplies(value: {
+  permissions?: unknown;
+  alwaysAllows?: unknown;
+  alwaysAllowPaths?: unknown;
+}): boolean {
+  const paths = value.alwaysAllowPaths as { write?: unknown; read?: unknown } | undefined;
   return Boolean(
     (Array.isArray(value.permissions) && value.permissions.length > 0) ||
-    (Array.isArray(value.alwaysAllows) && value.alwaysAllows.length > 0)
+    (Array.isArray(value.alwaysAllows) && value.alwaysAllows.length > 0) ||
+    (Array.isArray(paths?.write) && paths.write.length > 0) ||
+    (Array.isArray(paths?.read) && paths.read.length > 0)
   );
 }
 
@@ -836,6 +872,46 @@ export function appendProjectPermissionAllows(
     )}\n`,
     "utf8"
   );
+}
+
+export type AlwaysAllowPaths = { write?: string[]; read?: string[] };
+
+/**
+ * Path-level "always allow" persistence (task 14): appends specific paths to
+ * the project's permissions.allowedWritePaths / allowedReadPaths. Unlike a
+ * scope grant, one click authorizes exactly this directory tree — never the
+ * whole disk.
+ */
+export function appendProjectAllowedPaths(projectRoot: string, paths: AlwaysAllowPaths | undefined): void {
+  const write = (paths?.write ?? []).filter((item) => typeof item === "string" && item.length > 0);
+  const read = (paths?.read ?? []).filter((item) => typeof item === "string" && item.length > 0);
+  if (write.length === 0 && read.length === 0) {
+    return;
+  }
+  const settingsPath = path.join(getProjectConfigRoot(projectRoot), "settings.json");
+  let settings: DeepcodingSettings = {};
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        settings = parsed as DeepcodingSettings;
+      }
+    }
+  } catch {
+    settings = {};
+  }
+  const permissions: PermissionSettings = { ...(settings.permissions ?? {}) };
+  if (write.length > 0) {
+    const existing = Array.isArray(permissions.allowedWritePaths) ? permissions.allowedWritePaths : [];
+    permissions.allowedWritePaths = [...new Set([...existing, ...write])];
+  }
+  if (read.length > 0) {
+    const existing = Array.isArray(permissions.allowedReadPaths) ? permissions.allowedReadPaths : [];
+    permissions.allowedReadPaths = [...new Set([...existing, ...read])];
+  }
+  settings.permissions = permissions;
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 }
 
 export function normalizeAskPermissions(value: unknown): AskPermissionRequest[] | undefined {

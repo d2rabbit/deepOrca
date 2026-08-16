@@ -124,6 +124,7 @@ export const ko: Record<MessageKey, string> = {
   "perm.proceed": "계속하시겠습니까?",
   "perm.yes": "허용",
   "perm.always": "허용하고 항상 허용",
+  "perm.alwaysPath": "허용하고 항상 허용(이 경로만)",
   "perm.no": "거부",
 
   // ── Permission scope short descriptions ───────────────────

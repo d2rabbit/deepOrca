@@ -85,7 +85,13 @@
 - [x] `sandbox/types.ts` + `sandbox/policy.ts`：**真实 10 scope**（`settings.ts:29-40` 全集 + `ALL_SANDBOX_SCOPES` 常量自证）；纯逻辑零 I/O。`resolveScopeVerdict` 判定优先级镜像 `evaluatePermissionScopes`（deny > ask > allow > defaultMode 兜底，双模式 allowAll/askAll）；`buildPolicyMatrix` 一次解析全矩阵。
 - [x] 3 态 lifecycle（`creating → active → dead`）+ generation fencing：`beginGeneration()` 发放能力句柄，新代开启即围栏旧代（悬垂句柄永久失能）；dead 终态不可复活（activate/updateSettings 均无效）；`decide` 对非 active 引擎或围栏句柄一律 fail-closed 拒绝；唯一销毁点宿主 `dispose()`。
 - [x] `tests/sandbox-policy.test.ts` **6 用例**：scope 集合自证 = 真实 10 值；**10 scope × 7 种 settings 组合**（deny/ask/allow 列表、优先级覆盖×2、双 defaultMode 兜底）逐格断言；矩阵构建；lifecycle 三态全拒/全矩阵/死态终局；fencing（旧代句柄被围栏）；updateSettings 仅影响当前代未来判定。
-- [ ] 任务 14 路径级「始终允许」：持久化路径追加进 `writeRoots`/`readRoots`（R1 形状已预留），settings schema + PermissionCard UI 改动，消化 §4.2(d) scope 级授权残余风险。（未动工——涉及 desktop UI，独立动工）
+- [x] 任务 14 路径级「始终允许」（已落地，消化 §4.2(d) 残余风险——一次点击不再等于永久全盘授权）：
+  - **settings**：`PermissionSettings.allowedWritePaths/allowedReadPaths?: string[]`（normalize 填充 + user/project 并集合并 + 非法项过滤去重）；quarantine clamp **保留**路径授权（窄授权正是 clamp 想要的粒度）。
+  - **权限层**：`writePermissionExemptPaths` 参数（与读侧 exempt 同构）——已授权路径的 write/edit 不再产生 `write-out-cwd` scope（空 scope ⇒ allow，P0.5 基线零扰动）；`AskPermissionRequest.filePath` 结构化携带（read/write/edit 填充，bash 无）；`appendProjectAllowedPaths` 持久化（镜像 appendProjectPermissionAllows，去重、不动 scope 列表）；`hasUserPermissionReplies` 认可路径回复。
+  - **session**：`UserPromptContent.alwaysAllowPaths`（replySession 持久化 + prompt 拷贝点）；权限计划与 grant 派生两处传豁免路径；**grant roots 追加**——`writeRoots += realpath(allowedWritePaths)`、`readRoots += allowedReadPaths`（R1 形状如预留：布尔语义不变，quarantine 下布尔仍恒 false，roots 是唯一放宽通道）。
+  - **desktop**：`PermissionResult.alwaysAllowPaths` + PermissionCard 路径级「始终允许（仅此路径）」按钮（write/read-out-cwd 且 ask 携带 filePath 时绑定路径而非 scope；同轮同路径去重跳过；bash/network 保持 scope 级）；App.tsx 三处 plumbing（approve continue / deny pending reply / reply 复用）；i18n `perm.alwaysPath` 六语言。
+  - **测试**：core `path-grants.test.ts` 6 用例（持久化去重且不碰 scope / P0.5 基线下授权路径免问而他路径仍问 / ask 携带 filePath / quarantine 下窄授权仍可用他处仍拒 / 派生 roots 精确收录且闸门只放行该树、布尔不放宽 / 回复判定）+ desktop `permissions-lib.test.ts` 2 用例（pathGrantFor 绑定规则 / buildResult 聚合）。
+  - 回归：core 498（497 pass/1 存量 skip/0 fail）+ desktop 166 + 全仓 check 0 errors。
 
 ## PR 4+ — P3 三平台进程隔离 + quarantine（任务 15-19、22）
 

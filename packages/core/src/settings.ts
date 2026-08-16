@@ -44,6 +44,14 @@ export type PermissionSettings = {
   deny?: PermissionScope[];
   ask?: PermissionScope[];
   defaultMode?: PermissionDefaultMode;
+  /**
+   * Path-level "always allow" grants (specs/sandbox/design.md §4.2(d) residual
+   * risk, task 14): persisting the PATH instead of the write/read-out-cwd
+   * SCOPE means one click never becomes a permanent whole-disk grant. These
+   * feed the PathGrant roots at derivation time.
+   */
+  allowedWritePaths?: string[];
+  allowedReadPaths?: string[];
 };
 
 export type EnabledSkillsSettings = Record<string, boolean>;
@@ -322,12 +330,21 @@ function normalizePermissionDefaultMode(value: unknown): PermissionDefaultMode |
   return value === "allowAll" || value === "askAll" ? value : undefined;
 }
 
+function normalizePathList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value.filter((item): item is string => typeof item === "string" && item.length > 0))];
+}
+
 function normalizePermissions(settings: PermissionSettings | null | undefined): Required<PermissionSettings> {
   return {
     allow: normalizePermissionList(settings?.allow),
     deny: normalizePermissionList(settings?.deny),
     ask: normalizePermissionList(settings?.ask),
     defaultMode: normalizePermissionDefaultMode(settings?.defaultMode) ?? "allowAll",
+    allowedWritePaths: normalizePathList(settings?.allowedWritePaths),
+    allowedReadPaths: normalizePathList(settings?.allowedReadPaths),
   };
 }
 
@@ -350,6 +367,8 @@ function mergePermissions(
     allow: mergePermissionLists(userPermissions.allow, projectPermissions.allow),
     deny: mergePermissionLists(userPermissions.deny, projectPermissions.deny),
     ask: mergePermissionLists(userPermissions.ask, projectPermissions.ask),
+    allowedWritePaths: [...new Set([...userPermissions.allowedWritePaths, ...projectPermissions.allowedWritePaths])],
+    allowedReadPaths: [...new Set([...userPermissions.allowedReadPaths, ...projectPermissions.allowedReadPaths])],
     defaultMode: failClosedPermissionDefault(effectiveDefault),
   };
 }

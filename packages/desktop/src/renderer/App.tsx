@@ -102,6 +102,7 @@ type PendingPermissionReply = {
   sessionId: string;
   permissions: PermissionResult["permissions"];
   alwaysAllows: PermissionResult["alwaysAllows"];
+  alwaysAllowPaths: PermissionResult["alwaysAllowPaths"];
 };
 
 /** Extract the markdown plan from the newest UpdatePlan tool message, if any. */
@@ -545,6 +546,7 @@ export function App(): JSX.Element {
       if (reply) {
         prompt.permissions = prompt.permissions ?? reply.permissions;
         prompt.alwaysAllows = prompt.alwaysAllows ?? reply.alwaysAllows;
+        prompt.alwaysAllowPaths = prompt.alwaysAllowPaths ?? reply.alwaysAllowPaths;
       }
 
       if (opts.showUser !== false && !opts.isContinue) {
@@ -675,6 +677,7 @@ export function App(): JSX.Element {
           sessionId,
           permissions: result.permissions,
           alwaysAllows: result.alwaysAllows,
+          alwaysAllowPaths: result.alwaysAllowPaths,
         });
         setStatusLine(t("app.permissionDenied"));
         setAskPermissions(undefined);
@@ -682,7 +685,12 @@ export function App(): JSX.Element {
         return;
       }
       void runPrompt(
-        { text: "/continue", permissions: result.permissions, alwaysAllows: result.alwaysAllows },
+        {
+          text: "/continue",
+          permissions: result.permissions,
+          alwaysAllows: result.alwaysAllows,
+          alwaysAllowPaths: result.alwaysAllowPaths,
+        },
         { isContinue: true }
       );
     },

@@ -147,6 +147,7 @@ import { killProcessTree } from "./common/process-tree";
 import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 import { clearSessionState, getSnippet, rebuildSessionStateFromHistory } from "./common/state";
 import {
+  appendProjectAllowedPaths,
   appendProjectPermissionAllows,
   buildPermissionToolExecution,
   computeToolCallPermissions,
@@ -156,6 +157,7 @@ import {
   hasUserPermissionReplies,
   normalizeAskPermissions,
   parseToolCallForPermissions,
+  type AlwaysAllowPaths,
   type AskPermissionRequest,
   type MessageToolPermission,
   type PermissionToolCall,
@@ -520,6 +522,8 @@ export type UserPromptContent = {
   skills?: SkillInfo[];
   permissions?: UserToolPermission[];
   alwaysAllows?: PermissionScope[];
+  /** Path-level "always allow" (task 14): narrow grants, persisted per-path. */
+  alwaysAllowPaths?: AlwaysAllowPaths;
   planMode?: boolean;
 };
 
@@ -3229,6 +3233,9 @@ ${content}
     appendProjectPermissionAllows(this.projectRoot, userPrompt.alwaysAllows, {
       inheritedPermissions: this.getResolvedSettings().permissions,
     });
+    // Path-level grants (task 14): persisted separately so a click can never
+    // widen into a permanent whole-disk scope grant.
+    appendProjectAllowedPaths(this.projectRoot, userPrompt.alwaysAllowPaths);
     const now = new Date().toISOString();
     const previousPlanMode = Boolean(this.getSession(sessionId)?.planMode);
     const nextPlanMode = Boolean(userPrompt.planMode);
@@ -3478,7 +3485,11 @@ ${content}
               forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
               forceAskTools:
                 quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
-              readPermissionExemptPaths: this.getSkillScanRoots().map((entry) => entry.root),
+              readPermissionExemptPaths: [
+                ...this.getSkillScanRoots().map((entry) => entry.root),
+                ...(this.getResolvedSettings().permissions?.allowedReadPaths ?? []),
+              ],
+              writePermissionExemptPaths: this.getResolvedSettings().permissions?.allowedWritePaths ?? [],
               resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
             })
           : null;
@@ -4840,25 +4851,30 @@ ${content}
     if (!isRead && !isWrite && !isEdit) {
       return undefined;
     }
-    const exemptPaths = this.getSkillScanRoots().map((entry) => entry.root);
+    const skillRoots = this.getSkillScanRoots().map((entry) => entry.root);
+    const allowedReadPaths = this.getResolvedSettings().permissions?.allowedReadPaths ?? [];
+    const allowedWritePaths = this.getResolvedSettings().permissions?.allowedWritePaths ?? [];
     const request = describeToolPermissionRequest({
       sessionId,
       projectRoot: this.projectRoot,
       toolCall,
-      readPermissionExemptPaths: exemptPaths,
+      readPermissionExemptPaths: [...skillRoots, ...allowedReadPaths],
+      writePermissionExemptPaths: allowedWritePaths,
       resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
     });
     const projectRealRoot = safeRealPath(this.projectRoot) ?? path.resolve(this.projectRoot);
-    const exemptRealRoots = exemptPaths
-      .map((entry) => safeRealPath(entry) ?? path.resolve(this.projectRoot, entry))
+    const toRealRoot = (entry: string): string => safeRealPath(entry) ?? path.resolve(this.projectRoot, entry);
+    const readRealRoots = [...skillRoots, ...allowedReadPaths]
+      .map(toRealRoot)
       .filter((root) => root !== projectRealRoot);
-    // Quarantine (§10.3) clamps both outside-roots booleans to false: the
-    // out-of-cwd scopes are already denied at the permission layer — this is
-    // the execution-side belt-and-braces.
+    // Path-level always-allow grants become additional write roots (task 14):
+    // the gate then admits exactly these trees — the booleans below stay
+    // untouched (quarantine clamps them; §10.3).
+    const writeRealRoots = allowedWritePaths.map(toRealRoot).filter((root) => root !== projectRealRoot);
     const flags = grantOutsideRootsFlags(request.scopes, this.isWorkspaceQuarantined());
     return {
-      writeRoots: [projectRealRoot],
-      readRoots: [projectRealRoot, ...exemptRealRoots],
+      writeRoots: [projectRealRoot, ...writeRealRoots],
+      readRoots: [projectRealRoot, ...readRealRoots],
       allowWriteOutsideRoots: flags.allowWriteOutsideRoots,
       allowReadOutsideRoots: flags.allowReadOutsideRoots,
     };
@@ -5043,6 +5059,12 @@ ${content}
       skills: prompt.skills ? prompt.skills.map((skill) => ({ ...skill })) : undefined,
       permissions: prompt.permissions ? prompt.permissions.map((permission) => ({ ...permission })) : undefined,
       alwaysAllows: prompt.alwaysAllows ? [...prompt.alwaysAllows] : undefined,
+      alwaysAllowPaths: prompt.alwaysAllowPaths
+        ? {
+            write: prompt.alwaysAllowPaths.write ? [...prompt.alwaysAllowPaths.write] : undefined,
+            read: prompt.alwaysAllowPaths.read ? [...prompt.alwaysAllowPaths.read] : undefined,
+          }
+        : undefined,
       planMode: prompt.planMode,
     };
   }

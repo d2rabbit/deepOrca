@@ -125,6 +125,7 @@ export const zhHK: Record<MessageKey, string> = {
   "perm.proceed": "是否繼續？",
   "perm.yes": "允許",
   "perm.always": "允許，並一律允許",
+  "perm.alwaysPath": "允許，並一律允許（僅此路徑）",
   "perm.no": "拒絕",
 
   // ── Permission scope short descriptions ───────────────────

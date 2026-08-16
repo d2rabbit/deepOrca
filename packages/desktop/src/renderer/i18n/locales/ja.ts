@@ -124,6 +124,7 @@ export const ja: Record<MessageKey, string> = {
   "perm.proceed": "続行しますか？",
   "perm.yes": "許可",
   "perm.always": "許可し、常に許可する",
+  "perm.alwaysPath": "許可し、常に許可する（このパスのみ）",
   "perm.no": "拒否",
 
   // ── Permission scope short descriptions ───────────────────

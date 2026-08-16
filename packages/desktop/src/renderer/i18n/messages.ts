@@ -130,6 +130,7 @@ export const en = {
   "perm.proceed": "Do you want to proceed?",
   "perm.yes": "Yes",
   "perm.always": "Yes, and always allow",
+  "perm.alwaysPath": "Yes, and always allow (this path only)",
   "perm.no": "No",
 
   // ── Permission scope short descriptions (allow-always tag) ─
@@ -901,6 +902,7 @@ export const zh: Record<MessageKey, string> = {
   "perm.proceed": "是否继续？",
   "perm.yes": "允许",
   "perm.always": "允许，并始终允许",
+  "perm.alwaysPath": "允许，并始终允许（仅此路径）",
   "perm.no": "拒绝",
 
   // ── Permission scope short descriptions ───────────────────

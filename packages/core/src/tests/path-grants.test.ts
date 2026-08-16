@@ -1,0 +1,173 @@
+import { afterEach, test } from "node:test";
+import assert from "node:assert/strict";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import {
+  appendProjectAllowedPaths,
+  applyQuarantinePermissionClamp,
+  computeToolCallPermissions,
+  describeToolPermissionRequest,
+  hasUserPermissionReplies,
+  type PermissionSettings,
+} from "../common/permissions";
+import { gateWrite } from "../common/path-boundary";
+import { SessionManager } from "../session";
+import { readProjectSettings } from "../settings";
+
+// Path-level "always allow" (specs/sandbox/design.md §4.2(d) residual risk,
+// task 14): persisting the PATH instead of the out-cwd SCOPE means one click
+// authorizes exactly one directory tree — never the whole disk.
+
+const tempDirs: string[] = [];
+
+function createWorkspace(): string {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-path-grants-")));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (dir) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+const ALLOW_ALL: Required<PermissionSettings> = {
+  allow: [],
+  deny: [],
+  ask: [],
+  defaultMode: "allowAll",
+  allowedWritePaths: [],
+  allowedReadPaths: [],
+};
+
+function writeCall(filePath: string): unknown {
+  return {
+    id: "w1",
+    type: "function",
+    function: { name: "write", arguments: JSON.stringify({ file_path: filePath, content: "x" }) },
+  };
+}
+
+test("appendProjectAllowedPaths persists, dedupes, and keeps scopes untouched", () => {
+  const project = createWorkspace();
+  const target = createWorkspace();
+
+  appendProjectAllowedPaths(project, { write: [target], read: [target] });
+  appendProjectAllowedPaths(project, { write: [target] });
+
+  const stored = readProjectSettings(project)?.permissions;
+  assert.deepEqual(stored?.allowedWritePaths, [target], "path grant persisted once (dedupe)");
+  assert.deepEqual(stored?.allowedReadPaths, [target]);
+  assert.deepEqual(stored?.allow, undefined, "no scope-level grant was created");
+
+  // Empty input is a no-op that never creates the settings file.
+  const untouched = createWorkspace();
+  appendProjectAllowedPaths(untouched, {});
+  assert.equal(fs.existsSync(path.join(untouched, ".deeporca", "settings.json")), false);
+});
+
+test("a granted path needs no ask under the P0.5 baseline; other paths still ask", () => {
+  const project = createWorkspace();
+  const granted = createWorkspace();
+  const other = createWorkspace();
+  const settings = { ...ALLOW_ALL, allowedWritePaths: [granted], allowedReadPaths: [granted] };
+
+  const plan = computeToolCallPermissions({
+    sessionId: "pg",
+    projectRoot: project,
+    toolCalls: [writeCall(path.join(granted, "file.txt")), writeCall(path.join(other, "file.txt"))],
+    settings,
+    forceAskDefaultedScopes: ["write-out-cwd", "delete-out-cwd"],
+    writePermissionExemptPaths: settings.allowedWritePaths,
+    readPermissionExemptPaths: settings.allowedReadPaths,
+  });
+  const byOrder = plan.permissions.map((permission) => permission.permission);
+  assert.deepEqual(byOrder, ["allow", "ask"], "granted path flows, ungranted path still asks");
+  // The granted-path ask never happens, so no ask card for it either.
+  assert.equal(
+    plan.askPermissions.some((ask) => ask.filePath === path.join(granted, "file.txt")),
+    false
+  );
+  assert.ok(plan.askPermissions.some((ask) => ask.filePath === path.join(other, "file.txt")));
+});
+
+test("describeToolPermissionRequest carries filePath for file tools", () => {
+  const project = createWorkspace();
+  const request = describeToolPermissionRequest({
+    sessionId: "pg",
+    projectRoot: project,
+    toolCall: writeCall(path.join(project, "a.txt")) as never,
+  });
+  assert.equal(request.filePath, path.join(project, "a.txt"));
+});
+
+test("path grants survive the quarantine clamp and keep working there", () => {
+  const project = createWorkspace();
+  const granted = createWorkspace();
+  const clamped = applyQuarantinePermissionClamp({
+    ...ALLOW_ALL,
+    allowedWritePaths: [granted],
+    allowedReadPaths: [granted],
+  });
+  const plan = computeToolCallPermissions({
+    sessionId: "pg",
+    projectRoot: project,
+    toolCalls: [writeCall(path.join(granted, "file.txt")), writeCall(path.join(createWorkspace(), "x.txt"))],
+    settings: clamped,
+    writePermissionExemptPaths: clamped.allowedWritePaths,
+    readPermissionExemptPaths: clamped.allowedReadPaths,
+  });
+  const byOrder = plan.permissions.map((permission) => permission.permission);
+  assert.deepEqual(byOrder, ["allow", "deny"], "narrow path grant is honored; everything else stays denied");
+});
+
+test("session derivation: granted paths become write roots and the gate admits exactly them", () => {
+  const project = createWorkspace();
+  const granted = createWorkspace();
+  const manager = new SessionManager({
+    projectRoot: project,
+    createOpenAIClient: () => ({
+      client: null,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({
+      model: "test-model",
+      permissions: { ...ALLOW_ALL, allowedWritePaths: [granted] },
+    }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const seam = manager as unknown as {
+    derivePathGrantForToolCall(
+      sessionId: string,
+      toolCall: never
+    ): {
+      writeRoots: string[];
+      allowWriteOutsideRoots: boolean;
+    };
+  };
+  const grant = seam.derivePathGrantForToolCall("pg", writeCall(path.join(granted, "file.txt")) as never);
+  assert.equal(grant.allowWriteOutsideRoots, false, "booleans stay clamped — roots are the only widening");
+  assert.ok(
+    grant.writeRoots.some((root) => root === fs.realpathSync(granted)),
+    "granted path realpath is a write root"
+  );
+  // The gate admits a file inside the granted tree, rejects its sibling directory.
+  assert.equal(gateWrite(grant, path.join(granted, "file.txt")).ok, true);
+  assert.equal(gateWrite(grant, path.join(createWorkspace(), "evil.txt")).ok, false);
+});
+
+test("hasUserPermissionReplies treats alwaysAllowPaths as a reply", () => {
+  assert.equal(hasUserPermissionReplies({ alwaysAllowPaths: { write: ["/tmp/x"] } }), true);
+  assert.equal(hasUserPermissionReplies({ alwaysAllowPaths: { read: ["/tmp/y"] } }), true);
+  assert.equal(hasUserPermissionReplies({ alwaysAllowPaths: {} }), false);
+  assert.equal(hasUserPermissionReplies({}), false);
+});

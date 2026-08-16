@@ -295,6 +295,8 @@ export {
   computeToolCallPermissions,
   buildPermissionToolExecution,
   hasUserPermissionReplies,
+  appendProjectAllowedPaths,
+  type AlwaysAllowPaths,
   appendProjectPermissionAllows,
   normalizeAskPermissions,
   parseToolCallForPermissions,

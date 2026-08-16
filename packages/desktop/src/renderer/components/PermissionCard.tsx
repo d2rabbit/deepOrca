@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type JSX } from "react";
 import type { AskPermissionRequest, PermissionScope } from "../../shared/ipc";
+import type { Scope } from "../lib/permissions";
 import {
   buildResult,
   buildScopePrompts,
   describeScope,
   isAlwaysAllowedScope,
+  pathGrantFor,
   scopeRiskColor,
   type PermissionResult,
 } from "../lib/permissions";
@@ -27,12 +29,27 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
   const [index, setIndex] = useState(0);
   const [decisions, setDecisions] = useState<Record<string, "allow" | "deny">>({});
   const [alwaysAllows, setAlwaysAllows] = useState<PermissionScope[]>([]);
+  const [alwaysAllowPaths, setAlwaysAllowPaths] = useState<{ write: string[]; read: string[] }>({
+    write: [],
+    read: [],
+  });
 
   // Skip scopes already granted "always" during this run.
+  const isAlwaysGranted = (scope: Scope, filePath?: string): boolean => {
+    if (alwaysAllows.includes(scope as PermissionScope)) {
+      return true;
+    }
+    const grant = pathGrantFor(scope, filePath);
+    if (grant) {
+      return alwaysAllowPaths[grant.kind].some((path) => path === grant.path);
+    }
+    return false;
+  };
+
   let effectiveIndex = index;
   while (effectiveIndex < prompts.length) {
-    const scope = prompts[effectiveIndex]!.scope;
-    if (isAlwaysAllowedScope(scope) && alwaysAllows.includes(scope)) {
+    const prompt = prompts[effectiveIndex]!;
+    if (isAlwaysAllowedScope(prompt.scope) && isAlwaysGranted(prompt.scope, prompt.request.filePath)) {
       effectiveIndex += 1;
       continue;
     }
@@ -67,27 +84,48 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
     nextDecisions[current.request.toolCallId] = kind === "deny" ? "deny" : prev === "deny" ? "deny" : "allow";
 
     let nextAlways = alwaysAllows;
+    let nextPaths = alwaysAllowPaths;
     if (kind === "always" && isAlwaysAllowedScope(current.scope)) {
-      nextAlways = alwaysAllows.includes(current.scope) ? alwaysAllows : [...alwaysAllows, current.scope];
+      const grant = pathGrantFor(current.scope, current.request.filePath);
+      if (grant) {
+        // Task 14: persist the PATH, not the whole-disk scope.
+        if (!nextPaths[grant.kind].includes(grant.path)) {
+          nextPaths = {
+            ...nextPaths,
+            [grant.kind]: [...nextPaths[grant.kind], grant.path],
+          };
+        }
+      } else if (!alwaysAllows.includes(current.scope)) {
+        nextAlways = [...alwaysAllows, current.scope];
+      } else {
+        nextAlways = alwaysAllows;
+      }
     }
 
     const nextIndex = effectiveIndex + 1;
     setDecisions(nextDecisions);
     setAlwaysAllows(nextAlways);
+    setAlwaysAllowPaths(nextPaths);
     setIndex(nextIndex);
 
     // Determine if any prompts remain after this decision.
     let remaining = nextIndex;
     while (remaining < prompts.length) {
-      const scope = prompts[remaining]!.scope;
-      if (isAlwaysAllowedScope(scope) && nextAlways.includes(scope)) {
-        remaining += 1;
-        continue;
+      const prompt = prompts[remaining]!;
+      if (isAlwaysAllowedScope(prompt.scope)) {
+        const grant = pathGrantFor(prompt.scope, prompt.request.filePath);
+        const granted = grant
+          ? nextPaths[grant.kind].some((path) => path === grant.path)
+          : nextAlways.includes(prompt.scope as PermissionScope);
+        if (granted) {
+          remaining += 1;
+          continue;
+        }
       }
       break;
     }
     if (remaining >= prompts.length) {
-      onSubmit(buildResult(requests, nextDecisions, nextAlways));
+      onSubmit(buildResult(requests, nextDecisions, nextAlways, nextPaths));
     }
   }
 
@@ -135,7 +173,7 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
         </button>
         {allowAlways ? (
           <button className="ui-opt" onClick={() => commit("always")}>
-            {t("perm.always")}
+            {pathGrantFor(prompt.scope, prompt.request.filePath) ? t("perm.alwaysPath") : t("perm.always")}
             <span className="ui-scope-tag" style={{ color: scopeRiskColor(prompt.scope) }}>
               {t(`scope.${prompt.scope}` as MessageKey)}
             </span>
