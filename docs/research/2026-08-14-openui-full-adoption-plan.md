@@ -270,4 +270,4 @@ ModuleDesign:
 - 本计划是 `2026-08-14-openui-deep-dive.md` 的**执行续篇**；原方案 §三的 P0/P1/P2 编号在 §〇 对账表中逐项映射，不重复立项。
 - Batch 6-5 的决策回写把原方案 §五结论替换为三层定位（A2UI 全域交互层 × PM-Design × UI-Design，含增量原则与定位红线）；此后以本文为 design 域与 A2UI 交互层的唯一活跃计划。
 - 子域规格对应：PM-Design → `specs/pm-design-v2/`，UI-Design → `specs/deep-design/`；A2UI 交互层无独立 spec，定位红线由本文 §五承载。
-- 与 dsh 落地计划（`2026-08-14-dsh-adoption-plan.md`）正交：那边是 core LLM 稳健性，这边是 desktop 设计管线与交互层；共享的唯一纪律是"配置不硬编码 + fail-open + 每 Batch 可 revert"。
+- 与 dsh 落地计划（`archive/2026-08-14-dsh-adoption-plan.md`）正交：那边是 core LLM 稳健性，这边是 desktop 设计管线与交互层；共享的唯一纪律是"配置不硬编码 + fail-open + 每 Batch 可 revert"。

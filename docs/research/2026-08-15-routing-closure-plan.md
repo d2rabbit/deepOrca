@@ -217,5 +217,5 @@ ModuleDesign:
 ## 六、与既有计划的关系
 
 - 本方案是 `specs/skill-routing/design.md`（G1-G3 原始设计）的**修订执行篇**：不推翻分级（G1 召回/G2 门控/G3 组合），修正其执行序（G1 先、G3 闸门后）并补齐原设计未覆盖的连接面与观测面。
-- 与 dsh 落地计划（`2026-08-14-dsh-adoption-plan.md`）**共享一个验收主题**：前缀字节守恒——dsh P1-3（工具顺序稳定化）并入本方案 R1 的快照测试一并验收。
+- 与 dsh 落地计划（`archive/2026-08-14-dsh-adoption-plan.md`）**共享一个验收主题**：前缀字节守恒——dsh P1-3（工具顺序稳定化）并入本方案 R1 的快照测试一并验收。
 - 与 designer 全域计划正交；唯一交集是 knowledgeStatus IPC（R4-5 面板卡片复用其通道）。

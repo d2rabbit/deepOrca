@@ -215,7 +215,7 @@ Agent → stdio → uvx zread mcp
 ---
 
 > 关联文档：
-> - [GitMCP 设计文档](../../specs/gitmcp-local-module/design.md)
-> - [GitMCP 需求文档](../../specs/gitmcp-local-module/requirements.md)
+> - [GitMCP 设计文档](../../../specs/gitmcp-local-module/design.md)
+> - [GitMCP 需求文档](../../../specs/gitmcp-local-module/requirements.md)
 > - zread Z.AI 文档：https://docs.bigmodel.cn/cn/coding-plan/mcp/zread-mcp-server
 > - zread 开源版：https://github.com/ejfkdev/zread

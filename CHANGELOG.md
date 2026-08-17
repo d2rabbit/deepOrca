@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔒 安全（预生产门禁整改，Mimosa 审计驱动）
+
+- **命令注入面收敛**：sqlite-runtime/uv/serena-cli/vendor-granite/version.js 的 shell 串与动态 exec 全部 argv 化 + 字面量化（可执行路径绝对值校验、curl 选项区零动态值、`--` 终结符）；find-skill.js（skill-digester 模板脚本）require/展开路径双重消毒
+- **路径穿越 containment 断言**：prompt.ts 模板/技能资源读取、design-store 保存路径（复用 isSafeArtifactId 语义）、serena 托管 HOME、gitmcp/activity-frames SQLite 库路径（限缓存根）、memory TDAI 三处存储读写（vendored fork 最小改动）全部加边界校验
+- **测试夹具去敏**：凭据类字面量常量拼接化（15 处）、md5 夹具改用产品自身哈希路径；陈旧生成产物 `renderer/dd/tailwind-script.ts`（旧位置遗留）删除——现行产物在 gitignored `src/generated/`
+
 ### 🐛 问题修复
+
+- **dsh P1-1 崩溃合成收尾（正确性）**：`resumeSession` 对意外终止（interrupt/崩溃存续 processing）的会话不再重放在途工具调用——落盘合成 `TOOL_NOT_STARTED`（中断可证未派发）/`TOOL_OUTCOME_UNKNOWN`（崩溃保守未知）占位 + `<resume-note>` 指引只重试幂等操作；暂停与权限批准的设计内续跑不受影响；`settings.resumePendingToolCalls="replay"` 回退旧行为（测试 7 用例：真值表/双状态合成/暂停豁免/replay 回退）
+- **dsh P1-2 两段式 compaction（成本）**：Stage A 无模型预剪（>8KB 工具结果截首尾+体积标记，即落盘）→ CJK 感知投影 < 阈值×0.7 时整轮跳过 LLM 摘要；call/result 配对断言拒绝跨断裂对摘要（END 侧前扫既有，START 侧补齐）；`#11 前缀回放`决策为默认不做（缓存按模型隔离，仅 flash 主模型受益——决策记录于 specs/pre-production/tasks.md）
+- **dsh P1-4 beforeToolExecution 闸门（架构 enabler）**：同步 listener 注册表（deny>ask>allow），权限检查为 1 号内建 listener，`registerBeforeToolExecution` 公开注册；执行层设施位于 router 之后，绝不影响路由选择（红线写明）；ToolExecutionHooks（固定回调）语义不混淆
+- **dsh #13 前缀守卫收尾**：系统提示段序显式常量化（`SYSTEM_PROMPT_SECTION_ORDER`，reorder 即破坏缓存契约）；router 输出字节一致性守护测试（乱序发现 → MCP 工具表 JSON 逐字节一致）。**更正**：takeaways #18 cache 展示经查早已接线（`prompt_cache_hit_tokens`→TopBar cache%/TokenStatsPanel），dsh 整合台账改判 ✅
+
+### ✨ 新功能
+
+- **dembrandt 品牌摄取（designer 链路"品牌输入端"补齐，specs/pre-production E1）**：builtin MCP `dembrandt`（**offline-first：构建期 `scripts/vendor-dembrandt.js` pinned 安装 `dembrandt@0.28.0` 到 `packages/desktop/vendor/dembrandt`（`--omit=dev --omit=optional --ignore-scripts`，实测 26.3MB/113 包，无任何浏览器二进制——118MB Granite 模型为既有体积先例，本次 installer 增量即这 26.3MB）；运行时 `configureDembrandtVendorRoot` host 注入（packaged = `Resources/app/vendor/dembrandt`），spawn `node <vendored dist js>` argv 四重校验（绝对路径/无 `..`/落根内/文件存在），无 vendor 树的 dev checkout 才降级 pinned npx**，serena 式 disable-gate + **design-active 项目标记门控**——仅 `designs/` 或 `.deeporca/DESIGN.md` 存在的项目注册，避免非设计项目为多余 stdio server 买单）；`design.extract` action（URL → DTCG/tokens/DESIGN.md，产物经 agent 介导写 `.deeporca/DESIGN.md` 品牌契约——写路径走 write 工具自身 PathGrant 门控，临时目录为 spawn cwd）；`design.drift` action（`--compare` 基线漂移，exit 1 = drift-detected 非错误，确定性零 LLM，可作 review 维度）；**浏览器零下载**：子进程恒设 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`，`PLAYWRIGHT_BROWSERS_PATH` 仅在 `~/.deeporca/browsers/ms-playwright` 已离线预置时导出（源码验证：dembrandt 运行时从不自动下载浏览器，唯一下载器是显式 `install-browser` 子命令，DeepOrca 不调用）；网络失败结构化降级含 stderr 尾部 + 离线预置提示（不再指向 install-browser 网络下载）；MIT 过 license 门禁。25 用例（定义/门控/桩 spawner/退出码语义/NULL_SPAWNER/vendored argv + npx 降级/路径 `..` 与非绝对根拒绝）
+- **skill-up CI（S1+S2，specs/skill-eval）**：`scripts/get-skill-up.mjs`（固定版本二进制，Releases API 解析资产名，缓存 `.cache/skill-up/`）+ `run-skill-evals.mjs`（--since/--all/--package，report-only 默认 / nightly 严格，退出码契约 0/1/2）+ `.github/workflows/skill-evals.yml`（PR 增量 report-only + nightly 全量）+ 8 插件包 evals 骨架（14 用例，rule_based 离线可重放）+ S2 引擎适配器 `skill-up-engine-deeporca.mjs`（隔离 HOME/120s/权限钳制）；版本 pin 为占位 v0.1.0 待联网定版（README-evals.md 记录）
+- **GitMCP 4→8 工具**：`get_repo_structure`（trees API、目录优先+计数、400 条目封顶）、`read_file`（仅 raw.githubusercontent 构造、256KB、二进制/非 UTF-8 拒绝、显式 ref 不回退）、docs/ 多文件索引（llms.txt 链接+trees 发现≤30 文件，逐文件标题前缀，旧缓存向后兼容）、`outline`（标题聚合 trie、懒索引）、`get_repo_info`（索引状态）；23 测试离线全覆盖
+- **book-distill 技能（skillweaver P2）**：7 阶段书籍/长文档→技能蒸馏方法论（源评估含版权约束→章节地图→分批能力卡抽取→去重合并→技能组装→触发描述面向 G1 嵌入召回优化→自检）+ 短源快路径；references 双子文档（能力卡 schema/输出契约）；3 条 eval 用例
+- **designer 进化设计（纯 prompt/模板层）**：内置设计系统 3→9 套（brutalist-contrast / swiss-international / terminal-mono / glass-morphism / soft-neumorphic / warm-handcrafted，全部对比度脚本核验 ≥4.5:1）；taste 新增第 11 条 anti-slop 多样性（与 designs/ 近期产物比对防雷同）+ 五维自评评分卡（层级/节奏/对比/克制/细节工艺，每维 ≥3 且总分 ≥20 方交付）；deep-design 大页面两段式生成可选步骤（骨架确认→填充）
 
 - **规范差距审计轮：修复任务树↔记忆真断链 + 2 处边界缺口（报告：`docs/research/2026-08-15-spec-gap-audit.md`）**
   - **L3 断链修复（真 bug）**：task.merge/abandon 写入的 `<task-lineage>` 与决策点 `<task-recall-hints>` 隐藏系统消息此前**永远进不了记忆**——maybeCaptureMemory 只取 user/assistant 对，"谱系经现有记忆管道回收"的声称为假。现纳入 capture 的 flat 与结构化双路径（+回归测试锁定，任务树套件 18/18）
@@ -102,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **LLM 错误分类器 + 溢出自动 compact-and-retry**：`classifyLlmError()` 八类归一化（AUTH / QUOTA / RATE_LIMIT / CONTEXT_WINDOW_EXCEEDED / SERVER / TRANSIENT / TIMEOUT / UNKNOWN，正则族按 DeepSeek 实测文案校准）。上下文溢出不再等于会话死亡——自动插入提示消息 → `compactSession` → 重放一次激活循环；TIMEOUT 同样重试一次；QUOTA 显式不重试；压缩自身失败时上报原始溢出错误；每次激活仅一次重试预算防循环
   - **流 idle 看门狗**：`withStreamIdleTimeout()` 对 SDK 流的**单次读取**计时（timer unref），长思考静默与真断流不再不可区分——超时抛 `LlmStreamIdleTimeoutError`（归 TIMEOUT，可自动重试）而非挂死/静默失败。主会话与压缩请求统一生效；超时可经 `settings.streamIdleTimeoutMs` 或 env `STREAM_IDLE_TIMEOUT_MS` 配置，默认 300 秒
   - 测试：分类器 9 类 fixture、usage 边界（cache_hit > prompt 钳零、OpenAI 嵌套口径）、看门狗静默超时/慢速完成两路径、溢出→压缩→重试恢复、二次溢出仅重试一次、QUOTA 不重试、TIMEOUT 重试（core 386 用例全绿，3 处存量断言随口径更新）
-  - 设计吸收自 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（纯设计借鉴，零代码依赖），方案与验收详见 `docs/research/2026-08-14-dsh-adoption-plan.md`
+  - 设计吸收自 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（纯设计借鉴，零代码依赖），方案与验收详见 `docs/research/archive/2026-08-14-dsh-adoption-plan.md`
 
 - **本地向量嵌入模型 (Granite 97M R2)** (2026-08-06)
   - 新增 `@deeporca/embedding` workspace 包：transformers.js + onnxruntime-node，IBM Granite Embedding 97M multilingual R2（384 维，Apache 2.0，200+ 语言含中文）
@@ -246,7 +265,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📝 文档更新
 
-- **dsh 调研落地计划 + 状态跟踪** (2026-08-14)：新增 `docs/research/2026-08-14-dsh-adoption-plan.md`（对照 deepseek-harness 十点审计的分层吸收方案：P0 正确性修复 / P1 顺势加固 / P2 择机 / P3 明确暂缓），P0 三项落地后已回写状态（对账表、落地记录、分支顺序）；前置调研 `2026-08-14-dsh-deepseek-optimization-takeaways.md` + `2026-08-14-deepseek-harness-deep-dive.md`。
+- **dsh 调研落地计划 + 状态跟踪** (2026-08-14)：新增 `docs/research/archive/2026-08-14-dsh-adoption-plan.md`（对照 deepseek-harness 十点审计的分层吸收方案：P0 正确性修复 / P1 顺势加固 / P2 择机 / P3 明确暂缓），P0 三项落地后已回写状态（对账表、落地记录、分支顺序）；前置调研 `docs/research/archive/2026-08-14-dsh-deepseek-optimization-takeaways.md` + `docs/research/archive/2026-08-14-deepseek-harness-deep-dive.md`。
 - **AGENTS.md 校正** (2026-08-10)：2 → 4 包（`memory`/`embedding` 此前缺失，~36% 源码在文档地图外）、补 `routing/` 章节、2 → 13 vendor 脚本、修正 `ipc.ts`"纯类型"说法（实际导出 98 个运行时常量）、删除不存在的 `generated/`、记录 RC1 索引不变量（含 Map 陷阱）。
 - **新增 `docs/stabilization-2026-08-10.md`**：本次修复的完整报告（诊断、triage、过程纠正、已做/未做及理由）。
 
@@ -371,7 +390,7 @@ DeepOrca 的 LLM 会话稳健性层（2026-08-14 落地的 P0 三件套）在设
 | **错误归一化 + 溢出 compact-and-retry**（`CONTEXT_WINDOW_EXCEEDED` 归一化 → 上压缩 → 单次重试，QUOTA 不重试） | `classifyLlmError()` 八类分类器 + `runActivationLoopWithAutoRecovery()`   | `packages/core/src/common/llm-error.ts` · `packages/core/src/session.ts` |
 | **流 idle 看门狗**（超时计在单次读取上，默认 300s）                                                           | `withStreamIdleTimeout()` + `LlmStreamIdleTimeoutError`，时长进 settings  | `packages/core/src/session.ts`                                           |
 
-调研全文见 `docs/research/2026-08-14-deepseek-harness-deep-dive.md` 与 `2026-08-14-dsh-adoption-plan.md`（含明确暂缓项的决策记录）。感谢 DeepSeek 团队开源了这套对 DeepSeek 线上怪癖打磨极深的 harness 设计，其"前缀字节守恒"与 token 经济学哲学持续影响本项目的演进方向。实现层面的任何偏差由 DeepOrca 项目自行负责。
+调研全文见 `docs/research/archive/2026-08-14-deepseek-harness-deep-dive.md` 与 `docs/research/archive/2026-08-14-dsh-adoption-plan.md`（含明确暂缓项的决策记录）。感谢 DeepSeek 团队开源了这套对 DeepSeek 线上怪癖打磨极深的 harness 设计，其"前缀字节守恒"与 token 经济学哲学持续影响本项目的演进方向。实现层面的任何偏差由 DeepOrca 项目自行负责。
 
 ### SkillWeaver — Compositional Skill Routing
 

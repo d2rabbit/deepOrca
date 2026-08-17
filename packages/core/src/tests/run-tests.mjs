@@ -70,9 +70,11 @@ const testHome = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-test-home-"));
 // IMPORTANT: for files built from top-level `test()` calls, node:test applies this
 // timeout to the *whole file* as well as to each test — so it must exceed the total
 // runtime of the slowest file, not just the slowest test. session.test.ts currently
-// runs ~200s (dominated by MCP startup timeouts), so 300s leaves headroom while
-// still bounding a hang. The 45-minute CI job timeout is the outer guard.
-const TEST_TIMEOUT_MS = 300_000;
+// runs ~200s on a quiet machine (dominated by MCP startup timeouts) but measured
+// 363s on a loaded dev box (2026-08-17, many concurrent host processes), so the
+// file-level wrapper needs real headroom. The 45-minute CI job timeout is the
+// outer guard.
+const TEST_TIMEOUT_MS = 420_000;
 
 const result = spawnSync(
   process.execPath,

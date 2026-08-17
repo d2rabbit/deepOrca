@@ -82,8 +82,8 @@ const prototypePreloadConfig = {
 /**
  * Renderer: browser bundle with code splitting.
  * Splitting enables React.lazy() and dynamic import() to produce separate
- * chunk files, so heavy dependencies (Monaco ~5MB, Mermaid ~3MB) are only
- * loaded when the user actually opens the editor or renders a diagram.
+ * chunk files, so heavy dependencies (Monaco ~5MB) are only loaded when the
+ * user actually opens the editor.
  * Requires outdir (not outfile) + format: "esm" (already set).
  */
 const rendererOutdir = resolve(outdir, "renderer");
@@ -314,6 +314,11 @@ async function run() {
   // Granite Embedding 97M R2 (ONNX): local embedding model for memory recall.
   // Downloaded via hf-mirror fallback; powers @deeporca/embedding (transformers.js).
   ensureVendored("granite", [".vendored-granite-version"], "online model download (hf-mirror fallback)");
+  // Dembrandt (design-token extraction engine): pinned npm install, isolated
+  // node_modules under vendor/dembrandt — offline-first runtime (E1e). No
+  // browser binary is vendored; core points PLAYWRIGHT_BROWSERS_PATH at an
+  // offline-provisioned directory instead (see common/dembrandt.ts).
+  ensureVendored("dembrandt", [".vendored-dembrandt-version"], "npx -y --package dembrandt@0.28.0 (online fallback)");
   if (isDev) {
     await cleanRendererChunks();
     const contexts = await Promise.all([

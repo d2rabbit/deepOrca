@@ -40,10 +40,17 @@ packages/desktop/src/renderer/dd/tailwind-script.ts
 # Granite embedding model, …
 packages/desktop/vendor/
 
+# Pinned skill-up release binaries (scripts/get-skill-up.mjs) — CI-only tool,
+# never vendored into the desktop build.
+.cache/skill-up/
+
 # Local verification scratch dirs
 .tmp-verify/
 .tmp-orca/
 .tmp-gitmcp-e2e/
+
+# Browser-automation session snapshots (run artifacts, not sources)
+.playwright-mcp/
 
 # Site verification screenshots (run artifacts, not sources)
 .site-*.png

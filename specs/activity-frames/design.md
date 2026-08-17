@@ -23,7 +23,7 @@
 | enrich/steps/patterns 独立文件 | §二 架构图                           | 输入事件归并在 `frames.ts#attributeEvents`（纯函数）；patterns 并入 `mcp.ts` 的 SQL 查询；steps 未单独成文件                                                                                                                                                                                                                                                                 |
 | 测试                           | Phase 5                              | **2026-08-15 补齐**（`desktop/src/tests/activity-frames-core.test.ts`，13 用例，fake-db 接缝——不依赖 node:sqlite）。该批次同时修复两个移植缺陷：①闪烁合并条件比较了错误的一侧（Pass 2 死代码，A→B→A 从不合并）；②Pass 1 断段判定用了"当前帧→下一帧"间隙（breakReason 误标 + 末帧总被甩成零活跃独立段）——现按本文 §5.1 语义修正（到当前帧的间隙判定断段，向后间隙只计 dwell） |
 
-**待评估（不实施）**：BehavioralProfile 的 `formatContextBlock` 是否作为可选 boot context 注入（对齐 memory recall 的 prepend 模式）——token 成本 vs 背景收益的产品决策。
+**已实现（2026-08-17 回写，撤销原"不实施"判定）**：BehavioralProfile 的 `formatContextBlock` 已作为**可选 boot context** 注入——opt-in 设置 `behaviorContext`（`packages/core/src/settings.ts:168`，**默认关闭**），由 `packages/core/src/session.ts` ~:972 消费，desktop 侧经 `session-bridge.ts` 的 `buildBehaviorContext` 注入（`packages/desktop/src/main/session-bridge.ts:280`）。
 
 ---
 

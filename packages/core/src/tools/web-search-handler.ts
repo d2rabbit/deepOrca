@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { spawn } from "child_process";
+import { isAbsolute, resolve as resolvePath } from "node:path";
 import type OpenAI from "openai";
 import type { CreateOpenAIClient, ToolExecutionContext, ToolExecutionResult } from "./executor";
 import { getUserSettingsPath } from "../settings";
@@ -8,6 +9,22 @@ const MAX_OUTPUT_CHARS = 30000;
 const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
 const WEB_SEARCH_TOOL_ACTIVITY_PREFIX = "WebSearch:";
 const DEFAULT_WEB_SEARCH_API_URL = "https://deepcode.vegamo.cn/api/plugin/web-search";
+
+/**
+ * Resolve the configured web-search script to an absolute, traversal-free
+ * executable path (security scan fix). Relative paths are anchored at the
+ * project root; anything still not absolute or containing `..` is rejected.
+ */
+function resolveScriptPath(scriptPath: string, projectRoot: string): string | null {
+  const candidate = isAbsolute(scriptPath) ? scriptPath : resolvePath(projectRoot, scriptPath);
+  if (!isAbsolute(candidate)) {
+    return null;
+  }
+  if (candidate.split(/[\\/]/).includes("..")) {
+    return null;
+  }
+  return candidate;
+}
 
 type SearchLanguage = "en" | "zh";
 
@@ -157,9 +174,30 @@ async function runWebSearchScript(
   configuredEnv: Record<string, string>
 ): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: string | null; error?: string }> {
   return new Promise((resolve) => {
-    const child = spawn(scriptPath, [query], {
+    // SECURITY (scan fix, medium): the script path and env entries come from
+    // settings. Resolve the script against the project root, require an
+    // absolute traversal-free path, and pass only string-valued env entries
+    // to the child process (spawn stays argv-form).
+    const resolvedScript = resolveScriptPath(scriptPath, context.projectRoot);
+    if (!resolvedScript) {
+      resolve({
+        stdout: "",
+        stderr: "",
+        exitCode: null,
+        signal: null,
+        error: `Invalid webSearchTool script path: ${scriptPath}`,
+      });
+      return;
+    }
+    const childEnv: NodeJS.ProcessEnv = { ...process.env };
+    for (const [key, value] of Object.entries(configuredEnv)) {
+      if (typeof value === "string") {
+        childEnv[key] = value;
+      }
+    }
+    const child = spawn(resolvedScript, [query], {
       cwd: context.projectRoot,
-      env: { ...process.env, ...configuredEnv },
+      env: childEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });
     const pid = child.pid;
@@ -378,7 +416,11 @@ function appendChunk(existing: string, chunk: string | Buffer): string {
 }
 
 function formatWebSearchActivityLabel(query: string): string {
-  const normalizedQuery = query.replace(/\s+/g, " ").trim();
+  // Display-only surface: strip control characters before the label reaches
+  // the process-activity tracker (taint hardening; the spawn argument itself
+  // stays untouched — argv-form, validated script path).
+  const displaySafe = query.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ");
+  const normalizedQuery = displaySafe.replace(/\s+/g, " ").trim();
   const maxQueryLength = 180;
   const clippedQuery =
     normalizedQuery.length > maxQueryLength ? `${normalizedQuery.slice(0, maxQueryLength - 3)}...` : normalizedQuery;

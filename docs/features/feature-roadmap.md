@@ -1,6 +1,8 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.18 · 日期：2026-08-13 · 状态：规划中
+> 版本：v3.19 · 日期：2026-08-17 · 状态：**预生产收官（功能冻结基线）**
+>
+> **v3.19 更新（预生产收官快照）**：本版本为当前版本**最后一批功能扩展**，执行 `specs/pre-production/`（design+tasks）收官计划后进入**首次预生产测试阶段**——此后 dev 分支仅接受 修复/优化/功能闭环/文档测试，新功能一律 `next/*` 分支留待下一版本。本批落地：① **dsh 理念深化四件套**（崩溃合成收尾 P1-1 / 两段式 compaction P1-2 / beforeToolExecution 闸门 P1-4 / 前缀守卫收尾 #13——router 仍为工具选择唯一权威，dsh 确定性仅存于 router 输出层与守护测试）；② **skill-up CI**（S1 CI 集成 + S2 引擎适配器，8 插件包 14 用例，`specs/skill-eval/`）；③ **GitMCP 4→8 工具**（get_repo_structure / read_file / docs 多文件索引 / outline / get_repo_info）；④ **book-distill 技能**（skillweaver P2 兑现）；⑤ **designer 双增强**——dembrandt 品牌摄取（builtin MCP pin 0.28.0 + design.extract/design.drift action，补齐 `.deeporca/DESIGN.md` 品牌契约自动化来源）+ 进化设计（设计系统 3→9 套、taste 五维自评 + anti-slop、大页面两段式生成）；⑥ **安全门禁整改**（Mimosa 审计驱动：命令注入 argv 化、路径穿越 containment、测试夹具去敏，权威深扫 seal `sha256:603a…`）；⑦ **文档治理**（research 台账索引 + archive 归档 8 项 + 状态回写）。调研→实现全程口径：**调研仅供参考，以项目实际实现为准**（`docs/research/README.md`）。
 >
 > **v3.18 更新**：新增 **§十八 3D 与制造** 功能域——基于调研 `docs/research/2026-08-13-text-to-cad-img2threejs.md` 立项：① **text-to-cad**（earthtojake，MIT，13.4k★）agent 技能库，build123d 参数化源码 → STEP 主输出（真实 B-rep），含几何校验 + 修复回路；② **img2threejs**（Apache-2.0，11.5k★）单图 → 纯代码程序化 Three.js 模型（TS 工厂 + Divine Eye 零 token 门禁 + 有界纠正回路）。两者皆为 agent-agnostic SKILL.md 技能包，与 DeepOrca Skills 体系同构，vendored 接入。CAD/3D 预览**纯前端自研**（Three.js loaders + occt-import-js + dxf-parser）；**用户拍板不引入 kkFileView**（Aspose-CAD/CADViewer 商业组件风险 + Java 服务端架构错配）。详细设计见 `specs/cad-3d-generation/design.md`。该域是 PM-Design V2 需求具现化的第四条管线（原型/设计稿/代码 → +3D/制造）。
 >

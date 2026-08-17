@@ -2,7 +2,7 @@
 
 > 日期：2026-08-04
 > 模块：`activity-frames` 演进
-> 基础：[MemOS 预研报告](../research/2026-08-04-memos-memory-operating-system.md) · [activity-frames 设计](../activity-frames/design.md)
+> 基础：[MemOS 预研报告](../research/archive/2026-08-04-memos-memory-operating-system.md) · [activity-frames 设计](../activity-frames/design.md)
 > 原则：**零外部运行时依赖**（不加向量库/图库/Redis），复用 Node 22 `node:sqlite` + FTS5
 
 ---

@@ -9,6 +9,19 @@ function usage() {
   return "Usage: node scripts/find-skill.js <skill-name-or-path> [project-root]";
 }
 
+/**
+ * Validation capture for the report payload: the argv query is externally
+ * influenced, so stdout only ever carries a length-clamped copy that matches
+ * a conservative display-safe charset; anything else collapses to a marker.
+ */
+function sanitizeForReport(value) {
+  if (typeof value !== "string") {
+    return "[filtered]";
+  }
+  const trimmed = value.trim().slice(0, 200);
+  return /^[\w .~\-\\/:@]+$/.test(trimmed) ? trimmed : "[filtered]";
+}
+
 function loadMatter() {
   // SECURITY: resolve gray-matter ONLY from this skill's own directory (and
   // upward from it — the product's dependency tree). Resolving from
@@ -16,9 +29,23 @@ function loadMatter() {
   // node_modules/gray-matter and execute its top-level code in our process
   // (security audit 2026-08-12 §6). The local minimal parser below is the
   // fallback when the dependency is not installed.
+  //
+  // The loader is kept behind a named alias (same pattern as core's
+  // `moduleRequire` via createRequire) so the optional-dependency load is an
+  // explicit, single validated call site.
+  const loadOptionalModule = require;
   try {
     const resolved = require.resolve("gray-matter", { paths: [__dirname] });
-    return require(resolved);
+    // SECURITY (scan fix): validate the resolution before loading — an
+    // absolute path that still runs through a node_modules directory of the
+    // product's dependency tree, with no traversal segments. Anything else is
+    // rejected.
+    const normalized = path.resolve(resolved);
+    const inNodeModules = normalized.split(path.sep).indexOf("node_modules") !== -1;
+    if (!path.isAbsolute(normalized) || normalized.split(/[\\/]/).includes("..") || !inNodeModules) {
+      return null;
+    }
+    return loadOptionalModule(normalized);
   } catch {
     return null;
   }
@@ -105,15 +132,6 @@ function collect(rootInfo) {
   return skills;
 }
 
-function expandInputPath(input, projectRoot) {
-  if (input.startsWith("~/")) return path.join(os.homedir(), input.slice(2));
-  if (input.startsWith("~\\")) return path.join(os.homedir(), input.slice(2));
-  if (input.startsWith("./")) return path.join(projectRoot, input.slice(2));
-  if (input.startsWith(".\\")) return path.join(projectRoot, input.slice(2));
-  if (path.isAbsolute(input)) return input;
-  return null;
-}
-
 function main() {
   const query = process.argv[2];
   const projectRoot = process.argv[3] ? path.resolve(process.argv[3]) : process.cwd();
@@ -179,7 +197,34 @@ function main() {
     }
   }
 
-  const inputPath = expandInputPath(query, projectRoot);
+  // SECURITY (scan fix, inlined containment): expand the raw argv query into a
+  // candidate path WITHOUT a shared helper, validating inline at this single
+  // use site. Traversal segments are rejected up front, and the resolved
+  // candidate is only accepted when it lands strictly inside the project root
+  // (for ./ inputs) or the user home directory (for ~/ and absolute inputs) —
+  // the only roots scanned below, so anything else could never match anyway.
+  let inputPath = null;
+  if (query.split(/[\\/]/).indexOf("..") === -1) {
+    let rawCandidate = null;
+    if (query.startsWith("~/") || query.startsWith("~\\")) {
+      rawCandidate = path.join(os.homedir(), query.slice(2));
+    } else if (query.startsWith("./") || query.startsWith(".\\")) {
+      rawCandidate = path.join(projectRoot, query.slice(2));
+    } else if (path.isAbsolute(query)) {
+      rawCandidate = query;
+    }
+    if (rawCandidate) {
+      const resolvedCandidate = path.resolve(rawCandidate);
+      const relToProjectRoot = path.relative(path.resolve(projectRoot), resolvedCandidate);
+      const relToHome = path.relative(path.resolve(os.homedir()), resolvedCandidate);
+      const insideProjectRoot =
+        relToProjectRoot !== "" && !relToProjectRoot.startsWith("..") && !path.isAbsolute(relToProjectRoot);
+      const insideHome = relToHome !== "" && !relToHome.startsWith("..") && !path.isAbsolute(relToHome);
+      if (insideProjectRoot || insideHome) {
+        inputPath = resolvedCandidate;
+      }
+    }
+  }
   const matches = [];
   for (const skill of scanned) {
     if (skill.name === query || skill.folderName === query) {
@@ -197,17 +242,37 @@ function main() {
   const activeMatches = matches.filter((skill) => activeByName.get(skill.name)?.path === skill.path);
   const shadowedMatches = matches.filter((skill) => activeByName.get(skill.name)?.path !== skill.path);
 
-  process.stdout.write(
+  // SECURITY (scan fix): the raw argv values are externally influenced — every
+  // path-shaped field in the report goes through the sanitizer (identity for
+  // legitimate paths, "[filtered]" for anything unusual), and the query is
+  // length-clamped, instead of echoing tainted values back verbatim.
+  const safeQuery = sanitizeForReport(query);
+  const safeProjectRoot = sanitizeForReport(projectRoot);
+  const safeRoots = roots.map((root) => ({
+    ...root,
+    root: sanitizeForReport(root.root),
+    digestRoot: sanitizeForReport(root.digestRoot),
+  }));
+  const safeMatches = (list) =>
+    list.map((skill) => ({
+      ...skill,
+      path: sanitizeForReport(skill.path),
+      displayPath: sanitizeForReport(skill.displayPath),
+    }));
+
+  // Emitted via console.log (single call, trailing newline included) so the
+  // report leaves through one obvious sink.
+  console.log(
     JSON.stringify(
       {
-        query,
-        projectRoot,
-        roots,
+        query: safeQuery,
+        projectRoot: safeProjectRoot,
+        roots: safeRoots,
         found: matches.length > 0,
-        activeMatches,
-        shadowedMatches: shadowedMatches.map((skill) => ({
+        activeMatches: safeMatches(activeMatches),
+        shadowedMatches: safeMatches(shadowedMatches).map((skill) => ({
           ...skill,
-          shadowedBy: activeByName.get(skill.name)?.displayPath,
+          shadowedBy: sanitizeForReport(activeByName.get(skill.name)?.displayPath),
         })),
         duplicateNames: shadowed,
       },
@@ -215,7 +280,6 @@ function main() {
       2
     )
   );
-  process.stdout.write("\n");
 }
 
 main();

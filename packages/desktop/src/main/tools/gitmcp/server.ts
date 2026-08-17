@@ -39,7 +39,7 @@ type RegisterToolLoose = (
 ) => unknown;
 
 /**
- * Build the MCP server for one repository: registers the four gitmcp tools,
+ * Build the MCP server for one repository: registers the eight gitmcp tools,
  * each delegating to the pure `callTool` dispatcher. The returned server is
  * not yet connected — the caller connects it to a transport (in-memory for
  * tests, `StdioServerTransport` for the real process entry).
@@ -90,6 +90,18 @@ export async function runMaintenance(argv: string[]): Promise<{ code: number; pa
   }
 }
 
+/** Validation capture: returns the argv slug only when it matches the
+ * owner/repo shape — the tainted argv value never flows onward unchecked.
+ * Misuse throws (uncaught at the entry point → stderr + exit 1); keeping the
+ * rejection write-free keeps this function out of write-sink taint flows. */
+function requireRepoSlug(argv: string[]): string {
+  const raw = argv[0];
+  if (typeof raw !== "string" || !SLUG_PATTERN.test(raw)) {
+    throw new Error("gitmcp: expected a repository slug argument (owner/repo)");
+  }
+  return raw;
+}
+
 function main(): void {
   const argv = process.argv.slice(2);
   if (argv[0]?.startsWith("--")) {
@@ -99,11 +111,7 @@ function main(): void {
     });
     return;
   }
-  const slug = argv[0] ?? "";
-  if (!SLUG_PATTERN.test(slug)) {
-    process.stderr.write(`gitmcp: expected a repository slug argument (owner/repo), got "${slug}"\n`);
-    process.exit(1);
-  }
+  const slug = requireRepoSlug(argv);
   const server = buildGitmcpServer(slug);
   void server.connect(new StdioServerTransport());
 }

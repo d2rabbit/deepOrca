@@ -37,8 +37,8 @@ import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
 import { lazy, Suspense } from "react";
 
 // Lazy-load heavy components that are only shown when the user navigates to
-// specific views. This keeps the initial bundle small and defers ~8MB+ of
-// code (Monaco + Mermaid + markdown renderers) until actually needed.
+// specific views. This keeps the initial bundle small and defers ~5MB+ of
+// code (Monaco + markdown renderers) until actually needed.
 const CodeReviewPanel = lazy(() =>
   import("./components/CodeReviewPanel").then((m) => ({ default: m.CodeReviewPanel }))
 );
