@@ -98,6 +98,8 @@ export type {
   ProcessTimeoutControl,
   BackgroundProcessCompletion,
   ToolExecutionFollowUpMessage,
+  WebFetchPage,
+  WebPageFetcher,
 } from "./common/tool-types";
 
 // Tool handlers

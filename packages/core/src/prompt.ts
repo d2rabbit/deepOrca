@@ -873,6 +873,29 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
     },
   });
 
+  tools.push({
+    type: "function",
+    function: {
+      name: "WebFetch",
+      description:
+        "Fetch a web page and return its title, readable text content, and links. " +
+        "Pages render with a built-in headless browser when available, so JavaScript-heavy pages work; " +
+        "otherwise a static HTTP fetch is used. Use after WebSearch to read a result, or for any public http/https page.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: {
+            type: "string",
+            description:
+              "The http/https URL of the page to fetch (public hosts only — private/loopback addresses are rejected).",
+          },
+        },
+        required: ["url"],
+        additionalProperties: false,
+      },
+    },
+  });
+
   for (const tool of externalTools) {
     tools.push(tool);
   }

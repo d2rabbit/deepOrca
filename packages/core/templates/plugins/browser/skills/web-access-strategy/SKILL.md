@@ -57,7 +57,7 @@ content. The page is public and does not require login.
 
 | Tool | When to prefer |
 | --- | --- |
-| `WebFetch` / `mcp__web-search__web_fetch` | Built-in, returns markdown, runs a prompt over the page. Good default. |
+| `WebFetch` (built-in) | Good default. Fetches the page with the internal headless Chromium (JS-heavy pages render) or a static HTTP fetch, returns title/text/links. SSRF-guarded: public http/https only. |
 | `curl` via `Bash` | Full control over headers; useful for JSON APIs or when `WebFetch` is blocked. Pipe through a parser. |
 | `mcp__web-reader__webReader` / `mcp__web_reader__webReader` | "Reader-mode" extraction — best signal-to-noise for articles and docs. |
 | Jina Reader (`https://r.jina.ai/<url>`) | Excellent fallback when a site blocks default fetchers. Returns clean markdown. `curl https://r.jina.ai/https://example.com`. |

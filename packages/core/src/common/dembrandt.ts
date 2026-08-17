@@ -43,6 +43,7 @@
  */
 
 import * as fs from "node:fs";
+import { validatePublicHttpUrl } from "./public-url";
 import path from "node:path";
 import { getUserConfigRoot, getEnvVar } from "./app-dirs";
 import type { McpServerConfig } from "../settings";
@@ -293,59 +294,13 @@ const COPYRIGHT_DENYLIST: ReadonlySet<string> = new Set([
 ]);
 
 export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string } | { ok: false; error: string } {
-  let parsed: URL;
-  const trimmed = raw.trim();
-  // An input that already carries a scheme must be http/https — otherwise a
-  // scheme-less default of https would smuggle "ftp://…" through as host "ftp".
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
-    return { ok: false, error: `only http/https URLs are allowed` };
+  // Gate 1 (SSRF) is the shared public-URL check; gate 2 (copyright) is
+  // dembrandt-specific and layered on top.
+  const base = validatePublicHttpUrl(raw);
+  if (!base.ok) {
+    return base;
   }
-  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  // Reject raw whitespace/control characters up front — `new URL()` silently
-  // percent-encodes them, which would smuggle a malformed host past the check.
-  if (/[\s\u0000-\u001f\u007f-\u009f]/.test(candidate)) {
-    return { ok: false, error: `invalid URL: ${raw}` };
-  }
-  try {
-    parsed = new URL(candidate);
-  } catch {
-    return { ok: false, error: `invalid URL: ${raw}` };
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return { ok: false, error: `only http/https URLs are allowed` };
-  }
-  const host = parsed.hostname.toLowerCase();
-  const bracketless = host.replace(/^\[|\]$/g, "");
-  if (
-    bracketless === "localhost" ||
-    bracketless.endsWith(".localhost") ||
-    bracketless === "::1" ||
-    bracketless === "0.0.0.0" ||
-    bracketless === "0"
-  ) {
-    return { ok: false, error: `refusing non-public host: ${host}` };
-  }
-  const ipv4 = bracketless.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4) {
-    const a = Number(ipv4[1]);
-    const b = Number(ipv4[2]);
-    const blocked =
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 198 && (b === 18 || b === 19)) ||
-      a >= 224;
-    if (blocked) {
-      return { ok: false, error: `refusing private/loopback/reserved address: ${host}` };
-    }
-  }
-  if (/^(fc|fd|fe8|fe9|fea|feb)/i.test(bracketless)) {
-    return { ok: false, error: `refusing IPv6 ULA/link-local address: ${host}` };
-  }
+  const host = new URL(base.url).hostname.toLowerCase();
   if (COPYRIGHT_DENYLIST.has(host)) {
     return {
       ok: false,
@@ -354,7 +309,7 @@ export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string
         `copyrighted visual work. Ingest the brand from the brand's own website instead.`,
     };
   }
-  return { ok: true, url: parsed.toString() };
+  return base;
 }
 
 // ── Disable flag (host-managed, per project root) ────────────────────────────

@@ -12,7 +12,7 @@ Packages (under `packages/`):
 
 | Package      | Scope npm name        | Role                                                                                                                  |
 | ------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `core/`      | `@deeporca/core`      | Engine: LLM session loop, 7 built-in tools, MCP client, permissions, settings, semantic routing. No UI deps.          |
+| `core/`      | `@deeporca/core`      | Engine: LLM session loop, 8 built-in tools, MCP client, permissions, settings, semantic routing. No UI deps.          |
 | `desktop/`   | `@deeporca/desktop`   | Electron GUI built on the core engine. Depends on core + memory.                                                      |
 | `memory/`    | `@deeporca/memory`    | In-process L0–L3 memory pipeline (vendored TDAI Core). Consumed by desktop, injected into core as a `MemoryProvider`. |
 | `embedding/` | `@deeporca/embedding` | Local embeddings (transformers.js + ONNX, IBM Granite 97M R2). Lazily `import()`ed by core's routing.                 |
@@ -46,8 +46,11 @@ does not track it, don't edit or commit it.
   inside core is how semantic routing silently pointed at a nonexistent
   `packages/packages/desktop/...` and never ran.
 - **Built-in tools are deliberately minimal:** `bash`, `read`, `write`, `edit`,
-  `AskUserQuestion`, `UpdatePlan`, `WebSearch`. External capabilities come via MCP —
-  do not add new built-in tools lightly.
+  `AskUserQuestion`, `UpdatePlan`, `WebSearch`, `WebFetch` (first-party search +
+  rendered/static page fetch — see `tools/web-search-providers.ts` /
+  `tools/web-fetch-handler.ts` and the hidden offscreen Chromium provider in
+  desktop `main/tools/web-fetch-provider.ts`). External capabilities come via
+  MCP — do not add new built-in tools lightly.
 - **Snippet editing contract:** the `read` tool returns a `snippet_id`; the `edit`
   tool _requires_ that `snippet_id` and only searches within the snippet. Preserve
   this when touching `packages/core/src/tools/read-handler.ts` / `edit-handler.ts`.

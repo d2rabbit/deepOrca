@@ -48,6 +48,21 @@ export type BashSandboxSpawner = {
   ): { argv: string[]; env?: Record<string, string> } | null;
 };
 
+/** Page-extraction contract shared by WebFetch's rendered and static engines. */
+export type WebFetchPage = {
+  /** Final URL after redirects. */
+  readonly url: string;
+  readonly title: string;
+  readonly text: string;
+  readonly links: ReadonlyArray<{ readonly title: string; readonly url: string }>;
+  /** Which engine produced the page: "rendered" (host Chromium) | "static". */
+  readonly engine: "rendered" | "static";
+  readonly truncated: boolean;
+};
+
+/** Host-injected rendered-page fetcher (desktop wires the Chromium provider). */
+export type WebPageFetcher = (url: string, options?: { timeoutMs?: number }) => Promise<WebFetchPage>;
+
 export type ToolExecutionContext = {
   sessionId: string;
   projectRoot: string;
@@ -61,6 +76,12 @@ export type ToolExecutionContext = {
   pathGrant?: PathGrant;
   bashSandbox?: BashSandboxSpawner;
   createOpenAIClient?: CreateOpenAIClient;
+  /**
+   * Host-injected rendered-page fetcher (WebFetch's preferred engine — the
+   * desktop app wires its hidden offscreen Chromium provider here). Absent ⇒
+   * WebFetch falls back to the built-in static HTTP fetch.
+   */
+  fetchWebPage?: WebPageFetcher;
   onProcessStart?: (processId: string | number, command: string) => void;
   onProcessExit?: (processId: string | number) => void;
   onProcessStdout?: (processId: string | number, chunk: string) => void;

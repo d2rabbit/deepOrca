@@ -273,6 +273,13 @@ export class SessionBridge {
       },
       projectRoot,
       createOpenAIClient: () => createOpenAIClient(projectRoot),
+      // Built-in WebFetch rendered engine: hidden offscreen Electron Chromium.
+      // Lazy dynamic import keeps `electron` out of the static module graph —
+      // session-bridge is imported by plain-Node tests, which cannot load
+      // Electron's runtime exports (same reason dembrandt-browser is only
+      // imported from main/index.ts).
+      fetchWebPage: (url, options) =>
+        import("./tools/web-fetch-provider").then((m) => m.fetchRenderedPage(url, options)),
       getResolvedSettings: () => resolveCurrentSettings(projectRoot),
       // Behavioral-memory boot context (activity-frames pipeline B, opt-in via
       // settings.behaviorContext): desktop owns the collectors, core consumes

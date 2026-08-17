@@ -139,7 +139,7 @@ import {
   type ToolCallExecution,
   type ToolExecutionHooks,
 } from "./tools/executor";
-import type { BashSandboxSpawner } from "./common/tool-types";
+import type { BashSandboxSpawner, WebPageFetcher } from "./common/tool-types";
 import { resolveScopeVerdict } from "./sandbox/policy";
 import { detectBashSandboxBackend } from "./sandbox/backend/detect";
 import type { SandboxBackend, SandboxBackendStatus, SandboxProbeResult } from "./sandbox/backend/interface";
@@ -617,6 +617,8 @@ type BuiltinPluginGroupManifest = {
 type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
+  /** Host-injected rendered-page fetcher for the built-in WebFetch tool. */
+  fetchWebPage?: WebPageFetcher;
   getResolvedSettings: () => {
     model: string;
     webSearchTool?: string;
@@ -763,6 +765,7 @@ function isSkillForCurrentPlatform(skillName: string): boolean {
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
+  private readonly fetchWebPage?: WebPageFetcher;
   /**
    * Before-tool-execution gate (dsh P1-4): a synchronous listener registry at
    * the execution point, with the permission check as its FIRST built-in
@@ -902,6 +905,7 @@ export class SessionManager {
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
     this.createOpenAIClient = options.createOpenAIClient;
+    this.fetchWebPage = options.fetchWebPage;
     this.toolExecutionGate.register("permissions", this.permissionGateListener);
     this.getResolvedSettings = options.getResolvedSettings;
     this.onAssistantMessage = options.onAssistantMessage;
@@ -989,7 +993,8 @@ export class SessionManager {
       this.projectRoot,
       this.createOpenAIClient,
       this.mcpManager,
-      this.actionRegistry
+      this.actionRegistry,
+      this.fetchWebPage
     );
     this.mcpManager.prepare(this.augmentMcpServersWithBuiltins(this.getResolvedSettings().mcpServers));
     // CRG query layer: Node.js direct SQLite read (replaces Python MCP server).

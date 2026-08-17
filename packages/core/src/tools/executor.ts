@@ -4,6 +4,8 @@ import { handleEditTool } from "./edit-handler";
 import { handleReadTool } from "./read-handler";
 import { handleUpdatePlanTool } from "./update-plan-handler";
 import { handleWebSearchTool } from "./web-search-handler";
+import { handleWebFetchTool } from "./web-fetch-handler";
+import type { WebPageFetcher } from "../common/tool-types";
 import { handleWriteTool } from "./write-handler";
 import type { McpManager } from "../mcp/mcp-manager";
 import { dispatchToolCall } from "../actions";
@@ -45,6 +47,7 @@ const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
 export class ToolExecutor {
   private readonly projectRoot: string;
   private readonly createOpenAIClient?: CreateOpenAIClient;
+  private readonly fetchWebPage?: WebPageFetcher;
   private readonly mcpManager?: McpManager;
   private readonly actionRegistry?: ActionRegistry;
   private readonly toolHandlers = new Map<string, ToolHandler>();
@@ -53,12 +56,14 @@ export class ToolExecutor {
     projectRoot: string,
     createOpenAIClient?: CreateOpenAIClient,
     mcpManager?: McpManager,
-    actionRegistry?: ActionRegistry
+    actionRegistry?: ActionRegistry,
+    fetchWebPage?: WebPageFetcher
   ) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
     this.actionRegistry = actionRegistry;
+    this.fetchWebPage = fetchWebPage;
     this.registerToolHandlers();
   }
 
@@ -112,6 +117,7 @@ export class ToolExecutor {
     this.toolHandlers.set("AskUserQuestion", handleAskUserQuestionTool);
     this.toolHandlers.set("UpdatePlan", handleUpdatePlanTool);
     this.toolHandlers.set("WebSearch", handleWebSearchTool);
+    this.toolHandlers.set("WebFetch", handleWebFetchTool);
   }
 
   /**
@@ -268,6 +274,7 @@ export class ToolExecutor {
         pathGrant,
         bashSandbox,
         createOpenAIClient: this.createOpenAIClient,
+        fetchWebPage: this.fetchWebPage,
         onProcessStart: hooks?.onProcessStart,
         onProcessExit: hooks?.onProcessExit,
         onProcessStdout: hooks?.onProcessStdout,

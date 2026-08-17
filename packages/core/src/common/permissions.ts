@@ -426,6 +426,16 @@ export function describeToolPermissionRequest(options: {
     };
   }
 
+  if (name === "WebFetch") {
+    const url = typeof args.url === "string" ? args.url : "WebFetch";
+    return {
+      toolCallId: options.toolCall.id,
+      name,
+      command: url,
+      scopes: ["network"],
+    };
+  }
+
   if (name.startsWith("mcp__")) {
     return {
       toolCallId: options.toolCall.id,
