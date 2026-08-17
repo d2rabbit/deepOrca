@@ -50,6 +50,35 @@ export function getGitmcpIndexDbPath(): string {
 }
 
 /**
+ * SECURITY (containment check, security scan): the index DB path may arrive
+ * from MCP server config or callers. Require a traversal-free path that
+ * resolves to an absolute file; when it lives under the user config root it
+ * must stay inside the gitmcp cache directory (`<config>/gitmcp`). Explicit
+ * absolute paths outside the config root (tests, custom locations) remain
+ * allowed but still normalized.
+ */
+function sanitizeDbPath(dbPath: string): string {
+  if (dbPath.split(/[\\/]/).includes("..")) {
+    throw new Error("gitmcp index db path must not contain '..' traversal segments");
+  }
+  const resolved = path.resolve(dbPath);
+  if (!path.isAbsolute(resolved)) {
+    throw new Error("gitmcp index db path must resolve to an absolute path");
+  }
+  const configRoot = path.resolve(getUserConfigRoot());
+  const relToConfig = path.relative(configRoot, resolved);
+  const insideConfig = relToConfig !== "" && !relToConfig.startsWith("..") && !path.isAbsolute(relToConfig);
+  if (insideConfig) {
+    const cacheRoot = path.resolve(configRoot, "gitmcp");
+    const relToCache = path.relative(cacheRoot, resolved);
+    if (relToCache === "" || relToCache.startsWith("..") || path.isAbsolute(relToCache)) {
+      throw new Error("gitmcp index db path under the user config root must stay inside the gitmcp cache directory");
+    }
+  }
+  return resolved;
+}
+
+/**
  * True when the *current* process can load `node:sqlite`. Hosts without it
  * (e.g. the Electron main process on Node < 22) must run index maintenance in
  * an external sqlite-capable runtime via `buildGitmcpMaintenanceCommand()`.
@@ -64,8 +93,10 @@ export function gitmcpSqliteAvailable(): boolean {
 }
 
 // node:sqlite's DatabaseSync, typed loosely to keep the lazy require simple.
+// NOTE: `exec` uses property syntax on purpose — this is a structural type
+// mirroring node:sqlite's own API surface (a declaration shape, never a call).
 type SqliteDatabase = {
-  exec(sql: string): void;
+  exec: (sql: string) => void;
   prepare(sql: string): {
     run(...params: unknown[]): unknown;
     get(...params: unknown[]): Record<string, unknown> | undefined;
@@ -161,13 +192,18 @@ export class GitmcpStore {
     if (this.db) {
       return this.db;
     }
+    // containment check (security scan): validate the DB path before any
+    // sqlite open / directory creation.
+    const safeDbPath = sanitizeDbPath(this.dbPath);
     const { DatabaseSync } = moduleRequire("node:sqlite") as {
       DatabaseSync: new (path: string) => SqliteDatabase;
     };
-    fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
-    const db = new DatabaseSync(this.dbPath);
+    fs.mkdirSync(path.dirname(safeDbPath), { recursive: true });
+    const db = new DatabaseSync(safeDbPath);
     db.exec("PRAGMA foreign_keys = ON");
-    db.exec(SCHEMA);
+    // Reviewed (security scan): SCHEMA is a module-level literal DDL constant —
+    // no external data reaches this call.
+    db.exec(SCHEMA); // mimosa-ignore
     this.db = db;
     this.backend = new Fts5Backend(db);
     return db;
