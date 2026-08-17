@@ -12,6 +12,8 @@ skills:
     description: "项目 Wiki 知识图谱自动生成与维护"
   - name: wiki-qa
     description: "通过 Wiki 知识库回答架构/模块/工作流问题"
+  - name: book-distill
+    description: "将书籍/手册/长文档蒸馏为可复用技能（七阶段管线）"
 actions:
   - { id: "wiki.init", description: "初始化项目 Wiki" }
   - { id: "wiki.update", description: "增量更新项目 Wiki" }
@@ -38,6 +40,7 @@ actions:
 
 - **openwiki** — 使用 `openwiki` CLI 生成和维护项目级 Wiki 知识图谱。分析代码结构、生成文档、维护索引。
 - **wiki-qa** — 通过 Wiki 知识库回答项目架构、模块职责、工作流问题。
+- **book-distill** — 将书籍、手册、长文档蒸馏为可复用的 Agent Skill：源评估→章节地图→分批抽取→去重合并→技能组装→触发描述优化→自检；产出写入用户技能目录。
 
 ### Actions（命令式能力）
 
