@@ -167,8 +167,9 @@ const output = await run.result;
 | 源码管理      | Git 面板（stage/commit/diff/branch）              | ✅   |
 | 权限控制      | 内置工具细粒度 scope 策略                         | ✅   |
 | 会话持久化    | 跨会话恢复、归档、导出                            | ✅   |
-| 联网搜索      | 内置 WebSearch 工具                               | ✅   |
+| 联网搜索      | 内置 WebSearch 工具（第一方自研，DDG 免密钥默认）  | ✅   |
 | 网页访问      | 内置 WebFetch 工具（无头渲染 + 静态兑底）          | ✅   |
+| 隐私          | 零遥测零机器标识；查询仅发往所选搜索引擎           | ✅   |
 | 多模态        | 图片粘贴/拖拽输入                                 | ✅   |
 
 > 🧪 Actions 的核心注册、LLM/IPC 接入和桌面浏览器已可用；更多调用面与权限集成仍在迭代。

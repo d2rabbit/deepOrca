@@ -26,10 +26,13 @@ runtime dependency (BM25, statically imported and on by default) — don't remov
 the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
 `specs/` = feature specs (requirements/design/tasks). `docs-site/` = static GitHub Pages site.
 
-**Branch policy: `master` is the mainline.** Base new work on `master` and merge/release
-from it. Older branches (`main`, `feat/*`) predate the DeepOrca desktop-only refactor —
-a leftover untracked `packages/cli/` directory may exist on disk from them; `master`
-does not track it, don't edit or commit it.
+**Branch policy: `master` is the mainline; `dev` is the integration line; `test` is the
+frozen pre-production test line.** Feature work happens on `feat/*` branches, merges into
+`dev` (no-ff), and `test` is derived from `dev` for pre-production testing — **frozen for
+new features** (only fix/perf/docs/test/chore land there); new features go on `next/*`
+branches for the next version. Older branches (`main`, legacy `feat/*`) predate the
+DeepOrca desktop-only refactor — a leftover untracked `packages/cli/` directory may exist
+on disk from them; `master` does not track it, don't edit or commit it.
 
 ## Layer rules (important)
 

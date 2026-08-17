@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔒 隐私（上游数据链路剔除）
+
+- **移除全部 deepcode 上游上报**：遥测打点（每会话 POST machineId 至 deepcode.vegamo.cn/api/plugin/new，原默认开启）、WebSearch 默认代理（查询词+machineId 至 /api/plugin/web-search）、machineId 生成/落盘管道（已查证仅服务上述两端点，从未进入 LLM 请求）。`telemetryEnabled` 设置项、desktop 开关、i18n 文案、文档同步下线；`.deepcode` 目录兼容与 `DEEPCODE_*` 环境变量回退（本地行为）保留。
+
+### ✨ 新功能
+
+- **第一方内置 WebSearch**（`web-search-providers.ts`，零新依赖）：DuckDuckGo Lite 免密钥默认；Brave/Tavily 适配器保留但密钥设置面暂禁（C5：项目级密钥可提交风险）；超时覆盖全程（含 body 读取）、B7 输出 30k 帽、Tavily 客户端 slice。
+- **内置 WebFetch 工具**（第 8 个）：渲染引擎=隐藏 offscreen Electron Chromium（懒启动常驻、导航串行队列、will-redirect 逐跳 SSRF 复查、did-fail-load 仅主帧、超时 wc.stop）；静态兜底=HTTP fetch + 块感知标签剥离（手动重定向 ≤5 跳每跳过门、超时覆盖 body）。共享 SSRF 门 `common/public-url.ts`（尾点 FQDN 归一、IPv4 映射 IPv6 解包拒私网、ULA 检查仅限 IPv6 字面量——fdroid.org 类误杀修复、dembrandt 复用同门 + 版权 denylist 后缀匹配）。
+
+### 🔧 评审收敛（两轮对抗式 + 复审至零）
+
+- **报告一/二 35 项全修**（`docs/review-2026-08-17-adversarial-*.md`）：design.audit 路径包含校验、mimosa-ignore 复位 sink 行、memory 校验器三补全（`号` 正则激活/中文日期扫描/时间戳计入真值）、review.full 状态按实际富化判定、RRF_K 单源、AGENTS 双文件 8 工具一致、自指模板遥测残留清除、注释/计数/措辞全清账。
+- **第三轮复审 6 项回归再修**（FULL_DATE_RE `(?!\d)`、did-fail-load once→on、enriched 判据、304 非重定向、UA 三 provider 一致、密钥禁用注释），第四轮验证 SHIP；存量 lint 警告 13→0。
+
+
 ### 🔒 安全（预生产门禁整改，Mimosa 审计驱动）
 
 - **命令注入面收敛**：sqlite-runtime/uv/serena-cli/vendor-granite/version.js 的 shell 串与动态 exec 全部 argv 化 + 字面量化（可执行路径绝对值校验、curl 选项区零动态值、`--` 终结符）；find-skill.js（skill-digester 模板脚本）require/展开路径双重消毒

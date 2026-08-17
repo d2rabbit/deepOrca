@@ -171,7 +171,7 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
   return {
     review,
     risk: graphPresent
-      ? { graphBuilt: true as const, changedNodes: [], impactRadius: [] }
+      ? { graphBuilt: true as const, changedNodes: crgChanges, impactRadius: crgRisks }
       : { graphBuilt: false as const, reason: "no .code-review-graph/" },
     status,
     statusNote,

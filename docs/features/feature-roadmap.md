@@ -1,6 +1,8 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.19 · 日期：2026-08-17 · 状态：**预生产收官（功能冻结基线）**
+> 版本：v3.20 · 日期：2026-08-17 · 状态：**预生产测试基线（dev 合并 + test 冻结线衍生）**
+>
+> **v3.20 更新（隐私与第一方联网 + 评审收敛 + test 线衍生）**：① **剔除上游数据链路**——遥测打点（每会话 machineId→vegamo）、WebSearch 默认代理（查询词+machineId→vegamo）、machineId 生成管道全部移除；`telemetryEnabled` 设置面同步下线。② **自研第一方 WebSearch**（`web-search-providers.ts`，零新依赖）：DuckDuckGo Lite 免密钥开箱默认，Brave/Tavily 适配器保留（密钥设置面因 C5 暂禁）；`webSearchTool` 自定义脚本优先。③ **内置 WebFetch 工具**（第 8 个内置工具）：双引擎单契约——desktop 隐藏 offscreen Chromium（`web-fetch-provider.ts`，loadURL+executeJavaScript，will-redirect 逐跳 SSRF 复查、仅主帧失败判定）+ 静态 HTTP 兜底（手动重定向逐跳过门、超时覆盖 body 读取）；共享 SSRF 门 `common/public-url.ts`（尾点归一/IPv4 映射 IPv6 解包/ULA 仅字面量/dembrandt 复用）。④ **两轮对抗式评审 + 修复收敛至零**：报告 `docs/review-2026-08-17-adversarial-{4commits,privacy-webfetch}.md`，35 项发现全修 + 第三轮复审 6 项回归再修 + 第四轮验证 SHIP；lint 存量 13 警告顺带清零。⑤ **预生产 F 线审查**（F1–F3+F6）：`docs/pre-production-capability-scan.md`，9 收官提交声明逐一核证吻合。⑥ **分支模型落地**：`feat/sandbox-p0-path-gate` → 合并 `dev` → 衍生 `test`（**冻结新功能**，仅修复/优化/文档/测试；新功能一律 `next/*`）。
 >
 > **v3.19 更新（预生产收官快照）**：本版本为当前版本**最后一批功能扩展**，执行 `specs/pre-production/`（design+tasks）收官计划后进入**首次预生产测试阶段**——此后 dev 分支仅接受 修复/优化/功能闭环/文档测试，新功能一律 `next/*` 分支留待下一版本。本批落地：① **dsh 理念深化四件套**（崩溃合成收尾 P1-1 / 两段式 compaction P1-2 / beforeToolExecution 闸门 P1-4 / 前缀守卫收尾 #13——router 仍为工具选择唯一权威，dsh 确定性仅存于 router 输出层与守护测试）；② **skill-up CI**（S1 CI 集成 + S2 引擎适配器，8 插件包 14 用例，`specs/skill-eval/`）；③ **GitMCP 4→8 工具**（get_repo_structure / read_file / docs 多文件索引 / outline / get_repo_info）；④ **book-distill 技能**（skillweaver P2 兑现）；⑤ **designer 双增强**——dembrandt 品牌摄取（builtin MCP pin 0.28.0 + design.extract/design.drift action，补齐 `.deeporca/DESIGN.md` 品牌契约自动化来源）+ 进化设计（设计系统 3→9 套、taste 五维自评 + anti-slop、大页面两段式生成）；⑥ **安全门禁整改**（Mimosa 审计驱动：命令注入 argv 化、路径穿越 containment、测试夹具去敏，权威深扫 seal `sha256:603a…`）；⑦ **文档治理**（research 台账索引 + archive 归档 8 项 + 状态回写）。调研→实现全程口径：**调研仅供参考，以项目实际实现为准**（`docs/research/README.md`）。
 >
