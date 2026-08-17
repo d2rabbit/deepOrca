@@ -1,0 +1,15 @@
+# skill-up eval config — specs/skill-eval/design.md §3.1.
+# How to run: see packages/core/templates/plugins/README-evals.md.
+version: 1
+engine:
+  type: claude_code # E1: ready-made engine; we evaluate skill content, not the engine
+model: deepseek-v4-flash # lightweight model to control CI cost
+judges:
+  default: rule_based
+# S2 (specs/skill-eval/design.md §4): run the same cases through DeepOrca's own
+# core via the engine adapter. Do NOT enable by default — enable temporarily
+# for the dual-engine trend comparison (tasks.md T2.2), then switch back.
+# engine:
+#   type: custom
+#   custom:
+#     command: ["node", "scripts/skill-up-engine-deeporca.mjs"]

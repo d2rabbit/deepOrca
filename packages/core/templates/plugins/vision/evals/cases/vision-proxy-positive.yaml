@@ -1,0 +1,23 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: vision-proxy-positive
+title: Screenshot analysis routes through the vision proxy tools
+description: >
+  User asks how to analyze a UI screenshot's error state with a text-only
+  model. The expected answer routes through the vision plugin's proxy tools
+  (vision_chat / vision_ocr via a configured vision endpoint) — not through
+  bundled renderers or media toolkits, which the plugin explicitly ships
+  without.
+input:
+  prompt: |
+    我们用的主模型不支持图片。帮我分析一下登录页截图里的报错提示是什么、
+    出现在页面哪个位置，应该怎么走？
+constraints:
+  timeout_seconds: 300
+  max_turns: 10
+expect:
+  must_contain:
+    - "vision_chat"
+  must_not_contain:
+    - "ffmpeg"
+judge:
+  type: rule_based

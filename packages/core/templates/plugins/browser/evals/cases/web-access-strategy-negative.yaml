@@ -1,0 +1,23 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: web-access-strategy-negative
+title: Offline knowledge question must not trigger any web access
+description: >
+  An explicit no-network request that can be answered from model knowledge.
+  web-access-strategy must NOT trigger: no web search, no page fetch, no
+  browser automation.
+input:
+  prompt: |
+    不要联网搜索，直接根据你已有的知识解释一下 CAP 定理，
+    以及在实际的分布式存储系统里一般怎么取舍。
+constraints:
+  timeout_seconds: 120
+  max_turns: 5
+expect:
+  must_contain:
+    - "CAP"
+  must_not_contain:
+    - "WebSearch"
+    - "WebFetch"
+    - "browser-skill"
+judge:
+  type: rule_based

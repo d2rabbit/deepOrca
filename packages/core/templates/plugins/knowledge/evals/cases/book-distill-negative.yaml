@@ -1,0 +1,35 @@
+# draft: format finalized with Workstream A (skill-up CI)
+id: book-distill-negative
+title: Code review request must not trigger book-distill
+description: >
+  An ordinary code-review request with no document to distill. book-distill
+  must NOT trigger: the response must not mention the distillation pipeline
+  stages or write anything to the user skills directory.
+input:
+  prompt: |
+    帮我 review 一下这个函数，指出存在的问题和风险：
+
+    ```ts
+    export function getUserNames(users: Array<{ name: string | null }>): string[] {
+      const names: string[] = [];
+      for (const u of users) {
+        names.push(u.name.trim());
+      }
+      return names;
+    }
+    ```
+constraints:
+  timeout_seconds: 120
+  max_turns: 5
+expect:
+  must_contain:
+    - "问题"
+  must_not_contain:
+    - "蒸馏"
+    - "源评估"
+    - "章节地图"
+    - "分批抽取"
+    - ".deeporca/skills"
+    - "book-distill"
+judge:
+  type: rule_based

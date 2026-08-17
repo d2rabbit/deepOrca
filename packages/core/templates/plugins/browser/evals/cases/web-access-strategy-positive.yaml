@@ -1,0 +1,22 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: web-access-strategy-positive
+title: Public documentation lookup uses the layered web-access dispatch
+description: >
+  User needs a specific fact from public web documentation (no login state
+  involved). web-access-strategy should apply its layered dispatch: general
+  search first, then static page content via WebFetch/curl — NOT the
+  browser-skill (layer 3), which is reserved for login-state interaction.
+input:
+  prompt: |
+    帮我查一下 Node 22 的 fetch API 是否原生支持 AbortSignal.timeout()，
+    从官方文档里把相关段落的原文找出来贴给我，并给出文档链接。
+constraints:
+  timeout_seconds: 300
+  max_turns: 10
+expect:
+  must_contain:
+    - "WebFetch"
+  must_not_contain:
+    - "browser-skill"
+judge:
+  type: rule_based

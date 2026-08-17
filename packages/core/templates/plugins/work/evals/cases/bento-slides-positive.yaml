@@ -1,0 +1,26 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: bento-slides-positive
+title: Slide request produces a self-contained .bento.html deck
+description: >
+  User provides quarterly numbers and asks for a presentable deck.
+  bento-slides should trigger and deliver a single self-contained
+  .bento.html file (editor + viewer + presenter in one file) — not a
+  PowerPoint file and not a server-dependent app.
+input:
+  prompt: |
+    把这份季度经营数据做成一份可以直接演示的幻灯片：
+
+    - Q2 营收 1280 万，环比 +18%
+    - 付费企业客户 342 家，净留存率 112%
+    - TOP3 流失原因：价格 41%、功能缺口 33%、响应慢 26%
+    - Q3 目标：营收 1500 万，上线团队协作版
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - ".bento.html"
+  must_not_contain:
+    - ".pptx"
+judge:
+  type: rule_based

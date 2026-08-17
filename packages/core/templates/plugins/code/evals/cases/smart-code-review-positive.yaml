@@ -1,0 +1,22 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: smart-code-review-positive
+title: Pre-commit review request triggers the review.full orchestration
+description: >
+  User asks for a full review and risk analysis of the current changes before
+  committing. smart-code-review should trigger and orchestrate the unified
+  report via the review.full action (CRG structural risk + semantic review),
+  not produce an unrelated artifact.
+input:
+  prompt: |
+    我准备提交这次改动，提交前帮我做一次完整的代码审查和风险分析，
+    把高风险点按严重度列出来。
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - "review.full"
+  must_not_contain:
+    - ".dd"
+judge:
+  type: rule_based

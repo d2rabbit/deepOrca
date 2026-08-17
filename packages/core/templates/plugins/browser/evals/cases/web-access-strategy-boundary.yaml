@@ -1,0 +1,25 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: web-access-strategy-boundary
+title: Login-walled intranet page escalates to browser-skill
+description: >
+  The target page sits behind the company SSO and only renders correctly in
+  the user's logged-in browser. The boundary between layer 2 (static fetch)
+  and layer 3 (browser-skill driving the real Chrome profile): the correct
+  move is to escalate to browser-skill instead of hammering a reader proxy
+  that cannot see the login state.
+input:
+  prompt: |
+    帮我把公司内网门户 https://intranet.example.com/q3-report 上的季度报告页面
+    内容抓下来总结一下。这个站必须登录公司的 SSO 才能访问，我平时的 Chrome
+    里已经有登录态。
+constraints:
+  timeout_seconds: 300
+  max_turns: 10
+expect:
+  must_contain:
+    - "browser-skill"
+    - "登录"
+  must_not_contain:
+    - "r.jina.ai"
+judge:
+  type: rule_based
