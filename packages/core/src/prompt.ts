@@ -143,6 +143,22 @@ type SkillResourceListing = {
   truncated: boolean;
 };
 
+/**
+ * SECURITY (containment check, security scan): join `root` with `segments`
+ * and assert the resolved result stays strictly inside `root`; returns null
+ * for any escape (traversal, absolute segment). Used for every template and
+ * skill-resource path derived from directory listings.
+ */
+function joinWithinRoot(root: string, ...segments: string[]): string | null {
+  const base = path.resolve(root);
+  const resolved = path.resolve(root, ...segments);
+  const rel = path.relative(base, resolved);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return null;
+  }
+  return resolved;
+}
+
 function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): string {
   const toolsDir = path.join(extensionRoot, "templates", "tools");
   if (!fs.existsSync(toolsDir)) {
@@ -154,7 +170,12 @@ function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): s
     .filter((entry) => entry.endsWith(".md") || entry.endsWith(".md.ejs"))
     .sort()
     .map((entry) => {
-      const fullPath = path.join(toolsDir, entry);
+      // containment check (security scan): template files must stay under the
+      // tools template directory.
+      const fullPath = joinWithinRoot(toolsDir, entry);
+      if (!fullPath) {
+        return "";
+      }
       try {
         const template = fs.readFileSync(fullPath, "utf8");
         const content = entry.endsWith(".ejs")
@@ -176,7 +197,12 @@ function readDefaultSkillDocs(
 ): Array<{ name: string; content: string }> {
   const skillsDir = path.join(extensionRoot, "templates", "skills");
   return DEFAULT_SKILL_TEMPLATES.map((entry) => {
-    const fullPath = path.join(skillsDir, entry);
+    // containment check (security scan): skill templates must stay under the
+    // skills template directory.
+    const fullPath = joinWithinRoot(skillsDir, entry);
+    if (!fullPath) {
+      return null;
+    }
     const name = path.basename(entry, ".md");
     if (enabledSkills[name] === false) {
       return null;
@@ -203,7 +229,13 @@ export function getDefaultSkillPrompt(options: DefaultSkillPromptOptions = {}): 
 
 /** Read the dedicated prompt used when a submitted turn enters Plan Mode. */
 export function getPlanModePrompt(): string {
-  const templatePath = path.join(getExtensionRoot(), "templates", "prompts", "plan.md");
+  // containment check (security scan): the plan template must stay under the
+  // templates root next to getExtensionRoot().
+  const extensionRoot = getExtensionRoot();
+  const templatePath = joinWithinRoot(extensionRoot, "templates", "prompts", "plan.md");
+  if (!templatePath) {
+    return "";
+  }
   try {
     return fs.readFileSync(templatePath, "utf8").trim();
   } catch {
@@ -259,6 +291,7 @@ function renderSkillResources(skillFilePath?: string): string {
 
 function listSkillResourceFiles(skillFilePath: string, limit: number): SkillResourceListing {
   const skillDir = path.dirname(skillFilePath);
+  const skillDirRoot = path.resolve(skillDir);
   const files: string[] = [];
   let truncated = false;
 
@@ -281,7 +314,13 @@ function listSkillResourceFiles(skillFilePath: string, limit: number): SkillReso
       }
 
       const relativePath = relativeDir ? path.join(relativeDir, entry.name) : entry.name;
-      const fullPath = path.join(dir, entry.name);
+      // containment check (security scan): every walked path must stay under
+      // the skill directory it started from — traversal or symlinked names
+      // that would escape the root are skipped instead of read.
+      const fullPath = joinWithinRoot(skillDirRoot, relativePath);
+      if (!fullPath) {
+        continue;
+      }
       if (entry.isDirectory()) {
         if (SKILL_RESOURCE_EXCLUDED_DIRS.has(entry.name)) {
           continue;
@@ -367,11 +406,27 @@ DeepOrca 为你提供以下 6 个知识来源，按需利用：
 - "修改这个会影响什么？" → 用 \`codegraph_impact\`
 - "用户之前说过什么偏好？" → 已在 \`<memory-context>\` 中，直接使用`;
 
+/**
+ * System-prompt section order is part of the DeepSeek prefix-cache contract
+ * (dsh takeaways #13): any reorder invalidates every cached session prefix.
+ * The order is declared here explicitly — sections are assembled once, in this
+ * order, and must never be rearranged. `toolDocs` being null collapses the
+ * trailing sections (legacy behavior: base prompt only).
+ */
+export const SYSTEM_PROMPT_SECTION_ORDER = ["base", "toolSelectionGuide", "toolDocsHeader", "toolDocs"] as const;
+
 export function getSystemPrompt(_projectRoot: string, options: PromptToolOptions = {}): string {
   const toolDocs = readToolDocs(getExtensionRoot(), options);
-  return toolDocs
-    ? `${SYSTEM_PROMPT_BASE}\n\n${TOOL_SELECTION_GUIDE}\n\n# Available Tools\n\n${toolDocs}`
-    : SYSTEM_PROMPT_BASE;
+  if (!toolDocs) {
+    return SYSTEM_PROMPT_BASE;
+  }
+  const sections: Record<(typeof SYSTEM_PROMPT_SECTION_ORDER)[number], string> = {
+    base: SYSTEM_PROMPT_BASE,
+    toolSelectionGuide: TOOL_SELECTION_GUIDE,
+    toolDocsHeader: "# Available Tools",
+    toolDocs,
+  };
+  return SYSTEM_PROMPT_SECTION_ORDER.map((section) => sections[section]).join("\n\n");
 }
 
 export function getCompactPrompt(sessionMessages: SessionMessage[]): string {

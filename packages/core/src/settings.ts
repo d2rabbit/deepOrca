@@ -166,6 +166,15 @@ export type DeepcodingSettings = {
    * on every session; the MCP tools remain available either way.
    */
   behaviorContext?: boolean;
+  /**
+   * Resume mode for trailing pending tool calls of a run that ended
+   * unexpectedly (interrupt or crash): "synthesize" (default) persists
+   * TOOL_NOT_STARTED / TOOL_OUTCOME_UNKNOWN placeholders instead of
+   * re-executing the calls — their outcome is unknown for non-idempotent
+   * operations. "replay" restores the legacy re-execution behavior. Pause
+   * and permission-gated continuations always replay regardless of this flag.
+   */
+  resumePendingToolCalls?: "replay" | "synthesize";
 };
 
 /**
