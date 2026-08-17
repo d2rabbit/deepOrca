@@ -16,7 +16,7 @@
 
 ## Typography
 
-- Display: geometric sans (Inter / system-ui), weight 700, generous sizes (40-56px)
+- Display: geometric sans ("Avenir Next" / "Century Gothic" / "Segoe UI"), weight 700, generous sizes (40-56px)
 - Body: same sans, weight 400, 16px, line-height 1.6
 - Light weights (300) for large muted leads — size carries the hierarchy
 

@@ -16,7 +16,7 @@
 ## Typography
 
 - Display: heavy grotesque (Archivo Black / Arial Black), weight 900, tight tracking
-- Body: sans-serif (Inter / system-ui), weight 400
+- Body: sans-serif ("Helvetica Neue" / Arial), weight 400
 - Mono: monospace (Space Mono / monospace) for labels and stickers
 - Headlines are chunky and short; body stays quiet at 15-16px
 

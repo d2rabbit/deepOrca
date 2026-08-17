@@ -12,8 +12,8 @@
 
 ## Typography
 
-- Display: sans-serif (Inter / system-ui), weight 700
-- Body: sans-serif (Inter / system-ui), weight 400
+- Display: sans-serif ("Segoe UI" / "Helvetica Neue" / Arial), weight 700
+- Body: sans-serif ("Segoe UI" / "Helvetica Neue" / Arial), weight 400
 - Mono: monospace (SF Mono / Fira Code)
 - Numerics, captions: mono
 

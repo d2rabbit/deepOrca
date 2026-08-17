@@ -49,14 +49,63 @@ careless. This skill eliminates slop.
 10. **Consistent border-radius** — All cards, buttons, inputs use the same
     `--radius` value. Don't mix `4px` on one card and `12px` on another.
 
-11. **Differ from your recent work (anti-slop diversity)** — Before finalizing a
-    design, list the recent artifacts in `.deeporca/designs/` (via the design
-    tools or the `read` tool — names + a quick scan of each file's tokens and
-    section list are enough). The new design must differ from the 3 most recent
-    artifacts in BOTH axes: layout skeleton (which sections, in what structure)
-    and palette emphasis (which color family dominates). If it is too similar to
-    any of them, deliberately vary one axis — swap the layout skeleton or shift
-    the accent/palette family — then re-verify.
+11. **Differ from your recent work (anti-slop diversity) — three computable
+    axes.** Before finalizing a design, list the recent artifacts in
+    `.deeporca/designs/` (names + front-matter tokens are enough). Compute
+    your current design's value on three axes and compare against the 3 most
+    recent artifacts — the new design MUST differ on **at least one axis**
+    from each of them:
+
+    | Axis | Values (compute from front-matter tokens) |
+    |------|-------------------------------------------|
+    | Paper lightness band | `bg` relative luminance: **dark** < 0.30 · **mid** 0.30–0.85 · **light** > 0.85 |
+    | Display type family | first family of `fontDisplay`: serif · geometric-sans · humanist-sans · grotesque · mono · slab · display-serif · black-sans · system-fallback · other |
+    | Accent hue band | hue angle of `accent`: **warm** 10–60° · **cool** 200–300° · **neutral** (near-zero chroma) · **chromatic-other** (everything else) |
+
+    Legal: dark paper + grotesque display + cool accent → next design keeps
+    the dark paper but switches to serif display + warm accent (two axes
+    differ). Illegal: three dark-paper + grotesque + cool-accent artifacts in
+    a row (zero axes differ — regenerate with a deliberate axis change). If
+    all three axes match any of the 3 recent artifacts, swap at least one
+    axis — shift the lightness band, change the display family, or move the
+    accent hue band — then re-verify. The `design.audit` action machine-checks
+    exactly these three axes.
+
+12. **Grid tracks with images never use bare `1fr`** — Does any grid row whose
+    cells contain images/media use `1fr` without `minmax(0, 1fr)`? (Bare `1fr`
+    sizes the track to the image's intrinsic width and blows out the grid.)
+    The correct answer is no.
+
+13. **Uppercase display line-height ≥ 1.0** — Is there an all-caps
+    display-size heading with `line-height` below 1.0 (use 1.02–1.08)? Caps
+    have no ascenders; tighter than 1.0, wrapped lines collide. The correct
+    answer is no.
+
+14. **Touch targets ≥ 44px** — Is any interactive element (button, link in a
+    nav list, checkbox, chip) smaller than 44×44 CSS px including its padding?
+    The correct answer is no.
+
+15. **No horizontal overflow on small screens** — Does any element force the
+    page to scroll horizontally at 375px width (fixed-width children, wide
+    `min-width`, long unbreakable strings without `overflow-wrap`)? The
+    correct answer is no.
+
+16. **Sticky zones have a height budget** — Do sticky header + sticky
+    sub-bar + sticky filters together cover more than ~25% of a mobile
+    viewport height? The correct answer is no.
+
+17. **Viewport meta present and honest** — Is a responsive page missing
+    `<meta name="viewport" content="width=device-width, initial-scale=1">`
+    (or shipping `maximum-scale=1` / `user-scalable=no`, which blocks zoom)?
+    The correct answer is no.
+
+18. **Body text never below 14px** — Does any reading text (not captions or
+    labels) fall below 14px on mobile? The correct answer is no.
+
+19. **Flex children that can overflow get `min-width: 0`** — Does a flex row
+    contain text-bearing children with long unbreakable content but no
+    `min-width: 0` / `overflow: hidden` on the child (causing the row to
+    push past its container)? The correct answer is no.
 
 ## Typography ladder
 
@@ -85,9 +134,15 @@ Use this scale consistently:
 
 - **Duration**: 150-300ms for hover/state, 400-600ms for layout transitions
 - **Easing**: `ease` or `cubic-bezier(0.4, 0, 0.2, 1)` — never `linear` for UI
+  (the one exception: marquees, where constant velocity is the point)
 - **Hover feedback**: at minimum `opacity` or `transform: translateY(-1px)`
 - **No layout thrash**: hover should NOT change element size (use
   transform/opacity/shadow, not width/height/padding)
+- **Entrance choreography**: when a page uses entrance reveals or named motion
+  patterns, read `references/motion-patterns.md` (lazy-load tier: skip it for
+  static pages) — named patterns, pure-CSS skeletons, timing vocabulary, and
+  `prefers-reduced-motion` fallbacks live there. `transition-all` is always
+  wrong — name the property.
 
 ## Layout patterns
 

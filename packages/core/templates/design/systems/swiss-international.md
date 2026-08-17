@@ -15,7 +15,7 @@
 
 ## Typography
 
-- Display: grotesque (Helvetica Neue / Inter / system-ui), weight 700, tight leading (1.1)
+- Display: grotesque (Helvetica Neue / Arial), weight 700, tight leading (1.1)
 - Body: same grotesque family, weight 400, line-height 1.6
 - Hierarchy by size step only (mathematical scale, e.g. ×1.5) — never by typeface change
 - Flush-left, ragged-right alignment; no centered text

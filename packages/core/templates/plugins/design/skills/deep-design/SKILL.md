@@ -35,6 +35,7 @@ A `.dd` file has two parts:
 name: Acme Landing Page
 system: dark-tech
 style: glassmorphism
+macrostructure: landing-flow
 version: "1.0"
 tokens:
   bg: "#0a0a0a"
@@ -42,8 +43,8 @@ tokens:
   accent: "#3b82f6"
   text: "#f5f5f5"
   muted: "#888888"
-  fontDisplay: "Inter, sans-serif"
-  fontBody: "Inter, sans-serif"
+  fontDisplay: "Iowan Old Style, Charter, Georgia, serif"
+  fontBody: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
   fontMono: "JetBrains Mono, monospace"
   maxWidth: "1200px"
   radius: "8px"
@@ -144,7 +145,32 @@ copy seed.html anymore — you write a .dd file from scratch using its classes.
 
 ### Step 2 — Plan the section rhythm
 
-Pick sections before writing content:
+Pick TWO things before writing content: the page **macrostructure** (skeleton)
+and then the section rhythm within it.
+
+**Macrostructure** (skeleton fingerprint — which sections, in what shape).
+Full definitions live in `templates/design/macrostructures/<name>.md` (~30
+lines each; read only the one you pick). Declare the choice in the YAML
+front-matter as `macrostructure: <name>`:
+
+| Macrostructure | Pick when |
+|----------------|-----------|
+| `landing-flow` | Classic conversion funnel (hero → proof → features → CTA). The default-slop shape — choosing it requires saying why none of the other nine fit |
+| `bento-grid` | "Everything we do" overview; mixed-size cells, grid IS the hero |
+| `long-document` | Content read top-to-bottom (essays, docs, policies) — one measure, no cards |
+| `manifesto` | A page that argues: few huge statements, one action, mostly whitespace |
+| `type-specimen` | Typography as the artwork (font pages, identity reveals) |
+| `editorial-spread` | Pairwise chapters (text + visual per unit); magazine rhythm |
+| `dashboard-cockpit` | Monitor/operate surfaces: panels, KPI strip, zero marketing |
+| `product-gallery` | Homogeneous items grid (store, catalog, assets) |
+| `pricing-table` | Plan comparison; aligned feature rows, one highlighted plan |
+| `documentation-hub` | Search-first reference; nav rail + content + outline |
+
+The macrostructure is stack-agnostic (works for `.dd`, OpenUI, or raw HTML)
+and is one of the computable diversity axes — taste #11 requires consecutive
+designs to vary; skeleton choice is where that variation starts.
+
+Then pick the section rhythm **within** the macrostructure:
 
 | Page kind | Default rhythm |
 |-----------|----------------|
