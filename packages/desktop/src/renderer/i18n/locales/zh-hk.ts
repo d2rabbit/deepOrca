@@ -337,7 +337,6 @@ export const zhHK: Record<MessageKey, string> = {
   "settings.temperatureHint": "留空使用模型預設值。有效範圍 0–2。",
   "settings.thinkingMode": "思考模式",
   "settings.reasoningEffort": "推理強度",
-  "settings.telemetry": "啟用遙測",
   "settings.debugLog": "偵錯記錄",
   "settings.defaultMode": "預設模式",
   "settings.allowAll": "全部允許（僅必要時詢問）",

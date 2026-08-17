@@ -341,7 +341,6 @@ export const ko: Record<MessageKey, string> = {
   "settings.temperatureHint": "비워 두면 모델 기본값을 사용합니다. 유효 범위 0–2.",
   "settings.thinkingMode": "사고 모드",
   "settings.reasoningEffort": "추론 강도",
-  "settings.telemetry": "텔레메트리 사용",
   "settings.debugLog": "디버그 로깅",
   "settings.defaultMode": "기본 모드",
   "settings.allowAll": "모두 허용(필요할 때만 확인)",

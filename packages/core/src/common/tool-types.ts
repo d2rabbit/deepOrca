@@ -10,11 +10,11 @@ export type CreateOpenAIClient = () => {
   thinkingEnabled: boolean;
   reasoningEffort?: ReasoningEffort;
   debugLogEnabled?: boolean;
-  telemetryEnabled?: boolean;
   notify?: string;
   webSearchTool?: string;
+  webSearchProvider?: string;
+  webSearchApiKey?: string;
   env?: Record<string, string>;
-  machineId?: string;
 };
 
 export type ToolCall = {

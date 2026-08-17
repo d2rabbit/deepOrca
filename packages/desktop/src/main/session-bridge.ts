@@ -534,7 +534,6 @@ export class SessionBridge {
       temperature: raw.temperature != null ? String(raw.temperature) : "",
       thinkingEnabled: raw.thinkingEnabled ?? resolved.thinkingEnabled,
       reasoningEffort: raw.reasoningEffort ?? resolved.reasoningEffort,
-      telemetryEnabled: raw.telemetryEnabled ?? true,
       debugLogEnabled: raw.debugLogEnabled ?? false,
       permissionDefaultMode: raw.permissions?.defaultMode ?? "allowAll",
       permissions: buildPermissionDecisions(raw.permissions),
@@ -636,7 +635,6 @@ export class SessionBridge {
       delete next.reasoningEffort;
     }
 
-    next.telemetryEnabled = patch.telemetryEnabled;
     next.debugLogEnabled = patch.debugLogEnabled;
     next.permissions = buildPermissionSettings(patch.permissionDefaultMode, patch.permissions, raw.permissions);
 

@@ -287,7 +287,6 @@ export {
   buildGitmcpMaintenanceCommand,
   resolveGitmcpServerEntry,
 } from "./gitmcp/resolve";
-export { reportNewPrompt } from "./common/telemetry";
 export {
   DEEPSEEK_V4_MODELS,
   COMPACTION_MODEL,

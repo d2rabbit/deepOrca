@@ -743,14 +743,6 @@ export function SettingsPanel({
 
                   <Field>
                     <Checkbox
-                      checked={s.telemetryEnabled}
-                      onChange={(e) => patch({ telemetryEnabled: e.target.checked })}
-                      label={t("settings.telemetry")}
-                    />
-                  </Field>
-
-                  <Field>
-                    <Checkbox
                       checked={s.debugLogEnabled}
                       onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
                       label={t("settings.debugLog")}

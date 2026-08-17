@@ -366,7 +366,7 @@ test("SessionManager normalizes legacy sessions without activeTokens to zero", (
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-legacy");
+  const manager = createSessionManager(workspace);
 
   assert.equal(manager.getSession("legacy-session")?.activeTokens, 0);
   assert.equal(manager.getSession("legacy-session")?.usagePerModel, null);
@@ -405,7 +405,7 @@ test("SessionManager keeps both updates when two sessions are updated inside one
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-index-debounce");
+  const manager = createSessionManager(workspace);
 
   // Index writes are debounced, so both renames land inside a single window.
   // The second update must build on the first — if the read path went to the
@@ -418,7 +418,7 @@ test("SessionManager keeps both updates when two sessions are updated inside one
 
   // Both must also survive the debounced flush: a fresh manager sees only the file.
   await new Promise((resolve) => setTimeout(resolve, 400));
-  const reloaded = createSessionManager(workspace, "machine-id-index-debounce");
+  const reloaded = createSessionManager(workspace);
   assert.equal(reloaded.getSession("session-a")?.summary, "new a");
   assert.equal(reloaded.getSession("session-b")?.summary, "new b");
 });
@@ -477,7 +477,7 @@ test("SessionManager marks skills loaded from existing session messages", async 
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-loaded-skills");
+  const manager = createSessionManager(workspace);
   const loadedSkill = (await manager.listSkills("loaded-session")).find((skill) => skill.name === "lessweb-starter");
 
   assert.equal(loadedSkill?.isLoaded, true);
@@ -528,7 +528,7 @@ test("SessionManager lists skills from Deep Code and .agents roots by priority",
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-project-skills");
+  const manager = createSessionManager(workspace);
   const skills = await manager.listSkills();
   const nativeUserSkill = skills.find((skill) => skill.name === "native-user");
   const sharedSkill = skills.find((skill) => skill.name === "shared");
@@ -544,7 +544,7 @@ test("SessionManager lists built-in plugin skills at lowest priority", async () 
   const home = createTempDir("deepcode-plugin-skills-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-plugin-skills");
+  const manager = createSessionManager(workspace);
   const skills = await manager.listSkills();
   const skillWriter = skills.find((skill) => skill.name === "skill-writer");
   const selfRefer = skills.find((skill) => skill.name === "deeporca-self-refer");
@@ -570,7 +570,7 @@ test("SessionManager lets project skills override built-in plugin skills", async
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-bundled-override");
+  const manager = createSessionManager(workspace);
   const skillWriter = (await manager.listSkills()).find((skill) => skill.name === "skill-writer");
 
   assert.equal(skillWriter?.path, "./.deepcode/skills/skill-writer/SKILL.md");
@@ -582,7 +582,7 @@ test("SessionManager resolves built-in plugin skill prompts", () => {
   const home = createTempDir("deepcode-plugin-prompt-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-plugin-prompt");
+  const manager = createSessionManager(workspace);
   const prompt = (manager as any).buildSkillPrompt({
     name: "skill-writer",
     path: "plugin:meta-skills/skill-writer/SKILL.md",
@@ -628,7 +628,7 @@ test("SessionManager excludes the former bundled plan skill and defaults legacy 
   const home = createTempDir("deepcode-plan-legacy-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-plan-legacy");
+  const manager = createSessionManager(workspace);
   assert.equal(
     (await manager.listSkills()).some((skill) => skill.name === "plan"),
     false
@@ -642,7 +642,7 @@ test("SessionManager excludes the former bundled plan skill and defaults legacy 
   delete index.entries.find((entry: { id: string }) => entry.id === sessionId).planMode;
   (manager as any).saveSessionsIndex(index);
   (manager as any).flushSessionsIndex();
-  const reloaded = createSessionManager(workspace, "machine-id-plan-legacy-reload");
+  const reloaded = createSessionManager(workspace);
   assert.equal(reloaded.getSession(sessionId)?.planMode, false);
 
   const autoMatchManager = createMockedClientSessionManagerWithClient(workspace, {
@@ -696,7 +696,6 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
       model: "test-model",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      machineId: "machine-id-disabled-skills",
     }),
     getResolvedSettings: () => ({
       model: "test-model",
@@ -742,7 +741,7 @@ test("SessionManager keeps implicit opt-out skills available for manual invocati
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-manual-only-skill");
+  const manager = createSessionManager(workspace);
   const skill = (await manager.listSkills()).find((candidate) => candidate.name === "manual-only");
   assert.ok(skill);
   assert.equal(skill.allowImplicitInvocation, false);
@@ -857,7 +856,7 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-dispose");
+  const manager = createSessionManager(workspace);
   const initPromise = manager.initMcpServers({ smoke: { command: process.execPath, args: [serverPath] } });
 
   assert.deepEqual(manager.getMcpStatus(), [
@@ -949,7 +948,7 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-safe-name");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ "voice.box": { command: process.execPath, args: [serverPath] } });
 
   const status = mcpStatusFor(manager, "voice.box");
@@ -982,7 +981,7 @@ test("SessionManager dispose kills live processes without timeout controls", (t)
   const workspace = createTempDir("deepcode-dispose-process-workspace-");
   const home = createTempDir("deepcode-dispose-process-home-");
   setHomeDir(home);
-  const manager = createSessionManager(workspace, "machine-id-dispose-process");
+  const manager = createSessionManager(workspace);
   const sessionId = createSessionAndMessages(manager, "session-dispose-process", "Dispose process session");
   const originalKill = process.kill;
   const killed: Array<{ pid: number; signal?: NodeJS.Signals | number }> = [];
@@ -1011,7 +1010,7 @@ test("SessionManager deleteSession ignores persisted processes that are not live
   const workspace = createTempDir("deepcode-delete-stale-process-workspace-");
   const home = createTempDir("deepcode-delete-stale-process-home-");
   setHomeDir(home);
-  const manager = createSessionManager(workspace, "machine-id-delete-stale-process");
+  const manager = createSessionManager(workspace);
   const sessionId = createSessionAndMessages(manager, "session-delete-stale-process", "Delete stale process session");
   (manager as any).updateSessionEntry(sessionId, (entry: any) => ({
     ...entry,
@@ -1079,7 +1078,7 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-crash-cache");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ crashy: { command: process.execPath, args: [serverPath] } });
 
   // Count only this server's tools — the always-on in-process servers contribute
@@ -1138,7 +1137,7 @@ test("SessionManager reports MCP startup stderr on failure", async () => {
   const serverPath = path.join(workspace, "mcp-server-fail.cjs");
   fs.writeFileSync(serverPath, 'process.stderr.write("mcp startup boom"); process.exit(7);', "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-failure");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ broken: { command: process.execPath, args: [serverPath] } });
 
   const [status] = manager.getMcpStatus();
@@ -1189,7 +1188,7 @@ rl.on("line", (line) => {
     );
     fs.chmodSync(fakeNpxPath, 0o755);
 
-    const manager = createSessionManager(workspace, "machine-id-mcp-npx");
+    const manager = createSessionManager(workspace);
     await manager.initMcpServers({
       npxed: { command: fakeNpxPath, args: ["@playwright/mcp@latest"], env: { ARGS_PATH: argsPath } },
     });
@@ -1209,7 +1208,7 @@ test("createSession stores /init and sends the active .deepcode project AGENTS p
   fs.writeFileSync(path.join(workspace, ".deepcode", "AGENTS.md"), "deepcode project instructions", "utf8");
   fs.writeFileSync(path.join(workspace, "AGENTS.md"), "root project instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-init-deepcode");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "/init" });
@@ -1239,7 +1238,7 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
 
   fs.writeFileSync(path.join(workspace, "AGENTS.md"), "root project instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-system-order");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "hello" });
@@ -1288,7 +1287,6 @@ test("createSession skips disabled default skills", async () => {
       model: "test-model",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      machineId: "machine-id-disabled-default-skill",
     }),
     getResolvedSettings: () => ({
       model: "test-model",
@@ -1402,7 +1400,7 @@ test("replySession stores /init and sends the active root project AGENTS path to
 
   fs.writeFileSync(path.join(workspace, "AGENTS.md"), "root project instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-init-root");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1430,7 +1428,7 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   fs.mkdirSync(path.join(home, ".deepcode"), { recursive: true });
   fs.writeFileSync(path.join(home, ".deepcode", "AGENTS.md"), "user instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-init-generate");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "/init" });
@@ -1445,93 +1443,6 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   assert.equal(userMessage?.content, "/init");
   assert.match(openAIUserMessage?.content ?? "", /Generate a file named \.\/AGENTS\.md/);
   assert.doesNotMatch(openAIUserMessage?.content ?? "", /Update \.\/AGENTS\.md/);
-});
-
-test("createSession reports a new prompt with the machineId token", async () => {
-  const workspace = createTempDir("deepcode-session-workspace-");
-  const home = createTempDir("deepcode-session-home-");
-  setHomeDir(home);
-
-  const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
-    fetchCalls.push({ input, init });
-    return {
-      ok: true,
-      text: async () => "",
-    } as Response;
-  }) as typeof fetch;
-
-  const manager = createSessionManager(workspace, "machine-id-123");
-  const activatedSessionIds: string[] = [];
-  (manager as any).activateSession = async (sessionId: string) => {
-    activatedSessionIds.push(sessionId);
-  };
-
-  const sessionId = await manager.createSession({ text: "hello world" });
-  await flushPromises();
-
-  assert.equal(activatedSessionIds.length, 1);
-  assert.equal(activatedSessionIds[0], sessionId);
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-123");
-});
-
-test("replySession reports a new prompt with the machineId token", async () => {
-  const workspace = createTempDir("deepcode-reply-workspace-");
-  const home = createTempDir("deepcode-reply-home-");
-  setHomeDir(home);
-
-  const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
-    fetchCalls.push({ input, init });
-    return {
-      ok: true,
-      text: async () => "",
-    } as Response;
-  }) as typeof fetch;
-
-  const manager = createSessionManager(workspace, "machine-id-456");
-  (manager as any).activateSession = async () => {};
-
-  const sessionId = await manager.createSession({ text: "first prompt" });
-  await flushPromises();
-  fetchCalls.length = 0;
-
-  await manager.replySession(sessionId, { text: "second prompt" });
-  await flushPromises();
-
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-456");
-});
-
-test("reporting a new prompt does not warn when the background request fails", async () => {
-  const workspace = createTempDir("deepcode-report-failure-workspace-");
-  const home = createTempDir("deepcode-report-failure-home-");
-  setHomeDir(home);
-
-  const warnings: unknown[][] = [];
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args);
-  };
-  globalThis.fetch = (async () => {
-    throw new Error("fetch failed");
-  }) as typeof fetch;
-
-  const manager = createSessionManager(workspace, "machine-id-failure");
-  (manager as any).activateSession = async () => {};
-
-  await manager.createSession({ text: "hello world" });
-  await flushPromises();
-
-  assert.deepEqual(warnings, []);
 });
 
 test(
@@ -1610,7 +1521,7 @@ test("replySession continues without appending /continue as a user message", asy
     } as Response;
   }) as typeof fetch;
 
-  const manager = createSessionManager(workspace, "machine-id-continue");
+  const manager = createSessionManager(workspace);
   const activatedSessionIds: string[] = [];
   (manager as any).activateSession = async (sessionId: string) => {
     activatedSessionIds.push(sessionId);
@@ -1648,7 +1559,7 @@ test("replySession records the current file-history branch head as checkpointHas
   const home = createTempDir("deepcode-checkpoint-hash-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-checkpoint-hash");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1670,7 +1581,7 @@ test("createSession initializes file-history repo and session branch", async (t)
   const home = createTempDir("deepcode-file-history-init-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-file-history-init");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1698,7 +1609,7 @@ test("createSession initializes an empty file-history manifest without scanning 
   fs.mkdirSync(path.join(workspace, "nested"));
   fs.writeFileSync(path.join(workspace, "nested", "another.txt"), "also keep me\n", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-file-history-empty-init");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1720,7 +1631,7 @@ test("replySession snapshots manual edits to tracked files before appending the 
   setHomeDir(home);
 
   const filePath = path.join(workspace, "hello_world.py");
-  const manager = createSessionManager(workspace, "machine-id-prompt-checkpoint-manual-edit");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "create hello world" });
@@ -1759,7 +1670,7 @@ test("replySession inserts hidden system notice for manually changed tracked fil
 
   const firstPath = path.join(workspace, "a.txt");
   const secondPath = path.join(workspace, "b.txt");
-  const manager = createSessionManager(workspace, "machine-id-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1794,7 +1705,7 @@ test("replySession does not insert manual-change notice when tracked files are u
   setHomeDir(home);
 
   const filePath = path.join(workspace, "tracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-no-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1826,7 +1737,7 @@ test("replySession reports manual deletion of a tracked file", async (t) => {
   setHomeDir(home);
 
   const filePath = path.join(workspace, "deleted.txt");
-  const manager = createSessionManager(workspace, "machine-id-manual-delete-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1859,7 +1770,7 @@ test("replySession ignores manually created untracked files", async (t) => {
 
   const trackedPath = path.join(workspace, "tracked.txt");
   const untrackedPath = path.join(workspace, "untracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-untracked-manual-file");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1892,7 +1803,7 @@ test("replySession does not insert manual-change notice for /continue", async (t
   setHomeDir(home);
 
   const filePath = path.join(workspace, "tracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-continue-no-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1925,7 +1836,7 @@ test("replySession does not insert manual-change notice for permission-only repl
   setHomeDir(home);
 
   const filePath = path.join(workspace, "tracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-permission-no-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -2113,7 +2024,7 @@ test("restoreSessionConversation truncates messages before the selected user pro
   const home = createTempDir("deepcode-undo-conversation-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-undo-conversation");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -2158,7 +2069,7 @@ test("restoreSessionCode restores project files from the recorded Git checkpoint
   const home = createTempDir("deepcode-undo-code-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-undo-code");
+  const manager = createSessionManager(workspace);
   const sessionId = "session-code-restore";
   const checkpointHash = createFileHistoryCommit(home, workspace, sessionId, { "tracked.txt": "before\n" });
   const fileHistory = new GitFileHistory(workspace, getFileHistoryGitDir(home, workspace));
@@ -2195,7 +2106,7 @@ test("restoreSessionCode preserves files that predate their first tracked mutati
   fs.writeFileSync(readmeEnPath, "This is a hello world demo project.\n", "utf8");
   fs.writeFileSync(readmeZhPath, "", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-undo-preexisting-files");
+  const manager = createSessionManager(workspace);
   const sessionId = "session-undo-preexisting-files";
   const gitDir = getFileHistoryGitDir(home, workspace);
   const fileHistory = new GitFileHistory(workspace, gitDir);
@@ -2241,7 +2152,7 @@ test("restoreSessionCode restores deleted tracked files and leaves unrelated fil
   fs.writeFileSync(trackedPath, "before delete\n", "utf8");
   fs.writeFileSync(unrelatedPath, "do not touch\n", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-undo-deleted-files");
+  const manager = createSessionManager(workspace);
   const sessionId = "session-undo-deleted-files";
   const gitDir = getFileHistoryGitDir(home, workspace);
   const fileHistory = new GitFileHistory(workspace, gitDir);
@@ -2650,7 +2561,7 @@ test("replySession preserves raw session messages when a previous tool call is p
       text: async () => "",
     }) as Response) as typeof fetch;
 
-  const manager = createSessionManager(workspace, "machine-id-pending-tool");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -3513,7 +3424,7 @@ test("SessionManager marks MCP server as failed on single failed attempt (no aut
   const serverPath = path.join(workspace, "mcp-server-fail.cjs");
   fs.writeFileSync(serverPath, "process.exit(7);", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-fail-no");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ broken: { command: process.execPath, args: [serverPath] } });
 
   const status = mcpStatusFor(manager, "broken");
@@ -3560,7 +3471,7 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-reconn-ok");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ fixable: { command: process.execPath, args: [serverPath] } });
 
   const status = mcpStatusFor(manager, "fixable");
@@ -3575,7 +3486,7 @@ test("SessionManager adjusts the active Bash timeout control and session metadat
   const home = createTempDir("deepcode-bash-timeout-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "");
+  const manager = createSessionManager(workspace);
   const sessionId = await manager.createSession({ text: "hello" });
 
   (manager as any).addSessionProcess(sessionId, 123, "sleep 10");
@@ -3612,7 +3523,7 @@ test("SessionManager.deleteSession removes session entry from the index", () => 
   const home = createTempDir("deepcode-delete-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   // Create two sessions
@@ -3635,7 +3546,7 @@ test("SessionManager.deleteSession removes the messages file", () => {
   const home = createTempDir("deepcode-delete-msg-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete-msg");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = createSessionAndMessages(manager, "session-delete-msg", "Test session");
@@ -3655,7 +3566,7 @@ test("SessionManager.deleteSession returns false when session does not exist", (
   const home = createTempDir("deepcode-delete-nonexist-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete-nonexist");
+  const manager = createSessionManager(workspace);
 
   const result = manager.deleteSession("nonexistent-session-id");
   assert.equal(result, false);
@@ -3667,7 +3578,7 @@ test("SessionManager.deleteSession does not affect other sessions", () => {
   const home = createTempDir("deepcode-delete-others-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete-others");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const session1 = createSessionAndMessages(manager, "session-keep-1", "Keep session 1");
@@ -3798,7 +3709,7 @@ function runFileHistoryGit(
   );
 }
 
-function createSessionManager(projectRoot: string, machineId: string): SessionManager {
+function createSessionManager(projectRoot: string): SessionManager {
   return new SessionManager({
     projectRoot,
     createOpenAIClient: () => ({
@@ -3806,7 +3717,6 @@ function createSessionManager(projectRoot: string, machineId: string): SessionMa
       model: "test-model",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      machineId,
     }),
     getResolvedSettings: () => ({ model: "test-model" }),
     renderMarkdown: (text) => text,

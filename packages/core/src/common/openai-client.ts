@@ -1,10 +1,6 @@
-import * as fs from "fs";
-import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
-import { getUserConfigRoot } from "./app-dirs";
 import { resolveCurrentSettings } from "../settings";
-import { randomUUID as cryptoRandomUUID } from "node:crypto";
 
 // Custom undici Agent with a 180-second keepAlive timeout.  The default
 // global fetch (undici) only keeps connections alive for 4 seconds, which
@@ -28,11 +24,11 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   thinkingEnabled: boolean;
   reasoningEffort: "high" | "max";
   debugLogEnabled: boolean;
-  telemetryEnabled: boolean;
   notify?: string;
   webSearchTool?: string;
+  webSearchProvider?: string;
+  webSearchApiKey?: string;
   env: Record<string, string>;
-  machineId?: string;
 } {
   const settings = resolveCurrentSettings(projectRoot);
   if (!settings.apiKey) {
@@ -44,11 +40,11 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
-      telemetryEnabled: settings.telemetryEnabled,
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
+      webSearchProvider: settings.webSearchProvider,
+      webSearchApiKey: settings.webSearchApiKey,
       env: settings.env,
-      machineId: getMachineId(),
     };
   }
 
@@ -62,11 +58,11 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
-      telemetryEnabled: settings.telemetryEnabled,
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
+      webSearchProvider: settings.webSearchProvider,
+      webSearchApiKey: settings.webSearchApiKey,
       env: settings.env,
-      machineId: getMachineId(),
     };
   }
 
@@ -99,33 +95,12 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     thinkingEnabled: settings.thinkingEnabled,
     reasoningEffort: settings.reasoningEffort,
     debugLogEnabled: settings.debugLogEnabled,
-    telemetryEnabled: settings.telemetryEnabled,
     notify: settings.notify,
     webSearchTool: settings.webSearchTool,
+    webSearchProvider: settings.webSearchProvider,
+    webSearchApiKey: settings.webSearchApiKey,
     env: settings.env,
-    machineId: getMachineId(),
   };
-}
-
-function getMachineId(): string | undefined {
-  try {
-    const idPath = path.join(getUserConfigRoot(), "machine-id");
-    if (fs.existsSync(idPath)) {
-      const raw = fs.readFileSync(idPath, "utf8").trim();
-      if (raw) {
-        return raw;
-      }
-    }
-    // Privacy (deep review 2026-08-15, C3): the id is sent as a telemetry
-    // header — random only, NO hostname (it used to leak the machine name to
-    // the telemetry/web-search endpoints on every prompt).
-    const generated = `dc-${cryptoRandomUUID()}`;
-    fs.mkdirSync(path.dirname(idPath), { recursive: true, mode: 0o600 });
-    fs.writeFileSync(idPath, generated, { encoding: "utf8", mode: 0o600 });
-    return generated;
-  } catch {
-    return undefined;
-  }
 }
 
 // ── Secondary model client ──────────────────────────────────────────────────

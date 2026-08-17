@@ -342,7 +342,6 @@ export const ja: Record<MessageKey, string> = {
   "settings.temperatureHint": "空欄の場合はモデルの既定値を使用します。有効範囲 0〜2。",
   "settings.thinkingMode": "思考モード",
   "settings.reasoningEffort": "推論の強度",
-  "settings.telemetry": "テレメトリを有効化",
   "settings.debugLog": "デバッグログ",
   "settings.defaultMode": "既定モード",
   "settings.allowAll": "すべて許可（必要な場合のみ確認）",

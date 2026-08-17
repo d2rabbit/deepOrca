@@ -152,36 +152,6 @@ test("resolveSettings reads TEMPERATURE, THINKING_ENABLED, REASONING_EFFORT, and
   assert.equal(resolved.baseURL, "https://default.example.com");
 });
 
-test("resolveSettings defaults telemetryEnabled to true", () => {
-  const resolved = resolveSettings(
-    {},
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, true);
-});
-
-test("resolveSettings reads TELEMETRY_ENABLED from env", () => {
-  const resolved = resolveSettings(
-    { env: { TELEMETRY_ENABLED: "0" } },
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, false);
-});
-
-test("resolveSettings gives top-level telemetryEnabled priority over env TELEMETRY_ENABLED", () => {
-  const resolved = resolveSettings(
-    {
-      telemetryEnabled: false,
-      env: { TELEMETRY_ENABLED: "true" },
-    },
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, false);
-});
-
 test("resolveSettings ignores removed legacy env.THINKING", () => {
   const resolved = resolveSettings(
     {
@@ -216,7 +186,6 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       reasoningEffort: "max",
       temperature: 0.4,
       debugLogEnabled: true,
-      telemetryEnabled: false,
     },
     {
       env: {
@@ -229,7 +198,6 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       model: "project-top-model",
       thinkingEnabled: true,
       temperature: 0.8,
-      telemetryEnabled: true,
     },
     {
       model: "default-model",
@@ -241,7 +209,6 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       DEEPCODE_REASONING_EFFORT: "high",
       DEEPCODE_TEMPERATURE: "1.2",
       DEEPCODE_DEBUG_LOG_ENABLED: "true",
-      DEEPCODE_TELEMETRY_ENABLED: "false",
       DEEPCODE_WEBHOOK: "system-webhook",
     }
   );
@@ -252,7 +219,6 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.temperature, 1.2);
   assert.equal(resolved.debugLogEnabled, true);
-  assert.equal(resolved.telemetryEnabled, false);
   assert.equal(resolved.env.WEBHOOK, "system-webhook");
 });
 

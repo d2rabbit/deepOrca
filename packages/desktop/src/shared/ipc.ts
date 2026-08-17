@@ -551,7 +551,6 @@ export type EditableSettings = {
   temperature: string;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
-  telemetryEnabled: boolean;
   debugLogEnabled: boolean;
   permissionDefaultMode: PermissionDefaultMode;
   permissions: Partial<Record<PermissionScope, PermissionDecision>>;

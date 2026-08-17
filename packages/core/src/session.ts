@@ -191,7 +191,6 @@ import {
 } from "./common/tool-execution-gate";
 import { AuditLog } from "./sandbox/audit";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
-import { reportNewPrompt } from "./common/telemetry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
 import {
   DEFAULT_ROUTING_CONFIG,
@@ -3159,7 +3158,6 @@ ${content}
   }
 
   async createSession(userPrompt: UserPromptContent, controller?: AbortController): Promise<string> {
-    this.reportNewPrompt();
     const signal = controller?.signal;
     this.throwIfAborted(signal);
 
@@ -3339,8 +3337,6 @@ ${content}
       await this.activateSession(sessionId, controller, userPrompt);
       return;
     }
-
-    this.reportNewPrompt();
 
     this.ensureFileHistorySession(sessionId);
     const checkpoint = this.recordUserPromptCheckpoint(sessionId);
@@ -3840,11 +3836,6 @@ ${content}
       model: this.getResolvedSettings().model,
       webSearchEnabled: true,
     };
-  }
-
-  private reportNewPrompt(): void {
-    const { machineId, telemetryEnabled } = this.createOpenAIClient();
-    reportNewPrompt({ enabled: telemetryEnabled ?? true, machineId });
   }
 
   /**
@@ -5253,7 +5244,6 @@ ${content}
     if (!hasUserContent) {
       return;
     }
-    this.reportNewPrompt();
     const signal = controller.signal;
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);

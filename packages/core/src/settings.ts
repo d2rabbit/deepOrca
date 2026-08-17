@@ -124,9 +124,10 @@ export type DeepcodingSettings = {
   thinkingEnabled?: boolean;
   reasoningEffort?: ReasoningEffort;
   debugLogEnabled?: boolean;
-  telemetryEnabled?: boolean;
   notify?: string;
   webSearchTool?: string;
+  webSearchProvider?: string;
+  webSearchApiKey?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions?: PermissionSettings;
   enabledSkills?: EnabledSkillsSettings;
@@ -205,9 +206,10 @@ export type ResolvedDeepcodingSettings = {
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
-  telemetryEnabled: boolean;
   notify?: string;
   webSearchTool?: string;
+  webSearchProvider?: string;
+  webSearchApiKey?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions: Required<PermissionSettings>;
   /** Store-driven (user-level trust store) — never read from the project file. */
@@ -789,20 +791,25 @@ export function resolveSettingsSources(
     parseBoolean(userEnv.DEBUG_LOG_ENABLED) ??
     false;
 
-  const telemetryEnabled =
-    parseBoolean(systemEnv.TELEMETRY_ENABLED) ??
-    parseBoolean(projectSettings?.telemetryEnabled) ??
-    parseBoolean(projectEnv.TELEMETRY_ENABLED) ??
-    parseBoolean(userSettings?.telemetryEnabled) ??
-    parseBoolean(userEnv.TELEMETRY_ENABLED) ??
-    true;
-
   const notify =
     trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
   const webSearchTool =
     trimString(systemEnv.WEB_SEARCH_TOOL) ||
     trimString(projectSettings?.webSearchTool) ||
     trimString(userSettings?.webSearchTool) ||
+    "";
+
+  // First-party built-in search (tools/web-search-providers.ts): keyless
+  // duckduckgo default, opt-in brave/tavily with the user's own key.
+  const webSearchProvider =
+    trimString(systemEnv.WEB_SEARCH_PROVIDER) ||
+    trimString(projectSettings?.webSearchProvider) ||
+    trimString(userSettings?.webSearchProvider) ||
+    "";
+  const webSearchApiKey =
+    trimString(systemEnv.WEB_SEARCH_API_KEY) ||
+    trimString(projectSettings?.webSearchApiKey) ||
+    trimString(userSettings?.webSearchApiKey) ||
     "";
 
   const streamIdleTimeoutMs =
@@ -880,9 +887,10 @@ export function resolveSettingsSources(
     thinkingEnabled,
     reasoningEffort,
     debugLogEnabled,
-    telemetryEnabled,
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
+    webSearchProvider: webSearchProvider || undefined,
+    webSearchApiKey: webSearchApiKey || undefined,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv, workspaceTrust),
     permissions: mergePermissions(userSettings, projectSettings),
     workspaceTrust,

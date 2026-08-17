@@ -31,9 +31,10 @@ The following are all the top-level fields supported in `settings.json`, along w
 | `thinkingEnabled`  | boolean | Whether to enable thinking mode (enabled by default for DeepSeek V4 series)|
 | `reasoningEffort`  | string  | Reasoning intensity, either `"high"` or `"max"` (default `"max"`)          |
 | `debugLogEnabled`  | boolean | Enable debug log output (default `false`)                                   |
-| `telemetryEnabled` | boolean | Enable anonymous usage reporting (default `true`)                           |
 | `notify`           | string  | Full path to a task-completion notification script (e.g., Slack notification script) |
-| `webSearchTool`    | string  | Full path to a custom web search script                                     |
+| `webSearchTool`    | string  | Full path to a custom web search script (takes precedence over the built-in) |
+| `webSearchProvider` | string | Built-in search provider: `duckduckgo` (default, keyless) / `brave` / `tavily` |
+| `webSearchApiKey`  | string  | API key for `brave` / `tavily` (not needed for duckduckgo)                  |
 | `mcpServers`       | object  | MCP server configurations (keys are service names, values are McpServerConfig objects) |
 | `temperature`      | number  | Sampling temperature for LLM, from `0` to `2`                 |
 | `enabledSkills`    | object  | Per-skill enable/disable map, keyed by skill name                           |
@@ -50,7 +51,6 @@ The following are all the top-level fields supported in `settings.json`, along w
 | `THINKING_ENABLED`| string | Enable thinking mode                                            |
 | `REASONING_EFFORT`| string | Reasoning intensity                                             |
 | `DEBUG_LOG_ENABLED`| string| Enable debug log output                                         |
-| `TELEMETRY_ENABLED`| string| Enable anonymous usage reporting                                |
 | `<any other KEY>` | string | Custom environment variable                                     |
 
 #### `thinkingEnabled` — Thinking Mode
@@ -93,7 +93,24 @@ The following context is injected as environment variables when the notify scrip
 
 #### `webSearchTool` — Custom Web Search
 
-DeepOrca has a built-in, free-to-use Web Search tool. If you need custom search logic, set `webSearchTool` to the full path of an executable script:
+The built-in web search is **our own first-party implementation** (`web-search-providers.ts`), replacing the historical default that proxied queries plus a machine identifier through an upstream third-party endpoint. Privacy contract: **only the query itself** is sent to the search engine you choose — no machine identifier, no telemetry, no third-party proxy.
+
+| Provider | Setup | Notes |
+| --- | --- | --- |
+| `duckduckgo` (default) | none | DuckDuckGo Lite, keyless, works out of the box |
+| `brave` | set `webSearchApiKey` to your Brave Search API key | higher quality, requires signup |
+| `tavily` | set `webSearchApiKey` to your Tavily key | LLM-oriented search API |
+
+```json
+{
+  "webSearchProvider": "brave",
+  "webSearchApiKey": "YOUR_KEY"
+}
+```
+
+#### `webSearchTool` — custom search script (highest precedence)
+
+For full control, set `webSearchTool` to the full path of an executable script; when configured it takes precedence over the built-in providers:
 
 ```json
 {
@@ -151,16 +168,6 @@ For detailed MCP usage instructions, refer to [mcp.md](mcp.md).
 #### `debugLogEnabled` — Debug Log
 
 Set to `true` to enable detailed debug logging (default `false`), useful for troubleshooting API calls and tool execution.
-
-#### `telemetryEnabled` — Anonymous Usage Reporting
-
-Set to `false` to disable anonymous usage reporting (default `true`). The report only includes an anonymous machine identifier and does not contain conversation content, code, or API keys.
-
-You can also disable it via environment variable:
-
-```bash
-DEEPORCA_TELEMETRY_ENABLED=0 deeporca
-```
 
 ## Environment Variable Priority
 
