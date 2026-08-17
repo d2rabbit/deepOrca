@@ -49,6 +49,15 @@ careless. This skill eliminates slop.
 10. **Consistent border-radius** — All cards, buttons, inputs use the same
     `--radius` value. Don't mix `4px` on one card and `12px` on another.
 
+11. **Differ from your recent work (anti-slop diversity)** — Before finalizing a
+    design, list the recent artifacts in `.deeporca/designs/` (via the design
+    tools or the `read` tool — names + a quick scan of each file's tokens and
+    section list are enough). The new design must differ from the 3 most recent
+    artifacts in BOTH axes: layout skeleton (which sections, in what structure)
+    and palette emphasis (which color family dominates). If it is too similar to
+    any of them, deliberately vary one axis — swap the layout skeleton or shift
+    the accent/palette family — then re-verify.
+
 ## Typography ladder
 
 Use this scale consistently:
@@ -116,3 +125,20 @@ Before calling `render_design` or `render_openui`, verify:
 - [ ] Mobile layout stacks to 1 column
 - [ ] Sections have vertical padding
 - [ ] Border-radius is consistent
+
+## Five-dimension critique (五维自评)
+
+After rendering — judge the real output, not the plan — self-score the design
+1-5 on each dimension:
+
+| # | Dimension | Ask yourself |
+|---|-----------|--------------|
+| 1 | Hierarchy 层级 | Is the eye led correctly? Title dominates body, one focal point per view, scanning order is deliberate. |
+| 2 | Rhythm 节奏 | Do sections alternate density and pace, or does every section carry the same weight? Spacing breathes. |
+| 3 | Contrast 对比 | Size/weight/color contrast where it matters; every text/background pair ≥4.5:1. |
+| 4 | Restraint 克制 | One accent, no decoration without purpose, nothing screams. Deleted more than added. |
+| 5 | Craft 细节工艺 | Alignment, consistent radius, hover states, spacing on scale — details a human designer would catch. |
+
+Gate: **every dimension ≥3 AND total ≥20** before delivering. If below, iterate
+the weakest dimension once, re-score, then deliver anyway — and note the honest
+final scores in your reply, e.g. `五维自评: 层级4 节奏3 对比5 克制4 工艺4 = 20`.

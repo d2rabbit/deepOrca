@@ -121,10 +121,21 @@ sections:
 Check for a project-level `.deeporca/DESIGN.md`. If it exists, read it — its
 colors, fonts, spacing become the tokens in the YAML front-matter.
 
-If no project DESIGN.md exists, pick a built-in system:
-- Dark/tech/productivity → `dark-tech` (bg:#0a0a0a, accent:#3b82f6)
-- Light/clean/SaaS → `modern-minimal` (bg:#fafafa, accent:#2563eb)
-- Editorial/magazine → `editorial` (serif, structured)
+If no project DESIGN.md exists, pick a built-in system. Full token presets
+(typography pairing, motion, components) live in `templates/design/systems/<name>.md`;
+the table carries the essential tokens:
+
+| System | Character | Pick when |
+|--------|-----------|-----------|
+| `dark-tech` | Dark, compact, indigo accent `#6366f1`, serif display + mono labels | Tech/productivity tools, dashboards |
+| `modern-minimal` | Light, airy, blue accent `#0070f3`, generous whitespace | Clean SaaS, corporate sites, docs |
+| `editorial` | Warm white, serif, dark-red accent `#8b0000`, sharp edges, print grid | Magazine, long-form reading, essays |
+| `brutalist-contrast` | Cream, hot-pink accent `#ff5d8f`, black borders + hard shadows, chunky type | Loud marketing, creative tools, youth brands |
+| `swiss-international` | Pure white, Swiss red `#d30000`, strict grid, grotesque type only | Systematic corporate, studios, typography-forward |
+| `terminal-mono` | Near-black, phosphor green `#00e676`, all monospace, dense | Developer tools, changelogs, hacker branding |
+| `glass-morphism` | Deep-indigo gradient, frosted panels, cyan `#22d3ee`, floating depth | Product launches, media/crypto, hero-heavy pages |
+| `soft-neumorphic` | Pale single-hue ground `#e0e5ec`, extruded soft shadows, no borders | Calm utility apps, wellness, settings screens |
+| `warm-handcrafted` | Cream + terracotta `#a34722`, humanist serif, stitched dashed borders | Artisanal/DTC, food & craft, nonprofit |
 
 ### Step 1 — Read seed.html for reference
 
@@ -142,7 +153,26 @@ Pick sections before writing content:
 | Pricing | hero → comparison → cta |
 | Dashboard | hero → stats → features |
 
+Large pages (>6 sections or >1500 words of content): use the optional two-stage
+flow in Step 2b instead of writing straight through.
+
 State the chosen sections to the user **before** writing.
+
+### Step 2b — Two-stage generation (OPTIONAL — large pages only)
+
+Use **only** for LARGE pages: more than 6 sections or more than 1500 words of
+content. Small pages skip this entirely and go straight to Step 3.
+
+- **Stage A — skeleton**: output the section skeleton only (~10 lines): section
+  ids, the rhythm table, and a one-line intent per section. No content, no HTML.
+- **Confirm**: ask the user via `AskUserQuestion` (proceed / adjust sections /
+  drop sections). If the user pre-approved the plan or said not to ask, proceed
+  without asking.
+- **Stage B — fill**: write the full .dd file per the confirmed skeleton,
+  following Steps 3-7 as usual.
+
+Rationale: on a large page a wrong section plan wastes the entire fill pass — a
+10-line skeleton makes the correction cheap.
 
 ### Step 3 — Write the .dd file
 
