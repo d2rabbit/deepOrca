@@ -20,6 +20,7 @@ import type { IMemoryStore, L1SearchResult, L1FtsResult } from "../store/types.j
 import { buildFtsQuery } from "../store/sqlite.js";
 import type { EmbeddingService, EmbeddingCallOptions } from "../store/embedding.js";
 import { sanitizeText } from "../../utils/sanitize.js";
+import { buildRecallQueryVariants, fuseByRrf } from "./query-variants.js";
 
 const TAG = "[memory-tdai] [recall]";
 const RECALL_TRUNCATION_SUFFIX = "…（已截断；可用 tdai_memory_search 或 tdai_conversation_search 查看详情）";
@@ -543,6 +544,13 @@ async function searchByEmbedding(
  * Hybrid search: run keyword (FTS5) and embedding in parallel, merge with
  * Reciprocal Rank Fusion (RRF) to combine rank lists.
  *
+ * The keyword leg is multi-query: the original query plus deterministic
+ * variants (event variant = time expressions stripped, see query-variants.ts)
+ * each run FTS5, and the per-variant ranked lists are fused into one keyword
+ * ranking via RRF before the keyword↔embedding merge — a fixed-role multi-query
+ * rewrite without an LLM. Each variant failure falls back to the remaining
+ * queries; the leg is never blocked by one bad variant.
+ *
  * RRF score for a record at rank r = 1 / (k + r), where k=60 is a constant.
  * If a record appears in both lists, its RRF scores are summed.
  *
@@ -563,47 +571,64 @@ async function searchHybrid(
   const candidateK = maxResults * 3; // retrieve more for merging
 
   const [keywordResult, embeddingResult] = await Promise.all([
-    // Keyword search: FTS5 only (no in-memory fallback)
+    // Keyword search: FTS5 only (no in-memory fallback), multi-query
     (async () => {
       const tStart = performance.now();
       try {
         // Try FTS5 first
         if (vectorStore.isFtsAvailable()) {
-          const ftsQuery = buildFtsQuery(userText);
-          if (ftsQuery) {
-            const ftsResults = await vectorStore.searchL1Fts(ftsQuery, candidateK);
-            if (ftsResults.length > 0) {
-              logger?.debug?.(`${TAG} [hybrid-keyword-fts] FTS5 found ${ftsResults.length} candidates`);
-              // Convert FtsSearchResult to ScoredRecord for RRF merge
-              const records = ftsResults.map(
-                (r): ScoredRecord => ({
-                  record: {
-                    id: r.record_id,
-                    content: r.content,
-                    type: r.type as MemoryRecord["type"],
-                    priority: r.priority,
-                    scene_name: r.scene_name,
-                    source_message_ids: [],
-                    metadata: r.metadata_json
-                      ? (() => {
-                          try {
-                            return JSON.parse(r.metadata_json);
-                          } catch {
-                            return {};
-                          }
-                        })()
-                      : {},
-                    timestamps: [r.timestamp_str].filter(Boolean),
-                    createdAt: "",
-                    updatedAt: "",
-                    sessionKey: r.session_key,
-                    sessionId: r.session_id,
-                  },
-                  score: r.score,
-                })
+          // Fixed-role query variants: original + event (time-stripped).
+          // buildFtsQuery returns null for unusable variants; per-variant
+          // failures degrade to the remaining queries.
+          const perVariantResults: L1FtsResult[][] = [];
+          for (const variant of buildRecallQueryVariants(userText)) {
+            const ftsQuery = buildFtsQuery(variant);
+            if (!ftsQuery) continue;
+            try {
+              perVariantResults.push(await vectorStore.searchL1Fts(ftsQuery, candidateK));
+            } catch (err) {
+              logger?.warn?.(
+                `${TAG} Hybrid: FTS variant "${variant.slice(0, 40)}" failed: ${
+                  err instanceof Error ? err.message : String(err)
+                }`
               );
-              return { records, ms: performance.now() - tStart };
             }
+          }
+          const ftsResults = fuseByRrf(perVariantResults);
+          if (ftsResults.length > 0) {
+            logger?.debug?.(
+              `${TAG} [hybrid-keyword-fts] FTS5 multi-query (${perVariantResults.length} variants, ` +
+                `fused ${ftsResults.length} candidates)`
+            );
+            // Convert FtsSearchResult to ScoredRecord for RRF merge
+            const records = ftsResults.map(
+              (r): ScoredRecord => ({
+                record: {
+                  id: r.record_id,
+                  content: r.content,
+                  type: r.type as MemoryRecord["type"],
+                  priority: r.priority,
+                  scene_name: r.scene_name,
+                  source_message_ids: [],
+                  metadata: r.metadata_json
+                    ? (() => {
+                        try {
+                          return JSON.parse(r.metadata_json);
+                        } catch {
+                          return {};
+                        }
+                      })()
+                    : {},
+                  timestamps: [r.timestamp_str].filter(Boolean),
+                  createdAt: "",
+                  updatedAt: "",
+                  sessionKey: r.session_key,
+                  sessionId: r.session_id,
+                },
+                score: r.score,
+              })
+            );
+            return { records, ms: performance.now() - tStart };
           }
         }
         // FTS5 not available or returned no results — skip in-memory fallback

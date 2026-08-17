@@ -174,8 +174,17 @@ export async function extractL1Memories(params: {
     return { success: false, extractedCount: 0, storedCount: 0, records: [], sceneNames: [] };
   }
 
-  // Flatten all memories across scenes
+  // Flatten all memories across scenes, applying the deterministic output
+  // validators (unknown reference reset, droppable-content filter, in-batch
+  // dedup, fabricated-date visibility). Failures degrade per-memory, never
+  // blocking the whole extraction.
+  const knownMessageIds = new Set<string>();
+  for (const m of [...backgroundMessages, ...newMessages]) {
+    if (m.id) knownMessageIds.add(m.id);
+  }
+  const sourceTexts = [...backgroundMessages, ...newMessages].map((m) => m.content);
   const allExtracted: ExtractedMemory[] = [];
+  const seenContents = new Set<string>();
   const sceneNames: string[] = [];
 
   for (const scene of scenes) {
@@ -186,11 +195,33 @@ export async function extractL1Memories(params: {
         logger?.warn?.(`${TAG} Skipping memory with invalid type "${mem.type}"`);
         continue;
       }
+      if (isDroppableContent(mem.content)) {
+        logger?.warn?.(`${TAG} Validator: dropping non-atomic/empty content (${mem.content.length} chars)`);
+        continue;
+      }
+      if (seenContents.has(mem.content)) {
+        logger?.debug?.(`${TAG} Validator: dropping exact in-batch duplicate`);
+        continue;
+      }
+      seenContents.add(mem.content);
+      const rawIds = Array.isArray(mem.source_message_ids) ? mem.source_message_ids : [];
+      const sourceIds = sanitizeSourceMessageIds(rawIds, knownMessageIds);
+      if (sourceIds.length !== rawIds.length) {
+        logger?.warn?.(`${TAG} Validator: reset ${rawIds.length - sourceIds.length} hallucinated source_message_ids`);
+      }
+      const fabricated = findFabricatedDates(mem.content, sourceTexts);
+      if (fabricated.length > 0) {
+        // Soft signal — kept, not dropped (the event is likely real even when
+        // the precision is invented); visible via logger for prompt iteration.
+        logger?.warn?.(
+          `${TAG} Validator: fabricated-precision dates ${fabricated.join(", ")} in "${mem.content.slice(0, 60)}"`
+        );
+      }
       allExtracted.push({
         content: mem.content,
         type: memType,
         priority: typeof mem.priority === "number" ? mem.priority : 50,
-        source_message_ids: Array.isArray(mem.source_message_ids) ? mem.source_message_ids : [],
+        source_message_ids: sourceIds,
         metadata: mem.metadata ?? {},
         scene_name: scene.scene_name,
       });
@@ -535,6 +566,62 @@ async function storeAllDirectly(
   }
 
   return storedRecords;
+}
+
+// ============================
+// Output validators (deterministic, zero-LLM)
+// ============================
+
+/**
+ * Drop source_message_ids that reference messages the LLM was never shown —
+ * hallucinated references are reset to [] instead of poisoning lineage.
+ * (Output-validator analog of "facts may only reference the frozen entity
+ * table"; enforced post-generation instead of via retry.)
+ */
+export function sanitizeSourceMessageIds(ids: readonly string[], known: ReadonlySet<string>): string[] {
+  const valid = ids.filter((id) => known.has(id));
+  return valid.length === ids.length ? [...ids] : valid;
+}
+
+/** Content is droppable when empty after trim, >500 chars (non-atomic blob), or contains no letter/digit at all. */
+export function isDroppableContent(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed.length === 0 || trimmed.length > 500 || !/[\p{L}\p{N}]/u.test(trimmed);
+}
+
+const FULL_DATE_RE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+const CN_FULL_DATE_RE = /(\d{4})年(\d{1,2})月(\d{1,2})日/g;
+
+function collectDateTriples(text: string): Set<string> {
+  const triples = new Set<string>();
+  for (const m of text.matchAll(FULL_DATE_RE)) triples.add(`${m[1]}-${Number(m[2])}-${Number(m[3])}`);
+  for (const m of text.matchAll(CN_FULL_DATE_RE)) triples.add(`${m[1]}-${Number(m[2])}-${Number(m[3])}`);
+  return triples;
+}
+
+/**
+ * Full-precision dates that appear in an extracted memory but nowhere in the
+ * source messages (notation-insensitive: content "2025-03-01" matches source
+ * "2025年3月1日"). These are fabrication suspects — the caller logs them;
+ * dropping is deliberately NOT done here (recall safety first: a memory whose
+ * date is wrong is still likely right about the event itself).
+ */
+export function findFabricatedDates(content: string, sourceTexts: readonly string[]): string[] {
+  const sourceTriples = new Set<string>();
+  for (const text of sourceTexts) {
+    for (const triple of collectDateTriples(text)) sourceTriples.add(triple);
+  }
+  const fabricated: string[] = [];
+  const seen = new Set<string>();
+  for (const m of content.matchAll(FULL_DATE_RE)) {
+    const literal = m[0];
+    const triple = `${m[1]}-${Number(m[2])}-${Number(m[3])}`;
+    if (!sourceTriples.has(triple) && !seen.has(literal)) {
+      seen.add(literal);
+      fabricated.push(literal);
+    }
+  }
+  return fabricated;
 }
 
 // ============================
