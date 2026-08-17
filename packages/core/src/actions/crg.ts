@@ -10,11 +10,14 @@
 import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getCrgController } from "./crg-controller";
+import type { BackendStatus } from "../common/analysis-status";
 
 // ── crg.reindex ─────────────────────────────────────────────────────────────
 
 export interface CrgReindexOutput {
   readonly ok: boolean;
+  /** Per-call degradation state ("active" on a successful build). */
+  readonly status: BackendStatus;
 }
 
 export const crgReindexDefinition: ActionDefinition = {
@@ -32,13 +35,15 @@ export const crgReindexRun: ActionRun<unknown, CrgReindexOutput> = async (_input
     throw new Error("crg.reindex: no CrgController configured (host must call configureCrgController at boot)");
   }
   await cc.reindex(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
-  return { ok: true };
+  return { ok: true, status: "active" };
 };
 
 // ── crg.visualize ────────────────────────────────────────────────────────────
 
 export interface CrgVisualizeOutput {
   readonly ok: boolean;
+  /** Per-call degradation state ("active" when a graph was rendered). */
+  readonly status: BackendStatus;
 }
 
 export const crgVisualizeDefinition: ActionDefinition = {
@@ -60,5 +65,5 @@ export const crgVisualizeRun: ActionRun<unknown, CrgVisualizeOutput> = async (_i
     throw new Error("crg.visualize: no .code-review-graph/ — run crg.reindex first");
   }
   // CRG visualize is a read-only operation; the controller handles it internally.
-  return { ok: true };
+  return { ok: true, status: "active" };
 };

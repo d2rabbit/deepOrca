@@ -13,6 +13,8 @@ import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getReviewController, type ReviewResult, type ReviewOptions } from "./review-controller";
 import { getCrgGraphQuery, formatCrgContextForOcr, mergeReviewWithCrgRisk } from "./crg-query";
+import type { BackendStatus, BackendStatusReport } from "../common/analysis-status";
+import { describeBackendStatus } from "../common/analysis-status";
 import * as path from "node:path";
 import * as fs from "node:fs";
 
@@ -76,6 +78,10 @@ export interface ReviewFullOutput {
         readonly graphBuilt: true;
       }
     | { readonly graphBuilt: false; readonly reason: string };
+  /** Per-call degradation state: active = semantic + structural, degraded = semantic only. */
+  readonly status: BackendStatus;
+  /** One-line human/model-readable status sentence (state + remedy). */
+  readonly statusNote: string;
 }
 
 export const reviewFullDefinition: ActionDefinition = {
@@ -122,6 +128,22 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
   );
 
   // ③ Merge: tag each OCR comment with CRG risk level.
+  const graphPresent = crgQuery?.hasGraph(ctx.projectRoot) === true;
+  const statusReport: BackendStatusReport = graphPresent
+    ? {
+        status: "active",
+        backend: "review.full",
+        detail: "semantic review (ocr) + structural enrichment (CRG risk graph)",
+      }
+    : {
+        status: "degraded",
+        backend: "review.full",
+        detail: "semantic review (ocr) only — structural impact enrichment unavailable (no .code-review-graph/)",
+        remedy: "run crg.reindex for per-finding blast-radius data",
+      };
+  const statusNote = describeBackendStatus(statusReport);
+  const status = statusReport.status;
+
   if (crgChanges.length > 0 && crgRisks.length > 0) {
     const merged = mergeReviewWithCrgRisk(review.comments, crgRisks, crgChanges);
     return {
@@ -131,15 +153,19 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
         impactRadius: crgRisks,
         graphBuilt: true as const,
       },
+      status,
+      statusNote,
     };
   }
 
   // No CRG data — return review with risk.skipped.
   return {
     review,
-    risk: crgQuery?.hasGraph(ctx.projectRoot)
+    risk: graphPresent
       ? { graphBuilt: true as const, changedNodes: [], impactRadius: [] }
       : { graphBuilt: false as const, reason: "no .code-review-graph/" },
+    status,
+    statusNote,
   };
 };
 

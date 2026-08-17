@@ -266,9 +266,32 @@ export function resolveDembrandtCommand(binary: "dembrandt" | "dembrandt-mcp"): 
 
 /**
  * Validate a target URL before handing it to dembrandt (the CLI fetches and
- * renders it): http/https only, and the host must not be localhost, loopback,
- * a private/reserved IP, or a link-local address — SSRF surface guard.
+ * renders it). Two gates, both ahead of any spawn:
+ *
+ * 1. SSRF guard — http/https only, and the host must not be localhost,
+ *    loopback, a private/reserved IP, or a link-local address.
+ * 2. Copyright/ethics guard — the host must not be a paid template
+ *    marketplace or design gallery: extracting from those repackages
+ *    copyrighted visual work the user has no rights to. Ingest brands from
+ *    the brand's own website instead.
  */
+const COPYRIGHT_DENYLIST: ReadonlySet<string> = new Set([
+  "themeforest.net",
+  "www.themeforest.net",
+  "templatemonster.com",
+  "www.templatemonster.com",
+  "framer.com",
+  "www.framer.com",
+  "webflow.com",
+  "www.webflow.com",
+  "gumroad.com",
+  "www.gumroad.com",
+  "dribbble.com",
+  "www.dribbble.com",
+  "behance.net",
+  "www.behance.net",
+]);
+
 export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string } | { ok: false; error: string } {
   let parsed: URL;
   const trimmed = raw.trim();
@@ -307,7 +330,9 @@ export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string
     const a = Number(ipv4[1]);
     const b = Number(ipv4[2]);
     const blocked =
-      a === 0 || a === 10 || a === 127 ||
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
       (a === 100 && b >= 64 && b <= 127) ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
@@ -320,6 +345,14 @@ export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string
   }
   if (/^(fc|fd|fe8|fe9|fea|feb)/i.test(bracketless)) {
     return { ok: false, error: `refusing IPv6 ULA/link-local address: ${host}` };
+  }
+  if (COPYRIGHT_DENYLIST.has(host)) {
+    return {
+      ok: false,
+      error:
+        `refusing paid template marketplace / design gallery: ${host} — extracting from it would repackage ` +
+        `copyrighted visual work. Ingest the brand from the brand's own website instead.`,
+    };
   }
   return { ok: true, url: parsed.toString() };
 }

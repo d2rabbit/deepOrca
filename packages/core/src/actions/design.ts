@@ -353,7 +353,11 @@ export const designExtractRun: ActionRun<DesignExtractInput, DesignExtractOutput
 
   ctx.emit({ message: "🌐 Rendering page and extracting tokens…", percent: 50 });
 
-  const { code, stdout, stderr, spawnError } = await runDembrandtCli(ctx, [target.url, "--json-only", "--save-output"], outputDir);
+  const { code, stdout, stderr, spawnError } = await runDembrandtCli(
+    ctx,
+    [target.url, "--json-only", "--save-output"],
+    outputDir
+  );
 
   if (spawnError) {
     return { ok: false, url: target.url, error: spawnError };
@@ -399,10 +403,12 @@ export const designExtractRun: ActionRun<DesignExtractInput, DesignExtractOutput
     "1. Distill tokensJson into a brand section (colors with semantic roles, typography scale, spacing/radius/shadows, motion).",
     "2. Use the built-in `write` tool to create or update `.deeporca/DESIGN.md` at the project root with that section",
     "   (the write is permission-gated — that is intentional; this action never writes project files itself).",
-    "3. The deep-design skill's Step 0 reads `.deeporca/DESIGN.md` as the token source for subsequent generation.",
+    "3. Include a `## Provenance` block in DESIGN.md: source URL, extraction date, tool (dembrandt, pinned vendored version),",
+    '   and the note "extracted tokens are for internal design reference only — do not replicate copyrighted visual assets".',
+    "4. The deep-design skill's Step 0 reads `.deeporca/DESIGN.md` as the token source for subsequent generation.",
     truncated
-      ? `4. tokensJson was truncated — read the full extraction from the files under ${outputDir}.`
-      : `4. Full CLI artifacts were also saved under ${outputDir}.`,
+      ? `5. tokensJson was truncated — read the full extraction from the files under ${outputDir}.`
+      : `5. Full CLI artifacts were also saved under ${outputDir}.`,
   ].join("\n");
 
   return { ok: true, url: target.url, domain, outputDir, tokensJson, instruction };

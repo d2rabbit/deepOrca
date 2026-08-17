@@ -13,6 +13,7 @@
  */
 
 import type { ActionDefinition, ActionRun } from "./types";
+import type { BackendStatus } from "../common/analysis-status";
 
 export interface ArchScanInput {
   /** Optional focus perspective (e.g. "data-flow", "dependency-map"). Omit = all. */
@@ -21,6 +22,8 @@ export interface ArchScanInput {
 
 export interface ArchScanOutput {
   readonly ok: boolean;
+  /** Per-call degradation state — "unavailable" while the Subagent runtime is missing. */
+  readonly status?: BackendStatus;
   readonly pending?: boolean;
   readonly reason?: string;
   readonly result?: unknown;
@@ -48,6 +51,7 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
   if (!ctx.runSubagent) {
     return {
       ok: false,
+      status: "unavailable",
       pending: true,
       reason:
         "arch-scan.run requires the Subagent runtime, which is not available. The skill can still be triggered manually via /arch-scan.",
@@ -59,5 +63,5 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
     input: input?.perspective ? { perspective: input.perspective } : undefined,
   });
   ctx.emit({ message: "arch-scan complete", percent: 100 });
-  return { ok: true, result };
+  return { ok: true, status: "active", result };
 };

@@ -9,9 +9,13 @@
 import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getCodegraphController } from "./codegraph-controller";
+import type { BackendStatus } from "../common/analysis-status";
+import { describeBackendStatus } from "../common/analysis-status";
 
 export interface CodegraphReindexOutput {
   readonly ok: boolean;
+  /** Per-call degradation state ("active" on a successful build). */
+  readonly status: BackendStatus;
 }
 
 export const codegraphReindexDefinition: ActionDefinition = {
@@ -31,13 +35,17 @@ export const codegraphReindexRun: ActionRun<unknown, CodegraphReindexOutput> = a
     );
   }
   await cg.reindex(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
-  return { ok: true };
+  return { ok: true, status: "active" };
 };
 
 export interface CodegraphIndexEntry {
   readonly root: string;
   readonly label: string;
   readonly initialized: boolean;
+  /** Per-call degradation state — every call self-reports, no side-channel probe needed. */
+  readonly status: BackendStatus;
+  /** One-line human/model-readable status sentence (state + remedy). */
+  readonly statusNote: string;
 }
 
 export const codegraphListDefinition: ActionDefinition = {
@@ -51,11 +59,28 @@ export const codegraphListDefinition: ActionDefinition = {
 export const codegraphListRun: ActionRun<unknown, CodegraphIndexEntry[]> = async (_input, ctx) => {
   const cg = getCodegraphController();
   const root = ctx.projectRoot;
+  const initialized = cg ? cg.hasProject(root) : false;
+  const report = cg
+    ? {
+        status: (initialized ? "active" : "degraded") as BackendStatus,
+        backend: "codegraph",
+        detail: initialized
+          ? "persistent symbol index present (.codegraph/)"
+          : "no .codegraph/ index for this project — symbol/impact queries unavailable",
+        remedy: initialized ? undefined : "run codegraph.reindex",
+      }
+    : {
+        status: "unavailable" as BackendStatus,
+        backend: "codegraph",
+        detail: "CodeGraph controller not configured (host must call configureCodegraphController at boot)",
+      };
   return [
     {
       root,
       label: root.split("/").pop() || root,
-      initialized: cg ? cg.hasProject(root) : false,
+      initialized,
+      status: report.status,
+      statusNote: describeBackendStatus(report),
     },
   ];
 };

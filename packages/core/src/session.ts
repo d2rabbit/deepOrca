@@ -110,6 +110,8 @@ import {
   designExtractRun,
   designDriftDefinition,
   designDriftRun,
+  designAuditDefinition,
+  designAuditRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -182,7 +184,11 @@ import {
   truncateToolResultForCompaction,
   validateCompactionPairing,
 } from "./common/compaction";
-import { ToolExecutionGate, type ToolExecutionGateContext, type ToolExecutionGateListener } from "./common/tool-execution-gate";
+import {
+  ToolExecutionGate,
+  type ToolExecutionGateContext,
+  type ToolExecutionGateListener,
+} from "./common/tool-execution-gate";
 import { AuditLog } from "./sandbox/audit";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
@@ -784,8 +790,7 @@ export class SessionManager {
       // only the defaultMode fallback is forced to ask (§4.2, decision
       // 2026-08-15).
       forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
-      forceAskTools:
-        quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
+      forceAskTools: quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
       readPermissionExemptPaths: [
         ...this.getSkillScanRoots().map((entry) => entry.root),
         ...(effectivePermissions?.allowedReadPaths ?? []),
@@ -967,6 +972,9 @@ export class SessionManager {
     // pinned npx CLI via ctx.spawner, deterministic, no LLM) ────────────────
     this.actionRegistry.register(designExtractDefinition, designExtractRun);
     this.actionRegistry.register(designDriftDefinition, designDriftRun);
+    // ── Designer — deterministic anti-slop audit (design.audit; taste #11
+    // three-axis machine check + gate subset, zero LLM, changes nothing) ────
+    this.actionRegistry.register(designAuditDefinition, designAuditRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is
     // exposed to actions via the context (accept-dependencies rule).
@@ -3877,8 +3885,8 @@ ${content}
       return;
     }
     const resumeMode =
-      (this.getResolvedSettings() as { resumePendingToolCalls?: "replay" | "synthesize" })
-        .resumePendingToolCalls ?? PENDING_TOOL_RESUME_MODE_DEFAULT;
+      (this.getResolvedSettings() as { resumePendingToolCalls?: "replay" | "synthesize" }).resumePendingToolCalls ??
+      PENDING_TOOL_RESUME_MODE_DEFAULT;
     if (shouldSynthesizePendingToolCalls(session.status, resumeMode)) {
       this.synthesizePendingToolOutcomes(sessionId, session.status);
     }
@@ -3904,9 +3912,7 @@ ${content}
    * outcome-unknown (conservative).
    */
   private synthesizePendingToolOutcomes(sessionId: string, status: string): number {
-    const pending = this.messageConverter.getTrailingPendingToolCallMessage(
-      this.listSessionMessages(sessionId)
-    );
+    const pending = this.messageConverter.getTrailingPendingToolCallMessage(this.listSessionMessages(sessionId));
     if (pending.toolCalls.length === 0) {
       return 0;
     }

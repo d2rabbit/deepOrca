@@ -372,6 +372,28 @@ describe("dembrandt brand ingestion (E1)", { concurrency: 1 }, () => {
       assert.equal(validateDembrandtTargetUrl("http://172.32.0.1/").ok, true);
       assert.equal(validateDembrandtTargetUrl("http://192.169.0.1/").ok, true);
     });
+
+    test("rejects paid template marketplaces and design galleries (copyright guard)", () => {
+      for (const bad of [
+        "https://themeforest.net/item/whatever",
+        "https://www.templatemonster.com/templates",
+        "https://framer.com/marketplace",
+        "https://www.framer.com/templates/abc",
+        "https://webflow.com/templates",
+        "https://gumroad.com/l/some-kit",
+        "https://dribbble.com/shots/123",
+        "https://behance.net/gallery/456",
+      ]) {
+        const verdict = validateDembrandtTargetUrl(bad);
+        assert.equal(verdict.ok, false, `must reject ${bad}`);
+        if (!verdict.ok) {
+          assert.ok(verdict.error.includes("marketplace"), `error should say why: ${verdict.error}`);
+        }
+      }
+      // Same-name subdomain or unrelated host must NOT be swept up by the denylist.
+      assert.equal(validateDembrandtTargetUrl("https://framer.community/").ok, true);
+      assert.equal(validateDembrandtTargetUrl("https://example.com/inspired-by-dribbble").ok, true);
+    });
   });
 
   // ── E1b/E1c: action definitions ───────────────────────────────────────────
@@ -454,6 +476,10 @@ describe("dembrandt brand ingestion (E1)", { concurrency: 1 }, () => {
       const instruction = String(result.instruction);
       assert.match(instruction, /\.deeporca\/DESIGN\.md/);
       assert.match(instruction, /`write` tool/);
+      // Provenance block required in the persisted brand contract.
+      assert.match(instruction, /## Provenance/);
+      assert.match(instruction, /extraction date/);
+      assert.match(instruction, /do not replicate copyrighted visual assets/);
     });
 
     test("vendored argv carries the offline env guards", async () => {

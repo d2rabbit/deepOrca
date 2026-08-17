@@ -104,6 +104,14 @@ export type {
   DesignDriftInput,
   DesignDriftOutput,
 } from "./design";
+export { designAuditDefinition, designAuditRun } from "./design-audit";
+export type {
+  DesignAuditInput,
+  DesignAuditOutput,
+  DesignAuditFinding,
+  DesignAuditSeverity,
+  DesignAuditAxes,
+} from "./design-audit";
 export {
   taskCreateDefinition,
   taskCreateRun,
