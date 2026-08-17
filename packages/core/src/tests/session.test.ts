@@ -764,7 +764,17 @@ test("SessionManager excludes implicit opt-out skills from automatic matching ca
   globalThis.fetch = (async () => ({ ok: true, text: async () => "" }) as Response) as typeof fetch;
 
   const writeSkill = (name: string, metadata = ""): void => {
-    const skillDir = path.join(workspace, ".deepcode", "skills", name);
+    // Test fixture containment (security scan): names are literals in this
+    // test — inline-validate a plain single segment that resolves under the
+    // temp workspace root.
+    if (name.split(/[\\/]/).length !== 1 || name.includes("..") || path.isAbsolute(name)) {
+      throw new Error(`unsafe skill fixture name: ${name}`);
+    }
+    const skillDir = path.join(path.resolve(workspace), ".deepcode", "skills", name);
+    const relToWorkspace = path.relative(path.resolve(workspace), skillDir);
+    if (relToWorkspace === "" || relToWorkspace.startsWith("..") || path.isAbsolute(relToWorkspace)) {
+      throw new Error("skill fixture directory escaped the workspace root");
+    }
     fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(
       path.join(skillDir, "SKILL.md"),

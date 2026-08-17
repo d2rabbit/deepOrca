@@ -107,7 +107,12 @@ export function saveDesignArtifact(
   }
 ): DesignArtifactMeta | null {
   try {
-    const dir = getDesignsDir(root);
+    // SECURITY (scan fix): apply the same id guard the read/delete paths use —
+    // a caller-supplied id that cannot be a safe directory name fails the save
+    // instead of ever reaching path.join below.
+    if (input.id !== undefined && !isSafeArtifactId(input.id)) {
+      return null;
+    }
     const index = getIndex(root);
     const now = new Date().toISOString();
     const existing = input.id ? (readMetaFile(root, input.id) ?? undefined) : undefined;
@@ -115,7 +120,20 @@ export function saveDesignArtifact(
     // Snapshot the outgoing content before it is replaced.
     let versions = existing?.versions ?? [];
     if (existing) {
-      const contentPath = path.join(dir, existing.id, FILE_BY_PIPELINE[existing.pipeline]);
+      // containment check (security scan): existing.id is read back from disk
+      // (meta.json) — resolve it through the guarded path before reading the
+      // previous content file.
+      const snapshotDir = resolveArtifactDir(root, existing.id);
+      if (!snapshotDir) {
+        return null;
+      }
+      const contentPath = path.join(snapshotDir, FILE_BY_PIPELINE[existing.pipeline]);
+      // containment check (security scan): the snapshot file must stay inside
+      // the guarded artifact directory after the join.
+      const relToArtifactDir = path.relative(snapshotDir, contentPath);
+      if (relToArtifactDir === "" || relToArtifactDir.startsWith("..") || path.isAbsolute(relToArtifactDir)) {
+        return null;
+      }
       try {
         const previousContent = fs.readFileSync(contentPath, "utf8");
         if (previousContent !== input.content) {
@@ -135,7 +153,12 @@ export function saveDesignArtifact(
       ...(versions.length > 0 ? { versions } : {}),
     };
 
-    const artifactDirPath = path.join(dir, meta.id);
+    // containment check (security scan): the write target directory must
+    // resolve through the guarded id → dir mapping before any file is written.
+    const artifactDirPath = resolveArtifactDir(root, meta.id);
+    if (!artifactDirPath) {
+      return null;
+    }
     fs.mkdirSync(artifactDirPath, { recursive: true });
     fs.writeFileSync(path.join(artifactDirPath, FILE_BY_PIPELINE[meta.pipeline]), input.content, "utf8");
     fs.writeFileSync(path.join(artifactDirPath, "meta.json"), JSON.stringify(meta, null, 2), "utf8");
@@ -208,11 +231,11 @@ function resolveArtifactDir(root: string, id: string): string | null {
 }
 export function saveFormState(root: string, id: string, state: unknown): boolean {
   try {
-    fs.writeFileSync(
-      path.join(getDesignsDir(root), id, "formState.json"),
-      JSON.stringify(state ?? {}, null, 2),
-      "utf8"
-    );
+    // containment check (security scan): same id guard as the other artifact
+    // paths before the join; unsafe ids cannot become directory names.
+    const dir = resolveArtifactDir(root, id);
+    if (!dir) return false;
+    fs.writeFileSync(path.join(dir, "formState.json"), JSON.stringify(state ?? {}, null, 2), "utf8");
     return true;
   } catch {
     return false;

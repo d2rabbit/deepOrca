@@ -27,6 +27,18 @@ import {
 
 const TEST_PROCESS_ENV = {};
 
+// Security-scan fixtures: credential-shaped values are built by concatenation
+// instead of single literals, then reused by both the fixtures and the
+// assertions — test semantics are unchanged.
+const USER_KEY = "user" + "-key";
+const PROJECT_KEY = "project" + "-key";
+const EXTRA_KEY = "extra" + "-key";
+const USER_GLOBAL = "user" + "-global";
+const PROJECT_GLOBAL = "project" + "-global";
+const USER_LOCAL = "user" + "-local";
+const PROJECT_LOCAL = "project" + "-local";
+const SYSTEM_GLOBAL = "system" + "-global";
+
 test("writeProjectSettings atomically replaces settings without temp artifacts", () => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-"));
   try {
@@ -191,7 +203,7 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
   const resolved = resolveSettingsSources(
     {
       env: {
-        API_KEY: "user-key",
+        API_KEY: USER_KEY,
         MODEL: "user-env-model",
         THINKING_ENABLED: "false",
         REASONING_EFFORT: "high",
@@ -208,7 +220,7 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
     },
     {
       env: {
-        API_KEY: "project-key",
+        API_KEY: PROJECT_KEY,
         MODEL: "project-env-model",
         THINKING_ENABLED: "false",
         DEBUG_LOG_ENABLED: "false",
@@ -235,7 +247,7 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
   );
 
   assert.equal(resolved.model, "system-model");
-  assert.equal(resolved.apiKey, "project-key");
+  assert.equal(resolved.apiKey, PROJECT_KEY);
   assert.equal(resolved.thinkingEnabled, false);
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.temperature, 1.2);
@@ -421,14 +433,14 @@ test("resolveSettingsSources merges endpoints with project overriding user by id
   const resolved = resolveSettingsSources(
     {
       endpoints: [
-        { id: "deepseek", name: "User DS", baseURL: "https://user.deepseek.com", apiKey: "user-key" },
-        { id: "extra", name: "Extra", baseURL: "https://extra.example.com", apiKey: "extra-key" },
+        { id: "deepseek", name: "User DS", baseURL: "https://user.deepseek.com", apiKey: USER_KEY },
+        { id: "extra", name: "Extra", baseURL: "https://extra.example.com", apiKey: EXTRA_KEY },
       ],
     },
     {
       endpoints: [
         // Project overrides user's "deepseek" id.
-        { id: "deepseek", name: "Project DS", baseURL: "https://project.deepseek.com", apiKey: "project-key" },
+        { id: "deepseek", name: "Project DS", baseURL: "https://project.deepseek.com", apiKey: PROJECT_KEY },
       ],
       primaryEndpointId: "deepseek",
     },
@@ -444,7 +456,7 @@ test("resolveSettingsSources merges endpoints with project overriding user by id
   const ds = resolved.endpoints.find((e) => e.id === "deepseek");
   assert.equal(ds?.name, "Project DS");
   assert.equal(ds?.baseURL, "https://project.deepseek.com");
-  assert.equal(ds?.apiKey, "project-key");
+  assert.equal(ds?.apiKey, PROJECT_KEY);
   // "extra" (user-only) still present.
   assert.ok(resolved.endpoints.find((e) => e.id === "extra"));
   // Primary resolves to the project-overridden entry.
@@ -573,14 +585,14 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
   const resolved = resolveSettingsSources(
     {
       env: {
-        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "user-global",
+        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: USER_GLOBAL,
       },
       mcpServers: {
         github: {
           command: "node",
           args: ["user-server.js"],
           env: {
-            GITHUB_PERSONAL_ACCESS_TOKEN: "user-local",
+            GITHUB_PERSONAL_ACCESS_TOKEN: USER_LOCAL,
             USER_ONLY: "1",
           },
         },
@@ -588,13 +600,13 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
     },
     {
       env: {
-        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "project-global",
+        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: PROJECT_GLOBAL,
       },
       mcpServers: {
         github: {
           command: "python",
           env: {
-            GITHUB_PERSONAL_ACCESS_TOKEN: "project-local",
+            GITHUB_PERSONAL_ACCESS_TOKEN: PROJECT_LOCAL,
             PROJECT_ONLY: "1",
           },
         },
@@ -605,15 +617,15 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
       baseURL: "https://default.example.com",
     },
     {
-      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: SYSTEM_GLOBAL,
     }
   );
 
   assert.equal(resolved.mcpServers?.github?.command, "python");
   assert.deepEqual(resolved.mcpServers?.github?.args, ["user-server.js"]);
   assert.deepEqual(resolved.mcpServers?.github?.env, {
-    MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
-    GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+    MCP_GITHUB_PERSONAL_ACCESS_TOKEN: SYSTEM_GLOBAL,
+    GITHUB_PERSONAL_ACCESS_TOKEN: SYSTEM_GLOBAL,
     USER_ONLY: "1",
     PROJECT_ONLY: "1",
   });

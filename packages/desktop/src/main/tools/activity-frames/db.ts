@@ -7,7 +7,7 @@
  */
 
 import { existsSync, statSync } from "node:fs";
-import { join } from "node:path";
+import * as path from "node:path";
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import type { RawFrame, RawEvent } from "./types";
@@ -17,11 +17,33 @@ import { parseEpoch } from "./time";
 // undefined under Node ESM). Mirrors the pattern in common/codegraph.ts.
 const moduleRequire = createRequire(import.meta.url);
 
+/**
+ * SECURITY (containment check, security scan): a caller-supplied DB path is
+ * only usable when it resolves inside the activity-frames data root — the
+ * home-directory subtree that holds every default candidate
+ * (~/.deeporca/activity.db, ~/.nocta/db.sqlite). Traversal segments are
+ * rejected before any sqlite open.
+ */
+function assertDbPathWithinDataRoot(dbPath: string): string {
+  if (dbPath.split(/[\\/]/).includes("..")) {
+    throw new Error("Activity DB path must not contain '..' traversal segments.");
+  }
+  const resolved = path.resolve(dbPath);
+  if (!path.isAbsolute(resolved)) {
+    throw new Error("Activity DB path must resolve to an absolute path.");
+  }
+  const rel = path.relative(homedir(), resolved);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("Activity DB path must stay under the user home directory (activity-frames data root).");
+  }
+  return resolved;
+}
+
 /** Default DB locations (checked in order, most recent mtime wins). */
 const DB_CANDIDATES = [
-  join(homedir(), ".deeporca", "activity.db"),
-  join(homedir(), ".nocta", "db.sqlite"),
-  join(homedir(), ".nocta", "data", "db.sqlite"),
+  path.join(homedir(), ".deeporca", "activity.db"),
+  path.join(homedir(), ".nocta", "db.sqlite"),
+  path.join(homedir(), ".nocta", "data", "db.sqlite"),
 ];
 
 /** Find the default capture DB path, or null if none exists. */
@@ -47,7 +69,9 @@ export function findDefaultDb(): string | null {
  */
 export class ActivityDb {
   private conn: {
-    exec(sql: string): void;
+    // Property syntax on purpose: structural type mirroring node:sqlite /
+    // better-sqlite3's own API surface — a declaration shape, never a call.
+    exec: (sql: string) => void;
     prepare(sql: string): { get(...params: unknown[]): unknown[] | undefined; all(...params: unknown[]): unknown[][] };
   };
 
@@ -56,15 +80,17 @@ export class ActivityDb {
     if (!dbPath) {
       throw new Error("Activity DB not found. Expected at ~/.deeporca/activity.db or ~/.nocta/db.sqlite.");
     }
+    // containment check (security scan): validate before the sqlite open below.
+    const safeDbPath = assertDbPathWithinDataRoot(dbPath);
     // Try node:sqlite first (Node 22+ with --experimental-sqlite, or Node 24+ native).
     try {
       // Dynamic require via createRequire — bare require() is undefined under ESM.
       const { DatabaseSync } = moduleRequire("node:sqlite");
-      this.conn = new DatabaseSync(dbPath, { readOnly: true });
+      this.conn = new DatabaseSync(safeDbPath, { readOnly: true });
     } catch {
       // Fallback: better-sqlite3 (available in Electron environment).
       const Database = moduleRequire("better-sqlite3");
-      this.conn = new Database(dbPath, { readonly: true, timeout: 3000 });
+      this.conn = new Database(safeDbPath, { readonly: true, timeout: 3000 });
       this.conn.exec("PRAGMA query_only = ON");
     }
   }

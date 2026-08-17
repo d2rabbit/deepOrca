@@ -27,7 +27,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative as relativePath, resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 import { withAtomicSwap } from "./vendor-fs.js";
@@ -109,19 +109,36 @@ function hfResolveUrls(repo, file, tag) {
  * Download a single file (by remote name) to dest, trying each candidate URL.
  * Uses curl with -L to follow hf-mirror's 302 redirect to the LFS CDN.
  */
-function downloadFile(repo, remoteFile, dest, tag) {
+function downloadFile(repo, remoteFile, dest, tag, stagingDir) {
+  // containment check (security scan): the destination must resolve inside the
+  // staging directory before it is handed to curl.
+  const destResolved = resolve(dest);
+  const relToStaging = relativePath(resolve(stagingDir), destResolved);
+  if (relToStaging === "" || relToStaging.startsWith("..") || isAbsolute(relToStaging)) {
+    throw new Error(`download destination escaped the staging directory: ${dest}`);
+  }
   const urls = hfResolveUrls(repo, remoteFile, tag);
   let lastError = null;
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
     const isLast = i === urls.length - 1;
     log(`downloading ${remoteFile} from ${url}`);
+    // SECURITY (scan fix): curl writes to stdout, so its argv is fixed flags
+    // plus the `--` option terminator — the externally influenced URL is the
+    // only dynamic element and sits strictly AFTER the terminator, where it
+    // can never be parsed as a curl option. Per-argument validation: the URL
+    // must be an https origin.
+    if (!/^https:\/\//.test(url)) {
+      throw new Error(`unsafe download URL rejected: ${url}`);
+    }
     try {
-      execFileSync(
-        "curl",
-        ["-L", "--fail", "--retry", "2", "--connect-timeout", "12", "--max-time", "300", "-o", dest, url],
-        { stdio: "inherit" }
-      );
+      const body = execFileSync("curl", ["-L", "--fail", "--retry", "2", "--connect-timeout", "12", "--max-time", "300", "--", url], {
+        encoding: null,
+        maxBuffer: 512 * 1024 * 1024,
+      });
+      // containment check (security scan): the already-validated destination
+      // (inside the staging dir) receives the bytes; no shell involved.
+      writeFileSync(destResolved, body);
       return; // success
     } catch (err) {
       lastError = err;
@@ -157,7 +174,7 @@ async function main() {
         const dest = join(modelRoot, f.local);
         // Ensure subdirs (e.g. onnx/) exist — harmless if already there.
         mkdirSync(dirname(dest), { recursive: true });
-        downloadFile(MODEL_REPO, f.remote, dest, MODEL_TAG);
+        downloadFile(MODEL_REPO, f.remote, dest, MODEL_TAG, staging);
       }
     },
     verify(staging) {

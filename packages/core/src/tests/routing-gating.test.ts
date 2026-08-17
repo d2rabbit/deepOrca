@@ -36,7 +36,17 @@ afterEach(() => {
 });
 
 function writeSkill(root: string, name: string, description: string): void {
-  const dir = path.join(root, ".deepcode", "skills", name);
+  // Test fixture containment (security scan): skill names are literals in
+  // this file — inline-validate that the name is a plain single segment and
+  // the resolved directory stays under the temp workspace root.
+  if (name.split(/[\\/]/).length !== 1 || name.includes("..") || path.isAbsolute(name)) {
+    throw new Error(`unsafe skill fixture name: ${name}`);
+  }
+  const dir = path.join(path.resolve(root), ".deepcode", "skills", name);
+  const relToRoot = path.relative(path.resolve(root), dir);
+  if (relToRoot === "" || relToRoot.startsWith("..") || path.isAbsolute(relToRoot)) {
+    throw new Error("skill fixture directory escaped the workspace root");
+  }
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(dir + "/SKILL.md", `---\nname: ${name}\ndescription: ${description}\n---\n# ${name}\n`, "utf8");
 }

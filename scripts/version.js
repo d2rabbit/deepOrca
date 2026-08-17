@@ -40,19 +40,22 @@ function isBumpType(v) {
   return BUMP_TYPES.includes(v);
 }
 
-function run(cmd, args, opts = {}) {
-  const result = spawnSync(cmd, args, {
-    stdio: opts.stdio ?? "inherit",
-    cwd: opts.cwd ?? root,
+// SECURITY (scan fix): no generic run(cmd, args) wrapper — each subprocess
+// call uses a fixed literal program and a fixed literal argv, so no external
+// input can reach spawnSync. spawn stays argv-form (no shell strings).
+function runNpmInstall() {
+  const result = spawnSync("npm", ["install", "--package-lock-only"], {
+    stdio: "inherit",
+    cwd: root,
   });
   if (result.status !== 0) {
-    fail(`Command failed: ${cmd} ${args.join(" ")}`);
+    fail("Command failed: npm install --package-lock-only");
   }
   return result;
 }
 
-function runSilent(cmd, args) {
-  const result = spawnSync(cmd, args, {
+function runGitLatestTag() {
+  const result = spawnSync("git", ["describe", "--tags", "--abbrev=0"], {
     cwd: root,
     encoding: "utf-8",
   });
@@ -155,7 +158,7 @@ function bumpVersion(current, type, preid) {
 
 function resolveVersionFromGit() {
   // Get latest tag matching v*
-  const tag = runSilent("git", ["describe", "--tags", "--abbrev=0"]);
+  const tag = runGitLatestTag();
   if (!tag) {
     fail("No git tags found. Cannot use 'from-git'.");
   }
@@ -212,6 +215,9 @@ Examples:
   }
 }
 
+// ── Validate argv at entry (security scan fix) ───────────────────────────────
+// Only the sanitized constants below flow into version computation and any
+// subprocess argv; spawn stays argv-form (no shell strings anywhere).
 if (!bumpArg) {
   log(`
 Usage: npm run release:version -- <newversion | bump-type> [--preid <id>]
@@ -219,6 +225,14 @@ Usage: npm run release:version -- <newversion | bump-type> [--preid <id>]
 `);
   process.exit(1);
 }
+if (!preid || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(preid)) {
+  fail(`Invalid --preid value: ${JSON.stringify(preid)}`);
+}
+const validatedPreid = preid;
+if (bumpArg !== "from-git" && !isBumpType(bumpArg) && !isValidSemver(bumpArg)) {
+  fail(`Invalid argument: "${bumpArg}". Expected a bump type (${BUMP_TYPES.join(", ")}) or a semver version.`);
+}
+const validatedBumpArg = bumpArg;
 
 // ── Resolve target version ───────────────────────────────────────────────────
 
@@ -227,15 +241,15 @@ const currentVersion = readJson(corePkgPath).version;
 
 let version;
 
-if (bumpArg === "from-git") {
+if (validatedBumpArg === "from-git") {
   version = resolveVersionFromGit();
   log(`Resolved from git tag: v${version}`);
-} else if (isBumpType(bumpArg)) {
-  version = bumpVersion(currentVersion, bumpArg, preid);
-} else if (isValidSemver(bumpArg)) {
-  version = bumpArg;
+} else if (isBumpType(validatedBumpArg)) {
+  version = bumpVersion(currentVersion, validatedBumpArg, validatedPreid);
+} else if (isValidSemver(validatedBumpArg)) {
+  version = validatedBumpArg;
 } else {
-  fail(`Invalid argument: "${bumpArg}". Expected a bump type (${BUMP_TYPES.join(", ")}) or a semver version.`);
+  fail(`Invalid argument: "${validatedBumpArg}". Expected a bump type (${BUMP_TYPES.join(", ")}) or a semver version.`);
 }
 
 // ── Banner ───────────────────────────────────────────────────────────────────
@@ -278,7 +292,7 @@ try {
   // lockfile may not exist, that's fine
 }
 
-run("npm", ["install", "--package-lock-only"]);
+runNpmInstall();
 ok("package-lock.json regenerated");
 
 // ── Done ─────────────────────────────────────────────────────────────────────

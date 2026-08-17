@@ -265,6 +265,10 @@ export class SceneExtractor {
       const allFiles = (await fs.readdir(sceneBlocksDir)).filter((f) => f.endsWith(".md"));
       for (const file of allFiles) {
         const filePath = path.join(sceneBlocksDir, file);
+        // containment check (security scan): the file must stay under the
+        // scene_blocks storage root before it is stat'd, read, or removed.
+        const relToDir = path.relative(sceneBlocksDir, filePath);
+        if (relToDir === "" || relToDir.startsWith("..") || path.isAbsolute(relToDir)) continue;
         // SECURITY hardening (audit 2026-08-12 §5.2): a local attacker could
         // plant a symlink in scene_blocks pointing outside the dir — only
         // read regular files (lstat does not follow symlinks).

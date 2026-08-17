@@ -344,6 +344,10 @@ export async function readConversationRecords(
 
   for (const fileName of targetFiles) {
     const filePath = path.join(conversationsDir, fileName);
+    // containment check (security scan): the file must stay under the
+    // conversations storage root before it is read.
+    const relToDir = path.relative(conversationsDir, filePath);
+    if (relToDir === "" || relToDir.startsWith("..") || path.isAbsolute(relToDir)) continue;
 
     let raw: string;
     try {

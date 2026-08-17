@@ -186,6 +186,10 @@ export async function readAllMemoryRecords(baseDir: string, logger?: Logger): Pr
     for (const file of files) {
       if (!file.endsWith(".jsonl")) continue;
       const filePath = path.join(recordsDir, file);
+      // containment check (security scan): the file must stay under the
+      // records storage root before it is read.
+      const relToDir = path.relative(recordsDir, filePath);
+      if (relToDir === "" || relToDir.startsWith("..") || path.isAbsolute(relToDir)) continue;
       if (!(await isRegularFile(filePath))) {
         logger?.warn?.(`${TAG} Skipping non-regular file ${file}`);
         continue;

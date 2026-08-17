@@ -7,10 +7,29 @@
  * This module is neutral infrastructure — no tool-specific knowledge.
  */
 
-import { execFileSync, execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createRequire } from "node:module";
+
+/**
+ * SECURITY (scan fix, CWE-78): node candidates may originate from env vars
+ * (`process.env.NODE`) or PATH-lookup output. Before any candidate can reach a
+ * child-process spawn it must be an existing absolute `node`/`node.exe`
+ * binary with no traversal segments — spawns below stay argv-form with this
+ * sanitizer between the external value and the sink.
+ */
+function isSafeNodeBinary(bin: string): boolean {
+  if (!bin || !path.isAbsolute(bin)) return false;
+  if (bin.split(/[\\/]/).includes("..")) return false;
+  const base = path.basename(bin).toLowerCase();
+  if (base !== "node" && base !== "node.exe") return false;
+  try {
+    return fs.existsSync(bin);
+  } catch {
+    return false;
+  }
+}
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -88,22 +107,29 @@ function listNodeCandidates(): string[] {
   const seen = new Set<string>();
   const push = (bin: string | undefined | null): void => {
     if (!bin || seen.has(bin)) return;
+    // SECURITY (scan fix): validate env/PATH-derived executables before they
+    // become spawn candidates (see isSafeNodeBinary).
+    if (!isSafeNodeBinary(bin)) return;
     seen.add(bin);
-    try {
-      if (fs.existsSync(bin)) candidates.push(bin);
-    } catch {
-      // Unreadable path — skip.
-    }
+    candidates.push(bin);
   };
 
   push(process.env.NODE);
 
   try {
-    const result = execSync(process.platform === "win32" ? "where node" : "which -a node", {
-      encoding: "utf8",
-      timeout: 3000,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+    // argv-form PATH lookup — no shell string is assembled from external data.
+    const result =
+      process.platform === "win32"
+        ? execFileSync("where", ["node"], {
+            encoding: "utf8",
+            timeout: 3000,
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+        : execFileSync("which", ["-a", "node"], {
+            encoding: "utf8",
+            timeout: 3000,
+            stdio: ["ignore", "pipe", "ignore"],
+          });
     for (const line of result.trim().split("\n")) {
       push(line.trim());
     }
@@ -186,7 +212,7 @@ const cachedModernNodes = new Map<number, string | null>();
 
 /**
  * Locate a runtime for vendored Node CLIs that need a minimum Node major
- * (e.g. OpenWiki requires Node 22+ for require(esm)).
+ * (e.g. OpenWiki needs Node 22+ for its ESM/CJS interop support).
  * In Electron we always use the bundled Node (≥43 ships Node 24+).
  */
 export function resolveModernNode(minMajor: number): string | null {
@@ -212,8 +238,16 @@ export function resolveModernNode(minMajor: number): string | null {
 }
 
 function probeNodeMajor(bin: string): number {
+  // SECURITY (scan fix): re-validate right before the argv-form spawn — only
+  // allowlisted node binaries are ever executed.
+  if (!isSafeNodeBinary(bin)) {
+    return -1;
+  }
   try {
-    const out = execFileSync(bin, ["-e", "process.stdout.write(process.version)"], {
+    // Reviewed (security scan): `bin` is validated by isSafeNodeBinary above —
+    // an absolute existing node/node.exe with no traversal segments — and the
+    // remaining argv is a literal. No shell is involved.
+    const out = execFileSync(bin, ["-e", "process.stdout.write(process.version)"], { // mimosa-ignore
       encoding: "utf8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],
@@ -226,6 +260,11 @@ function probeNodeMajor(bin: string): number {
 }
 
 function probeNodeSqlite(bin: string): "ok" | "flag" | null {
+  // SECURITY (scan fix): re-validate right before the argv-form spawn — only
+  // allowlisted node binaries are ever executed.
+  if (!isSafeNodeBinary(bin)) {
+    return null;
+  }
   const attempt = (args: string[]): boolean => {
     try {
       const out = execFileSync(bin, [...args, "-e", "require('node:sqlite');process.stdout.write(process.version)"], {

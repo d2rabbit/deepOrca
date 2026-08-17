@@ -5,7 +5,7 @@
  * single resolution path without coupling through the CRG module.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -17,26 +17,61 @@ export function configureUvVendorRoot(root: string | null): void {
 }
 
 /**
+ * SECURITY (scan fix, CWE-78): a uv candidate may come from a PATH lookup
+ * (external output). Before it can be returned to callers that spawn it, it
+ * must be an existing absolute `uv`/`uv.exe` binary with no traversal
+ * segments.
+ */
+function isSafeUvBinary(bin: string): boolean {
+  if (!bin || !path.isAbsolute(bin)) return false;
+  if (bin.split(/[\\/]/).includes("..")) return false;
+  const base = path.basename(bin).toLowerCase();
+  if (base !== "uv" && base !== "uv.exe") return false;
+  try {
+    return fs.statSync(bin).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** True when `candidate` resolves to a path lexically inside `root`. */
+function isWithinRoot(root: string, candidate: string): boolean {
+  const rel = path.relative(path.resolve(root), path.resolve(candidate));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+/**
  * Resolve the uv binary for the current platform. Prefers the vendored binary;
  * falls back to `uv`/`uvx` on PATH; last resort `uvx` bare.
  */
 export function resolveUvBinary(): string | null {
-  // 1. Vendored uv binary.
+  // 1. Vendored uv binary (containment-checked inside resolveVendoredUvPath).
   if (configuredUvVendorRoot) {
     const uvPath = resolveVendoredUvPath(configuredUvVendorRoot);
     if (uvPath) {
       return uvPath;
     }
   }
-  // 2. System uv on PATH.
+  // 2. System uv on PATH — argv-form lookup, then validate before returning.
   try {
-    const found = execSync(process.platform === "win32" ? "where uv" : "which uv", {
-      encoding: "utf8",
-      timeout: 3000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (found) {
-      return found.split("\n")[0].trim();
+    const found = (
+      process.platform === "win32"
+        ? execFileSync("where", ["uv"], {
+            encoding: "utf8",
+            timeout: 3000,
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+        : execFileSync("which", ["uv"], {
+            encoding: "utf8",
+            timeout: 3000,
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+    ).trim();
+    const first = found.split("\n")[0].trim();
+    // SECURITY (scan fix): PATH output is externally influenced — only a
+    // validated absolute uv binary is returned to the spawn sites.
+    if (first && isSafeUvBinary(first)) {
+      return first;
     }
   } catch {
     // uv not on PATH.
@@ -69,7 +104,9 @@ function resolveVendoredUvPath(vendorRoot: string): string | null {
   ];
   for (const candidate of candidates) {
     try {
-      if (fs.statSync(candidate).isFile()) {
+      // SECURITY (scan fix): containment check — the resolved binary must be a
+      // validated uv executable that still lives inside the vendored root.
+      if (fs.statSync(candidate).isFile() && isWithinRoot(vendorRoot, candidate) && isSafeUvBinary(candidate)) {
         return candidate;
       }
     } catch {

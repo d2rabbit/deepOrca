@@ -131,7 +131,17 @@ test("multi-intent sessions receive the orchestration plan message", async () =>
   const home = createTempDir("skill-meta-orch-home-");
   process.env.HOME = home;
   for (const name of ["slides-skill", "test-skill"]) {
-    const dir = path.join(workspace, ".deepcode", "skills", name);
+    // Test fixture containment (security scan): the name comes from the
+    // literal list above — inline-validate it is a plain single segment and
+    // the resolved directory stays under the temp workspace root.
+    if (name.split(/[\\/]/).length !== 1 || name.includes("..") || path.isAbsolute(name)) {
+      throw new Error(`unsafe skill fixture name: ${name}`);
+    }
+    const dir = path.join(path.resolve(workspace), ".deepcode", "skills", name);
+    const relToWorkspace = path.relative(path.resolve(workspace), dir);
+    if (relToWorkspace === "" || relToWorkspace.startsWith("..") || path.isAbsolute(relToWorkspace)) {
+      throw new Error("skill fixture directory escaped the workspace root");
+    }
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(dir + "/SKILL.md", `---\nname: ${name}\ndescription: ${name}\n---\n# ${name}\n`, "utf8");
   }

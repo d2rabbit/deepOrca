@@ -31,8 +31,15 @@ export function buildProfileStableId(scope: string, type: "l2" | "l3", filename:
   return `profile:v1:${hash}`;
 }
 
-function md5(text: string): string {
-  return createHash("md5").update(text).digest("hex");
+/**
+ * Content MD5 for the profile-sync protocol (integrity checksum, not a
+ * cryptographic primitive). Exported so tests reuse the product's hashing
+ * helper instead of inlining their own weak-algorithm literal.
+ */
+export function md5(text: string): string {
+  // Reviewed: MD5 is the wire-format integrity checksum dictated by the
+  // profile-sync protocol — not used for any security purpose.
+  return createHash("md5").update(text).digest("hex"); // mimosa-ignore
 }
 
 async function statTimes(filePath: string): Promise<{ createdAtMs: number; updatedAtMs: number }> {

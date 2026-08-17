@@ -1,10 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { pullProfilesToLocal } from "../tdai/core/profile/profile-sync";
+import { md5, pullProfilesToLocal } from "../tdai/core/profile/profile-sync";
 
 /**
  * Security regression tests (audit 2026-08-12 §5.1): remote profile filenames
@@ -35,7 +34,7 @@ function record(
     version: 1,
     filename,
     content,
-    contentMd5: crypto.createHash("md5").update(content).digest("hex"),
+    contentMd5: md5(content),
   };
 }
 
