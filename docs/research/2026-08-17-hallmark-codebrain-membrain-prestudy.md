@@ -215,7 +215,7 @@ L0–L3 的直接同侪。**复查修正（第二轮代码走读）**：检索�
 > 修正初稿一处论断错误。
 
 1. **~~RRF 融合~~ —— 已具备，无需引入（复查修正）。** 初稿误判"我们只有两路、缺融合"。
-   实际：`auto-recall.ts:316` 注释即写明 "hybrid: merge both results with **RRF**
+   实际：`auto-recall.ts（searchHybrid RRF 合并处）` 注释即写明 "hybrid: merge both results with **RRF**
    (Reciprocal Rank Fusion)"，`:655` `const RRF_K = 60`，`:664/:677` 双路
    `1/(RRF_K+rank+1)` 求和——**与 MemBrain 的 `_RRF_K=60` 同构同值**；且
    `memory-manager.ts:48` 默认 `strategy: "hybrid"`、`:51` BM25 默认开启；本地后端
@@ -443,7 +443,7 @@ reduced-motion 回退。来源标注"灵感源自公开动效语料的通例模�
 
 | # | 事项 | 目标模块 | 成本 | 依据 |
 | --- | --- | --- | --- | --- |
-| 1 | memory hybrid 分支接**固定角色多查询改写**（事件向 / HyDE / BM25 剥离式，各失败退回原 query） | memory（`auto-recall.ts` hybrid 分支） | 1 天 | §2.3-2；**RRF 复查确认已有**（`auto-recall.ts:655-677`，k=60 与 MemBrain 同值），真差距仅查询改写；token 预算打包降 P2 |
+| 1 | memory hybrid 分支接**固定角色多查询改写**（事件向 / HyDE / BM25 剥离式，各失败退回原 query） | memory（`auto-recall.ts` hybrid 分支） | 1 天 | §2.3-2；**RRF 复查确认已有**（`auto-recall.ts` searchHybrid RRF 合并，k=60 与 MemBrain 同值），真差距仅查询改写；token 预算打包降 P2 |
 | 2 | 分析层 action 补 `status` 三态 per-call 入带（现仅有主动 `codegraph.status` 查询）；错误输出改分桶采样 | actions / review | 半天 | §1.3-1/2；降级非完全静默但模型不可见 |
 | 3 | L1 抽取加输出校验器 + 源精度时间标记 | memory | 1 天 | §2.3-4/5 |
 

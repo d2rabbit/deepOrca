@@ -13,7 +13,6 @@ export type CreateOpenAIClient = () => {
   notify?: string;
   webSearchTool?: string;
   webSearchProvider?: string;
-  webSearchApiKey?: string;
   env?: Record<string, string>;
 };
 

@@ -145,7 +145,7 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 
 ### Tool routing (`packages/core/src/tools/executor.ts`)
 
-1. `ToolExecutor` holds a `Map<string, ToolHandler>` with all 7 built-in handlers.
+1. `ToolExecutor` holds a `Map<string, ToolHandler>` with all 8 built-in handlers.
 2. When a tool call arrives, it checks the handler map first. Bash tool calls also get
    alias resolution (`Bash` → `bash`, etc.).
 3. If no built-in handler matches, it falls through to `mcpManager.isMcpTool()` — MCP tools

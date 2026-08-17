@@ -2,7 +2,7 @@
 
 > Load tier: read this file ONLY when the artifact actually includes motion
 > (entrance reveals, hover choreography beyond simple state swaps, or any
-> `@keyframes` in a `.dd`). Static pages: the 6-line Animation discipline
+> `@keyframes` in a `.dd`). Static pages: the short Animation discipline
 > section in SKILL.md is enough — do not load this file.
 >
 > Provenance: common-motion idioms restated in our own words, inspired by the

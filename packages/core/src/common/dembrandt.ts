@@ -265,34 +265,32 @@ export function resolveDembrandtCommand(binary: "dembrandt" | "dembrandt-mcp"): 
   };
 }
 
+/** Base domains of paid template marketplaces / design galleries (suffix match:
+ *  the apex and ANY subdomain — www and otherwise — is refused). */
+const COPYRIGHT_DENYLIST_BASE: ReadonlySet<string> = new Set([
+  "themeforest.net",
+  "templatemonster.com",
+  "framer.com",
+  "webflow.com",
+  "gumroad.com",
+  "dribbble.com",
+  "behance.net",
+]);
+
 /**
  * Validate a target URL before handing it to dembrandt (the CLI fetches and
  * renders it). Two gates, both ahead of any spawn:
  *
- * 1. SSRF guard — http/https only, and the host must not be localhost,
- *    loopback, a private/reserved IP, or a link-local address.
+ * 1. SSRF guard — the shared public-URL check (common/public-url.ts):
+ *    http/https only; no localhost/loopback, private/reserved IPv4 (dotted
+ *    or IPv4-mapped-IPv6), or IPv6 ULA/link-local; trailing-dot hosts
+ *    normalized before every check.
  * 2. Copyright/ethics guard — the host must not be a paid template
- *    marketplace or design gallery: extracting from those repackages
- *    copyrighted visual work the user has no rights to. Ingest brands from
- *    the brand's own website instead.
+ *    marketplace or design gallery (suffix match on the normalized host, so
+ *    "themeforest.net." and "booster.themeforest.net" are both refused).
+ *    Extracting from those repackages copyrighted visual work the user has
+ *    no rights to — ingest brands from the brand's own website instead.
  */
-const COPYRIGHT_DENYLIST: ReadonlySet<string> = new Set([
-  "themeforest.net",
-  "www.themeforest.net",
-  "templatemonster.com",
-  "www.templatemonster.com",
-  "framer.com",
-  "www.framer.com",
-  "webflow.com",
-  "www.webflow.com",
-  "gumroad.com",
-  "www.gumroad.com",
-  "dribbble.com",
-  "www.dribbble.com",
-  "behance.net",
-  "www.behance.net",
-]);
-
 export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string } | { ok: false; error: string } {
   // Gate 1 (SSRF) is the shared public-URL check; gate 2 (copyright) is
   // dembrandt-specific and layered on top.
@@ -300,14 +298,20 @@ export function validateDembrandtTargetUrl(raw: string): { ok: true; url: string
   if (!base.ok) {
     return base;
   }
-  const host = new URL(base.url).hostname.toLowerCase();
-  if (COPYRIGHT_DENYLIST.has(host)) {
-    return {
-      ok: false,
-      error:
-        `refusing paid template marketplace / design gallery: ${host} — extracting from it would repackage ` +
-        `copyrighted visual work. Ingest the brand from the brand's own website instead.`,
-    };
+  // Re-derive with the same trailing-dot normalization the gate applies.
+  const host = new URL(base.url).hostname
+    .toLowerCase()
+    .replace(/\.+$/, "")
+    .replace(/^www\./, "");
+  for (const denied of COPYRIGHT_DENYLIST_BASE) {
+    if (host === denied || host.endsWith(`.${denied}`)) {
+      return {
+        ok: false,
+        error:
+          `refusing paid template marketplace / design gallery: ${host} — extracting from it would repackage ` +
+          `copyrighted visual work. Ingest the brand from the brand's own website instead.`,
+      };
+    }
   }
   return base;
 }

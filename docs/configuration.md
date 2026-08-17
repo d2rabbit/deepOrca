@@ -34,7 +34,6 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `notify`             | string    | 任务完成通知脚本的完整路径（如 Slack 通知脚本）                      |
 | `webSearchTool`      | string    | 自定义联网搜索脚本的完整路径（配置后优先于内置搜索）                |
 | `webSearchProvider`  | string    | 内置搜索提供商：`duckduckgo`（默认，免密钥）/ `brave` / `tavily`     |
-| `webSearchApiKey`    | string    | `brave` / `tavily` 所需的 API 密钥（duckduckgo 不需要）              |
 | `mcpServers`         | object    | MCP 服务器配置（键为服务名，值为 McpServerConfig 对象）              |
 | `temperature`        | number    | 模型采样温度，范围 `0` 到 `2`                           |
 | `enabledSkills`      | object    | 按 skill 名称启用或禁用 skill 的配置                                 |
@@ -93,18 +92,22 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 
 #### 联网搜索（WebSearch）
 
-内置搜索为本仓**自研实现**（`web-search-providers.ts`），取代了历史上把查询词与机器标识代理到上游第三方端点的默认路径。隐私契约：**只有查询词本身**会发送给你所选的搜索引擎——无机器标识、无遥测、无第三方代理。
+内置搜索为本仓**自研实现**（`web-search-providers.ts`），取代了历史上把查询词与机器标识代理到上游第三方端点的默认路径。隐私契约：发送给你所选搜索引擎的**只有查询词本身**，外加一个标明产品名的标准浏览器 User-Agent——无机器标识、无遥测、无第三方代理。
 
 | 提供商 | 配置 | 说明 |
 | --- | --- | --- |
 | `duckduckgo`（默认） | 无需任何配置 | DuckDuckGo Lite，开箱即用、免密钥 |
-| `brave` | `webSearchApiKey` 设为 Brave Search API 密钥 | 质量更佳，需注册 |
-| `tavily` | `webSearchApiKey` 设为 Tavily 密钥 | 面向 LLM 的搜索 API |
+| `brave` | 暂不可用 | 需要 API 密钥；密钥配置当前禁用（见下注） |
+| `tavily` | 暂不可用 | 需要 API 密钥；密钥配置当前禁用（见下注） |
+
+> **注**：`webSearchApiKey` 密钥配置暂时禁用（安全评审 C5：项目级 settings.json
+> 中的密钥存在被提交入库的风险）。brave/tavily 适配器保留在代码中，待密钥
+> 存储方案（仅用户级/系统钥匙串）定案后重新开放；当前可用提供商为
+> `duckduckgo`。`webSearchTool` 自定义脚本路径不受影响。
 
 ```json
 {
-  "webSearchProvider": "brave",
-  "webSearchApiKey": "YOUR_KEY"
+  "webSearchProvider": "duckduckgo"
 }
 ```
 

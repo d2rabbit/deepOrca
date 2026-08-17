@@ -23,16 +23,10 @@ import { get as httpGet } from "node:http";
 /** Loopback port for the provider. Fixed by design: the window is app-owned,
  * and a collision is surfaced with a clear error rather than hunted. */
 const DEMBRANDT_CDP_PORT = 9333;
-const DEBUGGER_ARG = `--remote-debugging-port=${DEMBRANDT_CDP_PORT}`;
 
 let providerWindow: BrowserWindow | null = null;
 let providerUrl: string | null = null;
 let providerStarting: Promise<string> | null = null;
-
-function isLoopbackHost(host: string): boolean {
-  const h = host.toLowerCase();
-  return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
-}
 
 /** Probe the CDP http endpoint until Chromium reports /json/version (≤ ~8s). */
 function waitForCdpReady(endpoint: string, deadlineMs: number): Promise<void> {

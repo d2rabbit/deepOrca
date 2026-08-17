@@ -16,19 +16,21 @@
  * Privacy contract (same line as web-search-providers): only the target URL
  * is requested — no machine identifier, no telemetry, no proxy. Every URL
  * passes the shared SSRF gate (common/public-url.ts) before anything is
- * fetched, on BOTH engine paths.
+ * fetched, on BOTH engine paths, and every redirect hop is re-validated too
+ * (static: manual redirect loop; rendered: the provider's will-redirect
+ * guard).
  */
 
 import { randomUUID } from "crypto";
 import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
-import type { WebFetchPage, WebPageFetcher } from "../common/tool-types";
+import type { WebFetchPage } from "../common/tool-types";
 import { validatePublicHttpUrl } from "../common/public-url";
 
 export type { WebFetchPage, WebPageFetcher } from "../common/tool-types";
 
-const MAX_OUTPUT_CHARS = 30000;
-const MAX_LINKS = 20;
-const DEFAULT_TIMEOUT_MS = 15_000;
+export const MAX_OUTPUT_CHARS = 30000;
+export const MAX_LINKS = 20;
+export const DEFAULT_TIMEOUT_MS = 15_000;
 
 export async function handleWebFetchTool(
   args: Record<string, unknown>,
@@ -65,44 +67,74 @@ export async function handleWebFetchTool(
   }
 }
 
-/** Static engine: plain HTTP fetch, HTML→text strip. No JS rendering. */
+/** Static engine: plain HTTP fetch, HTML→text strip. No JS rendering.
+ * Redirects are followed MANUALLY (≤ MAX_REDIRECTS hops) so every hop's
+ * target passes the SSRF gate — a public URL 302-ing to a loopback/metadata
+ * address is refused instead of followed (adversarial review round 2). */
+const MAX_REDIRECTS = 5;
+
 async function fetchPageStatic(url: string): Promise<WebFetchPage> {
   const controller = new AbortController();
+  // The timer spans the WHOLE operation — headers AND body reads. Clearing it
+  // on header arrival (the earlier shape) left `response.text()` unbounded:
+  // a headers-then-stall server would hang the tool forever.
   const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-  let response: Response;
   try {
-    response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: { Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5" },
-    });
+    let current = url;
+    let response: Response | undefined;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      response = await fetch(current, {
+        signal: controller.signal,
+        redirect: "manual",
+        headers: { Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5" },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (!location) {
+          throw new Error(`redirect without Location header (HTTP ${response.status})`);
+        }
+        if (hop === MAX_REDIRECTS) {
+          throw new Error(`too many redirects (more than ${MAX_REDIRECTS})`);
+        }
+        const next = validatePublicHttpUrl(new URL(location, current).toString());
+        if (!next.ok) {
+          throw new Error(`redirect to non-public target refused: ${next.error}`);
+        }
+        current = next.url;
+        continue;
+      }
+      break;
+    }
+    if (!response) {
+      throw new Error("no response");
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType && !/text\/html|text\/plain|application\/xhtml/i.test(contentType)) {
+      throw new Error(`unsupported content-type "${contentType}" — WebFetch reads HTML/text pages only`);
+    }
+    const finalUrl = response.url && response.redirected ? response.url : current;
+    const raw = await response.text();
+    const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(raw);
+
+    const title = titleMatch ? stripTags(titleMatch[1]).trim() : "";
+    const text = stripTags(extractBody(raw)).trim();
+    const links = extractLinks(raw);
+
+    const truncated = text.length > MAX_OUTPUT_CHARS;
+    return {
+      url: finalUrl,
+      title,
+      text: truncated ? text.slice(0, MAX_OUTPUT_CHARS) : text,
+      links,
+      engine: "static",
+      truncated,
+    };
   } finally {
     clearTimeout(timer);
   }
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const contentType = response.headers.get("content-type") ?? "";
-  if (contentType && !/text\/html|text\/plain|application\/xhtml/i.test(contentType)) {
-    throw new Error(`unsupported content-type "${contentType}" — WebFetch reads HTML/text pages only`);
-  }
-  const finalUrl = response.url || url;
-  const raw = await response.text();
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(raw);
-
-  const title = titleMatch ? stripTags(titleMatch[1]).trim() : "";
-  const text = stripTags(extractBody(raw)).trim();
-  const links = extractLinks(raw);
-
-  const truncated = text.length > MAX_OUTPUT_CHARS;
-  return {
-    url: finalUrl,
-    title,
-    text: truncated ? text.slice(0, MAX_OUTPUT_CHARS) : text,
-    links,
-    engine: "static",
-    truncated,
-  };
 }
 
 function extractBody(html: string): string {

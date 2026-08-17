@@ -16,7 +16,6 @@ import { getCrgGraphQuery, formatCrgContextForOcr, mergeReviewWithCrgRisk } from
 import type { BackendStatus, BackendStatusReport } from "../common/analysis-status";
 import { describeBackendStatus } from "../common/analysis-status";
 import * as path from "node:path";
-import * as fs from "node:fs";
 
 export type ReviewInput = ReviewOptions;
 
@@ -128,8 +127,13 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
   );
 
   // ③ Merge: tag each OCR comment with CRG risk level.
+  // Status derives from whether enrichment ACTUALLY produced data — not from
+  // graph presence: a present-but-failing/empty graph (query swallowed by the
+  // catch above, or empty diff) still means "semantic only" (adversarial
+  // review round 1 — the flag must not claim enrichment that never ran).
   const graphPresent = crgQuery?.hasGraph(ctx.projectRoot) === true;
-  const statusReport: BackendStatusReport = graphPresent
+  const enriched = crgChanges.length > 0 && crgRisks.length > 0;
+  const statusReport: BackendStatusReport = enriched
     ? {
         status: "active",
         backend: "review.full",
@@ -138,8 +142,10 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
     : {
         status: "degraded",
         backend: "review.full",
-        detail: "semantic review (ocr) only — structural impact enrichment unavailable (no .code-review-graph/)",
-        remedy: "run crg.reindex for per-finding blast-radius data",
+        detail: graphPresent
+          ? "semantic review (ocr) only — CRG graph present but produced no structural data (analysis failed or no matched changes)"
+          : "semantic review (ocr) only — structural impact enrichment unavailable (no .code-review-graph/)",
+        remedy: graphPresent ? undefined : "run crg.reindex for per-finding blast-radius data",
       };
   const statusNote = describeBackendStatus(statusReport);
   const status = statusReport.status;

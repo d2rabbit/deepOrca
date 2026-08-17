@@ -27,7 +27,7 @@ import { bucketSample, renderBucketSample } from "../common/bucket-sample";
 // ── Inputs / outputs ─────────────────────────────────────────────────────────
 
 export interface DesignAuditInput {
-  /** Artifact to audit: file name under .deeporca/designs/ (with or without .dd), an absolute path, or omit for the latest. */
+  /** Artifact to audit: file name under .deeporca/designs/ (with or without .dd), or omit for the latest. Contained to that directory. */
   target?: string;
   /** How many recent artifacts to compare the three axes against. Default 3. */
   compareRecent?: number;
@@ -185,8 +185,7 @@ export const designAuditDefinition: ActionDefinition<DesignAuditInput> = {
     properties: {
       target: {
         type: "string",
-        description:
-          "Artifact to audit: name under .deeporca/designs/ (e.g. 'acme-landing'), absolute path, or omit for the latest",
+        description: "Artifact to audit: name under .deeporca/designs/ (e.g. 'acme-landing'), or omit for the latest",
       },
       compareRecent: {
         type: "number",
@@ -227,7 +226,12 @@ function resolveTarget(projectRoot: string, target: string | undefined): string 
       return null;
     }
   }
-  if (path.isAbsolute(target)) return fs.existsSync(target) ? target : null;
+  // Containment (security-audit A1 lesson, design-store isSafeArtifactId
+  // pattern): the target is LLM input — reject absolute paths and anything
+  // that resolves outside .deeporca/designs/ instead of reading it.
+  if (path.isAbsolute(target) || target.split(/[\\/]/).includes("..")) {
+    return null;
+  }
   const asIs = path.join(dir, target);
   if (fs.existsSync(asIs)) return asIs;
   const withExt = path.join(dir, target.endsWith(".dd") ? target : `${target}.dd`);

@@ -1,4 +1,4 @@
-import { execSync, spawn, type ChildProcess, type SpawnOptions } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { createMcpSpawnSpec } from "../mcp/spawn-spec";
@@ -171,37 +171,6 @@ export function buildCrgMcpServerConfig(projectRoot: string): McpServerConfig | 
 }
 
 // ── Subprocess execution ─────────────────────────────────────────────────────
-
-type CrgChild = {
-  once(event: "error", listener: (error: NodeJS.ErrnoException) => void): unknown;
-  once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
-  unref(): void;
-};
-
-type CrgSpawn = (
-  command: string,
-  args: string[],
-  options: Pick<SpawnOptions, "cwd" | "detached" | "env" | "stdio" | "shell" | "windowsHide">
-) => CrgChild;
-
-/** Spawn a CRG subcommand as a detached, output-ignoring child. Throws on spawn failure. */
-function spawnCrg(projectRoot: string, subcommand: string[], spawnProcess: CrgSpawn): CrgChild {
-  const exe = resolveCrgExecutable();
-  if (!exe) {
-    throw new Error("uv binary not available — cannot spawn code-review-graph");
-  }
-  const spec = createMcpSpawnSpec(exe.command, [...exe.prefixArgs, ...subcommand]);
-  const env = exe.env && Object.keys(exe.env).length > 0 ? { ...process.env, ...exe.env } : process.env;
-  const options = {
-    cwd: projectRoot,
-    detached: process.platform !== "win32",
-    env,
-    stdio: "ignore" as const,
-    shell: spec.shell,
-    windowsHide: spec.windowsHide,
-  };
-  return spawnProcess(spec.command, spec.args, options);
-}
 
 /** Spawn a CRG subcommand with piped stdio for output capture. */
 function spawnCrgPiped(projectRoot: string, subcommand: string[]): ChildProcess | null {

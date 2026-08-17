@@ -57,7 +57,8 @@ test("findFabricatedDates: multiple fabricated dates, deduped literals", () => {
 test("system prompt carries the time-fidelity and atomicity hard rules", () => {
   assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("时间保真"));
   assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("不得补成"));
-  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("不要编造"));
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("timestamp 属于源数据"));
+  assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("不要虚构"));
   assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("原子但有叙事"));
   assert.ok(EXTRACT_MEMORIES_SYSTEM_PROMPT.includes("必须拆成多条"));
 });

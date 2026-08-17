@@ -46,8 +46,6 @@ import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
-  DesignArtifact,
-  DesignArtifactMeta,
   EditableSettings,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,

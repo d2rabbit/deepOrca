@@ -6,8 +6,10 @@
  * webContents API drives navigation and extraction directly).
  *
  * Privacy contract (web-fetch-handler.ts / web-search-providers.ts line):
- * only the target URL is requested; no identifiers are attached. The SSRF
- * gate runs in core BEFORE any URL reaches this provider.
+ * only the target URL is requested, with Electron's default User-Agent
+ * (which names the app) — no per-machine identifier, no telemetry, no
+ * proxy. The SSRF gate runs in core BEFORE any URL reaches this provider,
+ * and again on every redirect hop (will-redirect guard below).
  *
  * Lifecycle: one window is created lazily on the first fetch and kept alive
  * for the app run (window creation is the expensive part; fetches repeat).
@@ -17,12 +19,10 @@
 
 import { BrowserWindow, app } from "electron";
 import type { WebFetchPage } from "@deeporca/core";
+import { validatePublicHttpUrl, DEFAULT_TIMEOUT_MS, MAX_LINKS, MAX_OUTPUT_CHARS } from "@deeporca/core";
 
-const DEFAULT_TIMEOUT_MS = 15_000;
 /** Settle delay after did-finish-load so script-built DOM lands before extraction. */
 const SETTLE_DELAY_MS = 400;
-const MAX_TEXT_CHARS = 30_000;
-const MAX_LINKS = 20;
 
 let providerWindow: BrowserWindow | null = null;
 let providerStarting: Promise<void> | null = null;
@@ -40,12 +40,12 @@ const EXTRACT_SCRIPT = `
     links.push({ title, url: href });
     if (links.length >= ${MAX_LINKS}) break;
   }
-  const text = (document.body && document.body.innerText ? document.body.innerText : '').slice(0, ${MAX_TEXT_CHARS});
+  const text = (document.body && document.body.innerText ? document.body.innerText : '').slice(0, ${MAX_OUTPUT_CHARS});
   return {
     title: document.title || '',
     text,
     links,
-    truncated: (document.body && document.body.innerText ? document.body.innerText.length : 0) > ${MAX_TEXT_CHARS},
+    truncated: (document.body && document.body.innerText ? document.body.innerText.length : 0) > ${MAX_OUTPUT_CHARS},
   };
 })()
 `;
@@ -118,15 +118,31 @@ async function loadAndExtract(url: string, timeoutMs: number): Promise<WebFetchP
       cleanup();
       resolve({ kind: "ok" });
     };
-    const onFail = (_e: unknown, code: number, desc: string): void => {
-      if (settled) return;
+    // did-fail-load also fires for SUBFRAMES (dead iframes/trackers are
+    // common); only a main-frame failure rejects the fetch.
+    const onFail = (_e: unknown, code: number, desc: string, _validatedUrl: string, isMainFrame: boolean): void => {
+      if (settled || isMainFrame === false) return;
       settled = true;
       cleanup();
       resolve({ kind: "fail", code, desc });
     };
+    // SSRF: Chromium follows HTTP redirects inside loadURL — validate every
+    // redirect target and cancel the navigation when it leaves public space
+    // (the core-side gate only saw the pre-redirect URL).
+    const onRedirect = (event: Electron.Event, redirectUrl: string): void => {
+      const check = validatePublicHttpUrl(redirectUrl);
+      if (!check.ok) {
+        event.preventDefault();
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve({ kind: "fail", code: -4, desc: `redirect to non-public target refused: ${check.error}` });
+      }
+    };
     const cleanup = (): void => {
       wc.off("did-finish-load", onFinish);
       wc.off("did-fail-load", onFail);
+      wc.off("will-redirect", onRedirect);
       clearTimeout(timer);
     };
     const timer = setTimeout(() => {
@@ -144,7 +160,10 @@ async function loadAndExtract(url: string, timeoutMs: number): Promise<WebFetchP
 
     wc.once("did-finish-load", onFinish);
     wc.once("did-fail-load", onFail);
-    void wc.loadURL(url, { userAgent: wc.getUserAgent() });
+    wc.on("will-redirect", onRedirect);
+    // loadURL rejects on load failure and on wc.stop() (timeout path) — both
+    // are already surfaced via did-fail-load/the timer; swallow the promise.
+    wc.loadURL(url, { userAgent: wc.getUserAgent() }).catch(() => {});
   });
 
   if (result.kind === "fail") {

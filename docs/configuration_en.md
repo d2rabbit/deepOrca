@@ -34,7 +34,6 @@ The following are all the top-level fields supported in `settings.json`, along w
 | `notify`           | string  | Full path to a task-completion notification script (e.g., Slack notification script) |
 | `webSearchTool`    | string  | Full path to a custom web search script (takes precedence over the built-in) |
 | `webSearchProvider` | string | Built-in search provider: `duckduckgo` (default, keyless) / `brave` / `tavily` |
-| `webSearchApiKey`  | string  | API key for `brave` / `tavily` (not needed for duckduckgo)                  |
 | `mcpServers`       | object  | MCP server configurations (keys are service names, values are McpServerConfig objects) |
 | `temperature`      | number  | Sampling temperature for LLM, from `0` to `2`                 |
 | `enabledSkills`    | object  | Per-skill enable/disable map, keyed by skill name                           |
@@ -93,18 +92,23 @@ The following context is injected as environment variables when the notify scrip
 
 #### `webSearchTool` — Custom Web Search
 
-The built-in web search is **our own first-party implementation** (`web-search-providers.ts`), replacing the historical default that proxied queries plus a machine identifier through an upstream third-party endpoint. Privacy contract: **only the query itself** is sent to the search engine you choose — no machine identifier, no telemetry, no third-party proxy.
+The built-in web search is **our own first-party implementation** (`web-search-providers.ts`), replacing the historical default that proxied queries plus a machine identifier through an upstream third-party endpoint. Privacy contract: **only the query itself** is sent to the search engine you choose, plus a standard browser User-Agent naming the product — no machine identifier, no telemetry, no third-party proxy.
 
 | Provider | Setup | Notes |
 | --- | --- | --- |
 | `duckduckgo` (default) | none | DuckDuckGo Lite, keyless, works out of the box |
-| `brave` | set `webSearchApiKey` to your Brave Search API key | higher quality, requires signup |
-| `tavily` | set `webSearchApiKey` to your Tavily key | LLM-oriented search API |
+| `brave` | currently unavailable | needs an API key; key configuration is disabled (see note) |
+| `tavily` | currently unavailable | needs an API key; key configuration is disabled (see note) |
+
+> **Note**: the `webSearchApiKey` setting is temporarily disabled (security
+> review C5: a key in project settings.json risks being committed). The
+> brave/tavily adapters remain in the code and will re-open once key storage
+> (user-level only / system keychain) is settled; the available provider today
+> is `duckduckgo`. The `webSearchTool` custom-script path is unaffected.
 
 ```json
 {
-  "webSearchProvider": "brave",
-  "webSearchApiKey": "YOUR_KEY"
+  "webSearchProvider": "duckduckgo"
 }
 ```
 

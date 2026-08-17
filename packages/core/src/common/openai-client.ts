@@ -27,7 +27,6 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   notify?: string;
   webSearchTool?: string;
   webSearchProvider?: string;
-  webSearchApiKey?: string;
   env: Record<string, string>;
 } {
   const settings = resolveCurrentSettings(projectRoot);
@@ -43,7 +42,6 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
       webSearchProvider: settings.webSearchProvider,
-      webSearchApiKey: settings.webSearchApiKey,
       env: settings.env,
     };
   }
@@ -61,7 +59,6 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
       webSearchProvider: settings.webSearchProvider,
-      webSearchApiKey: settings.webSearchApiKey,
       env: settings.env,
     };
   }
@@ -98,7 +95,6 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     notify: settings.notify,
     webSearchTool: settings.webSearchTool,
     webSearchProvider: settings.webSearchProvider,
-    webSearchApiKey: settings.webSearchApiKey,
     env: settings.env,
   };
 }

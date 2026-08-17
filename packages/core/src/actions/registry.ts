@@ -15,7 +15,15 @@
 
 import type { ToolDefinition } from "../prompt";
 import type { TaskTreeService } from "../tasks/task-tree-service";
-import type { ActionContext, ActionDefinition, ActionProgress, ActionRun, McpDispatchResult, Spawner } from "./types";
+import type {
+  ActionContext,
+  ActionDefinition,
+  ActionProgress,
+  ActionRun,
+  McpDispatchResult,
+  RunSubagentOptions,
+  Spawner,
+} from "./types";
 import { ActionError, NULL_SPAWNER } from "./types";
 
 /** Host context accepted at construction ("accept dependencies, don't create"). */
@@ -32,16 +40,13 @@ export interface RegistryHost {
    * actions that route to existing MCP servers read it via
    * {@link ActionContext.executeMcpTool}; absent otherwise.
    */
-  readonly executeMcpTool?: (
-    namespacedToolName: string,
-    args: Record<string, unknown>
-  ) => Promise<import("./types").McpDispatchResult>;
+  readonly executeMcpTool?: (namespacedToolName: string, args: Record<string, unknown>) => Promise<McpDispatchResult>;
   /**
    * Subagent dispatch — injected by SessionManager (runs an isolated sub-session
    * that executes a skill). Only non-deterministic actions (e.g. arch-scan.run)
    * read it via {@link ActionContext.runSubagent}. See roadmap §十 / spec §五.
    */
-  readonly runSubagent?: (opts: import("./types").RunSubagentOptions) => Promise<unknown>;
+  readonly runSubagent?: (opts: RunSubagentOptions) => Promise<unknown>;
   /**
    * LLM single-choice judgment — injected by SessionManager. Actions read it
    * via {@link ActionContext.judgeViaLlm} and must fail open when absent.
@@ -97,7 +102,7 @@ export class ActionRegistry {
     namespacedToolName: string,
     args: Record<string, unknown>
   ) => Promise<McpDispatchResult>;
-  private readonly subagentDispatch?: (opts: import("./types").RunSubagentOptions) => Promise<unknown>;
+  private readonly subagentDispatch?: (opts: RunSubagentOptions) => Promise<unknown>;
   private readonly judgeDispatch?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
   private readonly taskTreeProvider?: () => TaskTreeService | null;
   private readonly activeSessionProvider?: () => string | null;
@@ -169,7 +174,7 @@ export class ActionRegistry {
    * `handle.result`. Light input shape check only; deeper validation is the
    * action's responsibility.
    */
-  execute<I = unknown, O = unknown>(id: string, input: unknown, opts: ExecuteOptions = {}): RunHandle<O> {
+  execute<I = unknown, O = unknown>(id: string, input: I, opts: ExecuteOptions = {}): RunHandle<O> {
     const entry = this.actions.get(id);
     const ac = new AbortController();
     if (opts.signal) {

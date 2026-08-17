@@ -41,7 +41,7 @@
 | beforeToolExecution（D3） | 执行闸门 5 用例 | `common/tool-execution-gate.ts`（register/decide，deny>ask>allow，abstain 跳过）+ `tool-execution-gate.test.ts` 5 用例 | ✅ |
 | actions 三面到达 | 27 项 | registry 实测 **28** 个 action id（design.extract/drift 入册后净增），actions.test.ts 26 + phase-actions.test.ts 14 | ✅（28 ≥ 27） |
 | gitmcp 8 工具（C1-C5） | 23 测试离线全覆盖 | `gitmcp-tools.test.ts` 恰好 23 用例；8 工具名册：search_code / fetch_documentation / search_documentation / fetch_url_content / get_repo_info / get_repo_structure / outline / read_file | ✅ |
-| designer（E1/E2） | extract、drift、预设 | `design-dembrandt.test.ts` **32 用例**（CDP 注入/SSRF 矩阵/containment/vendor argv，声明"30 用例"为下限）；`design-action.test.ts` 5 用例；9 套 systems（§3） | ✅ |
+| designer（E1/E2） | extract、drift、预设 | `design-dembrandt.test.ts` **31 用例**（CDP 注入/SSRF 矩阵/containment/vendor argv，声明"30 用例"为下限）；`design-action.test.ts` 5 用例；9 套 systems（§3） | ✅ |
 
 ## 3. F3 接线核验
 

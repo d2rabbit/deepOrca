@@ -52,17 +52,22 @@ export async function handleWebSearchTool(
   const activityId = `web-search-${randomUUID()}`;
   context.onProcessStart?.(activityId, formatWebSearchActivityLabel(query));
   try {
-    const result = await searchWeb(query, {
-      provider,
-      apiKey: llmContext?.webSearchApiKey,
-    });
+    const result = await searchWeb(query, { provider });
+    // B7 lesson (deep review 2026-08-15): cap what a misbehaving/compromised
+    // provider can push into session history and the next LLM request.
+    const formatted = formatWebSearchHits(result.hits);
+    const capped =
+      formatted.length > MAX_OUTPUT_CHARS
+        ? `${formatted.slice(0, MAX_OUTPUT_CHARS)}\n…[truncated: ${formatted.length} chars total]`
+        : formatted;
     return {
       ok: true,
       name: "WebSearch",
-      output: formatWebSearchHits(result.hits),
+      output: capped,
       metadata: {
         provider: result.provider,
         resultCount: result.hits.length,
+        truncated: formatted.length > MAX_OUTPUT_CHARS,
       },
     };
   } catch (error) {

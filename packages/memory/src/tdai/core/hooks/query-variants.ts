@@ -72,12 +72,16 @@ const EN_TIME_PATTERNS: RegExp[] = [
   /\bjust\s+now\b/gi,
 ];
 
-/** Absolute dates — ISO-ish (2025-03-01 / 2025/3 / 2025.3.1) and 中文 (2025年3月1日 / 3月1日 / 5号). */
+/** Absolute dates — ISO-ish (2025-03-01 / 2025/3 / 2025.3.1) and 中文 (2025年3月1日 / 3月1日 / 5号).
+ * NOTE: CJK text has no \b (Chinese chars are not ASCII word chars), so the
+ * standalone `N号` pattern uses a negative lookahead for common NON-date
+ * compounds (5号楼 / 2号线 / 3号座 …) instead — everything else that reads as
+ * a day-of-month marker is stripped (adversarial review round 1). */
 const DATE_PATTERNS: RegExp[] = [
   /\d{4}\s*[-/.]\s*\d{1,2}(\s*[-/.]\s*\d{1,2})?/g,
   /\d{4}\s*年(\s*\d{1,2}\s*月)?(\s*\d{1,2}\s*[日号])?/g,
   /\d{1,2}\s*月\s*\d{1,2}\s*[日号]/g,
-  /\d{1,2}\s*号\b/g,
+  /\d{1,2}\s*号(?!(?:楼|线|座|室|房))/g,
 ];
 
 /** "3 days ago" / "两周前" style relative offsets (两/几 also count as quantities). */

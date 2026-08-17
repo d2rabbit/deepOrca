@@ -31,7 +31,6 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `thinkingEnabled`  | boolean | 是否启用思考模式（DeepSeek V4 系列默认启用）            |
 | `reasoningEffort`  | string  | 推理强度，可选 `"high"` 或 `"max"`（默认 `"max"`）      |
 | `debugLogEnabled`  | boolean | 是否启用调试日志输出（默认 `false`）                    |
-| `telemetryEnabled` | boolean | 是否启用匿名使用数据上报（默认 `true`）                 |
 | `notify`           | string  | 任务完成通知脚本的完整路径（如 Slack 通知脚本）         |
 | `webSearchTool`    | string  | 自定义联网搜索脚本的完整路径                            |
 | `mcpServers`       | object  | MCP 服务器配置（键为服务名，值为 McpServerConfig 对象） |
@@ -49,7 +48,6 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `THINKING_ENABLED`  | string | 是否启用思考模式                                          |
 | `REASONING_EFFORT`  | string | 推理强度                                                  |
 | `DEBUG_LOG_ENABLED` | string | 是否启用调试日志输出                                      |
-| `TELEMETRY_ENABLED` | string | 是否启用匿名使用数据上报                                  |
 | `<其他任意KEY>`     | string | 自定义环境变量                                            |
 
 #### `thinkingEnabled` — 思考模式
@@ -150,16 +148,6 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 #### `debugLogEnabled` — 调试日志
 
 设为 `true` 可让程序输出详细的调试日志（默认 `false`），用于排查 API 调用和工具执行的问题。
-
-#### `telemetryEnabled` — 匿名使用数据上报
-
-设为 `false` 可关闭匿名使用数据上报（默认 `true`）。上报仅包含匿名的机器标识，不包含对话内容、代码或 API 密钥。
-
-也可以通过环境变量关闭：
-
-```bash
-DEEPORCA_TELEMETRY_ENABLED=0 deeporca
-```
 
 ## 环境变量优先级
 

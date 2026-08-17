@@ -62,7 +62,7 @@
 ## F. 全域能力扫描（依赖 A-E 合入）— F1–F3+F6 已完成（2026-08-17，见 `docs/pre-production-capability-scan.md`）；F4/F5 保留待办
 
 - [x] F1 静态基线：`npm run check && npm test` 全绿（含 license 门禁）（Node 22.23.2 下通过；首轮 format:check 红——`--no-verify` 批次带入 9 文件 prettier 违规，已修复回归；core 550/desktop 191/embedding 10/memory 14 全 0 失败）
-- [x] F2 专项套件：sandbox / routing（含 D4 新测试）/ session（P1-1、P1-2 新语义+旧开关）/ actions 27 项三面到达 / gitmcp 8 工具 / designer（extract、drift、预设）（六专项声明逐一在树核证，用例数与本文记载逐项吻合：D1=7/D2=5/D3=5/D4=2/gitmcp=23/dembrandt=32≥30；registry 实测 28 个 action id）
+- [x] F2 专项套件：sandbox / routing（含 D4 新测试）/ session（P1-1、P1-2 新语义+旧开关）/ actions 27 项三面到达 / gitmcp 8 工具 / designer（extract、drift、预设）（六专项声明逐一在树核证，用例数与本文记载逐项吻合：D1=7/D2=5/D3=5/D4=2/gitmcp=23/dembrandt=31≥30；registry 实测 28 个 action id）
 - [x] F3 接线核验：8 插件包技能加载、MCP builtin 全量起停（含新增 dembrandt）、vendor 13 脚本、i18n 5 语言、desktop:build 三 bundle + extraResources（8 包 eval.yaml 齐备；builtin 起停循环 8 名单；vendor-* 恰 13；6 locale（en+5）；extraResources vendor→app/vendor 与运行时解析一致）
 - [ ] F4 真机烟雾（Windows 必测）：会话→plan mode→工具→permission→design.materialize→review.full→任务树→**重启恢复（验证 P1-1）**（**保留待办——需真机**）
 - [ ] F5 逐 spec 终判（specs/ 全目录 19 个）：产出挂账清单——冻结期"闭环"项或显式推迟（**保留待办——独立文档作业，建议与 F4 同批**）

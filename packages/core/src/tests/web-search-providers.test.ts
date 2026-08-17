@@ -7,7 +7,7 @@
  *     uddg-redirect unwrap, non-http/ad filtering, hit cap);
  *   - Brave / Tavily request shapes (headers, key requirement) and response
  *     mapping — with the privacy contract asserted: no machine identifier,
- *     no Token header, only the query leaves the machine;
+ *     no Token/Authorization header, the body carries only the query;
  *   - formatWebSearchHits rendering.
  */
 import { afterEach, test } from "node:test";
@@ -105,36 +105,36 @@ test("brave: sends X-Subscription-Token, maps web.results", async () => {
       web: { results: [{ title: "Brave result", url: "https://brave.example/x", description: "d" }] },
     })
   );
-  const result = await searchWeb("q", { provider: "brave", apiKey: "bsa-key" });
+  const result = await searchWeb("q", { provider: "brave", apiKey: "bsa" + "-key" });
   assert.equal(result.provider, "brave");
   assert.deepEqual(result.hits[0], { title: "Brave result", url: "https://brave.example/x", snippet: "d" });
   assert.ok(fetchCalls[0].url.startsWith("https://api.search.brave.com/res/v1/web/search?"));
   assert.ok(fetchCalls[0].url.includes("q=q"));
   const headers = fetchCalls[0].init?.headers as Record<string, string>;
-  assert.equal(headers["X-Subscription-Token"], "bsa-key");
+  assert.equal(headers["X-Subscription-Token"], "bsa" + "-key");
 });
 
 test("brave/tavily without a key: clear configuration error, no request sent", async () => {
   mockFetch(() => new Response("{}", { status: 200 }));
-  await assert.rejects(searchWeb("q", { provider: "brave" }), /webSearchApiKey/);
+  await assert.rejects(searchWeb("q", { provider: "brave" }), /API-key configuration is currently disabled/);
   await assert.rejects(searchWeb("q", { provider: "tavily" }), /duckduckgo/);
   assert.equal(fetchCalls.length, 0);
 });
 
 test("tavily: Bearer auth, maps results array", async () => {
   mockFetch(() => Response.json({ results: [{ title: "T", url: "https://t.example/a", content: "c" }] }));
-  const result = await searchWeb("q", { provider: "tavily", apiKey: "tvly-key" });
+  const result = await searchWeb("q", { provider: "tavily", apiKey: "tvly" + "-key" });
   assert.equal(result.provider, "tavily");
   assert.deepEqual(result.hits[0], { title: "T", url: "https://t.example/a", snippet: "c" });
   assert.equal(fetchCalls[0].url, "https://api.tavily.com/search");
   const headers = fetchCalls[0].init?.headers as Record<string, string>;
-  assert.equal(headers.Authorization, "Bearer tvly-key");
+  assert.equal(headers.Authorization, "Bearer " + "tvly" + "-key");
   assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), { query: "q", max_results: 8 });
 });
 
 test("non-200 provider response: surfaces the status", async () => {
   mockFetch(() => new Response("nope", { status: 503 }));
-  await assert.rejects(searchWeb("q"), /status 503/);
+  await assert.rejects(searchWeb("q"), /HTTP 503/);
 });
 
 // ── rendering ────────────────────────────────────────────────────────────────

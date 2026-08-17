@@ -34,15 +34,3 @@ export function describeBackendStatus(report: BackendStatusReport): string {
   const head = `status: ${report.status} (${report.backend}) — ${report.detail}`;
   return report.remedy ? `${head} — remedy: ${report.remedy}` : head;
 }
-
-/**
- * Render the full per-call status block appended to an action's text output:
- * a one-line describe + a standing instruction so the model knows what the
- * states mean without loading any documentation.
- */
-export function formatBackendStatusBlock(report: BackendStatusReport): string {
-  return [
-    describeBackendStatus(report),
-    "(active: full analysis available · degraded: partial result above, treat gaps as unknown · unavailable: no analysis, do not guess)",
-  ].join("\n");
-}

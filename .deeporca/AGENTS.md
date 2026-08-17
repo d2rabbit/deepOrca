@@ -6,9 +6,9 @@ This is an **npm workspaces monorepo** for **DeepOrca**. Packages live under `pa
 
 ```
 packages/
-├── core/src/               # LLM session, 7 built-in tools, MCP client, plugin system, permissions
+├── core/src/               # LLM session, 8 built-in tools, MCP client, plugin system, permissions
 │   ├── common/             # File I/O, OpenAI client, codegraph, shell utils, error handling, etc.
-│   ├── tools/              # bash, read, write, edit, ask-user-question, update-plan, web-search
+│   ├── tools/              # bash, read, write, edit, ask-user-question, update-plan, web-search, web-fetch
 │   ├── mcp/                # MCP client & manager (JSON-RPC over stdio)
 │   ├── session.ts          # SessionManager — LLM loop, compaction, tool orchestration
 │   ├── prompt.ts           # System prompt builder, tool definitions, skill/plugin injection

@@ -17,7 +17,7 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
   THINKING_ENABLED?: string;
   REASONING_EFFORT?: string;
   DEBUG_LOG_ENABLED?: string;
-  TELEMETRY_ENABLED?: string;
+
   STREAM_IDLE_TIMEOUT_MS?: string;
 };
 
@@ -127,7 +127,6 @@ export type DeepcodingSettings = {
   notify?: string;
   webSearchTool?: string;
   webSearchProvider?: string;
-  webSearchApiKey?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions?: PermissionSettings;
   enabledSkills?: EnabledSkillsSettings;
@@ -209,7 +208,6 @@ export type ResolvedDeepcodingSettings = {
   notify?: string;
   webSearchTool?: string;
   webSearchProvider?: string;
-  webSearchApiKey?: string;
   mcpServers?: Record<string, McpServerConfig>;
   permissions: Required<PermissionSettings>;
   /** Store-driven (user-level trust store) — never read from the project file. */
@@ -800,16 +798,14 @@ export function resolveSettingsSources(
     "";
 
   // First-party built-in search (tools/web-search-providers.ts): keyless
-  // duckduckgo default, opt-in brave/tavily with the user's own key.
+  // duckduckgo default. brave/tavily need an API key, whose settings surface
+  // (`webSearchApiKey`) is temporarily DISABLED (security-audit C5: a key in
+  // project settings.json is a committable credential) — the provider
+  // adapters remain, but no settings path feeds them a key.
   const webSearchProvider =
     trimString(systemEnv.WEB_SEARCH_PROVIDER) ||
     trimString(projectSettings?.webSearchProvider) ||
     trimString(userSettings?.webSearchProvider) ||
-    "";
-  const webSearchApiKey =
-    trimString(systemEnv.WEB_SEARCH_API_KEY) ||
-    trimString(projectSettings?.webSearchApiKey) ||
-    trimString(userSettings?.webSearchApiKey) ||
     "";
 
   const streamIdleTimeoutMs =
@@ -890,7 +886,6 @@ export function resolveSettingsSources(
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
     webSearchProvider: webSearchProvider || undefined,
-    webSearchApiKey: webSearchApiKey || undefined,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv, workspaceTrust),
     permissions: mergePermissions(userSettings, projectSettings),
     workspaceTrust,

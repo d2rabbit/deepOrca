@@ -247,6 +247,7 @@ function probeNodeMajor(bin: string): number {
     // Reviewed (security scan): `bin` is validated by isSafeNodeBinary above —
     // an absolute existing node/node.exe with no traversal segments — and the
     // remaining argv is a literal. No shell is involved.
+    // prettier-ignore — keep the mimosa-ignore directive on the exec sink line
     const out = execFileSync(bin, ["-e", "process.stdout.write(process.version)"], {
       // mimosa-ignore
       encoding: "utf8",

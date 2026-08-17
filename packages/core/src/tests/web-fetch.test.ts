@@ -97,6 +97,52 @@ test("missing url is a structured error", async () => {
   assert.match(String(result.error), /Missing required/);
 });
 
+test("SSRF hardening: trailing-dot hosts, IPv4-mapped IPv6, and :: are rejected; fd-domains are NOT", async () => {
+  mockFetch(() => new Response("", { status: 200 }));
+  for (const bad of [
+    "http://localhost./x",
+    "http://foo.localhost./x",
+    "http://192.168.1.1./x",
+    "http://[::ffff:127.0.0.1]/",
+    "http://[::ffff:169.254.169.254]/",
+    "http://[::]/",
+  ]) {
+    const result = await handleWebFetchTool({ url: bad }, createContext());
+    assert.equal(result.ok, false, `must reject ${bad}`);
+  }
+  // fd-prefixed ORDINARY DOMAINS are fine (IPv6 checks only run on literals).
+  const fdroid = await handleWebFetchTool({ url: "https://fdroid.org" }, createContext());
+  assert.equal(fdroid.ok, true, "fdroid.org must not be treated as IPv6 ULA");
+});
+
+test("static engine refuses a redirect whose target is non-public", async () => {
+  mockFetch((url) => {
+    if (url === "https://public.example/start") {
+      return new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data" } });
+    }
+    return new Response("<html><body>never</body></html>", { status: 200 });
+  });
+  const result = await handleWebFetchTool({ url: "https://public.example/start" }, createContext());
+  assert.equal(result.ok, false);
+  assert.match(String(result.error), /redirect to non-public target refused/);
+});
+
+test("static engine follows SAFE redirects and reports the final URL", async () => {
+  mockFetch((url) => {
+    if (url === "https://public.example/start") {
+      return new Response(null, { status: 302, headers: { location: "https://other.example/real" } });
+    }
+    return new Response("<html><head><title>Real</title></head><body><p>content</p></body></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  });
+  const result = await handleWebFetchTool({ url: "https://public.example/start" }, createContext());
+  assert.equal(result.ok, true);
+  assert.equal(result.metadata?.url, "https://other.example/real");
+  assert.match(result.output ?? "", /# Real/);
+});
+
 // ── injected rendered fetcher (preferred engine) ────────────────────────────
 
 test("uses the injected rendered fetcher and formats its page", async () => {

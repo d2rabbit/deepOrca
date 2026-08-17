@@ -78,9 +78,9 @@ export function bucketSample<T>(
 
 /**
  * Render a bucket sample as model-readable text lines:
- * `## key (total) · first items… · …and N more of this type`, plus a trailer
- * line when whole buckets were dropped. `render` must produce a short,
- * single-line representation of one item.
+ * `key (total): item · item · …and N more of this type`, plus a trailer line
+ * when whole buckets were dropped. `render` must produce a short, single-line
+ * representation of one item.
  */
 export function renderBucketSample<T>(result: BucketSampleResult<T>, render: (item: T) => string): string[] {
   const lines: string[] = [];

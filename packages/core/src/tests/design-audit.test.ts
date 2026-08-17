@@ -185,6 +185,20 @@ test("section-marker / data-dd-id mismatch and missing macrostructure are flagge
   assert.ok(ids.includes("no-macrostructure"));
 });
 
+test("targets are contained to .deeporca/designs — traversal and absolute paths are refused", async () => {
+  const root = makeRoot();
+  writeDd(root, "real", DARK_TECH_FM, GOOD_BODY);
+  fs.mkdirSync(path.join(root, "outside"), { recursive: true });
+  const outside = path.join(root, "outside", "evil.dd");
+  fs.writeFileSync(outside, "---\ntokens: {}\n---\n");
+  const traversal = await makeRegistry(root).execute("design.audit", { target: "../../outside/evil" }).result;
+  assert.equal(traversal.ok, false);
+  assert.match(traversal.error, /artifact not found/);
+  const absolute = await makeRegistry(root).execute("design.audit", { target: outside }).result;
+  assert.equal(absolute.ok, false);
+  assert.match(absolute.error, /artifact not found/);
+});
+
 test("missing artifact and empty designs dir return structured errors", async () => {
   const empty = makeRoot();
   const none = await makeRegistry(empty).execute("design.audit", {}).result;

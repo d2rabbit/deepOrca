@@ -3,8 +3,11 @@
  *
  * Replaces the historical default that proxied queries (plus a machine
  * identifier) through the upstream project's endpoint. Privacy contract:
- * the query — and ONLY the query — goes to the configured search engine;
- * no machine identifier, no analytics, no third-party proxy. Keyless
+ * the query goes to the configured search engine with a standard browser
+ * User-Agent that names the product (DeepOrca) — but NO machine identifier,
+ * no analytics, no third-party proxy. (The product-name UA token is honest
+ * self-identification so engines can tell agent traffic apart; it is uniform
+ * across all installs and carries nothing per-user.) Keyless
  * DuckDuckGo Lite is the out-of-box default; Brave / Tavily are opt-in
  * with the user's own API key.
  *
@@ -65,15 +68,43 @@ export async function searchWeb(query: string, options: WebSearchOptions = {}): 
   }
 }
 
-async function fetchWithTimeout(
+/**
+ * Timeout spans the WHOLE operation — headers AND the body read. Clearing the
+ * timer when fetch() resolves (the earlier shape) left text()/json() unbounded:
+ * a headers-then-stall server would hang the tool forever (adversarial review
+ * round 2). Aborting mid-body rejects the pending read as well.
+ */
+async function fetchTextWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs: number | undefined = DEFAULT_TIMEOUT_MS
-): Promise<Response> {
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchJsonWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number | undefined = DEFAULT_TIMEOUT_MS
+): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
   } finally {
     clearTimeout(timer);
   }
@@ -87,7 +118,7 @@ async function searchDuckDuckGoLite(
   query: string,
   timeoutMs: number | undefined = DEFAULT_TIMEOUT_MS
 ): Promise<WebSearchHit[]> {
-  const response = await fetchWithTimeout(
+  const html = await fetchTextWithTimeout(
     DDG_LITE_URL,
     {
       method: "POST",
@@ -100,10 +131,6 @@ async function searchDuckDuckGoLite(
     },
     timeoutMs
   );
-  if (!response.ok) {
-    throw new Error(`DuckDuckGo Lite returned status ${response.status}.`);
-  }
-  const html = await response.text();
   return parseDuckDuckGoLite(html);
 }
 
@@ -161,7 +188,7 @@ async function searchBrave(
   timeoutMs: number | undefined
 ): Promise<WebSearchHit[]> {
   const key = requireApiKey("brave", apiKey);
-  const response = await fetchWithTimeout(
+  const payload = (await fetchJsonWithTimeout(
     `${BRAVE_SEARCH_URL}?${new URLSearchParams({ q: query, count: String(MAX_HITS) })}`,
     {
       headers: {
@@ -170,11 +197,7 @@ async function searchBrave(
       },
     },
     timeoutMs
-  );
-  if (!response.ok) {
-    throw new Error(`Brave Search returned status ${response.status}.`);
-  }
-  const payload = (await response.json()) as {
+  )) as {
     web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
   };
   return (payload.web?.results ?? [])
@@ -197,7 +220,7 @@ async function searchTavily(
   timeoutMs: number | undefined
 ): Promise<WebSearchHit[]> {
   const key = requireApiKey("tavily", apiKey);
-  const response = await fetchWithTimeout(
+  const payload = (await fetchJsonWithTimeout(
     TAVILY_SEARCH_URL,
     {
       method: "POST",
@@ -208,26 +231,26 @@ async function searchTavily(
       body: JSON.stringify({ query, max_results: MAX_HITS }),
     },
     timeoutMs
+  )) as { results?: Array<{ title?: string; url?: string; content?: string }> };
+  return (
+    (payload.results ?? [])
+      .filter((r) => typeof r.url === "string" && /^https?:\/\//i.test(r.url))
+      // Client-side cap too (B7 lesson): never trust the server-side max_results.
+      .slice(0, MAX_HITS)
+      .map((r) => ({
+        title: typeof r.title === "string" ? r.title : (r.url ?? ""),
+        url: r.url as string,
+        snippet: typeof r.content === "string" ? r.content : "",
+      }))
   );
-  if (!response.ok) {
-    throw new Error(`Tavily returned status ${response.status}.`);
-  }
-  const payload = (await response.json()) as { results?: Array<{ title?: string; url?: string; content?: string }> };
-  return (payload.results ?? [])
-    .filter((r) => typeof r.url === "string" && /^https?:\/\//i.test(r.url))
-    .map((r) => ({
-      title: typeof r.title === "string" ? r.title : (r.url ?? ""),
-      url: r.url as string,
-      snippet: typeof r.content === "string" ? r.content : "",
-    }));
 }
 
 function requireApiKey(provider: WebSearchProviderId, apiKey: string | undefined): string {
   const key = apiKey?.trim();
   if (!key) {
     throw new Error(
-      `The "${provider}" web search provider requires an API key — set "webSearchApiKey" in settings.json, ` +
-        `or switch "webSearchProvider" to "duckduckgo" (the keyless built-in default).`
+      `The "${provider}" web search provider requires an API key — API-key configuration is currently ` +
+        `disabled in DeepOrca settings; switch "webSearchProvider" to "duckduckgo" (the keyless built-in default).`
     );
   }
   return key;

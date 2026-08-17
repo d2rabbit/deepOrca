@@ -130,7 +130,6 @@ function createContext(
     client?: OpenAI | null;
     webSearchTool?: string;
     webSearchProvider?: string;
-    webSearchApiKey?: string;
     env?: Record<string, string>;
     onProcessStart?: (processId: string | number, command: string) => void;
     onProcessExit?: (processId: string | number) => void;
@@ -153,7 +152,6 @@ function createContext(
       thinkingEnabled: false,
       webSearchTool: options.webSearchTool,
       webSearchProvider: options.webSearchProvider,
-      webSearchApiKey: options.webSearchApiKey,
       env: options.env,
     }),
     onProcessStart: options.onProcessStart,

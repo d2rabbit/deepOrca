@@ -20,7 +20,7 @@ import type { IMemoryStore, L1SearchResult, L1FtsResult } from "../store/types.j
 import { buildFtsQuery } from "../store/sqlite.js";
 import type { EmbeddingService, EmbeddingCallOptions } from "../store/embedding.js";
 import { sanitizeText } from "../../utils/sanitize.js";
-import { buildRecallQueryVariants, fuseByRrf } from "./query-variants.js";
+import { buildRecallQueryVariants, fuseByRrf, RRF_K } from "./query-variants.js";
 
 const TAG = "[memory-tdai] [recall]";
 const RECALL_TRUNCATION_SUFFIX = "…（已截断；可用 tdai_memory_search 或 tdai_conversation_search 查看详情）";
@@ -676,8 +676,8 @@ async function searchHybrid(
     return { lines: [], timing };
   }
 
-  // RRF merge: k=60 is a standard constant from the RRF paper
-  const RRF_K = 60;
+  // RRF merge with the shared constant (k=60, from the RRF paper) — one
+  // source of truth for the variant-level and keyword↔embedding fusions.
 
   // Map: record_id → { rrfScore, formatable }
   const mergedMap = new Map<string, { rrfScore: number; formatable: FormatableMemory }>();

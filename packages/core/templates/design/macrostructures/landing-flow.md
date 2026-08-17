@@ -1,9 +1,8 @@
 # Macrostructure: Landing Flow
 
 > Page skeleton fingerprint — visual system agnostic. This is the classic
-> conversion funnel skeleton — listed LAST among the ten because it is the
-> default slop shape: picking it requires saying why none of the other nine
-> fit.
+> conversion funnel skeleton — and the default slop shape: picking it requires
+> saying why none of the other nine fit.
 
 ## Skeleton fingerprint
 

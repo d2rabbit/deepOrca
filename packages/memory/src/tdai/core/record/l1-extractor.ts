@@ -8,8 +8,10 @@
  * Pipeline:
  * 1. Read recent messages from L0 (split into background + new)
  * 2. Call LLM to extract scene-segmented memories
- * 3. Batch conflict detection against existing records
- * 4. Write to L1 JSONL files
+ * 3. Deterministic output validation (unknown-reference reset, droppable-content
+ *    filter, in-batch dedup, fabricated-date visibility)
+ * 4. Batch conflict detection against existing records
+ * 5. Write to L1 JSONL files
  */
 
 import type { ConversationMessage } from "../conversation/l0-recorder.js";
@@ -182,7 +184,11 @@ export async function extractL1Memories(params: {
   for (const m of [...backgroundMessages, ...newMessages]) {
     if (m.id) knownMessageIds.add(m.id);
   }
-  const sourceTexts = [...backgroundMessages, ...newMessages].map((m) => m.content);
+  const sourceTexts = [...backgroundMessages, ...newMessages].flatMap((m) =>
+    typeof m.timestamp === "number" && Number.isFinite(m.timestamp)
+      ? [m.content, new Date(m.timestamp).toISOString()]
+      : [m.content]
+  );
   const allExtracted: ExtractedMemory[] = [];
   const seenContents = new Set<string>();
   const sceneNames: string[] = [];
@@ -574,9 +580,10 @@ async function storeAllDirectly(
 
 /**
  * Drop source_message_ids that reference messages the LLM was never shown —
- * hallucinated references are reset to [] instead of poisoning lineage.
- * (Output-validator analog of "facts may only reference the frozen entity
- * table"; enforced post-generation instead of via retry.)
+ * hallucinated references are removed while the VALID subset is kept (an
+ * all-hallucinated array becomes []). (Output-validator analog of "facts may
+ * only reference the frozen entity table"; enforced post-generation instead
+ * of via retry.)
  */
 export function sanitizeSourceMessageIds(ids: readonly string[], known: ReadonlySet<string>): string[] {
   const valid = ids.filter((id) => known.has(id));
@@ -599,12 +606,27 @@ function collectDateTriples(text: string): Set<string> {
   return triples;
 }
 
+/** Full-precision date literals (both notations) present in a text. */
+function collectDateLiterals(text: string): Array<{ literal: string; triple: string }> {
+  const out: Array<{ literal: string; triple: string }> = [];
+  for (const m of text.matchAll(FULL_DATE_RE)) {
+    out.push({ literal: m[0], triple: `${m[1]}-${Number(m[2])}-${Number(m[3])}` });
+  }
+  for (const m of text.matchAll(CN_FULL_DATE_RE)) {
+    out.push({ literal: m[0], triple: `${m[1]}-${Number(m[2])}-${Number(m[3])}` });
+  }
+  return out;
+}
+
 /**
  * Full-precision dates that appear in an extracted memory but nowhere in the
- * source messages (notation-insensitive: content "2025-03-01" matches source
- * "2025年3月1日"). These are fabrication suspects — the caller logs them;
- * dropping is deliberately NOT done here (recall safety first: a memory whose
- * date is wrong is still likely right about the event itself).
+ * source messages — BOTH notations are scanned on BOTH sides (content
+ * "2025年3月1日" matches source "2025-03-01" and vice versa). Message
+ * timestamps count as source data: the prompt explicitly tells the model to
+ * derive absolute dates from them, so a date derived from a timestamp is NOT
+ * fabrication. Remaining suspects are logged by the caller; dropping is
+ * deliberately NOT done here (recall safety first: a memory whose date is
+ * wrong is still likely right about the event itself).
  */
 export function findFabricatedDates(content: string, sourceTexts: readonly string[]): string[] {
   const sourceTriples = new Set<string>();
@@ -613,9 +635,7 @@ export function findFabricatedDates(content: string, sourceTexts: readonly strin
   }
   const fabricated: string[] = [];
   const seen = new Set<string>();
-  for (const m of content.matchAll(FULL_DATE_RE)) {
-    const literal = m[0];
-    const triple = `${m[1]}-${Number(m[2])}-${Number(m[3])}`;
+  for (const { literal, triple } of collectDateLiterals(content)) {
     if (!sourceTriples.has(triple) && !seen.has(literal)) {
       seen.add(literal);
       fabricated.push(literal);
