@@ -68,19 +68,19 @@ function buildManager(settings: Record<string, unknown> = {}): SessionManager {
 const PENDING_TOOL_CALL = {
   id: "call-synth-1",
   type: "function",
-  function: { name: "bash", arguments: "{\"command\":\"rm -rf tmp\"}" },
+  function: { name: "bash", arguments: '{"command":"rm -rf tmp"}' },
 };
 
 /** Create a session and leave a trailing pending tool-call batch behind. */
-async function createSessionWithPendingToolCall(
-  manager: SessionManager,
-  status: string
-): Promise<string> {
+async function createSessionWithPendingToolCall(manager: SessionManager, status: string): Promise<string> {
   const sessionId = await manager.createSession({ text: "do a thing" });
   const internal = manager as unknown as {
     buildAssistantMessage: (sessionId: string, content: string, toolCalls: unknown[]) => unknown;
     appendSessionMessage: (sessionId: string, message: unknown) => void;
-    updateSessionEntry: (sessionId: string, updater: (entry: Record<string, unknown>) => Record<string, unknown>) => unknown;
+    updateSessionEntry: (
+      sessionId: string,
+      updater: (entry: Record<string, unknown>) => Record<string, unknown>
+    ) => unknown;
   };
   const assistantMessage = internal.buildAssistantMessage(sessionId, "Running tools", [PENDING_TOOL_CALL]);
   internal.appendSessionMessage(sessionId, assistantMessage);
@@ -128,8 +128,13 @@ test("resumeSession synthesizes TOOL_NOT_STARTED for interrupted sessions instea
 
   await manager.resumeSession(sessionId);
 
-  const messages = (manager as unknown as { listSessionMessages: (sessionId: string) => Array<{ role: string; content: string; messageParams: { tool_call_id?: string } | null }> })
-    .listSessionMessages(sessionId);
+  const messages = (
+    manager as unknown as {
+      listSessionMessages: (
+        sessionId: string
+      ) => Array<{ role: string; content: string; messageParams: { tool_call_id?: string } | null }>;
+    }
+  ).listSessionMessages(sessionId);
   const synthesized = messages.filter(
     (message) => message.role === "tool" && message.messageParams?.tool_call_id === PENDING_TOOL_CALL.id
   );
@@ -147,8 +152,13 @@ test("resumeSession synthesizes TOOL_OUTCOME_UNKNOWN for crash-stale processing 
 
   await manager.resumeSession(sessionId);
 
-  const messages = (manager as unknown as { listSessionMessages: (sessionId: string) => Array<{ role: string; content: string; messageParams: { tool_call_id?: string } | null }> })
-    .listSessionMessages(sessionId);
+  const messages = (
+    manager as unknown as {
+      listSessionMessages: (
+        sessionId: string
+      ) => Array<{ role: string; content: string; messageParams: { tool_call_id?: string } | null }>;
+    }
+  ).listSessionMessages(sessionId);
   const synthesized = messages.filter(
     (message) => message.role === "tool" && message.messageParams?.tool_call_id === PENDING_TOOL_CALL.id
   );
@@ -163,8 +173,9 @@ test("resumeSession still replays paused sessions (designed continuation)", asyn
 
   await manager.resumeSession(sessionId);
 
-  const messages = (manager as unknown as { listSessionMessages: (sessionId: string) => Array<{ role: string; content: string }> })
-    .listSessionMessages(sessionId);
+  const messages = (
+    manager as unknown as { listSessionMessages: (sessionId: string) => Array<{ role: string; content: string }> }
+  ).listSessionMessages(sessionId);
   assert.equal(
     messages.filter((message) => message.content.includes(TOOL_NOT_STARTED_MARKER)).length,
     0,
@@ -179,8 +190,9 @@ test("resumePendingToolCalls=replay restores the legacy re-execution behavior", 
 
   await manager.resumeSession(sessionId);
 
-  const messages = (manager as unknown as { listSessionMessages: (sessionId: string) => Array<{ role: string; content: string }> })
-    .listSessionMessages(sessionId);
+  const messages = (
+    manager as unknown as { listSessionMessages: (sessionId: string) => Array<{ role: string; content: string }> }
+  ).listSessionMessages(sessionId);
   assert.equal(
     messages.filter((message) => message.content.includes(TOOL_NOT_STARTED_MARKER)).length,
     0,

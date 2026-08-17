@@ -110,7 +110,10 @@ test("compactSession stage A truncates oversized tool results and skips the LLM 
           if (typeof (request as { temperature?: unknown }).temperature === "number") {
             llmCalls += 1;
           }
-          return { choices: [{ message: { content: "summary" } }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } };
+          return {
+            choices: [{ message: { content: "summary" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          };
         },
       },
     },

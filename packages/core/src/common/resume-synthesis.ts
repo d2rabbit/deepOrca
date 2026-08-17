@@ -28,10 +28,7 @@ export const PENDING_TOOL_RESUME_MODE_DEFAULT: PendingToolCallResumeMode = "synt
  *   runs there is no live controller for the session, meaning the process died
  *   mid-flight; the outcome of any in-flight call is unknown (conservative).
  */
-export function shouldSynthesizePendingToolCalls(
-  status: string | undefined,
-  mode: PendingToolCallResumeMode
-): boolean {
+export function shouldSynthesizePendingToolCalls(status: string | undefined, mode: PendingToolCallResumeMode): boolean {
   if (mode !== "synthesize" || !status) {
     return false;
   }
@@ -44,10 +41,7 @@ export type PendingToolSynthesisKind = "not-started" | "outcome-unknown";
 export const TOOL_NOT_STARTED_MARKER = "TOOL_NOT_STARTED";
 export const TOOL_OUTCOME_UNKNOWN_MARKER = "TOOL_OUTCOME_UNKNOWN";
 
-export function buildPendingToolSynthesisContent(
-  kind: PendingToolSynthesisKind,
-  toolName: string | null
-): string {
+export function buildPendingToolSynthesisContent(kind: PendingToolSynthesisKind, toolName: string | null): string {
   const marker = kind === "not-started" ? TOOL_NOT_STARTED_MARKER : TOOL_OUTCOME_UNKNOWN_MARKER;
   const label = toolName ? `${marker}: ${toolName}` : marker;
   const lead =

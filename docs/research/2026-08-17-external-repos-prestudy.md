@@ -2,6 +2,18 @@
 
 日期：2026-08-17 · 分支：`feat/sandbox-p0-path-gate` · 性质：预研（无代码变更）
 
+> **落地回写（2026-08-17 同日，提交 `60d86d6b` 收官计划 E1）**：dembrandt 线已兑现，
+> 且路线比本文 P0 提议更彻底——未走"pinned npx builtin MCP"，改为**完全离线 vendored
+> 安装 + 内置 Chromium via CDP**（`packages/desktop/src/main/tools/dembrandt-browser.ts`，
+> `chromium.connectOverCDP()`），SSRF 防线即本文 §1.5 提出的担忧的落地形态
+> （`core/common/dembrandt.ts` `validateDembrandtTargetUrl`）。本文 **P1 的
+> `design.extract` / `design.drift` action 已落地**（`core/actions/design.ts:238+`，
+> E1b/E1c，输出落 design-store）。P0 的另一半（graph-engineering 收编 bundled skill）
+> **未做**；ruflo→task-tree P3、crg paths-between、openai-client 降级链均未启动。
+> 与新预研 [2026-08-17-hallmark-codebrain-membrain-prestudy.md](./2026-08-17-hallmark-codebrain-membrain-prestudy.md)
+> 的衔接：其 §3.3-6/7（DESIGN.md provenance 块 + 版权拒绝清单）是 dembrandt 已落地
+> 部分的后续补强项。
+
 调研方法：三个仓库均由原始源码逐文件核证（README 只作参考不作结论），本仓库侧由
 actions/MCP/routing/session/sandbox 各模块的代码走读支撑。zread 未收录 dembrandt 与
 graph-engineering，均通过 GitHub raw/API 兜底核验。

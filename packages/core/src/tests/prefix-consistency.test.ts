@@ -73,7 +73,10 @@ test("getMcpToolDefinitions is byte-identical across server discovery orders", (
   const manager = new McpManager();
   (manager as unknown as { tools: FakeToolEntry[] }).tools = [...entries];
   const names = manager.getMcpToolDefinitions().map((tool) => tool.function.name);
-  assert.deepEqual([...names].sort((a, b) => a.localeCompare(b)), names);
+  assert.deepEqual(
+    [...names].sort((a, b) => a.localeCompare(b)),
+    names
+  );
 });
 
 test("system prompt section order is declared and stable", () => {

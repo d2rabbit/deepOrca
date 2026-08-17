@@ -132,10 +132,14 @@ function downloadFile(repo, remoteFile, dest, tag, stagingDir) {
       throw new Error(`unsafe download URL rejected: ${url}`);
     }
     try {
-      const body = execFileSync("curl", ["-L", "--fail", "--retry", "2", "--connect-timeout", "12", "--max-time", "300", "--", url], {
-        encoding: null,
-        maxBuffer: 512 * 1024 * 1024,
-      });
+      const body = execFileSync(
+        "curl",
+        ["-L", "--fail", "--retry", "2", "--connect-timeout", "12", "--max-time", "300", "--", url],
+        {
+          encoding: null,
+          maxBuffer: 512 * 1024 * 1024,
+        }
+      );
       // containment check (security scan): the already-validated destination
       // (inside the staging dir) receives the bytes; no shell involved.
       writeFileSync(destResolved, body);
