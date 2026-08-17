@@ -24,6 +24,7 @@ import { SERENA_MCP_SERVER_NAME, isSerenaDisabled } from "./common/serena-mcp";
 import { getSerenaController } from "./actions/serena-controller";
 import { SKILL_SPECTOR_MCP_SERVER_NAME, isSkillSpectorDisabled } from "./common/skill-spector";
 import { getSkillSpectorController } from "./actions/skill-spector-controller";
+import { DEMBRANDT_MCP_SERVER_NAME, buildDembrandtMcpServerConfig } from "./common/dembrandt";
 import { A2UI_MCP_SERVER_NAME, isA2uiDisabled, getA2uiServerBuilder, type A2uiLifecycle } from "./mcp/a2ui-seam";
 import { ACTIVITY_FRAMES_MCP_SERVER_NAME, getActivityFramesServerBuilder } from "./mcp/activity-frames-seam";
 import { VISION_MCP_SERVER_NAME, getVisionServerBuilder } from "./mcp/vision-seam";
@@ -105,6 +106,10 @@ import {
   bentoCreateRun,
   designMaterializeDefinition,
   designMaterializeRun,
+  designExtractDefinition,
+  designExtractRun,
+  designDriftDefinition,
+  designDriftRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -160,10 +165,24 @@ import {
   type AlwaysAllowPaths,
   type AskPermissionRequest,
   type MessageToolPermission,
+  type PermissionPlan,
   type PermissionToolCall,
   type UserToolPermission,
 } from "./common/permissions";
 import { grantOutsideRootsFlags, resolveGateRoot, safeRealPath, type PathGrant } from "./common/path-boundary";
+import {
+  buildPendingToolResumeSystemNote,
+  buildPendingToolSynthesisContent,
+  PENDING_TOOL_RESUME_MODE_DEFAULT,
+  shouldSynthesizePendingToolCalls,
+} from "./common/resume-synthesis";
+import {
+  estimateConversationTokens,
+  STAGE_A_SKIP_HEADROOM,
+  truncateToolResultForCompaction,
+  validateCompactionPairing,
+} from "./common/compaction";
+import { ToolExecutionGate, type ToolExecutionGateContext, type ToolExecutionGateListener } from "./common/tool-execution-gate";
 import { AuditLog } from "./sandbox/audit";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { reportNewPrompt } from "./common/telemetry";
@@ -739,6 +758,57 @@ function isSkillForCurrentPlatform(skillName: string): boolean {
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
+  /**
+   * Before-tool-execution gate (dsh P1-4): a synchronous listener registry at
+   * the execution point, with the permission check as its FIRST built-in
+   * listener. Execution layer only — it never influences router selection.
+   */
+  private readonly toolExecutionGate = new ToolExecutionGate<PermissionPlan>();
+  /** The permission check as gate listener #1 (see toolExecutionGate). */
+  private readonly permissionGateListener = (context: ToolExecutionGateContext) => {
+    const { sessionId, toolCalls } = context;
+    // Quarantine (design.md §10.3): out-of-cwd R/W/D denied outright at
+    // the permission layer (never asked), and bash force-asked when no
+    // sandbox backend is available — a quarantined repo must not ask its
+    // way out of the boundary.
+    const quarantined = this.isWorkspaceQuarantined();
+    const effectivePermissions = this.effectivePermissions();
+    const permissionPlan = computeToolCallPermissions({
+      sessionId,
+      projectRoot: this.projectRoot,
+      toolCalls,
+      settings: effectivePermissions,
+      forceAskScopes: this.getSession(sessionId)?.planMode ? PLAN_MODE_FORCE_ASK_SCOPES : undefined,
+      // Baseline (plan mode or not): allowAll must not silently cover
+      // out-of-cwd write/delete. Explicit allow-list grants survive —
+      // only the defaultMode fallback is forced to ask (§4.2, decision
+      // 2026-08-15).
+      forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+      forceAskTools:
+        quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
+      readPermissionExemptPaths: [
+        ...this.getSkillScanRoots().map((entry) => entry.root),
+        ...(effectivePermissions?.allowedReadPaths ?? []),
+      ],
+      writePermissionExemptPaths: effectivePermissions?.allowedWritePaths ?? [],
+      resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
+    });
+    return {
+      verdict: permissionPlan.askPermissions.length > 0 ? ("ask" as const) : ("allow" as const),
+      payload: permissionPlan,
+      source: "permissions",
+    };
+  };
+
+  /**
+   * Register a before-tool-execution listener (dsh P1-4). Runs synchronously
+   * at the execution layer, strictly AFTER routing — it must never influence
+   * which tools/skills the router selected. Verdict precedence: deny > ask >
+   * allow. Returns an unregister function.
+   */
+  registerBeforeToolExecution(name: string, listener: ToolExecutionGateListener<PermissionPlan>): () => void {
+    return this.toolExecutionGate.register(name, listener);
+  }
   private readonly getResolvedSettings: () => {
     model: string;
     webSearchTool?: string;
@@ -828,6 +898,7 @@ export class SessionManager {
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
     this.createOpenAIClient = options.createOpenAIClient;
+    this.toolExecutionGate.register("permissions", this.permissionGateListener);
     this.getResolvedSettings = options.getResolvedSettings;
     this.onAssistantMessage = options.onAssistantMessage;
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
@@ -892,6 +963,10 @@ export class SessionManager {
     this.actionRegistry.register(bentoCreateDefinition, bentoCreateRun);
     // ── Designer — one-click requirement materialization ────────────────────
     this.actionRegistry.register(designMaterializeDefinition, designMaterializeRun);
+    // ── Designer — dembrandt brand ingestion (design.extract / design.drift;
+    // pinned npx CLI via ctx.spawner, deterministic, no LLM) ────────────────
+    this.actionRegistry.register(designExtractDefinition, designExtractRun);
+    this.actionRegistry.register(designDriftDefinition, designDriftRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is
     // exposed to actions via the context (accept-dependencies rule).
@@ -1583,6 +1658,26 @@ If the query is simple (single intent), respond with a single-element array.`;
             [SKILL_SPECTOR_MCP_SERVER_NAME]: skillSpectorConfig,
           };
         }
+      }
+    }
+
+    // Dembrandt MCP server — website design-token/brand extraction engine
+    // (URL → W3C DTCG tokens / Tailwind @theme / DESIGN.md + drift gate; see
+    // docs/research/2026-08-17-external-repos-prestudy.md §1). Pinned npx
+    // spawn — no npm dependency, no vendored Chromium (the CLI downloads its
+    // own Playwright browser on demand). Availability gate mirrors the
+    // neighbors: the config builder returns null unless the project shows
+    // design context (designs/ or .deeporca/DESIGN.md — the codegraph-style
+    // project marker; npx self-manages the runtime, so no controller seam)
+    // and the per-root disable flag is clear (same mechanism as
+    // serena/skill-spector).
+    if (!(result && Object.prototype.hasOwnProperty.call(result, DEMBRANDT_MCP_SERVER_NAME))) {
+      const dembrandtConfig = buildDembrandtMcpServerConfig(this.projectRoot);
+      if (dembrandtConfig) {
+        result = {
+          ...(result ?? {}),
+          [DEMBRANDT_MCP_SERVER_NAME]: dembrandtConfig,
+        };
       }
     }
 
@@ -3434,33 +3529,11 @@ ${content}
           return;
         }
         const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls, thinking);
-        // Quarantine (design.md §10.3): out-of-cwd R/W/D denied outright at
-        // the permission layer (never asked), and bash force-asked when no
-        // sandbox backend is available — a quarantined repo must not ask its
-        // way out of the boundary.
-        const quarantined = this.isWorkspaceQuarantined();
-        const effectivePermissions = this.effectivePermissions();
+        // dsh P1-4: the permission check (and any future execution-layer
+        // listeners) runs through the toolExecutionGate — first listener is the
+        // built-in permission check below.
         const permissionPlan = toolCalls
-          ? computeToolCallPermissions({
-              sessionId,
-              projectRoot: this.projectRoot,
-              toolCalls,
-              settings: effectivePermissions,
-              forceAskScopes: this.getSession(sessionId)?.planMode ? PLAN_MODE_FORCE_ASK_SCOPES : undefined,
-              // Baseline (plan mode or not): allowAll must not silently cover
-              // out-of-cwd write/delete. Explicit allow-list grants survive —
-              // only the defaultMode fallback is forced to ask (§4.2, decision
-              // 2026-08-15).
-              forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
-              forceAskTools:
-                quarantined && !this.getOrCreateBashBackend(sessionId).probe.available ? ["bash"] : undefined,
-              readPermissionExemptPaths: [
-                ...this.getSkillScanRoots().map((entry) => entry.root),
-                ...(effectivePermissions?.allowedReadPaths ?? []),
-              ],
-              writePermissionExemptPaths: effectivePermissions?.allowedWritePaths ?? [],
-              resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
-            })
+          ? (this.toolExecutionGate.decide({ sessionId, toolCalls })?.payload ?? null)
           : null;
         if (permissionPlan) {
           assistantMessage.meta = {
@@ -3630,7 +3703,7 @@ ${content}
 
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
     this.throwIfAborted(signal);
-    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    const { client, baseURL, debugLogEnabled, model: sessionModel } = this.createOpenAIClient();
     if (!client) {
       return;
     }
@@ -3662,6 +3735,40 @@ ${content}
       return;
     }
 
+    // Pairing guard (dsh P1-2): never summarize across a broken call/result
+    // pairing — retry on the next trigger instead of corrupting history.
+    if (!validateCompactionPairing(sessionMessages, startIndex, endIndex)) {
+      return;
+    }
+
+    // Stage A (dsh P1-2): model-free pre-truncation of oversized tool results
+    // in the range — deterministic, free, persisted immediately. When trimming
+    // alone projects the context clearly back under the threshold, the LLM
+    // summary is skipped for this round.
+    const now = new Date().toISOString();
+    let trimmed = false;
+    for (let i = startIndex; i < endIndex; i += 1) {
+      const message = sessionMessages[i];
+      if (message.role !== "tool") {
+        continue;
+      }
+      const truncated = truncateToolResultForCompaction(message.content);
+      if (truncated !== null) {
+        sessionMessages[i] = { ...message, content: truncated, updateTime: now };
+        trimmed = true;
+      }
+    }
+    if (trimmed) {
+      this.saveSessionMessages(sessionId, sessionMessages);
+      const threshold = getCompactPromptTokenThreshold(sessionModel ?? model);
+      if (estimateConversationTokens(sessionMessages) < threshold * STAGE_A_SKIP_HEADROOM) {
+        // Stage A sufficed — skip the LLM summary. Reset the meter; the next
+        // request re-measures (same contract as the post-summary path below).
+        this.updateSessionEntry(sessionId, (entry) => ({ ...entry, activeTokens: 0, updateTime: now }));
+        return;
+      }
+    }
+
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
     const response = await this.createChatCompletionStream(
@@ -3686,7 +3793,6 @@ ${content}
     const llmResponse = typeof rawLlmResponse === "string" ? rawLlmResponse : "";
     const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();
 
-    const now = new Date().toISOString();
     const responseUsage = response.usage ?? null;
     this.updateSessionEntry(sessionId, (entry) => ({
       ...entry,
@@ -3753,8 +3859,13 @@ ${content}
 
   /**
    * Resume a paused (or interrupted) session by re-entering the LLM loop.
-   * Trailing pending tool calls left by a pause checkpoint are executed first
-   * by the loop's trailing-pending path, so no work is lost.
+   * Trailing pending tool calls left by a designed continuation (pause
+   * checkpoint, permission reply) are executed by the loop's trailing-pending
+   * path, so no work is lost. A run that ended *unexpectedly* (interrupt or
+   * crash) is different: its trailing pending calls have unknown outcomes, so
+   * they are synthesized as persisted placeholders instead of re-executed
+   * (dsh P1-1; settings.resumePendingToolCalls="replay" restores the legacy
+   * re-execution).
    */
   async resumeSession(sessionId: string): Promise<void> {
     const session = this.getSession(sessionId);
@@ -3764,6 +3875,12 @@ ${content}
     if (this.sessionControllers.has(sessionId)) {
       // Already running — nothing to resume.
       return;
+    }
+    const resumeMode =
+      (this.getResolvedSettings() as { resumePendingToolCalls?: "replay" | "synthesize" })
+        .resumePendingToolCalls ?? PENDING_TOOL_RESUME_MODE_DEFAULT;
+    if (shouldSynthesizePendingToolCalls(session.status, resumeMode)) {
+      this.synthesizePendingToolOutcomes(sessionId, session.status);
     }
     const controller = new AbortController();
     this.activePromptController = controller;
@@ -3775,6 +3892,51 @@ ${content}
         this.activePromptController = null;
       }
     }
+  }
+
+  /**
+   * Persist synthesized results for the trailing pending tool calls of an
+   * unexpectedly ended run so the activation loop resumes with a complete
+   * tool-call/result pairing instead of re-executing side effects whose
+   * outcome is unknown. "interrupted" batches are provably not-started
+   * (interrupts only land at pre-dispatch checkpoints); a stale "processing"
+   * session may have died mid-flight, so its calls are marked
+   * outcome-unknown (conservative).
+   */
+  private synthesizePendingToolOutcomes(sessionId: string, status: string): number {
+    const pending = this.messageConverter.getTrailingPendingToolCallMessage(
+      this.listSessionMessages(sessionId)
+    );
+    if (pending.toolCalls.length === 0) {
+      return 0;
+    }
+    const kind = status === "interrupted" ? "not-started" : "outcome-unknown";
+    let synthesized = 0;
+    for (const toolCall of pending.toolCalls) {
+      const parsed = parseToolCallForPermissions(toolCall);
+      const toolCallId = parsed?.id;
+      if (!toolCallId) {
+        continue;
+      }
+      const toolFunction = this.messageConverter.findToolFunction(pending.toolCalls, toolCallId);
+      const rawName = (toolFunction as { name?: unknown } | null)?.name;
+      const toolMessage = this.buildToolMessage(
+        sessionId,
+        toolCallId,
+        buildPendingToolSynthesisContent(kind, typeof rawName === "string" ? rawName : parsed.function.name),
+        toolFunction
+      );
+      this.appendSessionMessage(sessionId, toolMessage);
+      this.onAssistantMessage(toolMessage, true);
+      synthesized += 1;
+    }
+    if (synthesized > 0) {
+      this.appendSessionMessage(
+        sessionId,
+        this.buildSystemMessage(sessionId, buildPendingToolResumeSystemNote(synthesized))
+      );
+    }
+    return synthesized;
   }
 
   private consumePauseRequest(sessionId: string): boolean {

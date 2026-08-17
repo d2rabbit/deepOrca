@@ -19,6 +19,8 @@ import {
   hasCrgProject,
   resolveUvBinary,
   configureUvVendorRoot,
+  configureDembrandtVendorRoot,
+  configureDembrandtCdpEndpointGetter,
   runCrgResetWithOutput,
   runCrgVisualize,
   configureSerenaController,
@@ -40,6 +42,7 @@ import {
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
+import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
@@ -254,6 +257,24 @@ configureGitmcpConfigBuilder(buildGitmcpMcpServerConfig);
 // isolated environment — no host Python required when uv is vendored.
 configureUvVendorRoot(join(__dirname, "..", "vendor", "uv"));
 
+// Dembrandt (design-token extraction engine): offline-first vendored npm
+// install (scripts/vendor-dembrandt.js → packages/desktop/vendor/dembrandt,
+// copied to Resources/app/vendor by electron-builder's extraResources). The
+// core resolver spawns the vendored dist js via a literal `node` runner; a
+// missing vendored tree yields an explicit offline-provisioning error, never a
+// runtime download. The browser is Electron's own Chromium: a hidden offscreen
+// window exposes CDP on a fixed loopback port (main/tools/dembrandt-browser.ts)
+// and its endpoint is injected into core's spawn env (DEMBRANDT_CDP_ENDPOINT,
+// honored by the vendored build-time patch). Started lazily in the background —
+// first extraction may pay a one-time window startup; nothing blocks boot.
+configureDembrandtVendorRoot(join(__dirname, "..", "vendor", "dembrandt"));
+configureDembrandtCdpEndpointGetter(getDembrandtCdpEndpoint);
+if (app.isPackaged || existsSync(join(__dirname, "..", "vendor", "dembrandt", ".vendored-dembrandt-version"))) {
+  void ensureDembrandtBrowserProvider().catch((err) => {
+    console.error("[dembrandt] built-in Chromium provider failed to start:", err);
+  });
+}
+
 // CRG version pin: read from vendor/crg/.vendored-crg-version (written by
 // scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.
 configureCrgVersionRoot(join(__dirname, "..", "vendor", "crg"));
@@ -314,7 +335,7 @@ function refreshVendoredToolsInBackground(): void {
   if (app.isPackaged) {
     return;
   }
-  for (const name of ["openwiki", "uv", "skillspector", "browser-skill", "serena", "crg", "bento"]) {
+  for (const name of ["openwiki", "uv", "skillspector", "browser-skill", "serena", "crg", "bento", "dembrandt"]) {
     const script = join(__dirname, "..", "..", "..", "scripts", `vendor-${name}.js`);
     try {
       const child = spawn(process.execPath, [script], {

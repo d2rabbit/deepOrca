@@ -210,6 +210,16 @@ export {
 
 export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./common/serena-mcp";
 
+// Dembrandt (design-token extraction engine) — offline-first vendored install
+// seam + MCP config builder (session.ts registers the builtin server).
+export {
+  DEMBRANDT_MCP_SERVER_NAME,
+  buildDembrandtMcpServerConfig,
+  configureDembrandtVendorRoot,
+  configureDembrandtCdpEndpointGetter,
+  validateDembrandtTargetUrl,
+} from "./common/dembrandt";
+
 // Serena controller seam — desktop injects SerenaCliController at boot.
 export { type SerenaController, configureSerenaController, getSerenaController } from "./actions/serena-controller";
 export { SKILL_SPECTOR_MCP_SERVER_NAME, setSkillSpectorDisabled, isSkillSpectorDisabled } from "./common/skill-spector";
