@@ -13,7 +13,10 @@
  *
  * Zero new dependencies: fetch + regex parsing only, best-effort graceful
  * degradation (a provider layout change surfaces as a parse error, never a
- * crash).
+ * crash). NOTE: brave/tavily are API-key providers whose settings surface
+ * (`webSearchApiKey`) is currently DISABLED (security-audit C5 — committable
+ * project-level credential); the adapters remain for when key storage is
+ * settled, and tests drive them directly.
  */
 
 export type WebSearchProviderId = "duckduckgo" | "brave" | "tavily";
@@ -193,6 +196,7 @@ async function searchBrave(
     {
       headers: {
         Accept: "application/json",
+        "User-Agent": USER_AGENT,
         "X-Subscription-Token": key,
       },
     },
@@ -226,6 +230,7 @@ async function searchTavily(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({ query, max_results: MAX_HITS }),

@@ -224,3 +224,10 @@ test("static fallback: HTTP error status surfaces", async () => {
   assert.equal(result.ok, false);
   assert.match(String(result.error), /HTTP 404/);
 });
+
+test("static fallback: non-redirect 3xx (304) is NOT followed and surfaces as HTTP status", async () => {
+  mockFetch(() => new Response(null, { status: 304 }));
+  const result = await handleWebFetchTool({ url: "https://example.com/cached" }, createContext());
+  assert.equal(result.ok, false);
+  assert.match(String(result.error), /HTTP 304/);
+});

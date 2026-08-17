@@ -132,7 +132,10 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
   // catch above, or empty diff) still means "semantic only" (adversarial
   // review round 1 — the flag must not claim enrichment that never ran).
   const graphPresent = crgQuery?.hasGraph(ctx.projectRoot) === true;
-  const enriched = crgChanges.length > 0 && crgRisks.length > 0;
+  // crgChanges > 0 alone proves enrichment ran: the CRG background was built
+  // and injected into the OCR review. Zero RISK rows is a valid outcome
+  // (changed leaf functions with no risk data), not a failure.
+  const enriched = crgChanges.length > 0;
   const statusReport: BackendStatusReport = enriched
     ? {
         status: "active",

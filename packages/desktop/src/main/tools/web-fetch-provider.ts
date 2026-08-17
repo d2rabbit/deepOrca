@@ -159,7 +159,10 @@ async function loadAndExtract(url: string, timeoutMs: number): Promise<WebFetchP
     }, timeoutMs);
 
     wc.once("did-finish-load", onFinish);
-    wc.once("did-fail-load", onFail);
+    // .on (not .once): a subframe failure must not consume the listener —
+    // with .once it did, leaving a LATER main-frame failure unhandled and the
+    // fetch hanging until the timeout (cleanup removes the listener either way).
+    wc.on("did-fail-load", onFail);
     wc.on("will-redirect", onRedirect);
     // loadURL rejects on load failure and on wc.stop() (timeout path) — both
     // are already surfaced via did-fail-load/the timer; swallow the promise.

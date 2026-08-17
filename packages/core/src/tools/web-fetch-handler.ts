@@ -72,6 +72,9 @@ export async function handleWebFetchTool(
  * target passes the SSRF gate — a public URL 302-ing to a loopback/metadata
  * address is refused instead of followed (adversarial review round 2). */
 const MAX_REDIRECTS = 5;
+/** Only these statuses are followed (mirrors undici's redirect set); a 304
+ * or 305 falls through to the final-response path and surfaces as "HTTP 3xx". */
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 async function fetchPageStatic(url: string): Promise<WebFetchPage> {
   const controller = new AbortController();
@@ -88,7 +91,7 @@ async function fetchPageStatic(url: string): Promise<WebFetchPage> {
         redirect: "manual",
         headers: { Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5" },
       });
-      if (response.status >= 300 && response.status < 400) {
+      if (REDIRECT_STATUSES.has(response.status)) {
         const location = response.headers.get("location");
         if (!location) {
           throw new Error(`redirect without Location header (HTTP ${response.status})`);

@@ -48,6 +48,15 @@ test("findFabricatedDates: month-precision source does NOT satisfy a full date",
   assert.deepEqual(findFabricatedDates("用户在 2025-03-01 参加了预算会", sources), ["2025-03-01"]);
 });
 
+test("findFabricatedDates: a date derived from an ISO timestamp is NOT fabricated (round-3 regression)", () => {
+  // FULL_DATE_RE must match the date prefix INSIDE an ISO timestamp — the
+  // trailing \b variant never did (the T that follows killed the boundary),
+  // which made the timestamp-as-source-truth fix a silent no-op.
+  const sources = ["", "2026-08-17T10:40:00.000Z"];
+  assert.deepEqual(findFabricatedDates("用户在 2026-08-17 参加了评审会", sources), []);
+  assert.deepEqual(findFabricatedDates("用户在 2026年8月17日 参加了评审会", sources), []);
+});
+
 test("findFabricatedDates: multiple fabricated dates, deduped literals", () => {
   const sources = ["无关内容"];
   const found = findFabricatedDates("2024-01-02 与 2024-01-02 和 2023-05-06", sources);

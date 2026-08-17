@@ -596,7 +596,10 @@ export function isDroppableContent(content: string): boolean {
   return trimmed.length === 0 || trimmed.length > 500 || !/[\p{L}\p{N}]/u.test(trimmed);
 }
 
-const FULL_DATE_RE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+// (?!\d) instead of \b: an ISO timestamp's date prefix ("2026-08-17T10:40")
+// has a word char (T) right after the day, so \b would never match it and
+// timestamp-derived dates could never be recognized as source truth.
+const FULL_DATE_RE = /\b(\d{4})-(\d{2})-(\d{2})(?!\d)/g;
 const CN_FULL_DATE_RE = /(\d{4})年(\d{1,2})月(\d{1,2})日/g;
 
 function collectDateTriples(text: string): Set<string> {
