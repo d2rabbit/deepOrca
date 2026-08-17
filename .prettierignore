@@ -3,3 +3,8 @@ dist/
 *.tgz
 *.log
 package-lock.json
+# Auto-generated sources (produced at build time, not hand-edited)
+packages/desktop/src/generated/
+packages/desktop/src/renderer/dd/tailwind-script.ts
+# Bundled skills: third-party content fetched from upstream repos (not our code)
+packages/core/templates/skills/bundled/

@@ -16,12 +16,13 @@
 // Env overrides:
 //   UV_VERSION  (default: latest stable from GitHub Releases)
 
-import { execSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { download as sharedDownload, GITHUB_PROXY, assertSafeVersion } from "./vendor-download.js";
+import { withAtomicSwap } from "./vendor-fs.js";
 import { platform as osPlatform, arch as osArch } from "node:os";
-import { Readable } from "node:stream";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -59,17 +60,24 @@ function hostTarget() {
 /** Resolve the latest uv release tag from GitHub API (falls back to hardcoded). */
 async function resolveLatestVersion() {
   if (process.env.UV_VERSION) {
-    return process.env.UV_VERSION;
+    return assertSafeVersion(process.env.UV_VERSION, "UV_VERSION");
   }
   try {
-    const resp = await fetch("https://api.github.com/repos/astral-sh/uv/releases/latest", {
+    const apiUrl = "https://api.github.com/repos/astral-sh/uv/releases/latest";
+    let resp = await fetch(apiUrl, {
       headers: { "User-Agent": "deeporca-vendor-uv" },
       signal: AbortSignal.timeout(10000),
     });
+    if (!resp.ok) {
+      resp = await fetch(`${GITHUB_PROXY}${apiUrl}`, {
+        headers: { "User-Agent": "deeporca-vendor-uv" },
+        signal: AbortSignal.timeout(10000),
+      });
+    }
     if (resp.ok) {
       const data = await resp.json();
       const tag = data.tag_name; // e.g. "0.11.32"
-      return tag.startsWith("v") ? tag.slice(1) : tag;
+      return assertSafeVersion(tag.startsWith("v") ? tag.slice(1) : tag, "uv release tag");
     }
   } catch {
     // Offline or rate-limited — use fallback.
@@ -78,85 +86,70 @@ async function resolveLatestVersion() {
   return "0.11.32";
 }
 
-/** Download a URL to a file path. */
+/** Download with proxy fallback. */
 async function download(url, dest) {
-  log(`downloading ${url}`);
-  const resp = await fetch(url, {
-    headers: { "User-Agent": "deeporca-vendor-uv" },
-    signal: AbortSignal.timeout(120000),
-    redirect: "follow",
-  });
-  if (!resp.ok || !resp.body) {
-    throw new Error(`download failed: ${resp.status} ${resp.statusText}`);
-  }
-  const stream = createWriteStream(dest);
-  await Readable.fromWeb(resp.body).pipe(stream);
-  return new Promise((resolve, reject) => {
-    stream.on("finish", resolve);
-    stream.on("error", reject);
-  });
+  return sharedDownload(url, dest, log);
 }
 
 /** Extract a .tar.gz file using the system tar (available on all supported platforms). */
 function extractTarGz(archivePath, destDir) {
-  execSync(`tar -xzf "${archivePath}" -C "${destDir}"`, { stdio: "inherit" });
+  execFileSync("tar", ["-xzf", archivePath, "-C", destDir], { stdio: "inherit" });
 }
 
 async function main() {
   const version = await resolveLatestVersion();
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
+  const target = hostTarget();
 
-  if (version === previousVersion && existsSync(join(targetDir, hostTarget())) && !force) {
+  if (version === previousVersion && existsSync(join(targetDir, target)) && !force) {
     log(`up-to-date (v${version}) — skipping download.`);
     return;
   }
 
   log(`downloading uv v${version} (prev: ${previousVersion ?? "none"}) …`);
 
-  // Clean target (keep the version marker file for rollback).
-  rmSync(targetDir, { recursive: true, force: true });
-  mkdirSync(targetDir, { recursive: true });
-
-  // Download the current host platform's binary.
-  const target = hostTarget();
   const ext = target.includes("windows") ? "zip" : "tar.gz";
   const assetName = `uv-${target}.${ext}`;
   const downloadUrl = `https://github.com/astral-sh/uv/releases/download/${version}/${assetName}`;
-  const archivePath = join(targetDir, assetName);
 
-  try {
-    await download(downloadUrl, archivePath);
-  } catch (error) {
-    if (existsSync(join(targetDir, target))) {
-      log(`download failed (offline?) — keeping existing uv binaries: ${error.message}`);
-      return;
-    }
-    throw error;
-  }
+  // Atomic swap: build into a staging dir, swap into place only when the
+  // platform binary dir exists. Earlier code did rmSync(targetDir) BEFORE
+  // downloading, so a transient network/proxy failure destroyed a known-good
+  // cache (the "keep existing" fallback checked a dir that had just been deleted).
+  await withAtomicSwap(targetDir, {
+    log,
+    tag: "uv",
+    build: async (staging) => {
+      const archivePath = join(staging, assetName);
+      await download(downloadUrl, archivePath);
 
-  // Extract into a platform-specific subdirectory.
-  const extractDir = join(targetDir, target);
-  mkdirSync(extractDir, { recursive: true });
+      // Extract into a platform-specific subdirectory inside staging.
+      const extractDir = join(staging, target);
+      mkdirSync(extractDir, { recursive: true });
 
-  if (ext === "tar.gz") {
-    extractTarGz(archivePath, extractDir);
-  } else {
-    // .zip on Windows — use tar (Windows 10+ ships tar.exe) or PowerShell.
-    try {
-      execSync(`tar -xf "${archivePath}" -C "${extractDir}"`, { stdio: "inherit" });
-    } catch {
-      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'"`, {
-        stdio: "inherit",
-      });
-    }
-  }
+      if (ext === "tar.gz") {
+        extractTarGz(archivePath, extractDir);
+      } else {
+        // .zip on Windows — use tar (Windows 10+ ships tar.exe) or PowerShell.
+        try {
+          execFileSync("tar", ["-xf", archivePath, "-C", extractDir], { stdio: "inherit" });
+        } catch {
+          execFileSync(
+            "powershell",
+            ["-Command", `Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'`],
+            {
+              stdio: "inherit",
+            }
+          );
+        }
+      }
+      // Write the version marker atomically with the swap.
+      writeFileSync(join(staging, ".vendored-uv-version"), version);
+    },
+    verify: (staging) => existsSync(join(staging, target)),
+  });
 
-  // Clean up archive.
-  rmSync(archivePath, { force: true });
-
-  // Write version marker.
-  writeFileSync(versionFile, version);
-  log(`done → ${extractDir} (uv v${version})`);
+  log(`done → ${join(targetDir, target)} (uv v${version})`);
 }
 
 try {

@@ -5,11 +5,13 @@
 import type { AskPermissionRequest, PermissionScope, UserToolPermission } from "../../shared/ipc";
 
 // AskPermissionScope is a superset that includes "unknown"; we keep it loose here.
-type Scope = PermissionScope | "unknown" | string;
+export type Scope = PermissionScope | "unknown" | string;
 
 export type PermissionResult = {
   permissions: UserToolPermission[];
   alwaysAllows: PermissionScope[];
+  /** Path-level always-allow grants (task 14): narrow, per-path persistence. */
+  alwaysAllowPaths: { write: string[]; read: string[] };
   hasDeny: boolean;
 };
 
@@ -46,7 +48,8 @@ export function buildScopePrompts(requests: AskPermissionRequest[]): ScopePrompt
 export function buildResult(
   requests: AskPermissionRequest[],
   decisions: Record<string, "allow" | "deny">,
-  alwaysAllows: PermissionScope[]
+  alwaysAllows: PermissionScope[],
+  alwaysAllowPaths: { write: string[]; read: string[] } = { write: [], read: [] }
 ): PermissionResult {
   const permissions: UserToolPermission[] = requests.map((request) => ({
     toolCallId: request.toolCallId,
@@ -55,8 +58,49 @@ export function buildResult(
   return {
     permissions,
     alwaysAllows,
+    alwaysAllowPaths,
     hasDeny: permissions.some((p) => p.permission === "deny"),
   };
+}
+
+/**
+ * Unified "already granted" predicate for one ask prompt. MUST be used by
+ * both the render-time skip loop and the submit-time remaining loop with the
+ * SAME arguments — divergent conditions stall the card (review finding: the
+ * card rendered null without submitting after a scope-level always-allow).
+ */
+export function isPromptGranted(
+  scope: Scope,
+  filePath: string | undefined,
+  alwaysScopes: readonly string[],
+  pathGrants: { write: readonly string[]; read: readonly string[] }
+): boolean {
+  if (alwaysScopes.includes(scope)) {
+    return true;
+  }
+  const grant = pathGrantFor(scope, filePath);
+  return grant ? pathGrants[grant.kind].some((path) => path === grant.path) : false;
+}
+
+/**
+ * For a file-tool ask with a known path, "always allow" persists the PATH
+ * (task 14) instead of the whole-disk scope. Returns the grant kind, or null
+ * when the scope has no path to bind (bash, network, …).
+ */
+export function pathGrantFor(
+  scope: Scope,
+  filePath: string | undefined
+): { kind: "write" | "read"; path: string } | null {
+  if (!filePath) {
+    return null;
+  }
+  if (scope === "write-out-cwd") {
+    return { kind: "write", path: filePath };
+  }
+  if (scope === "read-out-cwd") {
+    return { kind: "read", path: filePath };
+  }
+  return null;
 }
 
 export function scopeRiskColor(scope: Scope): string {

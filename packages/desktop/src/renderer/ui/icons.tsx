@@ -510,3 +510,32 @@ export function IconMagicWand(): JSX.Element {
     </svg>
   );
 }
+
+/** Folder — file-tree directory */
+export function IconFolder(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.2l1.6 2h6.2A1.5 1.5 0 0 1 17 7.5v7A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Document — file-tree file */
+export function IconFile(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M5.5 3h5L15 7.5v8A1.5 1.5 0 0 1 13.5 17h-8A1.5 1.5 0 0 1 4 15.5v-11A1.5 1.5 0 0 1 5.5 3Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M10.5 3v4.5H15" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}

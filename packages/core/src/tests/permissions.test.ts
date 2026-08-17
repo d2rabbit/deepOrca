@@ -6,11 +6,14 @@ import * as path from "path";
 import {
   appendProjectPermissionAllows,
   computeToolCallPermissions,
+  DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
   evaluatePermissionScopes,
   getPermissionScopesRequiringAsk,
   hasUserPermissionReplies,
+  inferBashSideEffects,
   isPathInAnyDirectory,
   parseBashSideEffects,
+  unionBashScopes,
 } from "../common/permissions";
 import { getProjectConfigRoot } from "../common/app-dirs";
 import type { PermissionScope, PermissionSettings } from "../settings";
@@ -31,6 +34,184 @@ test("parseBashSideEffects accepts valid scopes and normalizes unsafe values to 
   assert.deepEqual(parseBashSideEffects(undefined), ["unknown"]);
   assert.deepEqual(parseBashSideEffects(["read-in-cwd", "unknown"]), ["unknown"]);
   assert.deepEqual(parseBashSideEffects(["mcp"]), ["unknown"]);
+});
+
+test("parseBashSideEffects returns an empty array for an empty declared array (the union step handles safety)", () => {
+  // An empty declared array is NOT normalised to ["unknown"] here — doing so
+  // would discard the concrete scopes inferred from the command text. Instead,
+  // unionBashScopes([], inferred) preserves the inferred scopes, and if both
+  // sides are empty the union returns ["unknown"]. This lets a `rm -rf` with
+  // `sideEffects: []` still pick up the inferred delete scopes.
+  assert.deepEqual(parseBashSideEffects([]), []);
+  // Missing/non-array values are still treated as unclassifiable.
+  assert.deepEqual(parseBashSideEffects(undefined), ["unknown"]);
+  assert.deepEqual(parseBashSideEffects(null), ["unknown"]);
+  assert.deepEqual(parseBashSideEffects("not-an-array"), ["unknown"]);
+});
+
+test("unionBashScopes returns unknown when both sides are empty (bash is never provably safe)", () => {
+  assert.deepEqual(unionBashScopes([], []), ["unknown"]);
+});
+
+test("inferBashSideEffects flags deletion commands as both in-cwd and out-cwd", () => {
+  // rm has no inherent path bound — it can delete anywhere. Declaring only
+  // delete-out-cwd must not bypass a delete-in-cwd deny.
+  const rm = inferBashSideEffects("rm -rf node_modules");
+  assert.ok(rm.includes("delete-in-cwd"), "rm should infer delete-in-cwd");
+  assert.ok(rm.includes("delete-out-cwd"), "rm should infer delete-out-cwd");
+  // rmdir/del/shred behave the same way.
+  assert.ok(inferBashSideEffects("del foo.txt").includes("delete-in-cwd"));
+  assert.ok(inferBashSideEffects("shred secret.key").includes("delete-in-cwd"));
+});
+
+test("inferBashSideEffects flags git history mutation", () => {
+  assert.ok(inferBashSideEffects("git commit --allow-empty -m x").includes("mutate-git-log"));
+  assert.ok(inferBashSideEffects("git commit --amend --no-edit").includes("mutate-git-log"));
+  assert.ok(inferBashSideEffects("git rebase main").includes("mutate-git-log"));
+  assert.ok(inferBashSideEffects("git reset --hard HEAD~1").includes("mutate-git-log"));
+  // query-only git commands are NOT flagged as mutation.
+  const log = inferBashSideEffects("git log --oneline");
+  assert.ok(!log.includes("mutate-git-log"), "git log should not be flagged as mutation");
+});
+
+test("inferBashSideEffects flags output redirection as write", () => {
+  assert.ok(inferBashSideEffects("echo x > file.txt").includes("write-in-cwd"));
+  assert.ok(inferBashSideEffects("echo x >> file.txt").includes("write-in-cwd"));
+  assert.ok(inferBashSideEffects("echo x | tee out.txt").includes("write-in-cwd"));
+});
+
+test("inferBashSideEffects flags network tools", () => {
+  assert.ok(inferBashSideEffects("curl https://example.com").includes("network"));
+  assert.ok(inferBashSideEffects("wget http://example.com/file.zip").includes("network"));
+  assert.ok(inferBashSideEffects("/usr/bin/curl localhost:8080").includes("network"));
+  assert.ok(inferBashSideEffects("ssh user@host").includes("network"));
+});
+
+test("inferBashSideEffects flags package managers (write + network)", () => {
+  const npm = inferBashSideEffects("npm install left-pad");
+  assert.ok(npm.includes("network"), "npm should infer network");
+  assert.ok(npm.includes("write-in-cwd"), "npm should infer write-in-cwd");
+  assert.ok(inferBashSideEffects("pip install requests").includes("network"));
+  assert.ok(inferBashSideEffects("uv pip install pkg").includes("network"));
+});
+
+test("inferBashSideEffects flags subshells and command substitution as unknown", () => {
+  // The inner command is opaque to a tokeniser; the whole thing is
+  // unclassifiable.
+  assert.ok(inferBashSideEffects("echo $(cat /etc/passwd)").includes("unknown"));
+  assert.ok(inferBashSideEffects("`whoami`").includes("unknown"));
+  assert.ok(inferBashSideEffects("(cd /tmp && rm x)").includes("unknown"));
+});
+
+test("inferBashSideEffects flags empty/whitespace commands as unknown", () => {
+  assert.deepEqual(inferBashSideEffects(""), ["unknown"]);
+  assert.deepEqual(inferBashSideEffects("   "), ["unknown"]);
+});
+
+test("inferBashSideEffects flags pipe chains with no concrete signal as unknown", () => {
+  // cat foo | grep bar | wc -l — no high-confidence pattern matched, but the
+  // downstream commands are opaque in isolation.
+  assert.ok(inferBashSideEffects("cat foo | grep bar | wc -l").includes("unknown"));
+});
+
+test("inferBashSideEffects: a benign read-only command returns [] (no additional inferred risk)", () => {
+  // A benign-looking command with no danger pattern and no opacity construct
+  // returns [] so the model's declared scopes stand. The empty-array attack
+  // vector (model declares [] to skip the permission ask) is caught at the
+  // union step: unionBashScopes([], []) -> ["unknown"].
+  assert.deepEqual(inferBashSideEffects("ls -la"), []);
+  assert.deepEqual(inferBashSideEffects("rg TODO src"), []);
+});
+
+test("unionBashScopes: inference can only add risk, never remove it", () => {
+  // Declared network + inferred network → still just network.
+  assert.deepEqual(unionBashScopes(["network"], ["network"]), ["network"]);
+  // Declared read + inferred network → both.
+  const merged = unionBashScopes(["read-in-cwd"], ["network"]);
+  assert.ok(merged.includes("read-in-cwd"));
+  assert.ok(merged.includes("network"));
+  // Either side unknown → unknown dominates.
+  assert.deepEqual(unionBashScopes(["unknown"], ["network"]), ["unknown"]);
+  assert.deepEqual(unionBashScopes(["network"], ["unknown"]), ["unknown"]);
+});
+
+test("unionBashScopes: rm with declared delete-out-cwd cannot bypass delete-in-cwd deny", () => {
+  // This is the regression the inference is meant to catch: the model declares
+  // only delete-out-cwd, but rm infers delete-in-cwd too. The union includes
+  // both, so a delete-in-cwd deny will fire.
+  const merged = unionBashScopes(["delete-out-cwd"], ["delete-in-cwd", "delete-out-cwd"]);
+  assert.ok(merged.includes("delete-in-cwd"), "merged scopes must include inferred delete-in-cwd");
+  assert.ok(merged.includes("delete-out-cwd"));
+});
+
+test("computeToolCallPermissions: bash with empty declared sideEffects still infers concrete scopes", () => {
+  // The model declared sideEffects: [] on `rm -rf`. Previously this
+  // short-circuited the scope computation to "no scopes" (→ allow under
+  // allowAll). Now the inferred delete scopes are unioned in even when the
+  // declared array is empty, so a permission policy that asks on delete scopes
+  // will fire. This test uses an askAll policy to prove the inferred scopes
+  // survive; under allowAll the inferred scopes still get recorded in the
+  // askPermissions list (they just don't trigger ask because allowAll allows
+  // everything by design).
+  const projectRoot = createTempDir("deepcode-permissions-empty-declared-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: {
+      allow: [] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: ["delete-in-cwd", "delete-out-cwd"] as PermissionScope[],
+      defaultMode: "allowAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-rm-empty-declared",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({ command: "rm -rf node_modules", sideEffects: [] }),
+        },
+      },
+    ],
+  });
+  // rm infers delete-in-cwd/delete-out-cwd even with an empty declared array,
+  // and those scopes are in the ask list → ask.
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-rm-empty-declared", permission: "ask" }]);
+  const scopes = plan.askPermissions[0]?.scopes ?? [];
+  assert.ok(scopes.includes("delete-in-cwd"), "inferred delete-in-cwd must be present");
+  assert.ok(scopes.includes("delete-out-cwd"), "inferred delete-out-cwd must be present");
+});
+
+test("computeToolCallPermissions: model under-reporting network is caught by inference", () => {
+  // The model declares only read-in-cwd on a curl command, hoping to avoid the
+  // network ask. Inference adds network, so an ask-on-network policy fires.
+  const projectRoot = createTempDir("deepcode-permissions-under-report-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: {
+      allow: ["read-in-cwd"] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: ["network"] as PermissionScope[],
+      defaultMode: "allowAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-curl-under-report",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({
+            command: "curl https://example.com/api > out.json",
+            sideEffects: ["read-in-cwd"],
+          }),
+        },
+      },
+    ],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-curl-under-report", permission: "ask" }]);
+  const scopes = plan.askPermissions[0]?.scopes ?? [];
+  assert.ok(scopes.includes("network"), "inferred network must be present despite under-reporting");
 });
 
 test("evaluatePermissionScopes applies deny, ask, allow, and default mode precedence", () => {
@@ -201,6 +382,10 @@ test("computeToolCallPermissions temporarily upgrades allowed forced scopes to a
         type: "function",
         function: { name: "write", arguments: JSON.stringify({ file_path: "/tmp/file.txt" }) },
       },
+      // `rm` is inferred as BOTH delete-in-cwd and delete-out-cwd (the command
+      // has no inherent path bound), so a declared delete-out-cwd no longer
+      // bypasses a delete-in-cwd deny. This is the intended fail-closed
+      // behaviour — see "inferBashSideEffects" tests below.
       {
         id: "call-delete-out",
         type: "function",
@@ -234,7 +419,8 @@ test("computeToolCallPermissions temporarily upgrades allowed forced scopes to a
   assert.deepEqual(plan.permissions, [
     { toolCallId: "call-write-in", permission: "ask" },
     { toolCallId: "call-write-out", permission: "ask" },
-    { toolCallId: "call-delete-out", permission: "ask" },
+    // rm now infers delete-in-cwd too, which is denied → deny (not ask).
+    { toolCallId: "call-delete-out", permission: "deny" },
     { toolCallId: "call-mutate-git", permission: "ask" },
     { toolCallId: "call-delete-in", permission: "deny" },
   ]);
@@ -243,7 +429,6 @@ test("computeToolCallPermissions temporarily upgrades allowed forced scopes to a
     [
       { id: "call-write-in", scopes: ["write-in-cwd"] },
       { id: "call-write-out", scopes: ["write-out-cwd"] },
-      { id: "call-delete-out", scopes: ["delete-out-cwd"] },
       { id: "call-mutate-git", scopes: ["mutate-git-log"] },
     ]
   );
@@ -483,4 +668,156 @@ function createTempDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   tempDirs.push(dir);
   return dir;
+}
+
+// ── Deep review 2026-08-15 (B1): previously-evadable destructive commands ──
+
+test("inferBashSideEffects catches find -delete (flag, not word)", () => {
+  const scopes = inferBashSideEffects("find /tmp/scratch -name '*.log' -delete");
+  assert.ok(scopes.includes("delete-in-cwd"));
+  assert.ok(scopes.includes("delete-out-cwd"));
+});
+
+test("inferBashSideEffects catches inline-code interpreters (python -c / node -e)", () => {
+  for (const cmd of [
+    "python3 -c \"import shutil; shutil.rmtree('/x')\"",
+    "node -e \"require('fs').rmSync('/x', {recursive: true})\"",
+    "perl -e 'unlink glob(\"*\")'",
+    "sh -lc 'rm -rf ~'",
+  ]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(
+      scopes.includes("delete-out-cwd") && scopes.includes("write-out-cwd"),
+      `interpreter exec must classify as destructive: ${cmd} → ${JSON.stringify(scopes)}`
+    );
+  }
+});
+
+test("inferBashSideEffects catches decoded-payload pipes (base64 | sh)", () => {
+  for (const cmd of ["echo cm0gLXJmIH4= | base64 -d | sh", "echo … | openssl enc -d -a | bash", "cat payload | zsh"]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(
+      scopes.includes("delete-out-cwd"),
+      `decode-pipe must classify as destructive: ${cmd} → ${JSON.stringify(scopes)}`
+    );
+  }
+});
+
+test("inferBashSideEffects catches raw block-device / truncation utilities", () => {
+  for (const cmd of ["dd if=/dev/zero of=/dev/sda", "truncate -s 0 important.db", "mkfs.ext4 /dev/sdb1"]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(
+      scopes.includes("write-out-cwd") && scopes.includes("delete-out-cwd"),
+      `wrecking utility must classify: ${cmd} → ${JSON.stringify(scopes)}`
+    );
+  }
+});
+
+test("benign commands still classify clean (no regression)", () => {
+  assert.deepEqual(inferBashSideEffects("rg TODO src"), []);
+  assert.deepEqual(inferBashSideEffects("ls -la"), []);
+  assert.deepEqual(inferBashSideEffects("cat package.json"), []);
+  // `git status` with a $VAR-looking token still only unknown (existing behavior).
+  assert.deepEqual(inferBashSideEffects("echo $x"), ["unknown"]);
+});
+
+// ── P0.5: allowAll no longer implicitly covers out-of-cwd write/delete ──────
+// (decision 2026-08-15, specs/sandbox/design.md §4.2 — acceptance table)
+
+test("P0.5 baseline: allowAll + empty allow list asks on write-out-cwd", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-baseline-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-1", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-1", permission: "ask" }]);
+  assert.ok(plan.askPermissions[0]?.scopes.includes("write-out-cwd"));
+});
+
+test("P0.5 anti-regression core: explicit allow-list grant is NOT squashed by the baseline", () => {
+  // The user clicked "always allow" (or hand-wrote the allow entry) — that is
+  // an explicit grant, not a defaultMode fallback, so the narrowing must not
+  // re-prompt. Otherwise appendProjectPermissionAllows' persistence is dead.
+  const projectRoot = createTempDir("deepcode-permissions-p05-explicit-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: ["write-out-cwd"], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-2", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-2", permission: "allow" }]);
+  assert.equal(plan.askPermissions.length, 0);
+});
+
+test("P0.5 + plan mode: the two force-ask semantics coexist (explicit grant still asks in plan mode)", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-plan-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: ["write-out-cwd"], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskScopes: ["write-in-cwd", "write-out-cwd", "delete-in-cwd", "delete-out-cwd", "mutate-git-log"],
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-3", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-3", permission: "ask" }]);
+});
+
+test("P0.5 does not touch the deny short-circuit: deny still denies (not ask)", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-deny-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: ["write-out-cwd"], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-4", "/definitely/outside/the/project/file.txt")],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-4", permission: "deny" }]);
+});
+
+test("P0.5 is not over-tight: write-in-cwd stays allowed under allowAll", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-in-cwd-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [writeCall("call-p05-5", `${projectRoot}/inside.txt`)],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-5", permission: "allow" }]);
+});
+
+test("P0.5附带收益: out-of-cwd destructive bash asks under allowAll", () => {
+  const projectRoot = createTempDir("deepcode-permissions-p05-bash-");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: { allow: [], deny: [], ask: [], defaultMode: "allowAll" },
+    forceAskDefaultedScopes: DEFAULT_FORCE_ASK_DEFAULTED_SCOPES,
+    toolCalls: [
+      {
+        id: "call-p05-6",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({ command: "rm -rf /definitely/outside/the/project", sideEffects: [] }),
+        },
+      },
+    ],
+  });
+  assert.deepEqual(plan.permissions, [{ toolCallId: "call-p05-6", permission: "ask" }]);
+  const scopes = plan.askPermissions[0]?.scopes ?? [];
+  assert.ok(scopes.includes("delete-out-cwd"), "inferred delete-out-cwd triggers the ask");
+});
+
+/** Helper: a write tool call with an explicit file path. */
+function writeCall(id: string, filePath: string): unknown {
+  return {
+    id,
+    type: "function",
+    function: { name: "write", arguments: JSON.stringify({ file_path: filePath, content: "x" }) },
+  };
 }

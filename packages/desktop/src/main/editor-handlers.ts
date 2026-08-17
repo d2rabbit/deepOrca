@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { EditorFileEntry } from "../shared/ipc";
+import { safePathWithinRoot } from "./safe-path";
 
 /** Max file size we'll read into the editor (2 MB). */
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -71,15 +72,12 @@ const BINARY_EXTENSIONS = new Set([
 
 /**
  * Resolve a user-supplied path safely within the project root.
- * Returns the absolute path or null if it escapes the root.
+ * Returns the absolute path or null if it escapes the root. Delegates to the
+ * shared `safePathWithinRoot` (see `safe-path.ts`) so editor and wiki share the
+ * same lexical + realpath + symlink/junction containment guard.
  */
 function safePath(projectRoot: string, relPath: string): string | null {
-  const resolved = path.resolve(projectRoot, relPath);
-  const normalizedRoot = path.resolve(projectRoot);
-  if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
-    return null;
-  }
-  return resolved;
+  return safePathWithinRoot(projectRoot, relPath);
 }
 
 /** Check if a file is likely binary by extension or content sniffing. */

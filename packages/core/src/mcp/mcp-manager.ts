@@ -1,5 +1,9 @@
 import { createHash } from "crypto";
-import { McpClient, type McpToolDefinition, type McpPromptDefinition, type McpResourceDefinition } from "./mcp-client";
+import { basename } from "path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { CallToolResultSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServerConfig } from "../settings";
 import { getEnvVar } from "../common/app-dirs";
 
@@ -8,13 +12,57 @@ const MCP_STARTUP_TIMEOUT_MS = mcpTimeoutEnv ? parseInt(mcpTimeoutEnv, 10) : 30_
 const MCP_CALL_TOOL_TIMEOUT_MS = 60_000;
 const API_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const API_TOOL_NAME_MAX_LENGTH = 64;
+// Safety valve for pagination loops (SDK returns one page at a time with nextCursor).
+const MAX_PAGES = 100;
+// Deep-review 2026-08-15 bounds: hostile-server memory/prompt exhaustion guards.
+const MAX_TOOLS_PER_SERVER = 500;
+const MAX_TOOL_SCHEMA_CHARS = 256 * 1024;
+const MAX_TOOL_RESULT_CHARS = 512 * 1024;
+// Size of the per-server stderr ring buffer, in bytes. Matches the legacy
+// McpClient: large enough to surface a startup diagnostic, small enough to
+// bound memory. We keep the tail (most recent) bytes.
+const STDERR_RING_BUFFER_BYTES = 4096;
 
 type McpToolEntry = {
   serverName: string;
   originalName: string;
   namespacedName: string;
   definition: McpToolDefinition;
-  client: McpClient;
+  client: Client;
+};
+
+export type McpToolDefinition = {
+  name: string;
+  description?: string;
+  inputSchema: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+};
+
+export type McpPromptDefinition = {
+  name: string;
+  description?: string;
+  arguments?: Array<{ name: string; description?: string; required?: boolean }>;
+};
+
+export type McpResourceDefinition = {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+};
+
+// Minimal, locally-typed view of the SDK CallToolResult. The SDK's
+// z.objectOutputType resolves `content` to `unknown` in the .d.ts, so we cast
+// to this shape after the SDK has validated the response at runtime.
+type CallToolResult = {
+  content: Array<{ type: string; text?: string }>;
+  isError?: boolean;
+  /** Custom metadata returned by the tool (SDK uses "passthrough" mode). */
+  metadata?: Record<string, unknown>;
 };
 
 export type McpServerStatus = {
@@ -56,28 +104,48 @@ function buildMcpNamespacedName(
   }
 }
 
+// Metadata kept alongside each SDK Client: the StdioClientTransport (for async
+// teardown) and the server name the client belongs to. We track connectivity
+// ourselves because the SDK Client does not expose an isConnected() method.
+type ManagedClient = {
+  client: Client;
+  transport: StdioClientTransport | InMemoryTransport;
+  serverName: string;
+  // Tail of the server's stderr output (most recent STDERR_RING_BUFFER_BYTES).
+  // Captured while draining so a startup failure that writes a diagnostic to
+  // stderr then exits can surface in the failed-status error message.
+  stderrBuffer: string;
+};
+
 export class McpManager {
-  private clients: McpClient[] = [];
+  private clients: ManagedClient[] = [];
+  private connectedServers = new Set<string>();
   private tools: McpToolEntry[] = [];
   private prompts: Array<{
     serverName: string;
     namespacedName: string;
     definition: McpPromptDefinition;
-    client: McpClient;
+    client: Client;
   }> = [];
   private resources: Array<{
     serverName: string;
     namespacedName: string;
     definition: McpResourceDefinition;
-    client: McpClient;
+    client: Client;
   }> = [];
   private initialized = false;
   private disposed = false;
+  private intentionallyClosing = new Set<string>();
+  // Names of in-process servers (A2UI, activity-frames) successfully registered
+  // via connectInProcessServer(). These are NOT in serverConfigs (that map only
+  // holds stdio configs), so crash detection must key off this set instead.
+  private inProcessServers = new Set<string>();
   private configuredServerNames: string[] = [];
   private serverStatuses: McpServerStatus[] = [];
   private onToolsListChanged: (() => void) | null = null;
   private onStatusChanged: (() => void) | null = null;
   private serverConfigs: Record<string, McpServerConfig> = {};
+  private disconnectPromise: Promise<void> | null = null;
 
   prepare(servers?: Record<string, McpServerConfig>): void {
     if (!servers || Object.keys(servers).length === 0) return;
@@ -127,6 +195,20 @@ export class McpManager {
       this.serverConfigs[name] = config;
     }
 
+    // Close any existing clients for this server BEFORE reconnecting. Without
+    // this, connectServer() pushed a second client while the old client/process
+    // stayed alive (pruneDisconnectedClients kept it because the server name
+    // was still in connectedServers), leaking the old transport/subprocess.
+    // A late onclose from the old client could also flip the new connection's
+    // status to failed and drop the new tools. Drop the name from
+    // connectedServers so pruneDisconnectedClients cannot retain the old entry.
+    this.connectedServers.delete(name);
+    const existing = this.clients.filter((c) => c.serverName === name);
+    this.clients = this.clients.filter((c) => c.serverName !== name);
+    for (const old of existing) {
+      await this.silentlyClose(old);
+    }
+
     this.setStatus({
       name,
       status: "reconnecting",
@@ -143,42 +225,143 @@ export class McpManager {
     await this.connectServer(name, effectiveConfig);
   }
 
-  private async connectServer(name: string, config: McpServerConfig): Promise<void> {
+  /**
+   * Connect an in-process MCP server (e.g. A2UI) using InMemoryTransport.
+   * This avoids spawning a subprocess — the server runs in the same Node
+   * process, communicating over a linked pair of in-memory transports.
+   */
+  async connectInProcessServer(
+    name: string,
+    server: { connect(transport: InMemoryTransport): Promise<void> }
+  ): Promise<void> {
     if (this.disposed) return;
 
-    // Clean up stale entries from previous connection attempts
-    this.clients = this.clients.filter((c) => c.isConnected());
+    this.pruneDisconnectedClients();
     this.tools = this.tools.filter((t) => t.serverName !== name);
     this.prompts = this.prompts.filter((p) => p.serverName !== name);
     this.resources = this.resources.filter((r) => r.serverName !== name);
 
-    let client: McpClient | null = null;
     try {
-      client = new McpClient(
-        name,
-        config.command,
-        config.args ?? [],
-        config.env,
-        (method) => {
-          if (method === "notifications/tools/list_changed") {
-            this.refreshServerTools(name, client!).catch(() => {});
-          }
-        },
-        (reason) => {
-          if (!this.disposed && this.serverConfigs[name]) {
-            this.onServerCrash(name, reason);
-          }
-        },
-        config.cwd
-      );
-      await client.connect(MCP_STARTUP_TIMEOUT_MS);
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await server.connect(serverTransport);
+
+      const client = new Client({ name: "deeporca", version: "0.1.0" }, { capabilities: {} });
+      await this.connectWithTimeout(client, clientTransport, MCP_STARTUP_TIMEOUT_MS);
+
       if (this.disposed) {
-        client.disconnect();
+        await client.close().catch(() => {});
         return;
       }
-      this.clients.push(client);
 
-      const serverTools = await client.listTools(MCP_STARTUP_TIMEOUT_MS);
+      const managed: ManagedClient = {
+        client,
+        transport: clientTransport,
+        serverName: name,
+        stderrBuffer: "",
+      };
+
+      // Set up crash detection — same guard as stdio servers. When the
+      // manager intentionally closes the transport in disconnect()/removeServer(),
+      // it adds the name to `intentionallyClosing` first so the close event
+      // is NOT mistaken for a crash.
+      client.onclose = () => {
+        this.connectedServers.delete(name);
+        if (this.intentionallyClosing.has(name)) {
+          this.inProcessServers.delete(name);
+          return;
+        }
+        // In-process servers are not tracked in serverConfigs (that map only
+        // holds stdio configs); use inProcessServers to gate crash detection.
+        if (!this.disposed && this.inProcessServers.has(name)) {
+          this.inProcessServers.delete(name);
+          this.onServerCrash(name, `In-process MCP server "${name}" closed unexpectedly`);
+        }
+      };
+
+      this.clients.push(managed);
+      this.connectedServers.add(name);
+      this.inProcessServers.add(name);
+
+      const serverTools = await this.listAllTools(client);
+      if (this.disposed) return;
+      const toolNamespacedNames: string[] = [];
+      const usedToolNames = new Set(this.tools.map((tool) => tool.namespacedName));
+      for (const tool of serverTools) {
+        const namespacedName = buildMcpNamespacedName(name, tool.name, usedToolNames);
+        usedToolNames.add(namespacedName);
+        this.tools.push({
+          serverName: name,
+          originalName: tool.name,
+          namespacedName,
+          definition: tool,
+          client,
+        });
+        toolNamespacedNames.push(namespacedName);
+      }
+
+      this.setStatus({
+        name,
+        status: "ready",
+        connected: true,
+        toolCount: serverTools.length,
+        tools: toolNamespacedNames,
+        promptCount: 0,
+        prompts: [],
+        resourceCount: 0,
+        resources: [],
+      });
+    } catch (err) {
+      // Clean up the half-registered client if it was already pushed.
+      // Same pattern as connectServer's catch block.
+      const idx = this.clients.findIndex((c) => c.serverName === name);
+      if (idx >= 0) {
+        const leaked = this.clients.splice(idx, 1)[0];
+        if (leaked) await this.silentlyClose(leaked);
+      }
+      this.connectedServers.delete(name);
+      this.inProcessServers.delete(name);
+      this.tools = this.tools.filter((t) => t.serverName !== name);
+      const message = err instanceof Error ? err.message : String(err);
+      this.setStatus({
+        name,
+        status: "failed",
+        connected: false,
+        error: message,
+        toolCount: 0,
+        tools: [],
+        promptCount: 0,
+        prompts: [],
+        resourceCount: 0,
+        resources: [],
+      });
+    }
+  }
+
+  private async connectServer(name: string, config: McpServerConfig): Promise<void> {
+    if (this.disposed) return;
+
+    // Clean up stale entries from previous connection attempts.
+    this.pruneDisconnectedClients();
+    this.tools = this.tools.filter((t) => t.serverName !== name);
+    this.prompts = this.prompts.filter((p) => p.serverName !== name);
+    this.resources = this.resources.filter((r) => r.serverName !== name);
+
+    let managed: ManagedClient | null = null;
+    try {
+      managed = this.createManagedClient(name, config);
+      // SDK connect() runs the initialize/initialized handshake but has no
+      // built-in timeout — race against MCP_STARTUP_TIMEOUT_MS so a hanging
+      // server cannot block startup indefinitely.
+      await this.connectWithTimeout(managed.client, managed.transport, MCP_STARTUP_TIMEOUT_MS);
+      if (this.disposed) {
+        await this.silentlyClose(managed);
+        return;
+      }
+      this.clients.push(managed);
+      this.connectedServers.add(name);
+      const { client } = managed;
+
+      const serverTools = await this.listAllTools(client);
       if (this.disposed) return;
       const toolNamespacedNames: string[] = [];
       const usedToolNames = new Set(this.tools.map((tool) => tool.namespacedName));
@@ -197,7 +380,7 @@ export class McpManager {
 
       let serverPrompts: McpPromptDefinition[] = [];
       try {
-        serverPrompts = await client.listPrompts(MCP_STARTUP_TIMEOUT_MS);
+        serverPrompts = await this.listAllPrompts(client);
       } catch {
         // server may not support prompts
       }
@@ -216,7 +399,7 @@ export class McpManager {
 
       let serverResources: McpResourceDefinition[] = [];
       try {
-        serverResources = await client.listResources(MCP_STARTUP_TIMEOUT_MS);
+        serverResources = await this.listAllResources(client);
       } catch {
         // server may not support resources
       }
@@ -245,8 +428,15 @@ export class McpManager {
         resources: resourceNamespacedNames,
       });
     } catch (err) {
-      client?.disconnect();
-      const message = err instanceof Error ? err.message : String(err);
+      if (managed) {
+        await this.silentlyClose(managed);
+      }
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      // Surface any stderr the server wrote before failing — mirrors the old
+      // McpClient's withStderr(): if the buffer captured something, append it so
+      // startup diagnostics (e.g. "mcp startup boom") reach status.error.
+      const stderr = managed?.stderrBuffer.trim();
+      const message = stderr ? `${rawMessage}. stderr: ${stderr}` : rawMessage;
       this.setStatus({
         name,
         status: "failed",
@@ -262,9 +452,154 @@ export class McpManager {
     }
   }
 
+  // Build a StdioClientTransport + Client pair for one MCP server.
+  //
+  // Windows spawn approach: the SDK's StdioClientTransport uses cross-spawn
+  // internally (shell:false). cross-spawn resolves bare commands (npx, …) via
+  // PATHEXT on Windows itself, so we pass config.command + config.args directly
+  // rather than the joined-string form produced by createMcpSpawnSpec (which is
+  // tailored for Node's child_process + shell:true and would double-handle
+  // quoting). createMcpSpawnSpec is still used by codegraph/crg for their own
+  // (non-SDK) spawns — we deliberately do NOT reuse it here.
+  private createManagedClient(name: string, config: McpServerConfig): ManagedClient {
+    const transport = new StdioClientTransport({
+      command: config.command,
+      args: withNpxYesArg(config.command, config.args ?? []),
+      env: mergeEnv(process.env, config.env),
+      cwd: config.cwd,
+      stderr: "pipe",
+    });
+
+    // The holder is allocated first so the stderr handler below can close over
+    // it and accumulate bytes into the same buffer read on the failure path.
+    const managed: ManagedClient = {
+      client: undefined as unknown as Client,
+      transport,
+      serverName: name,
+      stderrBuffer: "",
+    };
+
+    // Drain stderr while keeping the most recent ~4KB in a ring buffer.
+    //
+    // With `stderr: "pipe"` the SDK pipes child.stderr into a PassThrough with
+    // no consumer; a PassThrough buffers to its 16KB highWaterMark then pauses
+    // the producer, which — for a verbose-stderr server (logs, deprecation
+    // warnings, stack traces) — fills the OS pipe buffer, blocks the server's
+    // process.stderr.write(), and silently hangs it. The old McpClient consumed
+    // stderr into a 4KB ring buffer to avoid exactly this. We keep that
+    // behavior AND retain the tail so a server that writes a diagnostic to
+    // stderr and exits can surface it in the failed-status error message (the
+    // regression in a3310ff discarded the bytes entirely). The transport
+    // exposes `stderr` as a ready-to-read PassThrough immediately on
+    // construction, so attaching now also captures any early output.
+    transport.stderr?.on("data", (chunk: Buffer) => {
+      managed.stderrBuffer = appendStderrRing(managed.stderrBuffer, chunk);
+    });
+
+    const client = new Client({ name: "deeporca", version: "0.1.0" }, { capabilities: {} });
+    managed.client = client;
+
+    // Crash / disconnect detection: the SDK Protocol base class exposes a
+    // public `onclose` callback that fires whenever the transport closes —
+    // including when the server process exits unexpectedly. StdioClientTransport
+    // wires its child process `close` event into transport.onclose, and
+    // Protocol.connect forwards that to client.onclose. We use it (plus the
+    // intentionallyClosing flag) to distinguish crashes from intentional
+    // teardown in disconnect().
+    client.onclose = () => {
+      this.connectedServers.delete(name);
+      if (this.intentionallyClosing.has(name)) {
+        return;
+      }
+      if (!this.disposed && this.serverConfigs[name]) {
+        this.onServerCrash(name, `MCP server "${name}" connection closed unexpectedly`);
+      }
+    };
+
+    // The server notifies us its tool list changed; re-fetch it.
+    client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      this.refreshServerTools(name, client).catch(() => {});
+    });
+
+    return managed;
+  }
+
+  private connectWithTimeout(
+    client: Client,
+    transport: StdioClientTransport | InMemoryTransport,
+    timeoutMs: number
+  ): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Timed out after ${timeoutMs}ms waiting for MCP server to initialize`)),
+        timeoutMs
+      );
+    });
+    return Promise.race([client.connect(transport), timeout]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  private async listAllTools(client: Client): Promise<McpToolDefinition[]> {
+    const tools: McpToolDefinition[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const result = await client.listTools(cursor ? { cursor } : undefined);
+      for (const tool of result.tools ?? []) {
+        // SECURITY: bound what a hostile server can inject via tools/list —
+        // tool count and per-tool schema size (forwarded verbatim to the LLM).
+        if (tools.length >= MAX_TOOLS_PER_SERVER) {
+          throw new Error(`MCP server exceeded MAX_TOOLS_PER_SERVER=${MAX_TOOLS_PER_SERVER}; refusing the rest`);
+        }
+        if (JSON.stringify(tool).length > MAX_TOOL_SCHEMA_CHARS) {
+          continue; // skip the oversized tool, keep the server usable
+        }
+        tools.push(adaptSdkTool(tool));
+      }
+      cursor = typeof result.nextCursor === "string" && result.nextCursor ? result.nextCursor : undefined;
+      if (!cursor) {
+        return tools;
+      }
+    }
+    throw new Error("MCP server returned too many tools/list pages");
+  }
+
+  private async listAllPrompts(client: Client): Promise<McpPromptDefinition[]> {
+    const prompts: McpPromptDefinition[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const result = await client.listPrompts(cursor ? { cursor } : undefined);
+      for (const prompt of result.prompts ?? []) {
+        prompts.push(adaptSdkPrompt(prompt));
+      }
+      cursor = typeof result.nextCursor === "string" && result.nextCursor ? result.nextCursor : undefined;
+      if (!cursor) {
+        return prompts;
+      }
+    }
+    throw new Error("MCP server returned too many prompts/list pages");
+  }
+
+  private async listAllResources(client: Client): Promise<McpResourceDefinition[]> {
+    const resources: McpResourceDefinition[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const result = await client.listResources(cursor ? { cursor } : undefined);
+      for (const resource of result.resources ?? []) {
+        resources.push(adaptSdkResource(resource));
+      }
+      cursor = typeof result.nextCursor === "string" && result.nextCursor ? result.nextCursor : undefined;
+      if (!cursor) {
+        return resources;
+      }
+    }
+    throw new Error("MCP server returned too many resources/list pages");
+  }
+
   private onServerCrash(name: string, reason: string): void {
     if (this.disposed) return;
-    this.clients = this.clients.filter((c) => c.isConnected());
+    this.pruneDisconnectedClients();
     this.tools = this.tools.filter((t) => t.serverName !== name);
     this.prompts = this.prompts.filter((p) => p.serverName !== name);
     this.resources = this.resources.filter((r) => r.serverName !== name);
@@ -281,6 +616,29 @@ export class McpManager {
       resourceCount: 0,
       resources: [],
     });
+  }
+
+  // SDK Client has no isConnected(); we track connectivity via connectedServers
+  // and drop entries whose server is no longer connected.
+  private pruneDisconnectedClients(): void {
+    this.clients = this.clients.filter((entry) => this.connectedServers.has(entry.serverName));
+  }
+
+  // Fire-and-forget close that never throws — used on error/cleanup paths.
+  private async silentlyClose(managed: ManagedClient): Promise<void> {
+    this.intentionallyClosing.add(managed.serverName);
+    try {
+      await managed.client.close();
+    } catch {
+      // ignore — best-effort teardown
+    }
+    try {
+      await managed.transport.close();
+    } catch {
+      // ignore — best-effort teardown
+    } finally {
+      this.intentionallyClosing.delete(managed.serverName);
+    }
   }
 
   getStatus(): McpServerStatus[] {
@@ -317,21 +675,30 @@ export class McpManager {
       };
     };
   }> {
-    return this.tools.map((t) => ({
-      type: "function" as const,
-      function: {
-        name: t.namespacedName,
-        description: this.buildMcpToolDescription(t),
-        parameters: {
-          type: "object" as const,
-          properties: t.definition.inputSchema.properties,
-          required: t.definition.inputSchema.required,
-          ...(t.definition.inputSchema.additionalProperties !== undefined
-            ? { additionalProperties: t.definition.inputSchema.additionalProperties }
-            : {}),
-        },
-      },
-    }));
+    return (
+      this.tools
+        .map((t) => ({
+          type: "function" as const,
+          function: {
+            name: t.namespacedName,
+            description: this.buildMcpToolDescription(t),
+            parameters: {
+              type: "object" as const,
+              properties: t.definition.inputSchema.properties,
+              required: t.definition.inputSchema.required,
+              ...(t.definition.inputSchema.additionalProperties !== undefined
+                ? { additionalProperties: t.definition.inputSchema.additionalProperties }
+                : {}),
+            },
+          },
+        }))
+        // Deterministic order by tool name so the `tools:` array (part of the
+        // DeepSeek cache-stable prefix) is byte-identical regardless of the order
+        // MCP servers connected/reconnected in. Without this, a different connect
+        // order across restarts reorders the tool list and invalidates the prefix
+        // cache for the entire session.
+        .sort((a, b) => a.function.name.localeCompare(b.function.name))
+    );
   }
 
   isMcpTool(name: string): boolean {
@@ -342,22 +709,58 @@ export class McpManager {
     name: string,
     args: Record<string, unknown>,
     timeoutMs = MCP_CALL_TOOL_TIMEOUT_MS
-  ): Promise<{ ok: boolean; name: string; output?: string; error?: string }> {
+  ): Promise<{ ok: boolean; name: string; output?: string; error?: string; metadata?: Record<string, unknown> }> {
     const tool = this.tools.find((t) => t.namespacedName === name);
     if (!tool) {
       return { ok: false, name, error: `Unknown MCP tool: ${name}` };
     }
 
     try {
-      const result = await tool.client.callTool(tool.originalName, args, timeoutMs);
+      const result = (await tool.client.callTool({ name: tool.originalName, arguments: args }, CallToolResultSchema, {
+        timeout: timeoutMs,
+      })) as CallToolResult;
       const text = result.content
         .filter((c) => c.type === "text" && c.text)
-        .map((c) => c.text)
+        .map((c) => c.text ?? "")
         .join("\n");
+      // Extract embedded resources (e.g. A2UI JSON) — preserve their mimeType
+      // and text so the renderer can detect and render them.
+      const metadata: Record<string, unknown> = {};
+      for (const c of result.content) {
+        if (c.type === "resource") {
+          const res = c as { resource?: { mimeType?: string; text?: string } };
+          const resource = res.resource;
+          if (resource?.mimeType === "application/a2ui+json" && resource.text) {
+            metadata.a2ui = resource.text;
+          }
+        }
+      }
+      // Pass through any custom metadata the tool returned directly (e.g.
+      // render_openui returns metadata.openui with the OpenUI Lang code).
+      // The MCP SDK uses "passthrough" mode on CallToolResultSchema so these
+      // custom fields survive callTool() validation.
+      if (result.metadata && typeof result.metadata === "object") {
+        Object.assign(metadata, result.metadata as Record<string, unknown>);
+      }
+      // SECURITY: a malicious/compromised MCP server is inside the trust
+      // boundary — cap what a single tool result may contribute to session
+      // memory, persisted history and the next LLM request (deep review
+      // 2026-08-15, finding B5). Bash/read already cap their output.
+      const rawOutput = text || JSON.stringify(result.content);
+      if (rawOutput.length > MAX_TOOL_RESULT_CHARS) {
+        return {
+          ok: false,
+          name,
+          output:
+            `[result truncated: tool returned ${rawOutput.length} chars, cap is ${MAX_TOOL_RESULT_CHARS}]\n` +
+            rawOutput.slice(0, MAX_TOOL_RESULT_CHARS),
+        };
+      }
       return {
         ok: !result.isError,
         name,
-        output: text || JSON.stringify(result.content),
+        output: rawOutput,
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       };
     } catch (err) {
       return {
@@ -378,9 +781,18 @@ export class McpManager {
     }
 
     try {
-      const result = await prompt.client.getPrompt(prompt.definition.name, args);
+      // SDK getPrompt expects Record<string, string> arguments; coerce the
+      // unknown values (the manager's public contract uses Record<string, unknown>).
+      const stringArgs: Record<string, string> = {};
+      for (const [key, value] of Object.entries(args)) {
+        stringArgs[key] = typeof value === "string" ? value : JSON.stringify(value);
+      }
+      const result = await prompt.client.getPrompt({ name: prompt.definition.name, arguments: stringArgs });
       const text = result.messages
-        .filter((m) => m.content.type === "text" && m.content.text)
+        .filter(
+          (m): m is { role: "user" | "assistant"; content: { type: "text"; text: string } } => m.content.type === "text"
+        )
+        .filter((m) => Boolean(m.content.text))
         .map((m) => `[${m.role}] ${m.content.text}`)
         .join("\n");
       return {
@@ -407,9 +819,9 @@ export class McpManager {
     }
 
     try {
-      const result = await resource.client.readResource(uri);
+      const result = await resource.client.readResource({ uri });
       const text = result.contents
-        .filter((c) => c.text)
+        .filter((c): c is Extract<typeof c, { text: string }> => "text" in c && Boolean(c.text))
         .map((c) => c.text)
         .join("\n");
       return {
@@ -426,12 +838,27 @@ export class McpManager {
     }
   }
 
-  disconnect(): void {
+  /**
+   * Close all MCP clients/transports and wait for teardown to settle.
+   * Idempotent: concurrent callers share the same closing promise.
+   *
+   * Synchronously clears local state (clients, tools, statuses, initialized)
+   * so a caller that does not `await` still observes an empty projection —
+   * matching the historical contract. The returned promise resolves only
+   * after the SDK close() calls settle, so hosts that need to know the child
+   * processes/transports are actually gone can await it.
+   */
+  async disconnect(): Promise<void> {
+    if (this.disconnectPromise) return this.disconnectPromise;
     this.disposed = true;
-    for (const client of this.clients) {
-      client.disconnect();
-    }
+    const clients = this.clients;
     this.clients = [];
+    for (const entry of clients) {
+      this.intentionallyClosing.add(entry.serverName);
+    }
+    // Clear projections synchronously — callers that don't await still see the
+    // post-disconnect shape immediately.
+    this.connectedServers.clear();
     this.tools = [];
     this.prompts = [];
     this.resources = [];
@@ -439,10 +866,22 @@ export class McpManager {
     this.configuredServerNames = [];
     this.serverConfigs = {};
     this.initialized = false;
+
+    this.disconnectPromise = Promise.allSettled(
+      clients.flatMap((entry) => [entry.client.close(), entry.transport.close()])
+    )
+      .then(() => undefined)
+      .catch(() => undefined)
+      .finally(() => {
+        this.intentionallyClosing.clear();
+        this.inProcessServers.clear();
+        this.disconnectPromise = null;
+      });
+    return this.disconnectPromise;
   }
 
-  private async refreshServerTools(serverName: string, client: McpClient): Promise<void> {
-    const serverTools = await client.listTools(MCP_STARTUP_TIMEOUT_MS);
+  private async refreshServerTools(serverName: string, client: Client): Promise<void> {
+    const serverTools = await this.listAllTools(client);
     this.tools = this.tools.filter((t) => t.serverName !== serverName);
     const toolNamespacedNames: string[] = [];
     const usedToolNames = new Set(this.tools.map((tool) => tool.namespacedName));
@@ -500,6 +939,100 @@ export class McpManager {
 
 function buildRawMcpNamespacedName(serverName: string, toolName: string): string {
   return `mcp__${serverName}__${toolName}`;
+}
+
+// Append a stderr chunk to the ring buffer, keeping only the most recent
+// STDERR_RING_BUFFER_BYTES. Decode as UTF-8 (stderr is human-readable text);
+// truncating the head is fine — we only need the tail to surface the most
+// recent diagnostic.
+function appendStderrRing(prev: string, chunk: Buffer): string {
+  const next = prev + chunk.toString("utf8");
+  return next.length > STDERR_RING_BUFFER_BYTES ? next.slice(next.length - STDERR_RING_BUFFER_BYTES) : next;
+}
+
+// Inject `-y` when launching an MCP server through npx, so a package that is not
+// yet in the local npx cache installs non-interactively instead of stopping at the
+// "Ok to proceed? (y)" prompt — which the server never sees, leaving startup to
+// hang until the timeout. Restored after the SDK migration (bed96b0) dropped it.
+function withNpxYesArg(command: string, args: string[]): string[] {
+  const executable = basename(command)
+    .toLowerCase()
+    .replace(/\.cmd$/, "");
+  if (executable !== "npx") {
+    return args;
+  }
+  if (args.includes("-y") || args.includes("--yes")) {
+    return args;
+  }
+  return ["-y", ...args];
+}
+
+// Build a Record<string, string> env (dropping any undefined values that
+// process.env carries) merged with per-server overrides. The SDK transport
+// requires a Record<string, string>.
+function mergeEnv(base: NodeJS.ProcessEnv, overrides?: Record<string, string>): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const [key, value] of Object.entries(base)) {
+    if (typeof value === "string") {
+      merged[key] = value;
+    }
+  }
+  if (overrides) {
+    for (const [key, value] of Object.entries(overrides)) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+// Adapt SDK Tool/Prompt/Resource shapes into the local definition types used by
+// the manager's state. The SDK marks inputSchema.properties as optional and
+// values as `object`; we coerce to the non-optional Record<string, unknown>
+// shape that getMcpToolDefinitions serializes to the LLM (matching the legacy
+// McpClient behavior — properties defaults to {} when absent).
+function adaptSdkTool(tool: { name: string; description?: string; inputSchema: unknown }): McpToolDefinition {
+  const schema = (tool.inputSchema ?? {}) as {
+    type?: "object";
+    properties?: Record<string, unknown>;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: {
+      type: "object",
+      properties: schema.properties ?? {},
+      ...(schema.required ? { required: schema.required } : {}),
+      ...(schema.additionalProperties !== undefined ? { additionalProperties: schema.additionalProperties } : {}),
+    },
+  };
+}
+
+function adaptSdkPrompt(prompt: {
+  name: string;
+  description?: string;
+  arguments?: Array<{ name: string; description?: string; required?: boolean }>;
+}): McpPromptDefinition {
+  return {
+    name: prompt.name,
+    description: prompt.description,
+    ...(prompt.arguments ? { arguments: prompt.arguments } : {}),
+  };
+}
+
+function adaptSdkResource(resource: {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}): McpResourceDefinition {
+  return {
+    uri: resource.uri,
+    name: resource.name,
+    description: resource.description,
+    ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+  };
 }
 
 function sanitizeApiToolNamePart(value: string): string {

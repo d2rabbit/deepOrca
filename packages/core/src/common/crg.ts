@@ -1,8 +1,9 @@
-import { execSync, spawn, type ChildProcess, type SpawnOptions } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import { createMcpSpawnSpec } from "../mcp/mcp-client";
+import { createMcpSpawnSpec } from "../mcp/spawn-spec";
 import type { McpServerConfig } from "../settings";
+import { resolveUvBinary } from "./uv";
 
 /**
  * code-review-graph (CRG) integration.
@@ -29,6 +30,26 @@ import type { McpServerConfig } from "../settings";
 /** PyPI package for code-review-graph. */
 export const CRG_PACKAGE = "code-review-graph";
 
+// ── Version pinning (vendor-managed) ─────────────────────────────────────────
+
+let configuredCrgVersionRoot: string | null = null;
+
+/** Point the resolver at the vendor dir containing `.vendored-crg-version`. */
+export function configureCrgVersionRoot(root: string | null): void {
+  configuredCrgVersionRoot = root ? path.resolve(root) : null;
+}
+
+/** Read the pinned CRG version from the vendor marker, or null if not vendored. */
+function readCrgPinnedVersion(): string | null {
+  if (!configuredCrgVersionRoot) return null;
+  try {
+    const ver = fs.readFileSync(path.join(configuredCrgVersionRoot, ".vendored-crg-version"), "utf8").trim();
+    return ver || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Name under which the CRG MCP server is registered. */
 export const CRG_MCP_SERVER_NAME = "code-review-graph";
 
@@ -54,96 +75,14 @@ export const CRG_ANALYSIS_TOOLS = [
 ].join(",");
 
 /**
- * Absolute path of the vendored uv checkout, or `null` when unset. The desktop
- * client sets this at boot to the copy it ships; other hosts leave it unset and
- * rely on a system `uv`/`uvx` on PATH.
- */
-let configuredUvVendorRoot: string | null = null;
-
-/** Point the resolver at a vendored uv directory (or clear it with `null`). */
-export function configureCrgVendorRoot(root: string | null): void {
-  configuredUvVendorRoot = root ? path.resolve(root) : null;
-}
-
-/** The currently configured vendored uv root, if any. */
-export function getCrgVendorRoot(): string | null {
-  return configuredUvVendorRoot;
-}
-
-/**
  * How to spawn CRG: the executable (uv binary) plus args that must precede the
  * subcommand, and extra env vars.
  */
-export type CrgExecutable = {
+type CrgExecutable = {
   command: string;
   prefixArgs: string[];
   env?: Record<string, string>;
 };
-
-/**
- * Resolve the uv binary for the current platform. Prefers the vendored binary;
- * falls back to `uvx` on PATH (system uv install); last resort `uvx` bare
- * (hopes it's on PATH).
- */
-export function resolveUvBinary(): string | null {
-  // 1. Vendored uv binary.
-  if (configuredUvVendorRoot) {
-    const uvPath = resolveVendoredUvPath(configuredUvVendorRoot);
-    if (uvPath) {
-      return uvPath;
-    }
-  }
-  // 2. System uv on PATH.
-  try {
-    const found = execSync(process.platform === "win32" ? "where uv" : "which uv", {
-      encoding: "utf8",
-      timeout: 3000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (found) {
-      return found.split("\n")[0].trim();
-    }
-  } catch {
-    // uv not on PATH.
-  }
-  return null;
-}
-
-/** Locate the vendored uv binary inside the vendor root for the current platform. */
-function resolveVendoredUvPath(vendorRoot: string): string | null {
-  const { platform, arch } = process;
-  let target: string;
-  if (platform === "darwin") {
-    target = arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin";
-  } else if (platform === "linux") {
-    target = arch === "arm64" ? "aarch64-unknown-linux-gnu" : "x86_64-unknown-linux-gnu";
-  } else if (platform === "win32") {
-    target = arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc";
-  } else {
-    return null;
-  }
-
-  const binaryName = platform === "win32" ? "uv.exe" : "uv";
-
-  // uv release archives extract to uv-<target>/uv<ext>, then our vendor layout
-  // places that under vendor/uv/<target>/. Check common sub-paths.
-  const candidates = [
-    path.join(vendorRoot, target, "uv", binaryName),
-    path.join(vendorRoot, target, binaryName),
-    path.join(vendorRoot, `uv-${target}`, binaryName),
-    path.join(vendorRoot, binaryName),
-  ];
-  for (const candidate of candidates) {
-    try {
-      if (fs.statSync(candidate).isFile()) {
-        return candidate;
-      }
-    } catch {
-      // Not found — try next candidate.
-    }
-  }
-  return null;
-}
 
 /**
  * Decide how to invoke CRG via uv. Returns the uv binary path + args to run
@@ -164,10 +103,12 @@ export function resolveCrgExecutable(): CrgExecutable | null {
     return null;
   }
   // `uv tool run` (stable form) runs a tool in an isolated env.
-  // `--from code-review-graph` pins the package providing the entry point.
+  // `--from code-review-graph==<version>` pins the package for reproducibility.
+  const pinnedVersion = readCrgPinnedVersion();
+  const pkgSpec = pinnedVersion ? `${CRG_PACKAGE}==${pinnedVersion}` : CRG_PACKAGE;
   return {
     command: uvBin,
-    prefixArgs: ["tool", "run", "--from", CRG_PACKAGE, "code-review-graph"],
+    prefixArgs: ["tool", "run", "--from", pkgSpec, "code-review-graph"],
   };
 }
 
@@ -220,7 +161,7 @@ export function buildCrgMcpServerConfig(projectRoot: string): McpServerConfig | 
   }
   const config: McpServerConfig = {
     command: exe.command,
-    args: [...exe.prefixArgs, "serve", "--mcp", "--tools", CRG_ANALYSIS_TOOLS],
+    args: [...exe.prefixArgs, "serve", "--tools", CRG_ANALYSIS_TOOLS],
     cwd: projectRoot,
   };
   if (exe.env && Object.keys(exe.env).length > 0) {
@@ -231,54 +172,8 @@ export function buildCrgMcpServerConfig(projectRoot: string): McpServerConfig | 
 
 // ── Subprocess execution ─────────────────────────────────────────────────────
 
-type CrgChild = {
-  once(event: string, listener: (error: NodeJS.ErrnoException) => void): unknown;
-  unref(): void;
-};
-
-type CrgSpawn = (
-  command: string,
-  args: string[],
-  options: Pick<SpawnOptions, "cwd" | "detached" | "env" | "stdio" | "shell" | "windowsHide">
-) => CrgChild;
-
-/** Spawn a CRG subcommand as a detached, output-ignoring child. Throws on spawn failure. */
-function spawnCrg(projectRoot: string, subcommand: string[], spawnProcess: CrgSpawn): CrgChild {
-  const exe = resolveCrgExecutable();
-  if (!exe) {
-    throw new Error("uv binary not available — cannot spawn code-review-graph");
-  }
-  const spec = createMcpSpawnSpec(exe.command, [...exe.prefixArgs, ...subcommand]);
-  const env = exe.env && Object.keys(exe.env).length > 0 ? { ...process.env, ...exe.env } : process.env;
-  const options = {
-    cwd: projectRoot,
-    detached: process.platform !== "win32",
-    env,
-    stdio: "ignore" as const,
-    shell: spec.shell,
-    windowsHide: spec.windowsHide,
-  };
-  return spawnProcess(spec.command, spec.args, options);
-}
-
-/**
- * Run `code-review-graph build` for a project as a fire-and-forget subprocess.
- * `build` creates the `.code-review-graph/` directory and constructs the graph.
- */
-export function runCrgBuild(projectRoot: string, spawnProcess: CrgSpawn = spawn as unknown as CrgSpawn): void {
-  try {
-    const child = spawnCrg(projectRoot, ["build"], spawnProcess);
-    child.once("error", () => {
-      // Ignore — best-effort background command.
-    });
-    child.unref();
-  } catch {
-    // Ignore spawn failures.
-  }
-}
-
 /** Spawn a CRG subcommand with piped stdio for output capture. */
-export function spawnCrgPiped(projectRoot: string, subcommand: string[]): ChildProcess | null {
+function spawnCrgPiped(projectRoot: string, subcommand: string[]): ChildProcess | null {
   const exe = resolveCrgExecutable();
   if (!exe) {
     return null;
@@ -299,7 +194,7 @@ export function spawnCrgPiped(projectRoot: string, subcommand: string[]): ChildP
  * build` with piped stdio and invokes `onOutput` for each chunk. Resolves with
  * the exit code. Used by the desktop UI to visualize indexing progress.
  */
-export function runCrgBuildWithOutput(
+function runCrgBuildWithOutput(
   projectRoot: string,
   onOutput: (chunk: string, stream: "stdout" | "stderr") => void
 ): Promise<number> {
@@ -343,32 +238,41 @@ export async function runCrgResetWithOutput(
   return runCrgBuildWithOutput(projectRoot, onOutput);
 }
 
-// ── Incremental sync (fire-and-forget) ───────────────────────────────────────
-
-const inFlightSyncs = new Set<string>();
-
 /**
- * Run `code-review-graph build` (incremental) as a fire-and-forget subprocess
- * to refresh the graph after code changes. No-ops when the project is not
- * CRG-enabled, and coalesces overlapping syncs per project. Failures swallowed.
+ * Run `code-review-graph visualize` to generate a D3.js interactive HTML graph.
+ * Returns the HTML content as a string, or null on failure.
+ *
+ * The visualize command writes a self-contained HTML file (D3.js force-directed
+ * graph with community detection, hub/bridge nodes, search). We capture its
+ * stdout to get the HTML content directly.
  */
-export function runCrgSync(projectRoot: string, spawnProcess: CrgSpawn = spawn as unknown as CrgSpawn): void {
-  if (!hasCrgProject(projectRoot)) {
-    return;
-  }
-  const key = path.resolve(projectRoot);
-  if (inFlightSyncs.has(key)) {
-    return;
-  }
-  try {
-    inFlightSyncs.add(key);
-    const child = spawnCrg(projectRoot, ["build"], spawnProcess);
-    const clear = () => inFlightSyncs.delete(key);
-    child.once("error", clear);
-    (child as unknown as { once?: (event: string, cb: () => void) => void }).once?.("exit", clear);
-    child.unref();
-  } catch {
-    inFlightSyncs.delete(key);
-    // Ignore sync failures.
-  }
+export function runCrgVisualize(projectRoot: string): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
+    try {
+      const cp = spawnCrgPiped(projectRoot, ["visualize"]);
+      if (!cp) {
+        resolve(null);
+        return;
+      }
+      let output = "";
+      cp.stdout?.on("data", (d: Buffer) => {
+        output += d.toString();
+      });
+      cp.stderr?.on("data", () => {
+        // Ignore stderr — visualize may print progress messages.
+      });
+      cp.on("error", () => resolve(null));
+      cp.on("close", (code) => {
+        if (code === 0 && output.trim()) {
+          resolve(output);
+        } else {
+          resolve(null);
+        }
+      });
+    } catch {
+      resolve(null);
+    }
+  });
 }
+
+// ── Incremental sync (fire-and-forget) ───────────────────────────────────────

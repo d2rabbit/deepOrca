@@ -9,6 +9,7 @@ import {
   writeTextFile,
 } from "../common/file-utils";
 import { executeValidatedTool, semanticBoolean } from "../common/validate";
+import { gateWrite } from "../common/path-boundary";
 import {
   createSnippet,
   getFileState,
@@ -105,6 +106,22 @@ export async function handleEditTool(
           ok: false,
           name: "edit",
           error: "file_path must be an absolute path.",
+        };
+      }
+
+      // Execution-time write boundary (P0, specs/sandbox/design.md §4.1).
+      // gateWrite only — the internal read below is a necessary precursor of
+      // the authorized write (R4): gating it with readRoots would kill a
+      // legitimate out-of-project edit whose write scope was approved.
+      const gate = gateWrite(context.pathGrant, filePath, context.projectRoot);
+      context.onPathGateVerdict?.({ tool: "edit", verdict: gate, filePath });
+      if (!gate.ok) {
+        return {
+          ok: false,
+          name: "edit",
+          error: gate.reason,
+          errorType: "PERMISSION_DENIED",
+          retryable: false,
         };
       }
 
@@ -318,8 +335,10 @@ export async function handleEditTool(
         const updated = applyReplacement(raw, replacementOldString, replacementNewString, matches, replaceAll);
         const diffPreview = buildDiffPreview(filePath, raw, updated);
         context.onBeforeFileMutation?.(filePath);
-        writeTextFile(filePath, updated, metadata.encoding, metadata.lineEndings);
-        context.onAfterFileMutation?.(filePath);
+        writeTextFile(filePath, updated, metadata.encoding, metadata.lineEndings, {
+          pathGrant: context.pathGrant,
+        });
+        context.onAfterFileMutation?.(filePath, "edit");
         const freshMetadata = readTextFileWithMetadata(filePath);
         recordFileState(
           context.sessionId,

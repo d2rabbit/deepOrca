@@ -158,9 +158,17 @@ async function executeShellCommand(
     let timedOut = false;
     let settled = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-    const child = spawn(shellPath, shellArgs, {
+    // P3 sandbox seam: same source as pathGrant. Unavailable backend (noop)
+    // returns null and the shell runs unwrapped — the degradation itself was
+    // already audited when the backend was detected.
+    const sandboxed = context.bashSandbox?.wrapShell(shellPath, shellArgs, cwd);
+    const spawnArgv = sandboxed?.argv ?? [shellPath, ...shellArgs];
+    const spawnEnv = sandboxed?.env
+      ? { ...buildShellEnv(shellPath, configuredEnv), ...sandboxed.env }
+      : buildShellEnv(shellPath, configuredEnv);
+    const child = spawn(spawnArgv[0], spawnArgv.slice(1), {
       cwd,
-      env: buildShellEnv(shellPath, configuredEnv),
+      env: spawnEnv,
       detached,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
@@ -269,9 +277,15 @@ function startBackgroundShellCommand(
   const startedAtMs = Date.now();
   const detached = process.platform !== "win32";
   const configuredEnv = context.createOpenAIClient?.().env ?? {};
-  const child = spawn(shellPath, shellArgs, {
+  // Same P3 sandbox seam as the foreground path (degradation pre-audited).
+  const sandboxed = context.bashSandbox?.wrapShell(shellPath, shellArgs, cwd);
+  const spawnArgv = sandboxed?.argv ?? [shellPath, ...shellArgs];
+  const spawnEnv = sandboxed?.env
+    ? { ...buildShellEnv(shellPath, configuredEnv), ...sandboxed.env }
+    : buildShellEnv(shellPath, configuredEnv);
+  const child = spawn(spawnArgv[0], spawnArgv.slice(1), {
     cwd,
-    env: buildShellEnv(shellPath, configuredEnv),
+    env: spawnEnv,
     detached,
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],

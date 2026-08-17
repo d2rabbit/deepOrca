@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ICON_SIZE = 512;
+// Bump this when the brand icon changes to invalidate the on-disk PNG cache.
+const ICON_VERSION = 2;
 
 /** Read the bundled SVG (copied next to main.js as dist/orca-icon.svg). */
 function readIconSvg(): string | null {
@@ -76,7 +78,7 @@ async function loadAppIcon(): Promise<NativeImage | null> {
     return cachedIcon;
   }
   const cacheDir = join(app.getPath("userData"), "icons");
-  const cachePath = join(cacheDir, `orca-icon-${ICON_SIZE}.png`);
+  const cachePath = join(cacheDir, `orca-icon-v${ICON_VERSION}-${ICON_SIZE}.png`);
   try {
     if (existsSync(cachePath)) {
       const image = nativeImage.createFromPath(cachePath);

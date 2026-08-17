@@ -1,0 +1,63 @@
+/**
+ * A2uiMessage — renders an A2UI Surface inline in the conversation.
+ *
+ * When a tool result contains an A2UI EmbeddedResource (MIME
+ * application/a2ui+json), the Message dispatcher renders this component
+ * instead of a plain text tool card.
+ *
+ * User interactions (button clicks) flow back to the agent via the
+ * a2uiAction IPC channel → main process → MCP a2ui_action tool.
+ */
+
+import { useCallback, useEffect, useState, type JSX } from "react";
+import { A2uiSurface } from "./A2uiSurface";
+import { api } from "../api";
+import { processA2uiMessages, extractSurfaceId } from "./processor";
+
+type Props = {
+  /** The raw A2UI JSON messages from the tool result's embedded resource. */
+  a2uiJson: string;
+  /** The text summary from the tool result (shown as a header). */
+  summary?: string;
+};
+
+export function A2uiMessage({ a2uiJson: initialJson, summary }: Props): JSX.Element {
+  const [liveJson, setLiveJson] = useState(initialJson);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Extract the surfaceId from the initial payload to scope subscriptions.
+  // This prevents updates from OTHER surfaces from corrupting this inline render.
+  const scopedSurfaceId = extractSurfaceId(initialJson);
+
+  // Subscribe to surface updates pushed after a2ui_action (e.g. navigate:).
+  // Only apply updates that match this message's surfaceId.
+  useEffect(() => {
+    const off = api.onA2uiSurfaceUpdate((event) => {
+      // C1 fix: skip updates for different surfaces.
+      if (scopedSurfaceId && event.surfaceId && event.surfaceId !== scopedSurfaceId) {
+        return;
+      }
+      processA2uiMessages(event.a2uiJson);
+      setLiveJson(event.a2uiJson);
+      setRefreshKey((k) => k + 1);
+    });
+    return off;
+  }, [scopedSurfaceId]);
+
+  // Forward user interactions to the agent via IPC → MCP a2ui_action tool.
+  const handleAction = useCallback((surfaceId: string, actionName: string, context: Record<string, unknown>) => {
+    void api.a2uiAction(surfaceId, actionName, context);
+  }, []);
+
+  return (
+    <div className="ui-a2ui-message">
+      {summary ? <div className="ui-a2ui-message-summary">{summary}</div> : null}
+      <A2uiSurface
+        key={refreshKey}
+        messagesJson={liveJson}
+        onAction={handleAction}
+        surfaceId={scopedSurfaceId ?? undefined}
+      />
+    </div>
+  );
+}

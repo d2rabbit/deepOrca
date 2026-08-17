@@ -1,0 +1,21 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: arch-scan-positive
+title: Architecture scan request produces an A2UI map, not Mermaid files
+description: >
+  User asks for an architecture scan of the current repository. arch-scan
+  should trigger and render via DeepOrca's A2UI Surface (DesignPreview) —
+  no external CLI and no Mermaid artifact files.
+input:
+  prompt: |
+    扫描一下当前这个仓库的整体架构，画一张架构图，重点标出核心模块
+    和它们之间的依赖关系。
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - "A2UI"
+  must_not_contain:
+    - ".mmd"
+judge:
+  type: rule_based

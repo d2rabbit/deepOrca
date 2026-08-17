@@ -51,6 +51,10 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
   const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic request id: an in-flight scanFiles whose id no longer matches the
+  // latest is stale (user typed more / menu closed) and its result is discarded
+  // so an older, slower query can't overwrite a newer one.
+  const reqIdRef = useRef(0);
 
   // Fetch files when query changes (debounced)
   useEffect(() => {
@@ -62,20 +66,36 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
     setLoading(true);
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    const myReqId = ++reqIdRef.current;
     debounceRef.current = setTimeout(async () => {
       try {
         const results = await api.scanFiles(query);
+        // Discard stale results: a newer keystroke may have fired another scan,
+        // or the menu may have closed.
+        if (myReqId !== reqIdRef.current) return;
         setItems(results);
         setActiveIndex(0);
       } catch {
+        if (myReqId !== reqIdRef.current) return;
         setItems([]);
       } finally {
-        setLoading(false);
+        if (myReqId === reqIdRef.current) {
+          setLoading(false);
+        }
       }
     }, 150);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      // Invalidate any in-flight request when the effect re-runs (query/open
+      // changed) so its late-arriving result won't overwrite the newer state.
+      //
+      // exhaustive-deps warns the ref may have changed by cleanup time and
+      // suggests copying it into a local. That advice is wrong here: reading the
+      // *current* value and bumping it is the whole mechanism — copying it would
+      // increment a stale counter and stop invalidating anything.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      reqIdRef.current++;
     };
   }, [open, query]);
 

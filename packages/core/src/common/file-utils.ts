@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { FileState, FileLineEnding } from "./state";
+import { gateWrite, isPathWithinRoots, type PathGrant } from "./path-boundary";
 
 export type FileReadMetadata = {
   content: string;
@@ -25,9 +26,21 @@ export function detectEncoding(buffer: Buffer): BufferEncoding {
   return "utf8";
 }
 
+/**
+ * Hard cap on single-file reads (deep review 2026-08-15, B4): the read tool
+ * applies offset/limit AFTER loading, so without this a multi-GB file would
+ * be fully materialized in memory (and images base64-expanded further).
+ */
+export const MAX_READ_FILE_BYTES = 128 * 1024 * 1024;
+
 export function readTextFileWithMetadata(filePath: string): FileReadMetadata {
-  const buffer = fs.readFileSync(filePath);
   const stat = fs.statSync(filePath);
+  if (stat.size > MAX_READ_FILE_BYTES) {
+    throw new Error(
+      `File is too large to read (${(stat.size / 1024 / 1024).toFixed(1)}MB, cap ${MAX_READ_FILE_BYTES / 1024 / 1024}MB)`
+    );
+  }
+  const buffer = fs.readFileSync(filePath);
   const encoding = detectEncoding(buffer);
   const raw = buffer.toString(encoding);
 
@@ -43,27 +56,77 @@ export function writeTextFile(
   filePath: string,
   content: string,
   encoding: BufferEncoding,
-  lineEndings: FileLineEnding
+  lineEndings: FileLineEnding,
+  options?: WriteBoundaryOptions
 ): number {
+  assertWithinWriteBoundary(filePath, options?.pathGrant);
   const normalized = normalizeContent(content);
   const toWrite = lineEndings === "CRLF" ? normalized.replace(/\n/g, "\r\n") : normalized;
   fs.writeFileSync(filePath, toWrite, { encoding });
   return Buffer.byteLength(toWrite, encoding === "utf16le" ? "utf16le" : "utf8");
 }
 
-export function ensureParentDirectory(filePath: string): void {
+export function ensureParentDirectory(filePath: string, options?: WriteBoundaryOptions): void {
+  assertWithinWriteBoundary(filePath, options?.pathGrant);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+
+// Bottom-line write boundary (P0 task 5, specs/sandbox/design.md §4.1(c)):
+// defense-in-depth for callers that bypass the handlers' gateWrite (direct
+// imports of these public exports). Dormant until a host initializes it via
+// configureFileUtilsWriteBoundary — core never initializes it itself, so
+// tests and library consumers stay unaffected. Handler flows pass their
+// per-call pathGrant down, which keeps R1 semantics intact: an authorized
+// out-of-roots write (allowWriteOutsideRoots) must NOT be killed here.
+export type WriteBoundaryOptions = { pathGrant?: PathGrant };
+
+export class PathBoundaryError extends Error {
+  constructor(filePath: string) {
+    super(`Path is outside the configured write boundary: ${filePath}`);
+    this.name = "PathBoundaryError";
+  }
+}
+
+let writeBoundaryRoots: readonly string[] | null = null;
+
+export function configureFileUtilsWriteBoundary(roots: readonly string[] | null): void {
+  writeBoundaryRoots = roots ? [...roots] : null;
+}
+
+function assertWithinWriteBoundary(filePath: string, grant: PathGrant | undefined): void {
+  if (!writeBoundaryRoots) {
+    return;
+  }
+  if (grant && gateWrite(grant, filePath).ok) {
+    return;
+  }
+  if (isPathWithinRoots(writeBoundaryRoots, filePath)) {
+    return;
+  }
+  throw new PathBoundaryError(filePath);
 }
 
 export function hasFileChangedSinceState(filePath: string, state: FileState): boolean {
   const current = readTextFileWithMetadata(filePath);
-  if (current.timestamp <= state.timestamp) {
-    return false;
+  // Timestamp strictly increased → definitely changed (fast path, no content
+  // comparison). This is the common case and has zero extra cost.
+  if (current.timestamp > state.timestamp) {
+    const isFullRead =
+      !state.isPartialView && typeof state.offset === "undefined" && typeof state.limit === "undefined";
+    return !(isFullRead && current.content === state.content);
   }
 
+  // Timestamp did not advance (same ms, rolled back, or low-resolution FS).
+  // Previously this returned false unconditionally, silently dropping external
+  // edits that didn't bump the mtime. Fall back to a content comparison when we
+  // have the full prior content; otherwise treat as changed (safer).
   const isFullRead = !state.isPartialView && typeof state.offset === "undefined" && typeof state.limit === "undefined";
-
-  return !(isFullRead && current.content === state.content);
+  if (isFullRead) {
+    return current.content !== state.content;
+  }
+  // Partial view — can't compare content reliably, and timestamp didn't move,
+  // so conservatively report unchanged to avoid false-positive edit/write loops.
+  return false;
 }
 
 export function buildDiffPreview(

@@ -3,6 +3,16 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { I18nProvider } from "./i18n";
 import { api } from "./api";
+import { lazy, Suspense } from "react";
+
+// Check if this window was opened as a standalone prototype preview.
+const urlParams = new URLSearchParams(window.location.search);
+const isPrototypeWindow = urlParams.get("view") === "prototype";
+
+// Lazy-load the standalone prototype renderer (only for popout windows).
+const PrototypeWindow = lazy(() =>
+  import("./components/PrototypeWindow").then((m) => ({ default: m.PrototypeWindow }))
+);
 import {
   applyAppearance,
   applyLineVariant,
@@ -44,18 +54,28 @@ async function bootstrap(): Promise<void> {
   const theme = resolveTheme(platform);
   applyAppearance(resolveAppearance(platform, theme));
   if (theme === "line") applyLineVariant(getStoredLineVariant());
-  // Shared primitive stylesheet first (theme-agnostic structure + token
-  // fallbacks), then the resolved theme file (Aqua / Metro / Glass) which binds
-  // --ui-*. The theme link carries a stable id so it can be swapped at runtime.
-  await injectStylesheet("./ui.css");
-  await injectStylesheet(themeStylesheet(theme), THEME_LINK_ID);
-  createRoot(container!).render(
-    <StrictMode>
-      <I18nProvider>
-        <App />
-      </I18nProvider>
-    </StrictMode>
-  );
+  await Promise.all([injectStylesheet("./ui.css"), injectStylesheet(themeStylesheet(theme), THEME_LINK_ID)]);
+
+  if (isPrototypeWindow) {
+    // Standalone prototype window — render only the prototype surface.
+    createRoot(container!).render(
+      <StrictMode>
+        <I18nProvider>
+          <Suspense fallback={<div style={{ padding: 20, color: "#888" }}>Loading prototype…</div>}>
+            <PrototypeWindow />
+          </Suspense>
+        </I18nProvider>
+      </StrictMode>
+    );
+  } else {
+    createRoot(container!).render(
+      <StrictMode>
+        <I18nProvider>
+          <App />
+        </I18nProvider>
+      </StrictMode>
+    );
+  }
 }
 
 void bootstrap();

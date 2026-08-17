@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "./api";
+import { useTreeRefresh } from "./hooks/use-tree-refresh";
+import { useDocumentTitle } from "./hooks/use-document-title";
+import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
+import { usePanelLayout } from "./hooks/use-panel-layout";
+import { useAppearance } from "./hooks/use-appearance";
+import { usePreview } from "./hooks/use-preview";
+import { useSkills } from "./hooks/use-skills";
+import { useProcessPanel } from "./hooks/use-process-panel";
+import { useGit } from "./hooks/use-git";
+import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
+import { useSettingsData } from "./hooks/use-settings-data";
 import type {
   AskPermissionRequest,
-  EditableSettings,
-  McpServerStatus,
-  ModelConfigSelection,
-  SerializableProcess,
+  DesignArtifactMeta,
   SerializableSessionEntry,
   SessionMessage,
-  SettingsSummary,
-  SkillInfo,
   UserPromptContent,
+  WorkspaceTrustLevel,
 } from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
@@ -27,18 +34,32 @@ import { PluginDetail, type PluginSelection } from "./components/PluginDetail";
 import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
-import { CodeReviewPanel } from "./components/CodeReviewPanel";
+import { lazy, Suspense } from "react";
+
+// Lazy-load heavy components that are only shown when the user navigates to
+// specific views. This keeps the initial bundle small and defers ~5MB+ of
+// code (Monaco + markdown renderers) until actually needed.
+const CodeReviewPanel = lazy(() =>
+  import("./components/CodeReviewPanel").then((m) => ({ default: m.CodeReviewPanel }))
+);
+const DiffOverlay = lazy(() => import("./components/DiffOverlay").then((m) => ({ default: m.DiffOverlay })));
+import type { DiffTarget } from "./components/DiffOverlay";
+const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
+const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
+const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
+const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
+const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
-import { WikiPanel } from "./components/WikiPanel";
-import { DiffOverlay, type DiffTarget } from "./components/DiffOverlay";
-import { EditorOverlay } from "./components/EditorOverlay";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
-import { ProcessOutputPanel, accumulateStdout } from "./components/ProcessOutputPanel";
+import { ProcessOutputPanel } from "./components/ProcessOutputPanel";
+import { TaskProgressPanel } from "./components/TaskProgressPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
 import { buildToolSummary, getPlanLines } from "./lib/messages";
+import { extractOpenuiFence } from "./openui/inline-extract";
 import type { PermissionResult } from "./lib/permissions";
 import {
   findPendingAskUserQuestion,
@@ -46,24 +67,6 @@ import {
   type AskUserQuestionAnswers,
 } from "./lib/ask-question";
 import { extractProposedPlan, getImplementationPrompt, type PlanImplementationChoice } from "./lib/plan";
-import {
-  defaultAppearance,
-  getStoredReasoningMode,
-  getStoredLineVariant,
-  applyLineVariant,
-  nextReasoningMode,
-  resolveAppearance,
-  resolveTheme,
-  baseTheme,
-  setAppearance as persistAppearance,
-  setTheme as persistTheme,
-  setLineVariant as persistLineVariant,
-  setReasoningMode as persistReasoningMode,
-  type Appearance,
-  type LineVariant,
-  type ReasoningMode,
-  type Theme,
-} from "./lib/appearance";
 import { useI18n } from "./i18n";
 import {
   CommandPalette,
@@ -80,7 +83,6 @@ import {
   IconIndex,
   IconReview,
   IconGitmcp,
-  IconWiki,
   IconEditor,
   IconReasoningHidden,
   IconReasoningNormal,
@@ -100,6 +102,7 @@ type PendingPermissionReply = {
   sessionId: string;
   permissions: PermissionResult["permissions"];
   alwaysAllows: PermissionResult["alwaysAllows"];
+  alwaysAllowPaths: PermissionResult["alwaysAllowPaths"];
 };
 
 /** Extract the markdown plan from the newest UpdatePlan tool message, if any. */
@@ -132,18 +135,18 @@ function syntheticUserMessage(sessionId: string, content: string): SessionMessag
 export function App(): JSX.Element {
   const { t } = useI18n();
   const { toasts, push: pushToast } = useToasts();
+  const [trustAskOpen, setTrustAskOpen] = useState(false);
+  const [trustBusy, setTrustBusy] = useState(false);
   const [projectRoot, setProjectRoot] = useState("");
   // Home dir reported by main — used to detect the fresh-install fallback root
   // so the UI never presents the user's home as a real workspace.
   const [homeDir, setHomeDir] = useState("");
-  const [settings, setSettings] = useState<SettingsSummary | null>(null);
   const [platform, setPlatform] = useState<string>("");
   const [sessions, setSessions] = useState<SerializableSessionEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
-  const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [, setMcpStatuses] = useState<McpServerStatus[]>([]);
+  const { skills, selectedSkills, setSelectedSkills, refreshSkills, handleToggleSkill, handleRefreshPluginSkills } =
+    useSkills(activeId);
 
   const [draft, setDraft] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -163,33 +166,68 @@ export function App(): JSX.Element {
 
   const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
   // Branch the user tried to switch to while the working tree had blocking local changes.
-  const [branchConflict, setBranchConflict] = useState<string | null>(null);
-  const [stashSwitching, setStashSwitching] = useState(false);
-  const [editable, setEditable] = useState<EditableSettings | null>(null);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
 
   const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
+  const {
+    prototypeJson,
+    prototypeMode,
+    prototypeOpenuiCode,
+    designContent,
+    graphHtml,
+    setGraphHtml,
+    previewOpen,
+    previewTab,
+    setPreviewTab,
+    applyToolMessage: applyPreviewToolMessage,
+    openDesignArtifact,
+    resetForSession: resetPreviewForSession,
+    closePreview,
+  } = usePreview();
+  const handleOpenDesignArtifact = useCallback(
+    async (artifact: DesignArtifactMeta) => {
+      const full = await api.designRead(artifact.id);
+      if (full) {
+        openDesignArtifact(full.pipeline, full.content);
+      }
+    },
+    [openDesignArtifact]
+  );
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
-  const [sidebarView, setSidebarView] = useState<
-    "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor"
-  >("explorer");
-  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [editorFile, setEditorFile] = useState<string | null>(null);
-  const [branch, setBranch] = useState("");
-  const [branches, setBranches] = useState<string[]>([]);
 
-  const [appearance, setAppearanceState] = useState<Appearance>("light");
-  const [theme, setThemeState] = useState<Theme>("aqua");
-  const [lineVariant, setLineVariantState] = useState<LineVariant>(() => getStoredLineVariant());
-  const [reasoningMode, setReasoningModeState] = useState<ReasoningMode>(() => getStoredReasoningMode());
+  const {
+    appearance,
+    theme,
+    lineVariant,
+    reasoningMode,
+    initFromPlatform: initAppearanceFromPlatform,
+    handleToggleAppearance,
+    handleToggleTheme,
+    handleToggleLineVariant,
+    handleSelectTheme,
+    handleCycleReasoning,
+  } = useAppearance(platform);
 
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [panelWidth, setPanelWidth] = useState(280);
+  const {
+    sidebarView,
+    panelOpen,
+    setPanelOpen,
+    panelWidth,
+    handleResizeStart,
+    selectView,
+    openTokensView,
+    handleCollapsePanel,
+  } = usePanelLayout();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [showProcessPanel, setShowProcessPanel] = useState(false);
-  const [runningProcesses, setRunningProcesses] = useState<SerializableProcess[]>([]);
-  const processStdoutRef = useRef<Map<number, string>>(new Map());
+  const {
+    showProcessPanel,
+    setShowProcessPanel,
+    runningProcesses,
+    stdoutRef: processStdoutRef,
+    syncFromEntry: syncProcessesFromEntry,
+    appendStdout: appendProcessStdout,
+  } = useProcessPanel(busy);
 
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
@@ -197,38 +235,12 @@ export function App(): JSX.Element {
   projectRootRef.current = projectRoot;
   const pendingSelectRef = useRef<string | null>(null);
   const prevBusyRef = useRef(false);
+  // Monotonic counter for loadSession race protection: only the latest call
+  // should commit its fetched state. An older, slower request that resolves
+  // after a newer one is discarded.
+  const loadSeqRef = useRef(0);
 
-  const bumpTree = useCallback(() => setTreeRefreshKey((k) => k + 1), []);
-
-  // Throttled variant for high-frequency session-entry updates: every bump makes
-  // the sidebar re-fetch the whole workspace tree over IPC, so during streaming
-  // we cap it to once per 1.5s with a trailing call.
-  const bumpTreeThrottleRef = useRef<{ last: number; timer: ReturnType<typeof setTimeout> | null }>({
-    last: 0,
-    timer: null,
-  });
-  const bumpTreeThrottled = useCallback(() => {
-    const state = bumpTreeThrottleRef.current;
-    const elapsed = Date.now() - state.last;
-    if (elapsed >= 1500) {
-      state.last = Date.now();
-      bumpTree();
-      return;
-    }
-    if (state.timer) return;
-    state.timer = setTimeout(() => {
-      state.timer = null;
-      state.last = Date.now();
-      bumpTree();
-    }, 1500 - elapsed);
-  }, [bumpTree]);
-  useEffect(
-    () => () => {
-      const state = bumpTreeThrottleRef.current;
-      if (state.timer) clearTimeout(state.timer);
-    },
-    []
-  );
+  const { refreshKey: treeRefreshKey, bump: bumpTree, bumpThrottled: bumpTreeThrottled } = useTreeRefresh();
 
   // ── Session completion notification ────────────────────────────────────────
   useEffect(() => {
@@ -238,85 +250,45 @@ export function App(): JSX.Element {
     prevBusyRef.current = busy;
   }, [busy, errorLine, pushToast, t]);
 
-  // ── Panel resize handle ──────────────────────────────────────────────────────
-  const resizingRef = useRef(false);
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      resizingRef.current = true;
-      const startX = e.clientX;
-      const startWidth = panelWidth;
-      const onMove = (ev: MouseEvent) => {
-        if (!resizingRef.current) return;
-        const delta = ev.clientX - startX;
-        setPanelWidth(Math.max(200, Math.min(480, startWidth + delta)));
-      };
-      const onUp = () => {
-        resizingRef.current = false;
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      };
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-    },
-    [panelWidth]
-  );
-
-  // VSCode-style activity bar: selecting a rail view swaps the left panel while
-  // the main area stays put. Re-selecting the active view toggles the panel.
-  const selectView = useCallback(
-    (view: "explorer" | "scm" | "tasks" | "tokens" | "index" | "review" | "gitmcp" | "wiki" | "plugins" | "editor") => {
-      setSidebarView((prev) => {
-        if (prev === view) {
-          setPanelOpen((wasOpen) => !wasOpen);
-          return view;
-        }
-        setPanelOpen(true);
-        return view;
-      });
-    },
-    []
-  );
-  const openTokensView = useCallback(() => selectView("tokens"), [selectView]);
-
   // ── Data loading ────────────────────────────────────────────────────────────
   const refreshSessions = useCallback(async () => {
     setSessions(await api.listSessions());
   }, []);
 
-  const refreshSkills = useCallback(async (sessionId?: string) => {
-    setSkills(await api.listSkills(sessionId));
-  }, []);
+  const {
+    branch,
+    branches,
+    branchConflict,
+    setBranchConflict,
+    stashSwitching,
+    refreshGit,
+    handleSwitchBranch,
+    handleStashAndSwitch,
+  } = useGit({ bumpTree, refreshSessions, setErrorLine, pushToast, t });
 
-  const refreshSettings = useCallback(async () => {
-    setSettings(await api.getSettings());
-  }, []);
-
-  const refreshMcp = useCallback(async () => {
-    setMcpStatuses(await api.mcpStatus());
-  }, []);
-
-  const refreshGit = useCallback(async () => {
-    try {
-      const [current, list] = await Promise.all([api.gitCurrentBranch(), api.gitListBranches()]);
-      setBranch(current);
-      setBranches(list);
-    } catch {
-      // Git may be unavailable in this workspace — keep prior branch state.
-    }
-  }, []);
+  const {
+    settings,
+    editable,
+    settingsInitialTab,
+    refreshSettings,
+    refreshMcp,
+    handleSetModel,
+    handleOpenSettings,
+    handleSaveSettings,
+  } = useSettingsData({ setMainView, setMessages, activeIdRef, refreshSkills });
 
   const loadSession = useCallback(
     async (id: string | null) => {
+      // Claim this load slot; a newer call will have incremented past us.
+      const seq = ++loadSeqRef.current;
+      const isStale = (): boolean => seq !== loadSeqRef.current;
       await api.setActiveSession(id);
+      if (isStale()) return; // a newer loadSession started — abandon
       setActiveId(id);
       setPendingPlan(null);
       setErrorLine(null);
       setPendingPermissionReply((prev) => (prev && prev.sessionId !== id ? null : prev));
+      resetPreviewForSession();
       if (!id) {
         setMessages([]);
         setActiveStatus(null);
@@ -326,16 +298,52 @@ export function App(): JSX.Element {
         return;
       }
       const [entry, msgs] = await Promise.all([api.getSession(id), api.listMessages(id)]);
+      // Guard against races: if the user selected another session (or switched
+      // workspaces) while these fetches were in flight, discard the stale data
+      // so it can't overwrite the newer session's view.
+      if (isStale()) return;
       setMessages(msgs);
       setActiveStatus(entry?.status ?? null);
       setAskPermissions(entry?.askPermissions);
       setPlanMode(entry?.planMode === true);
       await refreshSkills(id);
     },
-    [refreshSkills]
+    [refreshSkills, resetPreviewForSession]
   );
 
   // ── Startup + event wiring ───────────────────────────────────────────────────
+  // First-open workspace trust question (specs/sandbox/design.md §10.3):
+  // explicit=false means the project was never asked — show the dialog once.
+  const checkWorkspaceTrust = useCallback(async () => {
+    try {
+      const status = await api.getWorkspaceTrust();
+      if (!status.explicit) {
+        setTrustAskOpen(true);
+      }
+    } catch (error) {
+      console.error("[trust] getWorkspaceTrust failed:", error);
+    }
+  }, []);
+
+  const handleTrustSelect = useCallback(
+    async (level: WorkspaceTrustLevel) => {
+      setTrustBusy(true);
+      try {
+        await api.setWorkspaceTrust(level);
+        setTrustAskOpen(false);
+        if (level === "quarantine") {
+          pushToast("info", t("trust.applied.quarantine"));
+        }
+        await refreshSettings();
+      } catch (error) {
+        pushToast("error", error instanceof Error ? error.message : String(error));
+      } finally {
+        setTrustBusy(false);
+      }
+    },
+    [pushToast, refreshSettings, t]
+  );
+
   useEffect(() => {
     let disposed = false;
     void (async () => {
@@ -345,10 +353,9 @@ export function App(): JSX.Element {
         setProjectRoot(root);
         setHomeDir(home);
         setPlatform(plat);
-        const resolvedTheme = resolveTheme(plat);
-        setAppearanceState(resolveAppearance(plat, resolvedTheme));
-        setThemeState(resolvedTheme);
+        initAppearanceFromPlatform(plat);
         await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
+        await checkWorkspaceTrust();
         const active = await api.getActiveSession();
         if (!disposed && active) {
           await loadSession(active);
@@ -368,6 +375,23 @@ export function App(): JSX.Element {
       }
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
+        applyPreviewToolMessage(message);
+        // Inline-mode (opt-in via settings.openuiInlineMode): render a
+        // complete ```openui-lang block embedded in the assistant reply,
+        // without waiting for a render_openui tool call. The tool channel
+        // always wins — it lands later and overwrites with the same code.
+        if (message.role === "assistant" && message.content?.includes("```openui-lang")) {
+          void api
+            .getSettings()
+            .then((settings) => {
+              if ((settings as { openuiInlineMode?: boolean }).openuiInlineMode !== true) return;
+              const block = extractOpenuiFence(message.content ?? "");
+              if (block?.complete && block.code) {
+                openDesignArtifact("openui", block.code);
+              }
+            })
+            .catch(() => {});
+        }
       }
     });
 
@@ -382,23 +406,51 @@ export function App(): JSX.Element {
       if (entry.id === activeIdRef.current) {
         setActiveStatus(entry.status);
         setAskPermissions(entry.askPermissions);
-        setRunningProcesses(entry.processes ?? []);
+        syncProcessesFromEntry(entry);
       }
       bumpTreeThrottled();
     });
 
     const offProcessStdout = api.onProcessStdout((event) => {
-      accumulateStdout(processStdoutRef.current, event.pid, event.chunk);
+      appendProcessStdout(event.pid, event.chunk);
     });
 
+    // Throttle stream progress updates to max 4/sec (250ms). Token streaming
+    // fires hundreds of events/sec; without throttling, each token triggers a
+    // full App re-render. The progress bar only needs sub-second granularity.
+    let lastStreamUpdate = 0;
+    let pendingStreamP: { startedAt: string; formattedTokens: string } | null = null;
+    let streamFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushStreamProgress = () => {
+      streamFlushTimer = null;
+      if (pendingStreamP) {
+        setStreamProgress(pendingStreamP);
+        pendingStreamP = null;
+      }
+    };
     const offStreamProgress = api.onLlmStreamProgress((progress) => {
       const p = progress as { phase?: string; startedAt?: string; formattedTokens?: string };
       if (p.phase === "end") {
+        if (streamFlushTimer) {
+          clearTimeout(streamFlushTimer);
+          streamFlushTimer = null;
+        }
+        pendingStreamP = null;
         setStreamProgress(null);
         return;
       }
       if (p.startedAt) {
-        setStreamProgress({ startedAt: p.startedAt, formattedTokens: p.formattedTokens ?? "0" });
+        const next = { startedAt: p.startedAt, formattedTokens: p.formattedTokens ?? "0" };
+        const now = Date.now();
+        if (now - lastStreamUpdate >= 250) {
+          lastStreamUpdate = now;
+          setStreamProgress(next);
+        } else {
+          pendingStreamP = next;
+          if (!streamFlushTimer) {
+            streamFlushTimer = setTimeout(flushStreamProgress, 250 - (now - lastStreamUpdate));
+          }
+        }
       }
     });
 
@@ -413,11 +465,19 @@ export function App(): JSX.Element {
         pushToast("error", `${event.payload.source}: ${event.payload.error}`);
       }
     });
+    const offSandbox = api.onSandboxStatusChanged((event) => {
+      // Degradation must be visible (design constraint 6) — the audit log
+      // already records it; this surfaces it to the user.
+      if (event.outcome === "degraded") {
+        pushToast("error", t("sandbox.degradedToast", { backend: event.backend, detail: event.detail }));
+      }
+    });
     const offRoot = api.onProjectRootChanged((root) => {
       setProjectRoot(root);
       void (async () => {
         try {
           await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
+          await checkWorkspaceTrust();
           const pending = pendingSelectRef.current;
           pendingSelectRef.current = null;
           await loadSession(pending);
@@ -437,11 +497,26 @@ export function App(): JSX.Element {
       offStreamProgress();
       offMcp();
       offPlugin();
+      offSandbox();
       offRoot();
+      // Cancel any pending throttled stream-progress flush so a detached timer
+      // can't call setStreamProgress after the effect (and possibly the App)
+      // has unmounted — important under React StrictMode double-invoke too.
+      if (streamFlushTimer) {
+        clearTimeout(streamFlushTimer);
+        streamFlushTimer = null;
+      }
     };
+    // openDesignArtifact (inline-mode renderer) is deliberately omitted: it is
+    // an identity-stable useCallback from usePreview, and this boot effect
+    // must stay identity-stable or the entire boot chain re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    appendProcessStdout,
+    applyPreviewToolMessage,
     bumpTree,
     bumpTreeThrottled,
+    initAppearanceFromPlatform,
     loadSession,
     pushToast,
     refreshGit,
@@ -449,6 +524,7 @@ export function App(): JSX.Element {
     refreshSessions,
     refreshSettings,
     refreshSkills,
+    syncProcessesFromEntry,
   ]);
 
   // Loading-animation tick — only while busy, so an idle app doesn't re-render
@@ -470,6 +546,7 @@ export function App(): JSX.Element {
       if (reply) {
         prompt.permissions = prompt.permissions ?? reply.permissions;
         prompt.alwaysAllows = prompt.alwaysAllows ?? reply.alwaysAllows;
+        prompt.alwaysAllowPaths = prompt.alwaysAllowPaths ?? reply.alwaysAllowPaths;
       }
 
       if (opts.showUser !== false && !opts.isContinue) {
@@ -535,7 +612,7 @@ export function App(): JSX.Element {
       skills: skillObjs.length > 0 ? skillObjs : undefined,
       planMode,
     });
-  }, [draft, imageUrls, planMode, runPrompt, selectedSkills, skills]);
+  }, [draft, imageUrls, planMode, runPrompt, selectedSkills, setSelectedSkills, skills]);
 
   const handleStop = useCallback(() => {
     void api.interrupt();
@@ -600,6 +677,7 @@ export function App(): JSX.Element {
           sessionId,
           permissions: result.permissions,
           alwaysAllows: result.alwaysAllows,
+          alwaysAllowPaths: result.alwaysAllowPaths,
         });
         setStatusLine(t("app.permissionDenied"));
         setAskPermissions(undefined);
@@ -607,7 +685,12 @@ export function App(): JSX.Element {
         return;
       }
       void runPrompt(
-        { text: "/continue", permissions: result.permissions, alwaysAllows: result.alwaysAllows },
+        {
+          text: "/continue",
+          permissions: result.permissions,
+          alwaysAllows: result.alwaysAllows,
+          alwaysAllowPaths: result.alwaysAllowPaths,
+        },
         { isContinue: true }
       );
     },
@@ -667,119 +750,6 @@ export function App(): JSX.Element {
     [loadSession]
   );
 
-  const handleSwitchBranch = useCallback(
-    async (next: string) => {
-      const result = await api.gitCheckout(next);
-      if (result.ok) {
-        await refreshGit();
-        await refreshSessions();
-        bumpTree();
-      } else if (result.conflict) {
-        // Dirty tree: offer stash-and-switch instead of dumping raw git stderr.
-        setBranchConflict(next);
-        await refreshGit();
-      } else {
-        setErrorLine(result.error ?? t("app.requestFailed"));
-        // Keep the dropdown in sync with the real branch after a failed switch.
-        await refreshGit();
-      }
-    },
-    [bumpTree, refreshGit, refreshSessions, t]
-  );
-
-  const handleStashAndSwitch = useCallback(async () => {
-    const target = branchConflict;
-    if (!target || stashSwitching) {
-      return;
-    }
-    setStashSwitching(true);
-    try {
-      const result = await api.gitStashCheckout(target);
-      if (result.ok) {
-        setBranchConflict(null);
-        pushToast("success", t("scm.stashSwitchDone", { branch: target }));
-        await refreshGit();
-        await refreshSessions();
-        bumpTree();
-      } else {
-        setBranchConflict(null);
-        setErrorLine(result.error ?? t("app.requestFailed"));
-        await refreshGit();
-      }
-    } finally {
-      setStashSwitching(false);
-    }
-  }, [branchConflict, stashSwitching, bumpTree, pushToast, refreshGit, refreshSessions, t]);
-
-  const handleSetModel = useCallback(async (selection: ModelConfigSelection) => {
-    setSettings(await api.setModel(selection));
-    const id = activeIdRef.current;
-    if (id) {
-      setMessages(await api.listMessages(id));
-    }
-  }, []);
-
-  const handleOpenSettings = useCallback(async () => {
-    setEditable(await api.getEditableSettings());
-    setSettingsInitialTab(undefined);
-    setMainView("settings");
-  }, []);
-
-  const handleToggleAppearance = useCallback(() => {
-    setAppearanceState((prev) => {
-      const next: Appearance = prev === "dark" ? "light" : "dark";
-      persistAppearance(next);
-      return next;
-    });
-  }, []);
-
-  const handleToggleTheme = useCallback(() => {
-    setThemeState((prev) => {
-      const next: Theme = prev === "glass" ? baseTheme(platform) : "glass";
-      persistTheme(next);
-      // Auto-switch appearance to match the theme's native tone.
-      const tone = defaultAppearance(platform, next);
-      setAppearanceState(tone);
-      persistAppearance(tone);
-      return next;
-    });
-  }, [platform]);
-
-  // Line theme flavour toggle: original stroke look ↔ punk (2077 tribute).
-  const handleToggleLineVariant = useCallback(() => {
-    setLineVariantState((prev) => {
-      const next: LineVariant = prev === "punk" ? "stroke" : "punk";
-      persistLineVariant(next);
-      return next;
-    });
-  }, []);
-
-  // The punk recolor only applies while the Line theme is active.
-  useEffect(() => {
-    applyLineVariant(theme === "line" ? lineVariant : "stroke");
-  }, [theme, lineVariant]);
-
-  // Theme selection from the settings panel (General tab). Applies immediately
-  // (swaps the stylesheet link) and persists — no reload needed.
-  const handleSelectTheme = useCallback(
-    (next: Theme) => {
-      setThemeState(next);
-      persistTheme(next);
-      const tone = defaultAppearance(platform, next);
-      setAppearanceState(tone);
-      persistAppearance(tone);
-    },
-    [platform]
-  );
-
-  const handleCycleReasoning = useCallback(() => {
-    setReasoningModeState((prev) => {
-      const next = nextReasoningMode(prev);
-      persistReasoningMode(next);
-      return next;
-    });
-  }, []);
-
   const handleUndoRestored = useCallback(async () => {
     const id = activeIdRef.current;
     if (id) {
@@ -789,17 +759,6 @@ export function App(): JSX.Element {
     }
     await refreshSessions();
   }, [refreshSessions]);
-
-  const handleSaveSettings = useCallback(
-    async (next: EditableSettings) => {
-      const { summary, editable: fresh } = await api.updateSettings(next);
-      setSettings(summary);
-      setEditable(fresh);
-      setMainView("chat");
-      await Promise.all([refreshMcp(), refreshSkills(activeIdRef.current ?? undefined)]);
-    },
-    [refreshMcp, refreshSkills]
-  );
 
   const handleNewSession = useCallback(() => {
     setMainView("chat");
@@ -858,44 +817,84 @@ export function App(): JSX.Element {
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
-  // ── ⌘K command palette + global keyboard shortcuts ─────────────────────────
-  useEffect(() => {
-    function onKey(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
+  // ── Stable props for memoized children ──────────────────────────────────────
+  // MessageList / Composer / Sidebar are wrapped in React.memo; every callback
+  // handed to them must keep a stable identity across App re-renders (stream
+  // ticks, busy ticks) or memoization is defeated.
+  const handleTogglePlan = useCallback(() => setPlanMode((v) => !v), []);
+  const handleRemoveImage = useCallback((i: number) => setImageUrls((prev) => prev.filter((_, idx) => idx !== i)), []);
+  const handleAddImage = useCallback((dataUrl: string) => setImageUrls((prev) => [...prev, dataUrl]), []);
+  const handleResumeClick = useCallback(() => void handleResume(), [handleResume]);
+  const handleEnhanceClick = useCallback(() => void handleEnhance(), [handleEnhance]);
+  const handleBackToChat = useCallback(() => setMainView("chat"), []);
+  const handleSelectPlugin = useCallback((sel: PluginSelection) => {
+    setSelectedPlugin(sel);
+    setMainView("plugins");
+  }, []);
+
+  const handleQuickAction = useCallback(
+    (action: "plan" | "init" | "skills" | "undo") => {
+      if (action === "plan") {
+        setPlanMode((v) => !v);
+      } else if (action === "init") {
+        void runPrompt({ text: "/init" });
+      } else if (action === "skills") {
+        selectView("plugins");
+      } else if (action === "undo") {
+        setModal("undo");
       }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "o" || e.key === "O")) {
-        e.preventDefault();
-        setShowProcessPanel((v) => !v);
-      }
-      // ⌘B / Ctrl+B — toggle sidebar panel
-      if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
-        e.preventDefault();
-        setPanelOpen((v) => !v);
-      }
-      // ⌘J / Ctrl+J — toggle bottom process panel
-      if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
-        e.preventDefault();
-        setShowProcessPanel((v) => !v);
-      }
-      // ⌘N / Ctrl+N — new session
-      if ((e.metaKey || e.ctrlKey) && (e.key === "n" || e.key === "N")) {
-        e.preventDefault();
+    },
+    [runPrompt, selectView]
+  );
+
+  const handleSlashCommand = useCallback(
+    (cmd: string) => {
+      if (cmd === "new") {
         handleNewSession();
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-        e.preventDefault();
+      } else if (cmd === "plan") {
+        setPlanMode((v) => !v);
+      } else if (cmd === "mcp" || cmd === "plugins") {
+        selectView("plugins");
+      } else if (cmd === "skills") {
+        // Skills are shown as chips already, nothing extra needed
+      } else if (cmd === "settings") {
         void handleOpenSettings();
+      } else if (cmd === "undo") {
+        setModal("undo");
+      } else if (cmd === "init") {
+        void runPrompt({ text: "/init" });
+      } else if (cmd === "pm-design" || cmd === "prototype" || cmd === "pm-design-openui" || cmd === "openui") {
+        // Designer prototypes now use OpenUI Lang as the default pipeline.
+        void runPrompt({
+          text: "Create an interactive prototype using the render_openui tool with OpenUI Lang syntax. Ask me what to build first.",
+        });
+      } else if (cmd === "deep-design" || cmd === "design") {
+        // DeepDesign: generate a web design using the .dd format
+        void runPrompt({
+          text: "Create a web design using the render_design tool with the .dd (OrcaDesign) format. Ask me what to design first.",
+        });
+      } else if (cmd === "raw") {
+        handleCycleReasoning();
+      } else if (cmd === "continue") {
+        handleSend();
+      } else if (cmd === "resume") {
+        selectView("explorer");
+      } else if (cmd === "exit") {
+        void api.closeWindow();
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "?" || e.key === "/")) {
-        e.preventDefault();
-        setModal((v) => (v === "shortcuts" ? null : "shortcuts"));
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [handleOpenSettings, handleNewSession]);
+    },
+    [handleCycleReasoning, handleNewSession, handleOpenSettings, handleSend, runPrompt, selectView]
+  );
+
+  // ── ⌘K command palette + global keyboard shortcuts ─────────────────────────
+  useGlobalShortcuts({
+    togglePalette: () => setPaletteOpen((v) => !v),
+    toggleProcessPanel: () => setShowProcessPanel((v) => !v),
+    togglePanel: () => setPanelOpen((v) => !v),
+    newSession: handleNewSession,
+    openSettings: handleOpenSettings,
+    toggleShortcutsModal: () => setModal((v) => (v === "shortcuts" ? null : "shortcuts")),
+  });
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
@@ -970,7 +969,17 @@ export function App(): JSX.Element {
         run: () => setModal("shortcuts"),
       },
     ],
-    [handleCycleReasoning, handleNewSession, handleOpenSettings, openTokensView, pushToast, runPrompt, selectView, t]
+    [
+      handleCycleReasoning,
+      handleNewSession,
+      handleOpenSettings,
+      openTokensView,
+      pushToast,
+      runPrompt,
+      selectView,
+      setPanelOpen,
+      t,
+    ]
   );
 
   // ── Derived UI ────────────────────────────────────────────────────────────────
@@ -1013,61 +1022,42 @@ export function App(): JSX.Element {
     return `${t("composer.thinking")} (${elapsedSeconds}s) · \u2193 ${streamProgress.formattedTokens} tokens`;
   }, [busy, streamProgress, runningProcesses, nowTick, t]);
 
-  // Auto-show process panel when processes start running.
-  useEffect(() => {
-    if (runningProcesses.length > 0 && busy) {
-      setShowProcessPanel(true);
-    }
-  }, [runningProcesses, busy]);
+  useDocumentTitle(busy, activeStatus);
 
-  // Reflect session state in the window title so the user can see progress
-  // even when the app is in the background (taskbar / dock tooltip).
-  useEffect(() => {
-    const base = "DeepOrca";
-    if (busy) {
-      document.title = `⚡ ${base}`;
-    } else if (activeStatus === "ask_permission" || activeStatus === "waiting_for_user") {
-      document.title = `⚠️ ${base}`;
-    } else if (activeStatus === "error") {
-      document.title = `✖ ${base}`;
-    } else {
-      document.title = base;
-    }
-  }, [busy, activeStatus]);
+  const composerDockRef = useComposerDockHeight(mainView);
 
-  // Keep the conversation's bottom padding in sync with the floating
-  // composer-dock's actual height so the last message can never sit
-  // underneath the input. We measure the dock and write a CSS variable
-  // consumed by .ui-conversation's padding-bottom. The +12px gap is a
-  // small breathing buffer so the last line doesn't kiss the composer.
-  const composerDockRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = composerDockRef.current;
-    if (!el) return;
-    const apply = () => {
-      const h = el.offsetHeight;
-      document.documentElement.style.setProperty("--ui-composer-reserved", `${h + 12}px`);
-    };
-    apply();
-    const ro = new ResizeObserver(apply);
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      document.documentElement.style.removeProperty("--ui-composer-reserved");
-    };
-  }, [mainView]);
-
-  const footer = showQuestion ? (
-    <QuestionCard
-      questions={pendingQuestion!.questions}
-      onSubmit={handleQuestionAnswers}
-      onCancel={() => setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion!.messageId))}
-    />
-  ) : showPermission ? (
-    <PermissionCard requests={askPermissions!} onSubmit={handlePermissionResult} onCancel={handlePermissionCancel} />
-  ) : showPlan ? (
-    <PlanCard onSelect={handlePlanChoice} />
-  ) : null;
+  // Memoized: MessageList is React.memo and its scroll effect depends on
+  // `footer` — an unstable identity would re-run smooth scrolling every render.
+  const footer = useMemo(
+    () =>
+      showQuestion ? (
+        <QuestionCard
+          questions={pendingQuestion!.questions}
+          onSubmit={handleQuestionAnswers}
+          onCancel={() => setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion!.messageId))}
+        />
+      ) : showPermission ? (
+        <PermissionCard
+          requests={askPermissions!}
+          onSubmit={handlePermissionResult}
+          onCancel={handlePermissionCancel}
+        />
+      ) : showPlan ? (
+        <PlanCard onSelect={handlePlanChoice} planText={pendingPlan} />
+      ) : null,
+    [
+      showQuestion,
+      showPermission,
+      showPlan,
+      pendingQuestion,
+      askPermissions,
+      pendingPlan,
+      handleQuestionAnswers,
+      handlePermissionResult,
+      handlePermissionCancel,
+      handlePlanChoice,
+    ]
+  );
 
   const composerDisabled = showQuestion || showPermission || showPlan;
 
@@ -1180,20 +1170,28 @@ export function App(): JSX.Element {
           <IconReview />
         </RailButton>
         <RailButton
+          active={panelOpen && sidebarView === "design"}
+          title={t("rail.design")}
+          aria-label={t("rail.design")}
+          onClick={() => selectView("design")}
+        >
+          <span style={{ fontSize: 16 }}>🎯</span>
+        </RailButton>
+        <RailButton
+          active={panelOpen && sidebarView === "tasktree"}
+          title={t("rail.tasktree")}
+          aria-label={t("rail.tasktree")}
+          onClick={() => selectView("tasktree")}
+        >
+          <span style={{ fontSize: 16 }}>🌳</span>
+        </RailButton>
+        <RailButton
           active={panelOpen && sidebarView === "gitmcp"}
           title={t("rail.gitmcp")}
           aria-label={t("rail.gitmcp")}
           onClick={() => selectView("gitmcp")}
         >
           <IconGitmcp />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "wiki"}
-          title={t("rail.wiki")}
-          aria-label={t("rail.wiki")}
-          onClick={() => selectView("wiki")}
-        >
-          <IconWiki />
         </RailButton>
         <RailButton
           active={panelOpen && sidebarView === "editor"}
@@ -1248,14 +1246,14 @@ export function App(): JSX.Element {
             currentRoot={projectRoot}
             refreshKey={treeRefreshKey}
             sessions={sessions}
-            onSelectSession={(root, id) => void handleSelectSession(root, id)}
-            onDelete={(id) => void handleDeleteSession(id)}
-            onRename={(id, summary) => void handleRenameSession(id, summary)}
-            onArchive={(id) => void handleArchiveSession(id)}
-            onUnarchive={(id) => void handleUnarchiveSession(id)}
-            onCollapse={() => setPanelOpen(false)}
-            onNewWorkspace={() => void handleNewWorkspace()}
-            onNewSessionInWorkspace={(root) => void handleNewSessionInWorkspace(root)}
+            onSelectSession={handleSelectSession}
+            onDelete={handleDeleteSession}
+            onRename={handleRenameSession}
+            onArchive={handleArchiveSession}
+            onUnarchive={handleUnarchiveSession}
+            onCollapse={handleCollapsePanel}
+            onNewWorkspace={handleNewWorkspace}
+            onNewSessionInWorkspace={handleNewSessionInWorkspace}
             onOpenTokens={openTokensView}
           />
         ) : sidebarView === "scm" ? (
@@ -1272,29 +1270,30 @@ export function App(): JSX.Element {
         ) : sidebarView === "index" ? (
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
-          <CodeReviewPanel />
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <CodeReviewPanel />
+          </Suspense>
+        ) : sidebarView === "design" ? (
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+          </Suspense>
+        ) : sidebarView === "tasktree" ? (
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <TaskTreePanel />
+          </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />
-        ) : sidebarView === "wiki" ? (
-          <WikiPanel />
         ) : sidebarView === "editor" ? (
           <EditorPanel onOpenFile={setEditorFile} />
         ) : (
           <PluginMcpPanel
             skills={skills}
             selectedSkills={selectedSkills}
-            onToggleSkill={(name) =>
-              setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
-            }
-            onRefreshSkills={async () => {
-              await api.pluginRefreshSkills(activeId ?? undefined);
-              await refreshSkills(activeId ?? undefined);
-            }}
+            onToggleSkill={handleToggleSkill}
+            onRefreshSkills={handleRefreshPluginSkills}
             selected={selectedPlugin}
-            onSelect={(sel) => {
-              setSelectedPlugin(sel);
-              setMainView("plugins");
-            }}
+            onSelect={handleSelectPlugin}
+            platform={platform}
           />
         )}
       </div>
@@ -1308,13 +1307,13 @@ export function App(): JSX.Element {
         platform={platform}
         projectRoot={projectRoot}
         isHomeRoot={homeDir !== "" && projectRoot === homeDir}
-        onPickFolder={() => void handleNewWorkspace()}
+        onPickFolder={handleNewWorkspace}
         settings={settings}
         branch={branch}
         branches={branches}
-        onSwitchBranch={(b) => void handleSwitchBranch(b)}
-        onSetModel={(sel) => void handleSetModel(sel)}
-        onOpenSettings={() => void handleOpenSettings()}
+        onSwitchBranch={handleSwitchBranch}
+        onSetModel={handleSetModel}
+        onOpenSettings={handleOpenSettings}
         onOpenTokens={openTokensView}
         activeTokens={activeContextTokens}
         totalTokens={workspaceUsage.totals.total}
@@ -1335,9 +1334,8 @@ export function App(): JSX.Element {
           <SettingsPanel
             initial={editable}
             initialTab={settingsInitialTab}
-            sessions={sessions}
-            onSave={(next) => void handleSaveSettings(next)}
-            onClose={() => setMainView("chat")}
+            onSave={handleSaveSettings}
+            onClose={handleBackToChat}
             platform={platform}
             theme={theme}
             onSelectTheme={handleSelectTheme}
@@ -1347,13 +1345,19 @@ export function App(): JSX.Element {
             selection={selectedPlugin}
             skills={skills}
             selectedSkills={selectedSkills}
-            onToggleSkill={(name) =>
-              setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
-            }
-            onBack={() => setMainView("chat")}
+            onToggleSkill={handleToggleSkill}
+            onBack={handleBackToChat}
           />
         ) : sidebarView === "editor" && editorFile ? (
-          <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
+          <Suspense
+            fallback={
+              <div className="ui-editor-empty">
+                <span className="ui-spinner" /> Loading editor…
+              </div>
+            }
+          >
+            <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
+          </Suspense>
         ) : (
           <>
             <MessageList
@@ -1361,19 +1365,10 @@ export function App(): JSX.Element {
               hasActiveSession={activeId !== null || messages.length > 0}
               reasoningMode={reasoningMode}
               compacting={activeStatus === "compacting"}
-              onQuickAction={(action) => {
-                if (action === "plan") {
-                  setPlanMode((v) => !v);
-                } else if (action === "init") {
-                  void runPrompt({ text: "/init" });
-                } else if (action === "skills") {
-                  selectView("plugins");
-                } else if (action === "undo") {
-                  setModal("undo");
-                }
-              }}
+              onQuickAction={handleQuickAction}
               footer={footer}
             />
+            <TaskProgressPanel />
             {showProcessPanel ? (
               <ProcessOutputPanel
                 processes={runningProcesses}
@@ -1388,49 +1383,23 @@ export function App(): JSX.Element {
                 onSend={handleSend}
                 onStop={handleStop}
                 onPause={handlePause}
-                onResume={() => void handleResume()}
+                onResume={handleResumeClick}
                 canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
-                onEnhance={() => void handleEnhance()}
+                onEnhance={handleEnhanceClick}
                 enhancing={enhancing}
                 busy={busy}
                 disabled={composerDisabled}
                 planMode={planMode}
-                onTogglePlan={() => setPlanMode((v) => !v)}
+                onTogglePlan={handleTogglePlan}
                 skills={skills}
                 selectedSkills={selectedSkills}
-                onToggleSkill={(name) =>
-                  setSelectedSkills((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]))
-                }
+                onToggleSkill={handleToggleSkill}
                 statusText={loadingText ?? statusLine}
                 errorText={errorLine}
                 imageUrls={imageUrls}
-                onRemoveImage={(i) => setImageUrls((prev) => prev.filter((_, idx) => idx !== i))}
-                onAddImage={(dataUrl) => setImageUrls((prev) => [...prev, dataUrl])}
-                onSlashCommand={(cmd) => {
-                  if (cmd === "new") {
-                    handleNewSession();
-                  } else if (cmd === "plan") {
-                    setPlanMode((v) => !v);
-                  } else if (cmd === "mcp" || cmd === "plugins") {
-                    selectView("plugins");
-                  } else if (cmd === "skills") {
-                    // Skills are shown as chips already, nothing extra needed
-                  } else if (cmd === "settings") {
-                    void handleOpenSettings();
-                  } else if (cmd === "undo") {
-                    setModal("undo");
-                  } else if (cmd === "init") {
-                    void runPrompt({ text: "/init" });
-                  } else if (cmd === "raw") {
-                    handleCycleReasoning();
-                  } else if (cmd === "continue") {
-                    handleSend();
-                  } else if (cmd === "resume") {
-                    selectView("explorer");
-                  } else if (cmd === "exit") {
-                    void api.closeWindow();
-                  }
-                }}
+                onRemoveImage={handleRemoveImage}
+                onAddImage={handleAddImage}
+                onSlashCommand={handleSlashCommand}
               />
               <ContextProgress
                 activeTokens={activeContextTokens}
@@ -1442,8 +1411,76 @@ export function App(): JSX.Element {
         )}
       </div>
 
+      {/* Right-side preview panel — PM-Design / DeepDesign output */}
+      {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
+        <div className="ui-preview-panel">
+          <div className="ui-preview-panel-head">
+            <div className="ui-preview-tabs">
+              <button
+                className={`ui-preview-tab ${previewTab === "prototype" ? "active" : ""}`}
+                onClick={() => setPreviewTab("prototype")}
+              >
+                ✦ Prototype
+              </button>
+              <button
+                className={`ui-preview-tab ${previewTab === "design" ? "active" : ""}`}
+                onClick={() => setPreviewTab("design")}
+              >
+                ✦ Design
+              </button>
+            </div>
+            <button className="ui-preview-close" onClick={closePreview} title="Close preview">
+              ✕
+            </button>
+          </div>
+          <div className="ui-preview-panel-body">
+            <Suspense
+              fallback={
+                <div className="ui-editor-empty">
+                  <span className="ui-spinner" /> Loading…
+                </div>
+              }
+            >
+              {previewTab === "design" && designContent ? (
+                <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
+              ) : prototypeMode !== "design" ? (
+                <PrototypePanel
+                  a2uiJson={prototypeJson ?? ""}
+                  openuiCode={prototypeOpenuiCode}
+                  mode={prototypeMode}
+                  onIterate={(text) => void runPrompt({ text })}
+                />
+              ) : null}
+            </Suspense>
+          </div>
+        </div>
+      ) : null}
+
+      {graphHtml ? (
+        <div className="ui-preview-panel">
+          <div className="ui-preview-panel-head">
+            <div className="ui-preview-tabs">
+              <span className="ui-preview-tab active"> ◈ Architecture Graph</span>
+            </div>
+            <button className="ui-preview-close" onClick={() => setGraphHtml(null)} title="Close graph">
+              ✕
+            </button>
+          </div>
+          <div className="ui-preview-panel-body">
+            <iframe
+              srcDoc={graphHtml}
+              title="Code Architecture Graph"
+              sandbox="allow-scripts"
+              style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {diffTarget ? (
-        <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+        <Suspense fallback={<div className="ui-editor-overlay" />}>
+          <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+        </Suspense>
       ) : null}
 
       {modal === "undo" ? (
@@ -1451,6 +1488,10 @@ export function App(): JSX.Element {
       ) : null}
 
       {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}
+
+      {trustAskOpen ? (
+        <WorkspaceTrustDialog busy={trustBusy} onSelect={(level) => void handleTrustSelect(level)} />
+      ) : null}
 
       {branchConflict ? (
         <Modal

@@ -451,6 +451,9 @@ select {
 .ui-session-item.active .ui-session-actions {
   opacity: 1;
   max-height: 40px;
+  /* Once expanded, let content overflow so the action buttons' data-tip
+     tooltips aren't clipped by the collapse animation's overflow:hidden. */
+  overflow: visible;
 }
 
 .ui-session-empty {
@@ -652,6 +655,23 @@ select {
   pointer-events: none;
   z-index: 2;
 }
+/* Ambient breathing on the top fade — a very slow opacity swell gives the
+   conversation a "living" feel. Opacity-only, zero layout/paint churn beyond
+   the composited fade layer itself. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-main::before {
+    animation: ui-main-fade-breathe 9s ease-in-out infinite;
+  }
+}
+@keyframes ui-main-fade-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
 
 .ui-conversation {
   flex: 1;
@@ -707,6 +727,31 @@ select {
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+}
+/* Gentle attention breathing — the pill floats and glows on a slow cycle so
+   it stays discoverable while unread messages pile up. Delayed past the
+   entrance animation (which it overrides once running, since it is listed
+   last) so the two never fight over `transform`. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-jump-to-latest {
+    animation:
+      ui-jump-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both,
+      ui-jump-breathe 2.6s ease-in-out 0.4s infinite;
+    will-change: transform;
+  }
+}
+@keyframes ui-jump-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: var(--ui-shadow-card);
+  }
+  50% {
+    transform: translateY(-2px);
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 12px 1px var(--ui-accent-soft);
   }
 }
 .ui-jump-to-latest:hover {
@@ -2220,12 +2265,55 @@ button.ui-tool-head:hover {
   font-weight: 600;
   background: color-mix(in srgb, #0ea5e9 8%, transparent);
   color: var(--ui-text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-tool-plan-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill, 999px);
 }
 .ui-tool-plan-body {
   padding: var(--ui-space-2) var(--ui-space-3);
-  white-space: pre-wrap;
   font-size: 13px;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Interactive plan checklist items */
+.ui-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  padding: 2px 0;
+  cursor: default;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ui-plan-item.sub {
+  padding-left: var(--ui-space-4);
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+.ui-plan-item input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--ui-accent);
+  cursor: default;
+  flex-shrink: 0;
+}
+.ui-plan-item.done .ui-plan-item-text {
+  text-decoration: line-through;
+  color: var(--ui-text-faint);
+}
+.ui-plan-item-text {
+  flex: 1;
+  word-break: break-word;
 }
 
 /* ── Tool result (collapsible) ────────────────────────────────────────────── */
@@ -2919,6 +3007,36 @@ button.ui-tool-head:hover {
   padding: var(--ui-space-2) var(--ui-space-3);
   color: #fcd34d; /* amber-300 */
 }
+/* Side-effect scope tags — visual risk indicators on permission cards */
+.ui-perm-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-2);
+}
+.ui-perm-scope-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: var(--ui-radius-pill, 999px);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--ui-surface-sunken);
+}
+.ui-perm-scope-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ui-perm-scope-desc {
+  color: var(--ui-text-faint);
+  font-weight: 400;
+  font-size: 10px;
+  margin-left: 2px;
+}
 
 /* ── Question card title (rendering-engine spec, card #10) ──────────────── */
 .ui-q-text {
@@ -2993,6 +3111,19 @@ button.ui-tool-head:hover {
 .ui-q-text {
   font-weight: 600;
 }
+.ui-q-text-input {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-q-text-input:focus {
+  border-color: var(--ui-accent);
+}
 
 /* Question card option stagger entrance */
 .ui-opt-row .ui-opt {
@@ -3015,6 +3146,107 @@ button.ui-tool-head:hover {
     opacity: 0;
     transform: translateY(6px);
   }
+}
+
+/* ── Plan card step preview ────────────────────────────────────────────────── */
+.ui-plan-card-count {
+  margin-left: var(--ui-space-2);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill, 999px);
+}
+.ui-plan-card-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--ui-space-1) 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ui-plan-card-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+}
+.ui-plan-card-step.sub {
+  padding-left: var(--ui-space-4);
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+}
+.ui-plan-card-step-num {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--ui-accent);
+  font-size: 11px;
+}
+.ui-plan-card-step-text {
+  flex: 1;
+  word-break: break-word;
+}
+.ui-plan-card-raw {
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin: var(--ui-space-1) 0;
+}
+
+/* ── Comparison matrix ─────────────────────────────────────────────────────── */
+.ui-comparison-matrix {
+  margin: var(--ui-space-2) 0;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+}
+.ui-comparison-matrix-title {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-secondary);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+}
+.ui-comparison-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ui-comparison-matrix-table th,
+.ui-comparison-matrix-table td {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  text-align: left;
+  border-bottom: 1px solid var(--ui-border-soft);
+  border-right: 1px solid var(--ui-border-soft);
+}
+.ui-comparison-matrix-table th {
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  font-size: 11px;
+}
+.ui-comparison-matrix-table td {
+  color: var(--ui-text-primary);
+}
+.ui-comparison-matrix-table tr:last-child td {
+  border-bottom: none;
+}
+.ui-comparison-matrix-table td:last-child,
+.ui-comparison-matrix-table th:last-child {
+  border-right: none;
+}
+.ui-comparison-matrix-dim {
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
 }
 
 /* Compaction notification banner */
@@ -3626,12 +3858,227 @@ button.ui-tool-head:hover {
   outline-offset: 1px;
 }
 
+/* ── Endpoint configurator (Settings › Connection) ──────────────────────── */
+.ui-endpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-endpoint-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-endpoint-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-endpoint-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-endpoint-fields .ui-row-inline {
+  /* The apiKey + show/hide group inside a row. */
+  flex: 1;
+}
+.ui-endpoint-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.ui-endpoint-role {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+}
+
+/* ── Endpoint preset + model registration ─────────────────────────────────── */
+.ui-endpoint-preset-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+}
+.ui-endpoint-preset-url {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-endpoint-models {
+  margin-top: var(--ui-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+}
+.ui-endpoint-models-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.ui-endpoint-model-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-1) 0;
+}
+.ui-endpoint-model-row .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+.ui-endpoint-model-row .ui-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
+}
+
+/* ── Model pool (settings) ────────────────────────────────────────────────── */
+.ui-pool-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  margin-bottom: var(--ui-space-3);
+}
+.ui-pool-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-pool-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-pool-model-id {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-pool-endpoint {
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  padding: 1px 8px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  white-space: nowrap;
+}
+.ui-pool-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  margin-bottom: var(--ui-space-3);
+}
+
+/* ── Capabilities section ─────────────────────────────────────────────────── */
+.ui-capabilities-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+  margin: var(--ui-space-3) 0 var(--ui-space-1);
+  padding-top: var(--ui-space-2);
+  border-top: 1px solid var(--ui-border-subtle, rgba(128, 128, 128, 0.12));
+}
+
+/* ── Memory status ────────────────────────────────────────────────────────── */
+.ui-memory-status {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  margin-top: var(--ui-space-1);
+}
+
 /* ── About / changelog (Settings › About) ───────────────────────────────── */
 .ui-about-desc {
   margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.65;
   color: var(--ui-text-dim);
+}
+/* ── Open-source credits (bilingual, with upstream repo links) ────────────── */
+.ui-credit-list {
+  list-style: none;
+  margin: var(--ui-space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-credit-item {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-credit-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-credit-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: 12.5px;
+  color: var(--ui-text-primary);
+}
+.ui-credit-license {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  letter-spacing: 0.02em;
+}
+.ui-credit-item:hover .ui-credit-license {
+  background: var(--ui-surface);
+}
+.ui-credit-desc {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+}
+.ui-credit-url {
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11px;
+  color: var(--ui-accent);
+  text-decoration: none;
+  word-break: break-all;
+}
+.ui-credit-url:hover {
+  text-decoration: underline;
 }
 .ui-changelog {
   display: flex;
@@ -3725,7 +4172,7 @@ button.ui-tool-head:hover {
 .ui-plugin-item-desc {
   font-size: 11.5px;
   color: var(--ui-text-dim);
-  line-height: 1.4;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -3738,9 +4185,9 @@ button.ui-tool-head:hover {
   margin-top: 2px;
 }
 .ui-plugin-tag {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 500;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: var(--ui-radius-pill);
   background: var(--ui-surface-hover);
   color: var(--ui-text-faint);
@@ -3753,6 +4200,117 @@ button.ui-tool-head:hover {
 .ui-plugin-item-status {
   font-size: 11px;
   color: var(--ui-success);
+}
+/* ── Built-in plugin group card (Plugins tab) ─────────────────────────────── */
+.ui-plugin-group-card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  margin-bottom: var(--ui-space-2);
+  /* The inner .ui-plugin-item-main button carries no padding — without this
+     the card text hugs the left edge. Inset to match .ui-plugin-item. */
+  padding: var(--ui-space-3);
+  /* Reserve room for the corner-pinned "内置" badge so the stats line
+     never slides under it. */
+  padding-bottom: calc(var(--ui-space-3) + 14px);
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.ui-plugin-group-card:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface-hover);
+  transform: translateY(-1px);
+}
+.ui-plugin-group-card.selected {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+/* Keep the selected tint stable on hover (the generic hover would override it). */
+.ui-plugin-group-card.selected:hover {
+  background: var(--ui-accent-soft);
+}
+/* Platform-specific group shown on a non-matching OS: greyed out, non-interactive. */
+.ui-plugin-group-card.unsupported {
+  opacity: 0.45;
+}
+.ui-plugin-group-card.unsupported .ui-plugin-item-main {
+  cursor: not-allowed;
+}
+.ui-plugin-group-card.unsupported:hover {
+  border-color: var(--ui-border);
+}
+.ui-plugin-group-stats.unsupported-hint {
+  color: var(--ui-text-faint);
+  font-style: italic;
+}
+.ui-plugin-group-stats {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+  letter-spacing: 0.01em;
+}
+
+/* ── Plugin group member rows (detail pane) ───────────────────────────────── */
+/* Each member (skill / plugin-CLI / MCP server) gets its own card carrying a
+   description + provenance line instead of a bare name chip. */
+.ui-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-1);
+}
+.ui-member-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-member-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-member-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-member-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ui-text-primary);
+}
+.ui-member-type {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.ui-member-row:hover .ui-member-type {
+  background: var(--ui-surface);
+}
+.ui-member-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+  line-height: 1.5;
+}
+.ui-member-src {
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  letter-spacing: 0.01em;
 }
 .ui-skill-desc {
   color: var(--ui-text-dim);
@@ -5068,7 +5626,9 @@ button.ui-topbar-pill {
   color: var(--ui-text-secondary);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 .ui-review-tab:hover {
   color: var(--ui-text-primary);
@@ -5103,79 +5663,6 @@ button.ui-topbar-pill {
   background: var(--ui-surface-alt, rgba(0, 0, 0, 0.03));
   border-radius: var(--ui-radius-sm);
   font-family: var(--ui-font-mono, monospace);
-}
-
-/* ── Mermaid diagram container ─────────────────────────────────────────── */
-.ui-mermaid-container {
-  padding: var(--ui-space-2);
-  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
-  border-radius: var(--ui-radius-md);
-  overflow-x: auto;
-  text-align: center;
-}
-.ui-mermaid-container svg {
-  max-width: 100%;
-  height: auto;
-}
-.ui-mermaid-loading {
-  font-size: 12px;
-  color: var(--ui-text-faint);
-}
-.ui-mermaid-fallback {
-  padding: var(--ui-space-2);
-  font-size: 11px;
-  font-family: var(--ui-font-mono, monospace);
-  color: var(--ui-text-faint);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.ui-crg-mermaid-placeholder {
-  margin-top: var(--ui-space-3);
-}
-.ui-crg-mermaid-placeholder::before {
-  content: "Preview";
-  display: block;
-  font-size: 10px;
-  color: var(--ui-text-faint);
-  margin-bottom: var(--ui-space-1);
-}
-
-/* ── Wiki knowledge graph panel (openwiki) ─────────────────────────────── */
-.ui-wiki-actions {
-  display: flex;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-2) 0;
-}
-.ui-wiki-pages {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ui-wiki-page-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border: none;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: var(--ui-text-primary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.12s var(--ui-ease);
-}
-.ui-wiki-page-item:hover {
-  background: var(--ui-surface-hover);
-}
-.ui-wiki-content {
-  margin: 0;
-  padding: var(--ui-space-2);
-  font-family: var(--ui-font-mono, "SF Mono", "Cascadia Code", monospace);
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--ui-text-primary);
 }
 
 /* ── Plugin MCP rows (items 5 & 8) ───────────────────────────────────────── */
@@ -5223,16 +5710,22 @@ button.ui-topbar-pill {
   font-weight: 500;
 }
 .ui-mcp-badge {
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: var(--ui-radius-pill);
   background: var(--ui-accent-soft);
   color: var(--ui-accent);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 .ui-mcp-badge.builtin {
   background: var(--ui-success-soft, rgba(22, 163, 74, 0.12));
   color: var(--ui-success, #16a34a);
+}
+/* Pin the "built-in" badge to the bottom-right corner of a group card. */
+.ui-plugin-group-card .ui-mcp-badge.builtin {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
 }
 .ui-mcp-row-cmd {
   font-size: 11px;
@@ -5876,6 +6369,35 @@ button.ui-topbar-pill {
   font-family: var(--ui-font-mono);
 }
 
+/* Built-in MCP servers managed inside a plugin group detail (not the MCP tab). */
+.ui-plugin-mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-2);
+}
+.ui-plugin-mcp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: 6px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-hover);
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-plugin-mcp-row.disabled {
+  opacity: 0.5;
+}
+.ui-plugin-mcp-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: 12.5px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text);
+}
+
 /* ── Plugin detail — unified hero/caps/actions/doc layout ─────────────────── */
 .ui-detail-hero {
   padding: var(--ui-space-4);
@@ -5956,6 +6478,85 @@ button.ui-topbar-pill {
   font-style: italic;
 }
 
+/* ── Task progress panel (unified progress for codegraph/CRG/wiki/review) ─── */
+.ui-task-progress-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ui-task-progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 0;
+  transition: opacity 0.3s;
+}
+.ui-task-progress-item.done {
+  opacity: 0.5;
+}
+.ui-task-progress-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: 11px;
+}
+.ui-task-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  flex-shrink: 0;
+  animation: ui-pulse 1.5s ease-in-out infinite;
+}
+.ui-task-progress-dot.done {
+  background: #3fb950;
+  animation: none;
+}
+.ui-task-progress-label {
+  font-weight: 600;
+  color: var(--ui-text-dim);
+}
+.ui-task-progress-root {
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-task-progress-percent {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-task-progress-bar {
+  height: 3px;
+  background: var(--ui-surface-sunken);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ui-task-progress-fill {
+  height: 100%;
+  background: var(--ui-accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.ui-task-progress-item.done .ui-task-progress-fill {
+  background: #3fb950;
+}
+.ui-task-progress-line {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Process output panel (Ctrl+O toggle) ──────────────────────────────────── */
 .ui-process-panel {
   display: flex;
@@ -5970,6 +6571,73 @@ button.ui-topbar-pill {
   from {
     opacity: 0;
     transform: translateY(12px);
+  }
+}
+/* Per-process status cards */
+.ui-process-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-process-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 3px 0;
+  font-size: 11px;
+}
+.ui-process-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3fb950;
+  flex-shrink: 0;
+  animation: ui-pulse 1.5s ease-in-out infinite;
+}
+.ui-process-card-pid {
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  flex-shrink: 0;
+}
+.ui-process-card-cmd {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-dim);
+}
+.ui-process-card-deadline {
+  color: var(--ui-warning);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.ui-process-card-stop {
+  background: var(--ui-danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.ui-process-card-stop:hover {
+  opacity: 0.8;
+}
+@keyframes ui-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
   }
 }
 .ui-process-panel-head {
@@ -6116,7 +6784,10 @@ button.ui-topbar-pill {
   height: 4px;
   border-radius: 50%;
   background: var(--ui-accent);
-  animation: ui-streaming-bounce 1.2s ease-in-out infinite;
+  will-change: transform;
+  animation:
+    ui-streaming-bounce 1.2s ease-in-out infinite,
+    ui-streaming-glow 1.2s ease-in-out infinite;
 }
 .ui-topbar-streaming-dot:nth-child(2) {
   animation-delay: 0.15s;
@@ -6141,6 +6812,18 @@ button.ui-topbar-pill {
   30% {
     transform: translateY(-3px);
     opacity: 1;
+  }
+}
+/* Soft halo synced to the bounce — the dot "inhales" light at the top of its
+   hop. Box-shadow on a 4px dot is a trivial paint cost. */
+@keyframes ui-streaming-glow {
+  0%,
+  60%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    box-shadow: 0 0 6px 1px var(--ui-accent-soft);
   }
 }
 
@@ -6197,6 +6880,67 @@ button.ui-topbar-pill {
   box-shadow:
     var(--ui-shadow-card),
     0 0 0 1px var(--ui-accent-soft);
+}
+
+/* ── Composer breathing （呼吸感） ────────────────────────────────────────────
+   Slow, ambient glow pulses that make the composer feel alive without moving
+   a single pixel of layout. The 0%/100% stops exactly match the static
+   focus/ready box-shadows above, so the animation fades in and out seamlessly
+   when focus or readiness changes. `:not(.busy)` keeps the (faster, more
+   urgent) busy pulse in charge while streaming. Motion-sensitive users get
+   the static styles only. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-composer-card:focus-within:not(.busy) {
+    animation: ui-focus-breathe 3.2s ease-in-out infinite;
+  }
+  .ui-composer-card.plan-mode:focus-within:not(.busy) {
+    animation: ui-focus-breathe-plan 3.2s ease-in-out infinite;
+  }
+  .ui-composer-card.ready:not(.busy):not(:focus-within) {
+    animation: ui-ready-breathe 3.6s ease-in-out infinite;
+  }
+}
+@keyframes ui-focus-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 3px var(--ui-accent-soft),
+      0 0 16px 2px var(--ui-accent-soft);
+  }
+}
+@keyframes ui-focus-breathe-plan {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px color-mix(in srgb, var(--ui-info) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 3px color-mix(in srgb, var(--ui-info) 22%, transparent),
+      0 0 16px 2px color-mix(in srgb, var(--ui-info) 16%, transparent);
+  }
+}
+@keyframes ui-ready-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 1px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft),
+      0 0 12px 1px var(--ui-accent-soft);
+  }
 }
 
 /* Plan mode badge — small tag at top-right of composer card */
@@ -6639,18 +7383,95 @@ button.ui-topbar-pill {
 }
 .ui-index-progress-fill.indeterminate {
   width: 40%;
+  will-change: transform;
   animation: ui-index-indeterminate 1.2s ease-in-out infinite;
 }
+/* Composited slide: the fill is 40% of the track, so translateX(-100%) parks
+   it fully off the left edge and translateX(250%) (=100% of track) fully off
+   the right edge — identical motion to the old margin-left animation, but it
+   stays on the compositor instead of forcing layout every frame. */
 @keyframes ui-index-indeterminate {
   0% {
-    margin-left: -40%;
+    transform: translateX(-100%);
   }
   100% {
-    margin-left: 100%;
+    transform: translateX(250%);
   }
 }
 
-/* ── SCM history: two-level commit → file list ──────────────────────── */
+/* ── Knowledge dashboard: per-source status cards ───────────────────── */
+.ui-knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-3);
+}
+.ui-knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 8px);
+  background: var(--ui-surface-raised, transparent);
+}
+.ui-knowledge-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-knowledge-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.ui-knowledge-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-knowledge-count {
+  font-size: 11px;
+  color: var(--ui-text-dim);
+}
+.ui-knowledge-detail,
+.ui-knowledge-freshness {
+  font-size: 10px;
+  color: var(--ui-text-faint, var(--ui-text-dim));
+  word-break: break-all;
+}
+/* L0-L3 pipeline breakdown inside the memory card. */
+.ui-knowledge-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+/* Stale = index exists but files changed since the last sync. */
+.ui-index-state.stale {
+  color: var(--ui-warning, #d97706);
+}
+.ui-knowledge-search {
+  margin-top: var(--ui-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-knowledge-search-result {
+  margin: 0;
+  padding: var(--ui-space-2);
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 8px);
+  background: var(--ui-surface-sunken, transparent);
+  color: var(--ui-text-dim);
+}
+
 .ui-scm-commit-block {
   display: flex;
   flex-direction: column;
@@ -6901,10 +7722,10 @@ button.ui-topbar-pill {
 }
 
 /* ── Editor file entry selected state ───────────────────────────────────── */
+/* (see the file-tree block below — background/inset-bar live there) */
 
 .ui-editor-file-entry.is-selected {
   background: var(--ui-accent-soft);
-  color: var(--ui-accent);
 }
 
 .ui-editor-file-entry.is-selected:hover {
@@ -7033,13 +7854,16 @@ button.ui-topbar-pill {
 .ui-editor-file-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
+  gap: 7px;
+  padding: 3px 10px;
   cursor: pointer;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12.5px;
+  line-height: 22px;
   color: var(--ui-text);
-  transition: background 0.1s ease;
+  transition:
+    background 0.1s ease,
+    box-shadow 0.15s ease;
 }
 
 .ui-editor-file-entry:hover {
@@ -7052,7 +7876,18 @@ button.ui-topbar-pill {
 
 .ui-editor-file-icon {
   flex-shrink: 0;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ui-text-faint);
+}
+
+.ui-editor-file-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ui-editor-file-icon.is-dir {
+  color: var(--ui-text-dim);
 }
 
 .ui-editor-file-name {
@@ -7062,10 +7897,18 @@ button.ui-topbar-pill {
   white-space: nowrap;
 }
 
-.ui-editor-file-size {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--ui-text-dim);
+/* Selected file: accent wash + inset bar, same language as the session list. */
+.ui-editor-file-entry.is-selected {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+
+.ui-editor-file-entry.is-selected:hover {
+  background: var(--ui-accent-soft);
+}
+
+.ui-editor-file-entry.is-selected .ui-editor-file-icon {
+  color: var(--ui-accent);
 }
 
 /* ── Diff overlay action button ─────────────────────────────────────────── */
@@ -7089,4 +7932,467 @@ button.ui-topbar-pill {
   color: var(--ui-accent);
   border-color: var(--ui-accent);
   background: var(--ui-accent-soft);
+}
+
+/* ── Rich tool results (P2 structured display) ────────────────────────────── */
+.ui-rich-result {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+}
+.ui-rich-result-label {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+
+/* Symbol tree */
+.ui-symbol-tree-body {
+  padding: var(--ui-space-2);
+  font-size: 12px;
+  font-family: var(--ui-font-mono, monospace);
+  max-height: 400px;
+  overflow-y: auto;
+}
+.ui-symbol-node {
+  line-height: 1.6;
+}
+.ui-symbol-node-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
+}
+.ui-symbol-node-label.clickable {
+  cursor: pointer;
+}
+.ui-symbol-node-label.clickable:hover {
+  color: var(--ui-accent);
+}
+.ui-symbol-chevron {
+  width: 12px;
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  text-align: center;
+  flex-shrink: 0;
+}
+.ui-symbol-icon {
+  width: 16px;
+  font-size: 10px;
+  text-align: center;
+  color: var(--ui-accent);
+  flex-shrink: 0;
+}
+
+/* Review comments grouped */
+.ui-review-group {
+  margin-bottom: var(--ui-space-2);
+}
+.ui-review-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ui-review-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.ui-review-item {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-review-item-file {
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-faint);
+}
+.ui-review-item-msg {
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  margin-top: 2px;
+}
+.ui-review-item-sug {
+  font-size: 11px;
+  color: var(--ui-accent);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Search result cards */
+.ui-search-card {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-search-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-accent);
+  text-decoration: none;
+}
+.ui-search-card-title:hover {
+  text-decoration: underline;
+}
+.ui-search-card-url {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-search-card-snippet {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  margin-top: 2px;
+}
+
+/* Git changes (#12) */
+.ui-git-changes-body {
+  padding: var(--ui-space-1) 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ui-git-change-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 2px var(--ui-space-3);
+  font-size: 12px;
+}
+.ui-git-status-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--ui-radius-sm);
+  flex-shrink: 0;
+}
+.ui-git-status-added {
+  background: rgba(63, 185, 80, 0.2);
+  color: #3fb950;
+}
+.ui-git-status-modified {
+  background: rgba(210, 153, 34, 0.2);
+  color: #d29922;
+}
+.ui-git-status-deleted {
+  background: rgba(248, 81, 73, 0.2);
+  color: #f85149;
+}
+.ui-git-status-renamed {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+.ui-git-change-file {
+  flex: 1;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-git-change-stats {
+  display: flex;
+  gap: 4px;
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+  flex-shrink: 0;
+}
+.ui-git-add {
+  color: #3fb950;
+}
+.ui-git-del {
+  color: #f85149;
+}
+
+/* Risk analysis (#14) */
+.ui-risk-overall {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ui-risk-body {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-risk-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  margin-bottom: 2px;
+}
+.ui-risk-item-name {
+  flex: 1;
+  font-size: 12px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-risk-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.ui-risk-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.ui-risk-badge.sec {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+.ui-risk-badge.no-test {
+  background: rgba(210, 153, 34, 0.15);
+  color: #d29922;
+}
+.ui-risk-score {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ui-risk-bar {
+  height: 3px;
+  background: var(--ui-surface-sunken);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ui-risk-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Wiki pages (#16) */
+.ui-wiki-pages-body {
+  padding: var(--ui-space-1) 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ui-wiki-page-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 3px var(--ui-space-3);
+  font-size: 12px;
+}
+.ui-wiki-page-icon {
+  flex-shrink: 0;
+}
+.ui-wiki-page-title {
+  font-weight: 500;
+  color: var(--ui-text-primary);
+}
+.ui-wiki-page-path {
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 10px;
+  margin-left: auto;
+}
+
+/* ── Right-side preview panel (PM-Design / DeepDesign split view) ─────────── */
+.ui-preview-panel {
+  display: flex;
+  flex-direction: column;
+  width: 480px;
+  min-width: 360px;
+  max-width: 50vw;
+  border-left: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  overflow: hidden;
+  animation: ui-preview-slide-in 0.2s ease both;
+}
+@keyframes ui-preview-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.ui-preview-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  flex-shrink: 0;
+}
+.ui-preview-tabs {
+  display: flex;
+  gap: 2px;
+}
+.ui-preview-tab {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.ui-preview-tab:hover {
+  color: var(--ui-text-secondary);
+}
+.ui-preview-tab.active {
+  color: var(--ui-accent);
+  border-bottom-color: var(--ui-accent);
+}
+.ui-preview-close {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+  transition: background 0.15s;
+}
+.ui-preview-close:hover {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-primary);
+}
+.ui-preview-panel-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Prototype panel (now embedded in preview panel, no own header) ───────── */
+.ui-prototype-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-surface);
+  flex: 1;
+  overflow: hidden;
+}
+.ui-prototype-panel-btn {
+  background: none;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ui-prototype-panel-btn:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+.ui-prototype-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ui-space-4);
+}
+.ui-prototype-panel-composer {
+  display: flex;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+}
+.ui-prototype-panel-input {
+  flex: 1;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+}
+.ui-prototype-panel-input:focus {
+  border-color: var(--ui-accent);
+}
+.ui-prototype-panel-send {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 14px;
+  color: var(--ui-text-on-accent, #fff);
+  background: var(--ui-accent);
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ui-prototype-panel-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ui-prototype-panel-send:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+/* ── Workspace trust dialog (specs/sandbox/design.md §10.3) ────────────── */
+.ui-trust-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(460px, calc(100vw - 48px));
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--bg-2, #1e2227);
+  color: var(--text-1, #e6e6e6);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+.ui-trust-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ui-trust-body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+.ui-trust-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.ui-trust-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ui-trust-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ui-trust-btn--trusted:hover:not(:disabled) {
+  border-color: rgba(80, 200, 120, 0.6);
+}
+.ui-trust-btn--quarantine:hover:not(:disabled) {
+  border-color: rgba(230, 160, 60, 0.7);
 }

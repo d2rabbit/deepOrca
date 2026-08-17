@@ -2,7 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import ignore from "ignore";
 import type { ToolExecutionContext, ToolExecutionFollowUpMessage, ToolExecutionResult } from "./executor";
-import { readTextFileWithMetadata } from "../common/file-utils";
+import { readTextFileWithMetadata, MAX_READ_FILE_BYTES } from "../common/file-utils";
+import { gateRead } from "../common/path-boundary";
 import {
   createFullFileSnippet,
   createSnippet,
@@ -106,6 +107,22 @@ export async function handleReadTool(
     filePath = resolvedPath;
   }
 
+  // Execution-time read boundary (P0, specs/sandbox/design.md §4.1): single
+  // gate once the final absolute path is known, before the first fs touch.
+  // Every downstream branch (text/notebook/pdf/image) shares this filePath,
+  // so one checkpoint covers them all (R5).
+  const gate = gateRead(context.pathGrant, filePath, context.projectRoot);
+  context.onPathGateVerdict?.({ tool: "read", verdict: gate, filePath });
+  if (!gate.ok) {
+    return {
+      ok: false,
+      name: "read",
+      error: gate.reason,
+      errorType: "PERMISSION_DENIED",
+      retryable: false,
+    };
+  }
+
   if (!fs.existsSync(filePath)) {
     return {
       ok: false,
@@ -151,6 +168,13 @@ export async function handleReadTool(
     }
 
     if (ext === ".pdf") {
+      if (stat.size > MAX_READ_FILE_BYTES) {
+        return {
+          ok: false,
+          name: "read",
+          error: `File is too large to read (${(stat.size / 1024 / 1024).toFixed(1)}MB, cap ${MAX_READ_FILE_BYTES / 1024 / 1024}MB)`,
+        };
+      }
       const buffer = fs.readFileSync(filePath);
       const pageCount = countPdfPages(buffer);
       markFileRead(context.sessionId, filePath, {
@@ -172,6 +196,13 @@ export async function handleReadTool(
     }
 
     if (isImageExtension(ext)) {
+      if (stat.size > MAX_READ_FILE_BYTES) {
+        return {
+          ok: false,
+          name: "read",
+          error: `File is too large to read (${(stat.size / 1024 / 1024).toFixed(1)}MB, cap ${MAX_READ_FILE_BYTES / 1024 / 1024}MB)`,
+        };
+      }
       const buffer = fs.readFileSync(filePath);
       const mime = getImageMimeType(ext);
       markFileRead(context.sessionId, filePath, {

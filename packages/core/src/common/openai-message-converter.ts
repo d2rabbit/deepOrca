@@ -5,6 +5,15 @@ import type { SessionMessage } from "../session";
 export type OpenAIMessageConverterOptions = {
   /** Optional callback to render the /init command prompt template. */
   renderInitPrompt?: () => string;
+  /**
+   * Optional callback that builds a transient per-turn tail (e.g. the current
+   * date + active model). Called with the model of the current request; its
+   * result is appended to the LAST user message at conversion time — never
+   * written to the persisted JSONL — so time-varying context rides the turn
+   * tail instead of polluting the cache-stable system-prompt prefix. Mirrors
+   * Reasonix's transient turn-injection pattern.
+   */
+  buildTurnTail?: (model: string) => string;
 };
 
 /**
@@ -57,7 +66,39 @@ export class OpenAIMessageConverter {
       }
     }
 
+    this.applyTurnTail(openAIMessages, model);
     return openAIMessages;
+  }
+
+  /**
+   * Append the transient turn tail (date/model) to the last user message. This
+   * is a request-time-only mutation — the persisted SessionMessage JSONL is
+   * never touched — so the cache-stable prefix stays byte-identical across
+   * turns while the model still sees a fresh, accurate timestamp each request.
+   * Handles both plain-string and multimodal (content-parts array) user content.
+   */
+  private applyTurnTail(openAIMessages: ChatCompletionMessageParam[], model: string): void {
+    const tail = this.options.buildTurnTail?.(model);
+    if (!tail) {
+      return;
+    }
+    for (let i = openAIMessages.length - 1; i >= 0; i -= 1) {
+      const message = openAIMessages[i] as { role: string; content?: unknown };
+      if (message.role !== "user") {
+        continue;
+      }
+      const content = message.content;
+      if (typeof content === "string") {
+        message.content = content ? `${content}\n\n${tail}` : tail;
+      } else if (Array.isArray(content)) {
+        // Multimodal user message: append the tail as a trailing text part so
+        // existing image/structured parts are left untouched.
+        content.push({ type: "text", text: tail } as ChatCompletionContentPart);
+      } else {
+        message.content = tail;
+      }
+      return;
+    }
   }
 
   /**

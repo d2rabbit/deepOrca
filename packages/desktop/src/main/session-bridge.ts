@@ -1,13 +1,17 @@
 // Wraps a DeepOrca core `SessionManager` for a single project root and forwards
 // its callbacks to the renderer via the provided `emit` function.
 
+import { collectProfile, formatContextBlock } from "./tools/activity-frames/collectors/aggregator";
 import {
-  buildCodegraphMcpServerConfig,
-  buildCrgMcpServerConfig,
   buildGitmcpMaintenanceCommand,
   buildGitmcpPlaceholderConfig,
   CODEGRAPH_MCP_SERVER_NAME,
   CRG_MCP_SERVER_NAME,
+  SERENA_MCP_SERVER_NAME,
+  setSerenaDisabled,
+  SKILL_SPECTOR_MCP_SERVER_NAME,
+  setSkillSpectorDisabled,
+  A2UI_MCP_SERVER_NAME,
   setCrgDisabled,
   createOpenAIClient,
   getEnvVar,
@@ -15,25 +19,29 @@ import {
   getUserSettingsPath,
   gitmcpServerNameForSlug,
   gitmcpSlugFromServerName,
-  gitmcpSqliteAvailable,
-  GitmcpStore,
-  indexRepository,
   isGitmcpServerName,
+  normalizeEndpoints,
   parseRepoSlug,
-  readGitmcpRepoMeta,
   readProjectSettings,
   readSettings,
-  removeGitmcpRepoIndex,
   resolveCurrentSettings,
   SessionManager,
   setCodegraphDisabled,
+  setA2uiDisabled,
+  configureFileUtilsWriteBoundary,
+  readWorkspaceTrustStore,
+  writeWorkspaceTrustStore,
   writeModelConfigSelection,
   writeProjectSettings,
   writeSettings,
 } from "@deeporca/core";
+import type { MemoryProvider } from "@deeporca/core";
+import { GitmcpStore, gitmcpSqliteAvailable, readGitmcpRepoMeta, removeGitmcpRepoIndex } from "./tools/gitmcp/store.js";
+import { indexRepository } from "./tools/gitmcp/indexer.js";
+import type { GitmcpRepoMeta } from "./tools/gitmcp/store.js";
 import type {
+  BuiltinPluginGroup,
   DeepcodingSettings,
-  GitmcpRepoMeta,
   McpServerConfig,
   ModelConfigSelection,
   PermissionDefaultMode,
@@ -44,9 +52,10 @@ import type {
   SessionProcessEntry,
   UserPromptContent,
 } from "@deeporca/core";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
+import type { WorkspaceTrustLevel, WorkspaceTrustStatus } from "../shared/ipc.js";
 import type {
   AgentChangeFile,
   DiffPayload,
@@ -63,6 +72,7 @@ import type {
 } from "../shared/ipc.js";
 import { purgeArchivedId } from "./archive-store.js";
 import { readDisabledMcp, setMcpDisabled } from "./mcp-store.js";
+import { buildBuiltinPluginGroups, buildPluginMcpList, stringifyEnv } from "./plugin-mcp-view.js";
 import * as gitService from "./git-service.js";
 
 type Emit = (channel: string, payload?: unknown) => void;
@@ -106,14 +116,6 @@ function parseEnvLines(raw: string): Record<string, string> {
   return env;
 }
 
-function stringifyEnv(env: Record<string, string> | undefined): string {
-  return env
-    ? Object.entries(env)
-        .map(([k, v]) => `${k}=${v}`)
-        .join("\n")
-    : "";
-}
-
 function buildPermissionDecisions(
   perms: PermissionSettings | undefined
 ): Partial<Record<PermissionScope, PermissionDecision>> {
@@ -130,9 +132,11 @@ function buildPermissionDecisions(
   return result;
 }
 
-function buildPermissionSettings(
+export function buildPermissionSettings(
   defaultMode: PermissionDefaultMode,
-  decisions: Partial<Record<PermissionScope, PermissionDecision>>
+  decisions: Partial<Record<PermissionScope, PermissionDecision>>,
+  /** Existing settings whose path-level grants must survive the rebuild. */
+  preserve?: PermissionSettings
 ): PermissionSettings {
   const allow: PermissionScope[] = [];
   const ask: PermissionScope[] = [];
@@ -147,7 +151,16 @@ function buildPermissionSettings(
       deny.push(scope);
     }
   }
-  return { defaultMode, allow, ask, deny };
+  return {
+    defaultMode,
+    allow,
+    ask,
+    deny,
+    // Path-level grants (task 14) are NOT editable in the settings panel —
+    // rebuilding the scope tables must never wipe them (review R1, 2026-08-16).
+    ...(Array.isArray(preserve?.allowedWritePaths) ? { allowedWritePaths: preserve.allowedWritePaths } : {}),
+    ...(Array.isArray(preserve?.allowedReadPaths) ? { allowedReadPaths: preserve.allowedReadPaths } : {}),
+  };
 }
 
 /**
@@ -202,6 +215,20 @@ function isSerializableProcess(value: unknown): value is SerializableProcess {
   return typeof v.pid === "string" && typeof v.startTime === "string" && typeof v.command === "string";
 }
 
+/**
+ * Trust state for the UI (`explicit: false` = never asked). Backed by the
+ * USER-level store keyed by project — never the project's own settings file,
+ * which is attacker-controlled content in exactly the scenarios quarantine
+ * exists for (review finding, 2026-08-16).
+ */
+export function readWorkspaceTrustStatus(root: string): WorkspaceTrustStatus {
+  return readWorkspaceTrustStore(root);
+}
+
+export function writeWorkspaceTrust(level: WorkspaceTrustLevel, root: string): void {
+  writeWorkspaceTrustStore(root, level);
+}
+
 export function toSettingsSummary(root: string): SettingsSummary {
   const s = resolveCurrentSettings(root);
   return {
@@ -211,6 +238,13 @@ export function toSettingsSummary(root: string): SettingsSummary {
     reasoningEffort: s.reasoningEffort,
     hasApiKey: Boolean(s.apiKey),
     statusSeparator: s.statusline?.separator ?? " ",
+    endpoints: s.endpoints.map((e) => ({ id: e.id, name: e.name, baseURL: e.baseURL, models: e.models })),
+    primaryEndpointId: s.primaryEndpointId,
+    secondaryModel: s.secondaryModel,
+    secondaryEndpointId: s.secondaryEndpointId,
+    visionModel: s.visionModel,
+    visionEndpointId: s.visionEndpointId,
+    workspaceTrust: s.workspaceTrust,
   };
 }
 
@@ -226,10 +260,37 @@ export class SessionBridge {
   }
 
   private createManager(projectRoot: string): SessionManager {
+    // Bottom-line write boundary for direct file-utils imports (P0 task 5,
+    // specs/sandbox/design.md §4.1(c)): host injection, core stays dormant so
+    // tests stay hermetic. Handler flows carry their per-call pathGrant, so an
+    // authorized out-of-roots write is not affected.
+    configureFileUtilsWriteBoundary([realpathSync(projectRoot)]);
     return new SessionManager({
+      // Sandbox degradation must be visible (design constraint 6): the
+      // audit log records it, this event surfaces it in the renderer.
+      onSandboxStatusChanged: (status) => {
+        this.emit(IpcEvent.SandboxStatusChanged, status);
+      },
       projectRoot,
       createOpenAIClient: () => createOpenAIClient(projectRoot),
+      // Built-in WebFetch rendered engine: hidden offscreen Electron Chromium.
+      // Lazy dynamic import keeps `electron` out of the static module graph —
+      // session-bridge is imported by plain-Node tests, which cannot load
+      // Electron's runtime exports (same reason dembrandt-browser is only
+      // imported from main/index.ts).
+      fetchWebPage: (url, options) =>
+        import("./tools/web-fetch-provider").then((m) => m.fetchRenderedPage(url, options)),
       getResolvedSettings: () => resolveCurrentSettings(projectRoot),
+      // Behavioral-memory boot context (activity-frames pipeline B, opt-in via
+      // settings.behaviorContext): desktop owns the collectors, core consumes
+      // the compact block — same host-injection seam pattern as memory recall.
+      buildBehaviorContext: () => {
+        try {
+          return formatContextBlock(collectProfile(projectRoot));
+        } catch {
+          return null; // fail-open
+        }
+      },
       renderMarkdown: (text) => text,
       onAssistantMessage: (message: SessionMessage) => {
         this.emit(IpcEvent.AssistantMessage, message);
@@ -257,6 +318,11 @@ export class SessionBridge {
     this.manager.dispose();
     this.projectRoot = root;
     this.manager = this.createManager(root);
+    // The memory provider is bound per-bridge (not per-manager) so it survives
+    // manager recreation. createManager() already re-applies it via
+    // rebindMemoryProvider(); the desktop main reconciles the actual
+    // start/stop of the memory manager on project change.
+    this.rebindMemoryProvider();
     this.initMcp();
   }
 
@@ -269,10 +335,39 @@ export class SessionBridge {
     const active = this.manager.getActiveSessionId();
     this.manager.dispose();
     this.manager = this.createManager(this.projectRoot);
+    this.rebindMemoryProvider();
     this.initMcp();
     if (active) {
       this.manager.setActiveSessionId(active);
     }
+  }
+
+  /** The memory provider, retained across manager recreations (reload/switch).
+   *  Without this, saving any settings or switching projects detached the
+   *  provider (the new manager had memoryProvider=null) while the global
+   *  memoryManager still reported healthy — a silent regression. */
+  private memoryProvider: MemoryProvider | null = null;
+
+  /** Re-apply the retained provider to the current manager. Called after every
+   *  manager recreation. */
+  private rebindMemoryProvider(): void {
+    this.manager.setMemoryProvider(this.memoryProvider);
+  }
+
+  /** Set the memory provider on this bridge AND the current manager. The bridge
+   *  retains it so a later reload()/setProjectRoot() re-binds it on the new
+   *  manager instead of dropping it. */
+  setMemoryProvider(provider: MemoryProvider | null): void {
+    this.memoryProvider = provider;
+    this.manager.setMemoryProvider(provider);
+  }
+
+  /**
+   * Call an MCP tool directly (outside the agent loop). Used by A2UI to
+   * forward user interactions (a2ui_action) back to the agent.
+   */
+  async callMcpTool(serverName: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.manager.executeMcpTool(serverName, toolName, args);
   }
 
   dispose(): void {
@@ -289,6 +384,12 @@ export class SessionBridge {
     const disabled = readDisabledMcp(this.projectRoot);
     setCodegraphDisabled(this.projectRoot, disabled.includes(CODEGRAPH_MCP_SERVER_NAME));
     setCrgDisabled(this.projectRoot, disabled.includes(CRG_MCP_SERVER_NAME));
+    setSerenaDisabled(this.projectRoot, disabled.includes(SERENA_MCP_SERVER_NAME));
+    setSkillSpectorDisabled(this.projectRoot, disabled.includes(SKILL_SPECTOR_MCP_SERVER_NAME));
+    // A2UI is toggleable in the plugin UI and has a core disable gate, but the
+    // disable state was never propagated here — so disabling it and reloading
+    // reconnected the server. Propagate it like the other built-ins.
+    setA2uiDisabled(this.projectRoot, disabled.includes(A2UI_MCP_SERVER_NAME));
     void this.manager.initMcpServers(this.effectiveMcpServers());
   }
 
@@ -321,6 +422,17 @@ export class SessionBridge {
   /** Return the raw resolved settings (for PluginManager bootstrapping). */
   getRawSettings(): DeepcodingSettings {
     return resolveCurrentSettings(this.projectRoot);
+  }
+
+  /**
+   * User-configured MCP servers minus any disabled by the desktop sidecar.
+   * Public so {@link PluginManager} applies the same disable filter that
+   * {@link initMcp} uses — without this, PluginManager.initialize() would
+   * re-init previously-disabled servers via the raw (unfiltered) settings,
+   * bypassing the user's disable choice.
+   */
+  getEffectiveMcpServers(): Record<string, McpServerConfig> | undefined {
+    return this.effectiveMcpServers();
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────
@@ -399,6 +511,14 @@ export class SessionBridge {
     return toSettingsSummary(this.projectRoot);
   }
 
+  getWorkspaceTrust(): WorkspaceTrustStatus {
+    return readWorkspaceTrustStatus(this.projectRoot);
+  }
+
+  setWorkspaceTrust(level: WorkspaceTrustLevel): void {
+    writeWorkspaceTrust(level, this.projectRoot);
+  }
+
   private resolveSaveTarget(): "user" | "project" {
     return existsSync(getProjectSettingsPath(this.projectRoot)) ? "project" : "user";
   }
@@ -421,7 +541,6 @@ export class SessionBridge {
       temperature: raw.temperature != null ? String(raw.temperature) : "",
       thinkingEnabled: raw.thinkingEnabled ?? resolved.thinkingEnabled,
       reasoningEffort: raw.reasoningEffort ?? resolved.reasoningEffort,
-      telemetryEnabled: raw.telemetryEnabled ?? true,
       debugLogEnabled: raw.debugLogEnabled ?? false,
       permissionDefaultMode: raw.permissions?.defaultMode ?? "allowAll",
       permissions: buildPermissionDecisions(raw.permissions),
@@ -431,6 +550,23 @@ export class SessionBridge {
         args: (cfg.args ?? []).join(" "),
         env: stringifyEnv(cfg.env),
       })),
+      // Read endpoints directly from the target settings file (raw, normalized),
+      // never the env-resolved merged list. This prevents:
+      //   1. env-provided API keys from leaking to the renderer / being baked
+      //      into the file on save (violates the EditableSettings contract);
+      //   2. user-level endpoints + keys being written into the project file;
+      //   3. the synthesized default (carrying the env key) reaching the GUI.
+      endpoints: normalizeEndpoints(raw.endpoints),
+      primaryEndpointId: raw.primaryEndpointId ?? "",
+      secondaryModel: raw.secondaryModel ?? "",
+      secondaryEndpointId: raw.secondaryEndpointId ?? "",
+      visionModel: raw.visionModel ?? "",
+      visionEndpointId: raw.visionEndpointId ?? "",
+      memory: {
+        enabled: raw.memory?.enabled ?? false,
+        port: raw.memory?.port ?? 8420,
+        embedding: raw.memory?.embedding ?? "none",
+      },
     };
   }
 
@@ -440,15 +576,45 @@ export class SessionBridge {
     const next: DeepcodingSettings = { ...raw };
 
     const env: Record<string, string | undefined> = { ...(raw.env ?? {}) };
-    const apiKey = patch.apiKey.trim();
-    if (apiKey) {
-      env.API_KEY = apiKey;
+
+    // Multi-endpoint: normalize then write the endpoint list + role assignments.
+    // normalizeEndpoints guards against malformed/empty-id/duplicate entries
+    // coming from the GUI (e.g. two adds in the same millisecond).
+    const endpoints = normalizeEndpoints(patch.endpoints);
+    if (endpoints.length > 0) {
+      next.endpoints = endpoints;
+      // Only persist role ids that actually point at a kept endpoint.
+      const ids = new Set(endpoints.map((e) => e.id));
+      const primaryId = ids.has(patch.primaryEndpointId) ? patch.primaryEndpointId : endpoints[0]!.id;
+      next.primaryEndpointId = primaryId;
+      next.secondaryModel = patch.secondaryModel.trim(); // empty = inherit primary
+      next.secondaryEndpointId = ids.has(patch.secondaryEndpointId) ? patch.secondaryEndpointId : primaryId;
+      next.visionModel = patch.visionModel.trim(); // empty = disabled
+      next.visionEndpointId = ids.has(patch.visionEndpointId) ? patch.visionEndpointId : primaryId;
+      // Sync the primary endpoint's key + baseURL into env so createOpenAIClient
+      // (which reads env.API_KEY / env.BASE_URL) picks up the primary config.
+      // NOTE: if an env key is already provided externally (DEEPORCA_API_KEY),
+      // resolveSettingsSources will still let env win — this env.API_KEY is a
+      // file-level mirror for the legacy single-client code path.
+      const primary = endpoints.find((e) => e.id === primaryId);
+      if (primary) {
+        env.API_KEY = primary.apiKey.trim() || undefined;
+        env.BASE_URL = primary.baseURL.trim() || undefined;
+      }
     } else {
+      delete next.endpoints;
+      delete next.primaryEndpointId;
+    }
+
+    // Also keep env.API_KEY in sync with the legacy single apiKey field (when
+    // the panel edits it directly via the old field). The endpoints block above
+    // takes precedence when present.
+    const apiKey = patch.apiKey.trim();
+    if (apiKey && !next.endpoints) {
+      env.API_KEY = apiKey;
+    } else if (!apiKey && !next.endpoints) {
       delete env.API_KEY;
     }
-    // The endpoint is locked to DeepSeek's first-party API in this release —
-    // the GUI no longer edits BASE_URL. Any value already present in the
-    // settings file (power-user escape hatch) is preserved untouched.
     if (Object.keys(env).length > 0) {
       next.env = env;
     } else {
@@ -476,9 +642,8 @@ export class SessionBridge {
       delete next.reasoningEffort;
     }
 
-    next.telemetryEnabled = patch.telemetryEnabled;
     next.debugLogEnabled = patch.debugLogEnabled;
-    next.permissions = buildPermissionSettings(patch.permissionDefaultMode, patch.permissions);
+    next.permissions = buildPermissionSettings(patch.permissionDefaultMode, patch.permissions, raw.permissions);
 
     const servers: Record<string, McpServerConfig> = {};
     for (const server of patch.mcpServers) {
@@ -502,6 +667,15 @@ export class SessionBridge {
       next.mcpServers = servers;
     } else {
       delete next.mcpServers;
+    }
+
+    // Memory settings
+    if (patch.memory) {
+      next.memory = {
+        enabled: patch.memory.enabled,
+        port: patch.memory.port || 8420,
+        embedding: patch.memory.embedding ?? "none",
+      };
     }
 
     if (target === "project") {
@@ -531,6 +705,11 @@ export class SessionBridge {
   // ── MCP ─────────────────────────────────────────────────────────────────────
   mcpStatus() {
     return this.manager.getMcpStatus();
+  }
+
+  /** Knowledge-source freshness timestamps, for the knowledge dashboard. */
+  getKnowledgeFreshness() {
+    return this.manager.getKnowledgeFreshness();
   }
 
   async mcpReconnect(name: string): Promise<void> {
@@ -655,58 +834,13 @@ export class SessionBridge {
    * enable state (from the disable sidecar) and current runtime status.
    */
   pluginMcpList(): PluginMcpServer[] {
-    const settings = resolveCurrentSettings(this.projectRoot);
-    const configured = settings.mcpServers ?? {};
-    const disabled = new Set(readDisabledMcp(this.projectRoot));
-    const statuses = new Map(this.manager.getMcpStatus().map((s) => [s.name, s]));
-    const list: PluginMcpServer[] = [];
-    for (const [name, cfg] of Object.entries(configured)) {
-      list.push({
-        name,
-        command: cfg.command,
-        args: (cfg.args ?? []).join(" "),
-        env: stringifyEnv(cfg.env),
-        enabled: !disabled.has(name),
-        // GitMCP repositories are managed from the GitMCP module: the MCP tab
-        // may toggle them but never remove them (same contract as codegraph).
-        builtin: name === CODEGRAPH_MCP_SERVER_NAME || name === CRG_MCP_SERVER_NAME || isGitmcpServerName(name),
-        status: statuses.get(name),
-      });
-    }
-    // Built-in CodeGraph: shown even when a project has not run `init` yet, so it
-    // can be toggled. A user-provided `codegraph` entry (handled above) wins.
-    if (!Object.prototype.hasOwnProperty.call(configured, CODEGRAPH_MCP_SERVER_NAME)) {
-      const cfg = buildCodegraphMcpServerConfig(this.projectRoot);
-      list.push({
-        name: CODEGRAPH_MCP_SERVER_NAME,
-        command: cfg.command,
-        args: (cfg.args ?? []).join(" "),
-        env: stringifyEnv(cfg.env),
-        enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
-        builtin: true,
-        status: statuses.get(CODEGRAPH_MCP_SERVER_NAME),
-      });
-    }
-    // Built-in CRG (code-review-graph): analysis-layer MCP server. Shown even
-    // when the project has not built a graph yet, so it can be toggled.
-    if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
-      const cfg = buildCrgMcpServerConfig(this.projectRoot);
-      if (cfg) {
-        list.push({
-          name: CRG_MCP_SERVER_NAME,
-          command: cfg.command,
-          args: (cfg.args ?? []).join(" "),
-          env: stringifyEnv(cfg.env),
-          enabled: !disabled.has(CRG_MCP_SERVER_NAME),
-          builtin: true,
-          status: statuses.get(CRG_MCP_SERVER_NAME),
-        });
-      }
-    }
-    return list;
+    return buildPluginMcpList(this.projectRoot, this.manager);
   }
 
-  /** Toggle a server's enable state and re-initialize MCP so it takes effect. */
+  async pluginBuiltinGroups(): Promise<BuiltinPluginGroup[]> {
+    return buildBuiltinPluginGroups(this.projectRoot, this.manager);
+  }
+
   pluginSetMcpEnabled(name: string, enabled: boolean): void {
     setMcpDisabled(this.projectRoot, name, !enabled);
     this.reload();

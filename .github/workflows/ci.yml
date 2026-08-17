@@ -9,6 +9,10 @@ jobs:
   build-and-test:
     name: Node ${{ matrix.node-version }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Outer guard. The per-test `--test-timeout` in each run-tests.mjs is the first
+    # line of defence; this catches a hang outside the test runner (install, build,
+    # a stuck child process) which would otherwise burn the 360-minute default.
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -34,11 +38,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Clean-check: delete all generated declarations/buildinfo, then build +
+      # typecheck from scratch. Catches the class of bug where typecheck passes
+      # only because a stale dist/ declaration exists (the dist/ is gitignored,
+      # so `npm ci` does not regenerate it). Run on a single matrix lane to keep
+      # CI fast — the full matrix runs the regular `check` below.
+      #
+      # IMPORTANT: use `clean:artifacts` (not the old `clean`). The legacy
+      # script deleted node_modules too, which left the lane without a
+      # toolchain for the subsequent typecheck/build. `clean:artifacts` only
+      # removes dist/, generated/, and tsbuildinfo.
+      - name: Clean typecheck (no stale dist)
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22'
+        run: |
+          npm run clean:artifacts
+          npm run build
+          npm run typecheck
+
+      # `check` already runs build → typecheck → lint → format:check, and
+      # `npm ci` above fired the `prepare` hook (husky && npm run build). There
+      # is no need for a separate "Build Core" step afterwards — it only
+      # re-emitted the same tsc outputs. Build Desktop still needs its own step
+      # because desktop:build runs esbuild, not the tsc chain.
       - name: TypeCheck + Lint + Format Check
         run: npm run check
-
-      - name: Build Core
-        run: npm run build
 
       - name: Build Desktop
         run: npm run desktop:build

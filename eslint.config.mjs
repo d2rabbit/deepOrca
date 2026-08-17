@@ -4,6 +4,21 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
+  // Not our code — upstream sources vendored verbatim. Linting them only produces
+  // style noise we must not "fix": every local edit widens the drift from upstream
+  // and makes the next sync harder to reason about.
+  {
+    ignores: [
+      // Built-in plugin packages carry upstream skill scripts. (Replaces
+      // `templates/skills/bundled/**`, a path that no longer exists since the
+      // bundled skills moved into templates/plugins/<pkg>/skills/.)
+      "packages/core/templates/plugins/**",
+      // TDAI Core fork — see packages/memory/src/NOTICE.md. ~17k LOC copied from
+      // TencentDB-Agent-Memory; its warnings are all upstream style (unused type
+      // imports, `import()` annotations), not defects.
+      "packages/memory/src/tdai/**",
+    ],
+  },
   // Base recommended rules from ESLint
   js.configs.recommended,
   // TypeScript recommended rules

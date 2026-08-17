@@ -1,7 +1,13 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type JSX } from "react";
 import type { SessionMessage, SkillInfo } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { renderMarkdown } from "../markdown";
+
+// Lazy-load A2UI Surface renderer — only needed when agent produces A2UI output.
+const A2uiMessage = lazy(() => import("../a2ui/A2uiMessage").then((m) => ({ default: m.A2uiMessage })));
+// Lazy-load comparison matrix — only needed when agent uses <comparison> tags.
+const ComparisonMatrix = lazy(() => import("./ComparisonMatrix").then((m) => ({ default: m.ComparisonMatrix })));
+import { getRichToolType, RichToolResult } from "./RichToolResult";
 import {
   buildThinkingSummary,
   buildToolSummary,
@@ -432,6 +438,20 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Extract <comparison> blocks for rich rendering.
+  const comparisonBlocks = useMemo(() => {
+    const matches: string[] = [];
+    const regex = /<comparison>\s*([\s\S]*?)\s*<\/comparison>/g;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(content)) !== null) {
+      matches.push(m[1]!);
+    }
+    return matches;
+  }, [content]);
+  // Content without comparison blocks (rendered as markdown).
+  const contentWithoutComparisons =
+    comparisonBlocks.length > 0 ? content.replace(/<comparison>[\s\S]*?<\/comparison>/g, "").trim() : content;
+
   // Clear the pending copy-feedback reset when the bubble unmounts.
   useEffect(
     () => () => {
@@ -453,7 +473,14 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
     <div className="ui-bubble-row assistant">
       <Avatar role="assistant" />
       <div className="ui-bubble assistant">
-        {content ? <Md text={content} /> : null}
+        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} /> : null}
+        {comparisonBlocks.length > 0
+          ? comparisonBlocks.map((block, i) => (
+              <Suspense key={`cmp-${i}`} fallback={<div>Loading comparison…</div>}>
+                <ComparisonMatrix content={block} />
+              </Suspense>
+            ))
+          : null}
         {content ? (
           <button
             type="button"
@@ -543,11 +570,14 @@ function BashTerminal({ command, resultMd }: { command: string; resultMd: string
 
 function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();
-  const summary = buildToolSummary(message);
-  const params = formatToolParams(summary);
-  const resultMd = getResultMd(message);
-  const diffLines = getDiffLines(summary);
-  const planLines = getPlanLines(summary);
+  // Memoize derived data — tool messages are immutable after creation, so
+  // these computations never change. Without useMemo, every parent re-render
+  // (tick, scroll, sidebar refresh) re-parses JSON and re-computes diffs.
+  const summary = useMemo(() => buildToolSummary(message), [message]);
+  const params = useMemo(() => formatToolParams(summary), [summary]);
+  const resultMd = useMemo(() => getResultMd(message), [message]);
+  const diffLines = useMemo(() => getDiffLines(summary), [summary]);
+  const planLines = useMemo(() => getPlanLines(summary), [summary]);
   const toolClass = toolCls(summary.name);
   const isMcp = summary.name.toLowerCase().startsWith("mcp__");
   const isBash = toolClass === "bash";
@@ -650,13 +680,28 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
               ))}
             </div>
           ) : null}
-          {/* Plan lines for UpdatePlan */}
+          {/* Interactive plan checklist for UpdatePlan */}
           {planLines.length > 0 ? (
             <div className="ui-tool-plan">
               <div className="ui-tool-plan-label">
                 <IconToolPlan /> {t("msg.plan")}
+                <span className="ui-tool-plan-count">
+                  {planLines.filter((l) => l.match(/^\s*[-*]\s*\[x\]/i)).length}/{planLines.length}
+                </span>
               </div>
-              <div className="ui-tool-plan-body">{planLines.join("\n")}</div>
+              <div className="ui-tool-plan-body">
+                {planLines.map((line, i) => {
+                  const checked = /^\s*[-*]\s*\[x\]/i.test(line);
+                  const text = line.replace(/^\s*[-*]\s*\[[ xX]\]\s*/, "");
+                  const isSubItem = /^\s{2,}/.test(line);
+                  return (
+                    <label key={i} className={`ui-plan-item${checked ? " done" : ""}${isSubItem ? " sub" : ""}`}>
+                      <input type="checkbox" checked={checked} readOnly />
+                      <span className="ui-plan-item-text">{text}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
           {/* Collapsible result — bash output already lives in the terminal frame. */}
@@ -764,6 +809,35 @@ export const Message = memo(function Message({
 
   if (message.role === "tool") {
     const toolName = buildToolSummary(message).name.toLowerCase();
+
+    // A2UI tool results — render as interactive Surface instead of plain ToolCard.
+    if (toolName.includes("a2ui") || toolName.includes("render_surface") || toolName.includes("update_surface")) {
+      const a2uiJson = extractA2uiPayload(message);
+      if (a2uiJson) {
+        const summary = extractA2uiSummary(message);
+        return (
+          <div className="ui-bubble-row tool">
+            <Avatar role="mcp" />
+            <Suspense fallback={<div className="ui-tool-card">Loading Surface…</div>}>
+              <A2uiMessage a2uiJson={a2uiJson} summary={summary} />
+            </Suspense>
+          </div>
+        );
+      }
+    }
+
+    // Rich tool results — structured rendering for known tool types.
+    const richType = getRichToolType(message);
+    if (richType) {
+      const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
+      return (
+        <div className="ui-bubble-row tool">
+          <Avatar role={avatarRole} />
+          <RichToolResult message={message} />
+        </div>
+      );
+    }
+
     const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
     return (
       <div className="ui-bubble-row tool">
@@ -788,3 +862,38 @@ export const Message = memo(function Message({
 
   return null;
 });
+
+// ── A2UI payload extraction helpers ─────────────────────────────────────────
+
+/** Extract A2UI JSON payload from a tool result message. */
+function extractA2uiPayload(message: SessionMessage): string | null {
+  try {
+    const parsed = JSON.parse(message.content || "{}");
+    // The MCP executor (mcp-manager.ts) lifts any resource with
+    // mimeType `application/a2ui+json` into `metadata.a2ui` — this is the
+    // only path the built-in a2ui server produces, and it is always set
+    // when an A2UI surface is returned. The previous regex fallback that
+    // tried to scrape the payload out of `output` was unreachable in
+    // practice and corrupted escaped JSON; removed.
+    const meta = parsed.metadata ?? {};
+    // metadata.a2ui is already a JSON string (mcp-manager lifts the
+    // `application/a2ui+json` resource's `.text`, which itself is
+    // JSON.stringify(messages) from a2ui-mcp.ts). Stringifying it again would
+    // double-encode and break processor.ts's JSON.parse. Mirror App.tsx's
+    // typeof check. Only stringify if it somehow arrives as an object.
+    if (meta.a2ui) return typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract the text summary from an A2UI tool result. */
+function extractA2uiSummary(message: SessionMessage): string | undefined {
+  try {
+    const parsed = JSON.parse(message.content || "{}");
+    return typeof parsed.output === "string" ? parsed.output.split("\n")[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}

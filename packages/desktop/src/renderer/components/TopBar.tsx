@@ -1,9 +1,10 @@
-import type { JSX } from "react";
+import { memo, useMemo, type JSX } from "react";
 import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { Pill, Select } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
 
 type Props = {
   platform: string;
@@ -35,7 +36,12 @@ type Props = {
   streamElapsedSecs?: number;
 };
 
-const MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
+const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
+
+/** Sentinel option value: opens the settings panel's model pool (endpoints
+ * tab). Selecting it never changes the model — the DOM select is snapped back
+ * to the current value because no state change triggers a re-render. */
+const POOL_CONFIG_VALUE = "__configure_model_pool__";
 
 type ThinkingOption = {
   key: string;
@@ -81,7 +87,8 @@ const ICON_CLOSE = (
 );
 
 /** Slim draggable window bar: window controls + project/branch + dual model selectors + token mini. */
-export function TopBar({
+// Memoized: all props are primitives or stable references from App.
+export const TopBar = memo(function TopBar({
   platform,
   projectRoot,
   isHomeRoot = false,
@@ -159,12 +166,41 @@ export function TopBar({
     </div>
   );
 
-  const modelKnown = settings ? MODELS.includes(settings.model) : true;
-  // Fallback for safety: if the persisted model isn't one of the two
-  // supported DeepSeek variants, surface the first known option so the
-  // <select> always has a valid current value. The user can pick the
-  // intended one without the model list going blank.
-  const modelSelectValue = modelKnown && settings ? settings.model : MODELS[0]!;
+  // Build the model list from settings endpoints. Falls back to hardcoded
+  // list when endpoints have no registered models (backward compat).
+  // Selection values are endpointId/modelId keys (so selecting a model also
+  // selects its endpoint) — except in the fallback case, where bare model
+  // names are used (no endpoints configured).
+  const availableModels = useMemo(() => {
+    if (!settings?.endpoints?.length) return FALLBACK_MODELS;
+    const keys = collectAllModelKeys(settings.endpoints);
+    return keys.length === 0 ? FALLBACK_MODELS : keys;
+  }, [settings?.endpoints]);
+
+  // Check if current model supports thinking (for the thinking dropdown gating).
+  const currentModel = settings?.model || FALLBACK_MODELS[0]!;
+  // Resolve capability against the primary endpoint's registration when the
+  // current model is registered there; falls back to the hardcoded tables.
+  const currentKey = useMemo(() => {
+    if (!settings?.endpoints?.length) return currentModel;
+    const primaryId = settings.primaryEndpointId;
+    const keys = collectAllModelKeys(settings.endpoints);
+    // Prefer the key on the primary endpoint; else any key whose modelId matches.
+    const onPrimary = keys.find((k) => {
+      const p = parseModelKey(k);
+      return p?.endpointId === primaryId && p.modelId === currentModel;
+    });
+    if (onPrimary) return onPrimary;
+    return keys.find((k) => parseModelKey(k)?.modelId === currentModel) ?? currentModel;
+  }, [settings?.endpoints, settings?.primaryEndpointId, currentModel]);
+  const modelCap = settings
+    ? resolveModelCapability(settings.endpoints, currentKey)
+    : { thinking: true, vision: false };
+  const thinkingOptions = modelCap.thinking ? THINKING_OPTIONS : THINKING_OPTIONS.filter((o) => o.key === "off");
+
+  const modelSelectValue = availableModels.includes(currentKey)
+    ? currentKey
+    : (availableModels[0] ?? FALLBACK_MODELS[0]!);
 
   return (
     <div className="ui-window-bar">
@@ -226,10 +262,8 @@ export function TopBar({
         ) : null}
       </div>
 
-      {/* Dual model selectors: model + thinking model, paired inside one
-         pill. The project ships against DeepSeek's official API only,
-         so the model dropdown is the fixed pair of deepseek-v4-pro /
-         deepseek-v4-flash — no custom / OpenAI-compatible option. */}
+      {/* Dual model selectors: model + thinking mode, paired inside one pill.
+         The model list is derived from the endpoint configuration in settings. */}
       {settings ? (
         <div className="ui-topbar-pill ui-topbar-models">
           <Select
@@ -237,18 +271,43 @@ export function TopBar({
             value={modelSelectValue}
             title={t("topbar.model")}
             onChange={(e) => {
+              const val = e.target.value;
+              if (val === POOL_CONFIG_VALUE) {
+                // Snap the DOM select back — the controlled value never moved.
+                e.target.value = modelSelectValue;
+                onOpenSettings();
+                return;
+              }
+              const parsed = parseModelKey(val);
+              const modelId = parsed?.modelId ?? val;
+              // Resolve capability of the newly selected model so we never send
+              // thinking options to a model that declares it unsupported.
+              const cap = settings ? resolveModelCapability(settings.endpoints, val) : { thinking: true };
+              const wantThinking = cap.thinking && settings.thinkingEnabled;
               onSetModel({
-                model: e.target.value,
-                thinkingEnabled: settings.thinkingEnabled,
+                model: modelId,
+                endpointId: parsed?.endpointId,
+                thinkingEnabled: wantThinking,
                 reasoningEffort: settings.reasoningEffort,
               });
             }}
           >
-            {MODELS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
+            {availableModels.map((m) => {
+              const parsed = parseModelKey(m);
+              const label = parsed
+                ? `${settings?.endpoints?.find((e) => e.id === parsed.endpointId)?.name ?? parsed.endpointId} / ${parsed.modelId}`
+                : m;
+              return (
+                <option key={m} value={m}>
+                  {label}
+                </option>
+              );
+            })}
+            {/* Pool entry point: one click from the top bar to the model pool
+                (endpoints tab). Makes the pool the visible source of truth —
+                especially when it is empty and the list above is the hardcoded
+                fallback pair. */}
+            <option value={POOL_CONFIG_VALUE}>{`⚙ ${t("topbar.configureModelPool")}`}</option>
           </Select>
           <span className="ui-topbar-divider" aria-hidden="true" />
           <Select
@@ -256,7 +315,7 @@ export function TopBar({
             value={currentThinkingKey(settings)}
             title={t("topbar.thinkingModel")}
             onChange={(e) => {
-              const opt = THINKING_OPTIONS.find((o) => o.key === e.target.value) ?? THINKING_OPTIONS[0]!;
+              const opt = thinkingOptions.find((o) => o.key === e.target.value) ?? thinkingOptions[0]!;
               onSetModel({
                 model: settings.model,
                 thinkingEnabled: opt.thinkingEnabled,
@@ -264,7 +323,7 @@ export function TopBar({
               });
             }}
           >
-            {THINKING_OPTIONS.map((o) => (
+            {thinkingOptions.map((o) => (
               <option key={o.key} value={o.key}>
                 {t(o.labelKey)}
               </option>
@@ -307,4 +366,4 @@ export function TopBar({
       {isMac ? null : winControls}
     </div>
   );
-}
+});

@@ -1,0 +1,8 @@
+# skill-up eval config — specs/skill-eval/design.md §3.1.
+# How to run: see packages/core/templates/plugins/README-evals.md.
+version: 1
+engine:
+  type: claude_code # E1: ready-made engine; we evaluate skill content, not the engine
+model: deepseek-v4-flash # lightweight model to control CI cost
+judges:
+  default: rule_based

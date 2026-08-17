@@ -1,0 +1,31 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: smart-code-review-negative
+title: Explain-only request must not trigger the review pipeline
+description: >
+  User only wants a plain explanation of a code snippet and explicitly says
+  no review is needed. The review orchestration must not run and the answer
+  must not mention review.full or arch-scan.
+input:
+  prompt: |
+    解释一下下面这个函数在做什么就行，不用做代码审查：
+
+    ```ts
+    export function chunk<T>(items: T[], size: number): T[][] {
+      const out: T[][] = [];
+      for (let i = 0; i < items.length; i += size) {
+        out.push(items.slice(i, i + size));
+      }
+      return out;
+    }
+    ```
+constraints:
+  timeout_seconds: 120
+  max_turns: 5
+expect:
+  must_contain:
+    - "函数"
+  must_not_contain:
+    - "review.full"
+    - "arch-scan"
+judge:
+  type: rule_based

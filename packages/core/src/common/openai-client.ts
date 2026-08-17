@@ -1,9 +1,5 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
-import { getUserConfigRoot } from "./app-dirs";
 import { resolveCurrentSettings } from "../settings";
 
 // Custom undici Agent with a 180-second keepAlive timeout.  The default
@@ -28,11 +24,10 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   thinkingEnabled: boolean;
   reasoningEffort: "high" | "max";
   debugLogEnabled: boolean;
-  telemetryEnabled: boolean;
   notify?: string;
   webSearchTool?: string;
+  webSearchProvider?: string;
   env: Record<string, string>;
-  machineId?: string;
 } {
   const settings = resolveCurrentSettings(projectRoot);
   if (!settings.apiKey) {
@@ -44,11 +39,10 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
-      telemetryEnabled: settings.telemetryEnabled,
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
+      webSearchProvider: settings.webSearchProvider,
       env: settings.env,
-      machineId: getMachineId(),
     };
   }
 
@@ -62,11 +56,10 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
-      telemetryEnabled: settings.telemetryEnabled,
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
+      webSearchProvider: settings.webSearchProvider,
       env: settings.env,
-      machineId: getMachineId(),
     };
   }
 
@@ -99,28 +92,104 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     thinkingEnabled: settings.thinkingEnabled,
     reasoningEffort: settings.reasoningEffort,
     debugLogEnabled: settings.debugLogEnabled,
-    telemetryEnabled: settings.telemetryEnabled,
     notify: settings.notify,
     webSearchTool: settings.webSearchTool,
+    webSearchProvider: settings.webSearchProvider,
     env: settings.env,
-    machineId: getMachineId(),
   };
 }
 
-function getMachineId(): string | undefined {
-  try {
-    const idPath = path.join(getUserConfigRoot(), "machine-id");
-    if (fs.existsSync(idPath)) {
-      const raw = fs.readFileSync(idPath, "utf8").trim();
-      if (raw) {
-        return raw;
-      }
-    }
-    const generated = `${os.hostname()}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-    fs.mkdirSync(path.dirname(idPath), { recursive: true });
-    fs.writeFileSync(idPath, generated, "utf8");
-    return generated;
-  } catch {
-    return undefined;
+// ── Secondary model client ──────────────────────────────────────────────────
+// Used by code review, index building, subagent triggers — anything that should
+// run on the cheaper/faster model (default deepseek-v4-flash) instead of the
+// primary conversation model. Has its own OpenAI client cache keyed by the
+// secondary endpoint's apiKey::baseURL so it doesn't collide with the primary.
+//
+// NOTE: This client is exported and fully implemented, but as of this commit no
+// production code path calls createSecondaryClient(). The settings fields
+// (secondaryModel / secondaryEndpointId) are parsed and surfaced in the UI, but
+// code review / indexing / subagent tasks still use the primary client. This is
+// reserved infrastructure for a future wiring change — do not assume configuring
+// a secondary model in the UI changes request routing today.
+
+let cachedSecondary: OpenAI | null = null;
+let cachedSecondaryKey = "";
+
+/**
+ * Create (or return cached) a secondary-model client configured from the
+ * `secondaryModel` + `secondaryEndpointId` settings. Returns null if no API
+ * key is configured for the secondary endpoint.
+ */
+export function createSecondaryClient(projectRoot: string = process.cwd()): {
+  client: OpenAI | null;
+  model: string;
+  baseURL: string;
+} {
+  const settings = resolveCurrentSettings(projectRoot);
+  const apiKey = settings.secondaryApiKey;
+  const baseURL = settings.secondaryBaseURL;
+  const model = settings.secondaryModel;
+
+  if (!apiKey) {
+    return { client: null, model, baseURL };
   }
+
+  const cacheKey = `${apiKey}::${baseURL}`;
+  if (cachedSecondary && cachedSecondaryKey === cacheKey) {
+    return { client: cachedSecondary, model, baseURL };
+  }
+
+  cachedSecondary = new OpenAI({
+    apiKey,
+    baseURL: baseURL || undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
+  });
+  cachedSecondaryKey = cacheKey;
+
+  return { client: cachedSecondary, model, baseURL };
+}
+
+// ── Vision model client ────────────────────────────────────────────────────
+// Used by the built-in vision MCP plugin (vision_chat / vision_ocr tools) to
+// proxy image-understanding requests through a vision-capable model (e.g.
+// Qwen-VL, GPT-4o). The vision model is configured independently from the
+// primary/secondary conversation models — it only serves vision MCP tool calls.
+
+let cachedVision: OpenAI | null = null;
+let cachedVisionKey = "";
+
+/**
+ * Create (or return cached) a vision-model client configured from the
+ * `visionModel` + `visionEndpointId` settings. Returns null if visionModel is
+ * empty or no API key is configured for the vision endpoint.
+ */
+export function createVisionClient(projectRoot: string = process.cwd()): {
+  client: OpenAI | null;
+  model: string;
+  baseURL: string;
+} {
+  const settings = resolveCurrentSettings(projectRoot);
+  const apiKey = settings.visionApiKey;
+  const baseURL = settings.visionBaseURL;
+  const model = settings.visionModel;
+
+  if (!model || !apiKey) {
+    return { client: null, model, baseURL };
+  }
+
+  const cacheKey = `${apiKey}::${baseURL}`;
+  if (cachedVision && cachedVisionKey === cacheKey) {
+    return { client: cachedVision, model, baseURL };
+  }
+
+  cachedVision = new OpenAI({
+    apiKey,
+    baseURL: baseURL || undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
+  });
+  cachedVisionKey = cacheKey;
+
+  return { client: cachedVision, model, baseURL };
 }

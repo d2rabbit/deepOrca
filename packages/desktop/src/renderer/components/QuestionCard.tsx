@@ -16,6 +16,7 @@ type Props = {
 export function QuestionCard({ questions, onSubmit, onCancel }: Props): JSX.Element {
   const { t } = useI18n();
   const [selections, setSelections] = useState<Record<number, Set<string>>>({});
+  const [textAnswers, setTextAnswers] = useState<Record<number, string>>({});
 
   function toggle(qIndex: number, label: string, multi: boolean): void {
     setSelections((prev) => {
@@ -36,7 +37,12 @@ export function QuestionCard({ questions, onSubmit, onCancel }: Props): JSX.Elem
     });
   }
 
-  const answered = questions.every((_, i) => (selections[i]?.size ?? 0) > 0);
+  const answered = questions.every((_, i) => {
+    if (questions[i]?.inputType === "text") {
+      return (textAnswers[i] ?? "").trim().length > 0;
+    }
+    return (selections[i]?.size ?? 0) > 0;
+  });
 
   // Keyboard: number keys select options for the first unanswered question
   useEffect(() => {
@@ -60,9 +66,16 @@ export function QuestionCard({ questions, onSubmit, onCancel }: Props): JSX.Elem
   function submit(): void {
     const answers: AskUserQuestionAnswers = {};
     questions.forEach((q, i) => {
-      const picked = Array.from(selections[i] ?? []);
-      if (picked.length > 0) {
-        answers[q.question] = picked.join(", ");
+      if (q.inputType === "text") {
+        const text = (textAnswers[i] ?? "").trim();
+        if (text) {
+          answers[q.question] = text;
+        }
+      } else {
+        const picked = Array.from(selections[i] ?? []);
+        if (picked.length > 0) {
+          answers[q.question] = picked.join(", ");
+        }
       }
     });
     onSubmit(answers);
@@ -79,21 +92,38 @@ export function QuestionCard({ questions, onSubmit, onCancel }: Props): JSX.Elem
               <span style={{ color: "var(--ui-text-faint)", fontWeight: 400 }}>{t("question.selectAny")}</span>
             ) : null}
           </div>
-          <div className="ui-opt-row">
-            {q.options.map((opt) => {
-              const selected = selections[qIndex]?.has(opt.label) ?? false;
-              return (
-                <button
-                  key={opt.label}
-                  className={`ui-opt${selected ? " selected" : ""}`}
-                  onClick={() => toggle(qIndex, opt.label, q.multiSelect === true)}
-                >
-                  {opt.label}
-                  {opt.description ? <span className="ui-opt-desc">{opt.description}</span> : null}
-                </button>
-              );
-            })}
-          </div>
+          {q.inputType === "text" ? (
+            <input
+              className="ui-q-text-input"
+              type="text"
+              placeholder={q.placeholder ?? "Type your answer…"}
+              value={textAnswers[qIndex] ?? ""}
+              onChange={(e) => setTextAnswers((prev) => ({ ...prev, [qIndex]: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && answered) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              autoFocus={qIndex === 0}
+            />
+          ) : (
+            <div className="ui-opt-row">
+              {q.options.map((opt) => {
+                const selected = selections[qIndex]?.has(opt.label) ?? false;
+                return (
+                  <button
+                    key={opt.label}
+                    className={`ui-opt${selected ? " selected" : ""}`}
+                    onClick={() => toggle(qIndex, opt.label, q.multiSelect === true)}
+                  >
+                    {opt.label}
+                    {opt.description ? <span className="ui-opt-desc">{opt.description}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       ))}
       <Row justify="flex-end">

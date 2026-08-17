@@ -121,10 +121,14 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
 
   const discard = useCallback(
     async (file: string) => {
-      await api.gitDiscard(file);
+      const result = await api.gitDiscard(file);
+      if (!result.ok) {
+        setError(result.error ?? t("app.requestFailed"));
+        return;
+      }
       await reload();
     },
-    [reload]
+    [reload, t]
   );
 
   const commit = useCallback(async () => {

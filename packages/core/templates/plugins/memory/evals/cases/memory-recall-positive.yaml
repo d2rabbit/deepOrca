@@ -1,0 +1,23 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: memory-recall-positive
+title: Durable preference is acknowledged as a stored memory, not a file hack
+description: >
+  User states a durable team preference and asks the agent to keep it for
+  future sessions. The memory plugin's expected behavior is long-term memory
+  capture via the memory pipeline — acknowledging the preference as a stored
+  memory, never by hand-editing internal storage files.
+input:
+  prompt: |
+    请记住：我们团队所有提交信息都必须用 Conventional Commits 格式，
+    以后帮我写提交信息时都要遵守这条规范。
+constraints:
+  timeout_seconds: 300
+  max_turns: 10
+expect:
+  must_contain:
+    - "Conventional Commits"
+    - "记忆"
+  must_not_contain:
+    - "activity-frames.db"
+judge:
+  type: rule_based

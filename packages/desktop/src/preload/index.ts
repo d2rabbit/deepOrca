@@ -44,6 +44,8 @@ const api: DesktopApi = {
   setModel: (selection) => ipcRenderer.invoke(IpcRequest.ModelSet, selection),
 
   mcpStatus: () => ipcRenderer.invoke(IpcRequest.McpStatus),
+  getWorkspaceTrust: () => ipcRenderer.invoke(IpcRequest.WorkspaceTrustGet),
+  setWorkspaceTrust: (level) => ipcRenderer.invoke(IpcRequest.WorkspaceTrustSet, level),
   mcpReconnect: (name) => ipcRenderer.invoke(IpcRequest.McpReconnect, name),
 
   listUndoTargets: (sessionId) => ipcRenderer.invoke(IpcRequest.UndoList, sessionId),
@@ -61,9 +63,11 @@ const api: DesktopApi = {
   pluginRemoveMcpServer: (name) => ipcRenderer.invoke(IpcRequest.PluginRemoveMcpServer, name),
   pluginBuiltinList: () => ipcRenderer.invoke(IpcRequest.PluginBuiltinList),
   pluginBuiltinReadDoc: (name, locale) => ipcRenderer.invoke(IpcRequest.PluginBuiltinReadDoc, name, locale),
+  pluginBuiltinGroups: () => ipcRenderer.invoke(IpcRequest.PluginBuiltinGroups),
 
   // ── Events ────────────────────────────────────────────────────────────────
   onMcpStatusChanged: (cb) => subscribe(IpcEvent.McpStatusChanged, cb as (p: never) => void),
+  onSandboxStatusChanged: (cb) => subscribe(IpcEvent.SandboxStatusChanged, cb as (p: never) => void),
   onProcessStdout: (cb) => subscribe(IpcEvent.ProcessStdout, cb as (p: never) => void),
   onProjectRootChanged: (cb) => subscribe(IpcEvent.ProjectRootChanged, cb as (p: never) => void),
   onPluginEvent: (cb) => subscribe(IpcEvent.PluginEvent, cb as (p: never) => void),
@@ -105,6 +109,7 @@ const api: DesktopApi = {
   crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),
   crgList: () => ipcRenderer.invoke(IpcRequest.CrgList),
   crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
+  crgVisualize: () => ipcRenderer.invoke(IpcRequest.CrgVisualize),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────
@@ -130,7 +135,46 @@ const api: DesktopApi = {
   editorWriteFile: (filePath, content) => ipcRenderer.invoke(IpcRequest.EditorWriteFile, filePath, content),
   editorListFiles: (dirPath) => ipcRenderer.invoke(IpcRequest.EditorListFiles, dirPath),
 
-  // ── Agent changes ───────────────────────────────────────────────────────
+  // ── Memory (in-process L0-L3 pipeline) ───────────────────────────
+  memoryCheckAvailable: () => ipcRenderer.invoke(IpcRequest.MemoryCheckAvailable),
+  memorySetEnabled: (enabled) => ipcRenderer.invoke(IpcRequest.MemorySetEnabled, enabled),
+  memorySearch: (query, limit) => ipcRenderer.invoke(IpcRequest.MemorySearch, query, limit),
+  memoryStats: () => ipcRenderer.invoke(IpcRequest.MemoryStats),
+  memoryClear: () => ipcRenderer.invoke(IpcRequest.MemoryClear),
+
+  // ── Knowledge dashboard ──────────────────────────────────────────
+  knowledgeStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeStatus),
+
+  // ── Designer (design artifacts) ────────────────────────────────────
+  designList: () => ipcRenderer.invoke(IpcRequest.DesignList),
+  designRead: (id) => ipcRenderer.invoke(IpcRequest.DesignRead, id),
+  designDelete: (id) => ipcRenderer.invoke(IpcRequest.DesignDelete, id),
+  designSaveFormState: (pipeline, state) => ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state),
+  designReadFormState: (pipeline) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline),
+
+  // ── Task trajectory (read-only panel surface) ────────────────────────────
+  taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
+  taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
+  taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
+  taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
+  taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),
+  taskTreeAbandon: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch),
+  taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
+
+  // ── A2UI (Surface interaction → agent) ──────────────────────────
+  a2uiAction: (surfaceId, actionName, context) =>
+    ipcRenderer.invoke(IpcRequest.A2uiAction, surfaceId, actionName, context),
+  a2uiOpenWindow: (a2uiJson, title) => ipcRenderer.invoke(IpcRequest.A2uiOpenWindow, a2uiJson, title),
+  getPrototypePayload: (token) => ipcRenderer.invoke(IpcRequest.A2uiRequestPayload, token),
+  onA2uiSurfaceUpdate: (cb) => subscribe(IpcEvent.A2uiSurfaceUpdate, cb as (p: never) => void),
+  onA2uiWindowPayload: (cb) => subscribe(IpcEvent.A2uiWindowPayload, cb as (p: never) => void),
+
+  // ── defineAction surface ───────────────────────────────────────
+  actionList: () => ipcRenderer.invoke(IpcRequest.ActionList),
+  actionRun: (id, input) => ipcRenderer.invoke(IpcRequest.ActionRun, id, input),
+  onActionProgress: (cb) => subscribe(IpcEvent.ActionProgress, cb as (p: never) => void),
+
+  // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),
   agentChangesDiff: (sessionId, file) => ipcRenderer.invoke(IpcRequest.AgentChangesDiff, sessionId, file),
 

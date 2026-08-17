@@ -10,53 +10,77 @@ a shared core engine.
 
 Packages (under `packages/`):
 
-| Package | Scope npm name | Role |
-|---|---|---|
-| `core/` | `@deeporca/core` | Engine: LLM session loop, 7 built-in tools, MCP client, permissions, settings. No UI deps. |
-| `desktop/` | `@deeporca/desktop` | Electron GUI built on the core engine. Depends on core. |
+| Package      | Scope npm name        | Role                                                                                                                  |
+| ------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `core/`      | `@deeporca/core`      | Engine: LLM session loop, 8 built-in tools, MCP client, permissions, settings, semantic routing. No UI deps.          |
+| `desktop/`   | `@deeporca/desktop`   | Electron GUI built on the core engine. Depends on core + memory.                                                      |
+| `memory/`    | `@deeporca/memory`    | In-process L0–L3 memory pipeline (vendored TDAI Core). Consumed by desktop, injected into core as a `MemoryProvider`. |
+| `embedding/` | `@deeporca/embedding` | Local embeddings (transformers.js + ONNX, IBM Granite 97M R2). Lazily `import()`ed by core's routing.                 |
+
+`memory/src/tdai/` is a **complete self-contained fork** of TDAI Core (~17k LOC,
+MIT — see `memory/src/NOTICE.md`); it does not import the upstream npm package.
+`@tencentdb-agent-memory/tcvdb-text` is a _different_ package and is a live
+runtime dependency (BM25, statically imported and on by default) — don't remove it.
 
 `docs/` = user-facing docs. `scripts/` = build/release/packaging JS. `.deeporca/` =
 the product's own config dir (settings, plugins, skills, in-repo AGENTS.md).
 `specs/` = feature specs (requirements/design/tasks). `docs-site/` = static GitHub Pages site.
 
-**Branch policy: `master` is the mainline.** Base new work on `master` and merge/release
-from it. Older branches (`main`, `feat/*`) predate the DeepOrca desktop-only refactor —
-a leftover untracked `packages/cli/` directory may exist on disk from them; `master`
-does not track it, don't edit or commit it.
+**Branch policy: `master` is the mainline; `dev` is the integration line; `test` is the
+frozen pre-production test line.** Feature work happens on `feat/*` branches, merges into
+`dev` (no-ff), and `test` is derived from `dev` for pre-production testing — **frozen for
+new features** (only fix/perf/docs/test/chore land there); new features go on `next/*`
+branches for the next version. Older branches (`main`, legacy `feat/*`) predate the
+DeepOrca desktop-only refactor — a leftover untracked `packages/cli/` directory may exist
+on disk from them; `master` does not track it, don't edit or commit it.
 
 ## Layer rules (important)
 
 - **`core` must stay UI-free.** It must not import `react`, `electron`, or
-  anything terminal/GUI-specific. The UI layer (`desktop`) depends on core, never
-  the reverse.
+  anything terminal/GUI-specific, and must not call `console.*` directly — the host
+  injects loggers (`configureSkillSpectorLogger`, `configureRoutingLogger`). The UI
+  layer (`desktop`) depends on core, never the reverse.
+- **Vendored tool paths are host-injected, never derived in core.** Only the host
+  knows whether it runs from a repo checkout or a packaged app
+  (`Resources/app/vendor`), so `main/index.ts` calls
+  `configureCodegraphVendorRoot` / `configureCrgVendorRoot` /
+  `configureSerenaUvResolver` / `configureSkillSpectorVendorRoot` /
+  `configureRoutingModelDir` at boot. Deriving a vendor path from `__dirname`
+  inside core is how semantic routing silently pointed at a nonexistent
+  `packages/packages/desktop/...` and never ran.
 - **Built-in tools are deliberately minimal:** `bash`, `read`, `write`, `edit`,
-  `AskUserQuestion`, `UpdatePlan`, `WebSearch`. External capabilities come via MCP —
-  do not add new built-in tools lightly.
+  `AskUserQuestion`, `UpdatePlan`, `WebSearch`, `WebFetch` (first-party search +
+  rendered/static page fetch — see `tools/web-search-providers.ts` /
+  `tools/web-fetch-handler.ts` and the hidden offscreen Chromium provider in
+  desktop `main/tools/web-fetch-provider.ts`). External capabilities come via
+  MCP — do not add new built-in tools lightly.
 - **Snippet editing contract:** the `read` tool returns a `snippet_id`; the `edit`
-  tool *requires* that `snippet_id` and only searches within the snippet. Preserve
+  tool _requires_ that `snippet_id` and only searches within the snippet. Preserve
   this when touching `packages/core/src/tools/read-handler.ts` / `edit-handler.ts`.
 - **Desktop IPC:** the contract lives in `packages/desktop/src/shared/ipc.ts`
-  (type-only, dependency-free so both sides can bundle it). `main/` owns the engine,
-  `preload/` runs under contextIsolation and exposes a typed `window.deeporca`,
-  `renderer/` is a browser bundle with no Node/Electron access. Edit the contract in
-  `shared/ipc.ts` and wire both ends; do not ad-hoc `ipcRenderer` calls in the renderer.
+  (dependency-free so both sides can bundle it — mostly types, plus the
+  `IpcRequest`/`IpcEvent` channel-name constants, which are real runtime exports).
+  `main/` owns the engine, `preload/` runs under contextIsolation and exposes a
+  typed `window.deeporca`, `renderer/` is a browser bundle with no Node/Electron
+  access. Edit the contract in `shared/ipc.ts` and wire both ends; do not ad-hoc
+  `ipcRenderer` calls in the renderer.
 - **bash tool needs a POSIX shell.** On Windows, `setShellIfWindows()` (core) points
   it at Git Bash. Keep this working — don't assume `cmd`/PowerShell will do.
 
 ## Commands (run from repo root)
 
-| Command | Purpose |
-|---|---|
-| `npm run typecheck` | `tsc --noEmit` across all workspaces |
-| `npm run lint` / `npm run lint:fix` | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js` |
-| `npm run format` / `npm run format:check` | Prettier |
-| `npm run check` | typecheck + lint + format:check (run before pushing) |
-| `npm run build` | core tsc → rewrite ESM imports |
-| `npm test` | run every workspace's tests |
-| `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run |
-| `npm run desktop:startMac` / `startWin` / `startLx` | build+run with per-OS setup via `scripts/desktop-start.js` |
-| `npm run release:version` | bump version across all packages |
-| `npm run clean` | remove generated files and `dist/` |
+| Command                                                   | Purpose                                                                                                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                       | `tsc --noEmit` across all workspaces                                                                                                                     |
+| `npm run lint` / `npm run lint:fix`                       | ESLint on `packages/*/src/**/*.{ts,tsx}` + `scripts/*.js`                                                                                                |
+| `npm run format` / `npm run format:check`                 | Prettier                                                                                                                                                 |
+| `npm run check`                                           | typecheck + lint + format:check (run before pushing)                                                                                                     |
+| `npm run build`                                           | all `@deeporca/*` tsc packages in dependency-topological order → rewrite ESM imports (core/dist). `desktop` is excluded — it builds via `desktop:build`. |
+| `npm test`                                                | run every workspace's tests                                                                                                                              |
+| `npm run desktop:build` / `desktop:dev` / `desktop:start` | Electron app build / dev / build+run                                                                                                                     |
+| `npm run desktop:startMac` / `startWin` / `startLx`       | build+run with per-OS setup via `scripts/desktop-start.js`                                                                                               |
+| `npm run release:version`                                 | bump version across all packages                                                                                                                         |
+| `npm run clean`                                           | remove generated files and `dist/`                                                                                                                       |
 
 Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/src/tests/<file>.test.ts`
 (tests use Node's native runner `node:test` + `node:assert/strict`, executed via `tsx`).
@@ -71,7 +95,7 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
   width 120, LF endings. **File names:** `kebab-case.ts(.tsx)`; tests `*.test.ts`.
 - **Core ESM gotcha:** `tsc` emits extensionless relative imports; Node ESM needs
   `.js`. `scripts/rewrite-esm-imports.js` fixes this in `core/dist/` after build.
-  When adding files to core, write source imports *without* extensions (the script
+  When adding files to core, write source imports _without_ extensions (the script
   adds them) — match existing core files.
 - **Lint:** `no-console` is off. Unused vars/params may be `_`-prefixed.
   `@typescript-eslint/consistent-type-imports` is on (warn) — reinforces `import type`.
@@ -81,9 +105,10 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
 
 ## Generated / gitignored (do not edit by hand)
 
-- `packages/core/src/generated/` — build-time output.
 - `dist/`, `out/`, `*.tsbuildinfo` — build artifacts.
-- `vendor-src/`, `packages/desktop/vendor/` — vendored CodeGraph/OpenWiki clones + compiled builds.
+- `vendor-src/`, `packages/desktop/vendor/` — vendored third-party clones,
+  downloaded binaries and compiled builds (CodeGraph, OpenWiki, uv, Serena,
+  SkillSpector, CRG, Granite embedding model, …).
 - `.deeporca/settings.json`, `.env`, `.env.local` — local secrets/config.
 
 ## Commits
@@ -109,10 +134,21 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 5. **Persistence**: sessions are stored as `~/.deeporca/projects/<projectCode>/sessions-index.json`
    and individual session messages as `*.jsonl` files. Each session has a file history (lightweight
    Git repo under `file-history/.git`) for undo support.
+6. **Session-index invariant (read this before touching `loadSessionsIndex` /
+   `saveSessionsIndex`)**: index writes are debounced (250ms) into `pendingIndex`,
+   so **reads must prefer `pendingIndex` over the file**. `updateSessionEntry` is
+   load→mutate→save, and it runs ~17× per streaming turn — if the read goes to the
+   now-stale file, two updates in one window each rebase on the old state and the
+   first is _permanently lost_ (this corrupted `usage`/`usagePerModel` accounting and
+   dropped `permission_denied`). Terminal, user-visible decisions
+   (create/delete/deny) call `flushSessionsIndex()` to bypass the debounce.
+   Note `pendingIndex` holds the _in-memory_ shape (`processes` is a `Map`), so it
+   must **not** be passed through `normalizeSessionEntry` — that expects the on-disk
+   shape and its `Object.entries()` would silently drop every tracked process.
 
 ### Tool routing (`packages/core/src/tools/executor.ts`)
 
-1. `ToolExecutor` holds a `Map<string, ToolHandler>` with all 7 built-in handlers.
+1. `ToolExecutor` holds a `Map<string, ToolHandler>` with all 8 built-in handlers.
 2. When a tool call arrives, it checks the handler map first. Bash tool calls also get
    alias resolution (`Bash` → `bash`, etc.).
 3. If no built-in handler matches, it falls through to `mcpManager.isMcpTool()` — MCP tools
@@ -160,14 +196,38 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 - `desktop:build` runs esbuild to produce three bundles under `packages/desktop/dist/`:
   `main.js` (ESM, main process, node deps + core kept external), `preload.cjs`
   (CJS — required for sandboxed preload), and `renderer/` (browser bundle + html/css).
-- Every desktop build also **vendors CodeGraph and OpenWiki**: `scripts/vendor-codegraph.js`
-  / `vendor-openwiki.js` keep persistent clones in `vendor-src/` (gitignored), fetch
-  upstream, and recompile into `packages/desktop/vendor/<name>` only when HEAD changed
-  (`.vendored-head` marker; `--force` to rebuild). Vendoring is best-effort: on
-  network/git failure the existing vendored copy keeps working, otherwise runtime
-  falls back to `npx`.
+- Every desktop build also **vendors its third-party tools** via the
+  `scripts/vendor-*.js` family (13 of them: codegraph, openwiki, uv, serena, crg,
+  skillspector, granite, browser-skill, bento, tailwind, plus the shared
+  `vendor-download.js` / `vendor-fs.js` / `vendor-notice.js` helpers). Git-based
+  ones keep persistent clones in `vendor-src/` (gitignored), fetch upstream, and
+  recompile into `packages/desktop/vendor/<name>` only when HEAD changed
+  (`.vendored-head` marker; `--force` to rebuild); download-based ones use a
+  pinned-version marker file. Vendoring is best-effort: on network/git failure the
+  existing vendored copy keeps working, otherwise runtime falls back to `npx`.
+- `electron-builder.yml` copies the whole `vendor/` tree to `Resources/app/vendor`
+  via `extraResources` — so anything added under `vendor/` ships in the installer
+  (the Granite model alone is ~118MB).
 - CodeGraph needs Node 22.5+ at runtime (`node:sqlite`); the desktop client runs the
   vendored entry through a system Node 22+ binary (see `packages/core/src/common/codegraph.ts`).
+
+### Semantic routing (`packages/core/src/routing/`)
+
+- Embedding-based recall that shrinks what reaches the LLM: `SkillRouter.shortlist`
+  / `ToolRouter.select` (single routing) and `SkillRouter.composeRoute`
+  (compositional, SkillWeaver-style). `enabled: true` by default
+  (`DEFAULT_ROUTING_CONFIG`).
+- Embeddings come from `@deeporca/embedding`, loaded through a **dynamic import**
+  (`routing/embedding-loader.ts`) so core's module load stays fast and a missing or
+  broken model degrades gracefully. Routers are **fail-open**: on any failure they
+  are `null` and callers use the full candidate set.
+- The model dir is resolved as: `DEEPORCA_ROUTING_MODEL_DIR` env →
+  `configureRoutingModelDir()` (host injection) → repo-relative fallback. Warmup is
+  fire-and-forget, so a bad path only surfaces asynchronously — which is why the
+  host logger (`configureRoutingLogger`) must stay wired.
+- The embedding service is a **process-wide singleton** holding onnxruntime native
+  handles. `SessionManager.dispose()` only drops its router bundle; the host calls
+  `closeEmbeddingService()` on app teardown.
 
 ### Skills discovery (`packages/core/src/session.ts`)
 
@@ -183,6 +243,7 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
 ## Areas that need extra care
 
 Before changing these, read the corresponding doc first:
+
 - Session/compaction, prompt layout, cache ordering → `docs/architecture.md` +
   `docs/session-persistence.md`.
 - Tool permission scopes → `docs/permission.md` + `packages/core/src/common/permissions.ts`.

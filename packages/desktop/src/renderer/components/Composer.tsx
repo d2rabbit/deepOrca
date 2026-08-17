@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n } from "../i18n";
 import { FileMentionMenu } from "./FileMentionMenu";
@@ -59,6 +59,27 @@ const BUILTIN_SLASHES: SlashCandidate[] = [
   { kind: "builtin", name: "mcp", label: "/mcp", description: "View MCP server status and tools" },
   { kind: "builtin", name: "exit", label: "/exit", description: "Quit DeepOrca" },
   { kind: "builtin", name: "settings", label: "/settings", description: "Open settings panel" },
+  {
+    kind: "builtin",
+    name: "pm-design",
+    label: "/pm-design",
+    description: "PM-Design: create an interactive A2UI prototype",
+  },
+  {
+    kind: "builtin",
+    name: "pm-design-openui",
+    label: "/pm-design-openui",
+    description: "PM-Design (OpenUI Lang): prototype with compact syntax",
+  },
+  { kind: "builtin", name: "prototype", label: "/prototype", description: "Alias for /pm-design" },
+  { kind: "builtin", name: "openui", label: "/openui", description: "Alias for /pm-design-openui" },
+  {
+    kind: "builtin",
+    name: "deep-design",
+    label: "/deep-design",
+    description: "DeepDesign: generate a web design in .dd format",
+  },
+  { kind: "builtin", name: "design", label: "/design", description: "Alias for /deep-design" },
 ];
 
 /** Detect a token (starting with /, $ or @) at or before the cursor. */
@@ -80,7 +101,9 @@ function filterSlashCandidates(items: SlashCandidate[], token: string): SlashCan
   return items.filter((item) => item.name.toLowerCase().includes(query));
 }
 
-export function Composer(props: Props): JSX.Element {
+// Memoized: all props are stable references from App (state slices + useCallback
+// handlers), so App-level stream/busy ticks don't re-render the composer.
+export const Composer = memo(function Composer(props: Props): JSX.Element {
   const {
     value,
     onChange,
@@ -610,4 +633,4 @@ export function Composer(props: Props): JSX.Element {
       </div>
     </div>
   );
-}
+});

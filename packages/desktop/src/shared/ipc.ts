@@ -2,7 +2,9 @@
 // Kept dependency-free (type-only imports) so it can be bundled into both sides.
 
 import type {
+  BuiltinPluginGroup,
   BuiltinPluginInfo,
+  EndpointConfig,
   ModelConfigSelection,
   ModelUsage,
   PermissionDefaultMode,
@@ -18,6 +20,7 @@ import type {
 /** Per-model token usage accounting, re-exported for renderer consumers. */
 export type { ModelUsage };
 import type { McpServerStatus } from "@deeporca/core";
+import type { TaskNode, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
@@ -51,6 +54,8 @@ export const IpcRequest = {
   SettingsGet: "settings:get",
   SettingsGetEditable: "settings:getEditable",
   SettingsUpdate: "settings:update",
+  WorkspaceTrustGet: "workspace:getTrust",
+  WorkspaceTrustSet: "workspace:setTrust",
   ModelSet: "model:set",
 
   McpStatus: "mcp:status",
@@ -67,6 +72,7 @@ export const IpcRequest = {
   PluginRemoveMcpServer: "plugin:removeMcpServer",
   PluginBuiltinList: "plugin:builtinList",
   PluginBuiltinReadDoc: "plugin:builtinReadDoc",
+  PluginBuiltinGroups: "plugin:builtinGroups",
 
   /** Scan workspace files for @file mentions */
   ScanFiles: "app:scanFiles",
@@ -110,6 +116,7 @@ export const IpcRequest = {
   CrgCheckAvailable: "crg:checkAvailable",
   CrgList: "crg:list",
   CrgReindex: "crg:reindex",
+  CrgVisualize: "crg:visualize",
 
   // Wiki knowledge graph (openwiki CLI)
   WikiCheckAvailable: "wiki:checkAvailable",
@@ -132,6 +139,45 @@ export const IpcRequest = {
   EditorReadFile: "editor:readFile",
   EditorWriteFile: "editor:writeFile",
   EditorListFiles: "editor:listFiles",
+
+  // Memory (in-process L0-L3 pipeline)
+  MemoryCheckAvailable: "memory:checkAvailable",
+  MemorySetEnabled: "memory:setEnabled",
+  MemorySearch: "memory:search",
+  MemoryStats: "memory:stats",
+  MemoryClear: "memory:clear",
+
+  // Knowledge dashboard — aggregated status of all knowledge sources
+  KnowledgeStatus: "knowledge:status",
+
+  // Designer — design artifact management (PM-Design + UI-Design)
+  DesignList: "design:list",
+  DesignRead: "design:read",
+  DesignDelete: "design:delete",
+  DesignSaveFormState: "design:saveFormState",
+  DesignReadFormState: "design:readFormState",
+
+  // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
+  TaskTreeList: "tasktree:list",
+  TaskTreeGet: "tasktree:get",
+  TaskTreeCreate: "tasktree:create",
+  TaskTreeFork: "tasktree:fork",
+  TaskTreeSwitch: "tasktree:switch",
+  TaskTreeAbandon: "tasktree:abandon",
+  TaskTreeMerge: "tasktree:merge",
+
+  // A2UI (Surface user interaction → agent)
+  A2uiAction: "a2ui:action",
+  A2uiOpenWindow: "a2ui:openWindow",
+  /** Pull the initial payload for a prototype window on mount (handshake that
+   *  avoids the did-finish-load race — the renderer requests its payload by the
+   *  window token it was opened with). */
+  A2uiRequestPayload: "a2ui:requestPayload",
+
+  // defineAction primitive — "define once, surface everywhere" (Phase 0).
+  // ActionList: introspect registered actions; ActionRun: dispatch + progress.
+  ActionList: "action:list",
+  ActionRun: "action:run",
 } as const;
 
 /** Event channels (main -> renderer via webContents.send). */
@@ -147,7 +193,29 @@ export const IpcEvent = {
   ReviewProgress: "event:reviewProgress",
   CrgProgress: "event:crgProgress",
   WikiProgress: "event:wikiProgress",
+  A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
+  A2uiWindowPayload: "event:a2uiWindowPayload",
+  /** defineAction progress stream (unified; payload carries actionId). */
+  ActionProgress: "event:actionProgress",
+  /** Sandbox backend selection outcome per session (degradation is never silent). */
+  SandboxStatusChanged: "event:sandboxStatusChanged",
 } as const;
+
+/** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
+export type A2uiSurfaceUpdateEvent = {
+  /** Updated A2UI JSON messages to re-process in the renderer. */
+  a2uiJson: string;
+  /** Surface ID that was updated. */
+  surfaceId: string;
+};
+
+/** Payload for the initial A2UI payload sent to a popout prototype window. */
+export type A2uiWindowPayloadEvent = {
+  /** Initial A2UI JSON messages for the prototype window. */
+  a2uiJson: string;
+  /** Display title for the prototype window. */
+  title: string;
+};
 
 /** Payload for the ReviewProgress event (streamed ocr output). */
 export type ReviewProgressEvent = {
@@ -172,6 +240,8 @@ export type ReviewComment = {
 
 /** Payload for the WikiProgress event (streamed openwiki output). */
 export type WikiProgressEvent = {
+  /** The workspace root the wiki agent is running in. */
+  root: string;
   /** A chunk of process output. */
   chunk: string;
   /** Which stream produced the chunk. */
@@ -359,6 +429,80 @@ export type GitmcpAddResult = {
 };
 
 /** Resolved settings summary surfaced to the renderer (never leaks the API key). */
+/** L0-L3 memory pipeline counts for the knowledge dashboard. */
+export type MemoryPipelineStats = {
+  /** L0 — raw conversation files. */
+  l0: number;
+  /** L1 — extracted atomic facts. */
+  l1: number;
+  /** L2 — scene segments. */
+  l2: number;
+  /** L3 — whether the user persona has been generated. */
+  l3: boolean;
+};
+
+/** Status of a single knowledge source in the dashboard. */
+export type KnowledgeSourceStatus = {
+  /** indexed = ready · empty = present but no content · disabled = off · stale = needs re-sync */
+  state: "indexed" | "empty" | "disabled" | "stale";
+  /** Content count (symbols / pages / memories / lines). */
+  count?: number;
+  /** Unit label for the count ("符号" / "页" / "条" / "行"). */
+  unit?: string;
+  /** ISO timestamp of the last successful sync. */
+  lastSync?: string;
+  /** Extra detail line (e.g. "arch+modules"). */
+  detail?: string;
+};
+
+/** Aggregated status of every knowledge source. */
+export type KnowledgeStatusResponse = {
+  codegraph: KnowledgeSourceStatus;
+  openwiki: KnowledgeSourceStatus;
+  serena: KnowledgeSourceStatus;
+  agents: KnowledgeSourceStatus;
+  memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
+  /** Semantic routing (skill/tool recall) — R4 observability card. */
+  routing: KnowledgeSourceStatus;
+};
+
+// ── Task trajectory (specs/task-tree P0) ─────────────────────────────────────
+export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
+
+/** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
+export type DesignPipeline = "openui" | "design";
+
+/** A stored design artifact's metadata (index entry). */
+export type DesignArtifactMeta = {
+  id: string;
+  title: string;
+  pipeline: DesignPipeline;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A design artifact with full content. */
+export type DesignArtifact = DesignArtifactMeta & {
+  content: string;
+};
+
+/** Workspace trust level (specs/sandbox/design.md §10.3), project-level setting. */
+export type WorkspaceTrustLevel = "trusted" | "quarantine";
+
+/** Trust state as seen by the UI: `explicit: false` means never asked (first open). */
+export type WorkspaceTrustStatus = {
+  level: WorkspaceTrustLevel;
+  explicit: boolean;
+};
+
+/** Sandbox backend outcome for one session (mirrors core SandboxBackendStatus). */
+export type SandboxStatusEvent = {
+  sessionId: string;
+  backend: string;
+  outcome: "active" | "degraded";
+  detail: string;
+};
+
 export type SettingsSummary = {
   model: string;
   baseURL: string;
@@ -366,6 +510,14 @@ export type SettingsSummary = {
   reasoningEffort: ReasoningEffort;
   hasApiKey: boolean;
   statusSeparator: string;
+  /** Endpoint display info (no apiKey — renderer never sees keys via summary). */
+  endpoints: Array<Pick<EndpointConfig, "id" | "name" | "baseURL" | "models">>;
+  primaryEndpointId: string;
+  secondaryModel: string;
+  secondaryEndpointId: string;
+  visionModel: string;
+  visionEndpointId: string;
+  workspaceTrust: WorkspaceTrustLevel;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -393,16 +545,30 @@ export type EditableSettings = {
   /** True when an API key is provided via environment and would override the file value. */
   hasEnvApiKey: boolean;
   apiKey: string;
+  /** Primary model ID (bare name, e.g. "deepseek-v4-pro"). */
   model: string;
   /** Empty string means "unset". */
   temperature: string;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
-  telemetryEnabled: boolean;
   debugLogEnabled: boolean;
   permissionDefaultMode: PermissionDefaultMode;
   permissions: Partial<Record<PermissionScope, PermissionDecision>>;
   mcpServers: EditableMcpServer[];
+  /** Multi-endpoint list (each carries its own apiKey + models for editing). */
+  endpoints: EndpointConfig[];
+  /** Which endpoint the primary model uses. */
+  primaryEndpointId: string;
+  /** Secondary model ID (bare name). Empty = inherit primary model. */
+  secondaryModel: string;
+  /** Which endpoint the secondary model uses. */
+  secondaryEndpointId: string;
+  /** Vision model ID (bare name). Empty = disabled. */
+  visionModel: string;
+  /** Which endpoint the vision model uses. */
+  visionEndpointId: string;
+  /** Memory system settings (TencentDB-Agent-Memory sidecar). */
+  memory: { enabled: boolean; port: number; embedding: "none" | "local-onnx" };
 };
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };
@@ -420,6 +586,24 @@ export type EditorFileEntry = {
 export type FileMatch = {
   path: string;
   type: "file" | "directory";
+};
+
+/** defineAction surface (spec §六). A registered action's introspection entry. */
+export type ActionListItem = {
+  id: string;
+  description: string;
+  category?: string;
+};
+
+/** Result of an ActionRun IPC call — success carries the action's output. */
+export type ActionRunResult = { ok: true; output: unknown } | { ok: false; error: string; code: string };
+
+/** Unified action progress event (replaces the per-tool event:*Progress family). */
+export type ActionProgressEvent = {
+  actionId: string;
+  message: string;
+  percent?: number;
+  data?: unknown;
 };
 
 /** The typed surface exposed on `window.deeporca` from the preload script. */
@@ -461,6 +645,9 @@ export type DesktopApi = {
   mcpStatus(): Promise<McpServerStatus[]>;
   mcpReconnect(name: string): Promise<void>;
 
+  getWorkspaceTrust(): Promise<WorkspaceTrustStatus>;
+  setWorkspaceTrust(level: WorkspaceTrustLevel): Promise<void>;
+
   listUndoTargets(sessionId: string): Promise<UndoTarget[]>;
   restoreUndo(sessionId: string, messageId: string, mode: UndoRestoreMode): Promise<{ ok: boolean; error?: string }>;
 
@@ -479,6 +666,8 @@ export type DesktopApi = {
   pluginBuiltinList(): Promise<BuiltinPluginInfo[]>;
   /** Read a built-in plugin's PLUGIN.md document by name. */
   pluginBuiltinReadDoc(name: string, locale?: string): Promise<string>;
+  /** List built-in plugin groups — related skills/MCP/plugins bundled into one card. */
+  pluginBuiltinGroups(): Promise<BuiltinPluginGroup[]>;
 
   // ── Events ────────────────────────────────────────────────────────────────
   onAssistantMessage(cb: (message: SessionMessage) => void): () => void;
@@ -488,6 +677,7 @@ export type DesktopApi = {
   onProcessStdout(cb: (event: ProcessStdoutEvent) => void): () => void;
   onProjectRootChanged(cb: (root: string) => void): () => void;
   onPluginEvent(cb: (event: PluginEventPayload) => void): () => void;
+  onSandboxStatusChanged(cb: (event: SandboxStatusEvent) => void): () => void;
 
   // ── File scanning (for @file mentions) ──────────────────────────────────
   /** Scan workspace files matching a query. Returns up to 20 results. */
@@ -512,8 +702,12 @@ export type DesktopApi = {
   gitListBranches(): Promise<string[]>;
   /** Switch branch. `conflict: true` means local changes block the checkout (commit/stash first). */
   gitCheckout(branch: string): Promise<{ ok: boolean; error?: string; conflict?: boolean }>;
-  /** Auto-stash local changes (incl. untracked), then switch branch. Stash is popped back on failure. */
-  gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Auto-stash local changes (incl. untracked), then switch branch. The stash is
+   * popped back after a successful switch; if the pop fails, `stashWarning`
+   * explains how to recover via `git stash pop` (the switch itself succeeded).
+   */
+  gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string; stashWarning?: string }>;
   gitDiff(file: string, staged: boolean): Promise<DiffPayload>;
   /** Recent commits (newest first), capped by `limit` (default 50). */
   gitLog(limit?: number): Promise<GitLogEntry[]>;
@@ -553,6 +747,8 @@ export type DesktopApi = {
   crgList(): Promise<CrgIndexEntry[]>;
   /** Build (or rebuild) the CRG graph for a workspace, streaming via onCrgProgress. */
   crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
+  /** Generate a D3.js interactive graph HTML via CRG visualize. Returns HTML or null. */
+  crgVisualize(): Promise<{ html: string | null; error?: string }>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 
@@ -593,6 +789,86 @@ export type DesktopApi = {
   editorWriteFile(filePath: string, content: string): Promise<{ ok: boolean; error?: string }>;
   /** List files and directories under a path within the project root. */
   editorListFiles(dirPath: string): Promise<{ ok: boolean; entries?: EditorFileEntry[]; error?: string }>;
+
+  // ── Memory (in-process L0-L3 pipeline) ─────────────────────────────────
+  /** Check whether the memory pipeline is available and healthy. */
+  memoryCheckAvailable(): Promise<{ available: boolean; healthy: boolean }>;
+  /** Enable or disable cross-session memory (starts/stops the in-process pipeline). */
+  memorySetEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }>;
+  /** Search stored memories by free-text query. */
+  memorySearch(query: string, limit?: number): Promise<{ text: string; total: number }>;
+  /** L0-L3 pipeline statistics for the knowledge dashboard. */
+  memoryStats(): Promise<MemoryPipelineStats | null>;
+  /** Clear all stored memory data for the current project (L0-L3). */
+  memoryClear(): Promise<{ ok: boolean; error?: string }>;
+
+  // ── Knowledge dashboard ────────────────────────────────────────────────
+  /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
+  knowledgeStatus(): Promise<KnowledgeStatusResponse>;
+
+  // ── Designer (design artifacts) ────────────────────────────────────────
+  /** List all design artifacts (PM-Design prototypes + UI-Design documents). */
+  designList(): Promise<DesignArtifactMeta[]>;
+  /** Read a single design artifact's full content. */
+  designRead(id: string): Promise<DesignArtifact | null>;
+  /** Delete a design artifact. */
+  designDelete(id: string): Promise<boolean>;
+  /** Persist the live prototype's form state (caller throttles). Main resolves the latest artifact of the pipeline. */
+  designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>): Promise<boolean>;
+  /** Read the persisted form state for hydration; null when none. */
+  designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
+
+  // ── Task trajectory (read-only panel surface) ────────────────────────────
+  /** List task trees (id, title, active branch, counts). */
+  taskTreeList(): Promise<TaskTreeSummary[]>;
+  /** Read one tree (index + all nodes) for the panel view. */
+  taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
+  /** Create a tree in the CURRENT workspace (prompt + why are required). */
+  taskTreeCreate(prompt: string, why: string, branchName?: string): Promise<{ treeId: string } | { error: string }>;
+  /** Fork a branch (why is the human-facing story; required). */
+  taskTreeFork(
+    treeId: string,
+    why: string,
+    opts?: { name?: string; fromBranch?: string }
+  ): Promise<{ nodeId: string; branch: string } | { error: string }>;
+  /** Switch the tree's active branch. */
+  taskTreeSwitch(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  /** Abandon a non-active branch. */
+  taskTreeAbandon(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  /** Merge a whole branch (all its lineage-unique nodes) onto the active branch. */
+  taskTreeMerge(
+    treeId: string,
+    srcBranch: string
+  ): Promise<
+    | { ok: true; mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> }
+    | { ok: false; error: string }
+  >;
+
+  // ── A2UI (Surface interaction) ─────────────────────────────────────────
+  /** Send a user interaction from an AUI Surface back to the agent.
+   *  Returns { ok, error } so the renderer can surface failures (missing MCP
+   *  server, stale surface, tool error) instead of silently doing nothing. */
+  a2uiAction(
+    surfaceId: string,
+    actionName: string,
+    context: Record<string, unknown>
+  ): Promise<{ ok: boolean; error?: string }>;
+  /** Open a standalone prototype preview window. */
+  a2uiOpenWindow(a2uiJson: string, title: string): Promise<void>;
+  /** Subscribe to A2UI surface updates (pushed after a2ui_action mutations). */
+  onA2uiSurfaceUpdate(cb: (event: A2uiSurfaceUpdateEvent) => void): () => void;
+  // ── defineAction surface (spec §六 — "define once, surface everywhere") ──
+  /** List registered actions (introspection for a future actions panel). */
+  actionList(): Promise<ActionListItem[]>;
+  /** Execute an action by id; streams progress via onActionProgress. */
+  actionRun(id: string, input?: unknown): Promise<ActionRunResult>;
+  /** Subscribe to the unified action progress stream. Returns unsubscribe fn. */
+  onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
+  /** Subscribe to the initial payload sent to a popout prototype window. */
+  onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
+  /** Pull the initial prototype-window payload by token (race-free handshake,
+   *  preferred over the push subscription). Returns null when unknown/consumed. */
+  getPrototypePayload(token: string): Promise<{ a2uiJson: string; title: string } | null>;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */
@@ -604,6 +880,7 @@ export type PluginEventPayload =
 
 export type {
   AskPermissionRequest,
+  BuiltinPluginGroup,
   BuiltinPluginInfo,
   McpServerStatus,
   ModelConfigSelection,

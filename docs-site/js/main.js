@@ -1,7 +1,7 @@
 /* global document, window, IntersectionObserver, requestAnimationFrame, cancelAnimationFrame, setTimeout, console */
-// DeepOrca GitHub Pages — Cyber HUD interactions
+// DeepOrca GitHub Pages — Ocean Fresh interactions
 
-// Navbar scroll state with enhanced transition
+// Navbar scroll state
 const nav = document.getElementById("nav");
 let lastScrollY = window.scrollY;
 let ticking = false;
@@ -10,8 +10,8 @@ function updateNav() {
   const scrolled = window.scrollY > 20;
   nav.classList.toggle("scrolled", scrolled);
 
-  // Add subtle hide/show on scroll direction
-  if (window.scrollY > 100) {
+  // Hide/show on scroll direction (only after hero)
+  if (window.scrollY > 120) {
     if (window.scrollY > lastScrollY) {
       nav.style.transform = "translateY(-100%)";
     } else {
@@ -35,31 +35,28 @@ window.addEventListener(
   { passive: true }
 );
 
-// Reveal-on-scroll with stagger support
-const observerOptions = {
-  threshold: 0.12,
-  rootMargin: "0px 0px -40px 0px",
-};
+// Reveal-on-scroll with stagger
+const observer = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const parent = entry.target.parentElement;
+        const siblings = Array.from(parent.querySelectorAll(".reveal"));
+        const index = siblings.indexOf(entry.target);
+        const delay = Math.min(index * 0.08, 0.4);
 
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (entry.isIntersecting) {
-      // Add stagger delay based on element index within parent
-      const parent = entry.target.parentElement;
-      const siblings = Array.from(parent.querySelectorAll(".reveal"));
-      const index = siblings.indexOf(entry.target);
-      const delay = Math.min(index * 0.08, 0.4); // Cap at 0.4s
-
-      entry.target.style.setProperty("--reveal-delay", `${delay}s`);
-      entry.target.classList.add("visible");
-      observer.unobserve(entry.target);
-    }
-  });
-}, observerOptions);
+        entry.target.style.setProperty("--reveal-delay", `${delay}s`);
+        entry.target.classList.add("visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  },
+  { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+);
 
 document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
 
-// Smooth scroll for in-page anchors with offset for sticky nav
+// Smooth scroll for in-page anchors
 document.querySelectorAll('a[href^="#"]').forEach((link) => {
   link.addEventListener("click", (e) => {
     const targetId = link.getAttribute("href");
@@ -71,25 +68,20 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
       const navHeight = nav.offsetHeight;
       const targetPosition = target.getBoundingClientRect().top + window.scrollY - navHeight - 20;
 
-      window.scrollTo({
-        top: targetPosition,
-        behavior: "smooth",
-      });
+      window.scrollTo({ top: targetPosition, behavior: "smooth" });
     }
   });
 });
 
-// Parallax effect for hero section
+// Subtle parallax for hero orca (gentler than before)
 const hero = document.querySelector(".hero");
 const orcaImg = document.querySelector(".orca-img");
-const bgGlowCyan = document.querySelector(".bg-glow--cyan");
-const bgGlowMagenta = document.querySelector(".bg-glow--magenta");
 
 if (hero && orcaImg) {
-  let mouseX = 0;
-  let mouseY = 0;
-  let currentX = 0;
-  let currentY = 0;
+  let mouseX = 0.5;
+  let mouseY = 0.5;
+  let currentX = 0.5;
+  let currentY = 0.5;
   let rafId = null;
 
   function lerp(start, end, factor) {
@@ -97,20 +89,14 @@ if (hero && orcaImg) {
   }
 
   function animateParallax() {
-    currentX = lerp(currentX, mouseX, 0.08);
-    currentY = lerp(currentY, mouseY, 0.08);
+    currentX = lerp(currentX, mouseX, 0.06);
+    currentY = lerp(currentY, mouseY, 0.06);
 
-    const moveX = (currentX - 0.5) * 20;
-    const moveY = (currentY - 0.5) * 20;
+    const moveX = (currentX - 0.5) * 12;
+    const moveY = (currentY - 0.5) * 12;
 
-    orcaImg.style.transform = `translate(${moveX}px, ${moveY}px)`;
-
-    if (bgGlowCyan) {
-      bgGlowCyan.style.transform = `translate(${moveX * 0.5}px, ${moveY * 0.5}px)`;
-    }
-    if (bgGlowMagenta) {
-      bgGlowMagenta.style.transform = `translate(${-moveX * 0.3}px, ${-moveY * 0.3}px)`;
-    }
+    orcaImg.style.setProperty("--parallax-x", `${moveX}px`);
+    orcaImg.style.setProperty("--parallax-y", `${moveY}px`);
 
     rafId = requestAnimationFrame(animateParallax);
   }
@@ -132,50 +118,21 @@ if (hero && orcaImg) {
       if (rafId) {
         cancelAnimationFrame(rafId);
         rafId = null;
-        orcaImg.style.transform = "";
-        if (bgGlowCyan) bgGlowCyan.style.transform = "";
-        if (bgGlowMagenta) bgGlowMagenta.style.transform = "";
+        orcaImg.style.removeProperty("--parallax-x");
+        orcaImg.style.removeProperty("--parallax-y");
       }
     }, 500);
   });
 }
 
-// Typing effect for HUD window
-const hudBody = document.querySelector(".hud-window-body");
-if (hudBody) {
-  const lines = hudBody.querySelectorAll("div");
-  lines.forEach((line, index) => {
-    line.style.opacity = "0";
-    line.style.transform = "translateX(-8px)";
-    line.style.transition = `opacity 0.4s ease ${index * 0.15}s, transform 0.4s ease ${index * 0.15}s`;
-  });
-
-  const hudObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          lines.forEach((line) => {
-            line.style.opacity = "1";
-            line.style.transform = "translateX(0)";
-          });
-          hudObserver.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.5 }
-  );
-
-  hudObserver.observe(hudBody);
-}
-
-// Card tilt effect on mouse move
-document.querySelectorAll(".mod-card, .ext-card").forEach((card) => {
+// Gentle card hover tilt (reduced intensity)
+document.querySelectorAll(".pillar-card, .mod-card, .ext-card").forEach((card) => {
   card.addEventListener("mousemove", (e) => {
     const rect = card.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
 
-    card.style.transform = `perspective(1000px) rotateY(${x * 4}deg) rotateX(${-y * 4}deg) translateY(-6px)`;
+    card.style.transform = `perspective(1000px) rotateY(${x * 2}deg) rotateX(${-y * 2}deg) translateY(-4px)`;
   });
 
   card.addEventListener("mouseleave", () => {
@@ -183,7 +140,15 @@ document.querySelectorAll(".mod-card, .ext-card").forEach((card) => {
   });
 });
 
-// Button ripple effect
+// Button ripple (soft blue)
+const style = document.createElement("style");
+style.textContent = `
+  @keyframes ripple {
+    to { transform: scale(4); opacity: 0; }
+  }
+`;
+document.head.appendChild(style);
+
 document.querySelectorAll(".cbtn").forEach((btn) => {
   btn.addEventListener("click", function (e) {
     const rect = this.getBoundingClientRect();
@@ -194,38 +159,26 @@ document.querySelectorAll(".cbtn").forEach((btn) => {
     ripple.style.cssText = `
       position: absolute;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(56, 189, 248, 0.25);
       transform: scale(0);
-      animation: ripple 0.6s ease-out;
+      animation: ripple 0.5s ease-out;
       left: ${x}px;
       top: ${y}px;
-      width: 100px;
-      height: 100px;
-      margin-left: -50px;
-      margin-top: -50px;
+      width: 80px;
+      height: 80px;
+      margin-left: -40px;
+      margin-top: -40px;
       pointer-events: none;
     `;
 
     this.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 600);
+    setTimeout(() => ripple.remove(), 500);
   });
 });
 
-// Add ripple keyframes dynamically
-const style = document.createElement("style");
-style.textContent = `
-  @keyframes ripple {
-    to {
-      transform: scale(4);
-      opacity: 0;
-    }
-  }
-`;
-document.head.appendChild(style);
-
-// Console easter egg
+// Console greeting
 console.log(
-  "%c🐋 DeepOrca %c| Cyber HUD Interface",
-  "color: #00f3ff; font-size: 24px; font-weight: bold; text-shadow: 0 0 10px #00f3ff;",
-  "color: #8b9bb4; font-size: 12px;"
+  "%c🐋 DeepOrca %c| AI 创作 Studio · 原型 · 设计 · 编码",
+  "color: #38bdf8; font-size: 20px; font-weight: bold;",
+  "color: #64748b; font-size: 12px;"
 );

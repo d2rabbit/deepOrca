@@ -25,6 +25,14 @@ export {
   getProjectSettingsPath,
   DEFAULT_MODEL,
   DEFAULT_BASE_URL,
+  DEFAULT_SECONDARY_MODEL,
+  ENDPOINT_PRESETS,
+  normalizeEndpoints,
+  buildModelKey,
+  parseModelKey,
+  resolveModelCapability,
+  collectAllModelKeys,
+  findEndpointForModel,
 } from "./settings";
 export type {
   DeepcodingSettings,
@@ -38,6 +46,8 @@ export type {
   StatusLineSettings,
   ResolvedStatusLineSettings,
   StatusLineProviderConfig,
+  EndpointConfig,
+  ModelRegistration,
 } from "./settings";
 
 // Session
@@ -53,6 +63,8 @@ export type {
   UserPromptContent,
   SkillInfo,
   BuiltinPluginInfo,
+  BuiltinPluginGroup,
+  McpServerConfigEntry,
   ModelUsage,
   SessionProcessEntry,
   BashTimeoutAdjustment,
@@ -86,7 +98,12 @@ export type {
   ProcessTimeoutControl,
   BackgroundProcessCompletion,
   ToolExecutionFollowUpMessage,
+  WebFetchPage,
+  WebPageFetcher,
 } from "./common/tool-types";
+export { validatePublicHttpUrl } from "./common/public-url";
+export type { PublicUrlCheck } from "./common/public-url";
+export { DEFAULT_TIMEOUT_MS, MAX_OUTPUT_CHARS, MAX_LINKS } from "./tools/web-fetch-handler";
 
 // Tool handlers
 export { handleBashTool, clearSessionWorkingDir } from "./tools/bash-handler";
@@ -99,61 +116,171 @@ export { handleAskUserQuestionTool } from "./tools/ask-user-question-handler";
 
 // MCP
 export { McpManager } from "./mcp/mcp-manager";
-export { McpClient } from "./mcp/mcp-client";
 export type { McpServerStatus } from "./mcp/mcp-manager";
+export { createMcpSpawnSpec, type McpSpawnSpec } from "./mcp/spawn-spec";
 
 // Common utilities
-export { createOpenAIClient } from "./common/openai-client";
+export { createOpenAIClient, createSecondaryClient, createVisionClient } from "./common/openai-client";
 export { buildThinkingRequestOptions } from "./common/openai-thinking";
-export { readTextFileWithMetadata, writeTextFile, buildDiffPreview, ensureParentDirectory } from "./common/file-utils";
+export {
+  readTextFileWithMetadata,
+  writeTextFile,
+  buildDiffPreview,
+  ensureParentDirectory,
+  configureFileUtilsWriteBoundary,
+  PathBoundaryError,
+} from "./common/file-utils";
+export { gateWrite, gateRead, grantOutsideRootsFlags, type PathGrant, type GateVerdict } from "./common/path-boundary";
+// P1 side-effect audit bus
+export {
+  AuditLog,
+  buildAuditEvent,
+  canonicalJson,
+  computeAuditChecksum,
+  parseAuditLine,
+  readAuditEvents,
+  serializeAuditEvent,
+  verifyAuditChain,
+  type AuditEvent,
+  type AuditEventType,
+} from "./sandbox/audit";
+// P2 sans-IO policy engine
+export { SandboxPolicyEngine, buildPolicyMatrix, resolveScopeVerdict } from "./sandbox/policy";
+export {
+  ALL_SANDBOX_SCOPES,
+  type SandboxScope,
+  type SandboxVerdict,
+  type SandboxPolicyMatrix,
+  type SandboxState,
+  type SandboxGeneration,
+  type SandboxLease,
+} from "./sandbox/types";
+// Quarantine trust level (design.md §10.3)
+export { applyQuarantinePermissionClamp, QUARANTINE_DENIED_SCOPES } from "./common/permissions";
+export {
+  readWorkspaceTrustStore,
+  writeWorkspaceTrustStore,
+  type WorkspaceTrustLevel,
+  type WorkspaceTrustStatus,
+} from "./common/app-dirs";
+
+// P3 sandbox backends
+export type {
+  SandboxBackend,
+  SandboxBackendName,
+  SandboxProbeResult,
+  SandboxBackendStatus,
+} from "./sandbox/backend/interface";
+export { NoopSandboxBackend } from "./sandbox/backend/noop";
+export {
+  MacosSandboxExecBackend,
+  buildSeatbeltProfile,
+  createMacosBackend,
+  defaultTempWriteRoots,
+} from "./sandbox/backend/macos-sandbox-exec";
+export { detectBashSandboxBackend } from "./sandbox/backend/detect";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";
 export { launchNotifyScript } from "./common/notify";
+// CodeGraph: constants + settings state + MCP config builder.
+// Index/sync operations migrated to desktop's SdkCodegraphController (SDK).
+// MCP tools still use subprocess via npm-shim.js (SDK's MCPServer lacks
+// connect(transport) for in-process bridging — future work).
 export {
   hasCodegraphProject,
   buildCodegraphMcpServerConfig,
-  configureCodegraphVendorRoot,
   setCodegraphDisabled,
   isCodegraphDisabled,
-  getCodegraphVendorRoot,
-  resolveCodegraphExecutable,
-  resolveModernNode,
-  runCodegraphCommand,
-  runCodegraphInit,
-  runCodegraphInitAsync,
-  runCodegraphSync,
-  runCodegraphSyncAsync,
-  runCodegraphResetAsync,
-  runCodegraphResetWithOutput,
-  spawnCodegraphPiped,
-  CODEGRAPH_PACKAGE,
   CODEGRAPH_MCP_SERVER_NAME,
   CODEGRAPH_DIR_NAME,
-  CODEGRAPH_VENDOR_ENTRY,
 } from "./common/codegraph";
-export type { CodegraphExecutable } from "./common/codegraph";
+// Node runtime resolution (extracted from codegraph.ts — shared by GitMCP + OpenWiki).
+export { resolveModernNode } from "./common/sqlite-runtime";
+export type { CodegraphExecutable } from "./common/sqlite-runtime";
+
+// Shared uv binary resolver (used by CRG, Serena, SkillSpector).
+export { resolveUvBinary, configureUvVendorRoot } from "./common/uv";
 
 export {
-  CRG_PACKAGE,
   CRG_MCP_SERVER_NAME,
-  CRG_DIR_NAME,
-  CRG_ANALYSIS_TOOLS,
-  configureCrgVendorRoot,
-  getCrgVendorRoot,
-  resolveUvBinary,
-  resolveCrgExecutable,
+  configureCrgVersionRoot,
   setCrgDisabled,
   isCrgDisabled,
   hasCrgProject,
   buildCrgMcpServerConfig,
-  runCrgBuild,
-  runCrgSync,
-  runCrgBuildWithOutput,
   runCrgResetWithOutput,
-  spawnCrgPiped,
+  runCrgVisualize,
 } from "./common/crg";
-export type { CrgExecutable } from "./common/crg";
+
+export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./common/serena-mcp";
+
+// Dembrandt (design-token extraction engine) — offline-first vendored install
+// seam + MCP config builder (session.ts registers the builtin server).
+export {
+  DEMBRANDT_MCP_SERVER_NAME,
+  buildDembrandtMcpServerConfig,
+  configureDembrandtVendorRoot,
+  configureDembrandtCdpEndpointGetter,
+  validateDembrandtTargetUrl,
+} from "./common/dembrandt";
+
+// Serena controller seam — desktop injects SerenaCliController at boot.
+export { type SerenaController, configureSerenaController, getSerenaController } from "./actions/serena-controller";
+export { SKILL_SPECTOR_MCP_SERVER_NAME, setSkillSpectorDisabled, isSkillSpectorDisabled } from "./common/skill-spector";
+export {
+  type SkillSpectorController,
+  configureSkillSpectorController,
+  getSkillSpectorController,
+} from "./actions/skill-spector-controller";
+
+// Activity-Frames MCP seam — desktop injects the server builder at boot.
+export {
+  ACTIVITY_FRAMES_MCP_SERVER_NAME,
+  configureActivityFramesServerBuilder,
+  getActivityFramesServerBuilder,
+  type ActivityFramesServerBuilder,
+} from "./mcp/activity-frames-seam";
+
+// GitMCP seam — desktop injects the config builder at boot.
+// resolve.ts (slug parsing + path resolution) stays in core.
+export { configureGitmcpConfigBuilder, getGitmcpConfigBuilder, type GitmcpConfigBuilder } from "./mcp/gitmcp-seam";
+export { buildGitmcpMcpServerConfig } from "./gitmcp/resolve";
+
+// Vision MCP seam — desktop injects the concrete server builder at boot.
+export {
+  VISION_MCP_SERVER_NAME,
+  configureVisionServerBuilder,
+  getVisionServerBuilder,
+  type VisionServerBuilder,
+  type VisionServerLike,
+} from "./mcp/vision-seam";
+
+// Semantic skill/tool routing. The host injects the vendored embedding model dir
+// and a logger (same pattern as codegraph/serena above), and closes the shared
+// embedding service — which holds onnxruntime native handles — on app teardown.
+export {
+  configureRoutingModelDir,
+  configureRoutingLogger,
+  closeEmbeddingService,
+  getEmbeddingLoadError,
+} from "./routing";
+
+// A2UI MCP seam — desktop injects the server builder + lifecycle at boot.
+export {
+  A2UI_MCP_SERVER_NAME,
+  configureA2uiServerBuilder,
+  getA2uiServerBuilder,
+  setA2uiDisabled,
+  isA2uiDisabled,
+  type A2uiLifecycle,
+  type A2uiServerBuilder,
+} from "./mcp/a2ui-seam";
+
+// Memory — in-process provider interface, implemented by @deeporca/memory.
+// (The legacy HTTP Gateway sidecar client was removed: it had no call sites and
+// was superseded by the in-process pipeline.)
+export type { MemoryProvider } from "./session";
 export {
   GITMCP_SERVER_PREFIX,
   GITMCP_PLACEHOLDER_COMMAND,
@@ -162,21 +289,9 @@ export {
   gitmcpSlugFromServerName,
   parseRepoSlug,
   buildGitmcpPlaceholderConfig,
-  buildGitmcpMcpServerConfig,
   buildGitmcpMaintenanceCommand,
   resolveGitmcpServerEntry,
 } from "./gitmcp/resolve";
-export {
-  GitmcpStore,
-  getGitmcpIndexDbPath,
-  gitmcpSqliteAvailable,
-  removeGitmcpRepoIndex,
-  readGitmcpRepoMeta,
-} from "./gitmcp/store";
-export type { GitmcpRepoMeta, DocChunk, SearchBackend, SearchHit } from "./gitmcp/store";
-export { indexRepository, chunkMarkdown } from "./gitmcp/indexer";
-export type { IndexResult } from "./gitmcp/indexer";
-export { reportNewPrompt } from "./common/telemetry";
 export {
   DEEPSEEK_V4_MODELS,
   COMPACTION_MODEL,
@@ -200,6 +315,8 @@ export {
   computeToolCallPermissions,
   buildPermissionToolExecution,
   hasUserPermissionReplies,
+  appendProjectAllowedPaths,
+  type AlwaysAllowPaths,
   appendProjectPermissionAllows,
   normalizeAskPermissions,
   parseToolCallForPermissions,
@@ -217,3 +334,103 @@ export type {
 // State types
 export type { FileState, FileSnippet, FileLineEnding } from "./common/state";
 export type { FileReadMetadata } from "./common/file-utils";
+
+// defineAction primitive — "define once, surface everywhere". See
+// specs/define-action/design.md. Phase 0: registry + ping proof action.
+export {
+  ActionRegistry,
+  defineAction,
+  dispatchToolCall,
+  configureActionSpawner,
+  getActionSpawner,
+  ActionError,
+  NULL_SPAWNER,
+  pingDefinition,
+  pingRun,
+  reviewRunDefinition,
+  reviewRun,
+  reviewCheckAvailableDefinition,
+  reviewCheckAvailableRun,
+  reviewFullDefinition,
+  reviewFullRun,
+  configureReviewController,
+  getReviewController,
+  crgReindexDefinition,
+  crgReindexRun,
+  crgVisualizeDefinition,
+  crgVisualizeRun,
+  configureCrgGraphQuery,
+  getCrgGraphQuery,
+  createCrgGraphQuery,
+  formatCrgContextForOcr,
+  mergeReviewWithCrgRisk,
+  configureCrgController,
+  getCrgController,
+  codegraphReindexDefinition,
+  codegraphReindexRun,
+  codegraphListDefinition,
+  codegraphListRun,
+  configureCodegraphController,
+  getCodegraphController,
+  wikiInitDefinition,
+  wikiInitRun,
+  wikiUpdateDefinition,
+  wikiUpdateRun,
+  wikiListPagesDefinition,
+  wikiListPagesRun,
+  wikiReadPageDefinition,
+  wikiReadPageRun,
+  configureWikiController,
+  getWikiController,
+  indexBuildAllDefinition,
+  indexBuildAllRun,
+  archScanRunDefinition,
+  archScanRunRun,
+} from "./actions";
+export type {
+  RegistryHost,
+  ExecuteOptions,
+  RunHandle,
+  DispatchResult,
+  ActionDefinition,
+  ActionContext,
+  ActionErrorCode,
+  ActionParameters,
+  ActionProgress,
+  ActionRun,
+  RunSubagentOptions,
+  SpawnedProcess,
+  Spawner,
+  PingInput,
+  PingOutput,
+  ReviewInput,
+  ReviewAvailability,
+  ReviewFullOutput,
+  CodegraphController,
+  ControllerProgress,
+  ReviewController,
+  ReviewResult,
+  ReviewComment,
+  ReviewOptions,
+  WikiController,
+  WikiResult,
+  WikiInitOutput,
+  WikiPage,
+  CrgController,
+  CrgGraphQuery,
+  CrgChangedFunction,
+  CrgImpactNode,
+  CrgRiskData,
+  CrgCommunity,
+} from "./actions";
+
+export type {
+  TaskBranch,
+  TaskNode,
+  TaskNodeKind,
+  TaskNodeStatus,
+  TaskReflogEntry,
+  TaskTreeIndex,
+  TaskTreeSummary,
+} from "./tasks/types";
+export { TaskTreeService } from "./tasks/task-tree-service";

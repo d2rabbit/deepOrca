@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -143,6 +143,22 @@ type SkillResourceListing = {
   truncated: boolean;
 };
 
+/**
+ * SECURITY (containment check, security scan): join `root` with `segments`
+ * and assert the resolved result stays strictly inside `root`; returns null
+ * for any escape (traversal, absolute segment). Used for every template and
+ * skill-resource path derived from directory listings.
+ */
+function joinWithinRoot(root: string, ...segments: string[]): string | null {
+  const base = path.resolve(root);
+  const resolved = path.resolve(root, ...segments);
+  const rel = path.relative(base, resolved);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return null;
+  }
+  return resolved;
+}
+
 function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): string {
   const toolsDir = path.join(extensionRoot, "templates", "tools");
   if (!fs.existsSync(toolsDir)) {
@@ -154,7 +170,12 @@ function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): s
     .filter((entry) => entry.endsWith(".md") || entry.endsWith(".md.ejs"))
     .sort()
     .map((entry) => {
-      const fullPath = path.join(toolsDir, entry);
+      // containment check (security scan): template files must stay under the
+      // tools template directory.
+      const fullPath = joinWithinRoot(toolsDir, entry);
+      if (!fullPath) {
+        return "";
+      }
       try {
         const template = fs.readFileSync(fullPath, "utf8");
         const content = entry.endsWith(".ejs")
@@ -176,7 +197,12 @@ function readDefaultSkillDocs(
 ): Array<{ name: string; content: string }> {
   const skillsDir = path.join(extensionRoot, "templates", "skills");
   return DEFAULT_SKILL_TEMPLATES.map((entry) => {
-    const fullPath = path.join(skillsDir, entry);
+    // containment check (security scan): skill templates must stay under the
+    // skills template directory.
+    const fullPath = joinWithinRoot(skillsDir, entry);
+    if (!fullPath) {
+      return null;
+    }
     const name = path.basename(entry, ".md");
     if (enabledSkills[name] === false) {
       return null;
@@ -203,7 +229,13 @@ export function getDefaultSkillPrompt(options: DefaultSkillPromptOptions = {}): 
 
 /** Read the dedicated prompt used when a submitted turn enters Plan Mode. */
 export function getPlanModePrompt(): string {
-  const templatePath = path.join(getExtensionRoot(), "templates", "prompts", "plan.md");
+  // containment check (security scan): the plan template must stay under the
+  // templates root next to getExtensionRoot().
+  const extensionRoot = getExtensionRoot();
+  const templatePath = joinWithinRoot(extensionRoot, "templates", "prompts", "plan.md");
+  if (!templatePath) {
+    return "";
+  }
   try {
     return fs.readFileSync(templatePath, "utf8").trim();
   } catch {
@@ -259,6 +291,7 @@ function renderSkillResources(skillFilePath?: string): string {
 
 function listSkillResourceFiles(skillFilePath: string, limit: number): SkillResourceListing {
   const skillDir = path.dirname(skillFilePath);
+  const skillDirRoot = path.resolve(skillDir);
   const files: string[] = [];
   let truncated = false;
 
@@ -281,7 +314,13 @@ function listSkillResourceFiles(skillFilePath: string, limit: number): SkillReso
       }
 
       const relativePath = relativeDir ? path.join(relativeDir, entry.name) : entry.name;
-      const fullPath = path.join(dir, entry.name);
+      // containment check (security scan): every walked path must stay under
+      // the skill directory it started from — traversal or symlinked names
+      // that would escape the root are skipped instead of read.
+      const fullPath = joinWithinRoot(skillDirRoot, relativePath);
+      if (!fullPath) {
+        continue;
+      }
       if (entry.isDirectory()) {
         if (SKILL_RESOURCE_EXCLUDED_DIRS.has(entry.name)) {
           continue;
@@ -324,9 +363,70 @@ function getCurrentDateAndModelPrompt(model?: string): string {
   return prompt;
 }
 
+const TOOL_SELECTION_GUIDE = `# 代码工具选择指南
+
+DeepOrca 提供多层代码工具（内置工具、Serena 语义工具、CodeGraph 图谱工具），按场景选择最优工具：
+
+## 编辑代码
+- **简单文本替换**（同一文件内）→ 用内置 \`edit\`（snippet 级精准匹配，轻量）
+- **替换整个函数/方法/类的实现** → 用 Serena \`replace_symbol_body\`（LSP 语义级，不关心行号）
+- **跨文件重命名** → 用 Serena \`rename_symbol\`（原子操作，自动更新所有引用）
+- **在某符号前/后插入新代码** → 用 Serena \`insert_before_symbol\` / \`insert_after_symbol\`
+
+## 查找代码
+- **找某符号的定义位置** → 用 Serena \`find_symbol\`（实时 LSP，最准确）
+- **找谁调用了某符号** → 用 Serena \`find_referencing_symbols\`（实时引用，反映最新代码）
+- **分析修改某符号的影响面** → 用 CodeGraph \`codegraph_impact\`（全代码图谱影响分析）
+- **查看调用链/依赖关系** → 用 CodeGraph \`codegraph_callees\` / \`codegraph_callers\`（图谱遍历）
+- **全文搜索**（非符号级）→ 用内置 \`bash\` + \`rg\`（正则全文搜索）
+
+## 编辑后验证
+- 每次代码修改后，建议用 Serena \`get_diagnostics_for_file\` 检查类型/语法错误
+
+## 心智模型
+- **Serena = 手术刀**：实时、精准、单符号级操作（LSP 驱动，40+ 语言）
+- **CodeGraph = 全景图**：广度、影响面、调用链分析（图谱驱动）
+- **内置工具 = 基础**：文本读写、shell 命令、搜索
+
+## 知识源（你拥有的全部信息渠道）
+
+DeepOrca 为你提供以下 6 个知识来源，按需利用：
+
+1. **\`<memory-context>\`（跨会话记忆）** — 系统自动注入的用户偏好、历史事实、场景记忆。你不需要主动查询——它在会话开始时已包含在上下文中。
+2. **CodeGraph 图谱工具** — 通过 MCP 工具查询符号调用关系（\`codegraph_search\` / \`codegraph_impact\` / \`codegraph_callers\`）
+3. **Serena 语义工具** — 通过 MCP 工具进行 LSP 级符号操作（\`find_symbol\` / \`rename_symbol\` / \`replace_symbol_body\`）
+4. **\`openwiki/\` 目录** — 结构化项目文档（architecture.md、modules/*.md、workflows/*.md），用 \`read\` 工具查看
+5. **\`.serena/memories/\` 目录** — Serena 项目记忆（架构理解、模块依赖、构建方式），Markdown 格式，可提交 Git，用 \`read\` 工具查看
+6. **AGENTS.md** — 项目编码指南和架构约束（已自动加载到上下文）
+
+### 查询路由
+- "这个项目的架构是怎样的？" → 读 \`openwiki/architecture.md\`
+- "这个函数被谁调用？" → 用 \`codegraph_callers\`
+- "这个符号在哪定义？" → 用 Serena \`find_symbol\`
+- "修改这个会影响什么？" → 用 \`codegraph_impact\`
+- "用户之前说过什么偏好？" → 已在 \`<memory-context>\` 中，直接使用`;
+
+/**
+ * System-prompt section order is part of the DeepSeek prefix-cache contract
+ * (dsh takeaways #13): any reorder invalidates every cached session prefix.
+ * The order is declared here explicitly — sections are assembled once, in this
+ * order, and must never be rearranged. `toolDocs` being null collapses the
+ * trailing sections (legacy behavior: base prompt only).
+ */
+export const SYSTEM_PROMPT_SECTION_ORDER = ["base", "toolSelectionGuide", "toolDocsHeader", "toolDocs"] as const;
+
 export function getSystemPrompt(_projectRoot: string, options: PromptToolOptions = {}): string {
   const toolDocs = readToolDocs(getExtensionRoot(), options);
-  return toolDocs ? `${SYSTEM_PROMPT_BASE}\n\n# Available Tools\n\n${toolDocs}` : SYSTEM_PROMPT_BASE;
+  if (!toolDocs) {
+    return SYSTEM_PROMPT_BASE;
+  }
+  const sections: Record<(typeof SYSTEM_PROMPT_SECTION_ORDER)[number], string> = {
+    base: SYSTEM_PROMPT_BASE,
+    toolSelectionGuide: TOOL_SELECTION_GUIDE,
+    toolDocsHeader: "# Available Tools",
+    toolDocs,
+  };
+  return SYSTEM_PROMPT_SECTION_ORDER.map((section) => sections[section]).join("\n\n");
 }
 
 export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
@@ -345,7 +445,49 @@ export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
   return `${COMPACT_PROMPT_BASE}\n\nconversation below:\n\n\`\`\`jsonl\n${jsonl}\n\`\`\``;
 }
 
-export function getRuntimeContext(projectRoot: string, model?: string): string {
+/**
+ * Build a system-prompt block from recalled memories. Uses XML-tagged wrapping
+ * (matching the skill-document pattern) so the LLM can clearly identify the
+ * memory context. Returns empty string when no memories were recalled.
+ *
+ * Two recall channels:
+ *  - `prependContext`: dynamic, per-turn L1 memories relevant to the current
+ *    query. Rendered FIRST inside the block so the model sees them ahead of
+ *    stable persona/scene context.
+ *  - `appendSystemContext`: stable persona + scene navigation + tools guide.
+ *
+ * Note: `appendSystemContext` may already contain a `<user-persona>` block
+ * (TDAI inlines persona there), so this function does NOT re-wrap a separate
+ * `persona` field. The `persona` parameter is kept only for legacy callers.
+ */
+export function getMemoryPrompt(recall: {
+  prependContext?: string;
+  appendSystemContext?: string;
+  persona?: string | null;
+  recallStrategy?: string;
+}): string {
+  const parts: string[] = [];
+  if (recall.prependContext) {
+    parts.push(`<recalled-memories>\n${recall.prependContext}\n</recalled-memories>`);
+  }
+  if (recall.appendSystemContext) {
+    parts.push(`<cross-session-memory>\n${recall.appendSystemContext}\n</cross-session-memory>`);
+  }
+  if (parts.length === 0) {
+    return "";
+  }
+  return `<memory-context strategy="${recall.recallStrategy ?? "none"}">\n${parts.join("\n\n")}\n</memory-context>`;
+}
+
+/**
+ * The machine-level workspace environment block. This is byte-stable for a
+ * given machine/project (root path, uname, shell, runtime versions, installed
+ * tools) and therefore safe to bake into the cache-stable system-prompt prefix.
+ * The date and model line — which change every day / on model switch and would
+ * invalidate the DeepSeek prefix cache — are split out into {@link getCurrentTurnTail}
+ * and injected per-turn as a transient tail instead.
+ */
+export function getStableRuntimeContext(projectRoot: string): string {
   const uname = getUnameInfo();
   const shellPath = getShellPathInfo();
   const shellModeOpts = process.platform === "win32" ? { "shell mode": "git-bash" } : {};
@@ -363,13 +505,34 @@ export function getRuntimeContext(projectRoot: string, model?: string): string {
       jq: checkToolInstalled("jq"),
     },
   };
-  return `${getCurrentDateAndModelPrompt(model)}
-
-# Local Workspace Environment
+  return `# Local Workspace Environment
 
 \`\`\`json
 ${JSON.stringify(env, null, 2)}
 \`\`\``;
+}
+
+/**
+ * The per-turn transient tail: current date + active model. Evaluated fresh on
+ * every API request (the OpenAIMessageConverter appends it to the last user
+ * message at conversion time, never to the persisted JSONL). Keeping the date
+ * out of the system-prompt prefix means the cross-session/cross-day DeepSeek
+ * prefix cache stays warm; baking it in would invalidate the whole prefix the
+ * moment the day changes or a new session opens.
+ */
+export function getCurrentTurnTail(model?: string): string {
+  return getCurrentDateAndModelPrompt(model);
+}
+
+/**
+ * Legacy composite: stable environment block + date/model line. Kept for
+ * backward compatibility (tests/CLI flows); the session loop uses the split
+ * {@link getStableRuntimeContext} + {@link getCurrentTurnTail} pair instead.
+ */
+export function getRuntimeContext(projectRoot: string, model?: string): string {
+  return `${getCurrentDateAndModelPrompt(model)}
+
+${getStableRuntimeContext(projectRoot)}`;
 }
 
 function checkToolInstalled(tool: string): boolean {
@@ -383,7 +546,10 @@ function checkToolInstalled(tool: string): boolean {
       });
       return true;
     }
-    execSync(`command -v ${tool}`, { encoding: "utf8", stdio: "ignore" });
+    execFileSync(resolveShellPath(), ["-c", `command -v ${shellSingleQuote(tool)}`], {
+      encoding: "utf8",
+      stdio: "ignore",
+    });
     return true;
   } catch {
     return false;
@@ -426,7 +592,7 @@ function getCommandVersion(command: string, args: string[]): string | null {
         windowsHide: true,
       }).trim();
     }
-    return execSync(`${commandText} 2>&1`, { encoding: "utf8" }).trim();
+    return execFileSync(resolveShellPath(), ["-c", `${commandText} 2>&1`], { encoding: "utf8" }).trim();
   } catch {
     return null;
   }
@@ -440,7 +606,7 @@ function getUnameInfo(): string {
         windowsHide: true,
       }).trim();
     }
-    return execSync("uname -a", { encoding: "utf8" }).trim();
+    return execFileSync(resolveShellPath(), ["-c", "uname -a"], { encoding: "utf8" }).trim();
   } catch {
     return `${os.type()} ${os.release()} ${os.arch()}`;
   }
@@ -492,7 +658,7 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
             },
             sideEffects: {
               description:
-                'Permission scopes required by this bash command. Use [] only for commands that do not read, write, delete, or access the network. Use ["unknown"] when the effects cannot be classified safely.',
+                'Permission scopes required by this bash command. Declare every scope the command touches: the executor independently infers scopes from the command text and unions them with your declaration, so under-reporting cannot bypass the permission policy (a `rm` declared as `read-in-cwd` still picks up `delete-*`). Use ["unknown"] only when the command is genuinely unclassifiable.',
               type: "array",
               items: {
                 type: "string",
@@ -702,6 +868,29 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
           },
         },
         required: ["query"],
+        additionalProperties: false,
+      },
+    },
+  });
+
+  tools.push({
+    type: "function",
+    function: {
+      name: "WebFetch",
+      description:
+        "Fetch a web page and return its title, readable text content, and links. " +
+        "Pages render with a built-in headless browser when available, so JavaScript-heavy pages work; " +
+        "otherwise a static HTTP fetch is used. Use after WebSearch to read a result, or for any public http/https page.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: {
+            type: "string",
+            description:
+              "The http/https URL of the page to fetch (public hosts only — private/loopback addresses are rejected).",
+          },
+        },
+        required: ["url"],
         additionalProperties: false,
       },
     },

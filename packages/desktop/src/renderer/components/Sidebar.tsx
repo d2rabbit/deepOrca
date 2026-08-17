@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import type { SerializableSessionEntry, WorkspaceSessions } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
@@ -66,7 +66,8 @@ function matchesQuery(entry: SerializableSessionEntry, q: string): boolean {
   );
 }
 
-export function Sidebar({
+// Memoized: props are stable references from App; busy/stream ticks skip the tree.
+export const Sidebar = memo(function Sidebar({
   activeId,
   currentRoot,
   refreshKey,
@@ -354,4 +355,4 @@ export function Sidebar({
       </button>
     </div>
   );
-}
+});

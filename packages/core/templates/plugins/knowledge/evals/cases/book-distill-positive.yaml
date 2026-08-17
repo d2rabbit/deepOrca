@@ -1,0 +1,47 @@
+# draft: format finalized with Workstream A (skill-up CI)
+id: book-distill-positive
+title: Distill a provided internal manual into a skill
+description: >
+  User provides an owned multi-section internal document and asks to distill it
+  into a reusable skill. book-distill should trigger and run its pipeline
+  (source assessment, chapter map, batched extraction, dedupe/merge, assembly)
+  with output written to the user skills directory, not the builtin templates
+  dir.
+input:
+  prompt: |
+    这是我们团队的内部代码评审手册（自研文档，无版权问题），请把它蒸馏成一个可复用的技能，
+    以后我做代码评审时可以直接用：
+
+    《内部代码评审手册 v3》
+
+    第 1 章 引言
+    本手册由平台工程组编写，回顾了 2023 年以来评审流程的演变，介绍了各位作者的分工与致谢。
+
+    第 2 章 提交前自检
+    送审前必须完成：本地跑通全量测试；diff 自读一遍，删除调试代码；提交信息用 conventional commits。
+    常见错误：把无关改动混进同一个 PR；留着 console.log 就送审。
+
+    第 3 章 评审重点排序
+    先看正确性与边界条件，其次安全隐患（注入、越权、密钥硬编码），再次可读性，最后才是风格。
+    反模式：逐行挑剔格式却不看数据流；在评审里提"建议重写"却不说明理由。
+
+    第 4 章 评审意见写法
+    意见按严重度分级（block / suggest / nit），每条给出理由或修复方向。
+    常见错误：只写"这里不好"；在 nit 上反复拉锯超过两轮。
+
+    第 5 章 附录：历史数据
+    附 2023-2025 年各季度评审时长统计表与趋势图数据。
+
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - "源评估"
+    - "章节地图"
+    - ".deeporca/skills"
+    - "SKILL.md"
+  must_not_contain:
+    - "packages/core/templates"
+judge:
+  type: rule_based

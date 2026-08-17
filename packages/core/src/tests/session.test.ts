@@ -6,7 +6,22 @@ import * as os from "os";
 import * as path from "path";
 import { GitFileHistory } from "../common/file-history";
 import { clearSessionState } from "../common/state";
-import { getProjectCode, SessionManager, type SessionMessage } from "../session";
+import { setSerenaDisabled } from "../common/serena-mcp";
+import { setSkillSpectorDisabled } from "../common/skill-spector";
+import { setCodegraphDisabled } from "../common/codegraph";
+import { setCrgDisabled } from "../common/crg";
+import { setA2uiDisabled } from "../mcp/a2ui-seam";
+import {
+  getFreshInputTokens,
+  getLastPromptTokens,
+  getProjectCode,
+  LlmStreamIdleTimeoutError,
+  SessionManager,
+  type ModelUsage,
+  type SessionMessage,
+  withStreamIdleTimeout,
+} from "../session";
+import { classifyLlmError } from "../common/llm-error";
 
 const originalFetch = globalThis.fetch;
 const originalConsoleWarn = console.warn;
@@ -351,10 +366,61 @@ test("SessionManager normalizes legacy sessions without activeTokens to zero", (
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-legacy");
+  const manager = createSessionManager(workspace);
 
   assert.equal(manager.getSession("legacy-session")?.activeTokens, 0);
   assert.equal(manager.getSession("legacy-session")?.usagePerModel, null);
+});
+
+test("SessionManager keeps both updates when two sessions are updated inside one debounce window", async () => {
+  const workspace = createTempDir("deepcode-index-debounce-workspace-");
+  const home = createTempDir("deepcode-index-debounce-home-");
+  setHomeDir(home);
+
+  const projectCode = getProjectCode(workspace);
+  const projectDir = path.join(home, ".deepcode", "projects", projectCode);
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(projectDir, "sessions-index.json"),
+    JSON.stringify({
+      version: 1,
+      originalPath: workspace,
+      entries: [
+        {
+          id: "session-a",
+          status: "completed",
+          summary: "old a",
+          createTime: "2026-01-01T00:00:00.000Z",
+          updateTime: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "session-b",
+          status: "completed",
+          summary: "old b",
+          createTime: "2026-01-01T00:00:00.000Z",
+          updateTime: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    }),
+    "utf8"
+  );
+
+  const manager = createSessionManager(workspace);
+
+  // Index writes are debounced, so both renames land inside a single window.
+  // The second update must build on the first — if the read path went to the
+  // (still stale) file, session-a's rename would be silently dropped.
+  manager.renameSession("session-a", "new a");
+  manager.renameSession("session-b", "new b");
+
+  assert.equal(manager.getSession("session-a")?.summary, "new a");
+  assert.equal(manager.getSession("session-b")?.summary, "new b");
+
+  // Both must also survive the debounced flush: a fresh manager sees only the file.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const reloaded = createSessionManager(workspace);
+  assert.equal(reloaded.getSession("session-a")?.summary, "new a");
+  assert.equal(reloaded.getSession("session-b")?.summary, "new b");
 });
 
 test("SessionManager keeps usagePerModel null until response usage is available", async () => {
@@ -411,7 +477,7 @@ test("SessionManager marks skills loaded from existing session messages", async 
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-loaded-skills");
+  const manager = createSessionManager(workspace);
   const loadedSkill = (await manager.listSkills("loaded-session")).find((skill) => skill.name === "lessweb-starter");
 
   assert.equal(loadedSkill?.isLoaded, true);
@@ -462,7 +528,7 @@ test("SessionManager lists skills from Deep Code and .agents roots by priority",
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-project-skills");
+  const manager = createSessionManager(workspace);
   const skills = await manager.listSkills();
   const nativeUserSkill = skills.find((skill) => skill.name === "native-user");
   const sharedSkill = skills.find((skill) => skill.name === "shared");
@@ -473,22 +539,25 @@ test("SessionManager lists skills from Deep Code and .agents roots by priority",
   assert.equal(sharedSkill?.description, "Project .deepcode skill");
 });
 
-test("SessionManager lists bundled skills at lowest priority", async () => {
-  const workspace = createTempDir("deepcode-bundled-skills-workspace-");
-  const home = createTempDir("deepcode-bundled-skills-home-");
+test("SessionManager lists built-in plugin skills at lowest priority", async () => {
+  const workspace = createTempDir("deepcode-plugin-skills-workspace-");
+  const home = createTempDir("deepcode-plugin-skills-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-bundled-skills");
+  const manager = createSessionManager(workspace);
   const skills = await manager.listSkills();
   const skillWriter = skills.find((skill) => skill.name === "skill-writer");
   const selfRefer = skills.find((skill) => skill.name === "deeporca-self-refer");
 
-  assert.equal(skillWriter?.path, "bundled:skill-writer/SKILL.md");
-  assert.equal(selfRefer?.path, "bundled:deeporca-self-refer/SKILL.md");
+  // Formerly `bundled:<skill>/SKILL.md`. The built-in skills now ship inside
+  // plugin packages (templates/plugins/<pkg>/skills/), so the display path is
+  // `plugin:<pkg>/<skill>/SKILL.md`.
+  assert.equal(skillWriter?.path, "plugin:meta-skills/skill-writer/SKILL.md");
+  assert.equal(selfRefer?.path, "plugin:meta-skills/deeporca-self-refer/SKILL.md");
   assert.match(skillWriter?.description ?? "", /Guide users through creating/);
 });
 
-test("SessionManager lets project skills override bundled skills", async () => {
+test("SessionManager lets project skills override built-in plugin skills", async () => {
   const workspace = createTempDir("deepcode-bundled-override-workspace-");
   const home = createTempDir("deepcode-bundled-override-home-");
   setHomeDir(home);
@@ -501,22 +570,22 @@ test("SessionManager lets project skills override bundled skills", async () => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-bundled-override");
+  const manager = createSessionManager(workspace);
   const skillWriter = (await manager.listSkills()).find((skill) => skill.name === "skill-writer");
 
   assert.equal(skillWriter?.path, "./.deepcode/skills/skill-writer/SKILL.md");
   assert.equal(skillWriter?.description, "Project override skill writer");
 });
 
-test("SessionManager resolves bundled skill prompts", () => {
-  const workspace = createTempDir("deepcode-bundled-prompt-workspace-");
-  const home = createTempDir("deepcode-bundled-prompt-home-");
+test("SessionManager resolves built-in plugin skill prompts", () => {
+  const workspace = createTempDir("deepcode-plugin-prompt-workspace-");
+  const home = createTempDir("deepcode-plugin-prompt-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-bundled-prompt");
+  const manager = createSessionManager(workspace);
   const prompt = (manager as any).buildSkillPrompt({
     name: "skill-writer",
-    path: "bundled:skill-writer/SKILL.md",
+    path: "plugin:meta-skills/skill-writer/SKILL.md",
     description: "Write skills",
   });
 
@@ -559,17 +628,22 @@ test("SessionManager excludes the former bundled plan skill and defaults legacy 
   const home = createTempDir("deepcode-plan-legacy-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-plan-legacy");
+  const manager = createSessionManager(workspace);
   assert.equal(
     (await manager.listSkills()).some((skill) => skill.name === "plan"),
     false
   );
 
   const sessionId = await manager.createSession({ text: "Default mode" });
+  // Simulate a legacy session persisted before `planMode` existed, then force it
+  // to disk: the normalization under test happens when the file is read back, so
+  // a fresh manager (not the one holding it in memory) is what must see `false`.
   const index = (manager as any).loadSessionsIndex();
   delete index.entries.find((entry: { id: string }) => entry.id === sessionId).planMode;
   (manager as any).saveSessionsIndex(index);
-  assert.equal(manager.getSession(sessionId)?.planMode, false);
+  (manager as any).flushSessionsIndex();
+  const reloaded = createSessionManager(workspace);
+  assert.equal(reloaded.getSession(sessionId)?.planMode, false);
 
   const autoMatchManager = createMockedClientSessionManagerWithClient(workspace, {
     chat: {
@@ -622,7 +696,6 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
       model: "test-model",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      machineId: "machine-id-disabled-skills",
     }),
     getResolvedSettings: () => ({
       model: "test-model",
@@ -642,16 +715,17 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
   const skills = await manager.listSkills();
   const skillNames = skills.map((skill) => skill.name);
 
-  // Disabled skills must be excluded regardless of which bundled skills ship alongside.
-  const nonBundled = skills.filter((skill) => !skill.path.startsWith("bundled:"));
+  // Disabled skills must be excluded regardless of which built-in plugin skills
+  // ship alongside (formerly prefixed `bundled:`, now `plugin:<pkg>/…`).
+  const projectOwned = skills.filter((skill) => !skill.path.startsWith("plugin:"));
   assert.deepEqual(
-    nonBundled.map((skill) => skill.name),
+    projectOwned.map((skill) => skill.name),
     ["enabled-skill"]
   );
   for (const disabledName of ["skill-writer", "renamed-disabled", "deeporca-self-refer", "skill-digester"]) {
     assert.equal(skillNames.includes(disabledName), false);
   }
-  assert.equal(nonBundled[0]?.path, "./.deepcode/skills/enabled-skill/SKILL.md");
+  assert.equal(projectOwned[0]?.path, "./.deepcode/skills/enabled-skill/SKILL.md");
 });
 
 test("SessionManager keeps implicit opt-out skills available for manual invocation", async () => {
@@ -667,7 +741,7 @@ test("SessionManager keeps implicit opt-out skills available for manual invocati
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-manual-only-skill");
+  const manager = createSessionManager(workspace);
   const skill = (await manager.listSkills()).find((candidate) => candidate.name === "manual-only");
   assert.ok(skill);
   assert.equal(skill.allowImplicitInvocation, false);
@@ -689,7 +763,17 @@ test("SessionManager excludes implicit opt-out skills from automatic matching ca
   globalThis.fetch = (async () => ({ ok: true, text: async () => "" }) as Response) as typeof fetch;
 
   const writeSkill = (name: string, metadata = ""): void => {
-    const skillDir = path.join(workspace, ".deepcode", "skills", name);
+    // Test fixture containment (security scan): names are literals in this
+    // test — inline-validate a plain single segment that resolves under the
+    // temp workspace root.
+    if (name.split(/[\\/]/).length !== 1 || name.includes("..") || path.isAbsolute(name)) {
+      throw new Error(`unsafe skill fixture name: ${name}`);
+    }
+    const skillDir = path.join(path.resolve(workspace), ".deepcode", "skills", name);
+    const relToWorkspace = path.relative(path.resolve(workspace), skillDir);
+    if (relToWorkspace === "" || relToWorkspace.startsWith("..") || path.isAbsolute(relToWorkspace)) {
+      throw new Error("skill fixture directory escaped the workspace root");
+    }
     fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(
       path.join(skillDir, "SKILL.md"),
@@ -743,7 +827,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -768,7 +856,7 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-dispose");
+  const manager = createSessionManager(workspace);
   const initPromise = manager.initMcpServers({ smoke: { command: process.execPath, args: [serverPath] } });
 
   assert.deepEqual(manager.getMcpStatus(), [
@@ -787,21 +875,27 @@ rl.on("line", (line) => {
 
   await initPromise;
 
-  assert.deepEqual(manager.getMcpStatus(), [
-    {
-      name: "smoke",
-      status: "ready",
-      connected: true,
-      toolCount: 2,
-      tools: ["mcp__smoke__echo", "mcp__smoke__count"],
-      promptCount: 0,
-      prompts: [],
-      resourceCount: 0,
-      resources: [],
-    },
-  ]);
+  // Select by name: initMcpServers also attaches the always-on in-process servers
+  // (activity-frames), so `smoke` is not the only entry. Still deep-compared in
+  // full, so every field of the configured server stays asserted.
+  assert.deepEqual(mcpStatusFor(manager, "smoke"), {
+    name: "smoke",
+    status: "ready",
+    connected: true,
+    toolCount: 2,
+    tools: ["mcp__smoke__echo", "mcp__smoke__count"],
+    promptCount: 0,
+    prompts: [],
+    resourceCount: 0,
+    resources: [],
+  });
   const mcpManager = (manager as any).mcpManager;
-  assert.equal(mcpManager.getMcpToolDefinitions()[0].function.name, "mcp__smoke__echo");
+  const smokeToolNames = mcpManager
+    .getMcpToolDefinitions()
+    .map((definition: { function: { name: string } }) => definition.function.name)
+    .filter((name: string) => name.startsWith("mcp__smoke__"))
+    .sort();
+  assert.deepEqual(smokeToolNames, ["mcp__smoke__count", "mcp__smoke__echo"]);
   assert.deepEqual(await mcpManager.executeMcpTool("mcp__smoke__echo", { text: "ok" }), {
     ok: true,
     name: "mcp__smoke__echo",
@@ -830,7 +924,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -850,18 +948,21 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-safe-name");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ "voice.box": { command: process.execPath, args: [serverPath] } });
 
-  const status = manager.getMcpStatus()[0];
+  const status = mcpStatusFor(manager, "voice.box");
   assert.equal(status?.status, "ready");
   assert.deepEqual(status?.tools, ["mcp__voice_box__speak_text", "mcp__voice_box__speak_text_59a610ad"]);
 
   const mcpManager = (manager as any).mcpManager;
   const definitions = mcpManager.getMcpToolDefinitions();
-  assert.equal(definitions[0].function.name, "mcp__voice_box__speak_text");
-  assert.match(definitions[0].function.name, /^[a-zA-Z0-9_-]+$/);
-  assert.match(definitions[0].function.description, /MCP source: voice\.box: speak\.text/);
+  const speakText = definitions.find(
+    (definition: { function: { name: string } }) => definition.function.name === "mcp__voice_box__speak_text"
+  );
+  assert.ok(speakText, "expected the API-safe tool name to be exposed");
+  assert.match(speakText.function.name, /^[a-zA-Z0-9_-]+$/);
+  assert.match(speakText.function.description, /MCP source: voice\.box: speak\.text/);
   assert.deepEqual(await mcpManager.executeMcpTool("mcp__voice_box__speak_text", { text: "ok" }), {
     ok: true,
     name: "mcp__voice_box__speak_text",
@@ -880,7 +981,7 @@ test("SessionManager dispose kills live processes without timeout controls", (t)
   const workspace = createTempDir("deepcode-dispose-process-workspace-");
   const home = createTempDir("deepcode-dispose-process-home-");
   setHomeDir(home);
-  const manager = createSessionManager(workspace, "machine-id-dispose-process");
+  const manager = createSessionManager(workspace);
   const sessionId = createSessionAndMessages(manager, "session-dispose-process", "Dispose process session");
   const originalKill = process.kill;
   const killed: Array<{ pid: number; signal?: NodeJS.Signals | number }> = [];
@@ -909,7 +1010,7 @@ test("SessionManager deleteSession ignores persisted processes that are not live
   const workspace = createTempDir("deepcode-delete-stale-process-workspace-");
   const home = createTempDir("deepcode-delete-stale-process-home-");
   setHomeDir(home);
-  const manager = createSessionManager(workspace, "machine-id-delete-stale-process");
+  const manager = createSessionManager(workspace);
   const sessionId = createSessionAndMessages(manager, "session-delete-stale-process", "Delete stale process session");
   (manager as any).updateSessionEntry(sessionId, (entry: any) => ({
     ...entry,
@@ -949,7 +1050,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -973,15 +1078,22 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-crash-cache");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ crashy: { command: process.execPath, args: [serverPath] } });
 
-  assert.equal(manager.getMcpStatus()[0]?.status, "ready");
-  assert.equal((manager as any).mcpToolDefinitions.length, 1);
+  // Count only this server's tools — the always-on in-process servers contribute
+  // their own definitions to the same cache.
+  const crashyToolCount = () =>
+    ((manager as any).mcpToolDefinitions as { function: { name: string } }[]).filter((definition) =>
+      definition.function.name.startsWith("mcp__crashy__")
+    ).length;
 
-  await waitForMcpStatus(manager, "failed");
+  assert.equal(mcpStatusFor(manager, "crashy")?.status, "ready");
+  assert.equal(crashyToolCount(), 1);
 
-  assert.equal((manager as any).mcpToolDefinitions.length, 0);
+  await waitForMcpStatus(manager, "failed", "crashy");
+
+  assert.equal(crashyToolCount(), 0);
 
   manager.dispose();
 });
@@ -1025,7 +1137,7 @@ test("SessionManager reports MCP startup stderr on failure", async () => {
   const serverPath = path.join(workspace, "mcp-server-fail.cjs");
   fs.writeFileSync(serverPath, 'process.stderr.write("mcp startup boom"); process.exit(7);', "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-failure");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ broken: { command: process.execPath, args: [serverPath] } });
 
   const [status] = manager.getMcpStatus();
@@ -1058,7 +1170,11 @@ rl.on("line", (line) => {
     return;
   }
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} } } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -1072,7 +1188,7 @@ rl.on("line", (line) => {
     );
     fs.chmodSync(fakeNpxPath, 0o755);
 
-    const manager = createSessionManager(workspace, "machine-id-mcp-npx");
+    const manager = createSessionManager(workspace);
     await manager.initMcpServers({
       npxed: { command: fakeNpxPath, args: ["@playwright/mcp@latest"], env: { ARGS_PATH: argsPath } },
     });
@@ -1092,7 +1208,7 @@ test("createSession stores /init and sends the active .deepcode project AGENTS p
   fs.writeFileSync(path.join(workspace, ".deepcode", "AGENTS.md"), "deepcode project instructions", "utf8");
   fs.writeFileSync(path.join(workspace, "AGENTS.md"), "root project instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-init-deepcode");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "/init" });
@@ -1122,7 +1238,7 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
 
   fs.writeFileSync(path.join(workspace, "AGENTS.md"), "root project instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-system-order");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "hello" });
@@ -1132,23 +1248,31 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
     .map((message) => message.content ?? "");
 
   assert.equal(systemContents.length >= 5, true);
+  // Prefix-cache order (most stable first), per createSession:
+  //   [0] base system prompt + tool docs
+  //   [1] AGENTS.md standing instructions
+  //   [2] default skill docs
+  //   [3] built-in plugin docs
+  //   [4] stable workspace environment
   assert.match(systemContents[0] ?? "", /# Available Tools/);
   assert.doesNotMatch(systemContents[0] ?? "", /# Local Workspace Environment/);
-  assert.doesNotMatch(systemContents[0] ?? "", /当前LLM模型为test-model/);
-  assert.match(systemContents[1] ?? "", /<karpathy-guidelines-skill>/);
-  assert.match(systemContents[1] ?? "", /# Karpathy Guidelines/);
-  assert.doesNotMatch(systemContents[1] ?? "", /path="templates\/skills\//);
-  assert.doesNotMatch(systemContents[1] ?? "", /当前LLM模型为test-model/);
-  // [2] = built-in plugin prompt (browser-skill)
-  assert.match(systemContents[2] ?? "", /<builtin-plugin/);
-  // [3] = runtime context
-  assert.match(systemContents[3] ?? "", /# Local Workspace Environment/);
-  assert.match(systemContents[3] ?? "", /当前LLM模型为test-model/);
-  const environmentJsonMatch = (systemContents[3] ?? "").match(/```json\n([\s\S]+?)\n```/);
+  assert.equal(systemContents[1], "root project instructions");
+  assert.match(systemContents[2] ?? "", /<karpathy-guidelines-skill>/);
+  assert.match(systemContents[2] ?? "", /# Karpathy Guidelines/);
+  assert.doesNotMatch(systemContents[2] ?? "", /path="templates\/skills\//);
+  assert.match(systemContents[3] ?? "", /<builtin-plugin/);
+  assert.match(systemContents[4] ?? "", /# Local Workspace Environment/);
+  const environmentJsonMatch = (systemContents[4] ?? "").match(/```json\n([\s\S]+?)\n```/);
   assert.ok(environmentJsonMatch);
   const environmentInfo = JSON.parse(environmentJsonMatch[1] ?? "{}") as { "root path"?: string };
   assert.equal(environmentInfo["root path"], workspace);
-  assert.equal(systemContents[4], "root project instructions");
+
+  // The date/model line is deliberately NOT part of the cached system prefix — it
+  // ships per turn via getCurrentTurnTail so the DeepSeek prefix cache survives
+  // day rollovers and model switches. Guard every system message, not just one.
+  for (const content of systemContents) {
+    assert.doesNotMatch(content, /当前LLM模型为test-model/);
+  }
 });
 
 test("createSession skips disabled default skills", async () => {
@@ -1163,7 +1287,6 @@ test("createSession skips disabled default skills", async () => {
       model: "test-model",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      machineId: "machine-id-disabled-default-skill",
     }),
     getResolvedSettings: () => ({
       model: "test-model",
@@ -1277,7 +1400,7 @@ test("replySession stores /init and sends the active root project AGENTS path to
 
   fs.writeFileSync(path.join(workspace, "AGENTS.md"), "root project instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-init-root");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1305,7 +1428,7 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   fs.mkdirSync(path.join(home, ".deepcode"), { recursive: true });
   fs.writeFileSync(path.join(home, ".deepcode", "AGENTS.md"), "user instructions", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-init-generate");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "/init" });
@@ -1320,93 +1443,6 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   assert.equal(userMessage?.content, "/init");
   assert.match(openAIUserMessage?.content ?? "", /Generate a file named \.\/AGENTS\.md/);
   assert.doesNotMatch(openAIUserMessage?.content ?? "", /Update \.\/AGENTS\.md/);
-});
-
-test("createSession reports a new prompt with the machineId token", async () => {
-  const workspace = createTempDir("deepcode-session-workspace-");
-  const home = createTempDir("deepcode-session-home-");
-  setHomeDir(home);
-
-  const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
-    fetchCalls.push({ input, init });
-    return {
-      ok: true,
-      text: async () => "",
-    } as Response;
-  }) as typeof fetch;
-
-  const manager = createSessionManager(workspace, "machine-id-123");
-  const activatedSessionIds: string[] = [];
-  (manager as any).activateSession = async (sessionId: string) => {
-    activatedSessionIds.push(sessionId);
-  };
-
-  const sessionId = await manager.createSession({ text: "hello world" });
-  await flushPromises();
-
-  assert.equal(activatedSessionIds.length, 1);
-  assert.equal(activatedSessionIds[0], sessionId);
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-123");
-});
-
-test("replySession reports a new prompt with the machineId token", async () => {
-  const workspace = createTempDir("deepcode-reply-workspace-");
-  const home = createTempDir("deepcode-reply-home-");
-  setHomeDir(home);
-
-  const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
-    fetchCalls.push({ input, init });
-    return {
-      ok: true,
-      text: async () => "",
-    } as Response;
-  }) as typeof fetch;
-
-  const manager = createSessionManager(workspace, "machine-id-456");
-  (manager as any).activateSession = async () => {};
-
-  const sessionId = await manager.createSession({ text: "first prompt" });
-  await flushPromises();
-  fetchCalls.length = 0;
-
-  await manager.replySession(sessionId, { text: "second prompt" });
-  await flushPromises();
-
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-456");
-});
-
-test("reporting a new prompt does not warn when the background request fails", async () => {
-  const workspace = createTempDir("deepcode-report-failure-workspace-");
-  const home = createTempDir("deepcode-report-failure-home-");
-  setHomeDir(home);
-
-  const warnings: unknown[][] = [];
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args);
-  };
-  globalThis.fetch = (async () => {
-    throw new Error("fetch failed");
-  }) as typeof fetch;
-
-  const manager = createSessionManager(workspace, "machine-id-failure");
-  (manager as any).activateSession = async () => {};
-
-  await manager.createSession({ text: "hello world" });
-  await flushPromises();
-
-  assert.deepEqual(warnings, []);
 });
 
 test(
@@ -1485,7 +1521,7 @@ test("replySession continues without appending /continue as a user message", asy
     } as Response;
   }) as typeof fetch;
 
-  const manager = createSessionManager(workspace, "machine-id-continue");
+  const manager = createSessionManager(workspace);
   const activatedSessionIds: string[] = [];
   (manager as any).activateSession = async (sessionId: string) => {
     activatedSessionIds.push(sessionId);
@@ -1523,7 +1559,7 @@ test("replySession records the current file-history branch head as checkpointHas
   const home = createTempDir("deepcode-checkpoint-hash-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-checkpoint-hash");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1545,7 +1581,7 @@ test("createSession initializes file-history repo and session branch", async (t)
   const home = createTempDir("deepcode-file-history-init-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-file-history-init");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1573,7 +1609,7 @@ test("createSession initializes an empty file-history manifest without scanning 
   fs.mkdirSync(path.join(workspace, "nested"));
   fs.writeFileSync(path.join(workspace, "nested", "another.txt"), "also keep me\n", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-file-history-empty-init");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1595,7 +1631,7 @@ test("replySession snapshots manual edits to tracked files before appending the 
   setHomeDir(home);
 
   const filePath = path.join(workspace, "hello_world.py");
-  const manager = createSessionManager(workspace, "machine-id-prompt-checkpoint-manual-edit");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "create hello world" });
@@ -1634,7 +1670,7 @@ test("replySession inserts hidden system notice for manually changed tracked fil
 
   const firstPath = path.join(workspace, "a.txt");
   const secondPath = path.join(workspace, "b.txt");
-  const manager = createSessionManager(workspace, "machine-id-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1669,7 +1705,7 @@ test("replySession does not insert manual-change notice when tracked files are u
   setHomeDir(home);
 
   const filePath = path.join(workspace, "tracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-no-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1701,7 +1737,7 @@ test("replySession reports manual deletion of a tracked file", async (t) => {
   setHomeDir(home);
 
   const filePath = path.join(workspace, "deleted.txt");
-  const manager = createSessionManager(workspace, "machine-id-manual-delete-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1734,7 +1770,7 @@ test("replySession ignores manually created untracked files", async (t) => {
 
   const trackedPath = path.join(workspace, "tracked.txt");
   const untrackedPath = path.join(workspace, "untracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-untracked-manual-file");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1767,7 +1803,7 @@ test("replySession does not insert manual-change notice for /continue", async (t
   setHomeDir(home);
 
   const filePath = path.join(workspace, "tracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-continue-no-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1800,7 +1836,7 @@ test("replySession does not insert manual-change notice for permission-only repl
   setHomeDir(home);
 
   const filePath = path.join(workspace, "tracked.txt");
-  const manager = createSessionManager(workspace, "machine-id-permission-no-manual-change-notice");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -1892,28 +1928,37 @@ test("Write checkpoints restore tool-touched files outside the workspace and lea
 
   const outsideFilePath = path.join(outsideDir, "outside.txt");
   const unrelatedWorkspaceFilePath = path.join(workspace, "unrelated.txt");
-  const manager = createMockedClientSessionManager(workspace, [
-    {
-      choices: [
-        {
-          message: {
-            content: "",
-            tool_calls: [
-              {
-                id: "call-write-outside",
-                type: "function",
-                function: {
-                  name: "write",
-                  arguments: JSON.stringify({ file_path: outsideFilePath, content: "outside\n" }),
+  // P0.5 (2026-08-15): allowAll no longer implicitly covers write-out-cwd —
+  // out-of-workspace writes force an ask unless explicitly granted. This test
+  // exercises the checkpoint machinery, so grant the scope explicitly (the
+  // "always allow" path), which also pins the anti-regression semantics: an
+  // explicit allow-list entry survives the forceAskDefaulted baseline.
+  const manager = createPermissionSessionManager(
+    workspace,
+    [
+      {
+        choices: [
+          {
+            message: {
+              content: "",
+              tool_calls: [
+                {
+                  id: "call-write-outside",
+                  type: "function",
+                  function: {
+                    name: "write",
+                    arguments: JSON.stringify({ file_path: outsideFilePath, content: "outside\n" }),
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
-        },
-      ],
-    },
-    createChatResponse("done", { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }),
-  ]);
+        ],
+      },
+      createChatResponse("done", { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }),
+    ],
+    { allow: ["write-out-cwd"], deny: [], ask: [], defaultMode: "allowAll" }
+  );
 
   const sessionId = await manager.createSession({ text: "create an outside file" });
   const userMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "user");
@@ -1979,7 +2024,7 @@ test("restoreSessionConversation truncates messages before the selected user pro
   const home = createTempDir("deepcode-undo-conversation-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-undo-conversation");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -2024,7 +2069,7 @@ test("restoreSessionCode restores project files from the recorded Git checkpoint
   const home = createTempDir("deepcode-undo-code-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-undo-code");
+  const manager = createSessionManager(workspace);
   const sessionId = "session-code-restore";
   const checkpointHash = createFileHistoryCommit(home, workspace, sessionId, { "tracked.txt": "before\n" });
   const fileHistory = new GitFileHistory(workspace, getFileHistoryGitDir(home, workspace));
@@ -2061,7 +2106,7 @@ test("restoreSessionCode preserves files that predate their first tracked mutati
   fs.writeFileSync(readmeEnPath, "This is a hello world demo project.\n", "utf8");
   fs.writeFileSync(readmeZhPath, "", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-undo-preexisting-files");
+  const manager = createSessionManager(workspace);
   const sessionId = "session-undo-preexisting-files";
   const gitDir = getFileHistoryGitDir(home, workspace);
   const fileHistory = new GitFileHistory(workspace, gitDir);
@@ -2107,7 +2152,7 @@ test("restoreSessionCode restores deleted tracked files and leaves unrelated fil
   fs.writeFileSync(trackedPath, "before delete\n", "utf8");
   fs.writeFileSync(unrelatedPath, "do not touch\n", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-undo-deleted-files");
+  const manager = createSessionManager(workspace);
   const sessionId = "session-undo-deleted-files";
   const gitDir = getFileHistoryGitDir(home, workspace);
   const fileHistory = new GitFileHistory(workspace, gitDir);
@@ -2516,7 +2561,7 @@ test("replySession preserves raw session messages when a previous tool call is p
       text: async () => "",
     }) as Response) as typeof fetch;
 
-  const manager = createSessionManager(workspace, "machine-id-pending-tool");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = await manager.createSession({ text: "first prompt" });
@@ -3062,7 +3107,8 @@ test("SessionManager accumulates response usage while active tokens track the la
   const session = manager.getSession(sessionId);
   const usage = session?.usage as Record<string, any>;
   const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
-  assert.equal(session?.activeTokens, 27);
+  // activeTokens tracks the latest response's PROMPT side (context pressure), not total_tokens.
+  assert.equal(session?.activeTokens, 20);
   assert.equal(usage.prompt_tokens, 30);
   assert.equal(usage.completion_tokens, 12);
   assert.equal(usage.total_tokens, 42);
@@ -3169,7 +3215,7 @@ test("SessionManager resets active tokens to latest post-compaction response usa
   const manager = createMockedClientSessionManager(workspace, responses);
 
   const sessionId = await manager.createSession({ text: "" });
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 140_000);
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 139_990);
 
   await manager.replySession(sessionId, { text: "" });
 
@@ -3178,7 +3224,7 @@ test("SessionManager resets active tokens to latest post-compaction response usa
   // Compaction uses COMPACTION_MODEL ("deepseek-v4-flash"), so usagePerModel splits.
   const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
   const compactUsage = session?.usagePerModel?.["deepseek-v4-flash"] as Record<string, any>;
-  assert.equal(session?.activeTokens, 7);
+  assert.equal(session?.activeTokens, 5);
   // Total usage across all models.
   assert.equal(usage.prompt_tokens, 140_095);
   assert.equal(usage.completion_tokens, 35);
@@ -3255,7 +3301,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
 
   assert.equal(assistantMessage?.content, "hello");
   assert.equal((assistantMessage?.messageParams as any)?.reasoning_content, "思考");
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 5);
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 2);
   assert.deepEqual(
     progressEvents.map((event) => event.phase),
     ["start", "update", "update", "end"]
@@ -3282,7 +3328,18 @@ test("SessionManager persists session and user message before skill matching is 
           assert.equal(request.temperature, 0.1);
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
-            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            // See the APIUserAbortError test below: the abort may already have
+            // landed before the request is issued, so check `aborted` first —
+            // otherwise this promise never settles and hangs the run.
+            if (!signal) {
+              reject(new Error("expected an abort signal to be forwarded to the OpenAI client"));
+              return;
+            }
+            if (signal.aborted) {
+              reject(new APIUserAbortError());
+              return;
+            }
+            signal.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
             queueMicrotask(() => manager.interruptActiveSession());
           });
         },
@@ -3315,7 +3372,19 @@ test("SessionManager treats OpenAI APIUserAbortError as interrupted", async () =
         create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
-            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            // The request is issued after an await, so the abort can already have
+            // landed by the time we get here. The real SDK rejects immediately on
+            // an already-aborted signal — mirror that. A listener-only mock would
+            // never settle and hang the entire test run instead of failing.
+            if (!signal) {
+              reject(new Error("expected an abort signal to be forwarded to the OpenAI client"));
+              return;
+            }
+            if (signal.aborted) {
+              reject(new APIUserAbortError());
+              return;
+            }
+            signal.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
           });
         },
       },
@@ -3355,13 +3424,17 @@ test("SessionManager marks MCP server as failed on single failed attempt (no aut
   const serverPath = path.join(workspace, "mcp-server-fail.cjs");
   fs.writeFileSync(serverPath, "process.exit(7);", "utf8");
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-fail-no");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ broken: { command: process.execPath, args: [serverPath] } });
 
-  const status = manager.getMcpStatus();
-  assert.equal(status.length, 1);
-  assert.equal(status[0]?.status, "failed");
-  assert.match(status[0]?.error ?? "", /exited with code 7/);
+  const status = mcpStatusFor(manager, "broken");
+  assert.equal(status?.status, "failed");
+  // The SDK's StdioClientTransport drops the child exit code (stdio.js maps
+  // `close` to onclose() without it), so the failure surfaces as a transport
+  // error rather than the old "exited with code 7". A server that writes to
+  // stderr before dying still has that appended — covered by the
+  // "reports MCP startup stderr on failure" test.
+  assert.match(status?.error ?? "", /Connection closed/);
 
   manager.dispose();
 });
@@ -3381,7 +3454,11 @@ rl.on("line", (line) => {
   const request = JSON.parse(line);
   if (!("id" in request)) return;
   if (request.method === "initialize") {
-    send({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: "2024-11-05", capabilities: {} } });
+    send({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "stub", version: "1.0" } },
+    });
     return;
   }
   if (request.method === "tools/list") {
@@ -3394,13 +3471,12 @@ rl.on("line", (line) => {
     "utf8"
   );
 
-  const manager = createSessionManager(workspace, "machine-id-mcp-reconn-ok");
+  const manager = createSessionManager(workspace);
   await manager.initMcpServers({ fixable: { command: process.execPath, args: [serverPath] } });
 
-  const status = manager.getMcpStatus();
-  assert.equal(status.length, 1);
-  assert.equal(status[0]?.status, "ready");
-  assert.equal(status[0]?.toolCount, 1);
+  const status = mcpStatusFor(manager, "fixable");
+  assert.equal(status?.status, "ready");
+  assert.equal(status?.toolCount, 1);
 
   manager.dispose();
 });
@@ -3410,7 +3486,7 @@ test("SessionManager adjusts the active Bash timeout control and session metadat
   const home = createTempDir("deepcode-bash-timeout-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "");
+  const manager = createSessionManager(workspace);
   const sessionId = await manager.createSession({ text: "hello" });
 
   (manager as any).addSessionProcess(sessionId, 123, "sleep 10");
@@ -3447,7 +3523,7 @@ test("SessionManager.deleteSession removes session entry from the index", () => 
   const home = createTempDir("deepcode-delete-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   // Create two sessions
@@ -3470,7 +3546,7 @@ test("SessionManager.deleteSession removes the messages file", () => {
   const home = createTempDir("deepcode-delete-msg-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete-msg");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const sessionId = createSessionAndMessages(manager, "session-delete-msg", "Test session");
@@ -3490,7 +3566,7 @@ test("SessionManager.deleteSession returns false when session does not exist", (
   const home = createTempDir("deepcode-delete-nonexist-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete-nonexist");
+  const manager = createSessionManager(workspace);
 
   const result = manager.deleteSession("nonexistent-session-id");
   assert.equal(result, false);
@@ -3502,7 +3578,7 @@ test("SessionManager.deleteSession does not affect other sessions", () => {
   const home = createTempDir("deepcode-delete-others-home-");
   setHomeDir(home);
 
-  const manager = createSessionManager(workspace, "machine-id-delete-others");
+  const manager = createSessionManager(workspace);
   (manager as any).activateSession = async () => {};
 
   const session1 = createSessionAndMessages(manager, "session-keep-1", "Keep session 1");
@@ -3633,7 +3709,7 @@ function runFileHistoryGit(
   );
 }
 
-function createSessionManager(projectRoot: string, machineId: string): SessionManager {
+function createSessionManager(projectRoot: string): SessionManager {
   return new SessionManager({
     projectRoot,
     createOpenAIClient: () => ({
@@ -3641,7 +3717,6 @@ function createSessionManager(projectRoot: string, machineId: string): SessionMa
       model: "test-model",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      machineId,
     }),
     getResolvedSettings: () => ({ model: "test-model" }),
     renderMarkdown: (text) => text,
@@ -3836,7 +3911,34 @@ async function* createChatStreamResponse(chunks: Record<string, unknown>[]): Asy
 function createTempDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   tempDirs.push(dir);
+  // Opt every throwaway workspace out of the built-in MCP servers. Serena and
+  // SkillSpector are injected for *every* project when uv is present (see
+  // augmentMcpServersWithBuiltins), so without this a test that configures one
+  // stub server actually gets two or three, shifting getMcpStatus() indices and
+  // paying a 30s startup timeout each — ~180s of the suite's runtime. Disabling
+  // here (the single place every test obtains a directory) also makes results
+  // identical on machines with and without uv installed, rather than depending
+  // on the host. Same reasoning as the process-wide HOME isolation in
+  // run-tests.mjs: do it once, centrally, so individual tests cannot get it wrong.
+  setSerenaDisabled(dir, true);
+  setSkillSpectorDisabled(dir, true);
+  setCodegraphDisabled(dir, true);
+  setCrgDisabled(dir, true);
+  setA2uiDisabled(dir, true);
   return dir;
+}
+
+/**
+ * MCP status for one configured server, by name.
+ *
+ * SessionManager always attaches in-process MCP servers (activity-frames, and
+ * a2ui unless disabled) to every project, so getMcpStatus() is not just the
+ * servers a test configured and index 0 is not necessarily the test's own server.
+ * activity-frames has no opt-out by design, so tests select by name instead of
+ * position.
+ */
+function mcpStatusFor(manager: SessionManager, serverName: string) {
+  return manager.getMcpStatus().find((entry) => entry.name === serverName);
 }
 
 function createNotifyRecorderScript(dir: string): string {
@@ -3878,14 +3980,15 @@ async function waitForNotifyRecords(
   assert.fail(`expected ${expectedCount} notify records in ${outputPath}`);
 }
 
-async function waitForMcpStatus(manager: SessionManager, expectedStatus: string): Promise<void> {
+async function waitForMcpStatus(manager: SessionManager, expectedStatus: string, serverName?: string): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (manager.getMcpStatus()[0]?.status === expectedStatus) {
+    const entry = serverName ? mcpStatusFor(manager, serverName) : manager.getMcpStatus()[0];
+    if (entry?.status === expectedStatus) {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  assert.fail(`expected MCP status ${expectedStatus}`);
+  assert.fail(`expected MCP status ${expectedStatus}${serverName ? ` for ${serverName}` : ""}`);
 }
 
 function escapeRegExp(value: string): string {
@@ -3894,4 +3997,214 @@ function escapeRegExp(value: string): string {
 
 async function flushPromises(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+test("getLastPromptTokens and getFreshInputTokens apply mutually-exclusive cache accounting", () => {
+  const deepseekUsage: ModelUsage = {
+    prompt_tokens: 1000,
+    completion_tokens: 200,
+    total_tokens: 1200,
+    prompt_cache_hit_tokens: 750,
+  };
+  assert.equal(getLastPromptTokens(deepseekUsage), 1000);
+  assert.equal(getFreshInputTokens(deepseekUsage), 250);
+
+  // OpenAI-style nested cache accounting collapses to zero fresh input.
+  const openAiUsage: ModelUsage = {
+    prompt_tokens: 800,
+    completion_tokens: 50,
+    total_tokens: 850,
+    prompt_tokens_details: { cached_tokens: 800 },
+  };
+  assert.equal(getFreshInputTokens(openAiUsage), 0);
+
+  // A provider glitch (cache read larger than prompt) must clamp at zero.
+  const glitchUsage: ModelUsage = {
+    prompt_tokens: 100,
+    completion_tokens: 1,
+    total_tokens: 101,
+    prompt_cache_hit_tokens: 400,
+  };
+  assert.equal(getFreshInputTokens(glitchUsage), 0);
+
+  assert.equal(getLastPromptTokens(null), 0);
+  assert.equal(getFreshInputTokens(null), 0);
+});
+
+test("withStreamIdleTimeout aborts silent streams and passes active ones through", async () => {
+  const silent: AsyncIterable<never> = {
+    [Symbol.asyncIterator]: () => ({
+      next: () => new Promise<IteratorResult<never>>(() => {}),
+    }),
+  };
+  await assert.rejects(
+    async () => {
+      for await (const _chunk of withStreamIdleTimeout(silent, 25)) {
+        // never reached
+      }
+    },
+    (error: unknown) => {
+      assert.ok(error instanceof LlmStreamIdleTimeoutError);
+      assert.equal(classifyLlmError(error), "TIMEOUT");
+      return true;
+    }
+  );
+
+  async function* slowStream(): AsyncGenerator<number> {
+    yield 1;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    yield 2;
+  }
+  const collected: number[] = [];
+  for await (const value of withStreamIdleTimeout(slowStream(), 5000)) {
+    collected.push(value);
+  }
+  assert.deepEqual(collected, [1, 2]);
+});
+
+test("activateSession tracks context pressure as prompt-side tokens, not total tokens", async () => {
+  const workspace = createTempDir("deepcode-prompt-tokens-workspace-");
+  const home = createTempDir("deepcode-prompt-tokens-home-");
+  setHomeDir(home);
+
+  const responses: unknown[] = [
+    createChatResponse("cached answer", {
+      prompt_tokens: 9000,
+      completion_tokens: 4000,
+      total_tokens: 13000,
+      prompt_cache_hit_tokens: 8500,
+    }),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "completed");
+  assert.equal(session?.activeTokens, 9000);
+  assert.equal(getFreshInputTokens(session?.usage ?? null), 500);
+  assert.equal(responses.length, 0);
+});
+
+test("activateSession recovers from context overflow via compact-and-retry", async () => {
+  const workspace = createTempDir("deepcode-overflow-recovery-workspace-");
+  const home = createTempDir("deepcode-overflow-recovery-home-");
+  setHomeDir(home);
+
+  const overflowError = Object.assign(
+    new Error("This model's maximum context length is 65536 tokens. However, you requested 131072 tokens."),
+    { status: 400, code: "invalid_request_error" }
+  );
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    overflowError,
+    createChatResponse("compacted summary", { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 }),
+    createChatResponse("recovered answer", { prompt_tokens: 120, completion_tokens: 6, total_tokens: 126 }),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "tell me more" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "completed");
+  assert.equal(session?.failReason, null);
+  assert.equal(session?.assistantReply, "recovered answer");
+  assert.equal(session?.activeTokens, 120);
+  assert.ok(
+    manager.listSessionMessages(sessionId).some((message) => message.meta?.isSummary === true),
+    "compaction should have inserted a summary message"
+  );
+  assert.equal(responses.length, 0, "all queued responses should have been consumed");
+});
+
+test("activateSession retries exactly once when the stream stalls twice", async () => {
+  const workspace = createTempDir("deepcode-overflow-once-workspace-");
+  const home = createTempDir("deepcode-overflow-once-home-");
+  setHomeDir(home);
+
+  const overflowError = Object.assign(new Error("This model's maximum context length is 65536 tokens."), {
+    status: 400,
+  });
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    overflowError,
+    createChatResponse("still too long summary", { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 }),
+    overflowError,
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "tell me more" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "failed");
+  assert.match(session?.failReason ?? "", /maximum context length/);
+  assert.equal(responses.length, 0);
+});
+
+test("activateSession does not retry quota errors", async () => {
+  const workspace = createTempDir("deepcode-quota-workspace-");
+  const home = createTempDir("deepcode-quota-home-");
+  setHomeDir(home);
+
+  const quotaError = Object.assign(new Error("402 Insufficient Balance"), {
+    status: 402,
+    error: { message: "Insufficient Balance" },
+  });
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    quotaError,
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "again" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "failed");
+  assert.match(session?.failReason ?? "", /Insufficient Balance/);
+  assert.equal(responses.length, 0, "no retry or compaction call should have been made");
+});
+
+test("activateSession retries once after a stalled stream times out", async () => {
+  const workspace = createTempDir("deepcode-timeout-retry-workspace-");
+  const home = createTempDir("deepcode-timeout-retry-home-");
+  setHomeDir(home);
+
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    new Error("Request timed out."),
+    createChatResponse("after retry", { prompt_tokens: 90, completion_tokens: 3, total_tokens: 93 }),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "again" });
+
+  const session = manager.getSession(sessionId);
+  assert.equal(session?.status, "completed");
+  assert.equal(session?.assistantReply, "after retry");
+  assert.equal(session?.activeTokens, 90);
+  assert.equal(responses.length, 0);
+});
+
+/**
+ * Mock chat client for recovery-path tests: unlike createMockedClientSessionManager,
+ * queued Error instances are THROWN (not returned as a response body), so they
+ * exercise the activateSession error handling (classify → compact/retry → fail).
+ */
+function createQueuedChatClient(responses: unknown[]): unknown {
+  return {
+    chat: {
+      completions: {
+        create: async (request: any) => {
+          if (isSkillMatchingRequest(request)) {
+            return createSkillMatchingResponse();
+          }
+          const response = responses.shift();
+          assert.ok(response, "expected a queued chat response");
+          if (response instanceof Error) {
+            throw response;
+          }
+          return response;
+        },
+      },
+    },
+  };
 }

@@ -1,0 +1,22 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: deep-design-positive
+title: Dashboard design request produces a .dd artifact from the brand contract
+description: >
+  User asks for a UI design draft. deep-design should trigger: read the
+  project DESIGN.md brand contract, compose from seed tokens, and deliver a
+  .dd (OrcaDesign) file — never a raw HTML file or a diagram artifact.
+input:
+  prompt: |
+    给我们的数据分析平台做一版监控仪表盘的 UI 设计稿：顶部放全局筛选，
+    中间是四个核心指标卡，下面是趋势图和异常事件列表。
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - ".dd"
+    - "DESIGN.md"
+  must_not_contain:
+    - ".mmd"
+judge:
+  type: rule_based

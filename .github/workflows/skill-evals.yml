@@ -1,0 +1,66 @@
+name: Skill Evals
+
+# skill-up evaluation for the built-in plugin packages (specs/skill-eval
+# design.md §3.3 / tasks.md T1.3).
+# - PRs touching plugin templates run ONLY the changed packages in
+#   report-only mode: eval failures never fail the PR, the benchmark.md
+#   artifacts are the deliverable.
+# - Nightly (18:00 UTC) runs the full set with --nightly so regressions
+#   surface as a red build (three consecutive failures should open an issue).
+
+on:
+  pull_request:
+    paths:
+      - "packages/core/templates/plugins/**"
+      # Re-exercise the runner itself when it changes.
+      - "scripts/run-skill-evals.mjs"
+      - "scripts/get-skill-up.mjs"
+      - ".github/workflows/skill-evals.yml"
+  schedule:
+    - cron: "0 18 * * *"
+
+jobs:
+  skill-evals:
+    name: skill-up evals
+    runs-on: ubuntu-latest
+    # Outer guard; per-package timeouts live in run-skill-evals.mjs
+    # (SKILL_EVAL_TIMEOUT_MS, default 15 min per package).
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # run-skill-evals diffs against origin/<base_ref>, which needs the
+          # branch history of the target ref.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The eval runner is stdlib-only Node — no npm ci needed. skill-up is a
+      # pinned Go binary fetched by the helper (same version locally and in CI).
+      - name: Install skill-up (pinned release)
+        run: node scripts/get-skill-up.mjs
+
+      - name: Run evals (changed packages, report-only)
+        if: github.event_name == 'pull_request'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: node scripts/run-skill-evals.mjs --since origin/${{ github.base_ref }} --report-only
+
+      - name: Run evals (full set, nightly)
+        if: github.event_name == 'schedule'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: node scripts/run-skill-evals.mjs --all --nightly
+
+      - name: Upload eval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-eval-reports
+          path: "**/evals/**/benchmark.md"
+          if-no-files-found: warn

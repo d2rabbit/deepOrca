@@ -10,6 +10,7 @@ import {
   writeTextFile,
 } from "../common/file-utils";
 import { executeValidatedTool } from "../common/validate";
+import { gateWrite } from "../common/path-boundary";
 import { getFileState, isAbsoluteFilePath, isFullFileView, normalizeFilePath, recordFileState } from "../common/state";
 
 const writeSchema = z.strictObject({
@@ -43,6 +44,21 @@ export async function handleWriteTool(
           ok: false,
           name: "write",
           error: "file_path must be an absolute path.",
+        };
+      }
+
+      // Execution-time write boundary (P0, specs/sandbox/design.md §4.1):
+      // enforce the granted path capability before any fs effect — past this
+      // point ensureParentDirectory would create the escaping parent chain.
+      const gate = gateWrite(context.pathGrant, filePath, context.projectRoot);
+      context.onPathGateVerdict?.({ tool: "write", verdict: gate, filePath });
+      if (!gate.ok) {
+        return {
+          ok: false,
+          name: "write",
+          error: gate.reason,
+          errorType: "PERMISSION_DENIED",
+          retryable: false,
         };
       }
 
@@ -91,15 +107,17 @@ export async function handleWriteTool(
       const normalizedContent = normalizeContent(input.content);
 
       try {
-        ensureParentDirectory(filePath);
+        ensureParentDirectory(filePath, { pathGrant: context.pathGrant });
 
         const existingMetadata = existingFile ? readTextFileWithMetadata(filePath) : null;
         const encoding = existingMetadata?.encoding ?? "utf8";
         const lineEndings = existingMetadata?.lineEndings ?? (input.content.includes("\r\n") ? "CRLF" : "LF");
         const diffPreview = buildDiffPreview(filePath, existingMetadata?.content ?? null, normalizedContent);
         context.onBeforeFileMutation?.(filePath);
-        const bytes = writeTextFile(filePath, normalizedContent, encoding, lineEndings);
-        context.onAfterFileMutation?.(filePath);
+        const bytes = writeTextFile(filePath, normalizedContent, encoding, lineEndings, {
+          pathGrant: context.pathGrant,
+        });
+        context.onAfterFileMutation?.(filePath, "write");
         const freshMetadata = readTextFileWithMetadata(filePath);
 
         recordFileState(

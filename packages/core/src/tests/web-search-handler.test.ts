@@ -6,7 +6,6 @@ import * as path from "path";
 import type OpenAI from "openai";
 import type { ToolExecutionContext } from "../tools/executor";
 import { handleWebSearchTool } from "../tools/web-search-handler";
-import { getUserSettingsPath } from "../settings";
 
 const tempDirs: string[] = [];
 const originalFetch = globalThis.fetch;
@@ -60,89 +59,69 @@ test(
   }
 );
 
-test("WebSearch uses the default API when no script is configured", async () => {
+test("WebSearch without a script uses the built-in first-party provider (query-only, no identifiers)", async () => {
   const workspace = createTempWorkspace();
-  const starts: Array<{ id: string | number; command: string }> = [];
-  const exits: Array<string | number> = [];
-  const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
-
-  const fakeClient = {
-    chat: {
-      completions: {
-        create: async ({ messages }: { messages: Array<{ content: string }> }) => {
-          const prompt = messages[0]?.content ?? "";
-          if (prompt.includes("Return strict JSON:")) {
-            return {
-              choices: [
-                {
-                  message: {
-                    content:
-                      '{"dominant_language":"en","reason":"Most Node.js release notes are published in English."}',
-                  },
-                },
-              ],
-            };
-          }
-          throw new Error(`Unexpected chat prompt: ${prompt}`);
-        },
-      },
-    },
-  } as unknown as OpenAI;
-
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
-    fetchCalls.push({ input, init });
-    return {
-      ok: true,
-      json: async () => ({
-        success: true,
-        result: JSON.stringify(
-          {
-            organic_results: [
-              {
-                title: "Node.js Releases",
-                link: "https://nodejs.org/en/about/previous-releases",
-              },
-            ],
-          },
-          null,
-          2
-        ),
-      }),
-    } as Response;
+    fetchCalls.push({ url: String(input), init });
+    return new Response(
+      `<a rel="nofollow" href="https://nodejs.org/en/blog" class="result-link">Node.js Blog</a>` +
+        `<td class="result-snippet">release notes</td>`,
+      { status: 200 }
+    );
   }) as typeof fetch;
 
-  const result = await handleWebSearchTool(
-    { query: "latest node release" },
-    createContext(workspace, {
-      client: fakeClient,
-      machineId: "machine-id-123",
-      onProcessStart: (id, command) => starts.push({ id, command }),
-      onProcessExit: (id) => exits.push(id),
-    })
-  );
+  try {
+    const starts: Array<string | number> = [];
+    const exits: Array<string | number> = [];
+    const result = await handleWebSearchTool(
+      { query: "latest node release" },
+      createContext(workspace, {
+        webSearchProvider: "duckduckgo",
+        onProcessStart: (id) => starts.push(id),
+        onProcessExit: (id) => exits.push(id),
+      })
+    );
 
-  assert.equal(result.ok, true);
-  assert.match(result.output ?? "", /Node\.js Releases/);
-  assert.equal(result.metadata?.resolvedQuery, "latest node release");
-  assert.equal(starts.length, 1);
-  assert.equal(starts[0].id, exits[0]);
-  assert.equal(starts[0].command, "WebSearch: latest node release");
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/web-search");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), { query: "latest node release" });
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-123");
+    assert.equal(result.ok, true);
+    assert.match(result.output ?? "", /\[Node\.js Blog\]\(https:\/\/nodejs\.org\/en\/blog\)/);
+    assert.equal(result.metadata?.provider, "duckduckgo");
+    assert.equal(result.metadata?.resultCount, 1);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].url, "https://lite.duckduckgo.com/lite/");
+    const headers = fetchCalls[0].init?.headers as Record<string, string>;
+    assert.equal(headers.Token, undefined, "no machine identifier may leave the machine");
+    // Activity tracking pairs start/exit.
+    assert.equal(starts.length, 1);
+    assert.deepEqual(exits, starts);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-test("WebSearch returns a configuration error when neither a script nor an LLM client is available", async () => {
+test("WebSearch script precedence: a configured script wins, built-in provider is never called", async () => {
   const workspace = createTempWorkspace();
-  const result = await handleWebSearchTool({ query: "latest node release" }, createContext(workspace));
+  const scriptPath = path.join(workspace, "search.sh");
+  fs.writeFileSync(scriptPath, "#!/bin/sh\necho 'script-result'\n", "utf8");
+  fs.chmodSync(scriptPath, 0o755);
 
-  assert.equal(result.ok, false);
-  assert.equal(
-    result.error,
-    `WebSearch default mode requires a valid LLM configuration in ${getUserSettingsPath()} or the project settings.json.`
-  );
+  const fetchCalls: Array<unknown> = [];
+  globalThis.fetch = (async (...args: unknown[]) => {
+    fetchCalls.push(args);
+    return new Response("", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const result = await handleWebSearchTool(
+      { query: "latest node release" },
+      createContext(workspace, { webSearchTool: scriptPath, webSearchProvider: "duckduckgo" })
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.output, "script-result\n");
+    assert.equal(fetchCalls.length, 0, "provider must not be called when a script is configured");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 function createContext(
@@ -150,8 +129,8 @@ function createContext(
   options: {
     client?: OpenAI | null;
     webSearchTool?: string;
+    webSearchProvider?: string;
     env?: Record<string, string>;
-    machineId?: string;
     onProcessStart?: (processId: string | number, command: string) => void;
     onProcessExit?: (processId: string | number) => void;
   } = {}
@@ -172,8 +151,8 @@ function createContext(
       model: "test-model",
       thinkingEnabled: false,
       webSearchTool: options.webSearchTool,
+      webSearchProvider: options.webSearchProvider,
       env: options.env,
-      machineId: options.machineId,
     }),
     onProcessStart: options.onProcessStart,
     onProcessExit: options.onProcessExit,

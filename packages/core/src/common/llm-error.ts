@@ -56,6 +56,96 @@ export function describeLlmError(error: unknown): string {
 }
 
 /**
+ * Coarse-grained error categories used to decide recovery behavior (retry vs
+ * compact-and-retry vs fail fast). Mirrors dsh's normalized error codes,
+ * calibrated against DeepSeek/OpenAI-compatible error texts.
+ */
+export type LlmErrorCategory =
+  | "AUTH"
+  | "QUOTA"
+  | "RATE_LIMIT"
+  | "CONTEXT_WINDOW_EXCEEDED"
+  | "SERVER"
+  | "TRANSIENT"
+  | "TIMEOUT"
+  | "UNKNOWN";
+
+const AUTH_PATTERNS = [
+  /invalid[^.]{0,20}api[_ -]?key/i,
+  /incorrect api[_ -]?key/i,
+  /api key not valid/i,
+  /authentication/i,
+  /\bunauthorized\b/i,
+  /\bforbidden\b/i,
+];
+
+const QUOTA_PATTERNS = [
+  /insufficient balance/i,
+  /insufficient quota/i,
+  /exceeded your current quota/i,
+  /quota exceeded/i,
+  /\bin arrears\b/i,
+  /billing/i,
+  /balance is not enough/i,
+];
+
+const RATE_LIMIT_PATTERNS = [/rate[ _-]?limit/i, /too many requests/i, /requests per (?:minute|second|day)/i];
+
+const CONTEXT_WINDOW_PATTERNS = [
+  /maximum context length/i,
+  /context[ _-]?length/i,
+  /context[ _-]?window/i,
+  /context limit/i,
+  /exceeds? (?:the )?context/i,
+  /too many (?:input )?tokens/i,
+  /prompt is too long/i,
+  /reduce the length of the (?:messages|prompt|input)/i,
+  /input tokens? .{0,40}exceed/i,
+];
+
+const TIMEOUT_PATTERNS = [/\btimed?[ _-]?out\b/i, /\betimedout\b/i, /\beconnaborted\b/i, /deadline exceeded/i];
+
+const TRANSIENT_PATTERNS = [
+  /\beconnreset\b/i,
+  /\beconnrefused\b/i,
+  /\benotfound\b/i,
+  /\beai_again\b/i,
+  /\bepipe\b/i,
+  /socket hang up/i,
+  /fetch failed/i,
+  /network error/i,
+  /connection (?:error|reset|refused|closed)/i,
+];
+
+/** Sentinel name used by the session stream idle watchdog (session.ts). */
+export const LLM_STREAM_IDLE_TIMEOUT_ERROR_NAME = "LlmStreamIdleTimeoutError";
+
+export function classifyLlmError(error: unknown): LlmErrorCategory {
+  const details = getLlmErrorDetails(error);
+  if (details.name === LLM_STREAM_IDLE_TIMEOUT_ERROR_NAME) {
+    return "TIMEOUT";
+  }
+
+  const text = [details.message, getProviderMessage(error) ?? "", details.code ?? "", details.type ?? ""].join("\n");
+
+  if (details.status === 401 || details.status === 403) return "AUTH";
+  if (details.status === 402) return "QUOTA";
+  if (details.status === 429) return "RATE_LIMIT";
+  if (matchesAny(text, AUTH_PATTERNS)) return "AUTH";
+  if (matchesAny(text, QUOTA_PATTERNS)) return "QUOTA";
+  if (matchesAny(text, RATE_LIMIT_PATTERNS)) return "RATE_LIMIT";
+  if (matchesAny(text, CONTEXT_WINDOW_PATTERNS)) return "CONTEXT_WINDOW_EXCEEDED";
+  if (matchesAny(text, TIMEOUT_PATTERNS)) return "TIMEOUT";
+  if (details.status !== undefined && details.status >= 500) return "SERVER";
+  if (matchesAny(text, TRANSIENT_PATTERNS)) return "TRANSIENT";
+  return "UNKNOWN";
+}
+
+function matchesAny(text: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+/**
  * Extract serializable diagnostics for local logs without retaining the
  * original error object, which can contain circular references.
  */

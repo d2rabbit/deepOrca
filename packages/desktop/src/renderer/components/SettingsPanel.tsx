@@ -1,56 +1,45 @@
 import { useEffect, useState, type JSX } from "react";
-import type {
-  EditableSettings,
-  PermissionDecision,
-  PermissionScope,
-  ReasoningEffort,
-  SerializableSessionEntry,
-  WorkspaceSessions,
-} from "../../shared/ipc";
+import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
+import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
-import {
-  aggregateByTimeWindow,
-  aggregateByWorkspace,
-  aggregateUsage,
-  cacheHitRate,
-  formatExact,
-  formatTokens,
-} from "../lib/token-usage";
+import { ActionsPanel } from "./ActionsPanel";
 
 type Props = {
   initial: EditableSettings;
   initialTab?: string;
-  sessions: SerializableSessionEntry[];
   onSave: (next: EditableSettings) => void;
   onClose: () => void;
   /** Platform string (e.g. "win32") — scopes which themes are offered. */
   platform: string;
   /** Currently active theme. */
   theme: Theme;
-  /** Called when the user picks a theme in the General tab. */
+  /** Called when the user picks a theme in the Appearance tab. */
   onSelectTheme: (theme: Theme) => void;
 };
 
-type Tab = "connection" | "language" | "model" | "permissions" | "tokens" | "about";
+type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "actions" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
-  { id: "connection", labelKey: "settings.tab.connection" },
-  { id: "language", labelKey: "settings.general" },
+  { id: "endpoints", labelKey: "settings.tab.endpoints" },
   { id: "model", labelKey: "settings.tab.model" },
+  { id: "appearance", labelKey: "settings.tab.appearance" },
+  { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
-  { id: "tokens", labelKey: "settings.tab.tokens" },
+  { id: "actions", labelKey: "settings.tab.actions" },
   { id: "about", labelKey: "settings.tab.about" },
 ];
 
 const TAB_ICONS: Record<Tab, string> = {
-  connection: "⌁",
-  language: "◐",
+  endpoints: "⌁",
   model: "✦",
+  appearance: "◐",
+  memory: "❍",
   permissions: "⊘",
-  tokens: "▥",
+  actions: "⚙",
   about: "ℹ",
 };
 
@@ -69,9 +58,20 @@ const PERMISSION_SCOPES: PermissionScope[] = [
 
 const DECISIONS: PermissionDecision[] = ["default", "allow", "ask", "deny"];
 
-const REASONING_OPTIONS: ReasoningEffort[] = ["max", "high"];
+const REASONING_OPTIONS_FULL: ReasoningEffort[] = ["max", "high"];
+const REASONING_OPTIONS_OFF: ReasoningEffort[] = [];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
+
+/**
+ * Built-in endpoint presets — fixed and immutable. Users add an apiKey to
+ * enable a preset; they cannot edit the id/name/baseURL.
+ */
+const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
+  { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
+  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
+  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
+];
 
 /** DeepOrca desktop changelog. */
 const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
@@ -79,7 +79,7 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
     version: "v0.1.0",
     date: "2026-07",
     changes: [
-      "基于 DeepOrca 核心引擎构建的 Electron 桌面客户端。",
+      "基于 DeepCode 核心引擎构建的 Electron 桌面客户端。",
       "新增 Aqua(macOS 原生)、Metro/Fluent(Windows 8 磁贴骨架)双主题体系。",
       "建立语义化 design-token 系统(--ui-* 变量),为后续主题切换奠定基础。",
     ],
@@ -131,13 +131,127 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "顶栏修复:模型与思考模式下拉框按内容自适应宽度,窄窗口下不再截断文案。",
     ],
   },
+  {
+    version: "v0.7.0",
+    date: "2026-08",
+    changes: [
+      "插件体系重构:7 个插件包目录(meta-skills/browser/design/code/knowledge/memory/work),skill.plugin.md 统一识别格式。",
+      "记忆系统源码级集成:TDAI Core (L0-L3) 从 HTTP 侧车改为进程内 @deeporca/memory 工作区,零 HTTP 开销。",
+      "索引与知识面板统一:CodeGraph + OpenWiki 顺序执行,单一状态,进度条驱动,不暴露内部工具名。",
+      "设置面板重构:端点与模型引入(预设端点 + 模型能力勾选)、模型能力配置(思考/视觉受限于端点)、记忆系统 UI。",
+      "代码审查:smart-code-review 技能编排 CRG 风险分析 + OCR 语义审查;架构图谱 D3.js 渲染。",
+      "Vendor 统一:CodeGraph 改 npm 包,所有 GitHub 下载加代理兜底,BrowserSkill/Serena/CRG/Bento 版本锁定。",
+      "清理:删除 WikiPanel/MermaidDiagram/mermaid 依赖等 412 行死代码;三遍深度审查修复 15+ Bug。",
+    ],
+  },
+  {
+    version: "v0.8.0",
+    date: "2026-08",
+    changes: [
+      "DeepSeek 前缀缓存强化(借鉴 Reasonix cache-first 理念):将随天变化的日期/模型信息从系统提示前缀剥离,改为每轮瞬态注入到当前用户消息尾部;系统消息按稳定度重排序(AGENTS.md 前置);MCP 工具定义按名称确定序排序。跨天/跨会话的前缀缓存命中率显著提升。",
+      "SkillSpector 后台安装失败不再静默:通过宿主注入的 logger 输出诊断日志,便于排查网络受限导致的 MCP 不可用。",
+      "编辑器修复:加载懒加载 chunk 的 CSS(消除中文输入白色框);文件树改用矢量图标 + VSCode 风格。",
+      "设置页模型池重设计:扁平模型表 + 端点 API Key 复用 + 会话操作 tooltip。",
+      "启动白屏修复:SkillSpector 同步安装改为异步后台执行;工作区列表过滤失效/临时目录;退出增加 5s 看门狗。",
+    ],
+  },
+];
+
+/**
+ * Open-source acknowledgements — bilingual (zh + en) with the upstream
+ * repository URL for each third-party project. DeepCode is the kernel itself
+ * (not third-party), so it carries no external URL.
+ */
+const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license: string; url?: string }> = [
+  {
+    name: "DeepCode",
+    zh: "编码智能体内核 —— DeepOrca 在 DeepCode 之上衍生而来,特别致谢 DeepCode 项目。",
+    en: "The coding-agent kernel DeepOrca is derived from. Special thanks to the DeepCode project.",
+    license: "MIT",
+  },
+  {
+    name: "DeepSeek-Reasonix",
+    zh: "DeepSeek 原生代码智能体 —— 其 cache-first(前缀缓存优先)理念指导了 DeepOrca 的系统提示分层与缓存命中优化。",
+    en: "A DeepSeek-native coding agent — its cache-first principles (stable prefix + transient turn tail) shaped DeepOrca's prompt layering and prefix-cache optimizations.",
+    license: "MIT",
+    url: "https://github.com/esengine/DeepSeek-Reasonix",
+  },
+  {
+    name: "TDAI Core",
+    zh: "TencentDB Agent Memory —— L0–L3 记忆管线。",
+    en: "TencentDB Agent Memory — the L0–L3 memory pipeline.",
+    license: "MIT",
+    url: "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+  },
+  {
+    name: "CodeGraph",
+    zh: "代码知识图谱与符号导航。",
+    en: "Code knowledge graph & symbol navigation.",
+    license: "MIT",
+    url: "https://github.com/colbymchenry/codegraph",
+  },
+  {
+    name: "Open Code Review",
+    zh: "AI 驱动的代码审查(ocr CLI)。",
+    en: "AI-powered code review (ocr CLI).",
+    license: "Apache-2.0",
+    url: "https://github.com/alibaba/open-code-review",
+  },
+  {
+    name: "Code Review Graph",
+    zh: "结构化风险分析。",
+    en: "Structural risk analysis.",
+    license: "MIT",
+    url: "https://github.com/tirth8205/code-review-graph",
+  },
+  {
+    name: "Serena",
+    zh: "基于 SolidLSP 的语义级代码操作。",
+    en: "Semantic code operations via SolidLSP.",
+    license: "AGPL-3.0",
+    url: "https://github.com/oraios/serena",
+  },
+  {
+    name: "SkillSpector",
+    zh: "AI Skill/MCP 安全扫描器。",
+    en: "AI Skill/MCP security scanner.",
+    license: "Apache-2.0",
+    url: "https://github.com/NVIDIA/SkillSpector",
+  },
+  {
+    name: "BrowserSkill",
+    zh: "真实浏览器自动化。",
+    en: "Real browser automation.",
+    license: "Apache-2.0",
+    url: "https://github.com/Tencent/BrowserSkill",
+  },
+  {
+    name: "Bento",
+    zh: "单文件办公套件。",
+    en: "Single-file office suite.",
+    license: "MIT",
+    url: "https://github.com/nyblnet/bento",
+  },
+  {
+    name: "uv",
+    zh: "Python 包管理器。",
+    en: "Python package manager.",
+    license: "MIT",
+    url: "https://github.com/astral-sh/uv",
+  },
+  {
+    name: "OpenWiki",
+    zh: "项目文档自动生成。",
+    en: "Project documentation generation.",
+    license: "MIT",
+    url: "https://github.com/langchain-ai/openwiki",
+  },
 ];
 
 /** Settings surface rendered inline in the main area (no modal shell). */
 export function SettingsPanel({
   initial,
   initialTab,
-  sessions,
   onSave,
   onClose,
   platform,
@@ -147,25 +261,146 @@ export function SettingsPanel({
   const { t, locale, setLocale } = useI18n();
   const [s, setS] = useState<EditableSettings>(initial);
   const isTab = (v: string | undefined): v is Tab => TABS.some((item) => item.id === v);
-  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "connection");
-  const [showKey, setShowKey] = useState(false);
-  const [tree, setTree] = useState<WorkspaceSessions | null>(null);
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "endpoints");
+  /** Per-endpoint apiKey show/hide toggle (keyed by endpoint id). */
+  const [showKeyByEndpoint, setShowKeyByEndpoint] = useState<Record<string, boolean>>({});
+  /** Memory gateway availability probe result. */
+  const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
 
-  // Load the full workspace tree for the token analytics tab (all workspaces).
+  // ── Add-model form (model pool tab) ──────────────────────────────────────
+  const [addOpen, setAddOpen] = useState(false);
+  const [addEndpointId, setAddEndpointId] = useState<string>(ENDPOINT_PRESETS[0].id);
+  const [addModelId, setAddModelId] = useState("");
+  const [addApiKey, setAddApiKey] = useState("");
+  const [addThinking, setAddThinking] = useState(true);
+  const [addVision, setAddVision] = useState(false);
+  const [addError, setAddError] = useState("");
+
+  // Probe the memory gateway whenever the memory tab is opened.
   useEffect(() => {
-    if (tab !== "tokens" || tree) return;
+    if (tab !== "memory") return;
     let cancelled = false;
+    setMemoryAvailable(null);
     void (async () => {
-      const data = await api.listWorkspaceSessions();
-      if (!cancelled) setTree(data);
+      try {
+        const result = await api.memoryCheckAvailable();
+        if (!cancelled) setMemoryAvailable(result.available);
+      } catch {
+        if (!cancelled) setMemoryAvailable(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [tab, tree]);
+  }, [tab]);
 
   function patch(partial: Partial<EditableSettings>): void {
     setS((prev) => ({ ...prev, ...partial }));
+  }
+
+  /** Return the preset definition (id/name/baseURL) for an endpoint id, or null
+   *  if it isn't one of the built-in presets. */
+  function presetFor(id: string): Pick<EndpointConfig, "id" | "name" | "baseURL"> | null {
+    return ENDPOINT_PRESETS.find((p) => p.id === id) ?? null;
+  }
+
+  /**
+   * Immutable update of a single endpoint by id. Materializes a built-in preset
+   * entry when the id does not yet exist in the list — without this, a fresh
+   * install (endpoints: []) cannot add an API key or model because map() has
+   * nothing to update.
+   */
+  function updateEndpoint(id: string, changes: Partial<EndpointConfig>): void {
+    setS((prev) => {
+      const exists = prev.endpoints.some((ep) => ep.id === id);
+      if (exists) {
+        return {
+          ...prev,
+          endpoints: prev.endpoints.map((ep) => (ep.id === id ? { ...ep, ...changes } : ep)),
+        };
+      }
+      const preset = presetFor(id);
+      if (!preset) {
+        // Not a preset and not present — nothing to materialize.
+        return prev;
+      }
+      const materialized: EndpointConfig = {
+        ...preset,
+        ...changes,
+        apiKey: changes.apiKey ?? "",
+        models: changes.models ?? [],
+      };
+      return { ...prev, endpoints: [...prev.endpoints, materialized] };
+    });
+  }
+
+  /**
+   * Submit the model-pool add form. The endpoint's saved key is reused — the
+   * key field only appears (and is only applied) when the endpoint has none.
+   */
+  function submitAddModel(): void {
+    const modelId = addModelId.trim();
+    if (!modelId) {
+      setAddError(t("settings.pool.modelIdRequired"));
+      return;
+    }
+    const existing = s.endpoints.find((ep) => ep.id === addEndpointId);
+    if (existing?.models?.some((m) => m.id === modelId)) {
+      setAddError(t("settings.pool.duplicateModel"));
+      return;
+    }
+    setS((prev) => {
+      const ep = prev.endpoints.find((e) => e.id === addEndpointId);
+      const registration: ModelRegistration = { id: modelId, thinking: addThinking, vision: addVision };
+      if (!ep) {
+        const preset = presetFor(addEndpointId);
+        if (!preset) return prev;
+        const materialized: EndpointConfig = { ...preset, apiKey: addApiKey.trim(), models: [registration] };
+        return { ...prev, endpoints: [...prev.endpoints, materialized] };
+      }
+      return {
+        ...prev,
+        endpoints: prev.endpoints.map((e) =>
+          e.id === addEndpointId
+            ? {
+                ...e,
+                apiKey: addApiKey.trim() ? addApiKey.trim() : e.apiKey,
+                models: [...(e.models ?? []), registration],
+              }
+            : e
+        ),
+      };
+    });
+    setAddOpen(false);
+    setAddModelId("");
+    setAddApiKey("");
+    setAddThinking(true);
+    setAddVision(false);
+    setAddError("");
+  }
+
+  /** Update a model registration by endpoint id + index. */
+  function updateModel(endpointId: string, index: number, changes: Partial<ModelRegistration>): void {
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) => {
+        if (ep.id !== endpointId) return ep;
+        const models = (ep.models ?? []).map((m, i) => (i === index ? { ...m, ...changes } : m));
+        return { ...ep, models };
+      }),
+    }));
+  }
+
+  /** Remove a model registration by endpoint id + index. */
+  function removeModel(endpointId: string, index: number): void {
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) => {
+        if (ep.id !== endpointId) return ep;
+        const models = (ep.models ?? []).filter((_, i) => i !== index);
+        return { ...ep, models };
+      }),
+    }));
   }
 
   function setPermission(scope: PermissionScope, decision: PermissionDecision): void {
@@ -179,6 +414,75 @@ export function SettingsPanel({
       return { ...prev, permissions };
     });
   }
+
+  /** All model keys from endpoints that have registered models. */
+  const allModelKeys = collectAllModelKeys(s.endpoints);
+
+  /** Flattened model-pool entries: every registered model + its source endpoint. */
+  const poolEntries = s.endpoints.flatMap((ep) =>
+    (ep.models ?? []).map((model, index) => ({
+      endpointId: ep.id,
+      endpointName: ep.name || ep.id,
+      model,
+      index,
+    }))
+  );
+
+  /** Whether the endpoint currently selected in the add form already has a key. */
+  const addEndpointHasKey = !!s.endpoints.find((ep) => ep.id === addEndpointId)?.apiKey?.trim();
+
+  /** Resolve display label for a model key: "endpointName/modelId". */
+  function modelLabel(key: string): string {
+    const parsed = parseModelKey(key);
+    if (!parsed) return key;
+    const ep = s.endpoints.find((e) => e.id === parsed.endpointId);
+    const epName = ep?.name || parsed.endpointId;
+    return `${epName}/${parsed.modelId}`;
+  }
+
+  /**
+   * Extract the bare modelId from an endpointId/modelId key.
+   * If the value has no "/" (legacy bare name), returns it as-is.
+   */
+  function bareModelId(key: string): string {
+    const parsed = parseModelKey(key);
+    return parsed ? parsed.modelId : key;
+  }
+
+  /**
+   * Find the model key in allModelKeys that matches the current bare model name.
+   * Used to set the <Select> value from the stored bare model name.
+   */
+  function findKeyForModel(modelName: string): string {
+    if (!modelName) return "";
+    // Exact key match first
+    if (allModelKeys.includes(modelName)) return modelName;
+    // Find by modelId part
+    for (const key of allModelKeys) {
+      if (bareModelId(key) === modelName) return key;
+    }
+    return "";
+  }
+
+  // ── Capability resolution for the primary model ──────────────────────
+  const primaryModelKey = findKeyForModel(s.model);
+  const primaryCaps = resolveModelCapability(s.endpoints, primaryModelKey || s.model);
+  const primaryThinkingOptions = primaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
+
+  // ── Capability resolution for the secondary model ─────────────────────
+  // (secondaryCaps no longer rendered — the secondary controls are disabled
+  // pending the P1 rollout — but secondaryModelKey is still used for the
+  // disabled dropdown's selected value.)
+  const secondaryModelKey = s.secondaryModel.trim() === "" ? "" : findKeyForModel(s.secondaryModel);
+
+  // ── Vision model: filtered to vision-capable models only ─────────────
+  const visionModelKey = s.visionModel.trim() === "" ? "" : findKeyForModel(s.visionModel);
+  const visionModelKeys = allModelKeys.filter((key) => {
+    const parsed = parseModelKey(key);
+    if (!parsed) return false;
+    const ep = s.endpoints.find((e) => e.id === parsed.endpointId);
+    return ep?.models?.some((m) => m.id === parsed.modelId && m.vision);
+  });
 
   return (
     <div className="ui-settings-panel">
@@ -219,42 +523,213 @@ export function SettingsPanel({
           </div>
 
           <div className="ui-settings-body">
-            {tab === "connection" ? (
+            {/* ── Section 1: Model Pool ─────────────────────────────────── */}
+            {tab === "endpoints" ? (
               <>
                 <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.tab.connection")}</div>
-                  <Field
-                    label={t("settings.apiKey")}
-                    hint={s.hasEnvApiKey ? t("settings.envOverride") : undefined}
-                    hintWarn
-                  >
-                    <div className="ui-row-inline">
-                      <Input
-                        type={showKey ? "text" : "password"}
-                        value={s.apiKey}
-                        placeholder="sk-…"
-                        autoComplete="off"
-                        onChange={(e) => patch({ apiKey: e.target.value })}
-                      />
-                      <Button variant="ghost" size="sm" onClick={() => setShowKey((v) => !v)}>
-                        {showKey ? t("common.hide") : t("common.show")}
-                      </Button>
-                    </div>
-                  </Field>
+                  <div className="ui-settings-section-title">{t("settings.pool.title")}</div>
+                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
+                    {t("settings.pool.hint")}
+                  </div>
 
-                  <Field label={t("settings.baseUrl")} hint={t("settings.baseUrlHint")}>
-                    {/* Endpoint is locked to DeepSeek's first-party API in this
-                       release — shown read-only so the user knows where requests go. */}
-                    <Input type="text" value="https://api.deepseek.com" disabled readOnly />
-                  </Field>
+                  {poolEntries.length === 0 ? (
+                    <div className="ui-field-hint">{t("settings.pool.empty")}</div>
+                  ) : (
+                    <div className="ui-pool-table">
+                      {poolEntries.map(({ endpointId, endpointName, model, index }) => (
+                        <div className="ui-pool-row" key={`${endpointId}/${model.id}/${index}`}>
+                          <code className="ui-pool-model-id">{model.id}</code>
+                          <span className="ui-pool-endpoint">{endpointName}</span>
+                          <Checkbox
+                            checked={!!model.thinking}
+                            onChange={(e) => updateModel(endpointId, index, { thinking: e.target.checked })}
+                            label={t("settings.endpoint.thinkingCap")}
+                          />
+                          <Checkbox
+                            checked={!!model.vision}
+                            onChange={(e) => updateModel(endpointId, index, { vision: e.target.checked })}
+                            label={t("settings.endpoint.visionCap")}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeModel(endpointId, index)}
+                            title={t("settings.endpoint.delete")}
+                          >
+                            {t("settings.endpoint.delete")}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {addOpen ? (
+                    <div className="ui-pool-add-form">
+                      <Field label={t("settings.pool.endpoint")}>
+                        <Select value={addEndpointId} onChange={(e) => setAddEndpointId(e.target.value)}>
+                          {ENDPOINT_PRESETS.map((preset) => (
+                            <option key={preset.id} value={preset.id}>
+                              {preset.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+
+                      {/* The endpoint's saved key is reused automatically; only
+                          ask for one when the endpoint has none yet. */}
+                      {!addEndpointHasKey ? (
+                        <Field label={t("settings.endpoint.apiKey")}>
+                          <Input
+                            type="password"
+                            value={addApiKey}
+                            placeholder={t("settings.endpoint.apiKey")}
+                            aria-label={t("settings.endpoint.apiKey")}
+                            autoComplete="off"
+                            onChange={(e) => setAddApiKey(e.target.value)}
+                          />
+                        </Field>
+                      ) : null}
+
+                      <Field label={t("settings.endpoint.modelId")} hint={t("settings.pool.modelIdHint")}>
+                        <Input
+                          type="text"
+                          value={addModelId}
+                          placeholder="deepseek-v4-pro"
+                          aria-label={t("settings.endpoint.modelId")}
+                          list="ui-pool-model-suggestions"
+                          onChange={(e) => setAddModelId(e.target.value)}
+                        />
+                        <datalist id="ui-pool-model-suggestions">
+                          <option value="deepseek-v4-pro" />
+                          <option value="deepseek-v4-flash" />
+                        </datalist>
+                      </Field>
+
+                      <div className="ui-row-inline">
+                        <Checkbox
+                          checked={addThinking}
+                          onChange={(e) => setAddThinking(e.target.checked)}
+                          label={t("settings.endpoint.thinkingCap")}
+                        />
+                        <Checkbox
+                          checked={addVision}
+                          onChange={(e) => setAddVision(e.target.checked)}
+                          label={t("settings.endpoint.visionCap")}
+                        />
+                      </div>
+
+                      {addError ? <div className="ui-field-hint warn">{addError}</div> : null}
+
+                      <div className="ui-row-inline">
+                        <Button variant="primary" size="sm" onClick={submitAddModel}>
+                          {t("settings.endpoint.addModel")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setAddOpen(false);
+                            setAddError("");
+                          }}
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => setAddOpen(true)}>
+                      {t("settings.endpoint.addModel")}
+                    </Button>
+                  )}
+                </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.pool.keys")}</div>
+                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
+                    {t("settings.pool.keysHint")}
+                  </div>
+
+                  <div className="ui-endpoint-list">
+                    {ENDPOINT_PRESETS.map((preset) => {
+                      const ep = s.endpoints.find((e) => e.id === preset.id);
+                      const apiKey = ep?.apiKey ?? "";
+                      const visible = !!showKeyByEndpoint[preset.id];
+                      return (
+                        <div className="ui-endpoint-row" key={preset.id}>
+                          <div className="ui-endpoint-fields">
+                            <div className="ui-endpoint-preset-name">
+                              <strong>{preset.name}</strong>
+                            </div>
+                            <div className="ui-row-inline">
+                              <Input
+                                type={visible ? "text" : "password"}
+                                value={apiKey}
+                                placeholder={t("settings.endpoint.apiKey")}
+                                aria-label={t("settings.endpoint.apiKey")}
+                                autoComplete="off"
+                                onChange={(e) => updateEndpoint(preset.id, { apiKey: e.target.value })}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setShowKeyByEndpoint((prev) => ({
+                                    ...prev,
+                                    [preset.id]: !prev[preset.id],
+                                  }))
+                                }
+                              >
+                                {visible ? t("common.hide") : t("common.show")}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </>
+            ) : null}
+
+            {/* ── Section 2: Model Capabilities ─────────────────────────── */}
+            {tab === "model" ? (
+              <section className="ui-settings-section">
+                <div className="ui-settings-section-title">{t("settings.tab.model")}</div>
+
+                {/* Primary model */}
+                <div className="ui-endpoint-role">
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.primary")}</div>
 
                   <Field label={t("settings.model")}>
-                    <Input
-                      type="text"
-                      value={s.model}
-                      placeholder="deepseek-v4-pro"
-                      onChange={(e) => patch({ model: e.target.value })}
-                    />
+                    <Select value={primaryModelKey} onChange={(e) => patch({ model: bareModelId(e.target.value) })}>
+                      <option value="">{t("settings.endpoint.noModels")}</option>
+                      {allModelKeys.map((key) => (
+                        <option key={key} value={key}>
+                          {modelLabel(key)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  <Field label={t("settings.reasoningEffort")}>
+                    <Select
+                      value={s.thinkingEnabled ? s.reasoningEffort : ""}
+                      disabled={primaryThinkingOptions.length === 0}
+                      onChange={(e) => {
+                        const value = e.target.value as ReasoningEffort | "";
+                        if (value === "") {
+                          patch({ thinkingEnabled: false });
+                        } else {
+                          patch({ thinkingEnabled: true, reasoningEffort: value });
+                        }
+                      }}
+                    >
+                      <option value="">{t("settings.capabilities.thinkingOff")}</option>
+                      {primaryThinkingOptions.map((r) => (
+                        <option key={r} value={r}>
+                          {r === "max" ? t("model.thinkingMax") : t("model.thinkingHigh")}
+                        </option>
+                      ))}
+                    </Select>
                   </Field>
 
                   <Field label={t("settings.temperature")} hint={t("settings.temperatureHint")}>
@@ -265,32 +740,61 @@ export function SettingsPanel({
                       onChange={(e) => patch({ temperature: e.target.value })}
                     />
                   </Field>
-                </section>
-              </>
+
+                  <Field>
+                    <Checkbox
+                      checked={s.debugLogEnabled}
+                      onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
+                      label={t("settings.debugLog")}
+                    />
+                  </Field>
+                </div>
+
+                {/* Secondary model — picked from the same model pool. */}
+                <div className="ui-endpoint-role">
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.secondary")}</div>
+
+                  <Field label={t("settings.secondaryModel")} hint={t("settings.secondaryModelHint")}>
+                    <Select
+                      value={secondaryModelKey}
+                      onChange={(e) => patch({ secondaryModel: bareModelId(e.target.value) })}
+                    >
+                      <option value="">{t("settings.capabilities.inherit")}</option>
+                      {allModelKeys.map((key) => (
+                        <option key={key} value={key}>
+                          {modelLabel(key)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+
+                {/* Vision model — only shows models with vision capability. */}
+                <div className="ui-endpoint-role">
+                  <div className="ui-capabilities-group-title">{t("settings.capabilities.vision")}</div>
+
+                  <Field label={t("settings.visionModel")} hint={t("settings.visionModelHint")}>
+                    <Select
+                      value={visionModelKey}
+                      onChange={(e) => patch({ visionModel: bareModelId(e.target.value) })}
+                    >
+                      <option value="">{t("settings.capabilities.disabled")}</option>
+                      {visionModelKeys.map((key) => (
+                        <option key={key} value={key}>
+                          {modelLabel(key)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+              </section>
             ) : null}
 
-            {tab === "language" ? (
+            {/* ── Section 3: Appearance & Theme ─────────────────────────── */}
+            {tab === "appearance" ? (
               <>
                 <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.language")}</div>
-                  <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.language")}>
-                    {LOCALE_OPTIONS.map((code) => (
-                      <button
-                        key={code}
-                        type="button"
-                        role="radio"
-                        aria-checked={locale === code}
-                        className={`ui-lang-chip${locale === code ? " active" : ""}`}
-                        onClick={() => setLocale(code)}
-                      >
-                        {t(`lang.${code}` as MessageKey)}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.theme")}</div>
+                  <div className="ui-settings-section-title">{t("settings.appearance.theme")}</div>
                   <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.theme")}>
                     {availableThemes(platform).map((id) => (
                       <button
@@ -306,53 +810,63 @@ export function SettingsPanel({
                     ))}
                   </div>
                 </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.appearance.locale")}</div>
+                  <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.language")}>
+                    {LOCALE_OPTIONS.map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        role="radio"
+                        aria-checked={locale === code}
+                        className={`ui-lang-chip${locale === code ? " active" : ""}`}
+                        onClick={() => setLocale(code)}
+                      >
+                        {t(`lang.${code}` as MessageKey)}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               </>
             ) : null}
 
-            {tab === "model" ? (
+            {/* ── Section 4: Memory System ──────────────────────────────── */}
+            {tab === "memory" ? (
               <section className="ui-settings-section">
-                <div className="ui-settings-section-title">{t("settings.tab.model")}</div>
-                <Field>
+                <div className="ui-settings-section-title">{t("settings.tab.memory")}</div>
+
+                <Field hint={t("settings.memory.hint")}>
                   <Checkbox
-                    checked={s.thinkingEnabled}
-                    onChange={(e) => patch({ thinkingEnabled: e.target.checked })}
-                    label={t("settings.thinkingMode")}
+                    checked={s.memory.enabled}
+                    onChange={(e) => patch({ memory: { ...s.memory, enabled: e.target.checked } })}
+                    label={t("settings.memory.enable")}
                   />
                 </Field>
 
-                {s.thinkingEnabled ? (
-                  <Field label={t("settings.reasoningEffort")}>
-                    <Select
-                      value={s.reasoningEffort}
-                      onChange={(e) => patch({ reasoningEffort: e.target.value as ReasoningEffort })}
-                    >
-                      {REASONING_OPTIONS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                ) : null}
-
-                <Field>
-                  <Checkbox
-                    checked={s.telemetryEnabled}
-                    onChange={(e) => patch({ telemetryEnabled: e.target.checked })}
-                    label={t("settings.telemetry")}
-                  />
+                <Field label={t("settings.memory.embedding")} hint={t("settings.memory.embeddingHint")}>
+                  <Select
+                    value={s.memory.embedding ?? "none"}
+                    onChange={(e) =>
+                      patch({ memory: { ...s.memory, embedding: e.target.value as "none" | "local-onnx" } })
+                    }
+                  >
+                    <option value="none">{t("settings.memory.embeddingNone")}</option>
+                    <option value="local-onnx">{t("settings.memory.embeddingLocal")}</option>
+                  </Select>
                 </Field>
 
-                <Field>
-                  <Checkbox
-                    checked={s.debugLogEnabled}
-                    onChange={(e) => patch({ debugLogEnabled: e.target.checked })}
-                    label={t("settings.debugLog")}
-                  />
-                </Field>
+                <div className="ui-field-hint ui-memory-status">
+                  {memoryAvailable === null
+                    ? t("settings.memory.checking")
+                    : memoryAvailable
+                      ? t("settings.memory.available")
+                      : t("settings.memory.unavailable")}
+                </div>
               </section>
             ) : null}
 
+            {/* ── Section 5: Permission Rules ───────────────────────────── */}
             {tab === "permissions" ? (
               <section className="ui-settings-section">
                 <div className="ui-settings-section-title">{t("settings.tab.permissions")}</div>
@@ -360,7 +874,9 @@ export function SettingsPanel({
                   <Select
                     value={s.permissionDefaultMode}
                     onChange={(e) =>
-                      patch({ permissionDefaultMode: e.target.value as EditableSettings["permissionDefaultMode"] })
+                      patch({
+                        permissionDefaultMode: e.target.value as EditableSettings["permissionDefaultMode"],
+                      })
                     }
                   >
                     <option value="allowAll">{t("settings.allowAll")}</option>
@@ -391,8 +907,12 @@ export function SettingsPanel({
               </section>
             ) : null}
 
-            {tab === "tokens" ? <TokenAnalytics tree={tree} fallbackSessions={sessions} /> : null}
-
+            {/* ── Section 6: About ──────────────────────────────────────── */}
+            {tab === "actions" ? (
+              <section className="ui-settings-section" style={{ maxWidth: "none", padding: 0 }}>
+                <ActionsPanel />
+              </section>
+            ) : null}
             {tab === "about" ? (
               <>
                 <section className="ui-settings-section">
@@ -420,148 +940,50 @@ export function SettingsPanel({
                     ))}
                   </div>
                 </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">Open Source Credits · 开源致谢</div>
+                  <div className="ui-changelog">
+                    <div className="ui-changelog-entry">
+                      <p className="ui-about-desc">
+                        DeepOrca 站在这些优秀开源项目的肩膀上，特此致谢。
+                        <br />
+                        DeepOrca is built on the shoulders of these outstanding open-source projects — thank you.
+                      </p>
+                      <ul className="ui-credit-list">
+                        {OPEN_SOURCE_CREDITS.map((credit) => (
+                          <li key={credit.name} className="ui-credit-item">
+                            <div className="ui-credit-head">
+                              <strong>{credit.name}</strong>
+                              <span className="ui-credit-license">{credit.license}</span>
+                            </div>
+                            <div className="ui-credit-desc">
+                              {credit.zh}
+                              <br />
+                              {credit.en}
+                            </div>
+                            {credit.url ? (
+                              <a
+                                className="ui-credit-url"
+                                href={credit.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={credit.url}
+                              >
+                                {credit.url.replace(/^https:\/\//, "")}
+                              </a>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </section>
               </>
             ) : null}
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function TokenBars({
-  rows,
-  max,
-}: {
-  rows: { label: string; value: number; model?: boolean }[];
-  max: number;
-}): JSX.Element {
-  return (
-    <div className="ui-token-bars">
-      {rows.map((row) => (
-        <div key={row.label} className="ui-token-bar-row" title={formatExact(row.value)}>
-          <span className="ui-token-bar-label" title={row.label}>
-            {row.label}
-          </span>
-          <span className="ui-token-bar-track">
-            <span
-              className={`ui-token-bar-fill${row.model ? " model" : ""}`}
-              style={{ width: `${(row.value / max) * 100}%` }}
-            />
-          </span>
-          <span className="ui-token-bar-value">{formatTokens(row.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Token analytics: a bento-style grid (headline total + prompt/completion/reqs
- * metrics, a time-dimension breakdown and a model-dimension breakdown), plus a
- * per-workspace table underneath.
- */
-function TokenAnalytics({
-  tree,
-  fallbackSessions,
-}: {
-  tree: WorkspaceSessions | null;
-  fallbackSessions: SerializableSessionEntry[];
-}): JSX.Element {
-  const { t } = useI18n();
-  const allSessions = tree ? tree.workspaces.flatMap((w) => w.sessions) : fallbackSessions;
-  const agg = aggregateUsage(allSessions);
-  const windows = aggregateByTimeWindow(allSessions);
-  const wsRows = tree ? aggregateByWorkspace(tree) : [];
-  const timeMax = Math.max(1, windows.last5h.total, windows.today.total, windows.thisWeek.total);
-  const modelMax = Math.max(1, ...agg.perModel.map((m) => m.total));
-
-  const timeRows = [
-    { label: t("tokens.last5h"), value: windows.last5h.total },
-    { label: t("tokens.today"), value: windows.today.total },
-    { label: t("tokens.thisWeek"), value: windows.thisWeek.total },
-  ];
-  const modelRows = agg.perModel.map((m) => ({ label: m.model, value: m.total, model: true }));
-
-  return (
-    <>
-      <div className="ui-token-note">{t("tokens.approxNote")}</div>
-
-      <div className="ui-bento">
-        <div className="ui-bento-cell ui-bento-hero">
-          <div className="ui-bento-hero-value" title={formatExact(agg.totals.total)}>
-            {formatTokens(agg.totals.total)}
-          </div>
-          <div className="ui-bento-hero-label">{t("tokens.colTotal")}</div>
-          <div className="ui-bento-hero-sub">{t("tokens.cacheHitRate", { n: cacheHitRate(agg.totals) })}</div>
-        </div>
-        <div className="ui-bento-cell">
-          <div className="ui-bento-metric" title={formatExact(agg.totals.prompt)}>
-            {formatTokens(agg.totals.prompt)}
-          </div>
-          <div className="ui-bento-metric-label">{t("tokens.prompt")}</div>
-        </div>
-        <div className="ui-bento-cell">
-          <div className="ui-bento-metric" title={formatExact(agg.totals.completion)}>
-            {formatTokens(agg.totals.completion)}
-          </div>
-          <div className="ui-bento-metric-label">{t("tokens.completion")}</div>
-        </div>
-        <div className="ui-bento-cell">
-          <div className="ui-bento-metric">{formatExact(agg.totals.reqs)}</div>
-          <div className="ui-bento-metric-label">{t("tokens.requests")}</div>
-        </div>
-
-        <div className="ui-bento-cell ui-bento-wide">
-          <div className="ui-bento-cell-title">{t("tokens.byTime")}</div>
-          <TokenBars rows={timeRows} max={timeMax} />
-        </div>
-
-        <div className="ui-bento-cell ui-bento-wide">
-          <div className="ui-bento-cell-title">{t("tokens.perModel")}</div>
-          {modelRows.length === 0 ? (
-            <div className="ui-field-hint">{t("tokens.emptyHint")}</div>
-          ) : (
-            <TokenBars rows={modelRows} max={modelMax} />
-          )}
-        </div>
-      </div>
-
-      <div className="ui-usage-section-title">{t("tokens.byWorkspace")}</div>
-      {wsRows.length === 0 ? (
-        <div className="ui-field-hint">{t("tokens.emptyHint")}</div>
-      ) : (
-        <table className="ui-usage-table">
-          <thead>
-            <tr>
-              <th>{t("tokens.colWorkspace")}</th>
-              <th className="num">{t("tokens.colPrompt")}</th>
-              <th className="num">{t("tokens.colCompletion")}</th>
-              <th className="num">{t("tokens.colTotal")}</th>
-              <th className="num">{t("tokens.colReqs")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {wsRows.map((row) => (
-              <tr key={row.root}>
-                <td className="ui-mono" title={row.root}>
-                  {row.label}
-                </td>
-                <td className="num" title={formatExact(row.prompt)}>
-                  {formatTokens(row.prompt)}
-                </td>
-                <td className="num" title={formatExact(row.completion)}>
-                  {formatTokens(row.completion)}
-                </td>
-                <td className="num" title={formatExact(row.total)}>
-                  {formatTokens(row.total)}
-                </td>
-                <td className="num">{formatExact(row.reqs)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </>
   );
 }

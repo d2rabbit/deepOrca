@@ -31,9 +31,9 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `thinkingEnabled`    | boolean   | 是否启用思考模式（DeepSeek V4 系列默认启用）                         |
 | `reasoningEffort`    | string    | 推理强度，可选 `"high"` 或 `"max"`（默认 `"max"`）                  |
 | `debugLogEnabled`    | boolean   | 是否启用调试日志输出（默认 `false`）                                 |
-| `telemetryEnabled`   | boolean   | 是否启用匿名使用数据上报（默认 `true`）                              |
 | `notify`             | string    | 任务完成通知脚本的完整路径（如 Slack 通知脚本）                      |
-| `webSearchTool`      | string    | 自定义联网搜索脚本的完整路径                                         |
+| `webSearchTool`      | string    | 自定义联网搜索脚本的完整路径（配置后优先于内置搜索）                |
+| `webSearchProvider`  | string    | 内置搜索提供商：`duckduckgo`（默认，免密钥）/ `brave` / `tavily`     |
 | `mcpServers`         | object    | MCP 服务器配置（键为服务名，值为 McpServerConfig 对象）              |
 | `temperature`        | number    | 模型采样温度，范围 `0` 到 `2`                           |
 | `enabledSkills`      | object    | 按 skill 名称启用或禁用 skill 的配置                                 |
@@ -50,7 +50,6 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `THINKING_ENABLED`  | string | 是否启用思考模式                                         |
 | `REASONING_EFFORT`  | string | 推理强度                                                |
 | `DEBUG_LOG_ENABLED`  | string | 是否启用调试日志输出                                     |
-| `TELEMETRY_ENABLED`  | string | 是否启用匿名使用数据上报                                   |
 | `<其他任意KEY>` | string | 自定义环境变量 |
 
 #### `thinkingEnabled` — 思考模式
@@ -91,9 +90,30 @@ DeepOrca 使用 `settings.json` 设置文件进行持久化配置，支持两个
 
 > 详细的 Slack、飞书、终端通知、系统通知等配置示例，请参阅 [notify.md](notify.md)。
 
-#### `webSearchTool` — 自定义联网搜索
+#### 联网搜索（WebSearch）
 
-DeepOrca 内置免费可用的 Web Search 工具。如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径：
+内置搜索为本仓**自研实现**（`web-search-providers.ts`），取代了历史上把查询词与机器标识代理到上游第三方端点的默认路径。隐私契约：发送给你所选搜索引擎的**只有查询词本身**，外加一个标明产品名的标准浏览器 User-Agent——无机器标识、无遥测、无第三方代理。
+
+| 提供商 | 配置 | 说明 |
+| --- | --- | --- |
+| `duckduckgo`（默认） | 无需任何配置 | DuckDuckGo Lite，开箱即用、免密钥 |
+| `brave` | 暂不可用 | 需要 API 密钥；密钥配置当前禁用（见下注） |
+| `tavily` | 暂不可用 | 需要 API 密钥；密钥配置当前禁用（见下注） |
+
+> **注**：`webSearchApiKey` 密钥配置暂时禁用（安全评审 C5：项目级 settings.json
+> 中的密钥存在被提交入库的风险）。brave/tavily 适配器保留在代码中，待密钥
+> 存储方案（仅用户级/系统钥匙串）定案后重新开放；当前可用提供商为
+> `duckduckgo`。`webSearchTool` 自定义脚本路径不受影响。
+
+```json
+{
+  "webSearchProvider": "duckduckgo"
+}
+```
+
+#### `webSearchTool` — 自定义联网搜索脚本（最高优先级）
+
+如需完全自控搜索逻辑，将 `webSearchTool` 设为一个可执行脚本的完整路径；配置后优先于内置提供商：
 
 ```json
 {
@@ -101,7 +121,7 @@ DeepOrca 内置免费可用的 Web Search 工具。如果需要自定义搜索�
 }
 ```
 
-脚本接收一个搜索查询参数，输出 JSON 格式的结果供 AI 使用。
+脚本接收一个搜索查询参数，输出结果文本供 AI 使用。
 
 #### `enabledSkills` — Skill 启用配置
 
@@ -152,16 +172,6 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 #### `debugLogEnabled` — 调试日志
 
 设为 `true` 可让程序输出详细的调试日志（默认 `false`），用于排查 API 调用和工具执行的问题。
-
-#### `telemetryEnabled` — 匿名使用数据上报
-
-设为 `false` 可关闭匿名使用数据上报（默认 `true`）。上报仅包含匿名的机器标识，不包含对话内容、代码或 API 密钥。
-
-也可以通过环境变量关闭：
-
-```bash
-DEEPORCA_TELEMETRY_ENABLED=0 deeporca
-```
 
 ## 环境变量优先级
 

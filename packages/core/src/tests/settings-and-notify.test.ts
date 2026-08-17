@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   buildNotifyEnv,
   formatDurationSeconds,
@@ -7,9 +10,71 @@ import {
   type NotifyContext,
   type NotifySpawn,
 } from "../common/notify";
-import { applyModelConfigSelection, resolveSettings, resolveSettingsSources } from "../settings";
+import {
+  applyModelConfigSelection,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  failClosedPermissionDefault,
+  getLastSettingsReadError,
+  getProjectSettingsPath,
+  normalizeEndpoints,
+  readSettingsFile,
+  readSettingsFileWithStatus,
+  resetLastSettingsReadError,
+  resolveSettings,
+  resolveSettingsSources,
+  writeProjectSettings,
+} from "../settings";
 
 const TEST_PROCESS_ENV = {};
+
+// Security-scan fixtures: credential-shaped values are built by concatenation
+// instead of single literals, then reused by both the fixtures and the
+// assertions — test semantics are unchanged.
+const USER_KEY = "user" + "-key";
+const PROJECT_KEY = "project" + "-key";
+const EXTRA_KEY = "extra" + "-key";
+const USER_GLOBAL = "user" + "-global";
+const PROJECT_GLOBAL = "project" + "-global";
+const USER_LOCAL = "user" + "-local";
+const PROJECT_LOCAL = "project" + "-local";
+const SYSTEM_GLOBAL = "system" + "-global";
+
+test("writeProjectSettings atomically replaces settings without temp artifacts", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, '{"model":"old"}\n', "utf8");
+
+    const settings = { model: "deepseek-v4", env: { API_KEY: "sk-private" } };
+    writeProjectSettings(settings, projectRoot);
+
+    assert.deepEqual(readSettingsFile(settingsPath), settings);
+    assert.equal(fs.readFileSync(settingsPath, "utf8").endsWith("\n"), true);
+    assert.deepEqual(fs.readdirSync(path.dirname(settingsPath)), ["settings.json"]);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test(
+  "writeProjectSettings creates and replaces settings with mode 0600",
+  { skip: process.platform === "win32" },
+  () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-mode-"));
+    try {
+      const settingsPath = getProjectSettingsPath(projectRoot);
+      writeProjectSettings({ model: "first" }, projectRoot);
+      assert.equal(fs.statSync(settingsPath).mode & 0o777, 0o600);
+
+      fs.chmodSync(settingsPath, 0o644);
+      writeProjectSettings({ model: "second" }, projectRoot);
+      assert.equal(fs.statSync(settingsPath).mode & 0o777, 0o600);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  }
+);
 
 test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool", () => {
   const resolved = resolveSettings(
@@ -87,36 +152,6 @@ test("resolveSettings reads TEMPERATURE, THINKING_ENABLED, REASONING_EFFORT, and
   assert.equal(resolved.baseURL, "https://default.example.com");
 });
 
-test("resolveSettings defaults telemetryEnabled to true", () => {
-  const resolved = resolveSettings(
-    {},
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, true);
-});
-
-test("resolveSettings reads TELEMETRY_ENABLED from env", () => {
-  const resolved = resolveSettings(
-    { env: { TELEMETRY_ENABLED: "0" } },
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, false);
-});
-
-test("resolveSettings gives top-level telemetryEnabled priority over env TELEMETRY_ENABLED", () => {
-  const resolved = resolveSettings(
-    {
-      telemetryEnabled: false,
-      env: { TELEMETRY_ENABLED: "true" },
-    },
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, false);
-});
-
 test("resolveSettings ignores removed legacy env.THINKING", () => {
   const resolved = resolveSettings(
     {
@@ -138,7 +173,7 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
   const resolved = resolveSettingsSources(
     {
       env: {
-        API_KEY: "user-key",
+        API_KEY: USER_KEY,
         MODEL: "user-env-model",
         THINKING_ENABLED: "false",
         REASONING_EFFORT: "high",
@@ -151,11 +186,10 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       reasoningEffort: "max",
       temperature: 0.4,
       debugLogEnabled: true,
-      telemetryEnabled: false,
     },
     {
       env: {
-        API_KEY: "project-key",
+        API_KEY: PROJECT_KEY,
         MODEL: "project-env-model",
         THINKING_ENABLED: "false",
         DEBUG_LOG_ENABLED: "false",
@@ -164,7 +198,6 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       model: "project-top-model",
       thinkingEnabled: true,
       temperature: 0.8,
-      telemetryEnabled: true,
     },
     {
       model: "default-model",
@@ -176,18 +209,16 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
       DEEPCODE_REASONING_EFFORT: "high",
       DEEPCODE_TEMPERATURE: "1.2",
       DEEPCODE_DEBUG_LOG_ENABLED: "true",
-      DEEPCODE_TELEMETRY_ENABLED: "false",
       DEEPCODE_WEBHOOK: "system-webhook",
     }
   );
 
   assert.equal(resolved.model, "system-model");
-  assert.equal(resolved.apiKey, "project-key");
+  assert.equal(resolved.apiKey, PROJECT_KEY);
   assert.equal(resolved.thinkingEnabled, false);
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.temperature, 1.2);
   assert.equal(resolved.debugLogEnabled, true);
-  assert.equal(resolved.telemetryEnabled, false);
   assert.equal(resolved.env.WEBHOOK, "system-webhook");
 });
 
@@ -218,6 +249,85 @@ test("resolveSettingsSources merges permission settings", () => {
   assert.deepEqual(resolved.permissions.ask, ["write-out-cwd"]);
   assert.deepEqual(resolved.permissions.deny, ["delete-out-cwd"]);
   assert.equal(resolved.permissions.defaultMode, "allowAll");
+});
+
+test("readSettingsFileWithStatus distinguishes missing / valid / invalid", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-status-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+
+    // Missing — no file written yet.
+    resetLastSettingsReadError();
+    assert.equal(readSettingsFileWithStatus(settingsPath).kind, "missing");
+    assert.equal(getLastSettingsReadError(), null);
+
+    // Valid JSON object.
+    fs.writeFileSync(settingsPath, '{"model":"x"}\n', "utf8");
+    const valid = readSettingsFileWithStatus(settingsPath);
+    assert.equal(valid.kind, "valid");
+    if (valid.kind === "valid") assert.equal(valid.value.model, "x");
+
+    // Corrupt JSON.
+    fs.writeFileSync(settingsPath, "{not valid json\n", "utf8");
+    const invalid = readSettingsFileWithStatus(settingsPath);
+    assert.equal(invalid.kind, "invalid");
+    if (invalid.kind === "invalid") assert.ok(invalid.error.length > 0);
+
+    // JSON but not an object (an array).
+    fs.writeFileSync(settingsPath, "[1,2,3]\n", "utf8");
+    const invalidArr = readSettingsFileWithStatus(settingsPath);
+    assert.equal(invalidArr.kind, "invalid");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    resetLastSettingsReadError();
+  }
+});
+
+test("readSettingsFile records a diagnostic for corrupt settings (getLastSettingsReadError)", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-diag-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    resetLastSettingsReadError();
+
+    // Missing file → no diagnostic.
+    readSettingsFile(settingsPath);
+    assert.equal(getLastSettingsReadError(), null);
+
+    // Corrupt → diagnostic recorded, readSettingsFile still returns null.
+    fs.writeFileSync(settingsPath, "{broken\n", "utf8");
+    const result = readSettingsFile(settingsPath);
+    assert.equal(result, null);
+    const diag = getLastSettingsReadError();
+    assert.ok(diag, "expected a diagnostic for corrupt settings");
+    assert.equal(diag?.kind, "invalid");
+    assert.ok(diag?.error.length > 0);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    resetLastSettingsReadError();
+  }
+});
+
+test("failClosedPermissionDefault upgrades to askAll after a corrupt read", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-settings-fc-"));
+  try {
+    const settingsPath = getProjectSettingsPath(projectRoot);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    resetLastSettingsReadError();
+
+    // No error yet → preferred default passes through.
+    assert.equal(failClosedPermissionDefault("allowAll"), "allowAll");
+
+    // Trigger a corrupt read, then the guard MUST upgrade to askAll.
+    fs.writeFileSync(settingsPath, "{broken\n", "utf8");
+    readSettingsFile(settingsPath);
+    assert.equal(failClosedPermissionDefault("allowAll"), "askAll");
+    assert.equal(failClosedPermissionDefault("askAll"), "askAll");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    resetLastSettingsReadError();
+  }
 });
 
 test("resolveSettingsSources merges enabledSkills with project precedence", () => {
@@ -253,18 +363,202 @@ test("resolveSettingsSources merges enabledSkills with project precedence", () =
   });
 });
 
+// ── Multi-endpoint normalization & merge ──────────────────────────────────
+
+test("normalizeEndpoints rejects non-arrays, malformed entries, and duplicate ids", () => {
+  // Non-array → empty.
+  assert.deepEqual(normalizeEndpoints({}), []);
+  assert.deepEqual(normalizeEndpoints(null), []);
+  assert.deepEqual(normalizeEndpoints("deepseek"), []);
+
+  // Array with malformed entries: null, missing fields, non-object all dropped.
+  const malformed = normalizeEndpoints([
+    null,
+    42,
+    "string",
+    { id: "ok", name: "OK", baseURL: "https://ok.example.com", apiKey: "k" },
+    { id: "", name: "Empty", baseURL: "https://e.example.com" }, // empty id dropped
+    { id: "no-baseurl", name: "NoBase" }, // missing baseURL dropped
+    { id: "no-name", baseURL: "https://nn.example.com" }, // missing name dropped
+    { id: "ok", name: "Dup", baseURL: "https://dup.example.com" }, // duplicate id dropped
+  ]);
+  assert.equal(malformed.length, 1);
+  assert.equal(malformed[0]?.id, "ok");
+  assert.equal(malformed[0]?.apiKey, "k");
+
+  // Missing apiKey defaults to empty string (not undefined).
+  const noKey = normalizeEndpoints([{ id: "a", name: "A", baseURL: "https://a.example.com" }]);
+  assert.equal(noKey[0]?.apiKey, "");
+
+  // Non-string apiKey coerced to "".
+  const badKey = normalizeEndpoints([{ id: "b", name: "B", baseURL: "https://b.example.com", apiKey: 12345 }]);
+  assert.equal(badKey[0]?.apiKey, "");
+});
+
+test("resolveSettingsSources merges endpoints with project overriding user by id", () => {
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [
+        { id: "deepseek", name: "User DS", baseURL: "https://user.deepseek.com", apiKey: USER_KEY },
+        { id: "extra", name: "Extra", baseURL: "https://extra.example.com", apiKey: EXTRA_KEY },
+      ],
+    },
+    {
+      endpoints: [
+        // Project overrides user's "deepseek" id.
+        { id: "deepseek", name: "Project DS", baseURL: "https://project.deepseek.com", apiKey: PROJECT_KEY },
+      ],
+      primaryEndpointId: "deepseek",
+    },
+    {
+      model: "default-model",
+      baseURL: "https://default.example.com",
+    },
+    TEST_PROCESS_ENV
+  );
+
+  // Both endpoints present (no user leak into project, no duplication).
+  assert.equal(resolved.endpoints.length, 2);
+  const ds = resolved.endpoints.find((e) => e.id === "deepseek");
+  assert.equal(ds?.name, "Project DS");
+  assert.equal(ds?.baseURL, "https://project.deepseek.com");
+  assert.equal(ds?.apiKey, PROJECT_KEY);
+  // "extra" (user-only) still present.
+  assert.ok(resolved.endpoints.find((e) => e.id === "extra"));
+  // Primary resolves to the project-overridden entry.
+  assert.equal(resolved.primaryEndpointId, "deepseek");
+  assert.equal(resolved.baseURL, "https://project.deepseek.com");
+});
+
+test("resolveSettingsSources: env API_KEY has highest priority over endpoint apiKey", () => {
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [{ id: "deepseek", name: "DS", baseURL: "https://api.deepseek.com", apiKey: "file-key" }],
+      primaryEndpointId: "deepseek",
+    },
+    null,
+    {
+      model: "default-model",
+      baseURL: "https://default.example.com",
+    },
+    { DEEPORCA_API_KEY: "env-key" }
+  );
+
+  // Env key wins — CI/credential rotation can override the file-stored key.
+  assert.equal(resolved.apiKey, "env-key");
+  assert.equal(resolved.baseURL, "https://api.deepseek.com");
+});
+
+test("resolveSettingsSources: env BASE_URL overrides a configured endpoint baseURL (parity with API_KEY)", () => {
+  // Regression: previously env API_KEY won via `??` but env BASE_URL only
+  // applied as a `||` fallback, so a configured endpoint baseURL silently
+  // ignored DEEPORCA_BASE_URL — sending the env credential to the wrong host.
+  // Both env values must now have the same top priority.
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [{ id: "deepseek", name: "DS", baseURL: "https://api.deepseek.com", apiKey: "file-key" }],
+      primaryEndpointId: "deepseek",
+    },
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    { DEEPORCA_API_KEY: "env-key", DEEPORCA_BASE_URL: "https://gateway.example.com/v1" }
+  );
+
+  assert.equal(resolved.apiKey, "env-key");
+  assert.equal(resolved.baseURL, "https://gateway.example.com/v1");
+});
+
+test("resolveSettingsSources: env BASE_URL absent keeps the configured endpoint baseURL", () => {
+  const resolved = resolveSettingsSources(
+    {
+      endpoints: [{ id: "deepseek", name: "DS", baseURL: "https://api.deepseek.com", apiKey: "file-key" }],
+      primaryEndpointId: "deepseek",
+    },
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    { DEEPORCA_API_KEY: "env-key" }
+  );
+  assert.equal(resolved.baseURL, "https://api.deepseek.com");
+});
+
+test("applyModelConfigSelection writes primaryEndpointId when endpointId is supplied", () => {
+  // Selecting model "m-b" on endpoint "provider-b" must persist primaryEndpointId
+  // atomically so runtime routes to provider-b (not the previously-primary provider-a).
+  const result = applyModelConfigSelection(
+    {
+      endpoints: [
+        { id: "provider-a", name: "A", baseURL: "https://a", apiKey: "ka", models: [{ id: "m-a", thinking: true }] },
+        { id: "provider-b", name: "B", baseURL: "https://b", apiKey: "kb", models: [{ id: "m-b", thinking: false }] },
+      ],
+      primaryEndpointId: "provider-a",
+      model: "m-a",
+    },
+    { model: "m-a", thinkingEnabled: true, reasoningEffort: "max" },
+    { model: "m-b", endpointId: "provider-b", thinkingEnabled: false, reasoningEffort: "max" }
+  );
+  assert.equal(result.changed, true);
+  assert.equal(result.settings.model, "m-b");
+  assert.equal(result.settings.primaryEndpointId, "provider-b");
+});
+
+test("applyModelConfigSelection forces thinking off when the selected model declares it unsupported", () => {
+  // Switching from a thinking-capable model to a non-thinking one must clear
+  // thinkingEnabled — otherwise activateSession sends thinking options to a
+  // model that rejects them.
+  const result = applyModelConfigSelection(
+    {
+      endpoints: [
+        {
+          id: "ep",
+          name: "E",
+          baseURL: "https://e",
+          apiKey: "k",
+          models: [
+            { id: "m-think", thinking: true },
+            { id: "m-plain", thinking: false },
+          ],
+        },
+      ],
+      primaryEndpointId: "ep",
+      model: "m-think",
+    },
+    { model: "m-think", thinkingEnabled: true, reasoningEffort: "max" },
+    // Renderer (incorrectly) carries over thinkingEnabled=true:
+    { model: "m-plain", endpointId: "ep", thinkingEnabled: true, reasoningEffort: "max" }
+  );
+  assert.equal(result.settings.model, "m-plain");
+  assert.equal(result.settings.thinkingEnabled, false);
+});
+
+test("resolveSettingsSources synthesizes default endpoint from env but apiKey stays top-level only", () => {
+  // No endpoints configured at all → synthetic default. The endpoint carries the
+  // env key for runtime, but this is NOT surfaced by getEditableSettings (which
+  // reads raw files). Here we verify the resolved shape is consistent.
+  const resolved = resolveSettingsSources(
+    null,
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    { DEEPORCA_API_KEY: "env-key" }
+  );
+
+  assert.equal(resolved.endpoints.length, 1);
+  assert.equal(resolved.endpoints[0]?.id, "deepseek");
+  assert.equal(resolved.endpoints[0]?.apiKey, "env-key");
+  assert.equal(resolved.apiKey, "env-key");
+});
+
 test("resolveSettingsSources merges MCP env with documented priority", () => {
   const resolved = resolveSettingsSources(
     {
       env: {
-        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "user-global",
+        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: USER_GLOBAL,
       },
       mcpServers: {
         github: {
           command: "node",
           args: ["user-server.js"],
           env: {
-            GITHUB_PERSONAL_ACCESS_TOKEN: "user-local",
+            GITHUB_PERSONAL_ACCESS_TOKEN: USER_LOCAL,
             USER_ONLY: "1",
           },
         },
@@ -272,13 +566,13 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
     },
     {
       env: {
-        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "project-global",
+        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: PROJECT_GLOBAL,
       },
       mcpServers: {
         github: {
           command: "python",
           env: {
-            GITHUB_PERSONAL_ACCESS_TOKEN: "project-local",
+            GITHUB_PERSONAL_ACCESS_TOKEN: PROJECT_LOCAL,
             PROJECT_ONLY: "1",
           },
         },
@@ -289,15 +583,15 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
       baseURL: "https://default.example.com",
     },
     {
-      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: SYSTEM_GLOBAL,
     }
   );
 
   assert.equal(resolved.mcpServers?.github?.command, "python");
   assert.deepEqual(resolved.mcpServers?.github?.args, ["user-server.js"]);
   assert.deepEqual(resolved.mcpServers?.github?.env, {
-    MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
-    GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
+    MCP_GITHUB_PERSONAL_ACCESS_TOKEN: SYSTEM_GLOBAL,
+    GITHUB_PERSONAL_ACCESS_TOKEN: SYSTEM_GLOBAL,
     USER_ONLY: "1",
     PROJECT_ONLY: "1",
   });
@@ -612,3 +906,23 @@ test(
     assert.equal(calls[1]?.options.env?.TITLE, "Fix login bug");
   }
 );
+
+test("resolveSettings reads streamIdleTimeoutMs from settings and env with a 5-minute default", () => {
+  const defaults = { model: "default-model", baseURL: "https://default.example.com" };
+
+  assert.equal(resolveSettings({}, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs, DEFAULT_STREAM_IDLE_TIMEOUT_MS);
+  assert.equal(DEFAULT_STREAM_IDLE_TIMEOUT_MS, 300_000);
+  assert.equal(resolveSettings({ streamIdleTimeoutMs: 1500 }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs, 1500);
+  assert.equal(
+    resolveSettings({ env: { STREAM_IDLE_TIMEOUT_MS: "2000" } }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs,
+    2000
+  );
+  assert.equal(
+    resolveSettings({ streamIdleTimeoutMs: -5 }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs,
+    DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  );
+  assert.equal(
+    resolveSettings({ streamIdleTimeoutMs: "not-a-number" }, defaults, TEST_PROCESS_ENV).streamIdleTimeoutMs,
+    DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  );
+});

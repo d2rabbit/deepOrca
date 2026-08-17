@@ -1,0 +1,33 @@
+# draft: format finalized with Workstream A (skill-up CI)
+id: book-distill-boundary
+title: Very short document produces a slim single-file skill
+description: >
+  A single-page document triggers the short-source fast path: the skill is
+  still written to the user skills directory, but as one slim SKILL.md with no
+  references/ directory and no multi-stage batching narrative — no
+  over-engineering.
+# known limitation (for Workstream A): must_not_contain "references/" can
+# false-positive when the agent explains *why* it did not split references/.
+# Consider replacing with a script judge that inspects the written file tree.
+input:
+  prompt: |
+    把我们这页发布检查单蒸馏成技能，以后发版前直接调用：
+
+    《发版前检查单》
+
+    1. 合并主干后重新跑一遍全量测试，全绿才算通过。
+    2. 版本号只改 release:version 脚本输出，不手改 package.json。
+    3. CHANGELOG 补一段本版本摘要，日期用当天。
+    4. 打 tag 前确认工作区干净（git status 无未提交内容）。
+    5. tag 名用 v<版本号>，打完推送到远端。
+constraints:
+  timeout_seconds: 300
+  max_turns: 10
+expect:
+  must_contain:
+    - ".deeporca/skills"
+    - "SKILL.md"
+  must_not_contain:
+    - "references/"
+judge:
+  type: rule_based

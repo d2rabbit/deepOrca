@@ -1,0 +1,24 @@
+# format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
+id: skill-writer-positive
+title: Skill authoring request produces a SKILL.md draft with frontmatter
+description: >
+  User wants to turn a team convention into a reusable Agent Skill.
+  skill-writer should trigger and produce a well-structured SKILL.md draft
+  (name + description frontmatter, progressive-disclosure body) — not a
+  plugin manifest and not loose prose.
+input:
+  prompt: |
+    我想把我们团队的 Code Review 规范写成一个可复用的 Agent Skill，
+    帮我起草一下：规范要点是——先看正确性和边界条件，其次安全隐患，
+    意见必须按 block / suggest / nit 分级并给理由。
+constraints:
+  timeout_seconds: 600
+  max_turns: 15
+expect:
+  must_contain:
+    - "SKILL.md"
+    - "description"
+  must_not_contain:
+    - "skill.plugin.md"
+judge:
+  type: rule_based
