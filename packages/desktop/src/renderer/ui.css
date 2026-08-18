@@ -5948,6 +5948,46 @@ button.ui-topbar-pill {
   color: var(--ui-success, #16a34a);
 }
 
+/* ── Brand drift gate card (E1d, deterministic review dimension) ─────────── */
+.ui-review-drift {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+}
+.ui-review-drift-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+}
+.ui-review-drift-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.ui-review-drift-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--ui-radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ui-review-drift-badge.good {
+  color: var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+}
+.ui-review-drift-badge.bad {
+  color: var(--ui-warning);
+  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+}
+
 /* ── Index log output (live indexing progress) ────────────────────────────── */
 .ui-index-log {
   margin-top: var(--ui-space-2);

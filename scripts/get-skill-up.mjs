@@ -16,14 +16,13 @@
  *   SKILL_UP_VERSION   release tag to pin instead of the constant below
  *                      (validated: /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/)
  *
- * UNCERTAINTY NOTE (asset naming): at implementation time (2026-08-17) GitHub
- * was not reachable from the dev environment, so the exact release asset file
- * names could not be verified. Instead of hardcoding a guessed pattern, the
- * script resolves the asset list from the GitHub Releases API
+ * UNCERTAINTY NOTE (asset naming): release asset file names are NOT hardcoded
+ * — the script resolves the asset list from the GitHub Releases API
  * (/repos/alibaba/skill-up/releases/tags/<version>) and matches the platform
- * (goos/goarch) against the asset names. The pinned SKILL_UP_VERSION below is
- * likewise a placeholder until someone with network access confirms the first
- * real tag on https://github.com/alibaba/skill-up/releases and bumps it via PR.
+ * (goos/goarch) against the asset names. The pinned version below was
+ * confirmed against the real tag list on 2026-08-18 via
+ * `git ls-remote --tags https://github.com/alibaba/skill-up.git`
+ * (v0.1.0 … v0.9.0 exist; v0.9.0 is the latest at pin time).
  *
  * Security posture (repo scanner blocks exec-with-dynamic-args):
  * - every child process is spawned in argv form with a literal program name;
@@ -42,8 +41,9 @@ import { assertSafeVersion, download, fetchText } from "./vendor-download.js";
 
 // --- pinned version ---------------------------------------------------------
 
-/** Release tag pinned for CI + local evals. Bump via PR (design.md §六). */
-const SKILL_UP_VERSION = "v0.1.0";
+/** Release tag pinned for CI + local evals. Bump via PR (design.md §六).
+ *  v0.9.0 = latest upstream tag as of 2026-08-18 (confirmed via ls-remote). */
+const SKILL_UP_VERSION = "v0.9.0";
 
 const SKILL_UP_REPO = "alibaba/skill-up";
 const SKILL_UP_REPO_API = `https://api.github.com/repos/${SKILL_UP_REPO}`;

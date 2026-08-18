@@ -43,7 +43,11 @@ import {
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
-import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
+import {
+  ensureDembrandtBrowserProvider,
+  getDembrandtCdpEndpoint,
+  primeDembrandtCommandLine,
+} from "./tools/dembrandt-browser";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
@@ -181,7 +185,14 @@ app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096 --max-semi-s
 // MCP tools still use npm-shim.js subprocess (see augmentMcpServersWithBuiltins).
 
 // Vendored openwiki CLI entry. Used by WikiCliController (tools/wiki-cli.ts).
-const OPENWIKI_VENDOR_ENTRY = join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
+// openwiki's package layout moved the entry between versions (0.2.x:
+// dist/cli.js → 0.3.x: dist/cli/cli.js) — accept both so the runtime follows
+// whatever the pinned vendor tree actually contains.
+const OPENWIKI_VENDOR_ENTRY =
+  [
+    join(__dirname, "..", "vendor", "openwiki", "dist", "cli", "cli.js"),
+    join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js"),
+  ].find((p) => existsSync(p)) ?? join(__dirname, "..", "vendor", "openwiki", "dist", "cli.js");
 
 // Inject the desktop subprocess spawner into core's ActionRegistry (design M2).
 configureActionSpawner(new ElectronNodeSpawner());
@@ -268,11 +279,18 @@ configureUvVendorRoot(join(__dirname, "..", "vendor", "uv"));
 // first extraction may pay a one-time window startup; nothing blocks boot.
 configureDembrandtVendorRoot(join(__dirname, "..", "vendor", "dembrandt"));
 configureDembrandtCdpEndpointGetter(getDembrandtCdpEndpoint);
-if (app.isPackaged || existsSync(join(__dirname, "..", "vendor", "dembrandt", ".vendored-dembrandt-version"))) {
-  void ensureDembrandtBrowserProvider().catch((err) => {
-    console.error("[dembrandt] built-in Chromium provider failed to start:", err);
-  });
-}
+// F4 烟雾（2026-08-18）抓到的启动顺序问题，拆成两半各归其位：
+// ① Chromium 命令行开关必须在 app ready（进程启动）前附加——模块顶层调用；
+// ② provider 的隐藏 BrowserWindow 必须在 app ready 后创建——whenReady 里
+//    fire-and-forget（仍不阻塞首屏；首次提取最多付一次窗口启动成本）。
+primeDembrandtCommandLine();
+const startDembrandtProvider = () => {
+  if (app.isPackaged || existsSync(join(__dirname, "..", "vendor", "dembrandt", ".vendored-dembrandt-version"))) {
+    void ensureDembrandtBrowserProvider().catch((err) => {
+      console.error("[dembrandt] built-in Chromium provider failed to start:", err);
+    });
+  }
+};
 
 // CRG version pin: read from vendor/crg/.vendored-crg-version (written by
 // scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.
@@ -1731,6 +1749,9 @@ app.whenReady().then(() => {
   // fast because the renderer HTML + JS start loading right away.
   registerIpc();
   createWindow();
+  // Dembrandt CDP provider creates a hidden BrowserWindow — only legal after
+  // app ready (boot-order fix, see startDembrandtProvider definition).
+  setImmediate(startDembrandtProvider);
   // Defer background vendoring until after the window is visible — it
   // fetches git repos and compiles, which is I/O-heavy and shouldn't
   // compete with first paint for CPU/disk bandwidth.

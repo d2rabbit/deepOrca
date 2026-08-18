@@ -27,6 +27,21 @@ const DEMBRANDT_CDP_PORT = 9333;
 let providerWindow: BrowserWindow | null = null;
 let providerUrl: string | null = null;
 let providerStarting: Promise<string> | null = null;
+let switchPrimed = false;
+
+/**
+ * Append the remote-debugging switch BEFORE app ready — Chromium only honors
+ * command-line switches at process startup, so appending after ready silently
+ * never starts the CDP server and the readiness probe times out (F4 smoke
+ * finding, 2026-08-18). Idempotent and side-effect free apart from the flag;
+ * the BrowserWindow itself is created later by ensureDembrandtBrowserProvider
+ * (BrowserWindow creation requires app ready).
+ */
+export function primeDembrandtCommandLine(): void {
+  if (switchPrimed) return;
+  switchPrimed = true;
+  app.commandLine.appendSwitch("remote-debugging-port", String(DEMBRANDT_CDP_PORT));
+}
 
 /** Probe the CDP http endpoint until Chromium reports /json/version (≤ ~8s). */
 function waitForCdpReady(endpoint: string, deadlineMs: number): Promise<void> {
@@ -67,10 +82,10 @@ export async function ensureDembrandtBrowserProvider(): Promise<string> {
     return providerStarting;
   }
   providerStarting = (async (): Promise<string> => {
-    // Chromium flags must be appended before app.whenReady()'s GPU init in
-    // general, but for a fresh window created on demand this late-append is
-    // what Electron supports for the renderer's debugging server.
-    app.commandLine.appendSwitch("remote-debugging-port", String(DEMBRANDT_CDP_PORT));
+    // The switch itself must have been primed at boot (see
+    // primeDembrandtCommandLine); this call is a no-op by then and only covers
+    // standalone/test invocations that skipped the boot-time prime.
+    primeDembrandtCommandLine();
     const win = new BrowserWindow({
       show: false,
       width: 1366,

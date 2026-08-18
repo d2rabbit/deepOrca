@@ -10,7 +10,7 @@
 
 ## A. skill-up CI（详见 `specs/skill-eval/tasks.md`，此处为总控镜像）
 
-- [x] A1 skill-up 二进制固定版本接入方式落地（T1.1）（`2c98142`；`scripts/get-skill-up.mjs` Releases API 资产名解析 + `.cache/skill-up/` 缓存 + 魔术字节/大小校验；版本 pin 占位 v0.1.0 待联网定版，闭环项）
+- [x] A1 skill-up 二进制固定版本接入方式落地（T1.1）（`2c98142`；`scripts/get-skill-up.mjs` Releases API 资产名解析 + `.cache/skill-up/` 缓存 + 魔术字节/大小校验；~~版本 pin 占位 v0.1.0 待联网定版，闭环项~~ **2026-08-18 定版 v0.9.0**——`git ls-remote --tags` 核实真实 tag 列表（v0.1.0…v0.9.0），bump 后本地实拉 12.7MB windows/amd64 资产成功）
 - [x] A2 `scripts/run-skill-evals.mjs`（变更包检测 + 汇总 + report-only/nightly 双模式）（T1.2）（`2c98142`；退出码契约 0/1/2）
 - [x] A3 `.github/workflows/skill-evals.yml`（PR paths 过滤 + nightly + artifacts + secrets）（T1.3）（`2c98142`；PR 增量 report-only + cron `0 18 * * *` 全量）
 - [x] A4 8 插件包 evals 骨架；code/browser/knowledge 三包首批 ≥3 用例，其余各 ≥1（T1.4）（`2c98142`；8 包 eval.yaml + 14 用例，rule_based 离线可重放）
@@ -47,7 +47,7 @@
 - [x] E1a builtin MCP 注册（pinned npx `dembrandt-mcp`，core disable-gate + desktop spawn 注入，同 serena 模式）（`60d86d6`；最终为 vendored 离线 spawn 而非 npx——见 E1e 收口）
 - [x] E1b `design.extract` action（spawner 调 CLI `--json-only`，产物写 `.deeporca/DESIGN.md` 品牌契约 + tokens 入 design-store；过 gateWrite/PathGrant + audit bus）（`60d86d6`；agent 介导写 DESIGN.md 走 write 工具自身 PathGrant 门控）
 - [x] E1c `design.drift` action（优先纯函数子包 drift/findings，desktop 侧引入；基线对比 0-100 评分 + findings 审计）（`60d86d6`；`--compare` 基线漂移门，exit 1=drift-detected 非错误）
-- [ ] E1d review 维度接线：drift 结果并入 review 面板展示（确定性、零 LLM）（**未做——UI 卡片列为冻结期闭环项；当前 drift 结果以工具输出在会话/审查上下文可见**）
+- [x] E1d review 维度接线：drift 结果并入 review 面板展示（确定性、零 LLM）（2026-08-18 落地：CodeReviewPanel 新增品牌漂移闸门卡片——baseline（默认 `.deeporca/design-baseline.json`）/current 双输入 → `actionRun("design.drift")` → 漂移徽章（⚠检测到/✅基线内）+ score + summary + 逐 token 明细折叠；i18n 6 语言 `review.drift.*`）
 - [x] E1e 约束验收：不 vendor Chromium；SSRF host 校验（如自研抓取包装）；网络失败 best-effort 降级；license 门禁通过（`60d86d6`）
   - **offline 收口（2026-08-17，两次用户拍板：干掉首次运行联网下载 + 使用内置 Chromium）**：① 构建期 `scripts/vendor-dembrandt.js` pinned 安装到 `packages/desktop/vendor/dembrandt`（`--omit=dev --omit=optional --ignore-scripts`，实测 **26.3MB**/113 包，**无浏览器二进制**，installer 增量即这 26.3MB）；② **无运行时 npx 回退**——vendor 树缺失即报"需先 desktop build"离线配置错误，绝不联网；spawn 字面量 `node <vendored dist js>`（argv 四重校验：绝对/无 `..`/落根内/存在性）；③ **浏览器 = Electron 内置 Chromium**：desktop 隐藏 offscreen 窗口 CDP 暴露内嵌 Chromium（loopback 9333，`main/tools/dembrandt-browser.ts`），构建期给上游 CLI/MCP/PDF 三处 launch 打 version-pinned fail-closed patch 令其优先 `connectOverCDP(DEMBRANDT_CDP_ENDPOINT)`（上游 MCP/PDF 原生不支持 CDP），`--check` 语法校验内置于 vendor 流程（曾正确拦下括号不平衡的 patch），`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 恒设兜底；**端到端已验证**（Chromium CDP 渲染 example.com 提取 17 类设计数据）；④ SSRF 防线 `validateDembrandtTargetUrl`（仅 http/https，拒 localhost/环回/私有/保留/链路本地，含 scheme 走私与空白编码绕过）先于一切 spawn；30 用例全绿（含 CDP 注入/URL SSRF 矩阵/containment）；MIT 过 license 门禁
 - [x] E1f（闭环项）external-repos 预研文档状态回写（dembrandt 部分 ✅）（`9385687` 台账索引 + CHANGELOG 条目）
@@ -64,8 +64,8 @@
 - [x] F1 静态基线：`npm run check && npm test` 全绿（含 license 门禁）（Node 22.23.2 下通过；首轮 format:check 红——`--no-verify` 批次带入 9 文件 prettier 违规，已修复回归；core 550/desktop 191/embedding 10/memory 14 全 0 失败）
 - [x] F2 专项套件：sandbox / routing（含 D4 新测试）/ session（P1-1、P1-2 新语义+旧开关）/ actions 27 项三面到达 / gitmcp 8 工具 / designer（extract、drift、预设）（六专项声明逐一在树核证，用例数与本文记载逐项吻合：D1=7/D2=5/D3=5/D4=2/gitmcp=23/dembrandt=31≥30；registry 实测 28 个 action id）
 - [x] F3 接线核验：8 插件包技能加载、MCP builtin 全量起停（含新增 dembrandt）、vendor 13 脚本、i18n 5 语言、desktop:build 三 bundle + extraResources（8 包 eval.yaml 齐备；builtin 起停循环 8 名单；vendor-* 恰 13；6 locale（en+5）；extraResources vendor→app/vendor 与运行时解析一致）
-- [ ] F4 真机烟雾（Windows 必测）：会话→plan mode→工具→permission→design.materialize→review.full→任务树→**重启恢复（验证 P1-1）**（**保留待办——需真机**）
-- [ ] F5 逐 spec 终判（specs/ 全目录 19 个）：产出挂账清单——冻结期"闭环"项或显式推迟（**保留待办——独立文档作业，建议与 F4 同批**）
+- [ ] F4 真机烟雾（Windows 必测）：会话→plan mode→工具→permission→design.materialize→review.full→任务树→**重启恢复（验证 P1-1）**（**2026-08-18 推进：Windows 真机 desktop:build + desktop:start 启动烟雾通过，并抓出修复 5 个真问题**——① dembrandt provider 模块顶层创建 BrowserWindow 早于 app ready；② remote-debugging-port 开关必须进程启动前附加（晚附 CDP 永不启动，探测超时）——两半拆分：`primeDembrandtCommandLine()` 顶层 + 窗口延迟 whenReady；③ vendor-openwiki 在 Windows spawn "npm" ENOENT（改走 node+npm-cli.js argv 形式，同 vendor-dembrandt 先例；npm.cmd 方案因 Node 2024-04 批处理加固必 EINVAL）；④ openwiki 解析 registry "latest" 是移动靶——改 pin v0.3.3（同其他 vendor 纪律）；⑤ openwiki 0.3.3 布局迁移 dist/cli.js→dist/cli/cli.js——vendor verify 与运行时入口双路径兼容。修复后启动日志全净（CDP 9333 干净就绪、openwiki vendor up-to-date）。**完整交互清单（plan/权限/materialize/review.full/任务树/重启恢复）仍待人工走查后勾选**）
+- [x] F5 逐 spec 终判（specs/ 全目录 19 个）：产出挂账清单——冻结期"闭环"项或显式推迟（2026-08-18 完成：**19 spec = ✅8 · 🟡5 · ⬜4 · ❌2**，终判文档 [`docs/pre-production-spec-final-audit.md`](../../docs/pre-production-spec-final-audit.md)；发现的 4 项文档债已列明——text-embedding 状态行陈旧、skill-eval tasks 复选框未回写、builtin-inventory 残留 harmonyos、pm-design-v2 状态行陈旧）
 - [x] F6 扫描报告 `docs/pre-production-capability-scan.md` 落盘
 
 ## G. 旧文档清理
