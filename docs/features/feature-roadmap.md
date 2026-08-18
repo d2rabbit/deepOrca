@@ -1,51 +1,49 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.20 · 日期：2026-08-17 · 状态：**预生产测试基线（dev 合并 + test 冻结线衍生）**
+> 版本：v3.21 · 日期：2026-08-18 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
 >
-> **v3.20 更新（隐私与第一方联网 + 评审收敛 + test 线衍生）**：① **剔除上游数据链路**——遥测打点（每会话 machineId→vegamo）、WebSearch 默认代理（查询词+machineId→vegamo）、machineId 生成管道全部移除；`telemetryEnabled` 设置面同步下线。② **自研第一方 WebSearch**（`web-search-providers.ts`，零新依赖）：DuckDuckGo Lite 免密钥开箱默认，Brave/Tavily 适配器保留（密钥设置面因 C5 暂禁）；`webSearchTool` 自定义脚本优先。③ **内置 WebFetch 工具**（第 8 个内置工具）：双引擎单契约——desktop 隐藏 offscreen Chromium（`web-fetch-provider.ts`，loadURL+executeJavaScript，will-redirect 逐跳 SSRF 复查、仅主帧失败判定）+ 静态 HTTP 兜底（手动重定向逐跳过门、超时覆盖 body 读取）；共享 SSRF 门 `common/public-url.ts`（尾点归一/IPv4 映射 IPv6 解包/ULA 仅字面量/dembrandt 复用）。④ **两轮对抗式评审 + 修复收敛至零**：报告 `docs/review-2026-08-17-adversarial-{4commits,privacy-webfetch}.md`，35 项发现全修 + 第三轮复审 6 项回归再修 + 第四轮验证 SHIP；lint 存量 13 警告顺带清零。⑤ **预生产 F 线审查**（F1–F3+F6）：`docs/pre-production-capability-scan.md`，9 收官提交声明逐一核证吻合。⑥ **分支模型落地**：`feat/sandbox-p0-path-gate` → 合并 `dev` → 衍生 `test`（**冻结新功能**，仅修复/优化/文档/测试；新功能一律 `next/*`）。
->
-> **v3.19 更新（预生产收官快照）**：本版本为当前版本**最后一批功能扩展**，执行 `specs/pre-production/`（design+tasks）收官计划后进入**首次预生产测试阶段**——此后 dev 分支仅接受 修复/优化/功能闭环/文档测试，新功能一律 `next/*` 分支留待下一版本。本批落地：① **dsh 理念深化四件套**（崩溃合成收尾 P1-1 / 两段式 compaction P1-2 / beforeToolExecution 闸门 P1-4 / 前缀守卫收尾 #13——router 仍为工具选择唯一权威，dsh 确定性仅存于 router 输出层与守护测试）；② **skill-up CI**（S1 CI 集成 + S2 引擎适配器，8 插件包 14 用例，`specs/skill-eval/`）；③ **GitMCP 4→8 工具**（get_repo_structure / read_file / docs 多文件索引 / outline / get_repo_info）；④ **book-distill 技能**（skillweaver P2 兑现）；⑤ **designer 双增强**——dembrandt 品牌摄取（builtin MCP pin 0.28.0 + design.extract/design.drift action，补齐 `.deeporca/DESIGN.md` 品牌契约自动化来源）+ 进化设计（设计系统 3→9 套、taste 五维自评 + anti-slop、大页面两段式生成）；⑥ **安全门禁整改**（Mimosa 审计驱动：命令注入 argv 化、路径穿越 containment、测试夹具去敏，权威深扫 seal `sha256:603a…`）；⑦ **文档治理**（research 台账索引 + archive 归档 8 项 + 状态回写）。调研→实现全程口径：**调研仅供参考，以项目实际实现为准**（`docs/research/README.md`）。
->
-> **v3.18 更新**：新增 **§十八 3D 与制造** 功能域——基于调研 `docs/research/2026-08-13-text-to-cad-img2threejs.md` 立项：① **text-to-cad**（earthtojake，MIT，13.4k★）agent 技能库，build123d 参数化源码 → STEP 主输出（真实 B-rep），含几何校验 + 修复回路；② **img2threejs**（Apache-2.0，11.5k★）单图 → 纯代码程序化 Three.js 模型（TS 工厂 + Divine Eye 零 token 门禁 + 有界纠正回路）。两者皆为 agent-agnostic SKILL.md 技能包，与 DeepOrca Skills 体系同构，vendored 接入。CAD/3D 预览**纯前端自研**（Three.js loaders + occt-import-js + dxf-parser）；**用户拍板不引入 kkFileView**（Aspose-CAD/CADViewer 商业组件风险 + Java 服务端架构错配）。详细设计见 `specs/cad-3d-generation/design.md`。该域是 PM-Design V2 需求具现化的第四条管线（原型/设计稿/代码 → +3D/制造）。
->
-> **v3.17 更新**：三项外部方案吸收，强化"能力定义→组合→自进化"主轴。① **§十一 自进化层二补强**——引入 **HarnessBank** 论文（[arxiv 2607.13683](https://arxiv.org/abs/2607.13683)）作为 Self-Harness（2606.09498）的互补方法：Harness Gene Bank（带质量元数据+版本谱系的 harness 变体池）+ Gated Harness Screening（门控筛选）+ task/evolver 双 agent（evolver 复用 §十 Subagent 作执行单元）。其结论"gains are model-specific"学术验证 DeepSeek 专项调优策略。② **§十六 能力编排引入 defineAction 范式**——借鉴 **agent-native**（[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native)）"一次定义随处使用"：单个 `defineAction({schema, run})` 自动成为 IPC handler + MCP tool + LLM 工具 + 未来 HTTP/CLI。作为 §十六 双工具编排（OpenWork）的**底层实现机制**，让插件组装与能力组合从"手写多套绑定"收敛为"定义一次自动多表面"；严守 core 无 UI 铁律（schema 落 `shared/`、IPC 落 desktop main、MCP 落 core）。③ **§十二 插件中心新增 Agent Plugins 1.0.0 兼容**——[agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)（Amazon/Cursor/Microsoft/OpenAI/Vercel 共治，7 客户端已采纳）作为**新增兼容格式**，与现有 marketplace.json（claude-plugins-official）双格式共存、加载器自动识别，不互斥不取代。skills 层天然兼容，MCP 层 Phase 0 三传输 union 已对齐。DeepOrca 目标成为同时兼容两格式的客户端（兼装 claude 生态 + 七客户端共享插件）。
->
-> **v3.16 更新**：① **本地向量嵌入模型已落地**——新增 `@deeporca/embedding` workspace 包（transformers.js + onnxruntime-node + IBM Granite Embedding 97M R2，384 维），构建期 vendor 模型（`scripts/vendor-granite.js`，hf-mirror 兜底），接入 memory 包 sqlite-vec 后端（`provider: "local-onnx"`）。记忆召回测试：20 条中文记忆 × 12 查询，**向量召回命中率 100%**（FTS 关键词 0%，语义同义改写场景向量完胜）。② **技能/工具语义路由已落地**——新增 `packages/core/src/routing/`（SkillRouter G1 + ToolRouter G2 + VectorIndex + embedding-loader），G1 在技能数 > 阈值时召回 top-K 短名单（flash LLM 只精排短名单），G2 在 MCP 工具 token 超预算时按服务器级召回裁剪。**③ G3 组合路由（M4）已落地**——忠实复现 SkillWeaver 论文（[arxiv 2606.18051](https://arxiv.org/abs/2606.18051)，Xueping Gao / Alibaba Cloud）的 **Decompose-Retrieve-Compose** 三阶段管线：SAD 迭代技能感知分解（Algorithm 1 + Jaccard 收敛）→ bi-encoder 召回 → Compose 兼容性规划（Eq.4 `α·sim+(1-α)·compat`，I/O 类型 coercion + category Jaccard + keyword 共现 + DAG 依赖检测）。28 单测全过，全程 fail-open，配置 `settings.routing`。详见 `specs/skill-routing/design.md` + CHANGELOG 致谢区。④ **采纳 oh-my-mermaid（omm）探索方法，实现 `arch-scan` skill 并归入工作区索引模块**——采用 omm 的 12 视角目录（perspective catalog）+ 递归下钻（recursive drill-down）+ 7 字段元数据方法论，**渲染用 A2UI**（非 Mermaid + CLI）。新增 `packages/core/templates/plugins/code/skills/arch-scan/`，与 CodeGraph（符号级）、OpenWiki（文档级）构成**工作区索引三件套**（符号/文档/架构），首次索引时同步构建。输出 A2UI Surface（可嵌套组件树），由 DesignPreview 渲染。60/60 结构校验通过。不引入 omm CLI/Mermaid/`.omm/` 文件树。调研详见 `docs/research/2026-08-06-oh-my-mermaid-research.md`。⑤ **路线图补齐 skill-up + book-to-skill（§十一 自进化）**——前者是 alibaba 的技能评估 CLI（已有 `specs/skill-eval/design.md`，先 CI 后产品内），后者是 virgiliojr94 的书籍/文档→SKILL.md 生成器（17.2k star，作为知识插件的一个技能集成）。两者补齐「技能从哪来（book-to-skill）→ 技能好不好（skill-up）」两端。
->
-> **v3.15 更新**：① **taste-skill**（§六 P1）已完成——纯方法论 SKILL.md，10 条 P0 设计纪律 + 排版阶梯 + 颜色/动效/布局规范。② **DeepDesign `.dd` 专属格式**（§六 P1）已完成——OrcaDesign Document（YAML front-matter + HTML body + section markers），取代直接写 HTML。编译器注入 tokens + seed CSS + 本地内置 Tailwind JIT（~400KB，离线可用）。新增 `render_design` / `update_design` MCP 工具 + DesignPreview 预览组件（iframe srcDoc）+ `/deep-design` 命令。③ **A2UI merge delta**（§六 P0）已完成——`update_surface` 改为 delta-only 补丁（借鉴 OpenUI merge.ts），processor 端 merge + GC。④ **OpenUI Lang PM-Designer**（§六 P1）已完成——`@openuidev/lang-core` + `react-lang` 集成，11 个自研组件库，`/pm-design-openui` 触发。⑤ 调研 thesysdev/openui + different-ai/openwork + Accio-Lab/Dressage + onecli/onecli + nossa-y/activity-frames。⑥ 新增 §二「行为记忆」（activity-frames TS 重写，P2）+ §十六「能力编排协议」（OpenWork 理念，P3）+ §十七「密钥保险库」（OneCLI 理念 SQLite 重构，P2）。
->
-> **v3.14 更新**：① **A2UI 审计第二弹**——修复 12 个 bug（surface 跨污染 C1+C2 / 内存泄漏 M1 / 独立窗口按钮失效 M4 / 死代码 fallback M5 / 全量快照 O(n²) M2 / MCP onclose 误报 1-A / 子进程 fragile cast 3-A+7-A / Gateway 网络错误静默 4-A+B / HarmonyOS cwd 缺失 5-A），并修复预存的 PrototypeWindow `import electron` 破坏 browser bundle 问题。② **调研 thesysdev/openui + different-ai/openwork**——OpenUI Lang 定位为 PM-Designer 专用渲染层（Zod v4 已就绪，无阻塞）；OpenWork 双工具 MCP 模型（`search_capabilities`+`execute_capability`）作为能力编排层参考，优先级低于 SSH（§十三）。③ 新增 §十六「能力编排协议」（OpenWork 理念，P3）。
->
-> **v3.12 更新**：A2UI 严格代码审计完成，修复 6 个关键 bug（协议不匹配 B1-B3 / 资源传输 B4 / 独立窗口 B6 / 状态泄漏 B9-B10 / 导航重复 I2）。弃用 `@a2ui/web_core`，自建轻量 processor 直接消费自定义消息格式——渲染层已为此格式编写。EmbeddedResource 现在通过 `metadata.a2ui` 正确传递到渲染器。独立窗口通过 `?view=prototype` query param 检测并渲染 PrototypeWindow。
->
-> **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
-> 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
->
-> **v3.1 更新**：Bento 从"设计生成"拆出，独立为"办公套件"功能域（§四）。集成 Serena（符号级代码操作）和 Dart MCP。
->
-> **v3.2 更新**：新增"移动开发"功能域（§三），Flutter Development（已集成）+ Android Development Kit（规划中）+ HarmonyOS Development Kit（规划中）。
->
-> 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
->
-> **v3.3 更新**：移动开发域新增 React Native（Expo 官方 Skills + Callstack）；新增桌面开发域（Electron/Tauri）；新增 .NET 开发域（Microsoft 官方 dotnet/skills）。只采纳第一方或官方社区认可的工具套件。
->
-> **v3.4 更新**：桌面开发域新增 Apple（Xcode 27 第一方 7 Skills）和 Qt/KDE（Qt Group 第一方 7 Skills + MCP）。GNOME/GTK 无官方方案暂不纳入。Electron 自建搁置（调试工具链工程量过大）。
->
-> **v3.5 更新**：新增"远程接入"（§十三）—— 本地 DeepOrca 通过反向隧道/蒲公英/ngrok 等暴露为 Web 端，移动端浏览器/App 直接访问；SessionBridge 与 IPC 已经完全 engine-agnostic，可零改造复用。新增"语音双工"（§十四）—— 语音代替输入法作为输入手段，主推 whisper.cpp + whisper-streaming LocalAgreement 方案。功能域位置无先后顺序，仅按添加顺序排号。
->
-> **v3.5 更新**：新增"远程接入"功能域（WebSocket 桥 + 静态服务 + 隧道方案，架构可行性已验证）和"语音双工"功能域（whisper.cpp 本地优先 + API 兜底）。
->
-> **v3.6 更新**：§十三"远程接入"方案定稿——采用向日葵式内外网映射（内置 TunnelClient + 自建/官方 relay，识别码+配对码零配置），原"用户自配隧道"降级为高级附录。方案见 `docs/research/2026-08-15-remote-access-sunlogin-mapping.md`。
->
-> **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
->
-> **v3.11 更新**：总览表全面对齐各域具体规划（以细节为准）。① html-in-canvas 实测：Electron 43/Chromium 150 **已支持全套 API**（`drawElementImage`/`layoutSubtree`/`requestPaint`），默认关，`--enable-features=CanvasDrawElement` 可开——"阻塞于平台"前提已满足，修正为"flag 可开"。② 补齐总览漏项：§七 办公文档预览面板、§九 ShowUI + sim-use、§十一 JiuwenSwarm 蜂群协作、§十二 已集成的 Flutter/Android/HarmonyOS/RN/Browser 分组。③ Electron 35→43（Chromium 150）。④ §六 html-in-canvas 状态从"阻塞"改为"flag 可开"。实测见 `docs/research/2026-07-30-html-in-canvas.md`。
+> **v3.21 更新（按真实情况对齐）**：① 头部 20 段版本日志（v3.0–v3.20）移至文末**附录·路线图版本历史**；② 新增 **§0 当前状态总览**——逐 spec 终判（F5 产出）作为全项目现状唯一权威口径，取代散落各处的状态声明；③ §三 移动开发域按实况改写（四平台技能包与运行时集成已于 `f680c14` 整体临时下线，原"已集成"8 行过期）；④ 新增 [docs/README.md](../README.md) 目录索引与权威层级。
 
-> **v3.10 更新**：修正 §六「Canvas UI」条目——核实其即 **html-in-canvas**（[html-in-canvas.dev](https://html-in-canvas.dev)），是 **WICG 浏览器原生 API 提案**（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor**（原"构建时 vendor 组件源码"描述有误）。特效能力吻合 demos（液体玻璃/像素瓦解/CRT shader/3D 贴纹理），但**当前纯实验态**（仅 Chrome Canary / Brave 147+ 需手动开 flag，Firefox/Safari 无实现，无 polyfill，无正式发布时间表）。优先级 P1→P3，**阻塞于 Chromium/Electron 平台支持**，定位为 DeepDesign/A2UI 的远期视觉特效升级路径。Phase 3 移除"特效 vendor"。调研 `docs/research/2026-07-30-html-in-canvas.md`。
+## §0 当前状态总览（权威 · 2026-08-18 逐 spec 终判）
 
-> **v3.9 更新**：① **MCP SDK 迁移已完成**（§十 已集成）——手写 JSON-RPC 换官方 `@modelcontextprotocol/sdk@1.22.0`，客户端 + gitmcp 服务端全切换，对外接口零变化，`npm run check` 全绿 + 端到端握手验证通过（perf/native-optimizations 分支 9 commits）。这同时**解锁了 §十二 远程源集成的 HTTP/SSE 传输阻断点**。② 新增 4 项调研结论：**SkillSpector**（NVIDIA 安全扫描器，归入 §十二 作安装闸门 P1，填补远程 skill/MCP 引入的安全缺口）、**Harness Handbook**（§十一 自进化远期愿景——行为级地图）、**Agent-Reach**（§八 不采纳，借鉴多后端路由思路）、open-notebook（不同产品形态，不采纳）。③ 修复总览表 §十三/§十四 重复行。调研见 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md`。
+> 依据 [docs/pre-production-spec-final-audit.md](../pre-production-spec-final-audit.md)（F5 终判，19 spec 逐一对照代码取证）。**本节是全项目现状的唯一权威口径**：各 spec 的 tasks.md 只记自身细节，research 台账只记调研消费状态。
 
-> **v3.8 更新**：调研官方 `@modelcontextprotocol/sdk` 迁移。发现 DeepOrca 的 MCP **全是手写**（客户端 987 行 + gitmcp 服务端 230 行），落后协议两个版本，致命缺口是 **server→client 请求全死**（sampling/roots/elicitation，因客户端 `capabilities:{}` + 路由器丢弃带 id 的 server 请求）。迁移可行性已验证（zod v4 已用、Node 22 原生 crypto 免 polyfill）。**决策（用户拍板）：最高优先级前置**——A2UI 深度依赖 MCP，先打 SDK 地基可省一次返工 + 一次兼容性回归。A2UI 场景分级：P0 原型模块（核心卖点）→ P1 用户决策/持续状态监控/工作流（核心模块）→ P2 代码审查/git/wiki 富展示（待基础能力测完）。调研报告见 `docs/research/2026-07-mcp-sdk-migration.md`。
+**当前阶段**：预生产冻结期。收官计划 A–G 七线完成；F 线 F1–F3+F6+F5 完成，F4 推进中（Windows 真机构建/启动烟雾通过并修复 5 项真问题，交互清单待人工走查）；E1d 已闭环（review 面板品牌漂移卡片）；H（预生产切换：版本定格 → dev 合并 → tag → 冻结生效）待 F4 完成后执行。
+
+### 逐 spec 终判（✅8 · 🟡5 · ⬜4 · ❌2）
+
+| spec | 终判 | 一句话 |
+| --- | --- | --- |
+| a2ui-integration | ✅ | 原型模块 + MCP + 自建 processor 渲染器全链路 |
+| activity-frames | ✅ | 双管线 + 9 MCP 工具 + 可选 boot context |
+| deep-design | ✅ | .dd 管线 + 9 套设计系统（超 spec 演进） |
+| define-action | ✅ | registry 原语 + LLM/MCP/IPC 三面到达 + 统一进度 |
+| gitmcp-local-module | ✅ | 8 工具 + 23 测试（任务 12 人工手测清单待走查） |
+| mcp-sdk-migration | ✅ | 官方 SDK 全切换（外部 server 实机验证待人工） |
+| task-tree | ✅ | P0–P2 + P1 收尾：会话徽标/主区 tab/整树归档联动（`946cf77`） |
+| text-embedding | ✅ | Granite 97M + 路由/记忆双消费方 + 构建期 vendor |
+| sandbox | 🟡 | macOS 后端 + 执行时路径闸门全落地；bwrap/WSL2 未实现（detect 诚实降级）；设置面板路径授权不可见/不可撤销 |
+| skill-eval | 🟡 | S1/S2 产物全落盘；pin 已定版 v0.9.0（2026-08-18 实拉验证）；双引擎对拍与 CI 首跑待真实 LLM/PR |
+| skill-routing | 🟡 | G1/G2 + 组合路由（SAD/DAG）落地；G3 大技能分片召回显式缓期 |
+| pm-design-v2 | 🟡 | 存储/Action/面板/预览迭代闭环主体落地；独立导出与版本切换 UI 未做 |
+| pre-production | 🟡 | A–G + F1–F3/F6/F5 完成；F4 交互清单、B3、GitMCP-12、H 待办 |
+| android-dev-kit | ⬜ | 纯设计稿（移动域整体临时下线，见 §三） |
+| cad-3d-generation | ⬜ | 规划中（text-to-cad / img2threejs 技能未动工） |
+| desktop-pet | ⬜ | 调研定稿未实现 |
+| module-system | ⬜ | 发行版/模块系统远景规划 |
+| behavior-memory | ❌ | 2026-08-17 作废，由 @deeporca/memory（TDAI L0–L3）承接 |
+| harmonyos-dev-kit | ❌ | 曾落地后整体下线（`f680c14`）；鸿蒙 PC 移植 2026-08-18 调研结论"先不做"（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`） |
+
+### 本版本收尾挂账
+
+- **待人工**：F4 交互清单（会话→plan→工具→权限→materialize→review.full【含 E1d 漂移卡片】→任务树→重启恢复 P1-1）；GitMCP 任务 12 手测清单。
+- **待真实 LLM 花费（不代跑）**：B3 book-distill 端到端演练；skill-eval 双引擎趋势对拍；CI 首跑（待首次 PR）。
+- **待执行**：H 预生产切换（依赖 F4 交互清单完成）。
+- **2026-08-18 评估建议（待拍板）**：沙箱 bwrap/WSL2 后端建议不做；G3 大技能分片召回建议缓做；graph-engineering 收编建议关闭；pm-design-v2 建议仅补独立 HTML 导出（React 代码导出不做、版本切换 UI 不做）；设置面板路径授权可见/可撤销建议做（约 0.5 天）。
+
+### 文档地图
+
+见 [docs/README.md](../README.md)：**路线与现状 = 本文件 §0；实现方案 = specs/；调研 = docs/research/（仅供参考）；本版本收尾范围 = specs/pre-production/tasks.md**。
 
 ---
 
@@ -55,7 +53,7 @@
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | [一、代码智能](#一代码智能)                       | codegraph, CRG, ocr, **serena**, **arch-scan（架构索引）**                                                        | —                                                                                                                                                                                | 让 Agent 从"文本级"升级为"语义级"代码操作 + 架构级可视化 |
 | [二、知识中心](#二知识中心)                       | openwiki, TencentDB-Agent-Memory, **activity-frames**                                                             | Open Deep Research 理念                                                                                                                                                          | 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究              |
-| [三、移动开发](#三移动开发)                       | —                                                                                                                 | **Flutter Development（dart+flutter skills + Dart MCP）**, **Android Kit（skills + CLI）**, **HarmonyOS Kit（skills + DevEco MCP）**, **React Native（Expo skills + Expo MCP）** | Flutter + Android + HarmonyOS + React Native             |
+| [三、移动开发](#三移动开发)                       | —（曾集成后整体临时下线 `f680c14`，待重启）                                                                         | Flutter（agent-plugins 24 Skills + Dart MCP）、Android Kit、HarmonyOS Kit、React Native（Expo）——重启属 `next/*` | Flutter + Android + HarmonyOS + React Native             |
 | [四、桌面开发](#四桌面开发)                       | —                                                                                                                 | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）, .NET（dotnet/skills）, deepin/UOS                                                                        | macOS/iOS + Qt/KDE + Tauri + .NET + deepin 桌面应用开发  |
 | [五、.NET 开发](#五net-开发)                      | —                                                                                                                 | dotnet/skills（Microsoft 官方 12 域）                                                                                                                                            | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild              |
 | [六、设计生成](#六设计生成)                       | DeepDesign Phase 1 + **`.dd` 格式**, **taste-skill**, **A2UI PM-Design P0-P4 + merge delta**, **OpenUI Lang PoC** | **html-in-canvas（API 提案，flag 可开）**, dashboard/mobile/poster 模板, Uiverse 组件库                                                                                          | brief→生成→预览→交付 的全流程设计能力                    |
@@ -136,24 +134,17 @@
 ## 三、移动开发
 
 > Flutter + Android + HarmonyOS + React Native 开发能力包——官方/第一方技能包 + 运行时交互。
+>
+> **现状（2026-08-18 对齐）**：四平台技能包与运行时集成**曾完整落地**（flutter/agent-plugins 24 Skills + Dart MCP、android/skills 14 Skills + CLI、deveco-cli Skills、Expo/Callstack + Expo MCP，v3.2–v3.3 接入），后于 `f680c14` "remove all platform-dev technology groups (temporarily)" **整体临时下线**（`c8c5b55` 清死代码），当前树零实现——本域现阶段实质为"已评估待重启"。回归属冻结期外事项（`next/*`）。
 
-### 已集成
-
-| 能力                           | 项目                                         | 集成形态                                                 | 定位                                                                                                    |
-| ------------------------------ | -------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Flutter/Dart 开发技能（24 个） | **flutter/agent-plugins**                    | 构建 Skills（`scripts/install-flutter-skills.js`）       | 架构/测试/路由/本地化/HTTP/FFI 等                                                                       |
-| Flutter 运行时交互             | **Dart MCP server**                          | 内置 MCP（`dart mcp-server`，pubspec.yaml 项目自动激活） | 运行时布局分析/widget 树检查/pub.dev 搜索/测试执行/dart format                                          |
-| Android 开发技能（14 个）      | **android/skills**                           | 构建 Skills（`scripts/install-android-skills.js`）       | Jetpack Compose/Navigation 3/CameraX 迁移/R8 分析/edge-to-edge/测试/Perfetto 性能分析 等                |
-| Android CLI 集成               | **Android CLI**                              | Skill 教 Agent 用 bash 调用 `android` 命令               | 项目创建/模拟器管理/截图标注/UI 布局树/文档搜索（Google 官方 CLI-first 方案）                           |
-| HarmonyOS 开发技能             | **DevEco CLI** Skills                        | 构建 Skills（`scripts/install-harmonyos-skills.js`）     | ArkTS/ArkUI 最佳实践、状态管理、导航、数据持久化、测试、性能优化                                        |
-| HarmonyOS CLI 集成             | **DevEco CLI**（`devecocli`）                | Skill 教 Agent 用 bash 调用 `devecocli` 命令             | 项目创建/构建(hvigor)/运行/模拟器/截图/布局检查/文档检索（华为官方，HDC 2026 发布）                     |
-| React Native 开发技能          | **Expo Skills** + **Callstack Agent Skills** | 构建 Skills（`scripts/install-rn-skills.js`）            | Expo 官方 Skills（SDK 升级/EAS 部署/调试最佳实践）+ Callstack 社区权威 Skills（性能优化/升级/原生模块） |
-| React Native 运行时交互        | **Expo MCP Server**                          | 内置 MCP（`docs.expo.dev/mcp`）                          | SDK 知识注入 + 移动模拟器交互 + React Native DevTools                                                   |
-
-### 规划中
+### 规划中（重启时依各平台设计稿恢复）
 
 | 能力 | 项目 | 集成形态 | 贡献 | 优先级 |
 | ---- | ---- | -------- | ---- | ------ |
+| Flutter/Dart 开发技能（24 个）+ 运行时交互 | **flutter/agent-plugins** + **Dart MCP server** | 构建 Skills + 内置 MCP（`dart mcp-server`，pubspec.yaml 自动激活） | 架构/测试/路由/本地化/FFI + 布局分析/widget 树/测试执行 | P2 |
+| Android 开发技能（14 个）+ CLI 集成 | **android/skills** + **Android CLI** | 构建 Skills + Skill 教 Agent 用 bash 调用 `android` 命令 | Compose/Navigation 3/CameraX/R8/Perfetto + 模拟器/截图/布局树 | P2 |
+| HarmonyOS 开发技能 + CLI 集成 | **DevEco CLI**（`devecocli`）内置 Skills | 构建 Skills + Skill 教 Agent 用 bash 调用 `devecocli` | ArkTS/ArkUI/状态管理/测试/性能 + hvigor 构建/模拟器/hdc | P2 |
+| React Native 技能 + 运行时交互 | **Expo Skills** + **Callstack Agent Skills** + **Expo MCP** | 构建 Skills + 内置 MCP（`docs.expo.dev/mcp`） | SDK 升级/EAS 部署/性能/原生模块 + 模拟器交互/DevTools | P2 |
 
 **四平台范式差异**：
 
@@ -1051,3 +1042,52 @@ CREATE TABLE vault_secrets (
 > - [DeepDesign 内核设计](../../specs/deep-design/design.md)
 > - [前期集成调研（5 项目）](../research/2026-07-open-source-integration-feasibility.md)
 > - [OCR 集成 & Understand-Anything 分析](../research/2026-07-ocr-integration-and-ua-analysis.md)
+
+---
+
+## 附录 · 路线图版本历史（v3.0–v3.20，2026-08-18 自文首移入归档，原样保留）
+
+> **v3.20 更新（隐私与第一方联网 + 评审收敛 + test 线衍生）**：① **剔除上游数据链路**——遥测打点（每会话 machineId→vegamo）、WebSearch 默认代理（查询词+machineId→vegamo）、machineId 生成管道全部移除；`telemetryEnabled` 设置面同步下线。② **自研第一方 WebSearch**（`web-search-providers.ts`，零新依赖）：DuckDuckGo Lite 免密钥开箱默认，Brave/Tavily 适配器保留（密钥设置面因 C5 暂禁）；`webSearchTool` 自定义脚本优先。③ **内置 WebFetch 工具**（第 8 个内置工具）：双引擎单契约——desktop 隐藏 offscreen Chromium（`web-fetch-provider.ts`，loadURL+executeJavaScript，will-redirect 逐跳 SSRF 复查、仅主帧失败判定）+ 静态 HTTP 兜底（手动重定向逐跳过门、超时覆盖 body 读取）；共享 SSRF 门 `common/public-url.ts`（尾点归一/IPv4 映射 IPv6 解包/ULA 仅字面量/dembrandt 复用）。④ **两轮对抗式评审 + 修复收敛至零**：报告 `docs/review-2026-08-17-adversarial-{4commits,privacy-webfetch}.md`，35 项发现全修 + 第三轮复审 6 项回归再修 + 第四轮验证 SHIP；lint 存量 13 警告顺带清零。⑤ **预生产 F 线审查**（F1–F3+F6）：`docs/pre-production-capability-scan.md`，9 收官提交声明逐一核证吻合。⑥ **分支模型落地**：`feat/sandbox-p0-path-gate` → 合并 `dev` → 衍生 `test`（**冻结新功能**，仅修复/优化/文档/测试；新功能一律 `next/*`）。
+>
+> **v3.19 更新（预生产收官快照）**：本版本为当前版本**最后一批功能扩展**，执行 `specs/pre-production/`（design+tasks）收官计划后进入**首次预生产测试阶段**——此后 dev 分支仅接受 修复/优化/功能闭环/文档测试，新功能一律 `next/*` 分支留待下一版本。本批落地：① **dsh 理念深化四件套**（崩溃合成收尾 P1-1 / 两段式 compaction P1-2 / beforeToolExecution 闸门 P1-4 / 前缀守卫收尾 #13——router 仍为工具选择唯一权威，dsh 确定性仅存于 router 输出层与守护测试）；② **skill-up CI**（S1 CI 集成 + S2 引擎适配器，8 插件包 14 用例，`specs/skill-eval/`）；③ **GitMCP 4→8 工具**（get_repo_structure / read_file / docs 多文件索引 / outline / get_repo_info）；④ **book-distill 技能**（skillweaver P2 兑现）；⑤ **designer 双增强**——dembrandt 品牌摄取（builtin MCP pin 0.28.0 + design.extract/design.drift action，补齐 `.deeporca/DESIGN.md` 品牌契约自动化来源）+ 进化设计（设计系统 3→9 套、taste 五维自评 + anti-slop、大页面两段式生成）；⑥ **安全门禁整改**（Mimosa 审计驱动：命令注入 argv 化、路径穿越 containment、测试夹具去敏，权威深扫 seal `sha256:603a…`）；⑦ **文档治理**（research 台账索引 + archive 归档 8 项 + 状态回写）。调研→实现全程口径：**调研仅供参考，以项目实际实现为准**（`docs/research/README.md`）。
+>
+> **v3.18 更新**：新增 **§十八 3D 与制造** 功能域——基于调研 `docs/research/2026-08-13-text-to-cad-img2threejs.md` 立项：① **text-to-cad**（earthtojake，MIT，13.4k★）agent 技能库，build123d 参数化源码 → STEP 主输出（真实 B-rep），含几何校验 + 修复回路；② **img2threejs**（Apache-2.0，11.5k★）单图 → 纯代码程序化 Three.js 模型（TS 工厂 + Divine Eye 零 token 门禁 + 有界纠正回路）。两者皆为 agent-agnostic SKILL.md 技能包，与 DeepOrca Skills 体系同构，vendored 接入。CAD/3D 预览**纯前端自研**（Three.js loaders + occt-import-js + dxf-parser）；**用户拍板不引入 kkFileView**（Aspose-CAD/CADViewer 商业组件风险 + Java 服务端架构错配）。详细设计见 `specs/cad-3d-generation/design.md`。该域是 PM-Design V2 需求具现化的第四条管线（原型/设计稿/代码 → +3D/制造）。
+>
+> **v3.17 更新**：三项外部方案吸收，强化"能力定义→组合→自进化"主轴。① **§十一 自进化层二补强**——引入 **HarnessBank** 论文（[arxiv 2607.13683](https://arxiv.org/abs/2607.13683)）作为 Self-Harness（2606.09498）的互补方法：Harness Gene Bank（带质量元数据+版本谱系的 harness 变体池）+ Gated Harness Screening（门控筛选）+ task/evolver 双 agent（evolver 复用 §十 Subagent 作执行单元）。其结论"gains are model-specific"学术验证 DeepSeek 专项调优策略。② **§十六 能力编排引入 defineAction 范式**——借鉴 **agent-native**（[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native)）"一次定义随处使用"：单个 `defineAction({schema, run})` 自动成为 IPC handler + MCP tool + LLM 工具 + 未来 HTTP/CLI。作为 §十六 双工具编排（OpenWork）的**底层实现机制**，让插件组装与能力组合从"手写多套绑定"收敛为"定义一次自动多表面"；严守 core 无 UI 铁律（schema 落 `shared/`、IPC 落 desktop main、MCP 落 core）。③ **§十二 插件中心新增 Agent Plugins 1.0.0 兼容**——[agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)（Amazon/Cursor/Microsoft/OpenAI/Vercel 共治，7 客户端已采纳）作为**新增兼容格式**，与现有 marketplace.json（claude-plugins-official）双格式共存、加载器自动识别，不互斥不取代。skills 层天然兼容，MCP 层 Phase 0 三传输 union 已对齐。DeepOrca 目标成为同时兼容两格式的客户端（兼装 claude 生态 + 七客户端共享插件）。
+>
+> **v3.16 更新**：① **本地向量嵌入模型已落地**——新增 `@deeporca/embedding` workspace 包（transformers.js + onnxruntime-node + IBM Granite Embedding 97M R2，384 维），构建期 vendor 模型（`scripts/vendor-granite.js`，hf-mirror 兜底），接入 memory 包 sqlite-vec 后端（`provider: "local-onnx"`）。记忆召回测试：20 条中文记忆 × 12 查询，**向量召回命中率 100%**（FTS 关键词 0%，语义同义改写场景向量完胜）。② **技能/工具语义路由已落地**——新增 `packages/core/src/routing/`（SkillRouter G1 + ToolRouter G2 + VectorIndex + embedding-loader），G1 在技能数 > 阈值时召回 top-K 短名单（flash LLM 只精排短名单），G2 在 MCP 工具 token 超预算时按服务器级召回裁剪。**③ G3 组合路由（M4）已落地**——忠实复现 SkillWeaver 论文（[arxiv 2606.18051](https://arxiv.org/abs/2606.18051)，Xueping Gao / Alibaba Cloud）的 **Decompose-Retrieve-Compose** 三阶段管线：SAD 迭代技能感知分解（Algorithm 1 + Jaccard 收敛）→ bi-encoder 召回 → Compose 兼容性规划（Eq.4 `α·sim+(1-α)·compat`，I/O 类型 coercion + category Jaccard + keyword 共现 + DAG 依赖检测）。28 单测全过，全程 fail-open，配置 `settings.routing`。详见 `specs/skill-routing/design.md` + CHANGELOG 致谢区。④ **采纳 oh-my-mermaid（omm）探索方法，实现 `arch-scan` skill 并归入工作区索引模块**——采用 omm 的 12 视角目录（perspective catalog）+ 递归下钻（recursive drill-down）+ 7 字段元数据方法论，**渲染用 A2UI**（非 Mermaid + CLI）。新增 `packages/core/templates/plugins/code/skills/arch-scan/`，与 CodeGraph（符号级）、OpenWiki（文档级）构成**工作区索引三件套**（符号/文档/架构），首次索引时同步构建。输出 A2UI Surface（可嵌套组件树），由 DesignPreview 渲染。60/60 结构校验通过。不引入 omm CLI/Mermaid/`.omm/` 文件树。调研详见 `docs/research/2026-08-06-oh-my-mermaid-research.md`。⑤ **路线图补齐 skill-up + book-to-skill（§十一 自进化）**——前者是 alibaba 的技能评估 CLI（已有 `specs/skill-eval/design.md`，先 CI 后产品内），后者是 virgiliojr94 的书籍/文档→SKILL.md 生成器（17.2k star，作为知识插件的一个技能集成）。两者补齐「技能从哪来（book-to-skill）→ 技能好不好（skill-up）」两端。
+>
+> **v3.15 更新**：① **taste-skill**（§六 P1）已完成——纯方法论 SKILL.md，10 条 P0 设计纪律 + 排版阶梯 + 颜色/动效/布局规范。② **DeepDesign `.dd` 专属格式**（§六 P1）已完成——OrcaDesign Document（YAML front-matter + HTML body + section markers），取代直接写 HTML。编译器注入 tokens + seed CSS + 本地内置 Tailwind JIT（~400KB，离线可用）。新增 `render_design` / `update_design` MCP 工具 + DesignPreview 预览组件（iframe srcDoc）+ `/deep-design` 命令。③ **A2UI merge delta**（§六 P0）已完成——`update_surface` 改为 delta-only 补丁（借鉴 OpenUI merge.ts），processor 端 merge + GC。④ **OpenUI Lang PM-Designer**（§六 P1）已完成——`@openuidev/lang-core` + `react-lang` 集成，11 个自研组件库，`/pm-design-openui` 触发。⑤ 调研 thesysdev/openui + different-ai/openwork + Accio-Lab/Dressage + onecli/onecli + nossa-y/activity-frames。⑥ 新增 §二「行为记忆」（activity-frames TS 重写，P2）+ §十六「能力编排协议」（OpenWork 理念，P3）+ §十七「密钥保险库」（OneCLI 理念 SQLite 重构，P2）。
+>
+> **v3.14 更新**：① **A2UI 审计第二弹**——修复 12 个 bug（surface 跨污染 C1+C2 / 内存泄漏 M1 / 独立窗口按钮失效 M4 / 死代码 fallback M5 / 全量快照 O(n²) M2 / MCP onclose 误报 1-A / 子进程 fragile cast 3-A+7-A / Gateway 网络错误静默 4-A+B / HarmonyOS cwd 缺失 5-A），并修复预存的 PrototypeWindow `import electron` 破坏 browser bundle 问题。② **调研 thesysdev/openui + different-ai/openwork**——OpenUI Lang 定位为 PM-Designer 专用渲染层（Zod v4 已就绪，无阻塞）；OpenWork 双工具 MCP 模型（`search_capabilities`+`execute_capability`）作为能力编排层参考，优先级低于 SSH（§十三）。③ 新增 §十六「能力编排协议」（OpenWork 理念，P3）。
+>
+> **v3.12 更新**：A2UI 严格代码审计完成，修复 6 个关键 bug（协议不匹配 B1-B3 / 资源传输 B4 / 独立窗口 B6 / 状态泄漏 B9-B10 / 导航重复 I2）。弃用 `@a2ui/web_core`，自建轻量 processor 直接消费自定义消息格式——渲染层已为此格式编写。EmbeddedResource 现在通过 `metadata.a2ui` 正确传递到渲染器。独立窗口通过 `?view=prototype` query param 检测并渲染 PrototypeWindow。
+>
+> **v3.0 重大重组**：从"按项目编号"改为"按功能域分组"。所有调研过的项目按其贡献的能力域归类，
+> 每个功能域包含已集成、规划中、搁置三层。OpenSpec 和 Superpowers 暂时搁置（见 §搁置项）。
+>
+> **v3.1 更新**：Bento 从"设计生成"拆出，独立为"办公套件"功能域（§四）。集成 Serena（符号级代码操作）和 Dart MCP。
+>
+> **v3.2 更新**：新增"移动开发"功能域（§三），Flutter Development（已集成）+ Android Development Kit（规划中）+ HarmonyOS Development Kit（规划中）。
+>
+> 历史版本：v2.1-v2.4 按项目逐个调研，v3.0+ 按功能重新规划。
+>
+> **v3.3 更新**：移动开发域新增 React Native（Expo 官方 Skills + Callstack）；新增桌面开发域（Electron/Tauri）；新增 .NET 开发域（Microsoft 官方 dotnet/skills）。只采纳第一方或官方社区认可的工具套件。
+>
+> **v3.4 更新**：桌面开发域新增 Apple（Xcode 27 第一方 7 Skills）和 Qt/KDE（Qt Group 第一方 7 Skills + MCP）。GNOME/GTK 无官方方案暂不纳入。Electron 自建搁置（调试工具链工程量过大）。
+>
+> **v3.5 更新**：新增"远程接入"（§十三）—— 本地 DeepOrca 通过反向隧道/蒲公英/ngrok 等暴露为 Web 端，移动端浏览器/App 直接访问；SessionBridge 与 IPC 已经完全 engine-agnostic，可零改造复用。新增"语音双工"（§十四）—— 语音代替输入法作为输入手段，主推 whisper.cpp + whisper-streaming LocalAgreement 方案。功能域位置无先后顺序，仅按添加顺序排号。
+>
+> **v3.5 更新**：新增"远程接入"功能域（WebSocket 桥 + 静态服务 + 隧道方案，架构可行性已验证）和"语音双工"功能域（whisper.cpp 本地优先 + API 兜底）。
+>
+> **v3.6 更新**：§十三"远程接入"方案定稿——采用向日葵式内外网映射（内置 TunnelClient + 自建/官方 relay，识别码+配对码零配置），原"用户自配隧道"降级为高级附录。方案见 `docs/research/2026-08-15-remote-access-sunlogin-mapping.md`。
+>
+> **v3.7 更新**：调研 A2UI（Agent-to-UI 协议）并产出集成设计草案。关键判断：A2UI 在 DeepOrca 承载**两类能力**，且都与 DeepDesign 三者并存、互不替代——① §六 新增独立产品线「AI-native 原型模块」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca**，类 v0/bolt）；② §十 新增「A2UI 对话交互层」（把对话区从纯文本升级为可交互富组件：富工具结果/结构化输入/任务看板）。复用官方 `@a2ui/react`（Apache-2.0，React 18/19 兼容）+ 既有 MCP 体系（A2UI over MCP，`a2ui_action` 即工具调用）。设计草案见 `specs/a2ui-integration/design.md`，调研报告见 `docs/research/2026-07-a2ui-integration.md`。
+>
+> **v3.11 更新**：总览表全面对齐各域具体规划（以细节为准）。① html-in-canvas 实测：Electron 43/Chromium 150 **已支持全套 API**（`drawElementImage`/`layoutSubtree`/`requestPaint`），默认关，`--enable-features=CanvasDrawElement` 可开——"阻塞于平台"前提已满足，修正为"flag 可开"。② 补齐总览漏项：§七 办公文档预览面板、§九 ShowUI + sim-use、§十一 JiuwenSwarm 蜂群协作、§十二 已集成的 Flutter/Android/HarmonyOS/RN/Browser 分组。③ Electron 35→43（Chromium 150）。④ §六 html-in-canvas 状态从"阻塞"改为"flag 可开"。实测见 `docs/research/2026-07-30-html-in-canvas.md`。
+
+> **v3.10 更新**：修正 §六「Canvas UI」条目——核实其即 **html-in-canvas**（[html-in-canvas.dev](https://html-in-canvas.dev)），是 **WICG 浏览器原生 API 提案**（`drawElementImage()`/`layoutsubtree`），**非库不可 vendor**（原"构建时 vendor 组件源码"描述有误）。特效能力吻合 demos（液体玻璃/像素瓦解/CRT shader/3D 贴纹理），但**当前纯实验态**（仅 Chrome Canary / Brave 147+ 需手动开 flag，Firefox/Safari 无实现，无 polyfill，无正式发布时间表）。优先级 P1→P3，**阻塞于 Chromium/Electron 平台支持**，定位为 DeepDesign/A2UI 的远期视觉特效升级路径。Phase 3 移除"特效 vendor"。调研 `docs/research/2026-07-30-html-in-canvas.md`。
+
+> **v3.9 更新**：① **MCP SDK 迁移已完成**（§十 已集成）——手写 JSON-RPC 换官方 `@modelcontextprotocol/sdk@1.22.0`，客户端 + gitmcp 服务端全切换，对外接口零变化，`npm run check` 全绿 + 端到端握手验证通过（perf/native-optimizations 分支 9 commits）。这同时**解锁了 §十二 远程源集成的 HTTP/SSE 传输阻断点**。② 新增 4 项调研结论：**SkillSpector**（NVIDIA 安全扫描器，归入 §十二 作安装闸门 P1，填补远程 skill/MCP 引入的安全缺口）、**Harness Handbook**（§十一 自进化远期愿景——行为级地图）、**Agent-Reach**（§八 不采纳，借鉴多后端路由思路）、open-notebook（不同产品形态，不采纳）。③ 修复总览表 §十三/§十四 重复行。调研见 `docs/research/2026-07-30-harness-handbook-skillspector-agentreach-opennotebook.md`。
+
+> **v3.8 更新**：调研官方 `@modelcontextprotocol/sdk` 迁移。发现 DeepOrca 的 MCP **全是手写**（客户端 987 行 + gitmcp 服务端 230 行），落后协议两个版本，致命缺口是 **server→client 请求全死**（sampling/roots/elicitation，因客户端 `capabilities:{}` + 路由器丢弃带 id 的 server 请求）。迁移可行性已验证（zod v4 已用、Node 22 原生 crypto 免 polyfill）。**决策（用户拍板）：最高优先级前置**——A2UI 深度依赖 MCP，先打 SDK 地基可省一次返工 + 一次兼容性回归。A2UI 场景分级：P0 原型模块（核心卖点）→ P1 用户决策/持续状态监控/工作流（核心模块）→ P2 代码审查/git/wiki 富展示（待基础能力测完）。调研报告见 `docs/research/2026-07-mcp-sdk-migration.md`。

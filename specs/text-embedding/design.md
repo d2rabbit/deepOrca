@@ -1,7 +1,8 @@
 # 文本向量嵌入方案（Embedding Proposal）
 
-> 日期：2026-08-06 · 状态：方案（未实施）
+> 日期：2026-08-06 · 状态：**已实现（2026-08-17；正向偏差：由设计的"运行时下载 + hf-mirror 兜底"演进为构建期 vendor 离线化，`scripts/vendor-granite.js`）**
 > 关联：`specs/skill-routing/design.md` §3/§8（路由与共享基建）、`docs/research/2026-08-06-skillweaver-skill-routing-integration.md`
+> 落地事实：`packages/embedding/`（transformers.js + onnxruntime-node，Granite 97M R2，384 维，q8）+ core 路由动态加载（fail-open）+ memory 包 `local-onnx` 消费。
 >
 > 本方案只回答一个问题：**DeepOrca 用哪个文本向量模型、以什么运行时形态、怎么下载与兜底、给谁用**。
 > 路由/工具门控的上层用法见 skill-routing 设计，本文不重复。

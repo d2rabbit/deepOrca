@@ -2,6 +2,8 @@
 
 > 生成时间：2026-08-03。共 **183 个 Skills + 10 个 MCP + 4 个 CLI 插件**。
 > 分组维度建议：仓库/官方组织优先，功能为辅。同一仓库的组件尽量合并在一个组里。
+>
+> **⚠️ 时效说明（2026-08-18）**：本文是 2026-08-03 分组工作时的历史快照，**不代表当前在树状态**——文中移动/桌面开发域组件（dart-mcp-server、harmonyos-mcp、expo-mcp 及 flutter-/android-/harmonyos-/expo-/dotnet-/qt-/apple-/deepin- 各技能组）已于 `f680c14` 整体临时下线（`c8c5b55` 清死代码），当前内置组件实况以 `packages/core/templates/plugins/` 目录为准（8 插件包：browser/code/design/knowledge/memory/meta-skills/vision/work）。保留本文供分组决策溯源。
 
 ---
 

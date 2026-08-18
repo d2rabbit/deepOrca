@@ -5,7 +5,7 @@
 # PM-Design V2 任务分解
 
 > **关联设计文档**：[design.md](./design.md)
-> **状态**：P0 设计文档已完成，P0 实现 + P1-P4 待开发
+> **状态**（2026-08-18 终判回写）：P0 存储/Action、P2 面板、P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + design-store 版本快照 FIFO 20 版 + 预览联动 + 渲染错误纠正回路）已实现；未做：版本切换 UI（快照在磁盘）、P4 独立导出（仅 iframe 打印 PDF，独立 HTML 导出可做、React 代码导出不做）。**2026-08-18 评估**（冻结期）：P3 迭代闭环按当前预览面板实现方案判定完成（不再补 DesignPanel 迭代按钮）；见 `docs/pre-production-spec-final-audit.md`。
 
 ---
 
