@@ -33,3 +33,11 @@
 - [x] merge 冲突确认清单：冲突持久化进 merge 节点 meta + 面板渲染
 - [x] PM-Design 整合：design.materialize 在绑定会话中产出 → 分支 step 节点
 - [ ] artifact 快照切换（file-history 复用）——**明确缓期**：需按分支管理文件快照模式，改动面大且与 file-history 的 per-session 语义冲突，待出现真实需求再立项
+
+## P1 收尾：session 绑定可见化 + 整树归档联动（2026-08-18，冻结前完善）
+
+- [x] core：`TaskTreeIndex` 扩展 `sessionIds/archived/archivedAt`（读取规范化旧格式）；bindSession 台账累计；`archiveTree/unarchiveTree/removeSessionBinding`；reflog op 扩展 archive/unarchive；`TaskTreeSummary` 透出新字段；测试 3 用例（台账+归档往返 / 删绑定保节点史 / 旧格式兼容）
+- [x] IPC：`tasktree:archive/unarchive`（带可选 workspaceRoot，特权）；SessionArchive 载荷扩展 `(id, workspaceRoot?)`
+- [x] main 级联：归档/删除会话 → 树归档判定"其余绑定会话全部不活跃才归档"；删除会话清台账 id；unarchive 不联动树；树永不删除
+- [x] renderer：Sidebar 会话行任务徽标（taskRef 数据源，归档会话行同置）→ 主区新 tab 打开（多 tab 可并存/关闭，跨工作区走切根时序）；TaskTreePanel `treeId` 单树模式（隐藏列表/表单）；任务面板主列表隐藏归档树 + 底部"已归档"折叠区（查看/⤺恢复）；详情归档横幅
+- [x] i18n：8 新 key × 6 语言（archivedSection/unarchive/op.archive/op.unarchive/sessionTask/taskFallback/closeTab/archivedBanner）

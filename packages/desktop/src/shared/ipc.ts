@@ -161,6 +161,8 @@ export const IpcRequest = {
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
   TaskTreeReflog: "tasktree:reflog",
+  TaskTreeArchive: "tasktree:archive",
+  TaskTreeUnarchive: "tasktree:unarchive",
   TaskTreeCreate: "tasktree:create",
   TaskTreeFork: "tasktree:fork",
   TaskTreeSwitch: "tasktree:switch",
@@ -688,7 +690,7 @@ export type DesktopApi = {
   /** List all sessions across every known workspace, grouped and with archived split out. */
   listWorkspaceSessions(): Promise<WorkspaceSessions>;
   /** Mark a session archived (hidden from the main tree). */
-  archiveSession(id: string): Promise<void>;
+  archiveSession(id: string, workspaceRoot?: string): Promise<void>;
   /** Restore a session from the archive. */
   unarchiveSession(id: string): Promise<void>;
 
@@ -826,6 +828,13 @@ export type DesktopApi = {
   taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
   /** Read the tree's append-only operation journal (newest last). */
   taskTreeReflog(treeId: string): Promise<TaskReflogEntry[]>;
+  /**
+   * Archive a whole tree (never a delete — files/reflog stay). Falls back to
+   * the current workspace when `workspaceRoot` is omitted.
+   */
+  taskTreeArchive(treeId: string, workspaceRoot?: string): Promise<boolean>;
+  /** Lift a whole-tree archive (manual, from the panel). */
+  taskTreeUnarchive(treeId: string, workspaceRoot?: string): Promise<boolean>;
   /** Create a tree in the CURRENT workspace (prompt + why are required). */
   taskTreeCreate(prompt: string, why: string, branchName?: string): Promise<{ treeId: string } | { error: string }>;
   /** Fork a branch (why is the human-facing story; required). */

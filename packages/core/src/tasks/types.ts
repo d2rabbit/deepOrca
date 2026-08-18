@@ -58,12 +58,21 @@ export interface TaskTreeIndex {
   activeBranch: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Sessions that have executed on this tree (bindSession accumulates,
+   * removeSessionBinding prunes on session delete). Query face for the panel
+   * and the archive cascade; single writer = the tree service.
+   */
+  sessionIds?: string[];
+  /** Whole-tree archive — NEVER a delete: files stay, reflog stays, viewable. */
+  archived?: boolean;
+  archivedAt?: string;
 }
 
 /** One reflog line (append-only operation journal). */
 export interface TaskReflogEntry {
   at: string;
-  op: "create" | "fork" | "switch" | "append" | "abandon";
+  op: "create" | "fork" | "switch" | "append" | "abandon" | "archive" | "unarchive";
   branch: string;
   nodeId?: string;
   detail?: string;
@@ -77,6 +86,8 @@ export interface TaskTreeSummary {
   branchCount: number;
   nodeCount: number;
   updatedAt: string;
+  sessionIds: string[];
+  archived: boolean;
 }
 
 /** A historical fork proposal surfaced at a decision point (memory-driven fork). */

@@ -202,6 +202,70 @@ test("bindSession stamps the branch head once and refuses silent rebinds", () =>
   assert.equal(svc.bindSession(treeId!, "second", "session-2"), true);
 });
 
+test("session ledger + whole-tree archive: sessionIds accumulate, archive never deletes", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Ledger")!;
+  svc.bindSession(treeId, "main", "session-1");
+  assert.deepEqual(svc.getTree(treeId)!.index.sessionIds, ["session-1"]);
+  assert.deepEqual(svc.listTrees()[0]!.sessionIds, ["session-1"]);
+  assert.equal(svc.listTrees()[0]!.archived, false);
+  // Idempotent same-session rebind leaves the ledger untouched.
+  svc.bindSession(treeId, "main", "session-1");
+  assert.deepEqual(svc.getTree(treeId)!.index.sessionIds, ["session-1"]);
+
+  assert.equal(svc.archiveTree(treeId, "bound sessions all inactive"), true);
+  assert.equal(svc.archiveTree(treeId, "repeat"), true, "archive is idempotent");
+  const tree = svc.getTree(treeId)!;
+  assert.equal(tree.index.archived, true);
+  assert.ok(tree.index.archivedAt);
+  assert.equal(svc.listTrees()[0]!.archived, true);
+  assert.ok(fs.existsSync(path.join(root, ".deeporca", "task-trees", treeId)), "tree dir NOT deleted");
+  const ops = svc.readReflog(treeId).map((e) => e.op);
+  assert.equal(ops[ops.length - 1], "archive");
+
+  assert.equal(svc.unarchiveTree(treeId), true);
+  assert.equal(svc.unarchiveTree(treeId), false);
+  assert.equal(svc.getTree(treeId)!.index.archived, false);
+  const opsAfter = svc.readReflog(treeId).map((e) => e.op);
+  assert.equal(opsAfter[opsAfter.length - 1], "unarchive");
+});
+
+test("removeSessionBinding prunes the ledger without touching the immutable node record", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Prune")!;
+  svc.bindSession(treeId, "main", "session-1");
+  const headId = svc.getTree(treeId)!.index.branches["main"]!.headId;
+  assert.equal(svc.removeSessionBinding(treeId, "session-1"), true);
+  assert.deepEqual(svc.getTree(treeId)!.index.sessionIds, []);
+  assert.equal(svc.getNode(treeId, headId)!.sessionRef, "session-1");
+  assert.equal(svc.removeSessionBinding(treeId, "never-bound"), true);
+});
+
+test("backward compat: pre-archive tree.json normalizes sessionIds/archived on read", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Legacy shape")!;
+  svc.flush();
+  // Rewrite the index exactly as an old build would have (no new fields) by
+  // reconstructing the payload without the optional keys.
+  const indexPath = path.join(root, ".deeporca", "task-trees", treeId, "tree.json");
+  const raw = JSON.parse(fs.readFileSync(indexPath, "utf8")) as Record<string, unknown>;
+  const legacy: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key !== "sessionIds" && key !== "archived" && key !== "archivedAt") legacy[key] = value;
+  }
+  fs.writeFileSync(indexPath, JSON.stringify(legacy, null, 2));
+  const fresh = new TaskTreeService(root); // fresh instance → reads from disk
+  const tree = fresh.getTree(treeId)!;
+  assert.deepEqual(tree.index.sessionIds, []);
+  assert.equal(tree.index.archived, false);
+  const summary = fresh.listTrees()[0]!;
+  assert.deepEqual(summary.sessionIds, []);
+  assert.equal(summary.archived, false);
+});
+
 test("plan materialization: UpdatePlan checklist lines become steps one-way, no duplicates", () => {
   const root = tempRoot();
   const manager = new SessionManager({

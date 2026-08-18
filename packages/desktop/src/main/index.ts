@@ -39,6 +39,7 @@ import {
   configureActivityFramesServerBuilder,
   configureGitmcpConfigBuilder,
   buildGitmcpMcpServerConfig,
+  TaskTreeService,
 } from "@deeporca/core";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
@@ -58,8 +59,8 @@ import { SessionBridge } from "./session-bridge.js";
 import { applyAppIcon } from "./app-icon.js";
 import { PluginManager, type PluginEventCallback } from "./plugin-manager.js";
 import { scanFiles } from "./file-scanner.js";
-import { listWorkspaceSessions } from "./workspace-registry.js";
-import { archiveSession, unarchiveSession } from "./archive-store.js";
+import { listWorkspaceSessions, readSessionsIndex } from "./workspace-registry.js";
+import { archiveSession, unarchiveSession, readArchivedIds } from "./archive-store.js";
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController } from "./tools/ocr-cli.js";
@@ -747,7 +748,16 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
   handle(IpcRequest.SessionMessages, (id: string) => getBridge().listMessages(id));
   handlePrivileged(IpcRequest.SessionSetActive, (id: string | null) => getBridge().setActiveSession(id));
   handle(IpcRequest.SessionGetActive, () => getBridge().getActiveSession());
-  handlePrivileged(IpcRequest.SessionDelete, (id: string) => getBridge().deleteSession(id));
+  handlePrivileged(IpcRequest.SessionDelete, async (id: string) => {
+    // Capture the task binding BEFORE the index entry is removed — the
+    // cascade needs it once the session is gone.
+    const treeId = taskTreeIdForSession(id, getBridge().projectRoot);
+    const removed = getBridge().deleteSession(id);
+    if (removed && treeId) {
+      cascadeTaskTreeArchive(treeId, id, { root: getBridge().projectRoot, deleted: true });
+    }
+    return removed;
+  });
   handlePrivileged(IpcRequest.SessionRename, (id: string, summary: string) => getBridge().renameSession(id, summary));
 
   handlePrivileged(IpcRequest.PromptSend, async (prompt: UserPromptContent) => {
@@ -858,12 +868,58 @@ function registerFileScannerIpc({ handle }: IpcHelpers): void {
 function registerWorkspaceIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // ── Workspace-grouped sessions + archive ──────────────────────────────────
   handle(IpcRequest.WorkspaceListSessions, () => listWorkspaceSessions(getBridge().projectRoot));
-  handlePrivileged(IpcRequest.SessionArchive, (id: string) => {
+  handlePrivileged(IpcRequest.SessionArchive, (id: string, workspaceRoot?: string) => {
     archiveSession(id);
+    // Session→task-tree cascade (specs/task-tree): the session entry still
+    // exists at archive time, so the binding is resolvable from the index.
+    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : getBridge().projectRoot;
+    const treeId = taskTreeIdForSession(id, root);
+    if (treeId) cascadeTaskTreeArchive(treeId, id, { root, deleted: false });
   });
   handlePrivileged(IpcRequest.SessionUnarchive, (id: string) => {
     unarchiveSession(id);
+    // Deliberately NO tree cascade on unarchive — lifting a tree archive is a
+    // manual, explicit action in the task panel (user decision 2026-08-18).
   });
+}
+
+/** Resolve the task tree a session is bound to (`entry.taskRef`, core P1). */
+function taskTreeIdForSession(sessionId: string, workspaceRoot: string): string | undefined {
+  try {
+    const code = getProjectCode(workspaceRoot);
+    const indexPath = join(getUserConfigRoot(), "projects", code, "sessions-index.json");
+    return readSessionsIndex(indexPath)?.entries.find((e) => e.id === sessionId)?.taskRef?.treeId;
+  } catch {
+    return undefined; // fail-open: session ops never block on the cascade
+  }
+}
+
+/**
+ * Session-lifecycle → task-tree cascade (specs/task-tree): when a bound
+ * session is archived or deleted, the tree archives ONLY when no other bound
+ * session stays active (archived ids stay in the sidecar ledger). Trees are
+ * NEVER deleted on this path — archive keeps files and reflog intact so the
+ * trajectory stays inspectable from the archived section / session badges.
+ */
+function cascadeTaskTreeArchive(treeId: string, sessionId: string, opts: { root: string; deleted: boolean }): void {
+  try {
+    const svc = new TaskTreeService(opts.root);
+    if (opts.deleted) {
+      svc.removeSessionBinding(treeId, sessionId); // the entry is gone — prune the ledger id
+    }
+    const tree = svc.getTree(treeId);
+    if (!tree || tree.index.archived) return;
+    const archived = new Set(readArchivedIds());
+    const activeOthers = (tree.index.sessionIds ?? []).filter((sid) => sid !== sessionId && !archived.has(sid));
+    if (activeOthers.length === 0) {
+      svc.archiveTree(
+        treeId,
+        opts.deleted ? `last bound session deleted (${sessionId})` : `last bound session archived (${sessionId})`
+      );
+    }
+  } catch {
+    // Fail-open: the session operation itself already succeeded.
+  }
 }
 
 function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
@@ -1144,6 +1200,7 @@ function registerDesignIpc({ handle }: IpcHelpers): void {
  */
 function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   const service = () => getBridge().getSessionManager().getTaskTreeServiceForPanel();
+  const serviceRoot = () => getBridge().projectRoot;
   const validTreeId = (treeId: unknown): treeId is string =>
     typeof treeId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(treeId);
   const validBranch = (branch: unknown): branch is string =>
@@ -1159,6 +1216,18 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.TaskTreeReflog, async (treeId: string) => {
     if (!validTreeId(treeId)) return [];
     return service()?.readReflog(treeId, 200) ?? [];
+  });
+  handlePrivileged(IpcRequest.TaskTreeArchive, async (treeId: string, workspaceRoot?: string) => {
+    if (!validTreeId(treeId)) return false;
+    // A fresh service reads flushed disk state (all mutations flush), so it is
+    // consistent with the panel singleton without sharing pending memory.
+    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
+    return new TaskTreeService(root).archiveTree(treeId, "manual (panel)");
+  });
+  handlePrivileged(IpcRequest.TaskTreeUnarchive, async (treeId: string, workspaceRoot?: string) => {
+    if (!validTreeId(treeId)) return false;
+    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
+    return new TaskTreeService(root).unarchiveTree(treeId);
   });
 
   handlePrivileged(IpcRequest.TaskTreeCreate, async (prompt: string, why: string, branchName?: string) => {

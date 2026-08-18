@@ -338,7 +338,9 @@ export class TaskTreeService {
    * Bind a session to a branch (P1): stamps the branch head's sessionRef so
    * the panel can show which session executed where. The session ENTRY side
    * (taskRef reverse pointer) is owned by SessionManager, not the service —
-   * single-writer discipline.
+   * single-writer discipline. The index-level session ledger (sessionIds) is
+   * accumulated here too: it is the query face for panels and the archive
+   * cascade.
    */
   bindSession(treeId: string, branch: string, sessionId: string): boolean {
     const index = this.loadIndex(treeId);
@@ -349,16 +351,79 @@ export class TaskTreeService {
     if (!head) return false;
     // Nodes are immutable — a binding rewrite writes a NEW file for the same id
     // only when sessionRef actually changes (first binding wins).
-    if (head.sessionRef === sessionId) return true;
-    if (head.sessionRef && head.sessionRef !== sessionId) {
-      return false; // already bound to a different session — no silent rebind
+    if (head.sessionRef !== sessionId) {
+      if (head.sessionRef && head.sessionRef !== sessionId) {
+        return false; // already bound to a different session — no silent rebind
+      }
+      try {
+        this.writeNodeFile(this.treeDir(treeId), { ...head, sessionRef: sessionId });
+      } catch {
+        return false;
+      }
     }
-    try {
-      this.writeNodeFile(this.treeDir(treeId), { ...head, sessionRef: sessionId });
-      return true;
-    } catch {
-      return false;
+    // Ledger (idempotent — reconciles even when the node was already bound).
+    if (!(index.sessionIds ?? []).includes(sessionId)) {
+      const next: TaskTreeIndex = {
+        ...index,
+        sessionIds: [...(index.sessionIds ?? []), sessionId],
+        updatedAt: nowIso(),
+      };
+      this.pendingIndexes.set(treeId, next);
+      this.saveIndex(treeId, { flush: true });
     }
+    return true;
+  }
+
+  /**
+   * Whole-tree archive (session-lifecycle cascade): NEVER a delete — files,
+   * nodes and reflog all stay on disk; the tree simply leaves the active list.
+   * Idempotent: archiving an already-archived tree is a no-op that returns true.
+   */
+  archiveTree(treeId: string, detail?: string): boolean {
+    const index = this.loadIndex(treeId);
+    if (!index) return false;
+    if (index.archived) return true;
+    const at = nowIso();
+    const next: TaskTreeIndex = { ...index, archived: true, archivedAt: at, updatedAt: at };
+    this.pendingIndexes.set(treeId, next);
+    this.appendReflog(treeId, { at, op: "archive", branch: index.activeBranch, detail });
+    this.saveIndex(treeId, { flush: true });
+    return true;
+  }
+
+  /** Lift a whole-tree archive (manual, from the panel). */
+  unarchiveTree(treeId: string): boolean {
+    const index = this.loadIndex(treeId);
+    if (!index || !index.archived) return false;
+    const at = nowIso();
+    // Drop archivedAt via destructure-rest (no `delete`, no undefined-assign).
+    const { archivedAt: _dropped, ...rest } = index;
+    void _dropped;
+    const next: TaskTreeIndex = { ...rest, archived: false, updatedAt: at };
+    this.pendingIndexes.set(treeId, next);
+    this.appendReflog(treeId, { at, op: "unarchive", branch: index.activeBranch });
+    this.saveIndex(treeId, { flush: true });
+    return true;
+  }
+
+  /**
+   * Prune a session id from the ledger (the session was deleted). Node-level
+   * sessionRef stays untouched — nodes are immutable and the historical record
+   * of "which session executed this step" stands.
+   */
+  removeSessionBinding(treeId: string, sessionId: string): boolean {
+    const index = this.loadIndex(treeId);
+    if (!index) return false;
+    const sessionIds = index.sessionIds ?? [];
+    if (!sessionIds.includes(sessionId)) return true;
+    const next: TaskTreeIndex = {
+      ...index,
+      sessionIds: sessionIds.filter((id) => id !== sessionId),
+      updatedAt: nowIso(),
+    };
+    this.pendingIndexes.set(treeId, next);
+    this.saveIndex(treeId, { flush: true });
+    return true;
   }
 
   /** All node ids from the root down to `headId` (inclusive) — a lineage set. */
@@ -423,6 +488,8 @@ export class TaskTreeService {
         branchCount: Object.keys(index.branches).length,
         nodeCount,
         updatedAt: index.updatedAt,
+        sessionIds: index.sessionIds ?? [],
+        archived: index.archived === true,
       });
     }
     summaries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -522,7 +589,10 @@ export class TaskTreeService {
     try {
       const raw = fs.readFileSync(path.join(this.treeDir(treeId), "tree.json"), "utf8");
       const parsed = JSON.parse(raw) as TaskTreeIndex;
-      if (parsed && typeof parsed.id === "string" && parsed.branches && parsed.rootId) return parsed;
+      if (parsed && typeof parsed.id === "string" && parsed.branches && parsed.rootId) {
+        // Backward compat: trees written before sessionIds/archived existed.
+        return { ...parsed, sessionIds: parsed.sessionIds ?? [], archived: parsed.archived === true };
+      }
       return null;
     } catch {
       return null;

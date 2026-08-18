@@ -77,7 +77,7 @@ const api: DesktopApi = {
 
   // ── Workspace-grouped sessions + archive ────────────────────────────────
   listWorkspaceSessions: () => ipcRenderer.invoke(IpcRequest.WorkspaceListSessions),
-  archiveSession: (id) => ipcRenderer.invoke(IpcRequest.SessionArchive, id),
+  archiveSession: (id, workspaceRoot) => ipcRenderer.invoke(IpcRequest.SessionArchive, id, workspaceRoot),
   unarchiveSession: (id) => ipcRenderer.invoke(IpcRequest.SessionUnarchive, id),
 
   // ── Git source control ──────────────────────────────────────────────────
@@ -156,6 +156,8 @@ const api: DesktopApi = {
   taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
   taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
   taskTreeReflog: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId),
+  taskTreeArchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeArchive, treeId, workspaceRoot),
+  taskTreeUnarchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeUnarchive, treeId, workspaceRoot),
   taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
   taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
   taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),

@@ -72,8 +72,9 @@ function rootKey(root: string): string {
   return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
-/** Read and parse a single `sessions-index.json`, tolerating malformed files. */
-function readSessionsIndex(indexPath: string): SessionsIndex | null {
+/** Read and parse a single `sessions-index.json`, tolerating malformed files.
+ *  Exported for the session→task-tree archive cascade in main/index.ts. */
+export function readSessionsIndex(indexPath: string): SessionsIndex | null {
   try {
     const raw = readFileSync(indexPath, "utf8");
     const parsed = JSON.parse(raw) as SessionsIndex;

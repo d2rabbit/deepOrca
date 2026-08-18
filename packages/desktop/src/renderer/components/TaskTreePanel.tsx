@@ -73,13 +73,14 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
 };
 
-export function TaskTreePanel(): JSX.Element {
+export function TaskTreePanel({ treeId }: { treeId?: string }): JSX.Element {
   const { t } = useI18n();
   const [trees, setTrees] = useState<TaskTreeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>(null);
   const [reflog, setReflog] = useState<TaskReflogEntry[]>([]);
   const [reflogOpen, setReflogOpen] = useState(false);
+  const [archivedTreesOpen, setArchivedTreesOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string>("");
@@ -94,22 +95,35 @@ export function TaskTreePanel(): JSX.Element {
   // listener must read the CURRENT selection, not the one captured at mount
   // (a stale closure here resets the user's selection back to the first tree).
   const selectedRef = useRef<string | null>(null);
+  // Single-tree mode: embedded as a workspace tab opened from a session badge
+  // — the tree list and create form are hidden; only this tree is shown.
+  const singleTree = typeof treeId === "string" && treeId.length > 0;
 
-  const refresh = useCallback(async (keepSelection?: string | null) => {
-    try {
-      const list = await api.taskTreeList();
-      setTrees(list);
-      setError(null);
-      const current = keepSelection ?? selectedRef.current;
-      if (current && list.some((tr) => tr.id === current)) {
-        setSelected(current);
-      } else {
-        setSelected(list.length > 0 ? list[0]!.id : null);
+  const refresh = useCallback(
+    async (keepSelection?: string | null) => {
+      try {
+        const list = await api.taskTreeList();
+        setTrees(list);
+        setError(null);
+        if (singleTree && treeId) {
+          setSelected(treeId);
+          return;
+        }
+        const current = keepSelection ?? selectedRef.current;
+        if (current && list.some((tr) => tr.id === current)) {
+          setSelected(current);
+        } else {
+          // Default selection prefers an active tree; archived ones live in
+          // the collapsed archive section at the bottom of the list.
+          const firstActive = list.find((tr) => !tr.archived) ?? list[0];
+          setSelected(firstActive ? firstActive.id : null);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
+    },
+    [singleTree, treeId]
+  );
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -149,6 +163,11 @@ export function TaskTreePanel(): JSX.Element {
   useEffect(() => {
     setViewBranch(null);
   }, [selected]);
+
+  // Single-tree mode: the embedded tab follows its tree prop.
+  useEffect(() => {
+    if (singleTree && treeId) setSelected(treeId);
+  }, [singleTree, treeId]);
 
   useEffect(() => {
     if (!selected) {
@@ -192,6 +211,14 @@ export function TaskTreePanel(): JSX.Element {
       await refresh(treeId);
     },
     [refresh]
+  );
+
+  const handleUnarchive = useCallback(
+    async (id: string) => {
+      await api.taskTreeUnarchive(id);
+      await reloadDetail(id);
+    },
+    [reloadDetail]
   );
 
   const handleCreate = useCallback(async () => {
@@ -268,6 +295,8 @@ export function TaskTreePanel(): JSX.Element {
   const shownBranch = viewBranch && branches.includes(viewBranch) ? viewBranch : activeBranch || (branches[0] ?? "");
   const lane = detail ? laneNodes(detail.index, detail.nodes, shownBranch) : [];
   const shownColor = branchColor(shownBranch);
+  const activeTrees = trees.filter((tr) => !tr.archived);
+  const archivedTrees = trees.filter((tr) => tr.archived);
 
   const statusLabel = (s: TaskNode["status"]): string => t(`tasktree.status.${s}` as MessageKey);
   const opLabel = (op: TaskReflogEntry["op"]): string => t(`tasktree.op.${op}` as MessageKey);
@@ -300,60 +329,101 @@ export function TaskTreePanel(): JSX.Element {
       {error ? <div style={{ padding: "0 14px 6px", color: "#f87171", fontSize: 11 }}>{error}</div> : null}
       {notice ? <div style={{ padding: "0 14px 6px", color: "var(--ui-accent)", fontSize: 11 }}>{notice}</div> : null}
 
-      {/* Create-tree form — every tree starts with a story. */}
-      <div style={{ padding: "0 14px 10px", borderBottom: "1px solid var(--ui-border-soft, #333)" }}>
-        <div style={{ display: "flex", gap: 6 }}>
-          <input
-            style={inputStyle}
-            placeholder={t("tasktree.newPrompt")}
-            value={newPrompt}
-            onChange={(e) => setNewPrompt(e.target.value)}
-          />
-          <input
-            style={inputStyle}
-            placeholder={t("tasktree.newWhy")}
-            value={newWhy}
-            onChange={(e) => setNewWhy(e.target.value)}
-          />
-          <button style={{ ...btnStyle, flexShrink: 0 }} onClick={() => void handleCreate()}>
-            + {t("tasktree.create")}
-          </button>
+      {/* Create-tree form — every tree starts with a story (sidebar mode only). */}
+      {singleTree ? null : (
+        <div style={{ padding: "0 14px 10px", borderBottom: "1px solid var(--ui-border-soft, #333)" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              style={inputStyle}
+              placeholder={t("tasktree.newPrompt")}
+              value={newPrompt}
+              onChange={(e) => setNewPrompt(e.target.value)}
+            />
+            <input
+              style={inputStyle}
+              placeholder={t("tasktree.newWhy")}
+              value={newWhy}
+              onChange={(e) => setNewWhy(e.target.value)}
+            />
+            <button style={{ ...btnStyle, flexShrink: 0 }} onClick={() => void handleCreate()}>
+              + {t("tasktree.create")}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        {/* Task list — each tree is one unit of history. */}
-        <div style={{ width: 190, borderRight: "1px solid var(--ui-border-soft, #333)", overflowY: "auto" }}>
-          {trees.length === 0 ? (
-            <div style={{ padding: 14, fontSize: 12, color: "var(--ui-text-dim)" }}>{t("tasktree.empty")}</div>
-          ) : (
-            trees.map((tree) => (
-              <button
-                key={tree.id}
-                onClick={() => setSelected(tree.id)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "7px 12px",
-                  fontSize: 12,
-                  background: selected === tree.id ? "var(--ui-surface-sunken, rgba(128,128,128,0.1))" : "transparent",
-                  border: "none",
-                  color: "var(--ui-text)",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tree.title}</div>
-                <div style={{ fontSize: 10, color: "var(--ui-text-dim)", display: "flex", gap: 6 }}>
-                  <span>
-                    ⎇ {tree.activeBranch} · {tree.branchCount}b/{tree.nodeCount}n
-                  </span>
-                  <span style={{ marginLeft: "auto", opacity: 0.8 }}>{fmtTime(tree.updatedAt)}</span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
+        {/* Task list — each tree is one unit of history (sidebar mode only). */}
+        {singleTree ? null : (
+          <div style={{ width: 190, borderRight: "1px solid var(--ui-border-soft, #333)", overflowY: "auto" }}>
+            {trees.length === 0 ? (
+              <div style={{ padding: 14, fontSize: 12, color: "var(--ui-text-dim)" }}>{t("tasktree.empty")}</div>
+            ) : (
+              <>
+                {activeTrees.map((tree) => (
+                  <button
+                    key={tree.id}
+                    onClick={() => setSelected(tree.id)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 12px",
+                      fontSize: 12,
+                      background:
+                        selected === tree.id ? "var(--ui-surface-sunken, rgba(128,128,128,0.1))" : "transparent",
+                      border: "none",
+                      color: "var(--ui-text)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {tree.title}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--ui-text-dim)", display: "flex", gap: 6 }}>
+                      <span>
+                        ⎇ {tree.activeBranch} · {tree.branchCount}b/{tree.nodeCount}n
+                      </span>
+                      <span style={{ marginLeft: "auto", opacity: 0.8 }}>{fmtTime(tree.updatedAt)}</span>
+                    </div>
+                  </button>
+                ))}
+                {/* Archived trees — never deleted, hidden from the active list. */}
+                {archivedTrees.length > 0 ? (
+                  <div style={{ borderTop: "1px solid var(--ui-border-soft, #333)", marginTop: 6, paddingTop: 2 }}>
+                    <button className="ui-tt-reflog-toggle" onClick={() => setArchivedTreesOpen((v) => !v)}>
+                      {archivedTreesOpen ? "▾" : "▸"} {t("tasktree.archivedSection")}
+                      <span className="ui-tt-chip-count">{archivedTrees.length}</span>
+                    </button>
+                    {archivedTreesOpen
+                      ? archivedTrees.map((tree) => (
+                          <div
+                            key={tree.id}
+                            className={`ui-tt-archived-row${selected === tree.id ? " selected" : ""}`}
+                            onClick={() => setSelected(tree.id)}
+                          >
+                            <span className="ui-tt-archived-title" title={tree.title}>
+                              {tree.title}
+                            </span>
+                            <button
+                              className="ui-tt-act"
+                              title={t("tasktree.unarchive")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleUnarchive(tree.id);
+                              }}
+                            >
+                              ⤺
+                            </button>
+                          </div>
+                        ))
+                      : null}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        )}
 
         {/* History view: branch chips + timeline + reflog. */}
         <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", minWidth: 0 }}>
@@ -363,8 +433,20 @@ export function TaskTreePanel(): JSX.Element {
             </div>
           ) : (
             <>
-              <div style={{ marginBottom: 6, fontSize: 13 }}>
+              <div style={{ marginBottom: 6, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
                 <strong>{detail.index.title}</strong>
+                {detail.index.archived ? (
+                  <span className="ui-tt-archived-banner">
+                    📦 {t("tasktree.archivedBanner")}
+                    <button
+                      className="ui-tt-act"
+                      title={t("tasktree.unarchive")}
+                      onClick={() => void handleUnarchive(detail.index.id)}
+                    >
+                      ⤺ {t("tasktree.unarchive")}
+                    </button>
+                  </span>
+                ) : null}
               </div>
 
               {/* Branch chips — pick which branch's history the timeline shows. */}

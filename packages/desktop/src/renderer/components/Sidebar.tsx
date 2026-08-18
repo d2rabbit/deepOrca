@@ -12,11 +12,15 @@ type Props = {
   refreshKey: number;
   /** Current workspace sessions (used for the token summary footer). */
   sessions: SerializableSessionEntry[];
+  /** treeId → {title, archived} for the current workspace (task badges). */
+  treeTitles: Record<string, { title: string; archived: boolean }>;
   onSelectSession: (root: string, id: string) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, summary: string) => void;
-  onArchive: (id: string) => void;
+  onArchive: (id: string, workspaceRoot?: string) => void;
   onUnarchive: (id: string) => void;
+  /** Open the session's bound task tree as a workspace tab (specs/task-tree). */
+  onOpenTaskTree: (treeId: string, workspaceRoot?: string) => void;
   onCollapse: () => void;
   onNewWorkspace: () => void;
   onNewSessionInWorkspace: (root: string) => void;
@@ -72,11 +76,13 @@ export const Sidebar = memo(function Sidebar({
   currentRoot,
   refreshKey,
   sessions,
+  treeTitles,
   onSelectSession,
   onDelete,
   onRename,
   onArchive,
   onUnarchive,
+  onOpenTaskTree,
   onCollapse,
   onNewWorkspace,
   onNewSessionInWorkspace,
@@ -144,6 +150,29 @@ export const Sidebar = memo(function Sidebar({
   const currentTotal = useMemo(() => aggregateUsage(sessions).totals.total, [sessions]);
   const overallTotal = useMemo(() => aggregateByWorkspace(tree).reduce((sum, row) => sum + row.total, 0), [tree]);
 
+  /**
+   * Task badge on a session row — the session↔task cross-reference entry
+   * (specs/task-tree P1): clicking opens the bound tree as a workspace tab.
+   */
+  function renderTaskBadge(entry: SerializableSessionEntry, root: string): JSX.Element | null {
+    const treeId = entry.taskRef?.treeId;
+    if (!treeId) return null;
+    const title = treeTitles[treeId]?.title ?? t("tasktree.taskFallback");
+    return (
+      <button
+        type="button"
+        className={`ui-session-task${treeTitles[treeId]?.archived ? " archived" : ""}`}
+        title={t("tasktree.sessionTask", { title })}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenTaskTree(treeId, entry.workspaceRoot ?? root);
+        }}
+      >
+        🌳 {title}
+      </button>
+    );
+  }
+
   function renderSession(root: string, entry: SerializableSessionEntry): JSX.Element {
     const isActive = entry.id === activeId;
     return (
@@ -176,6 +205,7 @@ export const Sidebar = memo(function Sidebar({
         <div className="ui-session-meta">
           <StatusDot status={entry.status} />
           <span>{statusLabel(entry.status, t)}</span>
+          {renderTaskBadge(entry, root)}
           {entry.activeTokens > 0 ? (
             <span className="ui-session-tokens-badge">{formatTokens(entry.activeTokens)}</span>
           ) : null}
@@ -203,7 +233,7 @@ export const Sidebar = memo(function Sidebar({
               className="ui-icon-btn--sm"
               data-tip={t("workspace.archive")}
               aria-label={t("workspace.archive")}
-              onClick={() => onArchive(entry.id)}
+              onClick={() => onArchive(entry.id, root)}
             >
               ▣
             </IconButton>
@@ -314,6 +344,7 @@ export const Sidebar = memo(function Sidebar({
                       </span>
                       {session.summary || t("sidebar.untitled")}
                     </div>
+                    {renderTaskBadge(session, root)}
                     <div className="ui-session-actions" onClick={(e) => e.stopPropagation()}>
                       <IconButton
                         className="ui-icon-btn--sm"

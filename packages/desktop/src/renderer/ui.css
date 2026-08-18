@@ -5116,6 +5116,146 @@ button.ui-tool-head:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ui-tt-op.archive {
+  color: var(--ui-warning);
+}
+.ui-tt-op.unarchive {
+  color: var(--ui-success);
+}
+
+/* Archived trees section (list mode) — never deleted, greyed, restorable. */
+.ui-tt-archived-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 20px;
+  border-radius: var(--ui-radius-md);
+  cursor: pointer;
+  color: var(--ui-text-faint);
+  opacity: 0.75;
+}
+.ui-tt-archived-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-tt-archived-row.selected {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+}
+.ui-tt-archived-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: line-through;
+}
+.ui-tt-archived-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--ui-radius-pill);
+  border: 1px dashed color-mix(in srgb, var(--ui-warning) 45%, transparent);
+  color: var(--ui-text-dim);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* Session-row task badge — the session↔task cross-reference entry. */
+.ui-session-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 130px;
+  padding: 0 7px;
+  height: 16px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.ui-session-task:hover {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  color: var(--ui-accent);
+}
+.ui-session-task.archived {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+/* Workspace task tabs (main area) — one tree per tab, opened from badges. */
+.ui-tasktab-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.ui-tasktab-view > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+.ui-tasktabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid var(--ui-border-soft);
+  overflow-x: auto;
+  flex: none;
+}
+.ui-tasktab {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 220px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--ui-radius-md) var(--ui-radius-md) 0 0;
+  background: transparent;
+}
+.ui-tasktab.active {
+  background: var(--ui-surface-sunken);
+  border-color: var(--ui-border-soft);
+}
+.ui-tasktab-main {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 4px 5px 10px;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.ui-tasktab.active .ui-tasktab-main {
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.ui-tasktab-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  margin: 3px 3px 3px 0;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  cursor: pointer;
+}
+.ui-tasktab-close:hover {
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: var(--ui-danger);
+}
 
 /* ── Diff view (main area) ───────────────────────────────────────────────── */
 .ui-diff-panel {

@@ -225,6 +225,14 @@ merge（cherry-pick + 冲突报告不自动裁决）、session 绑定（taskRef 
 
 记忆驱动 fork 以**最小可用环**落地（六步全通，但召回用任务树自身持久 + token-Jaccard 而非 L2 谱系字段——谱系回收走"隐藏 <task-lineage> 消息 + 现有记忆 capture"通道，memory 包零改动；memory-lineage.md 的 L2 字段降级为可选增强）。树图 UI 升级为泳道画布（每分支一列、冲突清单 ⚠ 渲染）。PM-Design 整合：materialize 产出 → 绑定分支 step。快照切换缓期（见 tasks.md 理由）。真机验收通过：rail 挂载、task.create/step/fork/recall 经真实 IPC 全链路、磁盘持久化与 reflog 流水核验。
 
+### P1 收尾：session 绑定可见化 + 整树归档联动（2026-08-18，冻结前完善）
+
+P1 落地的 session 绑定（taskRef/sessionRef）此前已持久化但 UI 零消费，本批补齐消费面并补"整树归档"语义（均为既有 spec 承诺的收尾，非新能力）：
+
+- **会话侧第二入口（交叉引用）**：Sidebar 会话行渲染任务徽标（数据源 `entry.taskRef`，已随 SerializableSessionEntry 到达 renderer）；点击在**工作区主区以新 tab** 打开对应树（`TaskTreePanel` 增加 `treeId` 单树模式——隐藏列表/建树表单，仅渲染分支 chips + 时间线 + reflog + 归档横幅），多 tab 可并存、可关闭；跨工作区徽标走既有切根流程（pendingTaskTabRef，pendingSelectRef 同款时序）。
+- **整树归档（永不删除）**：`TaskTreeIndex` 增加 `sessionIds`（bindSession 台账累计，删除会话时 removeSessionBinding 清除 id；节点级 sessionRef 不可变保留）与 `archived/archivedAt`；reflog op 扩展 `archive|unarchive`。级联判定（用户拍板 2026-08-18）：**归档或真删除会话时，仅当其余绑定会话全部不活跃（在 archive sidecar 中）才归档树**；恢复会话不自动恢复树（面板手动 ⤺）；树文件/reflog 永不因会话清理而删除。归档树从任务面板主列表隐藏，进入底部"已归档"折叠区（置灰可查看、可恢复），旧格式 tree.json 读取时规范化补默认值。
+- main 侧级联落点：SessionArchive（载荷扩展 workspaceRoot，支持跨工作区归档级联）与 SessionDelete（删前捕获 taskRef）handler；新增 `tasktree:archive/unarchive` IPC（带可选 workspaceRoot）。
+
 ### 消歧规则：Plan Mode ↔ 树是单向只读物化
 
 UpdatePlan（LLM 拥有）→ appendStep（树服务拥有）为**单向物化**：plan 步骤可投影为 step 节点，但树**永不回写** plan——两者谁是 source of truth 无歧义（plan 是）。双向映射的提案一律拒绝，直到出现 plan 无法表达的树结构需求。

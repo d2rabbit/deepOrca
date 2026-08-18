@@ -195,6 +195,16 @@ export function App(): JSX.Element {
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
   const [editorFile, setEditorFile] = useState<string | null>(null);
+  // Workspace task tabs (specs/task-tree session→task cross-reference entry):
+  // opened from session badges, one tree per tab in the main area.
+  const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string }>>([]);
+  const [activeTaskTabId, setActiveTaskTabId] = useState<string | null>(null);
+  const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
+  const taskTabsRef = useRef(taskTabs);
+  taskTabsRef.current = taskTabs;
+  const treeTitlesRef = useRef(treeTitles);
+  treeTitlesRef.current = treeTitles;
+  const pendingTaskTabRef = useRef<string | null>(null);
 
   const {
     appearance,
@@ -251,9 +261,22 @@ export function App(): JSX.Element {
   }, [busy, errorLine, pushToast, t]);
 
   // ── Data loading ────────────────────────────────────────────────────────────
+  /** treeId → {title, archived} for the CURRENT workspace — badge/tab labels. */
+  const refreshTreeTitles = useCallback(async () => {
+    try {
+      const trees = await api.taskTreeList();
+      const next: Record<string, { title: string; archived: boolean }> = {};
+      for (const tree of trees) next[tree.id] = { title: tree.title, archived: tree.archived };
+      setTreeTitles(next);
+    } catch {
+      setTreeTitles({}); // fail-open — badges fall back to a generic label
+    }
+  }, []);
+
   const refreshSessions = useCallback(async () => {
     setSessions(await api.listSessions());
-  }, []);
+    void refreshTreeTitles();
+  }, [refreshTreeTitles]);
 
   const {
     branch,
@@ -480,7 +503,10 @@ export function App(): JSX.Element {
           await checkWorkspaceTrust();
           const pending = pendingSelectRef.current;
           pendingSelectRef.current = null;
+          const pendingTask = pendingTaskTabRef.current;
+          pendingTaskTabRef.current = null;
           await loadSession(pending);
+          if (pendingTask) openTaskTreeRef.current(pendingTask);
           bumpTree();
         } catch (error) {
           console.error("[workspace] switch reload failed:", error);
@@ -784,8 +810,10 @@ export function App(): JSX.Element {
     [bumpTree, refreshSessions]
   );
   const handleArchiveSession = useCallback(
-    async (id: string) => {
-      await api.archiveSession(id);
+    async (id: string, workspaceRoot?: string) => {
+      // The root lets main resolve the session's task binding for the
+      // archive cascade even when the session lives in another workspace.
+      await api.archiveSession(id, workspaceRoot);
       await refreshSessions();
       bumpTree();
       if (id === activeIdRef.current) {
@@ -816,6 +844,36 @@ export function App(): JSX.Element {
     [loadSession]
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
+
+  // ── Workspace task tabs (session→task cross-reference entry) ───────────────
+  const handleOpenTaskTree = useCallback(
+    (treeId: string, workspaceRoot?: string) => {
+      // Cross-workspace badges follow the same flow as selecting that session:
+      // switch root first; the tab opens when the new workspace lands.
+      if (workspaceRoot && workspaceRoot !== projectRootRef.current) {
+        pendingTaskTabRef.current = treeId;
+        void api.setProjectRoot(workspaceRoot);
+        return;
+      }
+      setTaskTabs((tabs) =>
+        tabs.some((tab) => tab.treeId === treeId)
+          ? tabs
+          : [...tabs, { treeId, title: treeTitlesRef.current[treeId]?.title ?? t("tasktree.taskFallback") }]
+      );
+      setActiveTaskTabId(treeId);
+    },
+    [t]
+  );
+  const openTaskTreeRef = useRef(handleOpenTaskTree);
+  openTaskTreeRef.current = handleOpenTaskTree;
+  const handleCloseTaskTab = useCallback((treeId: string) => {
+    setTaskTabs((tabs) => tabs.filter((tab) => tab.treeId !== treeId));
+    setActiveTaskTabId((current) => {
+      if (current !== treeId) return current;
+      const remaining = taskTabsRef.current.filter((tab) => tab.treeId !== treeId);
+      return remaining[remaining.length - 1]?.treeId ?? null;
+    });
+  }, []);
 
   // ── Stable props for memoized children ──────────────────────────────────────
   // MessageList / Composer / Sidebar are wrapped in React.memo; every callback
@@ -1246,11 +1304,13 @@ export function App(): JSX.Element {
             currentRoot={projectRoot}
             refreshKey={treeRefreshKey}
             sessions={sessions}
+            treeTitles={treeTitles}
             onSelectSession={handleSelectSession}
             onDelete={handleDeleteSession}
             onRename={handleRenameSession}
             onArchive={handleArchiveSession}
             onUnarchive={handleUnarchiveSession}
+            onOpenTaskTree={handleOpenTaskTree}
             onCollapse={handleCollapsePanel}
             onNewWorkspace={handleNewWorkspace}
             onNewSessionInWorkspace={handleNewSessionInWorkspace}
@@ -1358,6 +1418,30 @@ export function App(): JSX.Element {
           >
             <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
           </Suspense>
+        ) : activeTaskTabId ? (
+          <div className="ui-tasktab-view">
+            <div className="ui-tasktabs">
+              {taskTabs.map((tab) => (
+                <div key={tab.treeId} className={`ui-tasktab${tab.treeId === activeTaskTabId ? " active" : ""}`}>
+                  <button type="button" className="ui-tasktab-main" onClick={() => setActiveTaskTabId(tab.treeId)}>
+                    🌳 {tab.title}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-tasktab-close"
+                    onClick={() => handleCloseTaskTab(tab.treeId)}
+                    title={t("tasktree.closeTab")}
+                    aria-label={t("tasktree.closeTab")}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
+              <TaskTreePanel treeId={activeTaskTabId} />
+            </Suspense>
+          </div>
         ) : (
           <>
             <MessageList
