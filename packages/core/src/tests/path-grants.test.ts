@@ -28,6 +28,14 @@ function createWorkspace(): string {
   return dir;
 }
 
+/**
+ * Cross-platform link fixture — see path-boundary.test.ts: win32 without
+ * symlink privilege creates junctions (lstat/readlink/realpath-compatible).
+ */
+function createLink(target: string, dest: string): void {
+  fs.symlinkSync(target, dest, process.platform === "win32" ? "junction" : undefined);
+}
+
 afterEach(() => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -199,7 +207,7 @@ test("grant through a symlinked directory admits the not-yet-existing target (re
   const project = createWorkspace();
   const realTargetDir = createWorkspace();
   const linkDir = path.join(project, "granted-link");
-  fs.symlinkSync(realTargetDir, linkDir);
+  createLink(realTargetDir, linkDir);
   // The user granted the lexical path (as PermissionCard persists it) to a
   // file that does not exist yet — the exact first-write-after-always-allow
   // flow. Before the shared canonicalizer, the stored root stayed lexical

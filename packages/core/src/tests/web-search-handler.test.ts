@@ -99,30 +99,36 @@ test("WebSearch without a script uses the built-in first-party provider (query-o
   }
 });
 
-test("WebSearch script precedence: a configured script wins, built-in provider is never called", async () => {
-  const workspace = createTempWorkspace();
-  const scriptPath = path.join(workspace, "search.sh");
-  fs.writeFileSync(scriptPath, "#!/bin/sh\necho 'script-result'\n", "utf8");
-  fs.chmodSync(scriptPath, 0o755);
+test(
+  "WebSearch script precedence: a configured script wins, built-in provider is never called",
+  // Same reason the script-execution test skips: the fixture is a POSIX shell
+  // script and spawn stays argv-form (no shell), which Windows cannot execute.
+  { skip: process.platform === "win32" },
+  async () => {
+    const workspace = createTempWorkspace();
+    const scriptPath = path.join(workspace, "search.sh");
+    fs.writeFileSync(scriptPath, "#!/bin/sh\necho 'script-result'\n", "utf8");
+    fs.chmodSync(scriptPath, 0o755);
 
-  const fetchCalls: Array<unknown> = [];
-  globalThis.fetch = (async (...args: unknown[]) => {
-    fetchCalls.push(args);
-    return new Response("", { status: 200 });
-  }) as typeof fetch;
+    const fetchCalls: Array<unknown> = [];
+    globalThis.fetch = (async (...args: unknown[]) => {
+      fetchCalls.push(args);
+      return new Response("", { status: 200 });
+    }) as typeof fetch;
 
-  try {
-    const result = await handleWebSearchTool(
-      { query: "latest node release" },
-      createContext(workspace, { webSearchTool: scriptPath, webSearchProvider: "duckduckgo" })
-    );
-    assert.equal(result.ok, true);
-    assert.equal(result.output, "script-result\n");
-    assert.equal(fetchCalls.length, 0, "provider must not be called when a script is configured");
-  } finally {
-    globalThis.fetch = originalFetch;
+    try {
+      const result = await handleWebSearchTool(
+        { query: "latest node release" },
+        createContext(workspace, { webSearchTool: scriptPath, webSearchProvider: "duckduckgo" })
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.output, "script-result\n");
+      assert.equal(fetchCalls.length, 0, "provider must not be called when a script is configured");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   }
-});
+);
 
 function createContext(
   projectRoot: string,

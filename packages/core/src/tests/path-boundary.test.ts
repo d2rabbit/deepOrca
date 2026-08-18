@@ -26,6 +26,17 @@ function createWorkspace(): string {
   return dir;
 }
 
+/**
+ * Cross-platform link fixture. Windows without SeCreateSymbolicLinkPrivilege
+ * (non-admin, no Developer Mode) refuses fs.symlinkSync with EPERM; junctions
+ * need no privilege and behave identically for everything the gate inspects
+ * (lstat().isSymbolicLink(), readlinkSync, realpathSync), so win32 links are
+ * created as junctions. Junction targets must be absolute — all fixtures are.
+ */
+function createLink(target: string, dest: string): void {
+  fs.symlinkSync(target, dest, process.platform === "win32" ? "junction" : undefined);
+}
+
 afterEach(() => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -120,7 +131,7 @@ test("symlink planted inside the root pointing outside is rejected (write)", () 
   const outsideTarget = path.join(outsideDir, "payload.txt");
   fs.writeFileSync(outsideTarget, "x");
   const linkPath = path.join(root, "innocent-link.txt");
-  fs.symlinkSync(outsideTarget, linkPath);
+  createLink(outsideTarget, linkPath);
 
   const grant = makeGrant({ writeRoots: [root] });
   assert.equal(gateWrite(grant, linkPath).ok, false);
@@ -133,7 +144,7 @@ test("dangling symlink inside the root pointing outside is rejected", () => {
   const outsideDir = createWorkspace();
   const danglingTarget = path.join(outsideDir, "not-created-yet.txt");
   const linkPath = path.join(root, "dangling-link.txt");
-  fs.symlinkSync(danglingTarget, linkPath);
+  createLink(danglingTarget, linkPath);
 
   const grant = makeGrant({ writeRoots: [root] });
   // realpath would fail on the dangling link; the gate must still judge the
@@ -145,7 +156,7 @@ test("symlinked directory inside the root routing outside is rejected", () => {
   const root = createWorkspace();
   const outsideDir = createWorkspace();
   const linkDir = path.join(root, "assets");
-  fs.symlinkSync(outsideDir, linkDir);
+  createLink(outsideDir, linkDir);
 
   const grant = makeGrant({ writeRoots: [root] });
   assert.equal(gateWrite(grant, path.join(linkDir, "new-file.txt")).ok, false);
@@ -170,7 +181,7 @@ test("grant root given as a symlink alias still contains its real target", () =>
   const realRoot = createWorkspace();
   const aliasParent = createWorkspace();
   const alias = path.join(aliasParent, "alias-root");
-  fs.symlinkSync(realRoot, alias);
+  createLink(realRoot, alias);
 
   const grant = makeGrant({ writeRoots: [alias] });
   assert.equal(gateWrite(grant, path.join(realRoot, "file.txt")).ok, true);

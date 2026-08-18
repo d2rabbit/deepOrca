@@ -59,15 +59,18 @@ test("profile generator: deny default, HOME read-blacklist, project re-allow, wr
   );
   assert.ok(broadRead >= 0 && homeDeny > broadRead && projAllow > homeDeny && skillAllow > homeDeny);
   assert.ok(profile.includes('(allow file-write* (subpath "/tmp/proj"))'));
-  // Default temp write roots present.
+  // Default temp write roots present. Paths are embedded through sbEscape
+  // (backslash/double-quote escaped) — Windows temp roots are backslash
+  // paths, so the expected substrings must apply the same escaping.
+  const sbEscape = (value: string): string => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   for (const root of defaultTempWriteRoots()) {
-    assert.ok(profile.includes(`(allow file-write* (subpath "${root}"))`), `temp root ${root}`);
+    assert.ok(profile.includes(`(allow file-write* (subpath "${sbEscape(root)}"))`), `temp root ${root}`);
   }
   // Final HOME write fence comes AFTER the temp allows and re-allows the
   // project write root (covers HOME nested under TMPDIR; last-match-wins).
   const tempAllow = Math.max(
     ...defaultTempWriteRoots().map((root) =>
-      lines.findIndex((line) => line === `(allow file-write* (subpath "${root}"))`)
+      lines.findIndex((line) => line === `(allow file-write* (subpath "${sbEscape(root)}"))`)
     )
   );
   const homeWriteDeny = lines.findIndex((line) => line.includes('(deny file-write* (subpath "/Users/tester"))'));
