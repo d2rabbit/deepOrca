@@ -20,7 +20,7 @@ import type {
 /** Per-model token usage accounting, re-exported for renderer consumers. */
 export type { ModelUsage };
 import type { McpServerStatus } from "@deeporca/core";
-import type { TaskNode, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
+import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
@@ -160,6 +160,7 @@ export const IpcRequest = {
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
+  TaskTreeReflog: "tasktree:reflog",
   TaskTreeCreate: "tasktree:create",
   TaskTreeFork: "tasktree:fork",
   TaskTreeSwitch: "tasktree:switch",
@@ -823,6 +824,8 @@ export type DesktopApi = {
   taskTreeList(): Promise<TaskTreeSummary[]>;
   /** Read one tree (index + all nodes) for the panel view. */
   taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
+  /** Read the tree's append-only operation journal (newest last). */
+  taskTreeReflog(treeId: string): Promise<TaskReflogEntry[]>;
   /** Create a tree in the CURRENT workspace (prompt + why are required). */
   taskTreeCreate(prompt: string, why: string, branchName?: string): Promise<{ treeId: string } | { error: string }>;
   /** Fork a branch (why is the human-facing story; required). */

@@ -7,7 +7,7 @@ import { getUserConfigRoot, type SessionsIndex } from "@deeporca/core";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
-import type { SerializableSessionEntry, WorkspaceGroup, WorkspaceSessions } from "../shared/ipc.js";
+import type { WorkspaceGroup, WorkspaceSessions } from "../shared/ipc.js";
 import { toSerializableEntry } from "./session-bridge.js";
 import { readArchivedIds } from "./archive-store.js";
 
@@ -53,6 +53,25 @@ function isStaleRoot(root: string): boolean {
   }
 }
 
+/**
+ * Canonical comparison key for workspace roots. Windows paths are case-blind:
+ * `D:\Others\deepOrca` and `D:\others\deeporca` are the same directory, and the
+ * same physical dir can end up recorded under several project codes when the
+ * root string's spelling drifted between opens. Comparing raw strings splits
+ * one workspace into two tree rows (or silently hides one code dir's sessions),
+ * so every identity check goes through this key: resolve + realpath, lowercased
+ * on win32. Falls back to `path.resolve` when the path can't be stat'ed.
+ */
+function rootKey(root: string): string {
+  let resolved = path.resolve(root);
+  try {
+    resolved = realpathSync(resolved);
+  } catch {
+    // Unresolvable (deleted/moved) roots keep the resolved spelling.
+  }
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
 /** Read and parse a single `sessions-index.json`, tolerating malformed files. */
 function readSessionsIndex(indexPath: string): SessionsIndex | null {
   try {
@@ -89,7 +108,11 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
   const workspaces: WorkspaceGroup[] = [];
   const archived: WorkspaceSessions["archived"] = [];
   const tmp = canonicalTmpdir();
-  const seenRoots = new Set<string>();
+  const currentKey = currentRoot ? rootKey(currentRoot) : null;
+  // Groups keyed by canonical root so index files recorded under different
+  // spellings of the same directory merge into a single tree row.
+  const groupByKey = new Map<string, WorkspaceGroup>();
+  const homeKey = rootKey(homedir());
 
   let projectDirs: string[] = [];
   if (existsSync(dir)) {
@@ -110,7 +133,7 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
     }
     const root = index.originalPath;
     // Skip the user's home directory — it should never appear as a workspace.
-    if (root === homedir() || root === homedir() + "/" || root === homedir() + "\\") {
+    if (rootKey(root) === homeKey) {
       continue;
     }
     // Skip stale roots (deleted/moved) — their sessions are unreadable anyway,
@@ -120,34 +143,42 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
     }
     // Skip throwaway temp-dir workspaces (test artifacts) — but never filter
     // out the workspace the user is actively looking at right now.
-    if (root !== currentRoot && isTempRoot(root, tmp)) {
-      continue;
-    }
-    // Dedupe roots that resolve to the same directory (e.g. /var vs
-    // /private/var aliases recorded under different project codes).
-    let canonicalRoot: string;
-    try {
-      canonicalRoot = realpathSync(root);
-    } catch {
-      canonicalRoot = root;
-    }
-    if (seenRoots.has(canonicalRoot)) {
-      continue;
-    }
-    seenRoots.add(canonicalRoot);
-    const label = path.basename(root) || root;
-    const sessions: SerializableSessionEntry[] = [];
-    for (const entry of index.entries) {
-      const serialized = toSerializableEntry(entry);
-      serialized.workspaceRoot = root;
-      if (archivedIds.has(entry.id)) {
-        serialized.archived = true;
-        archived.push({ root, session: serialized });
-      } else {
-        sessions.push(serialized);
+    if (currentKey === null || rootKey(root) !== currentKey) {
+      if (isTempRoot(root, tmp)) {
+        continue;
       }
     }
-    workspaces.push({ root, label, projectCode: code, sessions });
+    // Merge indexes that resolve to the same directory (casing drift, /var vs
+    // /private/var aliases recorded under different project codes) instead of
+    // hiding all but the first behind a silent skip. When this row is the
+    // current workspace, adopt the live spelling so exact-match comparisons
+    // downstream (sort pin, renderer isCurrent) keep working.
+    const key = rootKey(root);
+    let group = groupByKey.get(key);
+    if (!group) {
+      const displayRoot = key === currentKey && currentRoot ? currentRoot : root;
+      group = {
+        root: displayRoot,
+        label: path.basename(displayRoot) || displayRoot,
+        projectCode: code,
+        sessions: [],
+      };
+      groupByKey.set(key, group);
+      workspaces.push(group);
+    } else if (key === currentKey && currentRoot && group.root !== currentRoot) {
+      group.root = currentRoot;
+      group.label = path.basename(currentRoot) || currentRoot;
+    }
+    for (const entry of index.entries) {
+      const serialized = toSerializableEntry(entry);
+      serialized.workspaceRoot = group.root;
+      if (archivedIds.has(entry.id)) {
+        serialized.archived = true;
+        archived.push({ root: group.root, session: serialized });
+      } else {
+        group.sessions.push(serialized);
+      }
+    }
   }
 
   // Ensure the current workspace always appears in the tree, even if it has no
@@ -155,13 +186,7 @@ export function listWorkspaceSessions(currentRoot: string): WorkspaceSessions {
   // a visual anchor and a "+" button to start their first conversation. The
   // user's home directory is deliberately excluded — it must never show up as a
   // workspace, even while it serves as the engine's fallback root.
-  const home = homedir();
-  if (
-    currentRoot &&
-    currentRoot !== home &&
-    path.resolve(currentRoot) !== home &&
-    !workspaces.some((w) => w.root === currentRoot)
-  ) {
+  if (currentRoot && rootKey(currentRoot) !== homeKey && !groupByKey.has(rootKey(currentRoot))) {
     const label = path.basename(currentRoot) || currentRoot;
     // Derive a stable project code from the root path (same logic as core).
     const code = currentRoot.replace(/[/\\]/g, "-").replace(/^-/, "");

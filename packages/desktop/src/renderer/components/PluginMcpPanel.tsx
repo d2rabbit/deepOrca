@@ -203,11 +203,11 @@ export function PluginMcpPanel({
                         {srv.builtin ? srv.name : `${srv.command} ${srv.args}`}
                       </span>
                       <div className="ui-plugin-item-tags">
-                        <span className="ui-plugin-tag accent">mcp</span>
+                        <span className="ui-plugin-tag accent">{t("plugins.tag.mcp")}</span>
                         {srv.builtin ? (
-                          <span className="ui-plugin-tag">built-in</span>
+                          <span className="ui-plugin-tag">{t("plugins.tag.builtin")}</span>
                         ) : (
-                          <span className="ui-plugin-tag">custom</span>
+                          <span className="ui-plugin-tag">{t("plugins.tag.custom")}</span>
                         )}
                       </div>
                     </button>
@@ -301,11 +301,11 @@ export function PluginMcpPanel({
                           </div>
                           {skill.description ? <span className="ui-plugin-item-desc">{skill.description}</span> : null}
                           <div className="ui-plugin-item-tags">
-                            <span className="ui-plugin-tag">skill</span>
+                            <span className="ui-plugin-tag">{t("plugins.tag.skill")}</span>
                             {skill.path.startsWith("bundled:") ? (
-                              <span className="ui-plugin-tag accent">bundled</span>
+                              <span className="ui-plugin-tag accent">{t("plugins.tag.bundled")}</span>
                             ) : (
-                              <span className="ui-plugin-tag">local</span>
+                              <span className="ui-plugin-tag">{t("plugins.tag.local")}</span>
                             )}
                           </div>
                         </button>

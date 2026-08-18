@@ -155,6 +155,7 @@ const api: DesktopApi = {
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
   taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
+  taskTreeReflog: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId),
   taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
   taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
   taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),

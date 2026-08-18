@@ -33,6 +33,16 @@
     Arial, sans-serif;
   --fusion-mono: Consolas, "Cascadia Code", "SF Mono", Menlo, monospace;
 
+  /* 呼吸动画/玻璃描边用的深色专用值。keyframe 只能通过变量取色,才能在浅色
+     变体里整体翻转 —— 否则动画里的硬编码深色玻璃会盖过浅色 token 覆盖,
+     把标题栏/rail/输入框永远染成深蓝黑(浅色模式下"深色相框+浅色内容"割裂)。 */
+  --fusion-hue-0: rgba(34, 40, 56, 0.82);
+  --fusion-hue-1: rgba(30, 44, 52, 0.82);
+  --fusion-hue-2: rgba(40, 36, 58, 0.82);
+  --fusion-inset-bottom: rgba(0, 0, 0, 0.3);
+  --fusion-glow-ambient: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --fusion-glow-neon: 0 0 28px 2px rgba(0, 188, 242, 0.18);
+
   /* ── 语义 token 绑定(默认深色)── */
   --ui-bg: var(--fusion-bg);
   --ui-surface: var(--fusion-glass);
@@ -82,15 +92,33 @@ body {
   background-attachment: fixed;
 }
 
+/* 浅色下光晕减半,保持纸面干净。 */
+:root[data-appearance="light"] body {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(0, 153, 188, 0.05), transparent 40%),
+    radial-gradient(circle at 85% 75%, rgba(123, 97, 255, 0.05), transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(227, 0, 140, 0.03), transparent 50%), var(--fusion-bg);
+  background-attachment: fixed;
+}
+
 /* ── Fusion — Light variant ────────────────────────────────────────────────
-   浅色下玻璃改为白色半透明;accent 多彩色保持不变,多彩感在浅色也要体现。 */
+   浅色下玻璃改为白色半透明;accent 多彩色保持不变,多彩感在浅色也要体现。
+   状态色换成深一档的可读版本(Win8 饱和色在白底上对比不足);消息区强调色
+   (ui.css 的 --ui-tool-hue-*)同样换深色版,避免 300/400 淡彩在白玻璃上发灰。 */
 :root[data-appearance="light"] {
   --fusion-bg: #f3f3f3;
   --fusion-acrylic: rgba(243, 243, 243, 0.85);
   --fusion-glass: rgba(252, 252, 252, 0.85);
-  --fusion-glass-raised: rgba(0, 0, 0, 0.04);
+  --fusion-glass-raised: rgba(255, 255, 255, 0.72);
   --fusion-glass-border: rgba(0, 0, 0, 0.12);
   --fusion-glass-highlight: rgba(255, 255, 255, 0.7);
+  /* 浅色玻璃呼吸:白玻璃上的极淡冷暖色染(与深色版同节奏,不压内容)。 */
+  --fusion-hue-0: rgba(238, 244, 252, 0.9);
+  --fusion-hue-1: rgba(238, 248, 250, 0.9);
+  --fusion-hue-2: rgba(243, 240, 250, 0.9);
+  --fusion-inset-bottom: rgba(0, 0, 0, 0.08);
+  --fusion-glow-ambient: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --fusion-glow-neon: 0 0 28px 2px rgba(0, 153, 188, 0.1);
 
   --ui-surface-sunken: rgba(0, 0, 0, 0.06);
   --ui-surface-hover: rgba(0, 0, 0, 0.05);
@@ -102,6 +130,21 @@ body {
   --ui-border: rgba(0, 0, 0, 0.14);
   --ui-border-soft: rgba(0, 0, 0, 0.08);
 
+  --ui-accent-soft: rgba(31, 111, 199, 0.12);
+
+  --ui-success: #0f7b0f;
+  --ui-danger: #c42b1c;
+  --ui-warning: #9d5d00;
+  --ui-info: #0e7490;
+
+  --ui-tool-hue-think: #b45309;
+  --ui-tool-hue-amber: #a16207;
+  --ui-tool-hue-purple: #7c3aed;
+  --ui-tool-hue-indigo: #4f46e5;
+  --ui-tool-hue-sky: #0369a1;
+  --ui-tool-hue-teal: #0f766e;
+
+  --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
   --ui-shadow-card: 0 8px 32px rgba(0, 0, 0, 0.12);
   --ui-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.18);
 }
@@ -118,16 +161,16 @@ body {
    =========================================================================== */
 @keyframes fusion-glass-hue {
   0% {
-    background-color: rgba(34, 40, 56, 0.82);
+    background-color: var(--fusion-hue-0);
   }
   33% {
-    background-color: rgba(30, 44, 52, 0.82);
+    background-color: var(--fusion-hue-1);
   }
   66% {
-    background-color: rgba(40, 36, 58, 0.82);
+    background-color: var(--fusion-hue-2);
   }
   100% {
-    background-color: rgba(34, 40, 56, 0.82);
+    background-color: var(--fusion-hue-0);
   }
 }
 @keyframes fusion-glass-glow {
@@ -135,14 +178,14 @@ body {
   100% {
     box-shadow:
       inset 0 1px 0 var(--fusion-glass-highlight),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-      0 8px 32px rgba(0, 0, 0, 0.4);
+      inset 0 -1px 0 var(--fusion-inset-bottom),
+      var(--fusion-glow-ambient);
   }
   50% {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-      0 0 28px 2px rgba(0, 188, 242, 0.18);
+      inset 0 -1px 0 var(--fusion-inset-bottom),
+      var(--fusion-glow-neon);
   }
 }
 /* 磁贴点缀的亮度脉动 */
@@ -164,7 +207,7 @@ body {
     border-color: var(--fusion-glass-border);
     box-shadow:
       inset 0 1px 0 var(--fusion-glass-highlight),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+      inset 0 -1px 0 var(--fusion-inset-bottom);
     animation:
       fusion-glass-hue 8s ease-in-out infinite,
       fusion-glass-glow 8s ease-in-out infinite;
@@ -221,7 +264,7 @@ body {
   border-radius: var(--ui-radius-lg);
   box-shadow:
     inset 0 1px 0 var(--fusion-glass-highlight),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    inset 0 -1px 0 var(--fusion-inset-bottom),
     var(--ui-shadow-card);
 }
 .ui-bubble.assistant {
@@ -267,20 +310,20 @@ body {
   border-radius: var(--ui-radius-md);
 }
 .ui-tool-plan-label {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--ui-surface-sunken);
 }
 .ui-md pre {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--ui-surface-sunken);
   border-color: var(--fusion-glass-border);
   border-radius: var(--ui-radius-md);
 }
 .ui-md .code-block-wrap pre.code-block {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--ui-surface-sunken);
   border-color: var(--fusion-glass-border);
   border-radius: var(--ui-radius-md);
 }
 .ui-md code {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--ui-surface-sunken);
   border-radius: var(--ui-radius-sm);
 }
 
@@ -443,7 +486,7 @@ body {
 
 /* Process output panel — 玻璃凹陷 */
 .ui-process-panel {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--ui-surface-sunken);
   backdrop-filter: blur(20px);
   border-color: var(--fusion-glass-border);
 }
@@ -476,4 +519,66 @@ body {
   -webkit-backdrop-filter: blur(28px) saturate(1.5);
   background: var(--fusion-glass);
   border-color: var(--fusion-glass-border);
+}
+
+/* ===========================================================================
+   Fusion — Light 下的磁铁按钮/描边收敛
+
+   深色版的"白高光渐变 + 黑投影"物理感直接搬到浅色会变成脏灰渐变 + 重黑影,
+   与浅色的轻阴影体系(--ui-shadow-* 已换 0.1~0.18 alpha)打架。浅色下换成
+   白色受光 + 极轻投影,保留凸面手感但不再"脏"。
+   =========================================================================== */
+:root[data-appearance="light"] .ui-btn {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0.25) 48%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.05),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-appearance="light"] .ui-btn:hover:not(:disabled) {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.14);
+  }
+  :root[data-appearance="light"] .ui-btn:active:not(:disabled) {
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.12),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.6),
+      0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+}
+/* 主按钮底色本身是饱和主蓝,浅色下保留白高光,只把黑投影换成蓝投影。 */
+:root[data-appearance="light"] .ui-btn--primary {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.18),
+    0 2px 6px rgba(31, 111, 199, 0.28);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-appearance="light"] .ui-btn--primary:hover:not(:disabled) {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.15),
+      0 4px 12px rgba(31, 111, 199, 0.32);
+  }
+  :root[data-appearance="light"] .ui-btn--primary:active:not(:disabled) {
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.2),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.2),
+      0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+}
+:root[data-appearance="light"] .ui-rail-btn,
+:root[data-appearance="light"] .ui-icon-btn {
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.12) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 1px 3px rgba(0, 0, 0, 0.1);
 }

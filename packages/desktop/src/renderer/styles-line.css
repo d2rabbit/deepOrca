@@ -121,6 +121,15 @@
   --ui-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --ui-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.07);
   --ui-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  /* 消息区强调色浅色版 — ui.css 默认的 300/400 淡彩是为深色表面调的,
+     白纸上对比不足,统一换深一档。 */
+  --ui-tool-hue-think: #b45309;
+  --ui-tool-hue-amber: #a16207;
+  --ui-tool-hue-purple: #7c3aed;
+  --ui-tool-hue-indigo: #4f46e5;
+  --ui-tool-hue-sky: #0369a1;
+  --ui-tool-hue-teal: #0f766e;
 }
 
 /* ===========================================================================

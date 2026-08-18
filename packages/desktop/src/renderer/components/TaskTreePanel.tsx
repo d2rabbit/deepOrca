@@ -1,19 +1,20 @@
 /**
  * TaskTreePanel — the HUMAN-facing view of the agent's task trajectory
- * (specs/task-tree). Its OWN full panel: workspace-bound (refreshes when the
- * workspace root changes — trees live in <workspace>/.deeporca/task-trees/),
- * and operational (create / fork / switch / abandon / merge from the UI —
- * every mutation requires the human-facing `why`).
+ * (specs/task-tree), presented as TASK HISTORY (git-log style):
  *
- * Layout: tree list (left) + swimlane canvas (one column per branch, lineage
- * top-to-bottom, active highlighted, abandoned greyed, merge conflicts ⚠,
- * memory-spawn ✦).
+ *   left  — the task (tree) list; each task is one unit of history,
+ *   right — branch chips + a newest-first vertical timeline for the selected
+ *           branch (every node with its `why` narrative) + the append-only
+ *           reflog (the operation journal — what happened, in order).
+ *
+ * Mutations stay operational from the UI: create / fork / switch / abandon /
+ * merge — every mutation requires the human-facing `why`.
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
-import type { TaskNode, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
-import { useI18n } from "../i18n";
+import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
+import { useI18n, type MessageKey } from "../i18n";
 
 /** Stable color per branch name (hash-based palette, no config). */
 const BRANCH_COLORS = ["#4f8ef7", "#f7a04f", "#6fcf7c", "#c77fd6", "#ef6f8e", "#f7d24f"];
@@ -23,7 +24,7 @@ function branchColor(name: string): string {
   return BRANCH_COLORS[hash % BRANCH_COLORS.length]!;
 }
 
-/** Node lineage of a branch: root → … → head (top-to-bottom). */
+/** Node lineage of a branch: root → … → head (chronological order). */
 function laneNodes(index: TaskTreeIndex, nodes: TaskNode[], branch: string): TaskNode[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const headId = index.branches[branch]?.headId;
@@ -42,6 +43,14 @@ function NodeIcon({ kind }: { kind: TaskNode["kind"] }): JSX.Element {
   const glyph =
     kind === "root" ? "🌳" : kind === "fork" || kind === "memory-spawn" ? "⑂" : kind === "merge" ? "⇄" : "·";
   return kind === "memory-spawn" ? <span title="memory-spawn">✦</span> : <span>{glyph}</span>;
+}
+
+/** ISO timestamp → compact "MM-DD HH:mm" for history rows. */
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 const btnStyle: React.CSSProperties = {
@@ -69,9 +78,13 @@ export function TaskTreePanel(): JSX.Element {
   const [trees, setTrees] = useState<TaskTreeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>(null);
+  const [reflog, setReflog] = useState<TaskReflogEntry[]>([]);
+  const [reflogOpen, setReflogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string>("");
+  // Branch whose history the timeline shows. null → follow the active branch.
+  const [viewBranch, setViewBranch] = useState<string | null>(null);
   // Create-tree form
   const [newPrompt, setNewPrompt] = useState("");
   const [newWhy, setNewWhy] = useState("");
@@ -113,6 +126,8 @@ export function TaskTreePanel(): JSX.Element {
       setWorkspaceRoot(root);
       setSelected(null);
       setDetail(null);
+      setReflog([]);
+      setViewBranch(null);
       setNotice(t("tasktree.workspaceSwitched"));
       void refresh(null);
     });
@@ -130,19 +145,33 @@ export function TaskTreePanel(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Switching task resets the viewed branch (follow the new tree's active).
+  useEffect(() => {
+    setViewBranch(null);
+  }, [selected]);
+
   useEffect(() => {
     if (!selected) {
       setDetail(null);
+      setReflog([]);
       return;
     }
     let cancelled = false;
-    api
+    void api
       .taskTreeGet(selected)
       .then((tree) => {
         if (!cancelled) setDetail(tree);
       })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    void api
+      .taskTreeReflog(selected)
+      .then((entries) => {
+        if (!cancelled) setReflog(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setReflog([]);
       });
     return () => {
       cancelled = true;
@@ -151,11 +180,15 @@ export function TaskTreePanel(): JSX.Element {
 
   const reloadDetail = useCallback(
     async (treeId: string) => {
-      const tree = await api.taskTreeGet(treeId).catch((err: Error) => {
-        setError(err.message);
-        return null;
-      });
+      const [tree, entries] = await Promise.all([
+        api.taskTreeGet(treeId).catch((err: Error) => {
+          setError(err.message);
+          return null;
+        }),
+        api.taskTreeReflog(treeId).catch(() => [] as TaskReflogEntry[]),
+      ]);
       setDetail(tree);
+      setReflog(entries);
       await refresh(treeId);
     },
     [refresh]
@@ -195,6 +228,7 @@ export function TaskTreePanel(): JSX.Element {
     setForkWhy("");
     setError(null);
     setNotice(`${t("tasktree.forked")}: ${result.branch}`);
+    setViewBranch(result.branch);
     await reloadDetail(selected);
   }, [selected, forkWhy, reloadDetail, t]);
 
@@ -230,6 +264,13 @@ export function TaskTreePanel(): JSX.Element {
 
   const branches = detail ? Object.keys(detail.index.branches) : [];
   const workspaceLabel = workspaceRoot ? (workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? workspaceRoot) : "";
+  const activeBranch = detail?.index.activeBranch ?? "";
+  const shownBranch = viewBranch && branches.includes(viewBranch) ? viewBranch : activeBranch || (branches[0] ?? "");
+  const lane = detail ? laneNodes(detail.index, detail.nodes, shownBranch) : [];
+  const shownColor = branchColor(shownBranch);
+
+  const statusLabel = (s: TaskNode["status"]): string => t(`tasktree.status.${s}` as MessageKey);
+  const opLabel = (op: TaskReflogEntry["op"]): string => t(`tasktree.op.${op}` as MessageKey);
 
   return (
     <div className="ui-panel" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -281,7 +322,7 @@ export function TaskTreePanel(): JSX.Element {
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        {/* Tree list */}
+        {/* Task list — each tree is one unit of history. */}
         <div style={{ width: 190, borderRight: "1px solid var(--ui-border-soft, #333)", overflowY: "auto" }}>
           {trees.length === 0 ? (
             <div style={{ padding: 14, fontSize: 12, color: "var(--ui-text-dim)" }}>{t("tasktree.empty")}</div>
@@ -294,7 +335,7 @@ export function TaskTreePanel(): JSX.Element {
                   display: "block",
                   width: "100%",
                   textAlign: "left",
-                  padding: "8px 12px",
+                  padding: "7px 12px",
                   fontSize: 12,
                   background: selected === tree.id ? "var(--ui-surface-sunken, rgba(128,128,128,0.1))" : "transparent",
                   border: "none",
@@ -303,16 +344,19 @@ export function TaskTreePanel(): JSX.Element {
                 }}
               >
                 <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tree.title}</div>
-                <div style={{ fontSize: 10, color: "var(--ui-text-dim)" }}>
-                  ⎇ {tree.activeBranch} · {tree.branchCount}b/{tree.nodeCount}n
+                <div style={{ fontSize: 10, color: "var(--ui-text-dim)", display: "flex", gap: 6 }}>
+                  <span>
+                    ⎇ {tree.activeBranch} · {tree.branchCount}b/{tree.nodeCount}n
+                  </span>
+                  <span style={{ marginLeft: "auto", opacity: 0.8 }}>{fmtTime(tree.updatedAt)}</span>
                 </div>
               </button>
             ))
           )}
         </div>
 
-        {/* Swimlane canvas + per-tree operations */}
-        <div style={{ flex: 1, overflow: "auto", padding: "10px 14px" }}>
+        {/* History view: branch chips + timeline + reflog. */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", minWidth: 0 }}>
           {!detail ? (
             <div style={{ fontSize: 12, color: "var(--ui-text-dim)" }}>
               {trees.length > 0 ? t("tasktree.selectPrompt") : t("tasktree.empty")}
@@ -322,8 +366,60 @@ export function TaskTreePanel(): JSX.Element {
               <div style={{ marginBottom: 6, fontSize: 13 }}>
                 <strong>{detail.index.title}</strong>
               </div>
+
+              {/* Branch chips — pick which branch's history the timeline shows. */}
+              <div className="ui-tt-branches">
+                {branches.map((branch) => {
+                  const entry = detail.index.branches[branch]!;
+                  const isActive = branch === detail.index.activeBranch;
+                  const abandoned = entry.abandoned === true;
+                  const viewing = branch === shownBranch;
+                  const color = branchColor(branch);
+                  const count = laneNodes(detail.index, detail.nodes, branch).length;
+                  return (
+                    <span
+                      key={branch}
+                      className={`ui-tt-chip${viewing ? " viewing" : ""}${abandoned ? " abandoned" : ""}`}
+                      style={{ borderColor: viewing ? color : undefined }}
+                      onClick={() => setViewBranch(branch)}
+                      title={isActive ? t("tasktree.active") : branch}
+                    >
+                      <span className="ui-tt-dot" style={{ background: color }} />
+                      {branch}
+                      <span className="ui-tt-chip-count">{count}</span>
+                      {!isActive && !abandoned ? (
+                        <span className="ui-tt-chip-actions" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="ui-tt-act"
+                            onClick={() => void branchAction("switch", branch)}
+                            title={t("tasktree.switchTo")}
+                          >
+                            ⇄
+                          </button>
+                          <button
+                            className="ui-tt-act"
+                            onClick={() => void branchAction("merge", branch)}
+                            title={t("tasktree.mergeFrom")}
+                          >
+                            ⇦
+                          </button>
+                          <button
+                            className="ui-tt-act ui-tt-act--danger"
+                            onClick={() => void branchAction("abandon", branch)}
+                            title={t("tasktree.abandonAction")}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ) : null}
+                      {abandoned ? <span className="ui-tt-chip-flag">{t("tasktree.abandoned")}</span> : null}
+                    </span>
+                  );
+                })}
+              </div>
+
               {/* Fork form — the panel's own fork entry point. */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 6, margin: "8px 0 10px" }}>
                 <input
                   style={inputStyle}
                   placeholder={t("tasktree.forkWhy")}
@@ -334,115 +430,73 @@ export function TaskTreePanel(): JSX.Element {
                   ⑂ {t("tasktree.fork")}
                 </button>
               </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: "max-content" }}>
-                {branches.map((branch) => {
-                  const branchEntry = detail.index.branches[branch]!;
-                  const lane = laneNodes(detail.index, detail.nodes, branch);
-                  const isActive = branch === detail.index.activeBranch;
-                  const abandoned = branchEntry.abandoned === true;
-                  const color = branchColor(branch);
-                  return (
-                    <div
-                      key={branch}
-                      style={{
-                        width: 210,
-                        borderRadius: 8,
-                        border: `1px solid ${isActive ? color : "var(--ui-border-soft, #333)"}`,
-                        opacity: abandoned ? 0.45 : 1,
-                        background: isActive ? "var(--ui-surface-sunken, rgba(128,128,128,0.06))" : "transparent",
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: "6px 8px",
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color,
-                          borderBottom: `2px solid ${color}`,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>⎇ {branch}</span>
-                        <span style={{ display: "flex", gap: 3 }}>
-                          {!isActive && !abandoned ? (
-                            <>
-                              <button
-                                style={btnStyle}
-                                onClick={() => void branchAction("switch", branch)}
-                                title={t("tasktree.switchTo")}
-                              >
-                                ⇄
-                              </button>
-                              <button
-                                style={btnStyle}
-                                onClick={() => void branchAction("merge", branch)}
-                                title={t("tasktree.mergeFrom")}
-                              >
-                                ⇦
-                              </button>
-                              <button
-                                style={btnStyle}
-                                onClick={() => void branchAction("abandon", branch)}
-                                title={t("tasktree.abandonAction")}
-                              >
-                                ✕
-                              </button>
-                            </>
-                          ) : null}
-                          {abandoned ? (
-                            <span style={{ fontSize: 9, color: "var(--ui-text-dim)" }}>{t("tasktree.abandoned")}</span>
-                          ) : (
-                            <span style={{ fontSize: 9, color: "var(--ui-text-dim)" }}>{lane.length}n</span>
-                          )}
-                        </span>
-                      </div>
-                      <div style={{ padding: 6 }}>
-                        {lane.map((node) => {
-                          const conflicts = node.meta?.mergeConflicts ?? [];
-                          return (
-                            <div
-                              key={node.id}
-                              style={{
-                                padding: "5px 6px",
-                                marginBottom: 4,
-                                borderRadius: 6,
-                                background: "var(--ui-surface, rgba(128,128,128,0.08))",
-                                fontSize: 11,
-                              }}
-                            >
-                              <div style={{ fontWeight: 500, display: "flex", gap: 4 }}>
-                                <NodeIcon kind={node.kind} />
-                                <span style={{ wordBreak: "break-word" }}>{node.title}</span>
-                              </div>
-                              <div style={{ color: "var(--ui-text-dim)", marginTop: 2, wordBreak: "break-word" }}>
-                                {node.why}
-                              </div>
-                              {conflicts.length > 0 ? (
-                                <div
-                                  style={{
-                                    marginTop: 4,
-                                    padding: "3px 5px",
-                                    borderRadius: 4,
-                                    background: "rgba(251,191,36,0.12)",
-                                    color: "#fbbf24",
-                                    fontSize: 10,
-                                  }}
-                                  title={t("tasktree.conflictHint")}
-                                >
-                                  ⚠ {t("tasktree.conflicts", { count: conflicts.length })}:{" "}
-                                  {conflicts.map((c) => c.artifactRef).join(", ")}
-                                </div>
-                              ) : null}
+
+              {/* Timeline — newest first, like git log. */}
+              <div className="ui-tt-section">{t("tasktree.history")}</div>
+              <div className="ui-tt-timeline">
+                {lane.length === 0 ? (
+                  <div className="ui-tt-empty">{t("tasktree.noHistory")}</div>
+                ) : (
+                  lane
+                    .slice()
+                    .reverse()
+                    .map((node) => {
+                      const conflicts = node.meta?.mergeConflicts ?? [];
+                      return (
+                        <div key={node.id} className="ui-tt-item">
+                          <span className="ui-tt-rail-dot" style={{ borderColor: shownColor }} />
+                          <div className="ui-tt-item-body">
+                            <div className="ui-tt-item-head">
+                              <NodeIcon kind={node.kind} />
+                              <span className="ui-tt-item-title" title={node.title}>
+                                {node.title}
+                              </span>
+                              <span className={`ui-tt-status ${node.status}`}>{statusLabel(node.status)}</span>
+                              <span className="ui-tt-item-time">{fmtTime(node.createdAt)}</span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+                            <div className="ui-tt-why">{node.why}</div>
+                            {node.artifactRefs.length > 0 ? (
+                              <div className="ui-tt-artifacts">
+                                {t("tasktree.artifacts", { count: node.artifactRefs.length })}
+                              </div>
+                            ) : null}
+                            {conflicts.length > 0 ? (
+                              <div className="ui-tt-conflicts" title={t("tasktree.conflictHint")}>
+                                ⚠ {t("tasktree.conflicts", { count: conflicts.length })}:{" "}
+                                {conflicts.map((c) => c.artifactRef).join(", ")}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
               </div>
+
+              {/* Reflog — the append-only operation journal. */}
+              <button className="ui-tt-reflog-toggle" onClick={() => setReflogOpen((v) => !v)}>
+                {reflogOpen ? "▾" : "▸"} {t("tasktree.reflog")}
+                <span className="ui-tt-chip-count">{reflog.length}</span>
+              </button>
+              {reflogOpen ? (
+                <div className="ui-tt-reflog">
+                  {reflog.length === 0 ? (
+                    <div className="ui-tt-empty">{t("tasktree.reflogEmpty")}</div>
+                  ) : (
+                    reflog
+                      .slice()
+                      .reverse()
+                      .map((entry, i) => (
+                        <div key={`${entry.at}:${entry.op}:${i}`} className="ui-tt-reflog-row">
+                          <span className="ui-tt-item-time">{fmtTime(entry.at)}</span>
+                          <span className={`ui-tt-op ${entry.op}`}>{opLabel(entry.op)}</span>
+                          <span className="ui-tt-reflog-branch">⎇ {entry.branch}</span>
+                          {entry.detail ? <span className="ui-tt-reflog-detail">{entry.detail}</span> : null}
+                        </div>
+                      ))
+                  )}
+                </div>
+              ) : null}
             </>
           )}
         </div>

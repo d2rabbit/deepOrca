@@ -33,6 +33,13 @@ function baseName(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+/** Directory prefix (with trailing separator) for one-line file rows — gives
+ *  same-name files in different folders enough context without a second line. */
+function dirName(path: string): string {
+  const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return idx >= 0 ? path.slice(0, idx + 1) : "";
+}
+
 /**
  * Left-panel Git source control (item 6): an upper half showing current changes
  * (working tree + agent edits) and a lower half showing commit history. Every
@@ -191,34 +198,32 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
       <span className={`ui-scm-status ${statusCls(isStaged ? file.index : file.work)}`}>
         {(isStaged ? file.index : file.work) || "?"}
       </span>
-      <span className="ui-scm-name" title={file.path}>
-        {baseName(file.path)}
+      <span className="ui-scm-pathwrap" title={file.path}>
+        <span className="ui-scm-dir">{dirName(file.path)}</span>
+        <span className="ui-scm-name">{baseName(file.path)}</span>
       </span>
-      <span className="ui-scm-path">{file.path}</span>
       <span className="ui-scm-file-actions" onClick={(e) => e.stopPropagation()}>
         {onOpenEditor ? (
-          <Button size="sm" variant="subtle" onClick={() => onOpenEditor(file.path)} title={t("editor.openInEditor")}>
+          <button className="ui-scm-act" onClick={() => onOpenEditor(file.path)} title={t("editor.openInEditor")}>
             ✎
-          </Button>
+          </button>
         ) : null}
         {isStaged ? (
-          <Button size="sm" variant="subtle" onClick={() => void unstage(file.path)}>
-            {t("scm.unstage")}
-          </Button>
+          <button className="ui-scm-act" onClick={() => void unstage(file.path)} title={t("scm.unstage")}>
+            −
+          </button>
         ) : (
           <>
-            <Button size="sm" variant="subtle" onClick={() => void stage(file.path)}>
-              {t("scm.stage")}
-            </Button>
-            <Button
-              size="sm"
-              variant="subtle"
-              className="ui-scm-discard"
+            <button className="ui-scm-act" onClick={() => void stage(file.path)} title={t("scm.stage")}>
+              +
+            </button>
+            <button
+              className="ui-scm-act ui-scm-act--danger"
               onClick={() => void discard(file.path)}
               title={t("scm.discard")}
             >
               ✕
-            </Button>
+            </button>
           </>
         )}
       </span>
@@ -298,10 +303,10 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
                 onClick={() => sessionId && onOpenDiff({ kind: "agent", sessionId, file: f.path })}
               >
                 <span className="ui-scm-status">✎</span>
-                <span className="ui-scm-name" title={f.path}>
-                  {baseName(f.path)}
+                <span className="ui-scm-pathwrap" title={f.path}>
+                  <span className="ui-scm-dir">{dirName(f.path)}</span>
+                  <span className="ui-scm-name">{baseName(f.path)}</span>
                 </span>
-                <span className="ui-scm-path">{f.path}</span>
               </div>
             ))}
           </>
@@ -345,10 +350,10 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
                         }
                       >
                         <span className={`ui-scm-status ${statusCls(f.status)}`}>{f.status}</span>
-                        <span className="ui-scm-name" title={f.path}>
-                          {baseName(f.path)}
+                        <span className="ui-scm-pathwrap" title={f.path}>
+                          <span className="ui-scm-dir">{dirName(f.path)}</span>
+                          <span className="ui-scm-name">{baseName(f.path)}</span>
                         </span>
-                        <span className="ui-scm-path">{f.path}</span>
                       </div>
                     ))
                   )}

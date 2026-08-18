@@ -204,6 +204,27 @@ export const en = {
   "plugins.builtin.none": "No built-in plugins available.",
   "plugins.builtin.hint": "Built-in plugins ship with DeepOrca and cannot be uninstalled or disabled.",
   "plugins.builtin.readonly": "Built-in items cannot be modified or removed.",
+  "plugins.tag.mcp": "MCP",
+  "plugins.tag.builtin": "built-in",
+  "plugins.tag.custom": "custom",
+  "plugins.tag.skill": "skill",
+  "plugins.tag.bundled": "bundled",
+  "plugins.tag.local": "local",
+  "plugins.source.bundled": "Bundled",
+  "plugins.source.home": "Home (~)",
+  "plugins.source.project": "Project",
+  "plugins.category.automation": "automation",
+  "plugins.category.quality": "quality",
+  "plugins.category.documentation": "documentation",
+  "plugins.category.general": "general",
+  "plugins.category.code": "code",
+  "plugins.category.design": "design",
+  "plugins.category.knowledge": "knowledge",
+  "plugins.category.memory": "memory",
+  "plugins.category.meta": "meta skills",
+  "plugins.category.vision": "vision",
+  "plugins.category.work": "work",
+  "plugins.category.other": "other",
   "builtin.browser-skill.name": "Browser Skill",
   "builtin.browser-skill.desc":
     "Drive the user's real Chromium browser through the bsk CLI — visit pages, fill forms, scrape data, click through flows, regression-test UI.",
@@ -228,6 +249,33 @@ export const en = {
   "builtin.git-mcp.name": "GitMCP",
   "builtin.git-mcp.desc":
     "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
+  "builtin.open-code-review.name": "Open Code Review",
+  "builtin.open-code-review.desc":
+    "AI-powered code review via the ocr CLI (Alibaba Open Code Review) — reads Git diffs and produces structured line-level review comments.",
+  "builtin.web-access-strategy.desc":
+    "Three-layer web-access dispatch: general search → WebSearch; static pages → WebFetch / curl / Jina Reader; login-state interaction → browser-skill driving the real Chrome. Accumulates per-domain experience.",
+  "builtin.arch-scan.desc":
+    "Recursive perspective-driven architecture scan producing an interactive A2UI architecture map rendered in-app.",
+  "builtin.codegraph-cli.desc":
+    "CodeGraph CLI driver — build and query the code knowledge graph (init / index / sync / serve, symbols, call chains).",
+  "builtin.smart-code-review.desc":
+    "Combined code review — one-click orchestration of CRG risk analysis + OCR semantic review via the review.full action.",
+  "builtin.deep-design.desc":
+    "Design-grade web artifacts in the .dd (OrcaDesign) format — YAML front-matter + HTML body, self-contained and deliverable outside the host.",
+  "builtin.pm-designer-openui.desc":
+    "PM-focused prototypes in OpenUI Lang — a compact, streaming-first language for interactive UI prototypes.",
+  "builtin.taste.desc":
+    "Front-end design quality discipline — anti-slop methodology for layout, typography, spacing, color and animation.",
+  "builtin.book-distill.desc":
+    "Distill a book, manual or long document into a reusable Agent Skill (SKILL.md + references/) with its checklists, workflows and pitfalls.",
+  "builtin.openwiki.desc":
+    "Generate and maintain the project-level Wiki knowledge graph (openwiki/) via the openwiki CLI — structured, cross-referenced docs.",
+  "builtin.wiki-qa.desc":
+    "Answer questions about the project's architecture, modules and workflows by querying the OpenWiki knowledge base.",
+  "builtin.a2ui-annotation.desc":
+    "Structured interaction channel between agent and user — proactive questions and annotation-style feedback cards on artifacts via render_surface.",
+  "builtin.bento-slides.desc":
+    "Generate presentation decks as self-contained .bento.html files — pure JSON in, one file is editor + viewer + presenter.",
   "plugins.group.skills": "skills",
   "plugins.group.mcp": "MCP",
   "plugins.group.plugins": "plugins",
@@ -250,6 +298,8 @@ export const en = {
   "builtin-plugin.work.desc": "Single-file HTML slides generation (Bento).",
   "builtin-plugin.other.name": "Other",
   "builtin-plugin.other.desc": "Built-in items not assigned to a plugin package.",
+  "builtin-plugin.vision.name": "Vision",
+  "builtin-plugin.vision.desc": "Visual understanding — adds image comprehension to text-only LLMs (disableable).",
   "context.compaction": "Context",
   "context.compacting": "Compacting…",
 
@@ -432,6 +482,67 @@ export const en = {
   "actions.empty": "No project open.",
   "actions.run": "Run",
   "actions.running": "Running…",
+  "actions.category.index": "index",
+  "actions.category.review": "review",
+  "actions.category.browser": "browser",
+  "actions.category.work": "work",
+  "actions.category.tasks": "tasks",
+  "actions.category.system": "system",
+  "actions.category.design": "design",
+  // Per-action display descriptions (localized for the panel; the English
+  // originals in core/src/actions remain the LLM-facing tool descriptions).
+  "action.system.ping.desc":
+    "Trivial health-check action. Returns a pong with the echoed name. Verifies the action pipeline end to end.",
+  "action.arch-scan.run.desc":
+    "Scan the codebase architecture and generate an interactive architecture map (perspective-driven: overall / data-flow / dependency). Agent-driven — complements CodeGraph (symbols) and OpenWiki (docs) as the architecture-level index.",
+  "action.bento.create.desc":
+    "Generate a self-contained Bento presentation deck (.bento.html) from a structured slide spec.",
+  "action.browser.session-start.desc":
+    "Start a BrowserSkill browser session. Returns a session ID for subsequent commands.",
+  "action.browser.command.desc":
+    "Execute a BrowserSkill command (navigate, snapshot, click, fill, evaluate, …) on an active session.",
+  "action.browser.session-stop.desc": "Stop a BrowserSkill browser session and release the browser.",
+  "action.codegraph.reindex.desc":
+    "Build (or rebuild) the CodeGraph symbol index (.codegraph/) — the navigation/retrieval layer for symbol/caller/callee/impact queries. Requires Node 22.5+. Run before code navigation queries.",
+  "action.codegraph.list.desc":
+    "Report the CodeGraph index status for the current project: {root, label, initialized}. initialized=false means .codegraph/ is absent (run codegraph.reindex).",
+  "action.crg.reindex.desc":
+    "Build (or rebuild) the code-review-graph (CRG) — the analysis-layer knowledge graph for risk/impact/architecture queries. Requires uv + the bundled CRG wheel.",
+  "action.crg.visualize.desc": "Render the code-review-graph as a D3.js HTML page.",
+  "action.design.audit.desc":
+    "Audit a design artifact (.dd) against the anti-slop discipline — deterministic, no LLM, changes nothing.",
+  "action.design.materialize.desc": "Materialize a requirement into a design artifact (prototype or design document).",
+  "action.design.extract.desc":
+    "Extract a website's brand/design system into structured design tokens (colors, typography, spacing, radius, shadows, motion, logo, contrast audit) and persist the brand contract to .deeporca/DESIGN.md.",
+  "action.design.drift.desc":
+    "Brand-drift gate: extract a site's live design tokens and compare against a baseline extraction. Returns a deterministic 0–100 drift score with per-token findings — no LLM involved.",
+  "action.index.build-all.desc":
+    "Build (or update) the full workspace index — CodeGraph symbols → OpenWiki docs → (on init) arch-scan architecture diagram — in one sequenced call. Streams per-stage progress.",
+  "action.review.run.desc":
+    "Run AI code review (Open Code Review / ocr) on uncommitted workspace changes vs HEAD. Returns structured findings with path/line/suggestion per item.",
+  "action.review.check-available.desc":
+    "Check whether AI code review (Open Code Review / ocr) is bundled and available. Returns {available}. Run before review.run.",
+  "action.review.full.desc":
+    "Full code review of uncommitted changes — one-click composite. Runs ocr AI semantic review AND, when the CRG risk graph is built, enriches each finding with structural impact. Returns a unified {review, risk} report.",
+  "action.task.create.desc": "Create a task tree for a multi-step piece of work, then track progress with task.step.",
+  "action.task.step.desc": "Append a completed-or-planned step to the active branch of a task tree.",
+  "action.task.fork.desc":
+    "Fork a new branch from a task tree's current head to try a genuinely different approach in parallel.",
+  "action.task.switch.desc": "Switch the task tree's active branch (subsequent task.step calls land on it).",
+  "action.task.abandon.desc":
+    "Mark a task branch as abandoned (archived, visible-but-greyed; the active branch cannot be abandoned).",
+  "action.task.list.desc": "List task trees (id, title, active branch, branch/node counts) to pick up prior work.",
+  "action.task.merge.desc": "Cherry-pick merge: pick nodes from a source branch onto the tree's ACTIVE branch.",
+  "action.task.recall.desc":
+    "At a decision point, recall historical task-tree forks similar to the current situation — each candidate carries the fork rationale and what happened to that branch.",
+  "action.wiki.init.desc":
+    "Generate the project wiki (openwiki/) — a structured, cross-referenced knowledge graph of the codebase. First run does a full scan; streams build output.",
+  "action.wiki.update.desc":
+    "Incrementally update the project wiki (openwiki/) — regenerates only pages affected by git changes. Safe to run frequently.",
+  "action.wiki.list-pages.desc":
+    "List the wiki pages in the project's openwiki/ directory with OKF frontmatter metadata. Returns [] when no wiki exists.",
+  "action.wiki.read-page.desc":
+    "Read a wiki page by name (e.g. 'architecture'). Returns structured OKF frontmatter + body. Confined to openwiki/.",
   "rail.undo": "Undo / restore",
   "rail.commands": "Commands (⌘K)",
   "rail.tokens": "Token usage",
@@ -610,7 +721,7 @@ export const en = {
   "design.materializeBtn": "Materialize",
   "design.materializing": "Materializing (agent at work)…",
   "design.materialized": "Materialized — check the list below.",
-  "tasktree.title": "Task Tree",
+  "tasktree.title": "Task History",
   "tasktree.refresh": "Refresh",
   "tasktree.abandoned": "abandoned",
   "tasktree.conflicts": "{count} artifact conflict(s)",
@@ -633,8 +744,22 @@ export const en = {
   "tasktree.confirmAbandon": 'Abandon branch "{branch}"? It stays archived and visible.',
   "tasktree.mergedWithConflicts": "Merged with {count} artifact conflict(s): {refs} — resolve manually.",
   "tasktree.empty": "No task trees yet. The agent creates one via the task.create action.",
-  "tasktree.selectPrompt": "Select a tree to view its branches.",
+  "tasktree.selectPrompt": "Select a task to view its history.",
   "tasktree.active": "Active",
+  "tasktree.history": "Branch history",
+  "tasktree.noHistory": "No steps recorded on this branch yet.",
+  "tasktree.reflog": "Operation log",
+  "tasktree.reflogEmpty": "No operations recorded yet.",
+  "tasktree.op.create": "create",
+  "tasktree.op.fork": "fork",
+  "tasktree.op.switch": "switch",
+  "tasktree.op.append": "append",
+  "tasktree.op.abandon": "abandon",
+  "tasktree.status.planned": "planned",
+  "tasktree.status.running": "running",
+  "tasktree.status.done": "done",
+  "tasktree.status.abandoned": "abandoned",
+  "tasktree.artifacts": "{count} artifact(s)",
   "design.empty": "No design artifacts yet. Generate a prototype or design document.",
   "design.filter.all": "All",
   "design.filter.prototypes": "Prototypes",
@@ -642,7 +767,7 @@ export const en = {
   "design.delete": "Delete",
   "design.deleteConfirm": "Delete this design artifact? This cannot be undone.",
   "rail.design": "Designer",
-  "rail.tasktree": "Task Tree",
+  "rail.tasktree": "Task History",
   "index.uninitialized": "Not indexed",
   "index.reindex": "Reset index",
   "index.init": "Initialize",
@@ -976,6 +1101,27 @@ export const zh: Record<MessageKey, string> = {
   "plugins.builtin.none": "暂无内置插件。",
   "plugins.builtin.hint": "内置插件随 DeepOrca 一起发布，不可卸载或禁用。",
   "plugins.builtin.readonly": "内置项不可修改或删除。",
+  "plugins.tag.mcp": "MCP",
+  "plugins.tag.builtin": "内置",
+  "plugins.tag.custom": "自定义",
+  "plugins.tag.skill": "技能",
+  "plugins.tag.bundled": "随附",
+  "plugins.tag.local": "本地",
+  "plugins.source.bundled": "随附",
+  "plugins.source.home": "主目录（~）",
+  "plugins.source.project": "项目内",
+  "plugins.category.automation": "自动化",
+  "plugins.category.quality": "质量",
+  "plugins.category.documentation": "文档",
+  "plugins.category.general": "通用",
+  "plugins.category.code": "代码",
+  "plugins.category.design": "设计",
+  "plugins.category.knowledge": "知识",
+  "plugins.category.memory": "记忆",
+  "plugins.category.meta": "元技能",
+  "plugins.category.vision": "视觉",
+  "plugins.category.work": "工作",
+  "plugins.category.other": "其他",
   "builtin.browser-skill.name": "浏览器技能",
   "builtin.browser-skill.desc":
     "通过 bsk CLI 驱动用户的真实 Chromium 浏览器——访问页面、填写表单、抓取数据、点击流程、回归测试界面。",
@@ -999,6 +1145,26 @@ export const zh: Record<MessageKey, string> = {
   "builtin.git-mcp.name": "GitMCP",
   "builtin.git-mcp.desc":
     "通过完全本地化的 GitMCP 服务器让外部 GitHub 仓库的回答有据可依——在 GitMCP 模块添加仓库后，其文档会被抓取并本地索引，以 MCP 工具形式提供。",
+  "builtin.open-code-review.name": "Open Code Review",
+  "builtin.open-code-review.desc":
+    "基于 ocr CLI（阿里 Open Code Review）的 AI 代码审查——读取 Git diff，产出结构化的行级审查意见。",
+  "builtin.web-access-strategy.desc":
+    "三层联网策略分发：通用搜索 → WebSearch；静态页面 → WebFetch / curl / Jina Reader；登录态交互 → browser-skill 操控真实 Chrome。按域名积累访问经验。",
+  "builtin.arch-scan.desc": "多视角递归架构扫描，生成应用内渲染的 A2UI 交互式架构图。",
+  "builtin.codegraph-cli.desc":
+    "CodeGraph CLI 驱动——构建与查询代码知识图谱（init / index / sync / serve，符号、调用链）。",
+  "builtin.smart-code-review.desc": "智能代码审查——通过 review.full 动作一键编排 CRG 风险分析 + OCR 语义审查。",
+  "builtin.deep-design.desc": "DeepDesign——.dd 格式 UI 设计稿（YAML front-matter + HTML，自包含、可脱离宿主交付）。",
+  "builtin.pm-designer-openui.desc": "PM 视角的原型设计——OpenUI Lang 紧凑、流式优先的交互原型语言。",
+  "builtin.taste.desc": "前端设计纪律——版式、排印、间距、配色与动效的 anti-slop 规范。",
+  "builtin.book-distill.desc":
+    "把书籍、手册或长文档蒸馏成可复用的 Agent Skill（SKILL.md + references/），沉淀清单、工作流与避坑要点。",
+  "builtin.openwiki.desc": "通过 openwiki CLI 生成并维护项目级 Wiki 知识图谱（openwiki/）——结构化、交叉引用的文档。",
+  "builtin.wiki-qa.desc": "基于 OpenWiki 知识库回答项目架构、模块与工作流问题。",
+  "builtin.a2ui-annotation.desc":
+    "agent 与用户之间的结构化交互通道——主动追问与对产物的批注式反馈卡（render_surface）。",
+  "builtin.bento-slides.desc":
+    "生成自包含的 .bento.html 演示文稿——纯 JSON 输入，一个文件即编辑器 + 查看器 + 演示模式。",
   "plugins.group.skills": "技能",
   "plugins.group.mcp": "MCP",
   "plugins.group.plugins": "插件",
@@ -1019,6 +1185,8 @@ export const zh: Record<MessageKey, string> = {
   "builtin-plugin.work.desc": "单文件 HTML 幻灯片生成（Bento）。",
   "builtin-plugin.other.name": "其他",
   "builtin-plugin.other.desc": "未归属任何插件包的内置项。",
+  "builtin-plugin.vision.name": "视觉理解",
+  "builtin-plugin.vision.desc": "为纯文本 LLM 补充图片理解能力（可禁用）。",
   "context.compaction": "上下文",
   "context.compacting": "压缩中…",
 
@@ -1196,6 +1364,58 @@ export const zh: Record<MessageKey, string> = {
   "actions.empty": "未打开项目。",
   "actions.run": "运行",
   "actions.running": "运行中…",
+  "actions.category.index": "索引",
+  "actions.category.review": "审查",
+  "actions.category.browser": "浏览器",
+  "actions.category.work": "工作",
+  "actions.category.tasks": "任务",
+  "actions.category.system": "系统",
+  "actions.category.design": "设计",
+  // 动作面板的本地化描述（core/src/actions 中的英文原版仍作为 LLM 工具描述）。
+  "action.system.ping.desc": "最小健康检查动作。回显名称并返回 pong，用于端到端验证动作管线。",
+  "action.arch-scan.run.desc":
+    "扫描代码库架构并生成交互式架构图（多视角：总体 / 数据流 / 依赖）。由子代理驱动，与 CodeGraph（符号级）、OpenWiki（文档级）互补，构成架构级索引。",
+  "action.bento.create.desc": "从结构化幻灯片 spec 生成自包含的 Bento 演示文稿（.bento.html）。",
+  "action.browser.session-start.desc": "启动 BrowserSkill 浏览器会话，返回供后续命令使用的会话 ID。",
+  "action.browser.command.desc": "在活动会话上执行 BrowserSkill 命令（navigate、snapshot、click、fill、evaluate 等）。",
+  "action.browser.session-stop.desc": "停止 BrowserSkill 浏览器会话并释放浏览器。",
+  "action.codegraph.reindex.desc":
+    "构建（或重建）CodeGraph 符号索引（.codegraph/）——符号/调用者/被调/影响面查询的导航与检索层。需要 Node 22.5+。代码导航查询前先运行。",
+  "action.codegraph.list.desc":
+    "报告当前项目的 CodeGraph 索引状态：{root, label, initialized}。initialized=false 表示 .codegraph/ 不存在（请先运行 codegraph.reindex）。",
+  "action.crg.reindex.desc":
+    "构建（或重建）代码审查图谱（CRG）——风险/影响面/架构查询的分析层知识图谱。需要 uv + 内置 CRG wheel。",
+  "action.crg.visualize.desc": "将代码审查图谱渲染为 D3.js HTML 页面。",
+  "action.design.audit.desc": "按 anti-slop 设计纪律审计设计产物（.dd）——纯确定性检查，不调用 LLM，不改动任何文件。",
+  "action.design.materialize.desc": "把需求物化为设计产物（交互原型或设计文档）。",
+  "action.design.extract.desc":
+    "提取网站的品牌/设计系统为结构化设计 token（语义色、字阶、间距、圆角、阴影、动效、Logo、对比度审计），并将品牌契约持久化到 .deeporca/DESIGN.md。",
+  "action.design.drift.desc":
+    "品牌漂移闸门：提取站点线上设计 token 并与基线提取比对。返回确定性的 0–100 漂移分及逐 token 结论——不涉及 LLM。",
+  "action.index.build-all.desc":
+    "一次调用构建（或更新）完整工作区索引——CodeGraph 符号 → OpenWiki 文档 →（init 时）arch-scan 架构图。逐阶段流式上报进度。",
+  "action.review.run.desc":
+    "对未提交的工作区改动（vs HEAD）运行 AI 代码审查（Open Code Review / ocr）。返回结构化意见，含路径/行号/建议代码。",
+  "action.review.check-available.desc":
+    "检查 AI 代码审查（Open Code Review / ocr）是否已内置可用。返回 {available}。建议在 review.run 之前确认。",
+  "action.review.full.desc":
+    "未提交改动的完整审查——代码审查模块的一键组合。运行 ocr AI 语义审查，并在 CRG 风险图谱已构建时为每条意见补充结构影响面。返回统一的 {review, risk} 报告。",
+  "action.task.create.desc": "为多步骤工作创建任务树，随后用 task.step 跟踪进度。",
+  "action.task.step.desc": "向任务树的活动分支追加一个已完成或已规划的步骤。",
+  "action.task.fork.desc": "从任务树当前头节点分叉出新分支，并行尝试一条真正不同的路线。",
+  "action.task.switch.desc": "切换任务树的活动分支（随后的 task.step 会落在该分支上）。",
+  "action.task.abandon.desc": "将任务分支标记为已放弃（归档、置灰可见；活动分支不可放弃）。",
+  "action.task.list.desc": "列出任务树（id、标题、活动分支、分支/节点数），便于接续先前的工作。",
+  "action.task.merge.desc": "拣选合并：从源分支挑选节点合并到任务树的活动分支。",
+  "action.task.recall.desc":
+    "在决策点召回与当前情形相似的历史任务树分叉——每个候选都带分叉理由及该分支的结局（合并/放弃/进行中）。",
+  "action.wiki.init.desc":
+    "生成项目 Wiki（openwiki/ 目录）——结构化、交叉引用的代码库知识图谱（架构、模块、工作流）。首次运行为全量扫描，流式输出构建过程。",
+  "action.wiki.update.desc": "增量更新项目 Wiki（openwiki/）——只重新生成受 git 变更影响的页面。可频繁运行。",
+  "action.wiki.list-pages.desc":
+    "列出项目 openwiki/ 目录中的 Wiki 页面及 OKF frontmatter 元数据。未生成 Wiki 时返回 []。",
+  "action.wiki.read-page.desc":
+    "按名称读取 Wiki 页面（如 'architecture'）。返回结构化 OKF frontmatter + 正文。限定在 openwiki/ 内。",
   "rail.undo": "撤销 / 恢复",
   "rail.commands": "命令面板（⌘K）",
   "rail.tokens": "Token 消耗",
@@ -1372,7 +1592,7 @@ export const zh: Record<MessageKey, string> = {
   "design.materializeBtn": "具现化",
   "design.materializing": "具现化中（agent 执行中）…",
   "design.materialized": "已具现化——见下方列表。",
-  "tasktree.title": "任务树",
+  "tasktree.title": "任务历史",
   "tasktree.refresh": "刷新",
   "tasktree.abandoned": "已放弃",
   "tasktree.conflicts": "{count} 个产物冲突",
@@ -1395,8 +1615,22 @@ export const zh: Record<MessageKey, string> = {
   "tasktree.confirmAbandon": "放弃分支“{branch}”？它会保留归档并可见。",
   "tasktree.mergedWithConflicts": "已合并，{count} 个产物冲突：{refs}——请手动裁决。",
   "tasktree.empty": "还没有任务树。Agent 通过 task.create 动作创建。",
-  "tasktree.selectPrompt": "选择一棵树查看其分支。",
+  "tasktree.selectPrompt": "选择一个任务查看其历史。",
   "tasktree.active": "当前",
+  "tasktree.history": "分支历史",
+  "tasktree.noHistory": "该分支还没有记录任何步骤。",
+  "tasktree.reflog": "操作日志",
+  "tasktree.reflogEmpty": "暂无操作记录。",
+  "tasktree.op.create": "创建",
+  "tasktree.op.fork": "分叉",
+  "tasktree.op.switch": "切换",
+  "tasktree.op.append": "追加",
+  "tasktree.op.abandon": "放弃",
+  "tasktree.status.planned": "已规划",
+  "tasktree.status.running": "进行中",
+  "tasktree.status.done": "已完成",
+  "tasktree.status.abandoned": "已放弃",
+  "tasktree.artifacts": "产物 ×{count}",
   "design.empty": "尚无设计产物。生成原型或设计稿后自动保存。",
   "design.filter.all": "全部",
   "design.filter.prototypes": "原型",
@@ -1404,7 +1638,7 @@ export const zh: Record<MessageKey, string> = {
   "design.delete": "删除",
   "design.deleteConfirm": "删除此设计产物？此操作不可撤销。",
   "rail.design": "设计",
-  "rail.tasktree": "任务树",
+  "rail.tasktree": "任务历史",
   "index.uninitialized": "未索引",
   "index.reindex": "重置索引",
   "index.init": "初始化",

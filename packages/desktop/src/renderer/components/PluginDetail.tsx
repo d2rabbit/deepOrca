@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import type { BuiltinPluginGroup, BuiltinPluginInfo, PluginMcpServer, SkillInfo } from "../../shared/ipc";
 import { api } from "../api";
-import { useI18n } from "../i18n";
+import { tOr, useI18n, type Translate } from "../i18n";
 import { renderMarkdown } from "../markdown";
 import { Button, StatusDot, Switch } from "../ui/index";
 import { builtinLabel, isBundledSkill } from "./PluginMcpPanel";
@@ -81,10 +81,10 @@ function deriveMcpSource(command: string, args: string): McpSource {
 }
 
 /** Human label for where a skill's SKILL.md lives, from its display path. */
-function skillSourceLabel(path: string): string {
-  if (path.startsWith("bundled:")) return "Bundled";
-  if (path.startsWith("~/") || path.startsWith("~\\")) return "Home (~)";
-  if (path.startsWith("./") || path.startsWith(".\\")) return "Project";
+function skillSourceLabel(t: Translate, path: string): string {
+  if (path.startsWith("bundled:")) return t("plugins.source.bundled");
+  if (path.startsWith("~/") || path.startsWith("~\\")) return t("plugins.source.home");
+  if (path.startsWith("./") || path.startsWith(".\\")) return t("plugins.source.project");
   return path;
 }
 
@@ -176,7 +176,7 @@ export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill 
           <dl className="ui-detail-meta">
             <div className="ui-detail-meta-row">
               <dt>{t("plugins.detail.source")}</dt>
-              <dd>{skillSourceLabel(skill.path)}</dd>
+              <dd>{skillSourceLabel(t, skill.path)}</dd>
             </div>
             <div className="ui-detail-meta-row">
               <dt>{t("plugins.detail.path")}</dt>
@@ -414,7 +414,7 @@ function BuiltinPluginDetail({ name }: { name: string }): JSX.Element {
         <dl className="ui-detail-meta">
           <div className="ui-detail-meta-row">
             <dt>{t("plugins.detail.source")}</dt>
-            <dd>{info ? `v${info.version} · ${info.category}` : ""}</dd>
+            <dd>{info ? `v${info.version} · ${tOr(t, `plugins.category.${info.category}`, info.category)}` : ""}</dd>
           </div>
         </dl>
       </header>
@@ -491,7 +491,7 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
         <dl className="ui-detail-meta">
           <div className="ui-detail-meta-row">
             <dt>{t("plugins.detail.source")}</dt>
-            <dd>{group.category}</dd>
+            <dd>{tOr(t, `plugins.category.${group.category}`, group.category)}</dd>
           </div>
         </dl>
       </header>
@@ -521,7 +521,8 @@ function PluginGroupDetail({ groupId }: { groupId: string }): JSX.Element {
                       </div>
                       {desc ? <div className="ui-member-desc">{desc}</div> : null}
                       <div className="ui-member-src">
-                        {t("plugins.detail.source")}: {t("plugins.detail.sourceBundled")} · v{p.version} · {p.category}
+                        {t("plugins.detail.source")}: {t("plugins.detail.sourceBundled")} · v{p.version} ·{" "}
+                        {tOr(t, `plugins.category.${p.category}`, p.category)}
                       </div>
                     </div>
                   );

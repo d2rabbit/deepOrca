@@ -191,6 +191,27 @@ export const ko: Record<MessageKey, string> = {
   "plugins.builtin.none": "내장 플러그인이 없습니다.",
   "plugins.builtin.hint": "내장 플러그인은 DeepOrca와 함께 제공되며 제거하거나 비활성화할 수 없습니다.",
   "plugins.builtin.readonly": "내장 항목은 수정하거나 삭제할 수 없습니다.",
+  "plugins.tag.mcp": "MCP",
+  "plugins.tag.builtin": "내장",
+  "plugins.tag.custom": "사용자 정의",
+  "plugins.tag.skill": "스킬",
+  "plugins.tag.bundled": "내장 동반",
+  "plugins.tag.local": "로컬",
+  "plugins.source.bundled": "내장 동반",
+  "plugins.source.home": "홈（~）",
+  "plugins.source.project": "프로젝트 내",
+  "plugins.category.automation": "자동화",
+  "plugins.category.quality": "품질",
+  "plugins.category.documentation": "문서",
+  "plugins.category.general": "일반",
+  "plugins.category.code": "코드",
+  "plugins.category.design": "디자인",
+  "plugins.category.knowledge": "지식",
+  "plugins.category.memory": "메모리",
+  "plugins.category.meta": "메타 스킬",
+  "plugins.category.vision": "비전",
+  "plugins.category.work": "업무",
+  "plugins.category.other": "기타",
   "builtin.browser-skill.name": "Browser Skill",
   "builtin.browser-skill.desc":
     "Drive the user's real Chromium browser through the bsk CLI — visit pages, fill forms, scrape data, click through flows, regression-test UI.",
@@ -215,6 +236,32 @@ export const ko: Record<MessageKey, string> = {
   "builtin.skill-spector.desc": "Skill/MCP 보안 스캔 서비스(68개 취약점 패턴).",
   "builtin.git-mcp.desc":
     "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
+  "builtin.open-code-review.name": "Open Code Review",
+  "builtin.open-code-review.desc":
+    "ocr CLI(Alibaba Open Code Review) 기반 AI 코드 리뷰 — Git diff를 읽어 구조화된 라인 단위 리뷰 의견을 생성합니다.",
+  "builtin.web-access-strategy.desc":
+    "3계층 웹 접근 디스패치: 일반 검색 → WebSearch, 정적 페이지 → WebFetch / curl / Jina Reader, 로그인 상태 상호작용 → browser-skill로 실제 Chrome 제어. 도메인별 접근 경험을 축적합니다.",
+  "builtin.arch-scan.desc":
+    "관점 기반 재귀 아키텍처 스캔 — 앱 내에 렌더링되는 인터랙티브 A2UI 아키텍처 맵을 생성합니다.",
+  "builtin.codegraph-cli.desc":
+    "CodeGraph CLI 드라이버 — 코드 지식 그래프를 빌드하고 쿼리합니다(init / index / sync / serve, 심볼, 호출 체인).",
+  "builtin.smart-code-review.desc":
+    "통합 코드 리뷰 — review.full 액션으로 CRG 위험 분석 + OCR 시맨틱 리뷰를 원클릭으로 오케스트레이션합니다.",
+  "builtin.deep-design.desc":
+    ".dd(OrcaDesign) 형식의 디자인급 웹 산출물 — YAML front-matter + HTML 본문, 자체 완결형이며 호스트 밖으로 전달할 수 있습니다.",
+  "builtin.pm-designer-openui.desc":
+    "PM 중심 프로토타입 — 인터랙티브 UI 프로토타입용 간결한 스트리밍 우선 언어인 OpenUI Lang.",
+  "builtin.taste.desc":
+    "프런트엔드 디자인 품질 원칙 — 레이아웃, 타이포그래피, 간격, 색상, 애니메이션을 위한 anti-slop 방법론.",
+  "builtin.book-distill.desc":
+    "책, 매뉴얼 또는 긴 문서를 재사용 가능한 Agent Skill(SKILL.md + references/)로 증류합니다 — 체크리스트, 워크플로, 주의점을 포함합니다.",
+  "builtin.openwiki.desc":
+    "openwiki CLI로 프로젝트 수준 Wiki 지식 그래프(openwiki/)를 생성하고 유지 관리합니다 — 구조화된 상호 참조 문서.",
+  "builtin.wiki-qa.desc": "OpenWiki 지식 베이스를 쿼리하여 프로젝트의 아키텍처, 모듈, 워크플로에 대한 질문에 답합니다.",
+  "builtin.a2ui-annotation.desc":
+    "에이전트와 사용자 간의 구조화된 상호작용 채널 — render_surface를 통한 선제적 질문과 산출물에 대한 주석형 피드백 카드.",
+  "builtin.bento-slides.desc":
+    "자체 완결형 .bento.html 발표 덱을 생성합니다 — 순수 JSON 입력 하나로 편집기 + 뷰어 + 발표 도구를 모두 담습니다.",
   "plugins.group.skills": "skills",
   "plugins.group.mcp": "MCP",
   "plugins.group.plugins": "plugins",
@@ -243,6 +290,8 @@ export const ko: Record<MessageKey, string> = {
   "builtin-plugin.browser.desc": "Chrome 제어 + 웹 검색 + 액세스 전략.",
   "builtin-plugin.other.name": "기타",
   "builtin-plugin.other.desc": "플러그인 그룹에 할당되지 않은 내장 항목.",
+  "builtin-plugin.vision.name": "비전",
+  "builtin-plugin.vision.desc": "텍스트 전용 LLM에 이미지 이해 능력 추가（비활성화 가능）.",
   "context.compaction": "컨텍스트",
   "context.compacting": "압축 중…",
 
@@ -421,6 +470,62 @@ export const ko: Record<MessageKey, string> = {
   "actions.empty": "No project open.",
   "actions.run": "Run",
   "actions.running": "Running…",
+  "actions.category.index": "인덱스",
+  "actions.category.review": "리뷰",
+  "actions.category.browser": "브라우저",
+  "actions.category.work": "업무",
+  "actions.category.tasks": "작업",
+  "actions.category.system": "시스템",
+  "actions.category.design": "디자인",
+  "action.system.ping.desc":
+    "가장 단순한 헬스 체크 액션. 이름을 echo하며 pong을 반환합니다. 액션 파이프라인을 end-to-end로 검증합니다.",
+  "action.arch-scan.run.desc":
+    "코드베이스 아키텍처를 스캔해 인터랙티브 아키텍처 맵을 생성합니다(관점 기반: 전체 / 데이터 흐름 / 의존성). 에이전트가 구동하며 CodeGraph(심볼), OpenWiki(문서)와 보완되는 아키텍처 수준 인덱스입니다.",
+  "action.bento.create.desc": "구조화된 슬라이드 spec에서 자체 완결형 Bento 발표 덱(.bento.html)을 생성합니다.",
+  "action.browser.session-start.desc":
+    "BrowserSkill 브라우저 세션을 시작합니다. 이후 명령에 사용할 세션 ID를 반환합니다.",
+  "action.browser.command.desc":
+    "활성 세션에서 BrowserSkill 명령(navigate, snapshot, click, fill, evaluate 등)을 실행합니다.",
+  "action.browser.session-stop.desc": "BrowserSkill 브라우저 세션을 중지하고 브라우저를 해제합니다.",
+  "action.codegraph.reindex.desc":
+    "CodeGraph 심볼 인덱스(.codegraph/)를 빌드(또는 재빌드)합니다 — 심볼/호출자/피호출자/영향 범위 쿼리의 탐색·검색 계층. Node 22.5+ 필요. 코드 탐색 쿼리 전에 실행하세요.",
+  "action.codegraph.list.desc":
+    "현재 프로젝트의 CodeGraph 인덱스 상태를 보고합니다: {root, label, initialized}. initialized=false는 .codegraph/가 없다는 뜻입니다(codegraph.reindex 실행).",
+  "action.crg.reindex.desc":
+    "코드 리뷰 그래프(CRG)를 빌드(또는 재빌드)합니다 — 위험/영향 범위/아키텍처 쿼리용 분석 계층 지식 그래프. uv + 내장 CRG wheel이 필요합니다.",
+  "action.crg.visualize.desc": "코드 리뷰 그래프를 D3.js HTML 페이지로 렌더링합니다.",
+  "action.design.audit.desc":
+    "디자인 산출물(.dd)을 anti-slop 원칙으로 감사합니다 — 결정적 검사이며 LLM을 호출하지 않고 아무것도 변경하지 않습니다.",
+  "action.design.materialize.desc": "요구사항을 디자인 산출물(프로토타입 또는 디자인 문서)로 구체화합니다.",
+  "action.design.extract.desc":
+    "웹사이트의 브랜드/디자인 시스템을 구조화된 디자인 토큰(색상, 타이포그래피, 간격, 반경, 그림자, 모션, 로고, 대비 감사)으로 추출하고 브랜드 계약을 .deeporca/DESIGN.md에 저장합니다.",
+  "action.design.drift.desc":
+    "브랜드 드리프트 게이트: 사이트의 라이브 디자인 토큰을 추출해 기준 추출본과 비교합니다. 토큰별 결과와 함께 결정적 0–100 드리프트 점수를 반환합니다 — LLM 미개입.",
+  "action.index.build-all.desc":
+    "한 번의 호출로 전체 워크스페이스 인덱스를 빌드(또는 갱신)합니다 — CodeGraph 심볼 → OpenWiki 문서 → (init 시) arch-scan 아키텍처 맵. 단계별 진행 상황을 스트리밍합니다.",
+  "action.review.run.desc":
+    "커밋되지 않은 워크스페이스 변경(vs HEAD)에 AI 코드 리뷰(Open Code Review / ocr)를 실행합니다. 항목별 경로/라인/제안이 포함된 구조화된 결과를 반환합니다.",
+  "action.review.check-available.desc":
+    "AI 코드 리뷰(Open Code Review / ocr)가 내장되어 사용 가능한지 확인합니다. {available}을 반환합니다. review.run 전에 실행하세요.",
+  "action.review.full.desc":
+    "커밋되지 않은 변경에 대한 전체 코드 리뷰 — 원클릭 조합. ocr AI 시맨틱 리뷰를 실행하고, CRG 위험 그래프가 빌드되어 있으면 각 결과에 구조적 영향 분석을 보강합니다. 통합 {review, risk} 리포트를 반환합니다.",
+  "action.task.create.desc": "다단계 작업을 위한 작업 트리를 만들고 task.step으로 진행 상황을 추적합니다.",
+  "action.task.step.desc": "작업 트리의 활성 브랜치에 완료 또는 예정 단계를 추가합니다.",
+  "action.task.fork.desc": "작업 트리의 현재 헤드에서 새 브랜치를 포크해 병렬로 완전히 다른 접근을 시도합니다.",
+  "action.task.switch.desc": "작업 트리의 활성 브랜치를 전환합니다(이후의 task.step 호출이 해당 브랜치에 기록됨).",
+  "action.task.abandon.desc": "작업 브랜치를 중단으로 표시합니다(보관되어 흐리게 표시, 활성 브랜치는 중단할 수 없음).",
+  "action.task.list.desc": "작업 트리 목록(id, 제목, 활성 브랜치, 브랜치/노드 수)을 표시해 이전 작업을 이어갑니다.",
+  "action.task.merge.desc": "체리픽 병합: 소스 브랜치에서 노드를 골라 트리의 활성 브랜치에 병합합니다.",
+  "action.task.recall.desc":
+    "결정 시점에 현재 상황과 유사한 과거 작업 트리 포크를 회상합니다 — 각 후보는 포크 사유와 해당 브랜치의 결말을 담고 있습니다.",
+  "action.wiki.init.desc":
+    "프로젝트 Wiki(openwiki/)를 생성합니다 — 구조화되고 상호 참조되는 코드베이스 지식 그래프. 첫 실행은 전체 스캔을 수행하며 빌드 출력을 스트리밍합니다.",
+  "action.wiki.update.desc":
+    "프로젝트 Wiki(openwiki/)를 증분 업데이트합니다 — git 변경의 영향을 받는 페이지만 재생성합니다. 자주 실행해도 안전합니다.",
+  "action.wiki.list-pages.desc":
+    "프로젝트 openwiki/ 디렉터리의 Wiki 페이지를 OKF frontmatter 메타데이터와 함께 나열합니다. Wiki가 없으면 []를 반환합니다.",
+  "action.wiki.read-page.desc":
+    "이름으로 Wiki 페이지를 읽습니다(예: 'architecture'). 구조화된 OKF frontmatter + 본문을 반환하며 openwiki/로 제한됩니다.",
   "rail.undo": "실행 취소 / 복원",
   "rail.commands": "명령(⌘K)",
   "rail.tokens": "토큰 사용량",
@@ -606,8 +711,8 @@ export const ko: Record<MessageKey, string> = {
   "design.delete": "삭제",
   "design.deleteConfirm": "이 디자인 산출물을 삭제하시겠습니까? 되돌릴 수 없습니다.",
   "rail.design": "디자이너",
-  "rail.tasktree": "작업 트리",
-  "tasktree.title": "작업 트리",
+  "rail.tasktree": "작업 기록",
+  "tasktree.title": "작업 기록",
   "tasktree.refresh": "새로고침",
   "tasktree.abandoned": "중단됨",
   "tasktree.conflicts": "충돌 {0}건",
@@ -630,8 +735,22 @@ export const ko: Record<MessageKey, string> = {
   "tasktree.confirmAbandon": "브랜치 {branch} 를 중단할까요? 보관되어 표시됩니다.",
   "tasktree.mergedWithConflicts": "{count}건 충돌과 함께 병합됨: {refs} — 수동 해결 필요.",
   "tasktree.empty": "작업 트리가 없습니다. 에이전트가 task.create로 생성합니다.",
-  "tasktree.selectPrompt": "트리를 선택해 브랜치를 보세요.",
+  "tasktree.selectPrompt": "기록을 볼 작업을 선택하세요.",
   "tasktree.active": "활성",
+  "tasktree.history": "브랜치 기록",
+  "tasktree.noHistory": "이 브랜치에는 아직 기록된 단계가 없습니다.",
+  "tasktree.reflog": "작업 로그",
+  "tasktree.reflogEmpty": "기록된 작업이 없습니다.",
+  "tasktree.op.create": "생성",
+  "tasktree.op.fork": "포크",
+  "tasktree.op.switch": "전환",
+  "tasktree.op.append": "추가",
+  "tasktree.op.abandon": "중단",
+  "tasktree.status.planned": "예정",
+  "tasktree.status.running": "진행 중",
+  "tasktree.status.done": "완료",
+  "tasktree.status.abandoned": "중단됨",
+  "tasktree.artifacts": "산출물 ×{count}",
   "index.uninitialized": "인덱싱 안 됨",
   "index.reindex": "인덱스 재설정",
   "index.init": "초기화",

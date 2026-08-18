@@ -1156,6 +1156,10 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     if (!validTreeId(treeId)) return null;
     return service()?.getTree(treeId) ?? null;
   });
+  handle(IpcRequest.TaskTreeReflog, async (treeId: string) => {
+    if (!validTreeId(treeId)) return [];
+    return service()?.readReflog(treeId, 200) ?? [];
+  });
 
   handlePrivileged(IpcRequest.TaskTreeCreate, async (prompt: string, why: string, branchName?: string) => {
     const svc = service();

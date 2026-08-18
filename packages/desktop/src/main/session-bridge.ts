@@ -53,6 +53,7 @@ import type {
   UserPromptContent,
 } from "@deeporca/core";
 import { existsSync, realpathSync } from "node:fs";
+import path from "node:path";
 import { execFile, spawnSync } from "node:child_process";
 import { IpcEvent } from "../shared/ipc.js";
 import type { WorkspaceTrustLevel, WorkspaceTrustStatus } from "../shared/ipc.js";
@@ -312,11 +313,15 @@ export class SessionBridge {
 
   /** Swap to a new project root, disposing the previous SessionManager. */
   setProjectRoot(root: string): void {
-    if (root === this.projectRoot) {
+    // Normalize (relative segments, trailing separators) so the same folder
+    // reached via different entry points doesn't drift into a second spelling
+    // — and with it a second projectCode store — of the same workspace.
+    const next = path.resolve(root);
+    if (next === this.projectRoot) {
       return;
     }
     this.manager.dispose();
-    this.projectRoot = root;
+    this.projectRoot = next;
     this.manager = this.createManager(root);
     // The memory provider is bound per-bridge (not per-manager) so it survives
     // manager recreation. createManager() already re-applies it via

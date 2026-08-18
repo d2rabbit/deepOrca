@@ -92,4 +92,15 @@ export function useI18n(): I18nContextValue {
   return ctx;
 }
 
+/**
+ * Translate a dynamically-built key (e.g. `action.${id}.desc`) with a fallback
+ * for when the catalog has no entry — `t()` returns the raw key when missing,
+ * so callers pass the backend-provided value (action descriptions, category
+ * tokens, …) as the fallback.
+ */
+export function tOr(t: Translate, key: string, fallback: string): string {
+  const value = t(key as MessageKey);
+  return value === key ? fallback : value;
+}
+
 export type { Locale, MessageKey };

@@ -73,8 +73,9 @@
   --ui-shadow-modal: 0 32px 80px rgba(5, 8, 25, 0.7), 0 0 60px rgba(99, 102, 241, 0.08);
 
   /* Geometric typeface — Inter-first, distinct from macOS system font. */
-  --ui-font-sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
-    "Microsoft YaHei", sans-serif;
+  --ui-font-sans:
+    "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei",
+    sans-serif;
   --ui-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -116,6 +117,15 @@
   --ui-shadow-sm: 0 2px 8px rgba(30, 40, 90, 0.1), 0 0 1px rgba(99, 102, 241, 0.15);
   --ui-shadow-card: 0 8px 28px rgba(30, 40, 90, 0.12), 0 2px 8px rgba(30, 40, 90, 0.08);
   --ui-shadow-modal: 0 24px 64px rgba(20, 28, 70, 0.22), 0 0 40px rgba(99, 102, 241, 0.06);
+
+  /* 消息区强调色浅色版 — ui.css 默认的 300/400 淡彩是为深色表面调的,
+     白纸上对比不足,统一换深一档。 */
+  --ui-tool-hue-think: #b45309;
+  --ui-tool-hue-amber: #a16207;
+  --ui-tool-hue-purple: #7c3aed;
+  --ui-tool-hue-indigo: #4f46e5;
+  --ui-tool-hue-sky: #0369a1;
+  --ui-tool-hue-teal: #0f766e;
 }
 
 /* ===========================================================================
@@ -183,16 +193,22 @@
 }
 .ui-btn:hover:not(:disabled) {
   border-color: var(--glass-edge);
-  box-shadow: inset 0 0 16px rgba(99, 132, 255, 0.06), 0 2px 8px rgba(10, 14, 40, 0.3);
+  box-shadow:
+    inset 0 0 16px rgba(99, 132, 255, 0.06),
+    0 2px 8px rgba(10, 14, 40, 0.3);
 }
 
 /* Primary button: gradient fill with a soft outer glow (no gel highlight). */
 .ui-btn--primary {
   border: 1px solid rgba(109, 138, 255, 0.3);
-  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 2px 12px rgba(99, 102, 241, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 .ui-btn--primary:hover:not(:disabled) {
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 20px rgba(99, 102, 241, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
   border-color: rgba(109, 138, 255, 0.5);
 }
 
@@ -210,12 +226,17 @@
 }
 .ui-rail-btn.ui-rail-btn--active {
   border-color: rgba(109, 138, 255, 0.3);
-  box-shadow: inset 0 0 14px rgba(99, 132, 255, 0.08), 0 0 8px rgba(99, 132, 255, 0.1);
+  box-shadow:
+    inset 0 0 14px rgba(99, 132, 255, 0.08),
+    0 0 8px rgba(99, 132, 255, 0.1);
 }
 
 /* ── Cards: hover lifts with colored glow ────────────────────────────────── */
 .ui-card:hover {
-  box-shadow: var(--glass-glow), 0 12px 40px rgba(10, 14, 40, 0.6), 0 0 20px rgba(99, 132, 255, 0.06);
+  box-shadow:
+    var(--glass-glow),
+    0 12px 40px rgba(10, 14, 40, 0.6),
+    0 0 20px rgba(99, 132, 255, 0.06);
   border-color: rgba(109, 138, 255, 0.22);
 }
 
@@ -238,7 +259,9 @@ textarea {
 .ui-select:focus,
 textarea:focus {
   border-color: rgba(109, 138, 255, 0.4);
-  box-shadow: 0 0 0 3px var(--ui-focus-ring), inset 0 0 8px rgba(99, 132, 255, 0.04);
+  box-shadow:
+    0 0 0 3px var(--ui-focus-ring),
+    inset 0 0 8px rgba(99, 132, 255, 0.04);
 }
 
 /* ── Modal: dramatic aurora glow behind ──────────────────────────────────── */
@@ -247,7 +270,9 @@ textarea:focus {
   -webkit-backdrop-filter: blur(8px) brightness(0.7);
 }
 .ui-modal {
-  box-shadow: var(--ui-shadow-modal), 0 0 80px rgba(99, 102, 241, 0.06);
+  box-shadow:
+    var(--ui-shadow-modal),
+    0 0 80px rgba(99, 102, 241, 0.06);
 }
 
 /* ── Focus ring: soft glow instead of hard outline ───────────────────────── */
@@ -267,7 +292,10 @@ textarea:focus {
 }
 .ui-welcome-card:hover {
   border-color: rgba(109, 138, 255, 0.25);
-  box-shadow: var(--glass-glow), 0 8px 24px rgba(10, 14, 40, 0.4), 0 0 16px rgba(99, 132, 255, 0.06);
+  box-shadow:
+    var(--glass-glow),
+    0 8px 24px rgba(10, 14, 40, 0.4),
+    0 0 16px rgba(99, 132, 255, 0.06);
 }
 
 /* ── Scrollbar: slim, tinted ─────────────────────────────────────────────── */

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
 import type { ActionListItem, ActionProgressEvent, ActionRunResult } from "../../shared/ipc";
 import { api } from "../api";
-import { useI18n } from "../i18n";
+import { tOr, useI18n } from "../i18n";
 import { Button } from "../ui/index";
 
 /**
@@ -100,13 +100,15 @@ export function ActionsPanel(): JSX.Element {
                 <code style={{ fontSize: 12 }}>{a.id}</code>
                 {a.category ? (
                   <span className="ui-muted" style={{ fontSize: 10 }}>
-                    {a.category}
+                    {tOr(t, `actions.category.${a.category}`, a.category)}
                   </span>
                 ) : null}
               </div>
               <p className="ui-muted" style={{ fontSize: 11, margin: 0 }}>
-                {a.description.slice(0, 140)}
-                {a.description.length > 140 ? "…" : ""}
+                {(() => {
+                  const desc = tOr(t, `action.${a.id}.desc`, a.description);
+                  return desc.length > 140 ? `${desc.slice(0, 140)}…` : desc;
+                })()}
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Button onClick={() => void run(a.id)} disabled={running !== null}>

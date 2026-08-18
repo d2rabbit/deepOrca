@@ -191,6 +191,27 @@ export const ja: Record<MessageKey, string> = {
   "plugins.builtin.none": "内蔵プラグインはありません。",
   "plugins.builtin.hint": "内蔵プラグインは DeepOrca に同梱されており、アンインストールや無効化はできません。",
   "plugins.builtin.readonly": "内蔵アイテムは変更や削除できません。",
+  "plugins.tag.mcp": "MCP",
+  "plugins.tag.builtin": "内蔵",
+  "plugins.tag.custom": "カスタム",
+  "plugins.tag.skill": "スキル",
+  "plugins.tag.bundled": "同梱",
+  "plugins.tag.local": "ローカル",
+  "plugins.source.bundled": "同梱",
+  "plugins.source.home": "ホーム（~）",
+  "plugins.source.project": "プロジェクト内",
+  "plugins.category.automation": "自動化",
+  "plugins.category.quality": "品質",
+  "plugins.category.documentation": "ドキュメント",
+  "plugins.category.general": "一般",
+  "plugins.category.code": "コード",
+  "plugins.category.design": "デザイン",
+  "plugins.category.knowledge": "ナレッジ",
+  "plugins.category.memory": "メモリ",
+  "plugins.category.meta": "メタスキル",
+  "plugins.category.vision": "ビジョン",
+  "plugins.category.work": "仕事",
+  "plugins.category.other": "その他",
   "builtin.browser-skill.name": "Browser Skill",
   "builtin.browser-skill.desc":
     "Drive the user's real Chromium browser through the bsk CLI — visit pages, fill forms, scrape data, click through flows, regression-test UI.",
@@ -215,6 +236,33 @@ export const ja: Record<MessageKey, string> = {
   "builtin.skill-spector.desc": "Skill/MCP セキュリティスキャン(68 の脆弱性パターン)。",
   "builtin.git-mcp.desc":
     "Ground answers about external GitHub repositories in their docs via a fully local GitMCP server — add a repo in the GitMCP module and its documentation is fetched, indexed locally and served as MCP tools.",
+  "builtin.open-code-review.name": "Open Code Review",
+  "builtin.open-code-review.desc":
+    "ocr CLI（Alibaba Open Code Review）による AI コードレビュー — Git diff を読み取り、行単位の構造化レビューコメントを生成。",
+  "builtin.web-access-strategy.desc":
+    "3 層の Web アクセス振り分け：一般検索 → WebSearch、静的ページ → WebFetch / curl / Jina Reader、ログイン状態の操作 → 実 Chrome を駆動する browser-skill。ドメインごとの経験を蓄積。",
+  "builtin.arch-scan.desc":
+    "視点駆動の再帰的アーキテクチャスキャン — アプリ内で描画されるインタラクティブな A2UI アーキテクチャマップを生成。",
+  "builtin.codegraph-cli.desc":
+    "CodeGraph CLI ドライバー — コード知識グラフの構築とクエリ（init / index / sync / serve、シンボル、呼び出しチェーン）。",
+  "builtin.smart-code-review.desc":
+    "統合コードレビュー — review.full アクションで CRG リスク分析 + OCR セマンティックレビューをワンクリックで編成。",
+  "builtin.deep-design.desc":
+    ".dd（OrcaDesign）形式のデザイングレード Web 成果物 — YAML front-matter + HTML ボディで自己完結し、ホスト外へもそのまま納品可能。",
+  "builtin.pm-designer-openui.desc":
+    "OpenUI Lang による PM 向けプロトタイプ — インタラクティブ UI プロトタイプ用の、コンパクトでストリーミングファーストな言語。",
+  "builtin.taste.desc":
+    "フロントエンドのデザイン品質規律 — レイアウト・タイポグラフィ・間隔・配色・アニメーションのための anti-slop 手法。",
+  "builtin.book-distill.desc":
+    "書籍・マニュアル・長文ドキュメントを再利用可能な Agent Skill（SKILL.md + references/）へ蒸留 — チェックリスト、ワークフロー、落とし穴をまとめて凝縮。",
+  "builtin.openwiki.desc":
+    "openwiki CLI でプロジェクト単位の Wiki ナレッジグラフ（openwiki/）を生成・維持 — 構造化され相互参照されたドキュメント。",
+  "builtin.wiki-qa.desc":
+    "OpenWiki ナレッジベースにクエリして、プロジェクトのアーキテクチャ・モジュール・ワークフローに関する質問に回答。",
+  "builtin.a2ui-annotation.desc":
+    "エージェントとユーザー間の構造化インタラクションチャネル — render_surface 経由で、成果物への能動的な質問と注釈型フィードバックカードを提示。",
+  "builtin.bento-slides.desc":
+    "自己完結型の .bento.html ファイルとしてプレゼンテーションを生成 — 純 JSON を入力すると、1 つのファイルがエディタ + ビューア + プレゼンターを兼ねる。",
   "plugins.group.skills": "skills",
   "plugins.group.mcp": "MCP",
   "plugins.group.plugins": "plugins",
@@ -243,6 +291,8 @@ export const ja: Record<MessageKey, string> = {
   "builtin-plugin.browser.desc": "Chrome 操作 + Web 検索 + アクセス戦略。",
   "builtin-plugin.other.name": "その他",
   "builtin-plugin.other.desc": "プラグインタグループに割り当てられていない組み込み項目。",
+  "builtin-plugin.vision.name": "ビジョン",
+  "builtin-plugin.vision.desc": "テキストのみの LLM に画像理解を追加（無効化可能）。",
   "context.compaction": "コンテキスト",
   "context.compacting": "圧縮中…",
 
@@ -422,6 +472,66 @@ export const ja: Record<MessageKey, string> = {
   "actions.empty": "No project open.",
   "actions.run": "Run",
   "actions.running": "Running…",
+  "actions.category.index": "インデックス",
+  "actions.category.review": "レビュー",
+  "actions.category.browser": "ブラウザ",
+  "actions.category.work": "仕事",
+  "actions.category.tasks": "タスク",
+  "actions.category.system": "システム",
+  "actions.category.design": "デザイン",
+  "action.system.ping.desc":
+    "ごく簡単なヘルスチェックアクション。名前をエコーして pong を返し、アクションパイプラインをエンドツーエンドで検証。",
+  "action.arch-scan.run.desc":
+    "コードベースのアーキテクチャをスキャンし、インタラクティブなアーキテクチャマップを生成（視点駆動：全体 / データフロー / 依存関係）。エージェント駆動で、CodeGraph（シンボル）や OpenWiki（ドキュメント）と補完し合うアーキテクチャレベルのインデックス。",
+  "action.bento.create.desc": "構造化スライド spec から自己完結型の Bento プレゼンテーション（.bento.html）を生成。",
+  "action.browser.session-start.desc":
+    "BrowserSkill のブラウザセッションを開始。以降のコマンドで使うセッション ID を返す。",
+  "action.browser.command.desc":
+    "アクティブなセッションで BrowserSkill コマンド（navigate、snapshot、click、fill、evaluate など）を実行。",
+  "action.browser.session-stop.desc": "BrowserSkill のブラウザセッションを停止し、ブラウザを解放。",
+  "action.codegraph.reindex.desc":
+    "CodeGraph シンボルインデックス（.codegraph/）を構築（または再構築）— シンボル / 呼び出し元 / 呼び出し先 / 影響範囲クエリのナビゲーション・検索レイヤー。Node 22.5+ が必要。コードナビゲーションのクエリ前に実行。",
+  "action.codegraph.list.desc":
+    "現在のプロジェクトの CodeGraph インデックス状態を報告：{root, label, initialized}。initialized=false は .codegraph/ が存在しないことを意味します（codegraph.reindex を実行）。",
+  "action.crg.reindex.desc":
+    "コードレビューグラフ（CRG）を構築（または再構築）— リスク / 影響範囲 / アーキテクチャクエリのための分析レイヤーの知識グラフ。uv と同梱の CRG wheel が必要。",
+  "action.crg.visualize.desc": "コードレビューグラフを D3.js の HTML ページとして描画。",
+  "action.design.audit.desc":
+    "デザイン成果物（.dd）を anti-slop 規律で監査 — 決定論的なチェックで LLM を使わず、何も変更しない。",
+  "action.design.materialize.desc": "要件をデザイン成果物（プロトタイプまたはデザインドキュメント）へ具現化。",
+  "action.design.extract.desc":
+    "ウェブサイトのブランド / デザインシステムを構造化デザイントークン（色、タイポグラフィ、間隔、角丸、影、モーション、ロゴ、コントラスト監査）として抽出し、ブランド契約を .deeporca/DESIGN.md に保存。",
+  "action.design.drift.desc":
+    "ブランドドリフトゲート：サイトのライブデザイントークンを抽出し、ベースライン抽出と比較。LLM を使わず、トークンごとの所見とともに決定論的な 0〜100 のドリフトスコアを返す。",
+  "action.index.build-all.desc":
+    "ワークスペース全体のインデックスを 1 回の呼び出しで構築（または更新）— CodeGraph シンボル → OpenWiki ドキュメント →（init 時）arch-scan アーキテクチャ図。段階ごとの進捗をストリーミング。",
+  "action.review.run.desc":
+    "未コミットのワークスペース変更（HEAD 比）に AI コードレビュー（Open Code Review / ocr）を実行。項目ごとにパス / 行番号 / 提案つきの構造化所見を返す。",
+  "action.review.check-available.desc":
+    "AI コードレビュー（Open Code Review / ocr）が同梱され利用可能か確認。{available} を返す。review.run の前に実行。",
+  "action.review.full.desc":
+    "未コミット変更のフルレビュー — ワンクリックの複合アクション。ocr による AI セマンティックレビューを実行し、CRG リスクグラフ構築済みなら各所見に構造的影響を補強。統合された {review, risk} レポートを返す。",
+  "action.task.create.desc": "複数ステップの作業用にタスクツリーを作成し、task.step で進捗を追跡。",
+  "action.task.step.desc": "タスクツリーのアクティブブランチに、完了済みまたは計画中のステップを追加。",
+  "action.task.fork.desc":
+    "タスクツリーの現在のヘッドから新しいブランチをフォークし、本当に別のアプローチを並行して試す。",
+  "action.task.switch.desc": "タスクツリーのアクティブブランチを切替（以降の task.step はそのブランチに記録）。",
+  "action.task.abandon.desc":
+    "タスクブランチを断念済みとしてマーク（アーカイブされ、グレーアウトしたまま表示。アクティブブランチは断念不可）。",
+  "action.task.list.desc":
+    "タスクツリーを一覧表示（id、タイトル、アクティブブランチ、ブランチ / ノード数）して、前の作業を引き継ぐ。",
+  "action.task.merge.desc":
+    "チェリーピックマージ：ソースブランチからノードを選び、ツリーのアクティブブランチへマージ。",
+  "action.task.recall.desc":
+    "意思決定ポイントで、現在の状況に似た過去のタスクツリーフォークを回想 — 各候補にはフォークの理由とそのブランチの結末が付く。",
+  "action.wiki.init.desc":
+    "プロジェクト Wiki（openwiki/）を生成 — コードベースの構造化され相互参照されたナレッジグラフ。初回実行はフルスキャンで、ビルド出力をストリーミング。",
+  "action.wiki.update.desc":
+    "プロジェクト Wiki（openwiki/）を差分更新 — git 変更の影響するページのみ再生成。頻繁に実行しても安全。",
+  "action.wiki.list-pages.desc":
+    "プロジェクトの openwiki/ ディレクトリ内の Wiki ページを OKF frontmatter メタデータつきで一覧表示。Wiki が存在しない場合は [] を返す。",
+  "action.wiki.read-page.desc":
+    "名前で Wiki ページを読み取る（例：'architecture'）。構造化された OKF frontmatter + 本文を返す。openwiki/ 内に限定。",
   "rail.undo": "元に戻す / 復元",
   "rail.commands": "コマンド（⌘K）",
   "rail.tokens": "トークン使用量",
@@ -608,8 +718,8 @@ export const ja: Record<MessageKey, string> = {
   "design.delete": "削除",
   "design.deleteConfirm": "このデザイン成果物を削除しますか？元に戻せません。",
   "rail.design": "デザイナー",
-  "rail.tasktree": "タスクツリー",
-  "tasktree.title": "タスクツリー",
+  "rail.tasktree": "タスク履歴",
+  "tasktree.title": "タスク履歴",
   "tasktree.refresh": "更新",
   "tasktree.abandoned": "放棄",
   "tasktree.conflicts": "{count} 件の競合",
@@ -632,8 +742,22 @@ export const ja: Record<MessageKey, string> = {
   "tasktree.confirmAbandon": "ブランチ「{branch}」を放棄しますか？アーカイブされ表示は残ります。",
   "tasktree.mergedWithConflicts": "{count} 件の競合でマージ済み：{refs}——手動で解決してください。",
   "tasktree.empty": "タスクツリーはまだありません。agent が task.create で作成します。",
-  "tasktree.selectPrompt": "ツリーを選択してブランチを表示。",
+  "tasktree.selectPrompt": "履歴を見るタスクを選択してください。",
   "tasktree.active": "アクティブ",
+  "tasktree.history": "ブランチ履歴",
+  "tasktree.noHistory": "このブランチにはまだステップが記録されていません。",
+  "tasktree.reflog": "操作ログ",
+  "tasktree.reflogEmpty": "操作記録はまだありません。",
+  "tasktree.op.create": "作成",
+  "tasktree.op.fork": "フォーク",
+  "tasktree.op.switch": "切替",
+  "tasktree.op.append": "追加",
+  "tasktree.op.abandon": "断念",
+  "tasktree.status.planned": "計画済み",
+  "tasktree.status.running": "実行中",
+  "tasktree.status.done": "完了",
+  "tasktree.status.abandoned": "断念済み",
+  "tasktree.artifacts": "成果物 ×{count}",
   "index.uninitialized": "未インデックス",
   "index.reindex": "インデックスを再構築",
   "index.init": "初期化",

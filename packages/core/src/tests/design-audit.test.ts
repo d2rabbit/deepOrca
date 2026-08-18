@@ -27,6 +27,11 @@ function makeRoot(): string {
 }
 
 function writeDd(root: string, name: string, frontmatter: string, html = ""): string {
+  // Fixture names are bare file names supplied inline below; refuse anything
+  // that carries path segments so the join can never traverse out of the root.
+  if (name !== path.basename(name)) {
+    throw new Error(`fixture name must be a bare file name: ${name}`);
+  }
   const dir = path.join(root, ".deeporca", "designs");
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, name.endsWith(".dd") ? name : `${name}.dd`);
