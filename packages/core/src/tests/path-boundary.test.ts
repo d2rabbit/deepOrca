@@ -27,14 +27,27 @@ function createWorkspace(): string {
 }
 
 /**
- * Cross-platform link fixture. Windows without SeCreateSymbolicLinkPrivilege
- * (non-admin, no Developer Mode) refuses fs.symlinkSync with EPERM; junctions
- * need no privilege and behave identically for everything the gate inspects
- * (lstat().isSymbolicLink(), readlinkSync, realpathSync), so win32 links are
- * created as junctions. Junction targets must be absolute — all fixtures are.
+ * Cross-platform link fixture, capability-probed: create a native symlink
+ * first; only when Windows refuses for lack of SeCreateSymbolicLinkPrivilege
+ * (non-admin, no Developer Mode → EPERM) fall back to a junction, which needs
+ * no privilege and behaves identically for everything the gate inspects
+ * (lstat().isSymbolicLink(), readlinkSync, realpathSync). Privileged Windows
+ * and all POSIX systems therefore exercise REAL symlinks; junctions are used
+ * exactly where they are the only option. Junction targets must be absolute —
+ * all fixtures are.
  */
 function createLink(target: string, dest: string): void {
-  fs.symlinkSync(target, dest, process.platform === "win32" ? "junction" : undefined);
+  try {
+    fs.symlinkSync(target, dest);
+    return;
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (process.platform === "win32" && e.code === "EPERM" && path.isAbsolute(target)) {
+      fs.symlinkSync(target, dest, "junction");
+      return;
+    }
+    throw err;
+  }
 }
 
 afterEach(() => {

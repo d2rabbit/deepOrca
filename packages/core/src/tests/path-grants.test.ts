@@ -29,11 +29,21 @@ function createWorkspace(): string {
 }
 
 /**
- * Cross-platform link fixture — see path-boundary.test.ts: win32 without
- * symlink privilege creates junctions (lstat/readlink/realpath-compatible).
+ * Cross-platform link fixture, capability-probed — see path-boundary.test.ts:
+ * native symlink first, EPERM on unprivileged Windows falls back to junction.
  */
 function createLink(target: string, dest: string): void {
-  fs.symlinkSync(target, dest, process.platform === "win32" ? "junction" : undefined);
+  try {
+    fs.symlinkSync(target, dest);
+    return;
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (process.platform === "win32" && e.code === "EPERM" && path.isAbsolute(target)) {
+      fs.symlinkSync(target, dest, "junction");
+      return;
+    }
+    throw err;
+  }
 }
 
 afterEach(() => {
