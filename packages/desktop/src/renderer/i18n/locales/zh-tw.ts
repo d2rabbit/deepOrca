@@ -695,7 +695,7 @@ export const zhTW: Record<MessageKey, string> = {
   "design.filter.documents": "設計稿",
   "design.delete": "刪除",
   "design.deleteConfirm": "刪除此設計產物？此操作無法復原。",
-  "design.exportHtml": "匯出為獨立 HTML",
+  "design.exportPackage": "匯出設計包（.ddp / .ddu）",
   "design.exported": "已匯出：{path}",
   "design.exportFailed": "匯出失敗：{error}",
   "rail.design": "設計",

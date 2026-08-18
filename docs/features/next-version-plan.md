@@ -64,7 +64,7 @@
 | 项 | 2026-08-18 状态 | 下一版处置 |
 | --- | --- | --- |
 | 设置面板路径授权可见/可撤销 | 未做（tasks.md:164 已登记缺口） | **建议做**（约 0.5 天，安全可见性） |
-| pm-design-v2 独立 HTML 导出 | **已实现（2026-08-18 收尾批）** | 收尾批完成，不再进下一版窗口；React 代码导出不做、版本切换 UI 不做（已拍板） |
+| pm-design-v2 独立导出（.ddp/.ddu 压缩包） | **已实现（2026-08-18 收尾批 + 同日格式拍板）** | 收尾批完成，不再进下一版窗口；React 代码导出不做、版本切换 UI 不做（已拍板） |
 | 沙箱 Linux bwrap / Windows WSL2 后端 | 未实现，detect 诚实降级在位 | **建议不做**（现有纵深已覆盖威胁模型；AppArmor/userns 雷区 + WSL2 要求装 distro，收益窄） |
 | graph-engineering 收编 bundled skill | 未做 | **建议关闭**（与 code 插件组能力重叠；冻结期新增 bundled skill 需过 i18n/manifest/eval 全链） |
 | G3 大技能分片召回 | **已实现（2026-08-18 收尾批）** | `skill-sharding` + `SkillShardRecaller` + session 接线，fail-open 全文回退；不再进下一版窗口 |

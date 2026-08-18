@@ -9,13 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新功能（2026-08-18 指定收尾批）
 
-- **`.dd` 独立 HTML 导出**（specs/pm-design-v2 P4-1）：DesignPanel 产物行新增 ⬇ 按钮 → `design:exportHtml` 特权通道 → main 侧复用纯函数 `parseDdFile`/`compileDdToHtml`（渲染目录的 parser/compiler 为零依赖纯逻辑，安全并入 main bundle）+ vendored Tailwind JIT 内联 → 原生保存对话框写单文件 HTML；取消为安静 no-op；i18n 六语言。React 代码导出与版本切换 UI 维持不做（已拍板）。
+- **独立导出：`.ddp` / `.ddu` 专用压缩包**（specs/pm-design-v2 P4-1，2026-08-18 格式拍板）：pm-design 原型导出 `.ddp`、ui-design 文档导出 `.ddu`——均为特殊 ZIP 包（manifest.json + 源文件 + index.html）。`.ddu` 的 index.html 是可独立打开的编译渲染（main 复用纯函数 `parseDdFile`/`compileDdToHtml` + vendored Tailwind JIT 内联）；`.ddp` 携 OpenUI 源码 + 查看器兜底页（OpenUI 仅在应用内 React 运行时渲染）。零依赖 ZIP 写入器 `main/tools/dd-package.ts`（node:zlib deflate + 手写 CRC32/zip 结构，不可压缩数据 store 兜底），系统 unzip 交叉验证通过；DesignPanel 双管线 ⬇ 按钮 → `design:exportPackage` 特权通道 → 原生保存对话框；i18n 六语言。React 代码导出与版本切换 UI 维持不做（已拍板）。
 - **G3 大技能分片召回注入**（specs/skill-routing 目标表）：SKILL.md ≥6000 字符时按标题分片（`skill-sharding`：索引/超长段行边界硬切、单行超长保持完整），注入形态 = header + 全量小节索引 + 按当前用户提示召回的 top-4 小节（`SkillShardRecaller` 复用 VectorIndex 内容哈希缓存）+ 未召回小节索取指引；小技能与一切失败路径 fail-open 回退全文（routing 铁律）；`RoutingConfig.skillSharding/shardMinChars/shardTopK` 三新配置键。
 - **task-tree artifact 快照切换**（specs/task-tree P2，file-history 复用）：tree 级独立 history 仓库（`<treeDir>/file-history`，分支名派生 ref——与会话级 file-history 语义冲突的解法即两套仓库）；`appendStep`/`merge` 自动 checkpoint 可解析产物文件（ref 须在根内且存在才纳入，LLM 输入不可信）并 stamp `meta.snapshot`；面板时间线 ⏪ 显式恢复（确认后 `tasktree:snapshotRestore` 特权通道）；`switchBranch` 出向 tracked-files 安全 checkpoint + 入向最近快照恢复，兑现"branch 切换 = 文件快照切换"——全程 fail-open 不影响上下文切换。
 
 ### 📋 规划与文档
 
-- **指定收尾批拍板**（2026-08-18，台账 `docs/spec-open-items-status.md` §〇）：F4 交互清单走查与 H0-H4 预生产切换确认为收尾批核心/出口项；pm-design-v2 独立 HTML 导出拍板"做"；skill-routing G3 分片召回注入与 task-tree artifact 快照切换推翻缓期/缓做、纳入收尾批实施（已同步回各 spec 状态行与 next-version-plan）；域声明 **deep-design = pm-design + ui-design**。同日建立 specs 未收尾项活台账（19 spec 逐项确认，本阶段待收 10 项）。
+- **指定收尾批拍板**（2026-08-18，台账 `docs/spec-open-items-status.md` §〇）：F4 交互清单走查与 H0-H4 预生产切换确认为收尾批核心/出口项；pm-design-v2 独立导出拍板"做"（同日格式定论为 `.ddp`/`.ddu` 专用压缩包，见上方新功能条）；skill-routing G3 分片召回注入与 task-tree artifact 快照切换推翻缓期/缓做、纳入收尾批实施（已同步回各 spec 状态行与 next-version-plan）；域声明 **deep-design = pm-design + ui-design**。同日建立 specs 未收尾项活台账（19 spec 逐项确认，本阶段待收 10 项）。
 - **下一版本规划确立**（`docs/features/next-version-plan.md`，2026-08-18）：三主线——自进化引擎（E1 执行捕获/E2 改进回路，OpenSpace 闭环缺口）+ action→Studio 基座超大版本（B1 冷插拔/B2 热激活，module-system v2 落地起点）+ 远程访问（M1–M3 含 MCP HTTP transport）；强化清单按终判逐项处置（路径授权可见/可撤销建议做、pm-design 独立 HTML 导出可做、bwrap/WSL2 与 graph-engineering 建议不做/关闭、G3 分片缓做）；前置阻塞 = 本版本 F4 交互清单/H 预生产切换。
 - **文档体系治理**（同日）：docs/README.md 导航与权威层级；specs/ 三层齐备（规划 spec 补 tasks.md 指引）；9 个 spec 状态行终判回写；docs/audit-archive/ 归档 6 份已兑现审计记录；superpowers 历史产物收进 research/archive。
 

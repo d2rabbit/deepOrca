@@ -1,6 +1,6 @@
 # PM-Design V2：需求具现化工作台
 
-> **状态**：**部分实现（2026-08-18 终判回写；同日拍板更新）**——已实现：design-store 持久化（两管线 + 版本快照 FIFO 20 版）+ design.materialize Action + DesignPanel（一键具现化）+ P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + 预览联动 + 渲染错误纠正回路）。未做：版本切换 UI（快照在磁盘，已拍不做）、P4 独立导出（仅 iframe 打印 PDF；独立 HTML 导出已实现（2026-08-18 收尾批：DesignPanel ⬇ 按钮 → `design:exportHtml` 特权通道 → compileDdToHtml + vendored Tailwind 内联 → 原生保存对话框；React 代码导出不做）；明确偏差：管线集合为 2（A2UI 交互层按三层定位排除）、pm-analyst/analysis.json 显式缓期。任务明细见 tasks.md（已回写）。
+> **状态**：**部分实现（2026-08-18 终判回写；同日拍板更新）**——已实现：design-store 持久化（两管线 + 版本快照 FIFO 20 版）+ design.materialize Action + DesignPanel（一键具现化）+ P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + 预览联动 + 渲染错误纠正回路）。未做：版本切换 UI（快照在磁盘，已拍不做）、React 代码导出（已拍不做）；**P4 独立导出已实现（2026-08-18 收尾批 + 同日格式拍板）：`.ddp`（pm-design 原型）/`.ddu`（ui-design 文档）特殊 ZIP 压缩包**——DesignPanel ⬇ 按钮 → `design:exportPackage` 特权通道 → 零依赖 zip 写入器（`main/tools/dd-package.ts`）→ manifest+源文件+index.html（.ddu 含可独立打开的编译渲染）→ 原生保存对话框；明确偏差：管线集合为 2（A2UI 交互层按三层定位排除）、pm-analyst/analysis.json 显式缓期。任务明细见 tasks.md（已回写）。
 > **日期**：2026-08-11
 > **前置**：[A2UI 集成](../a2ui-integration/design.md) · [DeepDesign .dd 格式](../deep-design/design.md)
 > **受众**：产品经理（PM）—— 不需要懂代码，用自然语言驱动从需求到原型的全流程
@@ -523,9 +523,9 @@ A2UI 已有 `.deeporca/prototypes/<surfaceId>.json`（用于会话恢复）。V2
 
 | 任务 | 交付 |
 | --- | --- |
-| .dd → 独立 HTML 文件导出 | `compileDdToHtml()` 已有，增加"另存为" |
-| A2UI → React 代码导出 | Surface JSON → React 组件代码转换器 |
-| OpenUI → React 代码导出 | OpenUI Lang → 标准 React（SDK 已有能力） |
+| **独立导出（已实现，2026-08-18）** | `.ddp`（pm-design 原型）/`.ddu`（ui-design 文档）特殊 ZIP 压缩包：manifest.json + 源文件 + index.html（.ddu 为可独立打开的编译渲染，`.ddp` 为查看器兜底页）——`main/tools/dd-package.ts` 零依赖 zip 写入器 |
+| ~~A2UI → React 代码导出~~ | 已拍不做 |
+| ~~OpenUI → React 代码导出~~ | 已拍不做 |
 
 **交付价值**：设计产物可脱离 DeepOrca 交付给开发团队。
 

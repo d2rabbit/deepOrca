@@ -710,7 +710,7 @@ export const ko: Record<MessageKey, string> = {
   "design.filter.documents": "문서",
   "design.delete": "삭제",
   "design.deleteConfirm": "이 디자인 산출물을 삭제하시겠습니까? 되돌릴 수 없습니다.",
-  "design.exportHtml": "단독 HTML로 내보내기",
+  "design.exportPackage": "패키지 내보내기(.ddp / .ddu)",
   "design.exported": "내보냈습니다: {path}",
   "design.exportFailed": "내보내기 실패: {error}",
   "rail.design": "디자이너",

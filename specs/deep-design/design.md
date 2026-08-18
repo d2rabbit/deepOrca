@@ -2,6 +2,7 @@
 
 > 状态：**已实现（2026-08-18 终判回写）** · 日期：2026-07-29
 > 域声明（2026-08-18 拍板）：**deep-design = pm-design + ui-design**——deep-design 域为 pm-design（PM-Design V2 需求具现化工作台，`specs/pm-design-v2/design.md`）与 ui-design 的合并域。
+> 导出格式（2026-08-18 拍板）：域内产物以专用压缩包交付——**pm-design 原型 → `.ddp`、ui-design 文档 → `.ddu`**，均为特殊 ZIP 包（manifest.json + 源文件 + index.html），实现见 `specs/pm-design-v2/tasks.md` P4-1 与 `packages/desktop/src/main/tools/dd-package.ts`。
 > 落地事实：核心闭环全落地且演进超本稿——设计系统预设 3→9 套（tokens 化 DESIGN.md + 对比度脚本核验）、产物演进为 `.dd` OrcaDesign 文档（YAML front-matter + HTML body + section markers，本地 vendored Tailwind JIT 离线编译）、webview 改 iframe srcDoc 渲染 + 内联迭代 composer（update_design 工具，section delta + 版本快照 FIFO 20 版）；技能本体 `packages/core/templates/plugins/design/skills/deep-design/` + 面板 DesignPanel/DesignPreview。正向偏差注记见 `docs/pre-production-spec-final-audit.md`。
 > 定位：DeepOrca 的内置设计能力，复刻并超越 Claude Design / OpenDesign 的核心闭环，
 > 但**不引入外部 daemon**（Express+SQLite+Node24），全部复用 DeepOrca 已有的 Electron + Agent 基础设施。

@@ -156,7 +156,7 @@ export const IpcRequest = {
   DesignDelete: "design:delete",
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
-  DesignExportHtml: "design:exportHtml",
+  DesignExportPackage: "design:exportPackage",
 
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
@@ -823,11 +823,13 @@ export type DesktopApi = {
   /** Read the persisted form state for hydration; null when none. */
   designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
   /**
-   * Export an artifact as a standalone HTML file (P4-1): main compiles the
-   * `.dd` (tokens + seed CSS + inlined Tailwind JIT), shows a native save
-   * dialog and writes the file. `ok:false` without `error` = user canceled.
+   * Export an artifact as a `.ddp` / `.ddu` package (P4-1 format decision
+   * 2026-08-18): special ZIP archives — pm-design prototypes → `.ddp`
+   * (manifest + OpenUI source + viewer stub), ui-design documents → `.ddu`
+   * (manifest + `.dd` source + standalone compiled HTML). Native save dialog;
+   * `ok:false` without `error` = user canceled.
    */
-  designExportHtml(id: string): Promise<{ ok: boolean; path?: string; error?: string }>;
+  designExportPackage(id: string): Promise<{ ok: boolean; path?: string; error?: string }>;
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */

@@ -12,7 +12,7 @@
 
 1. **F4 真机烟雾完整交互清单**：确认收尾批核心项（§一 #1 维持）。
 2. **H0-H4 预生产切换**：确认收尾批出口项（§一 #2 维持）。
-3. **pm-design-v2 独立 HTML 导出**（`.dd` → 单文件 HTML）：拍板**做**——原 §二"建议做"落定，升入 §一 #8；**同日收尾批已完成**。
+3. **pm-design-v2 独立导出**：拍板**做**——原 §二"建议做"落定，升入 §一 #8；**同日收尾批已完成，并随后升级格式拍板为 `.ddp`（pm-design 原型）/`.ddu`（ui-design 文档）专用 ZIP 压缩包**（manifest + 源文件 + index.html，`.ddu` 含可独立打开的编译渲染）。
 4. **skill-routing 目标表 G3 大技能分片召回注入**：拍板**纳入收尾批实施**——推翻此前"建议缓做"评估（缓做理由 book-distill ≤300 行缓解论不再作为延后依据），升入 §一 #9；**同日收尾批已完成**。
 5. **task-tree artifact 快照切换**（tasks.md:35）：拍板**纳入收尾批实施**——推翻原"待真实需求再立项"缓期（file-history per-session 语义冲突作为实施时须解决的约束而非缓期理由——解法=tree 级独立仓库），升入 §一 #10；**同日收尾批已完成**。
 6. **域声明**：**deep-design = pm-design + ui-design**——deep-design 域为 pm-design 与 ui-design 的合并域（已同步至 `specs/deep-design/design.md` 状态行与 §六速览）。
@@ -32,7 +32,7 @@
 | 5   | **B3 book-distill 端到端演练一次**                                                                                                                        | pre-production（tasks.md:24）         | 🟡    | 选一本自有文档蒸馏 → 验证 G1 短名单能召回；需真实 LLM 会话                                                                                                                                                                       |
 | 6   | **gitmcp 任务 12 手测清单**                                                                                                                               | gitmcp-local-module（tasks.md:75）    | 🟡    | `desktop:start` 下：添加合法/非法/重复 → 启停/重建/删除 → MCP 页签权限 → 会话内 AI 调用 search_documentation → 断网检索                                                                                                          |
 | 7   | **外部 MCP server 实机验证**                                                                                                                              | mcp-sdk-migration（design.md §8-3）   | 🟡    | dart/serena/expo 的 listTools + callTool 待 GUI 人工验证（subagent 无桌面访问，spec 已如实记载）                                                                                                                                 |
-| 8   | ~~独立 HTML 导出（`.dd` → 单文件 HTML）~~ **✅ 已收尾（2026-08-18 收尾批）**                                                                              | pm-design-v2（tasks.md:154）          | ✅    | DesignPanel ⬇ 按钮 → `design:exportHtml` 特权通道 → `compileDdToHtml` + vendored Tailwind 内联 → 原生保存对话框写文件；React 导出/版本切换 UI 维持不做                                                                           |
+| 8   | ~~独立导出（`.ddp`/`.ddu` 专用 ZIP 压缩包）~~ **✅ 已收尾（2026-08-18 收尾批 + 格式拍板）**                                                                              | pm-design-v2（tasks.md:154）          | ✅    | DesignPanel 双管线 ⬇ 按钮 → `design:exportPackage` 特权通道 → 零依赖 zip 写入器（dd-package.ts）→ `.ddp`/`.ddu`（manifest+源文件+index.html）→ 原生保存对话框；React 导出/版本切换 UI 维持不做                                                                           |
 | 9   | ~~G3 大技能分片召回注入~~ **✅ 已收尾（2026-08-18 收尾批）**                                                                                              | skill-routing（design.md §一 目标表） | ✅    | `skill-sharding`（标题分片/索引/行边界硬切）+ `SkillShardRecaller`（VectorIndex 召回+缓存）+ session 接线（大技能注入 header+索引+top-K 小节）；fail-open 全文回退；9 用例测试在树                                               |
 | 10  | ~~artifact 快照切换（file-history 复用）~~ **✅ 已收尾（2026-08-18 收尾批）**                                                                             | task-tree（tasks.md:35）              | ✅    | tree 级 file-history 仓库（`<treeDir>/file-history`，ref 冲突解法=独立仓库）：appendStep/merge 自动快照 + `meta.snapshot` stamp、面板 ⏪ 显式恢复、switchBranch 出向安全 checkpoint+入向快照恢复（全 fail-open）；4 用例测试在树 |
 
@@ -81,7 +81,7 @@
 | harmonyos-dev-kit   | ❌ 废弃（下线）                     | §五                                                                                    |
 | mcp-sdk-migration   | ✅ 已完成                           | §8-3 实机验证 → §一 #7                                                                 |
 | module-system       | ⬜ 规划性（全 0 代码）              | §四（下一版主线 B）                                                                    |
-| pm-design-v2        | 🟡 主体落地                         | 独立 HTML 导出 → §一 #8（📌 拍板做）；其余未做项 → §三；**tasks 复选框回写债 → §七**   |
+| pm-design-v2        | 🟡 主体落地                         | 独立导出（.ddp/.ddu 包）→ §一 #8 ✅ 收尾批完成；其余未做项 → §三；**tasks 复选框回写债 → §七** |
 | pre-production      | 🟡 收尾中                           | F4/H0-H4/B3 → §一 #1/#2/#5                                                             |
 | sandbox             | 🟡 主体全落地                       | 能力矩阵 → §一 #3；路径授权 UI/bwrap/WSL2 → §二                                        |
 | skill-eval          | 🟡 S1/S2 落地                       | T2.3 对拍 + CI 首跑 → §一 #4                                                           |
@@ -91,7 +91,7 @@
 
 ## 七、本次确认新发现的文档债
 
-1. **specs/pm-design-v2/tasks.md 复选框未回写**（skill-eval 同类问题第二处，F5 只修了 design.md 状态行）：DesignPanel/design.ts/design-store（含 versions[] FIFO 20 快照）/Design IPC 五通道（list/read/delete/saveFormState/readFormState）/`rail.design` i18n/roadmap §六 条目等**已实现项仍为 `- [ ]`**（代码逐一验证在树）。真正未做的只有 5 处：版本切换 UI（tasks.md:139，已拍不做）、独立 HTML 导出（:154，**已拍板做 → §一 #8**）、A2UI→React（:161，已拍不做）、OpenUI→React（:167，已拍不做）、pm-analyst skill 创建+注入点验证（:45-46/:66-67，缓期）。应按 skill-eval 先例（`fbcf8e8d`）回写勾选并在未做项上标注终态。
+1. **specs/pm-design-v2/tasks.md 复选框未回写**（skill-eval 同类问题第二处，F5 只修了 design.md 状态行）：DesignPanel/design.ts/design-store（含 versions[] FIFO 20 快照）/Design IPC 五通道（list/read/delete/saveFormState/readFormState）/`rail.design` i18n/roadmap §六 条目等**已实现项仍为 `- [ ]`**（代码逐一验证在树）。真正未做的只有 5 处：版本切换 UI（tasks.md:139，已拍不做）、独立导出（:154，**已实现 → §一 #8，格式为 .ddp/.ddu 压缩包**）、A2UI→React（:161，已拍不做）、OpenUI→React（:167，已拍不做）、pm-analyst skill 创建+注入点验证（:45-46/:66-67，缓期）。应按 skill-eval 先例（`fbcf8e8d`）回写勾选并在未做项上标注终态。
 2. 其余无新债——skill-eval/text-embedding/builtin-inventory/pm-design 状态行四项 F5 文档债已于 `fbcf8e8d` 清偿完毕。
 
 ---

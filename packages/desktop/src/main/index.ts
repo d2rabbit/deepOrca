@@ -81,11 +81,12 @@ import {
   readFormState,
   type DesignPipeline,
 } from "./tools/design-store.js";
-// Dependency-free renderer modules reused by the main-process HTML export
+// Dependency-free renderer modules reused by the main-process `.ddu` export
 // (P4-1): parsing/compiling is pure string logic with no browser API touch,
 // so bundling them into main.js is safe.
 import { parseDdFile } from "../renderer/dd/parser.js";
 import { compileDdToHtml } from "../renderer/dd/compiler.js";
+import { buildDdpPackage, buildDduPackage } from "./tools/dd-package.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -1226,33 +1227,44 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return deleteDesignArtifact(getBridge().projectRoot, id);
   });
 
-  // P4-1 standalone HTML export (specs/pm-design-v2): compile the `.dd` in the
-  // MAIN process (parser/compiler are dependency-free renderer modules — pure
-  // logic, bundled in like any other import) with the vendored Tailwind JIT
-  // inlined so the exported file renders utility classes offline. Privileged:
-  // opens a native save dialog and writes an arbitrary user-chosen path.
-  handlePrivileged(IpcRequest.DesignExportHtml, async (id: string) => {
+  // P4-1 package export (specs/pm-design-v2, format decision 2026-08-18):
+  // pm-design (openui) → `.ddp`, ui-design (`.dd`) → `.ddu` — both special ZIP
+  // archives (zero-dependency writer in main/tools/dd-package.ts). The `.ddu`
+  // embeds a STANDALONE compiled render (parser/compiler are dependency-free
+  // renderer modules bundled into main; vendored Tailwind JIT inlined). The
+  // `.ddp` carries the OpenUI source + a viewer stub (OpenUI renders via the
+  // in-app React runtime — no standalone compiler exists). Privileged: native
+  // save dialog writing an arbitrary user-chosen path.
+  handlePrivileged(IpcRequest.DesignExportPackage, async (id: string) => {
     if (!mainWindow) return { ok: false, error: "no window" };
     const artifact = readDesignArtifact(getBridge().projectRoot, id);
-    if (!artifact || artifact.pipeline !== "design") {
-      return { ok: false, error: "design (.dd) artifact not found" };
+    if (!artifact) {
+      return { ok: false, error: "design artifact not found" };
     }
-    let html: string;
+    const isDesign = artifact.pipeline === "design";
+    let pkg: Buffer;
     try {
-      const doc = parseDdFile(artifact.content);
-      html = compileDdToHtml(doc, readTailwindScript() ?? undefined);
+      pkg = isDesign
+        ? buildDduPackage(
+            artifact,
+            artifact.content,
+            compileDdToHtml(parseDdFile(artifact.content), readTailwindScript() ?? undefined),
+            new Date().toISOString()
+          )
+        : buildDdpPackage(artifact, artifact.content, new Date().toISOString());
     } catch (err) {
-      return { ok: false, error: `compile failed: ${err instanceof Error ? err.message : String(err)}` };
+      return { ok: false, error: `package build failed: ${err instanceof Error ? err.message : String(err)}` };
     }
+    const ext = isDesign ? "ddu" : "ddp";
     const safeTitle = artifact.title.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_").slice(0, 60) || "design";
     const result = await dialog.showSaveDialog(mainWindow, {
-      title: "Export design as HTML",
-      defaultPath: `${safeTitle}.html`,
-      filters: [{ name: "HTML", extensions: ["html"] }],
+      title: isDesign ? "Export UI-Design package (.ddu)" : "Export PM-Design package (.ddp)",
+      defaultPath: `${safeTitle}.${ext}`,
+      filters: [{ name: isDesign ? "UI-Design Package (.ddu)" : "PM-Design Package (.ddp)", extensions: [ext] }],
     });
     if (result.canceled || !result.filePath) return { ok: false };
     try {
-      await writeFile(result.filePath, html, "utf-8");
+      await writeFile(result.filePath, pkg);
       return { ok: true, path: result.filePath };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

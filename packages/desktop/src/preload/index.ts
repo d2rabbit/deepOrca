@@ -151,7 +151,7 @@ const api: DesktopApi = {
   designDelete: (id) => ipcRenderer.invoke(IpcRequest.DesignDelete, id),
   designSaveFormState: (pipeline, state) => ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state),
   designReadFormState: (pipeline) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline),
-  designExportHtml: (id) => ipcRenderer.invoke(IpcRequest.DesignExportHtml, id),
+  designExportPackage: (id) => ipcRenderer.invoke(IpcRequest.DesignExportPackage, id),
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),

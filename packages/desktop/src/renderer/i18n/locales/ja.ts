@@ -717,7 +717,7 @@ export const ja: Record<MessageKey, string> = {
   "design.filter.documents": "ドキュメント",
   "design.delete": "削除",
   "design.deleteConfirm": "このデザイン成果物を削除しますか？元に戻せません。",
-  "design.exportHtml": "単体 HTML として書き出す",
+  "design.exportPackage": "パッケージを書き出す（.ddp / .ddu）",
   "design.exported": "書き出しました：{path}",
   "design.exportFailed": "書き出しに失敗しました：{error}",
   "rail.design": "デザイナー",

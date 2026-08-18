@@ -85,12 +85,12 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
     [reload, t]
   );
 
-  // P4-1 standalone HTML export: main compiles the .dd (tokens + seed CSS +
-  // inlined Tailwind JIT) and writes a user-chosen file. Cancel surfaces as a
-  // quiet no-op rather than an error.
-  const handleExportHtml = useCallback(
+  // P4-1 package export: main builds a .ddp (pm-design) or .ddu (ui-design)
+  // ZIP archive and writes a user-chosen file. Cancel surfaces as a quiet
+  // no-op rather than an error.
+  const handleExportPackage = useCallback(
     async (id: string) => {
-      const result = await api.designExportHtml(id);
+      const result = await api.designExportPackage(id);
       setMaterializeNote(
         result.ok && result.path
           ? t("design.exported", { path: result.path })
@@ -243,26 +243,24 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
                       {a.pipeline === "openui" ? "PM-Design" : "UI-Design"} · {timeAgo(a.updatedAt)}
                     </div>
                   </div>
-                  {a.pipeline === "design" ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleExportHtml(a.id);
-                      }}
-                      style={{
-                        padding: "2px 6px",
-                        fontSize: 11,
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--ui-text-dim, #888)",
-                        cursor: "pointer",
-                      }}
-                      title={t("design.exportHtml")}
-                    >
-                      ⬇
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleExportPackage(a.id);
+                    }}
+                    style={{
+                      padding: "2px 6px",
+                      fontSize: 11,
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--ui-text-dim, #888)",
+                      cursor: "pointer",
+                    }}
+                    title={t("design.exportPackage")}
+                  >
+                    ⬇
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {

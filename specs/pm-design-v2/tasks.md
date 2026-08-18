@@ -5,7 +5,7 @@
 # PM-Design V2 任务分解
 
 > **关联设计文档**：[design.md](./design.md)
-> **状态**（2026-08-18 终判回写）：P0 存储/Action、P2 面板、P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + design-store 版本快照 FIFO 20 版 + 预览联动 + 渲染错误纠正回路）已实现；未做：版本切换 UI（快照在磁盘）、P4 独立导出（仅 iframe 打印 PDF，独立 HTML 导出可做、React 代码导出不做）。**2026-08-18 评估**（冻结期）：P3 迭代闭环按当前预览面板实现方案判定完成（不再补 DesignPanel 迭代按钮）；见 `docs/pre-production-spec-final-audit.md`。
+> **状态**（2026-08-18 终判回写）：P0 存储/Action、P2 面板、P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + design-store 版本快照 FIFO 20 版 + 预览联动 + 渲染错误纠正回路）已实现；未做：版本切换 UI（快照在磁盘，已拍不做）、React 代码导出（已拍不做）；P4 独立导出已实现（.ddp/.ddu 专用压缩包，2026-08-18 收尾批+格式拍板）。**2026-08-18 评估**（冻结期）：P3 迭代闭环按当前预览面板实现方案判定完成（不再补 DesignPanel 迭代按钮）；见 `docs/pre-production-spec-final-audit.md`。
 
 ---
 
@@ -151,10 +151,11 @@
 
 ### P4-1: DeepDesign 导出
 
-- [x] `.dd` → 独立 HTML 文件（**2026-08-18 拍板"做"并入收尾批，同日落地**——台账 `docs/spec-open-items-status.md` §一 #8；React 代码导出与版本切换 UI 维持不做）
-  - [x] 复用 `dd/compiler.ts` 的 `compileDdToHtml()`（main 侧导入纯函数 parser/compiler + vendored Tailwind JIT 内联）
-  - [x] DesignPanel 增加 [⬇ 导出 HTML] 按钮（i18n 六语言）
-  - [x] Electron `dialog.showSaveDialog()` → 写文件（`DesignExportHtml` 特权通道，同 SessionExport 先例）
+- [x] **独立导出（.ddp / .ddu 专用压缩包格式，2026-08-18 格式拍板）**——台账 `docs/spec-open-items-status.md` §一 #8；React 代码导出与版本切换 UI 维持不做
+  - [x] 格式定义：`.ddp`（pm-design 原型导出）/ `.ddu`（ui-design 文档导出）——特殊 ZIP 压缩包：manifest.json（format/formatVersion/kind/title/artifactId/pipeline/exportedAt/generator）+ 源文件 + index.html（.ddu 的 index.html 为可独立打开的编译渲染；.ddp 的 index.html 为查看器兜底页——OpenUI Lang 仅在应用内 React 运行时渲染，无独立编译器）
+  - [x] `main/tools/dd-package.ts`：零依赖 ZIP 写入器（node:zlib deflate + 手写 CRC32/zip 结构，store 兜底）+ buildDdpPackage/buildDduPackage；测试 `dd-package.test.ts` 4 用例（结构往返/store 兜底/两种 manifest/查看器转义）+ 系统 unzip 交叉验证
+  - [x] DesignPanel 双管线 [⬇] 按钮（i18n 六语言）
+  - [x] Electron `dialog.showSaveDialog()` → 写文件（`DesignExportPackage` 特权通道，同 SessionExport 先例）
 
 ### P4-2: A2UI 导出（可选）
 
