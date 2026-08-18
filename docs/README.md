@@ -14,14 +14,14 @@
 
 ## 本目录内容
 
-| 类别                                      | 文档                                                                                                                                                      |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **功能路线**                              | features/feature-roadmap.md（当前版本路线与现状）、features/next-version-plan.md（下一版本规划：自进化引擎/Studio 基座/远程访问，2026-08-18 立）          |
-| **用户手册**                              | quickstart、architecture、configuration、session-persistence、permission、mcp、plan-mode、agent-skills、agents-md、notify、statusline（各配 `*_en` 孪生） |
-| **组件清单**                              | builtin-inventory（2026-08-03 历史快照，含时效说明）、external-capability-components、external-deps-migration（外部依赖 controller-seam 迁移状态）        |
-| **预生产记录**（2026-08-17/18，历史性质） | pre-production-capability-scan（F1-F3+F6 扫描）、pre-production-spec-final-audit（F5 逐 spec 终判，19 项）                                                |
-| **收尾台账**（活文档，闭合即回流 specs）  | spec-open-items-status（specs 19 项未收尾逐项确认：本阶段待收 8 项/待拍板/缓期/下一版承接，2026-08-18）                                                   |
-| **审计/评审/稳定化记录**                  | 全部收进 [audit-archive/](./audit-archive/)（6 份：结论已兑现，保留溯源；登记见其中 README）                                                              |
+| 类别                                      | 文档                                                                                                                                                                                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **功能路线**                              | features/feature-roadmap.md（当前版本路线与现状）、features/next-version-plan.md（下一版本规划：自进化引擎/Studio 基座/远程访问，2026-08-18 立）                                          |
+| **用户手册**                              | quickstart、architecture、configuration、session-persistence、permission、mcp、plan-mode、agent-skills、agents-md、notify、statusline（各配 `*_en` 孪生）                                 |
+| **组件清单**                              | builtin-inventory（2026-08-03 历史快照，含时效说明）、external-capability-components、external-deps-migration（外部依赖 controller-seam 迁移状态）                                        |
+| **预生产记录**（2026-08-17/18，历史性质） | pre-production-capability-scan（F1-F3+F6 扫描）、pre-production-spec-final-audit（F5 逐 spec 终判，19 项）                                                                                |
+| **收尾台账**（活文档，闭合即回流 specs）  | spec-open-items-status（specs 19 项未收尾逐项确认，2026-08-18）、pre-production-manual-test（余 7 项人工收尾执行手册：F4 走查/gitmcp 手测/外部 server/能力矩阵/T2.3 对拍/B3 演练/H 切换） |
+| **审计/评审/稳定化记录**                  | 全部收进 [audit-archive/](./audit-archive/)（6 份：结论已兑现，保留溯源；登记见其中 README）                                                                                              |
 
 ## 维护规则
 

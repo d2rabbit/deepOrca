@@ -32,11 +32,11 @@
 | 5   | **B3 book-distill 端到端演练一次**                                                                                                                        | pre-production（tasks.md:24）         | 🟡    | 选一本自有文档蒸馏 → 验证 G1 短名单能召回；需真实 LLM 会话                                                                                                                                                                       |
 | 6   | **gitmcp 任务 12 手测清单**                                                                                                                               | gitmcp-local-module（tasks.md:75）    | 🟡    | `desktop:start` 下：添加合法/非法/重复 → 启停/重建/删除 → MCP 页签权限 → 会话内 AI 调用 search_documentation → 断网检索                                                                                                          |
 | 7   | **外部 MCP server 实机验证**                                                                                                                              | mcp-sdk-migration（design.md §8-3）   | 🟡    | dart/serena/expo 的 listTools + callTool 待 GUI 人工验证（subagent 无桌面访问，spec 已如实记载）                                                                                                                                 |
-| 8   | ~~独立导出（`.ddp`/`.ddu` 专用 ZIP 压缩包）~~ **✅ 已收尾（2026-08-18 收尾批 + 格式拍板）**                                                                              | pm-design-v2（tasks.md:154）          | ✅    | DesignPanel 双管线 ⬇ 按钮 → `design:exportPackage` 特权通道 → 零依赖 zip 写入器（dd-package.ts）→ `.ddp`/`.ddu`（manifest+源文件+index.html）→ 原生保存对话框；React 导出/版本切换 UI 维持不做                                                                           |
+| 8   | ~~独立导出（`.ddp`/`.ddu` 专用 ZIP 压缩包）~~ **✅ 已收尾（2026-08-18 收尾批 + 格式拍板）**                                                               | pm-design-v2（tasks.md:154）          | ✅    | DesignPanel 双管线 ⬇ 按钮 → `design:exportPackage` 特权通道 → 零依赖 zip 写入器（dd-package.ts）→ `.ddp`/`.ddu`（manifest+源文件+index.html）→ 原生保存对话框；React 导出/版本切换 UI 维持不做                                   |
 | 9   | ~~G3 大技能分片召回注入~~ **✅ 已收尾（2026-08-18 收尾批）**                                                                                              | skill-routing（design.md §一 目标表） | ✅    | `skill-sharding`（标题分片/索引/行边界硬切）+ `SkillShardRecaller`（VectorIndex 召回+缓存）+ session 接线（大技能注入 header+索引+top-K 小节）；fail-open 全文回退；9 用例测试在树                                               |
 | 10  | ~~artifact 快照切换（file-history 复用）~~ **✅ 已收尾（2026-08-18 收尾批）**                                                                             | task-tree（tasks.md:35）              | ✅    | tree 级 file-history 仓库（`<treeDir>/file-history`，ref 冲突解法=独立仓库）：appendStep/merge 自动快照 + `meta.snapshot` stamp、面板 ⏪ 显式恢复、switchBranch 出向安全 checkpoint+入向快照恢复（全 fail-open）；4 用例测试在树 |
 
-> 1/2 完成即本阶段出口；3-7 均为人工/外部条件项，可与 F4 走查同批进行；8-10 为拍板新增开发项（📌）。
+> 1/2 完成即本阶段出口；#8-#10 开发项已于收尾批完成（✅ 行）；余下全部为人工/外部条件项——**逐步操作手册见 [`pre-production-manual-test.md`](./pre-production-manual-test.md)（含前置/步骤/预期/回写位置，按 ①Windows 真机批 ②文档批 ③LLM 花费批 ④出口批 顺序执行）**。
 
 ## 二、待拍板/下一版窗口的评估建议（2026-08-18 口径；同日 pm-design 导出与 G3 已拍板移出）
 
@@ -67,27 +67,27 @@
 
 ## 六、19 spec 逐个确认速览
 
-| spec                | 确认结论                            | 未收尾项（指向本文档节）                                                               |
-| ------------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
-| a2ui-integration    | ✅ 已实现（状态行 2026-08-18 回写） | 无                                                                                     |
-| activity-frames     | ✅ 已实现                           | 边界项见 §三                                                                           |
-| android-dev-kit     | ⬜ 规划性                           | §四                                                                                    |
-| behavior-memory     | ❌ 废弃                             | §五                                                                                    |
-| cad-3d-generation   | ⬜ 规划性                           | §四                                                                                    |
-| deep-design         | ✅ 已实现（超 spec 演进）           | 偏差记录见 §三；**域声明（2026-08-18）：deep-design = pm-design + ui-design**（§〇-6） |
-| define-action       | ✅ 已实现                           | Phase 4 见 §三                                                                         |
-| desktop-pet         | ⬜ 规划性（调研定稿）               | §四                                                                                    |
-| gitmcp-local-module | ✅ 任务 1-11 全勾                   | 任务 12 手测 → §一 #6                                                                  |
-| harmonyos-dev-kit   | ❌ 废弃（下线）                     | §五                                                                                    |
-| mcp-sdk-migration   | ✅ 已完成                           | §8-3 实机验证 → §一 #7                                                                 |
-| module-system       | ⬜ 规划性（全 0 代码）              | §四（下一版主线 B）                                                                    |
+| spec                | 确认结论                            | 未收尾项（指向本文档节）                                                                       |
+| ------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| a2ui-integration    | ✅ 已实现（状态行 2026-08-18 回写） | 无                                                                                             |
+| activity-frames     | ✅ 已实现                           | 边界项见 §三                                                                                   |
+| android-dev-kit     | ⬜ 规划性                           | §四                                                                                            |
+| behavior-memory     | ❌ 废弃                             | §五                                                                                            |
+| cad-3d-generation   | ⬜ 规划性                           | §四                                                                                            |
+| deep-design         | ✅ 已实现（超 spec 演进）           | 偏差记录见 §三；**域声明（2026-08-18）：deep-design = pm-design + ui-design**（§〇-6）         |
+| define-action       | ✅ 已实现                           | Phase 4 见 §三                                                                                 |
+| desktop-pet         | ⬜ 规划性（调研定稿）               | §四                                                                                            |
+| gitmcp-local-module | ✅ 任务 1-11 全勾                   | 任务 12 手测 → §一 #6                                                                          |
+| harmonyos-dev-kit   | ❌ 废弃（下线）                     | §五                                                                                            |
+| mcp-sdk-migration   | ✅ 已完成                           | §8-3 实机验证 → §一 #7                                                                         |
+| module-system       | ⬜ 规划性（全 0 代码）              | §四（下一版主线 B）                                                                            |
 | pm-design-v2        | 🟡 主体落地                         | 独立导出（.ddp/.ddu 包）→ §一 #8 ✅ 收尾批完成；其余未做项 → §三；**tasks 复选框回写债 → §七** |
-| pre-production      | 🟡 收尾中                           | F4/H0-H4/B3 → §一 #1/#2/#5                                                             |
-| sandbox             | 🟡 主体全落地                       | 能力矩阵 → §一 #3；路径授权 UI/bwrap/WSL2 → §二                                        |
-| skill-eval          | 🟡 S1/S2 落地                       | T2.3 对拍 + CI 首跑 → §一 #4                                                           |
-| skill-routing       | 🟡 部分实现（显式）                 | G3 → §一 #9（📌 拍板纳入收尾批）                                                       |
-| task-tree           | ✅ P0-P2 + P1 收尾                  | 快照切换 → §一 #10（📌 拍板纳入收尾批）                                                |
-| text-embedding      | ✅ 已实现（正向偏差）               | 无                                                                                     |
+| pre-production      | 🟡 收尾中                           | F4/H0-H4/B3 → §一 #1/#2/#5                                                                     |
+| sandbox             | 🟡 主体全落地                       | 能力矩阵 → §一 #3；路径授权 UI/bwrap/WSL2 → §二                                                |
+| skill-eval          | 🟡 S1/S2 落地                       | T2.3 对拍 + CI 首跑 → §一 #4                                                                   |
+| skill-routing       | 🟡 部分实现（显式）                 | G3 → §一 #9（📌 拍板纳入收尾批）                                                               |
+| task-tree           | ✅ P0-P2 + P1 收尾                  | 快照切换 → §一 #10（📌 拍板纳入收尾批）                                                        |
+| text-embedding      | ✅ 已实现（正向偏差）               | 无                                                                                             |
 
 ## 七、本次确认新发现的文档债
 
