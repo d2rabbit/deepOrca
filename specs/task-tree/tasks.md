@@ -32,7 +32,7 @@
 - [x] 树图 UI：泳道式画布（每分支一列、世系自上而下、active 高亮、abandoned 灰显、⚠ 冲突清单渲染、✦ 徽章）
 - [x] merge 冲突确认清单：冲突持久化进 merge 节点 meta + 面板渲染
 - [x] PM-Design 整合：design.materialize 在绑定会话中产出 → 分支 step 节点
-- [ ] artifact 快照切换（file-history 复用）——**明确缓期**：需按分支管理文件快照模式，改动面大且与 file-history 的 per-session 语义冲突，待出现真实需求再立项
+- [ ] artifact 快照切换（file-history 复用）——**2026-08-18 拍板：纳入本阶段收尾批实施**（原"待出现真实需求再立项"缓期作废；与 file-history 的 per-session 语义冲突转为实施时须解决的约束，不再作为延后理由）。台账：`docs/spec-open-items-status.md` §一 #10
 
 ## P1 收尾：session 绑定可见化 + 整树归档联动（2026-08-18，冻结前完善）
 

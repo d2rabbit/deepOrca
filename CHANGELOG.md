@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📋 规划与文档
 
+- **指定收尾批拍板**（2026-08-18，台账 `docs/spec-open-items-status.md` §〇）：F4 交互清单走查与 H0-H4 预生产切换确认为收尾批核心/出口项；pm-design-v2 独立 HTML 导出拍板"做"；skill-routing G3 分片召回注入与 task-tree artifact 快照切换推翻缓期/缓做、纳入收尾批实施（已同步回各 spec 状态行与 next-version-plan）；域声明 **deep-design = pm-design + ui-design**。同日建立 specs 未收尾项活台账（19 spec 逐项确认，本阶段待收 10 项）。
 - **下一版本规划确立**（`docs/features/next-version-plan.md`，2026-08-18）：三主线——自进化引擎（E1 执行捕获/E2 改进回路，OpenSpace 闭环缺口）+ action→Studio 基座超大版本（B1 冷插拔/B2 热激活，module-system v2 落地起点）+ 远程访问（M1–M3 含 MCP HTTP transport）；强化清单按终判逐项处置（路径授权可见/可撤销建议做、pm-design 独立 HTML 导出可做、bwrap/WSL2 与 graph-engineering 建议不做/关闭、G3 分片缓做）；前置阻塞 = 本版本 F4 交互清单/H 预生产切换。
 - **文档体系治理**（同日）：docs/README.md 导航与权威层级；specs/ 三层齐备（规划 spec 补 tasks.md 指引）；9 个 spec 状态行终判回写；docs/audit-archive/ 归档 6 份已兑现审计记录；superpowers 历史产物收进 research/archive。
 
@@ -25,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **报告一/二 35 项全修**（`docs/review-2026-08-17-adversarial-*.md`）：design.audit 路径包含校验、mimosa-ignore 复位 sink 行、memory 校验器三补全（`号` 正则激活/中文日期扫描/时间戳计入真值）、review.full 状态按实际富化判定、RRF_K 单源、AGENTS 双文件 8 工具一致、自指模板遥测残留清除、注释/计数/措辞全清账。
 - **第三轮复审 6 项回归再修**（FULL_DATE_RE `(?!\d)`、did-fail-load once→on、enriched 判据、304 非重定向、UA 三 provider 一致、密钥禁用注释），第四轮验证 SHIP；存量 lint 警告 13→0。
-
 
 ### 🔒 安全（预生产门禁整改，Mimosa 审计驱动）
 

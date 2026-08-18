@@ -27,7 +27,7 @@
 - **E2 改进回路**：低成功率技能 → skill-digester 重写 description；高成功率加权匹配。**⚠️ 关键张力**：「加权匹配」与 `docs/research/2026-08-15-routing-closure-plan.md` 的「匹配负反馈明确不做」决策冲突——解法已确立：**加权走离线批量**（skill-up 评估结果 → 静态元数据调整），不碰 G1 在线路由，必须写进 E1/E2 spec。
 - **E3 层二起步（设计先行）**：Self-Harness 消费 E1 数据；HarnessBank evolver 复用 Subagent（`MAX_SUBAGENT_DEPTH=4` 在树）；执行隔离载体 = **task-tree P3（branch = subagent 载体）**，设计需先吸收 ruflo 预研的 journal/断点恢复/补偿三模式（`docs/research/2026-08-17-external-repos-prestudy.md` §5）。
 - **度量端收尾**：skill-up 双引擎趋势对拍（T2.3）+ CI 首跑、B3 book-distill 端到端演练——均待真实 LLM 花费，列为预生产测试内容而非本版开发项。
-- 缓期确认：G3 大技能分片召回注入（skill-routing 目标表 G3）**建议缓做**（2026-08-18 评估：book-distill 约定 SKILL.md ≤300 行 + references 文件名清单 ≤50 已缓解注入压力，待注入 token 占比真实过高再立项）。
+- 缓期确认：G3 大技能分片召回注入（skill-routing 目标表 G3）~~**建议缓做**~~ → **2026-08-18 晚间拍板推翻：纳入本阶段收尾批实施**（已回写 `specs/skill-routing/design.md` 状态行；台账 `docs/spec-open-items-status.md` §一 #9）。
 
 ## 主线 B：action → Studio 基座（超大版本迭代）
 
@@ -64,10 +64,10 @@
 | 项 | 2026-08-18 状态 | 下一版处置 |
 | --- | --- | --- |
 | 设置面板路径授权可见/可撤销 | 未做（tasks.md:164 已登记缺口） | **建议做**（约 0.5 天，安全可见性） |
-| pm-design-v2 独立 HTML 导出 | 未做（compileDdToHtml 已有 + showSaveDialog 先例） | **可做**（~0.5 天）；React 代码导出不做、版本切换 UI 不做（已拍板） |
+| pm-design-v2 独立 HTML 导出 | 未做（compileDdToHtml 已有 + showSaveDialog 先例） | ~~可做~~ **已拍板做（2026-08-18），并入本阶段收尾批**（~0.5 天）；React 代码导出不做、版本切换 UI 不做（已拍板） |
 | 沙箱 Linux bwrap / Windows WSL2 后端 | 未实现，detect 诚实降级在位 | **建议不做**（现有纵深已覆盖威胁模型；AppArmor/userns 雷区 + WSL2 要求装 distro，收益窄） |
 | graph-engineering 收编 bundled skill | 未做 | **建议关闭**（与 code 插件组能力重叠；冻结期新增 bundled skill 需过 i18n/manifest/eval 全链） |
-| G3 大技能分片召回 | 未做 | **建议缓做**（见主线 A 末行） |
+| G3 大技能分片召回 | 未做 | ~~建议缓做~~ **已拍板纳入本阶段收尾批（2026-08-18，见主线 A 末行更新）** |
 | GitMCP 任务 12 人工回归 | 自动项已过，手测清单未走查 | 人工走查（F4 同批） |
 | F4 交互清单 + 双开回归（开两个实例共同工作） | 启动烟雾已过；交互清单/双开待人工 | 人工走查（本版本预生产测试内容） |
 | B3 book-distill 端到端演练 / skill-up 双引擎对拍 | 待真实 LLM 花费 | 预生产测试内容，不代跑 |
