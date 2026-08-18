@@ -1,6 +1,6 @@
 # DeepOrca 行为记忆系统设计方案（轻量版）
 
-> 日期：2026-08-04
+> 日期：2026-08-04 · 状态：**❌ 已废弃（2026-08-17 拍板）**——记忆能力由 `@deeporca/memory`（vendored TDAI Core L0–L3 管线，`packages/memory/`）承接，本 spec 不再排期；旁系成果 activity-frames 双管线与行为 boot context 已另行落地（见 `docs/research/README.md` 台账作废记录）。保留本文供溯源，不作为实现依据。
 > 模块：`activity-frames` 演进
 > 基础：[MemOS 预研报告](../research/archive/2026-08-04-memos-memory-operating-system.md) · [activity-frames 设计](../activity-frames/design.md)
 > 原则：**零外部运行时依赖**（不加向量库/图库/Redis），复用 Node 22 `node:sqlite` + FTS5

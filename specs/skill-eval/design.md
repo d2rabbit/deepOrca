@@ -1,6 +1,6 @@
 # skill-up 技能评估体系集成 — 详细设计
 
-> 日期：2026-08-06 · 状态：规划中
+> 日期：2026-08-06 · 状态：**部分实现（2026-08-18 终判回写）**——S1/S2 产物全落盘（`scripts/get-skill-up.mjs`（pin 已定版 v0.9.0）+ `run-skill-evals.mjs` + `.github/workflows/skill-evals.yml` + 8 包 14 用例 + `skill-up-engine-deeporca.mjs` 适配器，`2c98142`）；未做：双引擎趋势对拍（T2.3 出口未过，待真实 LLM）、CI 首跑（待首次 PR）、S3 不排期。任务明细见 tasks.md（已回写勾选）。
 >
 > 源项目：[alibaba/skill-up](https://github.com/alibaba/skill-up)（Apache-2.0，Go ≥1.25）
 > 前序评估：`docs/research/2026-08-06-skillweaver-skill-routing-integration.md` §3.4

@@ -10,3 +10,4 @@
 - [2026-08-14-dsh-deepseek-optimization-takeaways.md](./2026-08-14-dsh-deepseek-optimization-takeaways.md) — 被整合取代（2026-08-17）：并入 `../2026-08-17-dsh-consolidated.md` 唯一台账
 - [STATUS-2026-08-07.md](./STATUS-2026-08-07.md) — 过期状态快照：被 `docs/research/README.md` 台账及后续全量核对取代
 - [v7-strike.png](./v7-strike.png) — 历史截图（根目录清理迁入），随 dsh 归档批次一并存放
+- [superpowers/](./superpowers/) — 历史工作流产物归档（2026-08-18 自 `docs/superpowers/` 迁入）：superpowers 插件（subagent-driven-development）生成的 plans/specs 7 件——其中 A2UI/MCP-SDK 两份计划对应工作已落地（见 research 台账 ✅ 行），三份主题设计与现行 5 套 `styles-*.css` 主题体系的消费关系未登记；路线图已将 Superpowers 列为搁置项。保留溯源，不再维护。

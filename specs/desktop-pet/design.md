@@ -120,20 +120,7 @@ packages/desktop/assets/pet/
 
 ## 九、任务清单
 
-| # | 任务 | 落点 | 估时 |
-| --- | --- | --- | --- |
-| 1 | settings 开关 + 偏好（全局/饥饿/低端模式/自动进食） | desktop settings + SettingsPanel | 0.5d |
-| 2 | `pet-state-machine.ts` 纯 TS 状态机 + 单测（§三全状态 + 打断规则） | `renderer/lib/` | 1d |
-| 3 | 事件订阅接线（sessionEntryUpdated/assistantMessage/llmStreamProgress） | `renderer/api.ts` + 状态机 | 0.5d |
-| 4 | `PetWidget.tsx` 角落浮层 + SVG 基础态全套 + 最小化 | `renderer/components/` | 1d |
-| 5 | dotlottie 懒加载集成 + manifest 加载器 | `renderer/lib/` | 0.5-1d |
-| 6 | 吃记忆机制（memory:search 复用；可选 `memory:snack` 只读 IPC） | renderer + `shared/ipc.ts` + main | 1d |
-| 7 | 气泡 UI（状态播报 + 记忆回闪卡片） | `PetWidget` | 0.5d |
-| 8 | 降级与性能策略（§七全项） | 状态机 + Widget | 0.5d |
-| 9 | 占位 SVG 资产一套（9 态）+ manifest | `assets/pet/` | 视设计资源 |
-| 10 | P1 悬浮窗 | 另立项 | — |
-
-**P0 合计约 4-6 天**（不含设计资产）。建议单次 PR 交付 1-9，SVG 占位即可，Lottie 后续补。
+> 已抽离至 [`tasks.md`](./tasks.md)（2026-08-18 文档整顿：P1–P9 任务 + P0 4–6 天估算 + 开工前置条件）。
 
 ## 十、成本收益的诚实评估
 

@@ -14,25 +14,25 @@
 
 | spec | 终判 | 一句话 |
 | --- | --- | --- |
-| a2ui-integration | ✅ | 原型模块 + MCP + 自建 processor 渲染器全链路 |
-| activity-frames | ✅ | 双管线 + 9 MCP 工具 + 可选 boot context |
-| deep-design | ✅ | .dd 管线 + 9 套设计系统（超 spec 演进） |
-| define-action | ✅ | registry 原语 + LLM/MCP/IPC 三面到达 + 统一进度 |
-| gitmcp-local-module | ✅ | 8 工具 + 23 测试（任务 12 人工手测清单待走查） |
-| mcp-sdk-migration | ✅ | 官方 SDK 全切换（外部 server 实机验证待人工） |
-| task-tree | ✅ | P0–P2 + P1 收尾：会话徽标/主区 tab/整树归档联动（`946cf77`） |
-| text-embedding | ✅ | Granite 97M + 路由/记忆双消费方 + 构建期 vendor |
-| sandbox | 🟡 | macOS 后端 + 执行时路径闸门全落地；bwrap/WSL2 未实现（detect 诚实降级）；设置面板路径授权不可见/不可撤销 |
-| skill-eval | 🟡 | S1/S2 产物全落盘；pin 已定版 v0.9.0（2026-08-18 实拉验证）；双引擎对拍与 CI 首跑待真实 LLM/PR |
-| skill-routing | 🟡 | G1/G2 + 组合路由（SAD/DAG）落地；G3 大技能分片召回显式缓期 |
-| pm-design-v2 | 🟡 | 存储/Action/面板/预览迭代闭环主体落地；独立导出与版本切换 UI 未做 |
-| pre-production | 🟡 | A–G + F1–F3/F6/F5 完成；F4 交互清单、B3、GitMCP-12、H 待办 |
-| android-dev-kit | ⬜ | 纯设计稿（移动域整体临时下线，见 §三） |
-| cad-3d-generation | ⬜ | 规划中（text-to-cad / img2threejs 技能未动工） |
-| desktop-pet | ⬜ | 调研定稿未实现 |
-| module-system | ⬜ | 发行版/模块系统远景规划 |
-| behavior-memory | ❌ | 2026-08-17 作废，由 @deeporca/memory（TDAI L0–L3）承接 |
-| harmonyos-dev-kit | ❌ | 曾落地后整体下线（`f680c14`）；鸿蒙 PC 移植 2026-08-18 调研结论"先不做"（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`） |
+| [a2ui-integration](../../specs/a2ui-integration/design.md) | ✅ | 原型模块 + MCP + 自建 processor 渲染器全链路 |
+| [activity-frames](../../specs/activity-frames/design.md) | ✅ | 双管线 + 9 MCP 工具 + 可选 boot context |
+| [deep-design](../../specs/deep-design/design.md) | ✅ | .dd 管线 + 9 套设计系统（超 spec 演进） |
+| [define-action](../../specs/define-action/design.md) | ✅ | registry 原语 + LLM/MCP/IPC 三面到达 + 统一进度 |
+| [gitmcp-local-module](../../specs/gitmcp-local-module/design.md) | ✅ | 8 工具 + 23 测试（任务 12 人工手测清单待走查） |
+| [mcp-sdk-migration](../../specs/mcp-sdk-migration/design.md) | ✅ | 官方 SDK 全切换（外部 server 实机验证待人工） |
+| [task-tree](../../specs/task-tree/design.md) | ✅ | P0–P2 + P1 收尾：会话徽标/主区 tab/整树归档联动（`946cf77`） |
+| [text-embedding](../../specs/text-embedding/design.md) | ✅ | Granite 97M + 路由/记忆双消费方 + 构建期 vendor |
+| [sandbox](../../specs/sandbox/design.md) | 🟡 | macOS 后端 + 执行时路径闸门全落地；bwrap/WSL2 未实现（detect 诚实降级）；设置面板路径授权不可见/不可撤销 |
+| [skill-eval](../../specs/skill-eval/design.md) | 🟡 | S1/S2 产物全落盘；pin 已定版 v0.9.0（2026-08-18 实拉验证）；双引擎对拍与 CI 首跑待真实 LLM/PR |
+| [skill-routing](../../specs/skill-routing/design.md) | 🟡 | G1/G2 + 组合路由（SAD/DAG）落地；G3 大技能分片召回显式缓期 |
+| [pm-design-v2](../../specs/pm-design-v2/design.md) | 🟡 | 存储/Action/面板/预览迭代闭环主体落地；独立导出与版本切换 UI 未做 |
+| [pre-production](../../specs/pre-production/design.md) | 🟡 | A–G + F1–F3/F6/F5 完成；F4 交互清单、B3、GitMCP-12、H 待办 |
+| [android-dev-kit](../../specs/android-dev-kit/design.md) | ⬜ | 纯设计稿（移动域整体临时下线，见 §三） |
+| [cad-3d-generation](../../specs/cad-3d-generation/design.md) | ⬜ | 规划中（text-to-cad / img2threejs 技能未动工） |
+| [desktop-pet](../../specs/desktop-pet/design.md) | ⬜ | 调研定稿未实现 |
+| [module-system](../../specs/module-system/design.md) | ⬜ | 发行版/模块系统远景规划 |
+| [behavior-memory](../../specs/behavior-memory/design.md) | ❌ | 2026-08-17 作废，由 @deeporca/memory（TDAI L0–L3）承接 |
+| [harmonyos-dev-kit](../../specs/harmonyos-dev-kit/design.md) | ❌ | 曾落地后整体下线（`f680c14`）；鸿蒙 PC 移植 2026-08-18 调研结论"先不做"（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`） |
 
 ### 本版本收尾挂账
 
@@ -124,7 +124,7 @@
 
 | 能力         | 项目                                                     | 集成形态                                                                                    | 贡献                                                                                                                                                                                                                              | 优先级 |
 | ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| **行为记忆** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（~2000 行），InMemoryTransport MCP server，vendor nocta-recorder 二进制 | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）→ 6 个 MCP 工具。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(TDAM) + 行为记忆(frames)」双层记忆。详见 `specs/activity-frames/design.md` | **P2** |
+| **行为记忆（activity-frames，✅ 已实现）** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（双管线，InMemoryTransport MCP server，9 个 MCP 工具 + 可选 boot context 注入，默认关） | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(@deeporca/memory) + 行为记忆(frames)」双层记忆。详见 [`specs/activity-frames/design.md`](../../specs/activity-frames/design.md) | ✅ 落地 |
 | **OpenWiki connector 消费 CodeGraph MCP** | OpenWiki connectors 系统 | WikiCliController.init 前写入 connector config | wiki 生成时消费 CodeGraph MCP 作为知识源，获得真实调用图上下文，生成的架构文档基于代码结构而非猜测。配置 `~/.openwiki/connectors/custom-mcp/config.json` 指向当前项目的 CodeGraph MCP | **P2** |
 | **OpenWiki 定时自动更新** | OpenWiki scheduling + 引擎侧定时任务框架 | cron 调度 + Electron 定时器 | 定时（如每天/每次 git pull 后）自动 `openwiki --update`，不依赖代码变更事件。vendored CLI 已有 scheduling 基础设施（`onboarding.d.ts OnboardingSourceScheduleConfig`），需 DeepOrca 引擎侧加定时任务框架 | **P3** |
 | 多轮深度研究 | **Open Deep Research** 理念                              | 借鉴工作流，Node.js 自建轻量版                                                              | 从"单次 WebSearch"升级为"搜索→反思→再搜索→报告"的多轮循环                                                                                                                                                                         | P3     |
@@ -163,7 +163,7 @@
 | 设备调试 | flutter driver | adb                  | hdc                   | Expo/agent-device         |
 | 触发文件 | `pubspec.yaml` | `build.gradle(.kts)` | `build-profile.json5` | `app.json`/`package.json` |
 
-详见各平台设计文档：[Android](../../specs/android-dev-kit/design.md) · [HarmonyOS](../../specs/harmonyos-dev-kit/design.md)。
+详见各平台设计文档：[Android](../../specs/android-dev-kit/design.md) · [HarmonyOS](../../specs/harmonyos-dev-kit/design.md)（**均已临时下线 `f680c14`，仅存档供重启参考**）。
 
 ---
 
@@ -242,6 +242,7 @@
 - **UI 风格目录**（`design/references/ui-styles.md`）——14 个 UI 设计风格的完整 Agent 提示词，来自 [NameThatUI/styles](https://namethatui.com/styles)。每个风格包含：定义信号、CSS 关键值（精确的 box-shadow / backdrop-filter / gradient 值）、Tailwind 实现思路、无障碍约束（4.5:1 对比度、focus 可见性、reduced-motion）。Agent 根据用户口语描述匹配风格（"磨砂玻璃"→Glassmorphism、"黑边亮色"→Neobrutalism），复制提示词后配合 Tailwind CDN 产出 HTML。14 个风格：Skeuomorphism / Neumorphism / Glassmorphism / Liquid Glass / Web Brutalism / Neobrutalism / Y2K Digital / Frutiger Aero / Flat Design / Minimalism / Claymorphism / Vernacular Web / Aqua / Windows Aero。
 
 > **与 A2UI 原型模块的边界**：DeepDesign 是「设计」（设计师向，HTML 成品，可脱离宿主）。A2UI 原型模块是「原型」（PM 向，自然语言驱动，Surface 载体，**原生依赖 DeepOrca 运行时**，类 v0/bolt）——**原型 ≠ 设计**，两者是独立产品线，受众/输入/格式/目标都不同。详见 `docs/research/2026-07-a2ui-integration.md` §四。
+> 实现 spec：[`specs/deep-design/`](../../specs/deep-design/design.md)（✅）· [`specs/a2ui-integration/`](../../specs/a2ui-integration/design.md)（✅）。
 
 ### 规划中
 
@@ -419,7 +420,7 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 | UpdatePlan（markdown TODO 跟踪）                            | 引擎核心                | 执行阶段进度跟踪                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 模型路由（轻量子任务→flash）                                | `model-capabilities.ts` | 子任务降级（技能匹配/prompt 增强/压缩用 flash）                                                                                                                                                                                                                                                                                                                                                                                              |
 | Electron 43（Node 24.18，Chromium 150）                     | 引擎升级                | 内部插件零外部依赖（node:sqlite + require(esm)）                                                                                                                                                                                                                                                                                                                                                                                             |
-| **官方 MCP SDK 迁移**（`@modelcontextprotocol/sdk@1.22.0`） | 引擎基础设施升级        | 把手写 JSON-RPC（客户端 + gitmcp 服务端）换成官方 SDK。追平协议版本、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation）、支持 image/audio/structured content。**已完成（perf/native-optimizations 分支 9 commits）**——客户端 `Client`+`StdioClientTransport`、gitmcp `McpServer`+`registerTool`，对外接口零变化，`npm run check` 全绿，gitmcp 端到端握手验证通过。迁移记录 `specs/mcp-sdk-migration/design.md` |
+| **官方 MCP SDK 迁移**（`@modelcontextprotocol/sdk@1.22.0`） | 引擎基础设施升级        | 把手写 JSON-RPC（客户端 + gitmcp 服务端）换成官方 SDK。追平协议版本、解锁 Streamable HTTP 传输、解锁 server→client 能力（sampling/roots/elicitation）、支持 image/audio/structured content。**已完成（perf/native-optimizations 分支 9 commits）**——客户端 `Client`+`StdioClientTransport`、gitmcp `McpServer`+`registerTool`，对外接口零变化，`npm run check` 全绿，gitmcp 端到端握手验证通过。迁移记录 [`specs/mcp-sdk-migration/design.md`](../../specs/mcp-sdk-migration/design.md)（✅）；GitMCP 本地化独立模块见 [`specs/gitmcp-local-module/`](../../specs/gitmcp-local-module/design.md)（✅ 8 工具；任务 12 人工手测待走查） |
 | **多端点配置 + 主/辅助模型角色**                            | 引擎基础设施升级        | 设置面板连接页改为端点列表配置器。支持多个 API 端点（DeepSeek 官方 / OpenCodeGo / OpenCodeZen / 自定义），每个端点独立 baseURL + apiKey。主模型（对话工作区）和辅助模型（代码审查/索引/subagent）可绑定不同端点——例如主模型用 DeepSeek 官方 pro，辅助模型用 OpenCodeGo flash。`createSecondaryClient()` 已就绪。向后兼容：无 endpoints 配置时自动从 `env.API_KEY`+`env.BASE_URL` 合成默认 DeepSeek 端点。                                    |
 
 ### 规划中
@@ -468,7 +469,7 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 #### 层一：技能自演化（技能内容改进）
 
-技能生命周期的两端：**从哪来**（book-to-skill 生成）→ **好不好**（skill-up 评估）→ **自动改进**（OpenSpace 反馈闭环）。
+技能生命周期的两端：**从哪来**（book-to-skill 生成）→ **好不好**（skill-up 评估）→ **自动改进**（OpenSpace 反馈闭环）。实现 spec：[`specs/skill-routing/`](../../specs/skill-routing/design.md)（🟡 G1/G2/组合路由落地，G3 分片缓期）· [`specs/skill-eval/`](../../specs/skill-eval/design.md)（🟡 S1/S2 产物落地，对拍待真实 LLM）· [`specs/text-embedding/`](../../specs/text-embedding/design.md)（✅ Granite 97M）。
 
 | 能力                    | 来源理念                                                                                                                  | 贡献                                                                                                                                                                                    | 优先级 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -538,10 +539,10 @@ sim-use (LY Corp)     →  运行时 UI：observe/tap/type/verify（iOS + Androi
 
 | 能力                        | 来源                                           | 定位                                                                     |
 | --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
-| 分组展示                    | `builtin-plugins.json` 清单                    | 内置 skills/MCP/plugins 按工具分组（Flutter/CodeGraph/代码审查/GitMCP…） |
+| 分组展示                    | `builtin-plugins.json` 清单                    | 内置 skills/MCP/plugins 按工具分组（CodeGraph/代码审查/GitMCP…） |
 | 内置项隔离                  | MCP/Skills tab 过滤                            | 内置项不在 MCP/Skills tab 单独展示，仅在 Plugins tab 分组卡片中          |
-| Flutter/Dart 技能包         | flutter/agent-plugins                          | 24 个技能构建时内置                                                      |
-| Android/HarmonyOS/RN 技能包 | android/skills + deveco-cli + expo + callstack | 构建时内置                                                               |
+| ~~Flutter/Dart 技能包~~         | ~~flutter/agent-plugins~~                          | ~~24 个技能构建时内置~~（2026-08-18 校正：平台开发域已于 `f680c14` 整体临时下线，当前树无；重启属 `next/*`）                                                      |
+| ~~Android/HarmonyOS/RN 技能包~~ | ~~android/skills + deveco-cli + expo + callstack~~ | ~~构建时内置~~（同上，临时下线）                                                               |
 | Browser 统一分组            | browser-skill + web-access-strategy            | Chrome 操控 + 联网策略 Skill                                             |
 
 ### 规划中：远程源集成

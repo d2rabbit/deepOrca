@@ -1,6 +1,6 @@
 # SkillWeaver 式技能/工具路由 — 详细设计
 
-> 日期：2026-08-06 · 状态：已实现并超越（2026-08-15 闭环方案 R1-R4 落地：调用合并/会话级冻结/facade/观测/热生效——两处设计演进记录于 docs/research/2026-08-15-routing-closure-plan.md）
+> 日期：2026-08-06 · 状态：**部分实现（2026-08-18 终判回写）**——G1 短名单/G2 工具路由/M4 组合路由（SAD/DAG）+ 闭环 R1-R4 全落地（2026-08-15 两处设计演进记录于 docs/research/2026-08-15-routing-closure-plan.md）；**未做：目标表 G3 大技能分片召回注入**（本文 §一 标"（后续）"，显式缓期；2026-08-18 评估建议缓做——book-distill 约定 SKILL.md ≤300 行 + references 文件名清单已缓解注入压力，待注入 token 占比真实过高时再立项）。注意勿混淆：代码内 G3 命名指 CompositionalSkill 索引模式（已实现），非目标表 G3。
 >
 > 灵感来源：[arXiv:2606.18051](https://arxiv.org/abs/2606.18051)（无论文代码，本设计为自行实现）
 > 前序评估：`docs/research/2026-08-06-skillweaver-skill-routing-integration.md`

@@ -97,13 +97,7 @@ Google 2026 年 4 月发布了 **Android Agent 开发三件套**：
 
 ## 5. 改动清单
 
-| # | 文件 | 改动 | 优先级 |
-|---|------|------|--------|
-| 1 | `scripts/install-android-skills.js` | **新建** 构建时从 android/skills 拉取 14 个 Skill | P0 |
-| 2 | `packages/core/templates/skills/bundled/android-*/` | 拉取的 skills（gitignored，构建时生成） | P0 |
-| 3 | `packages/core/templates/builtin-plugins.json` | 新增 "Android Development" 分组 | P0 |
-| 4 | i18n（messages.ts + locales） | `builtin-plugin.android-dev.name/desc` | P0 |
-| 5 | `package.json`（root）构建脚本 | `prebuild` 加 `install-android-skills.js` | P1 |
+> 任务清单已抽离至 [`tasks.md`](./tasks.md)（2026-08-18 文档整顿：A1–A5 任务 + 明确不做项 + 开工前置条件）。
 
 ### 不需要的
 

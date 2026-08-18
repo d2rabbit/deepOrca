@@ -1,6 +1,7 @@
 # A2UI 集成 — 声明式交互界面 + AI-native 原型模块（设计草案）
 
-> 状态：设计草案 · 日期：2026-07-30
+> 状态：**已实现（2026-08-18 终判回写）** · 日期：2026-07-30
+> 落地事实：P0 原型模块 + A2UI over MCP 传输 + 自建 processor 渲染器 + IPC 全链路（`packages/desktop/src/main/tools/a2ui/a2ui-mcp.ts` 903 行：render_surface/render_prototype/update_surface/a2ui_action + `renderer/a2ui/processor.ts` + PrototypePanel/PrototypeWindow 挂载）。**既定方案偏差（2026-08-17 拍板）**：弃官方 `@a2ui/react` 改自建 processor；A2UI 锁定全域动态 UI，不介入 designer 模块（三层定位边界由 guard 测试锁死）；P1 场景面板由 a2ui-annotation/OpenUI 体系承接定位。
 > 调研依据：[a2ui.org](https://a2ui.org/) · 官方仓库 [a2ui-project/a2ui](https://github.com/a2ui-project/a2ui)（Apache-2.0）
 > 配套报告：`docs/research/2026-07-a2ui-integration.md`
 > 定位：A2UI 在 DeepOrca 里承载**两类能力**——① 对话交互层升级（引擎演进，§十）；② 一个面向产品经理的 **AI-native 原型模块**（独立产品线，§六）。两者都不是 DeepDesign 的替代。复用既有 Electron + Agent loop + MCP 体系，**不引入 daemon、不引入 Python 运行时**。

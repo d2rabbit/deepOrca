@@ -1,6 +1,7 @@
 # defineAction 一次定义多表面 — 详细设计
 
-> 日期：2026-08-11 · 状态：规划中
+> 日期：2026-08-11 · 状态：**已实现（2026-08-18 终判回写）**
+> 落地事实：Phase 0–3 全落地——registry 原语（`core/actions/registry.ts` register/execute/RunHandle）+ LLM 面（mcp-bridge dispatchToolCall）+ MCP 面（`mcp__<action>` 命名空间）+ IPC 面（desktop action-ipc 统一进度事件）+ 28 个 action 归位（review/codegraph/wiki/index/arch-scan/task/design/bento/browser/system…）+ M2 spawner seam。design-audit/bento/browser 等为超出本稿的扩展。
 >
 > 灵感来源：[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native)（MIT）的 `defineAction` 设计模式
 > 前序调研：本对话（Agent Plugins / agent-native / HarnessBank 三模块集成调研）

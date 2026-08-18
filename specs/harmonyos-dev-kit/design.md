@@ -1,6 +1,6 @@
 # HarmonyOS Development Kit — 鸿蒙开发套件
 
-> 状态：内核设计 · 日期：2026-07-29
+> 状态：**❌ 已废弃/整体下线** · 日期：2026-07-29（2026-08-18 终判回写）——本套件曾完整落地（技能 + 安装脚本 + harmonyos-mcp），后随移动/桌面开发域整体临时下线（`f680c14`，`c8c5b55` 清死代码），当前树零实现；回归属冻结期外 `next/*` 范畴。另注意反向命题（DeepOrca 跑在鸿蒙 PC 上）2026-08-18 调研结论"先不做"：`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`。
 > 定位：DeepOrca 的内置鸿蒙开发能力，归属"移动开发"功能域。
 > 来源：[openharmony-sig/deveco-cli](https://gitcode.com/openharmony-sig/deveco-cli)（华为官方，HDC 2026 发布）
 

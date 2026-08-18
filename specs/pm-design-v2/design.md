@@ -1,6 +1,6 @@
 # PM-Design V2：需求具现化工作台
 
-> **状态**：设计阶段（方案文档，未实现）
+> **状态**：**部分实现（2026-08-18 终判回写）**——已实现：design-store 持久化（两管线 + 版本快照 FIFO 20 版）+ design.materialize Action + DesignPanel（一键具现化）+ P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + 预览联动 + 渲染错误纠正回路）。未做：版本切换 UI（快照在磁盘）、P4 独立导出（仅 iframe 打印 PDF；独立 HTML 导出可做、React 代码导出不做——2026-08-18 评估）；明确偏差：管线集合为 2（A2UI 交互层按三层定位排除）、pm-analyst/analysis.json 显式缓期。任务明细见 tasks.md（已回写）。
 > **日期**：2026-08-11
 > **前置**：[A2UI 集成](../a2ui-integration/design.md) · [DeepDesign .dd 格式](../deep-design/design.md)
 > **受众**：产品经理（PM）—— 不需要懂代码，用自然语言驱动从需求到原型的全流程

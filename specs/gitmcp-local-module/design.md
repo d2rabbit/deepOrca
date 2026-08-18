@@ -1,5 +1,7 @@
 # GitMCP 本地化独立模块 — 技术设计
 
+> 状态：**已实现（2026-08-18 终判回写）**——任务 1–11 全部完成（8 工具 + 23 离线测试 + controller-seam 落地 desktop `tools/gitmcp/`）；任务 12 回归验证的自动子项已过（typecheck/lint/test/build 全绿），`desktop:start` 人工手测清单待走查（见 tasks.md）。
+
 ## 1. 总体架构
 
 ```mermaid
