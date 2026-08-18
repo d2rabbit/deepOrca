@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新功能（2026-08-18 指定收尾批）
+
+- **`.dd` 独立 HTML 导出**（specs/pm-design-v2 P4-1）：DesignPanel 产物行新增 ⬇ 按钮 → `design:exportHtml` 特权通道 → main 侧复用纯函数 `parseDdFile`/`compileDdToHtml`（渲染目录的 parser/compiler 为零依赖纯逻辑，安全并入 main bundle）+ vendored Tailwind JIT 内联 → 原生保存对话框写单文件 HTML；取消为安静 no-op；i18n 六语言。React 代码导出与版本切换 UI 维持不做（已拍板）。
+- **G3 大技能分片召回注入**（specs/skill-routing 目标表）：SKILL.md ≥6000 字符时按标题分片（`skill-sharding`：索引/超长段行边界硬切、单行超长保持完整），注入形态 = header + 全量小节索引 + 按当前用户提示召回的 top-4 小节（`SkillShardRecaller` 复用 VectorIndex 内容哈希缓存）+ 未召回小节索取指引；小技能与一切失败路径 fail-open 回退全文（routing 铁律）；`RoutingConfig.skillSharding/shardMinChars/shardTopK` 三新配置键。
+- **task-tree artifact 快照切换**（specs/task-tree P2，file-history 复用）：tree 级独立 history 仓库（`<treeDir>/file-history`，分支名派生 ref——与会话级 file-history 语义冲突的解法即两套仓库）；`appendStep`/`merge` 自动 checkpoint 可解析产物文件（ref 须在根内且存在才纳入，LLM 输入不可信）并 stamp `meta.snapshot`；面板时间线 ⏪ 显式恢复（确认后 `tasktree:snapshotRestore` 特权通道）；`switchBranch` 出向 tracked-files 安全 checkpoint + 入向最近快照恢复，兑现"branch 切换 = 文件快照切换"——全程 fail-open 不影响上下文切换。
+
 ### 📋 规划与文档
 
 - **指定收尾批拍板**（2026-08-18，台账 `docs/spec-open-items-status.md` §〇）：F4 交互清单走查与 H0-H4 预生产切换确认为收尾批核心/出口项；pm-design-v2 独立 HTML 导出拍板"做"；skill-routing G3 分片召回注入与 task-tree artifact 快照切换推翻缓期/缓做、纳入收尾批实施（已同步回各 spec 状态行与 next-version-plan）；域声明 **deep-design = pm-design + ui-design**。同日建立 specs 未收尾项活台账（19 spec 逐项确认，本阶段待收 10 项）。

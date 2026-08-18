@@ -1,6 +1,6 @@
 # SkillWeaver 式技能/工具路由 — 详细设计
 
-> 日期：2026-08-06 · 状态：**部分实现（2026-08-18 终判回写；同日拍板更新）**——G1 短名单/G2 工具路由/M4 组合路由（SAD/DAG）+ 闭环 R1-R4 全落地（2026-08-15 两处设计演进记录于 docs/research/2026-08-15-routing-closure-plan.md）；**目标表 G3 大技能分片召回注入：2026-08-18 拍板纳入本阶段收尾批实施**（当日评估曾建议缓做，晚间拍板推翻；台账 `docs/spec-open-items-status.md` §一 #9）。注意勿混淆：代码内 G3 命名指 CompositionalSkill 索引模式（已实现），非目标表 G3。
+> 日期：2026-08-06 · 状态：**部分实现（2026-08-18 终判回写；同日拍板更新）**——G1 短名单/G2 工具路由/M4 组合路由（SAD/DAG）+ 闭环 R1-R4 全落地（2026-08-15 两处设计演进记录于 docs/research/2026-08-15-routing-closure-plan.md）；**目标表 G3 大技能分片召回注入：已实现（2026-08-18 收尾批落地）**——`routing/skill-sharding.ts`（标题分片/索引/超长行边界硬切）+ `routing/skill-shard-recaller.ts`（VectorIndex 召回，内容哈希缓存）+ session 接线（大技能注入 header+索引+top-K 小节，fail-open 全文回退）；`RoutingConfig.skillSharding/shardMinChars/shardTopK`（默认 6000/4）；实施口径与验收见 `tasks.md`。注意勿混淆：代码内 G3 命名指 CompositionalSkill 索引模式（已实现），非目标表 G3。
 >
 > 灵感来源：[arXiv:2606.18051](https://arxiv.org/abs/2606.18051)（无论文代码，本设计为自行实现）
 > 前序评估：`docs/research/2026-08-06-skillweaver-skill-routing-integration.md`

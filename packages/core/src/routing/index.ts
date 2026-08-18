@@ -20,6 +20,8 @@ export { VectorIndex, type VectorIndexEntry, type VectorIndexHit } from "./vecto
 export { SkillRouterImpl } from "./skill-router";
 export { ToolRouterImpl } from "./tool-router";
 export { RoutingFacade, type ToolRouteDecision, type ToolRouteRequest } from "./routing-facade";
+export { SkillShardRecaller } from "./skill-shard-recaller";
+export { shardSkillDocument, renderShardedContent, type ShardedSkillDocument, type SkillShard } from "./skill-sharding";
 export { runSad, jaccardSet, categoryJaccard, type SadOptions, DEFAULT_SAD_OPTIONS } from "./sad";
 export {
   composePlan,
@@ -73,6 +75,7 @@ import type { ToolRouter } from "./types";
 import { SkillRouterImpl } from "./skill-router";
 import { ToolRouterImpl } from "./tool-router";
 import { RoutingFacade } from "./routing-facade";
+import { SkillShardRecaller } from "./skill-shard-recaller";
 import { getEmbeddingService } from "./embedding-loader";
 
 export interface RouterBundle {
@@ -80,6 +83,8 @@ export interface RouterBundle {
   toolRouter: ToolRouter | null;
   /** Session-scoped decision point (freeze + invalidate) over toolRouter. */
   facade: RoutingFacade;
+  /** G3: recall side of large-skill sharded injection (null = fail-open to full docs). */
+  shardRecaller: SkillShardRecaller | null;
 }
 
 /**
@@ -91,12 +96,22 @@ export async function createRouters(
   opts: { modelDir: string; cacheDir?: string }
 ): Promise<RouterBundle> {
   if (!config.enabled) {
-    return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) };
+    return {
+      skillRouter: null,
+      toolRouter: null,
+      facade: new RoutingFacade({ toolRouter: null }),
+      shardRecaller: null,
+    };
   }
 
   const embeddingService = await getEmbeddingService({ modelDir: opts.modelDir });
   if (!embeddingService) {
-    return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) };
+    return {
+      skillRouter: null,
+      toolRouter: null,
+      facade: new RoutingFacade({ toolRouter: null }),
+      shardRecaller: null,
+    };
   }
 
   const toolRouter = new ToolRouterImpl(config, embeddingService, opts.cacheDir);
@@ -104,5 +119,6 @@ export async function createRouters(
     skillRouter: new SkillRouterImpl(config, embeddingService, opts.cacheDir),
     toolRouter,
     facade: new RoutingFacade({ toolRouter }),
+    shardRecaller: new SkillShardRecaller(embeddingService, opts.cacheDir),
   };
 }

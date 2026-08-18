@@ -151,10 +151,10 @@
 
 ### P4-1: DeepDesign 导出
 
-- [ ] `.dd` → 独立 HTML 文件（**2026-08-18 拍板"做"，并入本阶段收尾批**——原"可做"评估落定，台账 `docs/spec-open-items-status.md` §一 #8；React 代码导出与版本切换 UI 维持不做）
-  - [ ] 复用 `dd/compiler.ts` 的 `compileDdToHtml()`
-  - [ ] DesignPanel 增加 [导出 HTML] 按钮
-  - [ ] Electron `dialog.showSaveDialog()` → 写文件
+- [x] `.dd` → 独立 HTML 文件（**2026-08-18 拍板"做"并入收尾批，同日落地**——台账 `docs/spec-open-items-status.md` §一 #8；React 代码导出与版本切换 UI 维持不做）
+  - [x] 复用 `dd/compiler.ts` 的 `compileDdToHtml()`（main 侧导入纯函数 parser/compiler + vendored Tailwind JIT 内联）
+  - [x] DesignPanel 增加 [⬇ 导出 HTML] 按钮（i18n 六语言）
+  - [x] Electron `dialog.showSaveDialog()` → 写文件（`DesignExportHtml` 特权通道，同 SessionExport 先例）
 
 ### P4-2: A2UI 导出（可选）
 

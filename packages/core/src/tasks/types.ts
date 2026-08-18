@@ -38,6 +38,12 @@ export interface TaskNode {
     memorySeed?: { unitIds: string[]; similarity: number; sourceTaskId: string };
     /** Merge-time artifact collisions — REPORTED for human confirmation, never auto-resolved. */
     mergeConflicts?: Array<{ artifactRef: string; targetTitle: string }>;
+    /**
+     * Artifact snapshot (P2, file-history reuse): checkpoint of the node's
+     * resolvable artifact files in the tree-scoped history repo. Present only
+     * when at least one artifactRef existed on disk at append time.
+     */
+    snapshot?: { hash: string; at: string; files: number };
   };
 }
 

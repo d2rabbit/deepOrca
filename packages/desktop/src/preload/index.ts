@@ -151,6 +151,7 @@ const api: DesktopApi = {
   designDelete: (id) => ipcRenderer.invoke(IpcRequest.DesignDelete, id),
   designSaveFormState: (pipeline, state) => ipcRenderer.invoke(IpcRequest.DesignSaveFormState, pipeline, state),
   designReadFormState: (pipeline) => ipcRenderer.invoke(IpcRequest.DesignReadFormState, pipeline),
+  designExportHtml: (id) => ipcRenderer.invoke(IpcRequest.DesignExportHtml, id),
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
@@ -158,6 +159,8 @@ const api: DesktopApi = {
   taskTreeReflog: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId),
   taskTreeArchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeArchive, treeId, workspaceRoot),
   taskTreeUnarchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeUnarchive, treeId, workspaceRoot),
+  taskTreeSnapshotRestore: (treeId, nodeId, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeSnapshotRestore, treeId, nodeId, workspaceRoot),
   taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
   taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
   taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),

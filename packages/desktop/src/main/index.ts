@@ -81,6 +81,11 @@ import {
   readFormState,
   type DesignPipeline,
 } from "./tools/design-store.js";
+// Dependency-free renderer modules reused by the main-process HTML export
+// (P4-1): parsing/compiling is pure string logic with no browser API touch,
+// so bundling them into main.js is safe.
+import { parseDdFile } from "../renderer/dd/parser.js";
+import { compileDdToHtml } from "../renderer/dd/compiler.js";
 import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
@@ -1193,8 +1198,22 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
   });
 }
 
+/**
+ * Vendored Tailwind JIT script for the standalone HTML export — same layout
+ * the renderer's generated module uses (vendor/tailwind/tailwind.js), read
+ * best-effort: a missing vendored tree simply exports without Tailwind (seed
+ * CSS + tokens still render the layout).
+ */
+function readTailwindScript(): string | null {
+  try {
+    return readFileSync(join(__dirname, "..", "vendor", "tailwind", "tailwind.js"), "utf-8") || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Designer artifact management — bridges the renderer to design-store. */
-function registerDesignIpc({ handle }: IpcHelpers): void {
+function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.DesignList, async () => {
     return listDesignArtifacts(getBridge().projectRoot);
   });
@@ -1205,6 +1224,39 @@ function registerDesignIpc({ handle }: IpcHelpers): void {
 
   handle(IpcRequest.DesignDelete, async (id: string) => {
     return deleteDesignArtifact(getBridge().projectRoot, id);
+  });
+
+  // P4-1 standalone HTML export (specs/pm-design-v2): compile the `.dd` in the
+  // MAIN process (parser/compiler are dependency-free renderer modules — pure
+  // logic, bundled in like any other import) with the vendored Tailwind JIT
+  // inlined so the exported file renders utility classes offline. Privileged:
+  // opens a native save dialog and writes an arbitrary user-chosen path.
+  handlePrivileged(IpcRequest.DesignExportHtml, async (id: string) => {
+    if (!mainWindow) return { ok: false, error: "no window" };
+    const artifact = readDesignArtifact(getBridge().projectRoot, id);
+    if (!artifact || artifact.pipeline !== "design") {
+      return { ok: false, error: "design (.dd) artifact not found" };
+    }
+    let html: string;
+    try {
+      const doc = parseDdFile(artifact.content);
+      html = compileDdToHtml(doc, readTailwindScript() ?? undefined);
+    } catch (err) {
+      return { ok: false, error: `compile failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    const safeTitle = artifact.title.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_").slice(0, 60) || "design";
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Export design as HTML",
+      defaultPath: `${safeTitle}.html`,
+      filters: [{ name: "HTML", extensions: ["html"] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false };
+    try {
+      await writeFile(result.filePath, html, "utf-8");
+      return { ok: true, path: result.filePath };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 
   // Form-state persistence targets the LATEST artifact of the pipeline — the
@@ -1263,6 +1315,19 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
     return new TaskTreeService(root).unarchiveTree(treeId);
   });
+  handlePrivileged(
+    IpcRequest.TaskTreeSnapshotRestore,
+    async (treeId: string, nodeId: string, workspaceRoot?: string) => {
+      if (!validTreeId(treeId) || typeof nodeId !== "string") {
+        return { ok: false, error: "invalid request" };
+      }
+      // Fresh service reads flushed disk state (all mutations flush) — same
+      // consistency argument as the archive handlers above. Restoring rewrites
+      // workspace files, hence privileged.
+      const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
+      return new TaskTreeService(root).restoreNodeSnapshot(treeId, nodeId);
+    }
+  );
 
   handlePrivileged(IpcRequest.TaskTreeCreate, async (prompt: string, why: string, branchName?: string) => {
     const svc = service();

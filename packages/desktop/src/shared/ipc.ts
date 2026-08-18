@@ -156,6 +156,7 @@ export const IpcRequest = {
   DesignDelete: "design:delete",
   DesignSaveFormState: "design:saveFormState",
   DesignReadFormState: "design:readFormState",
+  DesignExportHtml: "design:exportHtml",
 
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
@@ -163,6 +164,7 @@ export const IpcRequest = {
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeArchive: "tasktree:archive",
   TaskTreeUnarchive: "tasktree:unarchive",
+  TaskTreeSnapshotRestore: "tasktree:snapshotRestore",
   TaskTreeCreate: "tasktree:create",
   TaskTreeFork: "tasktree:fork",
   TaskTreeSwitch: "tasktree:switch",
@@ -820,6 +822,12 @@ export type DesktopApi = {
   designSaveFormState(pipeline: "openui" | "design", state: Record<string, unknown>): Promise<boolean>;
   /** Read the persisted form state for hydration; null when none. */
   designReadFormState(pipeline: "openui" | "design"): Promise<Record<string, unknown> | null>;
+  /**
+   * Export an artifact as a standalone HTML file (P4-1): main compiles the
+   * `.dd` (tokens + seed CSS + inlined Tailwind JIT), shows a native save
+   * dialog and writes the file. `ok:false` without `error` = user canceled.
+   */
+  designExportHtml(id: string): Promise<{ ok: boolean; path?: string; error?: string }>;
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */
@@ -835,6 +843,15 @@ export type DesktopApi = {
   taskTreeArchive(treeId: string, workspaceRoot?: string): Promise<boolean>;
   /** Lift a whole-tree archive (manual, from the panel). */
   taskTreeUnarchive(treeId: string, workspaceRoot?: string): Promise<boolean>;
+  /**
+   * Restore the working tree's artifact files to a node's snapshot (P2
+   * file-history reuse). Structured `{ok, error?}` — never throws.
+   */
+  taskTreeSnapshotRestore(
+    treeId: string,
+    nodeId: string,
+    workspaceRoot?: string
+  ): Promise<{ ok: boolean; restored?: number; error?: string }>;
   /** Create a tree in the CURRENT workspace (prompt + why are required). */
   taskTreeCreate(prompt: string, why: string, branchName?: string): Promise<{ treeId: string } | { error: string }>;
   /** Fork a branch (why is the human-facing story; required). */

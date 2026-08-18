@@ -22,6 +22,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
+import { GitFileHistory } from "../common/file-history";
 import type {
   MemoryForkCandidate,
   TaskNode,
@@ -66,11 +67,16 @@ const VALID_TREE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 
 export class TaskTreeService {
   private readonly rootDir: string;
+  /** Workspace root — artifact refs resolve (and stay contained) under it. */
+  private readonly projectRoot: string;
+  /** treeId → tree-scoped file-history repo (P2 artifact snapshots). */
+  private readonly histories = new Map<string, GitFileHistory>();
   /** treeId → in-memory index (the pending state reads must prefer). */
   private readonly pendingIndexes = new Map<string, TaskTreeIndex>();
   private readonly indexTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(projectRoot: string) {
+    this.projectRoot = projectRoot;
     this.rootDir = path.join(projectRoot, ".deeporca", "task-trees");
     try {
       fs.mkdirSync(this.rootDir, { recursive: true, mode: 0o700 });
@@ -162,6 +168,9 @@ export class TaskTreeService {
       this.pendingIndexes.set(treeId, next);
       this.appendReflog(treeId, { at, op: "append", branch: index.activeBranch, nodeId: node.id, detail: node.title });
       this.saveIndex(treeId, { flush: true });
+      // P2 artifact snapshot (fail-open): checkpoint resolvable artifact files
+      // onto the branch's history and stamp the hash into the node's meta.
+      this.maybeSnapshotNode(treeId, node);
       return node.id;
     } catch {
       return null;
@@ -235,11 +244,157 @@ export class TaskTreeService {
   switchBranch(treeId: string, branch: string): boolean {
     const index = this.loadIndex(treeId);
     if (!index || !index.branches[branch] || index.branches[branch]!.abandoned) return false;
+    const previousBranch = index.activeBranch;
     const next: TaskTreeIndex = { ...index, activeBranch: branch, updatedAt: nowIso() };
     this.pendingIndexes.set(treeId, next);
     this.appendReflog(treeId, { at: next.updatedAt, op: "switch", branch });
     this.saveIndex(treeId, { flush: true });
+    // P2 "branch 切换 = 文件快照切换" (fail-open): safety-checkpoint the
+    // OUTGOING branch's tracked files, then restore the incoming branch's
+    // nearest artifact snapshot — no snapshot on the target = files untouched.
+    this.syncBranchFilesOnSwitch(treeId, previousBranch, branch);
     return true;
+  }
+
+  // ── P2 artifact snapshots (file-history reuse, tree-scoped) ────────────────
+
+  /**
+   * Explicit snapshot restore (panel ⏪): put the working tree back to the
+   * artifact files as captured at `nodeId`'s checkpoint. Structured errors —
+   * never throws (a broken history must not break the panel).
+   */
+  restoreNodeSnapshot(treeId: string, nodeId: string): { ok: boolean; restored?: number; error?: string } {
+    try {
+      const index = this.loadIndex(treeId);
+      if (!index) return { ok: false, error: "tree not found" };
+      const node = this.readNodeFile(treeId, nodeId);
+      if (!node) return { ok: false, error: "node not found" };
+      const snap = node.meta?.snapshot;
+      if (!snap?.hash) return { ok: false, error: "node has no artifact snapshot" };
+      const branch = this.findBranchOfNode(index, nodeId);
+      if (!branch) return { ok: false, error: "owning branch not found" };
+      const history = this.historyFor(treeId);
+      const refId = this.branchHistoryId(branch);
+      history.ensureSession(refId);
+      if (!history.canRestore(refId, snap.hash)) {
+        return { ok: false, error: "snapshot not restorable (history missing)" };
+      }
+      history.restore(refId, snap.hash);
+      this.appendReflog(treeId, {
+        at: nowIso(),
+        op: "switch",
+        branch,
+        nodeId,
+        detail: `artifact snapshot restored (${snap.files} file(s))`,
+      });
+      return { ok: true, restored: snap.files };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /** Checkpoint `node`'s resolvable artifact files; stamp meta.snapshot (fail-open). */
+  private maybeSnapshotNode(treeId: string, node: TaskNode): void {
+    try {
+      const files = this.resolveArtifactPaths(node.artifactRefs ?? []);
+      if (files.length === 0) return;
+      const index = this.loadIndex(treeId);
+      const branch = index ? Object.keys(index.branches).find((b) => index.branches[b]!.headId === node.id) : undefined;
+      if (!index || !branch) return;
+      const history = this.historyFor(treeId);
+      const refId = this.branchHistoryId(branch);
+      history.ensureSession(refId);
+      const hash = history.recordCheckpoint(refId, files, `task-tree: ${node.title.slice(0, 60)}`);
+      if (!hash) return;
+      this.writeNodeFile(this.treeDir(treeId), {
+        ...node,
+        meta: { ...node.meta, snapshot: { hash, at: nowIso(), files: files.length } },
+      });
+    } catch {
+      // Fail-open: snapshotting is an enhancement, never a blocker.
+    }
+  }
+
+  /** Outgoing safety-checkpoint + incoming snapshot restore on branch switch. */
+  private syncBranchFilesOnSwitch(treeId: string, fromBranch: string, toBranch: string): void {
+    try {
+      const index = this.loadIndex(treeId);
+      if (!index) return;
+      const history = this.historyFor(treeId);
+      const fromRef = this.branchHistoryId(fromBranch);
+      // Only branches that already track files get a safety checkpoint — a
+      // never-snapshotted branch must not start tracking mid-flight.
+      if (history.getCurrentCheckpointHash(fromRef)) {
+        history.recordTrackedFilesCheckpoint(fromRef, `task-tree switch-out: ${fromBranch}`);
+      }
+      const snap = this.nearestSnapshotHash(index, toBranch);
+      if (!snap) return;
+      const toRef = this.branchHistoryId(toBranch);
+      history.ensureSession(toRef);
+      if (history.canRestore(toRef, snap)) {
+        history.restore(toRef, snap);
+      }
+    } catch {
+      // Fail-open: the context switch already succeeded — files never break it.
+    }
+  }
+
+  /** Newest snapshot hash along `branch`'s head lineage, or null. */
+  private nearestSnapshotHash(index: TaskTreeIndex, branch: string): string | null {
+    let id: string | null = index.branches[branch]?.headId ?? null;
+    for (let steps = 0; id && steps < 200; steps += 1) {
+      const node = this.readNodeFile(index.id, id);
+      if (!node) return null;
+      const hash = node.meta?.snapshot?.hash;
+      if (hash) return hash;
+      id = node.parentId;
+    }
+    return null;
+  }
+
+  /** Which branch's lineage contains `nodeId` (lineage = head → root). */
+  private findBranchOfNode(index: TaskTreeIndex, nodeId: string): string | null {
+    for (const [branch, entry] of Object.entries(index.branches)) {
+      if (this.lineageOf(index.id, entry.headId).has(nodeId)) return branch;
+    }
+    return null;
+  }
+
+  /**
+   * Artifact refs → existing files under the project root. Relative refs
+   * resolve against the workspace; anything escaping the root or absent on
+   * disk is skipped (LLM-produced refs are untrusted input).
+   */
+  private resolveArtifactPaths(refs: string[]): string[] {
+    const root = path.resolve(this.projectRoot);
+    const out = new Set<string>();
+    for (const ref of refs) {
+      if (!ref) continue;
+      const candidate = path.isAbsolute(ref) ? ref : path.resolve(root, ref);
+      if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) continue;
+      try {
+        if (!fs.statSync(candidate).isFile()) continue;
+      } catch {
+        continue;
+      }
+      out.add(candidate);
+    }
+    return [...out];
+  }
+
+  /** Tree-scoped history repo under the tree dir (never enumerated as a tree). */
+  private historyFor(treeId: string): GitFileHistory {
+    let history = this.histories.get(treeId);
+    if (!history) {
+      history = new GitFileHistory(this.projectRoot, path.join(this.treeDir(treeId), "file-history"));
+      this.histories.set(treeId, history);
+    }
+    return history;
+  }
+
+  /** Branch name → git-ref-safe history key (`refs/heads/<id>` inside the repo). */
+  private branchHistoryId(branch: string): string {
+    return `task-${branch.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 64)}`;
   }
 
   /**
@@ -328,6 +483,9 @@ export class TaskTreeService {
         detail: `merge ← ${srcBranch} (${picks.join(",")})`,
       });
       this.saveIndex(treeId, { flush: true });
+      // P2 artifact snapshot: the merge node carries the transferred refs —
+      // checkpoint their current on-disk state on the target branch (fail-open).
+      this.maybeSnapshotNode(treeId, node);
       return { mergeNodeId: node.id, conflicts };
     } catch {
       return null;

@@ -201,7 +201,13 @@ import {
   type RoutableTool,
 } from "./routing";
 import { logRoutingEvent } from "./routing";
-import { createRouters, getConfiguredRoutingModelDir, type RouterBundle } from "./routing";
+import {
+  createRouters,
+  getConfiguredRoutingModelDir,
+  renderShardedContent,
+  shardSkillDocument,
+  type RouterBundle,
+} from "./routing";
 import type { LLMDecomposer } from "./routing/types";
 
 export type { PermissionScope } from "./settings";
@@ -867,6 +873,8 @@ export class SessionManager {
   private routerInitPromise: Promise<RouterBundle> | null = null;
   /** When the last router load FAILED (0 = never / success) — retry backoff (R4). */
   private routingLoadFailedAt = 0;
+  /** G3 shard-injection switches mirrored from the routing config at bundle build. */
+  private shardConfig: { enabled: boolean; minChars: number; topK: number } | null = null;
   /** Current subagent nesting depth (recursion cap, deep review 2026-08-15 B6). */
   private subagentDepth = 0;
   /** Task trajectory service (specs/task-tree P0) — single writer, lazily built. */
@@ -1335,7 +1343,12 @@ export class SessionManager {
     // fresh dynamic-import attempt that could never succeed.
     const backoffRemaining = ROUTING_LOAD_RETRY_BACKOFF_MS - (Date.now() - this.routingLoadFailedAt);
     if (this.routingLoadFailedAt > 0 && backoffRemaining > 0) {
-      return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) };
+      return {
+        skillRouter: null,
+        toolRouter: null,
+        facade: new RoutingFacade({ toolRouter: null }),
+        shardRecaller: null,
+      };
     }
 
     this.routerInitPromise = (async () => {
@@ -1391,12 +1404,22 @@ export class SessionManager {
       // routing enabled means the embedding service failed to load.
       this.routingLoadFailedAt = config.enabled && !bundle.skillRouter ? Date.now() : 0;
       this.routerBundle = bundle;
+      this.shardConfig = {
+        enabled: config.skillSharding,
+        minChars: config.shardMinChars,
+        topK: config.shardTopK,
+      };
       return bundle;
     })();
 
     return this.routerInitPromise.catch(() => {
       this.routerInitPromise = null;
-      return { skillRouter: null, toolRouter: null, facade: new RoutingFacade({ toolRouter: null }) } as RouterBundle;
+      return {
+        skillRouter: null,
+        toolRouter: null,
+        facade: new RoutingFacade({ toolRouter: null }),
+        shardRecaller: null,
+      } as RouterBundle;
     });
   }
 
@@ -1409,6 +1432,7 @@ export class SessionManager {
    */
   invalidateRouting(): void {
     this.routerBundle = null;
+    this.shardConfig = null;
     this.routerInitPromise = null;
     this.routingLoadFailedAt = 0;
     this.frozenToolRoutes.clear();
@@ -1840,6 +1864,7 @@ If the query is simple (single intent), respond with a single-element array.`;
     // SessionManagers, so it is deliberately NOT closed here — the host closes it
     // on app teardown via closeEmbeddingService().
     this.routerBundle = null;
+    this.shardConfig = null;
     this.frozenToolRoutes.clear();
     this.routerInitPromise = null;
   }
@@ -2917,16 +2942,45 @@ Rules:
     return path.join(os.homedir(), skillPath);
   }
 
-  private buildSkillPrompt(skill: SkillInfo): string {
+  private async buildSkillPrompt(skill: SkillInfo, promptText?: string): Promise<string> {
     const skillPath = this.resolveSkillPath(skill.path);
+    const content = fs.readFileSync(skillPath, "utf-8");
+    // G3: large SKILL.md documents inject header + section index + the shards
+    // recalled for THIS prompt instead of the full text (fail-open → full).
+    const shardedContent = await this.maybeShardSkillContent(content, promptText);
     return buildSkillDocumentsPrompt([
       {
         name: skill.name,
-        content: fs.readFileSync(skillPath, "utf8"),
+        content: shardedContent ?? content,
         path: skillPath,
         skillFilePath: skillPath,
       },
     ]);
+  }
+
+  /**
+   * G3 shard-recall (specs/skill-routing 目标表): returns the replacement
+   * content for a LARGE skill, or null when the full content should be
+   * injected (small doc, routing off, embedding unavailable, recall failure —
+   * every path is fail-open by design).
+   */
+  private async maybeShardSkillContent(content: string, promptText?: string): Promise<string | null> {
+    if (!promptText || !promptText.trim()) return null;
+    let bundle: RouterBundle;
+    try {
+      bundle = await this.getRouters();
+    } catch {
+      return null;
+    }
+    if (!bundle.shardRecaller || !this.shardConfig?.enabled) return null;
+    const doc = shardSkillDocument(content, { minChars: this.shardConfig.minChars });
+    if (!doc) return null;
+    try {
+      const picked = await bundle.shardRecaller.recall(promptText, doc, this.shardConfig.topK);
+      return picked ? renderShardedContent(doc, picked) : null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -3111,7 +3165,7 @@ ${content}
     });
   }
 
-  private appendSkillMessages(sessionId: string, skills?: SkillInfo[]): void {
+  private async appendSkillMessages(sessionId: string, skills?: SkillInfo[], promptText?: string): Promise<void> {
     if (!skills || skills.length === 0) {
       return;
     }
@@ -3120,7 +3174,7 @@ ${content}
       if (skill.isLoaded) {
         continue;
       }
-      const skillPrompt = this.buildSkillPrompt(skill);
+      const skillPrompt = await this.buildSkillPrompt(skill, promptText);
       const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
       this.appendSessionMessage(sessionId, skillMessage);
       this.onAssistantMessage(skillMessage, true);
@@ -3287,7 +3341,7 @@ ${content}
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
     this.throwIfAborted(signal);
 
-    this.appendSkillMessages(sessionId, userPrompt.skills);
+    await this.appendSkillMessages(sessionId, userPrompt.skills, userPrompt.text);
 
     this.activeSessionId = sessionId;
     await this.activateSession(sessionId, controller);
@@ -3367,7 +3421,7 @@ ${content}
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills, sessionId);
     this.throwIfAborted(signal);
 
-    this.appendSkillMessages(sessionId, userPrompt.skills);
+    await this.appendSkillMessages(sessionId, userPrompt.skills, userPrompt.text);
     this.activeSessionId = sessionId;
     await this.activateSession(sessionId, controller);
   }
@@ -5266,7 +5320,7 @@ ${content}
     }
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills, sessionId);
     this.throwIfAborted(signal);
-    this.appendSkillMessages(sessionId, userPrompt.skills);
+    await this.appendSkillMessages(sessionId, userPrompt.skills, userPrompt.text);
   }
 
   private buildToolParamsSnippet(toolFunction: unknown | null): string {

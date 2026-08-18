@@ -577,13 +577,15 @@ test("SessionManager lets project skills override built-in plugin skills", async
   assert.equal(skillWriter?.description, "Project override skill writer");
 });
 
-test("SessionManager resolves built-in plugin skill prompts", () => {
+test("SessionManager resolves built-in plugin skill prompts", async () => {
   const workspace = createTempDir("deepcode-plugin-prompt-workspace-");
   const home = createTempDir("deepcode-plugin-prompt-home-");
   setHomeDir(home);
 
   const manager = createSessionManager(workspace);
-  const prompt = (manager as any).buildSkillPrompt({
+  // buildSkillPrompt is async since G3 (shard recall may consult the router
+  // bundle) — small plugin skills take the fail-open full-content path.
+  const prompt = await (manager as any).buildSkillPrompt({
     name: "skill-writer",
     path: "plugin:meta-skills/skill-writer/SKILL.md",
     description: "Write skills",

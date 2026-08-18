@@ -115,6 +115,12 @@ export interface RoutingConfig {
   mcpTokenBudget: number;
   /** G2: server names that always pass through (never gated). */
   pinnedServers: string[];
+  /** G3: recall-based injection for LARGE skills (default true). */
+  skillSharding: boolean;
+  /** G3: SKILL.md below this size is injected in full, never sharded (default 6000 chars). */
+  shardMinChars: number;
+  /** G3: sections recalled per injection (default 4). */
+  shardTopK: number;
 }
 
 export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
@@ -124,6 +130,9 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   mcpToolGating: true,
   mcpTokenBudget: 2000,
   pinnedServers: [],
+  skillSharding: true,
+  shardMinChars: 6000,
+  shardTopK: 4,
 };
 
 // ── Embedding adapter ──────────────────────────────────────────────────────

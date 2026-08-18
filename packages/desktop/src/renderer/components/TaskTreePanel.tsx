@@ -221,6 +221,23 @@ export function TaskTreePanel({ treeId }: { treeId?: string }): JSX.Element {
     [reloadDetail]
   );
 
+  // P2 artifact snapshot restore: put the workspace's artifact files back to
+  // this node's checkpoint (confirmation first — it rewrites working files).
+  const handleRestoreSnapshot = useCallback(
+    async (nodeId: string) => {
+      if (!selected) return;
+      if (!window.confirm(t("tasktree.snapshotConfirm"))) return;
+      const result = await api.taskTreeSnapshotRestore(selected, nodeId);
+      setNotice(
+        result.ok
+          ? t("tasktree.snapshotRestored", { count: result.restored ?? 0 })
+          : t("tasktree.snapshotFailed", { error: result.error ?? "" })
+      );
+      await reloadDetail(selected);
+    },
+    [selected, reloadDetail, t]
+  );
+
   const handleCreate = useCallback(async () => {
     const prompt = newPrompt.trim();
     const why = newWhy.trim();
@@ -534,6 +551,15 @@ export function TaskTreePanel({ treeId }: { treeId?: string }): JSX.Element {
                                 {node.title}
                               </span>
                               <span className={`ui-tt-status ${node.status}`}>{statusLabel(node.status)}</span>
+                              {node.meta?.snapshot ? (
+                                <button
+                                  className="ui-tt-act"
+                                  onClick={() => void handleRestoreSnapshot(node.id)}
+                                  title={t("tasktree.restoreSnapshot", { count: node.meta.snapshot!.files })}
+                                >
+                                  ⏪
+                                </button>
+                              ) : null}
                               <span className="ui-tt-item-time">{fmtTime(node.createdAt)}</span>
                             </div>
                             <div className="ui-tt-why">{node.why}</div>

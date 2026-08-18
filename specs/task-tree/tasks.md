@@ -32,7 +32,12 @@
 - [x] 树图 UI：泳道式画布（每分支一列、世系自上而下、active 高亮、abandoned 灰显、⚠ 冲突清单渲染、✦ 徽章）
 - [x] merge 冲突确认清单：冲突持久化进 merge 节点 meta + 面板渲染
 - [x] PM-Design 整合：design.materialize 在绑定会话中产出 → 分支 step 节点
-- [ ] artifact 快照切换（file-history 复用）——**2026-08-18 拍板：纳入本阶段收尾批实施**（原"待出现真实需求再立项"缓期作废；与 file-history 的 per-session 语义冲突转为实施时须解决的约束，不再作为延后理由）。台账：`docs/spec-open-items-status.md` §一 #10
+- [x] artifact 快照切换（file-history 复用）——**2026-08-18 拍板：纳入本阶段收尾批实施，同日收尾批落地**（原"待出现真实需求再立项"缓期作废；与 file-history 的 per-session 语义冲突转为实施时须解决的约束，不再作为延后理由）。台账：`docs/spec-open-items-status.md` §一 #10
+  - [x] S1 存储复用：`GitFileHistory` 以 tree 级 gitDir（`<treeDir>/file-history`）+ 分支名派生 ref 实例化——不动会话级 file-history 的任何行为（语义冲突的解法：两套独立仓库/ref 空间）
+  - [x] S2 快照记录：`appendStep` 时 artifactRefs 中可解析为工作区文件的存在者自动 checkpoint（`recordCheckpoint`），node.meta.stamp 快照哈希+文件数（节点同 id 重写，同 sessionRef 绑定先例）；无可解析文件则不记（纯上下文节点现状不变）
+  - [x] S3 显式恢复：`restoreNodeSnapshot(treeId, nodeId)`（预检 canRestore，失败结构化报错）+ IPC 特权通道 + 面板时间线 ⏪ 按钮
+  - [x] S4 切换联动：`switchBranch` 先对出向分支做 tracked-files 安全 checkpoint（有历史才做），目标分支头世系最近快照存在则恢复——"branch 切换 = 文件快照切换"；目标无快照不动文件；全程 try/catch fail-open 不影响上下文切换
+  - [x] S5 测试：快照往返（写入→改→恢复还原）/不存在 ref 跳过/切换自动恢复（A 有快照 B 无）/恢复失败不抛穿/历史目录不污染 listTrees
 
 ## P1 收尾：session 绑定可见化 + 整树归档联动（2026-08-18，冻结前完善）
 

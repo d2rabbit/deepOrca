@@ -223,7 +223,7 @@ merge（cherry-pick + 冲突报告不自动裁决）、session 绑定（taskRef 
 
 ### P2 落地记录（2026-08-15）
 
-记忆驱动 fork 以**最小可用环**落地（六步全通，但召回用任务树自身持久 + token-Jaccard 而非 L2 谱系字段——谱系回收走"隐藏 <task-lineage> 消息 + 现有记忆 capture"通道，memory 包零改动；memory-lineage.md 的 L2 字段降级为可选增强）。树图 UI 升级为泳道画布（每分支一列、冲突清单 ⚠ 渲染）。PM-Design 整合：materialize 产出 → 绑定分支 step。快照切换缓期（见 tasks.md 理由）。真机验收通过：rail 挂载、task.create/step/fork/recall 经真实 IPC 全链路、磁盘持久化与 reflog 流水核验。
+记忆驱动 fork 以**最小可用环**落地（六步全通，但召回用任务树自身持久 + token-Jaccard 而非 L2 谱系字段——谱系回收走"隐藏 <task-lineage> 消息 + 现有记忆 capture"通道，memory 包零改动；memory-lineage.md 的 L2 字段降级为可选增强）。树图 UI 升级为泳道画布（每分支一列、冲突清单 ⚠ 渲染）。PM-Design 整合：materialize 产出 → 绑定分支 step。快照切换已于 2026-08-18 收尾批落地：tree 级 file-history 仓库（`<treeDir>/file-history`，分支名派生 ref）——appendStep/merge 自动 checkpoint 可解析产物文件并 stamp `meta.snapshot`，面板 ⏪ 显式恢复，switchBranch 出向安全 checkpoint + 入向最近快照恢复（全 fail-open）。真机验收通过：rail 挂载、task.create/step/fork/recall 经真实 IPC 全链路、磁盘持久化与 reflog 流水核验。
 
 ### P1 收尾：session 绑定可见化 + 整树归档联动（2026-08-18，冻结前完善）
 

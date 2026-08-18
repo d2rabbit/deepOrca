@@ -673,3 +673,76 @@ test("task-tree service: treeId path containment — traversal ids cannot escape
   // The control tree is untouched by the rejected calls.
   assert.ok(svc.getTree(treeId!), "legit tree still readable");
 });
+
+// ── P2 artifact snapshots (file-history reuse) ──────────────────────────────
+
+test("appendStep snapshots resolvable artifact files and stamps node meta", () => {
+  const root = tempRoot();
+  fs.writeFileSync(path.join(root, "report.md"), "v1", "utf8");
+  fs.mkdirSync(path.join(root, "out"), { recursive: true });
+  fs.writeFileSync(path.join(root, "out", "app.js"), "console.log(1)", "utf8");
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Snapshot flow")!;
+  const nodeId = svc.appendStep(treeId, {
+    title: "produce artifacts",
+    artifactRefs: ["report.md", "out/app.js", "does-not-exist.txt", "../../outside.txt"],
+  })!;
+  assert.ok(nodeId);
+  const node = svc.getNode(treeId, nodeId)!;
+  assert.ok(node.meta.snapshot, "snapshot stamped");
+  assert.equal(node.meta.snapshot!.files, 2, "only in-root existing files tracked");
+  // Mutate both files, then restore the node's snapshot.
+  fs.writeFileSync(path.join(root, "report.md"), "v2-clobbered", "utf8");
+  fs.writeFileSync(path.join(root, "out", "app.js"), "clobbered", "utf8");
+  const restored = svc.restoreNodeSnapshot(treeId, nodeId);
+  assert.deepEqual(restored, { ok: true, restored: 2 });
+  assert.equal(fs.readFileSync(path.join(root, "report.md"), "utf8"), "v1");
+  assert.equal(fs.readFileSync(path.join(root, "out", "app.js"), "utf8"), "console.log(1)");
+  // The history repo lives INSIDE the tree dir — never a sibling (listTrees safety).
+  assert.ok(fs.existsSync(path.join(root, ".deeporca", "task-trees", treeId, "file-history")));
+});
+
+test("appendStep without resolvable files carries no snapshot (context-only nodes unchanged)", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("No artifacts")!;
+  const nodeId = svc.appendStep(treeId, { title: "pure decision" })!;
+  const node = svc.getNode(treeId, nodeId)!;
+  assert.equal(node.meta.snapshot, undefined);
+  const result = svc.restoreNodeSnapshot(treeId, nodeId);
+  assert.equal(result.ok, false);
+});
+
+test("switchBranch restores the incoming branch snapshot and checkpoints the outgoing one", () => {
+  const root = tempRoot();
+  const file = path.join(root, "spec.md");
+  fs.writeFileSync(file, "main-version", "utf8");
+  const svc = new TaskTreeService(root);
+  const treeId = svc.createTree("Switch flow")!;
+  svc.appendStep(treeId, { title: "main work", artifactRefs: ["spec.md"] });
+  assert.equal(fs.readFileSync(file, "utf8"), "main-version");
+
+  svc.fork(treeId, { name: "beta", why: "try another route" });
+  svc.switchBranch(treeId, "beta");
+  // Incoming branch has NO snapshot yet — files untouched by the switch.
+  fs.writeFileSync(file, "beta-version", "utf8");
+  // A step WITH artifacts on beta snapshots the beta state…
+  svc.appendStep(treeId, { title: "beta work", artifactRefs: ["spec.md"] });
+  assert.equal(fs.readFileSync(file, "utf8"), "beta-version");
+
+  // …switching back to main restores main's snapshot ("切换 = 快照切换").
+  svc.switchBranch(treeId, "main");
+  assert.equal(fs.readFileSync(file, "utf8"), "main-version");
+  // …and switching to beta again restores beta's snapshot — including the
+  // safety checkpoint of main's state taken on the way out.
+  svc.switchBranch(treeId, "beta");
+  assert.equal(fs.readFileSync(file, "utf8"), "beta-version");
+});
+
+test("restoreNodeSnapshot reports structured errors instead of throwing", () => {
+  const root = tempRoot();
+  const svc = new TaskTreeService(root);
+  const bad = svc.restoreNodeSnapshot("00000000-0000-4000-8000-000000000000", "aaaaaaaaaaaa");
+  assert.equal(bad.ok, false);
+  assert.ok(typeof bad.error === "string");
+});
