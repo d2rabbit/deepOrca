@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📋 规划与文档
+
+- **下一版本规划确立**（`docs/features/next-version-plan.md`，2026-08-18）：三主线——自进化引擎（E1 执行捕获/E2 改进回路，OpenSpace 闭环缺口）+ action→Studio 基座超大版本（B1 冷插拔/B2 热激活，module-system v2 落地起点）+ 远程访问（M1–M3 含 MCP HTTP transport）；强化清单按终判逐项处置（路径授权可见/可撤销建议做、pm-design 独立 HTML 导出可做、bwrap/WSL2 与 graph-engineering 建议不做/关闭、G3 分片缓做）；前置阻塞 = 本版本 F4 交互清单/H 预生产切换。
+- **文档体系治理**（同日）：docs/README.md 导航与权威层级；specs/ 三层齐备（规划 spec 补 tasks.md 指引）；9 个 spec 状态行终判回写；docs/audit-archive/ 归档 6 份已兑现审计记录；superpowers 历史产物收进 research/archive。
+
 ### 🔒 隐私（上游数据链路剔除）
 
 - **移除全部 deepcode 上游上报**：遥测打点（每会话 POST machineId 至 deepcode.vegamo.cn/api/plugin/new，原默认开启）、WebSearch 默认代理（查询词+machineId 至 /api/plugin/web-search）、machineId 生成/落盘管道（已查证仅服务上述两端点，从未进入 LLM 请求）。`telemetryEnabled` 设置项、desktop 开关、i18n 文案、文档同步下线；`.deepcode` 目录兼容与 `DEEPCODE_*` 环境变量回退（本地行为）保留。

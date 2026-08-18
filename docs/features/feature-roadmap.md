@@ -45,6 +45,8 @@
 
 见 [docs/README.md](../README.md)：**路线与现状 = 本文件 §0；实现方案 = specs/；调研 = docs/research/（仅供参考）；本版本收尾范围 = specs/pre-production/tasks.md**。
 
+**下一版本路线**：[`docs/features/next-version-plan.md`](./next-version-plan.md)（2026-08-18 立：自进化引擎 E1/E2 + Studio 基座 B1/B2 + 远程访问 M1–M3，前置 = 本版本 F4/H 收尾）。
+
 ---
 
 ## 功能域总览

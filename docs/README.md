@@ -16,7 +16,7 @@
 
 | 类别 | 文档 |
 | --- | --- |
-| **功能路线** | features/feature-roadmap.md（唯一） |
+| **功能路线** | features/feature-roadmap.md（当前版本路线与现状）、features/next-version-plan.md（下一版本规划：自进化引擎/Studio 基座/远程访问，2026-08-18 立） |
 | **用户手册** | quickstart、architecture、configuration、session-persistence、permission、mcp、plan-mode、agent-skills、agents-md、notify、statusline（各配 `*_en` 孪生） |
 | **组件清单** | builtin-inventory（2026-08-03 历史快照，含时效说明）、external-capability-components、external-deps-migration（外部依赖 controller-seam 迁移状态） |
 | **预生产记录**（2026-08-17/18，历史性质） | pre-production-capability-scan（F1-F3+F6 扫描）、pre-production-spec-final-audit（F5 逐 spec 终判，19 项） |
