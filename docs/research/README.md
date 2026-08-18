@@ -12,7 +12,7 @@
 
 ## 总览
 
-34 份文档（含 1 份 EN 孪生 + 本日新增 3 份）：**✅ 20 · 🟡 9 · ⬜ 2 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+35 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份）：**✅ 20 · 🟡 9 · ⬜ 3 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -68,6 +68,14 @@
 | [2026-08-17-dsh-consolidated.md](./2026-08-17-dsh-consolidated.md) | **dsh 调研整合台账**（预期 / 已吸收 / 可吸收候选池 / 暂缓否决） | `core/session.ts`、`core/common/*`、`core/routing/` | 🟡 | 取代三份 dsh 原文档作为唯一决策入口。已核实吸收 5+2 项（P0 三项 + MAX_SUBAGENT_DEPTH + reasoning 契约维持；#18/前缀保温部分）；候选池核心 4 项按推荐顺序：P1-1 崩溃合成收尾 → P1-2 两段式 compaction（含 #11 决策）→ P1-4 beforeToolExecution 钩子 → 前缀守恒收尾包（P1-3 判定已被自有演进基本覆盖，只补护栏）；C1 仅存"借生态"残值观望 |
 | [2026-08-17-opendesign-openpencli-vs-designer.md](./2026-08-17-opendesign-openpencli-vs-designer.md) | OpenDesign 0.15 + OpenPenCLI 对比现有 designer 模块与进化 | `core/actions/design.ts`、`renderer/openui/`、`renderer/dd/`、`design-store.ts`、`templates/plugins/design/` | ⬜ | 结论：designer 模块已是 OpenDesign 核心闭环的自有等价实现（且防漂移机制更强），OpenDesign 定位参考借鉴不引依赖。**OpenPenCLI 身份待确认**（最可能是 OpenPencil 两同名项目之一，需项目所有者指认）。建议动作仅 3 项 prompt/模板层演进：设计系统预设扩充 P1、taste 五维自评 + anti-slop P2、大页面两段式生成 P3 |
 | [2026-08-17-hallmark-codebrain-membrain-prestudy.md](./2026-08-17-hallmark-codebrain-membrain-prestudy.md) | **双模块线四仓库预研**：代码智能（索引+知识加强）= CodeBrain + MemBrain；designer（ui-designer 模板与风格强化）= hallmark + motionsites.ai | 提案落点：`packages/memory`（`auto-recall.ts`）、`core/actions/{review,codegraph}.ts`、`templates/design/macrostructures/`（新增）、`templates/plugins/design/skills/taste` | ✅ | **同日全量落地（§6 落地开发计划，四主题提交）**：F0 Inter 字体自伤修复 + #4 macrostructures/ 10 骨架 + taste #11 三轴可计算化 + #5 门禁 12–19 + #8 motion-patterns 参考 + #1 memory 事件向多查询改写（keepContentWords 复查撤销——与 buildFtsQuery 内置停用词过滤重叠）+ #2 三态 status 入带 + 分桶采样 + #7 dembrandt 版权拒绝清单 + Provenance 块 + #3 L1 抽取硬规则 + 输出校验器 + #6 design.audit action（三轴机检，确定性零 LLM）。三轮递进核证记录（子代理逐文件 → 本仓代码走读 → gh 恢复后浅克隆本地一手复核）。四条核证反转：① hallmark 零代码但补齐 designer 最大缺口——**宏结构词汇表缺失导致 taste #11 anti-slop 规则不可判定**；② **CodeBrain 主打的 agent-loop 七项全部不在仓库里**（硬依赖仅 pydantic+lsprotocol，本地 grep 全 src 零 LLM SDK 痕迹；精确 50 文件/7,611 LOC/78 提交），索引弱于本仓 CodeGraph 持久索引，只移植降级三态 + 诊断分桶采样 + 编辑后校验闸门；③ **MemBrain 无 LICENSE 文件禁止拷贝代码**（entity_resolver 是 Graphiti 无署名逐行移植，一手并排比对坐实），架构与本仓 L0–L3 同构——**复查修正：RRF 本仓已有**（`auto-recall.ts` searchHybrid 的 RRF 合并，k=60 与其同值、hybrid 默认开），真差距仅**固定角色多查询改写**；④ motionsites.ai（65 条动效规格）**内容源自付费画廊导出禁止 vendored**，但命名揭示模式词汇可蒸馏补 taste 最薄弱的动效轴。另发现本仓自伤：`deep-design` 的 `.dd` 示例默认字体 `Inter` 正是 hallmark 门禁 1 的 auto-fail 项 |
+
+---
+
+## 2026-08-18 · 鸿蒙 PC 适配
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-18-harmonyos-pc-electron-port-feasibility.md](./2026-08-18-harmonyos-pc-electron-port-feasibility.md) | DeepOrca 桌面端跑在鸿蒙 PC（2in1）的可行性：ohos_electron_hap（海泰方圆 HAP 模板，Electron 25/34 已移植，addon 交叉编译有实证） | 提案落点（未启动）：`node:sqlite` 调用点 addon 化、三原生依赖 OHOS 交叉编译、`process.platform === 'ohos'` 分支、vendor 裁剪 | ⬜ | **2026-08-18 拍板"先不做"**，纯决策留档。结论"有条件可行（高）"；头号未知 = PC 端应用 spawn 边界与移植团队 Electron ≥35（Node 22）跟进。与 `specs/harmonyos-dev-kit/`（用 DeepOrca 开发鸿蒙应用）互为反向命题。启动前须完成文内 §6 六项验证 POC |
 
 ---
 
