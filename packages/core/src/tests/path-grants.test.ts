@@ -30,7 +30,8 @@ function createWorkspace(): string {
 
 /**
  * Cross-platform link fixture, capability-probed — see path-boundary.test.ts:
- * native symlink first, EPERM on unprivileged Windows falls back to junction.
+ * native symlink first, EPERM on unprivileged Windows falls back to junction
+ * (directory targets only — the sole fixture shape used in this file).
  */
 function createLink(target: string, dest: string): void {
   try {
@@ -38,7 +39,13 @@ function createLink(target: string, dest: string): void {
     return;
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
-    if (process.platform === "win32" && e.code === "EPERM" && path.isAbsolute(target)) {
+    let targetIsDir = false;
+    try {
+      targetIsDir = fs.statSync(target).isDirectory();
+    } catch {
+      // Dangling target — not a directory.
+    }
+    if (process.platform === "win32" && e.code === "EPERM" && path.isAbsolute(target) && targetIsDir) {
       fs.symlinkSync(target, dest, "junction");
       return;
     }

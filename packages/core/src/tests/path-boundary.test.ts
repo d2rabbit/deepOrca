@@ -34,7 +34,9 @@ function createWorkspace(): string {
  * (lstat().isSymbolicLink(), readlinkSync, realpathSync). Privileged Windows
  * and all POSIX systems therefore exercise REAL symlinks; junctions are used
  * exactly where they are the only option. Junction targets must be absolute —
- * all fixtures are.
+ * all fixtures are. The junction fallback is DIRECTORY-target-only: junctions
+ * are directory reparse points, so a junction planted on a file target is not
+ * a faithful fixture — file-target tests skip instead (skipWithoutFileSymlinks).
  */
 function createLink(target: string, dest: string): void {
   try {
@@ -42,13 +44,49 @@ function createLink(target: string, dest: string): void {
     return;
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
-    if (process.platform === "win32" && e.code === "EPERM" && path.isAbsolute(target)) {
+    let targetIsDir = false;
+    try {
+      targetIsDir = fs.statSync(target).isDirectory();
+    } catch {
+      // Dangling target — not a directory.
+    }
+    if (process.platform === "win32" && e.code === "EPERM" && path.isAbsolute(target) && targetIsDir) {
       fs.symlinkSync(target, dest, "junction");
       return;
     }
     throw err;
   }
 }
+
+/**
+ * Can THIS process create a symlink whose target is a FILE? Probed once with
+ * a throwaway temp fixture and cached. On unprivileged Windows (EPERM) the
+ * answer is false and the file-target tests below skip with a reason instead
+ * of asserting against a junction, whose file-target semantics we cannot
+ * verify from the fixture side.
+ */
+let fileSymlinkCapable: boolean | undefined;
+function canCreateFileSymlink(): boolean {
+  if (fileSymlinkCapable === undefined) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deeporca-link-probe-"));
+    try {
+      const target = path.join(dir, "target.txt");
+      fs.writeFileSync(target, "x");
+      fs.symlinkSync(target, path.join(dir, "link.txt"));
+      fileSymlinkCapable = true;
+    } catch {
+      fileSymlinkCapable = false;
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  return fileSymlinkCapable;
+}
+
+/** Skip option for tests whose fixture requires a symlink to a FILE. */
+const skipWithoutFileSymlinks = canCreateFileSymlink()
+  ? false
+  : "unprivileged Windows: file symlinks unavailable (junction fallback is directory-only)";
 
 afterEach(() => {
   while (tempDirs.length > 0) {
@@ -138,7 +176,7 @@ test("TOCTOU: a not-yet-existing target escapes via .. and is judged by its pare
   assert.equal(gateWrite(grant, path.join(root, "brand-new", "..", "fresh.txt")).ok, true);
 });
 
-test("symlink planted inside the root pointing outside is rejected (write)", () => {
+test("symlink planted inside the root pointing outside is rejected (write)", { skip: skipWithoutFileSymlinks }, () => {
   const root = createWorkspace();
   const outsideDir = createWorkspace();
   const outsideTarget = path.join(outsideDir, "payload.txt");
@@ -152,7 +190,7 @@ test("symlink planted inside the root pointing outside is rejected (write)", () 
   assert.equal(gateRead(makeGrant({ readRoots: [root] }), linkPath).ok, false);
 });
 
-test("dangling symlink inside the root pointing outside is rejected", () => {
+test("dangling symlink inside the root pointing outside is rejected", { skip: skipWithoutFileSymlinks }, () => {
   const root = createWorkspace();
   const outsideDir = createWorkspace();
   const danglingTarget = path.join(outsideDir, "not-created-yet.txt");

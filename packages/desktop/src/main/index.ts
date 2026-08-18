@@ -283,9 +283,18 @@ configureDembrandtCdpEndpointGetter(getDembrandtCdpEndpoint);
 // ① Chromium 命令行开关必须在 app ready（进程启动）前附加——模块顶层调用；
 // ② provider 的隐藏 BrowserWindow 必须在 app ready 后创建——whenReady 里
 //    fire-and-forget（仍不阻塞首屏；首次提取最多付一次窗口启动成本）。
-primeDembrandtCommandLine();
+// 开关与窗口共用同一个启动期决策：未打包且未 vendor dembrandt 的裸 dev
+// 检出不应监听一个永远不会用到的 CDP 调试端口（本机任意进程可经 CDP 完全
+// 控制渲染进程）。决策只在模块加载时求值一次——后台 vendoring 排在
+// setImmediate(startDembrandtProvider) 之后，此处与 whenReady 之间 marker
+// 状态不会翻转。
+const dembrandtProviderWanted =
+  app.isPackaged || existsSync(join(__dirname, "..", "vendor", "dembrandt", ".vendored-dembrandt-version"));
+if (dembrandtProviderWanted) {
+  primeDembrandtCommandLine();
+}
 const startDembrandtProvider = () => {
-  if (app.isPackaged || existsSync(join(__dirname, "..", "vendor", "dembrandt", ".vendored-dembrandt-version"))) {
+  if (dembrandtProviderWanted) {
     void ensureDembrandtBrowserProvider().catch((err) => {
       console.error("[dembrandt] built-in Chromium provider failed to start:", err);
     });
@@ -904,6 +913,13 @@ function registerWorkspaceIpc({ handle, handlePrivileged }: IpcHelpers): void {
 /** Resolve the task tree a session is bound to (`entry.taskRef`, core P1). */
 function taskTreeIdForSession(sessionId: string, workspaceRoot: string): string | undefined {
   try {
+    // Current workspace: prefer the bridge's in-memory entry — it reads the
+    // pendingIndex (pre-debounce), so a taskRef bound moments ago is visible
+    // even before the 250ms index flush lands on disk.
+    if (workspaceRoot === getBridge().projectRoot) {
+      const live = getBridge().getSession(sessionId)?.taskRef?.treeId;
+      if (live) return live;
+    }
     const code = getProjectCode(workspaceRoot);
     const indexPath = join(getUserConfigRoot(), "projects", code, "sessions-index.json");
     return readSessionsIndex(indexPath)?.entries.find((e) => e.id === sessionId)?.taskRef?.treeId;
