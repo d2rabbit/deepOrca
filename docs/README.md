@@ -4,23 +4,24 @@
 
 ## 权威层级（谁说了算）
 
-| 关注点 | 权威文档 | 说明 |
-| --- | --- | --- |
-| **产品路线与现状** | [features/feature-roadmap.md](./features/feature-roadmap.md) | §0 当前状态总览（逐 spec 终判）+ 功能域规划；版本历史在文末附录 |
-| **某功能的实现依据** | [../specs/](../specs/) | 正式实现方案以 spec 为准（design.md + tasks.md）。**已实现/部分实现的 spec 在 design.md 状态行有终判回写（2026-08-18 整顿）；规划中的 spec 一律三层齐备：design.md（预研+设计）+ tasks.md（任务指引，含开工前置条件）** |
-| **调研与预研** | [research/](./research/) + [research/README.md](./research/README.md) 台账 | **仅供参考，不作为实现依据**（2026-08-17 总口径）；作废/整合件物理收进 [research/archive/](./research/archive/) |
-| **本版本收尾范围** | [../specs/pre-production/tasks.md](../specs/pre-production/tasks.md) | 冻结期唯一范围清单（"闭环"项白名单） |
-| 用户手册 | 本目录各专题文档 | architecture / session-persistence / permission / mcp / plan-mode / agent-skills 等（`*_en.md` 为英文孪生） |
+| 关注点               | 权威文档                                                                   | 说明                                                                                                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **产品路线与现状**   | [features/feature-roadmap.md](./features/feature-roadmap.md)               | §0 当前状态总览（逐 spec 终判）+ 功能域规划；版本历史在文末附录                                                                                                                                                         |
+| **某功能的实现依据** | [../specs/](../specs/)                                                     | 正式实现方案以 spec 为准（design.md + tasks.md）。**已实现/部分实现的 spec 在 design.md 状态行有终判回写（2026-08-18 整顿）；规划中的 spec 一律三层齐备：design.md（预研+设计）+ tasks.md（任务指引，含开工前置条件）** |
+| **调研与预研**       | [research/](./research/) + [research/README.md](./research/README.md) 台账 | **仅供参考，不作为实现依据**（2026-08-17 总口径）；作废/整合件物理收进 [research/archive/](./research/archive/)                                                                                                         |
+| **本版本收尾范围**   | [../specs/pre-production/tasks.md](../specs/pre-production/tasks.md)       | 冻结期唯一范围清单（"闭环"项白名单）                                                                                                                                                                                    |
+| 用户手册             | 本目录各专题文档                                                           | architecture / session-persistence / permission / mcp / plan-mode / agent-skills 等（`*_en.md` 为英文孪生）                                                                                                             |
 
 ## 本目录内容
 
-| 类别 | 文档 |
-| --- | --- |
-| **功能路线** | features/feature-roadmap.md（当前版本路线与现状）、features/next-version-plan.md（下一版本规划：自进化引擎/Studio 基座/远程访问，2026-08-18 立） |
-| **用户手册** | quickstart、architecture、configuration、session-persistence、permission、mcp、plan-mode、agent-skills、agents-md、notify、statusline（各配 `*_en` 孪生） |
-| **组件清单** | builtin-inventory（2026-08-03 历史快照，含时效说明）、external-capability-components、external-deps-migration（外部依赖 controller-seam 迁移状态） |
-| **预生产记录**（2026-08-17/18，历史性质） | pre-production-capability-scan（F1-F3+F6 扫描）、pre-production-spec-final-audit（F5 逐 spec 终判，19 项） |
-| **审计/评审/稳定化记录** | 全部收进 [audit-archive/](./audit-archive/)（6 份：结论已兑现，保留溯源；登记见其中 README） |
+| 类别                                      | 文档                                                                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **功能路线**                              | features/feature-roadmap.md（当前版本路线与现状）、features/next-version-plan.md（下一版本规划：自进化引擎/Studio 基座/远程访问，2026-08-18 立）          |
+| **用户手册**                              | quickstart、architecture、configuration、session-persistence、permission、mcp、plan-mode、agent-skills、agents-md、notify、statusline（各配 `*_en` 孪生） |
+| **组件清单**                              | builtin-inventory（2026-08-03 历史快照，含时效说明）、external-capability-components、external-deps-migration（外部依赖 controller-seam 迁移状态）        |
+| **预生产记录**（2026-08-17/18，历史性质） | pre-production-capability-scan（F1-F3+F6 扫描）、pre-production-spec-final-audit（F5 逐 spec 终判，19 项）                                                |
+| **收尾台账**（活文档，闭合即回流 specs）  | spec-open-items-status（specs 19 项未收尾逐项确认：本阶段待收 8 项/待拍板/缓期/下一版承接，2026-08-18）                                                   |
+| **审计/评审/稳定化记录**                  | 全部收进 [audit-archive/](./audit-archive/)（6 份：结论已兑现，保留溯源；登记见其中 README）                                                              |
 
 ## 维护规则
 
