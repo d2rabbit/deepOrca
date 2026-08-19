@@ -134,6 +134,9 @@ select {
    ========================================================================= */
 .ui-shell {
   display: grid;
+  /* Right-dock width lives in a custom property so the narrow-window media
+     query can shrink it without fighting the inline panel-width style. */
+  --ui-right-w: 480px;
   grid-template-columns: 52px 0 1fr 0;
   grid-template-rows: 48px 1fr;
   grid-template-areas:
@@ -146,7 +149,7 @@ select {
 }
 
 .ui-shell.panel-open {
-  grid-template-columns: 52px 280px 1fr 0;
+  grid-template-columns: 52px var(--ui-panel-w, 280px) 1fr 0;
 }
 
 /* Panel resize handle — thin draggable divider between side panel and main */
@@ -188,29 +191,21 @@ select {
   background: var(--ui-accent);
 }
 
+/* ── Right dock (grid `rightpanel` area) ────────────────────────────────────
+   Opened by the PM-Design / DeepDesign preview panel and the architecture
+   graph panel. Wired via the `right-open` shell class; the docked panels
+   themselves claim `grid-area: rightpanel`. */
 .ui-shell.right-open {
-  grid-template-columns: 52px 0 1fr 340px;
+  grid-template-columns: 52px 0 1fr var(--ui-right-w);
 }
 
 .ui-shell.panel-open.right-open {
-  grid-template-columns: 52px 280px 1fr 340px;
+  grid-template-columns: 52px var(--ui-panel-w, 280px) 1fr var(--ui-right-w);
 }
 
-/* ── Right panel (Task / Git / Diff) ─────────────────────────────────────── */
-.ui-rightpanel {
-  grid-area: rightpanel;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  background: var(--ui-surface);
-  border-left: 1px solid var(--ui-border-soft);
-  animation: ui-panel-content-in-right 0.2s var(--ui-ease) both;
-}
-@keyframes ui-panel-content-in-right {
-  from {
-    opacity: 0;
-    transform: translateX(6px);
+@media (max-width: 1100px) {
+  .ui-shell {
+    --ui-right-w: 380px;
   }
 }
 
@@ -224,11 +219,18 @@ select {
   padding: var(--ui-space-2) 0;
   background: var(--ui-surface-sunken);
   border-right: 1px solid var(--ui-border-soft);
+  /* Scroll fallback for short windows — buttons must stay reachable. */
+  overflow-y: auto;
+  scrollbar-width: none;
   -webkit-app-region: drag;
 }
 
 .ui-rail > * {
   -webkit-app-region: no-drag;
+}
+
+.ui-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .ui-rail-brand {
@@ -270,6 +272,20 @@ select {
 
 .ui-rail-btn:active {
   transform: scale(0.95);
+}
+
+/* Always-mounted rail actions dim instead of unmounting: conditional removal
+   shifted every button below and broke layout stability (audit P0-2). */
+.ui-rail-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ui-rail-btn:disabled:hover,
+.ui-rail-btn:disabled:active {
+  background: none;
+  color: var(--ui-text-dim);
+  transform: none;
 }
 
 .ui-rail-btn.ui-rail-btn--active {
@@ -8715,11 +8731,10 @@ button.ui-topbar-pill {
 
 /* ── Right-side preview panel (PM-Design / DeepDesign split view) ─────────── */
 .ui-preview-panel {
+  grid-area: rightpanel;
   display: flex;
   flex-direction: column;
-  width: 480px;
-  min-width: 360px;
-  max-width: 50vw;
+  min-width: 0;
   border-left: 1px solid var(--ui-border-soft);
   background: var(--ui-surface);
   overflow: hidden;

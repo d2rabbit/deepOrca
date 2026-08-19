@@ -305,6 +305,7 @@ export const ja: Record<MessageKey, string> = {
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "リクエストに失敗しました。",
   "app.permissionDenied": "許可が拒否されました。下に返信を追加し、Enter を押して続行してください。",
+  "app.permissionDeniedToast": "拒否しました。この決定は次のメッセージとともに送信されます。",
   "app.taskComplete": "タスク完了",
 
   // ── Process output panel ─────────────────────────────────
@@ -550,6 +551,8 @@ export const ja: Record<MessageKey, string> = {
   "command.export.label": "セッションを Markdown としてエクスポート",
   "command.init.label": "AGENTS.md を生成",
   "command.raw.label": "推論表示を切り替え",
+  "command.appearance.label": "ダーク / ライト外観を切り替え",
+  "command.lineVariant.label": "Line パンクバリアントを切り替え",
   "command.tokens.label": "トークン使用量",
 
   // ── Keyboard shortcuts modal ────────────────────────────────

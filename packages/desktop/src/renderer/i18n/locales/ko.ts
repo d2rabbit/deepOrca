@@ -304,6 +304,7 @@ export const ko: Record<MessageKey, string> = {
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "요청에 실패했습니다.",
   "app.permissionDenied": "권한이 거부되었습니다. 아래에 답변을 추가한 후 Enter를 눌러 계속하세요.",
+  "app.permissionDeniedToast": "거부되었습니다. 이 결정은 다음 메시지와 함께 전송됩니다.",
   "app.taskComplete": "작업 완료",
 
   // ── Process output panel ─────────────────────────────────
@@ -544,6 +545,8 @@ export const ko: Record<MessageKey, string> = {
   "command.export.label": "세션을 Markdown으로 내보내기",
   "command.init.label": "AGENTS.md 생성",
   "command.raw.label": "추론 표시 전환",
+  "command.appearance.label": "다크 / 라이트 외관 전환",
+  "command.lineVariant.label": "Line 펑크 변형 전환",
   "command.tokens.label": "토큰 사용량",
 
   // ── Keyboard shortcuts modal ────────────────────────────────

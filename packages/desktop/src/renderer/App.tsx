@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react";
 import { api } from "./api";
 import { useTreeRefresh } from "./hooks/use-tree-refresh";
 import { useDocumentTitle } from "./hooks/use-document-title";
@@ -221,6 +221,7 @@ export function App(): JSX.Element {
 
   const {
     sidebarView,
+    setSidebarView,
     panelOpen,
     setPanelOpen,
     panelWidth,
@@ -229,6 +230,16 @@ export function App(): JSX.Element {
     openTokensView,
     handleCollapsePanel,
   } = usePanelLayout();
+  // Opening a file in the main-area editor needs BOTH `editorFile` and
+  // `sidebarView === "editor"`; setting the file alone left the main area
+  // unchanged when invoked from the Git panel / DiffOverlay (audit P1-2).
+  const handleOpenEditor = useCallback(
+    (file: string) => {
+      setEditorFile(file);
+      setSidebarView("editor");
+    },
+    [setSidebarView]
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
     showProcessPanel,
@@ -706,6 +717,9 @@ export function App(): JSX.Element {
           alwaysAllowPaths: result.alwaysAllowPaths,
         });
         setStatusLine(t("app.permissionDenied"));
+        // F5: the deny decision is silently merged into the next prompt —
+        // surface it so users know where their decision went (audit P1-5).
+        pushToast("info", t("app.permissionDeniedToast"));
         setAskPermissions(undefined);
         void api.denyPermission();
         return;
@@ -720,7 +734,7 @@ export function App(): JSX.Element {
         { isContinue: true }
       );
     },
-    [runPrompt, t]
+    [pushToast, runPrompt, t]
   );
 
   const handlePermissionCancel = useCallback(() => {
@@ -1026,16 +1040,139 @@ export function App(): JSX.Element {
         shortcut: "⌘?",
         run: () => setModal("shortcuts"),
       },
+      // ── Sidebar views (audit P1-4: every rail-reachable view must be ⌘K-reachable) ──
+      {
+        id: "view.explorer",
+        label: t("rail.sessions"),
+        keywords: "sidebar view sessions explorer",
+        run: () => selectView("explorer"),
+      },
+      {
+        id: "view.scm",
+        label: t("rail.git"),
+        keywords: "sidebar view git scm source control",
+        run: () => selectView("scm"),
+      },
+      {
+        id: "view.tasks",
+        label: t("rail.tasks"),
+        keywords: "sidebar view tasks plan todo",
+        run: () => selectView("tasks"),
+      },
+      {
+        id: "view.index",
+        label: t("rail.index"),
+        keywords: "sidebar view index library knowledge",
+        run: () => selectView("index"),
+      },
+      {
+        id: "view.review",
+        label: t("rail.review"),
+        keywords: "sidebar view code review comments",
+        run: () => selectView("review"),
+      },
+      {
+        id: "view.design",
+        label: t("rail.design"),
+        keywords: "sidebar view design pm prototype",
+        run: () => selectView("design"),
+      },
+      {
+        id: "view.tasktree",
+        label: t("rail.tasktree"),
+        keywords: "sidebar view task tree history",
+        run: () => selectView("tasktree"),
+      },
+      {
+        id: "view.gitmcp",
+        label: t("rail.gitmcp"),
+        keywords: "sidebar view gitmcp remote",
+        run: () => selectView("gitmcp"),
+      },
+      {
+        id: "view.editor",
+        label: t("rail.editor"),
+        keywords: "sidebar view editor files",
+        run: () => selectView("editor"),
+      },
+      // ── Themes (all 6, via the same handler the settings panel uses) ──
+      {
+        id: "theme.aqua",
+        label: t("theme.aqua"),
+        keywords: "theme appearance aqua native",
+        run: () => handleSelectTheme("aqua"),
+      },
+      {
+        id: "theme.metro",
+        label: t("theme.metro"),
+        keywords: "theme appearance metro native",
+        run: () => handleSelectTheme("metro"),
+      },
+      {
+        id: "theme.glass",
+        label: t("theme.glass"),
+        keywords: "theme appearance glass",
+        run: () => handleSelectTheme("glass"),
+      },
+      {
+        id: "theme.fusion",
+        label: t("theme.fusion"),
+        keywords: "theme appearance fusion tile",
+        run: () => handleSelectTheme("fusion"),
+      },
+      {
+        id: "theme.line",
+        label: t("theme.line"),
+        keywords: "theme appearance line stroke",
+        run: () => handleSelectTheme("line"),
+      },
+      {
+        id: "theme.orca",
+        label: t("theme.orca"),
+        keywords: "theme appearance orca cyber hud",
+        run: () => handleSelectTheme("orca"),
+      },
+      // ── Appearance / panel toggles ──
+      {
+        id: "appearance.toggle",
+        label: t("command.appearance.label"),
+        keywords: "appearance dark light mode",
+        run: handleToggleAppearance,
+      },
+      {
+        id: "line.variant",
+        label: t("command.lineVariant.label"),
+        keywords: "line variant punk style",
+        run: handleToggleLineVariant,
+      },
+      {
+        id: "processPanel",
+        label: t("shortcuts.processPanel"),
+        keywords: "process output panel terminal",
+        shortcut: "⌘J",
+        run: () => setShowProcessPanel((v) => !v),
+      },
+      {
+        id: "stop",
+        label: t("shortcuts.stopGeneration"),
+        keywords: "stop interrupt cancel generation",
+        run: handleStop,
+      },
     ],
     [
       handleCycleReasoning,
       handleNewSession,
       handleOpenSettings,
+      handleSelectTheme,
+      handleStop,
+      handleToggleAppearance,
+      handleToggleLineVariant,
       openTokensView,
       pushToast,
       runPrompt,
       selectView,
       setPanelOpen,
+      setShowProcessPanel,
       t,
     ]
   );
@@ -1119,6 +1256,12 @@ export function App(): JSX.Element {
 
   const composerDisabled = showQuestion || showPermission || showPlan;
 
+  // Right dock is mounted when either preview surface has content (F1): the
+  // shell gains `right-open` so the 4th grid track gets real width. Without
+  // it the auto-placed panel landed in a 0px track and rendered off-window.
+  const previewPanelMounted = Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent));
+  const rightPanelOpen = previewPanelMounted || Boolean(graphHtml);
+
   // Token mini-panel figures: active session context + workspace grand total.
   const workspaceUsage = useMemo(() => aggregateUsage(sessions), [sessions]);
   const activeContextTokens = useMemo(() => {
@@ -1154,8 +1297,8 @@ export function App(): JSX.Element {
 
   return (
     <div
-      className={`ui-shell${panelOpen ? " panel-open" : ""}`}
-      style={panelOpen ? { gridTemplateColumns: `52px ${panelWidth}px 1fr 0` } : undefined}
+      className={`ui-shell${panelOpen ? " panel-open" : ""}${rightPanelOpen ? " right-open" : ""}`}
+      style={panelOpen ? ({ "--ui-panel-w": `${panelWidth}px` } as CSSProperties) : undefined}
     >
       <Rail>
         <RailButton title={`${t("rail.newSession")} (⌘N)`} aria-label={t("rail.newSession")} onClick={handleNewSession}>
@@ -1178,16 +1321,15 @@ export function App(): JSX.Element {
         >
           <IconGit />
         </RailButton>
-        {hasPlan ? (
-          <RailButton
-            active={panelOpen && sidebarView === "tasks"}
-            title={t("rail.tasks")}
-            aria-label={t("rail.tasks")}
-            onClick={() => selectView("tasks")}
-          >
-            <IconTasks />
-          </RailButton>
-        ) : null}
+        <RailButton
+          active={panelOpen && sidebarView === "tasks"}
+          disabled={!hasPlan}
+          title={t("rail.tasks")}
+          aria-label={t("rail.tasks")}
+          onClick={() => selectView("tasks")}
+        >
+          <IconTasks />
+        </RailButton>
         <RailButton
           title={`${t("rail.commands")} (⌘K)`}
           aria-label={t("rail.commands")}
@@ -1263,26 +1405,35 @@ export function App(): JSX.Element {
         <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
           {reasoningIconEl}
         </RailButton>
-        {/* Orca is dark-only — hide the light/dark toggle while it's active. */}
-        {theme !== "orca" ? (
-          <RailButton title={appearanceTitle} aria-label={appearanceTitle} onClick={handleToggleAppearance}>
-            {appearance === "dark" ? <IconMoon /> : <IconSun />}
-          </RailButton>
-        ) : null}
-        {theme === "line" ? (
-          <RailButton
-            active={lineVariant === "punk"}
-            title={lineVariantTitle}
-            aria-label={lineVariantTitle}
-            onClick={handleToggleLineVariant}
-          >
-            <IconPunk />
-          </RailButton>
-        ) : theme !== "orca" && platform !== "win32" ? (
-          <RailButton active={theme === "glass"} title={themeTitle} aria-label={themeTitle} onClick={handleToggleTheme}>
-            <IconGlass />
-          </RailButton>
-        ) : null}
+        {/* Rail actions stay mounted and dim when not applicable (audit P0-2):
+            conditional unmounting shifted every button below them. Orca is
+            dark-only, so the light/dark toggle is disabled while it's active. */}
+        <RailButton
+          title={appearanceTitle}
+          aria-label={appearanceTitle}
+          disabled={theme === "orca"}
+          onClick={handleToggleAppearance}
+        >
+          {appearance === "dark" ? <IconMoon /> : <IconSun />}
+        </RailButton>
+        <RailButton
+          active={theme === "line" && lineVariant === "punk"}
+          title={lineVariantTitle}
+          aria-label={lineVariantTitle}
+          disabled={theme !== "line"}
+          onClick={handleToggleLineVariant}
+        >
+          <IconPunk />
+        </RailButton>
+        <RailButton
+          active={theme === "glass"}
+          title={themeTitle}
+          aria-label={themeTitle}
+          disabled={theme === "line" || theme === "orca" || platform === "win32"}
+          onClick={handleToggleTheme}
+        >
+          <IconGlass />
+        </RailButton>
         <RailButton title={t("rail.undo")} aria-label={t("rail.undo")} onClick={() => setModal("undo")}>
           <IconUndo />
         </RailButton>
@@ -1321,7 +1472,7 @@ export function App(): JSX.Element {
             refreshKey={treeRefreshKey}
             sessionId={activeId}
             onOpenDiff={handleOpenDiff}
-            onOpenEditor={setEditorFile}
+            onOpenEditor={handleOpenEditor}
           />
         ) : sidebarView === "tasks" ? (
           <TaskPanel messages={messages} />
@@ -1344,7 +1495,7 @@ export function App(): JSX.Element {
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />
         ) : sidebarView === "editor" ? (
-          <EditorPanel onOpenFile={setEditorFile} />
+          <EditorPanel onOpenFile={handleOpenEditor} />
         ) : (
           <PluginMcpPanel
             skills={skills}
@@ -1563,7 +1714,7 @@ export function App(): JSX.Element {
 
       {diffTarget ? (
         <Suspense fallback={<div className="ui-editor-overlay" />}>
-          <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+          <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={handleOpenEditor} />
         </Suspense>
       ) : null}
 

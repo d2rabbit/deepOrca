@@ -312,6 +312,7 @@ export const en = {
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "Request failed.",
   "app.permissionDenied": "Permission denied. Add a reply below, then press Enter to continue.",
+  "app.permissionDeniedToast": "Denied. Your decision will be included with your next message.",
   "app.taskComplete": "Task completed",
 
   // ── Process output panel ─────────────────────────────────
@@ -561,6 +562,8 @@ export const en = {
   "command.export.label": "Export session as Markdown",
   "command.init.label": "Generate AGENTS.md",
   "command.raw.label": "Cycle reasoning display",
+  "command.appearance.label": "Toggle dark / light appearance",
+  "command.lineVariant.label": "Toggle Line punk variant",
   "command.tokens.label": "Token usage",
 
   // ── Keyboard shortcuts modal ────────────────────────────────
@@ -1224,6 +1227,7 @@ export const zh: Record<MessageKey, string> = {
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "请求失败。",
   "app.permissionDenied": "已拒绝授权。请在下方补充说明后按回车继续。",
+  "app.permissionDeniedToast": "已拒绝。该决定将随你的下一条消息一并发送。",
   "app.taskComplete": "任务已完成",
 
   // ── Process output panel ─────────────────────────────────
@@ -1459,6 +1463,8 @@ export const zh: Record<MessageKey, string> = {
   "command.export.label": "导出会话为 Markdown",
   "command.init.label": "生成 AGENTS.md",
   "command.raw.label": "切换推理显示",
+  "command.appearance.label": "切换深色 / 浅色外观",
+  "command.lineVariant.label": "切换 Line 朋克变体",
   "command.tokens.label": "Token 消耗",
 
   // ── Keyboard shortcuts modal ────────────────────────────────

@@ -297,6 +297,7 @@ export const zhHK: Record<MessageKey, string> = {
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "請求失敗。",
   "app.permissionDenied": "已拒絕授權。請在下方補充說明後按 Enter 繼續。",
+  "app.permissionDeniedToast": "已拒絕。該決定將隨你的下一條訊息一併傳送。",
   "app.taskComplete": "任務已完成",
 
   // ── Process output panel ─────────────────────────────────
@@ -529,6 +530,8 @@ export const zhHK: Record<MessageKey, string> = {
   "command.export.label": "匯出會話為 Markdown",
   "command.init.label": "產生 AGENTS.md",
   "command.raw.label": "切換推理顯示",
+  "command.appearance.label": "切換深色 / 淺色外觀",
+  "command.lineVariant.label": "切換 Line 朋克變體",
   "command.tokens.label": "Token 用量",
 
   // ── Keyboard shortcuts modal ────────────────────────────────

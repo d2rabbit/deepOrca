@@ -52,6 +52,8 @@ export function usePreview(): PreviewState {
     const artifact = detectPrototypeArtifact(message.content || "");
     if (!artifact) return;
 
+    // Single right-slot rule: opening the preview panel evicts the graph panel.
+    setGraphHtml(null);
     if (artifact.mode === "design") {
       setPrototypeMode("design");
       setDesignContent(artifact.payload);
@@ -94,6 +96,7 @@ export function usePreview(): PreviewState {
 
   /** Open a stored design artifact in the preview panel (from DesignPanel). */
   const openDesignArtifact = useCallback((pipeline: "openui" | "design", content: string) => {
+    setGraphHtml(null);
     if (pipeline === "openui") {
       setPrototypeMode("openui");
       setPrototypeOpenuiCode(content);
