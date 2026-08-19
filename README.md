@@ -47,7 +47,7 @@
 
 DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli)（`@vegamo/deepcode`）的 fork，现已发展为独立项目。我们保留了 Deep Code 优秀的核心引擎架构（LLM 会话循环、内置工具、Skills/MCP 扩展、权限控制），并在此基础上增加桌面 GUI、Actions 能力层、本地记忆与嵌入、内置扩展、GitMCP、Monaco Editor 等能力，同时移除了终端 CLI 与 VSCode 插件形态。
 
-Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留其原始版权声明（见 [LICENSE](LICENSE)），并在此向原作者致谢。
+Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留其原始版权声明（见 [NOTICE](NOTICE)），并在此向原作者致谢。
 
 此外，DeepOrca 的 LLM 会话稳健性层（usage/cache 互斥折算、溢出自动压缩重试、流 idle 看门狗）在设计上借鉴了 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness)（MIT License）——纯设计吸收，不包含其代码，详见 [CHANGELOG 致谢](CHANGELOG.md#致谢--acknowledgements)。感谢 DeepSeek 团队的开源设计。
 
@@ -316,20 +316,21 @@ DeepOrca 站在这些开源项目的肩膀上。完整清单（含随安装包�
 | [CodeGraph](https://github.com/colbymchenry/codegraph) · [OpenWiki](https://github.com/langchain-ai/openwiki) · [CRG](https://github.com/tirth8205/code-review-graph) · [Serena](https://github.com/oraios/serena) · [SkillSpector](https://github.com/NVIDIA/SkillSpector) · [BrowserSkill](https://github.com/Tencent/BrowserSkill) · [uv](https://github.com/astral-sh/uv) · [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) · [Bento](https://github.com/nyblnet/bento) | 随产品 vendored 的能力组件 | MIT / Apache-2.0（Bento 内嵌字体为 SIL OFL 1.1） |
 | [sharp](https://github.com/lovell/sharp) + [libvips](https://github.com/libvips/libvips) | transformers.js 的图像处理（本项目仅使用文本嵌入） | Apache-2.0 / **LGPL-3.0-or-later** |
 
-**关于 libvips（LGPL-3.0）的说明**：libvips 是 sharp 动态加载的独立预编译原生库，随安装包**原样分发、可被用户替换**（未修改、动态链接、未启用 asar），因此不对 DeepOrca 产生 copyleft 传染，本项目可继续以 MIT 分发并用于商业用途。我们按 LGPL-3.0 要求在 `ThirdPartyNotices.txt` 中附带其声明、LGPL-3.0 与 GPL-3.0 协议全文及源码获取方式。
+**关于 libvips（LGPL-3.0）的说明**：libvips 是 sharp 动态加载的独立预编译原生库，随安装包**原样分发、可被用户替换**（未修改、动态链接、未启用 asar），因此不对 DeepOrca 产生 copyleft 传染，本项目可继续以 MPL-2.0 分发并用于商业用途。我们按 LGPL-3.0 要求在 `ThirdPartyNotices.txt` 中附带其声明、LGPL-3.0 与 GPL-3.0 协议全文及源码获取方式。
 
-除上表外，全部 npm 依赖均为 MIT/ISC/BSD/Apache-2.0 等宽松协议；无 GPL/AGPL/SSPL/Commons Clause/BUSL 等传染性或商业限制协议。
+除上表外，全部 npm 依赖均为 MIT/ISC/BSD/Apache-2.0 等宽松协议；无 GPL/AGPL/SSPL/Commons Clause/BUSL 等传染性或商业限制协议（由 `scripts/check-licenses.js` 门禁持续保证）。
 
 ---
 
 ## 📄 开源协议
 
-本项目采用 [MIT License](LICENSE) 开源。
+本项目采用 [Mozilla Public License 2.0](LICENSE)（MPL-2.0）开源。
 
-- DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License）。
+- **MPL-2.0 是文件级弱 copyleft**：任何人（含商业公司）可以自由使用、修改、分发、并将 DeepOrca 与自己的闭源代码组合成更大的作品；唯一的要求是——对 DeepOrca 自身源码文件的修改，再分发时必须以 MPL-2.0 公开这些修改后的文件。
+- 第三方成分不受影响：`packages/memory/src/tdai/`（TDAI Core fork）保持 MIT；vendored 能力组件保持各自上游协议（见 `ThirdPartyNotices.txt`）；范围划分详见 [NOTICE](NOTICE)。
+- DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License），原始 MIT 声明按协议要求完整保留于 [NOTICE](NOTICE)。
 - LLM 会话稳健性层的设计借鉴自 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（deepseek-ai，MIT License）——仅设计参考，未使用其代码。
-- 根据 MIT 协议条款，本仓库完整保留原始版权声明与许可声明；使用、修改或分发本项目（及其实质部分）时，也需保留 [LICENSE](LICENSE) 中的版权声明与许可声明。
-- 软件按“原样”提供，不附带任何形式的担保，详见协议全文。
+- 软件按"原样"提供，不附带任何形式的担保，详见协议全文。
 
 ---
 

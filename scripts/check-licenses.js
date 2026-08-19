@@ -48,6 +48,16 @@ const ALLOWED = new Set([
  */
 const EXCEPTIONS = [
   {
+    match: (name) =>
+      name === "deeporca" ||
+      name === "@deeporca/core" ||
+      name === "@deeporca/desktop" ||
+      name === "@deeporca/memory" ||
+      name === "@deeporca/embedding",
+    license: "MPL-2.0",
+    why: "Our own workspace packages (this monorepo), relicensed MIT → MPL-2.0. Not third-party code; the tree-wide MPL ban for external deps stays in force.",
+  },
+  {
     match: (name) => name.startsWith("@img/sharp-libvips"),
     license: "LGPL-3.0-or-later",
     why: "Prebuilt libvips dynamically loaded by sharp — unmodified and replaceable, so no copyleft on DeepOrca. LGPL obligations (notice + full texts + source pointer) are shipped in packages/desktop/vendor/ThirdPartyNotices.txt via scripts/vendor-notice.js.",

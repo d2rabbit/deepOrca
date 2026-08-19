@@ -2,7 +2,7 @@
   "name": "@deeporca/embedding",
   "version": "0.1.0",
   "description": "DeepOrca local embedding — transformers.js + ONNX (Granite 97M R2)",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

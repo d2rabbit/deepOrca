@@ -2,7 +2,7 @@
   "name": "@deeporca/core",
   "version": "0.1.34",
   "description": "DeepOrca core library — LLM session management, tool execution, and shared utilities",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
