@@ -328,7 +328,7 @@ DeepOrca 站在这些开源项目的肩膀上。完整清单（含随安装包�
 
 - **MPL-2.0 是文件级弱 copyleft**：任何人（含商业公司）可以自由使用、修改、分发、并将 DeepOrca 与自己的闭源代码组合成更大的作品；唯一的要求是——对 DeepOrca 自身源码文件的修改，再分发时必须以 MPL-2.0 公开这些修改后的文件。
 - 第三方成分不受影响：`packages/memory/src/tdai/`（TDAI Core fork）保持 MIT；vendored 能力组件保持各自上游协议（见 `ThirdPartyNotices.txt`）；范围划分详见 [NOTICE](NOTICE)。
-- DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License），原始 MIT 声明按协议要求完整保留于 [NOTICE](NOTICE)。
+- **上游继承说明**：DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License）。经成分核查（见 [NOTICE](NOTICE)），`packages/core` 引擎中约 2000 行实质代码继承自上游（会话循环、read/edit/bash/write 等工具 handler、prompt/settings 等），其余全部为本项目自研。对继承部分，接收方可自行选择依 MIT（原始声明已在 NOTICE 逐字保留，上游仓库为 MIT 正源）或依 MPL-2.0 使用；MPL-2.0 的文件级 copyleft 完整作用于本项目自研与修改的全部代码。
 - LLM 会话稳健性层的设计借鉴自 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（deepseek-ai，MIT License）——仅设计参考，未使用其代码。
 - 软件按"原样"提供，不附带任何形式的担保，详见协议全文。
 

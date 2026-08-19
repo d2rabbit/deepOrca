@@ -5,12 +5,36 @@ This project is licensed under the Mozilla Public License, Version 2.0 — see
 [LICENSE](LICENSE). The MPL-2.0 applies to DeepOrca's own source files.
 Third-party components keep their upstream licenses (see below).
 
-Upstream MIT preservation
--------------------------
+Upstream MIT preservation (Deep Code)
+--------------------------------------
 DeepOrca derives from Deep Code (https://github.com/lessweb/deepcode-cli),
-originally licensed under the MIT License. Per the MIT terms, the original
-copyright and permission notice is preserved verbatim below and continues to
-govern the portions inherited from that upstream:
+originally licensed under the MIT License by lessweb. The repository's root
+commit `a791317` (2026-04-28) is the import of deepcode-cli v0.1.1 (52 files).
+
+A provenance audit (2026-08-19; line-level best-match of the upstream sources
+against the current tree) established:
+
+- No upstream file survives verbatim; the upstream CLI and terminal UI were
+  fully replaced (zero overlap).
+- Roughly 2,000 substantive lines of the engine are inherited/adapted from
+  upstream code, concentrated in `packages/core/src`:
+  `session.ts` (session loop), `tools/edit-handler.ts`, `tools/read-handler.ts`,
+  `tools/bash-handler.ts`, `tools/write-handler.ts`,
+  `tools/ask-user-question-handler.ts`, `tools/web-search-handler.ts`,
+  `tools/executor.ts`, `prompt.ts`, `settings.ts`, `common/file-utils.ts`,
+  `common/state.ts`, `common/notify.ts`.
+- Everything else (desktop GUI, memory/embedding packages, routing, actions,
+  MCP extensions, docs, specs) is authored by the DeepOrca project.
+
+License effect for those inherited portions: MIT is preserved verbatim below
+and the upstream repository remains the canonical MIT source. Recipients may
+rely on MIT (via the preserved notice / upstream repo) OR on MPL-2.0 (via this
+project's LICENSE) for the inherited code, at their option. The MPL-2.0 grant
+in LICENSE is made by the DeepOrca authors and fully covers all code authored
+or modified by this project.
+
+Per the MIT terms, the original copyright and permission notice is preserved
+verbatim below:
 
   MIT License
 
