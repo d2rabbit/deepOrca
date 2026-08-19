@@ -2,7 +2,7 @@
 
 > 状态：⬜ 纯调研（2026-08-18 拍板"先不做"，本文仅为决策留档）
 > 定位：DeepOrca **桌面端自身运行在鸿蒙 PC 上**的可行性结论与证据。
-> 反向命题勿混淆：[`specs/harmonyos-dev-kit/`](../../specs/harmonyos-dev-kit/design.md) 是"用 DeepOrca **开发**鸿蒙应用"（DevEco CLI 线），本文是"DeepOrca **跑在**鸿蒙 PC 上"。
+> 反向命题勿混淆：[`specs/harmonyos-dev-kit/`](../../../specs/harmonyos-dev-kit/design.md) 是"用 DeepOrca **开发**鸿蒙应用"（DevEco CLI 线），本文是"DeepOrca **跑在**鸿蒙 PC 上"。
 > 结论一句话：**有条件可行，可行性高**——以 [ohosvscode/ohos_electron_hap](https://github.com/ohosvscode/ohos_electron_hap) HAP 模板打包，跑 2in1（PC/二合一）形态；剩余硬点集中在 Node 版本、子进程边界与三个原生依赖的交叉编译。
 
 ---

@@ -1043,8 +1043,8 @@ CREATE TABLE vault_secrets (
 > 关联文档：
 >
 > - [DeepDesign 内核设计](../../specs/deep-design/design.md)
-> - [前期集成调研（5 项目）](../research/2026-07-open-source-integration-feasibility.md)
-> - [OCR 集成 & Understand-Anything 分析](../research/2026-07-ocr-integration-and-ua-analysis.md)
+> - [前期集成调研（5 项目）](../research/external-eval/2026-07-open-source-integration-feasibility.md)
+> - [OCR 集成 & Understand-Anything 分析](../research/external-eval/2026-07-ocr-integration-and-ua-analysis.md)
 
 ---
 

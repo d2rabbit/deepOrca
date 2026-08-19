@@ -63,7 +63,7 @@
 ## 五、废弃（无欠账）
 
 - **behavior-memory**：2026-08-17 拍板作废，由 `@deeporca/memory`（TDAI L0-L3）承接；旁系 activity-frames 已另行落地。
-- **harmonyos-dev-kit**：曾完整落地后整体下线；重启属 `next/*`；反向命题（DeepOrca 跑在鸿蒙 PC）2026-08-18 调研"先不做"（`research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`）。
+- **harmonyos-dev-kit**：曾完整落地后整体下线；重启属 `next/*`；反向命题（DeepOrca 跑在鸿蒙 PC）2026-08-18 调研"先不做"（`research/platform/2026-08-18-harmonyos-pc-electron-port-feasibility.md`）。
 
 ## 六、19 spec 逐个确认速览
 

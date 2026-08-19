@@ -10,7 +10,7 @@
 > `design.extract` / `design.drift` action 已落地**（`core/actions/design.ts:238+`，
 > E1b/E1c，输出落 design-store）。P0 的另一半（graph-engineering 收编 bundled skill）
 > **未做**；ruflo→task-tree P3、crg paths-between、openai-client 降级链均未启动。
-> 与新预研 [2026-08-17-hallmark-codebrain-membrain-prestudy.md](./2026-08-17-hallmark-codebrain-membrain-prestudy.md)
+> 与新预研 [2026-08-17-hallmark-codebrain-membrain-prestudy.md](2026-08-17-hallmark-codebrain-membrain-prestudy.md)
 > 的衔接：其 §3.3-6/7（DESIGN.md provenance 块 + 版权拒绝清单）是 dembrandt 已落地
 > 部分的后续补强项。
 

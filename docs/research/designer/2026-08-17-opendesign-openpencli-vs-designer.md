@@ -3,7 +3,7 @@
 > **日期**：2026-08-17 · **分支**：feat/sandbox-p0-path-gate（本预研为只读调研）
 > **性质**：预研 —— 对比外部开源设计工具与 deepOrca **现有 designer 模块**的自有实现方案及其进化路径
 > **口径（2026-08-17 项目所有者决策）**：**以项目实际实现方案为主，调研只是参考，不列入正式实现。** OpenDesign（nexu-io/open-design）定位为 **参考借鉴（reference only）** —— deepOrca 实质上已有自己的等价实现（designer 模块，见 §三）。"OpenPenCLI" 身份未定（见 §二）。
-> **基线**：[2026-07-21 开源集成可行性调研](2026-07-open-source-integration-feasibility.md) §三（当时 OpenDesign 0.13.0，结论：MCP 接入为 P2 按需项）。
+> **基线**：[2026-07-21 开源集成可行性调研](../external-eval/2026-07-open-source-integration-feasibility.md) §三（当时 OpenDesign 0.13.0，结论：MCP 接入为 P2 按需项）。
 > **证据标注**：〔已核实〕= 直接读仓库源码/文档/发布页核实；〔README 口径〕= 上游自述数字未逐一清点；〔传闻〕= 第三方转述。
 
 ---
