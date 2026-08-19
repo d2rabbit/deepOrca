@@ -1,3 +1,5 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { handleAskUserQuestionTool } from "./ask-user-question-handler";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";

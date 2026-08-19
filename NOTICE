@@ -22,7 +22,8 @@ against the current tree) established:
   `tools/bash-handler.ts`, `tools/write-handler.ts`,
   `tools/ask-user-question-handler.ts`, `tools/web-search-handler.ts`,
   `tools/executor.ts`, `prompt.ts`, `settings.ts`, `common/file-utils.ts`,
-  `common/state.ts`, `common/notify.ts`.
+  `common/state.ts`, `common/notify.ts`. These files carry a
+  "Portions Copyright (c) 2026 lessweb" header at the top.
 - Everything else (desktop GUI, memory/embedding packages, routing, actions,
   MCP extensions, docs, specs) is authored by the DeepOrca project.
 

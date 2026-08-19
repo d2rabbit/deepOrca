@@ -1,3 +1,5 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import * as fs from "fs";

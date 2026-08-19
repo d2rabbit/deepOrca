@@ -1,3 +1,5 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";

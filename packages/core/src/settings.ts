@@ -1,3 +1,5 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { randomUUID } from "node:crypto";
 import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
 import {
