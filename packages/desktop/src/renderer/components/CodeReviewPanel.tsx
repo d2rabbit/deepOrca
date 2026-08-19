@@ -14,9 +14,9 @@ import { Button, Input } from "../ui/index";
  *   - 审查 (review.run)         → ocr AI semantic review of uncommitted changes
  *   - 品牌漂移闸门 (design.drift) → E1d: deterministic dembrandt --compare gate
  *
- * Zero props — derives the current workspace from api.crgList() (mirroring
- * IndexLibraryPanel's api.codegraphList() pattern). Progress streams via the
- * unified onActionProgress event; results render in-panel.
+ * Panel-derived state (workspace from api.crgList(), progress via the unified
+ * onActionProgress event); the one prop, `onShowGraph`, hands the CRG
+ * architecture-graph HTML up to the shared right dock in App.tsx.
  */
 
 type ReviewActionId = "review.full" | "design.drift";
@@ -29,7 +29,7 @@ type DriftOutput = {
   driftJson?: string;
 };
 
-export function CodeReviewPanel(): JSX.Element {
+export function CodeReviewPanel({ onShowGraph }: { onShowGraph: (html: string) => void }): JSX.Element {
   const { t } = useI18n();
   const [entry, setEntry] = useState<CrgIndexEntry | null>(null);
   const [running, setRunning] = useState<ReviewActionId | null>(null);
@@ -100,6 +100,23 @@ export function CodeReviewPanel(): JSX.Element {
     void run("design.drift", { baseline, current });
   }, [driftBaseline, driftCurrent, run, t]);
 
+  // CRG architecture graph: visualize emits a self-contained D3 HTML page that
+  // renders in the shared right dock — App owns the single-slot mutex with the
+  // design preview. Lost in the Phase-4 rework, restored 2026-08-19.
+  const [graphLoading, setGraphLoading] = useState(false);
+  const viewGraph = useCallback(async () => {
+    setGraphLoading(true);
+    try {
+      const res = await api.crgVisualize();
+      if (res.html) onShowGraph(res.html);
+      else setError(res.error ?? t("app.requestFailed"));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGraphLoading(false);
+    }
+  }, [onShowGraph, t]);
+
   const projectLabel = entry?.label ?? entry?.root ?? "";
   const hasGraph = entry?.hasGraph ?? false;
 
@@ -126,6 +143,14 @@ export function CodeReviewPanel(): JSX.Element {
               <div className={`ui-index-state${hasGraph ? " on" : ""}`}>
                 {hasGraph ? t("review.graphReady") : t("review.graphUnbuilt")}
               </div>
+            </div>
+
+            {/* Architecture graph — always mounted, gated on graph state (same
+                stability rule as the rail buttons). Opens in the right dock. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Button size="sm" variant="subtle" disabled={!hasGraph || graphLoading} onClick={() => void viewGraph()}>
+                {graphLoading ? t("actions.running") : t("crg.viewGraph")}
+              </Button>
             </div>
 
             {error ? <div className="ui-error">{error}</div> : null}

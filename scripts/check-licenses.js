@@ -53,6 +53,11 @@ const EXCEPTIONS = [
     why: "Prebuilt libvips dynamically loaded by sharp — unmodified and replaceable, so no copyleft on DeepOrca. LGPL obligations (notice + full texts + source pointer) are shipped in packages/desktop/vendor/ThirdPartyNotices.txt via scripts/vendor-notice.js.",
   },
   {
+    match: (name) => name.startsWith("@img/sharp-win32"),
+    license: "Apache-2.0 AND LGPL-3.0-or-later",
+    why: "Windows sharp binary statically bundles the SAME prebuilt libvips that mac/linux split into @img/sharp-libvips-* packages (win32 ships it inside one package, hence the conjunction license). Same terms as the libvips entry: unmodified and replaceable, no copyleft on DeepOrca; LGPL obligations discharged via packages/desktop/vendor/ThirdPartyNotices.txt.",
+  },
+  {
     match: (name) => name === "spdx-exceptions",
     license: "CC-BY-3.0",
     why: "Data-only package (SPDX exception list) pulled in by the license-checker dev tool. Build-time only, never shipped in the product; attribution satisfied by this notice.",

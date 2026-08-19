@@ -240,6 +240,16 @@ export function App(): JSX.Element {
     },
     [setSidebarView]
   );
+  // CRG architecture graph (Code Review panel) shares the right dock with the
+  // design preview — opening one evicts the other (single-slot mutex; the
+  // reverse direction lives in use-preview's open paths).
+  const handleShowGraph = useCallback(
+    (html: string) => {
+      setGraphHtml(html);
+      closePreview();
+    },
+    [closePreview, setGraphHtml]
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
     showProcessPanel,
@@ -1482,7 +1492,7 @@ export function App(): JSX.Element {
           <IndexLibraryPanel />
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel />
+            <CodeReviewPanel onShowGraph={handleShowGraph} />
           </Suspense>
         ) : sidebarView === "design" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>

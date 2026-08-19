@@ -236,10 +236,15 @@ embedding 10 / memory 37，0 失败）。
 1. 拉取的 `e549a47` 之后 core dist 未重建，desktop typecheck 对旧类型产物报
    3 个假错（`restoreNodeSnapshot` / `meta.snapshot` 不存在）——重建 core dist
    后消失，非代码缺陷，代码本身正确。
-2. **遗留断线**：`graphHtml` 在 renderer 中没有任何赋值入口（`onShowGraph`
-   仅存在于 `use-preview.ts` 注释里）——架构图面板的触发链路本身是断的，
-   即 P0-1 修复后面板"有数据即可见"，但生产数据的入口需要后续接线（批次三
-   或单独小项）。
+2. **遗留断线（已闭环，同日补线）**：`graphHtml` 原属 Code Review 模块的
+   CRG（code-review-graph）可视化，`bd3c7ef` 引入时由 CodeReviewPanel 的
+   view-graph 按钮触发；`7d3ca8d` 重构把状态搬进 use-preview.ts 时丢失了
+   onShowGraph 接线，Phase-4 面板重写后按钮整个消失。底层链路（IPC
+   `crg:visualize` / preload / main 处理器）一直完好。**补线**：
+   CodeReviewPanel 恢复 onShowGraph prop + 常驻 View Graph 按钮（hasGraph
+   门控 + loading 态），App 侧 handleShowGraph 设 graphHtml 并驱逐预览
+   （单槽互斥双向闭环：预览开→清 graph 在 use-preview，graph 开→关预览
+   在 App）。
 
 **未竟事项**：§4 真机验证清单待人工冒烟（Electron 真机不在本轮自动化范围）；
 P2 各项与批次三结构性重构未动。
