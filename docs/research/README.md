@@ -84,8 +84,8 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-08-19-ui-ux-audit-report.md](./2026-08-19-ui-ux-audit-report.md) | 桌面端 UI/UX 现状审计（全量代码走查，附 file:line 证据） | `packages/desktop/src/renderer/`（App.tsx、ui.css、rail、panels） | ⬜ | 发现 **P0 疑似缺陷：右侧预览面板 `.ui-preview-panel` 无 grid 归属**（`.ui-shell.right-open`/`.ui-rightpanel` 为零引用死代码），PM-Design 预览可见性需真机验证；另列 P1 结构问题 5 项（rail 19 按钮过载、视图状态复合、入口割裂、命令面板浅薄、权限打断）、P2 体验问题 10 项 |
-| [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 阶段指挥舱」+ 竞品差异化定位（vs Cursor/Codex/Threads） | 提案落点：消息流阶段化、rail 五区收编、Inspector 右栏、审批队列、命令面板全覆盖 | ⬜ | 核心概念：平铺线程 → 五阶段脊柱（理解/计划/执行/验证/交付）；三波路径：止损 → 结构 → 差异化 |
-| [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿：全界面 ASCII 线框 + 尺寸/交互规格 + 键盘地图 + token 增补 | 提案落点：`ui.css`、rail.tsx、MessageList、Composer、command-palette、浮层栈 | ⬜ | HTML 视觉稿经 Playwright 截图验证渲染正确；正式实现一律以 specs/ 为准（总口径） |
+| [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 无框指挥舱」v2 + 竞品差异化定位（vs Cursor/Codex/Threads/VS Code） | 提案落点：消息流阶段化、零常驻侧栏、命令层 ⌘K、任务总台 ⌘⇧M、边缘抽屉、焦点卡、审批队列 | ⬜ | **v2 按"v1 VS Code 影子太重"反馈换骨**：五区 rail/二级面板/右栏全移除，导航从收纳改为召唤式（Summon, don't dock），阶段脊柱升级为置顶阶段带；视图状态从复合状态机简化为「内容列 + 浮层栈」 |
+| [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿 v2：全界面 ASCII 线框 + 尺寸/交互规格 + 键盘地图 + token 增补 | 提案落点：`ui.css`、OverlayStack、CommandPalette、FocusCard、四抽屉、任务总台 | ⬜ | v2 双画面 HTML 视觉稿（主工作台 + 任务总台）经 Playwright 截图验证渲染正确；正式实现一律以 specs/ 为准（总口径） |
 
 ---
 
