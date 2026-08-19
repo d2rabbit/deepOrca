@@ -321,7 +321,29 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none;width:
 .ob-choice{display:flex;gap:10px;align-items:center;padding:11px 14px;margin-top:8px;cursor:pointer;text-align:left;width:100%}
 .ob-choice:hover{background:var(--acc-soft)}
 
-/* Vernacular 专属装饰 */
+/* 新增模块浮层内容 */
+.asset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 16px}
+.asset-card{padding:10px;cursor:pointer}
+.asset-card:hover{outline:2px solid var(--acc);outline-offset:1px}
+.asset-thumb{height:70px;border-radius:9px;display:grid;place-items:center;font-size:20px;background:var(--paper2)}
+.asset-card .nm{font-size:11.5px;font-weight:700;margin-top:8px}
+.asset-card .mt{font-size:10px;color:var(--ink3);margin-top:2px}
+.treegraph{padding:20px 22px 24px;font-family:var(--mono);font-size:11.5px;line-height:2.1;overflow-x:auto;white-space:nowrap}
+.tnode{display:inline-block;width:13px;height:13px;border-radius:50%;background:var(--paper);border:2.5px solid var(--acc);vertical-align:middle;cursor:pointer}
+.tnode.cur{background:var(--acc);box-shadow:0 0 0 4px var(--acc-soft)}
+.tnode.merged{border-color:var(--ok)}
+.tnode.dead{border-color:var(--ink3);background:var(--paper2)}
+.tnode:hover{transform:scale(1.25)}
+.editor-body{font-family:var(--mono);font-size:11.5px;line-height:1.7;padding:12px 0;overflow:auto;max-height:60vh;color:var(--code-ink)}
+.editor-body .ln{display:flex}
+.editor-body .ln i{width:38px;flex-shrink:0;color:var(--ink3);text-align:right;padding-right:12px;font-style:normal}
+.editor-body .ln.add{background:var(--ok-soft)}
+.editor-body .ln.del{background:var(--bad-soft)}
+.draft-step{display:flex;gap:10px;align-items:center;padding:9px 13px;font-size:12.5px;margin-top:8px}
+/* 专注模式 */
+body.zen #ribbon,body.zen .control-row,body.zen #cc-tab,body.zen #controlcenter{display:none}
+body.zen #wrap{max-width:880px}
+
 .vern-only{display:none}
 [data-theme=vern] .vern-only{display:inline}
 .rainbow-hr{display:none;height:6px;margin:6px 0;background:linear-gradient(90deg,red,orange,yellow,lime,cyan,blue,violet)}
@@ -519,8 +541,20 @@ function renderOverlays(){
     + (has("tape") ? tapeHTML() : "")
     + (has("settings") ? settingsHTML() : "")
     + (has("themes") ? themesHTML() : "")
+    + (has("assets") ? assetsHTML() : "")
+    + (has("review") ? reviewHTML() : "")
+    + (has("sources") ? sourcesHTML() : "")
+    + (has("ledger") ? ledgerHTML() : "")
+    + (has("tree") ? treeHTML() : "")
+    + (has("plugins") ? pluginsHTML() : "")
+    + (has("undo") ? undoHTML() : "")
+    + (has("shortcuts") ? shortcutsHTML() : "")
+    + (has("editor") ? editorHTML() : "")
+    + (has("conflict") ? conflictHTML() : "")
+    + (has("draft") ? draftHTML() : "")
     + (has("onboard") ? onboardHTML() : "");
   if (has("cmdk")) { const i = $("#cmdk-q"); if (i){ i.focus(); i.value = S.cmdkQ; i.setSelectionRange(i.value.length, i.value.length); } }
+  if (has("draft")) { const d = $("#draft-title"); if (d) setTimeout(()=>d.focus(), 0); }
 }
 
 /* ================= 渲染：工作台 ================= */
@@ -708,6 +742,18 @@ function cmdkItems(){
   items.push({ grp:"视图", label:"变更抽屉", kbd:"⌘⇧E", act:"drawer:changes" });
   items.push({ grp:"视图", label:"进程抽屉", kbd:"⌘⇧P", act:"drawer:procs" });
   items.push({ grp:"视图", label:"通知抽屉", kbd:"⌘⇧N", act:"drawer:notifs" });
+  items.push({ grp:"视图", label:"控制中心", kbd:"⌘⇧O", act:"cc" });
+  items.push({ grp:"视图", label:"设计资产库", act:"open:assets" });
+  items.push({ grp:"视图", label:"代码审查", act:"open:review" });
+  items.push({ grp:"视图", label:"知识源仪表盘", act:"open:sources" });
+  items.push({ grp:"视图", label:"Token 账本", act:"open:ledger" });
+  items.push({ grp:"视图", label:"任务树画布", act:"open:tree" });
+  items.push({ grp:"视图", label:"插件与 MCP", act:"open:plugins" });
+  items.push({ grp:"动作", label:"检查点恢复（Undo）", kbd:"⌘⇧Z", act:"open:undo" });
+  items.push({ grp:"动作", label:"快捷键表", kbd:"⌘?", act:"open:shortcuts" });
+  items.push({ grp:"动作", label:"打开编辑器（当前文件）", act:"open:editor" });
+  items.push({ grp:"动作", label:"模拟分支冲突", act:"open:conflict" });
+  items.push({ grp:"动作", label:"专注模式", kbd:"⌘.", act:"zen" });
   THEMES.forEach(t=> items.push({ grp:"主题", label:`切换到 ${t[1]}`, act:`theme:${t[0]}` }));
   items.push({ grp:"动作", label:"自律度：全自动", kbd:"⌥1", act:"auto:0" });
   items.push({ grp:"动作", label:"自律度：关键确认", kbd:"⌥2", act:"auto:1" });
@@ -815,6 +861,15 @@ function openFocus(type, key){
     body = `<div class="focus-head">${key} <span class="dim" style="font-weight:400;font-size:10.5px">⌖ diff 检视</span><span class="ops"><span data-act="pin-fc">📌</span><span data-act="close-fc">✕</span></span></div>
       <div class="diff">${d.map(l=>`<div class="${l[0].startsWith("@@")?"hunk":l[0].startsWith("-")?"del":"add"}">${l[0]}</div>`).join("")}</div>
       <div class="focus-foot"><button class="btn primary">在编辑器打开</button><button class="btn flatb">还原</button></div>`;
+  } else if (type==="preview"){
+    body = `<div class="focus-head">${key} <span class="dim" style="font-weight:400;font-size:10.5px">⌖ 设计资产预览</span><span class="ops"><span data-act="close-fc">✕</span></span></div>
+      <div style="padding:14px;background:linear-gradient(135deg,#dfe9f5,#ece4f4)"><div class="sh" style="padding:14px;border-radius:12px">
+        <div style="width:44px;height:44px;border-radius:12px;background:var(--acc-soft);margin:0 auto"></div>
+        <div style="height:9px;border-radius:5px;background:var(--paper2);margin:12px 0 0"></div>
+        <div style="height:9px;border-radius:5px;background:var(--paper2);margin-top:7px;width:70%"></div>
+        <div style="height:26px;border-radius:999px;background:var(--acc);margin-top:12px"></div>
+      </div></div>
+      <div class="focus-foot"><button class="btn primary">放大预览</button><button class="btn flatb">导出 .ddp</button></div>`;
   } else if (type==="ctx"){
     body = `<div class="focus-head">上下文 ${S.ctx}% <span class="dim" style="font-weight:400;font-size:10.5px">⌖ 来自目标带</span><span class="ops"><span data-act="close-fc">✕</span></span></div>
       <div class="focus-body">
@@ -877,7 +932,20 @@ function act(a, e){
     case "brake": toggleBrake(); break;
     case "cycle-target": cycleTarget(); break;
     case "send": sendIntervention(); break;
-    case "open": if(p1==="settings") pushOverlay("settings"); if(p1==="themes") pushOverlay("themes"); if(p1==="tape"){pushOverlay("tape"); setTimeout(renderTape,0);} if(p1==="floor") pushOverlay("floor"); break;
+    case "open": openAny(p1); break;
+    case "asset": popOverlay(); openFocus("preview", ASSETS[+p1].n); break;
+    case "review-apply": { const r = REVIEW_ITEMS[+p1]; const li = goal().steps.findIndex(s=>s.status==="live"); const ti = li<0?S.sel:li; S.notes[ti]=S.notes[ti]||[]; S.notes[ti].push({ts:now(),text:"审查意见："+r.h,ack:null}); logCmd(`审查→介入：${r.h.slice(0,14)}…`); toast("💬","已转为介入，挂在当前步骤","var(--acc)"); popOverlay(); renderCards(); break; }
+    case "rebuild": obs("知识源全部重建中…"); toast("↻","索引重建已开始（后台）","var(--acc)"); setTimeout(()=>obs("✓ 5/5 知识源重建完成"),1800); break;
+    case "recall-test": obs("召回测试：permissions 相关 top5 命中率 96%"); toast("◈","召回测试通过 · top5 命中 96%","var(--ok)"); break;
+    case "plug": { const pg=PLUGINS[+p1]; pg[2]=!pg[2]; logCmd(`${pg[2]?"启用":"停用"}插件 ${pg[0]}`); obs(`插件 ${pg[0]} 已${pg[2]?"启用":"停用（路由候选已移除）"}`); renderOverlays(); break; }
+    case "restore": { popOverlay(); logCmd(`恢复检查点：${CHECKPOINTS[+p1][1].slice(0,16)}`); obs(`⏮ 已恢复到 ${CHECKPOINTS[+p1][0]} 检查点`); toast("⏮","已恢复，未落盘改动已回滚","var(--warn)"); break; }
+    case "tnode": obs(`快照切换：${p1}`); toast("⎇",`已切到快照「${p1}」`,"var(--acc)"); break;
+    case "tnode-fork": obs("从选中节点分叉 try/新分支"); toast("⑂","已分叉新分支","var(--acc)"); break;
+    case "tnode-backfill": obs("已把该分支结论回填到工单约束"); toast("⇤","已回填到工单","var(--ok)"); break;
+    case "draft-gate": { const st=S.draft.steps[+p1]; st[1]=GATES[(GATES.indexOf(st[1])+1)%GATES.length]; renderOverlays(); break; }
+    case "draft-stamp": stampDraft(); break;
+    case "conflict": popOverlay(); if(p1!=="stop"){ logCmd(p1==="merge"?"冲突：合并后继续":"冲突：变基后继续"); obs(p1==="merge"?"git merge 完成 · 无冲突残留":"git rebase 完成 · 历史已改写"); toast("✓",p1==="merge"?"已合并，继续":"已变基，继续","var(--ok)"); } else { logCmd("冲突：先停下（交还命令行）"); } break;
+    case "zen": document.body.classList.toggle("zen"); break;
     case "drawer": toggleDrawer(p1); break;
     case "cc": toggleCC(); break;
     case "file": openFocus("diff", p1); break;
@@ -885,11 +953,11 @@ function act(a, e){
     case "close": e.target.closest(".drawer").classList.add("hidden"); break;
     case "notif-clear": S.notifs.forEach(n=>n.read=true); renderNotifs(); renderBell(); break;
     case "commit": toast("✓","已本地提交（未推送）","var(--ok)"); tape("t","git commit ✓"); logCmd("仅提交（本地）"); break;
-    case "commit-push": addPending({ step: S.sel, text:"执行前确认: git push origin 当前分支", risk:"high", alt:"仅提交" }); logCmd("发起：提交并推送 🛡"); renderAll(); break;
+    case "commit-push": logCmd("发起：提交并推送 🛡"); pushOverlay("conflict"); break;
     case "goal": logCmd(`切换到「${GOALS[p1].title}」`); S.goalId = p1; S.sel = goal().steps.findIndex(s=>s.status==="live"); if(S.sel<0)S.sel=0; S.target=S.sel; S.scriptIdx=0; clearOverlays(); tape("a", `切换到工单 ${goal().wo}：${goal().title}`); renderAll(); break;
     case "theme": setTheme(p1); break;
     case "auto": S.autonomy = +p1; logCmd(`自律度 → ${AUTO_LABEL[S.autonomy]}`); renderDial(); break;
-    case "newgoal": toast("ℹ","Demo：新目标请先清空脑洞（此 demo 内置 3 个工单）","var(--acc)"); break;
+    case "newgoal": S.draft=null; pushOverlay("draft"); break;
     case "cmdk": execCmdk(p1); break;
     case "esc": popOverlay(); break;
     case "ob": if(p1!=="skip") S.autonomy = +p1; S.onboarded = true; clearOverlays(); startEngine(); toast("🐋", `开工 · 自律度：${AUTO_LABEL[S.autonomy]}`, "var(--acc)"); break;
@@ -937,6 +1005,10 @@ document.addEventListener("keydown", e=>{
   if (mod && e.shiftKey && e.key.toLowerCase()==="e"){ e.preventDefault(); toggleDrawer("changes"); return; }
   if (mod && e.shiftKey && e.key.toLowerCase()==="p"){ e.preventDefault(); toggleDrawer("procs"); return; }
   if (mod && e.shiftKey && e.key.toLowerCase()==="n"){ e.preventDefault(); toggleDrawer("notifs"); return; }
+  if (mod && !e.shiftKey && e.key.toLowerCase()==="n"){ e.preventDefault(); S.draft=null; pushOverlay("draft"); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase()==="z"){ e.preventDefault(); pushOverlay("undo"); return; }
+  if (mod && e.key==="?"){ e.preventDefault(); pushOverlay("shortcuts"); return; }
+  if (mod && e.shiftKey && e.key==="Escape"){ e.preventDefault(); clearOverlays(); return; }
   if (mod && e.shiftKey && e.key.toLowerCase()==="o"){ e.preventDefault(); toggleCC(); return; }
   if (mod && e.key===","){ e.preventDefault(); pushOverlay("settings"); return; }
   if (mod && e.key==="."){ e.preventDefault(); document.body.classList.toggle("zen"); return; }
@@ -955,6 +1027,7 @@ document.addEventListener("keydown", e=>{
 });
 document.addEventListener("input", e=>{
   if (e.target.id==="cmdk-q"){ S.cmdkQ = e.target.value; S.cmdkSel = 0; renderOverlays(); }
+  if (e.target.id==="draft-title" && S.draft){ S.draft.title = e.target.value; }
 });
 $("#dir-input").addEventListener("keydown", e=>{ e.stopPropagation(); if(e.key==="Enter"||((e.metaKey||e.ctrlKey)&&e.key==="Enter")){e.preventDefault();sendIntervention();} if(e.key==="Tab"){e.preventDefault();cycleTarget();} });
 $("#dir-input").addEventListener("keyup", e=> e.stopPropagation());
@@ -967,6 +1040,166 @@ function setTheme(t){
   tape("u", `主题 → ${THEMES.find(x=>x[0]===t)[1]}`);
   toast("🎨", THEMES.find(x=>x[0]===t)[1], "var(--acc)");
   renderOverlays();
+}
+
+
+/* ================= 全模块数据与浮层（审计全量复现） ================= */
+const ASSETS = [
+  { n:"登录页原型.dd", m:"2m 前 · 工单 #3 产出", bg:"linear-gradient(135deg,#e5ecff,#dfe9f5)", i:"▦" },
+  { n:"设计系统 v2.dd", m:"昨天 · 42 tokens 引用", bg:"linear-gradient(135deg,#dcf5e8,#eef7f0)", i:"◈" },
+  { n:"设置页改版.ddp", m:"3 天前 · 含历史", bg:"linear-gradient(135deg,#fdf3dd,#fbf7ec)", i:"◧" },
+  { n:"错误态规范.dd", m:"上周 · 已归档", bg:"linear-gradient(135deg,#fdeceb,#fbf0ee)", i:"▤" }
+];
+const REVIEW_ITEMS = [
+  { tag:"a", t:"建议", h:"queueable() 的 network 判定建议提取为常量表", m:"permissions.ts:108 · 便于后续审计" },
+  { tag:"a", t:"建议", h:"enqueueForBatch 缺少超时兜底", m:"permissions.ts:141 · 用户长期不响应时应有默认策略" },
+  { tag:"g", t:"通过", h:"品牌漂移检查 · 未引入违规字体/圆角", m:"design.drift · 12 规则全过" }
+];
+const SOURCES = [
+  ["CodeGraph","代码符号索引","1,842 文件 · 3m 前增量"],["OpenWiki","仓库知识页","64 页 · 昨日"],
+  ["Serena","LSP 符号","ts 已挂 · 0 错误"],["AGENTS.md","工作区指令","已注入系统提示"],
+  ["Memory","L0–L3 记忆管线","128 条 · BM25+向量双路"]
+];
+const PLUGINS = [
+  ["code","CodeGraph · CRG · review",true],["design","pm-design · deep-design · .dd 管线",true],
+  ["gitmcp","GitHub 仓库 → 本地 MCP · 重连中",true],["browser","BrowserSkill · 已停用",false]
+];
+const LEDGER = [
+  ["任务树快照切换","V4 ×12 轮","89.2k · $0.98",88],["权限改批量审批","V4 ×7 · flash ×3","64.1k · $0.71",63],
+  ["导出 .ddp 压缩包","V4 ×4","38.0k · $0.42",37],["其他 6 个工单","","27.1k · $0.26",18]
+];
+const CHECKPOINTS = [
+  ["14:04","③ 改策略面 · 第 2 次 edit 前",true],["14:03","③ 改策略面 · 开工前",false],
+  ["14:02","② 完成时（queue-spec 落盘）",false],["14:02","工单下发前（干净树）",false]
+];
+const SHORTCUTS = [
+  ["命令层","⌘K"],["车间墙","⌘⇧M"],["Tape 记录仪","⌘T"],["控制中心","⌘⇧O"],["专注模式","⌘."],
+  ["文件 / 变更抽屉","⌘E / ⌘⇧E"],["进程 / 通知抽屉","⌘⇧P / ⌘⇧N"],["检查点恢复","⌘⇧Z"],
+  ["自律度三档","⌥1/2/3"],["刹车 / 恢复","Space"],["步骤间跳转","J / K"],["发送介入","⌘↵"],
+  ["退栈 / 清栈","Esc / ⌘⇧Esc"],["新目标 / 设置","⌘N / ⌘,"],["快捷键表","⌘?"]
+];
+const EDITOR_LINES = [
+  ["", "export function computeRisk(scope) {"],
+  ["del", "-  const risk = \"high\";"],
+  ["add", "+  const risk = queueable(scope) ? \"medium\" : \"high\";"],
+  ["add", "+  if (scope === \"network\") risk = \"high\"; // 介入 #2"],
+  ["", "  return risk;"],
+  ["", "}"],
+  ["", ""],
+  ["", "export function askPermission(scopes) {"],
+  ["del", "-  return promptScopeByScope(scopes);"],
+  ["add", "+  return enqueueForBatch(scopes, { nonBlocking: true });"],
+  ["", "}"]
+];
+
+function openAny(p1){
+  if (p1==="tape"){ pushOverlay("tape"); setTimeout(renderTape,0); return; }
+  if (p1==="editor"){ pushOverlay("editor"); return; }
+  pushOverlay(p1);
+}
+function assetsHTML(){
+  return `<div class="panel gcd" style="top:8%;width:min(860px,94%)">
+    <div class="panel-head">设计资产 <span class="seg"><span class="on">全部</span><span>.dd 文档</span><span>.ddp 包</span><span>原型</span></span><span class="ops"><span class="kbd">Esc</span></span></div>
+    <div class="asset-grid">${ASSETS.map((a,i)=>`<div class="asset-card sh2" data-act="asset:${i}"><div class="asset-thumb" style="background:${a.bg}">${a.i}</div><div class="nm">${a.n}</div><div class="mt">${a.m}</div></div>`).join("")}</div>
+    <div style="padding:0 16px 14px" class="dim">点击卡片 → 焦点卡预览 · 拖到指令输入 = 作为介入的上下文引用</div></div>`;
+}
+function reviewHTML(){
+  return `<div class="panel gcd" style="top:10%;width:min(780px,92%)">
+    <div class="panel-head">代码审查 · ${goal().wo} <span class="tag g">CRG 风险 低</span><span class="tag a">语义 2 条建议</span><span class="tag g">design.drift 通过</span><span class="ops">review.run · 12s</span></div>
+    ${REVIEW_ITEMS.map((r,i)=>`<div class="lrow" style="align-items:flex-start;padding:11px 16px"><span class="tag ${r.tag}">${r.t}</span><span><b style="color:var(--ink);font-size:12.5px">${r.h}</b><br><span class="dim mono" style="font-size:10.5px">${r.m}</span></span><span class="r">${r.t==="建议"?`<button class="btn flatb" data-act="review-apply:${i}">转为介入</button>`:""}</span></div>`).join("")}
+  </div>`;
+}
+function sourcesHTML(){
+  return `<div class="panel gcd" style="top:10%;width:min(760px,92%)">
+    <div class="panel-head">知识源 <span class="tag g">5/5 就绪</span><span class="ops">召回质量直接影响 agent 表现 · 全部本地</span></div>
+    ${SOURCES.map(x=>`<div class="lrow" style="padding:10px 16px"><span class="tag g">●</span><b style="color:var(--ink)">${x[0]}</b><span class="dim">${x[1]}</span><span class="r">${x[2]}</span></div>`).join("")}
+    <div style="padding:12px 16px 16px;display:flex;gap:8px"><button class="btn flatb" data-act="rebuild">全部重建</button><button class="btn flatb" data-act="recall-test">召回测试</button></div></div>`;
+}
+function ledgerHTML(){
+  return `<div class="panel gcd" style="top:10%;width:min(760px,92%)">
+    <div class="panel-head">账本 · 本周 <span class="tag">总计 218.4k tok · $2.37</span><span class="ops"><span class="seg"><span>按模型</span><span class="on">按工单</span><span>按天</span></span></span></div>
+    <div style="padding:12px 16px 16px;display:flex;flex-direction:column;gap:10px">
+      ${LEDGER.map(l=>`<div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span><b>${l[0]}</b> <span class="dim mono" style="font-size:10.5px">${l[1]}</span></span><span class="mono" style="font-size:11px">${l[2]}</span></div><div class="meter"><i style="width:${l[3]}%"></i></div></div>`).join("")}
+      <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span><b>当前工单（进行中）</b></span><span class="mono" style="font-size:11px" id="ledger-live">${(S.tok/1000).toFixed(1)}k · $${S.cost.toFixed(2)}</span></div><div class="meter"><i style="width:${Math.min(95,S.ctx)}%"></i></div></div>
+    </div>
+    <div style="padding:0 16px 14px" class="dim">压缩节省已抵扣 · flash 改写单列 · 导出 CSV</div></div>`;
+}
+function treeHTML(){
+  return `<div class="panel gcd" style="top:8%;width:min(860px,94%)">
+    <div class="panel-head">任务树 · ${goal().title} <span class="dim" style="font-weight:400;font-size:11px">每次分叉都是一次"试试看" · hover 显 why · 点击切快照</span><span class="ops"><span class="kbd">Esc</span></span></div>
+    <div class="treegraph">
+      <div><span class="tnode merged" data-act="tnode:起点"></span>──<span class="tnode merged" data-act="tnode:读现状"></span>──<span class="tnode" data-act="tnode:队列设计"></span>────<span class="tnode cur" data-act="tnode:当前"></span> <b>main-line</b> <span class="dim">当前 · 批量队列方案</span></div>
+      <div style="padding-left:26px">╲</div>
+      <div style="padding-left:26px"><span class="tnode merged" data-act="tnode:逐条弹卡 v1"></span>──<span class="tnode merged" data-act="tnode:逐条弹卡 v2"></span> <span style="color:var(--ok)">try/逐条弹卡</span> <span class="dim">✓ 已合并 · why: 打断太强，弃</span></div>
+      <div style="padding-left:52px">╲</div>
+      <div style="padding-left:52px"><span class="tnode dead" data-act="tnode:静默自动批准"></span> <span class="dim">try/静默自动批准 ✕ 已放弃 · why: 风险过高</span></div>
+    </div>
+    <div style="padding:0 16px 14px;display:flex;gap:8px;align-items:center"><button class="btn flatb" data-act="tnode-fork">从选中节点分叉</button><button class="btn flatb" data-act="tnode-backfill">回填到工单</button><span class="dim" style="margin-left:auto">每次变更必填 why · reflog 可查</span></div></div>`;
+}
+function pluginsHTML(){
+  return `<div class="panel gcd" style="top:10%;width:min(760px,92%)">
+    <div class="panel-head">插件与 MCP <span class="seg"><span class="on">已装 8</span><span>市场</span><span>MCP servers</span></span><span class="ops"><span class="kbd">Esc</span></span></div>
+    ${PLUGINS.map((p,i)=>`<div class="lrow" style="padding:11px 16px"><span class="tag ${p[2]?"g":""}">${p[2]?"●":"○"}</span><b style="color:var(--ink)">${p[0]}</b><span class="dim">${p[1]}</span><span class="r"><button class="btn flatb" data-act="plug:${i}">${p[2]?"停用":"启用"}</button></span></div>`).join("")}
+    <div style="padding:10px 16px 14px" class="dim">点行进详情内页（工具清单/权限/日志）· 停用立即从路由候选移除</div></div>`;
+}
+function undoHTML(){
+  return `<div class="panel gcd" style="top:14%;width:min(540px,90%)">
+    <div class="panel-head">恢复到… <span class="dim" style="font-weight:400;font-size:11px">file-history 检查点 · 按步骤归组</span><span class="ops"><span class="kbd">Esc</span></span></div>
+    ${CHECKPOINTS.map((c,i)=>`<div class="lrow" style="padding:10px 16px"><span class="mono dim">${c[0]}</span><span>${c[1]}</span><span class="r">${c[2]?'<span class="tag b">建议</span>':""} <button class="btn flatb" data-act="restore:${i}">恢复</button></span></div>`).join("")}
+  </div>`;
+}
+function shortcutsHTML(){
+  return `<div class="panel gcd" style="top:8%;width:min(620px,90%)">
+    <div class="panel-head">快捷键 <span class="ops">与命令层同源注册表</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 26px;padding:12px 18px 16px;font-size:12px">
+      ${SHORTCUTS.map(k=>`<div class="kv"><span class="k">${k[0]}</span><span><span class="kbd">${k[1]}</span></span></div>`).join("")}
+    </div></div>`;
+}
+function editorHTML(){
+  return `<div class="panel gcd" style="top:5%;width:min(860px,94%)">
+    <div class="panel-head">permissions.ts <span class="tag a">●M 未提交</span><span class="ops">只读演示 · Monaco 在生产接入 · <span class="kbd">Esc</span></span></div>
+    <div class="editor-body">${EDITOR_LINES.map((l,i)=>`<div class="ln ${l[0]}"><i>${i+1}</i><span>${l[1]||" "}</span></div>`).join("")}</div>
+    <div class="focus-foot"><button class="btn flatb" data-act="esc">返回工作台</button><button class="btn primary">保存并跑 typecheck</button></div></div>`;
+}
+function conflictHTML(){
+  return `<div class="panel gcd" style="top:16%;width:min(500px,90%)"><div style="padding:20px 22px">
+    <b style="font-size:14px">分支 <span class="mono" style="color:var(--acc)">当前分支</span> 已落后于远端</b>
+    <p class="dim2" style="font-size:12px;line-height:1.7;margin-top:8px">远端有 3 个新提交，本地有 2 个。继续前需要选一个方向：</p>
+    <button class="sh2" style="padding:11px 14px;display:flex;gap:10px;align-items:center;margin-top:10px;width:100%" data-act="conflict:merge"><b style="font-size:12.5px">合并后继续</b><span class="dim" style="font-size:11px">保留双方改动 · 推荐</span><span class="tag g" style="margin-left:auto">安全</span></button>
+    <button class="sh2" style="padding:11px 14px;display:flex;gap:10px;align-items:center;margin-top:8px;width:100%" data-act="conflict:rebase"><b style="font-size:12.5px">变基后继续</b><span class="dim" style="font-size:11px">历史更干净 · 改写本地 2 个提交</span><span class="tag a" style="margin-left:auto">改写历史</span></button>
+    <button class="sh2" style="padding:11px 14px;display:flex;gap:10px;align-items:center;margin-top:8px;width:100%" data-act="conflict:stop"><b style="font-size:12.5px">先停下</b><span class="dim" style="font-size:11px">我去命令行自己处理</span></button>
+  </div></div>`;
+}
+/* 新目标：工单起草流（PlanCard 的 v3 形态） */
+const DRAFT_STEPS = [
+  ["理解现状","auto"],["方案设计","auto"],["实施","auto"],["验证","confirm"],["交付","auto"]
+];
+function draftHTML(){
+  const d = S.draft || { title:"", steps: DRAFT_STEPS.map(x=>[...x]) };
+  S.draft = d;
+  return `<div class="panel gcd" style="top:8%;width:min(720px,92%)">
+    <div class="panel-head">新目标 · 工单起草 <span class="tag a">未下发</span><span class="ops"><span class="kbd">Esc</span></span></div>
+    <div style="padding:14px 18px 18px">
+      <div class="sh2" style="padding:10px 14px"><input id="draft-title" placeholder="给它一个目标，例如：把任务树加星标过滤" value="${d.title}"></div>
+      <div style="margin-top:6px">${d.steps.map((st,i)=>`<div class="draft-step sh2"><span class="mono dim">${"①②③④⑤"[i]}</span>${st[0]}<span style="margin-left:auto"></span><button class="gate-sel" data-act="draft-gate:${i}">gate: ${GATE_LABEL[st[1]]} ▾</button></div>`).join("")}</div>
+      <div style="display:flex;gap:9px;margin-top:14px;align-items:center">
+        <button class="btn primary" data-act="draft-stamp">盖章下发 ⌘↵</button><button class="btn flatb" data-act="esc">退回</button>
+        <span class="dim" style="margin-left:auto;font-size:11px">预估：${d.steps.length} 步 · 3–5 分钟 · ≤$0.15 · 下发前每一行 gate 都可改</span>
+      </div>
+    </div></div>`;
+}
+function stampDraft(){
+  const title = ($("#draft-title")?.value || "未命名目标").trim() || "未命名目标";
+  const id = "g" + (Object.keys(GOALS).length + 1) + Date.now()%97;
+  GOALS[id] = { title, wo:"#"+(Object.keys(GOALS).length+1), tags:[["a","施工中（demo：不自动推进）"]],
+    steps: S.draft.steps.map((st,i)=>({ name: st[0], status: i===0?"live":"todo", gate: st[1], events: [] })) };
+  S.draft = null; clearOverlays();
+  S.goalId = id; S.sel = 0; S.target = 0;
+  tape("u", title + `（→ 工单 ${GOALS[id].wo}）`);
+  logCmd(`新目标「${title.slice(0,14)}」已盖章下发`);
+  obs(`工单 ${GOALS[id].wo} 已下发 · ${GOALS[id].steps.length} 步`);
+  toast("✓", `工单已下发：${title.slice(0,18)}`, "var(--ok)");
+  renderAll();
 }
 
 /* ================= 引擎启动 ================= */
