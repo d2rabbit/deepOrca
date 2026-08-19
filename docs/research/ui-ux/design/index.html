@@ -204,9 +204,11 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none;width:
 /* 控制中心（手机控制中心式小浮窗，右缘居中） */
 #controlcenter{
   position:fixed;top:50%;right:14px;transform:translateY(-50%);width:300px;z-index:24;
-  display:flex;flex-direction:column;max-height:min(560px,80vh);
-  border-radius:22px;overflow:hidden;
+  display:flex;flex-direction:column;max-height:min(640px,86vh);
+  border-radius:22px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
 }
+#controlcenter .cc-sec{flex-shrink:0}
+#controlcenter .cc-sec:has(.cc-list){flex-shrink:1;min-height:0}
 /* 右缘拉手（控制中心收起时的唯一入口） */
 #cc-tab{
   position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:23;
@@ -229,6 +231,11 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none;width:
 .cc-input input{flex:1;font-size:11.5px;color:var(--ink);min-width:0}
 .cc-input .send{flex-shrink:0;width:26px;height:26px;border-radius:8px;background:var(--acc);color:var(--onacc,#fff);display:grid;place-items:center;font-size:12px;cursor:pointer}
 .cc-list{overflow-y:auto;max-height:110px}
+.cc-modules{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.mtile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 0;border-radius:12px;background:var(--paper2);border:var(--paper-border);font-size:15px;cursor:pointer;color:var(--ink2)}
+.mtile small{font-size:9.5px;color:var(--ink3)}
+.mtile:hover{color:var(--acc);outline:2px solid var(--acc);outline-offset:1px}
+.mtile small{pointer-events:none}
 .cc-ev{display:flex;gap:8px;padding:4px 0;font-size:11px;color:var(--ink2);align-items:baseline}
 .cc-ev .ts{font-family:var(--mono);font-size:9.5px;color:var(--ink3);flex-shrink:0}
 .cc-ev.cmd{color:var(--ink)}
@@ -408,6 +415,27 @@ body.zen #wrap{max-width:880px}
       <button class="target" id="dir-target" data-act="cycle-target">目标</button>
       <input id="dir-input" placeholder="对选中对象介入…">
       <button class="send" data-act="send">➤</button>
+    </div>
+  </div>
+  <div class="cc-sec">
+    <div class="cc-title">模块 · 全部入口</div>
+    <div class="cc-modules">
+      <button class="mtile" data-act="drawer:files">🗂<small>文件 ⌘E</small></button>
+      <button class="mtile" data-act="drawer:changes">⎇<small>变更 ⌘⇧E</small></button>
+      <button class="mtile" data-act="drawer:procs">▸<small>进程 ⌘⇧P</small></button>
+      <button class="mtile" data-act="drawer:notifs">🔔<small>通知 ⌘⇧N</small></button>
+      <button class="mtile" data-act="open:assets">◈<small>设计资产</small></button>
+      <button class="mtile" data-act="open:review">✓<small>代码审查</small></button>
+      <button class="mtile" data-act="open:sources">◉<small>知识源</small></button>
+      <button class="mtile" data-act="open:ledger">◔<small>账本</small></button>
+      <button class="mtile" data-act="open:tree">⑂<small>任务树</small></button>
+      <button class="mtile" data-act="open:plugins">⬡<small>插件</small></button>
+      <button class="mtile" data-act="open:undo">⏮<small>检查点</small></button>
+      <button class="mtile" data-act="open:editor">✎<small>编辑器</small></button>
+      <button class="mtile" data-act="open:shortcuts">⌘<small>快捷键</small></button>
+      <button class="mtile" data-act="open:floor">▦<small>车间墙</small></button>
+      <button class="mtile" data-act="open:tape">◫<small>Tape</small></button>
+      <button class="mtile" data-act="newgoal">＋<small>新目标</small></button>
     </div>
   </div>
   <div class="cc-sec">
@@ -960,7 +988,9 @@ function act(a, e){
     case "newgoal": S.draft=null; pushOverlay("draft"); break;
     case "cmdk": execCmdk(p1); break;
     case "esc": popOverlay(); break;
-    case "ob": if(p1!=="skip") S.autonomy = +p1; S.onboarded = true; clearOverlays(); startEngine(); toast("🐋", `开工 · 自律度：${AUTO_LABEL[S.autonomy]}`, "var(--acc)"); break;
+    case "ob": if(p1!=="skip") S.autonomy = +p1; S.onboarded = true; clearOverlays(); startEngine(); toast("🐋", `开工 · 自律度：${AUTO_LABEL[S.autonomy]}`, "var(--acc)");
+      if ($("#controlcenter").classList.contains("hidden")) toggleCC(); // 首开工默认展开，露出全部模块入口
+      break;
     case "pin": toast("📌","已钉住：失焦不再自动收起","var(--acc)"); break;
   }
 }
