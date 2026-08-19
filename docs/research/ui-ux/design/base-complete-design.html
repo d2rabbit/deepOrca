@@ -167,6 +167,11 @@ body {
 .cc-ev { display: flex; gap: 7px; padding: 3px 0; font-size: 10.5px; color: var(--ink-2); align-items: baseline; }
 .cc-ev .ts { font-family: var(--mono); font-size: 9px; color: var(--ink-3); flex-shrink: 0; }
 .cc-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); writing-mode: vertical-lr; letter-spacing: 2px; font-size: 10px; padding: 12px 6px; border-radius: 10px 0 0 10px; color: var(--ink-2); z-index: 5; }
+.mdock { position: absolute; left: 16px; top: 52%; transform: translateY(-50%) scale(.82); transform-origin: left center; width: 58px; border-radius: 20px; padding: 8px 5px; display: flex; flex-direction: column; gap: 2px; align-items: center; z-index: 6; }
+.mdi { width: 48px; min-height: 40px; border-radius: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--ink-2); font-size: 13px; }
+.mdi small { font-size: 8px; color: var(--ink-3); line-height: 1; }
+.mdi.on { background: var(--blue-soft); color: var(--blue); } .mdi.on small { color: var(--blue); }
+.mdd { width: 22px; height: 1px; background: var(--hairline); margin: 3px 0; }
 .dirbar .send { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; background: rgba(41,82,204,.92); color: #fff; display: grid; place-items: center;
   box-shadow: 0 4px 14px rgba(41,82,204,.4), inset 0 1px 0 rgba(255,255,255,.4); font-size: 14px; flex-shrink: 0; }
 
@@ -319,7 +324,17 @@ body {
     </div>
   </div>
 
-  <!-- v3.1：底部指示条已删除；指令与仪表收进右侧控制中心浮窗 -->
+  <!-- v3.2：左缘模块坞（全部模块 + 系统入口，纵向单列，SVG 图标 + 文字） -->
+  <div class="mdock glass-deep">
+    <span class="mdi">🔔<small>通知</small></span><span class="mdi">◫<small>记录</small></span><span class="mdi">◐<small>主题</small></span><span class="mdi">⚭<small>设置</small></span>
+    <span class="mdd"></span>
+    <span class="mdi on">🗂<small>文件</small></span><span class="mdi">⎇<small>变更</small></span><span class="mdi">▸<small>进程</small></span><span class="mdi">◈<small>资产</small></span>
+    <span class="mdi">✓<small>审查</small></span><span class="mdi">◉<small>知识源</small></span><span class="mdi">◔<small>账本</small></span><span class="mdi">⑂<small>任务树</small></span>
+    <span class="mdi">⬡<small>插件</small></span><span class="mdi">⏮<small>检查点</small></span><span class="mdi">✎<small>编辑器</small></span><span class="mdi">⌘<small>快捷键</small></span><span class="mdi">▦<small>车间墙</small></span>
+    <span class="mdd"></span>
+    <span class="mdi" style="color:var(--blue)">＋<small>新目标</small></span>
+  </div>
+  <!-- v3.2：控制中心只保留观测 + 命令（模块入口全部左迁模块坞） -->
   <div class="cc-panel glass-deep">
     <div class="cc-quick"><span class="q">🔔<small>通知</small></span><span class="q">🎨<small>主题</small></span><span class="q">◫<small>记录</small></span><span class="q">⚭<small>设置</small></span></div>
     <div class="cc-meters">
@@ -335,7 +350,7 @@ body {
 </div></div>
 
 <!-- ==================== 01+ 控制中心（v3.1 新增） ==================== -->
-<div class="frame-label"><span class="no">01+</span>控制中心 <span>v3.1 新增核心件：手机控制中心式小浮窗，右缘居中；⌘⇧O / 右缘拉手开合；模块全部可见入口</span></div>
+<div class="frame-label"><span class="no">01+</span>模块坞 + 控制中心 <span>v3.2 分工：左缘模块坞 = 全部模块/系统可见入口（纵向单列 SVG 图标 + 文字）；右侧控制中心 = 只保留观测（仪表/指令留痕/状态流）+ 命令输入</span></div>
 <div class="frame"><div class="stage" style="min-height:520px;position:relative">
   <div class="ribbon glass"><span class="goal">◉ 权限改批量审批 <span class="chev">▾</span></span>
     <span class="steps-mini"><span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l"></span><span class="sm-n live"></span><span class="sm-l"></span><span class="sm-n todo"></span><span class="sm-l"></span><span class="sm-n todo"></span></span>
@@ -345,12 +360,23 @@ body {
       <div class="wo-body"><div class="prog-line"><span><span class="ok">✓</span> edit permissions.ts +45 −12</span><span class="arr">→</span><span><span class="ok">✓</span> typecheck exit 0</span></div></div></div>
   </div>
 
-  <!-- 右缘拉手（收起态入口，带未读角标） -->
+  <!-- v3.2：左缘模块坞（模块 + 系统的全部可见入口，纵向单列 SVG 图标 + 文字标签） -->
+  <div class="mdock glass-deep">
+    <span class="mdi">🔔<small>通知</small></span><span class="mdi">◫<small>记录</small></span><span class="mdi">◐<small>主题</small></span><span class="mdi">⚭<small>设置</small></span>
+    <span class="mdd"></span>
+    <span class="mdi on">🗂<small>文件</small></span><span class="mdi">⎇<small>变更</small></span><span class="mdi">▸<small>进程</small></span><span class="mdi">◈<small>资产</small></span>
+    <span class="mdi">✓<small>审查</small></span><span class="mdi">◉<small>知识源</small></span><span class="mdi">◔<small>账本</small></span><span class="mdi">⑂<small>任务树</small></span>
+    <span class="mdi">⬡<small>插件</small></span><span class="mdi">⏮<small>检查点</small></span><span class="mdi">✎<small>编辑器</small></span><span class="mdi">⌘<small>快捷键</small></span><span class="mdi">▦<small>车间墙</small></span>
+    <span class="mdd"></span>
+    <span class="mdi" style="color:var(--blue)">＋<small>新目标</small></span>
+  </div>
+
+  <!-- 右缘拉手（控制中心收起态入口，带未读角标） -->
   <div class="cc-tab glass" style="opacity:.45">◔ 控制中心 <span class="pill r" style="writing-mode:horizontal-tb">1</span></div>
 
-  <!-- 展开态：手机控制中心式浮窗，右缘居中 -->
+  <!-- 展开态：只保留观测 + 命令 -->
   <div class="cc-panel glass-deep" style="width:290px">
-    <div class="cc-quick"><span class="q">🔔<small>通知</small></span><span class="q">🎨<small>主题</small></span><span class="q">◫<small>记录</small></span><span class="q">⚭<small>设置</small></span><span class="q">✕<small>收起</small></span></div>
+    <div class="cc-quick"><span class="q" style="width:100%">✕<small>收起 ⌘⇧O</small></span></div>
     <div class="cc-meters">
       <span class="cc-meter"><span class="k">时长</span><span class="v">42s</span></span>
       <span class="cc-meter"><span class="k">成本</span><span class="v">$0.04</span></span>
@@ -359,14 +385,6 @@ body {
     </div>
     <div class="cc-sec"><div class="cc-title">下达指令 · ⌘↵</div>
       <div class="cc-input"><span class="dirbar" style="padding:2px 8px;border-radius:6px;font-size:10px"><span class="target">③ 改策略面</span></span><span class="dim" style="font-size:11px">对选中对象介入…</span></div>
-    </div>
-    <div class="cc-sec"><div class="cc-title">模块 · 全部入口</div>
-      <div class="cc-modules">
-        <span class="mtile">🗂<small>文件</small></span><span class="mtile">⎇<small>变更</small></span><span class="mtile">▸<small>进程</small></span><span class="mtile">🔔<small>通知</small></span>
-        <span class="mtile">◈<small>设计资产</small></span><span class="mtile">✓<small>代码审查</small></span><span class="mtile">◉<small>知识源</small></span><span class="mtile">◔<small>账本</small></span>
-        <span class="mtile">⑂<small>任务树</small></span><span class="mtile">⬡<small>插件</small></span><span class="mtile">⏮<small>检查点</small></span><span class="mtile">✎<small>编辑器</small></span>
-        <span class="mtile">⌘<small>快捷键</small></span><span class="mtile">▦<small>车间墙</small></span><span class="mtile">◫<small>Tape</small></span><span class="mtile">＋<small>新目标</small></span>
-      </div>
     </div>
     <div class="cc-sec"><div class="cc-title">我的指令</div>
       <div class="cc-ev"><span class="ts">14:05</span><span>› 允许：git push…</span></div>
@@ -379,8 +397,8 @@ body {
   </div>
 </div></div>
 <div class="footer-note" style="margin-top:10px">
-  v3.1 要点：① 底部"指示条"（聊天框残迹）删除，指令输入收进控制中心并地址化到选中对象；② 目标带只剩目标+步骤，仪表/通知/主题/设置全部收进本浮窗；
-  ③ 「模块 · 全部入口」宫格让每个模块都有可见入口，不再依赖快捷键记忆；④ 开工引导后默认展开一次，之后收进右缘拉手。
+  v3.1：底部"指示条"（聊天框残迹）删除，指令输入收进控制中心；目标带极简。v3.2：① 模块与系统入口（含设置/主题/记录）左迁**模块坞**——纵向单列、SVG 描边图标 + 文字标签、hover 提示快捷键；
+  ② 控制中心收敛为纯"观测 + 命令"（仪表 / 指令输入 / 我的指令 / 状态观测）；③ 知识源/插件/代码审查等模块改**列表 → 详情二级浮层**（参考设计资产的不遮挡主区模式）；④ 变更抽屉重做友好版（分支/暂存区/还原/拉推）。交互实现见 index.html。
 </div>
 
 <!-- ==================== 02 工单起草 ==================== -->
@@ -983,7 +1001,7 @@ body {
 </div></div>
 
 <div class="footer-note">
-  Orca Deck v3.1 完整设计稿 · Liquid Glass · 2026-08-19 首发 / 2026-08-20 同步控制中心版 · 27 帧 + 01+ 控制中心帧覆盖审计报告全部模块。
+  Orca Deck v3.2 完整设计稿 · Liquid Glass · 2026-08-19 首发 / 2026-08-20 同步模块坞 + 控制中心分工版 · 27 帧 + 01+ 帧覆盖审计报告全部模块。
   全部帧共享同一 token 体系（--ink/--paper/--blue/--green/--amber/--red + glass 配方），可无损换肤（六主题见交互 demo index.html）。
   浮层栈层级：抽屉 &lt; 焦点卡 &lt; Tape/资产/审查等面板浮层 &lt; 命令层/车间墙 &lt; 模态（信任/冲突）。Esc 永远关闭最上层。
 </div>

@@ -231,6 +231,17 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none;width:
 .cc-input input{flex:1;font-size:11.5px;color:var(--ink);min-width:0}
 .cc-input .send{flex-shrink:0;width:26px;height:26px;border-radius:8px;background:var(--acc);color:var(--onacc,#fff);display:grid;place-items:center;font-size:12px;cursor:pointer}
 .cc-list{overflow-y:auto;max-height:110px}
+/* 模块坞（左缘居中浮坞，SVG 描边图标体系） */
+#moduledock{position:fixed;left:14px;top:50%;transform:translateY(-50%);z-index:24;display:flex;flex-direction:column;gap:2px;padding:8px 5px;border-radius:22px;width:62px;align-items:center;max-height:86vh;overflow-y:auto;scrollbar-width:none}
+.dicon{width:52px;min-height:44px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink2);cursor:pointer;position:relative;padding:4px 0}
+.dicon small{font-size:8.5px;color:var(--ink3);line-height:1}
+.dicon:hover{background:var(--acc-soft);color:var(--acc)}
+.dicon:hover small{color:var(--acc)}
+.dicon svg{width:18px;height:18px;flex-shrink:0}
+.dicon .bdg{position:absolute;top:-3px;right:-4px;background:var(--bad);color:#fff;font-size:8.5px;font-weight:800;min-width:13px;height:13px;border-radius:7px;display:grid;place-items:center;padding:0 3px}
+.dicon[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:46px;top:50%;transform:translateY(-50%);background:var(--paper);color:var(--ink);border:var(--paper-border);border-radius:7px;padding:3px 9px;font-size:10.5px;white-space:nowrap;box-shadow:0 4px 14px rgba(31,45,74,.15);z-index:30;pointer-events:none}
+.ddiv{width:22px;height:1px;background:var(--line);margin:4px 0}
+body.zen #moduledock{display:none}
 .cc-modules{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
 .mtile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 0;border-radius:12px;background:var(--paper2);border:var(--paper-border);font-size:15px;cursor:pointer;color:var(--ink2)}
 .mtile small{font-size:9.5px;color:var(--ink3)}
@@ -238,6 +249,15 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none;width:
 .mtile small{pointer-events:none}
 .cc-ev{display:flex;gap:8px;padding:4px 0;font-size:11px;color:var(--ink2);align-items:baseline}
 .cc-ev .ts{font-family:var(--mono);font-size:9.5px;color:var(--ink3);flex-shrink:0}
+/* 二级页（列表 → 详情） */
+.sub-head{display:flex;align-items:center;gap:9px;padding:11px 16px;border-bottom:1px solid var(--line);font-size:13px;font-weight:800}
+.sub-back{font-size:11px;color:var(--acc);cursor:pointer;font-weight:600}
+.git-br{display:flex;align-items:center;gap:8px;padding:10px 15px;font-size:12px;font-weight:700}
+.git-sec{padding:7px 15px 3px;font-size:10px;font-weight:800;letter-spacing:.8px;color:var(--ink3);text-transform:uppercase}
+.git-row{display:flex;align-items:center;gap:8px;padding:7px 15px;font-size:12px;color:var(--ink2);border-top:1px solid var(--line)}
+.git-row .ops{margin-left:auto;display:flex;gap:5px}
+.git-mini{font-size:10px;padding:2px 8px;border-radius:6px;background:var(--paper2);border:var(--paper-border);cursor:pointer;color:var(--ink2)}
+.git-mini:hover{color:var(--acc)}
 .cc-ev.cmd{color:var(--ink)}
 .cc-ev.cmd::before{content:"›";color:var(--acc);font-weight:800}
 
@@ -280,7 +300,7 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none;width:
 
 /* 抽屉 */
 .drawer{position:fixed;top:64px;bottom:16px;width:320px;z-index:22;display:flex;flex-direction:column;transition:transform .2s ease,opacity .2s}
-.drawer.left{left:14px}.drawer.right{right:14px}
+.drawer.left{left:74px}.drawer.right{right:14px}
 .drawer-head{display:flex;align-items:center;gap:8px;padding:11px 15px;font-size:12.5px;font-weight:800;border-bottom:1px solid var(--line)}
 .drawer-head .ops{margin-left:auto;display:flex;gap:9px;color:var(--ink3);font-size:11px;font-weight:400}
 .lrow{display:flex;align-items:center;gap:9px;padding:8px 15px;font-size:12px;color:var(--ink2);border-top:1px solid var(--line);cursor:pointer}
@@ -391,17 +411,16 @@ body.zen #wrap{max-width:880px}
   </div></main>
 </div>
 
+<!-- 模块坞（左缘居中浮坞：全部模块 + 系统入口，SVG 图标） -->
+<nav id="moduledock" class="gcd"></nav>
+
 <!-- 右缘拉手（控制中心收起时的入口，带未读角标） -->
-<button id="cc-tab" class="gc" data-act="cc" title="控制中心 ⌘⇧O">◔ 控制中心<span class="bdg hidden" id="bell-bdg">0</span></button>
+<button id="cc-tab" class="gc" data-act="cc" title="控制中心 ⌘⇧O">◔ 控制中心<span class="bdg hidden" id="cc-tab-bdg">0</span></button>
 
 <!-- 控制中心（手机控制中心式小浮窗，右缘居中） -->
 <div id="controlcenter" class="gcd hidden">
   <div class="cc-quick">
-    <button class="qbtn" data-act="drawer:notifs" title="通知 ⌘⇧N">🔔<small>通知</small></button>
-    <button class="qbtn" data-act="open:themes" title="主题">🎨<small>主题</small></button>
-    <button class="qbtn" data-act="open:tape" title="Tape ⌘T">◫<small>记录</small></button>
-    <button class="qbtn" data-act="open:settings" title="设置 ⌘,">⚭<small>设置</small></button>
-    <button class="qbtn" data-act="cc" title="收起">✕<small>收起</small></button>
+    <button class="qbtn" data-act="cc" title="收起" style="flex:none;width:100%">✕<small>收起 ⌘⇧O</small></button>
   </div>
   <div class="cc-meters">
     <div class="cc-meter"><span class="k">时长</span><span class="v" id="elapsed">0s</span></div>
@@ -415,27 +434,6 @@ body.zen #wrap{max-width:880px}
       <button class="target" id="dir-target" data-act="cycle-target">目标</button>
       <input id="dir-input" placeholder="对选中对象介入…">
       <button class="send" data-act="send">➤</button>
-    </div>
-  </div>
-  <div class="cc-sec">
-    <div class="cc-title">模块 · 全部入口</div>
-    <div class="cc-modules">
-      <button class="mtile" data-act="drawer:files">🗂<small>文件 ⌘E</small></button>
-      <button class="mtile" data-act="drawer:changes">⎇<small>变更 ⌘⇧E</small></button>
-      <button class="mtile" data-act="drawer:procs">▸<small>进程 ⌘⇧P</small></button>
-      <button class="mtile" data-act="drawer:notifs">🔔<small>通知 ⌘⇧N</small></button>
-      <button class="mtile" data-act="open:assets">◈<small>设计资产</small></button>
-      <button class="mtile" data-act="open:review">✓<small>代码审查</small></button>
-      <button class="mtile" data-act="open:sources">◉<small>知识源</small></button>
-      <button class="mtile" data-act="open:ledger">◔<small>账本</small></button>
-      <button class="mtile" data-act="open:tree">⑂<small>任务树</small></button>
-      <button class="mtile" data-act="open:plugins">⬡<small>插件</small></button>
-      <button class="mtile" data-act="open:undo">⏮<small>检查点</small></button>
-      <button class="mtile" data-act="open:editor">✎<small>编辑器</small></button>
-      <button class="mtile" data-act="open:shortcuts">⌘<small>快捷键</small></button>
-      <button class="mtile" data-act="open:floor">▦<small>车间墙</small></button>
-      <button class="mtile" data-act="open:tape">◫<small>Tape</small></button>
-      <button class="mtile" data-act="newgoal">＋<small>新目标</small></button>
     </div>
   </div>
   <div class="cc-sec">
@@ -485,10 +483,10 @@ const DIFFS = {
 };
 const FILES = ["packages/", "  core/", "    src/", "      common/", "        permissions.ts|m", "        session.ts", "      renderer/", "        PermissionCard.tsx|m", "        approval-queue.tsx|a", "  docs/", "    research/"];
 const CHANGES = [
-  { f: "permissions.ts", s: "M", d: "+45 −12", src: "本工单" },
-  { f: "PermissionCard.tsx", s: "M", d: "+12 −3", src: "本工单" },
-  { f: "approval-queue.tsx", s: "A", d: "+88", src: "本工单" },
-  { f: "README.md", s: "M", d: "+2 −1", src: "手动" }
+  { f: "permissions.ts", s: "M", d: "+45 −12", src: "本工单", staged: false },
+  { f: "PermissionCard.tsx", s: "M", d: "+12 −3", src: "本工单", staged: false },
+  { f: "approval-queue.tsx", s: "A", d: "+88", src: "本工单", staged: true },
+  { f: "README.md", s: "M", d: "+2 −1", src: "手动", staged: false }
 ];
 const PROC_LINES = [
   ["acc", "[vite]  ➜ Local: http://localhost:5173/"],
@@ -661,7 +659,8 @@ function renderDial(){
 }
 function renderBell(){
   const n = S.pendings.length + S.notifs.filter(x=>!x.read).length;
-  $("#bell-bdg").textContent = n; $("#bell-bdg").classList.toggle("hidden", n===0);
+  const b = $("#bell-bdg"); if (b){ b.textContent = n; b.classList.toggle("hidden", n===0); }
+  const t = $("#cc-tab-bdg"); if (t){ t.textContent = n; t.classList.toggle("hidden", n===0); }
 }
 function renderStats(){
   $("#elapsed").textContent = S.t+"s";
@@ -932,8 +931,21 @@ function renderFiles(){
   }).join("");
 }
 function renderChanges(){
-  $("#change-list").innerHTML = `<div style="padding:8px 15px" class="dim">本工单产生 <span class="tag b" style="margin-left:4px">3 文件</span></div>` +
-    CHANGES.map(c=>`<div class="lrow" data-act="file:${c.f}"><span class="mono" style="color:${c.s==="A"?"var(--ok)":"var(--warn)"}">${c.s}</span>${c.f}<span class="r" style="color:var(--ok)">${c.d}</span></div>`).join("");
+  const staged = CHANGES.filter(c=>c.staged), work = CHANGES.filter(c=>!c.staged);
+  const row = (c, st) => `<div class="git-row"><span class="mono" style="color:${c.s==="A"?"var(--ok)":"var(--warn)"}">${c.s}</span>
+    <span data-act="file:${c.f}" style="cursor:pointer">${c.f}</span>
+    <span class="dim mono" style="font-size:10px">${c.d}${c.src==="手动"?" · 手动":""}</span>
+    <span class="ops">${st?`<button class="git-mini" data-act="unstage:${c.f}">− 移出</button>`:`<button class="git-mini" data-act="stage:${c.f}">＋ 暂存</button><button class="git-mini" data-act="discard:${c.f}">↩ 还原</button>`}</span></div>`;
+  $("#change-list").innerHTML = `
+    <div class="git-br" data-act="branch" title="切换分支">⎇ docs/ui-ux-redesign <span class="dim" style="font-weight:400">▾</span><span style="margin-left:auto"><span class="tag">↑2 ↓3</span></span></div>
+    <div class="git-sec">暂存区 · ${staged.length}</div>
+    ${staged.map(c=>row(c,true)).join("")||'<div class="lrow dim" style="cursor:default">空 — 下方改动可暂存</div>'}
+    <div class="git-sec">更改 · ${work.length}</div>
+    ${work.map(c=>row(c,false)).join("")}
+    <div style="display:flex;gap:8px;padding:10px 15px;align-items:center">
+      <button class="git-mini" data-act="pull">⇣ 拉取</button><button class="git-mini" data-act="commit-push">⇡ 推送 🛡</button>
+      <span class="dim" style="margin-left:auto;font-size:10px">推送 = 红色高危 · 走闸门</span>
+    </div>`;
 }
 
 /* ================= 动作分发 ================= */
@@ -974,6 +986,18 @@ function act(a, e){
     case "draft-stamp": stampDraft(); break;
     case "conflict": popOverlay(); if(p1!=="stop"){ logCmd(p1==="merge"?"冲突：合并后继续":"冲突：变基后继续"); obs(p1==="merge"?"git merge 完成 · 无冲突残留":"git rebase 完成 · 历史已改写"); toast("✓",p1==="merge"?"已合并，继续":"已变基，继续","var(--ok)"); } else { logCmd("冲突：先停下（交还命令行）"); } break;
     case "zen": document.body.classList.toggle("zen"); break;
+    case "sub": SUB[p1] = (p1==="review") ? +p2 : p2; renderOverlays(); break;
+    case "back": SUB[p1] = null; renderOverlays(); break;
+    case "src-rebuild": obs(`重建知识源：${p1}…`); toast("↻",`${p1} 重建已开始`,"var(--acc)"); setTimeout(()=>obs(`✓ ${p1} 重建完成`),1500); break;
+    case "src-recall": obs(`召回测试 ${p1}：top5 命中 96%`); toast("◈",`${p1} 召回测试通过`,"var(--ok)"); break;
+    case "src-log": obs(`查看 ${p1} 日志（3 条新条目）`); toast("▤",`${p1} 日志已写入 Tape`,"var(--acc)"); break;
+    case "plug-reload": obs(`插件 ${p1} 重新加载 ✓`); toast("↻",`${p1} 已重载`,"var(--ok)"); break;
+    case "review-run": obs("review.run 手动触发…"); toast("◐","审查运行中，完成进通知","var(--acc)"); setTimeout(()=>{ obs("review.run ✓ 风险低 · 2 建议"); toast("✓","代码审查完成 · 2 条建议","var(--ok)"); }, 2000); break;
+    case "branch": toast("⎇","分支切换器（demo）","var(--acc)"); break;
+    case "pull": obs("git pull · 已是最新"); toast("⇣","已是最新","var(--ok)"); break;
+    case "stage": { const c=CHANGES.find(x=>x.f===p1); if(c){c.staged=true; logCmd(`暂存 ${p1}`);} renderChanges(); break; }
+    case "unstage": { const c=CHANGES.find(x=>x.f===p1); if(c){c.staged=false; logCmd(`移出暂存 ${p1}`);} renderChanges(); break; }
+    case "discard": { const i=CHANGES.findIndex(x=>x.f===p1); if(i>=0){ const f=CHANGES[i].f; CHANGES.splice(i,1); logCmd(`还原 ${f}（丢弃改动）`); obs(`↩ ${f} 已还原`); toast("↩",`${f} 已还原`,"var(--warn)"); } renderChanges(); break; }
     case "drawer": toggleDrawer(p1); break;
     case "cc": toggleCC(); break;
     case "file": openFocus("diff", p1); break;
@@ -1090,6 +1114,25 @@ const SOURCES = [
   ["Serena","LSP 符号","ts 已挂 · 0 错误"],["AGENTS.md","工作区指令","已注入系统提示"],
   ["Memory","L0–L3 记忆管线","128 条 · BM25+向量双路"]
 ];
+const SUB = { sources: null, plugins: null, review: null }; // 二级页：null=列表，否则=详情对象 id
+const SOURCES_DETAIL = {
+  "CodeGraph": { stats: [["文件","1,842"],["符号","48,211"],["上次增量","3m 前"],["索引大小","96MB"],["查询 P95","38ms"]], desc:"代码符号持久索引 · 本地 vendored · Node 22+ node:sqlite" },
+  "OpenWiki": { stats: [["知识页","64"],["覆盖率","78%"],["上次生成","昨天"],["来源","commit 驱动"]], desc:"仓库知识页 · 随提交增量再生" },
+  "Serena": { stats: [["语言服务","ts ✓"],["活动会话","1"],["诊断错误","0"]], desc:"LSP 符号层 · 精确重命名/引用" },
+  "AGENTS.md": { stats: [["作用域","repo 根"],["注入","系统提示"],["字节","4.2k"]], desc:"工作区指令 · 每次会话注入" },
+  "Memory": { stats: [["条目","128"],["检索","BM25+向量"],["L2 目录","memory/"]], desc:"L0–L3 记忆管线 · 自动召回" }
+};
+const PLUGIN_DETAIL = {
+  "code": { desc:"代码智能套件", tools:["codegraph.search","codegraph.impact","review.run","design.drift"], perms:["读工作区文件","跑只读分析"], log:"14:02 review.run ✓ 12s\n13:58 codegraph.search ✓ 96ms" },
+  "design": { desc:"设计资产管线（pm-design / deep-design / .dd 编译）", tools:["pm-design","deep-design","dd.compile"], perms:["写 .deeporca/designs/"], log:"13:20 dd.compile ✓ 登录页原型" },
+  "gitmcp": { desc:"GitHub 仓库 → 本地 MCP server", tools:["gitmcp.query"], perms:["网络（只读拉取）"], log:"13:10 重连中… 第 2 次", warn:true },
+  "browser": { desc:"BrowserSkill 浏览器操作", tools:["browser.open","browser.eval"], perms:["控制隐藏 Chromium"], log:"已停用 3 天" }
+};
+const REVIEW_RUNS = [
+  { t:"今天 14:02 · 工单 #3", res:"风险低 · 2 建议 · drift 通过", items:true },
+  { t:"昨天 18:40 · 工单 #2", res:"全通过 · 0 建议", items:false },
+  { t:"昨天 09:12 · 工单 #1", res:"风险中 · 1 建议", items:false }
+];
 const PLUGINS = [
   ["code","CodeGraph · CRG · review",true],["design","pm-design · deep-design · .dd 管线",true],
   ["gitmcp","GitHub 仓库 → 本地 MCP · 重连中",true],["browser","BrowserSkill · 已停用",false]
@@ -1123,6 +1166,7 @@ const EDITOR_LINES = [
 ];
 
 function openAny(p1){
+  if (["sources","plugins","review"].includes(p1)) SUB[p1] = null; // 打开时回到列表页
   if (p1==="tape"){ pushOverlay("tape"); setTimeout(renderTape,0); return; }
   if (p1==="editor"){ pushOverlay("editor"); return; }
   pushOverlay(p1);
@@ -1134,15 +1178,33 @@ function assetsHTML(){
     <div style="padding:0 16px 14px" class="dim">点击卡片 → 焦点卡预览 · 拖到指令输入 = 作为介入的上下文引用</div></div>`;
 }
 function reviewHTML(){
+  if (SUB.review === null){
+    return `<div class="panel gcd" style="top:10%;width:min(780px,92%)">
+    <div class="panel-head">代码审查 <span class="ops">点单次运行进详情 · <span class="kbd">Esc</span></span></div>
+    ${REVIEW_RUNS.map((r,i)=>`<div class="lrow" style="padding:11px 16px" data-act="sub:review:${i}"><span class="tag ${r.res.includes("全通过")?"g":"a"}">${r.res.includes("全通过")?"✓":"◐"}</span><span>${r.t}</span><span class="r">${r.res} ›</span></div>`).join("")}
+    <div style="padding:12px 16px 16px"><button class="btn primary" data-act="review-run">立即运行 review.run</button></div></div>`;
+  }
   return `<div class="panel gcd" style="top:10%;width:min(780px,92%)">
-    <div class="panel-head">代码审查 · ${goal().wo} <span class="tag g">CRG 风险 低</span><span class="tag a">语义 2 条建议</span><span class="tag g">design.drift 通过</span><span class="ops">review.run · 12s</span></div>
+    <div class="sub-head"><span class="sub-back" data-act="back:review">‹ 审查记录</span> ${REVIEW_RUNS[SUB.review].t} <span class="tag g">CRG 风险 低</span><span class="tag a">语义 2 条建议</span><span class="tag g">design.drift 通过</span></div>
     ${REVIEW_ITEMS.map((r,i)=>`<div class="lrow" style="align-items:flex-start;padding:11px 16px"><span class="tag ${r.tag}">${r.t}</span><span><b style="color:var(--ink);font-size:12.5px">${r.h}</b><br><span class="dim mono" style="font-size:10.5px">${r.m}</span></span><span class="r">${r.t==="建议"?`<button class="btn flatb" data-act="review-apply:${i}">转为介入</button>`:""}</span></div>`).join("")}
   </div>`;
 }
 function sourcesHTML(){
+  if (SUB.sources){
+    const d = SOURCES_DETAIL[SUB.sources];
+    return `<div class="panel gcd" style="top:10%;width:min(760px,92%)">
+      <div class="sub-head"><span class="sub-back" data-act="back:sources">‹ 知识源</span> ${SUB.sources} <span class="tag g">● 就绪</span></div>
+      <div style="padding:12px 16px 4px" class="dim2">${d.desc}</div>
+      <div style="padding:6px 16px">${d.stats.map(kv=>`<div class="kv"><span class="k">${kv[0]}</span><span class="v">${kv[1]}</span></div>`).join("")}</div>
+      <div style="padding:12px 16px 16px;display:flex;gap:8px">
+        <button class="btn primary" data-act="src-rebuild:${SUB.sources}">重建此源</button>
+        <button class="btn flatb" data-act="src-recall:${SUB.sources}">召回测试</button>
+        <button class="btn flatb" data-act="src-log:${SUB.sources}">查看日志</button>
+      </div></div>`;
+  }
   return `<div class="panel gcd" style="top:10%;width:min(760px,92%)">
-    <div class="panel-head">知识源 <span class="tag g">5/5 就绪</span><span class="ops">召回质量直接影响 agent 表现 · 全部本地</span></div>
-    ${SOURCES.map(x=>`<div class="lrow" style="padding:10px 16px"><span class="tag g">●</span><b style="color:var(--ink)">${x[0]}</b><span class="dim">${x[1]}</span><span class="r">${x[2]}</span></div>`).join("")}
+    <div class="panel-head">知识源 <span class="tag g">5/5 就绪</span><span class="ops">召回质量直接影响 agent 表现 · 全部本地 · 点行进详情</span></div>
+    ${SOURCES.map(x=>`<div class="lrow" style="padding:10px 16px" data-act="sub:sources:${x[0]}"><span class="tag g">●</span><b style="color:var(--ink)">${x[0]}</b><span class="dim">${x[1]}</span><span class="r">${x[2]} ›</span></div>`).join("")}
     <div style="padding:12px 16px 16px;display:flex;gap:8px"><button class="btn flatb" data-act="rebuild">全部重建</button><button class="btn flatb" data-act="recall-test">召回测试</button></div></div>`;
 }
 function ledgerHTML(){
@@ -1167,10 +1229,27 @@ function treeHTML(){
     <div style="padding:0 16px 14px;display:flex;gap:8px;align-items:center"><button class="btn flatb" data-act="tnode-fork">从选中节点分叉</button><button class="btn flatb" data-act="tnode-backfill">回填到工单</button><span class="dim" style="margin-left:auto">每次变更必填 why · reflog 可查</span></div></div>`;
 }
 function pluginsHTML(){
+  if (SUB.plugins){
+    const d = PLUGIN_DETAIL[SUB.plugins];
+    const idx = PLUGINS.findIndex(p=>p[0]===SUB.plugins);
+    return `<div class="panel gcd" style="top:8%;width:min(760px,92%)">
+      <div class="sub-head"><span class="sub-back" data-act="back:plugins">‹ 插件与 MCP</span> ${SUB.plugins} ${d.warn?'<span class="tag a">◐ 重连中</span>':idx>=0&&PLUGINS[idx][2]?'<span class="tag g">● 已启用</span>':'<span class="tag">○ 已停用</span>'}</div>
+      <div style="padding:12px 16px 4px" class="dim2">${d.desc}</div>
+      <div style="padding:6px 16px 0" class="dim">工具清单</div>
+      ${d.tools.map(t=>`<div class="lrow" style="padding:7px 16px"><span class="mono" style="font-size:11px;color:var(--acc)">${t}</span></div>`).join("")}
+      <div style="padding:10px 16px 0" class="dim">权限</div>
+      ${d.perms.map(t=>`<div class="lrow" style="padding:7px 16px;font-size:12px">🛡 ${t}</div>`).join("")}
+      <div style="padding:10px 16px 0" class="dim">日志</div>
+      <div style="margin:6px 16px 0" class="prog-line">${d.log.split("\n").map(l=>`<div>${l}</div>`).join("")}</div>
+      <div style="padding:12px 16px 16px;display:flex;gap:8px">
+        ${idx>=0?`<button class="btn ${PLUGINS[idx][2]?"danger":""}" data-act="plug:${idx}">${PLUGINS[idx][2]?"停用":"启用"}</button>`:""}
+        <button class="btn flatb" data-act="plug-reload:${SUB.plugins}">重新加载</button>
+      </div></div>`;
+  }
   return `<div class="panel gcd" style="top:10%;width:min(760px,92%)">
-    <div class="panel-head">插件与 MCP <span class="seg"><span class="on">已装 8</span><span>市场</span><span>MCP servers</span></span><span class="ops"><span class="kbd">Esc</span></span></div>
-    ${PLUGINS.map((p,i)=>`<div class="lrow" style="padding:11px 16px"><span class="tag ${p[2]?"g":""}">${p[2]?"●":"○"}</span><b style="color:var(--ink)">${p[0]}</b><span class="dim">${p[1]}</span><span class="r"><button class="btn flatb" data-act="plug:${i}">${p[2]?"停用":"启用"}</button></span></div>`).join("")}
-    <div style="padding:10px 16px 14px" class="dim">点行进详情内页（工具清单/权限/日志）· 停用立即从路由候选移除</div></div>`;
+    <div class="panel-head">插件与 MCP <span class="seg"><span class="on">已装 8</span><span>市场</span><span>MCP servers</span></span><span class="ops">点行进详情 · <span class="kbd">Esc</span></span></div>
+    ${PLUGINS.map((p,i)=>`<div class="lrow" style="padding:11px 16px" data-act="sub:plugins:${p[0]}"><span class="tag ${p[2]?"g":""}">${p[2]?"●":"○"}</span><b style="color:var(--ink)">${p[0]}</b><span class="dim">${p[1]}</span><span class="r"><button class="btn flatb" data-act="plug:${i}">${p[2]?"停用":"启用"}</button> ›</span></div>`).join("")}
+    <div style="padding:10px 16px 14px" class="dim">停用立即从路由候选移除</div></div>`;
 }
 function undoHTML(){
   return `<div class="panel gcd" style="top:14%;width:min(540px,90%)">
@@ -1250,6 +1329,60 @@ function startEngine(){
     }
   }, 1600);
 }
+
+
+/* ================= 模块坞（左缘，纵向单列，SVG 图标 + 文字） ================= */
+const IC = {
+  bell:'<path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/>',
+  tape:'<path d="M5 4h14M5 9h14M5 14h10M5 19h7"/>',
+  theme:'<circle cx="12" cy="12" r="8"/><circle cx="9" cy="10" r=".9" fill="currentColor"/><circle cx="15" cy="10" r=".9" fill="currentColor"/><circle cx="10" cy="15" r=".9" fill="currentColor"/>',
+  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/>',
+  files:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  git:'<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 8v8M6 8c5 0 9 0 10-1"/>',
+  proc:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>',
+  assets:'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  review:'<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  db:'<ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13"/><path d="M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
+  ledger:'<path d="M4 17l4-6 4 3 4-7 4 5"/><path d="M4 20h16"/>',
+  tree:'<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 7v10M8 12h8"/>',
+  plug:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>',
+  undo:'<path d="M4 10a8 8 0 1 1 2 6"/><path d="M4 4v6h6"/>',
+  edit:'<path d="M14 5l5 5L8 21H3v-5z"/><path d="M12 7l5 5"/>',
+  keys:'<path d="M9 9V7a2 2 0 1 0-2 2h2zm0 0v6m0-6h6m-6 6v2a2 2 0 1 1-2-2h2zm6-6h2a2 2 0 1 0-2-2v2zm0 6v2a2 2 0 1 0 2 2h-2zm0-6v6"/>',
+  floor:'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  plus:'<circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/>'
+};
+const DOCK = [
+  { i:"bell",   n:"通知",  act:"drawer:notifs", tip:"通知 ⌘⇧N", badge:true },
+  { i:"tape",   n:"记录",  act:"open:tape",     tip:"Tape ⌘T" },
+  { i:"theme",  n:"主题",  act:"open:themes",   tip:"主题" },
+  { i:"gear",   n:"设置",  act:"open:settings", tip:"设置 ⌘," },
+  "div",
+  { i:"files",  n:"文件",  act:"drawer:files",  tip:"文件 ⌘E" },
+  { i:"git",    n:"变更",  act:"drawer:changes",tip:"变更 ⌘⇧E" },
+  { i:"proc",   n:"进程",  act:"drawer:procs",  tip:"进程 ⌘⇧P" },
+  { i:"assets", n:"资产",  act:"open:assets",   tip:"设计资产" },
+  { i:"review", n:"审查",  act:"open:review",   tip:"代码审查" },
+  { i:"db",     n:"知识源",act:"open:sources",  tip:"知识源" },
+  { i:"ledger", n:"账本",  act:"open:ledger",   tip:"Token 账本" },
+  { i:"tree",   n:"任务树",act:"open:tree",     tip:"任务树" },
+  { i:"plug",   n:"插件",  act:"open:plugins",  tip:"插件与 MCP" },
+  { i:"undo",   n:"检查点",act:"open:undo",     tip:"检查点 ⌘⇧Z" },
+  { i:"edit",   n:"编辑器",act:"open:editor",   tip:"编辑器" },
+  { i:"keys",   n:"快捷键",act:"open:shortcuts",tip:"快捷键 ⌘?" },
+  { i:"floor",  n:"车间墙",act:"open:floor",    tip:"车间墙 ⌘⇧M" },
+  "div",
+  { i:"plus",   n:"新目标",act:"newgoal",       tip:"新目标 ⌘N", acc:true }
+];
+function renderDock(){
+  $("#moduledock").innerHTML = DOCK.map(d=>{
+    if (d==="div") return '<span class="ddiv"></span>';
+    return `<button class="dicon" data-act="${d.act}" data-tip="${d.tip}"${d.acc?' style="color:var(--acc)"':""}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[d.i]}</svg>
+      <small>${d.n}</small>${d.badge?'<span class="bdg hidden" id="bell-bdg">0</span>':""}</button>`;
+  }).join("");
+}
+renderDock();
 
 /* ================= 启动 ================= */
 setTheme("liquid");
