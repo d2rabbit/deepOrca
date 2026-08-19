@@ -150,6 +150,23 @@ body {
 /* 指示条 */
 .dirbar { display: flex; align-items: center; gap: 10px; border-radius: 999px; padding: 7px 8px 7px 16px; font-size: 12.5px; color: var(--ink-3); }
 .dirbar .target { font-family: var(--mono); font-size: 11px; color: var(--blue); background: var(--blue-soft); border-radius: 7px; padding: 2px 9px; }
+.cc-panel { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); width: 270px; border-radius: 20px; overflow: hidden; z-index: 6; }
+.cc-quick { display: flex; gap: 7px; padding: 10px 13px 3px; }
+.cc-quick .q { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0; border-radius: 11px; background: var(--paper-2); border: 1px solid var(--hairline); font-size: 13px; color: var(--ink-2); }
+.cc-quick .q small { font-size: 8.5px; color: var(--ink-3); }
+.cc-meters { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 9px 13px; }
+.cc-meter { background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 12px; padding: 6px 11px; display: flex; flex-direction: column; gap: 1px; }
+.cc-meter .k { font-size: 9px; color: var(--ink-3); letter-spacing: .5px; }
+.cc-meter .v { font-family: var(--mono); font-size: 12.5px; font-weight: 700; }
+.cc-sec { padding: 8px 13px; border-top: 1px solid var(--hairline); font-size: 11px; }
+.cc-title { font-size: 9px; font-weight: 800; letter-spacing: .8px; color: var(--ink-3); text-transform: uppercase; margin-bottom: 5px; }
+.cc-input { display: flex; align-items: center; gap: 7px; }
+.cc-modules { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+.mtile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0; border-radius: 10px; background: var(--paper-2); border: 1px solid var(--hairline); font-size: 13px; color: var(--ink-2); }
+.mtile small { font-size: 8.5px; color: var(--ink-3); }
+.cc-ev { display: flex; gap: 7px; padding: 3px 0; font-size: 10.5px; color: var(--ink-2); align-items: baseline; }
+.cc-ev .ts { font-family: var(--mono); font-size: 9px; color: var(--ink-3); flex-shrink: 0; }
+.cc-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); writing-mode: vertical-lr; letter-spacing: 2px; font-size: 10px; padding: 12px 6px; border-radius: 10px 0 0 10px; color: var(--ink-2); z-index: 5; }
 .dirbar .send { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; background: rgba(41,82,204,.92); color: #fff; display: grid; place-items: center;
   box-shadow: 0 4px 14px rgba(41,82,204,.4), inset 0 1px 0 rgba(255,255,255,.4); font-size: 14px; flex-shrink: 0; }
 
@@ -238,13 +255,14 @@ body {
 <div class="doc-header">
   <h1>Orca Deck v3 · 完整设计稿</h1>
   <p>2026-08-19 · 主视觉：<b>Liquid Glass</b>（玻璃只给浮动控件层，内容永远不透明纸面）· 交互范式：工单工作台（v3）。
-  本稿将 <code>2026-08-19-ui-ux-audit-report.md</code> 中发现的所有模块逐一复现：11 个侧栏面板 → 抽屉/浮层/车间墙重定位；8 类浮层 → 统一浮层栈；
-  三卡（权限/问答/计划）→ 闸门 + 步骤内联决策 + 工单起草。帧号与覆盖矩阵见 <code>2026-08-19-ui-ux-module-coverage.md</code>。</p>
+  本稿将 <code>../2026-08-19-ui-ux-audit-report.md</code> 中发现的所有模块逐一复现：11 个侧栏面板 → 抽屉/浮层/车间墙重定位；8 类浮层 → 统一浮层栈；
+  三卡（权限/问答/计划）→ 闸门 + 步骤内联决策 + 工单起草。帧号与覆盖矩阵见 <code>coverage.md</code>。
+  <b>v3.1 同步（2026-08-20）</b>：指令输入/仪表/通知/主题/设置归「控制中心」（01+ 帧），目标带极简，模块宫格提供全部可见入口；交互实现见 <code>index.html</code>。</p>
 </div>
 
 <div class="toc">
   <b>帧目录</b> —
-  <span>A 核心流：01 工作台 · 02 工单起草 · 03 Tape · 04 车间墙 · 05 命令层</span><br>
+  <span>A 核心流：01 工作台 · <b>01+ 控制中心</b> · 02 工单起草 · 03 Tape · 04 车间墙 · 05 命令层</span><br>
   <span>B 控制：06 自律度三态 · 07 步骤内联问答 · 08 刹车冻结</span><br>
   <span>C 抽屉与检视：09 文件抽屉 · 10 变更抽屉 · 11 进程抽屉 · 12 通知抽屉 · 13 焦点卡×3 · 14 全屏 Diff</span><br>
   <span>D 资产与知识：15 设计资产 · 16 代码审查 · 17 索引仪表盘 · 18 Token 统计 · 19 任务树画布 · 20 插件/MCP</span><br>
@@ -252,7 +270,7 @@ body {
 </div>
 
 <!-- ==================== 01 工作台 ==================== -->
-<div class="frame-label"><span class="no">01</span>工作台 · 施工中 <span>主视图；Sidebar/TaskPanel/PermissionCard/ContextProgress/Composer/TopBar 的 v3 合体</span></div>
+<div class="frame-label"><span class="no">01</span>工作台 · 施工中 <span>主视图；v3.1：目标带极简（目标+步骤），仪表/通知/设置/指令输入全部收进右侧控制中心（01+ 帧）</span></div>
 <div class="frame"><div class="stage">
   <div class="ribbon glass">
     <span class="goal">◉ 权限改批量审批 <span class="chev">▾</span></span>
@@ -260,7 +278,6 @@ body {
       <span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l"></span>
       <span class="sm-n live"></span><span class="sm-l"></span><span class="sm-n todo"></span><span class="sm-l"></span><span class="sm-n todo"></span>
     </span>
-    <span class="meta"><span>42s · $0.04</span><span class="ctx-ring"></span>62%<span class="bell">🔔<span class="bdg">1</span></span>⚭</span>
   </div>
 
   <div style="max-width:760px;margin:16px auto 0;display:flex;flex-direction:column;gap:11px;">
@@ -302,10 +319,69 @@ body {
     </div>
   </div>
 
-  <div style="max-width:640px;margin:16px auto 0;">
-    <div class="dirbar glass-deep">对 <span class="target">③ 改策略面</span> 说：高危降级逻辑再保守一点… <span class="send">➤</span></div>
+  <!-- v3.1：底部指示条已删除；指令与仪表收进右侧控制中心浮窗 -->
+  <div class="cc-panel glass-deep">
+    <div class="cc-quick"><span class="q">🔔<small>通知</small></span><span class="q">🎨<small>主题</small></span><span class="q">◫<small>记录</small></span><span class="q">⚭<small>设置</small></span></div>
+    <div class="cc-meters">
+      <span class="cc-meter"><span class="k">时长</span><span class="v">42s</span></span>
+      <span class="cc-meter"><span class="k">成本</span><span class="v">$0.04</span></span>
+      <span class="cc-meter"><span class="k">上下文</span><span class="v">62%</span></span>
+      <span class="cc-meter"><span class="k">TOKEN</span><span class="v">12.4k</span></span>
+    </div>
+    <div class="cc-sec"><div class="cc-title">下达指令 · ⌘↵</div>
+      <div class="cc-input"><span class="dirbar" style="padding:2px 8px;border-radius:6px;font-size:10px"><span class="target">③ 改策略面</span></span><span class="dim" style="font-size:11px">高危降级逻辑再保守一点…</span></div>
+    </div>
   </div>
 </div></div>
+
+<!-- ==================== 01+ 控制中心（v3.1 新增） ==================== -->
+<div class="frame-label"><span class="no">01+</span>控制中心 <span>v3.1 新增核心件：手机控制中心式小浮窗，右缘居中；⌘⇧O / 右缘拉手开合；模块全部可见入口</span></div>
+<div class="frame"><div class="stage" style="min-height:520px;position:relative">
+  <div class="ribbon glass"><span class="goal">◉ 权限改批量审批 <span class="chev">▾</span></span>
+    <span class="steps-mini"><span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l"></span><span class="sm-n live"></span><span class="sm-l"></span><span class="sm-n todo"></span><span class="sm-l"></span><span class="sm-n todo"></span></span>
+  </div>
+  <div style="max-width:760px;margin:16px auto 0;">
+    <div class="wo-card current"><div class="wo-head"><span style="color:var(--blue)">◉</span>③ 改 core 权限策略面 <span class="gate-sel">gate: 自动 ▾</span></div>
+      <div class="wo-body"><div class="prog-line"><span><span class="ok">✓</span> edit permissions.ts +45 −12</span><span class="arr">→</span><span><span class="ok">✓</span> typecheck exit 0</span></div></div></div>
+  </div>
+
+  <!-- 右缘拉手（收起态入口，带未读角标） -->
+  <div class="cc-tab glass" style="opacity:.45">◔ 控制中心 <span class="pill r" style="writing-mode:horizontal-tb">1</span></div>
+
+  <!-- 展开态：手机控制中心式浮窗，右缘居中 -->
+  <div class="cc-panel glass-deep" style="width:290px">
+    <div class="cc-quick"><span class="q">🔔<small>通知</small></span><span class="q">🎨<small>主题</small></span><span class="q">◫<small>记录</small></span><span class="q">⚭<small>设置</small></span><span class="q">✕<small>收起</small></span></div>
+    <div class="cc-meters">
+      <span class="cc-meter"><span class="k">时长</span><span class="v">42s</span></span>
+      <span class="cc-meter"><span class="k">成本</span><span class="v">$0.04</span></span>
+      <span class="cc-meter"><span class="k">上下文</span><span class="v">62%</span></span>
+      <span class="cc-meter"><span class="k">TOKEN</span><span class="v">12.4k</span></span>
+    </div>
+    <div class="cc-sec"><div class="cc-title">下达指令 · ⌘↵</div>
+      <div class="cc-input"><span class="dirbar" style="padding:2px 8px;border-radius:6px;font-size:10px"><span class="target">③ 改策略面</span></span><span class="dim" style="font-size:11px">对选中对象介入…</span></div>
+    </div>
+    <div class="cc-sec"><div class="cc-title">模块 · 全部入口</div>
+      <div class="cc-modules">
+        <span class="mtile">🗂<small>文件</small></span><span class="mtile">⎇<small>变更</small></span><span class="mtile">▸<small>进程</small></span><span class="mtile">🔔<small>通知</small></span>
+        <span class="mtile">◈<small>设计资产</small></span><span class="mtile">✓<small>代码审查</small></span><span class="mtile">◉<small>知识源</small></span><span class="mtile">◔<small>账本</small></span>
+        <span class="mtile">⑂<small>任务树</small></span><span class="mtile">⬡<small>插件</small></span><span class="mtile">⏮<small>检查点</small></span><span class="mtile">✎<small>编辑器</small></span>
+        <span class="mtile">⌘<small>快捷键</small></span><span class="mtile">▦<small>车间墙</small></span><span class="mtile">◫<small>Tape</small></span><span class="mtile">＋<small>新目标</small></span>
+      </div>
+    </div>
+    <div class="cc-sec"><div class="cc-title">我的指令</div>
+      <div class="cc-ev"><span class="ts">14:05</span><span>› 允许：git push…</span></div>
+      <div class="cc-ev"><span class="ts">14:03</span><span>› 介入@改策略面：高危降级再保守</span></div>
+    </div>
+    <div class="cc-sec"><div class="cc-title">状态观测</div>
+      <div class="cc-ev"><span class="ts">14:05</span><span>⚠ 待决升起：git push</span></div>
+      <div class="cc-ev"><span class="ts">14:04</span><span>✓ typecheck exit 0</span></div>
+    </div>
+  </div>
+</div></div>
+<div class="footer-note" style="margin-top:10px">
+  v3.1 要点：① 底部"指示条"（聊天框残迹）删除，指令输入收进控制中心并地址化到选中对象；② 目标带只剩目标+步骤，仪表/通知/主题/设置全部收进本浮窗；
+  ③ 「模块 · 全部入口」宫格让每个模块都有可见入口，不再依赖快捷键记忆；④ 开工引导后默认展开一次，之后收进右缘拉手。
+</div>
 
 <!-- ==================== 02 工单起草 ==================== -->
 <div class="frame-label"><span class="no">02</span>工单起草 <span>PlanCard 的 v3 形态：计划不再是聊天里的卡片，是待盖章的工单</span></div>
@@ -907,8 +983,8 @@ body {
 </div></div>
 
 <div class="footer-note">
-  Orca Deck v3 完整设计稿 · Liquid Glass · 2026-08-19 · 27 帧覆盖审计报告全部模块。
-  全部帧共享同一 token 体系（--ink/--paper/--blue/--green/--amber/--red + glass 配方），可无损换肤（见风格试板 style-studies.html）。
+  Orca Deck v3.1 完整设计稿 · Liquid Glass · 2026-08-19 首发 / 2026-08-20 同步控制中心版 · 27 帧 + 01+ 控制中心帧覆盖审计报告全部模块。
+  全部帧共享同一 token 体系（--ink/--paper/--blue/--green/--amber/--red + glass 配方），可无损换肤（六主题见交互 demo index.html）。
   浮层栈层级：抽屉 &lt; 焦点卡 &lt; Tape/资产/审查等面板浮层 &lt; 命令层/车间墙 &lt; 模态（信任/冲突）。Esc 永远关闭最上层。
 </div>
 
