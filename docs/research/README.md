@@ -12,7 +12,7 @@
 
 ## 总览
 
-35 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份）：**✅ 20 · 🟡 9 · ⬜ 3 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+38 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 3 份）：**✅ 20 · 🟡 9 · ⬜ 6 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -76,6 +76,16 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-08-18-harmonyos-pc-electron-port-feasibility.md](./2026-08-18-harmonyos-pc-electron-port-feasibility.md) | DeepOrca 桌面端跑在鸿蒙 PC（2in1）的可行性：ohos_electron_hap（海泰方圆 HAP 模板，Electron 25/34 已移植，addon 交叉编译有实证） | 提案落点（未启动）：`node:sqlite` 调用点 addon 化、三原生依赖 OHOS 交叉编译、`process.platform === 'ohos'` 分支、vendor 裁剪 | ⬜ | **2026-08-18 拍板"先不做"**，纯决策留档。结论"有条件可行（高）"；头号未知 = PC 端应用 spawn 边界与移植团队 Electron ≥35（Node 22）跟进。与 `specs/harmonyos-dev-kit/`（用 DeepOrca 开发鸿蒙应用）互为反向命题。启动前须完成文内 §6 六项验证 POC |
+
+---
+
+## 2026-08-19 · UI/UX 重设计
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-19-ui-ux-audit-report.md](./2026-08-19-ui-ux-audit-report.md) | 桌面端 UI/UX 现状审计（全量代码走查，附 file:line 证据） | `packages/desktop/src/renderer/`（App.tsx、ui.css、rail、panels） | ⬜ | 发现 **P0 疑似缺陷：右侧预览面板 `.ui-preview-panel` 无 grid 归属**（`.ui-shell.right-open`/`.ui-rightpanel` 为零引用死代码），PM-Design 预览可见性需真机验证；另列 P1 结构问题 5 项（rail 19 按钮过载、视图状态复合、入口割裂、命令面板浅薄、权限打断）、P2 体验问题 10 项 |
+| [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 阶段指挥舱」+ 竞品差异化定位（vs Cursor/Codex/Threads） | 提案落点：消息流阶段化、rail 五区收编、Inspector 右栏、审批队列、命令面板全覆盖 | ⬜ | 核心概念：平铺线程 → 五阶段脊柱（理解/计划/执行/验证/交付）；三波路径：止损 → 结构 → 差异化 |
+| [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿：全界面 ASCII 线框 + 尺寸/交互规格 + 键盘地图 + token 增补 | 提案落点：`ui.css`、rail.tsx、MessageList、Composer、command-palette、浮层栈 | ⬜ | HTML 视觉稿经 Playwright 截图验证渲染正确；正式实现一律以 specs/ 为准（总口径） |
 
 ---
 
