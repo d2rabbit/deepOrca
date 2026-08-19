@@ -12,7 +12,7 @@
 
 ## 总览
 
-38 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 3 份）：**✅ 20 · 🟡 9 · ⬜ 6 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+39 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份；另有 3 份配套 HTML 视觉稿不计入）：**✅ 20 · 🟡 9 · ⬜ 7 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -87,6 +87,7 @@
 | [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 工单工作台」v3 + 竞品差异化定位 | 提案落点：工单/步骤一等状态、闸门前置+自律度旋钮、对象锚定介入、Tape 记录仪（⌘T）、车间墙 ⌘⇧M | ⬜ | **v3 按"仍未脱离 AI 感与回合制统一交互"反馈换本体**：对话降级为只读记录仪，工单升格为界面本体；步骤可拖/划/设闸门；回合制改并行值守；去气泡/头像/"思考中"。演进：v1 五区 rail（VS Code 影子）→ v2 召唤式浮层（只动 chrome）→ v3 工单工作台 |
 | [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿 v3：工作台线框 + 步骤卡/介入/自律度/刹车交互规格 + 键盘地图 + 降级兜底 | 提案落点：renderer 工单视图、permissions 策略面重构、OverlayStack、FocusCard | ⬜ | v3 双画面 HTML 视觉稿（工单工作台 + 车间墙）经 Playwright 截图验证；渲染层革命非引擎重写（对象均可映射现有引擎原语）；正式实现一律以 specs/ 为准（总口径） |
 | 风格试板 `2026-08-19-ui-ux-style-studies.html` | 同一 v3 工单工作台 × 六种视觉语言：Neumorphism / Glassmorphism / Liquid Glass / Flat / Vernacular Web(1997) / Claymorphism | 提案落点：`--ui-*` token 主题架构扩充（现有 6 主题之外的候选皮肤） | ⬜ | 应"AI 只会科技配色"批评而作：证明交互结构（工单工作台）与视觉皮肤正交，六套风格全部可落在现有 token 换肤架构上；每版严格遵循对应风格规约（neumorphism 双向软阴影+零描边、glassmorphism 全玻璃+对比 scrim、Liquid Glass 玻璃只给控件层、flat 零阴影纯色块、Vernacular 星空+彩虹分隔线+LED 计数器、clay 三阴影配方+大圆角） |
+| [2026-08-19-ui-ux-module-coverage.md](./2026-08-19-ui-ux-module-coverage.md) + 完整设计稿 `2026-08-19-ui-ux-complete-design.html` | **全部审计模块的 v3 复现**：27 帧 Liquid Glass 设计稿 + 模块覆盖矩阵（审计项 → v3 落点 → 帧号） | 提案落点：renderer 全面重构的逐模块蓝图；`liquid` 作为第 7 套主题 | ⬜ | 11 个侧栏面板全部重定位（抽屉/浮层/车间墙）、8 类浮层归统一栈、三卡改闸门+起草+内联问答；含 token 体系与未覆盖声明（Monaco 全屏实例、PrototypeWindow 独立窗、A2UI 仅换肤）；Playwright 全页截图验证 |
 
 ---
 

@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orca Deck v3 · 完整设计稿 — 全部审计模块复现（Liquid Glass）</title>
+<style>
+/* ================================================================
+   Orca Deck v3 完整设计稿 · Liquid Glass
+   玻璃只给浮动控件层；内容永远是不透明纸面。
+   ================================================================ */
+:root {
+  --ink: #1c2433;
+  --ink-2: #4a5a75;
+  --ink-3: #8296b3;
+  --paper: #ffffff;
+  --paper-2: #f5f7fa;
+  --hairline: #e6eaf1;
+  --blue: #2952cc;
+  --blue-soft: #e5ecff;
+  --green: #0d9e63;
+  --green-soft: #dcf5e8;
+  --amber: #b07817;
+  --amber-soft: #fdf3dd;
+  --red: #c0392b;
+  --red-soft: #fdeceb;
+  --mono: "SF Mono", ui-monospace, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #e9edf3;
+  font-family: -apple-system, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+  color: var(--ink); font-size: 13px;
+  padding: 36px 16px 90px;
+}
+.doc-header { max-width: 1160px; margin: 0 auto 8px; }
+.doc-header h1 { font-size: 23px; font-weight: 800; letter-spacing: .2px; }
+.doc-header p { color: var(--ink-2); margin-top: 8px; font-size: 13px; line-height: 1.75; max-width: 900px; }
+.doc-header code { background: #fff; border: 1px solid var(--hairline); border-radius: 5px; padding: 1px 6px; font-size: 11.5px; }
+
+.toc { max-width: 1160px; margin: 18px auto 0; background: var(--paper); border-radius: 14px; border: 1px solid var(--hairline); padding: 14px 18px; font-size: 12px; color: var(--ink-2); line-height: 2; }
+.toc b { color: var(--ink); }
+.toc span { white-space: nowrap; margin-right: 14px; }
+
+.frame-label { max-width: 1160px; margin: 46px auto 10px; font-size: 14.5px; font-weight: 800; color: var(--ink); display: flex; align-items: baseline; gap: 10px; }
+.frame-label .no { font-family: var(--mono); color: var(--blue); font-size: 12px; }
+.frame-label span { color: var(--ink-3); font-weight: 400; font-size: 12px; }
+
+/* ---- 帧容器：浅色渐变底，让玻璃有东西可"透镜" ---- */
+.frame {
+  max-width: 1160px; margin: 0 auto; border-radius: 18px; overflow: hidden;
+  border: 1px solid var(--hairline); position: relative;
+  background: linear-gradient(160deg, #dfe9f5 0%, #f2f4f8 32%, #ece4f4 62%, #f7e9de 100%);
+  box-shadow: 0 18px 50px rgba(31,45,74,.10);
+}
+.stage { position: relative; padding: 18px 22px 22px; }
+
+/* ---- Liquid Glass 控件 ---- */
+.glass {
+  background: rgba(255,255,255,.46);
+  backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  box-shadow: 0 8px 28px rgba(31,45,74,.13), inset 0 1px 0 rgba(255,255,255,.9), inset 0 -1px 0 rgba(31,45,74,.05);
+}
+.glass-deep { background: rgba(255,255,255,.6); backdrop-filter: blur(22px) saturate(1.7); -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  box-shadow: 0 18px 50px rgba(31,45,74,.18), inset 0 1px 0 rgba(255,255,255,.95); }
+
+/* ---- 纸面内容 ---- */
+.sheet { background: var(--paper); border-radius: 16px; border: 1px solid var(--hairline); }
+.sheet-2 { background: var(--paper-2); border-radius: 10px; border: 1px solid var(--hairline); }
+
+/* ---- 原子 ---- */
+.mono { font-family: var(--mono); }
+.dim { color: var(--ink-3); }
+.dim2 { color: var(--ink-2); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; padding: 2px 9px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--hairline); color: var(--ink-2); }
+.pill.b { background: var(--blue-soft); color: var(--blue); border-color: transparent; font-weight: 600; }
+.pill.g { background: var(--green-soft); color: var(--green); border-color: transparent; font-weight: 600; }
+.pill.a { background: var(--amber-soft); color: var(--amber); border-color: transparent; font-weight: 600; }
+.pill.r { background: var(--red-soft); color: var(--red); border-color: transparent; font-weight: 600; }
+.kbd { font-family: var(--mono); font-size: 10px; background: var(--paper); border: 1px solid var(--hairline); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; color: var(--ink-2); }
+.btn { font-size: 11.5px; padding: 6px 16px; border-radius: 999px; color: var(--ink); background: rgba(255,255,255,.55);
+  backdrop-filter: blur(14px) saturate(1.5); box-shadow: 0 4px 14px rgba(31,45,74,.12), inset 0 1px 0 rgba(255,255,255,.9); display: inline-block; }
+.btn.primary { background: rgba(41,82,204,.9); color: #fff; font-weight: 700; box-shadow: 0 4px 14px rgba(41,82,204,.35), inset 0 1px 0 rgba(255,255,255,.35); }
+.btn.danger { color: var(--red); }
+.btn.flat { background: var(--paper-2); box-shadow: none; border: 1px solid var(--hairline); }
+.seg { display: inline-flex; background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 999px; padding: 2px; }
+.seg span { font-size: 11px; padding: 4px 13px; border-radius: 999px; color: var(--ink-2); }
+.seg span.on { background: var(--paper); color: var(--ink); font-weight: 700; box-shadow: 0 2px 6px rgba(31,45,74,.12); }
+
+/* 目标带（唯一常驻结构件） */
+.ribbon { display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.ribbon .goal { display: flex; align-items: center; gap: 7px; }
+.ribbon .goal .chev { color: var(--ink-3); font-size: 10px; font-weight: 400; }
+.ribbon .steps-mini { display: flex; align-items: center; margin: 0 auto; }
+.sm-n { width: 8px; height: 8px; border-radius: 50%; }
+.sm-n.done { background: var(--green); }
+.sm-n.live { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.sm-n.todo { border: 2px solid #b9c4d6; background: transparent; }
+.sm-l { width: 22px; height: 2px; margin: 0 5px; background: #d3dbe8; }
+.sm-l.done { background: rgba(13,158,99,.5); }
+.ribbon .meta { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); font-weight: 400; }
+.ctx-ring { width: 15px; height: 15px; border-radius: 50%; background: conic-gradient(var(--blue) 0 62%, #dde4ee 62% 100%); display: inline-grid; place-items: center; }
+.ctx-ring::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #fff; }
+.bell { position: relative; }
+.bell .bdg { position: absolute; top: -4px; right: -7px; background: var(--red); color: #fff; font-size: 8.5px; font-weight: 800; min-width: 13px; height: 13px; border-radius: 7px; display: grid; place-items: center; padding: 0 3px; }
+
+/* 步骤芯片 */
+.step-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.schip { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px; border-radius: 999px; font-size: 12px; background: var(--paper); border: 1px solid var(--hairline); color: var(--ink-2); }
+.schip .n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.schip.done .st { color: var(--green); font-weight: 800; }
+.schip.live { background: var(--blue-soft); border-color: rgba(41,82,204,.35); color: var(--ink); font-weight: 600; }
+.schip.live .st { color: var(--blue); }
+.schip.todo { opacity: .6; }
+.schip .gate { font-size: 10px; }
+
+/* 步骤卡 */
+.wo-card { background: var(--paper); border: 1px solid var(--hairline); border-radius: 16px; overflow: hidden; }
+.wo-card.current { border-color: rgba(41,82,204,.4); box-shadow: 0 10px 30px rgba(41,82,204,.08); }
+.wo-head { display: flex; align-items: center; gap: 9px; padding: 11px 15px; font-size: 13px; font-weight: 700; }
+.wo-head .gate-sel { margin-left: auto; font-size: 10.5px; font-weight: 400; color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 999px; padding: 3px 11px; }
+.wo-body { padding: 0 15px 13px; display: flex; flex-direction: column; gap: 9px; }
+.scope-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--ink-3); }
+.scope-chip { font-family: var(--mono); font-size: 11px; color: var(--blue); background: var(--blue-soft); border-radius: 7px; padding: 3px 9px; display: flex; gap: 7px; align-items: center; }
+.scope-chip .x { color: var(--ink-3); }
+.prog-line { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 10px; padding: 9px 13px; display: flex; align-items: center; gap: 9px; overflow: hidden; white-space: nowrap; }
+.prog-line .ok { color: var(--green); font-weight: 700; }
+.prog-line .lv { color: var(--blue); font-weight: 700; }
+.prog-line .arr { color: var(--ink-3); }
+.note-line { border-left: 3px solid var(--amber); background: var(--amber-soft); border-radius: 0 9px 9px 0; padding: 8px 12px; font-size: 12px; color: var(--ink-2); }
+.note-line b { color: var(--amber); font-size: 11px; }
+.pending-line { border: 1px solid rgba(192,57,43,.3); background: var(--red-soft); border-radius: 10px; padding: 9px 13px; display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.pending-line .cmd { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
+.pending-line .acts { margin-left: auto; display: flex; gap: 7px; flex-shrink: 0; }
+.step-collapsed { display: flex; align-items: center; gap: 10px; padding: 8px 14px; font-size: 12px; color: var(--ink-3); background: var(--paper); border: 1px solid var(--hairline); border-radius: 12px; }
+.step-collapsed b { color: var(--ink-2); }
+.step-collapsed .sum { font-family: var(--mono); font-size: 10.5px; }
+.step-collapsed .more { margin-left: auto; font-size: 10.5px; }
+
+/* 自律度 + 刹车 */
+.control-row { display: flex; align-items: center; gap: 16px; }
+.dial { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--ink-2); padding: 8px 16px; border-radius: 999px; }
+.dial .trk { width: 96px; height: 4px; border-radius: 2px; background: rgba(31,45,74,.14); position: relative; }
+.dial .trk i { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: var(--blue); border-radius: 2px; }
+.dial .trk b { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(255,255,255,.8); box-shadow: 0 3px 10px rgba(31,45,74,.28), inset 0 1px 0 #fff; border: 1px solid rgba(41,82,204,.4); }
+.brake { margin-left: auto; padding: 9px 22px; border-radius: 999px; font-weight: 800; letter-spacing: 1px; font-size: 12.5px; color: var(--red);
+  background: rgba(253,236,235,.75); box-shadow: 0 6px 18px rgba(192,57,43,.18), inset 0 1px 0 rgba(255,255,255,.9); border: 1px solid rgba(192,57,43,.35); }
+
+/* 指示条 */
+.dirbar { display: flex; align-items: center; gap: 10px; border-radius: 999px; padding: 7px 8px 7px 16px; font-size: 12.5px; color: var(--ink-3); }
+.dirbar .target { font-family: var(--mono); font-size: 11px; color: var(--blue); background: var(--blue-soft); border-radius: 7px; padding: 2px 9px; }
+.dirbar .send { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; background: rgba(41,82,204,.92); color: #fff; display: grid; place-items: center;
+  box-shadow: 0 4px 14px rgba(41,82,204,.4), inset 0 1px 0 rgba(255,255,255,.4); font-size: 14px; flex-shrink: 0; }
+
+/* 焦点卡 */
+.focus-card { background: rgba(255,255,255,.68); backdrop-filter: blur(22px) saturate(1.7); -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  border-radius: 16px; box-shadow: 0 18px 50px rgba(31,45,74,.22), inset 0 1px 0 rgba(255,255,255,.95); overflow: hidden; border: none; }
+.focus-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; font-weight: 700; border-bottom: 1px solid rgba(31,45,74,.07); }
+.focus-head .ops { margin-left: auto; color: var(--ink-3); font-size: 11px; display: flex; gap: 9px; font-weight: 400; }
+.diff { font-family: var(--mono); font-size: 11px; }
+.diff .hunk { color: var(--blue); padding: 7px 13px; background: var(--blue-soft); }
+.diff .del, .diff .add { padding: 2px 13px; white-space: pre; overflow: hidden; }
+.diff .del { color: var(--red); background: var(--red-soft); }
+.diff .add { color: var(--green); background: var(--green-soft); }
+.focus-foot { display: flex; gap: 8px; padding: 10px 14px; }
+
+/* 抽屉 */
+.drawer { width: 300px; border-radius: 18px; overflow: hidden; }
+.drawer-head { display: flex; align-items: center; gap: 8px; padding: 11px 15px; font-size: 12.5px; font-weight: 800; }
+.drawer-head .ops { margin-left: auto; display: flex; gap: 8px; color: var(--ink-3); font-size: 11px; font-weight: 400; }
+.lrow { display: flex; align-items: center; gap: 9px; padding: 8px 15px; font-size: 12px; color: var(--ink-2); border-top: 1px solid rgba(31,45,74,.05); }
+.lrow .r { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.lrow.sel { background: var(--blue-soft); color: var(--ink); }
+
+/* 浮层演示壳 */
+.overlay-demo { position: relative; min-height: 300px; }
+.ghost { position: absolute; inset: 0; padding: 18px 22px; filter: blur(3px) brightness(.96); opacity: .55; pointer-events: none; }
+.scrim { position: absolute; inset: 0; background: rgba(233,237,243,.35); }
+.float-panel { position: relative; z-index: 2; margin: 0 auto; }
+
+/* 表格/定义列表 */
+.kv { display: flex; justify-content: space-between; padding: 7px 0; border-top: 1px solid rgba(31,45,74,.06); font-size: 12px; }
+.kv .k { color: var(--ink-3); } .kv .v { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+.meter { height: 7px; border-radius: 4px; background: #e3e9f2; overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 4px; background: var(--blue); }
+.meter.g i { background: var(--green); } .meter.a i { background: var(--amber); }
+
+/* Tape */
+.tape-row { display: flex; gap: 12px; padding: 7px 16px; font-size: 12px; border-top: 1px solid rgba(31,45,74,.05); align-items: baseline; }
+.tape-row .ts { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); flex-shrink: 0; width: 58px; }
+.tape-row .who { font-family: var(--mono); font-size: 10.5px; width: 44px; flex-shrink: 0; }
+.tape-row .who.u { color: var(--amber); } .tape-row .who.a { color: var(--blue); } .tape-row .who.t { color: var(--green); }
+
+/* Toast */
+.toast { display: flex; align-items: center; gap: 9px; font-size: 12px; padding: 10px 15px; border-radius: 14px; color: var(--ink); }
+
+/* 车间墙卡 */
+.floor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.wo-mini { background: var(--paper); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.wo-mini.hot { border-color: rgba(41,82,204,.4); box-shadow: 0 8px 24px rgba(41,82,204,.1); }
+.wo-mini h4 { font-size: 12.5px; display: flex; align-items: center; gap: 7px; }
+.wo-mini .now { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wo-mini .meta { display: flex; gap: 8px; font-size: 10px; color: var(--ink-3); font-family: var(--mono); align-items: center; }
+.wo-mini.new { border: 1.5px dashed #c3cddd; background: transparent; display: grid; place-items: center; color: var(--ink-3); min-height: 108px; }
+
+/* 命令层 */
+.cmdk { width: min(620px, 88%); border-radius: 18px; overflow: hidden; }
+.cmdk-input { display: flex; align-items: center; gap: 10px; padding: 14px 18px; font-size: 14px; border-bottom: 1px solid rgba(31,45,74,.07); }
+.cmdk-input .q { color: var(--ink); }
+.cmdk-input .cur { width: 8px; height: 17px; background: var(--blue); border-radius: 1px; }
+.cmdk-group { padding: 6px 10px 2px; font-size: 10px; font-weight: 800; letter-spacing: .8px; color: var(--ink-3); text-transform: uppercase; }
+.cmdk-row { display: flex; align-items: center; gap: 10px; padding: 8px 18px; font-size: 12.5px; color: var(--ink-2); }
+.cmdk-row.sel { background: var(--blue-soft); color: var(--ink); }
+.cmdk-row .r { margin-left: auto; display: flex; gap: 5px; align-items: center; }
+
+/* 设置 */
+.set-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(31,45,74,.06); font-size: 12.5px; }
+.set-row .lab { color: var(--ink); font-weight: 600; }
+.set-row .desc { color: var(--ink-3); font-size: 11px; margin-top: 2px; }
+.set-row .ctl { margin-left: auto; }
+.toggle { width: 38px; height: 22px; border-radius: 999px; background: var(--green); position: relative; display: inline-block; }
+.toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.toggle.off { background: #c7d0de; } .toggle.off::after { right: auto; left: 2px; }
+
+/* 任务树 */
+.tree-node { width: 13px; height: 13px; border-radius: 50%; background: var(--paper); border: 2.5px solid var(--blue); display: inline-block; }
+.tree-node.cur { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
+.tree-node.merged { border-color: var(--green); }
+.tree-node.dead { border-color: #c3cddd; background: #e3e9f2; }
+
+.footer-note { max-width: 1160px; margin: 50px auto 0; font-size: 11.5px; color: var(--ink-3); line-height: 1.8; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>Orca Deck v3 · 完整设计稿</h1>
+  <p>2026-08-19 · 主视觉：<b>Liquid Glass</b>（玻璃只给浮动控件层，内容永远不透明纸面）· 交互范式：工单工作台（v3）。
+  本稿将 <code>2026-08-19-ui-ux-audit-report.md</code> 中发现的所有模块逐一复现：11 个侧栏面板 → 抽屉/浮层/车间墙重定位；8 类浮层 → 统一浮层栈；
+  三卡（权限/问答/计划）→ 闸门 + 步骤内联决策 + 工单起草。帧号与覆盖矩阵见 <code>2026-08-19-ui-ux-module-coverage.md</code>。</p>
+</div>
+
+<div class="toc">
+  <b>帧目录</b> —
+  <span>A 核心流：01 工作台 · 02 工单起草 · 03 Tape · 04 车间墙 · 05 命令层</span><br>
+  <span>B 控制：06 自律度三态 · 07 步骤内联问答 · 08 刹车冻结</span><br>
+  <span>C 抽屉与检视：09 文件抽屉 · 10 变更抽屉 · 11 进程抽屉 · 12 通知抽屉 · 13 焦点卡×3 · 14 全屏 Diff</span><br>
+  <span>D 资产与知识：15 设计资产 · 16 代码审查 · 17 索引仪表盘 · 18 Token 统计 · 19 任务树画布 · 20 插件/MCP</span><br>
+  <span>E 系统：21 设置 · 22 Undo 检查点 · 23 快捷键表 · 24 信任对话框 · 25 分支冲突 · 26 Toast · 27 空态+Onboarding</span>
+</div>
+
+<!-- ==================== 01 工作台 ==================== -->
+<div class="frame-label"><span class="no">01</span>工作台 · 施工中 <span>主视图；Sidebar/TaskPanel/PermissionCard/ContextProgress/Composer/TopBar 的 v3 合体</span></div>
+<div class="frame"><div class="stage">
+  <div class="ribbon glass">
+    <span class="goal">◉ 权限改批量审批 <span class="chev">▾</span></span>
+    <span class="steps-mini">
+      <span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l"></span>
+      <span class="sm-n live"></span><span class="sm-l"></span><span class="sm-n todo"></span><span class="sm-l"></span><span class="sm-n todo"></span>
+    </span>
+    <span class="meta"><span>42s · $0.04</span><span class="ctx-ring"></span>62%<span class="bell">🔔<span class="bdg">1</span></span>⚭</span>
+  </div>
+
+  <div style="max-width:760px;margin:16px auto 0;display:flex;flex-direction:column;gap:11px;">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+      <b style="font-size:16px">把权限改成批量审批队列</b>
+      <span class="mono dim" style="font-size:10.5px">工单 #3 · 5 步 · ●施工中</span>
+      <span class="pill a">约束: 高危逐项 ✕</span><span class="pill">勿碰 session.ts</span>
+    </div>
+
+    <div class="step-chips">
+      <span class="schip done"><span class="n">①</span><span class="st">✓</span>读取权限模块</span>
+      <span class="schip done"><span class="n">②</span><span class="st">✓</span>设计队列结构</span>
+      <span class="schip live"><span class="n">③</span><span class="st">◉</span>改策略面</span>
+      <span class="schip todo"><span class="n">④</span>验证 <span class="gate">✋</span></span>
+      <span class="schip todo"><span class="n">⑤</span>交付</span>
+    </div>
+
+    <div class="wo-card current">
+      <div class="wo-head"><span style="color:var(--blue)">◉</span>③ 改 core 权限策略面 <span class="gate-sel">gate: 自动 ▾</span></div>
+      <div class="wo-body">
+        <div class="scope-row">范围
+          <span class="scope-chip">permissions.ts <span class="x">✕</span></span>
+          <span class="scope-chip">PermissionCard.tsx <span class="x">✕</span></span>
+          <span class="pill">＋ 添加</span>
+        </div>
+        <div class="prog-line"><span><span class="ok">✓</span> edit permissions.ts <span class="ok">+45 −12</span></span><span class="arr">→</span><span><span class="ok">✓</span> typecheck exit 0</span><span class="arr">→</span><span class="lv">◉ edit PermissionCard.tsx …</span></div>
+        <div class="note-line"><b>💬 你的介入 · 2 分钟前</b>　高危降级再保守一点，network 也算高危</div>
+        <div class="pending-line"><span style="color:var(--red)">⚠</span><span class="cmd">执行前确认: git push origin docs/ui-ux-redesign</span>
+          <span class="acts"><span class="btn primary">允许</span><span class="btn">仅提交</span><span class="btn danger">拒绝</span></span></div>
+      </div>
+    </div>
+
+    <div class="step-collapsed"><b style="color:var(--green)">✓</b><b>② 设计队列结构</b><span class="sum">产出 queue-spec 草案 · 38s · 2.1k tok</span><span class="more">展开</span></div>
+    <div class="step-collapsed"><b style="color:var(--green)">✓</b><b>① 读取权限模块</b><span class="sum">读 12 文件 · 26s · 4.2k tok</span><span class="more">展开</span></div>
+
+    <div class="control-row">
+      <span class="dial glass">自律度 <span class="trk"><i></i><b></b></span> <b style="color:var(--blue)">关键确认</b></span>
+      <span class="brake">⏸ 刹车</span>
+    </div>
+  </div>
+
+  <div style="max-width:640px;margin:16px auto 0;">
+    <div class="dirbar glass-deep">对 <span class="target">③ 改策略面</span> 说：高危降级逻辑再保守一点… <span class="send">➤</span></div>
+  </div>
+</div></div>
+
+<!-- ==================== 02 工单起草 ==================== -->
+<div class="frame-label"><span class="no">02</span>工单起草 <span>PlanCard 的 v3 形态：计划不再是聊天里的卡片，是待盖章的工单</span></div>
+<div class="frame"><div class="stage">
+  <div class="ribbon glass"><span class="goal">◉ 新目标 <span class="chev">▾</span></span>
+    <span class="meta" style="margin-left:auto"><span class="pill b">草稿待确认</span></span></div>
+  <div style="max-width:760px;margin:16px auto 0;display:flex;flex-direction:column;gap:11px;">
+    <div class="sheet" style="padding:16px 18px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <b style="font-size:15px">工单草稿 · 把权限改成批量审批</b>
+        <span class="pill a">未下发</span>
+        <span class="dim" style="margin-left:auto;font-size:11px">agent 起草于 14:02 · 基于 12 个已读文件</span>
+      </div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+        <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px"><span class="mono dim">①</span>读取权限模块现状<span class="dim" style="margin-left:auto;font-size:11px">gate: 自动 · 预计 ~30s</span></div>
+        <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px"><span class="mono dim">②</span>设计审批队列结构<span class="dim" style="margin-left:auto;font-size:11px">gate: 自动 · 草案先给你看</span></div>
+        <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px;border-left:3px solid var(--blue)"><span class="mono dim">③</span>改 core 权限策略面<span class="dim" style="margin-left:auto;font-size:11px">gate: <b style="color:var(--blue)">自动（可改 ▾）</b></span></div>
+        <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px"><span class="mono dim">④</span>typecheck + lint + test<span class="dim" style="margin-left:auto;font-size:11px">gate: <b style="color:var(--amber)">✋ 完成时确认</b></span></div>
+        <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px;border-left:3px solid var(--red)"><span class="mono dim">⑤</span>git push<span class="dim" style="margin-left:auto;font-size:11px">gate: <b style="color:var(--red)">🛡 执行前确认（锁定）</b></span></div>
+      </div>
+      <div style="display:flex;gap:9px;margin-top:14px;align-items:center;">
+        <span class="btn primary">盖章下发 ⌘↵</span><span class="btn flat">改步骤</span><span class="btn flat">退回重做</span>
+        <span class="dim" style="margin-left:auto;font-size:11px">预估：5 步 · 3–5 分钟 · ≤$0.15</span>
+      </div>
+    </div>
+    <div class="dim" style="font-size:11px;text-align:center;">下发前每一行的 gate 都可单独调整 —— 审批发生在开工前，而不是施工中被打断</div>
+  </div>
+</div></div>
+
+<!-- ==================== 03 Tape ==================== -->
+<div class="frame-label"><span class="no">03</span>Tape 记录仪 <span class="kbd">⌘T</span> <span>MessageList 的原样搬迁 + 时间戳列；唯一能看逐字流式正文的地方；只读</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(820px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">Tape · 工单 #3 全量记录</b>
+        <span class="pill">只读</span>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center" class="dim"><span class="kbd">⌘T</span><span class="kbd">Esc</span> 关闭</span>
+      </div>
+      <div class="tape-row"><span class="ts">14:02:11</span><span class="who u">user</span><span>把权限改成批量审批 <span class="dim">（→ 已建工单 #3）</span></span></div>
+      <div class="tape-row"><span class="ts">14:02:14</span><span class="who a">agent</span><span>已起草工单 v1 · 5 步 <span class="pill b" style="margin-left:6px">对照工单 ↗</span></span></div>
+      <div class="tape-row"><span class="ts">14:02:19</span><span class="who t">tool</span><span class="mono" style="font-size:11.5px">read packages/core/src/common/permissions.ts … 4.1k tok</span></div>
+      <div class="tape-row"><span class="ts">14:03:02</span><span class="who a">agent</span><span>队列结构的三个设计取舍：①高危不可批量 ②deny 必须可见 ③… <span class="dim">（流式正文完整保留，思维链已折叠）</span></span></div>
+      <div class="tape-row"><span class="ts">14:03:41</span><span class="who t">tool</span><span class="mono" style="font-size:11.5px">bash npm run typecheck ✓ exit 0 · 8.2s</span></div>
+      <div class="tape-row"><span class="ts">14:04:10</span><span class="who u">user</span><span>💬 介入@③：network 也算高危</span></div>
+      <div class="tape-row"><span class="ts">14:04:12</span><span class="who a">agent</span><span>收到，已把 network 提为高危并回改 computeRisk()</span></div>
+      <div style="padding:10px 16px;border-top:1px solid var(--hairline)" class="dim">跳至最新 ↓ · 按步骤过滤 ▾ · 导出 .jsonl</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 04 车间墙 ==================== -->
+<div class="frame-label"><span class="no">04</span>车间墙 <span class="kbd">⌘⇧M</span> <span>Sidebar 会话树的 v3 形态：所有工单一瞥总览；归档/搜索进 ⌘K</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel" style="width:min(880px,94%);padding-top:8px;">
+      <div style="text-align:center;margin-bottom:14px;">
+        <b style="font-size:16px">车间墙</b>
+        <div class="dim" style="font-size:11px;margin-top:3px">全部工单 · 一瞥总览 · <span class="kbd">Esc</span> 返回工作台</div>
+      </div>
+      <div class="floor-grid">
+        <div class="wo-mini hot"><h4><span class="pill b">◉ 施工中</span>权限改批量审批</h4>
+          <div class="steps-mini" style="margin:0"><span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l"></span><span class="sm-n live"></span><span class="sm-l"></span><span class="sm-n todo"></span><span class="sm-l"></span><span class="sm-n todo"></span></div>
+          <div class="now">③ edit PermissionCard.tsx …</div>
+          <div class="meta"><span>42s</span><span>$0.04</span><span class="pill b" style="font-size:9.5px">关键确认</span><span style="color:var(--red);font-weight:800">⚠1</span></div></div>
+        <div class="wo-mini"><h4><span class="pill g">✓ 已交付</span>预览面板死代码清理</h4>
+          <div class="steps-mini" style="margin:0"><span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span></div>
+          <div class="now">✓ typecheck · lint · test 全绿</div>
+          <div class="meta"><span>12m 前</span><span>$0.11</span><span class="pill" style="font-size:9.5px">全自动</span></div></div>
+        <div class="wo-mini"><h4><span class="pill a">◌ 待确认</span>导出 .ddp 压缩包</h4>
+          <div class="steps-mini" style="margin:0"><span class="sm-n done"></span><span class="sm-l done"></span><span class="sm-n done"></span><span class="sm-l"></span><span class="sm-n todo" style="border-color:var(--amber)"></span><span class="sm-l"></span><span class="sm-n todo"></span></div>
+          <div class="now">✋ ③ 等待: 是否包含历史版本？</div>
+          <div class="meta"><span>2h 前</span><span>$0.03</span><span class="pill a" style="font-size:9.5px">每步确认</span></div></div>
+        <div class="wo-mini"><h4><span class="pill g">✓ 已交付</span>任务树快照切换</h4>
+          <div class="now">✓ 快照切换 + 时间轴视图</div>
+          <div class="meta"><span>昨天</span><span>$0.26</span><span class="pill" style="font-size:9.5px">全自动</span></div></div>
+        <div class="wo-mini"><h4><span class="pill">已归档</span>G3 分片召回注入</h4>
+          <div class="now">路由管线 G3 落地</div>
+          <div class="meta"><span>3 天前</span><span>$0.41</span></div></div>
+        <div class="wo-mini new">＋ 新目标 <span class="kbd">⌘N</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 05 命令层 ==================== -->
+<div class="frame-label"><span class="no">05</span>命令层 <span class="kbd">⌘K</span> <span>CommandPalette 的升级：真模糊评分 + 全注册表（会话/工单/视图/命令/主题/设置/动作同源）</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel cmdk glass-deep" style="margin-top:4px">
+      <div class="cmdk-input"><span style="color:var(--ink-3)">🔍</span><span class="q">quanx</span><span class="cur"></span><span class="dim" style="margin-left:auto;font-size:11px">␣ 全库 · &gt; 命令 · @ 文件 · # 工单</span></div>
+      <div class="cmdk-group">工单</div>
+      <div class="cmdk-row sel"><span>◉</span>权限改批量审批 <span class="dim mono" style="font-size:10.5px">quanxian…</span><span class="r"><span class="pill b">施工中</span></span></div>
+      <div class="cmdk-group">动作</div>
+      <div class="cmdk-row"><span>⚙</span>调整权限自律度档位 <span class="r"><span class="kbd">⌥2</span></span></div>
+      <div class="cmdk-row"><span>🛡</span>打开权限策略文件 permissions.ts <span class="r"><span class="kbd">@</span></span></div>
+      <div class="cmdk-group">视图</div>
+      <div class="cmdk-row"><span>▦</span>任务树画布 <span class="r"><span class="kbd">⏎</span></span></div>
+      <div class="cmdk-row"><span>◫</span>Tape 记录仪 <span class="r"><span class="kbd">⌘T</span></span></div>
+      <div class="cmdk-group">主题</div>
+      <div class="cmdk-row"><span>◐</span>切换到 glass / line / orca… <span class="r dim" style="font-size:10.5px">Tab 预览</span></div>
+      <div style="padding:8px 18px 12px" class="dim">↑↓ 选择 · ⏎ 执行 · 右侧预览 · 评分：前缀 &gt; 连续 &gt; 散序</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 06 自律度三态 ==================== -->
+<div class="frame-label"><span class="no">06</span>自律度三态 <span>PermissionCard 逐条审问的替代物；同一工单在三种档位下的行为对照</span></div>
+<div class="frame"><div class="stage">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+    <div class="sheet" style="padding:14px 16px;">
+      <b style="font-size:12.5px">○ 全自动</b>
+      <div class="dim" style="font-size:11px;margin-top:4px;line-height:1.6">读/写/测试全部直通；仅 <b style="color:var(--red)">红色高危</b>（push/删除/网络外发）仍逐项确认。</div>
+      <div style="margin-top:10px" class="mono dim">本节授权: read · edit · bash(test)</div>
+      <div style="margin-top:8px"><span class="pill g">施工不中断</span></div>
+    </div>
+    <div class="sheet" style="padding:14px 16px;border:1.5px solid rgba(41,82,204,.45);box-shadow:0 10px 30px rgba(41,82,204,.1)">
+      <b style="font-size:12.5px">◐ 关键确认 <span class="pill b" style="margin-left:4px">当前</span></b>
+      <div class="dim" style="font-size:11px;margin-top:4px;line-height:1.6">写文件/装依赖等黄区在步骤卡内联确认；读类直通。</div>
+      <div style="margin-top:10px" class="mono dim">本节授权: read · 待决: edit ×2</div>
+      <div style="margin-top:8px"><span class="pill a">待决不阻塞其他步骤</span></div>
+    </div>
+    <div class="sheet" style="padding:14px 16px;">
+      <b style="font-size:12.5px">● 每步确认</b>
+      <div class="dim" style="font-size:11px;margin-top:4px;line-height:1.6">每步开工前盖章一次（整步授权，非逐条）。教学/审计场景用。</div>
+      <div style="margin-top:10px" class="mono dim">本节授权: 无</div>
+      <div style="margin-top:8px"><span class="pill">最慢 · 最可控</span></div>
+    </div>
+  </div>
+  <div class="dim" style="font-size:11px;margin-top:12px;text-align:center;">⌥1/2/3 切换 · 步骤卡上的 gate 可局部覆盖全局档位 · 红色高危永远不受"全自动"覆盖</div>
+</div></div>
+
+<!-- ==================== 07 步骤内联问答 ==================== -->
+<div class="frame-label"><span class="no">07</span>步骤内联问答 <span>AskUserQuestion 的 v3 形态：问题挂在步骤上，不掐断流；数字键直选</span></div>
+<div class="frame"><div class="stage">
+  <div style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:11px;">
+    <div class="step-chips">
+      <span class="schip done"><span class="n">①</span><span class="st">✓</span>读导出模块</span>
+      <span class="schip live"><span class="n">②</span><span class="st">◌</span>定打包格式 <span class="gate">⚠待你</span></span>
+      <span class="schip live" style="background:var(--green-soft);border-color:rgba(13,158,99,.35)"><span class="n">③</span><span class="st" style="color:var(--green)">◉</span>写压缩实现 <span class="dim" style="font-size:10px">（不受阻，继续中）</span></span>
+      <span class="schip todo"><span class="n">④</span>验证</span>
+    </div>
+    <div class="wo-card" style="border-color:rgba(176,120,23,.4)">
+      <div class="wo-head"><span style="color:var(--amber)">◌</span>② 定打包格式 <span class="gate-sel" style="color:var(--amber)">等你回答 · 其余步骤未停</span></div>
+      <div class="wo-body">
+        <div style="font-size:12.5px">历史版本要不要打进 .ddp 包？</div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px"><span class="kbd">1</span>仅当前版本 <span class="dim" style="margin-left:auto">包小 · 推荐</span></div>
+          <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px"><span class="kbd">2</span>含全部历史 <span class="dim" style="margin-left:auto">可回溯 · 包大</span></div>
+          <div class="sheet-2" style="padding:9px 13px;display:flex;gap:10px;align-items:center;font-size:12.5px"><span class="kbd">3</span>两个都出 <span class="dim" style="margin-left:auto">.ddp + .ddp-full</span></div>
+        </div>
+        <div class="dim" style="font-size:11px">同时进行中：③ 正在写压缩实现（与格式无关的部分）· 已自动预约 npm run build 验证</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 08 刹车冻结 ==================== -->
+<div class="frame-label"><span class="no">08</span>刹车冻结态 <span>⏸ 拍下后：当前工具收尾→冻结；全部上下文原地保留；恢复一键</span></div>
+<div class="frame"><div class="stage">
+  <div class="ribbon glass" style="border:1.5px solid rgba(192,57,43,.4)">
+    <span class="goal">◉ 权限改批量审批</span>
+    <span class="pill r" style="margin-left:6px">⏸ 已冻结</span>
+    <span class="meta" style="margin-left:auto"><span>冻结于 42s · 现场完整保留</span></span>
+  </div>
+  <div style="max-width:760px;margin:16px auto 0;display:flex;flex-direction:column;gap:11px;">
+    <div class="wo-card current" style="opacity:.75">
+      <div class="wo-head"><span style="color:var(--red)">⏸</span>③ 改 core 权限策略面 <span class="gate-sel">冻结在: edit PermissionCard.tsx 之前</span></div>
+      <div class="wo-body">
+        <div class="prog-line"><span><span class="ok">✓</span> edit permissions.ts +45 −12</span><span class="arr">→</span><span><span class="ok">✓</span> typecheck exit 0</span><span class="arr">→</span><span class="dim">‖ 未执行: edit PermissionCard.tsx</span></div>
+      </div>
+    </div>
+    <div class="sheet" style="padding:13px 16px;display:flex;align-items:center;gap:12px;">
+      <b style="font-size:12.5px">冻结现场</b>
+      <span class="dim" style="font-size:11.5px">未落盘改动 0 · 待决 1 · bash 长任务已安全终止（非强杀）</span>
+      <span style="margin-left:auto;display:flex;gap:8px"><span class="btn primary">▶ 恢复施工</span><span class="btn flat">改工单再说</span></span>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 09 文件抽屉 ==================== -->
+<div class="frame-label"><span class="no">09</span>文件抽屉 + 焦点卡 <span class="kbd">⌘E</span> <span>EditorPanel 的 v3 形态：覆盖式抽屉，失焦即收，📌 可钉住；点文件 → 焦点卡，主区不替换</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:330px">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div>
+      <div style="max-width:640px;margin:14px auto 0"><div class="wo-card"><div class="wo-head">◉ ③ 改 core 权限策略面</div></div></div></div>
+    <div class="scrim"></div>
+    <div class="drawer glass-deep" style="position:absolute;left:14px;top:12px;bottom:12px;z-index:3">
+      <div class="drawer-head">文件 <span class="kbd">⌘E</span><span class="ops">📌 钉住 · ✕</span></div>
+      <div style="padding:4px 15px 10px"><span class="pill" style="width:100%;justify-content:flex-start">🔍 过滤文件…</span></div>
+      <div class="lrow">▾ packages</div>
+      <div class="lrow" style="padding-left:27px">▾ core/src/common</div>
+      <div class="lrow sel" style="padding-left:39px">permissions.ts <span class="r" style="color:var(--amber)">●M</span></div>
+      <div class="lrow" style="padding-left:39px">session.ts</div>
+      <div class="lrow" style="padding-left:27px">▸ renderer/components</div>
+      <div class="lrow" style="padding-left:27px">▸ docs</div>
+    </div>
+    <div class="focus-card" style="position:absolute;left:340px;top:40px;width:400px;z-index:4">
+      <div class="focus-head">permissions.ts <span class="dim" style="font-weight:400;font-size:10.5px">⌖ 来自文件抽屉</span><span class="ops">📌 ✕</span></div>
+      <div class="diff">
+        <div class="hunk">@@ -106,7 +106,8 @@ computeRisk()</div>
+        <div class="del">-  const risk = "high";</div>
+        <div class="add">+  const risk = queueable(scope) ? "medium" : "high";</div>
+        <div class="add">+  if (scope === "network") risk = "high";</div>
+      </div>
+      <div class="focus-foot"><span class="btn primary">在编辑器打开</span><span class="btn flat">还原</span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 10 变更抽屉 ==================== -->
+<div class="frame-label"><span class="no">10</span>变更抽屉 <span class="kbd">⌘⇧E</span> <span>SourceControlPanel 的 v3 形态：git 状态 + 按工单分组 + 一键提交（提交是高危，走闸门）</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:330px">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="drawer glass-deep" style="position:absolute;left:14px;top:12px;bottom:12px;width:320px;z-index:3">
+      <div class="drawer-head">变更 <span class="kbd">⌘⇧E</span><span class="ops">⎇ docs/ui-ux-redesign</span></div>
+      <div style="padding:6px 15px 8px" class="dim">本工单（#3）产生 <span class="pill b" style="margin-left:4px">3 文件</span></div>
+      <div class="lrow"><span style="color:var(--amber)" class="mono">M</span>permissions.ts <span class="r" style="color:var(--green)">+45 −12</span></div>
+      <div class="lrow"><span style="color:var(--amber)" class="mono">M</span>PermissionCard.tsx <span class="r" style="color:var(--green)">+12 −3</span></div>
+      <div class="lrow"><span style="color:var(--green)" class="mono">A</span>approval-queue.tsx <span class="r" style="color:var(--green)">+88</span></div>
+      <div style="padding:8px 15px" class="dim">其他来源</div>
+      <div class="lrow"><span style="color:var(--amber)" class="mono">M</span>README.md <span class="r dim">手动</span></div>
+      <div style="padding:12px 15px;display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(31,45,74,.06)">
+        <div class="sheet-2" style="padding:8px 12px;font-size:12px;color:var(--ink-3)">提交信息…（agent 已起草：feat(core): 权限批量审批队列）</div>
+        <div style="display:flex;gap:8px"><span class="btn flat" style="flex:1;text-align:center">仅提交</span><span class="btn primary" style="flex:1;text-align:center">提交并推送 🛡</span></div>
+        <div class="dim" style="font-size:10.5px">🛡 = 红色高危，无论档位都逐项确认</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 11 进程抽屉 ==================== -->
+<div class="frame-label"><span class="no">11</span>进程抽屉 <span class="kbd">⌘⇧P</span> <span>ProcessOutputPanel 的 v3 形态（替代 ⌘O/⌘J 冗余绑定）：多进程 tail + 超时调节</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:300px">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="drawer glass-deep" style="position:absolute;right:14px;top:12px;bottom:12px;left:auto;width:420px;z-index:3">
+      <div class="drawer-head">进程 <span class="pill g">3 运行中</span><span class="ops">📌 · ✕</span></div>
+      <div style="padding:0 15px 8px;display:flex;gap:6px"><span class="seg"><span class="on">vite dev</span><span>tsc -w</span><span>npm test</span></span></div>
+      <div style="margin:0 15px 12px;background:#10151f;border-radius:12px;padding:12px 14px;font-family:var(--mono);font-size:10.5px;line-height:1.75;color:#9fb4d8;overflow:hidden">
+        <div><span style="color:#4de3c2">[vite]</span> ➜ Local: http://localhost:5173/</div>
+        <div><span style="color:#4de3c2">[vite]</span> page reload src/renderer/App.tsx</div>
+        <div><span style="color:#f5c04e">[tsc]</span> Found 0 errors. Watching…</div>
+        <div><span style="color:#9fb4d8">[test]</span> # pass 42 <span style="color:#43d68a">✓</span></div>
+        <div style="color:#5b6b84">▍</div>
+      </div>
+      <div style="padding:0 15px 12px;display:flex;align-items:center;gap:10px;font-size:11px" class="dim2">
+        bash 超时 <span class="seg"><span>30s</span><span class="on">2m</span><span>10m</span></span>
+        <span style="margin-left:auto" class="dim">150ms 轮询 · 仅钉住时常驻</span>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 12 通知抽屉 ==================== -->
+<div class="frame-label"><span class="no">12</span>通知抽屉 <span class="kbd">⌘⇧N</span> <span>Toast 的落档处：toast 依旧 3.5s 即消失，但全部进通知中心——错过 ≠ 丢失</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:300px">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="drawer glass-deep" style="position:absolute;right:14px;top:12px;bottom:12px;left:auto;width:340px;z-index:3">
+      <div class="drawer-head">通知 <span class="pill r">1 待决</span><span class="ops">全部已读 · ✕</span></div>
+      <div class="lrow" style="align-items:flex-start"><span style="color:var(--red)">⚠</span><span><b style="color:var(--ink)">待决：git push</b><br><span class="dim" style="font-size:11px">工单 #3 · ③ 等你确认</span></span><span class="r">现在</span></div>
+      <div class="lrow" style="align-items:flex-start"><span style="color:var(--green)">✓</span><span>工单 #2 已交付<br><span class="dim" style="font-size:11px">预览面板死代码清理 · $0.11</span></span><span class="r">12m</span></div>
+      <div class="lrow" style="align-items:flex-start"><span style="color:var(--amber)">◌</span><span>插件 MCP server 连接失败<br><span class="dim" style="font-size:11px">gitmcp · 已自动降级重试</span></span><span class="r">1h</span></div>
+      <div class="lrow" style="align-items:flex-start"><span style="color:var(--blue)">ℹ</span><span>上下文已压缩<br><span class="dim" style="font-size:11px">工单 #1 · 释放 41k tok</span></span><span class="r">2h</span></div>
+      <div class="lrow" style="align-items:flex-start"><span style="color:var(--ink-3)">◌</span><span>沙箱降级：bash 走了宿主<br><span class="dim" style="font-size:11px">详情 → 设置 · 权限</span></span><span class="r">3h</span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 13 焦点卡 ×3 ==================== -->
+<div class="frame-label"><span class="no">13</span>焦点卡变体 <span>同一张卡，三种内容：token 拆解 / 设计预览 / 风险明细——"选中即检视"（Quick Look 心智）</span></div>
+<div class="frame"><div class="stage">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start;">
+    <div class="focus-card">
+      <div class="focus-head">上下文 62% <span class="dim" style="font-weight:400;font-size:10.5px">⌖ 来自目标带</span><span class="ops">📌 ✕</span></div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+        <div class="kv" style="border:none"><span class="k">系统提示 + 技能</span><span class="v">38.2k</span></div>
+        <div class="meter"><i style="width:30%"></i></div>
+        <div class="kv"><span class="k">工单与工具结果</span><span class="v">52.6k</span></div>
+        <div class="meter"><i style="width:41%"></i></div>
+        <div class="kv"><span class="k">对话正文</span><span class="v">21.1k</span></div>
+        <div class="meter"><i style="width:16%"></i></div>
+        <div class="kv"><span class="k">已压缩释放</span><span class="v" style="color:var(--green)">−41.0k</span></div>
+        <div class="dim" style="font-size:10.5px;margin-top:4px">阈值 80% 触发压缩 · 下次压缩预计还需 ~18k</div>
+      </div>
+    </div>
+    <div class="focus-card">
+      <div class="focus-head">登录页原型.dd <span class="dim" style="font-weight:400;font-size:10.5px">⌖ 来自设计资产</span><span class="ops">📌 ✕</span></div>
+      <div style="padding:14px;background:linear-gradient(135deg,#dfe9f5,#ece4f4)">
+        <div class="sheet" style="padding:14px;border-radius:12px">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--blue-soft);margin:0 auto"></div>
+          <div style="height:9px;border-radius:5px;background:#e8edf5;margin:12px 0 0"></div>
+          <div style="height:9px;border-radius:5px;background:#e8edf5;margin-top:7px;width:70%"></div>
+          <div style="height:26px;border-radius:999px;background:var(--blue);margin-top:12px"></div>
+        </div>
+      </div>
+      <div class="focus-foot"><span class="btn primary">放大预览</span><span class="btn flat">导出 .ddp</span></div>
+    </div>
+    <div class="focus-card">
+      <div class="focus-head">风险明细 <span class="pill r" style="margin-left:4px">高</span><span class="ops">📌 ✕</span></div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+        <div class="mono" style="font-size:11.5px;background:#10151f;color:#9fb4d8;border-radius:10px;padding:10px 12px">git push origin docs/ui-ux-redesign</div>
+        <div class="kv" style="border:none"><span class="k">副作用</span><span class="v">mutate-git-log · network</span></div>
+        <div class="kv"><span class="k">影响面</span><span class="v">远端公开仓库</span></div>
+        <div class="kv"><span class="k">可逆性</span><span class="v" style="color:var(--amber)">需 force-push 才可逆</span></div>
+        <div style="display:flex;gap:8px;margin-top:4px"><span class="btn primary">允许</span><span class="btn flat">仅提交</span><span class="btn danger">拒绝</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 14 全屏 Diff ==================== -->
+<div class="frame-label"><span class="no">14</span>全屏 Diff <span>DiffOverlay 的 v3 形态：仍是浮层栈一员；逐 hunk 接受/拒绝；Esc 回工作台</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(880px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">permissions.ts · 全部变更</b>
+        <span class="pill g">+45</span><span class="pill r">−12</span>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span class="seg"><span class="on">并排</span><span>统一</span></span>
+          <span class="btn flat">全部接受</span><span class="kbd">Esc</span></span>
+      </div>
+      <div class="diff">
+        <div class="hunk">@@ -106,7 +106,8 @@ computeRisk() <span style="float:right"><span class="pill g">✓ 接受</span> <span class="pill">✕ 拒绝</span></span></div>
+        <div class="del">-  const risk = "high";</div>
+        <div class="add">+  const risk = queueable(scope) ? "medium" : "high";</div>
+        <div class="add">+  if (scope === "network") risk = "high"; // 介入 #2</div>
+        <div class="hunk">@@ -140,12 +141,18 @@ askPermission() <span style="float:right"><span class="pill g">✓ 接受</span> <span class="pill">✕ 拒绝</span></span></div>
+        <div class="del">-  return promptScopeByScope(scopes);</div>
+        <div class="add">+  return enqueueForBatch(scopes, { nonBlocking: true });</div>
+      </div>
+      <div style="padding:10px 16px;border-top:1px solid var(--hairline)" class="dim">2 个 hunk · 已接受 1 · 语法高亮 hljs · 与工作台数据同源</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 15 设计资产库 ==================== -->
+<div class="frame-label"><span class="no">15</span>设计资产库 <span>DesignPanel/PrototypePanel 的 v3 形态：⌘K 可达的全屏浮层；.dd / .ddp / openui 产物统一陈列</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(880px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">设计资产</b>
+        <span class="seg"><span class="on">全部</span><span>.dd 文档</span><span>.ddp 包</span><span>原型</span></span>
+        <span class="dim" style="margin-left:auto;font-size:11px">.deeporca/designs/ · ⌘K "设计" 可达</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 16px;">
+        <div class="sheet-2" style="padding:10px"><div style="height:74px;border-radius:9px;background:linear-gradient(135deg,#e5ecff,#dfe9f5);display:grid;place-items:center;font-size:20px">▦</div><div style="font-size:11.5px;font-weight:700;margin-top:8px">登录页原型.dd</div><div class="dim" style="font-size:10px;margin-top:2px">2m 前 · 工单 #3 产出</div></div>
+        <div class="sheet-2" style="padding:10px"><div style="height:74px;border-radius:9px;background:linear-gradient(135deg,#dcf5e8,#eef7f0);display:grid;place-items:center;font-size:20px">◈</div><div style="font-size:11.5px;font-weight:700;margin-top:8px">设计系统 v2.dd</div><div class="dim" style="font-size:10px;margin-top:2px">昨天 · 42 tokens 引用</div></div>
+        <div class="sheet-2" style="padding:10px"><div style="height:74px;border-radius:9px;background:linear-gradient(135deg,#fdf3dd,#fbf7ec);display:grid;place-items:center;font-size:20px">◧</div><div style="font-size:11.5px;font-weight:700;margin-top:8px">设置页改版.ddp</div><div class="dim" style="font-size:10px;margin-top:2px">3 天前 · 含历史</div></div>
+        <div class="sheet-2" style="padding:10px"><div style="height:74px;border-radius:9px;background:linear-gradient(135deg,#fdeceb,#fbf0ee);display:grid;place-items:center;font-size:20px">▤</div><div style="font-size:11.5px;font-weight:700;margin-top:8px">错误态规范.dd</div><div class="dim" style="font-size:10px;margin-top:2px">上周 · 已归档</div></div>
+      </div>
+      <div style="padding:0 16px 14px" class="dim">点击卡片 → 焦点卡预览 · 拖拽给指示条 = 作为介入的上下文引用</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 16 代码审查 ==================== -->
+<div class="frame-label"><span class="no">16</span>代码审查 <span>CodeReviewPanel 的 v3 形态：review 结果按步骤归档；每条意见可一键转为介入</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(820px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">代码审查 · 工单 #3</b>
+        <span class="pill g">CRG 风险 低</span><span class="pill a">语义 2 条建议</span><span class="pill g">design.drift 通过</span>
+        <span class="dim" style="margin-left:auto;font-size:11px">review.run · 12s</span>
+      </div>
+      <div class="lrow" style="align-items:flex-start;padding:11px 16px"><span class="pill a">建议</span><span><b style="color:var(--ink);font-size:12.5px">queueable() 的 network 判定建议提取为常量表</b><br><span class="dim mono" style="font-size:10.5px">permissions.ts:108 · 便于后续审计</span></span><span class="r"><span class="btn flat">转为介入</span></span></div>
+      <div class="lrow" style="align-items:flex-start;padding:11px 16px"><span class="pill a">建议</span><span><b style="color:var(--ink);font-size:12.5px">enqueueForBatch 缺少超时兜底</b><br><span class="dim mono" style="font-size:10.5px">permissions.ts:141 · 用户长期不响应时应有默认策略</span></span><span class="r"><span class="btn flat">转为介入</span></span></div>
+      <div class="lrow" style="align-items:flex-start;padding:11px 16px"><span class="pill g">通过</span><span>品牌漂移检查 · 未引入违规字体/圆角<br><span class="dim mono" style="font-size:10.5px">design.drift · 12 规则全过</span></span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 17 索引仪表盘 ==================== -->
+<div class="frame-label"><span class="no">17</span>索引仪表盘 <span>IndexLibraryPanel 的 v3 形态：五个知识源的健康仪表；"index" 改名"知识源"</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(820px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">知识源</b><span class="pill g">5/5 就绪</span>
+        <span class="dim" style="margin-left:auto;font-size:11px">召回质量直接影响 agent 表现 · 全部本地</span>
+      </div>
+      <div style="padding:8px 16px 14px;display:flex;flex-direction:column;">
+        <div class="lrow" style="padding:10px 0"><span class="pill g">●</span><b style="color:var(--ink)">CodeGraph</b><span class="dim">代码符号索引</span><span class="r">1,842 文件 · 3m 前增量</span></div>
+        <div class="lrow" style="padding:10px 0"><span class="pill g">●</span><b style="color:var(--ink)">OpenWiki</b><span class="dim">仓库知识页</span><span class="r">64 页 · 昨日</span></div>
+        <div class="lrow" style="padding:10px 0"><span class="pill g">●</span><b style="color:var(--ink)">Serena</b><span class="dim">LSP 符号</span><span class="r">ts 已挂 · 0 错误</span></div>
+        <div class="lrow" style="padding:10px 0"><span class="pill g">●</span><b style="color:var(--ink)">AGENTS.md</b><span class="dim">工作区指令</span><span class="r">已注入系统提示</span></div>
+        <div class="lrow" style="padding:10px 0"><span class="pill g">●</span><b style="color:var(--ink)">Memory</b><span class="dim">L0–L3 记忆管线</span><span class="r">128 条 · BM25+向量双路</span></div>
+      </div>
+      <div style="padding:0 16px 14px;display:flex;gap:8px"><span class="btn flat">全部重建</span><span class="btn flat">召回测试</span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 18 Token 统计 ==================== -->
+<div class="frame-label"><span class="no">18</span>Token 统计 <span>TokenStatsPanel 的 v3 形态：从"仪表盘"改为"账本"——按工单归账，成本可溯</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(820px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">账本 · 本周</b>
+        <span class="pill">总计 218.4k tok · $2.37</span>
+        <span class="seg" style="margin-left:auto"><span>按模型</span><span class="on">按工单</span><span>按天</span></span>
+      </div>
+      <div style="padding:10px 16px 16px;display:flex;flex-direction:column;gap:10px;">
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span><b>任务树快照切换</b> <span class="dim mono" style="font-size:10.5px">V4 ×12 轮</span></span><span class="mono" style="font-size:11px">89.2k · $0.98</span></div><div class="meter"><i style="width:88%"></i></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span><b>权限改批量审批</b> <span class="dim mono" style="font-size:10.5px">V4 ×7 · flash ×3</span></span><span class="mono" style="font-size:11px">64.1k · $0.71</span></div><div class="meter"><i style="width:63%"></i></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span><b>导出 .ddp 压缩包</b> <span class="dim mono" style="font-size:10.5px">V4 ×4</span></span><span class="mono" style="font-size:11px">38.0k · $0.42</span></div><div class="meter"><i style="width:37%"></i></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="dim">其他 6 个工单</span><span class="mono dim" style="font-size:11px">27.1k · $0.26</span></div><div class="meter g"><i style="width:18%"></i></div></div>
+      </div>
+      <div style="padding:0 16px 14px" class="dim">压缩节省已抵扣 · flash 改写单列 · 导出 CSV</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 19 任务树画布 ==================== -->
+<div class="frame-label"><span class="no">19</span>任务树画布 <span>TaskTreePanel 双 UI 合并为一：git-graph 全屏浮层；hover 显 why；点击切快照</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(880px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">任务树 · 权限改批量审批</b>
+        <span class="dim" style="font-size:11px">每次分叉都是一次"试试看"</span>
+        <span class="dim" style="margin-left:auto;font-size:11px"><span class="kbd">Esc</span> 返回</span>
+      </div>
+      <div style="padding:22px 20px 26px;font-family:var(--mono);font-size:11.5px;line-height:2.1;overflow:hidden">
+        <div><span class="tree-node merged"></span>──<span class="tree-node merged"></span>──<span class="tree-node"></span>────<span class="tree-node cur"></span> <b>main-line</b> <span class="dim">当前 · 批量队列方案</span></div>
+        <div style="padding-left:26px">╲</div>
+        <div style="padding-left:26px"><span class="tree-node merged"></span>──<span class="tree-node merged"></span> <span style="color:var(--green)">try/逐条弹卡</span> <span class="dim">✓ 已合并 · why: 打断太强，弃</span></div>
+        <div style="padding-left:52px">╲</div>
+        <div style="padding-left:52px"><span class="tree-node dead"></span> <span class="dim">try/静默自动批准 ✕ 已放弃 · why: 风险过高</span></div>
+      </div>
+      <div style="padding:0 16px 14px;display:flex;gap:8px;align-items:center"><span class="btn flat">从选中节点分叉</span><span class="btn flat">回填到工单</span><span class="dim" style="margin-left:auto">每次变更必填 why · reflog 可查</span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 20 插件与 MCP ==================== -->
+<div class="frame-label"><span class="no">20</span>插件 / MCP <span>PluginMcpPanel + PluginDetail + GitMcpPanel 三合一：详情改为浮层内页，不再整页接管</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo" style="min-height:0">
+    <div class="float-panel glass-deep sheet" style="width:min(820px,94%);border-radius:18px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px">插件与 MCP</b>
+        <span class="seg"><span class="on">已装 8</span><span>市场</span><span>MCP servers</span></span>
+        <span class="dim" style="margin-left:auto;font-size:11px"><span class="kbd">Esc</span></span>
+      </div>
+      <div class="lrow" style="padding:11px 16px"><span class="pill g">●</span><b style="color:var(--ink)">code</b><span class="dim">CodeGraph · CRG · review</span><span class="r"><span class="toggle"></span></span></div>
+      <div class="lrow" style="padding:11px 16px"><span class="pill g">●</span><b style="color:var(--ink)">design</b><span class="dim">pm-design · deep-design · .dd 管线</span><span class="r"><span class="toggle"></span></span></div>
+      <div class="lrow" style="padding:11px 16px"><span class="pill a">◐</span><b style="color:var(--ink)">gitmcp</b><span class="dim">GitHub 仓库 → 本地 MCP · 重连中</span><span class="r"><span class="toggle"></span></span></div>
+      <div class="lrow" style="padding:11px 16px"><span class="pill">○</span><b style="color:var(--ink)">browser</b><span class="dim">BrowserSkill · 已停用</span><span class="r"><span class="toggle off"></span></span></div>
+      <div style="padding:10px 16px 14px" class="dim">点行进详情内页（工具清单/权限/日志）· 停用立即从路由候选移除</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 21 设置 ==================== -->
+<div class="frame-label"><span class="no">21</span>设置浮层 <span class="kbd">⌘,</span> <span>SettingsPanel 的 v3 形态：整页替换 → 居中浮层；开发者 actions tab 移入命令层</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel glass-deep sheet" style="width:min(720px,92%);border-radius:18px;overflow:hidden;margin-top:2px">
+      <div style="display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid var(--hairline)">
+        <b style="font-size:13px;margin-right:8px">设置</b>
+        <span class="seg"><span>端点</span><span>模型</span><span class="on">外观</span><span>记忆</span><span>权限</span><span>关于</span></span>
+        <span class="dim" style="margin-left:auto;font-size:11px"><span class="kbd">Esc</span></span>
+      </div>
+      <div style="padding:6px 18px 16px">
+        <div class="set-row"><div><div class="lab">主题</div><div class="desc">运行时换肤 · 全部组件只消费 --ui-* token</div></div><div class="ctl"><span class="seg"><span>liquid</span><span>line</span><span>orca</span><span>flat</span><span>…</span></span></div></div>
+        <div class="set-row"><div><div class="lab">密度</div><div class="desc">舒适 / 默认 / 紧凑</div></div><div class="ctl"><span class="seg"><span>舒适</span><span class="on">默认</span><span>紧凑</span></span></div></div>
+        <div class="set-row"><div><div class="lab">界面字号</div><div class="desc">12–18px · 正文基准 14</div></div><div class="ctl"><span class="seg"><span>A-</span><span class="on">A</span><span>A+</span></span></div></div>
+        <div class="set-row"><div><div class="lab">减弱动效</div><div class="desc">跟随系统 prefers-reduced-motion</div></div><div class="ctl"><span class="toggle"></span></div></div>
+        <div class="set-row"><div><div class="lab">默认主视图</div><div class="desc">工作台 / Tape（聊天心智用户的退路）</div></div><div class="ctl"><span class="seg"><span class="on">工作台</span><span>Tape</span></span></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 22 Undo 检查点 ==================== -->
+<div class="frame-label"><span class="no">22</span>Undo / 检查点恢复 <span>UndoModal 的 v3 形态：按工单步骤对齐的恢复点，不是裸文件列表</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel glass-deep sheet" style="width:min(560px,88%);border-radius:18px;overflow:hidden;margin-top:14px">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:8px"><b style="font-size:13px">恢复到…</b><span class="dim" style="font-size:11px">file-history 检查点 · 按步骤归组</span></div>
+      <div class="lrow" style="padding:10px 16px"><span class="mono dim">14:04</span><span>③ 改策略面 · 第 2 次 edit 前</span><span class="r"><span class="pill b">建议</span></span></div>
+      <div class="lrow" style="padding:10px 16px"><span class="mono dim">14:03</span><span>③ 改策略面 · 开工前</span><span class="r dim">2 文件</span></div>
+      <div class="lrow" style="padding:10px 16px"><span class="mono dim">14:02</span><span>② 完成时（queue-spec 落盘）</span><span class="r dim">1 文件</span></div>
+      <div class="lrow" style="padding:10px 16px"><span class="mono dim">14:02</span><span>工单下发前（干净树）</span><span class="r dim">—</span></div>
+      <div style="padding:10px 16px 14px;display:flex;gap:8px"><span class="btn primary">恢复到选中点</span><span class="btn flat">先预览差异</span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 23 快捷键表 ==================== -->
+<div class="frame-label"><span class="no">23</span>快捷键表 <span class="kbd">⌘?</span> <span>与命令层同源注册表；v3 全量键盘地图</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel glass-deep sheet" style="width:min(640px,88%);border-radius:18px;padding:14px 18px;margin-top:8px">
+      <b style="font-size:13px">快捷键</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 26px;margin-top:10px;font-size:12px">
+        <div class="kv" style="border:none"><span class="k">命令层</span><span><span class="kbd">⌘K</span></span></div>
+        <div class="kv" style="border:none"><span class="k">车间墙</span><span><span class="kbd">⌘⇧M</span></span></div>
+        <div class="kv"><span class="k">Tape 记录仪</span><span><span class="kbd">⌘T</span></span></div>
+        <div class="kv"><span class="k">专注模式</span><span><span class="kbd">⌘.</span></span></div>
+        <div class="kv"><span class="k">文件 / 变更抽屉</span><span><span class="kbd">⌘E</span> <span class="kbd">⌘⇧E</span></span></div>
+        <div class="kv"><span class="k">进程 / 通知抽屉</span><span><span class="kbd">⌘⇧P</span> <span class="kbd">⌘⇧N</span></span></div>
+        <div class="kv"><span class="k">自律度</span><span><span class="kbd">⌥1</span><span class="kbd">⌥2</span><span class="kbd">⌥3</span></span></div>
+        <div class="kv"><span class="k">刹车 / 恢复</span><span><span class="kbd">Space</span></span></div>
+        <div class="kv"><span class="k">步骤间跳转</span><span><span class="kbd">J</span> <span class="kbd">K</span></span></div>
+        <div class="kv"><span class="k">发送介入</span><span><span class="kbd">⌘↵</span></span></div>
+        <div class="kv"><span class="k">退栈 / 清栈</span><span><span class="kbd">Esc</span> <span class="kbd">⌘⇧Esc</span></span></div>
+        <div class="kv"><span class="k">新目标 / 设置</span><span><span class="kbd">⌘N</span> <span class="kbd">⌘,</span></span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 24 信任对话框 ==================== -->
+<div class="frame-label"><span class="no">24</span>工作区信任 <span>WorkspaceTrustDialog 的 v3 形态：首开唯一模态；信任=选择默认自律度，一次讲清</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ DeepOrca</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel glass-deep sheet" style="width:min(480px,88%);border-radius:20px;padding:22px;margin-top:6px;text-align:center">
+      <div style="font-size:26px">🐋</div>
+      <b style="font-size:15px;display:block;margin-top:8px">信任这个工作区吗？</b>
+      <p class="dim2" style="font-size:12px;line-height:1.7;margin-top:8px"><span class="mono">~/dev/deepcode-cli</span><br>agent 将在这里读写文件、运行命令。信任级别就是默认自律度，随时可改。</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;text-align:left">
+        <div class="sheet-2" style="padding:11px 14px;display:flex;gap:10px;align-items:center;border:1.5px solid rgba(41,82,204,.4)"><b style="font-size:12.5px">◐ 关键确认</b><span class="dim" style="font-size:11px">推荐 · 写文件前问我</span><span class="pill b" style="margin-left:auto">默认</span></div>
+        <div class="sheet-2" style="padding:11px 14px;display:flex;gap:10px;align-items:center"><b style="font-size:12.5px">● 每步确认</b><span class="dim" style="font-size:11px">先看着它干一阵</span></div>
+        <div class="sheet-2" style="padding:11px 14px;display:flex;gap:10px;align-items:center"><b style="font-size:12.5px">○ 全自动</b><span class="dim" style="font-size:11px">我熟这个项目 · 高危仍会拦</span></div>
+      </div>
+      <span class="btn primary" style="margin-top:14px;display:block;text-align:center">开始</span>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 25 分支冲突 ==================== -->
+<div class="frame-label"><span class="no">25</span>分支冲突 <span>冲突模态的 v3 形态：直接给三个后果明确的选项，不堆术语</span></div>
+<div class="frame"><div class="stage">
+  <div class="overlay-demo">
+    <div class="ghost"><div class="ribbon glass"><span class="goal">◉ 权限改批量审批</span></div></div>
+    <div class="scrim"></div>
+    <div class="float-panel glass-deep sheet" style="width:min(500px,88%);border-radius:20px;padding:20px 22px;margin-top:10px">
+      <b style="font-size:14px">分支 <span class="mono" style="color:var(--blue)">docs/ui-ux-redesign</span> 已落后于远端</b>
+      <p class="dim2" style="font-size:12px;line-height:1.7;margin-top:8px">远端有 3 个新提交，本地有 2 个。继续前需要选一个方向：</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+        <div class="sheet-2" style="padding:11px 14px;display:flex;gap:10px;align-items:center"><b style="font-size:12.5px">合并后继续</b><span class="dim" style="font-size:11px">保留双方改动 · 推荐</span><span class="pill g" style="margin-left:auto">安全</span></div>
+        <div class="sheet-2" style="padding:11px 14px;display:flex;gap:10px;align-items:center"><b style="font-size:12.5px">变基后继续</b><span class="dim" style="font-size:11px">历史更干净 · 改写本地 2 个提交</span><span class="pill a" style="margin-left:auto">改写历史</span></div>
+        <div class="sheet-2" style="padding:11px 14px;display:flex;gap:10px;align-items:center"><b style="font-size:12.5px">先停下</b><span class="dim" style="font-size:11px">我去命令行自己处理</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ==================== 26 Toast ==================== -->
+<div class="frame-label"><span class="no">26</span>Toast <span>右上角玻璃胶囊；3.5s 即逝但全部落档通知抽屉；最多叠 3 条</span></div>
+<div class="frame"><div class="stage">
+  <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;padding:6px 10px">
+    <div class="toast glass-deep" style="width:340px"><span style="color:var(--green)">✓</span><span>工单 #2 已交付 · typecheck 全绿</span><span class="dim" style="margin-left:auto;font-size:10.5px">现在</span></div>
+    <div class="toast glass-deep" style="width:340px"><span style="color:var(--amber)">◐</span><span>gitmcp 连接失败，已降级重试</span><span class="dim" style="margin-left:auto;font-size:10.5px">详情</span></div>
+    <div class="toast glass-deep" style="width:340px"><span style="color:var(--blue)">ℹ</span><span>上下文已压缩 · 释放 41k tok</span><span class="dim" style="margin-left:auto;font-size:10.5px">明细</span></div>
+  </div>
+</div></div>
+
+<!-- ==================== 27 空态 + Onboarding ==================== -->
+<div class="frame-label"><span class="no">27</span>空态 + Onboarding <span>欢迎页 4 张静态卡的替代：落在车间墙空态，三张真实截图式导览卡，可跳过重开</span></div>
+<div class="frame"><div class="stage">
+  <div class="ribbon glass"><span class="goal">◉ DeepOrca</span><span class="meta" style="margin-left:auto">⚭</span></div>
+  <div style="max-width:820px;margin:20px auto 4px;text-align:center">
+    <div style="font-size:30px">🐋</div>
+    <b style="font-size:18px">给它一个目标，剩下的看工单</b>
+    <p class="dim2" style="font-size:12.5px;margin-top:8px;line-height:1.7">DeepOrca 不是聊天框。你说目标，它出工单；你盖章，它施工。<br>三件事就够上手：</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;text-align:left">
+      <div class="sheet" style="padding:14px 16px"><b style="font-size:12.5px">① ⌘K 是万能入口</b><p class="dim" style="font-size:11.5px;margin-top:6px;line-height:1.6">找功能、切工单、换主题，都从这里。找不到就搜。</p></div>
+      <div class="sheet" style="padding:14px 16px"><b style="font-size:12.5px">② 工单是可改的</b><p class="dim" style="font-size:11.5px;margin-top:6px;line-height:1.6">步骤可拖、可划掉、可设闸门。你改的是正在进行的工作。</p></div>
+      <div class="sheet" style="padding:14px 16px"><b style="font-size:12.5px">③ ⏸ 刹车永远在</b><p class="dim" style="font-size:11.5px;margin-top:6px;line-height:1.6">任何时候按下就冻结，现场完整保留，随时恢复。</p></div>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:10px;justify-content:center">
+      <span class="btn primary">下达第一个目标 ⌘N</span><span class="btn flat">跳过导览</span>
+    </div>
+  </div>
+</div></div>
+
+<div class="footer-note">
+  Orca Deck v3 完整设计稿 · Liquid Glass · 2026-08-19 · 27 帧覆盖审计报告全部模块。
+  全部帧共享同一 token 体系（--ink/--paper/--blue/--green/--amber/--red + glass 配方），可无损换肤（见风格试板 style-studies.html）。
+  浮层栈层级：抽屉 &lt; 焦点卡 &lt; Tape/资产/审查等面板浮层 &lt; 命令层/车间墙 &lt; 模态（信任/冲突）。Esc 永远关闭最上层。
+</div>
+
+</body>
+</html>
