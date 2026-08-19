@@ -1,7 +1,7 @@
 # Orca Deck v3 模块覆盖矩阵：审计模块 → v3 落点 → 设计稿帧号
 
-> 日期：2026-08-19 · 配套：`2026-08-19-ui-ux-complete-design.html`（27 帧完整设计稿，Liquid Glass）
-> 上游：[[2026-08-19-ui-ux-audit-report]]（现状审计）、[[2026-08-19-ui-ux-redesign-vision]]（v3 范式）、[[2026-08-19-ui-ux-redesign-wireframes]]（交互规格）
+> 日期：2026-08-19 · 配套：`base-complete-design.html`（27 帧完整设计稿，Liquid Glass）
+> 上游：[[../2026-08-19-ui-ux-audit-report]]（现状审计）、[[vision]]（v3 范式）、[[wireframes]]（交互规格）
 > 本文回答一个问题：**审计报告里点名的每一个模块/问题，在 v3 里去了哪里。**
 
 ## 1. 布局结构件
@@ -64,7 +64,7 @@
 | ContextProgress 仪表条 | 收编为目标带迷你环 + 焦点卡拆解 | 01/13 |
 | ProcessOutputPanel（⌘O/⌘J 冗余 P2-2） | **进程抽屉 ⌘⇧P**，多进程 tab + 超时分档 | 11 |
 | TaskProgressPanel 自动浮现 | 并入目标带速率文案 + 通知抽屉 | 01/12 |
-| 主题系统（6 套 token 化） | 保留为资产；完整稿用 Liquid Glass 作主视觉，风格试板证明正交性 | style-studies |
+| 主题系统（6 套 token 化） | 保留为资产；完整稿用 Liquid Glass 作主视觉；交互 demo 六主题实时切换证明正交性 | index.html |
 | 欢迎页 4 静态卡 / 无导览（P2-8） | **车间墙空态 + 三步导览卡**（⌘K / 工单可改 / 刹车） | 27 |
 | i18n 硬编码残留（P2-5）、tooltip 混用（P2-6）、命名不一致（P2-7） | 文案规范入 wireframes §10；tooltip 统一；黑话改名（index→知识源等） | 全稿 |
 | Monaco/重面板懒加载、流式节流（亮点 §5） | **原样继承**，完整稿不改动性能纪律 | — |

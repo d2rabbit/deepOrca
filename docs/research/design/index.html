@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orca Deck · 交互设计 Demo — v3 工单工作台 × 六主题</title>
+<style>
+/* ================================================================
+   Orca Deck 交互 Demo · 单一文件 · 六主题实时切换
+   主题：liquid(默认) / flat / glass / neu / clay / vern
+   ================================================================ */
+:root{
+  --sans:-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif;
+  --mono:"SF Mono",ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--bg);overflow:hidden}
+.hidden{display:none!important}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:inherit}
+input{font:inherit;color:inherit;background:none;border:none;outline:none;width:100%}
+::-webkit-scrollbar{width:0;height:0}
+
+/* ---------- 主题变量 ---------- */
+[data-theme=liquid]{
+  --bg:linear-gradient(160deg,#dfe9f5 0%,#f2f4f8 32%,#ece4f4 62%,#f7e9de 100%);
+  --ink:#1c2433;--ink2:#4a5a75;--ink3:#8296b3;
+  --paper:#fff;--paper2:#f5f7fa;--line:#e6eaf1;
+  --acc:#2952cc;--acc-soft:#e5ecff;--ok:#0d9e63;--ok-soft:#dcf5e8;--warn:#b07817;--warn-soft:#fdf3dd;--bad:#c0392b;--bad-soft:#fdeceb;
+  --rad:16px;--rad-ctl:999px;
+  --ctl-bg:rgba(255,255,255,.46);--ctl-blur:blur(18px) saturate(1.6);
+  --ctl-shadow:0 8px 28px rgba(31,45,74,.13),inset 0 1px 0 rgba(255,255,255,.9);
+  --deep-bg:rgba(255,255,255,.66);--deep-blur:blur(22px) saturate(1.7);
+  --deep-shadow:0 18px 50px rgba(31,45,74,.2),inset 0 1px 0 rgba(255,255,255,.95);
+  --paper-shadow:none;--paper-border:1px solid var(--line);
+  --scrim:rgba(233,237,243,.45);
+  --code-bg:#f5f7fa;--code-ink:#3d4c66;
+}
+[data-theme=flat]{
+  --bg:#ffffff;
+  --ink:#22242a;--ink2:#4a4e57;--ink3:#9aa0aa;
+  --paper:#fff;--paper2:#f4f5f6;--line:#e3e5e8;
+  --acc:#1f8a70;--acc-soft:#d8f3ec;--ok:#14624e;--ok-soft:#d8f3ec;--warn:#b07817;--warn-soft:#fdf3dd;--bad:#c0392b;--bad-soft:#fdeceb;
+  --rad:8px;--rad-ctl:8px;
+  --ctl-bg:#fff;--ctl-blur:none;--ctl-shadow:none;--ctl-border:1px solid var(--line);
+  --deep-bg:#fff;--deep-blur:none;--deep-shadow:none;
+  --paper-shadow:none;--paper-border:1px solid var(--line);
+  --scrim:rgba(34,36,42,.18);
+  --code-bg:#f4f5f6;--code-ink:#3a3e46;
+}
+[data-theme=glass]{
+  --bg:linear-gradient(135deg,#6a3de8 0%,#e04f9e 35%,#ff8a5c 65%,#2ec5d3 100%);
+  --ink:#fff;--ink2:rgba(255,255,255,.88);--ink3:rgba(255,255,255,.62);
+  --paper:rgba(255,255,255,.12);--paper2:rgba(20,8,48,.3);--line:rgba(255,255,255,.22);
+  --acc:#fff;--acc-soft:rgba(255,255,255,.28);--ok:#7dffc8;--ok-soft:rgba(125,255,200,.16);--warn:#ffe27d;--warn-soft:rgba(255,226,125,.16);--bad:#ffd3dc;--bad-soft:rgba(244,106,106,.22);
+  --rad:16px;--rad-ctl:16px;
+  --ctl-bg:rgba(255,255,255,.13);--ctl-blur:blur(16px);--ctl-shadow:0 12px 40px rgba(31,12,77,.28);--ctl-border:1px solid rgba(255,255,255,.25);
+  --deep-bg:rgba(255,255,255,.2);--deep-blur:blur(22px);--deep-shadow:0 18px 50px rgba(31,12,77,.4);
+  --paper-shadow:0 12px 40px rgba(31,12,77,.24);--paper-border:1px solid rgba(255,255,255,.22);
+  --scrim:rgba(40,10,80,.25);
+  --code-bg:rgba(20,8,48,.4);--code-ink:rgba(255,255,255,.9);
+}
+[data-theme=neu]{
+  --bg:#e0e5ec;
+  --ink:#3d4a5f;--ink2:#5a6b84;--ink3:#93a3b8;
+  --paper:#e0e5ec;--paper2:#e0e5ec;--line:transparent;
+  --acc:#5b5bd6;--acc-soft:rgba(91,91,214,.12);--ok:#38a169;--ok-soft:rgba(56,161,105,.14);--warn:#b07817;--warn-soft:rgba(176,120,23,.12);--bad:#b0503c;--bad-soft:rgba(176,80,60,.12);
+  --rad:16px;--rad-ctl:14px;
+  --ctl-bg:#e0e5ec;--ctl-blur:none;
+  --ctl-shadow:-6px -6px 12px rgba(255,255,255,.85),6px 6px 12px rgba(163,177,198,.6);
+  --deep-bg:#e0e5ec;--deep-blur:none;
+  --deep-shadow:-8px -8px 16px rgba(255,255,255,.9),8px 8px 16px rgba(163,177,198,.65);
+  --paper-shadow:-6px -6px 12px rgba(255,255,255,.85),6px 6px 12px rgba(163,177,198,.6);
+  --paper-border:none;
+  --scrim:rgba(224,229,236,.5);
+  --code-bg:#e0e5ec;--code-ink:#5a6b84;
+  --inset-shadow:inset -4px -4px 8px rgba(255,255,255,.85),inset 4px 4px 8px rgba(163,177,198,.6);
+}
+[data-theme=clay]{
+  --bg:#fdeff2;
+  --ink:#4a3a44;--ink2:#6b5a66;--ink3:#b3a0ac;
+  --paper:#fff;--paper2:#f6f1f4;--line:transparent;
+  --acc:#5b4fd6;--acc-soft:#e3e0ff;--ok:#2e7d5b;--ok-soft:#dcf5e8;--warn:#b07817;--warn-soft:#fdf3dd;--bad:#c2543a;--bad-soft:#ffe9e4;
+  --rad:26px;--rad-ctl:999px;
+  --ctl-bg:#fff;--ctl-blur:none;
+  --ctl-shadow:0 18px 32px rgba(176,120,140,.18),inset 0 -7px 14px rgba(176,120,140,.14),inset 0 7px 14px rgba(255,255,255,.55);
+  --deep-bg:#fff;--deep-blur:none;
+  --deep-shadow:0 24px 44px rgba(176,120,140,.22),inset 0 -8px 16px rgba(176,120,140,.15),inset 0 8px 16px rgba(255,255,255,.55);
+  --paper-shadow:0 18px 34px rgba(176,120,140,.16),inset 0 -7px 14px rgba(176,120,140,.13),inset 0 7px 14px rgba(255,255,255,.55);
+  --paper-border:none;
+  --scrim:rgba(253,239,242,.5);
+  --code-bg:#f6f1f4;--code-ink:#6b5a66;
+}
+[data-theme=vern]{
+  --bg:#000033 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23000033'/%3E%3Ccircle cx='12' cy='20' r='1.2' fill='white'/%3E%3Ccircle cx='45' cy='8' r='.8' fill='%23ccccff'/%3E%3Ccircle cx='80' cy='30' r='1' fill='white'/%3E%3Ccircle cx='105' cy='12' r='.9' fill='%23ffffcc'/%3E%3Ccircle cx='30' cy='55' r='1' fill='white'/%3E%3Ccircle cx='66' cy='48' r='.7' fill='%23ccccff'/%3E%3Ccircle cx='98' cy='70' r='1.1' fill='white'/%3E%3Ccircle cx='18' cy='90' r='.9' fill='%23ffffcc'/%3E%3Ccircle cx='52' cy='82' r='1.2' fill='white'/%3E%3Ccircle cx='88' cy='100' r='.8' fill='%23ccccff'/%3E%3Ccircle cx='112' cy='45' r='.7' fill='white'/%3E%3C/svg%3E") repeat;
+  --ink:#ffffff;--ink2:#ccccff;--ink3:#8888aa;
+  --paper:rgba(0,0,16,.92);--paper2:#000010;--line:#6666ff;
+  --acc:#ffff66;--acc-soft:rgba(255,255,102,.15);--ok:#66ff66;--ok-soft:rgba(102,255,102,.14);--warn:#ffcc00;--warn-soft:rgba(255,204,0,.14);--bad:#ff6666;--bad-soft:rgba(255,102,102,.16);
+  --rad:4px;--rad-ctl:4px;
+  --ctl-bg:rgba(0,0,16,.92);--ctl-blur:none;--ctl-shadow:none;--ctl-border:2px ridge #6666ff;
+  --deep-bg:rgba(0,0,16,.96);--deep-blur:none;--deep-shadow:none;
+  --paper-shadow:none;--paper-border:2px ridge #6666ff;
+  --scrim:rgba(0,0,40,.55);
+  --code-bg:#000;--code-ink:#66ff66;
+  --sans:"Times New Roman","Songti SC",serif;
+}
+
+/* ---------- 布局骨架 ---------- */
+#app{height:100vh;display:flex;flex-direction:column;position:relative;background:var(--bg);font-family:var(--sans)}
+#stage{flex:1;overflow-y:auto;padding:18px 22px 24px;position:relative}
+#wrap{max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+/* 控件/纸面基类 */
+.gc{background:var(--ctl-bg);backdrop-filter:var(--ctl-blur);-webkit-backdrop-filter:var(--ctl-blur);box-shadow:var(--ctl-shadow);border:var(--ctl-border,none);border-radius:var(--rad-ctl)}
+.gcd{background:var(--deep-bg);backdrop-filter:var(--deep-blur);-webkit-backdrop-filter:var(--deep-blur);box-shadow:var(--deep-shadow);border:var(--ctl-border,none);border-radius:var(--rad)}
+.sh{background:var(--paper);border:var(--paper-border);border-radius:var(--rad);box-shadow:var(--paper-shadow)}
+.sh2{background:var(--paper2);border:var(--paper-border);border-radius:calc(var(--rad)*.6)}
+.mono{font-family:var(--mono)}
+.dim{color:var(--ink3)}.dim2{color:var(--ink2)}
+
+/* 目标带 */
+#ribbon{display:flex;align-items:center;gap:12px;margin:14px 18px 0;padding:9px 16px;font-weight:700;font-size:12.5px;position:relative;z-index:5}
+#ribbon .chev{color:var(--ink3);font-size:10px;font-weight:400}
+#ribbon .meta{margin-left:auto;display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10.5px;color:var(--ink2);font-weight:400}
+.rb{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;color:var(--ink2);position:relative}
+.rb:hover{color:var(--ink)}
+.rb .bdg{position:absolute;top:-4px;right:-7px;background:var(--bad);color:#fff;font-size:8.5px;font-weight:800;min-width:13px;height:13px;border-radius:7px;display:grid;place-items:center;padding:0 3px;font-family:var(--sans)}
+.ctx-ring{width:15px;height:15px;border-radius:50%;background:conic-gradient(var(--acc) 0 var(--ctx,62%),var(--paper2) var(--ctx,62%) 100%);display:inline-grid;place-items:center;flex-shrink:0}
+.ctx-ring::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--paper)}
+.mini-steps{display:flex;align-items:center;margin:0 auto}
+.mn{width:8px;height:8px;border-radius:50%;cursor:pointer}
+.mn.done{background:var(--ok)}.mn.todo{border:2px solid var(--ink3);background:transparent}
+.mn.live{background:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+.ml{width:20px;height:2px;margin:0 5px;background:var(--line)}
+.ml.done{background:var(--ok);opacity:.5}
+[data-theme=vern] .mn.live,.liveblink{animation:blink 1.1s steps(2,start) infinite}
+@keyframes blink{50%{opacity:.15}}
+
+/* 目标头 */
+.goal-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.goal-head h1{font-size:17px;font-weight:800}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;padding:2px 9px;border-radius:999px;background:var(--paper2);color:var(--ink2);border:var(--paper-border)}
+.tag.b{background:var(--acc-soft);color:var(--acc);font-weight:600;border:none}
+.tag.g{background:var(--ok-soft);color:var(--ok);font-weight:600;border:none}
+.tag.a{background:var(--warn-soft);color:var(--warn);font-weight:600;border:none}
+.tag.r{background:var(--bad-soft);color:var(--bad);font-weight:600;border:none}
+
+/* 步骤板 */
+.stepboard{display:flex;gap:8px;flex-wrap:wrap}
+.schip{display:flex;align-items:center;gap:6px;height:36px;padding:0 13px;border-radius:var(--rad-ctl);font-size:12px;background:var(--paper);border:var(--paper-border);box-shadow:var(--paper-shadow);color:var(--ink2);cursor:pointer;user-select:none}
+.schip .n{font-family:var(--mono);font-size:10.5px;color:var(--ink3)}
+.schip.done .st{color:var(--ok);font-weight:800}
+.schip.live{background:var(--acc-soft);color:var(--ink);font-weight:600}
+.schip.live .st{color:var(--acc)}
+.schip.todo{opacity:.62}
+.schip.struck{text-decoration:line-through;opacity:.45}
+.schip.sel{outline:2px solid var(--acc);outline-offset:1px}
+.schip .gate{font-size:10px}
+
+/* 步骤卡 */
+.wocard{overflow:hidden}
+.wocard.sel{outline:2px solid var(--acc);outline-offset:1px}
+.wo-head{display:flex;align-items:center;gap:9px;padding:11px 15px;font-size:13px;font-weight:700;cursor:pointer}
+.wo-head .gate-sel{margin-left:auto;font-size:10.5px;font-weight:400;color:var(--ink2);background:var(--paper2);border:var(--paper-border);border-radius:999px;padding:3px 11px;cursor:pointer}
+.wo-body{padding:0 15px 13px;display:flex;flex-direction:column;gap:9px}
+.scope-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--ink3)}
+.scope-chip{font-family:var(--mono);font-size:11px;color:var(--acc);background:var(--acc-soft);border-radius:7px;padding:3px 9px;display:flex;gap:7px;align-items:center}
+.scope-chip .x{color:var(--ink3);cursor:pointer}
+.prog-line{font-family:var(--mono);font-size:11.5px;color:var(--code-ink);background:var(--code-bg);border:var(--paper-border);border-radius:10px;padding:9px 13px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--inset-shadow,none)}
+.prog-line .ok{color:var(--ok);font-weight:700}
+.prog-line .lv{color:var(--acc);font-weight:700}
+.note-line{border-left:3px solid var(--warn);background:var(--warn-soft);border-radius:0 9px 9px 0;padding:8px 12px;font-size:12px;color:var(--ink2)}
+.note-line b{color:var(--warn);font-size:11px}
+.note-line .ack{display:block;margin-top:4px;color:var(--ink3);font-size:11.5px}
+.pending-line{border:1px solid var(--bad);background:var(--bad-soft);border-radius:10px;padding:9px 13px;display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+.pending-line.warnb{border-color:var(--warn);background:var(--warn-soft)}
+.pending-line .cmd{font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+.pending-line .acts{margin-left:auto;display:flex;gap:7px;flex-shrink:0}
+.denied-cap{font-size:10.5px;color:var(--bad);background:var(--bad-soft);border-radius:999px;padding:2px 9px;font-weight:700}
+.btn{font-size:11.5px;padding:6px 16px;border-radius:var(--rad-ctl);color:var(--ink);background:var(--ctl-bg);box-shadow:var(--ctl-shadow);border:var(--ctl-border,none);backdrop-filter:var(--ctl-blur);display:inline-block;cursor:pointer}
+.btn.primary{background:var(--acc);color:var(--onacc,#fff);font-weight:700}
+.btn.danger{color:var(--bad)}
+.btn.flatb{box-shadow:none;background:var(--paper2);border:var(--paper-border)}
+[data-theme=glass] .btn.primary{background:rgba(255,255,255,.88);color:#4a1d96}
+[data-theme=vern] .btn{border:2px outset #6666ff;background:#000033;color:#ffff66}
+[data-theme=vern] .btn.primary{background:#330033}
+[data-theme=neu] .btn.primary{color:#fff}
+
+/* 折叠步骤行 */
+.step-collapsed{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:12px;color:var(--ink3);cursor:pointer}
+.step-collapsed b{color:var(--ink2)}
+.step-collapsed .sum{font-family:var(--mono);font-size:10.5px}
+.step-collapsed .more{margin-left:auto;font-size:10.5px}
+
+/* 控制行 */
+.control-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.dial{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--ink2);padding:8px 16px;cursor:pointer;user-select:none}
+.dial .trk{width:96px;height:4px;border-radius:2px;background:var(--line);position:relative;box-shadow:var(--inset-shadow,none)}
+.dial .trk i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:2px;transition:width .2s}
+.dial .trk b{position:absolute;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:var(--paper);box-shadow:0 3px 10px rgba(31,45,74,.28);border:2px solid var(--acc);transition:left .2s}
+.brake{margin-left:auto;padding:9px 22px;font-weight:800;letter-spacing:1px;font-size:12.5px;color:var(--bad);background:var(--bad-soft);border:1px solid var(--bad);border-radius:var(--rad-ctl);cursor:pointer}
+.brake.frozen{background:var(--bad);color:#fff}
+
+/* 控制中心（手机控制中心式小浮窗，右缘居中） */
+#controlcenter{
+  position:fixed;top:50%;right:14px;transform:translateY(-50%);width:300px;z-index:24;
+  display:flex;flex-direction:column;max-height:min(560px,80vh);
+  border-radius:22px;overflow:hidden;
+}
+/* 右缘拉手（控制中心收起时的唯一入口） */
+#cc-tab{
+  position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:23;
+  writing-mode:vertical-lr;letter-spacing:2px;font-size:11px;
+  padding:14px 7px;border-radius:12px 0 0 12px;cursor:pointer;color:var(--ink2);
+}
+#cc-tab .bdg{position:absolute;top:-4px;left:-6px;background:var(--bad);color:#fff;font-size:8.5px;font-weight:800;min-width:13px;height:13px;border-radius:7px;display:grid;place-items:center;padding:0 3px;writing-mode:horizontal-tb}
+.cc-quick{display:flex;gap:8px;padding:11px 14px 4px}
+.cc-quick .qbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;border-radius:12px;background:var(--paper2);border:var(--paper-border);font-size:14px;cursor:pointer;color:var(--ink2)}
+.cc-quick .qbtn small{font-size:9px;color:var(--ink3)}
+.cc-quick .qbtn:hover{color:var(--ink)}
+.cc-meters{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px}
+.cc-meter{background:var(--paper2);border:var(--paper-border);border-radius:14px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.cc-meter .k{font-size:9.5px;color:var(--ink3);letter-spacing:.5px}
+.cc-meter .v{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink)}
+.cc-sec{padding:9px 14px;border-top:1px solid var(--line);font-size:11.5px;display:flex;flex-direction:column;min-height:0}
+.cc-title{font-size:9.5px;font-weight:800;letter-spacing:.8px;color:var(--ink3);text-transform:uppercase;margin-bottom:6px}
+.cc-input{display:flex;align-items:center;gap:8px}
+.cc-input .target{font-family:var(--mono);font-size:10.5px;color:var(--acc);background:var(--acc-soft);border-radius:6px;padding:2px 8px;white-space:nowrap;cursor:pointer;flex-shrink:0}
+.cc-input input{flex:1;font-size:11.5px;color:var(--ink);min-width:0}
+.cc-input .send{flex-shrink:0;width:26px;height:26px;border-radius:8px;background:var(--acc);color:var(--onacc,#fff);display:grid;place-items:center;font-size:12px;cursor:pointer}
+.cc-list{overflow-y:auto;max-height:110px}
+.cc-ev{display:flex;gap:8px;padding:4px 0;font-size:11px;color:var(--ink2);align-items:baseline}
+.cc-ev .ts{font-family:var(--mono);font-size:9.5px;color:var(--ink3);flex-shrink:0}
+.cc-ev.cmd{color:var(--ink)}
+.cc-ev.cmd::before{content:"›";color:var(--acc);font-weight:800}
+
+
+
+/* 遮罩 + 浮层 */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.panel{position:fixed;z-index:21;left:50%;transform:translateX(-50%)}
+.panel-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;font-weight:800}
+.panel-head .ops{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--ink3);font-size:11px;font-weight:400}
+.kbd{font-family:var(--mono);font-size:10px;background:var(--paper);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink2)}
+[data-theme=vern] .kbd{border:1px outset #6666ff;background:#000}
+
+/* 命令层 */
+#cmdk{top:14%;width:min(620px,90%)}
+.cmdk-input{display:flex;align-items:center;gap:10px;padding:14px 18px;font-size:14px;border-bottom:1px solid var(--line)}
+.cmdk-list{max-height:340px;overflow-y:auto;padding-bottom:8px}
+.cmdk-group{padding:8px 18px 3px;font-size:10px;font-weight:800;letter-spacing:.8px;color:var(--ink3);text-transform:uppercase}
+.cmdk-row{display:flex;align-items:center;gap:10px;padding:8px 18px;font-size:12.5px;color:var(--ink2);cursor:pointer}
+.cmdk-row.sel{background:var(--acc-soft);color:var(--ink)}
+.cmdk-row .r{margin-left:auto;display:flex;gap:5px;align-items:center}
+.cmdk-foot{padding:8px 18px 12px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink3)}
+
+/* 车间墙 */
+#floor{top:8%;width:min(880px,94%);max-height:84vh;overflow-y:auto}
+.floor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:14px 16px}
+.wo-mini{padding:12px 14px;display:flex;flex-direction:column;gap:8px;cursor:pointer}
+.wo-mini h4{font-size:12.5px;display:flex;align-items:center;gap:7px}
+.wo-mini .now{font-family:var(--mono);font-size:10.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wo-mini .meta{display:flex;gap:8px;font-size:10px;color:var(--ink3);font-family:var(--mono);align-items:center;flex-wrap:wrap}
+.wo-mini.new{border:1.5px dashed var(--ink3);background:transparent;box-shadow:none;display:grid;place-items:center;color:var(--ink3);min-height:104px}
+
+/* Tape */
+#tape{top:6%;width:min(820px,94%);max-height:86vh;display:flex;flex-direction:column}
+.tape-list{overflow-y:auto}
+.tape-row{display:flex;gap:12px;padding:7px 16px;font-size:12px;border-top:1px solid var(--line);align-items:baseline}
+.tape-row .ts{font-family:var(--mono);font-size:10.5px;color:var(--ink3);flex-shrink:0;width:56px}
+.tape-row .who{font-family:var(--mono);font-size:10.5px;width:44px;flex-shrink:0}
+.tape-row .who.u{color:var(--warn)}.tape-row .who.a{color:var(--acc)}.tape-row .who.t{color:var(--ok)}
+
+/* 抽屉 */
+.drawer{position:fixed;top:64px;bottom:16px;width:320px;z-index:22;display:flex;flex-direction:column;transition:transform .2s ease,opacity .2s}
+.drawer.left{left:14px}.drawer.right{right:14px}
+.drawer-head{display:flex;align-items:center;gap:8px;padding:11px 15px;font-size:12.5px;font-weight:800;border-bottom:1px solid var(--line)}
+.drawer-head .ops{margin-left:auto;display:flex;gap:9px;color:var(--ink3);font-size:11px;font-weight:400}
+.lrow{display:flex;align-items:center;gap:9px;padding:8px 15px;font-size:12px;color:var(--ink2);border-top:1px solid var(--line);cursor:pointer}
+.lrow:hover{background:var(--acc-soft)}
+.lrow .r{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink3)}
+.proc-log{flex:1;margin:10px 15px;background:#10151f;border-radius:12px;padding:12px 14px;font-family:var(--mono);font-size:10.5px;line-height:1.75;color:#9fb4d8;overflow-y:auto}
+.proc-log .ok-l{color:#43d68a}.proc-log .warn-l{color:#f5c04e}.proc-log .acc-l{color:#4de3c2}
+
+/* 焦点卡 */
+#focuscard{position:fixed;z-index:23;width:380px;top:120px;right:40px;overflow:hidden}
+.focus-head{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:700;border-bottom:1px solid var(--line)}
+.focus-head .ops{margin-left:auto;display:flex;gap:9px;color:var(--ink3);cursor:pointer;font-size:11px;font-weight:400}
+.focus-body{padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:12px}
+.focus-foot{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+.diff{font-family:var(--mono);font-size:11px}
+.diff .hunk{color:var(--acc);padding:7px 13px;background:var(--acc-soft)}
+.diff .del,.diff .add{padding:2px 13px;white-space:pre;overflow:hidden}
+.diff .del{color:var(--bad);background:var(--bad-soft)}
+.diff .add{color:var(--ok);background:var(--ok-soft)}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);font-size:12px}
+.kv .k{color:var(--ink3)}.kv .v{font-family:var(--mono);font-size:11.5px}
+.meter{height:7px;border-radius:4px;background:var(--paper2);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:4px;background:var(--acc)}
+
+/* Toast */
+#toasts{position:fixed;top:60px;right:16px;z-index:40;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.toast{display:flex;align-items:center;gap:9px;font-size:12px;padding:10px 15px;width:340px;animation:tin .25s ease}
+@keyframes tin{from{transform:translateX(30px);opacity:0}}
+
+/* 设置 */
+#settings{top:8%;width:min(700px,92%);max-height:84vh;overflow-y:auto}
+.seg{display:inline-flex;background:var(--paper2);border:var(--paper-border);border-radius:999px;padding:2px;box-shadow:var(--inset-shadow,none)}
+.seg span{font-size:11px;padding:4px 13px;border-radius:999px;color:var(--ink2);cursor:pointer}
+.seg span.on{background:var(--paper);color:var(--ink);font-weight:700;box-shadow:0 2px 6px rgba(31,45,74,.12)}
+.set-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line);font-size:12.5px}
+.set-row .lab{font-weight:600}
+.set-row .desc{color:var(--ink3);font-size:11px;margin-top:2px}
+.set-row .ctl{margin-left:auto}
+.theme-swatches{display:flex;gap:8px}
+.swatch{width:34px;height:34px;border-radius:10px;cursor:pointer;border:2px solid transparent;position:relative}
+.swatch.on{border-color:var(--acc)}
+
+/* Onboarding / 模态 */
+#onboard{top:12%;width:min(480px,90%)}
+.ob-choice{display:flex;gap:10px;align-items:center;padding:11px 14px;margin-top:8px;cursor:pointer;text-align:left;width:100%}
+.ob-choice:hover{background:var(--acc-soft)}
+
+/* Vernacular 专属装饰 */
+.vern-only{display:none}
+[data-theme=vern] .vern-only{display:inline}
+.rainbow-hr{display:none;height:6px;margin:6px 0;background:linear-gradient(90deg,red,orange,yellow,lime,cyan,blue,violet)}
+[data-theme=vern] .rainbow-hr{display:block}
+.led{font-family:var(--mono);font-weight:bold;color:#33ff33;background:#000;padding:2px 10px;border:2px inset #444;letter-spacing:2px}
+[data-theme=vern] #ribbon{border-bottom:none}
+[data-theme=vern] .goal-head h1{color:#ffff66;text-shadow:2px 2px 0 #ff00ff}
+[data-theme=vern] .schip.live{animation:blink 1.1s steps(2,start) infinite}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body data-theme="liquid">
+
+<div id="app">
+  <!-- 目标带（极简：目标 + 步骤进度，其余全部进控制中心） -->
+  <header id="ribbon" class="gc">
+    <span id="ribbon-goal" style="cursor:pointer">◉ <span id="goal-title">…</span> <span class="chev">▾</span></span>
+    <span class="mini-steps" id="mini-steps"></span>
+  </header>
+  <div class="rainbow-hr" style="margin:0 18px"></div>
+
+  <!-- 工作台 -->
+  <main id="stage"><div id="wrap">
+    <div class="goal-head">
+      <h1 id="goal-h1">…</h1>
+      <span class="mono dim" style="font-size:10.5px" id="goal-meta"></span>
+      <span id="goal-tags"></span>
+    </div>
+    <div class="stepboard" id="stepboard"></div>
+    <div id="stepcards"></div>
+    <div class="control-row">
+      <button class="dial gc" id="autonomy" data-act="autonomy" title="⌥1/2/3">
+        自律度 <span class="trk"><i id="dial-fill"></i><b id="dial-knob"></b></span> <b id="dial-label" style="color:var(--acc)">关键确认</b>
+      </button>
+      <button class="brake" id="brake" data-act="brake" title="Space">⏸ 刹车</button>
+    </div>
+  </div></main>
+</div>
+
+<!-- 右缘拉手（控制中心收起时的入口，带未读角标） -->
+<button id="cc-tab" class="gc" data-act="cc" title="控制中心 ⌘⇧O">◔ 控制中心<span class="bdg hidden" id="bell-bdg">0</span></button>
+
+<!-- 控制中心（手机控制中心式小浮窗，右缘居中） -->
+<div id="controlcenter" class="gcd hidden">
+  <div class="cc-quick">
+    <button class="qbtn" data-act="drawer:notifs" title="通知 ⌘⇧N">🔔<small>通知</small></button>
+    <button class="qbtn" data-act="open:themes" title="主题">🎨<small>主题</small></button>
+    <button class="qbtn" data-act="open:tape" title="Tape ⌘T">◫<small>记录</small></button>
+    <button class="qbtn" data-act="open:settings" title="设置 ⌘,">⚭<small>设置</small></button>
+    <button class="qbtn" data-act="cc" title="收起">✕<small>收起</small></button>
+  </div>
+  <div class="cc-meters">
+    <div class="cc-meter"><span class="k">时长</span><span class="v" id="elapsed">0s</span></div>
+    <div class="cc-meter"><span class="k">成本</span><span class="v" id="cost">$0.00</span></div>
+    <div class="cc-meter"><span class="k">上下文</span><span class="v" id="ctxpct" style="cursor:pointer" title="点击查看拆解">12%</span></div>
+    <div class="cc-meter"><span class="k">TOKEN</span><span class="v" id="toknum">0</span></div>
+  </div>
+  <div class="cc-sec">
+    <div class="cc-title">下达指令 · ⌘↵</div>
+    <div class="cc-input">
+      <button class="target" id="dir-target" data-act="cycle-target">目标</button>
+      <input id="dir-input" placeholder="对选中对象介入…">
+      <button class="send" data-act="send">➤</button>
+    </div>
+  </div>
+  <div class="cc-sec">
+    <div class="cc-title">我的指令</div>
+    <div class="cc-list" id="cmd-list"></div>
+  </div>
+  <div class="cc-sec">
+    <div class="cc-title">状态观测</div>
+    <div class="cc-list" id="obs-list"></div>
+  </div>
+</div>
+
+<!-- 浮层与抽屉 -->
+<div id="overlay-root"></div>
+
+<div id="drawer-files" class="drawer left gcd hidden">
+  <div class="drawer-head">文件 <span class="kbd">⌘E</span><span class="ops"><span data-act="pin">📌</span> <span data-act="close">✕</span></span></div>
+  <div style="overflow-y:auto" id="file-tree"></div>
+</div>
+<div id="drawer-changes" class="drawer left gcd hidden">
+  <div class="drawer-head">变更 <span class="kbd">⌘⇧E</span><span class="ops"><span data-act="pin">📌</span> <span data-act="close">✕</span></span></div>
+  <div style="overflow-y:auto;flex:1" id="change-list"></div>
+  <div style="padding:12px 15px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
+    <div class="sh2" style="padding:8px 12px;font-size:12px;color:var(--ink3)" id="commit-msg">feat(core): 权限批量审批队列</div>
+    <div style="display:flex;gap:8px"><button class="btn flatb" style="flex:1" data-act="commit">仅提交</button><button class="btn primary" style="flex:1" data-act="commit-push">提交并推送 🛡</button></div>
+  </div>
+</div>
+<div id="drawer-procs" class="drawer right gcd hidden" style="width:420px">
+  <div class="drawer-head">进程 <span class="tag g">3 运行中</span><span class="ops"><span data-act="pin">📌</span> <span data-act="close">✕</span></span></div>
+  <div style="padding:8px 15px 0;display:flex;gap:6px"><span class="seg"><span class="on">vite dev</span><span>tsc -w</span><span>npm test</span></span></div>
+  <div class="proc-log" id="proc-log"></div>
+</div>
+<div id="drawer-notifs" class="drawer right gcd hidden" style="width:340px">
+  <div class="drawer-head">通知 <span class="ops"><span data-act="notif-clear">全部已读</span> <span data-act="close">✕</span></span></div>
+  <div style="overflow-y:auto" id="notif-list"></div>
+</div>
+
+<div id="focuscard" class="gcd hidden"></div>
+<div id="toasts"></div>
+
+<script>
+/* ================= 数据 ================= */
+const DIFFS = {
+  "permissions.ts": [ ["@@ -106,7 +106,8 @@ computeRisk()"], ["-  const risk = \"high\";"], ["+  const risk = queueable(scope) ? \"medium\" : \"high\";"], ["+  if (scope === \"network\") risk = \"high\"; // 介入 #2"] ],
+  "PermissionCard.tsx": [ ["@@ -20,7 +20,6 @@ export function PermissionCard()"], ["-  return <Wizard scopes={scopes} />;"], ["+  return <ApprovalQueue items={scopes} nonBlocking />;"] ],
+  "approval-queue.tsx": [ ["@@ 新文件"], ["+ export function ApprovalQueue({ items }) {"], ["+   // 一轮待决聚合成一卡，高危强制逐项"], ["+ }"] ]
+};
+const FILES = ["packages/", "  core/", "    src/", "      common/", "        permissions.ts|m", "        session.ts", "      renderer/", "        PermissionCard.tsx|m", "        approval-queue.tsx|a", "  docs/", "    research/"];
+const CHANGES = [
+  { f: "permissions.ts", s: "M", d: "+45 −12", src: "本工单" },
+  { f: "PermissionCard.tsx", s: "M", d: "+12 −3", src: "本工单" },
+  { f: "approval-queue.tsx", s: "A", d: "+88", src: "本工单" },
+  { f: "README.md", s: "M", d: "+2 −1", src: "手动" }
+];
+const PROC_LINES = [
+  ["acc", "[vite]  ➜ Local: http://localhost:5173/"],
+  ["acc", "[vite]  page reload src/renderer/App.tsx"],
+  ["warn", "[tsc]   Found 0 errors. Watching…"],
+  ["", "[test]  # pass 42 ✓"],
+  ["acc", "[vite]  hmr update /design/index.html"],
+  ["", "[test]  # pass 43 ✓"],
+  ["warn", "[tsc]   File change detected. Starting…"],
+  ["acc", "[vite]  page reload src/common/permissions.ts"]
+];
+
+const GOALS = {
+  g1: {
+    title: "权限改批量审批", wo: "#3", tags: [["a","约束: 高危逐项 ✕"],["","勿碰 session.ts"]],
+    steps: [
+      { name:"读取权限模块", status:"done", sum:"读 12 文件 · 26s · 4.2k tok", gate:"auto" },
+      { name:"设计队列结构", status:"done", sum:"产出 queue-spec 草案 · 38s · 2.1k tok", gate:"auto" },
+      { name:"改策略面", status:"live", gate:"auto", scope:["permissions.ts","PermissionCard.tsx"],
+        events:[["ok","edit permissions.ts +45 −12"],["ok","typecheck exit 0"]],
+        script:[ ["lv","edit PermissionCard.tsx …"], ["ok","edit PermissionCard.tsx +12 −3"], ["ok","write approval-queue.tsx +88"], "PENDING_PUSH", ["ok","lint · 0 errors"] ] },
+      { name:"验证", status:"todo", gate:"confirm", script:[ ["lv","npm test 运行中…"], ["ok","test 43 pass · lint ✓ · build ✓"], "PENDING_CONFIRM" ] },
+      { name:"交付", status:"todo", gate:"auto", script:[ ["lv","生成交付摘要…"], ["ok","摘要就绪 · diff +145 −15 · 5 文件"], "GOAL_DONE" ] }
+    ]
+  },
+  g2: {
+    title: "预览面板死代码清理", wo: "#2", tags: [["g","已交付"]],
+    steps: [ {name:"定位死代码",status:"done",sum:"ui.css 191-212 零引用",gate:"auto"}, {name:"拆除右栏",status:"done",sum:"−84 行",gate:"auto"}, {name:"验证",status:"done",sum:"全绿",gate:"auto"} ]
+  },
+  g3: {
+    title: "导出 .ddp 压缩包", wo: "#4", tags: [["a","待确认"]],
+    steps: [ {name:"读导出模块",status:"done",sum:"12 文件",gate:"auto"}, {name:"定打包格式",status:"live",gate:"confirm",
+      question:{ q:"历史版本要不要打进 .ddp 包？", opts:["仅当前版本（包小 · 推荐）","含全部历史（可回溯）","两个都出（.ddp + .ddp-full）"] } }, {name:"写压缩实现",status:"todo",gate:"auto"}, {name:"验证",status:"todo",gate:"auto"} ]
+  }
+};
+const GATE_LABEL = { auto:"自动", confirm:"✋ 完成时确认", before:"🛡 执行前确认" };
+const GATES = ["auto","confirm","before"];
+const AUTO_LABEL = ["全自动","关键确认","每步确认"];
+const THEMES = [["liquid","Liquid Glass","#2952cc"],["flat","Flat","#1f8a70"],["glass","Glassmorphism","#e04f9e"],["neu","Neumorphism","#5b5bd6"],["clay","Claymorphism","#c2543a"],["vern","Vernacular 1997","#ffff66"]];
+
+/* ================= 状态 ================= */
+const S = {
+  theme: "liquid", goalId: "g1", sel: 2, target: null, // target: null=goal, 或 step index
+  autonomy: 1, frozen: false, t: 0, tok: 12400, cost: 0.04, ctx: 12,
+  scriptIdx: 0, pendId: 0, pendings: [], notes: {}, denied: {},
+  tapeLog: [], notifs: [], stack: [], cmdkSel: 0, cmdkQ: "", procIdx: 0,
+  cmdlog: [], obslog: [], obsOpen: true,
+  started: false, onboarded: false
+};
+const $ = s => document.querySelector(s);
+const goal = () => GOALS[S.goalId];
+const now = () => { const d = new Date(); return d.toTimeString().slice(0,8); };
+function tape(who, text){ S.tapeLog.push({ ts: now(), who, text }); if($("#tape")&&!$("#tape").classList.contains("hidden")) renderTape(); }
+
+/* 观测舱：我的指令（用户动作留痕）+ 状态观测（引擎事件流） */
+function logCmd(text){ S.cmdlog.unshift({ ts: now(), text }); renderObs(); }
+function obs(text){ S.obslog.unshift({ ts: now(), text }); if (S.obslog.length > 60) S.obslog.pop(); renderObs(); }
+function renderObs(){
+  const c = $("#cmd-list"); if (c) c.innerHTML = S.cmdlog.map(l=>`<div class="cc-ev cmd"><span class="ts">${l.ts}</span><span>${l.text}</span></div>`).join("") || '<div class="cc-ev dim">尚无指令</div>';
+  const o = $("#obs-list"); if (o) o.innerHTML = S.obslog.map(l=>`<div class="cc-ev"><span class="ts">${l.ts}</span><span>${l.text}</span></div>`).join("") || '<div class="cc-ev dim">待引擎启动…</div>';
+}
+function toggleCC(){
+  const cc = $("#controlcenter");
+  cc.classList.toggle("hidden");
+  $("#cc-tab").classList.toggle("hidden", !cc.classList.contains("hidden"));
+}
+
+/* ================= 浮层栈 ================= */
+function pushOverlay(id){ if(!S.stack.includes(id)) S.stack.push(id); renderOverlays(); }
+function popOverlay(){ S.stack.pop(); renderOverlays(); }
+function clearOverlays(){ S.stack = []; renderOverlays(); }
+function renderOverlays(){
+  const root = $("#overlay-root");
+  const has = id => S.stack.includes(id);
+  root.innerHTML = (S.stack.length ? '<div class="scrim" data-act="esc"></div>' : "")
+    + (has("cmdk") ? cmdkHTML() : "")
+    + (has("floor") ? floorHTML() : "")
+    + (has("tape") ? tapeHTML() : "")
+    + (has("settings") ? settingsHTML() : "")
+    + (has("themes") ? themesHTML() : "")
+    + (has("onboard") ? onboardHTML() : "");
+  if (has("cmdk")) { const i = $("#cmdk-q"); if (i){ i.focus(); i.value = S.cmdkQ; i.setSelectionRange(i.value.length, i.value.length); } }
+}
+
+/* ================= 渲染：工作台 ================= */
+function renderRibbon(){
+  $("#goal-title").textContent = goal().title;
+  $("#goal-h1").textContent = goal().title;
+  const st = goal().steps;
+  $("#goal-meta").textContent = `工单 ${goal().wo} · ${st.length} 步 · ${S.frozen ? "⏸ 已冻结" : statusOfGoal()}`;
+  $("#goal-tags").innerHTML = goal().tags.map(t=>`<span class="tag ${t[0]}">${t[1]}</span>`).join("");
+  $("#mini-steps").innerHTML = st.map((s,i)=>
+    `<span class="mn ${s.status}" data-act="sel:${i}" title="${s.name}"></span>${i<st.length-1?`<span class="ml ${s.status==="done"?"done":""}"></span>`:""}`).join("");
+}
+function statusOfGoal(){ const st=goal().steps; if(st.every(s=>s.status==="done"))return "✓ 已交付"; const l=st.find(s=>s.status==="live"); return l?`●施工中 · ${l.name}`:"待施工"; }
+
+function renderBoard(){
+  $("#stepboard").innerHTML = goal().steps.map((s,i)=>{
+    const ico = s.status==="done"?"✓":s.status==="live"?"◉":"";
+    const struck = s.struck ? "struck" : "";
+    return `<button class="schip ${s.status} ${struck} ${S.sel===i?"sel":""}" data-act="sel:${i}" data-dbl="strike:${i}">
+      <span class="n">${"①②③④⑤⑥"[i]}</span><span class="st">${ico}</span>${s.name}
+      ${s.gate!=="auto"?`<span class="gate">${s.gate==="before"?"🛡":"✋"}</span>`:""}</button>`;
+  }).join("");
+  renderCards();
+}
+
+function renderCards(){
+  const st = goal().steps;
+  $("#stepcards").innerHTML = st.map((s,i)=>{
+    if (S.sel !== i) {
+      return `<div class="step-collapsed sh" data-act="sel:${i}">
+        <b style="color:${s.status==="done"?"var(--ok)":s.status==="live"?"var(--acc)":"var(--ink3)"}">${s.status==="done"?"✓":s.status==="live"?"◉":"○"}</b>
+        <b>${"①②③④⑤⑥"[i]} ${s.name}</b>
+        <span class="sum">${s.sum||GATE_LABEL[s.gate]||""}${s.struck?" · 已划线":""}</span>
+        <span class="more">${S.sel===i?"":"展开"}</span></div>`;
+    }
+    const ev = (s.events||[]).map(e=>`<div><span class="${e[0]==="ok"?"ok":"lv"}">${e[0]==="ok"?"✓":"◉"}</span> ${e[1]}</div>`).join("");
+    const scope = (s.scope||[]).map(f=>`<span class="scope-chip">${f} <span class="x" data-act="unscope:${i}:${f}">✕</span></span>`).join("");
+    const notes = (S.notes[i]||[]).map(n=>`<div class="note-line"><b>💬 你的介入 · ${n.ts}</b>　${n.text}${n.ack?`<span class="ack">↳ agent：${n.ack}</span>`:""}</div>`).join("");
+    const pend = S.pendings.filter(p=>p.step===i).map(p=>`
+      <div class="pending-line ${p.risk==="high"?"":"warnb"}"><span style="color:${p.risk==="high"?"var(--bad)":"var(--warn)"}">${p.risk==="high"?"⚠":"◐"}</span>
+      <span class="cmd">${p.text}</span>
+      <span class="acts"><button class="btn primary" data-act="approve:${p.id}">允许</button>${p.alt?`<button class="btn" data-act="alt:${p.id}">${p.alt}</button>`:""}<button class="btn danger" data-act="deny:${p.id}">拒绝</button></span></div>`).join("");
+    const denied = (S.denied[i]||[]).map(d=>`<span class="denied-cap">已拒绝：${d}</span>`).join(" ");
+    const q = s.question && s.status==="live" ? `
+      <div class="sh2" style="padding:11px 14px;display:flex;flex-direction:column;gap:7px">
+        <div style="font-size:12.5px;font-weight:600">❓ ${s.question.q}</div>
+        ${s.question.opts.map((o,j)=>`<button class="sh2" style="padding:8px 12px;text-align:left;font-size:12.5px;display:flex;gap:10px;align-items:center" data-act="answer:${i}:${j}"><span class="kbd">${j+1}</span>${o}</button>`).join("")}
+      </div>` : "";
+    return `<div class="wocard sh ${S.sel===i?"sel":""}">
+      <div class="wo-head" data-act="sel:${i}">
+        <span style="color:${s.status==="done"?"var(--ok)":s.status==="live"?"var(--acc)":"var(--ink3)"}">${s.status==="done"?"✓":s.status==="live"?"◉":"○"}</span>
+        ${"①②③④⑤⑥"[i]} ${s.name}
+        ${s.struck?'<span class="tag r">已划线</span>':""}
+        <button class="gate-sel" data-act="gate:${i}" title="点击切换闸门">gate: ${GATE_LABEL[s.gate||"auto"]} ▾</button>
+      </div>
+      <div class="wo-body">
+        ${scope?`<div class="scope-row">范围 ${scope}<span class="tag">＋ 添加</span></div>`:""}
+        ${ev?`<div class="prog-line">${ev}</div>`:""}
+        ${q}${notes}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${denied}</div>
+        ${pend}
+      </div></div>`;
+  }).join("");
+  renderDirTarget();
+}
+
+function renderDirTarget(){
+  const t = S.target==null ? "目标" : `${"①②③④⑤⑥"[S.target]} ${goal().steps[S.target].name}`;
+  $("#dir-target").textContent = t;
+}
+function renderDial(){
+  const pct = (S.autonomy/2)*100;
+  $("#dial-fill").style.width = pct+"%";
+  $("#dial-knob").style.left = pct+"%";
+  $("#dial-label").textContent = AUTO_LABEL[S.autonomy];
+}
+function renderBell(){
+  const n = S.pendings.length + S.notifs.filter(x=>!x.read).length;
+  $("#bell-bdg").textContent = n; $("#bell-bdg").classList.toggle("hidden", n===0);
+}
+function renderStats(){
+  $("#elapsed").textContent = S.t+"s";
+  $("#cost").textContent = "$"+S.cost.toFixed(2);
+  $("#ctxpct").textContent = S.ctx+"%";
+  $("#toknum").textContent = (S.tok/1000).toFixed(1)+"k";
+  document.documentElement.style.setProperty("--ctx", S.ctx+"%");
+}
+function renderAll(){ renderRibbon(); renderBoard(); renderDial(); renderBell(); renderStats(); }
+
+/* ================= Toast / 通知 ================= */
+function toast(ico, text, cls){
+  const el = document.createElement("div");
+  el.className = "toast gcd"; el.innerHTML = `<span style="color:${cls}">${ico}</span><span>${text}</span>`;
+  $("#toasts").appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; el.style.transition="opacity .3s"; setTimeout(()=>el.remove(),300); }, 3500);
+  S.notifs.unshift({ ico, text, ts: now(), read: false, cls });
+  renderBell();
+  if (!$("#drawer-notifs").classList.contains("hidden")) renderNotifs();
+}
+function renderNotifs(){
+  $("#notif-list").innerHTML = S.notifs.map(n=>`<div class="lrow" style="align-items:flex-start"><span style="color:${n.cls}">${n.ico}</span><span>${n.text}<br><span class="dim" style="font-size:11px">${n.ts}</span></span></div>`).join("") || '<div class="lrow dim">暂无通知</div>';
+}
+
+/* ================= 引擎 ================= */
+function tick(){
+  if (!S.started || S.frozen) return;
+  const g = goal(); const liveIdx = g.steps.findIndex(s=>s.status==="live");
+  S.t++; S.tok += 37 + Math.floor(Math.random()*60); S.cost += 0.0011;
+  S.ctx = Math.min(96, S.ctx + (S.t % 5 === 0 ? 1 : 0));
+  if (liveIdx < 0) { renderStats(); return; }
+  const step = g.steps[liveIdx];
+  // g3 的问题是静态的，脚本只给 g1
+  if (S.goalId === "g1" && step.script && S.scriptIdx < step.script.length) {
+    if (S.t % 3 === 0) {
+      const item = step.script[S.scriptIdx];
+      if (item === "PENDING_PUSH") {
+        addPending({ step: liveIdx, text: "执行前确认: git push origin docs/ui-ux-redesign", risk:"high", alt:"仅提交" });
+        S.scriptIdx++;
+      } else if (item === "PENDING_CONFIRM") {
+        addPending({ step: liveIdx, text: "④ 验证完成，确认进入交付？", risk:"mid" });
+        S.scriptIdx++;
+      } else if (item === "GOAL_DONE") {
+        step.status = "done"; step.sum = "交付摘要就绪 · diff +145 −15";
+        toast("✓", `工单 ${g.wo} 已交付 · ${S.t}s · $${S.cost.toFixed(2)}`, "var(--ok)");
+        tape("a", `工单交付：diff +145 −15 · 5 文件`);
+        S.scriptIdx++;
+      } else {
+        step.events = step.events || [];
+        const last = step.events[step.events.length-1];
+        if (last && last[0]==="lv") last[0]="ok"; // 上一个进行中→完成
+        step.events.push(item);
+        tape("t", item[1]);
+        obs(item[1].replace(/…$/,""));
+        S.scriptIdx++;
+      }
+      // 上下文压缩观测
+      if (S.ctx >= 80 && !S._compacted) { S._compacted = true; obs(`上下文压缩 · 释放 41k tok（${S.ctx}% → ${S.ctx-30}%）`); S.ctx -= 30; toast("ℹ","上下文已压缩 · 释放 41k tok","var(--acc)"); }
+      // 步骤完成判定
+      if (S.scriptIdx >= step.script.length && !S.pendings.some(p=>p.step===liveIdx)) finishStep(liveIdx);
+    }
+  }
+  renderStats(); renderRibbon(); renderCards();
+}
+function finishStep(i){
+  const g = goal(); const s = g.steps[i];
+  s.status = "done";
+  if (!s.sum) s.sum = `${(s.events||[]).length} 个操作 · ${S.t}s 累计`;
+  obs(`✓ ${s.name} 完成`);
+  const next = g.steps.slice(i+1).find(x=>!x.struck);
+  if (next) { next.status = "live"; S.scriptIdx = 0; S.sel = g.steps.indexOf(next); tape("a", `进入步骤：${next.name}`); obs(`→ 进入「${next.name}」${next.gate!=="auto"?"（gate: "+GATE_LABEL[next.gate]+"）":""}`); }
+}
+function addPending(p){
+  p.id = ++S.pendId; S.pendings.push(p);
+  tape("a", `待决：${p.text}`);
+  obs(`⚠ 待决升起：${p.text.slice(0,26)}`);
+  toast(p.risk==="high"?"⚠":"◐", p.text, p.risk==="high"?"var(--bad)":"var(--warn)");
+  renderBell();
+}
+function resolvePending(id, how){
+  const i = S.pendings.findIndex(p=>p.id===id); if (i<0) return;
+  const p = S.pendings[i]; S.pendings.splice(i,1);
+  const g = goal(); const step = g.steps[p.step];
+  if (how === "deny") {
+    S.denied[p.step] = S.denied[p.step]||[]; S.denied[p.step].push(p.text.replace(/^执行前确认: /,""));
+    tape("u", `拒绝：${p.text}`);
+    logCmd(`拒绝：${p.text.slice(0,22)}`);
+    obs(`待决被拒 · 已记录`);
+  } else {
+    tape("u", `${how==="alt"?"选择「"+p.alt+"」":"允许"}：${p.text}`);
+    logCmd(`${how==="alt"?p.alt:"允许"}：${p.text.replace(/^执行前确认: /,"").slice(0,22)}`);
+    obs(`待决已放行`);
+  }
+  // push 待决解决后推进 g1
+  if (S.goalId==="g1" && S.scriptIdx >= (step.script||[]).length) finishStep(p.step);
+  renderAll();
+}
+
+/* ================= 命令层 ================= */
+function cmdkItems(){
+  const items = [];
+  Object.entries(GOALS).forEach(([id,g])=> items.push({ grp:"工单", label:g.title, hint:g.wo, act:`goal:${id}` }));
+  items.push({ grp:"视图", label:"Tape 记录仪", kbd:"⌘T", act:"open:tape" });
+  items.push({ grp:"视图", label:"车间墙", kbd:"⌘⇧M", act:"open:floor" });
+  items.push({ grp:"视图", label:"文件抽屉", kbd:"⌘E", act:"drawer:files" });
+  items.push({ grp:"视图", label:"变更抽屉", kbd:"⌘⇧E", act:"drawer:changes" });
+  items.push({ grp:"视图", label:"进程抽屉", kbd:"⌘⇧P", act:"drawer:procs" });
+  items.push({ grp:"视图", label:"通知抽屉", kbd:"⌘⇧N", act:"drawer:notifs" });
+  THEMES.forEach(t=> items.push({ grp:"主题", label:`切换到 ${t[1]}`, act:`theme:${t[0]}` }));
+  items.push({ grp:"动作", label:"自律度：全自动", kbd:"⌥1", act:"auto:0" });
+  items.push({ grp:"动作", label:"自律度：关键确认", kbd:"⌥2", act:"auto:1" });
+  items.push({ grp:"动作", label:"自律度：每步确认", kbd:"⌥3", act:"auto:2" });
+  items.push({ grp:"动作", label: S.frozen?"恢复施工":"⏸ 刹车", kbd:"Space", act:"brake" });
+  items.push({ grp:"动作", label:"新目标", kbd:"⌘N", act:"newgoal" });
+  items.push({ grp:"动作", label:"设置", kbd:"⌘,", act:"open:settings" });
+  return items;
+}
+function fuzzy(q, s){
+  if (!q) return 1;
+  q = q.toLowerCase(); s = s.toLowerCase();
+  let qi = 0, score = 0, streak = 0;
+  for (let i=0;i<s.length && qi<q.length;i++){
+    if (s[i]===q[qi]){ qi++; streak++; score += 2 + streak*2 + (i===0||s[i-1]===" "?4:0); }
+    else streak = 0;
+  }
+  return qi===q.length ? score : 0;
+}
+function cmdkHTML(){
+  const items = cmdkItems().map(it=>({...it, sc: fuzzy(S.cmdkQ, it.label)})).filter(it=>it.sc>0).sort((a,b)=>b.sc-a.sc);
+  if (S.cmdkSel >= items.length) S.cmdkSel = 0;
+  let html = `<div class="panel gcd" id="cmdk"><div class="cmdk-input"><span style="color:var(--ink3)">🔍</span><input id="cmdk-q" placeholder="找工单、视图、主题、动作…"><span class="dim" style="font-size:11px">␣ 全库</span></div><div class="cmdk-list">`;
+  let lastGrp = "";
+  items.forEach((it,i)=>{
+    if (it.grp!==lastGrp){ html += `<div class="cmdk-group">${it.grp}</div>`; lastGrp = it.grp; }
+    html += `<div class="cmdk-row ${i===S.cmdkSel?"sel":""}" data-act="cmdk:${it.act}" data-hover="${i}">${it.label}<span class="r">${it.kbd?`<span class="kbd">${it.kbd}</span>`:""}${it.hint?`<span class="dim mono" style="font-size:10px">${it.hint}</span>`:""}</span></div>`;
+  });
+  html += `</div><div class="cmdk-foot">↑↓ 选择 · ⏎ 执行 · Esc 关闭 · 模糊匹配（子序列评分）</div></div>`;
+  return html;
+}
+
+/* ================= 车间墙 ================= */
+function floorHTML(){
+  const cards = Object.entries(GOALS).map(([id,g])=>{
+    const cur = id===S.goalId;
+    const st = g.steps;
+    const live = st.find(s=>s.status==="live");
+    const done = st.every(s=>s.status==="done");
+    const mini = st.map((s,i)=>`<span class="mn ${s.status}"></span>${i<st.length-1?`<span class="ml ${s.status==="done"?"done":""}"></span>`:""}`).join("");
+    const pendN = cur ? S.pendings.length : (id==="g3"?1:0);
+    return `<div class="wo-mini sh ${cur?"sel":""}" data-act="goal:${id}">
+      <h4><span class="tag ${done?"g":live?"b":"a"}">${done?"✓ 已交付":live?"◉ 施工中":"◌ 待确认"}</span>${g.title}</h4>
+      <div class="mini-steps" style="margin:0">${mini}</div>
+      <div class="now">${live?("▸ "+live.name):"—"}</div>
+      <div class="meta"><span>${g.wo}</span><span>${AUTO_LABEL[id==="g3"?2:S.autonomy]}</span>${pendN?`<span style="color:var(--bad);font-weight:800">⚠${pendN}</span>`:""}</div>
+    </div>`;
+  }).join("");
+  return `<div class="panel gcd" id="floor">
+    <div class="panel-head">车间墙 <span class="dim" style="font-weight:400;font-size:11px">全部工单 · 一瞥总览</span><span class="ops"><span class="kbd">Esc</span> 返回</span></div>
+    <div class="floor-grid">${cards}<div class="wo-mini new" data-act="newgoal">＋ 新目标 <span class="kbd">⌘N</span></div></div>
+  </div>`;
+}
+
+/* ================= Tape ================= */
+function tapeHTML(){
+  return `<div class="panel gcd" id="tape">
+    <div class="panel-head">Tape · 全量记录 <span class="tag">只读</span><span class="ops"><span class="kbd">⌘T</span>/<span class="kbd">Esc</span> 关闭</span></div>
+    <div class="tape-list" id="tape-list"></div>
+  </div>`;
+}
+function renderTape(){
+  const el = $("#tape-list"); if(!el) return;
+  el.innerHTML = S.tapeLog.map(l=>`<div class="tape-row"><span class="ts">${l.ts}</span><span class="who ${l.who}">${l.who==="u"?"user":l.who==="a"?"agent":"tool"}</span><span>${l.text}</span></div>`).join("");
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ================= 设置 / 主题 ================= */
+function settingsHTML(){
+  return `<div class="panel gcd" id="settings">
+    <div class="panel-head">设置 <span class="ops"><span class="kbd">Esc</span></span></div>
+    <div style="padding:6px 18px 18px">
+      <div class="set-row"><div><div class="lab">主题</div><div class="desc">六套皮肤 · 实时切换 · 全部只消费 token</div></div>
+        <div class="ctl theme-swatches">${THEMES.map(t=>`<span class="swatch ${S.theme===t[0]?"on":""}" data-act="theme:${t[0]}" title="${t[1]}" style="background:${t[2]}"></span>`).join("")}</div></div>
+      <div class="set-row"><div><div class="lab">密度</div><div class="desc">舒适 / 默认 / 紧凑</div></div><div class="ctl"><span class="seg"><span>舒适</span><span class="on">默认</span><span>紧凑</span></span></div></div>
+      <div class="set-row"><div><div class="lab">默认主视图</div><div class="desc">工作台 / Tape（聊天心智的退路）</div></div><div class="ctl"><span class="seg"><span class="on">工作台</span><span data-act="open:tape">Tape</span></span></div></div>
+      <div class="set-row"><div><div class="lab">减弱动效</div><div class="desc">跟随系统 prefers-reduced-motion</div></div><div class="ctl"><span class="seg"><span class="on">跟随系统</span><span>强制开</span></span></div></div>
+    </div></div>`;
+}
+function themesHTML(){
+  return `<div class="panel gcd" id="themes" style="top:70px;width:300px">
+    <div class="panel-head" style="font-size:12px">主题</div>
+    ${THEMES.map(t=>`<div class="lrow" data-act="theme:${t[0]}"><span class="swatch" style="background:${t[2]};width:18px;height:18px;border-radius:6px"></span>${t[1]} ${S.theme===t[0]?'<span class="r" style="color:var(--acc)">✓</span>':""}</div>`).join("")}
+  </div>`;
+}
+
+/* ================= Onboarding ================= */
+function onboardHTML(){
+  return `<div class="panel gcd" id="onboard">
+    <div style="padding:24px;text-align:center">
+      <div style="font-size:28px">🐋</div>
+      <b style="font-size:16px;display:block;margin-top:8px">给它一个目标，剩下的看工单</b>
+      <p class="dim2" style="font-size:12px;line-height:1.75;margin-top:8px">这不是聊天框：agent 出工单，你盖章，它施工。<br>选一个默认自律度开工（随时可改）：</p>
+      ${AUTO_LABEL.map((l,i)=>`<button class="ob-choice sh2 ${i===1?"sel":""}" data-act="ob:${i}"><b style="font-size:12.5px">${["○","◐","●"][i]} ${l}</b><span class="dim" style="font-size:11px">${["只有高危才拦你","写文件前问我 · 推荐","每步开工前盖章"][i]}</span>${i===1?'<span class="tag b" style="margin-left:auto">推荐</span>':""}</button>`).join("")}
+      <button class="btn flatb" style="margin-top:14px" data-act="ob:skip">跳过，我自己摸索</button>
+    </div></div>`;
+}
+
+/* ================= 焦点卡 ================= */
+function openFocus(type, key){
+  const fc = $("#focuscard");
+  let body = "";
+  if (type==="diff"){
+    const d = DIFFS[key] || DIFFS["permissions.ts"];
+    body = `<div class="focus-head">${key} <span class="dim" style="font-weight:400;font-size:10.5px">⌖ diff 检视</span><span class="ops"><span data-act="pin-fc">📌</span><span data-act="close-fc">✕</span></span></div>
+      <div class="diff">${d.map(l=>`<div class="${l[0].startsWith("@@")?"hunk":l[0].startsWith("-")?"del":"add"}">${l[0]}</div>`).join("")}</div>
+      <div class="focus-foot"><button class="btn primary">在编辑器打开</button><button class="btn flatb">还原</button></div>`;
+  } else if (type==="ctx"){
+    body = `<div class="focus-head">上下文 ${S.ctx}% <span class="dim" style="font-weight:400;font-size:10.5px">⌖ 来自目标带</span><span class="ops"><span data-act="close-fc">✕</span></span></div>
+      <div class="focus-body">
+        <div class="kv" style="border:none"><span class="k">系统提示 + 技能</span><span class="v">38.2k</span></div><div class="meter"><i style="width:30%"></i></div>
+        <div class="kv"><span class="k">工单与工具结果</span><span class="v">${(S.tok/1000).toFixed(1)}k</span></div><div class="meter"><i style="width:${S.ctx/2}%"></i></div>
+        <div class="kv"><span class="k">对话正文</span><span class="v">21.1k</span></div><div class="meter"><i style="width:16%"></i></div>
+        <div class="dim" style="font-size:10.5px">阈值 80% 触发压缩 · 预计还需 ~${Math.max(1,(80-S.ctx))*2}k tok</div>
+      </div>`;
+  }
+  fc.innerHTML = body; fc.classList.remove("hidden");
+}
+
+/* ================= 抽屉 ================= */
+const DRAWERS = { files:"#drawer-files", changes:"#drawer-changes", procs:"#drawer-procs", notifs:"#drawer-notifs" };
+function toggleDrawer(name){
+  const el = $(DRAWERS[name]);
+  const show = el.classList.contains("hidden");
+  Object.values(DRAWERS).forEach(s=>$(s).classList.add("hidden"));
+  if (show){
+    el.classList.remove("hidden");
+    if (name==="files") renderFiles();
+    if (name==="changes") renderChanges();
+    if (name==="notifs"){ renderNotifs(); S.notifs.forEach(n=>n.read=true); renderBell(); }
+  }
+}
+function renderFiles(){
+  $("#file-tree").innerHTML = FILES.map(f=>{
+    const [name, flag] = f.trim().split("|");
+    const pad = f.length - f.trimLeft().length;
+    const isFile = name.includes(".");
+    return `<div class="lrow" style="padding-left:${15+pad*7}px" ${isFile?`data-act="file:${name}"`:""}>${isFile?"":(name.endsWith("/")?"▸ ":"")}${name.replace("/","")}${flag==="m"?'<span class="r" style="color:var(--warn)">●M</span>':flag==="a"?'<span class="r" style="color:var(--ok)">+A</span>':""}</div>`;
+  }).join("");
+}
+function renderChanges(){
+  $("#change-list").innerHTML = `<div style="padding:8px 15px" class="dim">本工单产生 <span class="tag b" style="margin-left:4px">3 文件</span></div>` +
+    CHANGES.map(c=>`<div class="lrow" data-act="file:${c.f}"><span class="mono" style="color:${c.s==="A"?"var(--ok)":"var(--warn)"}">${c.s}</span>${c.f}<span class="r" style="color:var(--ok)">${c.d}</span></div>`).join("");
+}
+
+/* ================= 动作分发 ================= */
+document.addEventListener("click", e=>{
+  const el = e.target.closest("[data-act]"); if(!el) return;
+  act(el.dataset.act, e);
+});
+document.addEventListener("dblclick", e=>{
+  const el = e.target.closest("[data-dbl]"); if(!el) return;
+  const [kind, idx] = el.dataset.dbl.split(":");
+  if (kind==="strike"){ const s = goal().steps[+idx]; if(s.status==="todo"){ s.struck = !s.struck; tape("u", `${s.struck?"划线删除":"恢复"}步骤：${s.name}`); logCmd(`${s.struck?"划线":"恢复"}步骤「${s.name}」`); renderAll(); } }
+});
+function act(a, e){
+  const [kind, p1, p2] = a.split(":");
+  switch(kind){
+    case "sel": S.sel = +p1; S.target = +p1; renderAll(); break;
+    case "gate": { const s = goal().steps[+p1]; s.gate = GATES[(GATES.indexOf(s.gate||"auto")+1)%GATES.length]; tape("u", `步骤「${s.name}」闸门 → ${GATE_LABEL[s.gate]}`); logCmd(`闸门 ${s.name} → ${GATE_LABEL[s.gate]}`); renderAll(); break; }
+    case "unscope": { const s = goal().steps[+p1]; s.scope = s.scope.filter(f=>f!==p2); tape("u", `从范围移除 ${p2}`); logCmd(`范围 −${p2}`); renderAll(); break; }
+    case "approve": resolvePending(+p1, "approve"); break;
+    case "deny": resolvePending(+p1, "deny"); break;
+    case "alt": resolvePending(+p1, "alt"); break;
+    case "answer": { const s = goal().steps[+p1]; tape("u", `回答：${s.question.opts[+p2]}`); logCmd(`回答「${s.question.q.slice(0,14)}…」→ 选项${+p2+1}`); s.question = null; s.status="done"; s.sum="格式："+s.question; s.sum="已定格式"; finishStep(+p1); renderAll(); break; }
+    case "autonomy": S.autonomy = (S.autonomy+1)%3; tape("u", `自律度 → ${AUTO_LABEL[S.autonomy]}`); logCmd(`自律度 → ${AUTO_LABEL[S.autonomy]}`); renderDial(); break;
+    case "brake": toggleBrake(); break;
+    case "cycle-target": cycleTarget(); break;
+    case "send": sendIntervention(); break;
+    case "open": if(p1==="settings") pushOverlay("settings"); if(p1==="themes") pushOverlay("themes"); if(p1==="tape"){pushOverlay("tape"); setTimeout(renderTape,0);} if(p1==="floor") pushOverlay("floor"); break;
+    case "drawer": toggleDrawer(p1); break;
+    case "cc": toggleCC(); break;
+    case "file": openFocus("diff", p1); break;
+    case "close-fc": $("#focuscard").classList.add("hidden"); break;
+    case "close": e.target.closest(".drawer").classList.add("hidden"); break;
+    case "notif-clear": S.notifs.forEach(n=>n.read=true); renderNotifs(); renderBell(); break;
+    case "commit": toast("✓","已本地提交（未推送）","var(--ok)"); tape("t","git commit ✓"); logCmd("仅提交（本地）"); break;
+    case "commit-push": addPending({ step: S.sel, text:"执行前确认: git push origin 当前分支", risk:"high", alt:"仅提交" }); logCmd("发起：提交并推送 🛡"); renderAll(); break;
+    case "goal": logCmd(`切换到「${GOALS[p1].title}」`); S.goalId = p1; S.sel = goal().steps.findIndex(s=>s.status==="live"); if(S.sel<0)S.sel=0; S.target=S.sel; S.scriptIdx=0; clearOverlays(); tape("a", `切换到工单 ${goal().wo}：${goal().title}`); renderAll(); break;
+    case "theme": setTheme(p1); break;
+    case "auto": S.autonomy = +p1; logCmd(`自律度 → ${AUTO_LABEL[S.autonomy]}`); renderDial(); break;
+    case "newgoal": toast("ℹ","Demo：新目标请先清空脑洞（此 demo 内置 3 个工单）","var(--acc)"); break;
+    case "cmdk": execCmdk(p1); break;
+    case "esc": popOverlay(); break;
+    case "ob": if(p1!=="skip") S.autonomy = +p1; S.onboarded = true; clearOverlays(); startEngine(); toast("🐋", `开工 · 自律度：${AUTO_LABEL[S.autonomy]}`, "var(--acc)"); break;
+    case "pin": toast("📌","已钉住：失焦不再自动收起","var(--acc)"); break;
+  }
+}
+function execCmdk(a){ popOverlay(); S.cmdkQ=""; S.cmdkSel=0; act(a, null); }
+function toggleBrake(){
+  S.frozen = !S.frozen;
+  logCmd(S.frozen ? "⏸ 刹车" : "▶ 恢复施工");
+  $("#brake").classList.toggle("frozen", S.frozen);
+  $("#brake").textContent = S.frozen ? "▶ 恢复" : "⏸ 刹车";
+  tape("a", S.frozen ? "⏸ 刹车拍下：当前工具收尾后冻结，现场保留" : "▶ 恢复施工");
+  toast(S.frozen?"⏸":"▶", S.frozen?"已冻结 · 现场完整保留":"恢复施工", S.frozen?"var(--bad)":"var(--ok)");
+  renderRibbon();
+}
+function cycleTarget(){
+  const liveIdx = goal().steps.findIndex(s=>s.status==="live");
+  S.target = S.target==null ? liveIdx : null;
+  renderDirTarget();
+}
+function sendIntervention(){
+  const input = $("#dir-input"); const text = input.value.trim(); if(!text) return;
+  const idx = S.target==null ? goal().steps.findIndex(s=>s.status==="live") : S.target;
+  S.notes[idx] = S.notes[idx]||[];
+  const note = { ts: now(), text, ack: null };
+  S.notes[idx].push(note);
+  tape("u", `介入@${goal().steps[idx].name}：${text}`);
+  logCmd(`介入@${goal().steps[idx].name}：${text.slice(0,18)}`);
+  input.value = ""; renderCards();
+  setTimeout(()=>{
+    note.ack = ["收到，下一决策点生效","已纳入约束，不回滚已完成的改动","明白，我把这条记进工单约束"][Math.floor(Math.random()*3)];
+    renderCards(); toast("💬","agent 已响应你的介入","var(--acc)");
+  }, 1500);
+}
+
+/* ================= 键盘 ================= */
+document.addEventListener("keydown", e=>{
+  const mod = e.metaKey || e.ctrlKey;
+  const inInput = ["INPUT","TEXTAREA"].includes(document.activeElement?.tagName);
+  if (mod && e.key.toLowerCase()==="k"){ e.preventDefault(); pushOverlay("cmdk"); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase()==="m"){ e.preventDefault(); pushOverlay("floor"); return; }
+  if (mod && e.key.toLowerCase()==="t"){ e.preventDefault(); if(S.stack.includes("tape")){popOverlay();}else{pushOverlay("tape");setTimeout(renderTape,0);} return; }
+  if (mod && e.key==="e" && !e.shiftKey){ e.preventDefault(); toggleDrawer("files"); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase()==="e"){ e.preventDefault(); toggleDrawer("changes"); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase()==="p"){ e.preventDefault(); toggleDrawer("procs"); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase()==="n"){ e.preventDefault(); toggleDrawer("notifs"); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase()==="o"){ e.preventDefault(); toggleCC(); return; }
+  if (mod && e.key===","){ e.preventDefault(); pushOverlay("settings"); return; }
+  if (mod && e.key==="."){ e.preventDefault(); document.body.classList.toggle("zen"); return; }
+  if (mod && e.key==="Enter"){ e.preventDefault(); sendIntervention(); return; }
+  if (e.altKey && ["1","2","3"].includes(e.key)){ e.preventDefault(); S.autonomy = +e.key-1; renderDial(); return; }
+  if (e.key==="Escape"){ if(!$("#focuscard").classList.contains("hidden")){$("#focuscard").classList.add("hidden");return;} if(!$("#controlcenter").classList.contains("hidden")){$("#controlcenter").classList.add("hidden");$("#cc-tab").classList.remove("hidden");return;} if(S.stack.length){popOverlay();return;} Object.values(DRAWERS).forEach(s=>$(s).classList.add("hidden")); return; }
+  if (e.key===" " && !inInput){ e.preventDefault(); toggleBrake(); return; }
+  if ((e.key==="j"||e.key==="k") && !inInput){ const n=goal().steps.length; S.sel = (S.sel + (e.key==="j"?1:-1) + n)%n; S.target=S.sel; renderAll(); return; }
+  // 命令层内导航
+  if (S.stack.includes("cmdk")){
+    const items = cmdkItems().map(it=>({...it,sc:fuzzy(S.cmdkQ,it.label)})).filter(it=>it.sc>0);
+    if (e.key==="ArrowDown"){ e.preventDefault(); S.cmdkSel=Math.min(items.length-1,S.cmdkSel+1); renderOverlays(); }
+    if (e.key==="ArrowUp"){ e.preventDefault(); S.cmdkSel=Math.max(0,S.cmdkSel-1); renderOverlays(); }
+    if (e.key==="Enter"){ e.preventDefault(); const it=items[S.cmdkSel]; if(it) execCmdk(it.act); }
+  }
+});
+document.addEventListener("input", e=>{
+  if (e.target.id==="cmdk-q"){ S.cmdkQ = e.target.value; S.cmdkSel = 0; renderOverlays(); }
+});
+$("#dir-input").addEventListener("keydown", e=>{ e.stopPropagation(); if(e.key==="Enter"||((e.metaKey||e.ctrlKey)&&e.key==="Enter")){e.preventDefault();sendIntervention();} if(e.key==="Tab"){e.preventDefault();cycleTarget();} });
+$("#dir-input").addEventListener("keyup", e=> e.stopPropagation());
+$("#ctxpct").addEventListener("click", ()=> openFocus("ctx"));
+
+/* ================= 主题 ================= */
+function setTheme(t){
+  S.theme = t; document.body.dataset.theme = t;
+  logCmd(`主题 → ${THEMES.find(x=>x[0]===t)[1]}`);
+  tape("u", `主题 → ${THEMES.find(x=>x[0]===t)[1]}`);
+  toast("🎨", THEMES.find(x=>x[0]===t)[1], "var(--acc)");
+  renderOverlays();
+}
+
+/* ================= 引擎启动 ================= */
+let procTimer = null;
+function startEngine(){
+  if (S.started) return;
+  S.started = true;
+  tape("u", goal().title + "（→ 工单 " + goal().wo + "）");
+  tape("a", "工单已盖章下发 · 5 步");
+  tape("t", "read packages/core/src/common/permissions.ts … 4.1k tok");
+  setInterval(tick, 1000);
+  procTimer = setInterval(()=>{
+    if (!$("#drawer-procs").classList.contains("hidden")){
+      const l = PROC_LINES[S.procIdx++ % PROC_LINES.length];
+      const el = $("#proc-log");
+      el.innerHTML += `<div><span class="${l[0]?l[0]+"-l":""}">${l[1]}</span></div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+  }, 1600);
+}
+
+/* ================= 启动 ================= */
+setTheme("liquid");
+renderAll();
+pushOverlay("onboard"); // 首开 = 信任/自律度选择
+
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 # DeepOrca UI/UX 重设计愿景 v3：Orca Deck · 工单工作台
 
-> 日期：2026-08-19（v3，按第二轮反馈修订） · 前置阅读：[[2026-08-19-ui-ux-audit-report]]
-> 设计稿：[[2026-08-19-ui-ux-redesign-wireframes]] · 视觉稿：`2026-08-19-ui-ux-redesign-mockup.html`
+> 日期：2026-08-19（v3，按第二轮反馈修订） · 前置阅读：[[../2026-08-19-ui-ux-audit-report]]
+> 设计稿：[[wireframes]] · 视觉稿：`index.html`（交互 demo）
 >
 > **版本演进**：v1「阶段指挥舱」= VS Code 式五区 rail（被否：VS Code 影子）→ v2「无框指挥舱」= 召唤式浮层导航（被否：只动了 chrome）→ **v3「工单工作台」= 换本体**。
 >
