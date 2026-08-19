@@ -3,183 +3,204 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Orca Deck v2 · 无框指挥舱 — DeepOrca UI/UX 重设计视觉稿</title>
+<title>Orca Deck v3 · 工单工作台 — DeepOrca UI/UX 重设计视觉稿</title>
 <style>
   :root {
-    --bg-deep: #07090e;
+    --bg-deep: #080a0f;
     --bg-panel: #0e131c;
-    --bg-card: #141b28;
-    --bg-hover: #1b2434;
+    --bg-card: #131a27;
+    --bg-hover: #1a2334;
     --line: #22304a;
     --text-1: #e6edf7;
     --text-2: #93a4bd;
     --text-3: #5b6b84;
     --sonar: #4de3c2;
-    --sonar-dim: rgba(77, 227, 194, .13);
+    --sonar-dim: rgba(77, 227, 194, .12);
     --accent: #5aa9ff;
     --risk-low: #43d68a;
     --risk-mid: #f5c04e;
     --risk-high: #f46a6a;
+    --mono: "SF Mono", ui-monospace, monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: #04060a;
     font-family: -apple-system, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
-    color: var(--text-1);
-    display: flex; flex-direction: column; align-items: center;
+    color: var(--text-1); display: flex; flex-direction: column; align-items: center;
     padding: 32px 16px 72px; font-size: 14px;
   }
   .doc-header { max-width: 1180px; width: 100%; margin-bottom: 20px; }
   .doc-header h1 { font-size: 22px; font-weight: 700; }
   .doc-header h1 em { color: var(--sonar); font-style: normal; }
   .doc-header p { color: var(--text-2); margin-top: 6px; font-size: 13px; }
-  .doc-header .v2note { color: var(--risk-mid); font-size: 12.5px; margin-top: 8px; }
+  .doc-header .v3note { color: var(--risk-mid); font-size: 12.5px; margin-top: 8px; line-height: 1.6; }
   .legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
   .legend span { font-size: 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
   .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-
   .frame-label { max-width: 1180px; width: 100%; margin: 34px 0 10px; font-size: 13px; font-weight: 700; color: var(--text-2); }
   .frame-label span { color: var(--text-3); font-weight: 400; margin-left: 8px; font-size: 12px; }
 
-  /* ============ Frameless shell ============ */
   .shell {
-    width: 100%; max-width: 1180px; height: 720px;
-    background: var(--bg-deep);
-    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
-    display: flex; flex-direction: column; position: relative;
+    width: 100%; max-width: 1180px; height: 730px;
+    background: var(--bg-deep); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column; position: relative;
     box-shadow: 0 30px 80px rgba(0,0,0,.6);
   }
 
-  /* Stage ribbon (top bar replacement) */
+  /* Goal ribbon */
   .ribbon {
     height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 14px;
     padding: 0 14px; border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(20,27,40,.7), rgba(14,19,28,.4));
+    background: linear-gradient(180deg, rgba(19,26,39,.75), rgba(14,19,28,.4));
     font-size: 12.5px;
   }
   .gumdrops { display: flex; gap: 7px; }
   .gumdrops i { width: 11px; height: 11px; border-radius: 50%; }
   .gumdrops i:nth-child(1){background:#ff5f57} .gumdrops i:nth-child(2){background:#febc2e} .gumdrops i:nth-child(3){background:#28c840}
-  .session-name { font-weight: 700; color: var(--text-1); display: flex; align-items: center; gap: 7px; }
-  .session-name .orca { color: var(--sonar); }
-  .session-name .chev { color: var(--text-3); font-weight: 400; font-size: 11px; }
-  .stages { display: flex; align-items: center; gap: 0; margin: 0 auto; }
-  .stage { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-3); }
-  .stage .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .stage.done { color: var(--text-2); }
-  .stage.done .dot { background: var(--sonar); }
-  .stage.live { color: var(--sonar); font-weight: 700; }
-  .stage.live .dot { background: var(--sonar); box-shadow: 0 0 0 4px var(--sonar-dim), 0 0 14px var(--sonar); animation: pulse 1.6s infinite; }
-  .stage.todo .dot { border: 2px solid var(--text-3); background: transparent; }
-  .stage-link { width: 30px; height: 2px; margin: 0 7px; }
-  .stage-link.done { background: rgba(77,227,194,.45); }
-  .stage-link.half { background: linear-gradient(90deg, rgba(77,227,194,.45), var(--line)); }
-  .stage-link.idle { background: var(--line); }
-  .ribbon-right { display: flex; align-items: center; gap: 12px; color: var(--text-3); font-size: 11.5px; }
-  .ctx-ring { display: flex; align-items: center; gap: 6px; }
-  .ring { width: 17px; height: 17px; border-radius: 50%; background: conic-gradient(var(--sonar) 0 62%, var(--bg-hover) 62% 100%); display: grid; place-items: center; }
-  .ring::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--bg-deep); }
-  .rbtn { width: 27px; height: 27px; border-radius: 8px; display: grid; place-items: center; color: var(--text-3); position: relative; }
-  .rbtn:hover { background: var(--bg-hover); color: var(--text-2); }
+  .goal-name { font-weight: 700; display: flex; align-items: center; gap: 7px; }
+  .goal-name .orca { color: var(--sonar); }
+  .goal-name .chev { color: var(--text-3); font-weight: 400; font-size: 11px; }
+  .steps-mini { display: flex; align-items: center; margin: 0 auto; }
+  .sm-node { width: 8px; height: 8px; border-radius: 50%; }
+  .sm-node.done { background: var(--sonar); }
+  .sm-node.live { background: var(--sonar); box-shadow: 0 0 0 4px var(--sonar-dim), 0 0 14px var(--sonar); animation: pulse 1.6s infinite; }
+  .sm-node.todo { border: 2px solid var(--text-3); background: transparent; }
+  .sm-link { width: 26px; height: 2px; margin: 0 6px; }
+  .sm-link.done { background: rgba(77,227,194,.45); }
+  .sm-link.half { background: linear-gradient(90deg, rgba(77,227,194,.45), var(--line)); }
+  .sm-link.idle { background: var(--line); }
+  .ribbon-right { display: flex; align-items: center; gap: 12px; color: var(--text-3); font-size: 11.5px; font-family: var(--mono); }
+  .ctx-ring { display: flex; align-items: center; gap: 6px; font-family: inherit; }
+  .ring { width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(var(--sonar) 0 62%, var(--bg-hover) 62% 100%); display: grid; place-items: center; }
+  .ring::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bg-deep); }
+  .rbtn { width: 27px; height: 27px; border-radius: 8px; display: grid; place-items: center; color: var(--text-3); position: relative; font-family: -apple-system, sans-serif; }
   .rbtn .badge { position: absolute; top: -3px; right: -5px; background: var(--risk-high); color: #fff; font-size: 9px; font-weight: 700; min-width: 14px; height: 14px; border-radius: 7px; display: grid; place-items: center; padding: 0 3px; }
 
-  /* Content column */
+  /* Workbench */
   .workarea { flex: 1; position: relative; overflow: hidden; }
-  .column { max-width: 640px; margin: 0 auto; padding: 22px 0 120px; display: flex; flex-direction: column; gap: 13px; height: 100%; overflow: hidden; }
+  .column { max-width: 760px; margin: 0 auto; padding: 20px 0 130px; height: 100%; overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
 
-  .stage-group { display: flex; flex-direction: column; gap: 10px; }
-  .stage-sep { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-3); }
-  .stage-sep::before, .stage-sep::after { content: ""; height: 1px; background: var(--line); flex: 1; }
-  .stage-sep b { color: var(--text-2); font-weight: 600; }
-  .stage-sep.live-sep b { color: var(--sonar); }
-  .stage-sep .fold { border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; font-size: 10px; }
+  .goal-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .goal-head h2 { font-size: 17px; font-weight: 700; }
+  .goal-head .wo { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+  .constraints { display: flex; gap: 6px; }
+  .constraint { font-size: 10.5px; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--bg-card); }
 
-  .msg-user { align-self: flex-end; background: var(--bg-hover); border: 1px solid var(--line); border-radius: 12px 12px 4px 12px; padding: 8px 14px; font-size: 13px; max-width: 78%; }
-  .tool-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; width: fit-content; max-width: 100%; }
-  .tool-line .ok { color: var(--risk-low); font-weight: 700; }
-  .tool-line .paths { color: var(--accent); }
-  .tool-line .diffstat { color: var(--risk-low); }
-  .tool-line .diffstat b { color: var(--risk-high); font-weight: 500; }
-  .tool-line.selected { border-color: rgba(90,169,255,.55); box-shadow: 0 0 0 3px rgba(90,169,255,.12); }
+  /* Step board */
+  .stepboard { display: flex; gap: 8px; overflow: hidden; padding: 2px 0; }
+  .step-chip {
+    display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 12px;
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px;
+    font-size: 12px; color: var(--text-2); white-space: nowrap; position: relative;
+  }
+  .step-chip .n { font-family: var(--mono); color: var(--text-3); font-size: 11px; }
+  .step-chip.done { color: var(--text-2); }
+  .step-chip.done .st { color: var(--risk-low); font-weight: 700; }
+  .step-chip.live { border-color: rgba(77,227,194,.5); color: var(--text-1); background: var(--sonar-dim); box-shadow: 0 0 16px rgba(77,227,194,.08); }
+  .step-chip.live .st { color: var(--sonar); animation: pulse 1.6s infinite; }
+  .step-chip.todo { opacity: .55; }
+  .step-chip .gate { font-size: 10px; }
 
-  /* Approval queue */
-  .approval { background: var(--bg-card); border: 1px solid rgba(245,192,78,.35); border-radius: 10px; overflow: hidden; }
-  .approval-head { padding: 9px 14px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; border-bottom: 1px solid var(--line); background: rgba(245,192,78,.06); }
-  .approval-head .count { background: var(--risk-mid); color: #231a04; border-radius: 999px; font-size: 10.5px; padding: 1px 8px; font-weight: 700; }
-  .approval-head .hint { margin-left: auto; font-weight: 400; color: var(--text-3); font-size: 11px; }
-  .approval-item { display: flex; align-items: center; gap: 10px; padding: 7px 14px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
-  .approval-item:last-of-type { border-bottom: none; }
-  .risk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .approval-item .cmd { font-family: "SF Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .approval-item .acts { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  /* Step cards */
+  .step-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .step-card.current { border-color: rgba(77,227,194,.45); }
+  .sc-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 700; }
+  .sc-head .st { font-size: 12px; }
+  .sc-head .gate-sel { margin-left: auto; font-size: 10.5px; color: var(--text-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-weight: 400; background: var(--bg-deep); }
+  .sc-body { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 9px; }
+  .scope-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--text-3); }
+  .scope-chip { font-family: var(--mono); font-size: 11px; color: var(--accent); background: rgba(90,169,255,.08); border: 1px solid rgba(90,169,255,.25); border-radius: 6px; padding: 2px 8px; display: flex; gap: 6px; align-items: center; }
+  .scope-chip .x { color: var(--text-3); }
+  .scope-add { color: var(--text-3); border: 1px dashed var(--line); border-radius: 6px; padding: 2px 8px; font-size: 11px; }
+  .progress-line { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); background: var(--bg-deep); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 9px; overflow: hidden; white-space: nowrap; }
+  .progress-line .ok { color: var(--risk-low); }
+  .progress-line .live2 { color: var(--sonar); animation: pulse 1.6s infinite; }
+  .progress-line .arr { color: var(--text-3); }
+  .result-line { font-size: 11.5px; color: var(--text-3); display: flex; gap: 12px; font-family: var(--mono); }
+  .result-line a { color: var(--accent); text-decoration: none; }
+  .intervention { border-left: 3px solid var(--risk-mid); background: rgba(245,192,78,.06); border-radius: 0 8px 8px 0; padding: 7px 11px; font-size: 12px; color: var(--text-2); }
+  .intervention b { color: var(--risk-mid); font-weight: 600; font-size: 11px; }
+  .pending { border: 1px solid rgba(244,106,106,.4); background: rgba(244,106,106,.06); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .pending .cmd { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
+  .pending .acts { margin-left: auto; display: flex; gap: 6px; }
   .btn { font-size: 11px; padding: 3px 11px; border-radius: 6px; border: 1px solid var(--line); color: var(--text-2); background: var(--bg-hover); }
   .btn.primary { background: var(--sonar); border-color: var(--sonar); color: #04241c; font-weight: 700; }
   .btn.danger { color: var(--risk-high); }
-  .approval-foot { display: flex; gap: 8px; padding: 8px 14px; background: rgba(0,0,0,.25); border-top: 1px solid var(--line); }
+  .step-collapsed { display: flex; align-items: center; gap: 10px; padding: 8px 14px; font-size: 12px; color: var(--text-3); background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; }
+  .step-collapsed b { color: var(--text-2); font-weight: 600; }
+  .step-collapsed .sum { font-family: var(--mono); font-size: 11px; }
+  .step-collapsed .more { margin-left: auto; font-size: 10.5px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
 
-  /* Focus card (floating, anchored) */
+  /* Autonomy + brake */
+  .control-row { display: flex; align-items: center; gap: 18px; margin-top: 2px; padding: 4px 2px; }
+  .autonomy { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-3); }
+  .dial { display: flex; align-items: center; gap: 0; position: relative; }
+  .dial .track { width: 120px; height: 3px; background: var(--line); border-radius: 2px; position: relative; }
+  .dial .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: var(--sonar); border-radius: 2px; }
+  .dial .knob { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 13px; height: 13px; border-radius: 50%; background: var(--sonar); box-shadow: 0 0 10px rgba(77,227,194,.6); }
+  .dial-labels { display: flex; gap: 14px; font-size: 10.5px; }
+  .dial-labels .on { color: var(--sonar); font-weight: 700; }
+  .brake { margin-left: auto; display: flex; align-items: center; gap: 8px; background: rgba(244,106,106,.1); border: 1px solid rgba(244,106,106,.45); color: var(--risk-high); border-radius: 10px; padding: 8px 20px; font-size: 12.5px; font-weight: 700; letter-spacing: 1px; }
+
+  /* Focus card */
   .focus-card {
-    position: absolute; top: 118px; right: 42px; width: 350px;
-    background: rgba(20,27,40,.82); backdrop-filter: blur(14px);
+    position: absolute; top: 150px; right: 34px; width: 340px;
+    background: rgba(19,26,39,.85); backdrop-filter: blur(14px);
     border: 1px solid rgba(90,169,255,.35); border-radius: 12px;
-    box-shadow: 0 18px 50px rgba(0,0,0,.55);
-    overflow: hidden; z-index: 5;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55); overflow: hidden; z-index: 5;
   }
   .focus-head { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 700; }
   .focus-head .anchor { color: var(--accent); font-weight: 400; font-size: 10.5px; }
   .focus-head .ops { margin-left: auto; color: var(--text-3); font-size: 11px; display: flex; gap: 9px; }
-  .diff-card { font-family: "SF Mono", ui-monospace, monospace; font-size: 11px; }
+  .diff-card { font-family: var(--mono); font-size: 11px; }
   .diff-card .hunk { color: var(--accent); padding: 7px 12px; background: rgba(90,169,255,.07); border-bottom: 1px solid var(--line); }
   .diff-card .del, .diff-card .add { padding: 2px 12px; white-space: pre; overflow: hidden; }
   .diff-card .del { color: var(--risk-high); background: rgba(244,106,106,.08); }
   .diff-card .add { color: var(--risk-low); background: rgba(67,214,138,.08); }
   .focus-foot { display: flex; gap: 8px; padding: 9px 13px; border-top: 1px solid var(--line); }
-  .focus-tether { position: absolute; top: 150px; right: 392px; width: 90px; height: 2px; background: linear-gradient(90deg, rgba(90,169,255,0), rgba(90,169,255,.5)); z-index: 4; }
 
-  /* Edge drawer hint (left) */
   .edge-peek {
-    position: absolute; left: 0; top: 38%; width: 14px; height: 88px;
+    position: absolute; left: 0; top: 40%; width: 14px; height: 84px;
     background: var(--bg-card); border: 1px solid var(--line); border-left: none;
     border-radius: 0 8px 8px 0; display: grid; place-items: center;
     color: var(--text-3); font-size: 10px; writing-mode: vertical-lr; letter-spacing: 2px;
   }
 
-  /* Command deck */
-  .deck-wrap { position: absolute; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; z-index: 6; }
-  .deck {
-    width: min(620px, 92%);
-    background: rgba(17,23,35,.92); backdrop-filter: blur(16px);
-    border: 1px solid var(--line); border-radius: 16px;
-    box-shadow: 0 -10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(77,227,194,.06);
-    overflow: hidden;
+  /* Directive bar */
+  .dirbar-wrap { position: absolute; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; z-index: 6; }
+  .dirbar {
+    width: min(640px, 92%);
+    background: rgba(17,23,35,.94); backdrop-filter: blur(16px);
+    border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.5); overflow: hidden;
   }
-  .deck-chips { display: flex; gap: 6px; padding: 9px 13px 0; }
-  .chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-3); display: flex; gap: 5px; align-items: center; }
-  .chip.on { background: var(--sonar-dim); color: var(--sonar); border-color: rgba(77,227,194,.4); font-weight: 600; }
-  .deck-input { padding: 10px 15px; color: var(--text-3); font-size: 13.5px; }
-  .deck-foot { display: flex; align-items: center; gap: 10px; padding: 0 13px 11px; font-size: 11px; color: var(--text-3); }
-  .send { margin-left: auto; width: 40px; height: 40px; border-radius: 12px; background: var(--sonar); display: grid; place-items: center; color: #04241c; box-shadow: 0 0 20px rgba(77,227,194,.35); }
+  .dirbar-addr { display: flex; align-items: center; gap: 8px; padding: 8px 13px 0; font-size: 11px; color: var(--text-3); }
+  .dirbar-addr .target { font-family: var(--mono); color: var(--accent); background: rgba(90,169,255,.1); border: 1px solid rgba(90,169,255,.3); border-radius: 6px; padding: 1px 8px; }
+  .dirbar-addr .tab-hint { margin-left: auto; font-size: 10px; }
+  .dirbar-input { padding: 8px 15px; color: var(--text-3); font-size: 13.5px; }
+  .dirbar-foot { display: flex; align-items: center; gap: 10px; padding: 0 13px 10px; font-size: 11px; color: var(--text-3); }
+  .send { margin-left: auto; width: 38px; height: 38px; border-radius: 11px; background: var(--sonar); display: grid; place-items: center; color: #04241c; box-shadow: 0 0 18px rgba(77,227,194,.35); }
 
-  /* ============ Figure 2: Mission control ============ */
-  .shell.mc .workarea { filter: blur(6px) brightness(.45); }
-  .mc-overlay { position: absolute; inset: 40px 0 0 0; z-index: 10; display: flex; flex-direction: column; align-items: center; padding: 34px 40px; background: rgba(4,6,10,.35); }
-  .mc-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-  .mc-search { width: min(480px, 80%); background: rgba(20,27,40,.85); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; color: var(--text-3); font-size: 13px; margin: 12px 0 22px; display: flex; justify-content: space-between; }
-  .mc-grid { display: grid; grid-template-columns: repeat(3, 230px); gap: 14px; }
-  .mc-card { background: rgba(20,27,40,.92); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
-  .mc-card.hot { border-color: rgba(77,227,194,.4); box-shadow: 0 10px 30px rgba(0,0,0,.4), 0 0 24px rgba(77,227,194,.08); }
-  .mc-card h4 { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
-  .mc-card h4 .st { font-size: 10px; font-weight: 600; }
-  .mc-mini-stages { display: flex; align-items: center; gap: 3px; }
-  .mc-mini-stages i { width: 7px; height: 7px; border-radius: 50%; }
-  .mc-mini-stages s { width: 14px; height: 2px; background: var(--line); text-decoration: none; }
-  .mc-card .last { font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "SF Mono", ui-monospace, monospace; }
-  .mc-card .meta { font-size: 10.5px; color: var(--text-3); display: flex; gap: 8px; }
-  .mc-card .meta .alert { color: var(--risk-high); font-weight: 700; }
-  .mc-new { border: 1px dashed var(--line); background: transparent; display: grid; place-items: center; color: var(--text-3); font-size: 12px; box-shadow: none; }
+  /* Figure 2: shop floor */
+  .shell.floor .workarea { filter: blur(6px) brightness(.45); }
+  .floor-overlay { position: absolute; inset: 40px 0 0 0; z-index: 10; display: flex; flex-direction: column; align-items: center; padding: 32px 40px; background: rgba(4,6,10,.35); }
+  .floor-title { font-size: 17px; font-weight: 700; }
+  .floor-sub { font-size: 11.5px; color: var(--text-3); margin-top: 4px; }
+  .floor-grid { display: grid; grid-template-columns: repeat(3, 232px); gap: 14px; margin-top: 22px; }
+  .wo-card { background: rgba(19,26,39,.94); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; display: flex; flex-direction: column; gap: 9px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .wo-card.hot { border-color: rgba(77,227,194,.4); }
+  .wo-card h4 { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+  .wo-card h4 .st { font-size: 10px; font-weight: 600; }
+  .wo-steps { display: flex; align-items: center; gap: 3px; }
+  .wo-steps i { width: 7px; height: 7px; border-radius: 50%; }
+  .wo-steps s { width: 13px; height: 2px; background: var(--line); text-decoration: none; }
+  .wo-card .now { font-size: 11px; color: var(--text-3); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wo-card .meta { font-size: 10.5px; color: var(--text-3); display: flex; gap: 9px; font-family: var(--mono); }
+  .wo-card .meta .alert { color: var(--risk-high); font-weight: 700; }
+  .wo-card .auto { border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; font-size: 9.5px; }
+  .wo-card.new { border: 1px dashed var(--line); background: transparent; display: grid; place-items: center; color: var(--text-3); font-size: 12px; box-shadow: none; min-height: 118px; }
 
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
-
   .annotations { max-width: 1180px; width: 100%; margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
   .note-card { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
   .note-card h3 { font-size: 13px; color: var(--sonar); margin-bottom: 6px; }
@@ -189,152 +210,193 @@
 <body>
 
 <div class="doc-header">
-  <h1>Orca Deck <em>v2 · 无框指挥舱</em> — DeepOrca 重设计视觉稿</h1>
-  <p>2026-08-19 · 配套文档：audit-report / redesign-vision(v2) / redesign-wireframes(v2)（docs/research/）</p>
-  <p class="v2note">⚠ v2 修订：应"v1 VS Code 影子太重"的反馈——rail、二级面板、右栏、状态栏全部移除，导航改为召唤式（⌘K 命令层 / ⌘⇧M 任务总台 / 边缘抽屉 / 焦点卡），阶段脊柱升级为置顶阶段带。</p>
+  <h1>Orca Deck <em>v3 · 工单工作台</em> — DeepOrca 重设计视觉稿</h1>
+  <p>2026-08-19 · 配套文档：audit-report / redesign-vision(v3) / redesign-wireframes(v3)（docs/research/）</p>
+  <p class="v3note">⚠ v3 修订：针对"仍未脱离 AI 感与回合制统一交互逻辑"的反馈——消息流降级为记录仪（⌘T Tape），<b>工单升格为界面本体</b>；无气泡、无头像、无"思考中"；回合制改为并行值守：闸门前置 + 自律度旋钮 + 对象锚定介入 + 永远可用的刹车。</p>
   <div class="legend">
-    <span><i style="background:var(--sonar)"></i>声呐强调色（当前/活跃）</span>
-    <span><i style="background:var(--risk-low)"></i>低风险 / 成功</span>
-    <span><i style="background:var(--risk-mid)"></i>中风险 / 待决</span>
-    <span><i style="background:var(--risk-high)"></i>高风险 / 待决通知</span>
-    <span><i style="background:var(--bg-card);border:1px solid var(--line)"></i>浮动层（玻璃拟态）</span>
+    <span><i style="background:var(--sonar)"></i>施工中 / 声呐指示</span>
+    <span><i style="background:var(--risk-low)"></i>已交付 / 通过</span>
+    <span><i style="background:var(--risk-mid)"></i>介入批注 / 待确认</span>
+    <span><i style="background:var(--risk-high)"></i>高危 / 待决</span>
+    <span><i style="background:var(--bg-card);border:1px solid var(--line)"></i>工件表面</span>
   </div>
 </div>
 
-<div class="frame-label">画面 ① 主工作台 <span>零常驻侧栏：内容列 + 阶段带 + 悬浮输入台 + 浮动焦点卡</span></div>
+<div class="frame-label">画面 ① 工单工作台 <span>主体是工单不是聊天：步骤板可拖可划可设闸门，指示条对"选中的对象"说话</span></div>
 
 <div class="shell">
-  <!-- Stage ribbon -->
+  <!-- Goal ribbon -->
   <header class="ribbon">
     <div class="gumdrops"><i></i><i></i><i></i></div>
-    <div class="session-name"><span class="orca">◉</span>重构权限为审批队列 <span class="chev">▾</span></div>
-    <div class="stages">
-      <span class="stage done"><span class="dot"></span>理解</span><span class="stage-link done"></span>
-      <span class="stage done"><span class="dot"></span>计划</span><span class="stage-link half"></span>
-      <span class="stage live"><span class="dot"></span>执行</span><span class="stage-link idle"></span>
-      <span class="stage todo"><span class="dot"></span>验证</span><span class="stage-link idle"></span>
-      <span class="stage todo"><span class="dot"></span>交付</span>
+    <div class="goal-name"><span class="orca">◉</span>权限改批量审批 <span class="chev">▾</span></div>
+    <div class="steps-mini">
+      <span class="sm-node done"></span><span class="sm-link done"></span>
+      <span class="sm-node done"></span><span class="sm-link half"></span>
+      <span class="sm-node live"></span><span class="sm-link idle"></span>
+      <span class="sm-node todo"></span><span class="sm-link idle"></span>
+      <span class="sm-node todo"></span>
     </div>
     <div class="ribbon-right">
-      <span>42s · ↓1.2k tok</span>
+      <span>42s · $0.04</span>
       <span class="ctx-ring"><span class="ring"></span>62%</span>
-      <span class="rbtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/></svg><span class="badge">3</span></span>
-      <span class="rbtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/></svg></span>
+      <span class="rbtn">🔔<span class="badge">1</span></span>
+      <span class="rbtn">⚭</span>
     </div>
   </header>
 
   <div class="workarea">
     <div class="edge-peek">⌘E 文件</div>
-    <div class="focus-tether"></div>
 
     <div class="column">
-      <div class="stage-sep"><b>✓ 理解</b><span>已折叠 · 读了 12 个文件 · 4.2k tok</span><span class="fold">展开</span></div>
-      <div class="stage-sep"><b>✓ 计划</b><span>方案已批准 · 队列化 + 高危逐项</span><span class="fold">展开</span></div>
+      <!-- Goal header -->
+      <div class="goal-head">
+        <h2>把权限改成批量审批队列</h2>
+        <span class="wo">工单 #3 · 5 步 · 已跑 42s · $0.04 · ●施工中</span>
+        <div class="constraints">
+          <span class="constraint">约束: 高危逐项 ✕</span>
+          <span class="constraint">勿碰 session.ts</span>
+        </div>
+      </div>
 
-      <div class="stage-sep live-sep"><b>◉ 执行</b><span>进行中 · 3/7 文件 · 42s</span></div>
+      <!-- Step board -->
+      <div class="stepboard">
+        <div class="step-chip done"><span class="n">①</span><span class="st">✓</span>读取权限模块</div>
+        <div class="step-chip done"><span class="n">②</span><span class="st">✓</span>设计队列结构</div>
+        <div class="step-chip live"><span class="n">③</span><span class="st">◉</span>改策略面</div>
+        <div class="step-chip todo"><span class="n">④</span>验证 <span class="gate">✋</span></div>
+        <div class="step-chip todo"><span class="n">⑤</span>交付</div>
+      </div>
 
-      <div class="msg-user">把权限卡改成批量审批队列，高危项仍然必须逐项确认</div>
-      <div class="tool-line selected">🔧 <span class="paths">edit</span> packages/core/src/common/permissions.ts <span class="diffstat">+45 <b>−12</b></span></div>
-      <div class="tool-line">🔧 <span class="paths">bash</span> npm run typecheck <span class="ok">✓ exit 0</span></div>
+      <!-- Current step card -->
+      <div class="step-card current">
+        <div class="sc-head"><span class="st" style="color:var(--sonar)">◉</span>③ 改 core 权限策略面 <span class="gate-sel">gate: 自动 ▾</span></div>
+        <div class="sc-body">
+          <div class="scope-row">范围
+            <span class="scope-chip">permissions.ts <span class="x">✕</span></span>
+            <span class="scope-chip">PermissionCard.tsx <span class="x">✕</span></span>
+            <span class="scope-add">＋ 添加</span>
+          </div>
+          <div class="progress-line">
+            <span><span class="ok">✓</span> edit permissions.ts <span class="ok">+45 −12</span></span><span class="arr">→</span>
+            <span><span class="ok">✓</span> typecheck exit 0</span><span class="arr">→</span>
+            <span class="live2">◉ edit PermissionCard.tsx …</span>
+          </div>
+          <div class="intervention"><b>💬 你的介入 · 2 分钟前</b><br>高危降级的判断再保守一点，network 也算高危</div>
+          <div class="pending">
+            <span style="color:var(--risk-high)">⚠</span><span class="cmd">执行前确认: git push origin docs/ui-ux-redesign</span>
+            <span class="acts"><span class="btn primary">允许</span><span class="btn danger">拒绝</span><span class="btn">仅提交</span></span>
+          </div>
+        </div>
+      </div>
 
-      <div class="approval">
-        <div class="approval-head">审批队列 <span class="count">3 项待决</span><span class="hint">不阻塞 — agent 正在继续无风险步骤</span></div>
-        <div class="approval-item"><span class="risk-dot" style="background:var(--risk-mid)"></span><span class="cmd">写 packages/core/src/common/permissions.ts</span><span class="acts"><span class="btn primary">允许</span></span></div>
-        <div class="approval-item"><span class="risk-dot" style="background:var(--risk-low)"></span><span class="cmd">读 docs/permission.md</span><span class="acts"><span class="btn primary">允许</span></span></div>
-        <div class="approval-item"><span class="risk-dot" style="background:var(--risk-high)"></span><span class="cmd">git push origin docs/ui-ux-redesign</span><span class="acts"><span class="btn primary">允许</span><span class="btn danger">拒绝</span></span></div>
-        <div class="approval-foot"><span class="btn">全部允许本轮（高危除外）</span><span class="btn">逐项 ▸ 焦点卡检视</span></div>
+      <!-- Collapsed steps -->
+      <div class="step-collapsed"><b style="color:var(--risk-low)">✓</b><b>② 设计队列结构</b><span class="sum">产出 queue-spec 草案 · 38s · 2.1k tok</span><span class="more">展开</span></div>
+      <div class="step-collapsed"><b style="color:var(--risk-low)">✓</b><b>① 读取权限模块</b><span class="sum">读 12 文件 · 26s · 4.2k tok</span><span class="more">展开</span></div>
+      <div class="step-collapsed" style="opacity:.6"><b>④</b><b>验证</b><span class="sum">typecheck · lint · test — gate: 完成时确认 ✋</span></div>
+
+      <!-- Autonomy + brake -->
+      <div class="control-row">
+        <div class="autonomy">
+          自律度
+          <div class="dial"><div class="track"><div class="fill"></div><div class="knob"></div></div></div>
+          <div class="dial-labels"><span>全自动</span><span class="on">关键确认</span><span>每步确认</span></div>
+        </div>
+        <div class="brake">⏸ 刹车</div>
       </div>
     </div>
 
     <!-- Focus card -->
     <div class="focus-card">
-      <div class="focus-head">permissions.ts 的变更 <span class="anchor">⌖ 锚定自消息卡片</span><span class="ops">📌 ✕</span></div>
+      <div class="focus-head">permissions.ts 的变更 <span class="anchor">⌖ 来自 ③ 进度行</span><span class="ops">📌 ✕</span></div>
       <div class="diff-card">
-        <div class="hunk">@@ -106,7 +106,7 @@ computeRisk()</div>
+        <div class="hunk">@@ -106,7 +106,8 @@ computeRisk()</div>
         <div class="del">-  const risk = "high";</div>
         <div class="add">+  const risk = queueable(scope) ? "medium" : "high";</div>
-        <div class="add">+  queue.push({ scope, risk });</div>
+        <div class="add">+  if (scope === "network") risk = "high"; // 介入 #2</div>
       </div>
-      <div class="focus-foot"><span class="btn primary">在编辑器打开</span><span class="btn">还原此文件</span></div>
+      <div class="focus-foot"><span class="btn primary">在编辑器打开</span><span class="btn">还原</span></div>
     </div>
 
-    <!-- Command deck -->
-    <div class="deck-wrap">
-      <div class="deck">
-        <div class="deck-chips"><span class="chip on">对话</span><span class="chip">⬡ Plan</span><span class="chip">自动</span><span class="chip">@ 3 个文件</span></div>
-        <div class="deck-input">输入消息…（/ 命令 · @ 文件 · 拖图）</div>
-        <div class="deck-foot">
+    <!-- Directive bar -->
+    <div class="dirbar-wrap">
+      <div class="dirbar">
+        <div class="dirbar-addr">对 <span class="target">③ 改策略面</span> 说：<span class="tab-hint">Tab 切换对象 · 当前=步骤</span></div>
+        <div class="dirbar-input">高危降级逻辑再保守一点…</div>
+        <div class="dirbar-foot">
           <span class="ctx-ring"><span class="ring"></span>62% ctx</span>
-          <span>✨ flash 改写</span>
-          <div class="send"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></div>
+          <span>介入将在下一决策点生效，不打断当前工具</span>
+          <div class="send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="frame-label">画面 ② 任务总台 ⌘⇧M <span>全屏卡片墙：所有会话一瞥总览，替代会话侧栏；工作台在背景模糊可见</span></div>
+<div class="frame-label">画面 ② 车间墙 ⌘⇧M <span>所有工单一瞥总览；工作台在背景模糊可见；每张卡显示自律度档位与待决数</span></div>
 
-<div class="shell mc">
+<div class="shell floor">
   <header class="ribbon">
     <div class="gumdrops"><i></i><i></i><i></i></div>
-    <div class="session-name"><span class="orca">◉</span>重构权限为审批队列 <span class="chev">▾</span></div>
-    <div class="stages">
-      <span class="stage done"><span class="dot"></span>理解</span><span class="stage-link done"></span>
-      <span class="stage done"><span class="dot"></span>计划</span><span class="stage-link half"></span>
-      <span class="stage live"><span class="dot"></span>执行</span><span class="stage-link idle"></span>
-      <span class="stage todo"><span class="dot"></span>验证</span><span class="stage-link idle"></span>
-      <span class="stage todo"><span class="dot"></span>交付</span>
+    <div class="goal-name"><span class="orca">◉</span>权限改批量审批 <span class="chev">▾</span></div>
+    <div class="steps-mini">
+      <span class="sm-node done"></span><span class="sm-link done"></span>
+      <span class="sm-node done"></span><span class="sm-link half"></span>
+      <span class="sm-node live"></span><span class="sm-link idle"></span>
+      <span class="sm-node todo"></span><span class="sm-link idle"></span>
+      <span class="sm-node todo"></span>
     </div>
-    <div class="ribbon-right"><span>42s · ↓1.2k tok</span><span class="ctx-ring"><span class="ring"></span>62%</span></div>
+    <div class="ribbon-right"><span>42s · $0.04</span><span class="ctx-ring"><span class="ring"></span>62%</span></div>
   </header>
   <div class="workarea">
     <div class="column">
-      <div class="stage-sep live-sep"><b>◉ 执行</b><span>进行中 · 3/7 文件</span></div>
-      <div class="msg-user">把权限卡改成批量审批队列</div>
-      <div class="tool-line">🔧 <span class="paths">edit</span> permissions.ts <span class="diffstat">+45 <b>−12</b></span></div>
+      <div class="goal-head"><h2>把权限改成批量审批队列</h2></div>
+      <div class="stepboard">
+        <div class="step-chip done"><span class="n">①</span><span class="st">✓</span>读取</div>
+        <div class="step-chip done"><span class="n">②</span><span class="st">✓</span>设计</div>
+        <div class="step-chip live"><span class="n">③</span><span class="st">◉</span>改策略面</div>
+      </div>
     </div>
   </div>
-  <div class="mc-overlay">
-    <div class="mc-title">任务总台</div>
-    <div class="mc-search">🔍 过滤会话… <span>Esc 返回</span></div>
-    <div class="mc-grid">
-      <div class="mc-card hot">
-        <h4><span class="st" style="color:var(--sonar)">◉ 执行中</span> 权限审批队列</h4>
-        <div class="mc-mini-stages"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar);box-shadow:0 0 8px var(--sonar)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i></div>
-        <div class="last">▸ edit permissions.ts +45 −12</div>
-        <div class="meta"><span>42s</span><span>↓1.2k tok</span><span class="alert">🔴 3 项待决</span></div>
+  <div class="floor-overlay">
+    <div class="floor-title">车间墙</div>
+    <div class="floor-sub">全部工单 · 一瞥总览 · Esc 返回工作台</div>
+    <div class="floor-grid">
+      <div class="wo-card hot">
+        <h4><span class="st" style="color:var(--sonar)">◉ 施工中</span> 权限改批量审批</h4>
+        <div class="wo-steps"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar);box-shadow:0 0 8px var(--sonar)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i></div>
+        <div class="now">③ edit PermissionCard.tsx …</div>
+        <div class="meta"><span>42s</span><span>$0.04</span><span class="auto">关键确认</span><span class="alert">⚠1</span></div>
       </div>
-      <div class="mc-card">
-        <h4><span class="st" style="color:var(--risk-low)">✓ 已交付</span> 预览面板 grid 修复</h4>
-        <div class="mc-mini-stages"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i></div>
-        <div class="last">✓ typecheck · lint · test 全绿</div>
-        <div class="meta"><span>12m 前</span><span>8.6k tok</span></div>
+      <div class="wo-card">
+        <h4><span class="st" style="color:var(--risk-low)">✓ 已交付</span> 预览面板死代码清理</h4>
+        <div class="wo-steps"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i></div>
+        <div class="now">✓ typecheck · lint · test 全绿</div>
+        <div class="meta"><span>12m 前</span><span>$0.11</span><span class="auto">全自动</span></div>
       </div>
-      <div class="mc-card">
-        <h4><span class="st" style="color:var(--text-3)">◌ 等待输入</span> 导出 .ddp 压缩包</h4>
-        <div class="mc-mini-stages"><i style="background:var(--sonar)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i></div>
-        <div class="last">❓ 是否包含历史版本？</div>
-        <div class="meta"><span>2h 前</span><span>3.1k tok</span></div>
+      <div class="wo-card">
+        <h4><span class="st" style="color:var(--risk-mid)">◌ 待确认</span> 导出 .ddp 压缩包</h4>
+        <div class="wo-steps"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="border:1.5px solid var(--risk-mid)"></i><s></s><i style="border:1.5px solid var(--text-3)"></i></div>
+        <div class="now">✋ ③ 等待: 是否包含历史版本？</div>
+        <div class="meta"><span>2h 前</span><span>$0.03</span><span class="auto">每步确认</span></div>
       </div>
-      <div class="mc-card">
+      <div class="wo-card">
         <h4><span class="st" style="color:var(--risk-low)">✓ 已交付</span> 任务树快照切换</h4>
-        <div class="mc-mini-stages"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i></div>
-        <div class="last">✓ 快照切换 + 时间轴视图</div>
-        <div class="meta"><span>昨天</span><span>21k tok</span></div>
+        <div class="wo-steps"><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i><s></s><i style="background:var(--sonar)"></i></div>
+        <div class="now">✓ 快照切换 + 时间轴</div>
+        <div class="meta"><span>昨天</span><span>$0.26</span><span class="auto">全自动</span></div>
       </div>
-      <div class="mc-card mc-new">＋ 新会话 ⌘N</div>
+      <div class="wo-card new">＋ 新目标 ⌘N</div>
     </div>
   </div>
 </div>
 
 <div class="annotations">
-  <div class="note-card"><h3>① 阶段带 Stage Ribbon</h3><p>窗口唯一常驻结构件（40px，兼标题栏）：会话名 + 五阶段进度 + 上下文仪表 + 通知。空闲时隐去，工作启动才"亮"。回答竞品回答不了的"进行到哪一步"。</p></div>
-  <div class="note-card"><h3>② 零常驻侧栏</h3><p>v1 的 rail/二级面板/右栏/状态栏全部移除——不再有 VS Code 式地契。屏幕不再为"可能用到"付费，内容列是唯一主角。</p></div>
-  <div class="note-card"><h3>③ 召唤式导航</h3><p>⌘K 命令层（真模糊、全覆盖）管动词，⌘⇧M 任务总台管名词，边缘抽屉（⌘E 文件 / ⌘⇧P 进程）管一瞥——用完即收，可钉住。</p></div>
-  <div class="note-card"><h3>④ 焦点卡 Focus Card</h3><p>Quick Look 心智取代右栏 dock：点消息里的对象，380px 玻璃卡锚定在旁。可拖动、可钉住多张。同时消化了审计发现的断头右栏死代码。</p></div>
-  <div class="note-card"><h3>⑤ 审批队列</h3><p>一轮权限请求聚合为一卡，流不掐断；高危项强制逐项；deny 以可见胶囊呈现。待决数同步进阶段带 🔔 与总台卡片。</p></div>
-  <div class="note-card"><h3>⑥ 浮层栈架构</h3><p>一切皆浮层，栈序即 z 序；Esc 关最上层、⌘⇧Esc 全关。视图状态从 sidebarView×mainView 复合状态机简化为「内容列 + 浮层栈」，消灭状态组合 bug 温床。</p></div>
+  <div class="note-card"><h3>① 工单即界面</h3><p>屏幕主体是正在被建造的东西：目标、约束、步骤板、步骤卡。对话降级为 ⌘T 记录仪。工件即界面，对话是脚注——这是与一切"聊天壳"产品的本体差异。</p></div>
+  <div class="note-card"><h3>② 步骤是可操作对象</h3><p>步骤芯片可拖拽重排、划线删除、改范围 chips、逐步设闸门（自动/执行前确认/完成时确认）。你改的不是对话，是正在进行的工作本身。</p></div>
+  <div class="note-card"><h3>③ 并行值守，回合制消亡</h3><p>闸门前置取代中途弹卡；agent 的提问挂在步骤上不阻塞其他步骤；你半小时后回来一次答完，它按新状态继续——而不是干等。</p></div>
+  <div class="note-card"><h3>④ 自律度旋钮 + 刹车</h3><p>三档物理控件（全自动/关键确认/每步确认）取代逐条审问；高危项不受全自动覆盖。⏸ 刹车永远可用，拍下即冻结、再按恢复。</p></div>
+  <div class="note-card"><h3>⑤ 介入，而非对话</h3><p>指示条永远标注"对 [选中对象] 说"。批注挂在步骤/文件/hunk 上，像 code review 的 inline comment，不像微信。</p></div>
+  <div class="note-card"><h3>⑥ 仪器化，去拟人</h3><p>无气泡、无头像、无"思考中"。进行态必须带量化仪表（N/M 步 · 时长 · $ · diffstat）；机器输出用等宽字体，人用常规字体，来源靠排印区分。</p></div>
 </div>
 
 </body>

@@ -84,8 +84,8 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-08-19-ui-ux-audit-report.md](./2026-08-19-ui-ux-audit-report.md) | 桌面端 UI/UX 现状审计（全量代码走查，附 file:line 证据） | `packages/desktop/src/renderer/`（App.tsx、ui.css、rail、panels） | ⬜ | 发现 **P0 疑似缺陷：右侧预览面板 `.ui-preview-panel` 无 grid 归属**（`.ui-shell.right-open`/`.ui-rightpanel` 为零引用死代码），PM-Design 预览可见性需真机验证；另列 P1 结构问题 5 项（rail 19 按钮过载、视图状态复合、入口割裂、命令面板浅薄、权限打断）、P2 体验问题 10 项 |
-| [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 无框指挥舱」v2 + 竞品差异化定位（vs Cursor/Codex/Threads/VS Code） | 提案落点：消息流阶段化、零常驻侧栏、命令层 ⌘K、任务总台 ⌘⇧M、边缘抽屉、焦点卡、审批队列 | ⬜ | **v2 按"v1 VS Code 影子太重"反馈换骨**：五区 rail/二级面板/右栏全移除，导航从收纳改为召唤式（Summon, don't dock），阶段脊柱升级为置顶阶段带；视图状态从复合状态机简化为「内容列 + 浮层栈」 |
-| [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿 v2：全界面 ASCII 线框 + 尺寸/交互规格 + 键盘地图 + token 增补 | 提案落点：`ui.css`、OverlayStack、CommandPalette、FocusCard、四抽屉、任务总台 | ⬜ | v2 双画面 HTML 视觉稿（主工作台 + 任务总台）经 Playwright 截图验证渲染正确；正式实现一律以 specs/ 为准（总口径） |
+| [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 工单工作台」v3 + 竞品差异化定位 | 提案落点：工单/步骤一等状态、闸门前置+自律度旋钮、对象锚定介入、Tape 记录仪（⌘T）、车间墙 ⌘⇧M | ⬜ | **v3 按"仍未脱离 AI 感与回合制统一交互"反馈换本体**：对话降级为只读记录仪，工单升格为界面本体；步骤可拖/划/设闸门；回合制改并行值守；去气泡/头像/"思考中"。演进：v1 五区 rail（VS Code 影子）→ v2 召唤式浮层（只动 chrome）→ v3 工单工作台 |
+| [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿 v3：工作台线框 + 步骤卡/介入/自律度/刹车交互规格 + 键盘地图 + 降级兜底 | 提案落点：renderer 工单视图、permissions 策略面重构、OverlayStack、FocusCard | ⬜ | v3 双画面 HTML 视觉稿（工单工作台 + 车间墙）经 Playwright 截图验证；渲染层革命非引擎重写（对象均可映射现有引擎原语）；正式实现一律以 specs/ 为准（总口径） |
 
 ---
 
