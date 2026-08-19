@@ -1,3 +1,5 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import { isAbsolute, resolve as resolvePath } from "node:path";
@@ -213,10 +215,16 @@ function appendChunk(existing: string, chunk: string | Buffer): string {
 }
 
 function formatWebSearchActivityLabel(query: string): string {
-  // Display-only surface: strip control characters before the label reaches
-  // the process-activity tracker (taint hardening; the spawn argument itself
-  // stays untouched — argv-form, validated script path).
-  const displaySafe = query.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ");
+  // Display-only surface: strip control, bidi-override and zero-width
+  // characters before the label reaches the process-activity tracker and the
+  // audit log (taint hardening; the spawn argument itself stays untouched —
+  // argv-form, validated script path).
+  const displaySafe = query
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    // U+200B-200F (zero-width + LRM/RLM), U+202A-202E (bidi embedding and
+    // override), U+2060-2069 (word joiner + isolate controls), U+FEFF
+    // (ZWNBSP): invisible label-spoofing vectors in logs and UI panes.
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, "");
   const normalizedQuery = displaySafe.replace(/\s+/g, " ").trim();
   const maxQueryLength = 180;
   const clippedQuery =
