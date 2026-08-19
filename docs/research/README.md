@@ -86,6 +86,7 @@
 | [2026-08-19-ui-ux-audit-report.md](./2026-08-19-ui-ux-audit-report.md) | 桌面端 UI/UX 现状审计（全量代码走查，附 file:line 证据） | `packages/desktop/src/renderer/`（App.tsx、ui.css、rail、panels） | ⬜ | 发现 **P0 疑似缺陷：右侧预览面板 `.ui-preview-panel` 无 grid 归属**（`.ui-shell.right-open`/`.ui-rightpanel` 为零引用死代码），PM-Design 预览可见性需真机验证；另列 P1 结构问题 5 项（rail 19 按钮过载、视图状态复合、入口割裂、命令面板浅薄、权限打断）、P2 体验问题 10 项 |
 | [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 工单工作台」v3 + 竞品差异化定位 | 提案落点：工单/步骤一等状态、闸门前置+自律度旋钮、对象锚定介入、Tape 记录仪（⌘T）、车间墙 ⌘⇧M | ⬜ | **v3 按"仍未脱离 AI 感与回合制统一交互"反馈换本体**：对话降级为只读记录仪，工单升格为界面本体；步骤可拖/划/设闸门；回合制改并行值守；去气泡/头像/"思考中"。演进：v1 五区 rail（VS Code 影子）→ v2 召唤式浮层（只动 chrome）→ v3 工单工作台 |
 | [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿 v3：工作台线框 + 步骤卡/介入/自律度/刹车交互规格 + 键盘地图 + 降级兜底 | 提案落点：renderer 工单视图、permissions 策略面重构、OverlayStack、FocusCard | ⬜ | v3 双画面 HTML 视觉稿（工单工作台 + 车间墙）经 Playwright 截图验证；渲染层革命非引擎重写（对象均可映射现有引擎原语）；正式实现一律以 specs/ 为准（总口径） |
+| 风格试板 `2026-08-19-ui-ux-style-studies.html` | 同一 v3 工单工作台 × 六种视觉语言：Neumorphism / Glassmorphism / Liquid Glass / Flat / Vernacular Web(1997) / Claymorphism | 提案落点：`--ui-*` token 主题架构扩充（现有 6 主题之外的候选皮肤） | ⬜ | 应"AI 只会科技配色"批评而作：证明交互结构（工单工作台）与视觉皮肤正交，六套风格全部可落在现有 token 换肤架构上；每版严格遵循对应风格规约（neumorphism 双向软阴影+零描边、glassmorphism 全玻璃+对比 scrim、Liquid Glass 玻璃只给控件层、flat 零阴影纯色块、Vernacular 星空+彩虹分隔线+LED 计数器、clay 三阴影配方+大圆角） |
 
 ---
 
