@@ -1,6 +1,8 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.21 · 日期：2026-08-18 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
+> 版本：v3.22 · 日期：2026-08-19 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
+>
+> **v3.22 更新（知识编译立项）**：基于 llm_wiki 预研（`docs/research/2026-08-19-llm-wiki-prestudy.md`）新增 **§二「文档知识编译层 doc-wiki」**——核心论点：六源知识栈已覆盖「对话→记忆（memory）、代码→文档（openwiki）」，唯独缺「**资料→知识**」的编译路径；补齐后用户资料（MD/PDF/网页）被增量编译为互链 Wiki 页（两步摄入 + SHA256 缓存 + `sources[]` 溯源 + 删除级联），知识从"每次查询重新检索"变为"编译一次持续维护"。**许可红线**：llm_wiki 为 GPL-3.0（LICENSE 本体核证）→ 净室借鉴零代码继承，方法论与算法思想（两步摄入/四信号关联度/预算装配）不受版权保护可借鉴。分期 D0（purpose 注入 + kb-lint skill）→ D1（编译层 MVP）→ D2（检索/图谱/Deep Research 闭环）进下一版主线 D，D3（反向 MCP 暴露/多格式/剪藏）留后续版；spec 见 [`specs/doc-wiki/`](../../specs/doc-wiki/design.md)，§0 终判表同步新增（⬜ 设计定稿）。
 >
 > **v3.21 更新（按真实情况对齐）**：① 头部 20 段版本日志（v3.0–v3.20）移至文末**附录·路线图版本历史**；② 新增 **§0 当前状态总览**——逐 spec 终判（F5 产出）作为全项目现状唯一权威口径，取代散落各处的状态声明；③ §三 移动开发域按实况改写（四平台技能包与运行时集成已于 `f680c14` 整体临时下线，原"已集成"8 行过期）；④ 新增 [docs/README.md](../README.md) 目录索引与权威层级。
 
@@ -10,7 +12,7 @@
 
 **当前阶段**：预生产冻结期。收官计划 A–G 七线完成；F 线 F1–F3+F6+F5 完成，F4 推进中（Windows 真机构建/启动烟雾通过并修复 5 项真问题，交互清单待人工走查）；E1d 已闭环（review 面板品牌漂移卡片）；H（预生产切换：版本定格 → dev 合并 → tag → 冻结生效）待 F4 完成后执行。
 
-### 逐 spec 终判（✅8 · 🟡5 · ⬜4 · ❌2）
+### 逐 spec 终判（✅8 · 🟡5 · ⬜5 · ❌2）
 
 | spec | 终判 | 一句话 |
 | --- | --- | --- |
@@ -31,6 +33,7 @@
 | [cad-3d-generation](../../specs/cad-3d-generation/design.md) | ⬜ | 规划中（text-to-cad / img2threejs 技能未动工） |
 | [desktop-pet](../../specs/desktop-pet/design.md) | ⬜ | 调研定稿未实现 |
 | [module-system](../../specs/module-system/design.md) | ⬜ | 发行版/模块系统远景规划 |
+| [doc-wiki](../../specs/doc-wiki/design.md) | ⬜ | 文档知识编译层（2026-08-19 新立设计稿，下一版主线 D；llm_wiki 净室借鉴，见 §二） |
 | [behavior-memory](../../specs/behavior-memory/design.md) | ❌ | 2026-08-17 作废，由 @deeporca/memory（TDAI L0–L3）承接 |
 | [harmonyos-dev-kit](../../specs/harmonyos-dev-kit/design.md) | ❌ | 曾落地后整体下线（`f680c14`）；鸿蒙 PC 移植 2026-08-18 调研结论"先不做"（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`） |
 
@@ -45,7 +48,7 @@
 
 见 [docs/README.md](../README.md)：**路线与现状 = 本文件 §0；实现方案 = specs/；调研 = docs/research/（仅供参考）；本版本收尾范围 = specs/pre-production/tasks.md**。
 
-**下一版本路线**：[`docs/features/next-version-plan.md`](./next-version-plan.md)（2026-08-18 立：自进化引擎 E1/E2 + Studio 基座 B1/B2 + 远程访问 M1–M3，前置 = 本版本 F4/H 收尾）。
+**下一版本路线**：[`docs/features/next-version-plan.md`](./next-version-plan.md)（2026-08-18 立：自进化引擎 E1/E2 + Studio 基座 B1/B2 + 远程访问 M1–M3；2026-08-19 增补主线 D 知识编译 D0–D2，前置 = 本版本 F4/H 收尾）。
 
 ---
 
@@ -54,7 +57,7 @@
 | 功能域                                            | 已集成                                                                                                            | 规划中                                                                                                                                                                           | 核心目标                                                 |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | [一、代码智能](#一代码智能)                       | codegraph（in-process SDK）, CRG（风险图谱）, ocr（语义审查）, **serena**（语义操作）, **arch-scan**（架构索引） | —                                                                                                                                                                                | 让 Agent 从"文本级"升级为"语义级"代码操作 + 架构级可视化 |
-| [二、知识中心](#二知识中心)                       | openwiki（Wiki）, **@deeporca/memory**（TDAI L0–L3 持久化记忆）, activity-frames（行为记忆）, **GitMCP 本地化模块**（8 工具） | Open Deep Research 理念                                                                                                                                                          | 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究              |
+| [二、知识中心](#二知识中心)                       | openwiki（Wiki）, **@deeporca/memory**（TDAI L0–L3 持久化记忆）, activity-frames（行为记忆）, **GitMCP 本地化模块**（8 工具） | **doc-wiki 文档知识编译层（下一版主线 D）**, Open Deep Research 理念                          | 项目文档 + 用户资料编译 + 跨会话记忆 + 行为记忆 + 深度研究 |
 | [三、移动开发](#三移动开发)                       | —（曾集成后整体临时下线 `f680c14`，待重启）                                                                         | Flutter（agent-plugins 24 Skills + Dart MCP）、Android Kit、HarmonyOS Kit、React Native（Expo）——重启属 `next/*` | Flutter + Android + HarmonyOS + React Native             |
 | [四、桌面开发](#四桌面开发)                       | —                                                                                                                 | Apple（Xcode 27 第一方）, Qt/KDE（Qt Group 第一方）, Tauri（社区 MCP）, .NET（dotnet/skills）, deepin/UOS                                                                        | macOS/iOS + Qt/KDE + Tauri + .NET + deepin 桌面应用开发  |
 | [五、.NET 开发](#五net-开发)                      | —                                                                                                                 | dotnet/skills（Microsoft 官方 12 域）                                                                                                                                            | C# / ASP.NET / MAUI / 测试 / 诊断 / MSBuild              |
@@ -108,7 +111,7 @@
 
 ## 二、知识中心
 
-> 项目文档 + 跨会话记忆 + 行为记忆 + 深度研究——让 Agent 越用越懂项目，不遗忘已学的事实，知道用户做了什么。
+> 项目文档 + 用户资料编译 + 跨会话记忆 + 行为记忆 + 深度研究——让 Agent 越用越懂项目，不遗忘已学的事实，知道用户做了什么。
 >
 > 索引与知识模块不仅服务于 AI agent 的代码理解，也是**人类用户快速了解项目**的入口。在 vibe coding 时代，非开发者（产品经理、设计师、新成员）可以通过 wiki 首页 + 架构图快速理解项目结构，而无需读源码。
 
@@ -126,6 +129,7 @@
 
 | 能力         | 项目                                                     | 集成形态                                                                                    | 贡献                                                                                                                                                                                                                              | 优先级 |
 | ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **文档知识编译层（doc-wiki，下一版主线 D）** | **llm_wiki / Karpathy 编译型知识库方法论**（nashsu/llm_wiki，**GPL-3.0 → 净室借鉴零代码**） | core `docwiki/` 模块（进程内，LLM 经注入 seam 走 flash）+ `docwiki.*` actions + 面板第七源卡 | 补齐六源唯一空白「**资料→知识**」：用户文档（MD/PDF/网页剪藏）经**两步思维链摄入**（分析→生成）增量编译为互链 Wiki 页（OKF+`sources[]` 溯源 + SHA256 增量缓存 + 串行队列 + 删除级联/共享实体保护 + index.md/log.md，Obsidian 兼容）；检索叠加图扩展（两信号起步）+ 图谱洞察 + Deep Research 闭环（复用内置 WebSearch）。知识从"每次查询重新检索"变为"编译一次持续维护"。详见 [`specs/doc-wiki/design.md`](../../specs/doc-wiki/design.md) + 预研 [`2026-08-19-llm-wiki-prestudy.md`](../research/2026-08-19-llm-wiki-prestudy.md) | **P1（D0 可先行）** |
 | **行为记忆（activity-frames，✅ 已实现）** | **activity-frames** 理念（nossa-y/activity-frames，MIT） | **TypeScript 重写**（双管线，InMemoryTransport MCP server，9 个 MCP 工具 + 可选 boot context 注入，默认关） | 本地屏幕活动捕获 → 结构化 ActivityFrame（app/site/time/pages/input）。**TS 重写**（非 Python 子进程），零外部运行时依赖。补齐「对话记忆(@deeporca/memory) + 行为记忆(frames)」双层记忆。详见 [`specs/activity-frames/design.md`](../../specs/activity-frames/design.md) | ✅ 落地 |
 | **OpenWiki connector 消费 CodeGraph MCP** | OpenWiki connectors 系统 | WikiCliController.init 前写入 connector config | wiki 生成时消费 CodeGraph MCP 作为知识源，获得真实调用图上下文，生成的架构文档基于代码结构而非猜测。配置 `~/.openwiki/connectors/custom-mcp/config.json` 指向当前项目的 CodeGraph MCP | **P2** |
 | **OpenWiki 定时自动更新** | OpenWiki scheduling + 引擎侧定时任务框架 | cron 调度 + Electron 定时器 | 定时（如每天/每次 git pull 后）自动 `openwiki --update`，不依赖代码变更事件。vendored CLI 已有 scheduling 基础设施（`onboarding.d.ts OnboardingSourceScheduleConfig`），需 DeepOrca 引擎侧加定时任务框架 | **P3** |
