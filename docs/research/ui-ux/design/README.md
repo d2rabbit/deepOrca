@@ -10,6 +10,7 @@
 | `vision.md` | 设计愿景：为什么脱离聊天本体（对话→记录仪，工单→界面本体，回合制→并行值守） | ✅ |
 | `wireframes.md` | 交互规格：线框、尺寸、键盘地图、浮层栈、token 增补 | ✅ |
 | `coverage.md` | 模块覆盖矩阵：审计报告每个模块 → v3 落点 → 基座稿帧号 | ✅ |
+| `experiment-plan.md` | **Redesign 重构方案 v3**：Deck 内置于 desktop——`renderer/deck/` 目录级隔离 + 布局开关可回退（经典兜底），设计稿六主题双轨，E0–E4 分期。**进度：E0/E1/E2 功能层已交付**（六主题延后进 E3） | ✅ |
 | `base-complete-design.html` | **基座参考**：27 帧全模块静态设计稿（Liquid Glass 主视觉） | 📌 基座，只读参考 |
 | `../2026-08-19-ui-ux-audit-report.md` | 现状审计（在 research/ 根目录，非设计稿故未迁移） | ✅ |
 
