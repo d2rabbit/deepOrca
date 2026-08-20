@@ -12,7 +12,7 @@
 
 ## 总览
 
-39 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份；另有 3 份配套 HTML 视觉稿不计入）：**✅ 20 · 🟡 9 · ⬜ 7 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+39+4 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-20 预研 4 份；另有 3 份配套 HTML 视觉稿不计入）：**✅ 20 · 🟡 9 · ⬜ 11 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ## 目录分组（2026-08-20 目录化整理）
 
@@ -109,6 +109,17 @@
 | [design/vision.md](./ui-ux/design/vision.md) | 重设计愿景「Orca Deck · 工单工作台」：为什么脱离聊天本体 | 工单/步骤一等状态、闸门前置+自律度、对象锚定介入、Tape（⌘T）、车间墙 ⌘⇧M | ⬜ | 对话降级为只读记录仪，工单升格为界面本体；回合制改并行值守；去气泡/头像/"思考中" |
 | [design/wireframes.md](./ui-ux/design/wireframes.md) | 交互规格：线框、尺寸、键盘地图、浮层栈、token 增补 | renderer 视图层 | ⬜ | 正式实现一律以 specs/ 为准（总口径） |
 | [design/coverage.md](./ui-ux/design/coverage.md) + [design/base-complete-design.html](./ui-ux/design/base-complete-design.html) | 模块覆盖矩阵（审计项 → v3 落点 → 帧号）+ 27 帧基座设计稿（Liquid Glass） | renderer 全面重构蓝图；`liquid` 作为第 7 套主题 | ⬜ | 11 个侧栏面板全部重定位、8 类浮层归统一栈、三卡改闸门+起草+内联问答；含未覆盖声明（Monaco 全屏实例、PrototypeWindow 独立窗、A2UI 仅换肤） |
+
+---
+
+## 2026-08-20 · 索引与知识增强 / Studio 基座预研（K 线 + B 线立项增补）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-20-pr-af-adversarial-review-prestudy.md](quality/2026-08-20-pr-af-adversarial-review-prestudy.md) | PR-AF 多智能体对抗审查预研（7 阶段流水线对照本仓 review.full/CRG/OCR） | 产物：`specs/index-knowledge-boost/`（K1 轨道） | ⬜ | **结论型：整体不引入**（外部挂载/二进制集成均否决），唯一采纳"对抗证伪"思想 → 自研 `review.challenge`；元提示规划/AI-PR 意识/打分记"已知晓暂不采纳"。净室红线：PR-AF 许可未核验，不拷贝 prompt 原文 |
+| [2026-08-20-fastcode-iterative-retrieval-prestudy.md](agent-harness/2026-08-20-fastcode-iterative-retrieval-prestudy.md) | FastCode 多级索引 + 置信度驱动迭代检索预研（indexer/iterative_agent 源码走读） | 产物：`specs/index-knowledge-boost/`（K2a/K2b 轨道） | ⬜ | **结论型：整体不引入**（与 CodeGraph/Serena/routing 全重叠）；借鉴两思想——检索预算显式化（自适应预算/边际收益递减/ROI）、粒度感知上下文选择；repo overview 路由记入 doc-wiki spec 对照 |
+| [2026-08-20-helix-harness-lego-prestudy.md](external-eval/2026-08-20-helix-harness-lego-prestudy.md) | HKUDS/HELIX harness 乐高化工作台预研（4 harness 拆 1,332 原子 / 装配契约 96 port / recipe 组装 / rollout 回训） | 产物：`specs/studio-base-boost/`（H 线四项任务化，挂 module-system 既有阶段）+ `specs/module-system/design.md` 附录 A（思想映射）+ next-version 主线 A/E3 注记 | ⬜ | **结论型：整体不引入**（lego-runtime 是替代性 harness 内核；research prototype + license 未核验）；价值 = 三条架构选择（契约先行/声明式组装/policy 一等维度）获独立先证 + 机制借鉴：port fixture 激活门禁、dist.json provenance、平台 API 契约测试套（B1 验收项）、发行版编辑器四步流；E3/E1 借其搜索空间组织与 trace 标签分类 |
+| [2026-08-20-leann-vector-db-prestudy.md](memory/2026-08-20-leann-vector-db-prestudy.md) | LEANN 向量库预研：能否替代 sqlite+vfs 作底层持久化（对照 memory 包 L0–L3 / routing / doc-wiki 现行 node:sqlite+sqlite-vec+FTS5 路线） | 评估对象：`packages/memory/src/tdai/core/store/sqlite.ts` 等 | ⬜ | **结论：不替代**——三重错配（进程外 Python 服务 vs 进程内 TS / 纯向量近似 vs 向量+BM25+SQL 混合 / 超大规模卖点 vs 个人记忆规模）+ 双许可与原文明文存储减分；分层 HNSW 思想与 MCP 记忆服务形态记观察项（触发：10万+ chunk 瓶颈 / M 线多端共享记忆） |
 
 ---
 
