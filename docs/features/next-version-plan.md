@@ -1,6 +1,6 @@
-# 下一版本规划：自进化引擎 · Studio 基座 · 远程访问
+# 下一版本规划：自进化引擎 · Studio 基座 · 远程访问 · 索引与知识增强
 
-> 日期：2026-08-18 · 状态：**规划中（冻结期后的 `next/*` 版本路线，本文不排当前版本期）**
+> 日期：2026-08-18 · 状态：**规划中（冻结期后的 `next/*` 版本路线，本文不排当前版本期）**（2026-08-20 增补主线 D：索引与知识增强 K 线）
 > 来源：会话 sess_2233bbaf 的方向确立（自进化引擎 / action→Studio 超大版本 / 远程访问），经 2026-08-18 全项目终判（`docs/pre-production-spec-final-audit.md`）与本日收尾批事实校正。
 > 依据口径：路线与现状以 `docs/features/feature-roadmap.md` §0 为准；实现以 `specs/` 为准；调研仅参考。
 
@@ -13,6 +13,7 @@
 | A 自进化引擎 | E1 执行捕获 + E2 改进回路（含 task-tree P3 设计） | E3 Self-Harness/HarnessBank 起步 |
 | B action → Studio 基座（超大版本） | B1 冷插拔（P0）+ B2 热激活/隔离（P1） | B3 管理 + B4 发行版 MVP + B5 信任富 UI |
 | C 远程访问 | M1 地基 + M2 隧道 + M3 配对 UX（含 MCP HTTP transport） | M4（WebRTC 打洞/E2E，可选） |
+| D 索引与知识增强 | K1 对抗证伪审查 + K2a 检索预算观测（P0）；K2b 设计先行 | K2a P1 干预（基线数据拍板后） |
 
 ## 主线 A：自进化引擎（坐实路线图 §十一 三层）
 
@@ -25,7 +26,7 @@
 
 - **E1 执行结果捕获基础设施（最核心，新立 spec）**：对 skill 和 action 统一记录成功/失败/重试/用户纠正；**埋点定于 `registry.execute` 单点**（与 action 总线动态化 B1 同 spec 设计，避免二次返工）。复用地基：activity-frames 管线 B 采集器、task-tree 轨迹、skill-up 裁判体系。
 - **E2 改进回路**：低成功率技能 → skill-digester 重写 description；高成功率加权匹配。**⚠️ 关键张力**：「加权匹配」与 `docs/research/2026-08-15-routing-closure-plan.md` 的「匹配负反馈明确不做」决策冲突——解法已确立：**加权走离线批量**（skill-up 评估结果 → 静态元数据调整），不碰 G1 在线路由，必须写进 E1/E2 spec。
-- **E3 层二起步（设计先行）**：Self-Harness 消费 E1 数据；HarnessBank evolver 复用 Subagent（`MAX_SUBAGENT_DEPTH=4` 在树）；执行隔离载体 = **task-tree P3（branch = subagent 载体）**，设计需先吸收 ruflo 预研的 journal/断点恢复/补偿三模式（`docs/research/2026-08-17-external-repos-prestudy.md` §5）。
+- **E3 层二起步（设计先行）**：Self-Harness 消费 E1 数据；HarnessBank evolver 复用 Subagent（`MAX_SUBAGENT_DEPTH=4` 在树）；执行隔离载体 = **task-tree P3（branch = subagent 载体）**，设计需先吸收 ruflo 预研的 journal/断点恢复/补偿三模式（`docs/research/2026-08-17-external-repos-prestudy.md` §5）。**2026-08-20 HELIX 预研增补**：E3 设计可引用 HELIX（`docs/research/external-eval/2026-08-20-helix-harness-lego-prestudy.md`）的搜索空间组织（8 维度 × port 约束 × 预筛）作结构模板；E1 数据 schema 参照其 trace 标签分类（成功/失败/near-miss/regression-aware negatives/preference pairs）——注意 HELIX 换的是研发期 harness 配方，E3 目标是运行期自改进，不搬其搜索器。
 - **度量端收尾**：skill-up 双引擎趋势对拍（T2.3）+ CI 首跑、B3 book-distill 端到端演练——均待真实 LLM 花费，列为预生产测试内容而非本版开发项。
 - 缓期确认：G3 大技能分片召回注入（skill-routing 目标表 G3）~~**建议缓做**~~ → **2026-08-18 晚间拍板推翻：纳入本阶段收尾批实施**（已回写 `specs/skill-routing/design.md` 状态行；台账 `docs/spec-open-items-status.md` §一 #9）。
 
@@ -39,6 +40,8 @@
 | **B2 = P1 热激活+隔离** | yield/resume 挂起协议、Tier-1 能力（`action.invoke:<prefix>`、`fs.read:<glob>`、`llm.judge`）、worker_threads 隔离、A2UI surface 贡献+回流（`a2ui:action` → `registry.execute`）、ModuleSurfacePanel | 小 |
 
 （B3 管理+自举 / B4 发行版 MVP / B5 信任富 UI 属紧随其后一版；P3/D3 生态注册表远期不进主体。）
+
+**2026-08-20 HELIX 预研增补（借鉴不引入，任务化于 [`specs/studio-base-boost/`](../../specs/studio-base-boost/design.md)，思想映射见 `specs/module-system/design.md` 附录 A）**：HKUDS/HELIX（harness 乐高化工作台：装配契约 96 port + recipe 声明式组装 + conformance 测试包）对本线的三条核心架构选择（契约先行 / 声明式组装 / policy 一等维度）构成独立先证，方向风险下调。四项机制借鉴（H 线）并入既有阶段：**H1 平台 API 契约测试套**为 B1 验收项（与 M1 dispatch 契约漂移测试同族同格式）+ **H2 port fixture 激活门禁**（Tier-0 起）；**H3 dist.json provenance 强制**随 D1；**H4 发行版编辑器四步流**随 B4。
 
 **⚠️ 文档级缝合空白**：§十二 插件中心远程源体系（marketplace.json）与 P3/D3 模块/发行版注册表是两套分发叙事，无分工说明——做到 D2 为止不碰，但 spec 需记录。
 
@@ -56,6 +59,20 @@
 **与 action 线咬合**：defineAction 第四表面（HTTP endpoint）与 M1 dispatch 抽取同源，合并设计一次做对；module-system 开放问题「Web 壳是否纳入平台 ABI」维持「暂不承诺」。
 
 **衔接鸿蒙**：远程访问（WS 无头服务端）正是鸿蒙 PC 移植（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`）的替代路线第一步——"core 抬到传输中立层"两线共用，C 线落地即解锁其验证 POC 的前置。
+
+## 主线 D：索引与知识增强（K 线，2026-08-20 立项）
+
+**定位**：外部预研（PR-AF 多智能体对抗审查、FastCode 迭代检索）的**借鉴内化线——不引入、不 vendor、不拷贝代码与 prompt 原文**（净室红线，见 `specs/index-knowledge-boost/design.md` §4）。落在现有 review.full / session 记账体系内，零新增运行时依赖。
+
+| 分期 | 内容 | 借鉴源 |
+| --- | --- | --- |
+| **K1 对抗证伪审查** | `review.challenge` action：对 review.full findings 逐条证伪挑战（预存在/惯例/夸大/证据四维），三态 verdict 确定性合并——把流程层"两轮对抗收敛至零"自动化进产品 | PR-AF Adversary + 可证伪门 |
+| **K2a 检索预算显式化 P0** | session 代码上下文记账（行数累计/连续增益/预算占用），零行为变更观测先行；P1 干预待基线数据拍板 | FastCode 自适应预算/ROI 停止 |
+| **K2b 粒度感知上下文选择** | file/class/function 三档策略，P2 设计先行（与 doc-wiki 检索管线归并方案同定） | FastCode LLM 粒度选择 |
+
+**不采纳清单**（预研定稿，防翻烧饼）：PR-AF 元提示规划 / AI-PR 意识 / severity×confidence 打分 / 外部挂载与二进制集成；FastCode 整体引入（含 MCP 形态）。唯一重启触发：K1 上线后漏报集中在特定维度。
+
+**与其他主线咬合**：K1 改 `core/actions/`、K2a 改 `core/session.ts` 记账——与 E1 埋点（registry.execute）、B1（core/modules）、C-M1（desktop main）正交，可并行；K2a 观测位接线建议避让 M1 dispatch 抽取窗口。
 
 ## 强化清单（本版本遗留，进下一版窗口逐项核对）
 

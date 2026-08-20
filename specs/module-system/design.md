@@ -1,6 +1,6 @@
 # DeepOrca Studio 平台 — 模块系统 × 发行版架构（详细设计 v2）
 
-> 日期：2026-08-15 · 状态：设计（未实现）· **v2 视野升级**：从"给 DeepOrca 加扩展机制"升级为
+> 日期：2026-08-15（2026-08-20 附录 A 增补：HELIX 对照与借鉴）· 状态：设计（未实现）· **v2 视野升级**：从"给 DeepOrca 加扩展机制"升级为
 > "DeepOrca 作为可被第三方组装成垂直 AI Studio 的**产品内核**"。
 >
 > 灵感来源：VSCode 扩展平台（manifest + contribution points + activation + extension host）
@@ -372,3 +372,24 @@ discovered → install(manifest校验+权限审批) → registered(stub/冷)
 - P0-P2 不做远端市场；D3 前注册表仅本地/私有。
 - 发行版不带 main 进程代码（重工具=MCP）；模块不带任何 JS 代码（wasm+数据）。
 - 不在本 spec 实现 Subagent 调度（§十，后续对接）。
+
+---
+
+## 附录 A：HELIX 对照与借鉴（2026-08-20 增补）
+
+> 任务化：借鉴项已立子计划 spec [`specs/studio-base-boost/`](../studio-base-boost/design.md)（H1–H4 挂本 spec 既有阶段验收项，不新增阶段）。
+> 来源预研：`docs/research/external-eval/2026-08-20-helix-harness-lego-prestudy.md`（HKUDS/HELIX，harness 乐高化组装工作台：4 个产品级 harness 拆 1,332 原子、装配契约 96 个标准 port、recipe 声明式组装 + 搜索评测 + rollout 回训）。**口径：不引入、不拷贝代码（license 未核验，净室红线）；其 lego-runtime 是替代性 harness 内核，与本仓引擎不兼容也不需要。**
+
+**印证价值**：本 spec v2 的三条核心架构选择获得独立先证——① 契约先行（HELIX assembly contract 的 96 port ≈ 本 spec §八七张平台 API 契约表 + CapabilityBroker 分级）；② 声明式组装（recipe JSON ≈ dist.json）；③ runtime policy 一等维度（其第 8 维度 + permission ports ≈ 本仓 sideEffects 权限网关 + sandbox 信任分级）。方向风险下调。
+
+**借鉴落地（并入既有阶段，不新增阶段）**：
+
+| # | 借鉴机制 | 落点 |
+| --- | --- | --- |
+| 1 | **port fixture**：每个插拔口附契约级测试夹具，模块激活前先过夹具 | P0/P1 CapabilityBroker 激活门禁（Tier-0/1 激活前跑能力契约夹具，不过则拒载，fail-open 不阻塞内核） |
+| 2 | **source-traceable 清单**：recipe 条目带来源/许可/版本锁 | D1 dist.json 条目强制 provenance 字段（来源 URL / license / 版本锁），对齐本仓 Provenance 块实践 |
+| 3 | **conformance 契约测试包**：契约变更即跑跨实现 parity | B1（next 版 P0）验收项新增"平台 API 契约测试套"——与 C-M1 dispatch 契约漂移测试同族、同一套基建风格 |
+| 4 | **builder 流程形态**：检查→替换→验证→导出 | B4（D1/D2）发行版编辑器 UI 采该四步流 |
+
+**旁系产出（A 线，记入 next-version-plan 主线 A）**：E3 Self-Harness 设计可引用 HELIX 的搜索空间组织（8 维度 × port 约束 × smoke-screen 预筛）作结构模板；E1 执行捕获的数据 schema 参照其 trace 标签分类（成功/失败/near-miss/regression-aware negatives/preference pairs）。
+
