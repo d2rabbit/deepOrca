@@ -1030,6 +1030,18 @@ export const en = {
   "deck.shortcuts.modules": "Modules",
   "deck.shortcuts.closeTop": "Close the top overlay",
   "deck.shortcuts.clearStack": "Close all overlays",
+  // ── Deck §6：实验度量 ──
+  "deck.metrics.title": "Experiment Metrics",
+  "deck.metrics.boots": "Boots (classic / Deck)",
+  "deck.metrics.switches": "Switches (→ Deck / → classic)",
+  "deck.metrics.funnel": "Core path (prompt → approval → diff)",
+  "deck.metrics.classic": "Classic",
+  "deck.metrics.deck": "Orca Deck",
+  "deck.metrics.runs": "{count} completed runs",
+  "deck.metrics.avgClicks": "avg {count} clicks",
+  "deck.metrics.avgTime": "avg {value}s",
+  "deck.metrics.none": "no completed runs yet",
+  "deck.metrics.note": "Stored locally only — feeds review points #1/#2 (promote or retire the Deck).",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -2029,6 +2041,18 @@ export const zh: Record<MessageKey, string> = {
   "deck.shortcuts.modules": "模块",
   "deck.shortcuts.closeTop": "关闭最上层浮层",
   "deck.shortcuts.clearStack": "关闭全部浮层",
+  // ── Deck §6：实验度量 ──
+  "deck.metrics.title": "实验度量",
+  "deck.metrics.boots": "启动次数（经典 / Deck）",
+  "deck.metrics.switches": "切换次数（→ Deck / → 经典）",
+  "deck.metrics.funnel": "核心路径（提问→批准→diff）",
+  "deck.metrics.classic": "经典",
+  "deck.metrics.deck": "Orca Deck",
+  "deck.metrics.runs": "{count} 次完整走完",
+  "deck.metrics.avgClicks": "平均 {count} 次点击",
+  "deck.metrics.avgTime": "平均 {value} 秒",
+  "deck.metrics.none": "暂无完整走完的路径",
+  "deck.metrics.note": "仅本地存储 — 供评审点 #1/#2（Deck 转正或下线）使用。",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

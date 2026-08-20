@@ -6,6 +6,8 @@
 // touches settings.json or IPC. Switching reloads the window; session data
 // lives in the core layer so nothing is lost across a switch.
 
+import { recordLayoutSwitch } from "./core-path-metrics";
+
 export type LayoutMode = "classic" | "deck";
 
 const LAYOUT_KEY = "deeporca.layout";
@@ -21,6 +23,9 @@ export function resolveLayout(): LayoutMode {
 
 /** Persist the choice and reload so the window remounts the other root. */
 export function switchLayout(mode: LayoutMode): void {
+  // §6 metrics bookkeeping (开启率/留存 raw material) — best-effort, before
+  // the persisted flip so the "from" side resolves to the pre-switch layout.
+  recordLayoutSwitch(resolveLayout(), mode);
   try {
     localStorage.setItem(LAYOUT_KEY, mode);
   } catch {
