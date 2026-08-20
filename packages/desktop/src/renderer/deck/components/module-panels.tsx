@@ -1,18 +1,20 @@
-// Module-centric deck panels: knowledge sources, plugins & MCP, code review,
-// and design assets. The E3 placeholders (themes/notifications/settings/
-// editor/shortcuts) became real components in their own files.
+// Module-centric deck panels: knowledge sources (list → detail, E6.3),
+// plugins & MCP, code review, and design assets.
 import { useEffect, useState, type JSX } from "react";
 import { api } from "../../api";
 import type {
+  CodegraphIndexEntry,
   DesignArtifactMeta,
+  KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   PluginMcpServer,
   ReviewProgressEvent,
+  WikiPageEntry,
 } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
 import { GiIcon } from "../icons";
 
-// ── 知识源：各源状态卡（codegraph/wiki/serena/agents/memory/routing） ──────
+// ── 知识源：列表 → 详情二级页（各源真实统计 + 重建动作） ────────────────────
 // State is a semantic CSS dot (theme-token colored), not an emoji.
 const STATE_DOT: Record<string, string> = {
   indexed: "ok",
@@ -21,9 +23,108 @@ const STATE_DOT: Record<string, string> = {
   stale: "warn",
 };
 
+/** Sources with a real rebuild action behind the detail view. */
+function rebuildAction(name: string): {
+  labelKey: "deck.sources.rebuild" | "deck.sources.update";
+  run(): Promise<{ ok: boolean; error?: string }>;
+} | null {
+  if (name === "codegraph") {
+    return {
+      labelKey: "deck.sources.rebuild",
+      run: () => api.codegraphReindex(".").catch(() => ({ ok: false })),
+    };
+  }
+  if (name === "openwiki") {
+    return { labelKey: "deck.sources.update", run: () => api.wikiUpdate().catch(() => ({ ok: false })) };
+  }
+  return null;
+}
+
+function SourceDetail(props: { name: string; source: KnowledgeSourceStatus; onBack(): void }): JSX.Element {
+  const { t } = useI18n();
+  const [workspaces, setWorkspaces] = useState<CodegraphIndexEntry[] | null>(null);
+  const [pages, setPages] = useState<WikiPageEntry[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const action = rebuildAction(props.name);
+
+  useEffect(() => {
+    if (props.name === "codegraph") {
+      void api
+        .codegraphList()
+        .then(setWorkspaces)
+        .catch(() => setWorkspaces([]));
+    } else if (props.name === "openwiki") {
+      void api
+        .wikiListPages()
+        .then(setPages)
+        .catch(() => setPages([]));
+    }
+  }, [props.name]);
+
+  const rebuild = () => {
+    if (!action || busy) return;
+    setBusy(true);
+    void action.run().finally(() => setBusy(false));
+  };
+
+  return (
+    <div className="deck-panel">
+      <div className="deck-sub-head">
+        <button type="button" className="deck-sub-back" onClick={props.onBack}>
+          ‹ {t("deck.sources.back")}
+        </button>
+        <span className="deck-sub-title">{props.name}</span>
+        <span className={`deck-wo-tag ${props.source.state === "indexed" ? "g" : "a"}`}>{props.source.state}</span>
+      </div>
+      <div className="deck-row static">
+        <span className="deck-row-main">{t("deck.sources.count")}</span>
+        <span className="deck-row-meta">
+          {typeof props.source.count === "number" ? `${props.source.count}${props.source.unit ?? ""}` : "—"}
+        </span>
+      </div>
+      {props.source.lastSync ? (
+        <div className="deck-row static">
+          <span className="deck-row-main">{t("deck.sources.lastSync")}</span>
+          <span className="deck-row-meta">{props.source.lastSync.slice(0, 16).replace("T", " ")}</span>
+        </div>
+      ) : null}
+      {props.source.detail ? (
+        <div className="deck-row static">
+          <span className="deck-row-main">{t("deck.sources.detail")}</span>
+          <span className="deck-row-meta">{props.source.detail}</span>
+        </div>
+      ) : null}
+      {workspaces
+        ? workspaces.map((ws) => (
+            <div key={ws.root} className="deck-row static">
+              <span className="deck-row-main">{ws.label}</span>
+              <span className="deck-row-meta">{ws.initialized ? "✓" : "—"}</span>
+            </div>
+          ))
+        : null}
+      {pages
+        ? pages.slice(0, 20).map((page) => (
+            <div key={page.path} className="deck-row static">
+              <span className="deck-row-main">{page.title}</span>
+              <span className="deck-row-meta">{page.path}</span>
+            </div>
+          ))
+        : null}
+      {action ? (
+        <div className="deck-panel-ops">
+          <button type="button" className="deck-op primary" disabled={busy} onClick={rebuild}>
+            {busy ? t("deck.review.running") : t(action.labelKey)}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function SourcesPanel(): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
     void api
@@ -34,19 +135,24 @@ export function SourcesPanel(): JSX.Element {
 
   if (!status) return <div className="deck-empty">{t("deck.loading")}</div>;
 
-  const entries = Object.entries(status) as Array<[string, KnowledgeStatusResponse["codegraph"]]>;
+  const entries = Object.entries(status) as Array<[string, KnowledgeSourceStatus]>;
+
+  if (selected) {
+    const source = entries.find(([name]) => name === selected)?.[1];
+    if (source) return <SourceDetail name={selected} source={source} onBack={() => setSelected(null)} />;
+  }
 
   return (
     <div className="deck-panel">
       {entries.map(([name, source]) => (
-        <div key={name} className="deck-row static">
+        <button key={name} type="button" className="deck-row linked" onClick={() => setSelected(name)}>
           <span className={`deck-sdot ${STATE_DOT[source.state] ?? "idle"}`} aria-hidden="true" />
           <span className="deck-row-main">{name}</span>
           <span className="deck-row-meta">
             {source.state}
-            {typeof source.count === "number" ? ` · ${source.count}${source.unit ?? ""}` : ""}
+            {typeof source.count === "number" ? ` · ${source.count}${source.unit ?? ""}` : ""} ›
           </span>
-        </div>
+        </button>
       ))}
     </div>
   );

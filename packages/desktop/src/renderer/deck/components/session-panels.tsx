@@ -8,23 +8,26 @@ import { aggregateUsage, formatTokens } from "../../lib/token-usage";
 import { useI18n } from "../../i18n";
 import type { DeckEngine } from "../hooks/use-deck-engine";
 
-function statusDot(status: string): string {
+/** Semantic tag class per session status (E6.2 card wall) — no emoji. */
+function statusTagClass(status: string): string {
   switch (status) {
     case "processing":
     case "pending":
-      return "🟡";
+      return "b";
     case "completed":
-      return "🟢";
+      return "g";
     case "failed":
-      return "🔴";
+    case "permission_denied":
+      return "r";
     case "ask_permission":
-      return "🟠";
+    case "paused":
+      return "a";
     default:
-      return "⚪";
+      return "";
   }
 }
 
-// ── 车间墙：全部工作区的会话总览，点击切换当前目标 ──────────────────────────
+// ── 车间墙：全部工作区的会话总览（3 列工单卡片），点击切换当前目标 ────────
 export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): JSX.Element {
   const { t } = useI18n();
   const [data, setData] = useState<WorkspaceSessions | null>(null);
@@ -49,18 +52,20 @@ export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): 
         <div key={ws.root} className="deck-panel-group">
           <div className="deck-panel-group-title">{ws.label}</div>
           {ws.sessions.length === 0 ? <div className="deck-empty">{t("deck.floor.empty")}</div> : null}
-          {ws.sessions.map((session) => (
-            <button
-              key={session.id}
-              type="button"
-              className={`deck-row${session.id === props.engine.activeId ? " active" : ""}`}
-              onClick={() => pick(session.id)}
-            >
-              <span>{statusDot(session.status)}</span>
-              <span className="deck-row-main">{session.summary ?? session.id.slice(0, 8)}</span>
-              <span className="deck-row-meta">{session.updateTime.slice(0, 16).replace("T", " ")}</span>
-            </button>
-          ))}
+          <div className="deck-floor-grid">
+            {ws.sessions.map((session) => (
+              <button
+                key={session.id}
+                type="button"
+                className={`deck-wo-card sh-card${session.id === props.engine.activeId ? " active" : ""}`}
+                onClick={() => pick(session.id)}
+              >
+                <span className={`deck-wo-tag ${statusTagClass(session.status)}`}>{session.status}</span>
+                <span className="deck-wo-title">{session.summary ?? session.id.slice(0, 8)}</span>
+                <span className="deck-wo-meta">{session.updateTime.slice(0, 16).replace("T", " ")}</span>
+              </button>
+            ))}
+          </div>
         </div>
       ))}
     </div>

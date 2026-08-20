@@ -57,7 +57,7 @@ export function FilesPanel(props: { onOpen?: (path: string) => void }): JSX.Elem
   useEffect(() => {
     void api
       .editorListFiles(".")
-      .then((result) => setRoot(result.entries ?? []))
+      .then((result) => setRoot(Array.isArray(result.entries) ? result.entries : []))
       .catch(() => setRoot([]));
   }, []);
 

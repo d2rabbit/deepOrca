@@ -1050,6 +1050,18 @@ export const en = {
   "deck.cmd.group.views": "Views",
   "deck.cmd.group.themes": "Themes",
   "deck.cmd.group.actions": "Actions",
+  "deck.sources.back": "Knowledge Sources",
+  "deck.sources.count": "Content",
+  "deck.sources.lastSync": "Last sync",
+  "deck.sources.detail": "Detail",
+  "deck.sources.rebuild": "Rebuild index",
+  "deck.sources.update": "Update wiki",
+  "deck.onboard.title": "Give it a goal — the rest is work orders",
+  "deck.onboard.hint": "This is not a chat box: the agent files work orders, you stamp them, it builds.",
+  "deck.onboard.item1": "⌘K — the command layer reaches modules, work orders and themes in one place",
+  "deck.onboard.item2": "Work orders are yours — plans, approvals and interventions live on the step board",
+  "deck.onboard.item3": "Space is the brake — freeze anytime, the scene is preserved",
+  "deck.onboard.start": "Start",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -2069,6 +2081,18 @@ export const zh: Record<MessageKey, string> = {
   "deck.cmd.group.views": "视图",
   "deck.cmd.group.themes": "主题",
   "deck.cmd.group.actions": "动作",
+  "deck.sources.back": "知识源",
+  "deck.sources.count": "内容量",
+  "deck.sources.lastSync": "上次同步",
+  "deck.sources.detail": "详情",
+  "deck.sources.rebuild": "重建索引",
+  "deck.sources.update": "更新知识页",
+  "deck.onboard.title": "给它一个目标，剩下的看工单",
+  "deck.onboard.hint": "这不是聊天框：agent 出工单，你盖章，它施工。",
+  "deck.onboard.item1": "⌘K — 命令层一处直达模块、工单与主题",
+  "deck.onboard.item2": "工单是你的 — 计划、待决与介入都在步骤板上",
+  "deck.onboard.item3": "Space 是刹车 — 随时冻结，现场保留",
+  "deck.onboard.start": "开工",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

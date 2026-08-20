@@ -1043,4 +1043,17 @@ export const ja: Record<MessageKey, string> = {
   "deck.cmd.group.views": "ビュー",
   "deck.cmd.group.themes": "テーマ",
   "deck.cmd.group.actions": "アクション",
+  "deck.sources.back": "知識ソース",
+  "deck.sources.count": "コンテンツ量",
+  "deck.sources.lastSync": "最終同期",
+  "deck.sources.detail": "詳細",
+  "deck.sources.rebuild": "インデックス再構築",
+  "deck.sources.update": "Wiki 更新",
+  "deck.onboard.title": "ゴールを渡せば、あとはワークオーダー",
+  "deck.onboard.hint":
+    "これはチャットではありません：agent がワークオーダーを出し、あなたが承認し、agent が施工します。",
+  "deck.onboard.item1": "⌘K — コマンド層からモジュール・ゴール・テーマへ一発アクセス",
+  "deck.onboard.item2": "ワークオーダーはあなたのもの — 計画・承認・介入はステップボードで",
+  "deck.onboard.item3": "Space はブレーキ — いつでも凍結、現場は保持",
+  "deck.onboard.start": "開始",
 };

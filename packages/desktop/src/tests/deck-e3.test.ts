@@ -104,28 +104,40 @@ describe("fuzzy scoring (lib/fuzzy.ts)", () => {
 });
 
 describe("overlay stack (lib/overlay-stack.ts)", () => {
-  test("toggling the top layer closes it; re-opening dedupes and raises", () => {
+  test("toggling closes an open layer wherever it sits; drawers dock below panels", () => {
     let stack = overlayStack.pushLayer([], "tape", 1);
     stack = overlayStack.pushLayer(stack, "files", 2);
     assert.deepEqual(
       stack.map((l) => l.kind),
-      ["tape", "files"],
-      "same-tier layers stack by recency — the newly opened one on top"
+      ["files", "tape"],
+      "drawers dock at the bottom tier, below centered panels"
     );
 
-    // Same kind again while on top → toggle off.
+    // Activating a layer already on the stack closes it — even when it is
+    // not the top layer (⌘E twice must dock the files drawer away).
     stack = overlayStack.pushLayer(stack, "files", 3);
     assert.deepEqual(
       stack.map((l) => l.kind),
       ["tape"]
     );
 
-    // Re-opening tape dedupes the old instance and raises it to the top.
     stack = overlayStack.pushLayer(stack, "ledger", 4);
     stack = overlayStack.pushLayer(stack, "tape", 5);
     assert.deepEqual(
       stack.map((l) => l.kind),
-      ["ledger", "tape"]
+      ["ledger"],
+      "re-activating an open panel toggles it closed"
+    );
+  });
+
+  test("drawers are mutually exclusive — docking one undocks the others", () => {
+    let stack = overlayStack.pushLayer([], "files", 1);
+    stack = overlayStack.pushLayer(stack, "tape", 2);
+    stack = overlayStack.pushLayer(stack, "processes", 3);
+    assert.deepEqual(
+      stack.map((l) => l.kind),
+      ["processes", "tape"],
+      "only one drawer may be docked at a time"
     );
   });
 

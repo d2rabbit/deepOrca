@@ -1,14 +1,13 @@
-// Unified overlay stack (E3): every floating surface the Deck can show lives
-// in one ordered stack — 抽屉 < 面板浮层 < 命令层/车间墙 < 模态. Esc closes
-// the topmost layer, ⌘⇧Esc clears the stack.
+// Unified overlay stack (E3, E6.1): every floating surface the Deck can show
+// lives in one ordered stack — 抽屉 < 面板浮层 < 命令层/车间墙 < 模态.
+// Esc closes the topmost layer, ⌘⇧Esc clears the stack.
 //
-// Tiering: only the command layer and the workshop wall float above
-// everything (TIER_TOP). The drawer-kind surfaces (files/changes/processes/
-// notifications/editor) will dock to the screen edges in a later pass; while
-// every surface renders as a centered modal they stack with the panels by
-// recency, so a newly opened drawer is never hidden under an older panel.
-// TIER_DRAWER is reserved for that docking work, TIER_MODAL for trust/conflict
-// dialogs.
+// Tiering: drawers (files/changes/notifications/processes) dock to the screen
+// EDGES below the floating scrims (E6.1) — they coexist with centered panels
+// instead of being covered by them. Only the command layer and the workshop
+// wall float above everything (TIER_TOP). Opening a drawer closes the other
+// drawers (one docked surface at a time, as in the design demo).
+// TIER_MODAL is reserved for trust/conflict dialogs.
 
 import type { OverlayKind } from "../types";
 
@@ -25,21 +24,39 @@ export const TIER_PANEL = 1;
 export const TIER_TOP = 2;
 export const TIER_MODAL = 3;
 
+/** Edge-docked drawers — rendered by DrawerShell, not the centered overlay. */
+const DRAWERS: ReadonlySet<LayerKind> = new Set(["notifications", "files", "changes", "processes"]);
 const TOPS: ReadonlySet<LayerKind> = new Set(["command", "floor"]);
 
+export function isDrawerKind(kind: LayerKind): boolean {
+  return DRAWERS.has(kind);
+}
+
+/** Which screen edge the drawer docks to. */
+export function drawerSide(kind: LayerKind): "left" | "right" {
+  return kind === "processes" || kind === "notifications" ? "right" : "left";
+}
+
 export function layerTier(kind: LayerKind): number {
-  return TOPS.has(kind) ? TIER_TOP : TIER_PANEL;
+  if (TOPS.has(kind)) return TIER_TOP;
+  if (DRAWERS.has(kind)) return TIER_DRAWER;
+  return TIER_PANEL;
 }
 
 /**
- * Toggle semantics: activating the top layer closes it; activating anything
- * else re-raises it to the top of its tier (and dedupes any older instance).
+ * Toggle semantics: activating a layer already on the stack closes it
+ * (⌘E twice = open then dock away, regardless of stacking order);
+ * otherwise it is inserted at the top of its tier (deduped). Drawers are
+ * mutually exclusive — docking one undocks the others.
  */
 export function pushLayer(stack: OverlayLayer[], kind: LayerKind, seq: number): OverlayLayer[] {
-  if (stack.length > 0 && stack[stack.length - 1].kind === kind) {
-    return stack.slice(0, -1);
+  if (stack.some((layer) => layer.kind === kind)) {
+    return stack.filter((layer) => layer.kind !== kind);
   }
-  const rest = stack.filter((layer) => layer.kind !== kind);
+  let rest = stack;
+  if (DRAWERS.has(kind)) {
+    rest = rest.filter((layer) => !DRAWERS.has(layer.kind));
+  }
   const tier = layerTier(kind);
   let at = rest.length;
   for (let i = 0; i < rest.length; i++) {

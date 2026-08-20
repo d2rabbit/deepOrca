@@ -13,7 +13,7 @@ import { useDeckEvents } from "./hooks/use-deck-events";
 import { useDeckNotifications } from "./hooks/use-deck-notifications";
 import { useDeckToasts, DeckToasts } from "./hooks/use-deck-toasts";
 import { persistDeckTheme, resolveDeckTheme, type DeckTheme } from "./lib/appearance";
-import { popLayer, pushLayer, type LayerKind, type OverlayLayer } from "./lib/overlay-stack";
+import { popLayer, pushLayer, drawerSide, isDrawerKind, type LayerKind, type OverlayLayer } from "./lib/overlay-stack";
 import type { DeckCommandContext } from "./lib/command-registry";
 import type { OverlayKind } from "./types";
 import { GoalBand } from "./components/goal-band";
@@ -29,6 +29,8 @@ import { DeckSettingsPanel } from "./components/settings-panel";
 import { ShortcutsPanel } from "./components/shortcuts-panel";
 import { EditorPanel } from "./components/editor-panel";
 import { DiffPanel, type DeckDiffTarget } from "./components/diff-panel";
+import { DrawerShell } from "./components/drawer";
+import { OnboardingModal, useDeckOnboarding } from "./components/onboarding";
 import { extractPlanSteps } from "./components/step-board";
 import { FloorPanel, CheckpointsPanel, LedgerPanel, TreePanel } from "./components/session-panels";
 import { FilesPanel, ChangesPanel, ProcessesPanel } from "./components/workspace-panels";
@@ -58,16 +60,37 @@ const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
 
 const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor", "diff"]);
 
+/** Control-center docked state (E6.5) — open by default, collapse persists. */
+const CC_STATE_KEY = "deeporca.deck.cc";
+
+function resolveCcOpen(): boolean {
+  try {
+    return localStorage.getItem(CC_STATE_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+function persistCcOpen(open: boolean): void {
+  try {
+    localStorage.setItem(CC_STATE_KEY, open ? "0" : "1");
+  } catch {
+    // Best-effort persistence.
+  }
+}
+
 export function DeckApp(): JSX.Element {
   const { t } = useI18n();
   const engine = useDeckEngine();
   const events = useDeckEvents();
   const toasts = useDeckToasts();
   const notifications = useDeckNotifications((n) => toasts.push(n.text, n.level));
+  const onboarding = useDeckOnboarding();
   const [layers, setLayers] = useState<OverlayLayer[]>([]);
   const [theme, setThemeState] = useState<DeckTheme>(resolveDeckTheme);
   const [editorPath, setEditorPath] = useState<string | null>(null);
   const [diffTarget, setDiffTarget] = useState<DeckDiffTarget | null>(null);
+  const [ccOpen, setCcOpen] = useState(resolveCcOpen);
   const seqRef = useRef(0);
   // Keyboard listener reads the engine through a ref so it stays bound once.
   const engineRef = useRef(engine);
@@ -75,12 +98,25 @@ export function DeckApp(): JSX.Element {
 
   const steps = useMemo(() => extractPlanSteps(engine.messages), [engine.messages]);
 
+  const toggleCc = useCallback(() => {
+    setCcOpen((prev) => {
+      persistCcOpen(!prev);
+      return !prev;
+    });
+  }, []);
+
   const openLayer = useCallback(
     (kind: LayerKind) => {
+      // The control center is a docked resident (E6.5), not a stack layer —
+      // every entry point (dock, ⌘⇧O, command palette) toggles it instead.
+      if (kind === "control-center") {
+        toggleCc();
+        return;
+      }
       if (kind === "notifications") notifications.markAllRead();
       setLayers((prev) => pushLayer(prev, kind, seqRef.current++));
     },
-    [notifications]
+    [notifications, toggleCc]
   );
 
   const closeLayer = useCallback((kind: LayerKind) => {
@@ -166,12 +202,12 @@ export function DeckApp(): JSX.Element {
     [openLayer, setTheme, engine]
   );
 
-  const renderOverlay = (kind: OverlayKind): JSX.Element => {
+  const renderOverlay = (kind: OverlayKind): JSX.Element | null => {
     switch (kind) {
       case "tape":
         return <DeckTape messages={engine.messages} />;
       case "control-center":
-        return <ControlCenter entry={engine.entry} busy={engine.busy} commandLog={engine.commandLog} events={events} />;
+        return null; // resident dock (E6.5), never a stack layer
       case "notifications":
         return <NotificationsPanel notifications={notifications} />;
       case "floor":
@@ -224,10 +260,51 @@ export function DeckApp(): JSX.Element {
       <DeckStage engine={engine} steps={steps} />
       <DeckToasts toasts={toasts.toasts} />
 
-      {layers.map((layer, depth) =>
-        layer.kind === "command" ? (
-          <CommandLayer key={layer.seq} depth={depth} ctx={commandCtx} onRun={() => closeLayer("command")} />
-        ) : (
+      {/* Control center (E6.5): resident right-edge pane when open, a
+          vertical pull tab (unread badge + urgent pulse while a permission
+          ask is pending) when collapsed. */}
+      {ccOpen ? (
+        <aside className="deck-cc-dock deck-gcd" data-layer="control-center" aria-label={t("deck.cc.title")}>
+          <div className="deck-cc-dock-head">
+            <span className="deck-cc-dock-title">{t("deck.cc.title")}</span>
+            <button type="button" className="deck-overlay-close" onClick={toggleCc} aria-label="Close">
+              ✕
+            </button>
+          </div>
+          <ControlCenter entry={engine.entry} busy={engine.busy} commandLog={engine.commandLog} events={events} />
+        </aside>
+      ) : (
+        <button
+          type="button"
+          className={`deck-cc-tab deck-gc${(engine.askPermissions?.length ?? 0) > 0 ? " urgent" : ""}`}
+          onClick={toggleCc}
+          title={`${t("deck.cc.title")} ⌘⇧O`}
+        >
+          ◔ {t("deck.cc.title")}
+          {notifications.unread > 0 ? <span className="deck-dock-badge">{notifications.unread}</span> : null}
+        </button>
+      )}
+
+      {onboarding.visible ? <OnboardingModal onDismiss={onboarding.dismiss} /> : null}
+
+      {layers.map((layer, depth) => {
+        if (layer.kind === "command") {
+          return <CommandLayer key={layer.seq} depth={depth} ctx={commandCtx} onRun={() => closeLayer("command")} />;
+        }
+        if (isDrawerKind(layer.kind)) {
+          return (
+            <DrawerShell
+              key={layer.seq}
+              layer={layer.kind}
+              side={drawerSide(layer.kind)}
+              title={t(OVERLAY_TITLES[layer.kind])}
+              onClose={() => closeLayer(layer.kind)}
+            >
+              {renderOverlay(layer.kind)}
+            </DrawerShell>
+          );
+        }
+        return (
           <DeckOverlay
             key={layer.seq}
             depth={depth}
@@ -238,8 +315,8 @@ export function DeckApp(): JSX.Element {
           >
             {renderOverlay(layer.kind)}
           </DeckOverlay>
-        )
-      )}
+        );
+      })}
     </div>
   );
 }

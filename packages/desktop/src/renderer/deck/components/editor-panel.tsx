@@ -24,7 +24,7 @@ export function EditorPanel(props: { initialPath?: string | null }): JSX.Element
   useEffect(() => {
     void api
       .editorListFiles(".")
-      .then((result) => setRoot(result.entries ?? []))
+      .then((result) => setRoot(Array.isArray(result.entries) ? result.entries : []))
       .catch(() => setRoot([]));
   }, []);
 

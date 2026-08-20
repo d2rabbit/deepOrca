@@ -1280,3 +1280,248 @@ button.deck-row:hover {
   color: var(--ink3);
   text-transform: uppercase;
 }
+
+/* ---------- E6.1：边缘停靠抽屉 ---------- */
+.deck-drawer {
+  position: fixed;
+  top: 64px;
+  bottom: 16px;
+  width: 320px;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.deck-drawer.left {
+  left: 88px;
+}
+
+.deck-drawer.right {
+  right: 14px;
+  width: 420px;
+}
+
+.deck-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.deck-drawer-title {
+  flex: 1;
+}
+
+.deck-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 8px 10px;
+}
+
+/* ---------- E6.2：车间墙卡片 ---------- */
+.deck-floor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+
+.deck-wo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 11px 13px;
+  background: var(--paper);
+  border: var(--paper-border);
+  border-radius: var(--rad);
+  box-shadow: var(--paper-shadow);
+  text-align: left;
+}
+
+.deck-wo-card.active {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+.deck-wo-tag {
+  font-size: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--paper2);
+  color: var(--ink2);
+  font-weight: 700;
+}
+
+.deck-wo-tag.g {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.deck-wo-tag.b {
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+
+.deck-wo-tag.a {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.deck-wo-tag.r {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.deck-wo-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.deck-wo-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink3);
+}
+
+/* ---------- E6.3：二级页头 ---------- */
+.deck-sub-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 0 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.deck-sub-back {
+  font-size: 11px;
+  color: var(--acc);
+  font-weight: 600;
+}
+
+.deck-sub-title {
+  flex: 1;
+}
+
+/* ---------- E6.4：Onboarding ---------- */
+.deck-onboard {
+  width: min(460px, 90%);
+  padding: 26px 26px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deck-onboard-head {
+  font-size: 28px;
+  text-align: center;
+}
+
+.deck-onboard-title {
+  font-size: 15px;
+  text-align: center;
+}
+
+.deck-onboard-hint {
+  font-size: 12px;
+  color: var(--ink2);
+  text-align: center;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.deck-onboard-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deck-onboard-list li {
+  font-size: 12px;
+  padding: 10px 13px;
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 10px;
+  color: var(--ink2);
+}
+
+.deck-onboard .deck-op.primary {
+  align-self: center;
+  padding: 8px 30px;
+}
+
+/* ---------- E6.5：控制中心常驻 ---------- */
+.deck-cc-dock {
+  position: fixed;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  width: 300px;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  max-height: min(640px, 86vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.deck-cc-dock-head {
+  display: flex;
+  align-items: center;
+  padding: 11px 14px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.deck-cc-dock-title {
+  flex: 1;
+}
+
+.deck-cc-dock .deck-cc {
+  padding: 0 6px 10px;
+}
+
+.deck-cc-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 23;
+  writing-mode: vertical-lr;
+  letter-spacing: 2px;
+  font-size: 11px;
+  padding: 14px 7px;
+  border-radius: 12px 0 0 12px;
+  color: var(--ink2);
+}
+
+.deck-cc-tab .deck-dock-badge {
+  writing-mode: horizontal-tb;
+  position: absolute;
+  top: -4px;
+  left: -6px;
+  right: auto;
+}
+
+.deck-cc-tab.urgent {
+  animation: deck-urgent-pulse 1.8s ease-in-out infinite;
+  color: var(--bad);
+  font-weight: 800;
+}
