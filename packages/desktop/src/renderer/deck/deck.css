@@ -1037,3 +1037,67 @@ button.deck-row:hover {
 .deck-row.linked:hover .deck-row-main {
   color: var(--acc);
 }
+
+/* ---------- E4：.gi 语义图标（替换 emoji） ---------- */
+.deck-app .gi {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  vertical-align: -2px;
+  margin-right: 3px;
+}
+
+.deck-app .gi-lg {
+  width: 17px;
+  height: 17px;
+  vertical-align: -3px;
+}
+
+/* 知识源状态点：语义色圆点，非 emoji */
+.deck-sdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.deck-sdot.ok {
+  background: var(--ok);
+}
+
+.deck-sdot.warn {
+  background: var(--warn);
+}
+
+.deck-sdot.off {
+  background: var(--ink3);
+}
+
+.deck-sdot.idle {
+  background: var(--line);
+  box-shadow: inset 0 0 0 1.5px var(--ink3);
+}
+
+/* ---------- E4：决策点视觉锚 ---------- */
+/* 需要即时决策的内容块给一圈边框锚点，区别于纯只读信息；高危批次红色呼吸，
+   普通批次琥珀静态描边（呼吸脉冲 keyframes 移植自 orca-deck-v3_change.html） */
+.deck-pending.anchor {
+  border: 1.5px solid var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-soft);
+}
+
+.deck-pending.anchor-high {
+  border: 2px solid var(--bad);
+  animation: deck-urgent-pulse 2s ease-in-out infinite;
+}
+
+@keyframes deck-urgent-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--bad-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}

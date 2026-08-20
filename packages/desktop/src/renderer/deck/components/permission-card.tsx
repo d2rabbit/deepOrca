@@ -6,6 +6,10 @@ import { useMemo, useState, type JSX } from "react";
 import type { AskPermissionRequest, PermissionScope } from "../../../shared/ipc";
 import { buildResult, describeScope, isAlwaysAllowedScope, type PermissionResult } from "../../lib/permissions";
 import { useI18n } from "../../i18n";
+import { GiIcon } from "../icons";
+
+/** Scopes that mark the whole batch as high-risk (destructive / git-mutating). */
+const HIGH_RISK_SCOPES: ReadonlySet<string> = new Set(["delete-in-cwd", "delete-out-cwd", "mutate-git-log"]);
 
 export function PermissionCard(props: {
   requests: AskPermissionRequest[];
@@ -23,6 +27,14 @@ export function PermissionCard(props: {
     }
     return [...all].filter(isAlwaysAllowedScope);
   }, [props.requests]);
+
+  // Decision-point visual anchor (E4): the pending card is the one surface
+  // demanding a choice — high-risk batches breathe red, others get a static
+  // accent ring, so they never read as passive information.
+  const highRisk = useMemo(
+    () => props.requests.some((req) => req.scopes.some((scope) => HIGH_RISK_SCOPES.has(scope))),
+    [props.requests]
+  );
 
   const decide = (toolCallId: string, decision: "allow" | "deny") =>
     setDecisions((prev) => ({ ...prev, [toolCallId]: decision }));
@@ -42,8 +54,13 @@ export function PermissionCard(props: {
   const allDecided = props.requests.every((req) => decisions[req.toolCallId] !== undefined);
 
   return (
-    <section className="deck-pending deck-gc" aria-label={t("deck.pending.title")}>
-      <div className="deck-pending-title">⚠ {t("deck.pending.title")}</div>
+    <section
+      className={`deck-pending deck-gc anchor${highRisk ? " anchor-high" : ""}`}
+      aria-label={t("deck.pending.title")}
+    >
+      <div className="deck-pending-title">
+        <GiIcon id="alert" lg /> {t("deck.pending.title")}
+      </div>
       <ul className="deck-pending-list">
         {props.requests.map((req) => (
           <li key={req.toolCallId}>

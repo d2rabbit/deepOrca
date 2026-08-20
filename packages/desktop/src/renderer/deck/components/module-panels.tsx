@@ -10,13 +10,15 @@ import type {
   ReviewProgressEvent,
 } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
+import { GiIcon } from "../icons";
 
 // ── 知识源：各源状态卡（codegraph/wiki/serena/agents/memory/routing） ──────
-const STATE_ICON: Record<string, string> = {
-  indexed: "🟢",
-  empty: "⚪",
-  disabled: "⚫",
-  stale: "🟡",
+// State is a semantic CSS dot (theme-token colored), not an emoji.
+const STATE_DOT: Record<string, string> = {
+  indexed: "ok",
+  empty: "idle",
+  disabled: "off",
+  stale: "warn",
 };
 
 export function SourcesPanel(): JSX.Element {
@@ -38,7 +40,7 @@ export function SourcesPanel(): JSX.Element {
     <div className="deck-panel">
       {entries.map(([name, source]) => (
         <div key={name} className="deck-row static">
-          <span>{STATE_ICON[source.state] ?? "⚪"}</span>
+          <span className={`deck-sdot ${STATE_DOT[source.state] ?? "idle"}`} aria-hidden="true" />
           <span className="deck-row-main">{name}</span>
           <span className="deck-row-meta">
             {source.state}
@@ -163,7 +165,7 @@ export function AssetsPanel(): JSX.Element {
     <div className="deck-panel">
       {artifacts.map((artifact) => (
         <div key={artifact.id} className="deck-row static">
-          <span>{artifact.pipeline === "openui" ? "🎯" : "📐"}</span>
+          <GiIcon id={artifact.pipeline === "openui" ? "target" : "ruler"} />
           <span className="deck-row-main">{artifact.title}</span>
           <span className="deck-row-meta">{artifact.updatedAt.slice(0, 16).replace("T", " ")}</span>
         </div>

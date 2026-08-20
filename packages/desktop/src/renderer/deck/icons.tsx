@@ -1,6 +1,10 @@
 // SVG stroke icons for the Deck module dock, ported from the design demo
 // (docs/research/ui-ux/design/index.html). 24×24 viewBox, 1.7 stroke,
 // currentColor — the six deck themes recolor them for free.
+//
+// E4 adds the .gi semantic icon class (orca-deck-v3_change.html): small inline
+// icons for panel rows — notification kinds, asset types, decision blocks —
+// replacing every emoji in the deck with theme-token-stroked SVG.
 import type { JSX } from "react";
 
 export type DeckIconId =
@@ -21,7 +25,13 @@ export type DeckIconId =
   | "edit"
   | "keys"
   | "floor"
-  | "plus";
+  | "plus"
+  | "shield"
+  | "activity"
+  | "zap"
+  | "target"
+  | "ruler"
+  | "alert";
 
 const PATHS: Record<DeckIconId, JSX.Element> = {
   bell: (
@@ -130,6 +140,33 @@ const PATHS: Record<DeckIconId, JSX.Element> = {
       <path d="M12 8v8M8 12h8" />
     </>
   ),
+  shield: (
+    <>
+      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z" />
+      <path d="M12 8v4M12 15.5v.5" />
+    </>
+  ),
+  activity: <path d="M3 12h4l3-7 4 14 3-7h4" />,
+  zap: <path d="M13 2L4 14h6l-1 8 9-12h-6z" />,
+  target: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r=".8" fill="currentColor" />
+    </>
+  ),
+  ruler: (
+    <>
+      <rect x="3" y="9" width="18" height="6" rx="1.5" transform="rotate(-20 12 12)" />
+      <path d="M8.2 12.6l.9 2.5M12 11.2l.9 2.5M15.8 9.8l.9 2.5" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 4l9 16H3z" />
+      <path d="M12 11v4M12 17.6v.4" />
+    </>
+  ),
 };
 
 export function DeckIcon({ id }: { id: DeckIconId }): JSX.Element {
@@ -141,6 +178,24 @@ export function DeckIcon({ id }: { id: DeckIconId }): JSX.Element {
       strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
+    >
+      {PATHS[id]}
+    </svg>
+  );
+}
+
+/** Inline .gi semantic icon (12px; `lg` = 17px) for panel rows and titles. */
+export function GiIcon({ id, lg }: { id: DeckIconId; lg?: boolean }): JSX.Element {
+  return (
+    <svg
+      className={lg ? "gi gi-lg" : "gi"}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
     >
       {PATHS[id]}
     </svg>

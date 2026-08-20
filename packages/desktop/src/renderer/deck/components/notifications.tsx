@@ -3,12 +3,13 @@
 // drawer marks everything read (the dock badge drops).
 import type { JSX } from "react";
 import { useI18n } from "../../i18n";
-import type { DeckNotifications } from "../hooks/use-deck-notifications";
+import { GiIcon, type DeckIconId } from "../icons";
+import type { DeckNotifications, DeckNotificationKind } from "../hooks/use-deck-notifications";
 
-const KIND_ICON: Record<string, string> = {
-  permission: "⌨",
-  status: "◍",
-  mcp: "⚡",
+const KIND_ICON: Record<DeckNotificationKind, DeckIconId> = {
+  permission: "shield",
+  status: "activity",
+  mcp: "zap",
 };
 
 export function NotificationsPanel(props: { notifications: DeckNotifications }): JSX.Element {
@@ -28,7 +29,7 @@ export function NotificationsPanel(props: { notifications: DeckNotifications }):
           </div>
           {items.map((item) => (
             <div key={item.id} className="deck-row static">
-              <span>{KIND_ICON[item.kind] ?? "·"}</span>
+              <GiIcon id={KIND_ICON[item.kind]} />
               <span className="deck-row-main">{item.text}</span>
               <span className="deck-row-meta">{item.ts.slice(11, 19)}</span>
             </div>
