@@ -1,0 +1,36 @@
+/* ================================================================
+   Orca Deck 主题 · Neumorphism
+   调色板提取自设计稿 Demo [data-theme=neu]，作用域 .deck-app。
+   ================================================================ */
+
+.deck-app[data-deck-theme="neu"] {
+  --bg: #e0e5ec;
+  --ink: #3d4a5f;
+  --ink2: #5a6b84;
+  --ink3: #93a3b8;
+  --paper: #e0e5ec;
+  --paper2: #e0e5ec;
+  --line: transparent;
+  --acc: #5b5bd6;
+  --acc-soft: rgba(91, 91, 214, 0.12);
+  --ok: #38a169;
+  --ok-soft: rgba(56, 161, 105, 0.14);
+  --warn: #b07817;
+  --warn-soft: rgba(176, 120, 23, 0.12);
+  --bad: #b0503c;
+  --bad-soft: rgba(176, 80, 60, 0.12);
+  --rad: 16px;
+  --rad-ctl: 14px;
+  --ctl-bg: #e0e5ec;
+  --ctl-blur: none;
+  --ctl-shadow: -6px -6px 12px rgba(255, 255, 255, 0.85), 6px 6px 12px rgba(163, 177, 198, 0.6);
+  --deep-bg: #e0e5ec;
+  --deep-blur: none;
+  --deep-shadow: -8px -8px 16px rgba(255, 255, 255, 0.9), 8px 8px 16px rgba(163, 177, 198, 0.65);
+  --paper-shadow: -6px -6px 12px rgba(255, 255, 255, 0.85), 6px 6px 12px rgba(163, 177, 198, 0.6);
+  --paper-border: none;
+  --scrim: rgba(224, 229, 236, 0.5);
+  --code-bg: #e0e5ec;
+  --code-ink: #5a6b84;
+  --inset-shadow: inset -4px -4px 8px rgba(255, 255, 255, 0.85), inset 4px 4px 8px rgba(163, 177, 198, 0.6);
+}

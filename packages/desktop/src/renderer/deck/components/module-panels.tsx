@@ -1,6 +1,6 @@
 // Module-centric deck panels: knowledge sources, plugins & MCP, code review,
-// design assets, and the placeholder for modules deferred to later phases
-// (themes land with the E2 theme work; settings/editor/shortcuts are E3).
+// and design assets. The E3 placeholders (themes/notifications/settings/
+// editor/shortcuts) became real components in their own files.
 import { useEffect, useState, type JSX } from "react";
 import { api } from "../../api";
 import type {
@@ -9,7 +9,7 @@ import type {
   PluginMcpServer,
   ReviewProgressEvent,
 } from "../../../shared/ipc";
-import { useI18n, type MessageKey } from "../../i18n";
+import { useI18n } from "../../i18n";
 
 // ── 知识源：各源状态卡（codegraph/wiki/serena/agents/memory/routing） ──────
 const STATE_ICON: Record<string, string> = {
@@ -168,16 +168,6 @@ export function AssetsPanel(): JSX.Element {
           <span className="deck-row-meta">{artifact.updatedAt.slice(0, 16).replace("T", " ")}</span>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ── 占位：延后模块的统一空态（主题=E2 主题工作，其余=E3） ──────────────────
-export function PlaceholderPanel(props: { noteKey: MessageKey }): JSX.Element {
-  const { t } = useI18n();
-  return (
-    <div className="deck-empty">
-      <p>{t(props.noteKey)}</p>
     </div>
   );
 }

@@ -1,0 +1,40 @@
+/* ================================================================
+   Orca Deck 主题 · Vernacular 1997
+   调色板提取自设计稿 Demo [data-theme=vern]，作用域 .deck-app。
+   星空背景为内联 SVG data URI（120×120 平铺）。
+   ================================================================ */
+
+.deck-app[data-deck-theme="vern"] {
+  --bg: #000033
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23000033'/%3E%3Ccircle cx='12' cy='20' r='1.2' fill='white'/%3E%3Ccircle cx='45' cy='8' r='.8' fill='%23ccccff'/%3E%3Ccircle cx='80' cy='30' r='1' fill='white'/%3E%3Ccircle cx='105' cy='12' r='.9' fill='%23ffffcc'/%3E%3Ccircle cx='30' cy='55' r='1' fill='white'/%3E%3Ccircle cx='66' cy='48' r='.7' fill='%23ccccff'/%3E%3Ccircle cx='98' cy='70' r='1.1' fill='white'/%3E%3Ccircle cx='18' cy='90' r='.9' fill='%23ffffcc'/%3E%3Ccircle cx='52' cy='82' r='1.2' fill='white'/%3E%3Ccircle cx='88' cy='100' r='.8' fill='%23ccccff'/%3E%3Ccircle cx='112' cy='45' r='.7' fill='white'/%3E%3C/svg%3E")
+    repeat;
+  --ink: #ffffff;
+  --ink2: #ccccff;
+  --ink3: #8888aa;
+  --paper: rgba(0, 0, 16, 0.92);
+  --paper2: #000010;
+  --line: #6666ff;
+  --acc: #ffff66;
+  --acc-soft: rgba(255, 255, 102, 0.15);
+  --ok: #66ff66;
+  --ok-soft: rgba(102, 255, 102, 0.14);
+  --warn: #ffcc00;
+  --warn-soft: rgba(255, 204, 0, 0.14);
+  --bad: #ff6666;
+  --bad-soft: rgba(255, 102, 102, 0.16);
+  --rad: 4px;
+  --rad-ctl: 4px;
+  --ctl-bg: rgba(0, 0, 16, 0.92);
+  --ctl-blur: none;
+  --ctl-shadow: none;
+  --ctl-border: 2px ridge #6666ff;
+  --deep-bg: rgba(0, 0, 16, 0.96);
+  --deep-blur: none;
+  --deep-shadow: none;
+  --paper-shadow: none;
+  --paper-border: 2px ridge #6666ff;
+  --scrim: rgba(0, 0, 40, 0.55);
+  --code-bg: #000;
+  --code-ink: #66ff66;
+  --sans: "Times New Roman", "Songti SC", serif;
+}

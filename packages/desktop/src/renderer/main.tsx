@@ -52,15 +52,19 @@ function injectStylesheet(href: string, id?: string): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   // Experimental Orca Deck layout: load its chunk + stylesheets instead of the
-  // classic shell. On ANY failure (missing chunk after an update, broken
-  // build) persist classic and fall through — the fallback must not depend on
-  // the user finding their way back.
+  // classic shell. All six theme sheets load up-front — each is a token block
+  // scoped to data-deck-theme, so switching themes is a zero-reload attribute
+  // flip. On ANY failure (missing chunk after an update, broken build) persist
+  // classic and fall through — the fallback must not depend on the user
+  // finding their way back.
   if (!isPrototypeWindow && resolveLayout() === "deck") {
     try {
       const { DeckApp } = await import("./deck/deck-app");
       await Promise.all([
         injectStylesheet("./deck/deck-tokens.css"),
-        injectStylesheet("./deck/themes/liquid.css"),
+        ...["liquid", "flat", "glass", "neu", "clay", "vern"].map((theme) =>
+          injectStylesheet(`./deck/themes/${theme}.css`)
+        ),
         injectStylesheet("./deck/deck.css"),
       ]);
       createRoot(container!).render(

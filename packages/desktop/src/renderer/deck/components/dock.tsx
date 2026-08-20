@@ -4,7 +4,7 @@ import { useI18n, type MessageKey } from "../../i18n";
 import { DeckIcon, type DeckIconId } from "../icons";
 import type { OverlayKind } from "../types";
 
-type DockEntry = {
+export type DockEntry = {
   icon: DeckIconId;
   labelKey: MessageKey;
   overlay: OverlayKind;
@@ -37,7 +37,7 @@ export const DOCK: DockItem[] = [
   { icon: "plus", labelKey: "deck.dock.newGoal", overlay: "floor", shortcut: "⌘N", accent: true },
 ];
 
-export function DeckDock(props: { onOpen: (overlay: OverlayKind) => void }): JSX.Element {
+export function DeckDock(props: { onOpen: (overlay: OverlayKind) => void; unread?: number }): JSX.Element {
   const { t } = useI18n();
   return (
     <nav className="deck-dock deck-gc">
@@ -48,12 +48,16 @@ export function DeckDock(props: { onOpen: (overlay: OverlayKind) => void }): JSX
           <button
             key={item.labelKey}
             type="button"
+            data-overlay={item.overlay}
             className={`deck-dicon${item.accent ? " accent" : ""}`}
             data-tip={`${t(item.labelKey)}${item.shortcut ? ` ${item.shortcut}` : ""}`}
             onClick={() => props.onOpen(item.overlay)}
           >
             <DeckIcon id={item.icon} />
             <small>{t(item.labelKey)}</small>
+            {item.overlay === "notifications" && props.unread && props.unread > 0 ? (
+              <span className="deck-dock-badge">{props.unread > 99 ? "99+" : String(props.unread)}</span>
+            ) : null}
           </button>
         )
       )}

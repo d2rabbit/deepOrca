@@ -1,0 +1,36 @@
+/* ================================================================
+   Orca Deck 主题 · Glassmorphism
+   调色板提取自设计稿 Demo [data-theme=glass]，作用域 .deck-app。
+   ================================================================ */
+
+.deck-app[data-deck-theme="glass"] {
+  --bg: linear-gradient(135deg, #6a3de8 0%, #e04f9e 35%, #ff8a5c 65%, #2ec5d3 100%);
+  --ink: #fff;
+  --ink2: rgba(255, 255, 255, 0.88);
+  --ink3: rgba(255, 255, 255, 0.62);
+  --paper: rgba(255, 255, 255, 0.12);
+  --paper2: rgba(20, 8, 48, 0.3);
+  --line: rgba(255, 255, 255, 0.22);
+  --acc: #fff;
+  --acc-soft: rgba(255, 255, 255, 0.28);
+  --ok: #7dffc8;
+  --ok-soft: rgba(125, 255, 200, 0.16);
+  --warn: #ffe27d;
+  --warn-soft: rgba(255, 226, 125, 0.16);
+  --bad: #ffd3dc;
+  --bad-soft: rgba(244, 106, 106, 0.22);
+  --rad: 16px;
+  --rad-ctl: 16px;
+  --ctl-bg: rgba(255, 255, 255, 0.13);
+  --ctl-blur: blur(16px);
+  --ctl-shadow: 0 12px 40px rgba(31, 12, 77, 0.28);
+  --ctl-border: 1px solid rgba(255, 255, 255, 0.25);
+  --deep-bg: rgba(255, 255, 255, 0.2);
+  --deep-blur: blur(22px);
+  --deep-shadow: 0 18px 50px rgba(31, 12, 77, 0.4);
+  --paper-shadow: 0 12px 40px rgba(31, 12, 77, 0.24);
+  --paper-border: 1px solid rgba(255, 255, 255, 0.22);
+  --scrim: rgba(40, 10, 80, 0.25);
+  --code-bg: rgba(20, 8, 48, 0.4);
+  --code-ink: rgba(255, 255, 255, 0.9);
+}

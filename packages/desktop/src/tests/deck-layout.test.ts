@@ -258,11 +258,13 @@ describe("Deck E1 core loop", () => {
     });
     mounted = await mountDeck();
 
+    const deny = mounted.container.querySelector(".deck-op.deny");
+    const submit = mounted.container.querySelector(".deck-pending-submit .deck-op.primary");
     await act(async () => {
-      fireEvent.click(mounted.container.querySelector(".deck-op.deny")!);
+      fireEvent.click(deny!);
     });
     await act(async () => {
-      fireEvent.click(mounted.container.querySelector(".deck-pending-submit .deck-op.primary")!);
+      fireEvent.click(submit!);
     });
 
     const calls = stub.calls.filter((c) => c.method === "denyPermission");

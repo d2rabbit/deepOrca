@@ -795,3 +795,245 @@ button.deck-row:hover {
   word-break: break-all;
   margin: 0;
 }
+
+/* ---------- E3：命令层（⌘K） ---------- */
+.deck-overlay-scrim.cmd {
+  align-items: start;
+  padding-top: 12vh;
+}
+
+.deck-cmd {
+  width: min(620px, 90%);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.deck-cmd-input {
+  font-size: 14px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 18px;
+  outline: none;
+  font-family: inherit;
+}
+
+.deck-cmd-list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px 0 8px;
+}
+
+.deck-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  text-align: left;
+}
+
+.deck-cmd-row.active {
+  background: var(--acc-soft);
+  color: var(--ink);
+}
+
+.deck-cmd-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-cmd-meta {
+  font-size: 10px;
+  color: var(--ink3);
+}
+
+.deck-kbd {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+
+/* ---------- E3：通知角标 ---------- */
+.deck-dock-badge {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 15px;
+}
+
+/* ---------- E3：主题选择 ---------- */
+.deck-themes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.deck-theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px;
+  border-radius: var(--rad);
+  border: 1.5px solid var(--line);
+  background: var(--paper2);
+}
+
+.deck-theme-card.active {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+.deck-theme-chip {
+  width: 100%;
+  height: 34px;
+  border-radius: calc(var(--rad) - 6px);
+  border: 1px solid var(--line);
+}
+
+.chip-liquid {
+  background: linear-gradient(135deg, #dfe9f5, #ece4f4 55%, #f7e9de);
+}
+
+.chip-flat {
+  background: #fff;
+}
+
+.chip-glass {
+  background: linear-gradient(135deg, #6a3de8, #e04f9e 40%, #2ec5d3);
+}
+
+.chip-neu {
+  background: #e0e5ec;
+  box-shadow:
+    inset -3px -3px 6px rgba(255, 255, 255, 0.85),
+    inset 3px 3px 6px rgba(163, 177, 198, 0.6);
+  border: none;
+}
+
+.chip-clay {
+  background: linear-gradient(160deg, #fff, #fdeff2);
+  box-shadow: inset 0 -4px 8px rgba(176, 120, 140, 0.2);
+  border: none;
+}
+
+.chip-vern {
+  background: #000033;
+  border: 2px ridge #6666ff;
+}
+
+.deck-theme-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ---------- E3：设置（语言网格） ---------- */
+.deck-lang-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.deck-op.chip {
+  border-radius: 999px;
+}
+
+/* ---------- E3：编辑器浮层 ---------- */
+.deck-editor {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  min-height: 340px;
+  max-height: 64vh;
+}
+
+.deck-editor-tree {
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.deck-editor-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.deck-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 8px;
+}
+
+.deck-editor-path {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.deck-editor-state {
+  font-size: 10px;
+  color: var(--ok);
+}
+
+.deck-editor-state.dirty {
+  color: var(--warn);
+}
+
+.deck-editor-text {
+  flex: 1;
+  min-height: 260px;
+  resize: none;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  outline: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+.deck-editor-note {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--ink3);
+  font-size: 12px;
+  padding: 24px;
+}
+
+/* 文件树中可送入编辑器的文件行 */
+.deck-row.linked:hover .deck-row-main {
+  color: var(--acc);
+}

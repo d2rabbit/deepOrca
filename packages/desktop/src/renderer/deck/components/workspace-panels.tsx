@@ -8,13 +8,20 @@ import { useI18n } from "../../i18n";
 import type { DeckEngine } from "../hooks/use-deck-engine";
 
 // ── 文件：工作区文件树（按层懒加载） ───────────────────────────────────────
-function FileNode(props: { entry: EditorFileEntry; depth: number }): JSX.Element {
+export function FileNode(props: {
+  entry: EditorFileEntry;
+  depth: number;
+  onOpen?: (path: string) => void;
+}): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<EditorFileEntry[] | null>(null);
   const isDir = props.entry.type === "directory";
 
   const toggle = () => {
-    if (!isDir) return;
+    if (!isDir) {
+      props.onOpen?.(props.entry.path);
+      return;
+    }
     if (!expanded && children === null) {
       void api
         .editorListFiles(props.entry.path)
@@ -26,7 +33,12 @@ function FileNode(props: { entry: EditorFileEntry; depth: number }): JSX.Element
 
   return (
     <div>
-      <button type="button" className="deck-row" style={{ paddingLeft: 10 + props.depth * 16 }} onClick={toggle}>
+      <button
+        type="button"
+        className={`deck-row${props.onOpen && !isDir ? " linked" : ""}`}
+        style={{ paddingLeft: 10 + props.depth * 16 }}
+        onClick={toggle}
+      >
         <span>{isDir ? (expanded ? "▾" : "▸") : "·"}</span>
         <span className="deck-row-main">{props.entry.name}</span>
         {!isDir ? <span className="deck-row-meta">{props.entry.size}B</span> : null}
@@ -38,7 +50,7 @@ function FileNode(props: { entry: EditorFileEntry; depth: number }): JSX.Element
   );
 }
 
-export function FilesPanel(): JSX.Element {
+export function FilesPanel(props: { onOpen?: (path: string) => void }): JSX.Element {
   const { t } = useI18n();
   const [root, setRoot] = useState<EditorFileEntry[] | null>(null);
 
@@ -55,7 +67,7 @@ export function FilesPanel(): JSX.Element {
   return (
     <div className="deck-panel">
       {root.map((entry) => (
-        <FileNode key={entry.path} entry={entry} depth={0} />
+        <FileNode key={entry.path} entry={entry} depth={0} onOpen={props.onOpen} />
       ))}
     </div>
   );

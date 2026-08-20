@@ -1,0 +1,41 @@
+/* ================================================================
+   Orca Deck 主题 · Claymorphism
+   调色板提取自设计稿 Demo [data-theme=clay]，作用域 .deck-app。
+   ================================================================ */
+
+.deck-app[data-deck-theme="clay"] {
+  --bg: #fdeff2;
+  --ink: #4a3a44;
+  --ink2: #6b5a66;
+  --ink3: #b3a0ac;
+  --paper: #fff;
+  --paper2: #f6f1f4;
+  --line: transparent;
+  --acc: #5b4fd6;
+  --acc-soft: #e3e0ff;
+  --ok: #2e7d5b;
+  --ok-soft: #dcf5e8;
+  --warn: #b07817;
+  --warn-soft: #fdf3dd;
+  --bad: #c2543a;
+  --bad-soft: #ffe9e4;
+  --rad: 26px;
+  --rad-ctl: 999px;
+  --ctl-bg: #fff;
+  --ctl-blur: none;
+  --ctl-shadow:
+    0 18px 32px rgba(176, 120, 140, 0.18), inset 0 -7px 14px rgba(176, 120, 140, 0.14),
+    inset 0 7px 14px rgba(255, 255, 255, 0.55);
+  --deep-bg: #fff;
+  --deep-blur: none;
+  --deep-shadow:
+    0 24px 44px rgba(176, 120, 140, 0.22), inset 0 -8px 16px rgba(176, 120, 140, 0.15),
+    inset 0 8px 16px rgba(255, 255, 255, 0.55);
+  --paper-shadow:
+    0 18px 34px rgba(176, 120, 140, 0.16), inset 0 -7px 14px rgba(176, 120, 140, 0.13),
+    inset 0 7px 14px rgba(255, 255, 255, 0.55);
+  --paper-border: none;
+  --scrim: rgba(253, 239, 242, 0.5);
+  --code-bg: #f6f1f4;
+  --code-ink: #6b5a66;
+}

@@ -1,0 +1,36 @@
+/* ================================================================
+   Orca Deck 主题 · Flat
+   调色板提取自设计稿 Demo [data-theme=flat]，作用域 .deck-app。
+   ================================================================ */
+
+.deck-app[data-deck-theme="flat"] {
+  --bg: #ffffff;
+  --ink: #22242a;
+  --ink2: #4a4e57;
+  --ink3: #9aa0aa;
+  --paper: #fff;
+  --paper2: #f4f5f6;
+  --line: #e3e5e8;
+  --acc: #1f8a70;
+  --acc-soft: #d8f3ec;
+  --ok: #14624e;
+  --ok-soft: #d8f3ec;
+  --warn: #b07817;
+  --warn-soft: #fdf3dd;
+  --bad: #c0392b;
+  --bad-soft: #fdeceb;
+  --rad: 8px;
+  --rad-ctl: 8px;
+  --ctl-bg: #fff;
+  --ctl-blur: none;
+  --ctl-shadow: none;
+  --ctl-border: 1px solid var(--line);
+  --deep-bg: #fff;
+  --deep-blur: none;
+  --deep-shadow: none;
+  --paper-shadow: none;
+  --paper-border: 1px solid var(--line);
+  --scrim: rgba(34, 36, 42, 0.18);
+  --code-bg: #f4f5f6;
+  --code-ink: #3a3e46;
+}
