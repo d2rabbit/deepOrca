@@ -29,6 +29,7 @@ export const DOCK: DockItem[] = [
   { icon: "ledger", labelKey: "deck.dock.ledger", overlay: "ledger" },
   { icon: "tree", labelKey: "deck.dock.tree", overlay: "tree" },
   { icon: "plug", labelKey: "deck.dock.plugins", overlay: "plugins" },
+  { icon: "zap", labelKey: "deck.dock.studio", overlay: "studio" },
   { icon: "undo", labelKey: "deck.dock.checkpoints", overlay: "checkpoints", shortcut: "⌘⇧Z" },
   { icon: "edit", labelKey: "deck.dock.editor", overlay: "editor" },
   { icon: "keys", labelKey: "deck.dock.shortcuts", overlay: "shortcuts", shortcut: "⌘?" },

@@ -71,7 +71,7 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 每期门禁：`npm run check && npm test` 全绿；经典布局回归无损（切回经典走查主流程一遍）。
 
-**进度（2026-08-20）**：✅ E0 完成 · ✅ E1 完成 · ✅ E2 功能层完成 · ✅ E3 代码层完成（六主题已并入本期；评审点 #1/#2 待真机）· ✅ E4 完成（监控台第二窗评估后砍掉）· ✅ §6 度量基建交付 · ✅ E5 完成（核心路径补全 + 反馈层）· ✅ E6 完成（形态对齐批次）· ✅ E7 完成（工单交互层）· ✅ E8 完成（自适应工作面板 + 主区标签页完全体，deck 系列累计 68 用例）。已交付：`renderer/deck/` 全目录（引擎 hook / 目标带 / 模块坞 / 步骤板 / 待决卡 / Tape / 控制中心 / 13 个真实数据面板 + diff 焦点卡）、统一浮层栈 + ⌘K 命令层（真模糊评分 + › 前缀锁域 + 分组 + 会话搜索，与坞/快捷键表同源）、通知抽屉 + Toast 双通道（事件同源、toast 上限 5）、刹车双通道（Space 冻结/恢复，接 pausePrompt/resumePrompt）、六主题全量移植（token 表热切换 + 持久化）、设置（主题/语言/切回经典/实验度量）、快捷键表、编辑器浮层（文件树→编辑→保存，文件抽屉深链）、`.gi` 语义图标全量替换 emoji、待决卡决策点视觉锚（高危红呼吸/普通琥珀描边）、§6 度量基建、`lib/layout.ts` 开关与自动回落、i18n 六语言、`scripts/check-deck-size.js` 行数门禁、242 个 desktop 测试全绿（deck-layout 11 + deck-e3 15 + deck-e4 5 + deck-metrics 10 + deck-e5 6）。核心路径「提问→批准→看 diff」三步自此全部可在 Deck 内走完（漏斗 diff 步可由 Deck 触发）。已知留白：成本仪表无单价源显示 "—"；评审点 #1/#2 需真机使用产生数据后在 Deck 设置「实验度量」读数；自律度拨盘/闸门/工单起草页按 §4 引擎红线裁剪不做；license:check 存在 E0 前已有的 sharp-win32 扫描失败（与本方案无关，darwin 上通过）。
+**进度（2026-08-20）**：✅ E0 完成 · ✅ E1 完成 · ✅ E2 功能层完成 · ✅ E3 代码层完成（六主题已并入本期；评审点 #1/#2 待真机）· ✅ E4 完成（监控台第二窗评估后砍掉）· ✅ §6 度量基建交付 · ✅ E5 完成（核心路径补全 + 反馈层）· ✅ E6 完成（形态对齐批次）· ✅ E7 完成（工单交互层）· ✅ E8 完成（自适应工作面板 + 主区标签页完全体）· ✅ E9 完成（Studio 样板：action 目录工作台，deck 系列累计 72 用例）。已交付：`renderer/deck/` 全目录（引擎 hook / 目标带 / 模块坞 / 步骤板 / 待决卡 / Tape / 控制中心 / 13 个真实数据面板 + diff 焦点卡）、统一浮层栈 + ⌘K 命令层（真模糊评分 + › 前缀锁域 + 分组 + 会话搜索，与坞/快捷键表同源）、通知抽屉 + Toast 双通道（事件同源、toast 上限 5）、刹车双通道（Space 冻结/恢复，接 pausePrompt/resumePrompt）、六主题全量移植（token 表热切换 + 持久化）、设置（主题/语言/切回经典/实验度量）、快捷键表、编辑器浮层（文件树→编辑→保存，文件抽屉深链）、`.gi` 语义图标全量替换 emoji、待决卡决策点视觉锚（高危红呼吸/普通琥珀描边）、§6 度量基建、`lib/layout.ts` 开关与自动回落、i18n 六语言、`scripts/check-deck-size.js` 行数门禁、242 个 desktop 测试全绿（deck-layout 11 + deck-e3 15 + deck-e4 5 + deck-metrics 10 + deck-e5 6）。核心路径「提问→批准→看 diff」三步自此全部可在 Deck 内走完（漏斗 diff 步可由 Deck 触发）。已知留白：成本仪表无单价源显示 "—"；评审点 #1/#2 需真机使用产生数据后在 Deck 设置「实验度量」读数；自律度拨盘/闸门/工单起草页按 §4 引擎红线裁剪不做；license:check 存在 E0 前已有的 sharp-win32 扫描失败（与本方案无关，darwin 上通过）。
 
 ### E0 — 开关与骨架（最小可合入）✅ 已完成
 
@@ -159,6 +159,17 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 - **验收**：deck-e8 6 用例（标签页开合切换/Esc 退页/树车道与 switch·fork IPC/卡片墙·重建扇出·wiki 阅读/审查活路径·介入·历史/浮层缩略无历史栏）；desktop 263 测试全绿（deck 系列累计 68 用例）；`npm run check && npm test` 全绿；core 与经典层 diff 为零。
 
 **E8 交付记录（2026-08-20）**：✅ 全部完成。新增 `tree-canvas.tsx` / `sources-dashboard.tsx` / `review-workbench.tsx` / `lib/tree-layout.ts`；`overlay.tsx` 加 ⇱ expand；`command-registry` 加 tab 命令组（与坞同源）；i18n 六语言 +43 键；`deck.css` 1826 行（门禁 2000 内）。设计稿增量稿中"召回测试/查看日志"按无真实数据源不做（诚实原则），监控台第二窗维持 E4 砍单结论。
+
+### E9 — Studio 样板：action 目录工作台（2026-08-21，用户授权：除 agent 外核心能力打包成 action 浮出水面）
+
+> 口径：**除 agent 会话循环外，核心能力已全部注册为 defineAction**（review/index/design/tasks/browser/work/system 七类约 30 个）——E9 不新增任何后端通道，把 ActionRegistry（LLM 工具面/IPC/MCP 同源单实例）原样浮成 Deck 实验区的 Studio 样板，是 H 线 Studio 基座（`specs/studio-base-boost/`）的先行交互验证；只动 deck/ 与 i18n，经典层零触碰。
+
+- **E9.1 action 目录**：坞第 19 入口（⚡ Studio）→ 宽浮层缩略 / ⇱ 载入主区标签页完全体；`actionList()` 载荷含完整 ActionDefinition（parameters/sideEffects，渲染层本地扩型读取，**IPC 契约零改动**）；按 category canonical 序分组（审查/索引与知识/设计/任务树/浏览器/工作/系统），id 描边字 + 描述 + sideEffects 标签；搜索按 id+描述过滤。
+- **E9.2 参数表单自动生成**：按 action 的 JSON schema 渲染——string→文本、number→数字、boolean→勾选、enum→下拉；required 未填禁运行；可选空值自动剔除（`assembleInput` 纯函数）。
+- **E9.3 运行与结果**：`actionRun(id, input)` + `onActionProgress` 统一进度流（按 actionId 过滤）；结果结构化渲染（comments 数组走发现行，其余 pretty JSON，错误显 code+error）；本次会话运行历史（上限 20，诚实口径），标签页全量含历史侧栏（点击跳回源 action），浮层缩略只在 runner 下显最近一次。
+- **验收**：deck-e9 4 用例（分组/搜索/schema 表单与必填门禁/枚举下拉与失败面/历史侧栏跳源）；既有 deck-layout 坞计数断言 18→19 同步；desktop 267 测试全绿（deck 系列累计 72 用例）；`npm run check && npm test` 全绿；core/preload/IPC/经典层 diff 为零。
+
+**E9 交付记录（2026-08-21）**：✅ 全部完成。新增 `studio-panel.tsx`；坞/类型/标签页/命令层/宽浮层接线；i18n 六语言 +16 键；`deck.css` 1875 行（门禁 2000 内）。已知留白：action 无取消按钮（registry 有 CANCELLED 错误面但 IPC 未暴露取消句柄，待 H 线 module-system 阶段一并）；history 仅会话内存不落盘（与 E8.5 同口径）。
 
 ## 6. 度量与退出
 

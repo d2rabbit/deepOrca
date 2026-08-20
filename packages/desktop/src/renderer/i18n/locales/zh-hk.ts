@@ -1091,4 +1091,22 @@ export const zhHK: Record<MessageKey, string> = {
   "deck.review.suggestion": "建議程式碼",
   "deck.review.intervene": "轉為介入",
   "deck.review.interveneBusy": "引擎忙碌中，遲啲轉介入",
+
+  // ── Deck E9: Studio sample ────
+  "deck.dock.studio": "Studio",
+  "deck.studio.hint": "除 agent 會話外的核心能力 · 與 LLM 工具面同源註冊表",
+  "deck.studio.search": "搜尋 action…",
+  "deck.studio.run": "執行",
+  "deck.studio.running": "執行緊…",
+  "deck.studio.noParams": "無參數",
+  "deck.studio.required": "*",
+  "deck.studio.failed": "失敗 {code}：{error}",
+  "deck.studio.empty": "冇符合嘅 action。",
+  "deck.studio.cat.review": "審查",
+  "deck.studio.cat.index": "索引與知識",
+  "deck.studio.cat.design": "設計",
+  "deck.studio.cat.tasks": "任務樹",
+  "deck.studio.cat.browser": "瀏覽器",
+  "deck.studio.cat.work": "工作",
+  "deck.studio.cat.system": "系統",
 };

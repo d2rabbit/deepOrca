@@ -1119,4 +1119,22 @@ export const ja: Record<MessageKey, string> = {
   "deck.review.suggestion": "提案コード",
   "deck.review.intervene": "介入に変換",
   "deck.review.interveneBusy": "エンジン実行中 — 後で介入",
+
+  // ── Deck E9: Studio sample ────
+  "deck.dock.studio": "Studio",
+  "deck.studio.hint": "agent セッション以外のコア機能 · LLM ツール面と同じレジストリ",
+  "deck.studio.search": "アクションを検索…",
+  "deck.studio.run": "実行",
+  "deck.studio.running": "実行中…",
+  "deck.studio.noParams": "パラメータなし",
+  "deck.studio.required": "*",
+  "deck.studio.failed": "失敗 {code}：{error}",
+  "deck.studio.empty": "一致するアクションがありません。",
+  "deck.studio.cat.review": "レビュー",
+  "deck.studio.cat.index": "インデックスと知識",
+  "deck.studio.cat.design": "デザイン",
+  "deck.studio.cat.tasks": "タスクツリー",
+  "deck.studio.cat.browser": "ブラウザ",
+  "deck.studio.cat.work": "ワーク",
+  "deck.studio.cat.system": "システム",
 };

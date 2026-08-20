@@ -1107,4 +1107,22 @@ export const ko: Record<MessageKey, string> = {
   "deck.review.suggestion": "제안 코드",
   "deck.review.intervene": "개입으로 전환",
   "deck.review.interveneBusy": "엔진 실행 중 — 나중에 개입",
+
+  // ── Deck E9: Studio sample ────
+  "deck.dock.studio": "Studio",
+  "deck.studio.hint": "agent 세션 외 코어 기능 · LLM 도구 표면과 동일 레지스트리",
+  "deck.studio.search": "액션 검색…",
+  "deck.studio.run": "실행",
+  "deck.studio.running": "실행 중…",
+  "deck.studio.noParams": "파라미터 없음",
+  "deck.studio.required": "*",
+  "deck.studio.failed": "실패 {code}: {error}",
+  "deck.studio.empty": "일치하는 액션이 없습니다.",
+  "deck.studio.cat.review": "리뷰",
+  "deck.studio.cat.index": "인덱스와 지식",
+  "deck.studio.cat.design": "디자인",
+  "deck.studio.cat.tasks": "작업 트리",
+  "deck.studio.cat.browser": "브라우저",
+  "deck.studio.cat.work": "작업",
+  "deck.studio.cat.system": "시스템",
 };

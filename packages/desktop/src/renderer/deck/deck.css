@@ -1824,3 +1824,52 @@ button.deck-row:hover {
   .deck-tree-side,
   .deck-review-runs { border-right: none; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: 10px; }
 }
+
+/* ---------- E9：Studio 样板（action 目录工作台） ---------- */
+.deck-studio { display: flex; flex-direction: column; gap: 8px; }
+.deck-studio-head { display: flex; align-items: center; gap: 10px; }
+.deck-studio-search {
+  flex: 0 1 260px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+}
+.deck-studio-catalog { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.deck-studio-action { background: var(--paper); border: var(--paper-border); border-radius: var(--rad); }
+.deck-studio-action.open { outline: 1.5px solid var(--acc); }
+.deck-studio-action-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--ink2);
+}
+.deck-studio-id { font-family: var(--mono); font-size: 11px; color: var(--acc); font-weight: 700; flex-shrink: 0; }
+.deck-studio-desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-studio-runner { border-top: 1px solid var(--line); padding: 10px 12px 12px; }
+.deck-studio-form { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; }
+.deck-studio-field { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); }
+.deck-studio-field-label { flex: 0 0 130px; font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+.deck-studio-field-label em { font-style: normal; color: var(--bad); margin-left: 4px; }
+.deck-studio-field input:not([type="checkbox"]),
+.deck-studio-field select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  outline: none;
+}
+.deck-studio-out { max-height: 300px; margin: 4px 0 0; }

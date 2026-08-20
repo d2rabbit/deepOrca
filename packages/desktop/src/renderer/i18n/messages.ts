@@ -1125,6 +1125,24 @@ export const en = {
   "deck.review.suggestion": "Suggested code",
   "deck.review.intervene": "Send as intervention",
   "deck.review.interveneBusy": "Engine is busy — intervene later",
+
+  // ── Deck E9: Studio sample (action catalog workbench) ────
+  "deck.dock.studio": "Studio",
+  "deck.studio.hint": "Every core capability except the agent — same registry as the LLM tool surface",
+  "deck.studio.search": "Search actions…",
+  "deck.studio.run": "Run",
+  "deck.studio.running": "Running…",
+  "deck.studio.noParams": "No parameters",
+  "deck.studio.required": "*",
+  "deck.studio.failed": "Failed {code}: {error}",
+  "deck.studio.empty": "No matching actions.",
+  "deck.studio.cat.review": "Review",
+  "deck.studio.cat.index": "Index & Knowledge",
+  "deck.studio.cat.design": "Design",
+  "deck.studio.cat.tasks": "Task Trees",
+  "deck.studio.cat.browser": "Browser",
+  "deck.studio.cat.work": "Work",
+  "deck.studio.cat.system": "System",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -2219,6 +2237,24 @@ export const zh: Record<MessageKey, string> = {
   "deck.review.suggestion": "建议代码",
   "deck.review.intervene": "转为介入",
   "deck.review.interveneBusy": "引擎忙碌中，稍后转介入",
+
+  // ── Deck E9: Studio sample (action catalog workbench) ────
+  "deck.dock.studio": "Studio",
+  "deck.studio.hint": "除 agent 会话外的核心能力 · 与 LLM 工具面同源注册表",
+  "deck.studio.search": "搜索 action…",
+  "deck.studio.run": "运行",
+  "deck.studio.running": "运行中…",
+  "deck.studio.noParams": "无参数",
+  "deck.studio.required": "*",
+  "deck.studio.failed": "失败 {code}：{error}",
+  "deck.studio.empty": "没有匹配的 action。",
+  "deck.studio.cat.review": "审查",
+  "deck.studio.cat.index": "索引与知识",
+  "deck.studio.cat.design": "设计",
+  "deck.studio.cat.tasks": "任务树",
+  "deck.studio.cat.browser": "浏览器",
+  "deck.studio.cat.work": "工作",
+  "deck.studio.cat.system": "系统",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

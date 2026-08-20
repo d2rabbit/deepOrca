@@ -40,6 +40,7 @@ import { SourcesPanel, PluginsPanel, AssetsPanel } from "./components/module-pan
 import { TreeCanvas } from "./components/tree-canvas";
 import { SourcesDashboard } from "./components/sources-dashboard";
 import { ReviewWorkbench } from "./components/review-workbench";
+import { StudioPanel } from "./components/studio-panel";
 
 const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
   tape: "deck.dock.tape",
@@ -62,9 +63,10 @@ const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
   floor: "deck.dock.floor",
   diff: "deck.changes.diff",
   draft: "deck.dock.newGoal",
+  studio: "deck.dock.studio",
 };
 
-const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor", "diff"]);
+const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor", "diff", "studio"]);
 
 /** Control-center docked state (E6.5) — open by default, collapse persists. */
 const CC_STATE_KEY = "deeporca.deck.cc";
@@ -284,6 +286,8 @@ export function DeckApp(): JSX.Element {
         return <PluginsPanel />;
       case "review":
         return <ReviewWorkbench engine={engine} />;
+      case "studio":
+        return <StudioPanel />;
       case "assets":
         return <AssetsPanel />;
       case "draft":
@@ -361,6 +365,7 @@ export function DeckApp(): JSX.Element {
             {activeTab === "tree" ? <TreeCanvas /> : null}
             {activeTab === "sources" ? <SourcesDashboard /> : null}
             {activeTab === "review" ? <ReviewWorkbench engine={engine} full /> : null}
+            {activeTab === "studio" ? <StudioPanel full /> : null}
           </div>
         </main>
       ) : (

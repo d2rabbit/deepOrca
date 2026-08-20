@@ -119,7 +119,7 @@ describe("DeckApp skeleton", () => {
     return { unmount: () => result.unmount(), container: result.container };
   }
 
-  test("renders the goal band, 18 dock entries and the escape hatch", async () => {
+  test("renders the goal band, 19 dock entries and the escape hatch", async () => {
     mounted = await mountDeck();
 
     assert.ok(
@@ -131,8 +131,8 @@ describe("DeckApp skeleton", () => {
     const dockButtons = mounted.container.querySelectorAll(".deck-dock button.deck-dicon");
     assert.equal(
       dockButtons.length,
-      18,
-      `expected the 18 dock entries from the design demo, saw ${dockButtons.length}`
+      19,
+      `expected the 19 dock entries (design demo 18 + Studio, E9), saw ${dockButtons.length}`
     );
 
     assert.ok(mounted.container.querySelector(".deck-back"), "the back-to-classic escape hatch must always be present");
