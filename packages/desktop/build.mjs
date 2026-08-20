@@ -248,6 +248,20 @@ async function copyStaticAssets() {
   if (existsSync(orcaCss)) {
     await cp(orcaCss, resolve(outdir, "renderer/styles-orca.css"));
   }
+  // Orca Deck experimental layout: tsx is bundled (lazy chunk), only its
+  // stylesheets ship as static files loaded via <link> at runtime.
+  const deckDir = resolve(__dirname, "src/renderer/deck");
+  if (existsSync(deckDir)) {
+    await mkdir(resolve(outdir, "renderer/deck/themes"), { recursive: true });
+    for (const file of ["deck.css", "deck-tokens.css"]) {
+      const src = resolve(deckDir, file);
+      if (existsSync(src)) await cp(src, resolve(outdir, `renderer/deck/${file}`));
+    }
+    const deckThemes = resolve(deckDir, "themes");
+    if (existsSync(deckThemes)) {
+      await cp(deckThemes, resolve(outdir, "renderer/deck/themes"), { recursive: true });
+    }
+  }
 }
 
 /**

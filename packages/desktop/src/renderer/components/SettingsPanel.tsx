@@ -6,6 +6,7 @@ import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
+import { switchLayout } from "../lib/layout";
 import { ActionsPanel } from "./ActionsPanel";
 
 type Props = {
@@ -809,6 +810,27 @@ export function SettingsPanel({
                       </button>
                     ))}
                   </div>
+                </section>
+
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.appearance.layout")}</div>
+                  <Field hint={t("layout.switch.hint")}>
+                    <div className="ui-lang-grid" role="radiogroup" aria-label={t("settings.appearance.layout")}>
+                      {/* SettingsPanel only exists in the classic shell, so "classic" is always the active one here. */}
+                      <button type="button" role="radio" aria-checked={true} className="ui-lang-chip active">
+                        {t("layout.classic")}
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={false}
+                        className="ui-lang-chip"
+                        onClick={() => switchLayout("deck")}
+                      >
+                        Orca Deck · {t("layout.deck.badge")}
+                      </button>
+                    </div>
+                  </Field>
                 </section>
 
                 <section className="ui-settings-section">

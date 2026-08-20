@@ -22,6 +22,7 @@ import {
   themeStylesheet,
   THEME_LINK_ID,
 } from "./lib/appearance";
+import { resetLayoutToClassic, resolveLayout } from "./lib/layout";
 
 const container = document.getElementById("root");
 if (!container) {
@@ -50,6 +51,32 @@ function injectStylesheet(href: string, id?: string): Promise<void> {
 }
 
 async function bootstrap(): Promise<void> {
+  // Experimental Orca Deck layout: load its chunk + stylesheets instead of the
+  // classic shell. On ANY failure (missing chunk after an update, broken
+  // build) persist classic and fall through — the fallback must not depend on
+  // the user finding their way back.
+  if (!isPrototypeWindow && resolveLayout() === "deck") {
+    try {
+      const { DeckApp } = await import("./deck/deck-app");
+      await Promise.all([
+        injectStylesheet("./deck/deck-tokens.css"),
+        injectStylesheet("./deck/themes/liquid.css"),
+        injectStylesheet("./deck/deck.css"),
+      ]);
+      createRoot(container!).render(
+        <StrictMode>
+          <I18nProvider>
+            <DeckApp />
+          </I18nProvider>
+        </StrictMode>
+      );
+      return;
+    } catch (err) {
+      console.error("[desktop] deck layout failed to load, falling back to classic", err);
+      resetLayoutToClassic();
+    }
+  }
+
   const { platform } = await api.ready();
   const theme = resolveTheme(platform);
   applyAppearance(resolveAppearance(platform, theme));

@@ -1,0 +1,797 @@
+/* ================================================================
+   Orca Deck — 结构层（E0 骨架：目标带 + 模块坞 + 主区占位）
+   全部样式作用域 .deck-app，只消费 deck token（deck-tokens.css +
+   themes/*.css），不引用经典层 --ui-*。
+   ================================================================ */
+
+.deck-app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.deck-app button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+/* ---------- 玻璃控件基底（Liquid Glass 主视觉的公共质感） ---------- */
+.deck-gc {
+  background: var(--ctl-bg);
+  backdrop-filter: var(--ctl-blur);
+  -webkit-backdrop-filter: var(--ctl-blur);
+  box-shadow: var(--ctl-shadow);
+  border-radius: var(--rad);
+  border: var(--ctl-border, none);
+}
+
+/* ---------- 目标带（40px，极简：目标 + 步骤进度 + 切回入口） ---------- */
+.deck-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 18px 0;
+  padding: 9px 16px;
+  font-weight: 700;
+  font-size: 12.5px;
+  position: relative;
+  z-index: 5;
+  min-height: 40px;
+}
+
+.deck-ribbon .deck-goal {
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+
+.deck-ribbon .deck-goal .chev {
+  color: var(--ink3);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.deck-ribbon .deck-goal .dot {
+  color: var(--acc);
+}
+
+/* 迷你步骤进度点（E0 静态占位，E1 接 UpdatePlan） */
+.deck-mini-steps {
+  display: flex;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.deck-mini-steps .mn {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.deck-mini-steps .mn.todo {
+  border: 2px solid var(--ink3);
+  background: transparent;
+}
+
+.deck-mini-steps .ml {
+  width: 20px;
+  height: 2px;
+  margin: 0 5px;
+  background: var(--line);
+}
+
+/* 切回经典入口 — 常驻目标带右端，任何状态下可达（回退硬约束） */
+.deck-back {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink2);
+  padding: 4px 10px;
+  border-radius: var(--rad-ctl);
+  white-space: nowrap;
+}
+
+.deck-back:hover {
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+
+/* ---------- 模块坞（左缘居中浮坞，SVG 描边图标 + 文字标签） ---------- */
+.deck-dock {
+  position: fixed;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 5px;
+  border-radius: 22px;
+  width: 62px;
+  align-items: center;
+  max-height: 86vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.deck-dock::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.deck-dicon {
+  width: 52px;
+  min-height: 44px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--ink2);
+  cursor: pointer;
+  position: relative;
+  padding: 4px 0;
+}
+
+.deck-dicon small {
+  font-size: 8.5px;
+  color: var(--ink3);
+  line-height: 1;
+}
+
+.deck-dicon:hover {
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+
+.deck-dicon:hover small {
+  color: var(--acc);
+}
+
+.deck-dicon svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.deck-dicon.accent {
+  color: var(--acc);
+}
+
+.deck-dicon .bdg {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 800;
+  min-width: 13px;
+  height: 13px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  padding: 0 3px;
+}
+
+/* hover 显示快捷键提示（浮出坞右侧） */
+.deck-dicon[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 46px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--paper-border);
+  border-radius: 7px;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(31, 45, 74, 0.15);
+  z-index: 30;
+  pointer-events: none;
+}
+
+.deck-ddiv {
+  width: 22px;
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}
+
+/* ---------- 主区（E0 占位，E1 起逐步接入 Tape/步骤板） ---------- */
+.deck-stage {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.deck-stage-empty {
+  text-align: center;
+  color: var(--ink3);
+  font-size: 12px;
+  line-height: 1.9;
+  max-width: 420px;
+}
+
+.deck-stage-empty .badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--acc);
+  background: var(--acc-soft);
+  border-radius: var(--rad-ctl);
+  padding: 3px 10px;
+  margin-bottom: 10px;
+}
+
+/* ---------- E1 主区：工单栏（步骤板 + 待决卡）+ 指令输入 ---------- */
+.deck-stage {
+  display: flex;
+  flex-direction: column;
+  place-items: unset;
+  padding: 14px 22px 16px calc(22px + 62px);
+  gap: 12px;
+}
+
+.deck-stage-column {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.deck-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.deck-composer input {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--ink);
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.deck-send {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--acc);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+}
+
+.deck-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.deck-send.stop {
+  background: var(--warn);
+}
+
+/* 步骤板 */
+.deck-steps {
+  padding: 12px 16px;
+}
+
+.deck-steps-title,
+.deck-panel-group-title {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.deck-steps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.deck-steps-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.deck-steps-list li.done .deck-step-text {
+  color: var(--ink3);
+  text-decoration: line-through;
+}
+
+.deck-step-check {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid var(--ink3);
+  display: inline-grid;
+  place-items: center;
+  font-size: 10px;
+  color: #fff;
+  transform: translateY(2px);
+}
+
+.deck-step-check.done {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+/* 待决卡（权限询问内联） */
+.deck-pending {
+  padding: 12px 16px;
+  border: 1.5px solid var(--warn);
+}
+
+.deck-pending-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--warn);
+  margin-bottom: 8px;
+}
+
+.deck-pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deck-pending-req {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12.5px;
+}
+
+.deck-pending-tool {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--acc);
+  flex-shrink: 0;
+}
+
+.deck-pending-desc {
+  color: var(--ink2);
+  word-break: break-all;
+}
+
+.deck-pending-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 5px 0;
+}
+
+.deck-pending-scope {
+  font-size: 10.5px;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.deck-pending-ops,
+.deck-pending-submit,
+.deck-row-ops,
+.deck-panel-ops {
+  display: flex;
+  gap: 6px;
+}
+
+.deck-pending-submit {
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.deck-pending-always {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--ink2);
+}
+
+.deck-op {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--rad-ctl);
+  background: var(--paper2);
+  border: var(--paper-border);
+  color: var(--ink2);
+}
+
+.deck-op:hover {
+  color: var(--acc);
+}
+
+.deck-op.active,
+.deck-op.primary {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+}
+
+.deck-op.danger:hover,
+.deck-op.deny.active {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+.deck-op.allow.active {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+
+.deck-op:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------- 浮层（通用 overlay + Tape + 控制中心） ---------- */
+.deck-overlay-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 40;
+  display: grid;
+  place-items: center;
+}
+
+.deck-overlay {
+  width: 460px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.deck-overlay.wide {
+  width: 720px;
+}
+
+.deck-overlay-head {
+  display: flex;
+  align-items: center;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.deck-overlay-title {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.deck-overlay-close {
+  margin-left: auto;
+  color: var(--ink3);
+  font-size: 12px;
+}
+
+.deck-overlay-close:hover {
+  color: var(--bad);
+}
+
+.deck-overlay-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+
+/* Tape 记录仪 */
+.deck-tape {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.deck-tape-row {
+  display: flex;
+}
+
+.deck-tape-row.user {
+  justify-content: flex-end;
+}
+
+.deck-tape-bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.deck-tape-bubble.user {
+  background: var(--acc);
+  color: #fff;
+}
+
+.deck-tape-bubble.assistant {
+  background: var(--paper2);
+  color: var(--ink);
+  white-space: normal;
+}
+
+.deck-tape-row.tool {
+  justify-content: center;
+}
+
+.deck-tape-tool {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  background: var(--paper2);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.deck-md pre {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border-radius: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  font-size: 11px;
+}
+
+.deck-md code {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.deck-md p {
+  margin: 0 0 8px;
+}
+
+/* 控制中心 */
+.deck-cc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deck-cc-meters,
+.deck-ledger-total {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.deck-ledger-total {
+  grid-template-columns: repeat(3, 1fr);
+  padding: 8px;
+}
+
+.deck-meter {
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 12px;
+  padding: 9px 12px;
+}
+
+.deck-meter .k {
+  font-size: 9.5px;
+  color: var(--ink3);
+  letter-spacing: 0.5px;
+}
+
+.deck-meter .v {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.deck-cc-sec {
+  padding: 8px 6px;
+  border-top: 1px solid var(--line);
+}
+
+.deck-cc-title {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.deck-cc-ev {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--ink2);
+  align-items: baseline;
+}
+
+.deck-cc-ev .ts {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink3);
+  flex-shrink: 0;
+}
+
+.deck-cc-ev.cmd {
+  color: var(--ink);
+}
+
+.deck-cc-ev.cmd::before {
+  content: "›";
+  color: var(--acc);
+  font-weight: 800;
+}
+
+/* ---------- 数据面板通用 ---------- */
+.deck-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deck-panel-group {
+  margin-bottom: 10px;
+}
+
+.deck-panel-group-title {
+  padding: 8px 4px 4px;
+}
+
+.deck-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ink2);
+  text-align: left;
+}
+
+button.deck-row:hover {
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+
+.deck-row.active {
+  background: var(--acc-soft);
+  color: var(--acc);
+  font-weight: 700;
+}
+
+.deck-row-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+}
+
+.deck-row-sub {
+  font-size: 10px;
+  color: var(--ink3);
+  font-family: var(--mono);
+}
+
+.deck-row-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink3);
+  flex-shrink: 0;
+}
+
+.deck-empty {
+  text-align: center;
+  color: var(--ink3);
+  font-size: 12px;
+  padding: 24px 12px;
+  line-height: 1.8;
+}
+
+.deck-error {
+  font-size: 11px;
+  color: var(--bad);
+  background: var(--bad-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.deck-commit {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.deck-commit input {
+  flex: 1;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+}
+
+.deck-proc-list {
+  margin-bottom: 8px;
+}
+
+.deck-proc-output {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border-radius: 10px;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  max-height: 320px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}

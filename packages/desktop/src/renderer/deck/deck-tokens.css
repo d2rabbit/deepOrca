@@ -1,0 +1,11 @@
+/* ================================================================
+   Orca Deck — token 单一事实源（提取自 docs/research/ui-ux/design/
+   index.html Demo）。作用域严格限定在 .deck-app 内，与经典层
+   --ui-* 双轨并行、互不污染。
+   主题调色板在 themes/*.css，本文件只放共享的非色 token。
+   ================================================================ */
+
+.deck-app {
+  --sans: -apple-system, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+  --mono: "SF Mono", ui-monospace, monospace;
+}

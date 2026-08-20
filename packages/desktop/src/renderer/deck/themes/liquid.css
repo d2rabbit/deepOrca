@@ -1,0 +1,35 @@
+/* ================================================================
+   Orca Deck 主题 · Liquid Glass（主视觉，默认）
+   调色板提取自设计稿 Demo [data-theme=liquid]，作用域 .deck-app。
+   ================================================================ */
+
+.deck-app[data-deck-theme="liquid"] {
+  --bg: linear-gradient(160deg, #dfe9f5 0%, #f2f4f8 32%, #ece4f4 62%, #f7e9de 100%);
+  --ink: #1c2433;
+  --ink2: #4a5a75;
+  --ink3: #8296b3;
+  --paper: #fff;
+  --paper2: #f5f7fa;
+  --line: #e6eaf1;
+  --acc: #2952cc;
+  --acc-soft: #e5ecff;
+  --ok: #0d9e63;
+  --ok-soft: #dcf5e8;
+  --warn: #b07817;
+  --warn-soft: #fdf3dd;
+  --bad: #c0392b;
+  --bad-soft: #fdeceb;
+  --rad: 16px;
+  --rad-ctl: 999px;
+  --ctl-bg: rgba(255, 255, 255, 0.46);
+  --ctl-blur: blur(18px) saturate(1.6);
+  --ctl-shadow: 0 8px 28px rgba(31, 45, 74, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --deep-bg: rgba(255, 255, 255, 0.66);
+  --deep-blur: blur(22px) saturate(1.7);
+  --deep-shadow: 0 18px 50px rgba(31, 45, 74, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --paper-shadow: none;
+  --paper-border: 1px solid var(--line);
+  --scrim: rgba(233, 237, 243, 0.45);
+  --code-bg: #f5f7fa;
+  --code-ink: #3d4c66;
+}
