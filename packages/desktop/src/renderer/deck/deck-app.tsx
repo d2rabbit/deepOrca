@@ -11,6 +11,7 @@ import { useI18n, type MessageKey } from "../i18n";
 import { useDeckEngine } from "./hooks/use-deck-engine";
 import { useDeckEvents } from "./hooks/use-deck-events";
 import { useDeckNotifications } from "./hooks/use-deck-notifications";
+import { useDeckToasts, DeckToasts } from "./hooks/use-deck-toasts";
 import { persistDeckTheme, resolveDeckTheme, type DeckTheme } from "./lib/appearance";
 import { popLayer, pushLayer, type LayerKind, type OverlayLayer } from "./lib/overlay-stack";
 import type { DeckCommandContext } from "./lib/command-registry";
@@ -27,6 +28,7 @@ import { ThemeSwatches } from "./components/theme-panel";
 import { DeckSettingsPanel } from "./components/settings-panel";
 import { ShortcutsPanel } from "./components/shortcuts-panel";
 import { EditorPanel } from "./components/editor-panel";
+import { DiffPanel, type DeckDiffTarget } from "./components/diff-panel";
 import { extractPlanSteps } from "./components/step-board";
 import { FloorPanel, CheckpointsPanel, LedgerPanel, TreePanel } from "./components/session-panels";
 import { FilesPanel, ChangesPanel, ProcessesPanel } from "./components/workspace-panels";
@@ -51,19 +53,25 @@ const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
   editor: "deck.dock.editor",
   shortcuts: "deck.dock.shortcuts",
   floor: "deck.dock.floor",
+  diff: "deck.changes.diff",
 };
 
-const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor"]);
+const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor", "diff"]);
 
 export function DeckApp(): JSX.Element {
   const { t } = useI18n();
   const engine = useDeckEngine();
   const events = useDeckEvents();
-  const notifications = useDeckNotifications();
+  const toasts = useDeckToasts();
+  const notifications = useDeckNotifications((n) => toasts.push(n.text, n.level));
   const [layers, setLayers] = useState<OverlayLayer[]>([]);
   const [theme, setThemeState] = useState<DeckTheme>(resolveDeckTheme);
   const [editorPath, setEditorPath] = useState<string | null>(null);
+  const [diffTarget, setDiffTarget] = useState<DeckDiffTarget | null>(null);
   const seqRef = useRef(0);
+  // Keyboard listener reads the engine through a ref so it stays bound once.
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
 
   const steps = useMemo(() => extractPlanSteps(engine.messages), [engine.messages]);
 
@@ -92,12 +100,35 @@ export function DeckApp(): JSX.Element {
     [openLayer]
   );
 
+  const openDiff = useCallback(
+    (file: string, staged: boolean) => {
+      setDiffTarget({ file, staged });
+      openLayer("diff");
+    },
+    [openLayer]
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
         if (mod && e.shiftKey) setLayers([]);
         else setLayers((prev) => popLayer(prev));
+        return;
+      }
+      // Brake (E5.2): Space freezes/resumes — only when nothing editable or
+      // clickable holds focus, so button activation keeps working.
+      if (e.key === " " && !mod) {
+        const el = document.activeElement as HTMLElement | null;
+        const tag = el?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT" || el?.isContentEditable) {
+          return;
+        }
+        const current = engineRef.current;
+        if (current.busy || current.status === "paused" || current.status === "interrupted") {
+          e.preventDefault();
+          void current.brake();
+        }
         return;
       }
       if (!mod) return;
@@ -128,6 +159,8 @@ export function DeckApp(): JSX.Element {
       openLayer,
       setTheme,
       interrupt: () => void engine.interrupt(),
+      selectSession: (id: string) => void engine.selectSession(id),
+      sessions: engine.sessions,
       busy: engine.busy,
     }),
     [openLayer, setTheme, engine]
@@ -152,7 +185,13 @@ export function DeckApp(): JSX.Element {
       case "files":
         return <FilesPanel onOpen={openInEditor} />;
       case "changes":
-        return <ChangesPanel />;
+        return <ChangesPanel onDiff={openDiff} />;
+      case "diff":
+        return diffTarget ? (
+          <DiffPanel key={`${diffTarget.file}:${diffTarget.staged}`} target={diffTarget} />
+        ) : (
+          <div className="deck-empty">—</div>
+        );
       case "processes":
         return <ProcessesPanel engine={engine} />;
       case "sources":
@@ -183,6 +222,7 @@ export function DeckApp(): JSX.Element {
       <GoalBand goal={engine.entry?.summary ?? null} steps={steps} />
       <DeckDock onOpen={openLayer} unread={notifications.unread} />
       <DeckStage engine={engine} steps={steps} />
+      <DeckToasts toasts={toasts.toasts} />
 
       {layers.map((layer, depth) =>
         layer.kind === "command" ? (
@@ -192,7 +232,7 @@ export function DeckApp(): JSX.Element {
             key={layer.seq}
             depth={depth}
             layer={layer.kind}
-            title={t(OVERLAY_TITLES[layer.kind])}
+            title={layer.kind === "diff" && diffTarget ? diffTarget.file : t(OVERLAY_TITLES[layer.kind])}
             wide={WIDE_OVERLAYS.has(layer.kind)}
             onClose={() => closeLayer(layer.kind)}
           >

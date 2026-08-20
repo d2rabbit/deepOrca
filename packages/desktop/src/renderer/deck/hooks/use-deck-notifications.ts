@@ -9,10 +9,14 @@ import type { SessionStatus } from "@deeporca/core";
 
 export type DeckNotificationKind = "permission" | "status" | "mcp";
 
+/** Visual level for the toast twin (E5.3): how urgent the event reads. */
+export type DeckNotificationLevel = "info" | "ok" | "warn" | "bad";
+
 export type DeckNotification = {
   id: number;
   ts: string;
   kind: DeckNotificationKind;
+  level: DeckNotificationLevel;
   text: string;
 };
 
@@ -28,6 +32,12 @@ const NOTIFY_STATUSES: ReadonlySet<SessionStatus> = new Set([
   "paused",
 ]);
 
+function levelForStatus(status: SessionStatus): DeckNotificationLevel {
+  if (status === "failed" || status === "permission_denied") return "bad";
+  if (status === "completed") return "ok";
+  return "warn";
+}
+
 export type DeckNotifications = {
   items: DeckNotification[];
   unread: number;
@@ -35,25 +45,35 @@ export type DeckNotifications = {
   clear(): void;
 };
 
-export function useDeckNotifications(): DeckNotifications {
+export function useDeckNotifications(onPush?: (notification: DeckNotification) => void): DeckNotifications {
   const [items, setItems] = useState<DeckNotification[]>([]);
   const [readUpTo, setReadUpTo] = useState(0);
   const nextId = useRef(1);
+  const onPushRef = useRef(onPush);
+  onPushRef.current = onPush;
 
-  const push = useCallback((kind: DeckNotificationKind, text: string) => {
+  const push = useCallback((kind: DeckNotificationKind, level: DeckNotificationLevel, text: string) => {
+    const notification: DeckNotification = {
+      id: nextId.current++,
+      ts: new Date().toISOString(),
+      kind,
+      level,
+      text,
+    };
     setItems((prev) => {
-      const next = [...prev, { id: nextId.current++, ts: new Date().toISOString(), kind, text }];
+      const next = [...prev, notification];
       return next.length > MAX_NOTIFICATIONS ? next.slice(next.length - MAX_NOTIFICATIONS) : next;
     });
+    onPushRef.current?.(notification);
   }, []);
 
   useEffect(() => {
     const offEntry = api.onSessionEntryUpdated((entry: SerializableSessionEntry) => {
       if (!NOTIFY_STATUSES.has(entry.status)) return;
       const kind = entry.status === "ask_permission" ? "permission" : "status";
-      push(kind, `session ${entry.id.slice(0, 8)} → ${entry.status}`);
+      push(kind, levelForStatus(entry.status), `session ${entry.id.slice(0, 8)} → ${entry.status}`);
     });
-    const offMcp = api.onMcpStatusChanged(() => push("mcp", "mcp status changed"));
+    const offMcp = api.onMcpStatusChanged(() => push("mcp", "info", "mcp status changed"));
     return () => {
       offEntry();
       offMcp();

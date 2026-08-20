@@ -1035,4 +1035,12 @@ export const ja: Record<MessageKey, string> = {
   "deck.metrics.avgTime": "平均 {value} 秒",
   "deck.metrics.none": "完走したパスはまだありません",
   "deck.metrics.note": "ローカルのみに保存 — レビューポイント #1/#2（Deck の本採用か撤退か）に使用。",
+  "deck.changes.diff": "差分",
+  "deck.brake.pause": "⏸ ブレーキ",
+  "deck.brake.resume": "▶ 再開",
+  "deck.brake.frozen": "凍結中 · 現場はそのまま保持",
+  "deck.cmd.group.goals": "ゴール",
+  "deck.cmd.group.views": "ビュー",
+  "deck.cmd.group.themes": "テーマ",
+  "deck.cmd.group.actions": "アクション",
 };

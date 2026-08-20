@@ -19,7 +19,8 @@ export type OverlayKind =
   | "checkpoints"
   | "editor"
   | "shortcuts"
-  | "floor";
+  | "floor"
+  | "diff";
 
 /** One line in the status-observation stream (control center). */
 export type DeckEvent = {

@@ -1042,6 +1042,14 @@ export const en = {
   "deck.metrics.avgTime": "avg {value}s",
   "deck.metrics.none": "no completed runs yet",
   "deck.metrics.note": "Stored locally only — feeds review points #1/#2 (promote or retire the Deck).",
+  "deck.changes.diff": "Diff",
+  "deck.brake.pause": "⏸ Brake",
+  "deck.brake.resume": "▶ Resume",
+  "deck.brake.frozen": "Frozen — the scene is preserved",
+  "deck.cmd.group.goals": "Goals",
+  "deck.cmd.group.views": "Views",
+  "deck.cmd.group.themes": "Themes",
+  "deck.cmd.group.actions": "Actions",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -2053,6 +2061,14 @@ export const zh: Record<MessageKey, string> = {
   "deck.metrics.avgTime": "平均 {value} 秒",
   "deck.metrics.none": "暂无完整走完的路径",
   "deck.metrics.note": "仅本地存储 — 供评审点 #1/#2（Deck 转正或下线）使用。",
+  "deck.changes.diff": "差异",
+  "deck.brake.pause": "⏸ 刹车",
+  "deck.brake.resume": "▶ 恢复施工",
+  "deck.brake.frozen": "已冻结 · 现场完整保留",
+  "deck.cmd.group.goals": "工单",
+  "deck.cmd.group.views": "视图",
+  "deck.cmd.group.themes": "主题",
+  "deck.cmd.group.actions": "动作",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

@@ -73,8 +73,8 @@ export function FilesPanel(props: { onOpen?: (path: string) => void }): JSX.Elem
   );
 }
 
-// ── 变更：暂存区/更改分区 + 逐文件操作 + 提交 ──────────────────────────────
-export function ChangesPanel(): JSX.Element {
+// ── 变更：暂存区/更改分区 + 逐文件操作（diff 查看/暂存/还原）+ 提交 ──────────
+export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) => void }): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [message, setMessage] = useState("");
@@ -117,6 +117,16 @@ export function ChangesPanel(): JSX.Element {
         <div key={`s-${file.path}`} className="deck-row static">
           <span className="deck-row-main">{file.path}</span>
           <span className="deck-row-ops">
+            {props.onDiff ? (
+              <button
+                type="button"
+                className="deck-op"
+                data-diff={file.path}
+                onClick={() => props.onDiff?.(file.path, true)}
+              >
+                {t("deck.changes.diff")}
+              </button>
+            ) : null}
             <button type="button" className="deck-op" onClick={() => op(() => api.gitUnstage(file.path))}>
               {t("deck.changes.unstage")}
             </button>
@@ -130,6 +140,16 @@ export function ChangesPanel(): JSX.Element {
         <div key={`u-${file.path}`} className="deck-row static">
           <span className="deck-row-main">{file.path}</span>
           <span className="deck-row-ops">
+            {props.onDiff ? (
+              <button
+                type="button"
+                className="deck-op"
+                data-diff={file.path}
+                onClick={() => props.onDiff?.(file.path, false)}
+              >
+                {t("deck.changes.diff")}
+              </button>
+            ) : null}
             <button type="button" className="deck-op" onClick={() => op(() => api.gitStage(file.path))}>
               {t("deck.changes.stage")}
             </button>

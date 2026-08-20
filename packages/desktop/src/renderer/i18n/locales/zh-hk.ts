@@ -1008,4 +1008,12 @@ export const zhHK: Record<MessageKey, string> = {
   "deck.metrics.avgTime": "平均 {value} 秒",
   "deck.metrics.none": "暫無完整走完的路徑",
   "deck.metrics.note": "僅本地儲存 — 供評審點 #1/#2（Deck 轉正或下線）使用。",
+  "deck.changes.diff": "差異",
+  "deck.brake.pause": "⏸ 刹車",
+  "deck.brake.resume": "▶ 恢復施工",
+  "deck.brake.frozen": "已凍結 · 現場完整保留",
+  "deck.cmd.group.goals": "工單",
+  "deck.cmd.group.views": "視圖",
+  "deck.cmd.group.themes": "主題",
+  "deck.cmd.group.actions": "動作",
 };

@@ -1024,4 +1024,12 @@ export const ko: Record<MessageKey, string> = {
   "deck.metrics.avgTime": "평균 {value}초",
   "deck.metrics.none": "완주한 경로가 아직 없습니다",
   "deck.metrics.note": "로컬에만 저장 — 리뷰 포인트 #1/#2(Deck 승격 또는 철회)에 사용됩니다.",
+  "deck.changes.diff": "차이",
+  "deck.brake.pause": "⏸ 브레이크",
+  "deck.brake.resume": "▶ 재개",
+  "deck.brake.frozen": "동결됨 · 현장 그대로 보존",
+  "deck.cmd.group.goals": "골",
+  "deck.cmd.group.views": "뷰",
+  "deck.cmd.group.themes": "테마",
+  "deck.cmd.group.actions": "액션",
 };

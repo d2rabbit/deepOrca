@@ -40,6 +40,20 @@ export function DeckStage(props: { engine: DeckEngine; steps: PlanStep[] }): JSX
         ) : null}
       </div>
 
+      {engine.busy || engine.status === "paused" || engine.status === "interrupted" ? (
+        <div className="deck-control-row">
+          <button
+            type="button"
+            className={`deck-brake${engine.busy ? "" : " frozen"}`}
+            data-test-id="deck-brake"
+            onClick={() => void engine.brake()}
+          >
+            {engine.busy ? t("deck.brake.pause") : t("deck.brake.resume")}
+          </button>
+          {engine.busy ? null : <span className="deck-brake-note">{t("deck.brake.frozen")}</span>}
+        </div>
+      ) : null}
+
       <div className="deck-composer deck-gc">
         <input
           value={draft}

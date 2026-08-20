@@ -26,6 +26,11 @@ export type DeckEngine = {
   selectSession(id: string | null): Promise<void>;
   send(text: string): Promise<void>;
   interrupt(): Promise<void>;
+  /**
+   * Brake (E5.2): freeze at the next loop checkpoint while running, resume a
+   * paused/interrupted session — the scene is preserved, unlike interrupt.
+   */
+  brake(): Promise<void>;
   /** Approve the pending ask: resume with /continue + the decision payload. */
   approve(result: PermissionResult): Promise<void>;
   /** Deny the pending ask. */
@@ -194,6 +199,19 @@ export function useDeckEngine(): DeckEngine {
   const status = entry?.status ?? null;
   const busy = status === "processing" || status === "pending";
 
+  const brake = useCallback(async () => {
+    try {
+      if (status === "paused" || status === "interrupted") {
+        const id = activeIdRef.current;
+        if (id) await api.resumePrompt(id);
+      } else if (busy) {
+        await api.pausePrompt();
+      }
+    } catch {
+      // Best-effort — entry status transitions surface the outcome.
+    }
+  }, [status, busy]);
+
   return {
     activeId,
     entry,
@@ -206,6 +224,7 @@ export function useDeckEngine(): DeckEngine {
     selectSession,
     send,
     interrupt,
+    brake,
     approve,
     deny,
   };
