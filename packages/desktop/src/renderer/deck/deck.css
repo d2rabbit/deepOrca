@@ -1525,3 +1525,128 @@ button.deck-row:hover {
   color: var(--bad);
   font-weight: 800;
 }
+
+/* ---------- E7：自律度拨盘 ---------- */
+.deck-dial {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--ink2);
+  padding: 8px 16px;
+}
+
+.deck-dial-track {
+  width: 96px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  position: relative;
+  overflow: hidden;
+}
+
+.deck-dial-track i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--acc);
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+
+.deck-dial-label {
+  color: var(--acc);
+}
+
+/* ---------- E7：闸门确认卡 ---------- */
+.deck-gate-card {
+  padding: 12px 14px;
+}
+
+.deck-gate-card .deck-pending-submit {
+  margin-top: 8px;
+}
+
+/* ---------- E7：步骤板操作（闸门/划线） ---------- */
+.deck-steps-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deck-steps-list li.struck .deck-step-text {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.deck-step-ops {
+  margin-left: auto;
+  display: none;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.deck-steps-list li:hover .deck-step-ops {
+  display: inline-flex;
+}
+
+.deck-step-ops .deck-op {
+  font-size: 10px;
+  padding: 2px 8px;
+}
+
+.deck-step-ops .deck-op.set {
+  color: var(--acc);
+  border-color: var(--acc);
+}
+
+/* ---------- E7：工单起草页 ---------- */
+.deck-draft-title {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  outline: none;
+  margin-bottom: 8px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.deck-draft-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.deck-draft-num {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  width: 14px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.deck-draft-step input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+  font-family: inherit;
+}
+
+.deck-draft-step .deck-op {
+  flex-shrink: 0;
+  font-size: 10.5px;
+}

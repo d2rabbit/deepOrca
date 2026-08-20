@@ -45,7 +45,7 @@ function moduleCommands(t: (key: MessageKey) => string): DeckCommand[] {
   const commands: DeckCommand[] = [];
   for (const item of DOCK) {
     if (item === "div") continue;
-    if (item.overlay === "floor" && item.labelKey === "deck.dock.newGoal") continue; // surfaced as the action below
+    if (item.labelKey === "deck.dock.newGoal") continue; // surfaced as the action below
     commands.push({
       id: `open.${item.overlay}`,
       label: t(item.labelKey),
@@ -93,11 +93,11 @@ function actionCommands(t: (key: MessageKey) => string): DeckCommand[] {
     {
       id: "goal.new",
       label: t("deck.dock.newGoal"),
-      keywords: "new goal session work order",
+      keywords: "new goal session work order draft",
       shortcut: "⌘N",
       domain: "action",
       group: "actions",
-      run: (ctx) => ctx.openLayer("floor"),
+      run: (ctx) => ctx.openLayer("draft"),
     },
     {
       id: "engine.interrupt",

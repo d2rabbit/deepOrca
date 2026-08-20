@@ -12,6 +12,7 @@ import { useDeckEngine } from "./hooks/use-deck-engine";
 import { useDeckEvents } from "./hooks/use-deck-events";
 import { useDeckNotifications } from "./hooks/use-deck-notifications";
 import { useDeckToasts, DeckToasts } from "./hooks/use-deck-toasts";
+import { useWorkOrder } from "./hooks/use-work-order";
 import { persistDeckTheme, resolveDeckTheme, type DeckTheme } from "./lib/appearance";
 import { popLayer, pushLayer, drawerSide, isDrawerKind, type LayerKind, type OverlayLayer } from "./lib/overlay-stack";
 import type { DeckCommandContext } from "./lib/command-registry";
@@ -31,6 +32,7 @@ import { EditorPanel } from "./components/editor-panel";
 import { DiffPanel, type DeckDiffTarget } from "./components/diff-panel";
 import { DrawerShell } from "./components/drawer";
 import { OnboardingModal, useDeckOnboarding } from "./components/onboarding";
+import { DraftPanel } from "./components/draft-panel";
 import { extractPlanSteps } from "./components/step-board";
 import { FloorPanel, CheckpointsPanel, LedgerPanel, TreePanel } from "./components/session-panels";
 import { FilesPanel, ChangesPanel, ProcessesPanel } from "./components/workspace-panels";
@@ -56,6 +58,7 @@ const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
   shortcuts: "deck.dock.shortcuts",
   floor: "deck.dock.floor",
   diff: "deck.changes.diff",
+  draft: "deck.dock.newGoal",
 };
 
 const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor", "diff"]);
@@ -97,6 +100,11 @@ export function DeckApp(): JSX.Element {
   engineRef.current = engine;
 
   const steps = useMemo(() => extractPlanSteps(engine.messages), [engine.messages]);
+
+  // E7 work-order policy layer: autonomy / gates / striking — Deck-side,
+  // above the engine loop. Toasts mirror its decisions (same channel as
+  // engine events).
+  const workOrder = useWorkOrder(engine, steps, (text, kind) => toasts.push(text, kind));
 
   const toggleCc = useCallback(() => {
     setCcOpen((prev) => {
@@ -181,14 +189,29 @@ export function DeckApp(): JSX.Element {
       else if (key === "p" && e.shiftKey) toggle("processes");
       else if (key === "m" && e.shiftKey) toggle("floor");
       else if (key === "n" && e.shiftKey) toggle("notifications");
-      else if (key === "n") toggle("floor");
+      else if (key === "n") toggle("draft");
       else if (key === "z" && e.shiftKey) toggle("checkpoints");
       else if (key === ",") toggle("settings");
       else if (e.key === "?") toggle("shortcuts");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openLayer]);
+  }, [openLayer, workOrder]);
+
+  // ⌥1/2/3 set the autonomy level directly (E7.1). Uses e.code so the
+  // macOS alt-glyph keys (¡™¢) still resolve to their digits.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.metaKey || e.ctrlKey) return;
+      const map: Record<string, 0 | 1 | 2> = { Digit1: 0, Digit2: 1, Digit3: 2 };
+      const level = map[e.code];
+      if (level === undefined) return;
+      e.preventDefault();
+      workOrder.setAutonomy(level);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [workOrder]);
 
   const commandCtx: DeckCommandContext = useMemo(
     () => ({
@@ -238,6 +261,15 @@ export function DeckApp(): JSX.Element {
         return <ReviewPanel />;
       case "assets":
         return <AssetsPanel />;
+      case "draft":
+        return (
+          <DraftPanel
+            onDispatch={(text) => {
+              closeLayer("draft");
+              void engine.send(text);
+            }}
+          />
+        );
       case "theme":
         return (
           <div className="deck-panel">
@@ -257,7 +289,7 @@ export function DeckApp(): JSX.Element {
     <div className="deck-app" data-deck-theme={theme}>
       <GoalBand goal={engine.entry?.summary ?? null} steps={steps} />
       <DeckDock onOpen={openLayer} unread={notifications.unread} />
-      <DeckStage engine={engine} steps={steps} />
+      <DeckStage engine={engine} steps={steps} workOrder={workOrder} />
       <DeckToasts toasts={toasts.toasts} />
 
       {/* Control center (E6.5): resident right-edge pane when open, a

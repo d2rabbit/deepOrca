@@ -20,7 +20,8 @@ export type OverlayKind =
   | "editor"
   | "shortcuts"
   | "floor"
-  | "diff";
+  | "diff"
+  | "draft";
 
 /** One line in the status-observation stream (control center). */
 export type DeckEvent = {

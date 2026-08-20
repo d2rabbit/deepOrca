@@ -34,7 +34,7 @@ export const DOCK: DockItem[] = [
   { icon: "keys", labelKey: "deck.dock.shortcuts", overlay: "shortcuts", shortcut: "⌘?" },
   { icon: "floor", labelKey: "deck.dock.floor", overlay: "floor", shortcut: "⌘⇧M" },
   "div",
-  { icon: "plus", labelKey: "deck.dock.newGoal", overlay: "floor", shortcut: "⌘N", accent: true },
+  { icon: "plus", labelKey: "deck.dock.newGoal", overlay: "draft", shortcut: "⌘N", accent: true },
 ];
 
 export function DeckDock(props: { onOpen: (overlay: OverlayKind) => void; unread?: number }): JSX.Element {
