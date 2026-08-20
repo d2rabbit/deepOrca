@@ -8,7 +8,6 @@ import type {
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   PluginMcpServer,
-  ReviewProgressEvent,
   WikiPageEntry,
 } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
@@ -200,54 +199,6 @@ export function PluginsPanel(): JSX.Element {
           </span>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ── 代码审查：可用性检查 + 运行 + 流式输出 ─────────────────────────────────
-export function ReviewPanel(): JSX.Element {
-  const { t } = useI18n();
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [running, setRunning] = useState(false);
-  const [output, setOutput] = useState("");
-
-  useEffect(() => {
-    void api
-      .reviewCheckAvailable()
-      .then((result) => setAvailable(result.available))
-      .catch(() => setAvailable(false));
-  }, []);
-
-  useEffect(() => {
-    const off = api.onReviewProgress((event: ReviewProgressEvent) => {
-      setOutput((prev) => prev + (event.chunk ?? ""));
-      if (event.done) setRunning(false);
-    });
-    return off;
-  }, []);
-
-  if (available === null) return <div className="deck-empty">{t("deck.loading")}</div>;
-  if (!available) return <div className="deck-empty">{t("deck.review.unavailable")}</div>;
-
-  const run = () => {
-    setOutput("");
-    setRunning(true);
-    void api.reviewRun().then((result) => {
-      if (!result.ok) {
-        setOutput((prev) => prev + (result.error ?? ""));
-        setRunning(false);
-      }
-    });
-  };
-
-  return (
-    <div className="deck-panel">
-      <div className="deck-panel-ops">
-        <button type="button" className="deck-op primary" disabled={running} onClick={run}>
-          {running ? t("deck.review.running") : t("deck.review.run")}
-        </button>
-      </div>
-      {output ? <pre className="deck-proc-output">{output}</pre> : null}
     </div>
   );
 }

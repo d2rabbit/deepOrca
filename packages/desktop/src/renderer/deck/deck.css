@@ -263,7 +263,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 860px;
+  max-width: min(1060px, 100%);
   width: 100%;
   margin: 0 auto;
 }
@@ -273,7 +273,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 8px 8px 16px;
-  max-width: 860px;
+  max-width: min(1060px, 100%);
   width: 100%;
   margin: 0 auto;
 }
@@ -493,16 +493,17 @@
 }
 
 .deck-overlay {
-  width: 460px;
+  /* E8 adaptive: viewport-relative width, capped for readability. */
+  width: clamp(340px, 44vw, 560px);
   max-width: 92vw;
-  max-height: 80vh;
+  max-height: 82vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .deck-overlay.wide {
-  width: 720px;
+  width: clamp(540px, 62vw, 920px);
 }
 
 .deck-overlay-head {
@@ -1286,7 +1287,7 @@ button.deck-row:hover {
   position: fixed;
   top: 64px;
   bottom: 16px;
-  width: 320px;
+  width: clamp(280px, 30vw, 400px);
   z-index: 45;
   display: flex;
   flex-direction: column;
@@ -1299,7 +1300,7 @@ button.deck-row:hover {
 
 .deck-drawer.right {
   right: 14px;
-  width: 420px;
+  width: clamp(320px, 36vw, 480px);
 }
 
 .deck-drawer-head {
@@ -1472,7 +1473,7 @@ button.deck-row:hover {
   top: 50%;
   right: 14px;
   transform: translateY(-50%);
-  width: 300px;
+  width: clamp(260px, 24vw, 360px);
   z-index: 24;
   display: flex;
   flex-direction: column;
@@ -1649,4 +1650,177 @@ button.deck-row:hover {
 .deck-draft-step .deck-op {
   flex-shrink: 0;
   font-size: 10.5px;
+}
+
+/* ================================================================
+   E8 — 自适应工作面板 + 主区标签页（完全体：任务树 / 知识源 / 审查）
+   ================================================================ */
+
+/* 标签条（工单为固定首签，模块完全体可开可关） */
+.deck-tabstrip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 22px 6px calc(22px + 62px);
+  position: relative;
+  z-index: 5;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.deck-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink2);
+  padding: 6px 12px;
+  border-radius: var(--rad-ctl);
+  background: var(--ctl-bg);
+  backdrop-filter: var(--ctl-blur);
+  -webkit-backdrop-filter: var(--ctl-blur);
+  border: var(--ctl-border, none);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.deck-tab.active { color: var(--acc); box-shadow: inset 0 0 0 1.5px var(--acc); }
+.deck-tab.urgent { animation: deck-urgent-pulse 1.8s ease-in-out infinite; color: var(--bad); }
+.deck-tab-close { color: var(--ink3); font-size: 10px; padding: 0 2px; }
+.deck-tab-close:hover { color: var(--bad); }
+
+/* 模块完全体页：比工单栏更宽，吃满可视宽度 */
+.deck-tabpage { flex: 1; overflow-y: auto; width: 100%; max-width: min(1240px, 100%); margin: 0 auto; padding: 4px 0 14px; }
+
+/* 浮层头"载入标签页"按钮 */
+.deck-overlay-expand { margin-left: auto; color: var(--ink3); font-size: 13px; padding: 0 6px; }
+.deck-overlay-expand:hover { color: var(--acc); }
+.deck-overlay-expand + .deck-overlay-close { margin-left: 0; }
+
+/* 任务树画布 */
+.deck-tree-canvas { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 14px; min-height: 320px; }
+.deck-tree-side { border-right: 1px solid var(--line); padding-right: 10px; }
+.deck-tree-main { min-width: 0; }
+.deck-tree-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.deck-tree-head-ops { margin-left: auto; display: flex; gap: 6px; }
+.deck-tree-error { color: var(--bad); font-size: 11.5px; padding: 4px 0; }
+.deck-treegraph {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 2.2;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 4px 0 10px;
+}
+.deck-tlane { display: flex; align-items: center; }
+.deck-tlane-bend { color: var(--ink3); margin-right: 6px; }
+.deck-tlane-seq { display: inline-flex; align-items: center; }
+.deck-tlane-link { color: var(--ink3); }
+.deck-tnode {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ink3);
+  background: transparent;
+  padding: 0;
+  flex-shrink: 0;
+}
+.deck-tnode.merged { background: var(--ok); border-color: var(--ok); }
+.deck-tnode.cur { border-color: var(--acc); background: var(--acc-soft); box-shadow: 0 0 0 3px var(--acc-soft); }
+.deck-tnode.dead { background: var(--paper2); opacity: 0.5; }
+.deck-tnode.sel { outline: 2px solid var(--acc); outline-offset: 2px; }
+.deck-tlane-name { margin-left: 10px; font-weight: 700; color: var(--ink2); font-family: var(--sans); font-size: 11px; }
+.deck-tlane-name.cur { color: var(--acc); }
+.deck-tlane-name.dead { color: var(--ink3); text-decoration: line-through; }
+.deck-tlane-why { margin-left: 8px; color: var(--ink3); font-size: 10.5px; font-family: var(--sans); }
+.deck-tlane-ops { margin-left: 8px; display: none; gap: 4px; }
+.deck-tlane:hover .deck-tlane-ops { display: inline-flex; }
+.deck-tlane-empty { color: var(--ink3); }
+.deck-tree-foot { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.deck-tree-foot input {
+  flex: 0 1 280px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+}
+.deck-tree-detail { margin-top: 8px; padding: 10px 14px; }
+.deck-tree-detail-title { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 12.5px; }
+.deck-tree-detail-why { margin: 6px 0; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.deck-tree-reflog { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; max-height: 200px; overflow-y: auto; }
+.deck-tree-reflog-row { display: flex; gap: 8px; font-size: 11px; padding: 2px 0; align-items: baseline; }
+
+/* 知识源仪表盘 */
+.deck-srcdash { display: flex; flex-direction: column; gap: 8px; }
+.deck-srcdash-head { display: flex; align-items: center; gap: 10px; }
+.deck-src-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.deck-src-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: var(--paper-border);
+  border-radius: var(--rad);
+  box-shadow: var(--paper-shadow);
+  text-align: left;
+  font-size: 12px;
+  color: var(--ink);
+}
+.deck-src-card:hover { outline: 1.5px solid var(--acc); }
+.deck-kv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 4px 0; }
+.deck-kv { background: var(--paper2); border: var(--paper-border); border-radius: 10px; padding: 8px 12px; }
+.deck-kv .k { display: block; font-size: 9.5px; color: var(--ink3); letter-spacing: 0.5px; }
+.deck-kv .v { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.deck-srcpage {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow: auto;
+  max-height: 46vh;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.deck-srcprog { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); padding: 2px 0; }
+
+/* 代码审查工作台 */
+.deck-review { display: flex; flex-direction: column; gap: 8px; }
+.deck-review-head { display: flex; align-items: center; gap: 10px; }
+.deck-review-body { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.deck-review.full .deck-review-body { grid-template-columns: minmax(180px, 230px) 1fr; }
+.deck-review-runs { border-right: 1px solid var(--line); padding-right: 10px; }
+.deck-review-result { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.deck-review-summary { margin: 0; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.deck-review-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: var(--paper-border);
+  border-radius: var(--rad);
+}
+.deck-review-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.deck-review-item-main b { color: var(--ink); font-size: 12.5px; }
+
+/* 窄窗自适应 */
+@media (max-width: 1024px) {
+  .deck-stage { padding: 12px 14px 12px calc(14px + 62px); }
+  .deck-tabstrip { padding-left: calc(14px + 62px); padding-right: 14px; }
+  .deck-overlay,
+  .deck-overlay.wide { width: 94vw; max-width: 94vw; }
+  .deck-drawer { width: min(84vw, 380px); }
+  .deck-drawer.right { width: min(88vw, 440px); }
+  .deck-cc-dock { width: min(78vw, 320px); }
+  .deck-tree-canvas,
+  .deck-review.full .deck-review-body { grid-template-columns: 1fr; }
+  .deck-tree-side,
+  .deck-review-runs { border-right: none; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: 10px; }
 }

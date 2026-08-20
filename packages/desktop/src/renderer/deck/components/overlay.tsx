@@ -14,6 +14,10 @@ export function DeckOverlay(props: {
   depth?: number;
   /** Layer kind, exposed as data-layer for tests and styling. */
   layer?: string;
+  /** E8: load this module's full-body view into a stage tab. */
+  onExpand?: () => void;
+  /** Accessible label / tooltip for the expand button. */
+  expandLabel?: string;
 }): JSX.Element {
   return (
     <div
@@ -30,6 +34,17 @@ export function DeckOverlay(props: {
       >
         <div className="deck-overlay-head">
           <span className="deck-overlay-title">{props.title}</span>
+          {props.onExpand ? (
+            <button
+              type="button"
+              className="deck-overlay-expand"
+              onClick={props.onExpand}
+              aria-label={props.expandLabel ?? "Open in tab"}
+              title={props.expandLabel}
+            >
+              ⇱
+            </button>
+          ) : null}
           <button type="button" className="deck-overlay-close" onClick={props.onClose} aria-label="Close">
             ✕
           </button>

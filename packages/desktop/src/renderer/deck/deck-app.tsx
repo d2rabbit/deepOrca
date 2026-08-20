@@ -16,7 +16,7 @@ import { useWorkOrder } from "./hooks/use-work-order";
 import { persistDeckTheme, resolveDeckTheme, type DeckTheme } from "./lib/appearance";
 import { popLayer, pushLayer, drawerSide, isDrawerKind, type LayerKind, type OverlayLayer } from "./lib/overlay-stack";
 import type { DeckCommandContext } from "./lib/command-registry";
-import type { OverlayKind } from "./types";
+import { isModuleTabKind, type ModuleTabKind, type OverlayKind } from "./types";
 import { GoalBand } from "./components/goal-band";
 import { DeckDock } from "./components/dock";
 import { DeckStage } from "./components/stage";
@@ -36,7 +36,10 @@ import { DraftPanel } from "./components/draft-panel";
 import { extractPlanSteps } from "./components/step-board";
 import { FloorPanel, CheckpointsPanel, LedgerPanel, TreePanel } from "./components/session-panels";
 import { FilesPanel, ChangesPanel, ProcessesPanel } from "./components/workspace-panels";
-import { SourcesPanel, PluginsPanel, ReviewPanel, AssetsPanel } from "./components/module-panels";
+import { SourcesPanel, PluginsPanel, AssetsPanel } from "./components/module-panels";
+import { TreeCanvas } from "./components/tree-canvas";
+import { SourcesDashboard } from "./components/sources-dashboard";
+import { ReviewWorkbench } from "./components/review-workbench";
 
 const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
   tape: "deck.dock.tape",
@@ -94,10 +97,16 @@ export function DeckApp(): JSX.Element {
   const [editorPath, setEditorPath] = useState<string | null>(null);
   const [diffTarget, setDiffTarget] = useState<DeckDiffTarget | null>(null);
   const [ccOpen, setCcOpen] = useState(resolveCcOpen);
+  // E8 stage tabs: the work order is the pinned first tab; module full-body
+  // views (tree canvas / sources dashboard / review workbench) load alongside.
+  const [moduleTabs, setModuleTabs] = useState<ModuleTabKind[]>([]);
+  const [activeTab, setActiveTab] = useState<ModuleTabKind | null>(null);
   const seqRef = useRef(0);
   // Keyboard listener reads the engine through a ref so it stays bound once.
   const engineRef = useRef(engine);
   engineRef.current = engine;
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
 
   const steps = useMemo(() => extractPlanSteps(engine.messages), [engine.messages]);
 
@@ -131,6 +140,20 @@ export function DeckApp(): JSX.Element {
     setLayers((prev) => prev.filter((layer) => layer.kind !== kind));
   }, []);
 
+  const openModuleTab = useCallback(
+    (kind: ModuleTabKind) => {
+      setModuleTabs((prev) => (prev.includes(kind) ? prev : [...prev, kind]));
+      setActiveTab(kind);
+      closeLayer(kind);
+    },
+    [closeLayer]
+  );
+
+  const closeModuleTab = useCallback((kind: ModuleTabKind) => {
+    setModuleTabs((prev) => prev.filter((tab) => tab !== kind));
+    setActiveTab((prev) => (prev === kind ? null : prev));
+  }, []);
+
   const setTheme = useCallback((next: DeckTheme) => {
     setThemeState(next);
     persistDeckTheme(next);
@@ -157,7 +180,8 @@ export function DeckApp(): JSX.Element {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
         if (mod && e.shiftKey) setLayers([]);
-        else setLayers((prev) => popLayer(prev));
+        else if (layersRef.current.length > 0) setLayers(popLayer(layersRef.current));
+        else setActiveTab(null); // stack empty — Esc retires the module tab
         return;
       }
       // Brake (E5.2): Space freezes/resumes — only when nothing editable or
@@ -216,13 +240,14 @@ export function DeckApp(): JSX.Element {
   const commandCtx: DeckCommandContext = useMemo(
     () => ({
       openLayer,
+      openModuleTab,
       setTheme,
       interrupt: () => void engine.interrupt(),
       selectSession: (id: string) => void engine.selectSession(id),
       sessions: engine.sessions,
       busy: engine.busy,
     }),
-    [openLayer, setTheme, engine]
+    [openLayer, openModuleTab, setTheme, engine]
   );
 
   const renderOverlay = (kind: OverlayKind): JSX.Element | null => {
@@ -258,7 +283,7 @@ export function DeckApp(): JSX.Element {
       case "plugins":
         return <PluginsPanel />;
       case "review":
-        return <ReviewPanel />;
+        return <ReviewWorkbench engine={engine} />;
       case "assets":
         return <AssetsPanel />;
       case "draft":
@@ -285,11 +310,62 @@ export function DeckApp(): JSX.Element {
     }
   };
 
+  // A pending decision (permission ask / gate hold) must stay discoverable
+  // while a module tab is up — pulse the work-order tab like the cc tab.
+  const decisionPending = (engine.askPermissions?.length ?? 0) > 0 || workOrder.hold !== null;
+
   return (
     <div className="deck-app" data-deck-theme={theme}>
       <GoalBand goal={engine.entry?.summary ?? null} steps={steps} />
       <DeckDock onOpen={openLayer} unread={notifications.unread} />
-      <DeckStage engine={engine} steps={steps} workOrder={workOrder} />
+
+      {moduleTabs.length > 0 ? (
+        <div className="deck-tabstrip" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === null}
+            className={`deck-tab${activeTab === null ? " active" : ""}${decisionPending ? " urgent" : ""}`}
+            onClick={() => setActiveTab(null)}
+          >
+            {t("deck.tab.workOrder")}
+          </button>
+          {moduleTabs.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === kind}
+              className={`deck-tab${activeTab === kind ? " active" : ""}`}
+              onClick={() => setActiveTab(kind)}
+            >
+              {t(OVERLAY_TITLES[kind])}
+              <span
+                className="deck-tab-close"
+                aria-label={t("deck.tab.close")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeModuleTab(kind);
+                }}
+              >
+                ✕
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {activeTab ? (
+        <main className="deck-stage">
+          <div className="deck-tabpage">
+            {activeTab === "tree" ? <TreeCanvas /> : null}
+            {activeTab === "sources" ? <SourcesDashboard /> : null}
+            {activeTab === "review" ? <ReviewWorkbench engine={engine} full /> : null}
+          </div>
+        </main>
+      ) : (
+        <DeckStage engine={engine} steps={steps} workOrder={workOrder} />
+      )}
       <DeckToasts toasts={toasts.toasts} />
 
       {/* Control center (E6.5): resident right-edge pane when open, a
@@ -344,6 +420,8 @@ export function DeckApp(): JSX.Element {
             title={layer.kind === "diff" && diffTarget ? diffTarget.file : t(OVERLAY_TITLES[layer.kind])}
             wide={WIDE_OVERLAYS.has(layer.kind)}
             onClose={() => closeLayer(layer.kind)}
+            onExpand={isModuleTabKind(layer.kind) ? () => openModuleTab(layer.kind as ModuleTabKind) : undefined}
+            expandLabel={t("deck.tab.open")}
           >
             {renderOverlay(layer.kind)}
           </DeckOverlay>

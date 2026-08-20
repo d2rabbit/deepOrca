@@ -28,3 +28,15 @@ export type DeckEvent = {
   ts: string;
   text: string;
 };
+
+/**
+ * Modules whose full-body view （完全体） can load into a stage tab (E8) —
+ * the overlay stays the thumbnail, the tab gets the wide canvas.
+ */
+export type ModuleTabKind = "tree" | "sources" | "review";
+
+export const MODULE_TAB_KINDS: ReadonlySet<ModuleTabKind> = new Set(["tree", "sources", "review"]);
+
+export function isModuleTabKind(kind: string): kind is ModuleTabKind {
+  return MODULE_TAB_KINDS.has(kind as ModuleTabKind);
+}

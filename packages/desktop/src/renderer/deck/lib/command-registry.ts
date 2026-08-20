@@ -10,6 +10,7 @@ import type { SerializableSessionEntry } from "../../../shared/ipc";
 import { switchLayout } from "../../lib/layout";
 import { DECK_THEMES, type DeckTheme } from "./appearance";
 import type { LayerKind } from "./overlay-stack";
+import { MODULE_TAB_KINDS, type ModuleTabKind } from "../types";
 import { DOCK } from "../components/dock";
 
 export type CommandDomain = "module" | "theme" | "action";
@@ -18,6 +19,8 @@ export type CommandGroup = "goals" | "views" | "themes" | "actions";
 
 export type DeckCommandContext = {
   openLayer(kind: LayerKind): void;
+  /** Load a module's full-body view into a stage tab (E8). */
+  openModuleTab?(kind: ModuleTabKind): void;
   setTheme(theme: DeckTheme): void;
   /** Interrupt the running engine loop (only meaningful while busy). */
   interrupt(): void;
@@ -59,8 +62,27 @@ function moduleCommands(t: (key: MessageKey) => string): DeckCommand[] {
   return commands;
 }
 
-/** The workspace's work orders, searchable by title (E5.4). */
-function goalCommands(ctx: DeckCommandContext): DeckCommand[] {
+/** Stage-tab commands for modules with a full-body view (E8). */
+function tabCommands(t: (key: MessageKey) => string): DeckCommand[] {
+  const commands: DeckCommand[] = [];
+  for (const item of DOCK) {
+    if (item === "div") continue;
+    if (!MODULE_TAB_KINDS.has(item.overlay as ModuleTabKind)) continue;
+    commands.push({
+      id: `tab.${item.overlay}`,
+      label: `${t(item.labelKey)} · ${t("deck.tab.open")}`,
+      keywords: `${item.overlay} tab full`,
+      domain: "module",
+      group: "views",
+      run: (ctx) => ctx.openModuleTab?.(item.overlay as ModuleTabKind),
+    });
+  }
+  return commands;
+}
+
+/** The workspace's work orders, searchable by title (E5.4). */ function goalCommands(
+  ctx: DeckCommandContext
+): DeckCommand[] {
   return ctx.sessions.slice(0, 30).map((session): DeckCommand => {
     const title = session.summary ?? session.id.slice(0, 8);
     return {
@@ -119,5 +141,5 @@ function actionCommands(t: (key: MessageKey) => string): DeckCommand[] {
 }
 
 export function buildCommandRegistry(ctx: DeckCommandContext, t: (key: MessageKey) => string): DeckCommand[] {
-  return [...goalCommands(ctx), ...moduleCommands(t), ...themeCommands(t), ...actionCommands(t)];
+  return [...goalCommands(ctx), ...moduleCommands(t), ...tabCommands(t), ...themeCommands(t), ...actionCommands(t)];
 }
