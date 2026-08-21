@@ -19,7 +19,9 @@
 
 - [x] `npm run check` + `npm test` 全绿（含新增分组测试）
 - [x] i18n 六语言：`design.drift.*` 齐全、`review.drift.*` 清零（grep 全仓 0 残留）
-- [ ] 真机：DesignPanel 跑通一次 drift；插件中心 CRG 在代码组（待桌面环境，命令行链路已由测试锁定）
+- [x] 真机（2026-08-21 Electron + CDP 实测，截图存证 `/tmp/drift-*.png`、`/tmp/plugin-center-builtin.png`）：
+  - **DesignPanel drift 跑通三种状态**：example.com vs 自身基线 → 「✅ 基线内 · 漂移分 0」徽章 + 逐 token 明细折叠（driftJson 完整渲染）；example.org → 真实 0 分（IANA 同款极简页 token 一致）；info.cern.ch → 「⚠ 检测到漂移 · 漂移分 100」徽章，明细展开见完整载荷。基线为 vendored dembrandt 0.28.0 真实抽取（经 `BROWSER_CDP_ENDPOINT` 接系统 Chrome headless CDP，绕开本地引擎下载）
+  - **插件中心 CRG 在代码组**：内置插件页「代码」卡片显示 "CodeGraph、CRG、Serena、OCR · 3 技能 · **3 MCP**"；分组列表无「其他」组（空桶不渲染）；preload 实测 `pluginBuiltinGroups()` 返回 code 组 mcpServers=[codegraph, **code-review-graph**, serena]、other 桶 mcpServers=[]
 
 ## 不做
 
