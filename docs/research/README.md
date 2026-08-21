@@ -12,7 +12,7 @@
 
 ## 总览
 
-39 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份）：**✅ 21 · 🟡 9 · ⬜ 6 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+42 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份）：**✅ 21 · 🟡 10 · ⬜ 8 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -87,6 +87,23 @@
 | [2026-08-19-ui-ux-redesign-vision.md](./2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 阶段指挥舱」+ 竞品差异化定位（vs Cursor/Codex/Threads） | 提案落点：消息流阶段化、rail 五区收编、Inspector 右栏、审批队列、命令面板全覆盖 | ⬜ | 核心概念：平铺线程 → 五阶段脊柱（理解/计划/执行/验证/交付）；三波路径：止损 → 结构 → 差异化 |
 | [2026-08-19-ui-ux-redesign-wireframes.md](./2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `2026-08-19-ui-ux-redesign-mockup.html` | 设计稿：全界面 ASCII 线框 + 尺寸/交互规格 + 键盘地图 + token 增补 | 提案落点：`ui.css`、rail.tsx、MessageList、Composer、command-palette、浮层栈 | ⬜ | HTML 视觉稿经 Playwright 截图验证渲染正确；正式实现一律以 specs/ 为准（总口径） |
 | [2026-08-19-ui-ux-audit-verification.md](./2026-08-19-ui-ux-audit-verification.md) | 审计报告逐条核对 + 三批次修复方案 + 实施记录 | 同审计报告范围（`fix/test-baseline-ui-feedback@da20d16`） | ✅ | **核对结论：P0×2 / P1×5 全部坐实**，P2 九属实一过时（deepcode-cli 证据已失效）、rail 按钮数修正为 18；**批次一+二（F1–F5）已实施**——F1 右栏 `right-open` 接线 + 单槽互斥、F2 rail 常驻禁用态 + overflow 兜底、F3 编辑器联动切视图、F4 命令面板 11→30 条、F5 deny toast；门禁全绿，真机冒烟待做；CRG 架构图触发链路已补闭环（CodeReviewPanel 恢复 View Graph 按钮，`7d3ca8d` 重构丢的线） |
+
+---
+
+## 2026-08-19 · 超级大版本重构预研（内核 wasm 化 / 系统语言）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-19-kernel-wasm-systems-refactor-prestudy.md](./2026-08-19-kernel-wasm-systems-refactor-prestudy.md) | 超大版本重构：内核 wasm 化（A）与系统语言重写（B）解耦裁决，M0–M4 五段排程 | 提案落点：M0 内存止血（offscreen Chromium/embedding 单例/子进程懒启动）、M1 传输中立化、M2 内核重写、M3 壳替换、M4 wasm 双目标 | ⬜ | **2026-08-21 用户拍板更正 M2 语言裁决：不换语言、维持 TypeScript**，迁移载体改为 scriptc + tsgo——见 [2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md](./2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md)；本文 M0/M1 结论不受影响，Rust 降为备选线 |
+| [2026-08-19-moonbit-cangjie-language-prestudy.md](./2026-08-19-moonbit-cangjie-language-prestudy.md) | 内核重写后备语言深挖：MoonBit / 仓颉 | 提案落点：module-system guest 语言（MoonBit）、鸿蒙移植触发线（仓颉） | ⬜ | 裁决：两者不撼动主线（GC + 未 GA + 生态差）；**MoonBit 工具链 AGPL-3.0 + 运行时豁免悬置**为最重要单条结论；仓颉 Apache-2.0-with-exception 干净。主线由 Rust 改为 TS 原生路径后，本文 guest 线/鸿蒙线裁决仍独立成立 |
+
+---
+
+## 2026-08-21 · TS 原生化迁移路径
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md](./2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md) | **M2 更正后的承接报告**：scriptc（TS→原生二进制）+ TypeScript 7/tsgo（Go 编译器）双调研 + 迁移卫生规则 | 提案落点：tsconfig `rootDir` 显式化、CI 非阻塞 `tsgo --noEmit` 对账、三条接缝（进程/网络/动态加载）注入式隔离红线、`scriptc coverage` spike | 🟡 | 裁决：**tsgo 近期采纳**（本仓已在 TS 6.0.3 桥接版、tsconfig 几乎全绿、零编程式 API 依赖；待 7.1 API 解 typescript-eslint）；**scriptc 观察名单 + 最小 spike**（child_process/fetch/dynamic import 三存亡项原生目标未证实，experimental 单供应商）；08-19 报告 M0/M1 不变且权重上调，Rust 降备选。**同日立项 [`specs/ts-native-migration/`](../../specs/ts-native-migration/design.md)**：包拓扑拆分（shell/design 独立成包）为迁移前置 P0，tsgo=M1 段、scriptc spike=P4-a，M2 原生化为条件触发段 |
 
 ---
 

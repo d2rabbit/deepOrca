@@ -1,6 +1,14 @@
 # 预研：超级大版本重构 — 内核 wasm 化与系统级语言重写（性能/内存驱动）
 
 日期：2026-08-19 · 分支：`fix/test-baseline-ui-feedback` · 性质：预研（无代码变更）
+
+> **2026-08-21 回写更正**：用户拍板——**不换语言，维持 TypeScript**。本文 Part II-4
+> 的 Rust 语言裁决与 Part IV 的 M2 定义被取代：M2 改为"TS 源码保持 + scriptc 原生
+> 编译"，工具链升级为 TypeScript 7/tsgo，详见承接报告
+> [`2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md`](./2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md)。
+> 本文 **M0（内存止血）、M1（传输中立化）、Part I 诊断、Part III wasm 定位仍然有效**；
+> Rust 降为 scriptc 路线夭折时的备选。
+
 命题来源：用户方向确立——**超级大版本重构计划，目标是强化性能**。现状为前端技术栈
 （Electron + Node + TypeScript 全家桶），**内存占用过高**是主诉；候选手段为「内核层
 wasm 化」与「全部采用系统层语言编写」。
