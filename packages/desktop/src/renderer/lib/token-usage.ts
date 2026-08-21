@@ -94,8 +94,8 @@ export function formatExact(value: number): string {
 import { getCompactPromptTokenThreshold } from "@deeporca/core/capabilities";
 
 /** Token budget before automatic compaction kicks in, for the given model. */
-export function compactTokenThreshold(model: string): number {
-  return getCompactPromptTokenThreshold(model);
+export function compactTokenThreshold(model: string, override?: number): number {
+  return override !== undefined && override > 0 ? override : getCompactPromptTokenThreshold(model);
 }
 
 /** Percentage of prompt tokens served from cache, 0 when unknown. */

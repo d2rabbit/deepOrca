@@ -540,6 +540,8 @@ export type SettingsSummary = {
   visionModel: string;
   visionEndpointId: string;
   workspaceTrust: WorkspaceTrustLevel;
+  /** User override for the compaction trigger (tokens); undefined = model-family default. */
+  compactTokenThreshold?: number;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -571,6 +573,8 @@ export type EditableSettings = {
   model: string;
   /** Empty string means "unset". */
   temperature: string;
+  /** Compaction trigger override in tokens, as edited ("" = unset → family default). */
+  compactTokenThreshold: string;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;

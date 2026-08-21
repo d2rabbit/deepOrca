@@ -396,6 +396,10 @@ export const ja: Record<MessageKey, string> = {
   "settings.temperature": "温度",
   "settings.temperaturePlaceholder": "未設定（0〜2）",
   "settings.temperatureHint": "空欄の場合はモデルの既定値を使用します。有効範囲 0〜2。",
+  "settings.compactThreshold": "圧縮しきい値",
+  "settings.compactThresholdPlaceholder": "未設定（トークン数）",
+  "settings.compactThresholdHint":
+    "アクティブなコンテキストがこのトークン数を超えると自動圧縮されます。空欄の場合はモデルの既定値（DeepSeek V4 は 512K、その他 128K）。",
   "settings.thinkingMode": "思考モード",
   "settings.reasoningEffort": "推論の強度",
   "settings.debugLog": "デバッグログ",

@@ -246,6 +246,7 @@ export function toSettingsSummary(root: string): SettingsSummary {
     visionModel: s.visionModel,
     visionEndpointId: s.visionEndpointId,
     workspaceTrust: s.workspaceTrust,
+    compactTokenThreshold: s.compactTokenThreshold,
   };
 }
 
@@ -544,6 +545,7 @@ export class SessionBridge {
       apiKey: env.API_KEY ?? "",
       model: raw.model ?? "",
       temperature: raw.temperature != null ? String(raw.temperature) : "",
+      compactTokenThreshold: raw.compactTokenThreshold != null ? String(raw.compactTokenThreshold) : "",
       thinkingEnabled: raw.thinkingEnabled ?? resolved.thinkingEnabled,
       reasoningEffort: raw.reasoningEffort ?? resolved.reasoningEffort,
       debugLogEnabled: raw.debugLogEnabled ?? false,
@@ -640,6 +642,13 @@ export class SessionBridge {
       next.temperature = temperature;
     } else {
       delete next.temperature;
+    }
+
+    const compactTokenThreshold = Number(patch.compactTokenThreshold);
+    if (patch.compactTokenThreshold.trim() && Number.isInteger(compactTokenThreshold) && compactTokenThreshold > 0) {
+      next.compactTokenThreshold = compactTokenThreshold;
+    } else {
+      delete next.compactTokenThreshold;
     }
 
     next.thinkingEnabled = patch.thinkingEnabled;

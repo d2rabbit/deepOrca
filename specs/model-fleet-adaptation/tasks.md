@@ -34,6 +34,8 @@
   - _Requirement: R6, R4_
 - [x] G4 压缩阈值查 `spec.contextWindowTokens`（阈值语义保持满窗口触发；deepseek 512K / unknown 128K 现值；0.85 提前量不做，留后续调参）
   - _Requirement: R1, R4_
+- [x] G4b **压缩阈值用户自定义**（2026-08-21 补）：`settings.compactTokenThreshold`（正整数 tokens，env `DEEPORCA_COMPACT_TOKEN_THRESHOLD` → project → user，非法值忽略，未设=注册表按模型默认）；session 主循环与 Stage-A 两处阈值检查接入覆盖；IPC 契约（SettingsSummary/EditableSettings）+ 设置面板输入项（五语言文案）+ TopBar/ContextProgress 进度条同步展示覆盖值。判别式测试：110K 介于覆盖 100K 与家族默认 128K 之间——仅覆盖生效才触发压缩
+  - _Requirement: R1_
 - [ ] G5 llm-error 新系列错误样本扩充（框架不动，按需增模式；随 S1–S4 各系列核填落地，DeepSeek 基线无需新样本）
   - _Requirement: R6_
 

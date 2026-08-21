@@ -167,6 +167,12 @@ export type DeepcodingSettings = {
    */
   streamIdleTimeoutMs?: number;
   /**
+   * User override for the automatic-compaction trigger threshold (tokens).
+   * When unset, the threshold comes from the model family registry
+   * (512K for DeepSeek V4 models, 128K otherwise).
+   */
+  compactTokenThreshold?: number;
+  /**
    * PM-Design inline mode: render a complete ```openui-lang block embedded in
    * an assistant reply without waiting for the render_openui tool call.
    * Opt-in gray-release flag; the tool channel remains authoritative.
@@ -248,6 +254,12 @@ export type ResolvedDeepcodingSettings = {
   visionApiKey?: string;
   /** LLM stream idle watchdog timeout in ms (default 300000). */
   streamIdleTimeoutMs: number;
+  /**
+   * User override for the compaction trigger threshold (tokens). Undefined =
+   * no override; callers fall back to the per-model family registry value
+   * (getCompactPromptTokenThreshold).
+   */
+  compactTokenThreshold?: number;
 };
 
 export type ModelConfigSelection = {
@@ -834,6 +846,15 @@ export function resolveSettingsSources(
     parsePositiveInteger(userEnv.STREAM_IDLE_TIMEOUT_MS) ??
     DEFAULT_STREAM_IDLE_TIMEOUT_MS;
 
+  // Compaction threshold override: undefined = no override (registry default
+  // per model family). Invalid values (non-integer / <= 0) are ignored.
+  const compactTokenThreshold =
+    parsePositiveInteger(systemEnv.COMPACT_TOKEN_THRESHOLD) ??
+    parsePositiveInteger(projectSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(projectEnv.COMPACT_TOKEN_THRESHOLD) ??
+    parsePositiveInteger(userSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(userEnv.COMPACT_TOKEN_THRESHOLD);
+
   // ── Multi-endpoint resolution ────────────────────────────────────────────
   // Merge endpoints from user + project settings (project overrides user by id,
   // mirroring mergeStatusLine). If none configured, synthesize a default
@@ -921,6 +942,7 @@ export function resolveSettingsSources(
     visionBaseURL,
     visionApiKey,
     streamIdleTimeoutMs,
+    compactTokenThreshold,
   };
 }
 

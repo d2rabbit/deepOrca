@@ -7,6 +7,8 @@ type Props = {
   activeTokens: number;
   /** Current model — decides the compaction threshold. */
   model: string;
+  /** User settings override for the threshold (tokens); undefined = model default. */
+  thresholdOverride?: number;
   /** Whether the session is currently compacting. */
   compacting?: boolean;
 };
@@ -21,12 +23,13 @@ type Props = {
 export const ContextProgress = memo(function ContextProgress({
   activeTokens,
   model,
+  thresholdOverride,
   compacting = false,
 }: Props): JSX.Element | null {
   const { t } = useI18n();
   if (activeTokens <= 0 && !compacting) return null;
 
-  const threshold = compactTokenThreshold(model);
+  const threshold = compactTokenThreshold(model, thresholdOverride);
   // Two-decimal precision — the bar creeps up visibly instead of lurching in
   // whole-percent jumps. Clamped for the fill width; the numeric readout can
   // exceed 100% so the user sees by how much they're over budget.

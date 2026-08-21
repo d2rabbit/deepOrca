@@ -127,6 +127,25 @@ test("resolveSettings gives top-level model priority over env MODEL", () => {
   assert.equal(resolved.model, "deepseek-v4-flash");
 });
 
+test("resolveSettings reads compactTokenThreshold and rejects invalid values", () => {
+  const defaults = { model: "default-model", baseURL: "https://default.example.com" };
+
+  const withOverride = resolveSettings({ compactTokenThreshold: 100_000 }, defaults, TEST_PROCESS_ENV);
+  assert.equal(withOverride.compactTokenThreshold, 100_000);
+
+  const fromEnv = resolveSettings({}, defaults, { DEEPORCA_COMPACT_TOKEN_THRESHOLD: "65536" });
+  assert.equal(fromEnv.compactTokenThreshold, 65536);
+
+  const invalid = resolveSettings({ compactTokenThreshold: -5 }, defaults, TEST_PROCESS_ENV);
+  assert.equal(invalid.compactTokenThreshold, undefined, "non-positive values ignored");
+
+  const notAnInteger = resolveSettings({ compactTokenThreshold: 1.5 }, defaults, TEST_PROCESS_ENV);
+  assert.equal(notAnInteger.compactTokenThreshold, undefined, "non-integer values ignored");
+
+  const unset = resolveSettings({}, defaults, TEST_PROCESS_ENV);
+  assert.equal(unset.compactTokenThreshold, undefined, "unset = fall back to the registry default");
+});
+
 test("resolveSettings reads TEMPERATURE, THINKING_ENABLED, REASONING_EFFORT, and DEBUG_LOG_ENABLED from env", () => {
   const resolved = resolveSettings(
     {

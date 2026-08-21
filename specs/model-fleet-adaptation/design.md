@@ -161,6 +161,8 @@ converter 的 `convertMessage(message, thinkingEnabled, model)` **本就持有 m
 
 `getCompactPromptTokenThreshold(model)` 迁入注册表模块后改查 `spec.contextWindowTokens`：deepseek 家族 512K、unknown 128K（均现值），其余四家族核填入表。**阈值语义保持"满窗口触发"**（今天 `activeTokens > threshold` 的语义），"×0.85 提前量"留作后续独立调参，本轮不改（零回归原则）。
 
+**用户自定义（2026-08-21 补）**：`settings.compactTokenThreshold`（正整数 tokens）在两处阈值检查点（主循环触发判断 + compactSession Stage-A 跳过判断）优先于注册表值——解析链 env `DEEPORCA_COMPACT_TOKEN_THRESHOLD` → project → user，非法值忽略、未设回退注册表按模型默认；设置面板提供输入项（temperature 同款保存路径），TopBar 用量条与 ContextProgress 进度计同步按覆盖值渲染。
+
 ### 2.7 错误分类扩充（G5，对应 R6）
 
 `llm-error.ts` 分类以结构化字段（status/code/type）为主，本就较厂商中立——改造限于：新系列限流/超载/内容过滤文案样本进测试，模式按需增补。不动分类框架。

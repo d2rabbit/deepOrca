@@ -361,6 +361,10 @@ export const en = {
   "settings.temperature": "Temperature",
   "settings.temperaturePlaceholder": "unset (0–2)",
   "settings.temperatureHint": "Empty uses the model default. Valid range 0–2.",
+  "settings.compactThreshold": "Compaction threshold",
+  "settings.compactThresholdPlaceholder": "unset (tokens)",
+  "settings.compactThresholdHint":
+    "Tokens of active context before auto-compaction. Empty uses the model default (512K for DeepSeek V4, 128K otherwise).",
   "settings.thinkingMode": "Thinking mode",
   "settings.reasoningEffort": "Reasoning effort",
   "settings.debugLog": "Debug logging",
@@ -1281,6 +1285,10 @@ export const zh: Record<MessageKey, string> = {
   "settings.temperature": "温度",
   "settings.temperaturePlaceholder": "未设置（0–2）",
   "settings.temperatureHint": "留空使用模型默认值。有效范围 0–2。",
+  "settings.compactThreshold": "压缩阈值",
+  "settings.compactThresholdPlaceholder": "未设置（tokens 数）",
+  "settings.compactThresholdHint":
+    "活动上下文超过该 token 数即触发自动压缩。留空使用模型默认值（DeepSeek V4 为 512K，其余 128K）。",
   "settings.thinkingMode": "思考模式",
   "settings.reasoningEffort": "推理强度",
   "settings.debugLog": "调试日志",

@@ -395,6 +395,10 @@ export const ko: Record<MessageKey, string> = {
   "settings.temperature": "온도",
   "settings.temperaturePlaceholder": "미설정(0–2)",
   "settings.temperatureHint": "비워 두면 모델 기본값을 사용합니다. 유효 범위 0–2.",
+  "settings.compactThreshold": "압축 임계값",
+  "settings.compactThresholdPlaceholder": "미설정(토큰 수)",
+  "settings.compactThresholdHint":
+    "활성 컨텍스트가 이 토큰 수를 초과하면 자동 압축이 실행됩니다. 비워 두면 모델 기본값(DeepSeek V4는 512K, 그 외 128K).",
   "settings.thinkingMode": "사고 모드",
   "settings.reasoningEffort": "추론 강도",
   "settings.debugLog": "디버그 로깅",

@@ -382,6 +382,10 @@ export const zhTW: Record<MessageKey, string> = {
   "settings.temperature": "溫度",
   "settings.temperaturePlaceholder": "未設定（0–2）",
   "settings.temperatureHint": "留空使用模型預設值。有效範圍 0–2。",
+  "settings.compactThreshold": "壓縮閾值",
+  "settings.compactThresholdPlaceholder": "未設定（tokens 數）",
+  "settings.compactThresholdHint":
+    "活動上下文超過該 token 數即觸發自動壓縮。留空使用模型預設值（DeepSeek V4 為 512K，其餘 128K）。",
   "settings.thinkingMode": "思考模式",
   "settings.reasoningEffort": "推理強度",
   "settings.debugLog": "偵錯記錄",

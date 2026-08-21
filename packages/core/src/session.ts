@@ -661,6 +661,8 @@ type SessionManagerOptions = {
     secondaryModel?: string;
     secondaryApiKey?: string;
     secondaryBaseURL?: string;
+    /** User override for the compaction trigger (tokens); undefined = registry default. */
+    compactTokenThreshold?: number;
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
@@ -871,6 +873,8 @@ export class SessionManager {
     secondaryModel?: string;
     secondaryApiKey?: string;
     secondaryBaseURL?: string;
+    /** User override for the compaction trigger (tokens); undefined = registry default. */
+    compactTokenThreshold?: number;
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
@@ -3699,7 +3703,10 @@ ${content}
           }
         }
 
-        const compactPromptTokenThreshold = getCompactPromptTokenThreshold(model);
+        // User override (settings.compactTokenThreshold) wins over the
+        // per-model family registry default.
+        const compactPromptTokenThreshold =
+          this.getResolvedSettings().compactTokenThreshold ?? getCompactPromptTokenThreshold(model);
         if (session.activeTokens > compactPromptTokenThreshold) {
           const message = this.buildAssistantMessage(
             sessionId,
@@ -4000,7 +4007,8 @@ ${content}
     }
     if (trimmed) {
       this.saveSessionMessages(sessionId, sessionMessages);
-      const threshold = getCompactPromptTokenThreshold(sessionModel ?? model);
+      const threshold =
+        this.getResolvedSettings().compactTokenThreshold ?? getCompactPromptTokenThreshold(sessionModel ?? model);
       if (estimateConversationTokens(sessionMessages) < threshold * STAGE_A_SKIP_HEADROOM) {
         // Stage A sufficed — skip the LLM summary. Reset the meter; the next
         // request re-measures (same contract as the post-summary path below).
