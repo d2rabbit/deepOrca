@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import { useI18n, type MessageKey } from "../i18n";
+import { IconTaskTree } from "../ui/index";
 
 /** Stable color per branch name (hash-based palette, no config). */
 const BRANCH_COLORS = ["#4f8ef7", "#f7a04f", "#6fcf7c", "#c77fd6", "#ef6f8e", "#f7d24f"];
@@ -321,7 +322,7 @@ export function TaskTreePanel({ treeId }: { treeId?: string }): JSX.Element {
   return (
     <div className="ui-panel" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
-        <span style={{ fontSize: 16 }}>🌳</span>
+        <IconTaskTree />
         <strong style={{ fontSize: 13 }}>{t("tasktree.title")}</strong>
         {workspaceLabel ? (
           <span

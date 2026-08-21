@@ -82,15 +82,12 @@ import {
   IconTokens,
   IconIndex,
   IconReview,
+  IconDesign,
+  IconTaskTree,
   IconGitmcp,
   IconEditor,
-  IconReasoningHidden,
-  IconReasoningNormal,
-  IconReasoningExpanded,
   IconMoon,
   IconSun,
-  IconGlass,
-  IconPunk,
   IconUndo,
   IconSettings,
   Modal,
@@ -209,11 +206,9 @@ export function App(): JSX.Element {
   const {
     appearance,
     theme,
-    lineVariant,
     reasoningMode,
     initFromPlatform: initAppearanceFromPlatform,
     handleToggleAppearance,
-    handleToggleTheme,
     handleToggleLineVariant,
     handleSelectTheme,
     handleCycleReasoning,
@@ -1287,23 +1282,7 @@ export function App(): JSX.Element {
     return s?.status ?? null;
   }, [activeId, sessions]);
 
-  const reasoningIconEl =
-    reasoningMode === "hidden" ? (
-      <IconReasoningHidden />
-    ) : reasoningMode === "expanded" ? (
-      <IconReasoningExpanded />
-    ) : (
-      <IconReasoningNormal />
-    );
-  const reasoningTitle =
-    reasoningMode === "hidden"
-      ? t("topbar.reasoningHidden")
-      : reasoningMode === "expanded"
-        ? t("topbar.reasoningExpanded")
-        : t("topbar.reasoningNormal");
   const appearanceTitle = appearance === "dark" ? t("topbar.appearanceDark") : t("topbar.appearanceLight");
-  const themeTitle = theme === "glass" ? t("topbar.themeGlass") : t("topbar.themeNative");
-  const lineVariantTitle = lineVariant === "punk" ? t("topbar.linePunk") : t("topbar.lineStroke");
 
   return (
     <div
@@ -1385,7 +1364,7 @@ export function App(): JSX.Element {
           aria-label={t("rail.design")}
           onClick={() => selectView("design")}
         >
-          <span style={{ fontSize: 16 }}>🎯</span>
+          <IconDesign />
         </RailButton>
         <RailButton
           active={panelOpen && sidebarView === "tasktree"}
@@ -1393,7 +1372,7 @@ export function App(): JSX.Element {
           aria-label={t("rail.tasktree")}
           onClick={() => selectView("tasktree")}
         >
-          <span style={{ fontSize: 16 }}>🌳</span>
+          <IconTaskTree />
         </RailButton>
         <RailButton
           active={panelOpen && sidebarView === "gitmcp"}
@@ -1412,12 +1391,10 @@ export function App(): JSX.Element {
           <IconEditor />
         </RailButton>
         <RailSpacer />
-        <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
-          {reasoningIconEl}
-        </RailButton>
-        {/* Rail actions stay mounted and dim when not applicable (audit P0-2):
-            conditional unmounting shifted every button below them. Orca is
-            dark-only, so the light/dark toggle is disabled while it's active. */}
+        {/* Bottom cluster: appearance / undo / settings only (rail declutter —
+            reasoning cycle, line variant and glass theme live on their
+            shortcuts + command palette). Orca is dark-only, so the light/dark
+            toggle is disabled while it's active. */}
         <RailButton
           title={appearanceTitle}
           aria-label={appearanceTitle}
@@ -1425,24 +1402,6 @@ export function App(): JSX.Element {
           onClick={handleToggleAppearance}
         >
           {appearance === "dark" ? <IconMoon /> : <IconSun />}
-        </RailButton>
-        <RailButton
-          active={theme === "line" && lineVariant === "punk"}
-          title={lineVariantTitle}
-          aria-label={lineVariantTitle}
-          disabled={theme !== "line"}
-          onClick={handleToggleLineVariant}
-        >
-          <IconPunk />
-        </RailButton>
-        <RailButton
-          active={theme === "glass"}
-          title={themeTitle}
-          aria-label={themeTitle}
-          disabled={theme === "line" || theme === "orca" || platform === "win32"}
-          onClick={handleToggleTheme}
-        >
-          <IconGlass />
         </RailButton>
         <RailButton title={t("rail.undo")} aria-label={t("rail.undo")} onClick={() => setModal("undo")}>
           <IconUndo />
@@ -1585,7 +1544,7 @@ export function App(): JSX.Element {
               {taskTabs.map((tab) => (
                 <div key={tab.treeId} className={`ui-tasktab${tab.treeId === activeTaskTabId ? " active" : ""}`}>
                   <button type="button" className="ui-tasktab-main" onClick={() => setActiveTaskTabId(tab.treeId)}>
-                    🌳 {tab.title}
+                    <IconTaskTree /> {tab.title}
                   </button>
                   <button
                     type="button"

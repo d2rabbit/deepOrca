@@ -248,6 +248,9 @@ select {
 
 .ui-rail-spacer {
   flex: 1;
+  /* Guaranteed breathing room between the function cluster and the bottom
+     settings cluster — even in short windows where flex:1 collapses. */
+  min-height: 28px;
 }
 
 .ui-rail-btn {
@@ -260,18 +263,12 @@ select {
   font-size: 17px;
   transition:
     background 0.15s var(--ui-ease),
-    color 0.15s var(--ui-ease),
-    transform 0.12s var(--ui-ease);
+    color 0.15s var(--ui-ease);
 }
 
 .ui-rail-btn:hover {
   background: var(--ui-surface-hover);
   color: var(--ui-text);
-  transform: scale(1.05);
-}
-
-.ui-rail-btn:active {
-  transform: scale(0.95);
 }
 
 /* Always-mounted rail actions dim instead of unmounting: conditional removal

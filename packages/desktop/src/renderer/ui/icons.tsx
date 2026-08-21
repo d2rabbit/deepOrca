@@ -122,6 +122,29 @@ export function IconReview(): JSX.Element {
   );
 }
 
+/** Layout wireframe — designer panel (prototypes & design docs) */
+export function IconDesign(): JSX.Element {
+  return (
+    <svg {...S}>
+      <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M3 7.5h14" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M9 7.5V17" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+/** Rooted node tree — task tree panel */
+export function IconTaskTree(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="10" cy="4" r="1.8" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M10 5.8V9M5.5 9h9M5.5 9v2.8M14.5 9v2.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="5.5" cy="13.6" r="1.8" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="14.5" cy="13.6" r="1.8" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 /** Repo book with branch — GitMCP repositories */
 export function IconGitmcp(): JSX.Element {
   return (

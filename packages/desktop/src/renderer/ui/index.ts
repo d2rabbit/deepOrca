@@ -19,6 +19,8 @@ export {
   IconTokens,
   IconIndex,
   IconReview,
+  IconDesign,
+  IconTaskTree,
   IconGitmcp,
   IconWiki,
   IconReasoningHidden,
