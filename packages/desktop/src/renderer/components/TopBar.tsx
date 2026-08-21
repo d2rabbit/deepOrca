@@ -346,8 +346,14 @@ export const TopBar = memo(function TopBar({
         {activeTokens > 0 && settings ? (
           <span className="ui-topbar-token-bar">
             <span
-              className={`ui-topbar-token-bar-fill${activeTokens / compactTokenThreshold(settings.model) >= 0.8 ? " near" : ""}`}
-              style={{ width: `${Math.min(100, (activeTokens / compactTokenThreshold(settings.model)) * 100)}%` }}
+              className={`ui-topbar-token-bar-fill${
+                activeTokens / compactTokenThreshold(settings.model, settings.compactTokenThreshold) >= 0.8
+                  ? " near"
+                  : ""
+              }`}
+              style={{
+                width: `${Math.min(100, (activeTokens / compactTokenThreshold(settings.model, settings.compactTokenThreshold)) * 100)}%`,
+              }}
             />
           </span>
         ) : null}

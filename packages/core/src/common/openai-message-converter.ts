@@ -1,5 +1,5 @@
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
-import { supportsMultimodal } from "./model-capabilities";
+import { resolveModelSpec, supportsMultimodal, type ModelCapabilityRegistration } from "./model-capabilities";
 import type { SessionMessage } from "../session";
 
 export type OpenAIMessageConverterOptions = {
@@ -14,6 +14,12 @@ export type OpenAIMessageConverterOptions = {
    * Reasonix's transient turn-injection pattern.
    */
   buildTurnTail?: (model: string) => string;
+  /**
+   * Optional lookup of the user's per-model capability registration on the
+   * configured endpoints (`models[].thinking/vision`). When present, the
+   * declaration overrides the family registry defaults for image filtering.
+   */
+  resolveModelRegistration?: (model: string) => ModelCapabilityRegistration | undefined;
 };
 
 /**
@@ -147,12 +153,20 @@ export class OpenAIMessageConverter {
     }
     if (thinkingEnabled && message.role === "assistant") {
       // Thinking-mode providers require every replayed assistant message to
-      // carry the reasoning_content field, but per DeepSeek's API contract the
-      // content itself must not be sent back. Always replaying it empty keeps
-      // the request valid, avoids re-uploading megabytes of historical
-      // reasoning as prompt tokens each iteration, and keeps the replayed
-      // prefix byte-stable for the server-side context cache.
-      (base as { reasoning_content?: string }).reasoning_content = "";
+      // carry the reasoning field, but per DeepSeek's API contract the content
+      // itself must not be sent back. Always replaying it empty keeps the
+      // request valid, avoids re-uploading megabytes of historical reasoning
+      // as prompt tokens each iteration, and keeps the replayed prefix
+      // byte-stable for the server-side context cache. Families whose contract
+      // differs select "omit" (no field) or "content" (replay stored reasoning)
+      // via the registry's reasoningReplay.
+      const spec = resolveModelSpec({ model });
+      if (spec.reasoningReplay === "empty-field") {
+        (base as unknown as Record<string, unknown>)[spec.reasoningField] = "";
+      } else if (spec.reasoningReplay === "content") {
+        const stored = typeof messageParams?.reasoning_content === "string" ? messageParams.reasoning_content : "";
+        (base as unknown as Record<string, unknown>)[spec.reasoningField] = stored;
+      }
     }
 
     if ((message.role === "user" || message.role === "system") && message.contentParams) {
@@ -161,9 +175,10 @@ export class OpenAIMessageConverter {
         contentParts.push({ type: "text", text: content });
       }
       const params = Array.isArray(message.contentParams) ? message.contentParams : [message.contentParams];
+      const registration = this.options.resolveModelRegistration?.(model);
       for (const param of params) {
         const part = param as ChatCompletionContentPart;
-        if (part && (part.type !== "image_url" || supportsMultimodal(model))) {
+        if (part && (part.type !== "image_url" || supportsMultimodal(model, registration))) {
           contentParts.push(part);
         }
       }

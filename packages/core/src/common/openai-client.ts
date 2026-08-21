@@ -150,6 +150,31 @@ export function createSecondaryClient(projectRoot: string = process.cwd()): {
   return { client: cachedSecondary, model, baseURL };
 }
 
+// ── Arbitrary endpoint client ───────────────────────────────────────────────
+// Generic per-endpoint client used by background LLM tasks when the family's
+// lightweight model is registered on a DIFFERENT configured endpoint than the
+// session's primary (e.g. deepseek-v4-flash on opencode-zen while the session
+// runs deepseek-v4-pro on opencode-go). Takes explicit credentials — no
+// settings read — so it stays side-effect-free and safe to call directly.
+
+const cachedEndpointClients = new Map<string, OpenAI>();
+
+/** Create (or return cached) a client for an explicit endpoint config. */
+export function createEndpointClient(apiKey: string | undefined, baseURL: string | undefined): OpenAI | null {
+  if (!apiKey) return null;
+  const cacheKey = `${apiKey}::${baseURL ?? ""}`;
+  const cached = cachedEndpointClients.get(cacheKey);
+  if (cached) return cached;
+  const client = new OpenAI({
+    apiKey,
+    baseURL: baseURL || undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
+  });
+  cachedEndpointClients.set(cacheKey, client);
+  return client;
+}
+
 // ── Vision model client ────────────────────────────────────────────────────
 // Used by the built-in vision MCP plugin (vision_chat / vision_ocr tools) to
 // proxy image-understanding requests through a vision-capable model (e.g.

@@ -1649,6 +1649,7 @@ export function App(): JSX.Element {
               <ContextProgress
                 activeTokens={activeContextTokens}
                 model={settings?.model ?? ""}
+                thresholdOverride={settings?.compactTokenThreshold}
                 compacting={activeStatus === "compacting"}
               />
             </div>

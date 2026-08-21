@@ -741,6 +741,15 @@ export function SettingsPanel({
                     />
                   </Field>
 
+                  <Field label={t("settings.compactThreshold")} hint={t("settings.compactThresholdHint")}>
+                    <Input
+                      type="text"
+                      value={s.compactTokenThreshold}
+                      placeholder={t("settings.compactThresholdPlaceholder")}
+                      onChange={(e) => patch({ compactTokenThreshold: e.target.value })}
+                    />
+                  </Field>
+
                   <Field>
                     <Checkbox
                       checked={s.debugLogEnabled}

@@ -16,6 +16,13 @@ export type CreateOpenAIClient = () => {
   env?: Record<string, string>;
 };
 
+/** Secondary-model client factory — tier-2 fallback for background LLM tasks. */
+export type CreateSecondaryClient = () => {
+  client: OpenAI | null;
+  model: string;
+  baseURL: string;
+};
+
 export type ToolCall = {
   id: string;
   type: "function";

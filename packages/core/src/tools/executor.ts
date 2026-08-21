@@ -26,6 +26,7 @@ import type { BashSandboxSpawner } from "../common/tool-types";
 
 export type {
   CreateOpenAIClient,
+  CreateSecondaryClient,
   ToolCall,
   ToolExecutionContext,
   ToolExecutionHooks,

@@ -1,7 +1,7 @@
 // Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
 // (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { randomUUID } from "node:crypto";
-import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
+import { defaultsToThinkingMode, supportsMultimodal } from "./common/model-capabilities";
 import {
   getProjectConfigRoot,
   getUserConfigRoot,
@@ -167,6 +167,12 @@ export type DeepcodingSettings = {
    */
   streamIdleTimeoutMs?: number;
   /**
+   * User override for the automatic-compaction trigger threshold (tokens).
+   * When unset, the threshold comes from the model family registry
+   * (512K for DeepSeek V4 models, 128K otherwise).
+   */
+  compactTokenThreshold?: number;
+  /**
    * PM-Design inline mode: render a complete ```openui-lang block embedded in
    * an assistant reply without waiting for the render_openui tool call.
    * Opt-in gray-release flag; the tool channel remains authoritative.
@@ -248,6 +254,12 @@ export type ResolvedDeepcodingSettings = {
   visionApiKey?: string;
   /** LLM stream idle watchdog timeout in ms (default 300000). */
   streamIdleTimeoutMs: number;
+  /**
+   * User override for the compaction trigger threshold (tokens). Undefined =
+   * no override; callers fall back to the per-model family registry value
+   * (getCompactPromptTokenThreshold).
+   */
+  compactTokenThreshold?: number;
 };
 
 export type ModelConfigSelection = {
@@ -834,6 +846,15 @@ export function resolveSettingsSources(
     parsePositiveInteger(userEnv.STREAM_IDLE_TIMEOUT_MS) ??
     DEFAULT_STREAM_IDLE_TIMEOUT_MS;
 
+  // Compaction threshold override: undefined = no override (registry default
+  // per model family). Invalid values (non-integer / <= 0) are ignored.
+  const compactTokenThreshold =
+    parsePositiveInteger(systemEnv.COMPACT_TOKEN_THRESHOLD) ??
+    parsePositiveInteger(projectSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(projectEnv.COMPACT_TOKEN_THRESHOLD) ??
+    parsePositiveInteger(userSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(userEnv.COMPACT_TOKEN_THRESHOLD);
+
   // ── Multi-endpoint resolution ────────────────────────────────────────────
   // Merge endpoints from user + project settings (project overrides user by id,
   // mirroring mergeStatusLine). If none configured, synthesize a default
@@ -921,6 +942,7 @@ export function resolveSettingsSources(
     visionBaseURL,
     visionApiKey,
     streamIdleTimeoutMs,
+    compactTokenThreshold,
   };
 }
 
@@ -1074,11 +1096,11 @@ export function resolveModelCapability(
       };
     }
   }
-  // Fallback: use the raw modelId against hardcoded tables.
+  // Fallback: use the raw modelId against the model family registry.
   const modelId = parsed?.modelId ?? modelKey;
   return {
-    thinking: DEEPSEEK_V4_MODELS.has(modelId),
-    vision: !NON_MULTIMODAL_MODELS.has(modelId.trim()),
+    thinking: defaultsToThinkingMode(modelId),
+    vision: supportsMultimodal(modelId),
   };
 }
 

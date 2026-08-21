@@ -187,3 +187,114 @@ test("compactSession stage A truncates oversized tool results and skips the LLM 
   // The skip headroom constant must stay conservative (see compaction.ts).
   assert.ok(STAGE_A_SKIP_HEADROOM <= 0.7);
 });
+
+test("settings.compactTokenThreshold override triggers compaction before the family default", async () => {
+  setHomeDir(createTempDir("deepcode-compact-override-home-"));
+  const workspace = createTempDir("deepcode-compact-override-workspace-");
+  // 110K active tokens sits BETWEEN the override (100K) and the model's family
+  // default (128K — "test-model" is not a registered V4 model): compaction
+  // fires only when the user override is honored. Skill-matching requests
+  // (response_format json_object) get a canned response without consuming the
+  // queue, mirroring session.test's mocked-client helper.
+  const responses = [
+    {
+      choices: [{ message: { content: "answer" } }],
+      usage: { prompt_tokens: 110_000, completion_tokens: 1, total_tokens: 110_001 },
+    },
+    {
+      choices: [{ message: { content: "summary" } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    },
+    {
+      choices: [{ message: { content: "after" } }],
+      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+    },
+  ];
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: unknown) => {
+          if ((request as { response_format?: { type?: string } })?.response_format?.type === "json_object") {
+            return { choices: [{ message: { content: '{"skillNames":[]}' } }] };
+          }
+          const response = responses.shift();
+          assert.ok(response, "expected a queued chat response");
+          return response;
+        },
+      },
+    },
+  };
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as never,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "test-model", compactTokenThreshold: 100_000 }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const sessionId = await manager.createSession({ text: "" });
+  await manager.replySession(sessionId, { text: "" });
+
+  const usagePerModel = manager.getSession(sessionId)?.usagePerModel as Record<string, unknown>;
+  assert.ok(
+    usagePerModel?.["deepseek-v4-flash"],
+    "compaction ran (background lightweight bucket present) — override honored"
+  );
+});
+
+test("compaction respects the family default when no override is set", async () => {
+  setHomeDir(createTempDir("deepcode-compact-nodefault-home-"));
+  const workspace = createTempDir("deepcode-compact-nodefault-workspace-");
+  // Same 110K tokens, no override → below the 128K family default → no compaction.
+  const responses = [
+    {
+      choices: [{ message: { content: "answer" } }],
+      usage: { prompt_tokens: 110_000, completion_tokens: 1, total_tokens: 110_001 },
+    },
+    {
+      choices: [{ message: { content: "after" } }],
+      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+    },
+  ];
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: unknown) => {
+          if ((request as { response_format?: { type?: string } })?.response_format?.type === "json_object") {
+            return { choices: [{ message: { content: '{"skillNames":[]}' } }] };
+          }
+          const response = responses.shift();
+          assert.ok(response, "expected a queued chat response");
+          return response;
+        },
+      },
+    },
+  };
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as never,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false,
+    }),
+    getResolvedSettings: () => ({ model: "test-model" }),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+  });
+
+  const sessionId = await manager.createSession({ text: "" });
+  await manager.replySession(sessionId, { text: "" });
+
+  const usagePerModel = manager.getSession(sessionId)?.usagePerModel as Record<string, unknown>;
+  assert.equal(
+    usagePerModel?.["deepseek-v4-flash"],
+    undefined,
+    "no compaction below the family default — registry behavior unchanged"
+  );
+});

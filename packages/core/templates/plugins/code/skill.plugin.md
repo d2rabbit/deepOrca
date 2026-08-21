@@ -14,6 +14,7 @@ plugins:
   - open-code-review
 mcp:
   - codegraph
+  - code-review-graph
   - serena
 actions:
   - { id: "review.run", description: "快速代码审查（仅 OCR）" }
@@ -45,6 +46,7 @@ actions:
 ### MCP 服务器
 
 - **codegraph** — 代码知识图谱服务器。提供符号检索、调用链分析、定义跳转。项目需先运行 `codegraph init` 创建 `.codegraph/` 目录。
+- **code-review-graph** — 代码风险图谱服务器（分析层，CRG）。SQLite 直查 CRG 图谱，供 `review.full` 风险分析与 `crg.visualize` 可视化消费；图谱由 `crg.reindex` 构建。
 - **serena** — 语义代码操作服务器（40+ 语言，通过 SolidLSP）。提供符号查找、引用、重命名、函数体替换。
 
 ### Actions（命令式能力）
