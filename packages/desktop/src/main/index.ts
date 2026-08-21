@@ -595,6 +595,10 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
       embedding: settings.memory?.embedding === "local-onnx" ? { provider: "local-onnx" } : { provider: "none" },
       // Vendored Granite model path (HF mirror layout).
       graniteModelDir: settings.memory?.embedding === "local-onnx" ? graniteModelDir : undefined,
+      // Phase 4 / T4.2 + T4.5: retention (0 disables the daily cleaner) and
+      // L1 extraction cadence, from settings.memory with conservative defaults.
+      retentionDays: settings.memory?.retentionDays ?? 30,
+      pipeline: { everyNConversations: settings.memory?.everyNConversations ?? 10 },
     });
     await mgr.init();
     memoryManager = mgr;

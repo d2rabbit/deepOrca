@@ -74,9 +74,14 @@ export async function getEmbeddingService(opts: EmbeddingLoaderOptions): Promise
   sharedPromise = (async () => {
     try {
       const mod = await import("@deeporca/embedding");
-      const service = new mod.TransformersEmbeddingService({
+      // Process-wide shared service (Phase 3 / T3.1): the memory pipeline
+      // acquires the same underlying ONNX session through the same registry,
+      // keyed by modelDir. The returned handle is refcounted — close() below
+      // releases only OUR reference.
+      const service = mod.acquireSharedEmbeddingService({
         modelDir: opts.modelDir,
         logger: {
+          debug: (message: string) => logger?.(message),
           info: (message: string) => logger?.(message),
           warn: (message: string) => logger?.(message),
           error: (message: string) => logger?.(message),
@@ -112,7 +117,9 @@ export function getEmbeddingLoadError(): string | null {
  * handles and worker threads — without this, they live until the process exits
  * (and keep the event loop alive). The host calls this on app teardown; it is
  * deliberately not called from SessionManager.dispose(), because the service is
- * shared across managers.
+ * shared across managers. Since Phase 3 the underlying session may also be held
+ * by the memory pipeline: this releases routing's reference, and the session is
+ * only torn down when the last holder (memory stops first on app quit) releases.
  */
 export async function closeEmbeddingService(): Promise<void> {
   const generation = ++loaderGeneration;

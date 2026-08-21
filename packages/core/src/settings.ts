@@ -117,6 +117,17 @@ export type MemorySettings = {
    *   Set back to "none" to stop the model and revert to keyword-only recall.
    */
   embedding?: "none" | "local-onnx";
+  /**
+   * Days to retain L0/L1 memory shards + store rows (Phase 4 / T4.2). Default
+   * 30 (conservative — the cleaner never drops below 50 L0 / 20 L1 rows);
+   * 0 disables cleanup entirely.
+   */
+  retentionDays?: number;
+  /**
+   * Conversations per L1 extraction batch (Phase 4 / T4.5). Default 10;
+   * higher = cheaper, lower = fresher facts.
+   */
+  everyNConversations?: number;
 };
 
 export type DeepcodingSettings = {
@@ -583,6 +594,11 @@ function mergeMemory(
     port: project?.port ?? user?.port ?? 8420,
     apiKey: project?.apiKey ?? user?.apiKey ?? "",
     embedding: project?.embedding ?? user?.embedding ?? "none",
+    retentionDays: project?.retentionDays ?? user?.retentionDays ?? 30,
+    // Clamp >= 1: a hand-edited 0/negative must not degrade into "extract on
+    // every turn" (adversarial review P2-8); 0 means "disable cleaner", not
+    // "disable buffering".
+    everyNConversations: Math.max(1, project?.everyNConversations ?? user?.everyNConversations ?? 10),
   };
 }
 

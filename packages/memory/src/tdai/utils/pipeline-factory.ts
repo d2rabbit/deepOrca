@@ -388,6 +388,14 @@ async function _doInitStores(
           `${TAG} Failed to close degraded store: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`
         );
       }
+      // The shared embedding handle was already acquired by createStoreBundle —
+      // release it too, or the process-wide refcount never drops back to zero
+      // (adversarial review P2-6).
+      try {
+        await bundle.embedding?.close?.();
+      } catch {
+        // best-effort
+      }
       vectorStore = undefined;
       embeddingService = undefined;
     } else {
@@ -431,6 +439,18 @@ async function _doInitStores(
     logger.warn(
       `${TAG} Store init failed; vector/FTS recall and dedup conflict detection will be unavailable: ${err instanceof Error ? err.message : String(err)}`
     );
+    // Release whatever was acquired before the failure — store DB handle and
+    // the shared embedding refcount (adversarial review P2-6).
+    try {
+      await embeddingService?.close?.();
+    } catch {
+      // best-effort
+    }
+    try {
+      vectorStore?.close();
+    } catch {
+      // best-effort
+    }
     vectorStore = undefined;
     embeddingService = undefined;
   }
@@ -448,6 +468,15 @@ async function _doInitStores(
  * Reads L0 messages (from VectorStore DB or JSONL fallback), groups by sessionId,
  * runs extractL1Memories for each group, and updates the checkpoint cursor.
  */
+/**
+ * @internal Phase 4 / T4.3 — keep only dialogue entries for the L1 extraction
+ * input. system-role records (task lineage / recall hints) stay in L0 for
+ * conversation search but must never reach the extraction prompt.
+ */
+export function filterL1VisibleMessages<T extends { role: string }>(messages: T[]): T[] {
+  return messages.filter((m) => m.role === "user" || m.role === "assistant");
+}
+
 export function createL1Runner(opts: {
   pluginDataDir: string;
   cfg: MemoryTdaiConfig;
@@ -526,6 +555,18 @@ export function createL1Runner(opts: {
 
       if (groups.length === 0) {
         logger.debug?.(`${TAG} [l1] No new L0 messages for session ${sessionKey}`);
+        return { processedCount: 0 };
+      }
+
+      // Phase 4 / T4.3: system-role entries (task lineage / recall hints)
+      // live in L0 for conversation search but are NEVER rendered into the L1
+      // extraction prompt — previously they masqueraded as assistant speech
+      // and polluted fact extraction.
+      groups = groups
+        .map((g) => ({ ...g, messages: filterL1VisibleMessages(g.messages) }))
+        .filter((g) => g.messages.length > 0);
+      if (groups.length === 0) {
+        logger.debug?.(`${TAG} [l1] Only non-dialogue (system) entries for session ${sessionKey}`);
         return { processedCount: 0 };
       }
 
@@ -794,12 +835,12 @@ export function createL3Runner(opts: {
     const { should, reason } = await trigger.shouldGenerate();
     if (!should) {
       logger.debug?.(`${TAG} [L3] Persona generation not needed`);
-      return;
+      return { ok: true, skipped: true };
     }
 
     if (!openclawConfig && !llmRunner) {
       logger.warn(`${TAG} [L3] No OpenClaw config and no LLM runner, skipping persona generation`);
-      return;
+      return { ok: true, skipped: true };
     }
 
     // Pull remote profiles to establish fresh baseline before generation.
@@ -821,9 +862,19 @@ export function createL3Runner(opts: {
       llmRunner,
     });
     const genResult = await generator.generateLocalPersona(reason);
+    if (genResult === "skipped") {
+      // Zero-cost no-op (no scene changes, persona already exists) — NOT a
+      // failure; must not arm the L3 backoff (adversarial review P2-4).
+      logger.debug?.(`${TAG} [L3] Persona generation skipped (no changes)`);
+      return { ok: true, skipped: true };
+    }
     if (!genResult) {
-      logger.info(`${TAG} [L3] Persona generation skipped (no changes)`);
-      return;
+      // The LLM ran but wrote no persona.md (the generator logs the error).
+      // Reported as failure so the pipeline manager backs off — treating it
+      // as success would leave PersonaTrigger's cold-start condition
+      // permanently true and re-burn a full run after every L2 completion.
+      logger.info(`${TAG} [L3] Persona generation produced no changes`);
+      return { ok: false };
     }
 
     if (vectorStore && supportsProfileSyncWrite(vectorStore)) {
@@ -834,6 +885,7 @@ export function createL3Runner(opts: {
     const cp = await checkpoint.read();
     await checkpoint.markPersonaGenerated(cp.total_processed);
     logger.info(`${TAG} [L3] Persona generation succeeded`);
+    return { ok: true };
   };
 }
 

@@ -433,7 +433,21 @@ export type GitmcpAddResult = {
   error?: "invalid" | "exists";
 };
 
-/** Resolved settings summary surfaced to the renderer (never leaks the API key). */
+/**
+ * Memory-pipeline LLM consumption (Phase 2, specs/memory-remediation).
+ * Structurally mirrors @deeporca/memory's MemoryUsageStats — kept inline so
+ * this contract file stays dependency-free.
+ */
+export type MemoryUsageSnapshot = {
+  /** Total LLM run() invocations (successful + failed). */
+  calls: number;
+  failedCalls: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  byLayer: Record<"l1" | "l2" | "l3" | "other", { calls: number; totalTokens: number }>;
+};
+
 /** L0-L3 memory pipeline counts for the knowledge dashboard. */
 export type MemoryPipelineStats = {
   /** L0 — raw conversation files. */
@@ -444,6 +458,8 @@ export type MemoryPipelineStats = {
   l2: number;
   /** L3 — whether the user persona has been generated. */
   l3: boolean;
+  /** Secondary-model consumption of this process (undefined pre-Phase-2 hosts). */
+  usage?: MemoryUsageSnapshot;
 };
 
 /** Status of a single knowledge source in the dashboard. */
@@ -508,6 +524,7 @@ export type SandboxStatusEvent = {
   detail: string;
 };
 
+/** Resolved settings summary surfaced to the renderer (never leaks the API key). */
 export type SettingsSummary = {
   model: string;
   baseURL: string;
@@ -573,7 +590,15 @@ export type EditableSettings = {
   /** Which endpoint the vision model uses. */
   visionEndpointId: string;
   /** Memory system settings (TencentDB-Agent-Memory sidecar). */
-  memory: { enabled: boolean; port: number; embedding: "none" | "local-onnx" };
+  memory: {
+    enabled: boolean;
+    port: number;
+    embedding: "none" | "local-onnx";
+    /** Days to retain memory shards (0 = never clean). Phase 4 / T4.2. */
+    retentionDays: number;
+    /** Conversations per L1 extraction batch. Phase 4 / T4.5. */
+    everyNConversations: number;
+  };
 };
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };

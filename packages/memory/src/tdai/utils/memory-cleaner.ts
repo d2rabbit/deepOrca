@@ -13,7 +13,14 @@ interface Logger {
 
 export interface MemoryCleanerOptions {
   baseDir: string;
-  retentionDays: number;
+  /** L0 raw-conversation retention in days (must be > 0 to run). */
+  l0RetentionDays: number;
+  /**
+   * L1 extracted-fact retention in days. Deliberately longer than L0: L1 is
+   * the distilled layer (LLM-paid), L0 is raw text (specs/memory-remediation
+   * T4.2 — "L0 30 / L1 90").
+   */
+  l1RetentionDays: number;
   cleanTime: string;
   logger?: Logger;
   vectorStore?: IMemoryStore;
@@ -56,7 +63,9 @@ export class LocalMemoryCleaner {
     const utcOffset = formatUtcOffset(-now.getTimezoneOffset());
 
     this.opts.logger?.debug?.(
-      `${TAG} Enabled: retentionDays=${this.opts.retentionDays}, cleanTime=${this.opts.cleanTime}, dirs=[${L0_DIR_NAME}, ${L1_DIR_NAME}]`
+      `${TAG} Enabled: l0RetentionDays=${this.opts.l0RetentionDays}, ` +
+        `l1RetentionDays=${this.opts.l1RetentionDays}, cleanTime=${this.opts.cleanTime}, ` +
+        `dirs=[${L0_DIR_NAME}, ${L1_DIR_NAME}]`
     );
     this.opts.logger?.debug?.(
       `${TAG} Runtime clock: nowLocal=${formatLocalDateTime(now)}, nowIso=${now.toISOString()}, tz=${tz}, utcOffset=${utcOffset}`
@@ -75,22 +84,16 @@ export class LocalMemoryCleaner {
   async runOnce(nowMs = Date.now()): Promise<void> {
     if (this.destroyed) return;
 
-    const retentionDays = this.opts.retentionDays;
-    if (!(retentionDays > 0)) {
-      this.opts.logger?.debug?.(`${TAG} Skip run: invalid retentionDays=${retentionDays}`);
+    // Per-layer cutoffs (T4.2: L0 raw text expires sooner than the LLM-paid
+    // L1 distillate). A layer with a non-positive retention is skipped.
+    const l0CutoffMs = this.computeCutoff(this.opts.l0RetentionDays, nowMs, "L0");
+    const l1CutoffMs = this.computeCutoff(this.opts.l1RetentionDays, nowMs, "L1");
+    if (l0CutoffMs === null && l1CutoffMs === null) {
+      this.opts.logger?.debug?.(
+        `${TAG} Skip run: no valid retention (l0=${this.opts.l0RetentionDays}, l1=${this.opts.l1RetentionDays})`
+      );
       return;
     }
-
-    // 按"本地自然日"保留策略计算截止时间。
-    // 例如 retentionDays=2，今天是 03-15，则保留 03-14/03-15，删除早于 03-14 00:00:00.000 的记录。
-    let cutoffMs: number;
-    try {
-      cutoffMs = computeCutoffMsByLocalDay(nowMs, retentionDays);
-    } catch (err) {
-      this.opts.logger?.error(`${TAG} ${err instanceof Error ? err.message : String(err)}`);
-      return;
-    }
-    const targetDirs = [path.join(this.opts.baseDir, L0_DIR_NAME), path.join(this.opts.baseDir, L1_DIR_NAME)];
 
     const total: CleanupStats = {
       scannedFiles: 0,
@@ -99,8 +102,14 @@ export class LocalMemoryCleaner {
       deleteFailedFiles: 0,
     };
 
-    for (const dirPath of targetDirs) {
-      const stats = await this.cleanDirectory(dirPath, cutoffMs);
+    const targets: Array<{ dirPath: string; cutoffMs: number | null }> = [
+      { dirPath: path.join(this.opts.baseDir, L0_DIR_NAME), cutoffMs: l0CutoffMs },
+      { dirPath: path.join(this.opts.baseDir, L1_DIR_NAME), cutoffMs: l1CutoffMs },
+    ];
+
+    for (const target of targets) {
+      if (target.cutoffMs === null) continue;
+      const stats = await this.cleanDirectory(target.dirPath, target.cutoffMs);
       total.scannedFiles += stats.scannedFiles;
       total.changedFiles += stats.changedFiles;
       total.skippedNonShardFiles += stats.skippedNonShardFiles;
@@ -109,7 +118,6 @@ export class LocalMemoryCleaner {
 
     if (this.vectorStore) {
       const vectorStore = this.vectorStore;
-      const cutoffIso = new Date(cutoffMs).toISOString();
       const startMs = Date.now();
 
       // ── Pre-delete: count totals and decide whether to proceed ──
@@ -127,7 +135,8 @@ export class LocalMemoryCleaner {
       }
 
       this.opts.logger?.info(
-        `${TAG} [Pre-delete] cutoffIso=${cutoffIso}, retentionDays=${retentionDays}, totalL0=${totalL0}, totalL1=${totalL1}`
+        `${TAG} [Pre-delete] l0Cutoff=${isoOrNull(l0CutoffMs)}, l1Cutoff=${isoOrNull(l1CutoffMs)}, ` +
+          `totalL0=${totalL0}, totalL1=${totalL1}`
       );
 
       let removedL0 = 0;
@@ -138,12 +147,14 @@ export class LocalMemoryCleaner {
       let failedL1DbCleanup = 0;
 
       // ── L0 cleanup with minimum-retention guard ──
-      if (totalL0 <= MIN_RETAIN_L0) {
+      if (l0CutoffMs === null) {
+        skippedL0 = true;
+      } else if (totalL0 <= MIN_RETAIN_L0) {
         skippedL0 = true;
         this.opts.logger?.info(`${TAG} [L0-delete] SKIPPED: totalL0=${totalL0} <= minRetain=${MIN_RETAIN_L0}`);
       } else {
         try {
-          removedL0 = await vectorStore.deleteL0Expired(cutoffIso);
+          removedL0 = await vectorStore.deleteL0Expired(new Date(l0CutoffMs).toISOString());
         } catch (err) {
           failedL0DbCleanup = 1;
           this.opts.logger?.warn(`${TAG} [L0-delete] FAILED: ${err instanceof Error ? err.message : String(err)}`);
@@ -151,12 +162,14 @@ export class LocalMemoryCleaner {
       }
 
       // ── L1 cleanup with minimum-retention guard ──
-      if (totalL1 <= MIN_RETAIN_L1) {
+      if (l1CutoffMs === null) {
+        skippedL1 = true;
+      } else if (totalL1 <= MIN_RETAIN_L1) {
         skippedL1 = true;
         this.opts.logger?.info(`${TAG} [L1-delete] SKIPPED: totalL1=${totalL1} <= minRetain=${MIN_RETAIN_L1}`);
       } else {
         try {
-          removedL1 = await vectorStore.deleteL1Expired(cutoffIso);
+          removedL1 = await vectorStore.deleteL1Expired(new Date(l1CutoffMs).toISOString());
         } catch (err) {
           failedL1DbCleanup = 1;
           this.opts.logger?.warn(`${TAG} [L1-delete] FAILED: ${err instanceof Error ? err.message : String(err)}`);
@@ -173,8 +186,8 @@ export class LocalMemoryCleaner {
       const remainingL1 = totalL1 - removedL1;
       const summary = {
         event: "cleaner_summary",
-        cutoffIso,
-        retentionDays,
+        l0CutoffIso: isoOrNull(l0CutoffMs),
+        l1CutoffIso: isoOrNull(l1CutoffMs),
         l0: {
           total: totalL0,
           expired: removedL0,
@@ -197,6 +210,17 @@ export class LocalMemoryCleaner {
     this.opts.logger?.info(
       `${TAG} Cleanup done: scannedFiles=${total.scannedFiles}, changedFiles=${total.changedFiles}, skippedNonShardFiles=${total.skippedNonShardFiles}, deleteFailedFiles=${total.deleteFailedFiles}`
     );
+  }
+
+  /** Per-layer cutoff, or null when the layer's retention disables cleanup. */
+  private computeCutoff(retentionDays: number, nowMs: number, layer: "L0" | "L1"): number | null {
+    if (!(retentionDays > 0)) return null;
+    try {
+      return computeCutoffMsByLocalDay(nowMs, retentionDays);
+    } catch (err) {
+      this.opts.logger?.error(`${TAG} [${layer}] ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
   }
 
   private scheduleNext(): void {
@@ -294,6 +318,10 @@ export class LocalMemoryCleaner {
 
 function isJsonLikeFile(name: string): boolean {
   return name.endsWith(".jsonl") || name.endsWith(".json");
+}
+
+function isoOrNull(cutoffMs: number | null): string | null {
+  return cutoffMs === null ? null : new Date(cutoffMs).toISOString();
 }
 
 function extractShardDateFromFileName(fileName: string): { year: number; month: number; day: number } | undefined {

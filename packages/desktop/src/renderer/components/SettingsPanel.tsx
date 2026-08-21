@@ -856,6 +856,42 @@ export function SettingsPanel({
                   </Select>
                 </Field>
 
+                <Field label={t("settings.memory.everyN")} hint={t("settings.memory.everyNHint")}>
+                  <input
+                    className="ui-input"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={s.memory.everyNConversations ?? 10}
+                    onChange={(e) =>
+                      patch({
+                        memory: {
+                          ...s.memory,
+                          everyNConversations: Math.max(1, Math.min(100, Number(e.target.value) || 10)),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+
+                <Field label={t("settings.memory.retention")} hint={t("settings.memory.retentionHint")}>
+                  <input
+                    className="ui-input"
+                    type="number"
+                    min={0}
+                    max={3650}
+                    value={s.memory.retentionDays ?? 30}
+                    onChange={(e) =>
+                      patch({
+                        memory: {
+                          ...s.memory,
+                          retentionDays: Math.max(0, Math.min(3650, Number(e.target.value) || 0)),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+
                 <div className="ui-field-hint ui-memory-status">
                   {memoryAvailable === null
                     ? t("settings.memory.checking")

@@ -79,6 +79,14 @@ export interface LLMRunParams {
    * When omitted, a clean empty workspace is used.
    */
   workspaceDir?: string;
+  /**
+   * Optional allowlist of workspace-relative paths (lowercase). When set, the
+   * file tools refuse any path outside it — for callers whose workspaceDir
+   * contains more than their own outputs (e.g. L3 persona generation runs in
+   * the memory dataDir but must only touch persona.md). Hosts that don't set
+   * it keep the plain workspace sandbox.
+   */
+  allowedFiles?: string[];
   /** Plugin instance ID for metric reporting (optional). */
   instanceId?: string;
 }

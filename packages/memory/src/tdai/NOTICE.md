@@ -38,3 +38,21 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Local modifications relative to upstream are documented in the DeepOrca
 repository history for this path.
+
+## Fork baseline & sync policy (2026-08-21)
+
+- **Baseline commit**: upstream `0aff21a` (**v2.0.0**, 2026-08-03), imported
+  2026-08-05. Upstream's active branch is `feat/server_team`; `main` receives
+  documentation-only updates.
+- **Sync policy**: hard fork, selective porting only. Upstream has pivoted to
+  multi-tenant team services (Hub / Proxy / SDK v3); wholesale re-sync is not
+  viable. Review upstream releases quarterly and port core-pipeline fixes
+  only. Deliberately NOT adopted from v2.0.1-beta.1: `core/memory-prompt/`
+  (multi-tenant prompt strategies), `utils/checkpoint.ts` distributed locks
+  (single-process here), `store/sqlite.ts`/`tcvdb.ts` additions backing those
+  subsystems.
+- **`core/skill/` (conversation→SOP skill extraction) was not included at
+  fork time** — the original exclusion list omitted it and no decision record
+  exists. Decision 2026-08-21: do **not** port it; the capability will be
+  built natively against DeepOrca's own skills system instead (constraints in
+  `specs/memory-remediation/design.md` §五).

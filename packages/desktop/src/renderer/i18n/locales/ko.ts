@@ -367,6 +367,12 @@ export const ko: Record<MessageKey, string> = {
   "settings.memory.embeddingHint": "로컬 ONNX는 Granite 97M으로 벡터 회상을 사용합니다. 없으면 키워드 BM25만.",
   "settings.memory.embeddingNone": "없음 (키워드만)",
   "settings.memory.embeddingLocal": "로컬 ONNX (Granite 97M)",
+  "settings.memory.everyN": "추출 주기(대화 수)",
+  "settings.memory.everyNHint":
+    "기억을 추출하기 전에 버퍼링할 대화 턴 수. 높을수록 저렴, 낮을수록 신선. 재시작 후 적용.",
+  "settings.memory.retention": "기억 보관 일수",
+  "settings.memory.retentionHint":
+    "이 일수보다 오래된 L0 샤드를 매일 정리(L1은 3배 보관). 0은 영구 보관. 재시작 후 적용.",
   "settings.appearance.theme": "테마",
   "settings.appearance.locale": "언어",
   "settings.apiKey": "API 키",
@@ -695,6 +701,7 @@ export const ko: Record<MessageKey, string> = {
   "index.memory.l1": "사실",
   "index.memory.l2": "장면",
   "index.memory.l3": "페르소나",
+  "index.memory.usage": "LLM 사용량(횟수 · 토큰)",
   "index.memory.searchPlaceholder": "메모리 검색…",
   "index.memory.noResults": "일치하는 메모리 없음",
   "index.memory.clear": "모두 삭제",

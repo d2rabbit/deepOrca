@@ -230,6 +230,11 @@ export function IndexLibraryPanel(): JSX.Element {
       <span>
         {t("index.memory.l3")}: {stats.l3 ? "✓" : "—"}
       </span>
+      {stats.usage ? (
+        <span>
+          {t("index.memory.usage")}: {stats.usage.calls} · {stats.usage.totalTokens.toLocaleString()}
+        </span>
+      ) : null}
     </div>
   );
 

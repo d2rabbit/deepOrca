@@ -12,5 +12,5 @@
  * MIT License — see tdai/NOTICE.md for Tencent copyright attribution.
  */
 
-export { MemoryManager } from "./memory-manager.js";
-export { DeepOrcaHostAdapter, type DeepOrcaMemoryConfig } from "./adapter.js";
+export { MemoryManager, type MemoryUsageStats } from "./memory-manager.js";
+export { DeepOrcaHostAdapter, type DeepOrcaMemoryConfig, type MemoryGenerationInfo } from "./adapter.js";

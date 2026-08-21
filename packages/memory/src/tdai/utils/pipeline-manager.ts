@@ -167,11 +167,25 @@ export interface L2RunnerResult {
   skipped?: boolean;
 }
 
+/** Result returned by the L3 runner. */
+export interface L3RunnerResult {
+  /**
+   * False = the generation attempt ran but produced nothing (LLM error,
+   * persona.md never written). Drives the failure backoff in
+   * MemoryPipelineManager — without it, PersonaTrigger's cold-start
+   * condition stays permanently true and every L2 completion re-burns a
+   * full secondary-model run.
+   */
+  ok: boolean;
+  /** True when L3 was legitimately skipped (trigger conditions unmet / no runner). */
+  skipped?: boolean;
+}
+
 /** L2 extraction runner — processes a single session's records. */
 export type L2Runner = (sessionKey: string, cursor?: string) => Promise<L2RunnerResult | void>;
 
 /** L3 runner — generates persona from all sessions' scene data. */
-export type L3Runner = () => Promise<void>;
+export type L3Runner = () => Promise<L3RunnerResult | void>;
 
 /** Callback to persist session states to checkpoint. */
 export type PipelineStatePersister = (states: Record<string, PipelineSessionState>) => Promise<void>;
@@ -218,6 +232,12 @@ export class MemoryPipelineManager {
   // L3 dedup flag
   private l3Pending = false;
   private l3Running = false;
+  // L3 failure backoff (Phase 1, specs/memory-remediation): exponential,
+  // reset on the first success. See L3RunnerResult.ok for why.
+  private l3ConsecutiveFailures = 0;
+  private l3BackoffUntilMs = 0;
+  private static readonly L3_BACKOFF_BASE_MS = 30 * 60 * 1000;
+  private static readonly L3_BACKOFF_MAX_MS = 24 * 60 * 60 * 1000;
 
   // Per-session state
   private readonly sessionStates = new Map<string, PipelineSessionState>();
@@ -940,6 +960,13 @@ export class MemoryPipelineManager {
   private triggerL3(): void {
     if (this.destroyed) return;
 
+    if (Date.now() < this.l3BackoffUntilMs) {
+      this.logger?.info?.(
+        `${TAG} L3 in failure backoff until ${new Date(this.l3BackoffUntilMs).toISOString()} — skipping trigger`
+      );
+      return;
+    }
+
     if (this.l3Running) {
       // L3 is in progress — mark pending so it runs again after current finishes
       this.l3Pending = true;
@@ -967,8 +994,9 @@ export class MemoryPipelineManager {
       .finally(() => {
         this.l3Running = false;
 
-        // If new L2 completions happened while L3 was running, run again
-        if (this.l3Pending && !this.destroyed) {
+        // If new L2 completions happened while L3 was running, run again —
+        // but never bypass an armed failure backoff (adversarial review P2-5).
+        if (this.l3Pending && !this.destroyed && Date.now() >= this.l3BackoffUntilMs) {
           this.logger?.debug?.(`${TAG} L3 has pending work, re-running`);
           this.enqueueL3();
         }
@@ -983,11 +1011,31 @@ export class MemoryPipelineManager {
 
     this.logger?.debug?.(`${TAG} L3 running`);
     try {
-      await this.l3Runner();
-      this.logger?.debug?.(`${TAG} L3 complete`);
+      const result = await this.l3Runner();
+      if (result && result.ok === false) {
+        this.recordL3Failure(`runner reported failure${result.skipped === true ? " (skipped)" : ""}`);
+      } else {
+        this.l3ConsecutiveFailures = 0;
+        this.l3BackoffUntilMs = 0;
+        this.logger?.debug?.(`${TAG} L3 complete`);
+      }
     } catch (err) {
       this.logger?.error(`${TAG} L3 runner failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+      this.recordL3Failure(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  private recordL3Failure(reason: string): void {
+    this.l3ConsecutiveFailures += 1;
+    const backoffMs = Math.min(
+      MemoryPipelineManager.L3_BACKOFF_BASE_MS * 2 ** (this.l3ConsecutiveFailures - 1),
+      MemoryPipelineManager.L3_BACKOFF_MAX_MS
+    );
+    this.l3BackoffUntilMs = Date.now() + backoffMs;
+    this.logger?.warn?.(
+      `${TAG} L3 failure #${this.l3ConsecutiveFailures} (${reason}) — ` +
+        `backing off for ${Math.round(backoffMs / 60000)}min`
+    );
   }
 
   // ============================

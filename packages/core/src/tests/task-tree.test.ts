@@ -567,12 +567,23 @@ test("lineage recycle reaches memory capture (L3 closure)", async () => {
   (manager as any).maybeCaptureMemory(sessionId);
   await new Promise((r) => setTimeout(r, 50));
   assert.ok(captures.length >= 1, "capture fired");
-  const turn = captures[captures.length - 1] as { assistantText: string; messages: Array<{ content: string }> };
-  assert.match(turn.assistantText, /<task-lineage>/, "lineage in flat capture");
-  assert.match(turn.assistantText, /<task-recall-hints>/, "hints in flat capture");
+  // Phase 4 / T4.3 (specs/memory-remediation): lineage/hint entries travel as
+  // structured role:"system" messages — the flat assistantText stays CLEAN
+  // (previously the XML was concatenated into it, so L1 extraction read
+  // internal hints as assistant speech).
+  const turn = captures[captures.length - 1] as {
+    assistantText: string;
+    messages: Array<{ role: string; content: string }>;
+  };
+  assert.doesNotMatch(turn.assistantText, /<task-lineage>/, "flat capture must stay clean");
+  const lineageEntries = turn.messages.filter((m) => m.role === "system");
   assert.ok(
-    turn.messages.some((m) => m.content.includes("<task-lineage>")),
-    "lineage in structured messages[]"
+    lineageEntries.some((m) => m.content.includes("<task-lineage>")),
+    "lineage in structured messages[] under its real role"
+  );
+  assert.ok(
+    lineageEntries.some((m) => m.content.includes("<task-recall-hints>")),
+    "hints in structured messages[] under its real role"
   );
 });
 

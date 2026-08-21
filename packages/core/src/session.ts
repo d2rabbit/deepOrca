@@ -42,16 +42,27 @@ export interface MemoryProvider {
     sessionKey: string;
     sessionId?: string;
     /** Last user + assistant messages, so the provider can persist them to L0.
-     * Each entry: { role: "user"|"assistant", content: string, id?: string, timestamp?: number(epoch-ms) }.
+     * Each entry: { role: "user"|"assistant"|"system", content: string, id?: string, timestamp?: number(epoch-ms) }.
+     * "system" entries are internal hints (task lineage / recall hints) — kept
+     * in L0 for search, excluded from L1 extraction (Phase 4 / T4.3).
      * Provider falls back to synthesizing two messages from userText/assistantText when omitted. */
-    messages?: Array<{ role: "user" | "assistant"; content: string; id?: string; timestamp?: number }>;
+    messages?: Array<{ role: "user" | "assistant" | "system"; content: string; id?: string; timestamp?: number }>;
   }): Promise<unknown>;
   searchMemories(query: string, limit?: number): Promise<{ text: string; total: number } | null>;
+  /**
+   * Agent-callable read-only retrieval tools contributed to the LLM tool
+   * surface (tdai_memory_search / tdai_conversation_search — Phase 4 / T4.1,
+   * specs/memory-remediation). Optional so minimal providers keep working.
+   */
+  getToolDefinitions?(): ToolDefinition[];
+  /** Execute one tool call from {@link getToolDefinitions}. Throws on misuse. */
+  executeTool?(name: string, args: Record<string, unknown>): Promise<string>;
   isAvailable(): boolean;
 }
 import { gitmcpSlugFromServerName, isGitmcpPlaceholderConfig, isGitmcpServerName } from "./gitmcp/resolve";
 import { getGitmcpConfigBuilder } from "./mcp/gitmcp-seam";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
+import { SkillMatchCache } from "./common/skill-match-cache";
 import { DEEPSEEK_V4_MODELS, COMPACTION_MODEL, LIGHTWEIGHT_TASK_MODEL } from "./common/model-capabilities";
 import { readTextFileWithMetadata } from "./common/file-utils";
 import {
@@ -1004,7 +1015,21 @@ export class SessionManager {
       this.createOpenAIClient,
       this.mcpManager,
       this.actionRegistry,
-      this.fetchWebPage
+      this.fetchWebPage,
+      // Memory retrieval tools (Phase 4 / T4.1). Read through `this.memoryProvider`
+      // at CALL time — the provider may be bound after the executor is built
+      // (desktop binds on memory start / project switch).
+      {
+        getToolDefinitions: () =>
+          this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : [],
+        invoke: (name, args) => {
+          const run = this.memoryProvider?.executeTool?.(name, args);
+          if (!run) {
+            return Promise.reject(new Error(`Memory tool unavailable: ${name}`));
+          }
+          return run;
+        },
+      }
     );
     this.mcpManager.prepare(this.augmentMcpServersWithBuiltins(this.getResolvedSettings().mcpServers));
     // CRG query layer: Node.js direct SQLite read (replaces Python MCP server).
@@ -2178,6 +2203,11 @@ If the query is simple (single intent), respond with a single-element array.`;
     logOpenAIChatCompletionDebug(entry);
   }
 
+  /** LLM skill-match results keyed by (candidate pool, prompt) — Phase 3 /
+   *  T3.2: the deferred-permission path re-sends the same prompt and must not
+   *  re-burn the flash classification call. */
+  private readonly skillMatchCache = new SkillMatchCache();
+
   async identifyMatchingSkillNames(
     skills: SkillInfo[],
     userPrompt: string,
@@ -2209,6 +2239,15 @@ Set "multiIntent" to true ONLY when the request clearly combines multiple distin
       return [];
     }
     const candidateSkillNames = new Set(simpleSkills.map((skill) => skill.name));
+
+    // Phase 3 / T3.2: identical prompt + identical candidate pool replays the
+    // cached match (covers the deferred-permission re-send of the same prompt,
+    // and any user retry of the same text) — zero embedding + zero LLM cost.
+    const poolSignature = SkillMatchCache.poolSignature(simpleSkills);
+    const cachedMatch = this.skillMatchCache.get(poolSignature, userPrompt);
+    if (cachedMatch) {
+      return cachedMatch;
+    }
 
     // G1 routing: reduce the candidate pool via embedding recall before sending
     // to the flash LLM. Fail-open (null) → use full simpleSkills list.
@@ -2295,9 +2334,12 @@ ${agentInstructions}
         if (parsed.multiIntent === true) {
           const composed = await this.composeSkillRoute(userPrompt, simpleSkills, candidateSkillNames, options);
           if (composed && composed.length > 0) {
-            return [...new Set([...skillNames, ...composed])];
+            const merged = [...new Set([...skillNames, ...composed])];
+            this.skillMatchCache.set(poolSignature, userPrompt, merged);
+            return merged;
           }
         }
+        this.skillMatchCache.set(poolSignature, userPrompt, skillNames);
         return skillNames;
       }
 
@@ -3567,6 +3609,10 @@ ${content}
               // defineAction LLM surface: registered actions appear as tools the
               // agent can call (e.g. system_ping). Dispatched in ToolExecutor.
               ...this.actionRegistry.toToolDefinitions(),
+              // Memory provider retrieval tools (Phase 4 / T4.1): read-only
+              // search over L1 memories / L0 conversations. Dispatched via the
+              // executor's memory bridge; no permission gate (pure reads).
+              ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
             ]),
             ...thinkingOptions,
           },
@@ -4485,7 +4531,12 @@ ${content}
     if (!userText || !assistantText) {
       return;
     }
-    const captureMessages: Array<{ role: "user" | "assistant"; content: string; id?: string; timestamp?: number }> = [];
+    const captureMessages: Array<{
+      role: "user" | "assistant" | "system";
+      content: string;
+      id?: string;
+      timestamp?: number;
+    }> = [];
     for (const msg of [lastUser, lastAssistant]) {
       if (!msg || !msg.content || !msg.content.trim()) continue;
       const ts = Date.parse(msg.createTime);
@@ -4498,10 +4549,12 @@ ${content}
     }
     // Lineage closure (task-tree recycle channel): <task-lineage> and
     // <task-recall-hints> are hidden SYSTEM messages the plain user/assistant
-    // pair above never includes — without this, merge/abandon outcomes and
-    // recall hints silently never reach memory. Append them to assistantText
-    // so the provider's flat path and the structured messages[] path both
-    // carry them (audit 2026-08-15 linkage L3).
+    // pair above never includes. Phase 4 / T4.3: they now travel under their
+    // REAL role — persisted to L0 for conversation search, but excluded from
+    // L1 fact extraction (the memory pipeline filters non-dialogue roles).
+    // Previously they were appended to assistantText / faked as assistant
+    // messages, so the extractor read internal XML hints as things the
+    // assistant had said.
     const lineageTail = messages
       .filter(
         (m) =>
@@ -4516,14 +4569,11 @@ ${content}
       if (!content.trim()) continue;
       const ts = Date.parse(msg.createTime);
       captureMessages.push({
-        role: "assistant",
+        role: "system",
         content,
         id: msg.id,
         timestamp: Number.isNaN(ts) ? Date.now() : ts,
       });
-    }
-    if (lineageTail.length > 0) {
-      assistantText = `${assistantText}\n${lineageTail.map((m) => m.content).join("\n")}`;
     }
     void this.memoryProvider
       .capture({ userText, assistantText, sessionKey: sessionId, sessionId, messages: captureMessages })

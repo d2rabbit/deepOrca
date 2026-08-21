@@ -46,12 +46,32 @@ const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
   ["Edit", "edit"],
 ]);
 
+/**
+ * Read-only retrieval tools contributed by the memory provider (Phase 4 /
+ * T4.1, specs/memory-remediation). Structurally matches core's
+ * prompt.ToolDefinition without importing it (tool-types stays leaf-level).
+ */
+export interface MemoryToolBridge {
+  /** Tool definitions in OpenAI function-calling shape; empty when no provider. */
+  getToolDefinitions(): Array<{
+    type: "function";
+    function: {
+      name: string;
+      description: string;
+      parameters: { type: "object"; properties: Record<string, unknown>; required?: string[] };
+    };
+  }>;
+  /** Run one tool by name; rejects on unknown name or misuse. */
+  invoke(name: string, args: Record<string, unknown>): Promise<string>;
+}
+
 export class ToolExecutor {
   private readonly projectRoot: string;
   private readonly createOpenAIClient?: CreateOpenAIClient;
   private readonly fetchWebPage?: WebPageFetcher;
   private readonly mcpManager?: McpManager;
   private readonly actionRegistry?: ActionRegistry;
+  private readonly memoryTools?: MemoryToolBridge;
   private readonly toolHandlers = new Map<string, ToolHandler>();
 
   constructor(
@@ -59,13 +79,15 @@ export class ToolExecutor {
     createOpenAIClient?: CreateOpenAIClient,
     mcpManager?: McpManager,
     actionRegistry?: ActionRegistry,
-    fetchWebPage?: WebPageFetcher
+    fetchWebPage?: WebPageFetcher,
+    memoryTools?: MemoryToolBridge
   ) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
     this.actionRegistry = actionRegistry;
     this.fetchWebPage = fetchWebPage;
+    this.memoryTools = memoryTools;
     this.registerToolHandlers();
   }
 
@@ -242,6 +264,32 @@ export class ToolExecutor {
             name: toolName,
             output: typeof output === "string" ? output : JSON.stringify(output),
           };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const { errorType, retryable } = this.classifyThrownError(error);
+          return { ok: false, name: toolName, error: message, errorType, retryable };
+        }
+      }
+      // Memory provider surface (Phase 4 / T4.1): tdai_memory_search /
+      // tdai_conversation_search — read-only retrieval through the host
+      // bridge. Resolved last so it can never shadow builtin/MCP/action.
+      const memoryToolHandled =
+        this.memoryTools !== undefined &&
+        this.memoryTools.getToolDefinitions().some((def) => def.function.name === toolName);
+      if (memoryToolHandled && this.memoryTools) {
+        const parsed = this.parseToolArguments(toolCall.function.arguments);
+        if (!parsed.ok) {
+          return {
+            ok: false,
+            name: toolName,
+            error: parsed.error,
+            errorType: "INVALID_INPUT",
+            retryable: false,
+          };
+        }
+        try {
+          const output = await this.memoryTools.invoke(toolName, parsed.args);
+          return { ok: true, name: toolName, output };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           const { errorType, retryable } = this.classifyThrownError(error);

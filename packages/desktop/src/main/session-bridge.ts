@@ -571,6 +571,8 @@ export class SessionBridge {
         enabled: raw.memory?.enabled ?? false,
         port: raw.memory?.port ?? 8420,
         embedding: raw.memory?.embedding ?? "none",
+        retentionDays: raw.memory?.retentionDays ?? 30,
+        everyNConversations: raw.memory?.everyNConversations ?? 10,
       },
     };
   }
@@ -680,6 +682,14 @@ export class SessionBridge {
         enabled: patch.memory.enabled,
         port: patch.memory.port || 8420,
         embedding: patch.memory.embedding ?? "none",
+        retentionDays:
+          typeof patch.memory.retentionDays === "number" && patch.memory.retentionDays >= 0
+            ? Math.floor(patch.memory.retentionDays)
+            : 30,
+        everyNConversations:
+          typeof patch.memory.everyNConversations === "number" && patch.memory.everyNConversations > 0
+            ? Math.min(100, Math.floor(patch.memory.everyNConversations))
+            : 10,
       };
     }
 
