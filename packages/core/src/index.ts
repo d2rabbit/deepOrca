@@ -88,6 +88,7 @@ export type { ToolDefinition, SkillPromptDocument } from "./prompt";
 export { ToolExecutor } from "./tools/executor";
 export type {
   CreateOpenAIClient,
+  CreateSecondaryClient,
   ToolCall,
   ToolExecutionContext,
   ToolExecutionHooks,
@@ -293,10 +294,18 @@ export {
   resolveGitmcpServerEntry,
 } from "./gitmcp/resolve";
 export {
-  DEEPSEEK_V4_MODELS,
-  COMPACTION_MODEL,
   supportsMultimodal,
   defaultsToThinkingMode,
+  resolveModelSpec,
+  resolveBackgroundLlm,
+  findModelRegistration,
+  type ModelCapabilityRegistration,
+  type ModelFamilyId,
+  type ModelFamilySpec,
+  type ModelSpec,
+  type ReasoningReplayMode,
+  type ThinkingProtocolId,
+  type BackgroundLlmChoice,
 } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
 export { getOsLinkEntry, listOsLinkEntries, renderOsLinkDictionary, renderOsLinkPromptSection } from "./common/os-link";

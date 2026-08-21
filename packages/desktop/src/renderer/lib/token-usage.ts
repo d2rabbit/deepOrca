@@ -88,14 +88,14 @@ export function formatExact(value: number): string {
   return num(value).toLocaleString();
 }
 
-// Mirrors core's getCompactPromptTokenThreshold — the active-context size at
-// which the engine summarizes the middle of the conversation. Duplicated here
-// (rather than imported) so the renderer bundle stays free of core's Node deps.
-const DEEPSEEK_V4_MODELS = new Set(["deepseek-v4-flash", "deepseek-v4-pro"]);
+// Compaction threshold now comes from the model family registry via the
+// dependency-free `@deeporca/core/capabilities` subpath — the active-context
+// size at which the engine summarizes the middle of the conversation.
+import { getCompactPromptTokenThreshold } from "@deeporca/core/capabilities";
 
 /** Token budget before automatic compaction kicks in, for the given model. */
 export function compactTokenThreshold(model: string): number {
-  return DEEPSEEK_V4_MODELS.has(model) ? 512 * 1024 : 128 * 1024;
+  return getCompactPromptTokenThreshold(model);
 }
 
 /** Percentage of prompt tokens served from cache, 0 when unknown. */

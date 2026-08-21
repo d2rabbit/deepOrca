@@ -1,7 +1,7 @@
 // Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
 // (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { randomUUID } from "node:crypto";
-import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
+import { defaultsToThinkingMode, supportsMultimodal } from "./common/model-capabilities";
 import {
   getProjectConfigRoot,
   getUserConfigRoot,
@@ -1074,11 +1074,11 @@ export function resolveModelCapability(
       };
     }
   }
-  // Fallback: use the raw modelId against hardcoded tables.
+  // Fallback: use the raw modelId against the model family registry.
   const modelId = parsed?.modelId ?? modelKey;
   return {
-    thinking: DEEPSEEK_V4_MODELS.has(modelId),
-    vision: !NON_MULTIMODAL_MODELS.has(modelId.trim()),
+    thinking: defaultsToThinkingMode(modelId),
+    vision: supportsMultimodal(modelId),
   };
 }
 

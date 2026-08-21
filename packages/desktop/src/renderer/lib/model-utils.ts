@@ -1,10 +1,13 @@
 /**
- * Browser-safe model key utilities — mirrors the pure-JS functions from
- * @deeporca/core/settings.ts without pulling in Node.js built-ins (fs, path,
- * child_process) that would break the renderer (browser) esbuild bundle.
- *
- * If the core versions change, update these to match.
+ * Browser-safe model key utilities. The key/registration helpers mirror the
+ * pure-JS functions from @deeporca/core/settings.ts without pulling in Node.js
+ * built-ins (fs, path, child_process) that would break the renderer (browser)
+ * esbuild bundle; the capability fallback now imports the model family
+ * registry directly via the dependency-free `@deeporca/core/capabilities`
+ * subpath, so there is a single source of truth.
  */
+
+import { defaultsToThinkingMode, supportsMultimodal } from "@deeporca/core/capabilities";
 
 export type ModelRegistration = {
   id: string;
@@ -16,10 +19,6 @@ export type EndpointLike = {
   id: string;
   models?: ModelRegistration[];
 };
-
-const DEEPSEEK_V4_MODELS = new Set(["deepseek-v4-flash", "deepseek-v4-pro"]);
-
-const NON_MULTIMODAL_MODELS = new Set(["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner"]);
 
 export function buildModelKey(endpointId: string, modelId: string): string {
   return `${endpointId}/${modelId}`;
@@ -60,7 +59,7 @@ export function resolveModelCapability(
   }
   const modelId = parsed?.modelId ?? modelKey;
   return {
-    thinking: DEEPSEEK_V4_MODELS.has(modelId),
-    vision: !NON_MULTIMODAL_MODELS.has(modelId.trim()),
+    thinking: defaultsToThinkingMode(modelId),
+    vision: supportsMultimodal(modelId),
   };
 }

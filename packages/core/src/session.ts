@@ -63,7 +63,13 @@ import { gitmcpSlugFromServerName, isGitmcpPlaceholderConfig, isGitmcpServerName
 import { getGitmcpConfigBuilder } from "./mcp/gitmcp-seam";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { SkillMatchCache } from "./common/skill-match-cache";
-import { DEEPSEEK_V4_MODELS, COMPACTION_MODEL, LIGHTWEIGHT_TASK_MODEL } from "./common/model-capabilities";
+import {
+  findModelRegistration,
+  getCompactPromptTokenThreshold,
+  resolveBackgroundLlm,
+  resolveModelSpec,
+} from "./common/model-capabilities";
+import { createSecondaryClient as defaultCreateSecondaryClient } from "./common/openai-client";
 import { readTextFileWithMetadata } from "./common/file-utils";
 import {
   buildSkillDocumentsPrompt,
@@ -147,6 +153,7 @@ import { TaskTreeService } from "./tasks/task-tree-service";
 import {
   ToolExecutor,
   type CreateOpenAIClient,
+  type CreateSecondaryClient,
   type ProcessTimeoutControl,
   type ProcessTimeoutInfo,
   type ToolCallExecution,
@@ -239,8 +246,6 @@ const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 const ROUTING_LOAD_RETRY_BACKOFF_MS = 60_000;
 /** Subagent nesting cap (deep review 2026-08-15, B6). */
 const MAX_SUBAGENT_DEPTH = 4;
-const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
-const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
 // Compaction wants faithful, reproducible summaries — a fixed low temperature
 // (instead of the user's conversational setting) keeps them deterministic.
 const COMPACTION_TEMPERATURE = 0.3;
@@ -263,11 +268,9 @@ type ChatCompletionDebugOptions = {
 
 export { getProjectCode } from "./common/app-dirs";
 
-export function getCompactPromptTokenThreshold(model: string): number {
-  return DEEPSEEK_V4_MODELS.has(model)
-    ? DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD
-    : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
-}
+// Compaction threshold moved to the model family registry (model-capabilities);
+// re-exported here to keep the session module's public surface stable.
+export { getCompactPromptTokenThreshold } from "./common/model-capabilities";
 
 /**
  * Whether a UI locale string denotes a Chinese variant. Used by document readers
@@ -636,10 +639,27 @@ type BuiltinPluginGroupManifest = {
 type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
+  /**
+   * Secondary-model client factory — tier-2 fallback for background LLM tasks
+   * when the primary family has no lightweight model. Defaults to the real
+   * factory from openai-client; injectable for tests.
+   */
+  createSecondaryClient?: CreateSecondaryClient;
   /** Host-injected rendered-page fetcher for the built-in WebFetch tool. */
   fetchWebPage?: WebPageFetcher;
   getResolvedSettings: () => {
     model: string;
+    /** Configured endpoints (primary-family + lightweight availability checks). */
+    endpoints?: ReadonlyArray<{
+      id?: string;
+      baseURL?: string;
+      models?: ReadonlyArray<{ id: string }>;
+    }>;
+    primaryEndpointId?: string;
+    /** Explicit user-configured secondary model + resolved credentials. */
+    secondaryModel?: string;
+    secondaryApiKey?: string;
+    secondaryBaseURL?: string;
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
@@ -784,6 +804,7 @@ function isSkillForCurrentPlatform(skillName: string): boolean {
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
+  private readonly createSecondaryClient: CreateSecondaryClient;
   private readonly fetchWebPage?: WebPageFetcher;
   /**
    * Before-tool-execution gate (dsh P1-4): a synchronous listener registry at
@@ -837,6 +858,17 @@ export class SessionManager {
   }
   private readonly getResolvedSettings: () => {
     model: string;
+    /** Configured endpoints (primary-family + lightweight availability checks). */
+    endpoints?: ReadonlyArray<{
+      id?: string;
+      baseURL?: string;
+      models?: ReadonlyArray<{ id: string }>;
+    }>;
+    primaryEndpointId?: string;
+    /** Explicit user-configured secondary model + resolved credentials. */
+    secondaryModel?: string;
+    secondaryApiKey?: string;
+    secondaryBaseURL?: string;
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     permissions?: Required<PermissionSettings>;
@@ -926,6 +958,7 @@ export class SessionManager {
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
     this.createOpenAIClient = options.createOpenAIClient;
+    this.createSecondaryClient = options.createSecondaryClient ?? defaultCreateSecondaryClient;
     this.fetchWebPage = options.fetchWebPage;
     this.toolExecutionGate.register("permissions", this.permissionGateListener);
     this.getResolvedSettings = options.getResolvedSettings;
@@ -1037,6 +1070,12 @@ export class SessionManager {
     configureCrgGraphQuery(createCrgGraphQuery());
     this.messageConverter = new OpenAIMessageConverter({
       renderInitPrompt: () => this.renderInitCommandPrompt(),
+      // User-declared per-model capabilities (endpoint models[].thinking/vision)
+      // override the family registry when filtering multimodal content.
+      resolveModelRegistration: (model) => {
+        const settings = this.getResolvedSettings();
+        return findModelRegistration(settings.endpoints ?? [], model, settings.primaryEndpointId);
+      },
       // Inject the current date + active model as a transient user-message tail
       // per request, never into the persisted prefix — keeps the DeepSeek prefix
       // cache warm across days/model switches (the date no longer lives in the
@@ -1265,15 +1304,59 @@ export class SessionManager {
   }
 
   /**
+   * Resolve the LLM for a background task (compaction, skill matching,
+   * classification, prompt enhancement, skill decomposition): the family's
+   * lightweight model on the primary endpoint, else the user's configured
+   * secondary model, else the primary session model itself (always served).
+   * DeepSeek endpoints resolve to deepseek-v4-flash — identical to the
+   * pre-registry hardcoded constants.
+   */
+  private createBackgroundLlm(): {
+    client: ReturnType<CreateOpenAIClient>["client"];
+    model: string;
+    baseURL?: string;
+    debugLogEnabled?: boolean;
+  } {
+    const primary = this.createOpenAIClient();
+    const settings = this.getResolvedSettings();
+    const endpoints = settings.endpoints ?? [];
+    const primaryEndpoint =
+      endpoints.find((endpoint) => endpoint.id === settings.primaryEndpointId) ??
+      endpoints.find((endpoint) => endpoint.baseURL === primary.baseURL);
+    const choice = resolveBackgroundLlm({
+      primaryModel: primary.model,
+      baseURL: primary.baseURL,
+      endpointModelIds: primaryEndpoint?.models?.map((entry) => entry.id),
+      secondaryModel: settings.secondaryModel && settings.secondaryApiKey ? settings.secondaryModel : undefined,
+    });
+    if (choice.tier === "secondary") {
+      const secondary = this.createSecondaryClient();
+      if (secondary.client) {
+        return {
+          client: secondary.client,
+          model: secondary.model,
+          baseURL: secondary.baseURL,
+          debugLogEnabled: primary.debugLogEnabled,
+        };
+      }
+    }
+    return {
+      client: primary.client,
+      model: choice.tier === "secondary" ? primary.model : choice.model,
+      baseURL: primary.baseURL,
+      debugLogEnabled: primary.debugLogEnabled,
+    };
+  }
+
+  /**
    * LLM single-choice judgment for classification-shaped actions (flash
    * model, JSON mode). Returns one of `choices` or null on any failure —
    * callers must fail open to their deterministic fallback.
    */
   private async judgeViaLlm(prompt: string, choices: readonly string[]): Promise<string | null> {
     if (choices.length === 0) return null;
-    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) return null;
-    const model = LIGHTWEIGHT_TASK_MODEL;
     try {
       const response = await this.createChatCompletionStream(
         client,
@@ -1291,7 +1374,7 @@ export class SessionManager {
             { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
           ],
           response_format: { type: "json_object" },
-          ...buildThinkingRequestOptions(false, baseURL),
+          ...buildThinkingRequestOptions(false, baseURL, "max", model),
         },
         undefined,
         undefined,
@@ -1484,7 +1567,7 @@ export class SessionManager {
   private createSkillDecomposer(options?: { signal?: AbortSignal; sessionId?: string }): LLMDecomposer {
     return {
       decompose: async (query, hints) => {
-        const { client, baseURL } = this.createOpenAIClient();
+        const { client, baseURL, model } = this.createBackgroundLlm();
         if (!client) return null;
 
         const sysPrompt = `You are a task decomposition assistant. Given a complex user query, break it down into atomic sub-tasks — each requiring exactly one skill/tool to complete.
@@ -1510,7 +1593,7 @@ If the query is simple (single intent), respond with a single-element array.`;
               const response = await this.createChatCompletionStream(
                 client,
                 {
-                  model: LIGHTWEIGHT_TASK_MODEL,
+                  model,
                   temperature: 0.1,
                   max_tokens: 512,
                   messages: [
@@ -1518,7 +1601,7 @@ If the query is simple (single intent), respond with a single-element array.`;
                     { role: "user", content: userContent },
                   ],
                   response_format: { type: "json_object" },
-                  ...buildThinkingRequestOptions(false, baseURL),
+                  ...buildThinkingRequestOptions(false, baseURL, "max", model),
                 },
                 options?.signal ? { signal: options.signal } : undefined,
                 options?.sessionId,
@@ -1980,6 +2063,11 @@ If the query is simple (single intent), respond with a single-element array.`;
     const startedAtMs = Date.now();
     let estimatedTokens = 0;
     this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId);
+    // Per-family reasoning contract for this request's model: which streaming
+    // delta fields carry reasoning, and which field name persists it.
+    const modelSpec = resolveModelSpec({
+      model: typeof request.model === "string" ? request.model : "",
+    });
 
     const streamRequest = {
       ...request,
@@ -2088,7 +2176,16 @@ If the query is simple (single intent), respond with a single-element array.`;
             trackText(contentDelta);
           }
 
-          const reasoningDelta = delta.reasoning_content ?? delta.reasoning;
+          // Nullish-coalescing chain over the family's reasoning read fields
+          // (defaults to reasoning_content ?? reasoning — pre-registry order).
+          let reasoningDelta: unknown;
+          for (const field of modelSpec.reasoningReadFields) {
+            const candidate = (delta as Record<string, unknown>)[field];
+            if (candidate !== null && candidate !== undefined) {
+              reasoningDelta = candidate;
+              break;
+            }
+          }
           if (typeof reasoningDelta === "string") {
             reasoningContent += reasoningDelta;
             trackText(reasoningDelta);
@@ -2167,7 +2264,7 @@ If the query is simple (single intent), respond with a single-element array.`;
       message.tool_calls = normalizedToolCalls;
     }
     if (reasoningContent.length > 0) {
-      message.reasoning_content = reasoningContent;
+      message[modelSpec.reasoningField] = reasoningContent;
     }
     if (refusal != null) {
       message.refusal = refusal;
@@ -2269,14 +2366,13 @@ Set "multiIntent" to true ONLY when the request clearly combines multiple distin
       // Routing error → fail-open, use full pool.
     }
 
-    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) {
       return [];
     }
-    // Skill matching is a tiny classification task — route it to the v4 flash
-    // model with thinking explicitly disabled and a tight output cap so it
-    // never burns pro-level reasoning tokens or adds avoidable latency.
-    const model = LIGHTWEIGHT_TASK_MODEL;
+    // Skill matching is a tiny classification task — route it to the family's
+    // lightweight model with thinking explicitly disabled and a tight output
+    // cap so it never burns pro-level reasoning tokens or adds avoidable latency.
 
     const agentInstructions = this.loadAgentInstructions();
     if (agentInstructions) {
@@ -2301,7 +2397,7 @@ ${agentInstructions}
             { role: "user", content: userPrompt },
           ],
           response_format: { type: "json_object" },
-          ...buildThinkingRequestOptions(false, baseURL),
+          ...buildThinkingRequestOptions(false, baseURL, "max", model),
         },
         options?.signal ? { signal: options.signal } : undefined,
         options?.sessionId,
@@ -2449,11 +2545,10 @@ ${agentInstructions}
       return draftPrompt;
     }
 
-    const { client, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) {
       throw new Error("API key not found. Please configure your settings first.");
     }
-    const model = LIGHTWEIGHT_TASK_MODEL;
 
     const systemPrompt = `You are a prompt engineer for a coding agent. Rewrite the user's draft prompt so the agent can act on it precisely.
 
@@ -2474,7 +2569,7 @@ Rules:
           { role: "system", content: systemPrompt },
           { role: "user", content: draft },
         ],
-        ...buildThinkingRequestOptions(false, baseURL),
+        ...buildThinkingRequestOptions(false, baseURL, "max", model),
       },
       options?.signal ? { signal: options.signal } : undefined,
       undefined,
@@ -3597,7 +3692,7 @@ ${content}
           thinkingEnabled,
           model
         );
-        const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
+        const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model);
         const response = await this.createChatCompletionStream(
           client,
           {
@@ -3639,7 +3734,13 @@ ${content}
         if (this.isInterrupted(sessionId)) {
           return;
         }
-        const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls, thinking);
+        const assistantMessage = this.buildAssistantMessage(
+          sessionId,
+          content,
+          toolCalls,
+          thinking,
+          resolveModelSpec({ model }).reasoningField
+        );
         // dsh P1-4: the permission check (and any future execution-layer
         // listeners) runs through the toolExecutionGate — first listener is the
         // built-in permission check below.
@@ -3814,13 +3915,17 @@ ${content}
 
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
     this.throwIfAborted(signal);
-    const { client, baseURL, debugLogEnabled, model: sessionModel } = this.createOpenAIClient();
+    const { client: sessionClient, baseURL, debugLogEnabled, model: sessionModel } = this.createOpenAIClient();
+    if (!sessionClient) {
+      return;
+    }
+    // Compaction runs on the resolved background LLM (the family's fast/cheap
+    // lightweight model — summarization does not need the pro model's full
+    // reasoning capability).
+    const { client, model } = this.createBackgroundLlm();
     if (!client) {
       return;
     }
-    // Always use the fast/cheap flash model for compaction (summarization does
-    // not need the full reasoning capability of the pro model).
-    const model = COMPACTION_MODEL;
     const thinkingEnabled = false;
     const reasoningEffort = undefined;
     const temperature = COMPACTION_TEMPERATURE;
@@ -3881,7 +3986,7 @@ ${content}
     }
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
-    const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
+    const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model);
     const response = await this.createChatCompletionStream(
       client,
       {
@@ -4987,17 +5092,17 @@ ${content}
     sessionId: string,
     content: string | null,
     toolCalls: unknown[] | null,
-    reasoningContent?: string | null
+    reasoningContent?: string | null,
+    reasoningField: string = "reasoning_content"
   ): SessionMessage {
     const now = new Date().toISOString();
     const hasReasoningContent = reasoningContent != null;
-    const messageParams: { tool_calls?: unknown[]; reasoning_content?: string } | null =
-      toolCalls || hasReasoningContent ? {} : null;
+    const messageParams: Record<string, unknown> | null = toolCalls || hasReasoningContent ? {} : null;
     if (toolCalls) {
       messageParams!.tool_calls = toolCalls;
     }
     if (hasReasoningContent) {
-      messageParams!.reasoning_content = reasoningContent;
+      messageParams![reasoningField] = reasoningContent;
     }
     return {
       id: crypto.randomUUID(),
