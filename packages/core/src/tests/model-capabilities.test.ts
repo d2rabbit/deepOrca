@@ -32,6 +32,16 @@ test("deepseek v4 models keep their pre-registry capabilities", () => {
   }
 });
 
+test("deepseek-v4-flash-vision-exp registers as the multimodal experimental variant", () => {
+  const spec = resolveModelSpec({ model: "deepseek-v4-flash-vision-exp" });
+  assert.equal(spec.id, "deepseek");
+  assert.equal(spec.familyResolved, true);
+  assert.equal(spec.defaultsToThinking, true);
+  assert.equal(spec.multimodal, true, "vision experimental model accepts image input");
+  assert.equal(spec.contextWindowTokens, 512 * 1024);
+  assert.equal(spec.lightweightModel, "deepseek-v4-flash");
+});
+
 test("legacy deepseek-chat/reasoner keep their pre-registry capabilities", () => {
   for (const model of ["deepseek-chat", "deepseek-reasoner"]) {
     const spec = resolveModelSpec({ model });
@@ -196,6 +206,37 @@ test("endpoint model lists gate the lightweight tier", () => {
   assert.deepEqual(resolveBackgroundLlm({ primaryModel: "deepseek-v4-pro", endpointModelIds: [] }), {
     tier: "lightweight",
     model: "deepseek-v4-flash",
+  });
+});
+
+test("cross-endpoint activation: family lightweight detected on another endpoint", () => {
+  // flash NOT on the primary (pro on opencode-go), but registered on
+  // opencode-zen → the background task routes to that endpoint, preferred
+  // over the explicit secondary (family preference per the committed chain).
+  assert.deepEqual(
+    resolveBackgroundLlm({
+      primaryModel: "deepseek-v4-pro",
+      endpointModelIds: ["deepseek-v4-pro"],
+      crossEndpointCandidates: [{ modelIds: ["glm-5"] }, { modelIds: ["deepseek-v4-flash"] }],
+      secondaryModel: "cheap-model",
+    }),
+    { tier: "lightweight-cross-endpoint", model: "deepseek-v4-flash", endpointIndex: 1 }
+  );
+  // Candidate endpoints that don't carry the lightweight → ring ①' misses and
+  // the chain continues to secondary.
+  assert.deepEqual(
+    resolveBackgroundLlm({
+      primaryModel: "deepseek-v4-pro",
+      endpointModelIds: ["deepseek-v4-pro"],
+      crossEndpointCandidates: [{ modelIds: ["glm-5"] }],
+      secondaryModel: "cheap-model",
+    }),
+    { tier: "secondary", model: "cheap-model" }
+  );
+  // No candidates at all (legacy settings) → unchanged pre-existing behavior.
+  assert.deepEqual(resolveBackgroundLlm({ primaryModel: "deepseek-v4-pro", endpointModelIds: ["deepseek-v4-pro"] }), {
+    tier: "primary",
+    model: "deepseek-v4-pro",
   });
 });
 

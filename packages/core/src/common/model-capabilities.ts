@@ -84,6 +84,15 @@ const DEEPSEEK_FAMILY: ModelFamilySpec = {
 const MODEL_OVERRIDES: Record<string, Partial<ModelFamilySpec>> = {
   "deepseek-v4-flash": { defaultsToThinking: true, multimodal: false, contextWindowTokens: 512 * 1024 },
   "deepseek-v4-pro": { defaultsToThinking: true, multimodal: false, contextWindowTokens: 512 * 1024 },
+  // Image-understanding experimental variant (2026-08-21 pricing page): thinking
+  // defaults on like its siblings, but unlike them it IS multimodal — inherits
+  // the family's `multimodal: true` by not overriding it. Compaction threshold
+  // keeps the product's 512K V4 value (docs list a 1M window / 384K output;
+  // 512K is the established trigger, not the raw window).
+  "deepseek-v4-flash-vision-exp": {
+    defaultsToThinking: true,
+    contextWindowTokens: 512 * 1024,
+  },
   "deepseek-chat": { multimodal: false },
   "deepseek-reasoner": { multimodal: false },
 };
@@ -193,6 +202,7 @@ export function findModelRegistration(
 /** Which model + tier a background LLM task should run on. */
 export type BackgroundLlmChoice =
   | { tier: "lightweight"; model: string }
+  | { tier: "lightweight-cross-endpoint"; model: string; endpointIndex: number }
   | { tier: "secondary"; model: string }
   | { tier: "primary"; model: string };
 
@@ -201,6 +211,9 @@ export type BackgroundLlmChoice =
  * classification, prompt enhancement, memory extraction):
  *  1. the family's lightweight model, unless the primary endpoint's registered
  *     model list excludes it (no list = unconstrained),
+ *  1'. cross-endpoint activation: the family's lightweight model registered on
+ *     ANOTHER configured endpoint (e.g. flash on opencode-zen while the session
+ *     runs pro on opencode-go) — the caller routes the call to that endpoint,
  *  2. the user-configured secondary model (only counts when its client exists),
  *  3. the primary session model — always served, hence the safe tail.
  * A DeepSeek endpoint resolves at tier 1 to `deepseek-v4-flash`, identical to
@@ -210,6 +223,8 @@ export function resolveBackgroundLlm(input: {
   primaryModel: string;
   baseURL?: string;
   endpointModelIds?: ReadonlyArray<string>;
+  /** Other credential-backed endpoints whose registered models may serve the family lightweight. */
+  crossEndpointCandidates?: ReadonlyArray<{ modelIds: ReadonlyArray<string> }>;
   secondaryModel?: string;
 }): BackgroundLlmChoice {
   const spec = resolveModelSpec({ model: input.primaryModel, baseURL: input.baseURL });
@@ -220,6 +235,13 @@ export function resolveBackgroundLlm(input: {
     (endpointModelIds === undefined || endpointModelIds.length === 0 || endpointModelIds.includes(lightweight));
   if (lightweightServed && lightweight !== undefined) {
     return { tier: "lightweight", model: lightweight };
+  }
+  if (lightweight !== undefined) {
+    const candidates = input.crossEndpointCandidates ?? [];
+    const endpointIndex = candidates.findIndex((candidate) => candidate.modelIds.includes(lightweight));
+    if (endpointIndex !== -1) {
+      return { tier: "lightweight-cross-endpoint", model: lightweight, endpointIndex };
+    }
   }
   if (input.secondaryModel !== undefined && input.secondaryModel !== "") {
     return { tier: "secondary", model: input.secondaryModel };

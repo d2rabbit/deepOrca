@@ -121,7 +121,12 @@ export type { McpServerStatus } from "./mcp/mcp-manager";
 export { createMcpSpawnSpec, type McpSpawnSpec } from "./mcp/spawn-spec";
 
 // Common utilities
-export { createOpenAIClient, createSecondaryClient, createVisionClient } from "./common/openai-client";
+export {
+  createOpenAIClient,
+  createSecondaryClient,
+  createVisionClient,
+  createEndpointClient,
+} from "./common/openai-client";
 export { buildThinkingRequestOptions } from "./common/openai-thinking";
 export {
   readTextFileWithMetadata,

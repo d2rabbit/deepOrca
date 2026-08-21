@@ -9,7 +9,7 @@
 ### 注册表与解析
 
 - [x] G1.0 DeepSeek V4 当日新发布 "version" variant 核对（确切 model 串/窗口/思考默认/多模态/轻量等价物），与基线型号一并登记进 deepseek 家族条目与 `MODEL_OVERRIDES`
-  - 结论（2026-08-21 核对官方 Change Log/news）：V4 Pro GA（08-13）发布后 **API model 串不变**（`deepseek-v4-flash` / `deepseek-v4-pro`；"0813" 是版本标识非 model 名）；`deepseek-chat`/`deepseek-reasoner` 已于 2026-07-24 停用——家族表按现两串登记，停用串保留 override 以兼容存量设置。_Requirement: R1_
+  - 结论（2026-08-21 两次核对官方 pricing/Change Log）：**三模型**——`deepseek-v4-flash`（V4-Flash-0731）/ `deepseek-v4-pro`（V4-Pro-0813）/ **`deepseek-v4-flash-vision-exp`**（图像理解实验版，**多模态**，思考默认开；文档 1M 窗口，压缩阈值维持产品 512K 既有值）；`deepseek-chat`/`deepseek-reasoner` 已于 2026-07-24 停用——四串全部登记（停用串保留 override 兼容存量设置）。_Requirement: R1_
 - [x] G1.1 `model-capabilities.ts` 重塑为注册表：`ModelFamilySpec`/`ModelSpec` 类型、FAMILIES（deepseek + unknown 一等条目；glm/kimi/minimax/qwen 随 S1-S4 落地）、`MODEL_OVERRIDES`、`resolveModelSpec()` 四步解析（精确覆盖→pattern→baseURL host 兜底→UNKNOWN）；deepseek 家族按现值登记（`lightweightModel: "deepseek-v4-flash"`）；删除旧常量并清理 `index.ts` re-export
   - 模块保持零依赖（已验证 renderer 可经 `@deeporca/core/capabilities` 导入）。_Requirement: R1, R2, R8_
 - [x] G1.2 门面切换：`defaultsToThinkingMode`/`supportsMultimodal` 改查 `resolveModelSpec`（签名不变，`supportsMultimodal` 保留旧 trim 语义）；`getCompactPromptTokenThreshold` 从 session.ts 迁入本模块，session.ts 改 import 并保留 re-export 稳定模块面
@@ -19,8 +19,10 @@
 
 ### 后台任务选型链（P0 中的 P0）
 
-- [x] G1.4 后台链落地：纯函数 `resolveBackgroundLlm()`（三环：家族 lightweight（端点 models[] 清单未排除）→ settings.secondaryModel → 主会话模型）入注册表模块；SessionManager `createBackgroundLlm()` 组合（可注入 `createSecondaryClient`，默认接线 openai-client 保留设施，其 reserved 注释待 S1 真机验证后更新）
+- [x] G1.4 后台链落地：纯函数 `resolveBackgroundLlm()` 入注册表模块；SessionManager `createBackgroundLlm()` 组合（可注入 `createSecondaryClient`，默认接线 openai-client 保留设施）
   - _Requirement: R3, R4_
+- [x] G1.4b **跨端点动态激活**（2026-08-21 补）：回退链加环①'——家族 lightweight 不在主端点时，扫描其他已配置端点（有 apiKey 且登记 models[]，如内置 opencode-zen / opencode-go 预设分开登记 flash 与 pro）的登记表，命中则经新增 `createEndpointClient(apiKey, baseURL)` 路由到该端点；环序 ①主端点 lightweight → ①'跨端点 lightweight → ②secondary → ③主模型；flash/pro 分布在不同端点时后台任务仍能用上家族 flash
+  - _Requirement: R3_
 - [x] G1.5 session.ts 五调用点切换（`judgeViaLlm` / `createSkillDecomposer` / `identifyMatchingSkillNames` / `enhancePrompt` / `compactSession`）；`@deeporca/memory` 副模型经 `settings.secondaryModel` 解析、无另置硬编码（链路 ② 天然覆盖）
   - _Requirement: R3_
 
@@ -47,7 +49,7 @@
 
 ## S0 DeepSeek V4 基线复核（P0）✅ 2026-08-21
 
-- [x] S0.1 家族按现值登记（见 G1.0/G1.1 结论：无新 variant 串；chat/reasoner 停用但保留 override 兼容存量）；真机 e2e 并入 G8.b
+- [x] S0.1 家族按现值登记（见 G1.0 结论：三模型 flash / pro / flash-vision-exp 全部登记，vision-exp 为多模态；chat/reasoner 停用但保留 override 兼容存量）；跨端点激活见 G1.4b；真机 e2e 并入 G8.b
 
 ## S1 GLM 5 系列（P0）
 

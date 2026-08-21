@@ -69,7 +69,7 @@ import {
   resolveBackgroundLlm,
   resolveModelSpec,
 } from "./common/model-capabilities";
-import { createSecondaryClient as defaultCreateSecondaryClient } from "./common/openai-client";
+import { createSecondaryClient as defaultCreateSecondaryClient, createEndpointClient } from "./common/openai-client";
 import { readTextFileWithMetadata } from "./common/file-utils";
 import {
   buildSkillDocumentsPrompt,
@@ -653,6 +653,7 @@ type SessionManagerOptions = {
     endpoints?: ReadonlyArray<{
       id?: string;
       baseURL?: string;
+      apiKey?: string;
       models?: ReadonlyArray<{ id: string }>;
     }>;
     primaryEndpointId?: string;
@@ -862,6 +863,7 @@ export class SessionManager {
     endpoints?: ReadonlyArray<{
       id?: string;
       baseURL?: string;
+      apiKey?: string;
       models?: ReadonlyArray<{ id: string }>;
     }>;
     primaryEndpointId?: string;
@@ -1306,10 +1308,12 @@ export class SessionManager {
   /**
    * Resolve the LLM for a background task (compaction, skill matching,
    * classification, prompt enhancement, skill decomposition): the family's
-   * lightweight model on the primary endpoint, else the user's configured
-   * secondary model, else the primary session model itself (always served).
-   * DeepSeek endpoints resolve to deepseek-v4-flash — identical to the
-   * pre-registry hardcoded constants.
+   * lightweight model on the primary endpoint, else the same lightweight model
+   * dynamically detected on ANOTHER configured endpoint (e.g. flash on
+   * opencode-zen while the session runs pro on opencode-go), else the user's
+   * configured secondary model, else the primary session model itself (always
+   * served). DeepSeek endpoints resolve to deepseek-v4-flash — identical to
+   * the pre-registry hardcoded constants.
    */
   private createBackgroundLlm(): {
     client: ReturnType<CreateOpenAIClient>["client"];
@@ -1323,12 +1327,32 @@ export class SessionManager {
     const primaryEndpoint =
       endpoints.find((endpoint) => endpoint.id === settings.primaryEndpointId) ??
       endpoints.find((endpoint) => endpoint.baseURL === primary.baseURL);
+    // Cross-endpoint activation candidates: other credential-backed endpoints
+    // that register models (the family lightweight may live there).
+    const crossEndpoints = endpoints.filter(
+      (endpoint) => endpoint !== primaryEndpoint && !!endpoint.apiKey && !!endpoint.models && endpoint.models.length > 0
+    );
     const choice = resolveBackgroundLlm({
       primaryModel: primary.model,
       baseURL: primary.baseURL,
       endpointModelIds: primaryEndpoint?.models?.map((entry) => entry.id),
+      crossEndpointCandidates: crossEndpoints.map((endpoint) => ({
+        modelIds: endpoint.models?.map((entry) => entry.id) ?? [],
+      })),
       secondaryModel: settings.secondaryModel && settings.secondaryApiKey ? settings.secondaryModel : undefined,
     });
+    if (choice.tier === "lightweight-cross-endpoint") {
+      const endpoint = crossEndpoints[choice.endpointIndex];
+      const client = createEndpointClient(endpoint?.apiKey, endpoint?.baseURL);
+      if (client && endpoint) {
+        return {
+          client,
+          model: choice.model,
+          baseURL: endpoint.baseURL,
+          debugLogEnabled: primary.debugLogEnabled,
+        };
+      }
+    }
     if (choice.tier === "secondary") {
       const secondary = this.createSecondaryClient();
       if (secondary.client) {

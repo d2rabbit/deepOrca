@@ -108,6 +108,10 @@ createBackgroundClient(projectRoot):
   spec = resolveModelSpec({ model: 主会话 model, baseURL: 主端点 baseURL })
   ① spec.lightweightModel 存在，且主端点 models[] 清单未排除它（无清单视为不约束）
        → { client: 主 client,  model: spec.lightweightModel }
+  ①' 跨端点动态激活（2026-08-21 补）：lightweight 未在主端点，但其他已配置端点
+     （有 apiKey 且登记 models[]——如内置 opencode-zen / opencode-go 预设分开
+     登记 flash 与 pro）的登记表命中它
+       → { client: createEndpointClient(该端点), model: spec.lightweightModel }
   ② settings.secondaryModel 已配置且 secondary client 可建（有 apiKey）
        → { client: secondary client, model: settings.secondaryModel }   ← 首次接线 A10 保留设施
   ③ { client: 主 client, model: 主会话 model }   ← 安全尾：主模型必然被端点服务
@@ -211,8 +215,8 @@ converter 的 `convertMessage(message, thinkingEnabled, model)` **本就持有 m
 | 错误文案 | 限流/超载/内容过滤样本 → G5 |
 | 真机 e2e | `desktop:startWin` + 该系列端点：会话创建→工具调用→权限门→compaction→记忆四链路（L1 抽取/工具回路/遥测）→跨会话召回 |
 
-### S0 DeepSeek V4 基线复核（P0）
-基线家族按现值入表即可，另核对**当日新发布的 "version" variant**：确切 model 字符串 / 窗口 / 思考默认 / 多模态 / 轻量等价物，补入 deepseek 家族表项（含 `MODEL_OVERRIDES` 如窗口有别）。
+### S0 DeepSeek V4 基线复核（P0）✅ 2026-08-21 已实施
+家族登记**三模型**（官方 pricing 页核对）：`deepseek-v4-flash` / `deepseek-v4-pro` / `deepseek-v4-flash-vision-exp`（图像理解实验版，**多模态**、思考默认开、1M 窗口——压缩阈值维持产品 512K 既有值）；`deepseek-chat`/`deepseek-reasoner` 已停用但保留 override 兼容存量设置。跨端点激活（flash 与 pro 分布于 opencode-zen / opencode-go 等不同端点）见 §2.3 环①'。
 
 ### S1 GLM 5 系列（P0）
 ### S2 Kimi 2.5 → K3 系列（P0，全区间：2.5 / 3 / K3 型号一并登记）
