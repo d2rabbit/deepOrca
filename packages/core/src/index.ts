@@ -299,6 +299,8 @@ export {
   defaultsToThinkingMode,
 } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
+export { getOsLinkEntry, listOsLinkEntries, renderOsLinkDictionary, renderOsLinkPromptSection } from "./common/os-link";
+export type { OsLinkEntry, OsLinkShell } from "./common/os-link";
 export { logApiError } from "./common/error-logger";
 export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
 export { describeLlmError, getLlmErrorDetails } from "./common/llm-error";

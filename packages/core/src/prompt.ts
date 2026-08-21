@@ -9,6 +9,7 @@ import matter from "gray-matter";
 import { fileURLToPath } from "url";
 import type { SessionMessage } from "./session";
 import { findGitBashPath, resolveShellPath } from "./common/shell-utils";
+import { renderOsLinkPromptSection } from "./common/os-link";
 import { supportsMultimodal } from "./common/model-capabilities";
 
 const COMPACT_PROMPT_BASE = `Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
@@ -511,7 +512,9 @@ export function getStableRuntimeContext(projectRoot: string): string {
 
 \`\`\`json
 ${JSON.stringify(env, null, 2)}
-\`\`\``;
+\`\`\`
+
+${renderOsLinkPromptSection("bash")}`;
 }
 
 /**
