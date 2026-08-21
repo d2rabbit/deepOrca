@@ -81,7 +81,7 @@
 **E1 dembrandt 品牌摄取**（依据 `docs/research/2026-08-17-external-repos-prestudy.md`，MIT）：
 - builtin MCP：`augmentMcpServersWithBuiltins`（`session.ts:1536`）注册 pinned `npx -y --package dembrandt@<pin> dembrandt-mcp`，core 只留 disable-gate + spawn 配置（desktop 注入），同 serena 模式。
 - action：`actions/design.ts` 扩展 `design.extract`（URL → tokens/DESIGN.md，经 `ctx.spawner` 调 CLI `--json-only`）与 `design.drift`（基线对比，可直用其纯函数子包 drift/findings——零浏览器依赖，desktop 侧引入）。
-- 闭环：`design.extract` 产物写入 `.deeporca/DESIGN.md` 品牌契约 + tokens 进 design-store——**正好补上 deep-design Step 0 品牌契约的自动化来源**；`design.drift` 作为 review 维度（确定性、零 LLM）。
+- 闭环：`design.extract` 产物写入 `.deeporca/DESIGN.md` 品牌契约 + tokens 进 design-store——**正好补上 deep-design Step 0 品牌契约的自动化来源**；`design.drift` 作为 review 维度（确定性、零 LLM）。**2026-08-21 决策回写（specs/ui-domain-regroup）**：drift 的 **UI 落位由 review 面板改为设计面板**（DesignPanel，推翻 E1d 落位），action 归属与语义不变。
 - 约束：输出目录过 `gateWrite`/PathGrant + audit bus（沙箱分支规约）；不单独 vendor Chromium（复用 browser-skill 浏览器或按需下载）；自研任何抓取包装层必须校验 host、拒绝 localhost/环回/私有/保留地址（SSRF 防线）；license 门禁（MIT 通过）；网络失败 best-effort 降级（vendoring 惯例）。
 
 **E2 进化设计**（依据 `docs/research/2026-08-17-opendesign-openpencli-vs-designer.md`，纯 prompt/模板层，零新依赖）：

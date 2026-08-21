@@ -6,6 +6,11 @@
  *   - PM-Design prototypes (pipeline="openui")
  *   - UI-Design documents (pipeline="design", .dd format)
  *
+ * Also hosts the brand-contract loop (specs/ui-domain-regroup): the drift
+ * gate (design.drift — deterministic dembrandt --compare) pairs with the
+ * agent-side design.extract ingestion, keeping "摄取基线 → 检测漂移" in the
+ * design domain. CodeReviewPanel stays pure code review.
+ *
  * Clicking an artifact opens it in the right-side preview panel.
  * Mirrors the IndexLibraryPanel pattern (workspace panel + artifact list).
  */
@@ -13,8 +18,8 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { IconButton } from "../ui/index";
-import type { DesignArtifactMeta } from "../../shared/ipc";
+import { Button, IconButton, Input } from "../ui/index";
+import type { ActionProgressEvent, ActionRunResult, DesignArtifactMeta } from "../../shared/ipc";
 
 type Props = {
   /** Open an artifact in the preview panel (mode: "openui" | "design"). */
@@ -22,6 +27,14 @@ type Props = {
 };
 
 type FilterTab = "all" | "openui" | "design";
+
+/** Shape of the design.drift action output (deterministic, zero LLM). */
+type DriftOutput = {
+  driftDetected?: boolean;
+  score?: number;
+  summary?: string;
+  driftJson?: string;
+};
 
 function timeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -40,6 +53,15 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
   const [requirement, setRequirement] = useState("");
   const [materializing, setMaterializing] = useState(false);
   const [materializeNote, setMaterializeNote] = useState<string | null>(null);
+  // Brand drift gate (design.drift) — migrated from CodeReviewPanel per
+  // specs/ui-domain-regroup. The baseline defaults to the conventional
+  // location written by design.extract's persist instruction.
+  const [driftBaseline, setDriftBaseline] = useState(".deeporca/design-baseline.json");
+  const [driftCurrent, setDriftCurrent] = useState("");
+  const [driftRunning, setDriftRunning] = useState(false);
+  const [driftProgress, setDriftProgress] = useState("");
+  const [driftResult, setDriftResult] = useState<ActionRunResult | null>(null);
+  const [driftError, setDriftError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -53,6 +75,43 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Subscribe to the unified action progress stream while the drift gate runs.
+  useEffect(() => {
+    if (!driftRunning) {
+      setDriftProgress("");
+      return;
+    }
+    const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
+      if (evt.actionId === "design.drift") {
+        setDriftProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
+      }
+    });
+    return unsub;
+  }, [driftRunning]);
+
+  const runDrift = useCallback(async () => {
+    const baseline = driftBaseline.trim();
+    const current = driftCurrent.trim();
+    if (!baseline || !current || driftRunning) {
+      setDriftError(t("design.drift.hint"));
+      return;
+    }
+    setDriftRunning(true);
+    setDriftResult(null);
+    setDriftError(null);
+    setDriftProgress("");
+    try {
+      const res = await api.actionRun("design.drift", { baseline, current });
+      setDriftResult(res);
+    } catch (err) {
+      setDriftError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDriftRunning(false);
+    }
+  }, [driftBaseline, driftCurrent, driftRunning, t]);
+
+  const driftOutput = driftResult && driftResult.ok ? (driftResult.output as DriftOutput) : null;
 
   const handleMaterialize = useCallback(async () => {
     const text = requirement.trim();
@@ -156,6 +215,82 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
         {materializeNote ? (
           <div style={{ padding: "2px 12px 6px", fontSize: 10, color: "var(--ui-accent)" }}>{materializeNote}</div>
         ) : null}
+        {/* Brand drift gate (design.drift) — deterministic dembrandt --compare,
+            zero LLM. Pairs with the agent-side design.extract ingestion
+            (摄取基线 → 检测漂移) per specs/ui-domain-regroup. */}
+        <div className="ui-review-drift">
+          <div className="ui-review-drift-title">{t("design.drift.title")}</div>
+          <p className="ui-muted" style={{ fontSize: 10, margin: "2px 0 6px" }}>
+            {t("design.drift.hint")}
+          </p>
+          <Input
+            type="text"
+            value={driftBaseline}
+            placeholder={t("design.drift.baseline")}
+            onChange={(e) => setDriftBaseline(e.target.value)}
+          />
+          <Input
+            type="text"
+            value={driftCurrent}
+            placeholder={t("design.drift.current")}
+            onChange={(e) => setDriftCurrent(e.target.value)}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <Button size="sm" variant="subtle" onClick={() => void runDrift()} disabled={driftRunning}>
+              {driftRunning ? t("actions.running") : t("design.drift.run")}
+            </Button>
+            {driftRunning && driftProgress ? (
+              <span className="ui-muted" style={{ fontSize: 11 }}>
+                {driftProgress}
+              </span>
+            ) : null}
+          </div>
+          {driftError ? (
+            <div className="ui-error" style={{ marginTop: 6 }}>
+              {driftError}
+            </div>
+          ) : null}
+          {driftResult ? (
+            !driftResult.ok ? (
+              <pre className="ui-muted" style={{ fontSize: 10, margin: "6px 0 0", whiteSpace: "pre-wrap" }}>
+                {`✗ ${driftResult.code}: ${driftResult.error}`}
+              </pre>
+            ) : driftOutput ? (
+              <div className="ui-review-drift-result">
+                <div className={`ui-review-drift-badge${driftOutput.driftDetected ? " bad" : " good"}`}>
+                  {driftOutput.driftDetected ? `⚠ ${t("design.drift.detected")}` : `✅ ${t("design.drift.pass")}`}
+                  {typeof driftOutput.score === "number"
+                    ? ` · ${t("design.drift.score", { score: driftOutput.score })}`
+                    : ""}
+                </div>
+                {driftOutput.summary ? (
+                  <div className="ui-muted" style={{ fontSize: 11 }}>
+                    {driftOutput.summary}
+                  </div>
+                ) : null}
+                {driftOutput.driftJson ? (
+                  <details>
+                    <summary className="ui-muted" style={{ fontSize: 10.5, cursor: "pointer" }}>
+                      {t("design.drift.details")}
+                    </summary>
+                    <pre
+                      className="ui-muted"
+                      style={{
+                        fontSize: 10,
+                        margin: "4px 0 0",
+                        maxHeight: 220,
+                        overflow: "auto",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {prettyJson(driftOutput.driftJson)}
+                    </pre>
+                  </details>
+                ) : null}
+              </div>
+            ) : null
+          ) : null}
+        </div>
         {artifacts.length === 0 ? (
           <div className="ui-side-panel-empty">{t("design.empty")}</div>
         ) : (
@@ -287,4 +422,13 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
       </div>
     </div>
   );
+}
+
+/** Pretty-print a raw JSON payload string (best effort, raw on parse failure). */
+function prettyJson(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
 }
