@@ -99,8 +99,12 @@
 }
 
 @keyframes orca-scanline-shift {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(4px); }
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(4px);
+  }
 }
 
 /* Ambient glow orbs — cyan top-right, magenta bottom-left. */
@@ -120,8 +124,15 @@
 }
 
 @keyframes orca-glow-pulse {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 0.9; transform: scale(1.06); }
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
 }
 
 /* ===========================================================================
@@ -144,8 +155,13 @@
 }
 
 @keyframes orca-grid-breathe {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Neon selection + focus, exactly like the site. */
@@ -188,12 +204,16 @@
   border-radius: var(--ui-radius-sm);
 }
 .ui-btn--primary:hover {
-  box-shadow: 0 0 24px rgba(0, 243, 255, 0.45), 0 4px 16px rgba(0, 243, 255, 0.2);
+  box-shadow:
+    0 0 24px rgba(0, 243, 255, 0.45),
+    0 4px 16px rgba(0, 243, 255, 0.2);
 }
 
 /* Danger button: magenta counter-glow. */
 .ui-btn--danger:hover {
-  box-shadow: 0 0 20px var(--orca-magenta-line), 0 4px 12px rgba(255, 0, 127, 0.15);
+  box-shadow:
+    0 0 20px var(--orca-magenta-line),
+    0 4px 12px rgba(255, 0, 127, 0.15);
 }
 
 /* Subtle/ghost buttons: cyan hairline wake-up. */
@@ -206,7 +226,9 @@
 /* Prompt input: cyan hairline wakes up with a glow when focused. */
 .ui-prompt:focus {
   border-color: var(--orca-cyan);
-  box-shadow: 0 0 0 2px rgba(0, 243, 255, 0.15), 0 0 20px rgba(0, 243, 255, 0.08);
+  box-shadow:
+    0 0 0 2px rgba(0, 243, 255, 0.15),
+    0 0 20px rgba(0, 243, 255, 0.08);
 }
 
 /* ── Modal + command palette: HUD panel ─────────────────────────────────── */
@@ -225,14 +247,17 @@
 
 .ui-card,
 .ui-panel {
-  transition: border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ui-card:hover,
 .ui-panel:hover {
   border-color: var(--orca-cyan);
-  box-shadow: 0 8px 32px rgba(0, 243, 255, 0.12), 0 0 0 1px rgba(0, 243, 255, 0.06);
+  box-shadow:
+    0 8px 32px rgba(0, 243, 255, 0.12),
+    0 0 0 1px rgba(0, 243, 255, 0.06);
   transform: translateY(-2px);
 }
 
@@ -272,7 +297,9 @@
 .ui-message pre {
   border: 1px solid var(--orca-cyan-line);
   background: #060810;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 .ui-codeblock:hover,
 .ui-message pre:hover {

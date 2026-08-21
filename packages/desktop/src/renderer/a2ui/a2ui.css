@@ -281,8 +281,12 @@
   font-size: 10px;
   font-weight: 600;
 }
-.ui-a2ui-metric-trend.up { color: #3fb950; }
-.ui-a2ui-metric-trend.down { color: #f85149; }
+.ui-a2ui-metric-trend.up {
+  color: #3fb950;
+}
+.ui-a2ui-metric-trend.down {
+  color: #f85149;
+}
 
 /* Flow step (wizard/debug) */
 .ui-a2ui-flow-step {
