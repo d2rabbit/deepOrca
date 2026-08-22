@@ -55,6 +55,12 @@ export class SkillSpectorCliController implements SkillSpectorController {
     return {
       command: uvBinary,
       args: ["tool", "run", "skillspector", "mcp"],
+      env: {
+        // Same Electron stdout block-buffering hazard as Serena (see
+        // serena-cli.ts): the MCP handshake reply is small and FastMCP-style
+        // servers don't flush after writes — force unbuffered Python stdout.
+        PYTHONUNBUFFERED: "1",
+      },
     };
   }
 
