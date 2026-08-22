@@ -9,12 +9,15 @@ export function DrawerShell(props: {
   side: "left" | "right";
   layer: string;
   onClose: () => void;
+  /** Keyboard shortcut hint shown in the header (设计稿 drawer-head kbd). */
+  hint?: string;
   children: ReactNode;
 }): JSX.Element {
   return (
     <aside className={`deck-drawer ${props.side} deck-gcd`} data-layer={props.layer} role="complementary">
       <div className="deck-drawer-head">
         <span className="deck-drawer-title">{props.title}</span>
+        {props.hint ? <span className="deck-kbd">{props.hint}</span> : null}
         <button type="button" className="deck-overlay-close" onClick={props.onClose} aria-label="Close">
           ✕
         </button>

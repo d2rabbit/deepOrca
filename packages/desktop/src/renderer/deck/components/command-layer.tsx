@@ -58,8 +58,18 @@ export function CommandLayer(props: { ctx: DeckCommandContext; onRun(): void; de
   let lastGroup: CommandGroup | null = null;
 
   return (
-    <div className="deck-overlay-scrim cmd" style={{ zIndex: 40 + (props.depth ?? 0) * 10 }} data-layer="command">
-      <div className="deck-cmd deck-gc" role="dialog" aria-label={t("deck.cmd.title")}>
+    <div
+      className="deck-overlay-scrim cmd"
+      style={{ zIndex: 40 + (props.depth ?? 0) * 10 }}
+      data-layer="command"
+      onClick={props.onRun}
+    >
+      <div
+        className="deck-cmd deck-gc"
+        role="dialog"
+        aria-label={t("deck.cmd.title")}
+        onClick={(e) => e.stopPropagation()}
+      >
         <input
           className="deck-cmd-input"
           autoFocus
@@ -89,13 +99,13 @@ export function CommandLayer(props: { ctx: DeckCommandContext; onRun(): void; de
                   onClick={() => run(entry.item)}
                 >
                   <span className="deck-cmd-label">{entry.item.label}</span>
-                  <span className="deck-cmd-meta">{entry.item.domain === "theme" ? t("deck.settings.theme") : ""}</span>
                   {entry.item.shortcut ? <span className="deck-kbd">{entry.item.shortcut}</span> : null}
                 </button>
               </Fragment>
             );
           })}
         </div>
+        <div className="deck-cmd-foot">↑↓ · ⏎ · Esc</div>
       </div>
     </div>
   );

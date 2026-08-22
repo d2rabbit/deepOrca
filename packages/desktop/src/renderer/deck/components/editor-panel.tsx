@@ -76,7 +76,7 @@ export function EditorPanel(props: { initialPath?: string | null }): JSX.Element
       </div>
       <div className="deck-editor-main">
         <div className="deck-editor-bar">
-          <span className="deck-editor-path">{state.status === "empty" ? t("deck.editor.pick") : state.path}</span>
+          <span className="deck-editor-path">{state.status === "empty" ? "" : state.path}</span>
           {state.status === "ready" ? (
             <>
               <span className={`deck-editor-state${dirty ? " dirty" : ""}`}>

@@ -9,8 +9,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type { SessionStatus } from "@deeporca/core";
-import type { AskPermissionRequest, SerializableSessionEntry, SessionMessage } from "../../../shared/ipc";
+import type { AskPermissionRequest, SerializableSessionEntry, SessionMessage, SkillInfo } from "../../../shared/ipc";
 import type { PermissionResult } from "../../lib/permissions";
+
+/** Extras carried by a Deck-originated prompt (E13/E14 deep integration). */
+export type DeckSendOptions = {
+  planMode?: boolean;
+  /** Force-loaded skills picked in the directive input (real SkillInfo objects). */
+  skills?: SkillInfo[];
+};
 
 export type DeckEngine = {
   activeId: string | null;
@@ -24,7 +31,8 @@ export type DeckEngine = {
   /** Every prompt the user sent from the Deck (指令留痕, newest last). */
   commandLog: Array<{ ts: string; text: string }>;
   selectSession(id: string | null): Promise<void>;
-  send(text: string): Promise<void>;
+  /** Send a prompt; opts.planMode flips plan mode, opts.skills force-loads skills. */
+  send(text: string, opts?: DeckSendOptions): Promise<void>;
   interrupt(): Promise<void>;
   /**
    * Brake (E5.2): freeze at the next loop checkpoint while running, resume a
@@ -139,14 +147,18 @@ export function useDeckEngine(): DeckEngine {
   );
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, opts?: DeckSendOptions) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed && !(opts?.skills && opts.skills.length > 0)) return;
       setCommandLog((prev) => [...prev, { ts: new Date().toISOString(), text: trimmed }]);
       const sessionId = activeIdRef.current ?? "";
       setMessages((prev) => [...prev, syntheticUserMessage(sessionId, trimmed)]);
       try {
-        const result = await api.sendPrompt({ text: trimmed });
+        const result = await api.sendPrompt({
+          text: trimmed,
+          ...(opts?.planMode !== undefined ? { planMode: opts.planMode } : {}),
+          ...(opts?.skills && opts.skills.length > 0 ? { skills: opts.skills } : {}),
+        });
         if (!result.ok) return;
         const finalId = await api.getActiveSession();
         if (finalId) {

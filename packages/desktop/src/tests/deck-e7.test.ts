@@ -241,16 +241,22 @@ describe("Deck E7 work-order layer (mounted)", () => {
 
     mounted = await mountDeck();
 
-    // Set a confirm-done gate on 验证 via the step board's gate button.
-    const gateButtons = mounted.container.querySelectorAll(".deck-steps-list [data-gate-step]");
-    assert.ok(gateButtons.length >= 2, "step gate buttons missing");
+    // The gate selector lives on the expanded step card — select the step
+    // chip first, then cycle its gate.
+    const chips = mounted.container.querySelectorAll(".deck-stepboard .deck-schip");
+    assert.ok(chips.length >= 2, "step chips missing");
     await act(async () => {
-      fireEvent.click(gateButtons[0]); // auto → confirm-before
+      fireEvent.click(chips[0]);
+    });
+    const gateButton = mounted.container.querySelector(".deck-wocard [data-gate-step]")!;
+    assert.ok(gateButton, "step gate button missing");
+    await act(async () => {
+      fireEvent.click(gateButton); // auto → confirm-before
     });
     await act(async () => {
-      fireEvent.click(gateButtons[0]); // confirm-before → confirm-done
+      fireEvent.click(gateButton); // confirm-before → confirm-done
     });
-    assert.ok(gateButtons[0].textContent?.includes("Confirm when done"), "gate should read confirm-done");
+    assert.ok(gateButton.textContent?.includes("Confirm when done"), "gate should read confirm-done");
 
     // The step flips done mid-loop (streamed UpdatePlan).
     await act(async () => {
@@ -307,11 +313,20 @@ describe("Deck E7 work-order layer (mounted)", () => {
     fixture.listMessages = async () => [planMessage("- [ ] 交付")];
 
     mounted = await mountDeck();
-    const strikeButton = mounted.container.querySelector(".deck-steps-list .deck-op.strike")!;
+    // Strike via the expanded step card: select the chip, then strike.
+    const chip = mounted.container.querySelector(".deck-stepboard .deck-schip")!;
+    await act(async () => {
+      fireEvent.click(chip);
+    });
+    const strikeButton = mounted.container.querySelector(".deck-wocard .deck-op.strike")!;
+    assert.ok(strikeButton, "strike button missing on the expanded step card");
     await act(async () => {
       fireEvent.click(strikeButton);
     });
-    assert.ok(mounted.container.querySelector(".deck-steps-list li.struck"), "the step should render struck-through");
+    assert.ok(
+      mounted.container.querySelector(".deck-stepboard .deck-schip.struck"),
+      "the step should render struck-through"
+    );
 
     // A done-flip on a struck step must NOT brake even with a gate armed.
     localStorage.setItem(

@@ -18,10 +18,13 @@ export function DeckOverlay(props: {
   onExpand?: () => void;
   /** Accessible label / tooltip for the expand button. */
   expandLabel?: string;
+  /** Only the topmost floating layer dims the stage (设计稿单 scrim) —
+   *  lower layers get a transparent click-catcher instead of stacking shade. */
+  dimmed?: boolean;
 }): JSX.Element {
   return (
     <div
-      className="deck-overlay-scrim"
+      className={`deck-overlay-scrim${props.dimmed === false ? " ghost" : ""}`}
       style={{ zIndex: 40 + (props.depth ?? 0) * 10 }}
       data-layer={props.layer}
       onClick={props.onClose}
@@ -34,6 +37,7 @@ export function DeckOverlay(props: {
       >
         <div className="deck-overlay-head">
           <span className="deck-overlay-title">{props.title}</span>
+          <span className="deck-kbd deck-overlay-esc">Esc</span>
           {props.onExpand ? (
             <button
               type="button"

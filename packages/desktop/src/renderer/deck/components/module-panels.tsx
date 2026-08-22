@@ -12,6 +12,7 @@ import type {
 } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
 import { GiIcon } from "../icons";
+import { SOURCE_LABEL } from "./sources-dashboard";
 
 // ── 知识源：列表 → 详情二级页（各源真实统计 + 重建动作） ────────────────────
 // State is a semantic CSS dot (theme-token colored), not an emoji.
@@ -72,7 +73,7 @@ function SourceDetail(props: { name: string; source: KnowledgeSourceStatus; onBa
         <button type="button" className="deck-sub-back" onClick={props.onBack}>
           ‹ {t("deck.sources.back")}
         </button>
-        <span className="deck-sub-title">{props.name}</span>
+        <span className="deck-sub-title">{SOURCE_LABEL[props.name as keyof typeof SOURCE_LABEL] ?? props.name}</span>
         <span className={`deck-wo-tag ${props.source.state === "indexed" ? "g" : "a"}`}>{props.source.state}</span>
       </div>
       <div className="deck-row static">
@@ -146,7 +147,10 @@ export function SourcesPanel(): JSX.Element {
       {entries.map(([name, source]) => (
         <button key={name} type="button" className="deck-row linked" onClick={() => setSelected(name)}>
           <span className={`deck-sdot ${STATE_DOT[source.state] ?? "idle"}`} aria-hidden="true" />
-          <span className="deck-row-main">{name}</span>
+          <span className="deck-row-main">
+            {SOURCE_LABEL[name as keyof typeof SOURCE_LABEL] ?? name}
+            <span className="deck-row-sub">{source.detail ?? name}</span>
+          </span>
           <span className="deck-row-meta">
             {source.state}
             {typeof source.count === "number" ? ` · ${source.count}${source.unit ?? ""}` : ""} ›
@@ -157,10 +161,18 @@ export function SourcesPanel(): JSX.Element {
   );
 }
 
-// ── 插件与 MCP：服务器清单 + 启停 ──────────────────────────────────────────
+// ── 插件与 MCP：服务器清单 → 详情二级页（状态/工具清单/启停） ───────────────
+const MCP_STATE_DOT: Record<string, string> = {
+  ready: "ok",
+  starting: "warn",
+  reconnecting: "warn",
+  failed: "off",
+};
+
 export function PluginsPanel(): JSX.Element {
   const { t } = useI18n();
   const [servers, setServers] = useState<PluginMcpServer[] | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const refresh = () => {
     void api
@@ -180,33 +192,85 @@ export function PluginsPanel(): JSX.Element {
       .catch(() => {});
   };
 
-  return (
-    <div className="deck-panel">
-      {servers.map((server) => (
-        <div key={server.name} className="deck-row static">
-          <span className="deck-row-main">
-            {server.name}
-            <span className="deck-row-sub">{server.command}</span>
-          </span>
-          <span className="deck-row-ops">
+  if (selected) {
+    const server = servers.find((s) => s.name === selected);
+    if (server) {
+      const status = server.status;
+      return (
+        <div className="deck-panel">
+          <div className="deck-sub-head">
+            <button type="button" className="deck-sub-back" onClick={() => setSelected(null)}>
+              ‹ {t("deck.dock.plugins")}
+            </button>
+            <span className="deck-sub-title">{server.name}</span>
+            <span className={`deck-wo-tag ${server.enabled ? (status?.connected ? "g" : "a") : ""}`}>
+              {server.enabled ? (status ? status.status : "enabled") : t("deck.plugins.disabledState")}
+            </span>
+          </div>
+          <div className="deck-row static">
+            <span className="deck-row-main">
+              {server.command}
+              <span className="deck-row-sub">{server.args}</span>
+            </span>
+          </div>
+          {status?.error ? <div className="deck-error">{status.error}</div> : null}
+          {status && status.tools.length > 0 ? (
+            <>
+              <div className="deck-panel-group-title">
+                {t("deck.plugins.tools", { count: String(status.toolCount) })}
+              </div>
+              {status.tools.map((tool) => (
+                <div key={tool} className="deck-row static">
+                  <span className="deck-row-main">
+                    <span className="deck-row-sub">{tool}</span>
+                  </span>
+                </div>
+              ))}
+            </>
+          ) : server.enabled ? (
+            <div className="deck-row-sub">{t("deck.plugins.noTools")}</div>
+          ) : null}
+          <div className="deck-panel-ops">
             <button
               type="button"
-              className={`deck-op${server.enabled ? "" : " primary"}`}
+              className={`deck-op${server.enabled ? " danger" : " primary"}`}
               onClick={() => toggle(server.name, !server.enabled)}
             >
               {server.enabled ? t("deck.plugins.disable") : t("deck.plugins.enable")}
             </button>
-          </span>
+          </div>
         </div>
+      );
+    }
+  }
+
+  return (
+    <div className="deck-panel">
+      {servers.map((server) => (
+        <button key={server.name} type="button" className="deck-row linked" onClick={() => setSelected(server.name)}>
+          <span
+            className={`deck-sdot ${server.enabled ? (MCP_STATE_DOT[server.status?.status ?? ""] ?? "idle") : "off"}`}
+            aria-hidden="true"
+          />
+          <span className="deck-row-main">
+            {server.name}
+            <span className="deck-row-sub">{server.command}</span>
+          </span>
+          <span className="deck-row-meta">
+            {server.status ? `${server.status.toolCount} tools` : server.enabled ? "…" : "off"} ›
+          </span>
+        </button>
       ))}
     </div>
   );
 }
 
-// ── 设计资产：工件清单（打开走经典层的设计预览，E3 再接入 Deck 焦点卡） ────
+// ── 设计资产：工件清单 → 详情（designRead 全文预览） ───────────────────────
 export function AssetsPanel(): JSX.Element {
   const { t } = useI18n();
   const [artifacts, setArtifacts] = useState<DesignArtifactMeta[] | null>(null);
+  const [selected, setSelected] = useState<DesignArtifactMeta | null>(null);
+  const [content, setContent] = useState<string | null>(null);
 
   useEffect(() => {
     void api
@@ -215,17 +279,48 @@ export function AssetsPanel(): JSX.Element {
       .catch(() => setArtifacts([]));
   }, []);
 
+  useEffect(() => {
+    setContent(null);
+    if (!selected) return;
+    void api
+      .designRead(selected.id)
+      .then((artifact) => setContent(artifact?.content ?? null))
+      .catch(() => setContent(null));
+  }, [selected]);
+
   if (!artifacts) return <div className="deck-empty">{t("deck.loading")}</div>;
   if (artifacts.length === 0) return <div className="deck-empty">{t("deck.assets.empty")}</div>;
+
+  if (selected) {
+    return (
+      <div className="deck-panel">
+        <div className="deck-sub-head">
+          <button type="button" className="deck-sub-back" onClick={() => setSelected(null)}>
+            ‹ {t("deck.dock.assets")}
+          </button>
+          <span className="deck-sub-title">{selected.title}</span>
+          <span className="deck-wo-tag">{selected.pipeline}</span>
+        </div>
+        <div className="deck-row-sub">
+          {t("deck.assets.updated")} · {selected.updatedAt.slice(0, 16).replace("T", " ")}
+        </div>
+        {content === null ? (
+          <div className="deck-empty">{t("deck.loading")}</div>
+        ) : (
+          <pre className="deck-srcpage">{content}</pre>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="deck-panel">
       {artifacts.map((artifact) => (
-        <div key={artifact.id} className="deck-row static">
+        <button key={artifact.id} type="button" className="deck-row linked" onClick={() => setSelected(artifact)}>
           <GiIcon id={artifact.pipeline === "openui" ? "target" : "ruler"} />
           <span className="deck-row-main">{artifact.title}</span>
-          <span className="deck-row-meta">{artifact.updatedAt.slice(0, 16).replace("T", " ")}</span>
-        </div>
+          <span className="deck-row-meta">{artifact.updatedAt.slice(0, 16).replace("T", " ")} ›</span>
+        </button>
       ))}
     </div>
   );

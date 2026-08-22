@@ -23,7 +23,7 @@ const GATE_LABEL: Record<StepGate, "deck.gate.auto" | "deck.gate.confirmBefore" 
 /** Compile the draft into the structured prompt sent to the engine. */
 export function buildWorkOrderPrompt(title: string, steps: DraftStep[]): string {
   const lines = steps
-    .map((step, i) => step.text.trim())
+    .map((step) => step.text.trim())
     .filter(Boolean)
     .map((text, i) => `${i + 1}. [ ] ${text}`);
   return [
@@ -52,12 +52,21 @@ export function DraftPanel(props: { onDispatch(text: string): void }): JSX.Eleme
   };
 
   return (
-    <div className="deck-panel">
+    <div
+      className="deck-panel"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          dispatch();
+        }
+      }}
+    >
       <input
         className="deck-draft-title"
         value={title}
         placeholder={t("deck.draft.namePlaceholder")}
         onChange={(e) => setTitle(e.target.value)}
+        autoFocus
         data-test-id="deck-draft-title"
       />
       {steps.map((step, i) => (
@@ -101,7 +110,7 @@ export function DraftPanel(props: { onDispatch(text: string): void }): JSX.Eleme
           data-test-id="deck-draft-stamp"
           onClick={dispatch}
         >
-          {t("deck.draft.stamp")}
+          {t("deck.draft.stamp")} ⌘↵
         </button>
       </div>
     </div>

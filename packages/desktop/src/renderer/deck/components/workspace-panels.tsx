@@ -74,6 +74,14 @@ export function FilesPanel(props: { onOpen?: (path: string) => void }): JSX.Elem
 }
 
 // ── 变更：暂存区/更改分区 + 逐文件操作（diff 查看/暂存/还原）+ 提交 ──────────
+
+/** 状态字母着色（设计稿 git-row）：A/? 绿、M 琥珀、D 红。 */
+function statusLetter(file: { index: string; work: string; staged: boolean }): { letter: string; cls: string } {
+  const raw = (file.staged ? file.index : file.work).trim() || "M";
+  const cls = raw === "A" || raw === "?" ? "add" : raw === "D" ? "del" : "mod";
+  return { letter: raw === "?" ? "A" : raw, cls };
+}
+
 export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) => void }): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<GitStatus | null>(null);
@@ -115,6 +123,7 @@ export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) =
       </div>
       {staged.map((file) => (
         <div key={`s-${file.path}`} className="deck-row static">
+          <span className={`deck-git-letter ${statusLetter(file).cls}`}>{statusLetter(file).letter}</span>
           <span className="deck-row-main">{file.path}</span>
           <span className="deck-row-ops">
             {props.onDiff ? (
@@ -138,6 +147,7 @@ export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) =
       </div>
       {unstaged.map((file) => (
         <div key={`u-${file.path}`} className="deck-row static">
+          <span className={`deck-git-letter ${statusLetter(file).cls}`}>{statusLetter(file).letter}</span>
           <span className="deck-row-main">{file.path}</span>
           <span className="deck-row-ops">
             {props.onDiff ? (

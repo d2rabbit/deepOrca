@@ -205,13 +205,14 @@ describe("Deck E1 core loop", () => {
     fixture.sendPrompt = async () => ({ ok: true });
     mounted = await mountDeck();
 
-    const input = mounted.container.querySelector(".deck-composer input");
-    assert.ok(input, "composer input missing");
+    // 设计稿形态：主区没有聊天框，下达指令走控制中心的指令输入。
+    const input = mounted.container.querySelector(".deck-cc-input input");
+    assert.ok(input, "control-center directive input missing");
     await act(async () => {
       fireEvent.change(input!, { target: { value: "修复登录页" } });
     });
-    const send = mounted.container.querySelector(".deck-send");
-    assert.ok(send, "send button missing");
+    const send = mounted.container.querySelector(".deck-cc-send");
+    assert.ok(send, "directive send button missing");
     await act(async () => {
       fireEvent.click(send!);
     });
@@ -287,11 +288,14 @@ describe("Deck E1 core loop", () => {
     ];
     mounted = await mountDeck();
 
-    const items = mounted.container.querySelectorAll(".deck-steps-list li");
+    const items = mounted.container.querySelectorAll(".deck-stepboard .deck-schip");
     assert.equal(items.length, 2, `expected 2 plan steps, saw ${items.length}`);
-    assert.equal(mounted.container.querySelectorAll(".deck-steps-list li.done").length, 1);
+    assert.equal(mounted.container.querySelectorAll(".deck-stepboard .deck-schip.done").length, 1);
     assert.ok(mounted.container.querySelector(".deck-mini-steps .mn.done"), "goal band progress dots missing");
-    assert.ok(mounted.container.querySelector(".deck-mini-steps .mn.todo"), "goal band todo dot missing");
+    assert.ok(
+      mounted.container.querySelector(".deck-mini-steps .mn.live"),
+      "the first not-done step should read as the live dot"
+    );
   });
 
   test("tape overlay streams real messages through the markdown pipeline", async () => {

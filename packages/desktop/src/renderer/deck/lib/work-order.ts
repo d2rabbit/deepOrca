@@ -145,7 +145,6 @@ export function computeGateHold(
 ): GateHold | null {
   const isStruck = (text: string) => struck.includes(text);
   const prevDone = new Set(prev.filter((s) => s.done).map((s) => s.text));
-  const nextDone = new Set(next.filter((s) => s.done).map((s) => s.text));
 
   for (const step of next) {
     if (isStruck(step.text)) continue;

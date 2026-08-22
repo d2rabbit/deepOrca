@@ -8,6 +8,8 @@
 // ⌘K opens the command layer; theme state hot-swaps data-deck-theme.
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { useI18n, type MessageKey } from "../i18n";
+import { findPendingAskUserQuestion } from "../lib/ask-question";
+import { formatTokens } from "../lib/token-usage";
 import { useDeckEngine } from "./hooks/use-deck-engine";
 import { useDeckEvents } from "./hooks/use-deck-events";
 import { useDeckNotifications } from "./hooks/use-deck-notifications";
@@ -34,7 +36,7 @@ import { DrawerShell } from "./components/drawer";
 import { OnboardingModal, useDeckOnboarding } from "./components/onboarding";
 import { DraftPanel } from "./components/draft-panel";
 import { extractPlanSteps } from "./components/step-board";
-import { FloorPanel, CheckpointsPanel, LedgerPanel, TreePanel } from "./components/session-panels";
+import { FloorPanel, CheckpointsPanel, LedgerPanel, TreePanel, ContextPanel } from "./components/session-panels";
 import { FilesPanel, ChangesPanel, ProcessesPanel } from "./components/workspace-panels";
 import { SourcesPanel, PluginsPanel, AssetsPanel } from "./components/module-panels";
 import { TreeCanvas } from "./components/tree-canvas";
@@ -58,6 +60,7 @@ const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
   tree: "deck.dock.tree",
   plugins: "deck.dock.plugins",
   checkpoints: "deck.dock.checkpoints",
+  context: "deck.context.title",
   editor: "deck.dock.editor",
   shortcuts: "deck.dock.shortcuts",
   floor: "deck.dock.floor",
@@ -67,6 +70,14 @@ const OVERLAY_TITLES: Record<OverlayKind, MessageKey> = {
 };
 
 const WIDE_OVERLAYS = new Set<OverlayKind>(["tape", "floor", "ledger", "editor", "diff", "studio"]);
+
+/** Drawer header shortcut hints (设计稿 drawer-head 的 kbd 提示). */
+const DRAWER_HINTS: Partial<Record<LayerKind, string>> = {
+  files: "⌘E",
+  changes: "⌘⇧E",
+  processes: "⌘⇧P",
+  notifications: "⌘⇧N",
+};
 
 /** Control-center docked state (E6.5) — open by default, collapse persists. */
 const CC_STATE_KEY = "deeporca.deck.cc";
@@ -103,14 +114,56 @@ export function DeckApp(): JSX.Element {
   // views (tree canvas / sources dashboard / review workbench) load alongside.
   const [moduleTabs, setModuleTabs] = useState<ModuleTabKind[]>([]);
   const [activeTab, setActiveTab] = useState<ModuleTabKind | null>(null);
+  // Selected step on the work-order board (chip click / j/k); resets per goal.
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  // Zen focus mode (⌘.): hides the ribbon / dock / control center / tabstrip.
+  const [zen, setZen] = useState(false);
   const seqRef = useRef(0);
   // Keyboard listener reads the engine through a ref so it stays bound once.
   const engineRef = useRef(engine);
   engineRef.current = engine;
   const layersRef = useRef(layers);
   layersRef.current = layers;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   const steps = useMemo(() => extractPlanSteps(engine.messages), [engine.messages]);
+
+  // A pending question (waiting_for_user) is a decision point too — it must
+  // pulse the work-order tab / CC tab exactly like a permission ask.
+  const questionPending = useMemo(
+    () => findPendingAskUserQuestion(engine.messages, engine.status) !== null,
+    [engine.messages, engine.status]
+  );
+
+  // Work-order switch resets the step selection (steps are per-session).
+  const activeId = engine.activeId;
+  useEffect(() => setSelectedStep(null), [activeId]);
+
+  // E13: plan mode is a real per-session flag — the deck-side toggle sets the
+  // next prompt's planMode; the entry is the source of truth on session
+  // switch / engine-side transitions.
+  const [planMode, setPlanMode] = useState(false);
+  const entryPlanMode = engine.entry?.planMode === true;
+  useEffect(() => setPlanMode(entryPlanMode), [activeId, entryPlanMode]);
+  const togglePlanMode = useCallback(() => setPlanMode((v) => !v), []);
+
+  // E13: compaction observation — a steep activeTokens drop means the engine
+  // compacted the middle of the conversation; surface it as a toast (设计稿
+  // 的「上下文压缩」观测，真实信号驱动).
+  const prevActiveTokensRef = useRef(0);
+  const activeTokens = engine.entry?.activeTokens ?? 0;
+  useEffect(() => {
+    const prev = prevActiveTokensRef.current;
+    prevActiveTokensRef.current = activeTokens;
+    if (prev >= 8192 && activeTokens > 0 && activeTokens <= prev * 0.6) {
+      toasts.push(t("deck.compacted", { freed: formatTokens(prev - activeTokens) }), "info");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTokens]);
+
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
 
   // E7 work-order policy layer: autonomy / gates / striking — Deck-side,
   // above the engine loop. Toasts mirror its decisions (same channel as
@@ -178,20 +231,30 @@ export function DeckApp(): JSX.Element {
   );
 
   useEffect(() => {
+    const editable = (el: Element | null): el is HTMLElement => {
+      const node = el as HTMLElement | null;
+      const tag = node?.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || Boolean(node?.isContentEditable);
+    };
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
         if (mod && e.shiftKey) setLayers([]);
         else if (layersRef.current.length > 0) setLayers(popLayer(layersRef.current));
-        else setActiveTab(null); // stack empty — Esc retires the module tab
+        else {
+          // Focus inside an input: Esc blurs it, never retires the module tab.
+          const el = document.activeElement;
+          if (editable(el)) el.blur();
+          else setActiveTab(null); // stack empty — Esc retires the module tab
+        }
         return;
       }
       // Brake (E5.2): Space freezes/resumes — only when nothing editable or
       // clickable holds focus, so button activation keeps working.
       if (e.key === " " && !mod) {
-        const el = document.activeElement as HTMLElement | null;
-        const tag = el?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT" || el?.isContentEditable) {
+        const el = document.activeElement;
+        const tag = (el as HTMLElement | null)?.tagName;
+        if (editable(el) || tag === "BUTTON") {
           return;
         }
         const current = engineRef.current;
@@ -201,6 +264,19 @@ export function DeckApp(): JSX.Element {
         }
         return;
       }
+      // j/k move the selected step on the work-order board (design demo
+      // parity) — only on the work-order tab, never while typing.
+      if ((e.key === "j" || e.key === "k") && !mod && !e.altKey) {
+        if (editable(document.activeElement) || activeTabRef.current) return;
+        const n = stepsRef.current.length;
+        if (n === 0) return;
+        e.preventDefault();
+        setSelectedStep((prev) => {
+          const base = prev ?? (e.key === "j" ? -1 : 0);
+          return (base + (e.key === "j" ? 1 : -1) + n) % n;
+        });
+        return;
+      }
       if (!mod) return;
       const key = e.key.toLowerCase();
       const toggle = (kind: LayerKind) => {
@@ -208,7 +284,10 @@ export function DeckApp(): JSX.Element {
         e.preventDefault();
       };
       if (key === "k" && !e.shiftKey) toggle("command");
-      else if (key === "o" && e.shiftKey) toggle("control-center");
+      else if (key === ".") {
+        setZen((v) => !v); // zen 专注模式
+        e.preventDefault();
+      } else if (key === "o" && e.shiftKey) toggle("control-center");
       else if (key === "t") toggle("tape");
       else if (key === "e" && e.shiftKey) toggle("changes");
       else if (key === "e") toggle("files");
@@ -246,6 +325,7 @@ export function DeckApp(): JSX.Element {
       setTheme,
       interrupt: () => void engine.interrupt(),
       selectSession: (id: string) => void engine.selectSession(id),
+      toggleZen: () => setZen((v) => !v),
       sessions: engine.sessions,
       busy: engine.busy,
     }),
@@ -264,6 +344,8 @@ export function DeckApp(): JSX.Element {
         return <FloorPanel engine={engine} onClose={() => closeLayer("floor")} />;
       case "checkpoints":
         return <CheckpointsPanel engine={engine} />;
+      case "context":
+        return <ContextPanel engine={engine} />;
       case "ledger":
         return <LedgerPanel />;
       case "tree":
@@ -314,13 +396,24 @@ export function DeckApp(): JSX.Element {
     }
   };
 
-  // A pending decision (permission ask / gate hold) must stay discoverable
-  // while a module tab is up — pulse the work-order tab like the cc tab.
-  const decisionPending = (engine.askPermissions?.length ?? 0) > 0 || workOrder.hold !== null;
+  // A pending decision (permission ask / question / gate hold) must stay
+  // discoverable while a module tab is up — pulse the work-order tab like
+  // the cc tab.
+  const decisionPending = (engine.askPermissions?.length ?? 0) > 0 || workOrder.hold !== null || questionPending;
+
+  // 下达指令 target: the selected step when the user picked one on the
+  // board, otherwise the current (first not-done, not-struck) step.
+  const currentStepName =
+    (selectedStep !== null ? steps[selectedStep]?.text : undefined) ??
+    steps.find((step) => !step.done && !workOrder.struck.includes(step.text))?.text ??
+    null;
+
+  // 单 scrim 语义：只有最上层的浮动层（抽屉除外）暗化主区。
+  const topFloatingSeq = [...layers].reverse().find((layer) => !isDrawerKind(layer.kind))?.seq;
 
   return (
-    <div className="deck-app" data-deck-theme={theme}>
-      <GoalBand goal={engine.entry?.summary ?? null} steps={steps} />
+    <div className={`deck-app${zen ? " zen" : ""}${ccOpen ? " cc-open" : ""}`} data-deck-theme={theme}>
+      <GoalBand goal={engine.entry?.summary ?? null} steps={steps} onOpenFloor={() => openLayer("floor")} />
       <DeckDock onOpen={openLayer} unread={notifications.unread} />
 
       {moduleTabs.length > 0 ? (
@@ -369,7 +462,14 @@ export function DeckApp(): JSX.Element {
           </div>
         </main>
       ) : (
-        <DeckStage engine={engine} steps={steps} workOrder={workOrder} />
+        <DeckStage
+          engine={engine}
+          steps={steps}
+          workOrder={workOrder}
+          selectedStep={selectedStep}
+          onSelectStep={setSelectedStep}
+          onNewGoal={() => openLayer("draft")}
+        />
       )}
       <DeckToasts toasts={toasts.toasts} />
 
@@ -384,12 +484,27 @@ export function DeckApp(): JSX.Element {
               ✕
             </button>
           </div>
-          <ControlCenter entry={engine.entry} busy={engine.busy} commandLog={engine.commandLog} events={events} />
+          <ControlCenter
+            entry={engine.entry}
+            busy={engine.busy}
+            commandLog={engine.commandLog}
+            events={events}
+            onSend={(text, opts) =>
+              void engine.send(text, {
+                ...(planMode !== entryPlanMode ? { planMode } : {}),
+                ...(opts?.skills && opts.skills.length > 0 ? { skills: opts.skills } : {}),
+              })
+            }
+            targetStep={currentStepName}
+            onShowContext={() => openLayer("context")}
+            planMode={planMode}
+            onTogglePlanMode={togglePlanMode}
+          />
         </aside>
       ) : (
         <button
           type="button"
-          className={`deck-cc-tab deck-gc${(engine.askPermissions?.length ?? 0) > 0 ? " urgent" : ""}`}
+          className={`deck-cc-tab deck-gc${decisionPending ? " urgent" : ""}`}
           onClick={toggleCc}
           title={`${t("deck.cc.title")} ⌘⇧O`}
         >
@@ -398,7 +513,9 @@ export function DeckApp(): JSX.Element {
         </button>
       )}
 
-      {onboarding.visible ? <OnboardingModal onDismiss={onboarding.dismiss} /> : null}
+      {onboarding.visible ? (
+        <OnboardingModal onDismiss={onboarding.dismiss} onPickAutonomy={workOrder.setAutonomy} />
+      ) : null}
 
       {layers.map((layer, depth) => {
         if (layer.kind === "command") {
@@ -411,6 +528,7 @@ export function DeckApp(): JSX.Element {
               layer={layer.kind}
               side={drawerSide(layer.kind)}
               title={t(OVERLAY_TITLES[layer.kind])}
+              hint={DRAWER_HINTS[layer.kind]}
               onClose={() => closeLayer(layer.kind)}
             >
               {renderOverlay(layer.kind)}
@@ -424,6 +542,7 @@ export function DeckApp(): JSX.Element {
             layer={layer.kind}
             title={layer.kind === "diff" && diffTarget ? diffTarget.file : t(OVERLAY_TITLES[layer.kind])}
             wide={WIDE_OVERLAYS.has(layer.kind)}
+            dimmed={layer.seq === topFloatingSeq}
             onClose={() => closeLayer(layer.kind)}
             onExpand={isModuleTabKind(layer.kind) ? () => openModuleTab(layer.kind as ModuleTabKind) : undefined}
             expandLabel={t("deck.tab.open")}

@@ -64,6 +64,11 @@ export function TreeCanvas(): JSX.Element {
       .catch(() => setReflog([]));
   }, []);
 
+  // Auto-open the first tree — an empty "pick one" prompt is a dead end.
+  useEffect(() => {
+    if (!treeId && trees && trees.length > 0) load(trees[0].id);
+  }, [trees, treeId, load]);
+
   const lanes = useMemo(() => (data ? buildTreeLanes(data.index, data.nodes) : []), [data]);
   const selectedNode = selected && data ? (data.nodes.find((n) => n.id === selected) ?? null) : null;
 

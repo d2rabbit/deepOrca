@@ -37,6 +37,18 @@ type ReviewRun = {
   output?: ReviewFullOutput;
 };
 
+/**
+ * Runs cache shared by the overlay thumbnail and the full-body tab (E12) —
+ * both mount their own ReviewWorkbench instance, so component-local state
+ * would silently drop the run history on expand. Module scope = this app
+ * session, which is exactly the honest lifetime of a review run.
+ */
+const runsCache: { runs: ReviewRun[]; viewing: number | null; seq: number } = {
+  runs: [],
+  viewing: null,
+  seq: 0,
+};
+
 function findingsOf(run: ReviewRun | null): ReviewFinding[] {
   const comments = run?.output?.review?.comments;
   return Array.isArray(comments) ? comments : [];
@@ -59,9 +71,20 @@ export function ReviewWorkbench(props: { engine: DeckEngine; full?: boolean }): 
   const [workspace, setWorkspace] = useState<CrgIndexEntry | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
-  const [runs, setRuns] = useState<ReviewRun[]>([]);
-  const [viewing, setViewing] = useState<number | null>(null);
-  const seqRef = useRef(0);
+  const [runs, setRunsState] = useState<ReviewRun[]>(runsCache.runs);
+  const [viewing, setViewingState] = useState<number | null>(runsCache.viewing);
+  const seqRef = useRef(runsCache.seq);
+
+  // Writes flow through the module cache so a second instance (overlay ↔ tab)
+  // mounts with the same history.
+  const setRuns = (next: ReviewRun[]) => {
+    runsCache.runs = next;
+    setRunsState(next);
+  };
+  const setViewing = (id: number | null) => {
+    runsCache.viewing = id;
+    setViewingState(id);
+  };
 
   useEffect(() => {
     void api
@@ -92,24 +115,27 @@ export function ReviewWorkbench(props: { engine: DeckEngine; full?: boolean }): 
   const run = useCallback(() => {
     if (running) return;
     setRunning(true);
+    const record = (entry: ReviewRun) => {
+      runsCache.seq = seqRef.current;
+      setRuns([entry, ...runsCache.runs].slice(0, 20));
+      setViewing(entry.id);
+    };
     void api
       .actionRun("review.full")
       .then((res: ActionRunResult) => {
-        const entry: ReviewRun = res.ok
-          ? { id: seqRef.current++, at: new Date().toISOString(), ok: true, output: res.output as ReviewFullOutput }
-          : { id: seqRef.current++, at: new Date().toISOString(), ok: false, error: `${res.code}: ${res.error}` };
-        setRuns((prev) => [entry, ...prev].slice(0, 20));
-        setViewing(entry.id);
+        record(
+          res.ok
+            ? { id: seqRef.current++, at: new Date().toISOString(), ok: true, output: res.output as ReviewFullOutput }
+            : { id: seqRef.current++, at: new Date().toISOString(), ok: false, error: `${res.code}: ${res.error}` }
+        );
       })
       .catch((err: unknown) => {
-        const entry: ReviewRun = {
+        record({
           id: seqRef.current++,
           at: new Date().toISOString(),
           ok: false,
           error: err instanceof Error ? err.message : String(err),
-        };
-        setRuns((prev) => [entry, ...prev].slice(0, 20));
-        setViewing(entry.id);
+        });
       })
       .finally(() => setRunning(false));
   }, [running]);

@@ -22,7 +22,7 @@ const STATE_DOT: Record<string, string> = {
 
 type SourceKey = keyof KnowledgeStatusResponse;
 
-const SOURCE_LABEL: Record<SourceKey, string> = {
+export const SOURCE_LABEL: Record<SourceKey, string> = {
   codegraph: "CodeGraph",
   openwiki: "OpenWiki",
   serena: "Serena",

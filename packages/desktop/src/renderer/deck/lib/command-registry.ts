@@ -26,6 +26,8 @@ export type DeckCommandContext = {
   interrupt(): void;
   /** Switch the active work order (session). */
   selectSession(id: string): void;
+  /** Toggle zen focus mode (⌘.) — ribbon/dock/control center hide away. */
+  toggleZen?(): void;
   /** Sessions of the current workspace — the searchable work-order list. */
   sessions: SerializableSessionEntry[];
   busy: boolean;
@@ -101,7 +103,9 @@ function themeCommands(t: (key: MessageKey) => string): DeckCommand[] {
     const labelKey = `deck.theme.name.${theme}` as MessageKey;
     return {
       id: `theme.${theme}`,
-      label: t(labelKey),
+      // 带「主题」前缀——命令层里搜“主题/theme”能命中全部六套（E12 修：
+      // 裸主题名只能被精确名称搜到）。
+      label: `${t("deck.settings.theme")} · ${t(labelKey)}`,
       keywords: `theme ${theme}`,
       domain: "theme",
       group: "themes",
@@ -136,6 +140,15 @@ function actionCommands(t: (key: MessageKey) => string): DeckCommand[] {
       domain: "action",
       group: "actions",
       run: () => switchLayout("classic"),
+    },
+    {
+      id: "layout.zen",
+      label: t("deck.cmd.zen"),
+      keywords: "zen focus mode hide chrome",
+      shortcut: "⌘.",
+      domain: "action",
+      group: "actions",
+      run: (ctx) => ctx.toggleZen?.(),
     },
   ];
 }

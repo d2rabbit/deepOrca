@@ -17,6 +17,7 @@ export type OverlayKind =
   | "tree"
   | "plugins"
   | "checkpoints"
+  | "context"
   | "editor"
   | "shortcuts"
   | "floor"

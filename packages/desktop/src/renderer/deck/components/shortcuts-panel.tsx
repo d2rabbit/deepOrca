@@ -7,9 +7,24 @@ import { DOCK, type DockEntry } from "./dock";
 
 const GLOBAL_SHORTCUTS: Array<{
   keys: string;
-  labelKey: "deck.cmd.title" | "deck.shortcuts.closeTop" | "deck.shortcuts.clearStack";
+  labelKey:
+    | "deck.cmd.title"
+    | "deck.shortcuts.closeTop"
+    | "deck.shortcuts.clearStack"
+    | "deck.shortcuts.cc"
+    | "deck.shortcuts.zen"
+    | "deck.shortcuts.brake"
+    | "deck.shortcuts.stepNav"
+    | "deck.shortcuts.autonomy"
+    | "deck.shortcuts.send";
 }> = [
   { keys: "⌘K", labelKey: "deck.cmd.title" },
+  { keys: "⌘⇧O", labelKey: "deck.shortcuts.cc" },
+  { keys: "⌘.", labelKey: "deck.shortcuts.zen" },
+  { keys: "Space", labelKey: "deck.shortcuts.brake" },
+  { keys: "J / K", labelKey: "deck.shortcuts.stepNav" },
+  { keys: "⌥1/2/3", labelKey: "deck.shortcuts.autonomy" },
+  { keys: "⏎", labelKey: "deck.shortcuts.send" },
   { keys: "Esc", labelKey: "deck.shortcuts.closeTop" },
   { keys: "⌘⇧Esc", labelKey: "deck.shortcuts.clearStack" },
 ];

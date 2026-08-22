@@ -31,7 +31,8 @@ export type DeckIconId =
   | "zap"
   | "target"
   | "ruler"
-  | "alert";
+  | "alert"
+  | "pause";
 
 const PATHS: Record<DeckIconId, JSX.Element> = {
   bell: (
@@ -165,6 +166,12 @@ const PATHS: Record<DeckIconId, JSX.Element> = {
     <>
       <path d="M12 4l9 16H3z" />
       <path d="M12 11v4M12 17.6v.4" />
+    </>
+  ),
+  pause: (
+    <>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
     </>
   ),
 };

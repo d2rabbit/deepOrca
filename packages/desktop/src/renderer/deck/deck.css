@@ -16,7 +16,9 @@
   overflow: hidden;
 }
 
-.deck-app button {
+/* :where() 零优先级——组件类（.deck-schip 等）永远能盖过这个 reset，
+   否则 .deck-app button(0,1,1) 会压掉单类选择器(0,1,0) 的卡片背景 */
+.deck-app :where(button) {
   font: inherit;
   color: inherit;
   background: none;
@@ -31,6 +33,16 @@
   backdrop-filter: var(--ctl-blur);
   -webkit-backdrop-filter: var(--ctl-blur);
   box-shadow: var(--ctl-shadow);
+  border-radius: var(--rad);
+  border: var(--ctl-border, none);
+}
+
+/* 深玻璃基底：抽屉 / 控制中心 / 模态等「深一层」的浮面，消费 --deep-* token */
+.deck-gcd {
+  background: var(--deep-bg);
+  backdrop-filter: var(--deep-blur);
+  -webkit-backdrop-filter: var(--deep-blur);
+  box-shadow: var(--deep-shadow);
   border-radius: var(--rad);
   border: var(--ctl-border, none);
 }
@@ -80,6 +92,15 @@
   border-radius: 50%;
 }
 
+.deck-mini-steps .mn.done {
+  background: var(--ok);
+}
+
+.deck-mini-steps .mn.live {
+  background: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
 .deck-mini-steps .mn.todo {
   border: 2px solid var(--ink3);
   background: transparent;
@@ -90,6 +111,11 @@
   height: 2px;
   margin: 0 5px;
   background: var(--line);
+}
+
+.deck-mini-steps .ml.done {
+  background: var(--ok);
+  opacity: 0.5;
 }
 
 /* 切回经典入口 — 常驻目标带右端，任何状态下可达（回退硬约束） */
@@ -115,17 +141,18 @@
 .deck-dock {
   position: fixed;
   left: 14px;
-  top: 50%;
+  /* 居中略偏下 + 高度上限：任何窗口高度下都不会盖住目标带（ribbon） */
+  top: calc(50% + 24px);
   transform: translateY(-50%);
   z-index: 24;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   padding: 8px 5px;
   border-radius: 22px;
   width: 62px;
   align-items: center;
-  max-height: 86vh;
+  max-height: calc(100vh - 110px);
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -137,7 +164,7 @@
 
 .deck-dicon {
   width: 52px;
-  min-height: 44px;
+  min-height: 40px;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -147,11 +174,11 @@
   color: var(--ink2);
   cursor: pointer;
   position: relative;
-  padding: 4px 0;
+  padding: 3px 0;
 }
 
 .deck-dicon small {
-  font-size: 8.5px;
+  font-size: 8px;
   color: var(--ink3);
   line-height: 1;
 }
@@ -166,8 +193,8 @@
 }
 
 .deck-dicon svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
 }
 
@@ -217,14 +244,16 @@
   margin: 4px 0;
 }
 
-/* ---------- 主区（E0 占位，E1 起逐步接入 Tape/步骤板） ---------- */
+/* ---------- 主区（工单栏 + 指令输入；左缘为坞让位） ---------- */
 .deck-stage {
   flex: 1;
-  overflow-y: auto;
-  padding: 18px 22px 24px;
+  min-height: 0;
+  overflow: hidden;
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 22px 16px calc(22px + 62px);
+  gap: 12px;
 }
 
 .deck-stage-empty {
@@ -233,6 +262,11 @@
   font-size: 12px;
   line-height: 1.9;
   max-width: 420px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 
 .deck-stage-empty .badge {
@@ -245,74 +279,48 @@
   background: var(--acc-soft);
   border-radius: var(--rad-ctl);
   padding: 3px 10px;
-  margin-bottom: 10px;
 }
 
 /* ---------- E1 主区：工单栏（步骤板 + 待决卡）+ 指令输入 ---------- */
-.deck-stage {
-  display: flex;
-  flex-direction: column;
-  place-items: unset;
-  padding: 14px 22px 16px calc(22px + 62px);
-  gap: 12px;
-}
-
+/* 列宽对齐设计稿（#wrap max-width 780）：工单柱居中 780，zen 放宽到 880 */
 .deck-stage-column {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: min(1060px, 100%);
+  max-width: min(780px, 100%);
   width: 100%;
   margin: 0 auto;
 }
 
-.deck-composer {
+/* 目标头（设计稿 .goal-head 移植）：h1 + mono meta + 状态 tag */
+.deck-goal-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 8px 8px 16px;
-  max-width: min(1060px, 100%);
-  width: 100%;
-  margin: 0 auto;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.deck-composer input {
-  flex: 1;
-  font-size: 12.5px;
+.deck-goal-head h1 {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0;
   color: var(--ink);
-  min-width: 0;
-  background: none;
-  border: none;
-  outline: none;
-  font-family: inherit;
 }
 
-.deck-send {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-  background: var(--acc);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
+.deck-goal-head-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink2);
 }
 
-.deck-send:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.deck-send.stop {
-  background: var(--warn);
-}
-
-/* 步骤板 */
+/* 步骤板（chips + 折叠行 + 展开卡散排在主区，不再裹一层玻璃容器） */
 .deck-steps {
-  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .deck-steps-title,
@@ -483,13 +491,31 @@
 }
 
 /* ---------- 浮层（通用 overlay + Tape + 控制中心） ---------- */
+/* 顶部锚定（设计稿 panel top: 6–14%），不是垂直居中 */
 .deck-overlay-scrim {
   position: fixed;
   inset: 0;
   background: var(--scrim);
   z-index: 40;
   display: grid;
-  place-items: center;
+  place-items: start center;
+  padding-top: 9vh;
+}
+
+/* 非顶层浮层的透明点击层：只挡点击，不再叠加一层暗化（设计稿单 scrim） */
+.deck-overlay-scrim.ghost {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.deck-overlay-esc {
+  margin-left: auto;
+}
+
+.deck-overlay-esc + .deck-overlay-expand,
+.deck-overlay-esc + .deck-overlay-close {
+  margin-left: 0;
 }
 
 .deck-overlay {
@@ -618,6 +644,18 @@
   margin-bottom: 8px;
 }
 
+/* 常驻控制中心宽度有限（260–360px）：仪表改 2×2，值不再被挤碎 */
+.deck-cc-dock .deck-cc-meters {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* 指令留痕 / 状态观测两条流限高滚动，长会话不会把控制中心撑出屏外 */
+.deck-cc-list {
+  max-height: 140px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
 .deck-ledger-total {
   grid-template-columns: repeat(3, 1fr);
   padding: 8px;
@@ -710,6 +748,19 @@
   text-align: left;
 }
 
+/* 面板内的行列表对齐设计稿 .lrow：发丝分隔线 + 全宽 hover，不再是圆角药丸 */
+.deck-panel .deck-row {
+  border-radius: 0;
+  border-top: 1px solid var(--line);
+  padding: 8px 6px;
+}
+
+.deck-panel .deck-row:first-child,
+.deck-panel .deck-panel-group-title + .deck-row,
+.deck-panel .deck-panel-ops + .deck-row {
+  border-top: none;
+}
+
 button.deck-row:hover {
   background: var(--acc-soft);
   color: var(--acc);
@@ -758,6 +809,28 @@ button.deck-row:hover {
   background: var(--bad-soft);
   border-radius: 8px;
   padding: 6px 10px;
+}
+
+/* 变更抽屉：状态字母（设计稿 git-row 的 M/A/D 着色） */
+.deck-git-letter {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.deck-git-letter.add {
+  color: var(--ok);
+}
+
+.deck-git-letter.mod {
+  color: var(--warn);
+}
+
+.deck-git-letter.del {
+  color: var(--bad);
 }
 
 .deck-commit {
@@ -1192,15 +1265,29 @@ button.deck-row:hover {
   color: var(--bad);
 }
 
-/* ---------- E5.2：刹车控制行 ---------- */
+/* 控制中心常驻展开时，主区/标签条右缘让位（宽窗下不再被浮板遮挡） */
+@media (min-width: 1100px) {
+  .deck-app.cc-open .deck-stage {
+    padding-right: calc(clamp(260px, 24vw, 360px) + 40px);
+  }
+
+  .deck-app.cc-open .deck-tabstrip {
+    padding-right: calc(clamp(260px, 24vw, 360px) + 40px);
+  }
+}
+
+/* ---------- E5.2：控制行（自律度拨盘 + 刹车同一行，刹车靠右） ---------- */
 .deck-control-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 14px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 2px 0 0;
 }
 
 .deck-brake {
+  margin-left: auto;
   padding: 7px 20px;
   font-size: 12px;
   font-weight: 800;
@@ -1209,11 +1296,19 @@ button.deck-row:hover {
   background: var(--bad-soft);
   border: 1px solid var(--bad);
   border-radius: var(--rad-ctl);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .deck-brake.frozen {
   background: var(--bad);
   color: #fff;
+}
+
+.deck-brake:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .deck-brake-note {
@@ -1280,6 +1375,14 @@ button.deck-row:hover {
   letter-spacing: 0.8px;
   color: var(--ink3);
   text-transform: uppercase;
+}
+
+.deck-cmd-foot {
+  padding: 8px 18px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--ink3);
+  font-family: var(--mono);
 }
 
 /* ---------- E6.1：边缘停靠抽屉 ---------- */
@@ -1467,17 +1570,61 @@ button.deck-row:hover {
   padding: 8px 30px;
 }
 
+.deck-onboard-autonomy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.deck-ob-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  font-size: 12px;
+  text-align: left;
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 10px;
+  color: var(--ink2);
+}
+
+.deck-ob-choice b {
+  color: var(--ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.deck-ob-choice span {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.deck-ob-choice .deck-wo-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.deck-ob-choice:hover {
+  color: var(--acc);
+}
+
+.deck-ob-choice.sel {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
 /* ---------- E6.5：控制中心常驻 ---------- */
 .deck-cc-dock {
   position: fixed;
-  top: 50%;
+  top: calc(50% + 24px);
   right: 14px;
   transform: translateY(-50%);
   width: clamp(260px, 24vw, 360px);
   z-index: 24;
   display: flex;
   flex-direction: column;
-  max-height: min(640px, 86vh);
+  max-height: min(640px, calc(100vh - 110px));
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -1543,7 +1690,6 @@ button.deck-row:hover {
   border-radius: 2px;
   background: var(--line);
   position: relative;
-  overflow: hidden;
 }
 
 .deck-dial-track i {
@@ -1556,8 +1702,27 @@ button.deck-row:hover {
   transition: width 0.2s;
 }
 
+.deck-dial-track b {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 3px 10px rgba(31, 45, 74, 0.28);
+  border: 2px solid var(--acc);
+  transition: left 0.2s;
+}
+
 .deck-dial-label {
   color: var(--acc);
+}
+
+.deck-dial-hint {
+  font-size: 10px;
+  color: var(--ink3);
+  margin-left: 4px;
 }
 
 /* ---------- E7：闸门确认卡 ---------- */
@@ -1683,26 +1848,85 @@ button.deck-row:hover {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.deck-tab.active { color: var(--acc); box-shadow: inset 0 0 0 1.5px var(--acc); }
-.deck-tab.urgent { animation: deck-urgent-pulse 1.8s ease-in-out infinite; color: var(--bad); }
-.deck-tab-close { color: var(--ink3); font-size: 10px; padding: 0 2px; }
-.deck-tab-close:hover { color: var(--bad); }
+.deck-tab.active {
+  color: var(--acc);
+  box-shadow: inset 0 0 0 1.5px var(--acc);
+}
+.deck-tab.urgent {
+  animation: deck-urgent-pulse 1.8s ease-in-out infinite;
+  color: var(--bad);
+}
+.deck-tab-close {
+  color: var(--ink3);
+  font-size: 10px;
+  padding: 0 2px;
+}
+.deck-tab-close:hover {
+  color: var(--bad);
+}
 
 /* 模块完全体页：比工单栏更宽，吃满可视宽度 */
-.deck-tabpage { flex: 1; overflow-y: auto; width: 100%; max-width: min(1240px, 100%); margin: 0 auto; padding: 4px 0 14px; }
+.deck-tabpage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 14px 18px;
+  background: var(--deep-bg);
+  backdrop-filter: var(--deep-blur);
+  -webkit-backdrop-filter: var(--deep-blur);
+  box-shadow: var(--deep-shadow);
+  border: var(--ctl-border, none);
+  border-radius: var(--rad);
+}
 
 /* 浮层头"载入标签页"按钮 */
-.deck-overlay-expand { margin-left: auto; color: var(--ink3); font-size: 13px; padding: 0 6px; }
-.deck-overlay-expand:hover { color: var(--acc); }
-.deck-overlay-expand + .deck-overlay-close { margin-left: 0; }
+.deck-overlay-expand {
+  margin-left: auto;
+  color: var(--ink3);
+  font-size: 13px;
+  padding: 0 6px;
+}
+.deck-overlay-expand:hover {
+  color: var(--acc);
+}
+.deck-overlay-expand + .deck-overlay-close {
+  margin-left: 0;
+}
 
 /* 任务树画布 */
-.deck-tree-canvas { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 14px; min-height: 320px; }
-.deck-tree-side { border-right: 1px solid var(--line); padding-right: 10px; }
-.deck-tree-main { min-width: 0; }
-.deck-tree-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
-.deck-tree-head-ops { margin-left: auto; display: flex; gap: 6px; }
-.deck-tree-error { color: var(--bad); font-size: 11.5px; padding: 4px 0; }
+.deck-tree-canvas {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 14px;
+  min-height: 320px;
+}
+.deck-tree-side {
+  border-right: 1px solid var(--line);
+  padding-right: 10px;
+}
+.deck-tree-main {
+  min-width: 0;
+}
+.deck-tree-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.deck-tree-head-ops {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.deck-tree-error {
+  color: var(--bad);
+  font-size: 11.5px;
+  padding: 4px 0;
+}
 .deck-treegraph {
   font-family: var(--mono);
   font-size: 11.5px;
@@ -1711,10 +1935,21 @@ button.deck-row:hover {
   white-space: nowrap;
   padding: 4px 0 10px;
 }
-.deck-tlane { display: flex; align-items: center; }
-.deck-tlane-bend { color: var(--ink3); margin-right: 6px; }
-.deck-tlane-seq { display: inline-flex; align-items: center; }
-.deck-tlane-link { color: var(--ink3); }
+.deck-tlane {
+  display: flex;
+  align-items: center;
+}
+.deck-tlane-bend {
+  color: var(--ink3);
+  margin-right: 6px;
+}
+.deck-tlane-seq {
+  display: inline-flex;
+  align-items: center;
+}
+.deck-tlane-link {
+  color: var(--ink3);
+}
 .deck-tnode {
   width: 12px;
   height: 12px;
@@ -1724,18 +1959,61 @@ button.deck-row:hover {
   padding: 0;
   flex-shrink: 0;
 }
-.deck-tnode.merged { background: var(--ok); border-color: var(--ok); }
-.deck-tnode.cur { border-color: var(--acc); background: var(--acc-soft); box-shadow: 0 0 0 3px var(--acc-soft); }
-.deck-tnode.dead { background: var(--paper2); opacity: 0.5; }
-.deck-tnode.sel { outline: 2px solid var(--acc); outline-offset: 2px; }
-.deck-tlane-name { margin-left: 10px; font-weight: 700; color: var(--ink2); font-family: var(--sans); font-size: 11px; }
-.deck-tlane-name.cur { color: var(--acc); }
-.deck-tlane-name.dead { color: var(--ink3); text-decoration: line-through; }
-.deck-tlane-why { margin-left: 8px; color: var(--ink3); font-size: 10.5px; font-family: var(--sans); }
-.deck-tlane-ops { margin-left: 8px; display: none; gap: 4px; }
-.deck-tlane:hover .deck-tlane-ops { display: inline-flex; }
-.deck-tlane-empty { color: var(--ink3); }
-.deck-tree-foot { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.deck-tnode.merged {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+.deck-tnode.cur {
+  border-color: var(--acc);
+  background: var(--acc-soft);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+.deck-tnode.dead {
+  background: var(--paper2);
+  opacity: 0.5;
+}
+.deck-tnode.sel {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+.deck-tlane-name {
+  margin-left: 10px;
+  font-weight: 700;
+  color: var(--ink2);
+  font-family: var(--sans);
+  font-size: 11px;
+}
+.deck-tlane-name.cur {
+  color: var(--acc);
+}
+.deck-tlane-name.dead {
+  color: var(--ink3);
+  text-decoration: line-through;
+}
+.deck-tlane-why {
+  margin-left: 8px;
+  color: var(--ink3);
+  font-size: 10.5px;
+  font-family: var(--sans);
+}
+.deck-tlane-ops {
+  margin-left: 8px;
+  display: none;
+  gap: 4px;
+}
+.deck-tlane:hover .deck-tlane-ops {
+  display: inline-flex;
+}
+.deck-tlane-empty {
+  color: var(--ink3);
+}
+.deck-tree-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
 .deck-tree-foot input {
   flex: 0 1 280px;
   font: inherit;
@@ -1747,16 +2025,54 @@ button.deck-row:hover {
   padding: 7px 10px;
   outline: none;
 }
-.deck-tree-detail { margin-top: 8px; padding: 10px 14px; }
-.deck-tree-detail-title { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 12.5px; }
-.deck-tree-detail-why { margin: 6px 0; font-size: 12px; color: var(--ink2); line-height: 1.6; }
-.deck-tree-reflog { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; max-height: 200px; overflow-y: auto; }
-.deck-tree-reflog-row { display: flex; gap: 8px; font-size: 11px; padding: 2px 0; align-items: baseline; }
+.deck-tree-detail {
+  margin-top: 8px;
+  padding: 10px 14px;
+}
+.deck-tree-detail-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.deck-tree-detail-why {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--ink2);
+  line-height: 1.6;
+}
+.deck-tree-reflog {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.deck-tree-reflog-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  padding: 2px 0;
+  align-items: baseline;
+}
 
 /* 知识源仪表盘 */
-.deck-srcdash { display: flex; flex-direction: column; gap: 8px; }
-.deck-srcdash-head { display: flex; align-items: center; gap: 10px; }
-.deck-src-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.deck-srcdash {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deck-srcdash-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.deck-src-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
 .deck-src-card {
   display: flex;
   flex-direction: column;
@@ -1771,11 +2087,33 @@ button.deck-row:hover {
   font-size: 12px;
   color: var(--ink);
 }
-.deck-src-card:hover { outline: 1.5px solid var(--acc); }
-.deck-kv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 4px 0; }
-.deck-kv { background: var(--paper2); border: var(--paper-border); border-radius: 10px; padding: 8px 12px; }
-.deck-kv .k { display: block; font-size: 9.5px; color: var(--ink3); letter-spacing: 0.5px; }
-.deck-kv .v { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.deck-src-card:hover {
+  outline: 1.5px solid var(--acc);
+}
+.deck-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 4px 0;
+}
+.deck-kv {
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.deck-kv .k {
+  display: block;
+  font-size: 9.5px;
+  color: var(--ink3);
+  letter-spacing: 0.5px;
+}
+.deck-kv .v {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
 .deck-srcpage {
   background: var(--code-bg);
   color: var(--code-ink);
@@ -1788,16 +2126,48 @@ button.deck-row:hover {
   white-space: pre-wrap;
   word-break: break-word;
 }
-.deck-srcprog { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); padding: 2px 0; }
+.deck-srcprog {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  padding: 2px 0;
+}
 
 /* 代码审查工作台 */
-.deck-review { display: flex; flex-direction: column; gap: 8px; }
-.deck-review-head { display: flex; align-items: center; gap: 10px; }
-.deck-review-body { display: grid; grid-template-columns: 1fr; gap: 12px; }
-.deck-review.full .deck-review-body { grid-template-columns: minmax(180px, 230px) 1fr; }
-.deck-review-runs { border-right: 1px solid var(--line); padding-right: 10px; }
-.deck-review-result { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.deck-review-summary { margin: 0; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.deck-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deck-review-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.deck-review-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.deck-review.full .deck-review-body {
+  grid-template-columns: minmax(180px, 230px) 1fr;
+}
+.deck-review-runs {
+  border-right: 1px solid var(--line);
+  padding-right: 10px;
+}
+.deck-review-result {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deck-review-summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink2);
+  line-height: 1.6;
+}
 .deck-review-item {
   display: flex;
   align-items: flex-start;
@@ -1807,27 +2177,66 @@ button.deck-row:hover {
   border: var(--paper-border);
   border-radius: var(--rad);
 }
-.deck-review-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-.deck-review-item-main b { color: var(--ink); font-size: 12.5px; }
+.deck-review-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.deck-review-item-main b {
+  color: var(--ink);
+  font-size: 12.5px;
+}
 
 /* 窄窗自适应 */
 @media (max-width: 1024px) {
-  .deck-stage { padding: 12px 14px 12px calc(14px + 62px); }
-  .deck-tabstrip { padding-left: calc(14px + 62px); padding-right: 14px; }
+  .deck-stage {
+    padding: 12px 14px 12px calc(14px + 62px);
+  }
+  .deck-tabstrip {
+    padding-left: calc(14px + 62px);
+    padding-right: 14px;
+  }
   .deck-overlay,
-  .deck-overlay.wide { width: 94vw; max-width: 94vw; }
-  .deck-drawer { width: min(84vw, 380px); }
-  .deck-drawer.right { width: min(88vw, 440px); }
-  .deck-cc-dock { width: min(78vw, 320px); }
+  .deck-overlay.wide {
+    width: 94vw;
+    max-width: 94vw;
+  }
+  .deck-drawer {
+    width: min(84vw, 380px);
+  }
+  .deck-drawer.right {
+    width: min(88vw, 440px);
+  }
+  .deck-cc-dock {
+    width: min(78vw, 320px);
+  }
   .deck-tree-canvas,
-  .deck-review.full .deck-review-body { grid-template-columns: 1fr; }
+  .deck-review.full .deck-review-body {
+    grid-template-columns: 1fr;
+  }
   .deck-tree-side,
-  .deck-review-runs { border-right: none; border-bottom: 1px solid var(--line); padding-right: 0; padding-bottom: 10px; }
+  .deck-review-runs {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding-right: 0;
+    padding-bottom: 10px;
+  }
 }
 
 /* ---------- E9：Studio 样板（action 目录工作台） ---------- */
-.deck-studio { display: flex; flex-direction: column; gap: 8px; }
-.deck-studio-head { display: flex; align-items: center; gap: 10px; }
+.deck-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deck-studio-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .deck-studio-search {
   flex: 0 1 260px;
   font: inherit;
@@ -1839,9 +2248,20 @@ button.deck-row:hover {
   padding: 7px 10px;
   outline: none;
 }
-.deck-studio-catalog { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.deck-studio-action { background: var(--paper); border: var(--paper-border); border-radius: var(--rad); }
-.deck-studio-action.open { outline: 1.5px solid var(--acc); }
+.deck-studio-catalog {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.deck-studio-action {
+  background: var(--paper);
+  border: var(--paper-border);
+  border-radius: var(--rad);
+}
+.deck-studio-action.open {
+  outline: 1.5px solid var(--acc);
+}
 .deck-studio-action-head {
   display: flex;
   align-items: baseline;
@@ -1852,13 +2272,48 @@ button.deck-row:hover {
   font-size: 12px;
   color: var(--ink2);
 }
-.deck-studio-id { font-family: var(--mono); font-size: 11px; color: var(--acc); font-weight: 700; flex-shrink: 0; }
-.deck-studio-desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.deck-studio-runner { border-top: 1px solid var(--line); padding: 10px 12px 12px; }
-.deck-studio-form { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; }
-.deck-studio-field { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); }
-.deck-studio-field-label { flex: 0 0 130px; font-family: var(--mono); font-size: 11px; color: var(--ink3); }
-.deck-studio-field-label em { font-style: normal; color: var(--bad); margin-left: 4px; }
+.deck-studio-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--acc);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.deck-studio-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deck-studio-runner {
+  border-top: 1px solid var(--line);
+  padding: 10px 12px 12px;
+}
+.deck-studio-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.deck-studio-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+.deck-studio-field-label {
+  flex: 0 0 130px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink3);
+}
+.deck-studio-field-label em {
+  font-style: normal;
+  color: var(--bad);
+  margin-left: 4px;
+}
 .deck-studio-field input:not([type="checkbox"]),
 .deck-studio-field select {
   flex: 1;
@@ -1872,4 +2327,539 @@ button.deck-row:hover {
   padding: 6px 9px;
   outline: none;
 }
-.deck-studio-out { max-height: 300px; margin: 4px 0 0; }
+.deck-studio-out {
+  max-height: 300px;
+  margin: 4px 0 0;
+}
+
+/* ================================================================
+   E10 — 交互层补全：步骤板完全体（chips + 选中步骤卡）、决策块、
+   控制中心指令输入、zen 专注模式（设计稿 orca-deck-v3_change.html
+   移植；全部消费 deck token，宽度自适应）
+   ================================================================ */
+
+/* 步骤 chips 行：可横向滚动，点击选中，双击划线 */
+.deck-stepboard {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.deck-schip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: var(--rad-ctl);
+  font-size: 12px;
+  background: var(--paper);
+  border: var(--paper-border);
+  box-shadow: var(--paper-shadow);
+  color: var(--ink2);
+  user-select: none;
+  max-width: 240px;
+}
+
+.deck-schip .deck-schip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-schip .n {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+}
+
+.deck-schip .st {
+  font-weight: 800;
+  color: var(--ink3);
+}
+
+.deck-schip.done .st {
+  color: var(--ok);
+}
+
+.deck-schip.live {
+  background: var(--acc-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.deck-schip.live .st {
+  color: var(--acc);
+}
+
+.deck-schip.todo {
+  opacity: 0.62;
+}
+
+.deck-schip.struck {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.deck-schip.sel {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+.deck-schip .gate-mark {
+  font-size: 10px;
+  color: var(--warn);
+}
+
+/* 折叠步骤行（未选中） */
+.deck-step-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--ink3);
+  background: var(--paper);
+  border: var(--paper-border);
+  border-radius: calc(var(--rad) * 0.6);
+  box-shadow: var(--paper-shadow);
+  text-align: left;
+}
+
+.deck-step-collapsed:hover {
+  color: var(--ink2);
+}
+
+.deck-step-collapsed b {
+  color: var(--ink2);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-step-collapsed .sum {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+
+.deck-step-collapsed .more {
+  margin-left: auto;
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+
+/* 选中步骤卡（展开态）：头 = 状态 + 名称 + 闸门选择器；体 = 事件尾 */
+.deck-wocard {
+  overflow: hidden;
+  background: var(--paper);
+  border: var(--paper-border);
+  border-radius: var(--rad);
+  box-shadow: var(--paper-shadow);
+}
+
+.deck-wocard.sel {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+.deck-wo-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 15px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.deck-wo-head .st {
+  font-weight: 800;
+}
+
+.deck-gate-sel {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--ink2);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 999px;
+  padding: 3px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.deck-gate-sel:hover {
+  color: var(--acc);
+}
+
+.deck-wo-body {
+  padding: 0 15px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* 事件尾（prog-line，等宽行） */
+.deck-prog-line {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--code-ink);
+  background: var(--code-bg);
+  border: var(--paper-border);
+  border-radius: 10px;
+  padding: 9px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.deck-prog-line .ok {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.deck-prog-line .lv {
+  color: var(--acc);
+  font-weight: 700;
+}
+
+/* 决策块：agent 提问（AskUserQuestion）——呼吸描边区别于只读信息 */
+.deck-decision {
+  border: 1.5px solid var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+  padding: 12px 14px;
+}
+
+.deck-decision-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.deck-decision-q {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 7px;
+}
+
+.deck-decision-q .dim {
+  color: var(--ink3);
+  font-weight: 400;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+.deck-decision-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.deck-decision-opt {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--ink2);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.deck-decision-opt:hover {
+  color: var(--acc);
+}
+
+.deck-decision-opt.sel {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.deck-decision-opt .deck-kbd {
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.deck-decision-opt .desc {
+  font-size: 11px;
+  color: var(--ink3);
+  font-weight: 400;
+}
+
+.deck-decision-text {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: var(--paper-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  outline: none;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+/* 控制中心：下达指令输入段 */
+.deck-cc-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deck-cc-target {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--acc);
+  background: var(--acc-soft);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deck-cc-input input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.deck-cc-send {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--acc);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+
+.deck-cc-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 目标带保持极简（设计稿 ribbon 只有目标 + 迷你进度点）——步骤计数在目标头 */
+
+/* 设置面板布局段 */
+.deck-settings-layout {
+  margin-bottom: 10px;
+}
+
+/* zen 专注模式（⌘.）：隐藏目标带/坞/控制中心/标签条，主区放宽 */
+.deck-app.zen .deck-ribbon,
+.deck-app.zen .deck-dock,
+.deck-app.zen .deck-cc-tab,
+.deck-app.zen .deck-cc-dock,
+.deck-app.zen .deck-tabstrip {
+  display: none;
+}
+
+.deck-app.zen .deck-stage {
+  padding-left: 22px;
+}
+
+.deck-app.zen .deck-stage-column,
+.deck-app.zen .deck-control-row {
+  max-width: min(880px, 100%);
+}
+
+/* 账本/上下文卡的 meter 条（设计稿 .meter 移植） */
+.deck-meter-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--paper2);
+  overflow: hidden;
+}
+
+.deck-meter-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--acc);
+}
+
+.deck-ledger-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 4px 2px 8px;
+}
+
+.deck-ledger-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+/* 可点击的仪表卡（如上下文 → 拆解焦点卡） */
+button.deck-meter {
+  text-align: left;
+  width: 100%;
+}
+
+button.deck-meter.linked:hover {
+  outline: 1.5px solid var(--acc);
+  outline-offset: 1px;
+}
+
+/* ---------- E13：深度集成（@引用 / 增强 / Plan / 车间墙归档） ---------- */
+.deck-cc-directive {
+  position: relative;
+}
+
+.deck-cc-mentions {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+}
+
+.deck-cc-mention {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  border-radius: 8px;
+  color: var(--ink2);
+  text-align: left;
+}
+
+.deck-cc-mention.active {
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+
+.deck-cc-plan {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--paper2);
+  border: var(--paper-border);
+  color: var(--ink3);
+}
+
+.deck-cc-plan.active {
+  background: var(--acc-soft);
+  color: var(--acc);
+  border-color: var(--acc);
+}
+
+.deck-cc-enhance {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--paper2);
+  border: var(--paper-border);
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+}
+
+.deck-cc-enhance:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 技能 chips（/ 选中的技能，发送时随指令下发） */
+.deck-cc-skillchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.deck-cc-skillchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--acc);
+  background: var(--acc-soft);
+  border-radius: 7px;
+  padding: 3px 6px 3px 9px;
+}
+
+.deck-cc-skillchip button {
+  color: var(--ink3);
+  font-size: 9px;
+  padding: 0 2px;
+}
+
+.deck-cc-skillchip button:hover {
+  color: var(--bad);
+}
+
+/* 车间墙卡片：hover 露归档钮（当前工单不归档） */
+.deck-wo-card-wrap {
+  position: relative;
+}
+
+.deck-wo-card-hit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+}
+
+.deck-wo-archive {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--ink3);
+  display: none;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+
+.deck-wo-card-wrap:hover .deck-wo-archive {
+  display: block;
+}
+
+.deck-wo-archive:hover {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
