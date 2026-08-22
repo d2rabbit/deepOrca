@@ -163,65 +163,6 @@ export function IconGitmcp(): JSX.Element {
   );
 }
 
-/** Book with nodes — wiki knowledge graph */
-export function IconWiki(): JSX.Element {
-  return (
-    <svg {...S}>
-      <path d="M4 4h12v13H4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M7 4v13" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="12" cy="8" r="1.2" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="12" cy="13" r="1.2" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M12 9.2v2.6" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-
-/** Eye with slash — reasoning hidden */
-export function IconReasoningHidden(): JSX.Element {
-  return (
-    <svg {...S}>
-      <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path
-        d="M8.5 8.5a2.5 2.5 0 0 0 3.5 3.5M6 6C4 7.5 2.5 10 2.5 10s3 5.5 7.5 5.5c1.5 0 2.8-.5 4-1.2M14 14c2-1.5 3.5-4 3.5-4s-3-5.5-7.5-5.5c-.5 0-1 .05-1.5.15"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/** Eye open — reasoning normal */
-export function IconReasoningNormal(): JSX.Element {
-  return (
-    <svg {...S}>
-      <path
-        d="M2.5 10s3-5.5 7.5-5.5S17.5 10 17.5 10s-3 5.5-7.5 5.5S2.5 10 2.5 10Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-/** Eye with rays — reasoning expanded */
-export function IconReasoningExpanded(): JSX.Element {
-  return (
-    <svg {...S}>
-      <path
-        d="M2.5 10s3-5.5 7.5-5.5S17.5 10 17.5 10s-3 5.5-7.5 5.5S2.5 10 2.5 10Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="10" cy="10" r="2.5" fill="currentColor" />
-    </svg>
-  );
-}
-
 /** Moon — dark mode */
 export function IconMoon(): JSX.Element {
   return (
@@ -252,30 +193,6 @@ export function IconSun(): JSX.Element {
 }
 
 /** Diamond/gem — glass theme */
-export function IconGlass(): JSX.Element {
-  return (
-    <svg {...S}>
-      <path d="M10 2l6 5-6 11L4 7l6-5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M4 7h12M10 2l-2 5 2 11 2-11-2-5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** Lightning bolt — Line theme punk (2077) variant toggle */
-export function IconPunk(): JSX.Element {
-  return (
-    <svg {...S}>
-      <path
-        d="M11.5 2 5 11h4l-1.5 7L15 9h-4l.5-7Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 /** Undo arrow — undo/restore */
 export function IconUndo(): JSX.Element {
   return (

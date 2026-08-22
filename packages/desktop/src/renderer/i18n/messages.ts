@@ -304,7 +304,6 @@ export const en = {
   "context.compacting": "Compacting…",
 
   // ── Model selector (DeepSeek only — no custom / OpenAI-compatible) ──
-  "model.thinking": "Thinking",
   "model.thinkingMax": "Max",
   "model.thinkingHigh": "High",
   "model.thinkingXhigh": "Extra High",
@@ -466,13 +465,6 @@ export const en = {
   // ── Appearance / reasoning (top bar) ──────────────────────
   "topbar.appearanceLight": "Light appearance — click for dark",
   "topbar.appearanceDark": "Dark appearance — click for light",
-  "topbar.themeGlass": "Glass theme — click for native",
-  "topbar.themeNative": "Native theme — click for Glass",
-  "topbar.linePunk": "Punk style (2077 tribute) — click for original Line",
-  "topbar.lineStroke": "Line original — click for Punk style",
-  "topbar.reasoningNormal": "Reasoning: collapsed — click to expand",
-  "topbar.reasoningExpanded": "Reasoning: expanded — click to hide",
-  "topbar.reasoningHidden": "Reasoning: hidden — click to collapse",
   "topbar.undoTitle": "Undo / restore a checkpoint",
 
   // ── Undo modal ────────────────────────────────────────────
@@ -1233,7 +1225,6 @@ export const zh: Record<MessageKey, string> = {
   "context.compacting": "压缩中…",
 
   // ── Model selector (DeepSeek only — no custom / OpenAI-compatible) ──
-  "model.thinking": "思考",
   "model.thinkingMax": "至高 (Max)",
   "model.thinkingHigh": "高 (High)",
   "model.thinkingXhigh": "极高 (Extra High)",
@@ -1388,13 +1379,6 @@ export const zh: Record<MessageKey, string> = {
   // ── Appearance / reasoning (top bar) ──────────────────────
   "topbar.appearanceLight": "浅色外观 — 点击切换深色",
   "topbar.appearanceDark": "深色外观 — 点击切换浅色",
-  "topbar.themeGlass": "毛玻璃主题 — 点击切换原生",
-  "topbar.themeNative": "原生主题 — 点击切换毛玻璃",
-  "topbar.linePunk": "朋克风（致敬2077）— 点击切回原始线条",
-  "topbar.lineStroke": "线条原味 — 点击切换朋克风",
-  "topbar.reasoningNormal": "推理：已折叠 — 点击展开",
-  "topbar.reasoningExpanded": "推理：已展开 — 点击隐藏",
-  "topbar.reasoningHidden": "推理：已隐藏 — 点击折叠",
   "topbar.undoTitle": "撤销 / 恢复到检查点",
 
   // ── Undo modal ────────────────────────────────────────────

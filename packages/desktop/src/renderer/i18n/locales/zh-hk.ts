@@ -289,7 +289,6 @@ export const zhHK: Record<MessageKey, string> = {
   "context.compacting": "壓縮中…",
 
   // ── Model modal ───────────────────────────────────────────
-  "model.thinking": "思考",
   "model.thinkingMax": "至高 (Max)",
   "model.thinkingHigh": "高 (High)",
   "model.thinkingXhigh": "極高 (Extra High)",
@@ -441,13 +440,6 @@ export const zhHK: Record<MessageKey, string> = {
   // ── Appearance / reasoning (top bar) ──────────────────────
   "topbar.appearanceLight": "淺色外觀 — 點擊切換深色",
   "topbar.appearanceDark": "深色外觀 — 點擊切換淺色",
-  "topbar.themeGlass": "毛玻璃主題 — 按一下切換原生",
-  "topbar.themeNative": "原生主題 — 按一下切換毛玻璃",
-  "topbar.linePunk": "龐克風（致敬2077）— 點擊切回原始線條",
-  "topbar.lineStroke": "線條原味 — 點擊切換龐克風",
-  "topbar.reasoningNormal": "推理：已收合 — 點擊展開",
-  "topbar.reasoningExpanded": "推理：已展開 — 點擊隱藏",
-  "topbar.reasoningHidden": "推理：已隱藏 — 點擊收合",
   "topbar.undoTitle": "復原 / 還原至檢查點",
 
   // ── Undo modal ────────────────────────────────────────────

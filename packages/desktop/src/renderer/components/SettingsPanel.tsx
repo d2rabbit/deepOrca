@@ -1,6 +1,6 @@
 import { useEffect, useState, type JSX } from "react";
 import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
-import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
 import { THINK_LEVELS } from "@deeporca/core/capabilities";
 import { api } from "../api";
@@ -729,9 +729,7 @@ export function SettingsPanel({
                       <option value="">{t("settings.capabilities.thinkingOff")}</option>
                       {primaryThinkingOptions.map((r) => (
                         <option key={r} value={r}>
-                          {t(
-                            `model.thinking${r === "xhigh" ? "Xhigh" : r[0]!.toUpperCase() + r.slice(1)}` as MessageKey
-                          )}
+                          {t(thinkingLabelKey(r))}
                         </option>
                       ))}
                     </Select>

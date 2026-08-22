@@ -297,7 +297,6 @@ export const ja: Record<MessageKey, string> = {
   "context.compacting": "圧縮中…",
 
   // ── Model modal ───────────────────────────────────────────
-  "model.thinking": "思考",
   "model.thinkingMax": "至高 (Max)",
   "model.thinkingHigh": "高 (High)",
   "model.thinkingXhigh": "極高 (Extra High)",
@@ -455,13 +454,6 @@ export const ja: Record<MessageKey, string> = {
   // ── Appearance / reasoning (top bar) ──────────────────────
   "topbar.appearanceLight": "ライト外観 — クリックでダークに切り替え",
   "topbar.appearanceDark": "ダーク外観 — クリックでライトに切り替え",
-  "topbar.themeGlass": "グラステーマ — クリックでネイティブに",
-  "topbar.themeNative": "ネイティブテーマ — クリックでグラスに",
-  "topbar.linePunk": "パンク風（2077オマージュ）— クリックでオリジナルのラインに",
-  "topbar.lineStroke": "ラインオリジナル — クリックでパンク風に",
-  "topbar.reasoningNormal": "推論：折りたたみ — クリックで展開",
-  "topbar.reasoningExpanded": "推論：展開 — クリックで非表示",
-  "topbar.reasoningHidden": "推論：非表示 — クリックで折りたたみ",
   "topbar.undoTitle": "チェックポイントに元に戻す / 復元",
 
   // ── Undo modal ────────────────────────────────────────────

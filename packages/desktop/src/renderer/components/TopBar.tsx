@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
-import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import { THINK_LEVELS, THINK_LEVEL_ORDER } from "@deeporca/core/capabilities";
 
 type Props = {
@@ -40,15 +40,9 @@ type Props = {
 const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
 
 /** Sentinel option value: opens the settings panel's model pool (endpoints
- * tab). Selecting it never changes the model — the DOM select is snapped back
- * to the current value because no state change triggers a re-render. */
+ * tab). Selecting it never changes the model — the controlled value stays
+ * put and the menu simply closes. */
 const POOL_CONFIG_VALUE = "__configure_model_pool__";
-
-/** i18n label key for a unified thinking tier (model.thinkingLow / …Medium / …High / …Xhigh / …Max). */
-function thinkingLabelKey(level: string): MessageKey {
-  const cap = level === "xhigh" ? "Xhigh" : level[0]!.toUpperCase() + level.slice(1);
-  return `model.thinking${cap}` as MessageKey;
-}
 
 type ThinkingOption = {
   key: string;

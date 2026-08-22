@@ -636,6 +636,38 @@ type BuiltinPluginGroupManifest = {
   actions?: string[];
 };
 
+/**
+ * The settings slice SessionManager consumes (host-injected, narrow structural
+ * type — desktop passes the full resolveCurrentSettings result; tests pass the
+ * minimum their fakes need).
+ */
+type SessionResolvedSettings = {
+  model: string;
+  /** Configured endpoints (primary-family + lightweight availability checks). */
+  endpoints?: ReadonlyArray<{
+    id?: string;
+    baseURL?: string;
+    apiKey?: string;
+    models?: ReadonlyArray<{ id: string }>;
+  }>;
+  primaryEndpointId?: string;
+  /** Explicit user-configured secondary model + resolved credentials. */
+  secondaryModel?: string;
+  secondaryApiKey?: string;
+  secondaryBaseURL?: string;
+  /** User override for the compaction trigger (tokens); undefined = registry default. */
+  compactTokenThreshold?: number;
+  webSearchTool?: string;
+  mcpServers?: Record<string, McpServerConfig>;
+  permissions?: Required<PermissionSettings>;
+  workspaceTrust?: "trusted" | "quarantine";
+  enabledSkills?: Record<string, boolean>;
+  routing?: RoutingSettings;
+  visionModel?: string;
+  visionApiKey?: string;
+  streamIdleTimeoutMs?: number;
+};
+
 type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
@@ -647,32 +679,7 @@ type SessionManagerOptions = {
   createSecondaryClient?: CreateSecondaryClient;
   /** Host-injected rendered-page fetcher for the built-in WebFetch tool. */
   fetchWebPage?: WebPageFetcher;
-  getResolvedSettings: () => {
-    model: string;
-    /** Configured endpoints (primary-family + lightweight availability checks). */
-    endpoints?: ReadonlyArray<{
-      id?: string;
-      baseURL?: string;
-      apiKey?: string;
-      models?: ReadonlyArray<{ id: string }>;
-    }>;
-    primaryEndpointId?: string;
-    /** Explicit user-configured secondary model + resolved credentials. */
-    secondaryModel?: string;
-    secondaryApiKey?: string;
-    secondaryBaseURL?: string;
-    /** User override for the compaction trigger (tokens); undefined = registry default. */
-    compactTokenThreshold?: number;
-    webSearchTool?: string;
-    mcpServers?: Record<string, McpServerConfig>;
-    permissions?: Required<PermissionSettings>;
-    workspaceTrust?: "trusted" | "quarantine";
-    enabledSkills?: Record<string, boolean>;
-    routing?: RoutingSettings;
-    visionModel?: string;
-    visionApiKey?: string;
-    streamIdleTimeoutMs?: number;
-  };
+  getResolvedSettings: () => SessionResolvedSettings;
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -859,32 +866,7 @@ export class SessionManager {
   registerBeforeToolExecution(name: string, listener: ToolExecutionGateListener<PermissionPlan>): () => void {
     return this.toolExecutionGate.register(name, listener);
   }
-  private readonly getResolvedSettings: () => {
-    model: string;
-    /** Configured endpoints (primary-family + lightweight availability checks). */
-    endpoints?: ReadonlyArray<{
-      id?: string;
-      baseURL?: string;
-      apiKey?: string;
-      models?: ReadonlyArray<{ id: string }>;
-    }>;
-    primaryEndpointId?: string;
-    /** Explicit user-configured secondary model + resolved credentials. */
-    secondaryModel?: string;
-    secondaryApiKey?: string;
-    secondaryBaseURL?: string;
-    /** User override for the compaction trigger (tokens); undefined = registry default. */
-    compactTokenThreshold?: number;
-    webSearchTool?: string;
-    mcpServers?: Record<string, McpServerConfig>;
-    permissions?: Required<PermissionSettings>;
-    workspaceTrust?: "trusted" | "quarantine";
-    enabledSkills?: Record<string, boolean>;
-    routing?: RoutingSettings;
-    visionModel?: string;
-    visionApiKey?: string;
-    streamIdleTimeoutMs?: number;
-  };
+  private readonly getResolvedSettings: () => SessionResolvedSettings;
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
   private readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;

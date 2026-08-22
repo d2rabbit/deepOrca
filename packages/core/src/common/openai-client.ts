@@ -101,17 +101,11 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
 }
 
 // ── Secondary model client ──────────────────────────────────────────────────
-// Used by code review, index building, subagent triggers — anything that should
-// run on the cheaper/faster model (default deepseek-v4-flash) instead of the
-// primary conversation model. Has its own OpenAI client cache keyed by the
-// secondary endpoint's apiKey::baseURL so it doesn't collide with the primary.
-//
-// NOTE: This client is exported and fully implemented, but as of this commit no
-// production code path calls createSecondaryClient(). The settings fields
-// (secondaryModel / secondaryEndpointId) are parsed and surfaced in the UI, but
-// code review / indexing / subagent tasks still use the primary client. This is
-// reserved infrastructure for a future wiring change — do not assume configuring
-// a secondary model in the UI changes request routing today.
+// Tier-2 fallback of the background-LLM chain (specs/model-fleet-adaptation
+// §2.3): used when the session family has no lightweight model on the primary
+// endpoint but the user configured an explicit secondary model. Own client
+// cache keyed by the secondary endpoint's apiKey::baseURL so it doesn't
+// collide with the primary.
 
 let cachedSecondary: OpenAI | null = null;
 let cachedSecondaryKey = "";

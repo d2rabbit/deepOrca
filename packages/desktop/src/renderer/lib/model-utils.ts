@@ -8,6 +8,17 @@
  */
 
 import { defaultsToThinkingMode, supportsMultimodal } from "@deeporca/core/capabilities";
+import type { MessageKey } from "../i18n";
+
+/**
+ * i18n label key for a unified thinking tier: low/medium/high/xhigh/max →
+ * model.thinkingLow / …Medium / …High / …Xhigh / …Max (keys carry the
+ * localized tier name with the English tier in parentheses).
+ */
+export function thinkingLabelKey(level: string): MessageKey {
+  const cap = level === "xhigh" ? "Xhigh" : level[0]!.toUpperCase() + level.slice(1);
+  return `model.thinking${cap}` as MessageKey;
+}
 
 export type ModelRegistration = {
   id: string;

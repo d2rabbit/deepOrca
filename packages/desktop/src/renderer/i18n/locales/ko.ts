@@ -296,7 +296,6 @@ export const ko: Record<MessageKey, string> = {
   "context.compacting": "압축 중…",
 
   // ── Model modal ───────────────────────────────────────────
-  "model.thinking": "사고",
   "model.thinkingMax": "최대 (Max)",
   "model.thinkingHigh": "높음 (High)",
   "model.thinkingXhigh": "초고 (Extra High)",
@@ -454,13 +453,6 @@ export const ko: Record<MessageKey, string> = {
   // ── Appearance / reasoning (top bar) ──────────────────────
   "topbar.appearanceLight": "라이트 외관 — 클릭하여 다크로 전환",
   "topbar.appearanceDark": "다크 외관 — 클릭하여 라이트로 전환",
-  "topbar.themeGlass": "글래스 테마 — 클릭하여 네이티브로",
-  "topbar.themeNative": "네이티브 테마 — 클릭하여 글래스로",
-  "topbar.linePunk": "펑크 스타일(2077 헌사) — 클릭하여 오리지널 라인으로",
-  "topbar.lineStroke": "라인 오리지널 — 클릭하여 펑크 스타일로",
-  "topbar.reasoningNormal": "추론: 접힘 — 클릭하여 펼치기",
-  "topbar.reasoningExpanded": "추론: 펼침 — 클릭하여 숨기기",
-  "topbar.reasoningHidden": "추론: 숨김 — 클릭하여 접기",
   "topbar.undoTitle": "체크포인트로 실행 취소 / 복원",
 
   // ── Undo modal ────────────────────────────────────────────
