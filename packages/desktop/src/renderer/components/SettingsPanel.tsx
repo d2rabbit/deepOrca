@@ -2,6 +2,7 @@ import { useEffect, useState, type JSX } from "react";
 import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
+import { THINK_LEVELS } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
@@ -58,7 +59,9 @@ const PERMISSION_SCOPES: PermissionScope[] = [
 
 const DECISIONS: PermissionDecision[] = ["default", "allow", "ask", "deny"];
 
-const REASONING_OPTIONS_FULL: ReasoningEffort[] = ["max", "high", "low"];
+// Visible tiers of the unified thinking scale (common/think-level.ts):
+// 初/中/高 are offered; 极高/至高 stay valid via settings/env but hidden.
+const REASONING_OPTIONS_FULL: ReasoningEffort[] = THINK_LEVELS.filter((l) => !l.hiddenByDefault).map((l) => l.id);
 const REASONING_OPTIONS_OFF: ReasoningEffort[] = [];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
@@ -726,11 +729,9 @@ export function SettingsPanel({
                       <option value="">{t("settings.capabilities.thinkingOff")}</option>
                       {primaryThinkingOptions.map((r) => (
                         <option key={r} value={r}>
-                          {r === "max"
-                            ? t("model.thinkingMax")
-                            : r === "low"
-                              ? t("model.thinkingLow")
-                              : t("model.thinkingHigh")}
+                          {t(
+                            `model.thinking${r === "xhigh" ? "Xhigh" : r[0]!.toUpperCase() + r.slice(1)}` as MessageKey
+                          )}
                         </option>
                       ))}
                     </Select>

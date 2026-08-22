@@ -307,7 +307,9 @@ export const en = {
   "model.thinking": "Thinking",
   "model.thinkingMax": "Max",
   "model.thinkingHigh": "High",
+  "model.thinkingXhigh": "Extra High",
   "model.thinkingLow": "Low",
+  "model.thinkingMedium": "Medium",
   "model.noThinking": "Disable thinking",
 
   // ── App status / errors ───────────────────────────────────
@@ -1232,9 +1234,11 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Model selector (DeepSeek only — no custom / OpenAI-compatible) ──
   "model.thinking": "思考",
-  "model.thinkingMax": "最高",
-  "model.thinkingHigh": "高",
-  "model.thinkingLow": "低",
+  "model.thinkingMax": "至高 (Max)",
+  "model.thinkingHigh": "高 (High)",
+  "model.thinkingXhigh": "极高 (Extra High)",
+  "model.thinkingLow": "初 (Low)",
+  "model.thinkingMedium": "中 (Medium)",
   "model.noThinking": "关闭思考",
 
   // ── App status / errors ───────────────────────────────────

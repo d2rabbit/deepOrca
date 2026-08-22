@@ -685,7 +685,7 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
 test("resolveSettings defaults invalid reasoning effort to the vendor default (high)", () => {
   const resolved = resolveSettings(
     {
-      reasoningEffort: "medium" as never,
+      reasoningEffort: "extreme" as never,
     },
     {
       model: "default-model",

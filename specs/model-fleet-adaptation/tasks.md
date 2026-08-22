@@ -30,9 +30,9 @@
 
 - [x] G2 `openai-thinking.ts`：+可选 `model?` 参，`THINKING_BUILDERS` per-family 表分派；deepseek 与 unknown 条目返回与今天逐字节相同对象 + golden 测试锁定；主循环/压缩/四处后台调用全部传 model
   - _Requirement: R6, R4_
-- [x] G2b **effort 三档修正**（2026-08-22，依据官方 thinking_mode 文档）：实际生效等级为 low/high/max 三档（medium/xhigh 服务端映射 high），厂商默认 high——`ReasoningEffort` 扩为三档、全链默认值 max→high 对齐（settings/openai-client/openai-thinking）、TopBar 思考下拉与设置面板补"低"档（i18n ×6 `model.thinkingLow`）、golden 测试同步
+- [x] G2b **effort 统一刻度与家族映射**（2026-08-22 二次定稿并实施）：独立文件 `common/think-level.ts`——统一五档 low/medium/high/xhigh/max（UI/settings 只存统一档），对外展示 关闭/初 (Low)/中 (Medium)/高 (High)，极高 (Extra High)/至高 (Max) 默认隐藏（合法但不入菜单）；DeepSeek V4 家族映射 `low→low、medium→high、high→high、xhigh→high、max→max` 入 `THINK_LEVEL_FAMILY_MAPS`，thinking builder 经 `mapThinkLevel` 投影；未登记家族恒等透传；`ReasoningEffort = ThinkLevel`，默认 high；TopBar/SettingsPanel 选项由 `THINK_LEVELS` 派生，i18n ×6 五档标签（CJK 括注英文）
   - _Requirement: R6_
-- [ ] G2c **effort 扩展等级映射**（暂不展开，随 S1–S4 逐家族）：家族条目加 `effortLevels` + `mapEffort(unified→家族原生档)`，UI/settings 全程存 unified 三档、映射在 builder 内发生（方案见 design §2.4 映射方案段）
+- [ ] G2c **新家族 effort 映射逐个登记**（暂不展开）：每家族在 `THINK_LEVEL_FAMILY_MAPS` 加一条统一五档→原生档投影（如 OpenAI 五级）；隐藏档的暴露机制（按家族声明/高级开关）随首个需要家族一并设计
   - _Requirement: R6, R8_
 - [x] G3 `openai-message-converter.ts`：reasoning 回显按 `reasoningReplay`（empty-field/omit/content）+ `reasoningField` 分派（converter 已持有 model，签名不变）；session.ts 流式读取改走 `reasoningReadFields`（nullish 链保序）；中转/持久化字段名走 spec（deepseek 值不变 → 存量会话兼容）
   - _Requirement: R6, R4_

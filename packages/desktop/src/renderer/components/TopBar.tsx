@@ -5,6 +5,7 @@ import { useI18n, type MessageKey } from "../i18n";
 import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
+import { THINK_LEVELS, THINK_LEVEL_ORDER } from "@deeporca/core/capabilities";
 
 type Props = {
   platform: string;
@@ -43,16 +44,29 @@ const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
  * to the current value because no state change triggers a re-render. */
 const POOL_CONFIG_VALUE = "__configure_model_pool__";
 
+/** i18n label key for a unified thinking tier (model.thinkingLow / …Medium / …High / …Xhigh / …Max). */
+function thinkingLabelKey(level: string): MessageKey {
+  const cap = level === "xhigh" ? "Xhigh" : level[0]!.toUpperCase() + level.slice(1);
+  return `model.thinking${cap}` as MessageKey;
+}
+
 type ThinkingOption = {
   key: string;
   labelKey: MessageKey;
   thinkingEnabled: boolean;
   reasoningEffort?: ReasoningEffort;
 };
+// Menu tiers come from the unified scale (common/think-level.ts): 初/中/高 are
+// shown; 极高/至高 stay valid in settings but hidden by default.
 const THINKING_OPTIONS: ThinkingOption[] = [
-  { key: "max", labelKey: "model.thinkingMax", thinkingEnabled: true, reasoningEffort: "max" },
-  { key: "high", labelKey: "model.thinkingHigh", thinkingEnabled: true, reasoningEffort: "high" },
-  { key: "low", labelKey: "model.thinkingLow", thinkingEnabled: true, reasoningEffort: "low" },
+  ...THINK_LEVELS.filter((level) => !level.hiddenByDefault).map(
+    (level): ThinkingOption => ({
+      key: level.id,
+      labelKey: thinkingLabelKey(level.id),
+      thinkingEnabled: true,
+      reasoningEffort: level.id,
+    })
+  ),
   { key: "off", labelKey: "model.noThinking", thinkingEnabled: false },
 ];
 
@@ -63,8 +77,7 @@ function projectName(path: string): string {
 
 function currentThinkingKey(s: SettingsSummary): string {
   if (!s.thinkingEnabled) return "off";
-  if (s.reasoningEffort === "low" || s.reasoningEffort === "high") return s.reasoningEffort;
-  return "max";
+  return (THINK_LEVEL_ORDER as readonly string[]).includes(s.reasoningEffort) ? s.reasoningEffort : "high";
 }
 
 // Window caption glyphs as inline SVG (Windows 11 Fluent style). 1.5px stroke

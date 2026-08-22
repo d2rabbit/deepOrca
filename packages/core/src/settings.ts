@@ -2,6 +2,7 @@
 // (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { randomUUID } from "node:crypto";
 import { defaultsToThinkingMode, supportsMultimodal } from "./common/model-capabilities";
+import { isThinkLevel, type ThinkLevel } from "./common/think-level";
 import {
   getProjectConfigRoot,
   getUserConfigRoot,
@@ -24,14 +25,13 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
 };
 
 /**
- * Reasoning effort levels. Currently the DeepSeek-native scale — the effective
- * tiers per the thinking-mode guide are exactly low/high/max (medium/xhigh are
- * accepted by the API but mapped to high server-side), and the vendor default
- * is high. Other vendors' scales (e.g. OpenAI's five) will map onto/extend
- * this base per family (specs/model-fleet-adaptation §2.4) — until then the
- * type stays DeepSeek-only.
+ * Reasoning effort — the unified five-tier thinking scale (low/medium/high/
+ * xhigh/max) defined in common/think-level.ts. UI and settings always store
+ * the unified tier; the per-family projection onto native API tiers happens
+ * at request-build time (mapThinkLevel). Display shows 初/中/高 plus the
+ * hidden 极高/至高 tiers; the vendor default is high.
  */
-export type ReasoningEffort = "low" | "high" | "max";
+export type ReasoningEffort = ThinkLevel;
 
 export type McpServerConfig = {
   command: string;
@@ -283,7 +283,7 @@ export type ModelConfigSelection = {
 export type SettingsProcessEnv = Record<string, string | undefined>;
 
 function resolveReasoningEffort(value: unknown): ReasoningEffort | undefined {
-  return value === "low" || value === "high" || value === "max" ? value : undefined;
+  return isThinkLevel(value) ? value : undefined;
 }
 
 function parseBoolean(value: unknown): boolean | undefined {

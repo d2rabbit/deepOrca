@@ -1,5 +1,5 @@
 import type { ReasoningEffort } from "../settings";
-import { resolveModelSpec, type ThinkingProtocolId } from "./model-capabilities";
+import { mapThinkLevel, resolveModelSpec, type ThinkingProtocolId } from "./model-capabilities";
 
 type ThinkingConfig = {
   type: "enabled" | "disabled";
@@ -35,5 +35,9 @@ export function buildThinkingRequestOptions(
 ): ThinkingRequestOptions {
   const spec = resolveModelSpec({ model: model ?? "", baseURL });
   const builder = THINKING_BUILDERS[spec.thinkingProtocol] ?? openAiCompatibleBuilder;
-  return builder(thinkingEnabled, reasoningEffort);
+  // Unified tier → the family's native effort tiers (identity fallback for
+  // unregistered families; DeepSeek folds medium/xhigh into high server-side
+  // — common/think-level.ts).
+  const nativeEffort = mapThinkLevel(spec.id, reasoningEffort) as ReasoningEffort;
+  return builder(thinkingEnabled, nativeEffort);
 }

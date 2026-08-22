@@ -145,7 +145,7 @@ return builder(thinkingEnabled, reasoningEffort)
 - `unknown` 条目同样返回今天的形状——**只有新登记家族才允许偏离现状**，这是全改造的兼容总纲；
 - glm/kimi/minimax/qwen 条目形状**实施时按厂商当日文档核填**（S1–S4 清单逐项留痕）。
 
-**effort 等级映射方案（2026-08-22 定稿，G2b）**：以 DeepSeek 官方 thinking_mode 文档为准——实际生效等级恰为 **low / high / max 三档**（API 接受 medium/xhigh 但服务端映射为 high），厂商默认 **high**；`ReasoningEffort` 类型即此三档（已修正，含默认值 max→high 的对齐）。其他家族的等级体系（如 OpenAI 的五级 minimal/low/medium/high/xhigh 之类）**不并入统一枚举**，而以**扩展等级**方式逐家族适配：注册表家族条目增加 `effortLevels: readonly string[]`（该家族原生等级序）与 `mapEffort(unified: ReasoningEffort): 该家族等级`（基座三档 → 家族原生档的投影，语义锚点为"强度序"而非档名）；UI 与 settings 全程只存 unified 三档，映射发生在 §2.4 builder 内——新家族只加映射不改任何调用方。此项**暂不展开**，随 S1–S4 各家族逐个落地（tasks G2c）。
+**effort 等级映射方案（2026-08-22 二次定稿，G2b/G2c）**：独立常量文件 **`common/think-level.ts`** 承载统一刻度与各家族映射——**统一五档刻度** `low / medium / high / xhigh / max`（UI 与 settings 全程只存统一档），对外展示仅 **关闭思考 / 初 (Low) / 中 (Medium) / 高 (High)**，**极高 (Extra High) 与 至高 (Max) 默认隐藏**（档位在 settings/env 中仍合法，仅不入菜单）；CJK 标签以括号括注英文对应档名。**DeepSeek V4 家族映射**按官方 thinking_mode 的请求→生效表登记：`low→low、medium→high、high→high、xhigh→high、max→max`（API 实际只服务 low/high/max，medium/xhigh 服务端折叠为 high）。未登记家族走恒等透传。新家族适配 = 在 `THINK_LEVEL_FAMILY_MAPS` 加一条映射（如 OpenAI 五级），零调用方改动；UI 选项由 `THINK_LEVELS` 派生（`hiddenByDefault` 控制入菜单与否）。
 
 ### 2.5 reasoning 消息转换分派（G3 详案，对应 R6/R4）
 
