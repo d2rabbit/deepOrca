@@ -47,3 +47,5 @@
 - 不改 `actions/design.ts` / drift 的 action 语义、不改 dembrandt 链路。
 - 不动 CRG 的运行时注册/启停逻辑（`plugin-mcp-view.ts` 的 push 顺序、toggle 行为保持）。
 - 不顺手重命名 CodeReviewPanel → ReviewPanel（原 A 方案作废，本 spec 采用 B 方向：drift 迁设计）。
+
+> **2026-08-23 补记**：CRG 自 MCP 面整体退役（查询早已走进程内 CrgGraphQuery SQLite 直查，无服务器进程）——插件中心不再列出（legacy 配置项与合成展示行均过滤，`isRetiredMcpName`），代码插件清单 `mcp:` 回退为 codegraph + serena。T2 的"CRG 锚定代码插件组"由"不落入其他桶"升级为"不出现在 MCP 桶"（本 spec 目标仍达成且更彻底）；CRG 能力继续以 skills/actions（crg.reindex/crg.visualize/review.full）呈现。
