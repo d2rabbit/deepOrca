@@ -8,7 +8,7 @@ export { Button, IconButton, Pill, Tag, Badge, Switch, Checkbox, Segmented } fro
 export { Field, Input, TextArea, Select } from "./inputs";
 export { DropdownSelect, type DropdownOption } from "./dropdown";
 export { StatusDot, Tooltip } from "./feedback";
-export { Rail, RailBrand, RailSpacer, RailButton } from "./rail";
+export { Rail, RailSpacer, RailButton } from "./rail";
 export { CommandPalette, type CommandItem } from "./command-palette";
 export {
   IconNewSession,

@@ -16,18 +16,10 @@
 export type ModelFamilyId = "deepseek" | "glm" | "kimi" | "minimax" | "qwen" | "unknown";
 
 // Unified thinking-effort scale + per-family native mappings (think-level.ts).
-// Re-exported here so the dependency-free `@deeporca/core/capabilities`
-// subpath stays the single renderer-facing entry.
-export {
-  THINK_LEVEL_ORDER,
-  THINK_LEVELS,
-  THINK_LEVEL_FAMILY_MAPS,
-  isThinkLevel,
-  mapThinkLevel,
-  type ThinkLevel,
-  type ThinkLevelMeta,
-  type ThinkLevelFamilyMap,
-} from "./think-level";
+// Only the symbols the renderer consumes are re-exported here — the
+// dependency-free `@deeporca/core/capabilities` subpath stays the single
+// renderer-facing entry; core-internal callers import from ./think-level.
+export { THINK_LEVEL_ORDER, THINK_LEVELS } from "./think-level";
 
 /** How replayed assistant messages carry reasoning content. */
 export type ReasoningReplayMode = "empty-field" | "omit" | "content";

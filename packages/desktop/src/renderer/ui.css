@@ -233,19 +233,6 @@ select {
   display: none;
 }
 
-.ui-rail-brand {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-accent-fill);
-  color: var(--ui-text-on-accent);
-  font-weight: 700;
-  font-size: 15px;
-  margin-bottom: var(--ui-space-2);
-}
-
 .ui-rail-spacer {
   flex: 1;
   /* Guaranteed breathing room between the function cluster and the bottom

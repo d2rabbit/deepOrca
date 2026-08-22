@@ -1,5 +1,6 @@
 import type { ReasoningEffort } from "../settings";
-import { mapThinkLevel, resolveModelSpec, type ThinkingProtocolId } from "./model-capabilities";
+import { mapThinkLevel } from "./think-level";
+import { resolveModelSpec, type ThinkingProtocolId } from "./model-capabilities";
 
 type ThinkingConfig = {
   type: "enabled" | "disabled";

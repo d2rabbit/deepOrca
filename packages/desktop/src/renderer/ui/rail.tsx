@@ -11,11 +11,6 @@ export function Rail({ children, className }: RailProps): JSX.Element {
   return <div className={cx("ui-rail", className)}>{children}</div>;
 }
 
-/** Brand mark shown at the top of the rail. */
-export function RailBrand({ children }: { children: ReactNode }): JSX.Element {
-  return <div className="ui-rail-brand">{children}</div>;
-}
-
 /** Flexible spacer to push rail buttons to the bottom. */
 export function RailSpacer(): JSX.Element {
   return <div className="ui-rail-spacer" />;

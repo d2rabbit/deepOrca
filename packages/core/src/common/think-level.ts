@@ -23,14 +23,20 @@ export type ThinkLevelMeta = {
   hiddenByDefault: boolean;
 };
 
+/** Per-tier display metadata. THINK_LEVEL_ORDER is the single source of tier
+ * sequence — this record only carries the per-tier attributes. */
+const THINK_LEVEL_META = {
+  low: { english: "Low", hiddenByDefault: false },
+  medium: { english: "Medium", hiddenByDefault: false },
+  high: { english: "High", hiddenByDefault: false },
+  xhigh: { english: "Extra High", hiddenByDefault: true },
+  max: { english: "Max", hiddenByDefault: true },
+} as const satisfies Record<ThinkLevel, Omit<ThinkLevelMeta, "id">>;
+
 /** The unified display scale, weakest → strongest. */
-export const THINK_LEVELS: readonly ThinkLevelMeta[] = [
-  { id: "low", english: "Low", hiddenByDefault: false },
-  { id: "medium", english: "Medium", hiddenByDefault: false },
-  { id: "high", english: "High", hiddenByDefault: false },
-  { id: "xhigh", english: "Extra High", hiddenByDefault: true },
-  { id: "max", english: "Max", hiddenByDefault: true },
-];
+export const THINK_LEVELS: readonly ThinkLevelMeta[] = THINK_LEVEL_ORDER.map(
+  (id): ThinkLevelMeta => ({ id, ...THINK_LEVEL_META[id] })
+);
 
 /** A family's projection of the unified scale onto its native effort tiers. */
 export type ThinkLevelFamilyMap = Readonly<Record<ThinkLevel, string>>;

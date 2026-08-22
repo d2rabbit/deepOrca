@@ -396,10 +396,12 @@ export function IconToolGeneric(): JSX.Element {
   );
 }
 
-/** Chat bubble — session item (12×12 inline) */
+/** Chat bubble — session item (16×16 viewBox, rendered at 12px) */
+const C = { width: 12, height: 12, viewBox: "0 0 16 16", fill: "none", "aria-hidden": true, focusable: false } as const;
+
 export function IconChat(): JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+    <svg {...C}>
       <path
         d="M2.5 3h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 2.5V11h-.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
         stroke="currentColor"

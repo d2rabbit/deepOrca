@@ -3223,7 +3223,8 @@ test("SessionManager resets active tokens to latest post-compaction response usa
 
   const session = manager.getSession(sessionId);
   const usage = session?.usage as Record<string, any>;
-  // Compaction uses COMPACTION_MODEL ("deepseek-v4-flash"), so usagePerModel splits.
+  // Compaction runs on the family lightweight model ("deepseek-v4-flash"), so
+  // usagePerModel splits between the session model and the compaction model.
   const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
   const compactUsage = session?.usagePerModel?.["deepseek-v4-flash"] as Record<string, any>;
   assert.equal(session?.activeTokens, 5);

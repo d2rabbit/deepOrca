@@ -98,16 +98,12 @@
    =========================================================================== */
 
 /* Candy-gel specular highlight across the top half of accent-filled surfaces. */
-.ui-btn--primary,
-.ui-rail-brand {
+.ui-btn--primary {
   position: relative;
   overflow: hidden;
-}
-.ui-btn--primary {
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.28);
 }
-.ui-btn--primary::before,
-.ui-rail-brand::before {
+.ui-btn--primary::before {
   content: "";
   position: absolute;
   inset: 1px 1px 48% 1px;
