@@ -682,7 +682,7 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
   assert.equal(resolved.thinkingEnabled, false);
 });
 
-test("resolveSettings defaults invalid reasoning effort to max", () => {
+test("resolveSettings defaults invalid reasoning effort to the vendor default (high)", () => {
   const resolved = resolveSettings(
     {
       reasoningEffort: "medium" as never,
@@ -694,7 +694,9 @@ test("resolveSettings defaults invalid reasoning effort to max", () => {
     TEST_PROCESS_ENV
   );
 
-  assert.equal(resolved.reasoningEffort, "max");
+  // DeepSeek thinking-mode guide: effective tiers are low/high/max and the
+  // vendor default is high (specs/model-fleet-adaptation G2b).
+  assert.equal(resolved.reasoningEffort, "high");
 });
 
 test("resolveSettings ignores invalid temperature values", () => {

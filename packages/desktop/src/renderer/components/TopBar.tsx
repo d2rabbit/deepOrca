@@ -2,7 +2,7 @@ import { memo, useMemo, type JSX } from "react";
 import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
-import { Pill, Select } from "../ui/index";
+import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
 
@@ -52,6 +52,7 @@ type ThinkingOption = {
 const THINKING_OPTIONS: ThinkingOption[] = [
   { key: "max", labelKey: "model.thinkingMax", thinkingEnabled: true, reasoningEffort: "max" },
   { key: "high", labelKey: "model.thinkingHigh", thinkingEnabled: true, reasoningEffort: "high" },
+  { key: "low", labelKey: "model.thinkingLow", thinkingEnabled: true, reasoningEffort: "low" },
   { key: "off", labelKey: "model.noThinking", thinkingEnabled: false },
 ];
 
@@ -62,7 +63,8 @@ function projectName(path: string): string {
 
 function currentThinkingKey(s: SettingsSummary): string {
   if (!s.thinkingEnabled) return "off";
-  return s.reasoningEffort === "high" ? "high" : "max";
+  if (s.reasoningEffort === "low" || s.reasoningEffort === "high") return s.reasoningEffort;
+  return "max";
 }
 
 // Window caption glyphs as inline SVG (Windows 11 Fluent style). 1.5px stroke
@@ -263,18 +265,32 @@ export const TopBar = memo(function TopBar({
       </div>
 
       {/* Dual model selectors: model + thinking mode, paired inside one pill.
-         The model list is derived from the endpoint configuration in settings. */}
+         The model list is derived from the endpoint configuration in settings.
+         Both use the animated DropdownSelect — same interaction as the old
+         native selects, smooth expansion (specs: rail/topbar polish). */}
       {settings ? (
         <div className="ui-topbar-pill ui-topbar-models">
-          <Select
-            className="ui-topbar-model"
+          <DropdownSelect
+            triggerClassName="ui-topbar-model"
             value={modelSelectValue}
             title={t("topbar.model")}
-            onChange={(e) => {
-              const val = e.target.value;
+            options={[
+              ...availableModels.map((m): DropdownOption => {
+                const parsed = parseModelKey(m);
+                const label = parsed
+                  ? `${settings?.endpoints?.find((e) => e.id === parsed.endpointId)?.name ?? parsed.endpointId} / ${parsed.modelId}`
+                  : m;
+                return { value: m, label };
+              }),
+              // Pool entry point: one click from the top bar to the model pool
+              // (endpoints tab). Makes the pool the visible source of truth —
+              // especially when it is empty and the list above is the hardcoded
+              // fallback pair. The controlled value never moves; the menu just
+              // closes and the settings panel opens.
+              { value: POOL_CONFIG_VALUE, label: `⚙ ${t("topbar.configureModelPool")}` },
+            ]}
+            onSelect={(val) => {
               if (val === POOL_CONFIG_VALUE) {
-                // Snap the DOM select back — the controlled value never moved.
-                e.target.value = modelSelectValue;
                 onOpenSettings();
                 return;
               }
@@ -291,44 +307,22 @@ export const TopBar = memo(function TopBar({
                 reasoningEffort: settings.reasoningEffort,
               });
             }}
-          >
-            {availableModels.map((m) => {
-              const parsed = parseModelKey(m);
-              const label = parsed
-                ? `${settings?.endpoints?.find((e) => e.id === parsed.endpointId)?.name ?? parsed.endpointId} / ${parsed.modelId}`
-                : m;
-              return (
-                <option key={m} value={m}>
-                  {label}
-                </option>
-              );
-            })}
-            {/* Pool entry point: one click from the top bar to the model pool
-                (endpoints tab). Makes the pool the visible source of truth —
-                especially when it is empty and the list above is the hardcoded
-                fallback pair. */}
-            <option value={POOL_CONFIG_VALUE}>{`⚙ ${t("topbar.configureModelPool")}`}</option>
-          </Select>
+          />
           <span className="ui-topbar-divider" aria-hidden="true" />
-          <Select
-            className="ui-topbar-thinking"
+          <DropdownSelect
+            triggerClassName="ui-topbar-thinking"
             value={currentThinkingKey(settings)}
             title={t("topbar.thinkingModel")}
-            onChange={(e) => {
-              const opt = thinkingOptions.find((o) => o.key === e.target.value) ?? thinkingOptions[0]!;
+            options={thinkingOptions.map((o): DropdownOption => ({ value: o.key, label: t(o.labelKey) }))}
+            onSelect={(key) => {
+              const opt = thinkingOptions.find((o) => o.key === key) ?? thinkingOptions[0]!;
               onSetModel({
                 model: settings.model,
                 thinkingEnabled: opt.thinkingEnabled,
                 reasoningEffort: opt.reasoningEffort ?? settings.reasoningEffort,
               });
             }}
-          >
-            {thinkingOptions.map((o) => (
-              <option key={o.key} value={o.key}>
-                {t(o.labelKey)}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
       ) : null}
 

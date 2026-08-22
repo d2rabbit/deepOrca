@@ -17,14 +17,14 @@ test("buildThinkingRequestOptions uses the same disabled payload for volces endp
 test("buildThinkingRequestOptions enables thinking with default reasoning effort", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "https://api.deepseek.com"), {
     thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "max" },
+    extra_body: { reasoning_effort: "high" },
   });
 });
 
 test("buildThinkingRequestOptions uses the same enabled payload for volces endpoints", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "https://ark.cn-beijing.volces.com/api/v3"), {
     thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "max" },
+    extra_body: { reasoning_effort: "high" },
   });
 });
 

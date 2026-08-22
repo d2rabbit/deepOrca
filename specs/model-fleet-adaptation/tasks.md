@@ -30,6 +30,10 @@
 
 - [x] G2 `openai-thinking.ts`：+可选 `model?` 参，`THINKING_BUILDERS` per-family 表分派；deepseek 与 unknown 条目返回与今天逐字节相同对象 + golden 测试锁定；主循环/压缩/四处后台调用全部传 model
   - _Requirement: R6, R4_
+- [x] G2b **effort 三档修正**（2026-08-22，依据官方 thinking_mode 文档）：实际生效等级为 low/high/max 三档（medium/xhigh 服务端映射 high），厂商默认 high——`ReasoningEffort` 扩为三档、全链默认值 max→high 对齐（settings/openai-client/openai-thinking）、TopBar 思考下拉与设置面板补"低"档（i18n ×6 `model.thinkingLow`）、golden 测试同步
+  - _Requirement: R6_
+- [ ] G2c **effort 扩展等级映射**（暂不展开，随 S1–S4 逐家族）：家族条目加 `effortLevels` + `mapEffort(unified→家族原生档)`，UI/settings 全程存 unified 三档、映射在 builder 内发生（方案见 design §2.4 映射方案段）
+  - _Requirement: R6, R8_
 - [x] G3 `openai-message-converter.ts`：reasoning 回显按 `reasoningReplay`（empty-field/omit/content）+ `reasoningField` 分派（converter 已持有 model，签名不变）；session.ts 流式读取改走 `reasoningReadFields`（nullish 链保序）；中转/持久化字段名走 spec（deepseek 值不变 → 存量会话兼容）
   - _Requirement: R6, R4_
 - [x] G4 压缩阈值查 `spec.contextWindowTokens`（阈值语义保持满窗口触发；deepseek 512K / unknown 128K 现值；0.85 提前量不做，留后续调参）

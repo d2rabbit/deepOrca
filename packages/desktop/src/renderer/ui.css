@@ -5631,6 +5631,89 @@ button.ui-topbar-pill {
 .ui-topbar-model {
   max-width: 220px;
 }
+
+/* ── DropdownSelect — animated popup select (ui/dropdown.tsx) ───────────── */
+.ui-dd {
+  position: relative;
+  display: inline-flex;
+}
+
+.ui-dd-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.ui-dd-caret {
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.55;
+  margin-left: 5px;
+  transition: transform 0.18s var(--ui-ease);
+}
+
+.ui-dd-trigger--open .ui-dd-caret {
+  transform: rotate(180deg);
+}
+
+/* Menu stays mounted; open/close transition opacity + translate + scale so
+   both directions animate without unmount flicker. */
+.ui-dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+  box-shadow: var(--ui-shadow-card);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top left;
+  transition:
+    opacity 0.16s var(--ui-ease),
+    transform 0.16s var(--ui-ease),
+    visibility 0.16s;
+  pointer-events: none;
+}
+
+.ui-dd-menu--open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.ui-dd-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: var(--ui-radius-sm, 6px);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ui-dd-item:hover {
+  background: var(--ui-surface-hover);
+}
+
+.ui-dd-item--selected {
+  color: var(--ui-accent);
+  font-weight: 600;
+}
 .ui-topbar-thinking {
   max-width: 160px;
 }

@@ -307,6 +307,7 @@ export const en = {
   "model.thinking": "Thinking",
   "model.thinkingMax": "Max",
   "model.thinkingHigh": "High",
+  "model.thinkingLow": "Low",
   "model.noThinking": "Disable thinking",
 
   // ── App status / errors ───────────────────────────────────
@@ -1233,6 +1234,7 @@ export const zh: Record<MessageKey, string> = {
   "model.thinking": "思考",
   "model.thinkingMax": "最高",
   "model.thinkingHigh": "高",
+  "model.thinkingLow": "低",
   "model.noThinking": "关闭思考",
 
   // ── App status / errors ───────────────────────────────────

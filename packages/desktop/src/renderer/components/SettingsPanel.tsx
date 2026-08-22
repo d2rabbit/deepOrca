@@ -58,7 +58,7 @@ const PERMISSION_SCOPES: PermissionScope[] = [
 
 const DECISIONS: PermissionDecision[] = ["default", "allow", "ask", "deny"];
 
-const REASONING_OPTIONS_FULL: ReasoningEffort[] = ["max", "high"];
+const REASONING_OPTIONS_FULL: ReasoningEffort[] = ["max", "high", "low"];
 const REASONING_OPTIONS_OFF: ReasoningEffort[] = [];
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
@@ -726,7 +726,11 @@ export function SettingsPanel({
                       <option value="">{t("settings.capabilities.thinkingOff")}</option>
                       {primaryThinkingOptions.map((r) => (
                         <option key={r} value={r}>
-                          {r === "max" ? t("model.thinkingMax") : t("model.thinkingHigh")}
+                          {r === "max"
+                            ? t("model.thinkingMax")
+                            : r === "low"
+                              ? t("model.thinkingLow")
+                              : t("model.thinkingHigh")}
                         </option>
                       ))}
                     </Select>

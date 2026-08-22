@@ -300,6 +300,7 @@ export const ja: Record<MessageKey, string> = {
   "model.thinking": "思考",
   "model.thinkingMax": "最大",
   "model.thinkingHigh": "高",
+  "model.thinkingLow": "低",
   "model.noThinking": "思考をオフ",
 
   // ── App status / errors ───────────────────────────────────

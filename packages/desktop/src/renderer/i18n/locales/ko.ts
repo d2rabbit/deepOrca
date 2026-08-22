@@ -299,6 +299,7 @@ export const ko: Record<MessageKey, string> = {
   "model.thinking": "사고",
   "model.thinkingMax": "최대",
   "model.thinkingHigh": "높음",
+  "model.thinkingLow": "낮음",
   "model.noThinking": "사고 끄기",
 
   // ── App status / errors ───────────────────────────────────

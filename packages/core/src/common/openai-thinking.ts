@@ -30,7 +30,7 @@ const THINKING_BUILDERS: Partial<Record<ThinkingProtocolId, ThinkingBuilder>> = 
 export function buildThinkingRequestOptions(
   thinkingEnabled: boolean,
   baseURL?: string,
-  reasoningEffort: ReasoningEffort = "max",
+  reasoningEffort: ReasoningEffort = "high",
   model?: string
 ): ThinkingRequestOptions {
   const spec = resolveModelSpec({ model: model ?? "", baseURL });
