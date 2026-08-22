@@ -655,15 +655,6 @@ select {
   color: #fff;
 }
 
-.ui-brand-label {
-  font-weight: 600;
-  font-size: 13px;
-}
-.ui-brand-label .dim {
-  color: var(--ui-text-faint);
-  font-weight: 400;
-}
-
 /* ── Main conversation area ──────────────────────────────────────────────── */
 .ui-main {
   grid-area: main;
@@ -1735,27 +1726,7 @@ select {
   box-shadow: var(--ui-shadow-sm);
   user-select: none;
 }
-.ui-avatar--user {
-  background: var(--ui-surface-raised);
-  color: var(--ui-text-dim);
-}
-.ui-avatar--assistant {
-  background: linear-gradient(135deg, var(--ui-accent), color-mix(in srgb, var(--ui-accent) 60%, #fff));
-}
-.ui-avatar--thinking {
-  background: color-mix(in srgb, var(--ui-warning, #d08b1e) 22%, var(--ui-surface-raised));
-  color: var(--ui-warning, #d08b1e);
-  border-color: color-mix(in srgb, var(--ui-warning, #d08b1e) 40%, transparent);
-}
-.ui-avatar--tool {
-  background: color-mix(in srgb, var(--ui-accent) 18%, var(--ui-surface-raised));
-  color: var(--ui-accent);
-}
-.ui-avatar--mcp {
-  background: color-mix(in srgb, #7b61ff 22%, var(--ui-surface-raised));
-  color: #9b87ff;
-  border-color: color-mix(in srgb, #7b61ff 40%, transparent);
-}
+
 /* Bubbles share the row with the avatar now; let them take available space but
    still respect their max-width cap so long content wraps rather than spanning
    the whole row. */
@@ -3312,11 +3283,7 @@ button.ui-tool-head:hover {
 /* =========================================================================
    Token usage panel
    ========================================================================= */
-.ui-usage-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ui-space-2);
-}
+
 .ui-stat {
   display: flex;
   flex-direction: column;
@@ -3326,73 +3293,11 @@ button.ui-tool-head:hover {
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-sunken);
 }
-.ui-stat-value {
-  font-family: var(--ui-font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--ui-text);
-}
-.ui-stat-label {
-  font-size: 11.5px;
-  color: var(--ui-text-faint);
-}
-
-.ui-usage-context {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--ui-space-2) var(--ui-space-3);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-accent-soft);
-}
-.ui-usage-context-label {
-  font-weight: 600;
-  font-size: 13px;
-}
-.ui-usage-context-value {
-  font-family: var(--ui-font-mono);
-  font-weight: 700;
-  color: var(--ui-accent);
-}
-.ui-usage-context-meta {
-  font-size: 12px;
-  color: var(--ui-text-dim);
-}
 
 .ui-usage-section-title {
   font-weight: 600;
   font-size: 13px;
   color: var(--ui-text-dim);
-}
-.ui-usage-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.ui-usage-table th,
-.ui-usage-table td {
-  padding: var(--ui-space-2) var(--ui-space-2);
-  text-align: left;
-  border-bottom: 1px solid var(--ui-border-soft);
-}
-.ui-usage-table th {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ui-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.ui-usage-table th.num,
-.ui-usage-table td.num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.ui-usage-table tbody tr:last-child td {
-  border-bottom: none;
-}
-.ui-usage-table tbody tr:hover td {
-  background: var(--ui-surface-hover);
 }
 
 /* =========================================================================
@@ -3474,22 +3379,7 @@ button.ui-tool-head:hover {
   flex-wrap: wrap;
   gap: 6px;
 }
-.ui-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--ui-radius-pill);
-  border: 1px solid var(--ui-border-soft);
-  background: var(--ui-surface);
-  font-size: 12px;
-}
-.ui-chip.on {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent);
-}
+
 .ui-prompt {
   width: 100%;
   border: none;
@@ -3921,11 +3811,7 @@ button.ui-tool-head:hover {
   /* The apiKey + show/hide group inside a row. */
   flex: 1;
 }
-.ui-endpoint-add {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ui-space-2);
-}
+
 .ui-endpoint-role {
   display: flex;
   flex-direction: column;
@@ -3937,43 +3823,6 @@ button.ui-tool-head:hover {
   font-size: 13px;
   font-weight: 600;
   color: var(--ui-text-primary);
-}
-.ui-endpoint-preset-url {
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  font-family: var(--ui-font-mono, monospace);
-}
-.ui-endpoint-models {
-  margin-top: var(--ui-space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-1);
-}
-.ui-endpoint-models-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ui-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 2px;
-}
-.ui-endpoint-model-row {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-1) 0;
-}
-.ui-endpoint-model-row .ui-input {
-  flex: 1;
-  min-width: 0;
-}
-.ui-endpoint-model-row .ui-checkbox-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--ui-text-dim);
-  white-space: nowrap;
 }
 
 /* ── Model pool (settings) ────────────────────────────────────────────────── */
@@ -4147,14 +3996,6 @@ button.ui-tool-head:hover {
   font-size: 12.5px;
   line-height: 1.6;
   color: var(--ui-text-dim);
-}
-.ui-mcp-editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-3);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-md);
 }
 
 .ui-plugin-item {
@@ -4342,46 +4183,6 @@ button.ui-tool-head:hover {
   color: var(--ui-text-faint);
   letter-spacing: 0.01em;
 }
-.ui-skill-desc {
-  color: var(--ui-text-dim);
-  font-size: 12.5px;
-}
-.ui-skill-path {
-  color: var(--ui-text-faint);
-  font-size: 11.5px;
-  font-family: var(--ui-font-mono);
-}
-.ui-mcp-detail-section {
-  margin-top: var(--ui-space-2);
-}
-.ui-mcp-detail-section h4 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  color: var(--ui-text-dim);
-}
-.ui-mcp-tag {
-  display: inline-flex;
-  margin: 0 4px 4px 0;
-  padding: 2px 8px;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-surface-sunken);
-  font-size: 11.5px;
-  font-family: var(--ui-font-mono);
-}
-.ui-mcp-tag.tool {
-  color: var(--ui-accent);
-}
-.ui-mcp-tag.prompt {
-  color: var(--ui-info);
-}
-.ui-mcp-tag.resource {
-  color: var(--ui-success);
-}
-.ui-plugin-empty {
-  padding: var(--ui-space-5);
-  text-align: center;
-  color: var(--ui-text-faint);
-}
 
 /* =========================================================================
    Undo modal
@@ -4448,12 +4249,6 @@ button.ui-tool-head:hover {
 }
 
 /* Highlight (session search) */
-.ui-highlight {
-  background: var(--ui-warning);
-  color: var(--ui-text);
-  border-radius: 3px;
-  padding: 0 2px;
-}
 
 /* =========================================================================
    VSCode-style panels — window controls · workspace tree · task · scm · diff
@@ -5258,76 +5053,6 @@ button.ui-tool-head:hover {
 }
 
 /* ── Diff view (main area) ───────────────────────────────────────────────── */
-.ui-diff-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-.ui-diff-tabs {
-  display: flex;
-  gap: var(--ui-space-1);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-bottom: 1px solid var(--ui-border-soft);
-}
-
-.ui-diff-content {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.ui-diff-agent {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-}
-
-.ui-diff-agent-list {
-  width: 240px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  border-right: 1px solid var(--ui-border-soft);
-  padding: var(--ui-space-2);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ui-diff-agent-file {
-  text-align: left;
-  padding: 4px var(--ui-space-2);
-  border-radius: var(--ui-radius-md);
-  font-size: 12px;
-  color: var(--ui-text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-}
-
-.ui-diff-agent-file:hover {
-  background: var(--ui-surface-hover);
-}
-
-.ui-diff-agent-file.active {
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent);
-}
-
-.ui-diff-view {
-  min-width: 0;
-  flex: 1;
-}
-
-.ui-diff-file {
-  padding: var(--ui-space-2) var(--ui-space-3);
-  font-size: 12px;
-  color: var(--ui-text-dim);
-  border-bottom: 1px solid var(--ui-border-soft);
-  word-break: break-all;
-}
 
 .ui-diff-body {
   margin: 0;
@@ -5460,17 +5185,6 @@ button.ui-tool-head:hover {
 }
 
 /* Unified icon glyph family + sizing across rail, panel heads, and top bar. */
-.ui-icon-glyph {
-  font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols2", sans-serif;
-  font-size: 15px;
-  line-height: 1;
-  font-variant-emoji: text;
-}
-
-.ui-brand-label.ui-icon-glyph {
-  color: var(--ui-accent);
-  font-size: 16px;
-}
 
 /* Rail + panel-header icon buttons share the unified symbol family. */
 .ui-rail-btn,
@@ -5769,8 +5483,7 @@ button.ui-topbar-pill {
 }
 
 /* ── Right panel child overrides (panels no longer own a grid area) ──────── */
-.ui-rightpanel .ui-side-panel,
-.ui-rightpanel .ui-diff-panel {
+.ui-rightpanel .ui-side-panel {
   flex: 1;
   min-height: 0;
   border-right: none;
@@ -5823,44 +5536,8 @@ button.ui-topbar-pill {
 }
 
 /* ── Plugin center (inline main view) ────────────────────────────────────── */
-.ui-plugin-panel {
-  grid-area: main;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-.ui-plugin-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--ui-space-3) var(--ui-space-4);
-  border-bottom: 1px solid var(--ui-border-soft);
-}
-.ui-plugin-panel-title {
-  font-weight: 600;
-  font-size: 14px;
-}
-.ui-plugin-panel .ui-tabs {
-  padding: 0 var(--ui-space-4);
-}
-.ui-plugin-panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--ui-space-3) var(--ui-space-4);
-}
 
 /* ── Token analytics note (approximation callout) ────────────────────────── */
-.ui-token-note {
-  margin-bottom: var(--ui-space-3);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-left: 3px solid var(--ui-warning);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-accent-soft);
-  color: var(--ui-text-dim);
-  font-size: 12px;
-  line-height: 1.5;
-}
 
 /* ── Composer: taller input + disabled target-mode toggle ────────────────── */
 .ui-prompt {
@@ -5877,21 +5554,6 @@ button.ui-topbar-pill {
    ========================================================================= */
 
 /* ── Token view: stacked stats + index library in one scrollable panel ───── */
-.ui-token-view {
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-.ui-token-view::-webkit-scrollbar {
-  display: none;
-}
-.ui-token-view > .ui-side-panel {
-  flex: none;
-  overflow: visible;
-  border-right: none;
-}
-.ui-token-view > .ui-side-panel + .ui-side-panel {
-  border-top: 1px solid var(--ui-border-soft);
-}
 
 .ui-token-stats {
   display: flex;
@@ -6000,22 +5662,7 @@ button.ui-topbar-pill {
 }
 
 /* ── Index library rows (item 7) ─────────────────────────────────────────── */
-.ui-index-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-radius: var(--ui-radius-md);
-  transition: background 0.12s var(--ui-ease);
-  animation: ui-card-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.ui-index-row:hover {
-  background: var(--ui-surface-hover);
-}
-.ui-index-main {
-  min-width: 0;
-}
+
 .ui-index-name {
   font-size: 13px;
   font-weight: 500;
@@ -6072,186 +5719,12 @@ button.ui-topbar-pill {
 }
 
 /* ── Index log output (live indexing progress) ────────────────────────────── */
-.ui-index-log {
-  margin-top: var(--ui-space-2);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  overflow: hidden;
-  animation: ui-card-enter 0.2s ease both;
-}
-.ui-index-log-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--ui-space-1) var(--ui-space-2);
-  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.03));
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ui-index-log-body {
-  margin: 0;
-  padding: var(--ui-space-2);
-  max-height: 180px;
-  overflow-y: auto;
-  font-family: var(--ui-font-mono, "SF Mono", "Cascadia Code", "Fira Code", monospace);
-  font-size: 11px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--ui-text-secondary);
-  background: var(--ui-surface);
-}
 
 /* ── Code Review panel (ocr) ─────────────────────────────────────────────── */
-.ui-review-version {
-  font-size: 10px;
-  color: var(--ui-text-faint);
-  margin-left: auto;
-}
-.ui-review-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-2) 0;
-}
-.ui-review-scope {
-  flex: 1;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--ui-text-secondary);
-  line-height: 1.4;
-}
-.ui-review-summary {
-  padding: var(--ui-space-2) var(--ui-space-3);
-  font-size: 12px;
-  color: var(--ui-text-secondary);
-  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.03));
-  border-radius: var(--ui-radius-sm);
-  margin-bottom: var(--ui-space-2);
-}
-.ui-review-comments {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-2);
-}
-.ui-review-comment {
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-md);
-  animation: ui-card-enter 0.2s ease both;
-}
-.ui-review-comment-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  margin-bottom: var(--ui-space-1);
-}
-.ui-review-severity {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.ui-review-file {
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  font-family: var(--ui-font-mono, monospace);
-}
-.ui-review-message {
-  font-size: 12px;
-  color: var(--ui-text-primary);
-  line-height: 1.5;
-}
-.ui-review-suggestion {
-  margin-top: var(--ui-space-1);
-  font-size: 11px;
-  color: var(--ui-accent);
-  font-style: italic;
-}
-.ui-review-unavailable {
-  padding: var(--ui-space-3);
-  font-size: 12px;
-  color: var(--ui-text-secondary);
-  text-align: center;
-}
-.ui-review-unavailable code {
-  display: block;
-  margin-top: var(--ui-space-2);
-  padding: var(--ui-space-2);
-  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.04));
-  border-radius: var(--ui-radius-sm);
-  font-size: 11px;
-  word-break: break-all;
-}
-.ui-review-hint {
-  margin-top: var(--ui-space-2);
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  font-family: var(--ui-font-mono, monospace);
-}
-.ui-review-version {
-  font-size: 10px;
-  color: var(--ui-text-faint);
-  font-family: var(--ui-font-mono, monospace);
-  margin-left: var(--ui-space-1);
-}
 
 /* ── Review panel tabs ─────────────────────────────────────────────────── */
-.ui-review-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--ui-border-soft);
-  padding: 0 var(--ui-space-3);
-}
-.ui-review-tab {
-  background: none;
-  border: none;
-  padding: var(--ui-space-2) var(--ui-space-3);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--ui-text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-}
-.ui-review-tab:hover {
-  color: var(--ui-text-primary);
-}
-.ui-review-tab.active {
-  color: var(--ui-accent);
-  border-bottom-color: var(--ui-accent);
-}
 
 /* ── CRG (code-review-graph) panel styles ──────────────────────────────── */
-.ui-crg-analysis-guide,
-.ui-crg-architecture-guide {
-  padding: var(--ui-space-2) 0;
-}
-.ui-crg-hint {
-  font-size: 11px;
-  color: var(--ui-text-secondary);
-  margin-bottom: var(--ui-space-2);
-}
-.ui-crg-examples {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-1);
-}
-.ui-crg-examples li {
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  padding: var(--ui-space-1) var(--ui-space-2);
-  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.03));
-  border-radius: var(--ui-radius-sm);
-  font-family: var(--ui-font-mono, monospace);
-}
 
 /* ── Plugin MCP rows (items 5 & 8) ───────────────────────────────────────── */
 .ui-mcp-row {
@@ -6639,80 +6112,6 @@ button.ui-topbar-pill {
 }
 
 /* ── Settings token bento grid (item 9) ──────────────────────────────────── */
-.ui-bento {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--ui-space-3);
-  margin-bottom: var(--ui-space-4);
-}
-.ui-bento-cell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-1);
-  padding: var(--ui-space-3);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-surface-raised);
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-.ui-bento-cell:hover {
-  border-color: var(--ui-accent);
-  box-shadow: var(--ui-shadow-sm);
-}
-@media (max-width: 600px) {
-  .ui-bento {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .ui-bento-hero,
-  .ui-bento-wide {
-    grid-column: span 2;
-  }
-}
-.ui-bento-hero {
-  grid-column: span 3;
-  align-items: flex-start;
-  background: var(--ui-accent-soft);
-  border-color: transparent;
-}
-.ui-bento-hero-value {
-  font-size: 34px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-accent);
-  line-height: 1.1;
-}
-.ui-bento-hero-label {
-  font-size: 12px;
-  color: var(--ui-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.ui-bento-hero-sub {
-  font-size: 11.5px;
-  color: var(--ui-text-faint);
-}
-.ui-bento-metric {
-  font-size: 20px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.ui-bento-metric-label {
-  font-size: 11px;
-  color: var(--ui-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.ui-bento-wide {
-  grid-column: span 3;
-  gap: var(--ui-space-2);
-}
-.ui-bento-cell-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ui-text-dim);
-}
 
 /* Context-compression progress bar (below the composer).
    Toylike: gradient fill with a traveling shine, an 80% threshold tick, and an
@@ -6861,27 +6260,7 @@ button.ui-topbar-pill {
   padding: var(--ui-space-5);
   text-align: center;
 }
-.ui-plugin-detail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-3);
-  flex-wrap: wrap;
-}
-.ui-plugin-detail-title {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-}
-.ui-plugin-detail-name {
-  font-size: 18px;
-  font-weight: 600;
-}
-.ui-plugin-detail-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-3);
-}
+
 .ui-plugin-detail-toggle {
   display: inline-flex;
   align-items: center;
@@ -6889,41 +6268,7 @@ button.ui-topbar-pill {
   font-size: 12px;
   color: var(--ui-text-dim);
 }
-.ui-plugin-detail-lead {
-  color: var(--ui-text-dim);
-  font-size: 13px;
-  margin: 0;
-}
-.ui-plugin-detail-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-2);
-}
-.ui-plugin-detail-section h3 {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ui-text-faint);
-  margin: 0;
-}
-.ui-plugin-meta {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 4px var(--ui-space-3);
-  margin: 0;
-}
-.ui-plugin-meta dt {
-  font-weight: 600;
-  color: var(--ui-text-dim);
-  font-size: 12.5px;
-}
-.ui-plugin-meta dd {
-  margin: 0;
-  font-size: 12.5px;
-  min-width: 0;
-  word-break: break-all;
-}
+
 .ui-plugin-mono {
   font-family: var(--ui-font-mono);
   color: var(--ui-text-faint);
@@ -6959,33 +6304,6 @@ button.ui-topbar-pill {
 }
 
 /* Built-in MCP servers managed inside a plugin group detail (not the MCP tab). */
-.ui-plugin-mcp-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-1);
-  margin-top: var(--ui-space-2);
-}
-.ui-plugin-mcp-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-2);
-  padding: 6px 10px;
-  border-radius: var(--ui-radius);
-  background: var(--ui-surface-hover);
-  border: 1px solid var(--ui-border-soft);
-}
-.ui-plugin-mcp-row.disabled {
-  opacity: 0.5;
-}
-.ui-plugin-mcp-name {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  font-size: 12.5px;
-  font-family: var(--ui-font-mono);
-  color: var(--ui-text);
-}
 
 /* ── Plugin detail — unified hero/caps/actions/doc layout ─────────────────── */
 .ui-detail-hero {
@@ -7633,15 +6951,7 @@ button.ui-topbar-pill {
   max-width: 360px;
   pointer-events: auto;
 }
-.ui-toast--success {
-  border-left-color: var(--ui-success);
-}
-.ui-toast--error {
-  border-left-color: var(--ui-danger);
-}
-.ui-toast--info {
-  border-left-color: var(--ui-info);
-}
+
 @keyframes ui-toast-in {
   from {
     opacity: 0;
@@ -7658,18 +6968,7 @@ button.ui-topbar-pill {
   font-size: 10px;
   font-weight: 700;
 }
-.ui-toast--success .ui-toast-icon {
-  background: color-mix(in srgb, var(--ui-success) 15%, transparent);
-  color: var(--ui-success);
-}
-.ui-toast--error .ui-toast-icon {
-  background: color-mix(in srgb, var(--ui-danger) 15%, transparent);
-  color: var(--ui-danger);
-}
-.ui-toast--info .ui-toast-icon {
-  background: color-mix(in srgb, var(--ui-info) 15%, transparent);
-  color: var(--ui-info);
-}
+
 .ui-toast-text {
   min-width: 0;
   overflow: hidden;
@@ -8665,22 +7964,7 @@ button.ui-topbar-pill {
   border-radius: var(--ui-radius-sm);
   flex-shrink: 0;
 }
-.ui-git-status-added {
-  background: rgba(63, 185, 80, 0.2);
-  color: #3fb950;
-}
-.ui-git-status-modified {
-  background: rgba(210, 153, 34, 0.2);
-  color: #d29922;
-}
-.ui-git-status-deleted {
-  background: rgba(248, 81, 73, 0.2);
-  color: #f85149;
-}
-.ui-git-status-renamed {
-  background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
-}
+
 .ui-git-change-file {
   flex: 1;
   font-family: var(--ui-font-mono, monospace);
@@ -8880,20 +8164,7 @@ button.ui-topbar-pill {
   flex: 1;
   overflow: hidden;
 }
-.ui-prototype-panel-btn {
-  background: none;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-sm);
-  padding: 4px 10px;
-  font-size: 11px;
-  color: var(--ui-text-dim);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.ui-prototype-panel-btn:hover {
-  border-color: var(--ui-accent);
-  color: var(--ui-accent);
-}
+
 .ui-prototype-panel-body {
   flex: 1;
   overflow-y: auto;
