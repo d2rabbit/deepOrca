@@ -37,7 +37,9 @@ type Props = {
   streamElapsedSecs?: number;
 };
 
-const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
+/** Default model lineup (DeepSeek V4 family) used when no endpoint models are
+ * configured — mirrors the registry's registered deepseek models. */
+const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"];
 
 /** Sentinel option value: opens the settings panel's model pool (endpoints
  * tab). Selecting it never changes the model — the controlled value stays

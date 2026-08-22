@@ -89,7 +89,7 @@ export function IconPlugins(): JSX.Element {
 export function IconTokens(): JSX.Element {
   return (
     <svg {...S}>
-      <path d="M4 16V10M10 16V4M16 16V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4 16V10M10 16V4M16 16V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -192,7 +192,6 @@ export function IconSun(): JSX.Element {
   );
 }
 
-/** Diamond/gem — glass theme */
 /** Undo arrow — undo/restore */
 export function IconUndo(): JSX.Element {
   return (
@@ -209,17 +208,20 @@ export function IconUndo(): JSX.Element {
   );
 }
 
-/** Gear — settings */
+/** Tuning sliders — settings (three rails with knobs; deliberately not a
+    radial gear — that reads as a second sun next to the appearance toggle) */
 export function IconSettings(): JSX.Element {
   return (
     <svg {...S}>
-      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
       <path
-        d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"
+        d="M3 5h5.2M12.8 5H17M3 10h1.2M8.8 10H17M3 15h8.2M15.8 15H17"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
+      <circle cx="10.5" cy="5" r="1.9" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="6" cy="10" r="1.9" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="13.5" cy="15" r="1.9" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

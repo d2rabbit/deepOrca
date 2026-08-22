@@ -605,6 +605,7 @@ export function SettingsPanel({
                         <datalist id="ui-pool-model-suggestions">
                           <option value="deepseek-v4-pro" />
                           <option value="deepseek-v4-flash" />
+                          <option value="deepseek-v4-flash-vision-exp" />
                         </datalist>
                       </Field>
 
