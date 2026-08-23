@@ -43,6 +43,8 @@ import {
   buildGitmcpMcpServerConfig,
   TaskTreeService,
 } from "@deeporca/core";
+import { extractTaskTrajectory } from "./task-trajectory";
+import { buildSymbolGraph } from "./symbol-graph-query";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import {
@@ -59,10 +61,6 @@ import type {
   MemoryRoutingStatus,
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
-  TaskTrajectory,
-  TaskTrajectoryOp,
-  KnowledgeSymbolGraphEdge,
-  KnowledgeSymbolGraphNode,
   MemoryPipelineStats,
   ThinkingModeSelection,
   UndoRestoreMode,
@@ -1386,76 +1384,7 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
       const { DatabaseSync } = moduleRequire("node:sqlite") as {
         DatabaseSync: new (path: string, opts: { readOnly: boolean }) => DatabaseSyncType;
       };
-      const db = new DatabaseSync(dbPath, { readOnly: true });
-      type NodeRow = { id: string; name: string; kind: string; file_path: string };
-      const trimmed = (query ?? "").trim();
-      // Focus set: query matches, else the most-referenced non-file symbols
-      // (in-degree hubs — an instant "what is this codebase wired around" view).
-      const focusRows = trimmed
-        ? (db
-            .prepare(
-              "SELECT id, name, kind, file_path FROM nodes WHERE (name LIKE ? OR qualified_name LIKE ?) AND kind NOT IN ('import','unknown','file') ORDER BY name LIMIT 12"
-            )
-            .all(`%${trimmed}%`, `%${trimmed}%`) as NodeRow[])
-        : (db
-            .prepare(
-              `SELECT n.id, n.name, n.kind, n.file_path, COUNT(*) AS deg
-               FROM nodes n JOIN edges e ON e.target = n.id
-               WHERE n.kind NOT IN ('import','unknown','file') AND e.kind IN ('calls','references','instantiates')
-               GROUP BY n.id ORDER BY deg DESC LIMIT 10`
-            )
-            .all() as (NodeRow & { deg: number })[]);
-      if (focusRows.length === 0) return { nodes: [], edges: [], truncated: false };
-      const focusIds = new Set(focusRows.map((r) => r.id));
-
-      // One-hop neighborhood: edges into/out of the focus set (relationship
-      // kinds only — "contains" is structural file nesting, not a graph link).
-      const REL = "('calls','references','instantiates','implements')";
-      const inRows = db
-        .prepare(
-          `SELECT source, target, kind FROM edges WHERE target IN (${focusRows.map(() => "?").join(",")}) AND kind IN ${REL} LIMIT 300`
-        )
-        .all(...focusIds) as Array<{ source: string; target: string; kind: string }>;
-      const outRows = db
-        .prepare(
-          `SELECT source, target, kind FROM edges WHERE source IN (${focusRows.map(() => "?").join(",")}) AND kind IN ${REL} LIMIT 300`
-        )
-        .all(...focusIds) as Array<{ source: string; target: string; kind: string }>;
-
-      const nodeIds = new Set<string>(focusIds);
-      for (const e of [...inRows, ...outRows]) {
-        nodeIds.add(e.source);
-        nodeIds.add(e.target);
-      }
-      const nodeRows = (
-        db
-          .prepare(`SELECT id, name, kind, file_path FROM nodes WHERE id IN (${[...nodeIds].map(() => "?").join(",")})`)
-          .all(...nodeIds) as NodeRow[]
-      ).filter((n) => n.kind !== "import");
-      const byId = new Map(nodeRows.map((n) => [n.id, n]));
-
-      const nodes: KnowledgeSymbolGraphNode[] = [];
-      for (const n of nodeRows) {
-        nodes.push({
-          id: n.id,
-          name: n.name,
-          kind: n.kind,
-          filePath: n.file_path,
-          role: focusIds.has(n.id) ? "focus" : inRows.some((e) => e.target === n.id) ? "caller" : "callee",
-        });
-      }
-      const allowedKinds = new Set(["calls", "references", "instantiates", "implements"]);
-      const seen = new Set<string>();
-      const edges: KnowledgeSymbolGraphEdge[] = [];
-      for (const e of [...inRows, ...outRows]) {
-        if (!allowedKinds.has(e.kind) || !byId.has(e.source) || !byId.has(e.target)) continue;
-        const key = `${e.source}→${e.target}:${e.kind}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        edges.push({ source: e.source, target: e.target, kind: e.kind as KnowledgeSymbolGraphEdge["kind"] });
-      }
-      const truncated = inRows.length >= 300 || outRows.length >= 300;
-      return { nodes, edges, truncated };
+      return buildSymbolGraph(new DatabaseSync(dbPath, { readOnly: true }), query);
     } catch (err) {
       console.error("[knowledge:symbolGraph] failed:", err instanceof Error ? err.message : String(err));
       return { nodes: [], edges: [], truncated: false };
@@ -1587,65 +1516,10 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.TaskTreeTrajectory, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
     const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
-    const svc = new TaskTreeService(root);
-    const tree = svc.getTree(treeId);
+    const tree = new TaskTreeService(root).getTree(treeId);
     if (!tree) return null;
-    const sessionIds = tree.index.sessionIds ?? [];
     const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(root));
-    const operations: TaskTrajectoryOp[] = [];
-    for (const sessionId of sessionIds.slice(-8)) {
-      const file = join(projectDir, `${sessionId}.jsonl`);
-      let raw: string;
-      try {
-        raw = readFileSync(file, "utf-8");
-      } catch {
-        continue;
-      }
-      for (const line of raw.split("\n")) {
-        if (!line.trim()) continue;
-        let msg: {
-          role?: unknown;
-          content?: unknown;
-          createTime?: unknown;
-          meta?: { paramsMd?: unknown; function?: { name?: unknown } } | undefined;
-        };
-        try {
-          msg = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (msg.role !== "tool" || typeof msg.content !== "string") continue;
-        try {
-          const parsed = JSON.parse(msg.content) as { ok?: unknown; name?: unknown };
-          const tool = typeof parsed.name === "string" ? parsed.name : "tool";
-          const params = typeof msg.meta?.paramsMd === "string" ? msg.meta.paramsMd.trim() : "";
-          const summary = params.split("\n")[0]?.slice(0, 160) || undefined;
-          const files: string[] = [];
-          const filePath = params.match(/"file_path"\s*:\s*"([^"]+)"/) ?? params.match(/file_path=([^\s"']+)/);
-          if (filePath?.[1]) files.push(filePath[1]);
-          operations.push({
-            at: typeof msg.createTime === "string" ? msg.createTime : "",
-            tool,
-            ok: parsed.ok !== false,
-            summary,
-            files: files.length > 0 ? files : undefined,
-          });
-        } catch {
-          // non-JSON tool content — skip
-        }
-      }
-    }
-    operations.sort((a, b) => a.at.localeCompare(b.at));
-    const toolCounts: Record<string, number> = {};
-    for (const op of operations) toolCounts[op.tool] = (toolCounts[op.tool] ?? 0) + 1;
-    const filesTouched = [...new Set(operations.flatMap((op) => op.files ?? []))];
-    const result: TaskTrajectory = {
-      operations: operations.slice(-500),
-      toolCounts,
-      filesTouched,
-      sessionCount: sessionIds.length,
-    };
-    return result;
+    return extractTaskTrajectory(tree.index.sessionIds ?? [], projectDir);
   });
   handlePrivileged(IpcRequest.TaskTreeArchive, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return false;
