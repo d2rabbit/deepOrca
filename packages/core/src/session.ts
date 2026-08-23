@@ -490,6 +490,13 @@ export type SessionEntry = {
   planMode?: boolean;
   /** Task trajectory binding (specs/task-tree P1): reverse pointer to the branch this session executes. */
   taskRef?: { treeId: string; branch: string; nodeId: string };
+  /**
+   * True for silent-subagent sessions (specs/index-knowledge-rework T2):
+   * excluded from the session list and their messages never surface in the
+   * user's conversation view — background pipelines (index.build-all
+   * arch-scan) use these so workspace building leaks zero chat behavior.
+   */
+  isSilentSubagent?: boolean;
 };
 
 export type SessionsIndex = {
@@ -912,6 +919,8 @@ export class SessionManager {
   private shardConfig: { enabled: boolean; minChars: number; topK: number } | null = null;
   /** Current subagent nesting depth (recursion cap, deep review 2026-08-15 B6). */
   private subagentDepth = 0;
+  /** True while a silent subagent runs — new sub-sessions get isSilentSubagent. */
+  private silentSubagentActive = false;
   /** Task trajectory service (specs/task-tree P0) — single writer, lazily built. */
   private taskTreeServiceInstance: TaskTreeService | null = null;
   /** Sessions that mutated files during the current turn and need a CodeGraph index sync. */
@@ -1411,6 +1420,13 @@ export class SessionManager {
       throw new Error(`Subagent recursion depth exceeded (>${MAX_SUBAGENT_DEPTH}) — mutually-recursive skills?`);
     }
     const previousActive = this.activeSessionId;
+    // Silent mode: while set, newly created sub-sessions are flagged
+    // isSilentSubagent (hidden from the list; renderer drops their streamed
+    // messages). Cleared in finally so a thrown skill never leaves it on.
+    const previousSilent = this.silentSubagentActive;
+    if (opts.silent) {
+      this.silentSubagentActive = true;
+    }
     this.subagentDepth += 1;
     // Force-load the named skill (don't rely on auto-match alone).
     let skillInfo: SkillInfo | undefined;
@@ -1435,6 +1451,7 @@ export class SessionManager {
     } finally {
       // Restore the parent as the active session so the UI returns to it.
       this.activeSessionId = previousActive;
+      this.silentSubagentActive = previousSilent;
       this.subagentDepth = Math.max(0, this.subagentDepth - 1);
     }
   }
@@ -3413,6 +3430,8 @@ ${content}
       usage: null,
       usagePerModel: null,
       activeTokens: 0,
+      // Silent subagent (runSubagent silent:true): hidden from list/stream.
+      isSilentSubagent: this.silentSubagentActive || undefined,
       createTime: now,
       updateTime: now,
       processes: null,
@@ -4315,7 +4334,9 @@ ${content}
 
   listSessions(): SessionEntry[] {
     const index = this.loadSessionsIndex();
-    return index.entries;
+    // Silent subagent sessions never surface in the list (T2) — they are
+    // internal pipeline runs, not user conversations.
+    return index.entries.filter((entry) => !entry.isSilentSubagent);
   }
 
   getSession(sessionId: string): SessionEntry | null {

@@ -298,6 +298,12 @@ export class SessionBridge {
       },
       renderMarkdown: (text) => text,
       onAssistantMessage: (message: SessionMessage) => {
+        // Silent subagents (index.build-all arch-scan) never stream into the
+        // user's conversation view (specs/index-knowledge-rework T2).
+        const entry = this.manager.getSession(message.sessionId);
+        if (entry?.isSilentSubagent) {
+          return;
+        }
         this.emit(IpcEvent.AssistantMessage, message);
       },
       onSessionEntryUpdated: (entry) => {

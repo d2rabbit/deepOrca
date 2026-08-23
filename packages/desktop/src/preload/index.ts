@@ -118,7 +118,7 @@ const api: DesktopApi = {
   wikiCheckAvailable: () => ipcRenderer.invoke(IpcRequest.WikiCheckAvailable),
   wikiInit: () => ipcRenderer.invoke(IpcRequest.WikiInit),
   wikiUpdate: () => ipcRenderer.invoke(IpcRequest.WikiUpdate),
-  wikiListPages: () => ipcRenderer.invoke(IpcRequest.WikiListPages),
+  wikiListPages: (root) => ipcRenderer.invoke(IpcRequest.WikiListPages, root),
   wikiReadPage: (path) => ipcRenderer.invoke(IpcRequest.WikiReadPage, path),
   onWikiProgress: (cb) => subscribe(IpcEvent.WikiProgress, cb as (p: never) => void),
 
@@ -145,7 +145,9 @@ const api: DesktopApi = {
   memoryClear: () => ipcRenderer.invoke(IpcRequest.MemoryClear),
 
   // ── Knowledge dashboard ──────────────────────────────────────────
-  knowledgeStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeStatus),
+  knowledgeStatus: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeStatus, root),
+  memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
+  knowledgeRenderArchmap: (path) => ipcRenderer.invoke(IpcRequest.KnowledgeRenderArchmap, path),
 
   // ── Designer (design artifacts) ────────────────────────────────────
   designList: () => ipcRenderer.invoke(IpcRequest.DesignList),

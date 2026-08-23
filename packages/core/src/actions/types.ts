@@ -128,6 +128,14 @@ export interface RunSubagentOptions {
   readonly skill: string;
   readonly prompt?: string;
   readonly input?: Record<string, unknown>;
+  /**
+   * Silent mode (specs/index-knowledge-rework T2): the sub-session's messages
+   * are NOT surfaced to the user's conversation view — the result is returned
+   * to the caller only. Background pipelines (index.build-all's arch-scan
+   * stage) use this so workspace building never leaks chat behavior into the
+   * main session; interactive subagents keep the default surfaced behavior.
+   */
+  readonly silent?: boolean;
 }
 
 /** The `run` function authors implement. */

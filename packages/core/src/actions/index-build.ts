@@ -19,6 +19,12 @@ export interface IndexBuildInput {
   /** "init" runs all three stages (incl. arch-scan when subagent is available);
    *  "update" refreshes codegraph + wiki only. */
   readonly mode?: "init" | "update";
+  /**
+   * Workspace root to build (specs/index-knowledge-rework T3): the per-row
+   * build buttons target any listed workspace, not just the active one.
+   * Defaults to the action context's project root.
+   */
+  readonly root?: string;
 }
 
 export interface IndexBuildStage {
@@ -48,6 +54,7 @@ export const indexBuildAllDefinition: ActionDefinition<IndexBuildInput> = {
 
 export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = async (input, ctx) => {
   const mode = input?.mode === "update" ? "update" : "init";
+  const root = input?.root || ctx.projectRoot;
   const stages: IndexBuildStage[] = [];
 
   // Stage 1: CodeGraph symbol index (via controller — SDK in production).
@@ -57,7 +64,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
     stages.push({ stage: "codegraph", ok: false, skipped: true, error: "no CodegraphController configured" });
   } else {
     try {
-      await cgController.reindex(ctx.projectRoot, (p: ControllerProgress) =>
+      await cgController.reindex(root, (p: ControllerProgress) =>
         ctx.emit({ message: `[1/3] ${p.message}`, percent: p.percent ? Math.floor(p.percent / 3) : undefined })
       );
       stages.push({ stage: "codegraph", ok: true });
@@ -76,7 +83,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
     try {
       const fn =
         mode === "init" ? wikiController.init.bind(wikiController) : wikiController.update.bind(wikiController);
-      await fn(ctx.projectRoot, (p: ControllerProgress) =>
+      await fn(root, (p: ControllerProgress) =>
         ctx.emit({ message: `[2/3] ${p.message}`, percent: p.percent ? 33 + Math.floor(p.percent / 3) : undefined })
       );
       stages.push({ stage: "wiki", ok: true });
@@ -99,7 +106,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
       });
     } else {
       try {
-        await ctx.runSubagent({ skill: "arch-scan" });
+        await ctx.runSubagent({ skill: "arch-scan", silent: true });
         stages.push({ stage: "arch-scan", ok: true });
       } catch (err) {
         stages.push({ stage: "arch-scan", ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -107,7 +114,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
     }
   }
   ctx.emit({
-    message: `index.buildAll (${mode}) complete; codegraph=${cgController?.hasProject(ctx.projectRoot) ?? false}`,
+    message: `index.buildAll (${mode}) complete; codegraph=${cgController?.hasProject(root) ?? false}`,
     percent: 100,
   });
 

@@ -8261,3 +8261,150 @@ button.ui-topbar-pill {
 .ui-trust-btn--quarantine:hover:not(:disabled) {
   border-color: rgba(230, 160, 60, 0.7);
 }
+
+/* ── Index & Knowledge (specs/index-knowledge-rework) ─────────────────────── */
+/* Left rail: workspace rows with inline per-row build buttons. */
+.ui-ik-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft, #333);
+  cursor: pointer;
+}
+.ui-ik-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-ik-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ui-text-dim, #888);
+}
+.ui-ik-dot.on {
+  background: var(--ui-accent, #3b82f6);
+}
+.ui-ik-dot.partial {
+  background: #f7a04f;
+}
+.ui-ik-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.ui-ik-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ik-meta {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ik-build {
+  flex-shrink: 0;
+}
+
+/* Knowledge tab body: sub-tabs + lists + preview. */
+.ui-knowledge-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.ui-knowledge-subtabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+.ui-knowledge-subtab {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  background: transparent;
+  color: var(--ui-text-dim, #888);
+}
+.ui-knowledge-subtab.active {
+  background: var(--ui-accent, #3b82f6);
+  color: #fff;
+}
+.ui-knowledge-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+.ui-knowledge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-knowledge-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft, #333);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.ui-knowledge-item:hover,
+.ui-knowledge-item.selected {
+  background: var(--ui-surface-hover);
+}
+.ui-knowledge-item-name {
+  font-size: 12.5px;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-item-meta {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  flex-shrink: 0;
+}
+.ui-knowledge-preview {
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft, #333);
+  overflow: hidden;
+  height: 420px;
+}
+.ui-knowledge-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.ui-knowledge-preview-loading {
+  width: 28px;
+  height: 28px;
+  margin: 40px auto;
+  border-radius: 50%;
+  border: 3px solid var(--ui-border-soft, #333);
+  border-top-color: var(--ui-accent, #3b82f6);
+  animation: ui-ik-spin 0.8s linear infinite;
+}
+@keyframes ui-ik-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ui-knowledge-preview-error {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--ui-danger, #ef4444);
+}

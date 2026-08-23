@@ -48,6 +48,7 @@ const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) =
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
+const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
 const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
@@ -204,6 +205,9 @@ export function App(): JSX.Element {
   // opened from session badges, one tree per tab in the main area.
   const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string }>>([]);
   const [activeTaskTabId, setActiveTaskTabId] = useState<string | null>(null);
+  /** Knowledge tab (specs/index-knowledge-rework T3): one per workspace root. */
+  const [knowledgeTabs, setKnowledgeTabs] = useState<Array<{ root: string; label: string }>>([]);
+  const [activeKnowledgeRoot, setActiveKnowledgeRoot] = useState<string | null>(null);
   const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
   const taskTabsRef = useRef(taskTabs);
   taskTabsRef.current = taskTabs;
@@ -894,6 +898,19 @@ export function App(): JSX.Element {
   );
   const openTaskTreeRef = useRef(handleOpenTaskTree);
   openTaskTreeRef.current = handleOpenTaskTree;
+  const knowledgeTabsRef = useRef(knowledgeTabs);
+  knowledgeTabsRef.current = knowledgeTabs;
+  const handleOpenKnowledgeTab = useCallback((root: string) => {
+    const label = root.split(/[\\/]/).filter(Boolean).pop() ?? root;
+    setKnowledgeTabs((tabs) => (tabs.some((tab) => tab.root === root) ? tabs : [...tabs, { root, label }]));
+    setActiveKnowledgeRoot(root);
+    // Opening a knowledge tab leaves the task view (they share the strip).
+    setActiveTaskTabId(null);
+  }, []);
+  const handleCloseKnowledgeTab = useCallback((root: string) => {
+    setKnowledgeTabs((tabs) => tabs.filter((tab) => tab.root !== root));
+    setActiveKnowledgeRoot((current) => (current === root ? null : current));
+  }, []);
   const handleCloseTaskTab = useCallback((treeId: string) => {
     setTaskTabs((tabs) => tabs.filter((tab) => tab.treeId !== treeId));
     setActiveTaskTabId((current) => {
@@ -1471,7 +1488,7 @@ export function App(): JSX.Element {
         ) : sidebarView === "tokens" ? (
           <TokenStatsPanel sessions={sessions} />
         ) : sidebarView === "index" ? (
-          <IndexLibraryPanel />
+          <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
             <CodeReviewPanel onShowGraph={handleShowGraph} />
@@ -1562,12 +1579,19 @@ export function App(): JSX.Element {
           >
             <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
           </Suspense>
-        ) : activeTaskTabId ? (
+        ) : activeTaskTabId || activeKnowledgeRoot ? (
           <div className="ui-tasktab-view">
             <div className="ui-tasktabs">
               {taskTabs.map((tab) => (
                 <div key={tab.treeId} className={`ui-tasktab${tab.treeId === activeTaskTabId ? " active" : ""}`}>
-                  <button type="button" className="ui-tasktab-main" onClick={() => setActiveTaskTabId(tab.treeId)}>
+                  <button
+                    type="button"
+                    className="ui-tasktab-main"
+                    onClick={() => {
+                      setActiveTaskTabId(tab.treeId);
+                      setActiveKnowledgeRoot(null);
+                    }}
+                  >
                     <IconTaskTree /> {tab.title}
                   </button>
                   <button
@@ -1581,10 +1605,37 @@ export function App(): JSX.Element {
                   </button>
                 </div>
               ))}
+              {knowledgeTabs.map((tab) => (
+                <div key={tab.root} className={`ui-tasktab${tab.root === activeKnowledgeRoot ? " active" : ""}`}>
+                  <button
+                    type="button"
+                    className="ui-tasktab-main"
+                    onClick={() => {
+                      setActiveKnowledgeRoot(tab.root);
+                      setActiveTaskTabId(null);
+                    }}
+                  >
+                    📚 {tab.label}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-tasktab-close"
+                    onClick={() => handleCloseKnowledgeTab(tab.root)}
+                    title={t("tasktree.closeTab")}
+                    aria-label={t("tasktree.closeTab")}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
-              <TaskTreePanel treeId={activeTaskTabId} />
-            </Suspense>
+            {activeKnowledgeRoot ? (
+              <KnowledgePanel root={activeKnowledgeRoot} onOpenFile={handleOpenEditor} />
+            ) : (
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
+                <TaskTreePanel treeId={activeTaskTabId ?? undefined} />
+              </Suspense>
+            )}
           </div>
         ) : (
           <>

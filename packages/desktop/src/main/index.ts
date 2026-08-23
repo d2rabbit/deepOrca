@@ -55,6 +55,7 @@ import type {
   EditableSettings,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
+  MemoryRoutingStatus,
   MemoryPipelineStats,
   ThinkingModeSelection,
   UndoRestoreMode,
@@ -1119,8 +1120,8 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
  * than failing the whole response.
  */
 function registerKnowledgeIpc({ handle }: IpcHelpers): void {
-  handle(IpcRequest.KnowledgeStatus, async (): Promise<KnowledgeStatusResponse> => {
-    const root = getBridge().projectRoot;
+  handle(IpcRequest.KnowledgeStatus, async (_e, rootArg?: string): Promise<KnowledgeStatusResponse> => {
+    const root = rootArg || getBridge().projectRoot;
     const freshness = getBridge().getKnowledgeFreshness?.() ?? {};
     const isStale = (syncTime?: string): boolean =>
       !!(freshness.lastMutation && (!syncTime || freshness.lastMutation > syncTime));
@@ -1162,13 +1163,6 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
         }
       : { state: "empty", detail: "未构建" };
 
-    // Serena — memory file count under .serena/memories/.
-    const serenaMemDir = join(root, ".serena", "memories");
-    const serenaCount = countDirFiles(serenaMemDir, (n) => n.endsWith(".md"));
-    const serena: KnowledgeSourceStatus = existsSync(join(root, ".serena"))
-      ? { state: serenaCount === 0 ? "empty" : "indexed", count: serenaCount, unit: "条", detail: ".serena/memories/" }
-      : { state: "empty", detail: "未初始化" };
-
     // AGENTS.md — presence + line count.
     const agentsPath = join(root, "AGENTS.md");
     let agentLines = 0;
@@ -1183,9 +1177,52 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
       ? { state: "indexed", count: agentLines, unit: "行" }
       : { state: "empty", detail: "无 AGENTS.md" };
 
-    // Memory — pipeline availability + L0-L3 stats.
+    // Architecture maps (T4) — A2UI surface artifacts persisted under
+    // .deeporca/prototypes/ (arch-scan's update_surface output) + any legacy
+    // arch-*.html in the workspace root.
+    const protoDir = join(root, ".deeporca", "prototypes");
+    const archFiles: Array<{ name: string; path: string; mtime: string }> = [];
+    if (existsSync(protoDir)) {
+      try {
+        for (const f of readdirSync(protoDir)) {
+          if (!f.endsWith(".json")) continue;
+          const full = join(protoDir, f);
+          try {
+            archFiles.push({ name: f.replace(/\.json$/, ""), path: full, mtime: statSync(full).mtime.toISOString() });
+          } catch {
+            // unreadable entry — skip
+          }
+        }
+      } catch {
+        // unreadable dir — leave empty
+      }
+    }
+    const archmaps: KnowledgeStatusResponse["archmaps"] =
+      archFiles.length > 0
+        ? { state: "indexed", count: archFiles.length, unit: "张", files: archFiles }
+        : { state: "empty", detail: "未生成", files: [] };
+
+    return { codegraph, openwiki, agents, archmaps };
+  });
+
+  handle(IpcRequest.MemoryRoutingStatus, async (): Promise<MemoryRoutingStatus> => {
+    const root = getBridge().projectRoot;
+    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
+      try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
+      } catch {
+        return 0;
+      }
+    };
+    // Serena — memory file count under .serena/memories/.
+    const serenaMemDir = join(root, ".serena", "memories");
+    const serenaCount = countDirFiles(serenaMemDir, (n) => n.endsWith(".md"));
+    const serena: KnowledgeSourceStatus = existsSync(join(root, ".serena"))
+      ? { state: serenaCount === 0 ? "empty" : "indexed", count: serenaCount, unit: "条", detail: ".serena/memories/" }
+      : { state: "empty", detail: "未初始化" };
     const memStats = memoryManager ? await memoryManager.getStats() : null;
-    const memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats } = memoryManager?.isAvailable()
+    const memory: MemoryRoutingStatus["memory"] = memoryManager?.isAvailable()
       ? {
           state: memStats && memStats.l0 > 0 ? "indexed" : "empty",
           count: memStats?.l1 ?? 0,
@@ -1194,9 +1231,6 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
           stats: memStats ?? undefined,
         }
       : { state: "disabled", detail: "未启用" };
-
-    // Semantic routing (R4 observability) — ready / idle (lazy, not yet
-    // activated) / error (embedding failed to load; routing fail-open).
     const routingState = getBridge().getSessionManager().getRoutingStatus();
     const routing: KnowledgeSourceStatus =
       routingState.state === "ready"
@@ -1204,9 +1238,52 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
         : routingState.state === "error"
           ? { state: "disabled", detail: `路由降级: ${routingState.error ?? "嵌入模型不可用"}` }
           : { state: "empty", detail: "未激活（首次会话时加载）" };
-
-    return { codegraph, openwiki, serena, agents, memory, routing };
+    return { memory, routing, serena };
   });
+
+  // Architecture-map preview (T5): surface JSON → self-contained HTML. The
+  // artifact is an A2UI surface description; until the full A2UI runtime is
+  // embeddable, render a faithful component-tree view (structure first,
+  // fidelity later — the tab proves the open path).
+  handle(
+    IpcRequest.KnowledgeRenderArchmap,
+    (_e, artPath: string): { ok: true; html: string } | { ok: false; error: string } => {
+      try {
+        const raw = JSON.parse(readFileSync(artPath, "utf-8")) as Record<string, unknown>;
+        const esc = (v: string): string => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const renderNode = (node: unknown, depth: number): string => {
+          if (!node || typeof node !== "object") return "";
+          const n = node as Record<string, unknown>;
+          const label =
+            typeof n.label === "string"
+              ? n.label
+              : typeof n.title === "string"
+                ? n.title
+                : typeof n.type === "string"
+                  ? n.type
+                  : "node";
+          const children = Array.isArray(n.children) ? n.children : [];
+          return `${"  ".repeat(depth)}<li><span class="lbl">${esc(label)}</span>${
+            children.length > 0 ? `<ul>${children.map((c) => renderNode(c, depth + 1)).join("")}</ul>` : ""
+          }</li>`;
+        };
+        const tree = Array.isArray(raw.components)
+          ? raw.components.map((c) => renderNode(c, 0)).join("")
+          : Array.isArray(raw.nodes)
+            ? raw.nodes.map((c) => renderNode(c, 0)).join("")
+            : "<li><span class=lbl>(no components)</span></li>";
+        const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+body{font:13px/1.5 ui-monospace,monospace;background:#16181d;color:#d7dae0;padding:16px}
+ul{list-style:none;margin:0 0 0 14px;padding:0;border-left:1px solid #33363d}
+li{margin:4px 0}
+.lbl{background:#22252c;border:1px solid #3a3e46;border-radius:6px;padding:2px 8px}
+</style></head><body><ul>${tree}</ul></body></html>`;
+        return { ok: true, html };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+  );
 }
 
 /**
@@ -1685,8 +1762,8 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
   handlePrivileged(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
 
-  handle(IpcRequest.WikiListPages, async (): Promise<WikiPageEntry[]> => {
-    const wikiDir = join(getBridge().projectRoot, "openwiki");
+  handle(IpcRequest.WikiListPages, async (_e, rootArg?: string): Promise<WikiPageEntry[]> => {
+    const wikiDir = join(rootArg || getBridge().projectRoot, "openwiki");
     try {
       const entries: WikiPageEntry[] = [];
       const walk = async (dir: string, prefix: string): Promise<void> => {
@@ -1697,7 +1774,13 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
             await walk(join(dir, item.name), rel);
           } else if (item.name.endsWith(".md")) {
             const title = item.name.replace(/\.md$/, "").replace(/[-_]/g, " ");
-            entries.push({ path: rel, title: title.charAt(0).toUpperCase() + title.slice(1) });
+            let mtime: string | undefined;
+            try {
+              mtime = (await stat(join(dir, item.name))).mtime.toISOString();
+            } catch {
+              // unreadable — leave undated
+            }
+            entries.push({ path: rel, title: title.charAt(0).toUpperCase() + title.slice(1), mtime });
           }
         }
       };

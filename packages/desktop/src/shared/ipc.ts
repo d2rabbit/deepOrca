@@ -154,6 +154,8 @@ export const IpcRequest = {
 
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
+  MemoryRoutingStatus: "memoryRouting:status",
+  KnowledgeRenderArchmap: "knowledge:renderArchmap",
 
   // Designer — design artifact management (PM-Design + UI-Design)
   DesignList: "design:list",
@@ -268,6 +270,8 @@ export type WikiPageEntry = {
   path: string;
   /** Display title derived from filename or first heading. */
   title: string;
+  /** Last modified time (ISO) — freshness label. */
+  mtime?: string;
 };
 
 /** Payload for the CodegraphProgress event (streamed indexing output). */
@@ -482,14 +486,23 @@ export type KnowledgeSourceStatus = {
 };
 
 /** Aggregated status of every knowledge source. */
+/**
+ * Per-workspace knowledge assets (specs/index-knowledge-rework): UI-facing
+ * keys are neutral (openwiki → "Wiki"); memory/routing moved out of this
+ * module. archmaps counts architecture-map artifacts.
+ */
 export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
-  serena: KnowledgeSourceStatus;
   agents: KnowledgeSourceStatus;
+  archmaps: KnowledgeSourceStatus & { files?: Array<{ name: string; path: string; mtime: string }> };
+};
+
+/** Legacy shape kept for the memory/routing observability surfaces. */
+export type MemoryRoutingStatus = {
   memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
-  /** Semantic routing (skill/tool recall) — R4 observability card. */
   routing: KnowledgeSourceStatus;
+  serena: KnowledgeSourceStatus;
 };
 
 // ── Task trajectory (specs/task-tree P0) ─────────────────────────────────────
@@ -803,7 +816,7 @@ export type DesktopApi = {
   /** Incrementally update the project wiki (openwiki --update). */
   wikiUpdate(): Promise<{ ok: boolean; error?: string }>;
   /** List all wiki pages in the project's openwiki/ directory. */
-  wikiListPages(): Promise<WikiPageEntry[]>;
+  wikiListPages(root?: string): Promise<WikiPageEntry[]>;
   /** Read the markdown content of a wiki page. */
   wikiReadPage(path: string): Promise<string>;
   /** Subscribe to streaming wiki generation output. Returns unsubscribe fn. */
@@ -847,7 +860,12 @@ export type DesktopApi = {
 
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
-  knowledgeStatus(): Promise<KnowledgeStatusResponse>;
+  knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
+  /** Enumerate a workspace's wiki pages (name/path/mtime). */
+  /** Render an architecture-map artifact (surface JSON) to self-contained HTML. */
+  knowledgeRenderArchmap(path: string): Promise<{ ok: true; html: string } | { ok: false; error: string }>;
+  /** Memory/routing observability (moved out of the knowledge module, T4). */
+  memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 
   // ── Designer (design artifacts) ────────────────────────────────────────
   /** List all design artifacts (PM-Design prototypes + UI-Design documents). */

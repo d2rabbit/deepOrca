@@ -139,9 +139,21 @@ async function main() {
           `install succeeded but openwiki package dir missing (${npmPkgDir}) — refusing to write a broken vendor marker`
         );
       }
-      // Copy openwiki's own dist + package.json up to the staging root.
-      for (const item of ["dist", "package.json"]) {
+      // Copy openwiki's own dist + package.json + skills up to the staging
+      // root. skills/ is REQUIRED: dist/agent/skills.js resolves its bundled
+      // skills dir as resolve(dist/agent, "../../skills") — the PACKAGE ROOT's
+      // skills/ — and readdir's it at --init; without the copy the vendored
+      // tree throws ENOENT on vendor/openwiki/skills (observed 2026-08-23,
+      // specs/index-knowledge-rework T1). Guarded: the npm package's `files`
+      // declares skills, so a package without it is unexpected → hard fail
+      // rather than writing a known-broken vendor marker.
+      for (const item of ["dist", "package.json", "skills"]) {
         const src = join(npmPkgDir, item);
+        if (!existsSync(src) && item === "skills") {
+          throw new Error(
+            `openwiki package has no skills/ at ${src} — upstream layout changed; refusing to vendor a tree that ENOENTs at --init`
+          );
+        }
         if (existsSync(src)) {
           cpSync(src, join(staging, item), { recursive: true });
         }
