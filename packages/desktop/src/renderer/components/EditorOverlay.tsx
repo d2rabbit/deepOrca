@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type JSX 
 import type { editor } from "monaco-editor";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { Button, IconButton } from "../ui/index";
+import { Button, FileIcon, IconButton } from "../ui/index";
 
 // Monaco is dynamically imported inside the component so its ~5MB of code
 // only loads when the user actually opens the editor. Combined with
@@ -270,6 +270,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     <>
       <div className="ui-editor-overlay-head">
         <span className="ui-editor-overlay-title" title={filePath}>
+          <FileIcon name={fileName} />
           {fileName}
           {dirty ? <span className="ui-editor-dirty-badge">{t("editor.dirty")}</span> : null}
         </span>

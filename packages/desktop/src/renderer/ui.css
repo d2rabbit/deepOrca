@@ -7640,6 +7640,14 @@ button.ui-topbar-pill {
   flex-shrink: 0;
 }
 
+/* File-type badge icon spacing (ui/file-icon.tsx). */
+.ui-editor-overlay-title .ui-file-icon {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.ui-editor-file-icon .ui-file-icon {
+  display: block;
+}
 .ui-editor-overlay-title {
   font-size: 13px;
   font-weight: 600;

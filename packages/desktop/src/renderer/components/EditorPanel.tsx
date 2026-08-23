@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from "react";
 import type { EditorFileEntry } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { IconButton, IconFile, IconFolder } from "../ui/index";
+import { FileIcon, IconButton, IconFile, IconFolder } from "../ui/index";
 
 type Props = {
   /** Called when the user picks a file to open in the editor. */
@@ -89,7 +89,7 @@ export function EditorPanel({ onOpenFile }: Props): JSX.Element {
               onClick={() => handleEntryClick(entry)}
             >
               <span className={`ui-editor-file-icon${entry.type === "directory" ? " is-dir" : ""}`}>
-                {entry.type === "directory" ? <IconFolder /> : <IconFile />}
+                {entry.type === "directory" ? <IconFolder /> : <FileIcon name={entry.name} fallback={<IconFile />} />}
               </span>
               <span className="ui-editor-file-name" title={entry.path}>
                 {entry.name}

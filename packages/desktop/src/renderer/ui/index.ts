@@ -9,6 +9,7 @@ export { Field, Input, TextArea, Select } from "./inputs";
 export { DropdownSelect, type DropdownOption } from "./dropdown";
 export { StatusDot } from "./feedback";
 export { GlobalTooltip } from "./tooltip";
+export { FileIcon } from "./file-icon";
 export { Rail, RailSpacer, RailButton } from "./rail";
 export { CommandPalette, type CommandItem } from "./command-palette";
 export {
