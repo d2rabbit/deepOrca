@@ -67,6 +67,15 @@ interface SurfaceState {
 // However, we clear it on rebuild to prevent cross-session leakage.
 const surfaces = new Map<string, SurfaceState>();
 
+// Surface ids THIS PROCESS has managed (created, restored, or closed).
+// The dispose-time full flush may only sweep files it knows about — an
+// unknown file (e.g. an arch map persisted by an earlier process) must
+// NEVER be deleted by a flush. Without this, a boot race where dispose()
+// runs before the async restore populated the surfaces Map sweeps the whole
+// prototypes dir and rewrites nothing, destroying persisted artifacts
+// (observed: arch-root.json deleted within seconds of every app start).
+const knownSurfaceIds = new Set<string>();
+
 // Monotonic mutation counter: every surface create/update/restore bumps it.
 // A background task snapshots surfaceVersionStamp() before running and passes
 // it back as persistSurfaces(…, sinceStamp) so its flush writes exactly the
@@ -100,7 +109,15 @@ export function persistSurfaces(projectRoot: string, idPrefix?: string, sinceSta
     // Clear directory first to remove stale files from closed surfaces. With
     // an idPrefix (background-task flush) only same-prefixed files/surfaces
     // are touched — the user's design prototypes in the same dir survive.
-    const existing = fs.readdirSync(dir).filter((f) => f.endsWith(".json") && (!idPrefix || f.startsWith(idPrefix)));
+    // Full flushes sweep only ids THIS process has managed (knownSurfaceIds):
+    // a file we never saw (persisted by an earlier process, restore still in
+    // flight) must survive — see the note on knownSurfaceIds.
+    const fileId = (f: string): string => f.replace(/\.json$/, "");
+    const existing = fs.readdirSync(dir).filter((f) => {
+      if (!f.endsWith(".json")) return false;
+      if (idPrefix) return f.startsWith(idPrefix);
+      return knownSurfaceIds.has(fileId(f));
+    });
     for (const f of existing) {
       try {
         fs.unlinkSync(nodePath.join(dir, f));
@@ -152,6 +169,7 @@ export function restoreSurfaces(projectRoot: string): void {
           dataModel: Record<string, unknown>;
           components?: unknown[];
         };
+        knownSurfaceIds.add(data.surfaceId);
         surfaces.set(data.surfaceId, {
           surfaceId: data.surfaceId,
           title: data.title,
@@ -445,6 +463,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         updateComponentsMessage(surfaceId, components),
         updateDataModelMessage(surfaceId, dataModel),
       ];
+      knownSurfaceIds.add(surfaceId);
       surfaces.set(surfaceId, {
         surfaceId,
         title,
@@ -515,6 +534,7 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         updateComponentsMessage(surfaceId, components),
         updateDataModelMessage(surfaceId, result.dataModel),
       ];
+      knownSurfaceIds.add(surfaceId);
       surfaces.set(surfaceId, {
         surfaceId,
         title,
