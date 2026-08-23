@@ -1582,6 +1582,19 @@ export function App(): JSX.Element {
         ) : activeTaskTabId || activeKnowledgeRoot ? (
           <div className="ui-tasktab-view">
             <div className="ui-tasktabs">
+              {/* Main session tab — always first, always present, not closable. */}
+              <div className={`ui-tasktab${!activeTaskTabId && !activeKnowledgeRoot ? " active" : ""}`}>
+                <button
+                  type="button"
+                  className="ui-tasktab-main"
+                  onClick={() => {
+                    setActiveTaskTabId(null);
+                    setActiveKnowledgeRoot(null);
+                  }}
+                >
+                  💬 {projectRoot ? (projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? "Session") : "Session"}
+                </button>
+              </div>
               {taskTabs.map((tab) => (
                 <div key={tab.treeId} className={`ui-tasktab${tab.treeId === activeTaskTabId ? " active" : ""}`}>
                   <button

@@ -22,7 +22,7 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
   structure, it becomes a **nestable group** (click to expand in the A2UI
   preview). If not, it stays a **leaf node**.
 - Output is an **A2UI Surface** (a tree of components), NOT Mermaid `.mmd` files.
-  Each perspective = a top-level panel; each element = a node card with metadata
+  Each perspective = a tab card; each element = a heading text with metadata
   fields; groups = expandable nested surfaces.
 
 > **Methodology**: The perspective catalog and recursive drill-down approach are
@@ -82,6 +82,7 @@ English kebab-case.
 ### 删除测试（成稿前必做）
 
 自问：能合并或删除任何节点/边/标签吗？如果能，就删。特别检查：
+
 - 只有一个子节点的分组 → 提升为叶子
 - 语义重复的边（A→B 和 B→A 表达同一关系）→ 合并为双向
 - 无信息量的标签（"uses"、"calls"）→ 换成具体动作或删除
@@ -93,6 +94,7 @@ English kebab-case.
 ### 何时不画图
 
 如果一段好文字比这张图传达更多信息，就写文字。**不要**为以下内容画图：
+
 - 简单列表（用 markdown 列表）
 - 前后对比（用表格）
 - 单一概念（用一句话）
@@ -138,7 +140,7 @@ English kebab-case.
 
 - `read package.json` / `pyproject.toml` / `go.mod` — 项目元信息
 - `bash ls` / `find` — 目录结构（仅当 CodeGraph/OpenWiki 未提供时）
-- `read` 入口文件 — 仅当 OpenWiki modules/*.md 未覆盖时
+- `read` 入口文件 — 仅当 OpenWiki modules/\*.md 未覆盖时
 - `read AGENTS.md` — 项目编码指南
 
 ### 判断索引是否可用
@@ -174,22 +176,22 @@ Don't force perspectives that don't exist in the code.
 ### 视角 → 最优图表类型
 
 采纳 diagram-design 的**"先选语义模式，再选视觉类型"**方法论。不要所有视角都用
-`graph` —— 选择最贴合语义的 A2UI 组件类型：
+`card` + `text` —— 选择最贴合语义的布局方式：
 
-| 视角 | 语义本质 | A2UI 组件 | 理由 |
-| --- | --- | --- | --- |
-| `overall-architecture` | 模块 + 连接 | `graph` (LR) | 网状关系 |
-| `data-flow` | 有向管道 | `column` 流式卡片 | 线性流动，箭头冗余 |
-| `dependency-map` | 层级依赖 | `graph` (TD) | 树状结构，自上而下 |
-| `request-lifecycle` | 时序步骤 | `list` 编号 | 顺序执行，无分支 |
-| `state-transitions` | 状态机 | `graph` + 转换标注 | 状态 + 触发条件 |
-| `external-integrations` | 信任边界 | `graph` + 外部节点分组 | 内外区分是重点 |
-| `storage` | 分层存储 | `column` 堆叠卡片 | 层次而非网状 |
-| `command-surface` | 命令树 | `graph` (TD) | 层级分发 |
-| `extension-points` | 注册表 | `list` + `card` | 枚举式，无拓扑 |
-| `route-page-map` | 导航树 | `graph` (TD) | 页面层级 |
-| `pipeline` | 阶段拓扑 | `column` 流式卡片 | 线性阶段 |
-| `orchestration` | 发布订阅 | `graph` (LR) | 多对多拓扑 |
+| 视角                    | 语义本质    | A2UI 组件                  | 理由               |
+| ----------------------- | ----------- | -------------------------- | ------------------ |
+| `overall-architecture`  | 模块 + 连接 | `card` + `text` tree       | 层级关系           |
+| `data-flow`             | 有向管道    | `column` 流式卡片          | 线性流动，箭头冗余 |
+| `dependency-map`        | 层级依赖    | `card` + 缩进 `text`       | 树状结构，自上而下 |
+| `request-lifecycle`     | 时序步骤    | `list` 编号                | 顺序执行，无分支   |
+| `state-transitions`     | 状态机      | `flowstep` 组件            | 状态 + 触发条件    |
+| `external-integrations` | 信任边界    | `card` 分组 + `badge` 标注 | 内外区分是重点     |
+| `storage`               | 分层存储    | `column` 堆叠卡片          | 层次而非网状       |
+| `command-surface`       | 命令树      | `list` + `text`            | 层级分发           |
+| `extension-points`      | 注册表      | `list` + `card`            | 枚举式，无拓扑     |
+| `route-page-map`        | 导航树      | `list` + `text`            | 页面层级           |
+| `pipeline`              | 阶段拓扑    | `column` 流式卡片          | 线性阶段           |
+| `orchestration`         | 发布订阅    | `card` + `flowstep`        | 多对多拓扑         |
 
 ## Step 3: Generate the A2UI Surface (Recursive)
 
@@ -198,8 +200,8 @@ tree of components:
 
 ### Component model
 
-- **Root**: a `panel` with the project name + an overview description.
-- **Perspective**: a `panel` (tab) per selected perspective. Each has a title
+- **Root**: a `card` with the project name + an overview description.
+- **Perspective**: a `card` inside the root `tabs` per selected perspective. Each has a title
   like `"Overall Architecture"` / `"Data Flow"` / `"Dependency Map"`.
 - **Element**: a `card` inside a perspective. Each card has:
   - `title`: element name (e.g. `"Main Process"`)
@@ -209,41 +211,54 @@ tree of components:
 - **Group** (element with internal structure): a nestable `surface` inside the
   card — clicking it expands to show child element cards.
 - **Edge** (relationship between elements): rendered as a labeled connector in
-  the A2UI graph view (use the `graph` surface type with `nodes` + `edges`).
+  indented `text` lines under each element's heading (there is no graph type).
 
 ### 3a. Build the root surface
 
 ```
-update_surface({
+render_surface({
   surfaceId: "arch-root",
-  type: "panel",
-  props: { title: "<Project Name> Architecture", layout: "tabs" },
-  children: [ ...perspective panels ]
+  title: "<Project Name> Architecture",
+  components: [
+    { id: "arch-tabs", type: "tabs", children: [ ...one card per perspective... ] }
+  ]
 })
 ```
 
+**IMPORTANT — supported component types**: The renderer supports ONLY these
+types: `column`, `row`, `card`, `list`, `tabs`, `divider`, `text`, `icon`,
+`image`, `button`, `textfield`, `checkbox`, `select`, `kanbancolumn`,
+`kanbancard`, `metriccard`, `flowstep`, `badge`. There is NO `panel` or
+`graph` type — architecture diagrams must be composed from cards, text,
+badges, and tabs.
+
 ### 3b. For each perspective, create a panel with a graph
 
-Each perspective is a `graph` surface showing nodes (elements) and edges
-(relationships with labels):
+Each perspective is a `card` containing `text` headings, `badge` node labels,
+and indentation to imply hierarchy (there is no graph/node/edge rendering):
 
 ```
 update_surface({
-  surfaceId: "arch-overall",
-  type: "graph",
-  props: {
-    title: "Overall Architecture",
-    direction: "LR",  // or "TD" for hierarchies
-    nodes: [
-      { id: "renderer", label: "Renderer\nsrc/renderer/", kind: "entry" },
-      { id: "main", label: "Main Process\nsrc/main/", kind: "entry" },
-      { id: "store", label: "Data Store\nsrc/store.ts", kind: "store" },
-    ],
-    edges: [
-      { from: "renderer", to: "main", label: "IPC invoke/on" },
-      { from: "main", to: "store", label: "read/write JSON" },
-    ],
-  }
+  surfaceId: "arch-overall-perspective",
+  components: [
+    { id: "arch-overall", type: "card", parentId: "arch-tabs", props: { title: "Overall Architecture" },
+      children: [
+        { id: "node-renderer", type: "text", parentId: "arch-overall",
+          props: { variant: "heading", text: "\u25b8 Renderer (src/renderer/)" },
+          children: [
+            { id: "edge-r-to-m", type: "text", parentId: "node-renderer",
+              props: { variant: "body", text: "  \u2192 IPC invoke/on \u2192 Main Process" } }
+          ] },
+        { id: "node-main", type: "text", parentId: "arch-overall",
+          props: { variant: "heading", text: "\u25b8 Main Process (src/main/)" },
+          children: [
+            { id: "edge-m-to-s", type: "text", parentId: "node-main",
+              props: { variant: "body", text: "  \u2192 read/write JSON \u2192 Data Store" } }
+          ] },
+        { id: "node-store", type: "badge", parentId: "arch-overall",
+          props: { text: "Data Store", variant: "success" } }
+      ] }
+  ]
 })
 ```
 
@@ -267,7 +282,7 @@ update_surface({
    Optionally add `context`, `constraint`, `concern`, `todo`, `note` fields.
 
 3. **Decide leaf or group:**
-   - **Distinct internal components found** → add a nested `graph` surface inside
+   - **Distinct internal components found** → add a nested `card` surface inside
      the element's card and recurse deeper (it becomes an expandable group).
    - **No meaningful sub-components** (single file, trivial wrapper, external
      system) → leaf node, just fill in the metadata fields.

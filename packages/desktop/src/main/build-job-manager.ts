@@ -101,6 +101,15 @@ export class BuildJobManager {
       job.percent = 100;
       job.running = false;
       this.broadcast(job);
+      // Post-build: tell the renderer to refresh the knowledge status for
+      // this root — the build may have produced wiki pages / arch maps that
+      // the left-rail row and knowledge tab need to re-read.
+      this.emit(IpcEvent.ActionProgress, {
+        actionId: "knowledge.buildComplete",
+        message: "build complete",
+        percent: 100,
+        data: { root: job.root },
+      });
     } catch (err) {
       job.stage = "failed";
       job.error = err instanceof Error ? err.message : String(err);

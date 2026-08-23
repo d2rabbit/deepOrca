@@ -81,6 +81,10 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
   // knowledgeBuildStatus so remounting picks up live jobs it didn't start.
   useEffect(() => {
     const off = api.onActionProgress((event: ActionProgressEvent) => {
+      if (event.actionId === "knowledge.buildComplete") {
+        void reload();
+        return;
+      }
       if (event.actionId !== "index.build-all") return;
       const root = (event.data as { root?: string } | undefined)?.root;
       if (!root) return;

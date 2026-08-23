@@ -1452,6 +1452,15 @@ export class SessionManager {
         // sub-session entirely — index entry, message JSONL, in-memory state.
         // Silent runs are pipeline internals; persisting them only pollutes
         // the disk index and eats the MAX_SESSION_ENTRIES eviction pool.
+        // BUT flush any artifacts the subagent produced first (A2UI surfaces
+        // for arch-scan live in an in-memory Map that only persists on
+        // manager dispose — deleting the session without flushing would lose
+        // the architecture map the build was supposed to produce).
+        try {
+          this.currentA2uiLifecycle?.persistSurfaces(this.projectRoot);
+        } catch {
+          // best-effort flush
+        }
         try {
           this.deleteSession(subSessionId);
         } catch {

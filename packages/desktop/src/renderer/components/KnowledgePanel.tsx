@@ -3,7 +3,7 @@ import { api } from "../api";
 import { renderMarkdown } from "../markdown";
 import { useI18n, type MessageKey } from "../i18n";
 import { Button } from "../ui/index";
-import type { KnowledgeStatusResponse, KnowledgeSymbol } from "../../shared/ipc";
+import type { ActionProgressEvent, KnowledgeStatusResponse, KnowledgeSymbol } from "../../shared/ipc";
 
 /**
  * Knowledge tab body (specs/index-knowledge-rework T3.3): three sub-tabs —
@@ -71,6 +71,16 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Refresh when a build for this root completes.
+  useEffect(() => {
+    const off = api.onActionProgress((event: ActionProgressEvent) => {
+      if (event.actionId !== "knowledge.buildComplete") return;
+      if ((event.data as { root?: string } | undefined)?.root !== root) return;
+      void reload();
+    });
+    return off;
+  }, [root, reload]);
 
   // Symbols sub-tab: debounced search over the index.
   useEffect(() => {
