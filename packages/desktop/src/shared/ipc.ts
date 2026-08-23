@@ -24,6 +24,9 @@ import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "
 import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
+/** Thinking-mode-only hot update (no model change, no session system message). */
+export type ThinkingModeSelection = Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">;
+
 export const IpcRequest = {
   Ready: "app:ready",
   PickFolder: "app:pickFolder",
@@ -57,6 +60,8 @@ export const IpcRequest = {
   WorkspaceTrustGet: "workspace:getTrust",
   WorkspaceTrustSet: "workspace:setTrust",
   ModelSet: "model:set",
+  ThinkingModeSet: "thinkingMode:set",
+  SessionLocaleSet: "sessionLocale:set",
 
   McpStatus: "mcp:status",
   McpReconnect: "mcp:reconnect",
@@ -675,6 +680,10 @@ export type DesktopApi = {
   getEditableSettings(): Promise<EditableSettings>;
   updateSettings(patch: EditableSettings): Promise<{ summary: SettingsSummary; editable: EditableSettings }>;
   setModel(selection: ModelConfigSelection): Promise<SettingsSummary>;
+  /** Hot-swap thinking mode — patches settings only, no model-switch bookkeeping. */
+  setThinkingMode(selection: ThinkingModeSelection): Promise<SettingsSummary>;
+  /** Sync the session-prompt catalog locale (core side, zh/en). */
+  setSessionLocale(locale: string): void;
 
   mcpStatus(): Promise<McpServerStatus[]>;
   mcpReconnect(name: string): Promise<void>;

@@ -32,6 +32,8 @@ import {
   readWorkspaceTrustStore,
   writeWorkspaceTrustStore,
   writeModelConfigSelection,
+  formatSessionPrompt,
+  formatThinkingModeLabel,
   writeProjectSettings,
   writeSettings,
 } from "@deeporca/core";
@@ -70,6 +72,7 @@ import type {
   SerializableProcess,
   SerializableSessionEntry,
   SettingsSummary,
+  ThinkingModeSelection,
 } from "../shared/ipc.js";
 import { purgeArchivedId } from "./archive-store.js";
 import { readDisabledMcp, setMcpDisabled } from "./mcp-store.js";
@@ -713,11 +716,29 @@ export class SessionBridge {
     return { summary: toSettingsSummary(this.projectRoot), editable: this.getEditableSettings() };
   }
 
+  /**
+   * Hot-swap thinking mode — patches settings ONLY (model untouched, no
+   * /model system message, no reload). Requests read settings fresh each
+   * turn, so the next request already runs at the new tier.
+   */
+  setThinkingMode(selection: ThinkingModeSelection): SettingsSummary {
+    const current = resolveCurrentSettings(this.projectRoot);
+    writeModelConfigSelection(
+      { model: current.model, thinkingEnabled: selection.thinkingEnabled, reasoningEffort: selection.reasoningEffort },
+      current,
+      this.projectRoot
+    );
+    return toSettingsSummary(this.projectRoot);
+  }
+
   setModel(selection: ModelConfigSelection): SettingsSummary {
     const current = resolveCurrentSettings(this.projectRoot);
     const { changed } = writeModelConfigSelection(selection, current, this.projectRoot);
     if (changed) {
-      const content = `/model\n└ Set model to ${selection.model} (${selection.thinkingEnabled ? selection.reasoningEffort : "no thinking"})`;
+      const content = `/model\n└ ${formatSessionPrompt("modelChanged", {
+        model: selection.model,
+        mode: formatThinkingModeLabel(selection.thinkingEnabled, selection.reasoningEffort),
+      })}`;
       const active = this.manager.getActiveSessionId();
       if (active) {
         this.manager.addSessionSystemMessage(active, content, true, { isModelChange: true });

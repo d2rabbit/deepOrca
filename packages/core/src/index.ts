@@ -450,3 +450,10 @@ export type {
   TaskTreeSummary,
 } from "./tasks/types";
 export { TaskTreeService } from "./tasks/task-tree-service";
+export {
+  configureSessionLocale,
+  formatSessionPrompt,
+  formatThinkingModeLabel,
+  type SessionPromptKey,
+  type SessionPromptLocale,
+} from "./common/session-prompts";

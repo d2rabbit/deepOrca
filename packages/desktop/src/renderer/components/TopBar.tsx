@@ -19,6 +19,8 @@ type Props = {
   branches: string[];
   onSwitchBranch: (branch: string) => void;
   onSetModel: (selection: ModelConfigSelection) => void;
+  /** Hot thinking-mode switch (settings-only; falls back to onSetModel). */
+  onSetThinking?: (selection: { thinkingEnabled: boolean; reasoningEffort: ReasoningEffort }) => void;
   onOpenSettings: () => void;
   onOpenTokens: () => void;
   activeTokens: number;
@@ -117,6 +119,7 @@ export const TopBar = memo(function TopBar({
   branches,
   onSwitchBranch,
   onSetModel,
+  onSetThinking,
   onOpenSettings,
   onOpenTokens,
   activeTokens,
@@ -338,11 +341,13 @@ export const TopBar = memo(function TopBar({
             options={thinkingOptions.map((o): DropdownOption => ({ value: o.key, label: t(o.labelKey) }))}
             onSelect={(key) => {
               const opt = thinkingOptions.find((o) => o.key === key) ?? thinkingOptions[0]!;
-              onSetModel({
-                model: settings.model,
+              const selection = {
                 thinkingEnabled: opt.thinkingEnabled,
                 reasoningEffort: opt.reasoningEffort ?? settings.reasoningEffort,
-              });
+              };
+              // Hot path: settings-only patch, no model-switch bookkeeping.
+              if (onSetThinking) onSetThinking(selection);
+              else onSetModel({ model: settings.model, ...selection });
             }}
           />
         </div>

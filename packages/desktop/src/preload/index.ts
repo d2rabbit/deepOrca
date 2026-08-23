@@ -42,6 +42,8 @@ const api: DesktopApi = {
   getEditableSettings: () => ipcRenderer.invoke(IpcRequest.SettingsGetEditable),
   updateSettings: (patch) => ipcRenderer.invoke(IpcRequest.SettingsUpdate, patch),
   setModel: (selection) => ipcRenderer.invoke(IpcRequest.ModelSet, selection),
+  setThinkingMode: (selection) => ipcRenderer.invoke(IpcRequest.ThinkingModeSet, selection),
+  setSessionLocale: (locale) => void ipcRenderer.invoke(IpcRequest.SessionLocaleSet, locale),
 
   mcpStatus: () => ipcRenderer.invoke(IpcRequest.McpStatus),
   getWorkspaceTrust: () => ipcRenderer.invoke(IpcRequest.WorkspaceTrustGet),

@@ -10,6 +10,7 @@ import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
+  configureSessionLocale,
   setShellIfWindows,
   resolveCurrentSettings,
   resolveModernNode,
@@ -55,6 +56,7 @@ import type {
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   MemoryPipelineStats,
+  ThinkingModeSelection,
   UndoRestoreMode,
   WikiPageEntry,
   WorkspaceTrustLevel,
@@ -845,6 +847,10 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
     return result;
   });
   handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
+  handlePrivileged(IpcRequest.SessionLocaleSet, (locale: string) => configureSessionLocale(locale));
+  handlePrivileged(IpcRequest.ThinkingModeSet, (selection: ThinkingModeSelection) =>
+    getBridge().setThinkingMode(selection)
+  );
 
   handle(IpcRequest.WorkspaceTrustGet, () => getBridge().getWorkspaceTrust());
   // Trust switches the quarantine clamps (permissions live-re-read) — a

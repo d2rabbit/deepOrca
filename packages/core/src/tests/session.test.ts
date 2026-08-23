@@ -28,8 +28,8 @@ const originalConsoleWarn = console.warn;
 const originalHome = process.env.HOME;
 const originalUserProfile = process.env.USERPROFILE;
 const tempDirs: string[] = [];
-const PLAN_MODE_ON_STATUS_MESSAGE = "  └ Set Plan Mode on. Awaiting <proposed_plan>.";
-const PLAN_MODE_OFF_STATUS_MESSAGE = "  └ Set Plan Mode off.";
+const PLAN_MODE_ON_STATUS_MESSAGE = "  └ Plan mode on — read-only planning. Awaiting <proposed_plan>.";
+const PLAN_MODE_OFF_STATUS_MESSAGE = "  └ Plan mode off.";
 
 /** Set homedir in a cross-platform way (HOME on Unix, USERPROFILE on Windows). */
 function setHomeDir(dir: string): void {

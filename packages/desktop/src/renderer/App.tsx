@@ -320,6 +320,7 @@ export function App(): JSX.Element {
     refreshSettings,
     refreshMcp,
     handleSetModel,
+    handleSetThinking,
     handleOpenSettings,
     handleSaveSettings,
   } = useSettingsData({ setMainView, setMessages, activeIdRef, refreshSkills });
@@ -1515,6 +1516,7 @@ export function App(): JSX.Element {
         branches={branches}
         onSwitchBranch={handleSwitchBranch}
         onSetModel={handleSetModel}
+        onSetThinking={handleSetThinking}
         onOpenSettings={handleOpenSettings}
         onOpenTokens={openTokensView}
         activeTokens={activeContextTokens}

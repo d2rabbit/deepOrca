@@ -167,6 +167,7 @@ import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
 import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
 import { getUserConfigRoot, getProjectCode } from "./common/app-dirs";
+import { formatSessionPrompt } from "./common/session-prompts";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { describeLlmError, classifyLlmError, getLlmErrorDetails } from "./common/llm-error";
@@ -249,8 +250,8 @@ const MAX_SUBAGENT_DEPTH = 4;
 // Compaction wants faithful, reproducible summaries — a fixed low temperature
 // (instead of the user's conversational setting) keeps them deterministic.
 const COMPACTION_TEMPERATURE = 0.3;
-const PLAN_MODE_ON_STATUS_MESSAGE = "  └ Set Plan Mode on. Awaiting <proposed_plan>.";
-const PLAN_MODE_OFF_STATUS_MESSAGE = "  └ Set Plan Mode off.";
+const PLAN_MODE_ON_STATUS_MESSAGE = () => formatSessionPrompt("planModeOn");
+const PLAN_MODE_OFF_STATUS_MESSAGE = () => formatSessionPrompt("planModeOff");
 const PLAN_MODE_FORCE_ASK_SCOPES = [
   "write-in-cwd",
   "write-out-cwd",
@@ -2557,7 +2558,7 @@ ${agentInstructions}
 
     const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) {
-      throw new Error("API key not found. Please configure your settings first.");
+      throw new Error(formatSessionPrompt("apiKeyMissingShort"));
     }
 
     const systemPrompt = `You are a prompt engineer for a coding agent. Rewrite the user's draft prompt so the agent can act on it precisely.
@@ -3605,7 +3606,10 @@ ${content}
       this.onAssistantMessage(
         this.buildAssistantMessage(
           sessionId,
-          `API key not found. Please configure ${getUserSettingsPath()} or ${getProjectSettingsPath(this.projectRoot)}.`,
+          formatSessionPrompt("apiKeyMissing", {
+            userPath: getUserSettingsPath(),
+            projectPath: getProjectSettingsPath(this.projectRoot),
+          }),
           null
         ),
         false
@@ -3690,11 +3694,7 @@ ${content}
         const compactPromptTokenThreshold =
           this.getResolvedSettings().compactTokenThreshold ?? getCompactPromptTokenThreshold(model);
         if (session.activeTokens > compactPromptTokenThreshold) {
-          const message = this.buildAssistantMessage(
-            sessionId,
-            "The conversation is getting long, compacting...",
-            null
-          );
+          const message = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
           await this.compactSession(sessionId, sessionController.signal);
@@ -3862,7 +3862,10 @@ ${content}
       }));
 
       if (!aborted) {
-        this.onAssistantMessage(this.buildAssistantMessage(sessionId, `Request failed: ${errMessage}`, null), false);
+        this.onAssistantMessage(
+          this.buildAssistantMessage(sessionId, formatSessionPrompt("requestFailed", { message: errMessage }), null),
+          false
+        );
       }
     } finally {
       if (this.sessionControllers.get(sessionId) === sessionController) {
@@ -3905,8 +3908,8 @@ ${content}
       const notice = this.buildAssistantMessage(
         sessionId,
         category === "CONTEXT_WINDOW_EXCEEDED"
-          ? "The conversation exceeded the context window. Compacting the history and retrying once..."
-          : "The model stream stalled. Retrying the request once...",
+          ? formatSessionPrompt("compactRetryContextWindow")
+          : formatSessionPrompt("compactRetryStalled"),
         null
       );
       notice.meta = { asThinking: true };
@@ -4990,11 +4993,11 @@ ${content}
       if (prompt) {
         this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, prompt));
       }
-      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, PLAN_MODE_ON_STATUS_MESSAGE));
+      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, PLAN_MODE_ON_STATUS_MESSAGE()));
       return;
     }
 
-    this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, PLAN_MODE_OFF_STATUS_MESSAGE));
+    this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, PLAN_MODE_OFF_STATUS_MESSAGE()));
   }
 
   private renderInitCommandPrompt(): string {
