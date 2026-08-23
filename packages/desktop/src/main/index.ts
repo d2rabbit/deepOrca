@@ -59,6 +59,8 @@ import type {
   MemoryRoutingStatus,
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
+  TaskTrajectory,
+  TaskTrajectoryOp,
   KnowledgeSymbolGraphEdge,
   KnowledgeSymbolGraphNode,
   MemoryPipelineStats,
@@ -1559,16 +1561,91 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   const validBranch = (branch: unknown): branch is string =>
     typeof branch === "string" && /^[A-Za-z0-9._-]{1,48}$/.test(branch) && !branch.includes("..");
 
-  handle(IpcRequest.TaskTreeList, async () => {
-    return service()?.listTrees() ?? [];
+  // Cross-workspace reads (R3-7): an explicit workspaceRoot spins up a fresh
+  // service over that root's flushed disk state — same consistency argument
+  // as the archive handlers below. Omitted root = ACTIVE workspace.
+  const rootService = (workspaceRoot?: string): TaskTreeService => {
+    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
+    return new TaskTreeService(root);
+  };
+  handle(IpcRequest.TaskTreeList, async (workspaceRoot?: string) => {
+    return rootService(workspaceRoot).listTrees();
   });
-  handle(IpcRequest.TaskTreeGet, async (treeId: string) => {
+  handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
-    return service()?.getTree(treeId) ?? null;
+    return rootService(workspaceRoot).getTree(treeId);
   });
-  handle(IpcRequest.TaskTreeReflog, async (treeId: string) => {
+  handle(IpcRequest.TaskTreeReflog, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return [];
-    return service()?.readReflog(treeId, 200) ?? [];
+    return rootService(workspaceRoot).readReflog(treeId, 200);
+  });
+
+  // Operation trajectory (R3-7): the agent's operational trace over a task's
+  // bound sessions — tool calls with outcome/summary/touched files. Reads the
+  // session JSONLs directly (cross-workspace safe); NEVER returns conversation
+  // content, only the extracted operation records.
+  handle(IpcRequest.TaskTreeTrajectory, async (treeId: string, workspaceRoot?: string) => {
+    if (!validTreeId(treeId)) return null;
+    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
+    const svc = new TaskTreeService(root);
+    const tree = svc.getTree(treeId);
+    if (!tree) return null;
+    const sessionIds = tree.index.sessionIds ?? [];
+    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(root));
+    const operations: TaskTrajectoryOp[] = [];
+    for (const sessionId of sessionIds.slice(-8)) {
+      const file = join(projectDir, `${sessionId}.jsonl`);
+      let raw: string;
+      try {
+        raw = readFileSync(file, "utf-8");
+      } catch {
+        continue;
+      }
+      for (const line of raw.split("\n")) {
+        if (!line.trim()) continue;
+        let msg: {
+          role?: unknown;
+          content?: unknown;
+          createTime?: unknown;
+          meta?: { paramsMd?: unknown; function?: { name?: unknown } } | undefined;
+        };
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (msg.role !== "tool" || typeof msg.content !== "string") continue;
+        try {
+          const parsed = JSON.parse(msg.content) as { ok?: unknown; name?: unknown };
+          const tool = typeof parsed.name === "string" ? parsed.name : "tool";
+          const params = typeof msg.meta?.paramsMd === "string" ? msg.meta.paramsMd.trim() : "";
+          const summary = params.split("\n")[0]?.slice(0, 160) || undefined;
+          const files: string[] = [];
+          const filePath = params.match(/"file_path"\s*:\s*"([^"]+)"/) ?? params.match(/file_path=([^\s"']+)/);
+          if (filePath?.[1]) files.push(filePath[1]);
+          operations.push({
+            at: typeof msg.createTime === "string" ? msg.createTime : "",
+            tool,
+            ok: parsed.ok !== false,
+            summary,
+            files: files.length > 0 ? files : undefined,
+          });
+        } catch {
+          // non-JSON tool content — skip
+        }
+      }
+    }
+    operations.sort((a, b) => a.at.localeCompare(b.at));
+    const toolCounts: Record<string, number> = {};
+    for (const op of operations) toolCounts[op.tool] = (toolCounts[op.tool] ?? 0) + 1;
+    const filesTouched = [...new Set(operations.flatMap((op) => op.files ?? []))];
+    const result: TaskTrajectory = {
+      operations: operations.slice(-500),
+      toolCounts,
+      filesTouched,
+      sessionCount: sessionIds.length,
+    };
+    return result;
   });
   handlePrivileged(IpcRequest.TaskTreeArchive, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return false;
@@ -1608,8 +1685,10 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
   handlePrivileged(
     IpcRequest.TaskTreeFork,
-    async (treeId: string, why: string, opts?: { name?: string; fromBranch?: string }) => {
-      const svc = service();
+    async (treeId: string, why: string, opts?: { name?: string; fromBranch?: string }, workspaceRoot?: string) => {
+      // Cross-workspace mutation (R3-7): a fresh service over the target
+      // root's flushed disk state — same consistency argument as archive.
+      const svc = workspaceRoot ? rootService(workspaceRoot) : service();
       if (!svc) return { error: "task tree service unavailable" };
       if (!validTreeId(treeId)) return { error: "invalid treeId" };
       const w = typeof why === "string" ? why.trim() : "";
@@ -1625,22 +1704,22 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     }
   );
 
-  handlePrivileged(IpcRequest.TaskTreeSwitch, async (treeId: string, branch: string) => {
-    const svc = service();
+  handlePrivileged(IpcRequest.TaskTreeSwitch, async (treeId: string, branch: string, workspaceRoot?: string) => {
+    const svc = workspaceRoot ? rootService(workspaceRoot) : service();
     if (!svc || !validTreeId(treeId) || !validBranch(branch)) return { ok: false, error: "invalid arguments" };
     return svc.switchBranch(treeId, branch) ? { ok: true } : { ok: false, error: "branch not found or abandoned" };
   });
 
-  handlePrivileged(IpcRequest.TaskTreeAbandon, async (treeId: string, branch: string) => {
-    const svc = service();
+  handlePrivileged(IpcRequest.TaskTreeAbandon, async (treeId: string, branch: string, workspaceRoot?: string) => {
+    const svc = workspaceRoot ? rootService(workspaceRoot) : service();
     if (!svc || !validTreeId(treeId) || !validBranch(branch)) return { ok: false, error: "invalid arguments" };
     return svc.abandon(treeId, branch)
       ? { ok: true }
       : { ok: false, error: "branch not found or is the active branch" };
   });
 
-  handlePrivileged(IpcRequest.TaskTreeMerge, async (treeId: string, srcBranch: string) => {
-    const svc = service();
+  handlePrivileged(IpcRequest.TaskTreeMerge, async (treeId: string, srcBranch: string, workspaceRoot?: string) => {
+    const svc = workspaceRoot ? rootService(workspaceRoot) : service();
     if (!svc || !validTreeId(treeId) || !validBranch(srcBranch)) return { ok: false, error: "invalid arguments" };
     const tree = svc.getTree(treeId);
     if (!tree) return { ok: false, error: "tree not found" };

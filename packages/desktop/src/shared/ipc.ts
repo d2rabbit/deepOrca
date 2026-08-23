@@ -174,6 +174,7 @@ export const IpcRequest = {
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
   TaskTreeReflog: "tasktree:reflog",
+  TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
   TaskTreeUnarchive: "tasktree:unarchive",
   TaskTreeSnapshotRestore: "tasktree:snapshotRestore",
@@ -522,6 +523,24 @@ export type KnowledgeSymbolGraph = {
   nodes: KnowledgeSymbolGraphNode[];
   edges: KnowledgeSymbolGraphEdge[];
   truncated: boolean;
+};
+
+/** One agent operation extracted from a task's bound sessions (task-record
+ * view): tool name, ok, first-line param summary, touched files.
+ * Deliberately NOT conversation content — only the operational trace. */
+export type TaskTrajectoryOp = {
+  at: string;
+  tool: string;
+  ok: boolean;
+  summary?: string;
+  files?: string[];
+};
+
+export type TaskTrajectory = {
+  operations: TaskTrajectoryOp[];
+  toolCounts: Record<string, number>;
+  filesTouched: string[];
+  sessionCount: number;
 };
 
 /** One pipeline stage inside a build job (symbol → wiki → arch map). */
@@ -981,11 +1000,14 @@ export type DesktopApi = {
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */
-  taskTreeList(): Promise<TaskTreeSummary[]>;
+  /** Task trees of a workspace (defaults to the ACTIVE workspace). */
+  taskTreeList(workspaceRoot?: string): Promise<TaskTreeSummary[]>;
   /** Read one tree (index + all nodes) for the panel view. */
-  taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
+  taskTreeGet(treeId: string, workspaceRoot?: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
   /** Read the tree's append-only operation journal (newest last). */
-  taskTreeReflog(treeId: string): Promise<TaskReflogEntry[]>;
+  taskTreeReflog(treeId: string, workspaceRoot?: string): Promise<TaskReflogEntry[]>;
+  /** Operation trajectory extracted from the task's bound sessions. */
+  taskTreeTrajectory(treeId: string, workspaceRoot?: string): Promise<TaskTrajectory | null>;
   /**
    * Archive a whole tree (never a delete — files/reflog stay). Falls back to
    * the current workspace when `workspaceRoot` is omitted.
@@ -1008,16 +1030,18 @@ export type DesktopApi = {
   taskTreeFork(
     treeId: string,
     why: string,
-    opts?: { name?: string; fromBranch?: string }
+    opts?: { name?: string; fromBranch?: string },
+    workspaceRoot?: string
   ): Promise<{ nodeId: string; branch: string } | { error: string }>;
   /** Switch the tree's active branch. */
-  taskTreeSwitch(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  taskTreeSwitch(treeId: string, branch: string, workspaceRoot?: string): Promise<{ ok: boolean; error?: string }>;
   /** Abandon a non-active branch. */
-  taskTreeAbandon(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  taskTreeAbandon(treeId: string, branch: string, workspaceRoot?: string): Promise<{ ok: boolean; error?: string }>;
   /** Merge a whole branch (all its lineage-unique nodes) onto the active branch. */
   taskTreeMerge(
     treeId: string,
-    srcBranch: string
+    srcBranch: string,
+    workspaceRoot?: string
   ): Promise<
     | { ok: true; mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> }
     | { ok: false; error: string }

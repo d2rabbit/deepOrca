@@ -163,17 +163,22 @@ const api: DesktopApi = {
   designExportPackage: (id) => ipcRenderer.invoke(IpcRequest.DesignExportPackage, id),
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
-  taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
-  taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
-  taskTreeReflog: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId),
+  taskTreeList: (workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeList, workspaceRoot),
+  taskTreeGet: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId, workspaceRoot),
+  taskTreeReflog: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId, workspaceRoot),
+  taskTreeTrajectory: (treeId, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeTrajectory, treeId, workspaceRoot),
   taskTreeArchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeArchive, treeId, workspaceRoot),
   taskTreeUnarchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeUnarchive, treeId, workspaceRoot),
   taskTreeSnapshotRestore: (treeId, nodeId, workspaceRoot) =>
     ipcRenderer.invoke(IpcRequest.TaskTreeSnapshotRestore, treeId, nodeId, workspaceRoot),
   taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
-  taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
-  taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),
-  taskTreeAbandon: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch),
+  taskTreeFork: (treeId, why, opts, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts, workspaceRoot),
+  taskTreeSwitch: (treeId, branch, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch, workspaceRoot),
+  taskTreeAbandon: (treeId, branch, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch, workspaceRoot),
   taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────

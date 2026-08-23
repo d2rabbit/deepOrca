@@ -50,6 +50,9 @@ const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) =
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
 const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
+const TaskRecordPanel = lazy(() =>
+  import("./components/TaskRecordPanel").then((m) => ({ default: m.TaskRecordPanel }))
+);
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
@@ -207,7 +210,7 @@ export function App(): JSX.Element {
   const [editorFile, setEditorFile] = useState<string | null>(null);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
   // opened from session badges, one tree per tab in the main area.
-  const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string }>>([]);
+  const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
   const [activeTaskTabId, setActiveTaskTabId] = useState<string | null>(null);
   /** Knowledge tab (specs/index-knowledge-rework T3): one per workspace root. */
   const [knowledgeTabs, setKnowledgeTabs] = useState<Array<{ root: string; label: string }>>([]);
@@ -894,13 +897,30 @@ export function App(): JSX.Element {
       setTaskTabs((tabs) =>
         tabs.some((tab) => tab.treeId === treeId)
           ? tabs
-          : [...tabs, { treeId, title: treeTitlesRef.current[treeId]?.title ?? t("tasktree.taskFallback") }]
+          : [
+              ...tabs,
+              {
+                treeId,
+                title: treeTitlesRef.current[treeId]?.title ?? t("tasktree.taskFallback"),
+                // Cross-workspace badges follow the session flow (root already
+                // switched above); record-tab reads go through this root.
+                root: workspaceRoot ?? projectRootRef.current,
+              },
+            ]
       );
       setActiveTaskTabId(treeId);
     },
     [t]
   );
   const openTaskTreeRef = useRef(handleOpenTaskTree);
+  // Left-rail task history (R3-7): open a task RECORD tab for ANY workspace
+  // without switching the active project root — the record panel reads the
+  // tree through its own root-scoped IPC.
+  const handleOpenTaskRecord = useCallback((treeId: string, title: string, root: string) => {
+    setTaskTabs((tabs) => (tabs.some((tab) => tab.treeId === treeId) ? tabs : [...tabs, { treeId, title, root }]));
+    setActiveTaskTabId(treeId);
+    setActiveKnowledgeRoot(null);
+  }, []);
   openTaskTreeRef.current = handleOpenTaskTree;
   const knowledgeTabsRef = useRef(knowledgeTabs);
   knowledgeTabsRef.current = knowledgeTabs;
@@ -1596,7 +1616,7 @@ export function App(): JSX.Element {
           </Suspense>
         ) : sidebarView === "tasktree" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <TaskTreePanel />
+            <TaskTreePanel onOpenTask={handleOpenTaskRecord} />
           </Suspense>
         ) : sidebarView === "gitmcp" ? (
           <GitMcpPanel />
@@ -1743,7 +1763,10 @@ export function App(): JSX.Element {
               <KnowledgePanel root={activeKnowledgeRoot} onOpenFile={handleOpenEditor} />
             ) : activeTaskTabId ? (
               <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
-                <TaskTreePanel treeId={activeTaskTabId ?? undefined} />
+                <TaskRecordPanel
+                  treeId={activeTaskTabId}
+                  workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTaskTabId)?.root ?? undefined}
+                />
               </Suspense>
             ) : (
               chatContent
