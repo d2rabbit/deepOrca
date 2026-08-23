@@ -7,7 +7,8 @@ export { Modal } from "./modal";
 export { Button, IconButton, Pill, Tag, Badge, Switch, Checkbox, Segmented } from "./controls";
 export { Field, Input, TextArea, Select } from "./inputs";
 export { DropdownSelect, type DropdownOption } from "./dropdown";
-export { StatusDot, Tooltip } from "./feedback";
+export { StatusDot } from "./feedback";
+export { GlobalTooltip } from "./tooltip";
 export { Rail, RailSpacer, RailButton } from "./rail";
 export { CommandPalette, type CommandItem } from "./command-palette";
 export {

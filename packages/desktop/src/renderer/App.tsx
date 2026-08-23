@@ -70,6 +70,7 @@ import { extractProposedPlan, getImplementationPrompt, type PlanImplementationCh
 import { useI18n } from "./i18n";
 import {
   CommandPalette,
+  GlobalTooltip,
   Rail,
   RailButton,
   RailSpacer,
@@ -1289,6 +1290,9 @@ export function App(): JSX.Element {
       className={`ui-shell${panelOpen ? " panel-open" : ""}${rightPanelOpen ? " right-open" : ""}`}
       style={panelOpen ? ({ "--ui-panel-w": `${panelWidth}px` } as CSSProperties) : undefined}
     >
+      {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position
+          (the old CSS ::after tips clipped inside the rail's scroll container). */}
+      <GlobalTooltip />
       <Rail>
         <RailButton title={`${t("rail.newSession")} (⌘N)`} aria-label={t("rail.newSession")} onClick={handleNewSession}>
           <IconNewSession />

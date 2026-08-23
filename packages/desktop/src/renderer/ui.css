@@ -7497,16 +7497,10 @@ button.ui-topbar-pill {
   color: #7ee787;
 }
 
-/* ── CSS tooltips ([data-tip]) ────────────────────────────────────── */
-[data-tip] {
-  position: relative;
-}
-[data-tip]::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%) translateY(2px);
+/* ── Global tooltip (ui/tooltip.tsx — fixed-position portal) ──────────────── */
+.ui-gtip {
+  position: fixed;
+  max-width: 320px;
   padding: 3px 8px;
   border-radius: var(--ui-radius-sm);
   border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
@@ -7517,28 +7511,18 @@ button.ui-topbar-pill {
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
-  opacity: 0;
   z-index: 2000;
-  transition:
-    opacity 0.12s ease,
-    transform 0.12s ease;
+  animation: ui-gtip-in 0.12s ease both;
 }
-[data-tip]:hover::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  transition-delay: 0.35s;
-}
-:root[data-appearance="dark"] [data-tip]::after {
+:root[data-appearance="dark"] .ui-gtip {
   background: rgba(240, 240, 244, 0.96);
   color: #17181c;
   border-color: color-mix(in srgb, #000000 15%, transparent);
 }
-/* Rail buttons sit on the far-left edge — pop the tip to the right instead. */
-.ui-rail [data-tip]::after {
-  bottom: auto;
-  top: 50%;
-  left: calc(100% + 8px);
-  transform: translateY(-50%) translateX(-2px);
+@keyframes ui-gtip-in {
+  from {
+    opacity: 0;
+  }
 }
 .ui-rail [data-tip]:hover::after {
   transform: translateY(-50%) translateX(0);
