@@ -533,7 +533,7 @@ export const ko: Record<MessageKey, string> = {
   "action.wiki.read-page.desc":
     "이름으로 Wiki 페이지를 읽습니다(예: 'architecture'). 구조화된 OKF frontmatter + 본문을 반환하며 openwiki/로 제한됩니다.",
   "rail.undo": "실행 취소 / 복원",
-  "rail.commands": "명령(⌘K)",
+  "rail.commands": "명령",
   "rail.tokens": "토큰 사용량",
 
   // ── Session panel ─────────────────────────────────────────

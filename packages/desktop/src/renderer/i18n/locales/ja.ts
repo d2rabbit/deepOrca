@@ -538,7 +538,7 @@ export const ja: Record<MessageKey, string> = {
   "action.wiki.read-page.desc":
     "名前で Wiki ページを読み取る（例：'architecture'）。構造化された OKF frontmatter + 本文を返す。openwiki/ 内に限定。",
   "rail.undo": "元に戻す / 復元",
-  "rail.commands": "コマンド（⌘K）",
+  "rail.commands": "コマンド",
   "rail.tokens": "トークン使用量",
 
   // ── Session panel ─────────────────────────────────────────

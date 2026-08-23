@@ -140,6 +140,13 @@ export function App(): JSX.Element {
   // so the UI never presents the user's home as a real workspace.
   const [homeDir, setHomeDir] = useState("");
   const [platform, setPlatform] = useState<string>("");
+  /**
+   * Modifier-key label for shortcut hints: ⌘ on macOS, Ctrl elsewhere. Falls
+   * back to a userAgent sniff until main reports the real platform, so the
+   * first paint already shows the right glyph (the handler itself accepts
+   * metaKey || ctrlKey on every platform — this is display only).
+   */
+  const modKey = platform === "darwin" || (!platform && /Mac|iPhone|iPad/.test(navigator.userAgent)) ? "⌘" : "Ctrl";
   const [sessions, setSessions] = useState<SerializableSessionEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -976,7 +983,13 @@ export function App(): JSX.Element {
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
-      { id: "new", label: t("command.new.label"), keywords: "new session", shortcut: "⌘N", run: handleNewSession },
+      {
+        id: "new",
+        label: t("command.new.label"),
+        keywords: "new session",
+        shortcut: `${modKey}N`,
+        run: handleNewSession,
+      },
       {
         id: "plan",
         label: t("command.plan.label"),
@@ -994,14 +1007,14 @@ export function App(): JSX.Element {
         id: "settings",
         label: t("command.settings.label"),
         keywords: "settings config",
-        shortcut: "⌘,",
+        shortcut: `${modKey},`,
         run: () => void handleOpenSettings(),
       },
       {
         id: "undo",
         label: t("command.undo.label"),
         keywords: "undo restore",
-        shortcut: "⌘Z",
+        shortcut: `${modKey}Z`,
         run: () => setModal("undo"),
       },
       {
@@ -1036,14 +1049,14 @@ export function App(): JSX.Element {
         id: "sidebar",
         label: t("shortcuts.toggleSidebar"),
         keywords: "sidebar panel toggle",
-        shortcut: "⌘B",
+        shortcut: `${modKey}B`,
         run: () => setPanelOpen((v) => !v),
       },
       {
         id: "shortcuts",
         label: t("shortcuts.title"),
         keywords: "keyboard help hotkeys",
-        shortcut: "⌘?",
+        shortcut: `${modKey}?`,
         run: () => setModal("shortcuts"),
       },
       // ── Sidebar views (audit P1-4: every rail-reachable view must be ⌘K-reachable) ──
@@ -1155,7 +1168,7 @@ export function App(): JSX.Element {
         id: "processPanel",
         label: t("shortcuts.processPanel"),
         keywords: "process output panel terminal",
-        shortcut: "⌘J",
+        shortcut: `${modKey}J`,
         run: () => setShowProcessPanel((v) => !v),
       },
       {
@@ -1173,6 +1186,7 @@ export function App(): JSX.Element {
       handleStop,
       handleToggleAppearance,
       handleToggleLineVariant,
+      modKey,
       openTokensView,
       pushToast,
       runPrompt,
@@ -1294,13 +1308,17 @@ export function App(): JSX.Element {
           (the old CSS ::after tips clipped inside the rail's scroll container). */}
       <GlobalTooltip />
       <Rail>
-        <RailButton title={`${t("rail.newSession")} (⌘N)`} aria-label={t("rail.newSession")} onClick={handleNewSession}>
+        <RailButton
+          title={`${t("rail.newSession")} (${modKey}N)`}
+          aria-label={t("rail.newSession")}
+          onClick={handleNewSession}
+        >
           <IconNewSession />
         </RailButton>
         <RailButton
           active={panelOpen && sidebarView === "explorer"}
           badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
-          title={`${t("rail.sessions")} (⌘B)`}
+          title={`${t("rail.sessions")} (${modKey}B)`}
           aria-label={t("rail.sessions")}
           onClick={() => selectView("explorer")}
         >
@@ -1324,7 +1342,7 @@ export function App(): JSX.Element {
           <IconTasks />
         </RailButton>
         <RailButton
-          title={`${t("rail.commands")} (⌘K)`}
+          title={`${t("rail.commands")} (${modKey}K)`}
           aria-label={t("rail.commands")}
           onClick={() => setPaletteOpen(true)}
         >
@@ -1412,7 +1430,7 @@ export function App(): JSX.Element {
         </RailButton>
         <RailButton
           active={mainView === "settings"}
-          title={`${t("rail.settings")} (⌘,)`}
+          title={`${t("rail.settings")} (${modKey},)`}
           aria-label={t("rail.settings")}
           onClick={() => void handleOpenSettings()}
         >

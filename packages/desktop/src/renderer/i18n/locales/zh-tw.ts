@@ -516,7 +516,7 @@ export const zhTW: Record<MessageKey, string> = {
   "action.wiki.read-page.desc":
     "按名稱讀取 Wiki 頁面（如 'architecture'）。回傳結構化 OKF frontmatter + 正文。限定在 openwiki/ 內。",
   "rail.undo": "復原 / 還原",
-  "rail.commands": "命令面板（⌘K）",
+  "rail.commands": "命令面板",
   "rail.tokens": "Token 用量",
 
   // ── Session panel ─────────────────────────────────────────

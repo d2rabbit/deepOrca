@@ -550,7 +550,7 @@ export const en = {
   "action.wiki.read-page.desc":
     "Read a wiki page by name (e.g. 'architecture'). Returns structured OKF frontmatter + body. Confined to openwiki/.",
   "rail.undo": "Undo / restore",
-  "rail.commands": "Commands (⌘K)",
+  "rail.commands": "Commands",
   "rail.tokens": "Token usage",
 
   // ── Session panel ─────────────────────────────────────────
@@ -1455,7 +1455,7 @@ export const zh: Record<MessageKey, string> = {
   "action.wiki.read-page.desc":
     "按名称读取 Wiki 页面（如 'architecture'）。返回结构化 OKF frontmatter + 正文。限定在 openwiki/ 内。",
   "rail.undo": "撤销 / 恢复",
-  "rail.commands": "命令面板（⌘K）",
+  "rail.commands": "命令面板",
   "rail.tokens": "Token 消耗",
 
   // ── Session panel ─────────────────────────────────────────
