@@ -5,7 +5,7 @@ import { useI18n, type MessageKey } from "../i18n";
 import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
-import { THINK_LEVELS, THINK_LEVEL_ORDER } from "@deeporca/core/capabilities";
+import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 
 type Props = {
   platform: string;
@@ -52,28 +52,36 @@ type ThinkingOption = {
   thinkingEnabled: boolean;
   reasoningEffort?: ReasoningEffort;
 };
-// Menu tiers come from the unified scale (common/think-level.ts): 初/中/高 are
-// shown; 极高/至高 stay valid in settings but hidden by default.
-const THINKING_OPTIONS: ThinkingOption[] = [
-  ...THINK_LEVELS.filter((level) => !level.hiddenByDefault).map(
-    (level): ThinkingOption => ({
-      key: level.id,
-      labelKey: thinkingLabelKey(level.id),
-      thinkingEnabled: true,
-      reasoningEffort: level.id,
-    })
-  ),
-  { key: "off", labelKey: "model.noThinking", thinkingEnabled: false },
-];
+
+function thinkingOptionsForFamily(familyId: string): ThinkingOption[] {
+  // Tiers the family actually serves (common/think-level.ts) — deepseek shows
+  // its real low/high/max; unknown families fall back to the generic visible
+  // scale. "Off" always terminates the list.
+  return [
+    ...familyThinkLevels(familyId).map(
+      (level): ThinkingOption => ({
+        key: level.id,
+        labelKey: thinkingLabelKey(level.id),
+        thinkingEnabled: true,
+        reasoningEffort: level.id,
+      })
+    ),
+    { key: "off", labelKey: "model.noThinking", thinkingEnabled: false },
+  ];
+}
 
 function projectName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length > 0 ? parts[parts.length - 1]! : path;
 }
 
-function currentThinkingKey(s: SettingsSummary): string {
+function currentThinkingKey(s: SettingsSummary, options: ThinkingOption[]): string {
   if (!s.thinkingEnabled) return "off";
-  return (THINK_LEVEL_ORDER as readonly string[]).includes(s.reasoningEffort) ? s.reasoningEffort : "high";
+  // Settings may hold a tier the current family doesn't serve (e.g. medium
+  // stored earlier — deepseek folds it to high): snap to the exact tier if
+  // offered, else the family's high, else its first tier.
+  if (options.some((o) => o.key === s.reasoningEffort && o.thinkingEnabled)) return s.reasoningEffort;
+  return options.find((o) => o.key === "high")?.key ?? options.find((o) => o.thinkingEnabled)?.key ?? "off";
 }
 
 // Window caption glyphs as inline SVG (Windows 11 Fluent style). 1.5px stroke
@@ -207,7 +215,12 @@ export const TopBar = memo(function TopBar({
   const modelCap = settings
     ? resolveModelCapability(settings.endpoints, currentKey)
     : { thinking: true, vision: false };
-  const thinkingOptions = modelCap.thinking ? THINKING_OPTIONS : THINKING_OPTIONS.filter((o) => o.key === "off");
+  // Thinking tiers follow the CURRENT model's family capability — menus never
+  // offer a tier the family doesn't actually serve.
+  const thinkingOptions = useMemo(() => {
+    const familyOptions = thinkingOptionsForFamily(resolveModelSpec({ model: currentModel }).id);
+    return modelCap.thinking ? familyOptions : familyOptions.filter((o) => o.key === "off");
+  }, [currentModel, modelCap.thinking]);
 
   const modelSelectValue = availableModels.includes(currentKey)
     ? currentKey
@@ -320,7 +333,7 @@ export const TopBar = memo(function TopBar({
           <span className="ui-topbar-divider" aria-hidden="true" />
           <DropdownSelect
             triggerClassName="ui-topbar-thinking"
-            value={currentThinkingKey(settings)}
+            value={currentThinkingKey(settings, thinkingOptions)}
             title={t("topbar.thinkingModel")}
             options={thinkingOptions.map((o): DropdownOption => ({ value: o.key, label: t(o.labelKey) }))}
             onSelect={(key) => {

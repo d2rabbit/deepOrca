@@ -2,7 +2,7 @@ import { useEffect, useState, type JSX } from "react";
 import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
-import { THINK_LEVELS } from "@deeporca/core/capabilities";
+import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
 import { Button, Checkbox, Field, Input, Select } from "../ui/index";
@@ -59,10 +59,12 @@ const PERMISSION_SCOPES: PermissionScope[] = [
 
 const DECISIONS: PermissionDecision[] = ["default", "allow", "ask", "deny"];
 
-// Visible tiers of the unified thinking scale (common/think-level.ts):
-// 初/中/高 are offered; 极高/至高 stay valid via settings/env but hidden.
-const REASONING_OPTIONS_FULL: ReasoningEffort[] = THINK_LEVELS.filter((l) => !l.hiddenByDefault).map((l) => l.id);
-const REASONING_OPTIONS_OFF: ReasoningEffort[] = [];
+/** Thinking tiers for a model — the family's actually-served scale
+ * (common/think-level.ts familyThinkLevels); empty = model can't think. */
+function reasoningOptionsFor(model: string, thinkingCapable: boolean): ReasoningEffort[] {
+  if (!thinkingCapable) return [];
+  return familyThinkLevels(resolveModelSpec({ model }).id).map((l) => l.id);
+}
 
 const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
 
@@ -470,7 +472,7 @@ export function SettingsPanel({
   // ── Capability resolution for the primary model ──────────────────────
   const primaryModelKey = findKeyForModel(s.model);
   const primaryCaps = resolveModelCapability(s.endpoints, primaryModelKey || s.model);
-  const primaryThinkingOptions = primaryCaps.thinking ? REASONING_OPTIONS_FULL : REASONING_OPTIONS_OFF;
+  const primaryThinkingOptions = reasoningOptionsFor(s.model, primaryCaps.thinking);
 
   // ── Capability resolution for the secondary model ─────────────────────
   // (secondaryCaps no longer rendered — the secondary controls are disabled

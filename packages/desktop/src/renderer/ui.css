@@ -5332,6 +5332,15 @@ button.ui-topbar-pill {
 .ui-topbar-model {
   max-width: 220px;
 }
+/* Long labels (e.g. "endpoint / deepseek-v4-flash-vision-exp") ellipsize on
+   the trigger; the full label rides the hover tooltip instead. */
+.ui-dd-trigger.ui-topbar-model {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
 
 /* ── DropdownSelect — animated popup select (ui/dropdown.tsx) ───────────── */
 .ui-dd {
@@ -5367,6 +5376,8 @@ button.ui-topbar-pill {
   top: calc(100% + 6px);
   left: 0;
   min-width: 100%;
+  /* One long option cannot stretch the popup past the pill's neighborhood. */
+  max-width: 340px;
   max-height: 320px;
   overflow-y: auto;
   z-index: 60;
@@ -5405,6 +5416,9 @@ button.ui-topbar-pill {
   border-radius: var(--ui-radius-sm, 6px);
   cursor: pointer;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ui-dd-item:hover {

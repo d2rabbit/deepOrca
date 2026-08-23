@@ -60,7 +60,8 @@ export function DropdownSelect({
       <button
         type="button"
         className={cx("ui-dd-trigger", triggerClassName, open && "ui-dd-trigger--open")}
-        title={title}
+        data-tip={current?.label || title}
+        aria-label={title}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}

@@ -145,7 +145,7 @@ return builder(thinkingEnabled, reasoningEffort)
 - `unknown` 条目同样返回今天的形状——**只有新登记家族才允许偏离现状**，这是全改造的兼容总纲；
 - glm/kimi/minimax/qwen 条目形状**实施时按厂商当日文档核填**（S1–S4 清单逐项留痕）。
 
-**effort 等级映射方案（2026-08-22 二次定稿，G2b/G2c）**：独立常量文件 **`common/think-level.ts`** 承载统一刻度与各家族映射——**统一五档刻度** `low / medium / high / xhigh / max`（UI 与 settings 全程只存统一档），对外展示仅 **关闭思考 / 初 (Low) / 中 (Medium) / 高 (High)**，**极高 (Extra High) 与 至高 (Max) 默认隐藏**（档位在 settings/env 中仍合法，仅不入菜单）；CJK 标签以括号括注英文对应档名。**DeepSeek V4 家族映射**按官方 thinking_mode 的请求→生效表登记：`low→low、medium→high、high→high、xhigh→high、max→max`（API 实际只服务 low/high/max，medium/xhigh 服务端折叠为 high）。未登记家族走恒等透传。新家族适配 = 在 `THINK_LEVEL_FAMILY_MAPS` 加一条映射（如 OpenAI 五级），零调用方改动；UI 选项由 `THINK_LEVELS` 派生（`hiddenByDefault` 控制入菜单与否）。
+**effort 等级映射方案（2026-08-23 三次定稿，G2b/G2c）**：独立常量文件 **`common/think-level.ts`** 承载统一刻度与各家族映射——统一五档刻度 `low / medium / high / xhigh / max`（UI 与 settings 全程只存统一档）。**菜单档位按家族真实能力派生**（`familyThinkLevels(familyId)`，2026-08-23）：deepseek 家族实际服务 `low/high/max` 三档（medium 服务端折叠为 high，**菜单不展示"中"档**），未登记家族回退通用可见刻度（low/medium/high，极高/至高默认隐藏、settings/env 仍合法）。**DeepSeek V4 家族映射**按官方 thinking_mode 的请求→生效表登记：`low→low、medium→high、high→high、xhigh→high、max→max`。未登记家族走恒等透传。新家族适配 = 在 `THINK_LEVEL_FAMILY_MAPS` 加请求映射 + 在 `THINK_LEVELS_BY_FAMILY` 登记真实档位，零调用方改动；UI 选项由家族档位派生。CJK 标签为纯本地化档名（不带英文括注；en 目录即英文档名）。
 
 ### 2.5 reasoning 消息转换分派（G3 详案，对应 R6/R4）
 

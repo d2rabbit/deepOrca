@@ -296,11 +296,11 @@ export const ko: Record<MessageKey, string> = {
   "context.compacting": "압축 중…",
 
   // ── Model modal ───────────────────────────────────────────
-  "model.thinkingMax": "최대 (Max)",
-  "model.thinkingHigh": "높음 (High)",
-  "model.thinkingXhigh": "초고 (Extra High)",
-  "model.thinkingLow": "낮음 (Low)",
-  "model.thinkingMedium": "중간 (Medium)",
+  "model.thinkingMax": "최대",
+  "model.thinkingHigh": "높음",
+  "model.thinkingXhigh": "초고",
+  "model.thinkingLow": "낮음",
+  "model.thinkingMedium": "중간",
   "model.noThinking": "사고 끄기",
 
   // ── App status / errors ───────────────────────────────────

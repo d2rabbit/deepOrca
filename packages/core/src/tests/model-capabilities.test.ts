@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   defaultsToThinkingMode,
+  familyThinkLevels,
   findModelRegistration,
   getCompactPromptTokenThreshold,
   resolveBackgroundLlm,
@@ -10,6 +11,20 @@ import {
 } from "../common/model-capabilities";
 import { buildThinkingRequestOptions } from "../common/openai-thinking";
 import { OpenAIMessageConverter } from "../common/openai-message-converter";
+
+test("familyThinkLevels serves each family's actually-supported tiers", () => {
+  // DeepSeek V4: the API effectively serves low/high/max — medium is folded
+  // to high server-side, so the menu must not offer it.
+  assert.deepEqual(
+    familyThinkLevels("deepseek").map((l) => l.id),
+    ["low", "high", "max"]
+  );
+  // Unknown family: the generic visible scale (hidden tiers stay hidden).
+  assert.deepEqual(
+    familyThinkLevels("unknown").map((l) => l.id),
+    ["low", "medium", "high"]
+  );
+});
 import type { SessionMessage } from "../session";
 
 // ---------------------------------------------------------------------------

@@ -1225,11 +1225,11 @@ export const zh: Record<MessageKey, string> = {
   "context.compacting": "压缩中…",
 
   // ── Model selector (DeepSeek only — no custom / OpenAI-compatible) ──
-  "model.thinkingMax": "至高 (Max)",
-  "model.thinkingHigh": "高 (High)",
-  "model.thinkingXhigh": "极高 (Extra High)",
-  "model.thinkingLow": "初 (Low)",
-  "model.thinkingMedium": "中 (Medium)",
+  "model.thinkingMax": "至高",
+  "model.thinkingHigh": "高",
+  "model.thinkingXhigh": "极高",
+  "model.thinkingLow": "初",
+  "model.thinkingMedium": "中",
   "model.noThinking": "关闭思考",
 
   // ── App status / errors ───────────────────────────────────

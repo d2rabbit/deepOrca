@@ -297,11 +297,11 @@ export const ja: Record<MessageKey, string> = {
   "context.compacting": "圧縮中…",
 
   // ── Model modal ───────────────────────────────────────────
-  "model.thinkingMax": "至高 (Max)",
-  "model.thinkingHigh": "高 (High)",
-  "model.thinkingXhigh": "極高 (Extra High)",
-  "model.thinkingLow": "低 (Low)",
-  "model.thinkingMedium": "中 (Medium)",
+  "model.thinkingMax": "至高",
+  "model.thinkingHigh": "高",
+  "model.thinkingXhigh": "極高",
+  "model.thinkingLow": "低",
+  "model.thinkingMedium": "中",
   "model.noThinking": "思考をオフ",
 
   // ── App status / errors ───────────────────────────────────
