@@ -184,120 +184,133 @@ Don't force perspectives that don't exist in the code.
 | `data-flow`             | 有向管道    | `column` 流式卡片          | 线性流动，箭头冗余 |
 | `dependency-map`        | 层级依赖    | `card` + 缩进 `text`       | 树状结构，自上而下 |
 | `request-lifecycle`     | 时序步骤    | `list` 编号                | 顺序执行，无分支   |
-| `state-transitions`     | 状态机      | `flowstep` 组件            | 状态 + 触发条件    |
-| `external-integrations` | 信任边界    | `card` 分组 + `badge` 标注 | 内外区分是重点     |
+| `state-transitions`     | 状态机      | `List` + `Text`            | 状态 + 触发条件    |
+| `external-integrations` | 信任边界    | `Card` 分组 + `Text` 标注  | 内外区分是重点     |
 | `storage`               | 分层存储    | `column` 堆叠卡片          | 层次而非网状       |
 | `command-surface`       | 命令树      | `list` + `text`            | 层级分发           |
 | `extension-points`      | 注册表      | `list` + `card`            | 枚举式，无拓扑     |
 | `route-page-map`        | 导航树      | `list` + `text`            | 页面层级           |
 | `pipeline`              | 阶段拓扑    | `column` 流式卡片          | 线性阶段           |
-| `orchestration`         | 发布订阅    | `card` + `flowstep`        | 多对多拓扑         |
+| `orchestration`         | 发布订阅    | `Card` + `Text` 标注       | 多对多拓扑         |
 
 ## Step 3: Generate the A2UI Surface (Recursive)
 
-Build the A2UI Surface using `update_surface` (the A2UI tool). The surface is a
-tree of components:
+Build the A2UI Surface using the A2UI tools. The surface speaks the OFFICIAL
+A2UI v0.9 protocol — a FLAT adjacency list of components where containers
+reference children FORWARD by id, and exactly one component has `id: "root"`.
 
-### Component model
+### Official component vocabulary (basicCatalog — nothing else exists)
 
-- **Root**: a `card` with the project name + an overview description.
-- **Perspective**: a `card` inside the root `tabs` per selected perspective. Each has a title
-  like `"Overall Architecture"` / `"Data Flow"` / `"Dependency Map"`.
-- **Element**: a `card` inside a perspective. Each card has:
-  - `title`: element name (e.g. `"Main Process"`)
-  - `subtitle`: file path (e.g. `src/main/`)
-  - `description`: what this element does
-  - Optional fields as card content: `context`, `constraint`, `concern`, `todo`, `note`
-- **Group** (element with internal structure): a nestable `surface` inside the
-  card — clicking it expands to show child element cards.
-- **Edge** (relationship between elements): rendered as a labeled connector in
-  indented `text` lines under each element's heading (there is no graph type).
+- **Layout**: `Row`, `Column`, `List` (take `children: [ids]`), `Card`
+  (takes ONE `child` id — wrap multiple children in a `Column` first),
+  `Tabs` (ONE tab: `{component: "Tabs", title, child}` — sibling Tabs under
+  the same container render as a tab bar), `Divider`
+- **Content**: `Text` (`text` + `variant: h1|h2|h3|h4|h5|body|caption`),
+  `Image`, `Icon` (Material-Symbols names only), `Video`, `AudioPlayer`
+- **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
+  `DateTimeInput`
+
+There is NO `panel`, `graph`, `badge`, `flowstep`, `metriccard` or
+`kanbancard` — compose from the list above. Every property value is a
+literal, or `{path: "/data/key"}` bound to the dataModel.
+
+### Structural model
+
+- **Root**: `id: "root"` — a `Card` with the project name + overview.
+- **Perspective**: one `Tabs` entry per perspective (title =
+  "Overall Architecture" / "Data Flow" / …) whose `child` is that
+  perspective's content `Column`.
+- **Element**: a `Card` (via inner `Column` if it has multiple fields) with
+  `Text` fields: name (`h4`), file path (`caption`), description (`body`),
+  optional context/constraint/concern/todo/note lines.
+- **Group** (element with internal structure): the element card's inner
+  `Column` holds child element cards — recurse as deep as needed.
+- **Edge** (relationship): a `caption` `Text` line under the source element
+  (`→ IPC invoke/on → Main Process`) — there is no graph rendering.
 
 ### 3a. Build the root surface
+
+**Surface IDs MUST use the `arch-` prefix** (`arch-root`, `arch-overall`, …) —
+the runtime flushes and displays architecture maps by this prefix, and it keeps
+them out of the design prototype preview.
 
 ```
 render_surface({
   surfaceId: "arch-root",
   title: "<Project Name> Architecture",
   components: [
-    { id: "arch-tabs", type: "tabs", children: [ ...one card per perspective... ] }
-  ]
+    { id: "root", component: "Card", child: "root-inner" },
+    { id: "root-inner", component: "Column", children: ["overview", "tabs-overall", "tabs-dataflow"] },
+    { id: "overview", component: "Text", text: "Monorepo: Electron desktop + shared core engine", variant: "body" },
+    { id: "tabs-overall", component: "Tabs", title: "Overall Architecture", child: "content-overall" },
+    { id: "tabs-dataflow", component: "Tabs", title: "Data Flow", child: "content-dataflow" }
+  ],
+  dataModel: {}
 })
 ```
 
-**IMPORTANT — supported component types**: The renderer supports ONLY these
-types: `column`, `row`, `card`, `list`, `tabs`, `divider`, `text`, `icon`,
-`image`, `button`, `textfield`, `checkbox`, `select`, `kanbancolumn`,
-`kanbancard`, `metriccard`, `flowstep`, `badge`. There is NO `panel` or
-`graph` type — architecture diagrams must be composed from cards, text,
-badges, and tabs.
+### 3b. Fill a perspective with its element tree
 
-### 3b. For each perspective, create a panel with a graph
-
-Each perspective is a `card` containing `text` headings, `badge` node labels,
-and indentation to imply hierarchy (there is no graph/node/edge rendering):
+Static literals are fine (arch maps are read-only). Use indentation via
+nested Columns to imply hierarchy — there is no graph/node/edge rendering:
 
 ```
 update_surface({
-  surfaceId: "arch-overall-perspective",
+  surfaceId: "arch-root",
   components: [
-    { id: "arch-overall", type: "card", parentId: "arch-tabs", props: { title: "Overall Architecture" },
-      children: [
-        { id: "node-renderer", type: "text", parentId: "arch-overall",
-          props: { variant: "heading", text: "\u25b8 Renderer (src/renderer/)" },
-          children: [
-            { id: "edge-r-to-m", type: "text", parentId: "node-renderer",
-              props: { variant: "body", text: "  \u2192 IPC invoke/on \u2192 Main Process" } }
-          ] },
-        { id: "node-main", type: "text", parentId: "arch-overall",
-          props: { variant: "heading", text: "\u25b8 Main Process (src/main/)" },
-          children: [
-            { id: "edge-m-to-s", type: "text", parentId: "node-main",
-              props: { variant: "body", text: "  \u2192 read/write JSON \u2192 Data Store" } }
-          ] },
-        { id: "node-store", type: "badge", parentId: "arch-overall",
-          props: { text: "Data Store", variant: "success" } }
-      ] }
+    { id: "root", component: "Card", child: "root-inner" },
+    { id: "root-inner", component: "Column", children: ["tabs-overall"] },
+    { id: "tabs-overall", component: "Tabs", title: "Overall Architecture", child: "content-overall" },
+    { id: "content-overall", component: "Column", children: ["node-renderer", "node-main", "node-store"] },
+    { id: "node-renderer", component: "Text", text: "▸ Renderer (src/renderer/)", variant: "h4" },
+    { id: "edge-r-to-m", component: "Text", text: "  → IPC invoke/on → Main Process", variant: "caption" },
+    { id: "node-main", component: "Text", text: "▸ Main Process (src/main/)", variant: "h4" },
+    { id: "edge-m-to-s", component: "Text", text: "  → read/write JSON → Data Store", variant: "caption" },
+    { id: "node-store", component: "Text", text: "▸ Data Store", variant: "h4" }
   ]
 })
 ```
 
+`update_surface` takes the COMPLETE component list (full snapshot): same-id
+components are replaced, ids dropped from a `children` list vanish from the
+tree. Copy the previous list and edit it — don't resend from scratch memory.
+
 ### Node kinds (for color coding)
 
-| Kind       | Color hint | When to use                                 |
-| ---------- | ---------- | ------------------------------------------- |
-| `entry`    | blue       | Entry points (HTTP handler, CLI, main)      |
-| `store`    | green      | Persistent storage (DB, cache, file system) |
-| `external` | gray       | Third-party services outside the codebase   |
-| `concern`  | red        | Known risk or bottleneck                    |
-| `default`  | neutral    | Regular module/component                    |
+| Kind       | Rendering hint                          | When to use                                 |
+| ---------- | --------------------------------------- | ------------------------------------------- |
+| `entry`    | `Text` variant `h4` + "◉" prefix        | Entry points (HTTP handler, CLI, main)      |
+| `store`    | `Text` variant `h4` + "▣" prefix        | Persistent storage (DB, cache, file system) |
+| `external` | `Text` variant `body` + "◇" prefix      | Third-party services outside the codebase   |
+| `concern`  | `Text` variant `caption` + "⚠" prefix   | Known risk or bottleneck                    |
+| `default`  | `Text` variant `h4` + "▸" prefix        | Regular module/component                    |
 
 ### 3c. Recursive drill-down — analyze every element
 
-**For every element (node) in the perspective graph:**
+**For every element (node) in the perspective tree:**
 
 1. **Analyze** the code it represents (`read` the relevant files/directories).
 
-2. **Add a detail card** to the element's surface with at least a `description`.
-   Optionally add `context`, `constraint`, `concern`, `todo`, `note` fields.
+2. **Add a detail card** to the element with at least a `description` `Text`.
+   Optionally add context/constraint/concern/todo/note `Text` lines.
 
 3. **Decide leaf or group:**
-   - **Distinct internal components found** → add a nested `card` surface inside
-     the element's card and recurse deeper (it becomes an expandable group).
+   - **Distinct internal components found** → the element card's inner
+     `Column` gains child element cards — recurse deeper.
    - **No meaningful sub-components** (single file, trivial wrapper, external
      system) → leaf node, just fill in the metadata fields.
 
-4. **If group** — add the nested graph and repeat step 3c for each element.
+4. **If group** — add the nested element cards and repeat step 3c for each.
 
 ### Example recursion
 
 ```
-overall-architecture (perspective graph)
-  nodes: renderer, main-process, engine-system, data-store
+overall-architecture (perspective)
+  elements: renderer, main-process, engine-system, data-store
 
   → analyze renderer (src/renderer/)
     → finds: App.tsx, components/, hooks/, stores/
-    → GROUP → add nested graph: components, stores, hooks
+    → GROUP → inner Column gains child cards: components, stores, hooks
       → analyze components → 15 files, no sub-structure → LEAF
       → analyze stores → 4 stores → LEAF
 
@@ -315,14 +328,17 @@ Report to the user:
 
 ## Edge Rules
 
-- Every edge must have a meaningful `label`: `A --"why this connection exists"--> B`
-- More elements in one graph → recurse deeper (don't cram 30 nodes in one view).
-- Use `direction: "LR"` for most graphs, `"TD"` for hierarchies.
+- Every edge must have a meaningful label: `A --"why this connection exists"--> B`
+  rendered as a `caption` `Text` line under the source element.
+- More elements in one perspective → recurse deeper (don't cram 30 nodes in one view).
 
 ## General Rules
 
-- **Use A2UI tools (`update_surface`) only** — do NOT write Mermaid `.mmd` files,
-  do NOT call any external CLI, do NOT create `.omm/` directories.
+- **Use the A2UI tools (`render_surface` / `update_surface`) only** — do NOT
+  write Mermaid `.mmd` files, do NOT call any external CLI, do NOT create
+  `.omm/` directories.
+- Always keep exactly one `id: "root"` component; keep the list FLAT
+  (children by id reference, never nested objects).
 - Do not re-analyze elements that haven't changed (incremental updates).
 - Do not create circular references — a child element must never reference its parent.
 - Write all human-readable fields in the detected language (Chinese by default).

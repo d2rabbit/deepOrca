@@ -28,6 +28,21 @@ test("detectPrototypeArtifact handles A2UI render vs update", () => {
   assert.equal(update?.isUpdate, true);
 });
 
+test("arch-* surfaces never trigger the design preview (knowledge module owns them)", () => {
+  // render_surface batch carries a createSurface message with the arch- id.
+  const renderBatch = JSON.stringify([
+    { type: "createSurface", surfaceId: "arch-root", title: "Arch" },
+    { type: "updateComponents", surfaceId: "arch-root", components: [] },
+  ]);
+  assert.equal(detectPrototypeArtifact(toolResult("render_surface", { a2ui: renderBatch })), null);
+  // update_surface batches have no createSurface — the id rides every message.
+  const updateBatch = JSON.stringify([{ type: "updateComponents", surfaceId: "arch-root", components: [] }]);
+  assert.equal(detectPrototypeArtifact(toolResult("update_surface", { a2ui: updateBatch })), null);
+  // Non-arch surfaces still open the preview.
+  const protoBatch = JSON.stringify([{ type: "createSurface", surfaceId: "proto-1", title: "P" }]);
+  assert.equal(detectPrototypeArtifact(toolResult("render_surface", { a2ui: protoBatch }))?.mode, "a2ui");
+});
+
 test("tool name in ordinary text never triggers the panel (metadata is required)", () => {
   // Fast-path hit (mentions render_openui) but no parseable tool result.
   assert.equal(detectPrototypeArtifact("Let's call render_openui with some code"), null);

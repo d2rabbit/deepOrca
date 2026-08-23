@@ -6,7 +6,7 @@
  * A2uiLifecycle interface that core's session.ts consumes via the seam.
  */
 
-import { buildA2uiServer, persistSurfaces, restoreSurfaces } from "./a2ui-mcp.js";
+import { buildA2uiServer, persistSurfaces, restoreSurfaces, surfaceVersionStamp } from "./a2ui-mcp.js";
 import type { A2uiLifecycle, A2uiServerBuilder } from "@deeporca/core";
 
 export const a2uiServerBuilder: A2uiServerBuilder = (projectRoot: string): A2uiLifecycle | null => {
@@ -16,5 +16,6 @@ export const a2uiServerBuilder: A2uiServerBuilder = (projectRoot: string): A2uiL
     server,
     restoreSurfaces,
     persistSurfaces,
+    surfaceStamp: surfaceVersionStamp,
   };
 };

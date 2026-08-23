@@ -23,14 +23,16 @@
     "package": "node ../../scripts/package-desktop.js && electron-builder --config electron-builder.yml --publish never"
   },
   "dependencies": {
+    "@a2ui/react": "^0.10.2",
+    "@a2ui/web_core": "^0.10.6",
     "@alibaba-group/open-code-review": "^1.8.0",
     "@colbymchenry/codegraph": "^1.5.0",
     "@deeporca/core": "file:../core",
     "@deeporca/memory": "file:../memory",
-    "dompurify": "^3.4.8",
     "@monaco-editor/react": "^4.7.0",
     "@openuidev/lang-core": "^0.2.10",
     "@openuidev/react-lang": "^0.2.9",
+    "dompurify": "^3.4.8",
     "highlight.js": "^11.11.1",
     "marked": "^14.1.4",
     "monaco-editor": "^0.56.0",

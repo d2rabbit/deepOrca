@@ -63,8 +63,37 @@ export function detectPrototypeArtifact(toolContent: string): PrototypeArtifact 
   }
   if (meta.a2ui != null) {
     const payload = typeof meta.a2ui === "string" ? meta.a2ui : JSON.stringify(meta.a2ui);
+    // Architecture-map surfaces (arch-scan, surfaceId "arch-*") belong to the
+    // Index & Knowledge module — they render in the knowledge tab's 架构图
+    // pane. The design preview popup is for the design module only, so an
+    // arch surface must never auto-open it.
+    const surfaceId = parseSurfaceId(payload);
+    if (surfaceId?.startsWith("arch-")) {
+      return null;
+    }
     const isUpdate = /update_surface/.test(toolContent) && !/render_prototype|render_surface/.test(toolContent);
     return { mode: "a2ui", payload, isUpdate };
   }
   return null;
+}
+
+/** Extract the surfaceId from an A2UI message batch (v0.9 wrapped payloads
+ * or the legacy flat dialect — every message references exactly one). */
+function parseSurfaceId(payload: string): string | null {
+  try {
+    const messages: unknown = JSON.parse(payload);
+    if (!Array.isArray(messages)) return null;
+    for (const msg of messages) {
+      if (!msg || typeof msg !== "object") continue;
+      const m = msg as Record<string, unknown>;
+      for (const key of ["createSurface", "updateComponents", "updateDataModel", "deleteSurface"]) {
+        const inner = m[key] as { surfaceId?: unknown } | undefined;
+        if (inner && typeof inner.surfaceId === "string" && inner.surfaceId) return inner.surfaceId;
+      }
+      if (typeof m.surfaceId === "string" && m.surfaceId) return m.surfaceId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
