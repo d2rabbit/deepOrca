@@ -178,20 +178,20 @@ Don't force perspectives that don't exist in the code.
 采纳 diagram-design 的**"先选语义模式，再选视觉类型"**方法论。不要所有视角都用
 `card` + `text` —— 选择最贴合语义的布局方式：
 
-| 视角                    | 语义本质    | A2UI 组件                  | 理由               |
-| ----------------------- | ----------- | -------------------------- | ------------------ |
-| `overall-architecture`  | 模块 + 连接 | `card` + `text` tree       | 层级关系           |
-| `data-flow`             | 有向管道    | `column` 流式卡片          | 线性流动，箭头冗余 |
-| `dependency-map`        | 层级依赖    | `card` + 缩进 `text`       | 树状结构，自上而下 |
-| `request-lifecycle`     | 时序步骤    | `list` 编号                | 顺序执行，无分支   |
-| `state-transitions`     | 状态机      | `List` + `Text`            | 状态 + 触发条件    |
-| `external-integrations` | 信任边界    | `Card` 分组 + `Text` 标注  | 内外区分是重点     |
-| `storage`               | 分层存储    | `column` 堆叠卡片          | 层次而非网状       |
-| `command-surface`       | 命令树      | `list` + `text`            | 层级分发           |
-| `extension-points`      | 注册表      | `list` + `card`            | 枚举式，无拓扑     |
-| `route-page-map`        | 导航树      | `list` + `text`            | 页面层级           |
-| `pipeline`              | 阶段拓扑    | `column` 流式卡片          | 线性阶段           |
-| `orchestration`         | 发布订阅    | `Card` + `Text` 标注       | 多对多拓扑         |
+| 视角                    | 语义本质    | A2UI 组件                 | 理由               |
+| ----------------------- | ----------- | ------------------------- | ------------------ |
+| `overall-architecture`  | 模块 + 连接 | `card` + `text` tree      | 层级关系           |
+| `data-flow`             | 有向管道    | `column` 流式卡片         | 线性流动，箭头冗余 |
+| `dependency-map`        | 层级依赖    | `card` + 缩进 `text`      | 树状结构，自上而下 |
+| `request-lifecycle`     | 时序步骤    | `list` 编号               | 顺序执行，无分支   |
+| `state-transitions`     | 状态机      | `List` + `Text`           | 状态 + 触发条件    |
+| `external-integrations` | 信任边界    | `Card` 分组 + `Text` 标注 | 内外区分是重点     |
+| `storage`               | 分层存储    | `column` 堆叠卡片         | 层次而非网状       |
+| `command-surface`       | 命令树      | `list` + `text`           | 层级分发           |
+| `extension-points`      | 注册表      | `list` + `card`           | 枚举式，无拓扑     |
+| `route-page-map`        | 导航树      | `list` + `text`           | 页面层级           |
+| `pipeline`              | 阶段拓扑    | `column` 流式卡片         | 线性阶段           |
+| `orchestration`         | 发布订阅    | `Card` + `Text` 标注      | 多对多拓扑         |
 
 ## Step 3: Generate the A2UI Surface (Recursive)
 
@@ -203,8 +203,9 @@ reference children FORWARD by id, and exactly one component has `id: "root"`.
 
 - **Layout**: `Row`, `Column`, `List` (take `children: [ids]`), `Card`
   (takes ONE `child` id — wrap multiple children in a `Column` first),
-  `Tabs` (ONE tab: `{component: "Tabs", title, child}` — sibling Tabs under
-  the same container render as a tab bar), `Divider`
+  `Tabs` (a SINGLE container holding the whole tab bar:
+  `{component: "Tabs", tabs: [{title, child}, …]}` — never emit sibling or
+  per-tab Tabs components), `Divider`
 - **Content**: `Text` (`text` + `variant: h1|h2|h3|h4|h5|body|caption`),
   `Image`, `Icon` (Material-Symbols names only), `Video`, `AudioPlayer`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
@@ -217,9 +218,9 @@ literal, or `{path: "/data/key"}` bound to the dataModel.
 ### Structural model
 
 - **Root**: `id: "root"` — a `Card` with the project name + overview.
-- **Perspective**: one `Tabs` entry per perspective (title =
-  "Overall Architecture" / "Data Flow" / …) whose `child` is that
-  perspective's content `Column`.
+- **Perspective**: ONE `Tabs` container whose `tabs` array lists every
+  perspective ({title, child}); each child id points at that perspective's
+  content `Column`.
 - **Element**: a `Card` (via inner `Column` if it has multiple fields) with
   `Text` fields: name (`h4`), file path (`caption`), description (`body`),
   optional context/constraint/concern/todo/note lines.
@@ -240,10 +241,16 @@ render_surface({
   title: "<Project Name> Architecture",
   components: [
     { id: "root", component: "Card", child: "root-inner" },
-    { id: "root-inner", component: "Column", children: ["overview", "tabs-overall", "tabs-dataflow"] },
+    { id: "root-inner", component: "Column", children: ["overview", "arch-tabs"] },
     { id: "overview", component: "Text", text: "Monorepo: Electron desktop + shared core engine", variant: "body" },
-    { id: "tabs-overall", component: "Tabs", title: "Overall Architecture", child: "content-overall" },
-    { id: "tabs-dataflow", component: "Tabs", title: "Data Flow", child: "content-dataflow" }
+    {
+      id: "arch-tabs",
+      component: "Tabs",
+      tabs: [
+        { title: "Overall Architecture", child: "content-overall" },
+        { title: "Data Flow", child: "content-dataflow" }
+      ]
+    }
   ],
   dataModel: {}
 })
@@ -259,8 +266,12 @@ update_surface({
   surfaceId: "arch-root",
   components: [
     { id: "root", component: "Card", child: "root-inner" },
-    { id: "root-inner", component: "Column", children: ["tabs-overall"] },
-    { id: "tabs-overall", component: "Tabs", title: "Overall Architecture", child: "content-overall" },
+    { id: "root-inner", component: "Column", children: ["arch-tabs"] },
+    {
+      id: "arch-tabs",
+      component: "Tabs",
+      tabs: [{ title: "Overall Architecture", child: "content-overall" }]
+    },
     { id: "content-overall", component: "Column", children: ["node-renderer", "node-main", "node-store"] },
     { id: "node-renderer", component: "Text", text: "▸ Renderer (src/renderer/)", variant: "h4" },
     { id: "edge-r-to-m", component: "Text", text: "  → IPC invoke/on → Main Process", variant: "caption" },
@@ -277,13 +288,13 @@ tree. Copy the previous list and edit it — don't resend from scratch memory.
 
 ### Node kinds (for color coding)
 
-| Kind       | Rendering hint                          | When to use                                 |
-| ---------- | --------------------------------------- | ------------------------------------------- |
-| `entry`    | `Text` variant `h4` + "◉" prefix        | Entry points (HTTP handler, CLI, main)      |
-| `store`    | `Text` variant `h4` + "▣" prefix        | Persistent storage (DB, cache, file system) |
-| `external` | `Text` variant `body` + "◇" prefix      | Third-party services outside the codebase   |
-| `concern`  | `Text` variant `caption` + "⚠" prefix   | Known risk or bottleneck                    |
-| `default`  | `Text` variant `h4` + "▸" prefix        | Regular module/component                    |
+| Kind       | Rendering hint                        | When to use                                 |
+| ---------- | ------------------------------------- | ------------------------------------------- |
+| `entry`    | `Text` variant `h4` + "◉" prefix      | Entry points (HTTP handler, CLI, main)      |
+| `store`    | `Text` variant `h4` + "▣" prefix      | Persistent storage (DB, cache, file system) |
+| `external` | `Text` variant `body` + "◇" prefix    | Third-party services outside the codebase   |
+| `concern`  | `Text` variant `caption` + "⚠" prefix | Known risk or bottleneck                    |
+| `default`  | `Text` variant `h4` + "▸" prefix      | Regular module/component                    |
 
 ### 3c. Recursive drill-down — analyze every element
 
