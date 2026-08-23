@@ -20,6 +20,8 @@ import type {
   ActionDefinition,
   ActionProgress,
   ActionRun,
+  BackgroundLlmTaskOptions,
+  BackgroundLlmTaskResult,
   McpDispatchResult,
   RunSubagentOptions,
   Spawner,
@@ -47,6 +49,12 @@ export interface RegistryHost {
    * read it via {@link ActionContext.runSubagent}. See roadmap §十 / spec §五.
    */
   readonly runSubagent?: (opts: RunSubagentOptions) => Promise<unknown>;
+  /**
+   * Sessionless background LLM loop — injected by SessionManager
+   * (specs/index-knowledge-rework R2-2). index.build-all's arch-scan stage
+   * reads it via {@link ActionContext.runBackgroundTask}.
+   */
+  readonly runBackgroundTask?: (opts: BackgroundLlmTaskOptions) => Promise<BackgroundLlmTaskResult>;
   /**
    * LLM single-choice judgment — injected by SessionManager. Actions read it
    * via {@link ActionContext.judgeViaLlm} and must fail open when absent.
@@ -103,6 +111,7 @@ export class ActionRegistry {
     args: Record<string, unknown>
   ) => Promise<McpDispatchResult>;
   private readonly subagentDispatch?: (opts: RunSubagentOptions) => Promise<unknown>;
+  private readonly backgroundTaskDispatch?: (opts: BackgroundLlmTaskOptions) => Promise<BackgroundLlmTaskResult>;
   private readonly judgeDispatch?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
   private readonly taskTreeProvider?: () => TaskTreeService | null;
   private readonly activeSessionProvider?: () => string | null;
@@ -120,6 +129,7 @@ export class ActionRegistry {
     this.spawner = host.spawner ?? NULL_SPAWNER;
     this.mcpDispatch = host.executeMcpTool;
     this.subagentDispatch = host.runSubagent;
+    this.backgroundTaskDispatch = host.runBackgroundTask;
     this.judgeDispatch = host.judgeViaLlm;
     this.taskTreeProvider = host.taskTrees;
     this.activeSessionProvider = host.activeSessionId;
@@ -223,6 +233,7 @@ export class ActionRegistry {
         spawner: this.spawner,
         executeMcpTool: this.mcpDispatch,
         runSubagent: this.subagentDispatch,
+        runBackgroundTask: this.backgroundTaskDispatch,
         judgeViaLlm: this.judgeDispatch,
         taskTrees: this.taskTreeProvider,
         activeSessionId: this.activeSessionProvider,

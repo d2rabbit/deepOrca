@@ -307,6 +307,13 @@ export class SessionBridge {
         this.emit(IpcEvent.AssistantMessage, message);
       },
       onSessionEntryUpdated: (entry) => {
+        // Silent subagents never reach the renderer — not via the message
+        // stream (above) and not via the entry feed either: an unfiltered
+        // entry event inserts the pipeline session into the sidebar list even
+        // though listSessions filters it out.
+        if (entry.isSilentSubagent) {
+          return;
+        }
         this.emit(IpcEvent.SessionEntryUpdated, toSerializableEntry(entry));
       },
       onLlmStreamProgress: (progress) => {

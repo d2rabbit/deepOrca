@@ -21,8 +21,23 @@ export interface A2uiLifecycle {
   server: A2uiServerLike;
   /** Called AFTER build, BEFORE connect — restores surfaces from disk. */
   restoreSurfaces(projectRoot: string): void;
-  /** Called on session dispose — persists surfaces to disk. */
-  persistSurfaces(projectRoot: string): void;
+  /**
+   * Called on session dispose — persists surfaces to disk. When `idPrefix` is
+   * given, only surfaces whose id starts with it are written and only same-
+   * prefixed stale files are cleared (background tasks flush their arch-*
+   * surfaces this way without touching the user's design prototypes).
+   * When `sinceStamp` (from {@link surfaceStamp}) is also given, only surfaces
+   * mutated after that stamp are written — a background task flushes exactly
+   * what it produced, never surfaces left over from an earlier task in the
+   * same process (e.g. a build of a different workspace root).
+   */
+  persistSurfaces(projectRoot: string, idPrefix?: string, sinceStamp?: number): void;
+  /**
+   * Current monotonic surface-mutation stamp. Snapshot before a background
+   * task and pass as `sinceStamp` to persistSurfaces afterwards. Optional:
+   * hosts without it get the full prefix-scoped flush.
+   */
+  surfaceStamp?(): number;
 }
 
 export type A2uiServerBuilder = (projectRoot: string) => A2uiLifecycle | null;

@@ -11,18 +11,17 @@
  *     user turn (a session the user typed into keeps its history even when
  *     the summary matches — it is a real conversation).
  *
- * Idempotence: a marker file records the run; later boots no-op. Message
- * JSONL files of purged entries are deleted alongside the index entries.
+ * Runs on every boot and is idempotent by nature: entries that don't match
+ * are untouched, and the scan itself is cheap. (The earlier one-shot marker
+ * gate meant leaks created after the first run were never purged.)
  */
 
 import { getUserConfigRoot } from "@deeporca/core";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /** Known subagent prompt prefixes that leaked as session summaries. */
 const LEAKED_PREFIXES = ["Scan the codebase"];
-
-const MARKER_NAME = "subagent-cleanup-v1";
 
 type DiskEntry = {
   id: string;
@@ -37,10 +36,6 @@ type DiskIndex = { version?: number; entries: DiskEntry[]; originalPath: string 
 
 function projectsDir(): string {
   return path.join(getUserConfigRoot(), "projects");
-}
-
-function markerPath(): string {
-  return path.join(getUserConfigRoot(), "desktop", MARKER_NAME);
 }
 
 /**
@@ -74,13 +69,12 @@ function hasUserTurn(jsonlPath: string | undefined): boolean {
   return false;
 }
 
-/** Run the cleanup once. Safe to call on every boot (marker-gated). */
+/** Run the cleanup on every boot. Idempotent by nature: the scan is a cheap
+ * read of each project's sessions-index.json, and JSONL files are only read
+ * for prefix-matching entries. (Previously marker-gated one-shot — but leaks
+ * created AFTER the first run, e.g. by an older build still running that day,
+ * were then never purged. The marker file is no longer consulted.) */
 export function cleanupLeakedSubagentSessions(): void {
-  try {
-    if (existsSync(markerPath())) return;
-  } catch {
-    return;
-  }
   let purged = 0;
   const dir = projectsDir();
   let projectDirs: string[] = [];
@@ -137,12 +131,6 @@ export function cleanupLeakedSubagentSessions(): void {
         // best-effort
       }
     }
-  }
-  try {
-    mkdirSync(path.dirname(markerPath()), { recursive: true });
-    writeFileSync(markerPath(), new Date().toISOString(), "utf8");
-  } catch {
-    // best-effort
   }
   if (purged > 0) {
     console.log(`[subagent-cleanup] purged ${purged} leaked subagent session(s)`);

@@ -16,6 +16,8 @@ export type {
   ActionParameters,
   ActionProgress,
   ActionRun,
+  BackgroundLlmTaskOptions,
+  BackgroundLlmTaskResult,
   RunSubagentOptions,
   SpawnedProcess,
   Spawner,

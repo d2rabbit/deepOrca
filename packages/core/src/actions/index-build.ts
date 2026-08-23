@@ -5,9 +5,10 @@
  * chain + prompt hack with a first-class core action.
  *
  * Calls the same core helpers the individual actions use (no duplication).
- * arch-scan (stage 3) is gated on a `runSubagent` injection (Phase 3 / §十
- * Subagent); when absent, buildAll completes the two deterministic stages and
- * reports arch-scan as skipped — the legacy /arch-scan prompt path still works.
+ * arch-scan (stage 3) runs on the sessionless BackgroundLlmTask channel
+ * (specs/index-knowledge-rework R2-2); when the host hasn't injected it,
+ * buildAll completes the two deterministic stages and reports arch-scan as
+ * skipped — the legacy /arch-scan prompt path still works.
  */
 
 import type { ActionDefinition, ActionRun } from "./types";
@@ -94,19 +95,30 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
   ctx.emit({ message: `[2/3] wiki done`, percent: 66 });
 
   // Stage 3: arch-scan (init only). Generates an interactive architecture map
-  // by consuming the CodeGraph + OpenWiki indices built in stages 1-2.
+  // by consuming the CodeGraph + OpenWiki indices built in stages 1-2. Runs on
+  // the sessionless BackgroundLlmTask channel (specs/index-knowledge-rework
+  // R2-2): no session, no index entry, nothing in the conversation view —
+  // manual builds must never produce foreground conversation content.
   if (mode === "init") {
     ctx.emit({ message: `[3/3] arch-scan`, percent: 70 });
-    if (!ctx.runSubagent) {
+    if (!ctx.runBackgroundTask) {
       stages.push({
         stage: "arch-scan",
         ok: false,
         skipped: true,
-        error: "runSubagent not available — use /arch-scan to run manually",
+        error: "runBackgroundTask not available — use /arch-scan to run manually",
       });
     } else {
       try {
-        await ctx.runSubagent({ skill: "arch-scan", silent: true });
+        await ctx.runBackgroundTask({
+          skill: "arch-scan",
+          root,
+          // Cancelling the build action aborts the background LLM loop at its
+          // next iteration boundary (otherwise an 80-iteration scan would run
+          // to completion after the user cancelled).
+          signal: ctx.signal,
+          onProgress: (message) => ctx.emit({ message: `[3/3] ${message}` }),
+        });
         stages.push({ stage: "arch-scan", ok: true });
       } catch (err) {
         stages.push({ stage: "arch-scan", ok: false, error: err instanceof Error ? err.message : String(err) });

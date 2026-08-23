@@ -48,20 +48,28 @@ export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
 };
 
 export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (input, ctx) => {
-  if (!ctx.runSubagent) {
+  // Prefer the sessionless background channel (R2-2): an LLM-invoked arch
+  // scan must not spawn a foreground sub-session either. runSubagent remains
+  // as the fallback for hosts that only inject the older seam.
+  if (!ctx.runBackgroundTask && !ctx.runSubagent) {
     return {
       ok: false,
       status: "unavailable",
       pending: true,
       reason:
-        "arch-scan.run requires the Subagent runtime, which is not available. The skill can still be triggered manually via /arch-scan.",
+        "arch-scan.run requires the background-task runtime, which is not available. The skill can still be triggered manually via /arch-scan.",
     };
   }
   ctx.emit({ message: `arch-scan${input?.perspective ? ` (${input.perspective})` : ""} started`, percent: 10 });
-  const result = await ctx.runSubagent({
-    skill: "arch-scan",
-    input: input?.perspective ? { perspective: input.perspective } : undefined,
-  });
+  const result = ctx.runBackgroundTask
+    ? await ctx.runBackgroundTask({
+        skill: "arch-scan",
+        input: input?.perspective ? { perspective: input.perspective } : undefined,
+      })
+    : await ctx.runSubagent!({
+        skill: "arch-scan",
+        input: input?.perspective ? { perspective: input.perspective } : undefined,
+      });
   ctx.emit({ message: "arch-scan complete", percent: 100 });
   return { ok: true, status: "active", result };
 };
