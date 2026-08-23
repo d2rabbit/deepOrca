@@ -209,18 +209,103 @@ function deleteSurfaceMessage(surfaceId: string): unknown {
 
 /**
  * Normalize an incoming component array to official v0.9 shape. Accepts BOTH
- * dialects: official PascalCase forward-`children` components pass through;
- * legacy pre-R2 trees (lowercase `type` + `parentId` back-references) are
- * converted by the shared converter (src/shared/a2ui-legacy.ts) so old
- * skills/templates keep working during the transition.
+ * dialects: legacy pre-R2 trees (lowercase `type` + `parentId` back
+ * references) are converted by the shared converter, and v0.9 components get
+ * a schema-shape repair pass (normalizeV09Shapes) — models frequently emit
+ * near-miss shapes (sibling Tabs, Card with children; observed on the real
+ * arch-scan run 2026-08-24), and repairing at the MCP boundary keeps every
+ * downstream renderer (official processor) validation-clean.
  */
-function normalizeComponents(raw: unknown): Array<Record<string, unknown>> {
+export function normalizeComponents(raw: unknown): Array<Record<string, unknown>> {
   const list = (Array.isArray(raw) ? raw : []).filter((c) => c && typeof c === "object");
   const legacy = list.some((c) => "type" in (c as object) || "parentId" in (c as object));
   const components = (
     legacy ? convertLegacyComponents(list as never) : (list as Array<Record<string, unknown>>)
   ).filter((c) => typeof (c as { id?: unknown }).id === "string");
-  return ensureRootComponent(components);
+  return ensureRootComponent(normalizeV09Shapes(components));
+}
+
+/**
+ * Repair near-miss v0.9 component shapes in place (all observed LLM slips):
+ * 1. Card with `children` → single `child` + synthesized inner Column.
+ * 2. Card with no child → placeholder Text child (schema requires one).
+ * 3. Row/Column/List with single `child` → `children: [child]`.
+ * 4. Sibling Tabs each carrying {title, child} → ONE container Tabs with a
+ *    `tabs: [{title, child}]` array (the official shape is a single
+ *    component holding the whole tab bar).
+ */
+function normalizeV09Shapes(components: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const inserts: Array<Record<string, unknown>> = [];
+
+  for (const c of components) {
+    const kind = String(c.component ?? "");
+    if (kind === "Card") {
+      if (Array.isArray(c.children)) {
+        const kids = c.children as string[];
+        const inner: Record<string, unknown> = { id: `${c.id}-inner`, component: "Column", children: kids };
+        inserts.push(inner);
+        delete c.children;
+        c.child = inner.id;
+      } else if (typeof c.child !== "string") {
+        const ph: Record<string, unknown> = { id: `${c.id}-empty`, component: "Text", text: "" };
+        inserts.push(ph);
+        c.child = ph.id;
+      }
+    } else if (kind === "Row" || kind === "Column" || kind === "List") {
+      if (typeof c.child === "string" && !Array.isArray(c.children)) {
+        c.children = [c.child];
+        delete c.child;
+      }
+    }
+  }
+
+  // Sibling Tabs merge: Tabs components that carry a `title` (the per-tab
+  // near-miss shape) sharing a container's children list collapse into ONE.
+  const perTabTabs = components.filter(
+    (c) => String(c.component) === "Tabs" && typeof c.title === "string" && typeof c.child === "string"
+  );
+  if (perTabTabs.length > 0) {
+    const tabIds = new Set(perTabTabs.map((c) => String(c.id)));
+    const entries = perTabTabs.map((c) => ({ title: c.title, child: c.child }));
+    const first = perTabTabs[0] as Record<string, unknown>;
+    const firstId = String(first.id);
+    // Rewrite every children list: first tab id stays (becomes the merged
+    // container), the rest drop.
+    for (const c of components) {
+      if (!Array.isArray(c.children)) continue;
+      const kids = c.children as string[];
+      if (!kids.some((k) => tabIds.has(k))) continue;
+      const out: string[] = [];
+      let seenFirst = false;
+      for (const k of kids) {
+        if (tabIds.has(k)) {
+          if (!seenFirst) {
+            out.push(k);
+            seenFirst = true;
+          }
+        } else {
+          out.push(k);
+        }
+      }
+      c.children = out;
+      // A Card holding a single tab child keeps pointing at the merged one.
+      if (String(c.component) === "Card" && typeof c.child === "string" && tabIds.has(String(c.child))) {
+        c.child = firstId;
+      }
+    }
+    // The first tab becomes the container; the rest are removed below.
+    delete first.title;
+    delete first.child;
+    first.tabs = entries;
+    for (let i = components.length - 1; i >= 0; i--) {
+      const c = components[i] as Record<string, unknown>;
+      if (String(c.component) === "Tabs" && tabIds.has(String(c.id)) && String(c.id) !== firstId) {
+        components.splice(i, 1);
+      }
+    }
+  }
+
+  return [...components, ...inserts];
 }
 
 /**

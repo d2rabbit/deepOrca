@@ -218,9 +218,6 @@ export function App(): JSX.Element {
   const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
   const taskTabsRef = useRef(taskTabs);
   taskTabsRef.current = taskTabs;
-  const treeTitlesRef = useRef(treeTitles);
-  treeTitlesRef.current = treeTitles;
-  const pendingTaskTabRef = useRef<string | null>(null);
 
   const {
     appearance,
@@ -539,10 +536,7 @@ export function App(): JSX.Element {
           await checkWorkspaceTrust();
           const pending = pendingSelectRef.current;
           pendingSelectRef.current = null;
-          const pendingTask = pendingTaskTabRef.current;
-          pendingTaskTabRef.current = null;
           await loadSession(pending);
-          if (pendingTask) openTaskTreeRef.current(pendingTask);
           bumpTree();
         } catch (error) {
           console.error("[workspace] switch reload failed:", error);
@@ -889,35 +883,6 @@ export function App(): JSX.Element {
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
-  // ── Workspace task tabs (session→task cross-reference entry) ───────────────
-  const handleOpenTaskTree = useCallback(
-    (treeId: string, workspaceRoot?: string) => {
-      // Cross-workspace badges follow the same flow as selecting that session:
-      // switch root first; the tab opens when the new workspace lands.
-      if (workspaceRoot && workspaceRoot !== projectRootRef.current) {
-        pendingTaskTabRef.current = treeId;
-        void api.setProjectRoot(workspaceRoot);
-        return;
-      }
-      setTaskTabs((tabs) =>
-        tabs.some((tab) => tab.treeId === treeId)
-          ? tabs
-          : [
-              ...tabs,
-              {
-                treeId,
-                title: treeTitlesRef.current[treeId]?.title ?? t("tasktree.taskFallback"),
-                // Cross-workspace badges follow the session flow (root already
-                // switched above); record-tab reads go through this root.
-                root: workspaceRoot ?? projectRootRef.current,
-              },
-            ]
-      );
-      setActiveTaskTabId(treeId);
-    },
-    [t]
-  );
-  const openTaskTreeRef = useRef(handleOpenTaskTree);
   // Left-rail task history (R3-7): open a task RECORD tab for ANY workspace
   // without switching the active project root — the record panel reads the
   // tree through its own root-scoped IPC.
@@ -926,7 +891,6 @@ export function App(): JSX.Element {
     setActiveTaskTabId(treeId);
     setActiveKnowledgeRoot(null);
   }, []);
-  openTaskTreeRef.current = handleOpenTaskTree;
   const knowledgeTabsRef = useRef(knowledgeTabs);
   knowledgeTabsRef.current = knowledgeTabs;
   const handleOpenKnowledgeTab = useCallback((root: string) => {
