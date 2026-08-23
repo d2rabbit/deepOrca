@@ -168,6 +168,7 @@ import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSetti
 import { getProjectSettingsPath, getUserSettingsPath, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
 import { getUserConfigRoot, getProjectCode } from "./common/app-dirs";
 import { formatSessionPrompt } from "./common/session-prompts";
+import { scavengeToolCalls } from "./common/tool-call-repair";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { describeLlmError, classifyLlmError, getLlmErrorDetails } from "./common/llm-error";
@@ -2269,7 +2270,33 @@ If the query is simple (single intent), respond with a single-element array.`;
     const toolCalls = Array.from(toolCallsByIndex.entries())
       .sort(([left], [right]) => left - right)
       .map(([, toolCall]) => toolCall);
-    const normalizedToolCalls = this.normalizeLlmToolCalls(toolCalls);
+    let normalizedToolCalls = this.normalizeLlmToolCalls(toolCalls);
+    // Text-channel scavenging (dirge mechanism): a weak model may write its
+    // calls into the content/reasoning text instead of the structured
+    // tool_calls field (```json fences, <tool_call> tags, bare JSON with a
+    // registered name). Only fires when the structured channel produced
+    // nothing, and only dispatches names that exist in this loop's tool
+    // surface — repair never invents a name.
+    if (!normalizedToolCalls || normalizedToolCalls.length === 0) {
+      const scavengeText = [content, reasoningContent].filter((part) => part.length > 0).join("\n");
+      if (scavengeText.length > 0 && sessionId) {
+        const allowed = new Set(
+          getTools(this.getPromptToolOptions(), [
+            ...(await this.getRoutedMcpTools(sessionId)),
+            ...this.actionRegistry.toToolDefinitions(),
+            ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
+          ]).map((tool) => tool.function.name)
+        );
+        const scavenged = scavengeToolCalls(scavengeText, allowed);
+        if (scavenged.calls.length > 0) {
+          normalizedToolCalls = scavenged.calls.map((call) => ({
+            id: this.generateToolCallId(),
+            type: "function",
+            function: { name: call.name, arguments: call.arguments || "{}" },
+          }));
+        }
+      }
+    }
     const message: Record<string, unknown> = { content };
     if (normalizedToolCalls) {
       message.tool_calls = normalizedToolCalls;

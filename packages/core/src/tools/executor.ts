@@ -1,6 +1,7 @@
 // Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
 // (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { handleAskUserQuestionTool } from "./ask-user-question-handler";
+import { lenientParseToolArguments } from "../common/tool-call-repair";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
 import { handleReadTool } from "./read-handler";
@@ -376,9 +377,17 @@ export class ToolExecutor {
     return { errorType: "INTERNAL", retryable: false };
   }
 
+  /**
+   * Parse tool-call arguments. Weaker models routinely emit malformed JSON
+   * (max_tokens truncation, markdown fences, prose-wrapped objects), so a
+   * plain-parse failure routes through the repair chain in
+   * common/tool-call-repair.ts (mechanism from dirge's agent loop) before
+   * giving up. Repair notes ride back so callers can surface them to the
+   * model in the tool result — it adapts subsequent calls.
+   */
   private parseToolArguments(
     rawArguments: string
-  ): { ok: true; args: Record<string, unknown> } | { ok: false; error: string } {
+  ): { ok: true; args: Record<string, unknown>; repairedNotes?: string[] } | { ok: false; error: string } {
     if (!rawArguments) {
       return { ok: true, args: {} };
     }
@@ -389,13 +398,16 @@ export class ToolExecutor {
         return { ok: false, error: "InputParseError: Tool arguments must be a JSON object." };
       }
       return { ok: true, args: parsed as Record<string, unknown> };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch {
+      // Plain parse failed — run the repair chain (truncation closer →
+      // fence strip → prose extraction) before declaring failure.
+      const repaired = lenientParseToolArguments(rawArguments);
+      if (repaired.ok) {
+        return { ok: true, args: repaired.args, repairedNotes: repaired.repairedNotes };
+      }
       return {
         ok: false,
-        error:
-          `InputParseError: Failed to parse tool arguments: ${message}. ` +
-          "Ensure the tool call arguments are valid JSON. Prefer Edit over Write for large existing-file changes.",
+        error: `InputParseError: ${repaired.error} Prefer Edit over Write for large existing-file changes.`,
       };
     }
   }
