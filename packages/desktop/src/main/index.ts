@@ -4,6 +4,7 @@
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
+import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
@@ -101,6 +102,8 @@ import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy }
 import { safeWikiPath } from "./safe-path.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// ESM-safe require (bare `require` breaks in the bundled ESM main).
+const moduleRequire = nodeCreateRequire(import.meta.url);
 
 // Long-running helper processes (ocr review / openwiki agent) spawned on behalf
 // of the renderer. Tracked so they are terminated when the app shuts down
@@ -1124,7 +1127,7 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
  * than failing the whole response.
  */
 function registerKnowledgeIpc({ handle }: IpcHelpers): void {
-  handle(IpcRequest.KnowledgeStatus, async (_e, rootArg?: string): Promise<KnowledgeStatusResponse> => {
+  handle(IpcRequest.KnowledgeStatus, async (rootArg?: string): Promise<KnowledgeStatusResponse> => {
     const root = rootArg || getBridge().projectRoot;
     const freshness = getBridge().getKnowledgeFreshness?.() ?? {};
     const isStale = (syncTime?: string): boolean =>
@@ -1251,7 +1254,7 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
   // fidelity later — the tab proves the open path).
   handle(
     IpcRequest.KnowledgeRenderArchmap,
-    (_e, artPath: string): { ok: true; html: string } | { ok: false; error: string } => {
+    (artPath: string): { ok: true; html: string } | { ok: false; error: string } => {
       try {
         const raw = JSON.parse(readFileSync(artPath, "utf-8")) as Record<string, unknown>;
         const esc = (v: string): string => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -1316,17 +1319,19 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     () => getBridge().getSessionManager().getActionRegistry(),
     (channel, payload) => emit(channel, payload)
   );
-  handlePrivileged(IpcRequest.KnowledgeBuild, (root: string) => buildJobs.start(root));
+  handlePrivileged(IpcRequest.KnowledgeBuild, (root: string, mode?: "init" | "update" | "auto") =>
+    buildJobs.start(root, mode)
+  );
   handlePrivileged(IpcRequest.KnowledgeBuildStatus, () => buildJobs.status());
 
-  handle(IpcRequest.KnowledgeListSymbols, (_e, root: string, query?: string): Array<KnowledgeSymbol> => {
+  handle(IpcRequest.KnowledgeListSymbols, (root: string, query?: string): Array<KnowledgeSymbol> => {
     // SQLite read-only scan of <root>/.codegraph/codegraph.db (same pattern
     // as CRG's direct read). node:sqlite requires Node >= 22.5 — load lazily
     // so the handler degrades gracefully under older runtimes.
     const dbPath = join(root || getBridge().projectRoot, ".codegraph", "codegraph.db");
     if (!existsSync(dbPath)) return [];
     try {
-      const { DatabaseSync } = require("node:sqlite") as {
+      const { DatabaseSync } = moduleRequire("node:sqlite") as {
         DatabaseSync: new (path: string, opts: { readOnly: boolean }) => DatabaseSyncType;
       };
       const db = new DatabaseSync(dbPath, { readOnly: true });
@@ -1338,7 +1343,11 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
                 "SELECT name, kind, file_path, start_line, signature FROM nodes WHERE name LIKE ? OR qualified_name LIKE ? ORDER BY name LIMIT 300"
               )
               .all(like, like)
-          : db.prepare("SELECT name, kind, file_path, start_line, signature FROM nodes ORDER BY name LIMIT 300").all()
+          : db
+              .prepare(
+                "SELECT name, kind, file_path, start_line, signature FROM nodes WHERE kind NOT IN ('import','unknown') ORDER BY name LIMIT 300"
+              )
+              .all()
       ) as Array<{ name: string; kind: string; file_path: string; start_line: number; signature?: string }>;
       return rows.map((r) => ({
         name: r.name,
@@ -1347,12 +1356,13 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
         startLine: r.start_line,
         signature: r.signature ?? undefined,
       }));
-    } catch {
+    } catch (err) {
+      console.error("[knowledge:listSymbols] failed:", err instanceof Error ? err.message : String(err));
       return [];
     }
   });
 
-  handle(IpcRequest.KnowledgeReadAgents, (_e, root: string) => {
+  handle(IpcRequest.KnowledgeReadAgents, (root: string) => {
     // Root-scoped read: only <root>/AGENTS.md, containment-checked.
     const agentsPath = pathResolve(root || getBridge().projectRoot, "AGENTS.md");
     const base = pathResolve(root || getBridge().projectRoot);
@@ -1822,7 +1832,7 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
   handlePrivileged(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
 
-  handle(IpcRequest.WikiListPages, async (_e, rootArg?: string): Promise<WikiPageEntry[]> => {
+  handle(IpcRequest.WikiListPages, async (rootArg?: string): Promise<WikiPageEntry[]> => {
     const wikiDir = join(rootArg || getBridge().projectRoot, "openwiki");
     try {
       const entries: WikiPageEntry[] = [];

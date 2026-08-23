@@ -11,8 +11,18 @@
  * via knowledge.buildStatus for row rendering).
  */
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { ActionRegistry } from "@deeporca/core";
 import { IpcEvent } from "../shared/ipc.js";
+
+function existsCodegraph(root: string): boolean {
+  return existsSync(join(root, ".codegraph", "codegraph.db"));
+}
+
+function existsWiki(root: string): boolean {
+  return existsSync(join(root, "openwiki"));
+}
 
 export type BuildJobSnapshot = {
   root: string;
@@ -44,16 +54,20 @@ export class BuildJobManager {
     private readonly emit: Emit
   ) {}
 
-  /** Start (or return the in-flight) build for a root. Idempotent per root. */
-  start(root: string): BuildJobSnapshot {
+  /**
+   * Start (or return the in-flight) build for a root. Idempotent per root.
+   * mode: explicit, or "auto" — resolved to update when both indexes exist
+   * (knowledgeStatus probe), else init.
+   */
+  start(root: string, mode?: "init" | "update" | "auto"): BuildJobSnapshot {
     const existing = this.jobs.get(root);
     if (existing && existing.running) {
       return this.snapshot(existing);
     }
-    // mode: init when either index is absent, else update.
+    const resolved = mode && mode !== "auto" ? mode : this.probeMode(root);
     const job: Job = {
       root,
-      mode: "init",
+      mode: resolved,
       stage: "starting",
       percent: 5,
       error: null,
@@ -115,5 +129,16 @@ export class BuildJobManager {
 
   private snapshot(job: Job): BuildJobSnapshot {
     return { ...job };
+  }
+
+  /** auto → update when both symbol and wiki indexes exist, else init. */
+  private probeMode(root: string): "init" | "update" {
+    try {
+      const cg = existsCodegraph(root);
+      const wiki = existsWiki(root);
+      return cg && wiki ? "update" : "init";
+    } catch {
+      return "init";
+    }
   }
 }
