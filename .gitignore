@@ -58,6 +58,8 @@ packages/desktop/vendor/
 # Local security-tool scratch (not sources)
 .mimosa/
 
-# Generated workspace knowledge indices (built by 索引与知识 builds; the
-# OpenWiki GitHub Actions workflow regenerates pages from source)
-openwiki/
+# Generated workspace knowledge artifacts — the wiki pages and arch-map
+# surfaces ARE committed (R3-8: they are reviewable products of the index
+# build); only the binary CodeGraph DB (.codegraph/, has its own inner
+# .gitignore) stays untracked.
+

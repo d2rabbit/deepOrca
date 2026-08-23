@@ -757,7 +757,7 @@ export const ko: Record<MessageKey, string> = {
   "index.wikiTab": "Wiki",
   "index.agentsTab": "AGENTS",
   "index.archmapsTab": "아키텍처",
-  "index.symbolsTab": "심볼",
+  "index.symbolsTab": "인덱스 관계 그래프",
   "index.buildStageCodegraph": "심볼",
   "index.buildStageWiki": "Wiki 문서",
   "index.buildStageArch": "아키텍처",

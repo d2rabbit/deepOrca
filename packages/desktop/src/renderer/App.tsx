@@ -871,6 +871,11 @@ export function App(): JSX.Element {
   );
   const handleSelectSession = useCallback(
     async (root: string, id: string) => {
+      // Selecting a conversation always lands on its workspace (💬) tab —
+      // the task-badge entry relies on this (R3-8): leaving an aux tab
+      // active would hide the chat the user asked for.
+      setActiveTaskTabId(null);
+      setActiveKnowledgeRoot(null);
       if (root && root !== projectRootRef.current) {
         pendingSelectRef.current = id;
         await api.setProjectRoot(root);
@@ -1587,7 +1592,6 @@ export function App(): JSX.Element {
             onRename={handleRenameSession}
             onArchive={handleArchiveSession}
             onUnarchive={handleUnarchiveSession}
-            onOpenTaskTree={handleOpenTaskTree}
             onCollapse={handleCollapsePanel}
             onNewWorkspace={handleNewWorkspace}
             onNewSessionInWorkspace={handleNewSessionInWorkspace}

@@ -9,7 +9,7 @@
  * indexed content itself are untouched.
  */
 
-import { useEffect, useMemo, useState, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import type { KnowledgeSymbolGraph, KnowledgeSymbolGraphNode } from "../../shared/ipc";
@@ -58,6 +58,24 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   const { t } = useI18n();
   const [graph, setGraph] = useState<KnowledgeSymbolGraph | null>(null);
   const [loading, setLoading] = useState(false);
+  // Back stack (R3-8): every recenter pushes the previous center; the
+  // "返回上一层" button pops it — browsing the graph becomes non-destructive.
+  const [history, setHistory] = useState<string[]>([]);
+  const currentRef = useRef(query);
+  currentRef.current = query;
+
+  const recenter = (name: string): void => {
+    if (name === query) return;
+    setHistory((h) => [...h, query]);
+    onRecenter(name);
+  };
+  const back = (): void => {
+    setHistory((h) => {
+      const prev = h[h.length - 1];
+      if (prev !== undefined) onRecenter(prev);
+      return h.slice(0, -1);
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -122,6 +140,18 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
 
   return (
     <div className="ui-symbol-graph">
+      <div className="ui-symbol-graph-toolbar">
+        <button
+          type="button"
+          className="ui-symbol-graph-back"
+          onClick={back}
+          disabled={history.length === 0}
+          title={history.length > 0 ? `返回 ${history[history.length - 1] || "全局"}` : "已是最顶层"}
+        >
+          ← 返回上一层{history.length > 1 ? ` (${history.length})` : ""}
+        </button>
+        <span className="ui-symbol-graph-center">{query.trim() ? `◈ ${query.trim()}` : "◈ 全局枢纽视图"}</span>
+      </div>
       <div className="ui-symbol-graph-legend">
         {Object.entries(EDGE_STYLE).map(([kind, style]) => (
           <span key={kind} className="ui-symbol-graph-legend-item">
@@ -137,6 +167,22 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       </div>
       <div className="ui-symbol-graph-scroll">
         <svg width={layout.width} height={layout.height} role="img" aria-label="symbol relationship graph">
+          <defs>
+            {Object.entries(EDGE_STYLE).map(([kind, style]) => (
+              <marker
+                key={kind}
+                id={`arrow-${kind}`}
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 1 L 9 5 L 0 9 z" fill={style.stroke} fillOpacity={0.7} />
+              </marker>
+            ))}
+          </defs>
           {layout.columns.map((col) =>
             col.nodes.length > 0 ? (
               <text key={col.label} x={col.x + 4} y={PAD_Y + 10} className="ui-symbol-graph-col-label">
@@ -162,6 +208,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                 strokeWidth={1.2}
                 strokeOpacity={0.55}
                 strokeDasharray={style.dash}
+                markerEnd={`url(#arrow-${e.kind})`}
               />
             );
           })}
@@ -173,7 +220,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                 <g
                   key={n.id}
                   className="ui-symbol-graph-node"
-                  onClick={() => onRecenter(n.name)}
+                  onClick={() => recenter(n.name)}
                   role="button"
                   aria-label={`${n.name} (${n.kind})`}
                 >

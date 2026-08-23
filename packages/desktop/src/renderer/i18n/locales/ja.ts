@@ -763,7 +763,7 @@ export const ja: Record<MessageKey, string> = {
   "index.wikiTab": "Wiki",
   "index.agentsTab": "AGENTS",
   "index.archmapsTab": "アーキテクチャ",
-  "index.symbolsTab": "シンボル",
+  "index.symbolsTab": "インデックス関係図",
   "index.buildStageCodegraph": "シンボル",
   "index.buildStageWiki": "Wiki ドキュメント",
   "index.buildStageArch": "アーキテクチャ",

@@ -740,7 +740,7 @@ export const zhHK: Record<MessageKey, string> = {
   "index.wikiTab": "Wiki",
   "index.agentsTab": "AGENTS",
   "index.archmapsTab": "架構圖",
-  "index.symbolsTab": "符號",
+  "index.symbolsTab": "索引關係圖",
   "index.buildStageCodegraph": "符號索引",
   "index.buildStageWiki": "文件 Wiki",
   "index.buildStageArch": "架構圖",

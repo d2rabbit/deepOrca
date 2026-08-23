@@ -8858,6 +8858,39 @@ button.ui-topbar-pill {
   flex: 1;
   min-height: 0;
 }
+.ui-symbol-graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 2px;
+  flex-shrink: 0;
+}
+.ui-symbol-graph-back {
+  background: none;
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 7px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-symbol-graph-back:hover:not(:disabled) {
+  border-color: var(--ui-accent, #0a84ff);
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-symbol-graph-back:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ui-symbol-graph-center {
+  font-size: 11px;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  color: var(--ui-text-faint, #8590a0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ui-symbol-graph-legend {
   display: flex;
   align-items: center;
@@ -9275,4 +9308,142 @@ button.ui-topbar-pill {
   border-radius: 6px;
   background: var(--ui-input-bg, #fff);
   color: var(--ui-text, #1b2129);
+}
+
+/* ── Wiki document typography (R3-8): full markdown treatment ───────────── */
+/* .ui-md (chat styles) provides code blocks; this layer adds the long-form
+   document reading experience: readable measure, spaced headings, zebra
+   tables, blockquotes, rule/links — the pieces a wiki page needs beyond
+   chat-bubble typography. */
+.ui-wiki-doc {
+  max-width: 860px;
+  padding: 4px 12px 32px;
+}
+.ui-wiki-doc h1,
+.ui-wiki-doc h2,
+.ui-wiki-doc h3,
+.ui-wiki-doc h4 {
+  color: var(--ui-text, inherit);
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+}
+.ui-wiki-doc h1 {
+  font-size: 22px;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+}
+.ui-wiki-doc h2 {
+  font-size: 18px;
+}
+.ui-wiki-doc h3 {
+  font-size: 15px;
+}
+.ui-wiki-doc p {
+  margin: 0.6em 0;
+}
+.ui-wiki-doc ul,
+.ui-wiki-doc ol {
+  margin: 0.6em 0;
+  padding-left: 1.6em;
+}
+.ui-wiki-doc ul {
+  list-style: disc;
+}
+.ui-wiki-doc ol {
+  list-style: decimal;
+}
+.ui-wiki-doc li {
+  margin: 0.25em 0;
+}
+.ui-wiki-doc table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 12.5px;
+}
+.ui-wiki-doc th,
+.ui-wiki-doc td {
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.ui-wiki-doc th {
+  background: var(--ui-bg-soft, #f5f6f8);
+  font-weight: 600;
+}
+.ui-wiki-doc tbody tr:nth-child(even) {
+  background: var(--ui-bg-soft, rgba(127, 140, 166, 0.05));
+}
+.ui-wiki-doc blockquote {
+  margin: 0.8em 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--ui-accent, #0a84ff);
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.06));
+  border-radius: 0 8px 8px 0;
+  color: var(--ui-text-dim, inherit);
+}
+.ui-wiki-doc a {
+  color: var(--ui-accent, #0a84ff);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--ui-accent, #0a84ff);
+}
+.ui-wiki-doc hr {
+  border: none;
+  border-top: 1px solid var(--ui-border-soft, #e3e6eb);
+  margin: 1.6em 0;
+}
+.ui-wiki-doc :not(pre) > code {
+  background: var(--ui-bg-soft, #f5f6f8);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+}
+.ui-wiki-doc img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/* ── Architecture-map observable pane (R3-8) ────────────────────────────── */
+.ui-knowledge-archframe {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ui-bg-soft, #fafbfc);
+}
+.ui-knowledge-archframe-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: var(--ui-surface, #fff);
+  flex-shrink: 0;
+}
+.ui-knowledge-archframe-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-archframe-meta {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  flex-shrink: 0;
+}
+.ui-knowledge-preview {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  margin-top: 0;
 }

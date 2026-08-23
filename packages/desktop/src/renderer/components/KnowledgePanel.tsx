@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useState, type JSX, type MouseEvent as ReactMouseEvent } from "react";
 import { api } from "../api";
 import { renderMarkdown } from "../markdown";
 import { useI18n, type MessageKey } from "../i18n";
@@ -199,7 +199,8 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
                         </Button>
                       </div>
                       <div
-                        className="ui-knowledge-agents-md"
+                        className="ui-knowledge-agents-md ui-md ui-wiki-doc"
+                        onClick={handleWikiCopyClick}
                         dangerouslySetInnerHTML={{ __html: renderMarkdown(wikiContent) }}
                       />
                     </>
@@ -338,7 +339,10 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
                 </div>
                 {preview ? (
                   <div className="ui-knowledge-preview">
-                    <KnowledgeArchPreview path={preview} />
+                    <KnowledgeArchPreview
+                      path={preview}
+                      title={(status?.archmaps.files ?? []).find((f) => f.path === preview)?.name ?? preview}
+                    />
                   </div>
                 ) : null}
               </>
@@ -350,9 +354,26 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
   );
 }
 
+/** Delegated code-copy for the wiki preview (same contract as chat). */
+function handleWikiCopyClick(e: ReactMouseEvent<HTMLDivElement>): void {
+  const btn = (e.target as HTMLElement).closest(".code-block-copy");
+  if (!btn) return;
+  const wrap = btn.closest(".code-block-wrap");
+  const code = wrap?.querySelector("code");
+  if (code) {
+    void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+      btn.textContent = "✓";
+      setTimeout(() => {
+        btn.textContent = "⧉";
+      }, 1500);
+    });
+  }
+}
+
 /** Architecture-map preview: the persisted surface JSON rendered by the real
  * A2UI component renderer (the same one the conversation's surfaces use). */
-function KnowledgeArchPreview({ path }: { path: string }): JSX.Element {
+function KnowledgeArchPreview({ path, title }: { path: string; title: string }): JSX.Element {
+  const archTitle = title.replace(/^arch-/, "").replace(/\.json$/, "");
   const [messagesJson, setMessagesJson] = useState<string | null>(null);
   const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -399,10 +420,19 @@ function KnowledgeArchPreview({ path }: { path: string }): JSX.Element {
   }, [path]);
 
   if (error) return <div className="ui-knowledge-preview-error">{error}</div>;
-  if (!messagesJson || !surfaceId) return <div className="ui-knowledge-preview-loading" />;
   return (
-    <div className="ui-knowledge-preview-a2ui">
-      <A2uiSurface messagesJson={messagesJson} surfaceId={surfaceId} />
+    <div className="ui-knowledge-archframe">
+      <div className="ui-knowledge-archframe-head">
+        <span className="ui-knowledge-archframe-title">◈ {archTitle}</span>
+        <span className="ui-knowledge-archframe-meta">A2UI v0.9 · {surfaceId ?? "…"}</span>
+      </div>
+      <div className="ui-knowledge-preview-a2ui">
+        {messagesJson && surfaceId ? (
+          <A2uiSurface messagesJson={messagesJson} surfaceId={surfaceId} />
+        ) : (
+          <div className="ui-knowledge-preview-loading" />
+        )}
+      </div>
     </div>
   );
 }

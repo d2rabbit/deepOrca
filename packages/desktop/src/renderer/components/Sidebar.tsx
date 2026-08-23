@@ -20,7 +20,6 @@ type Props = {
   onArchive: (id: string, workspaceRoot?: string) => void;
   onUnarchive: (id: string) => void;
   /** Open the session's bound task tree as a workspace tab (specs/task-tree). */
-  onOpenTaskTree: (treeId: string, workspaceRoot?: string) => void;
   onCollapse: () => void;
   onNewWorkspace: () => void;
   onNewSessionInWorkspace: (root: string) => void;
@@ -82,7 +81,6 @@ export const Sidebar = memo(function Sidebar({
   onRename,
   onArchive,
   onUnarchive,
-  onOpenTaskTree,
   onCollapse,
   onNewWorkspace,
   onNewSessionInWorkspace,
@@ -151,8 +149,10 @@ export const Sidebar = memo(function Sidebar({
   const overallTotal = useMemo(() => aggregateByWorkspace(tree).reduce((sum, row) => sum + row.total, 0), [tree]);
 
   /**
-   * Task badge on a session row — the session↔task cross-reference entry
-   * (specs/task-tree P1): clicking opens the bound tree as a workspace tab.
+   * Task badge on a session row — the session↔task cross-reference entry.
+   * Clicking goes STRAIGHT to that conversation's workspace (💬) tab: the
+   * user asked for the chat, not a detour into the task record — the task
+   * history remains reachable from the 任务树 rail (R3-8).
    */
   function renderTaskBadge(entry: SerializableSessionEntry, root: string): JSX.Element | null {
     const treeId = entry.taskRef?.treeId;
@@ -165,7 +165,7 @@ export const Sidebar = memo(function Sidebar({
         title={t("tasktree.sessionTask", { title })}
         onClick={(e) => {
           e.stopPropagation();
-          onOpenTaskTree(treeId, entry.workspaceRoot ?? root);
+          onSelectSession(entry.workspaceRoot ?? root, entry.id);
         }}
       >
         🌳 {title}
