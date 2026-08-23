@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
-import type { ActionProgressEvent, KnowledgeStatusResponse, WorkspaceGroup } from "../../shared/ipc";
+import { useBuildJobs } from "../hooks/useBuildJobs";
+import type { KnowledgeStatusResponse, WorkspaceGroup } from "../../shared/ipc";
 
 /**
  * Index & Knowledge — left rail view (specs/index-knowledge-rework T3).
@@ -21,12 +22,6 @@ type Props = {
   onOpenWorkspace: (root: string) => void;
 };
 
-type RowState = {
-  busy: boolean;
-  percent: number | null;
-  error: string | null;
-};
-
 function formatRelative(iso: string | undefined, justNow: string, never: string): string {
   if (!iso) return never;
   const delta = Date.now() - new Date(iso).getTime();
@@ -43,8 +38,12 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
   const { t } = useI18n();
   const [workspaces, setWorkspaces] = useState<WorkspaceGroup[]>([]);
   const [statuses, setStatuses] = useState<Record<string, KnowledgeStatusResponse>>({});
-  const [rows, setRows] = useState<Record<string, RowState>>({});
   const mountedRef = useRef(true);
+
+  // R3-5: shared build-job store (one app-wide poller + instant event
+  // refresh) — replacing the panel-local polling/effects duplicate.
+  const buildJobs = useBuildJobs();
+  const jobByRoot = new Map(buildJobs.map((j) => [j.root, j]));
 
   useEffect(() => {
     return () => {
@@ -76,58 +75,31 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
     void reload();
   }, [reload]);
 
-  // R2-1: rows are a read-only subscription over the main-process job map —
-  // ActionProgress (data.root tagged) for instant updates, plus a 2s poll of
-  // knowledgeBuildStatus so remounting picks up live jobs it didn't start.
+  // Reload statuses once per settled build (the job map retains finished
+  // snapshots, so an unconditional effect would loop every poll tick).
+  const settledReloaded = useRef(new Set<string>());
   useEffect(() => {
-    const off = api.onActionProgress((event: ActionProgressEvent) => {
-      if (event.actionId === "knowledge.buildComplete") {
-        void reload();
-        return;
+    let needsReload = false;
+    for (const job of buildJobs) {
+      const key = `${job.root}@${job.startedAt}`;
+      if (job.running) {
+        settledReloaded.current.delete(key);
+      } else if (!settledReloaded.current.has(key)) {
+        settledReloaded.current.add(key);
+        needsReload = true;
       }
-      if (event.actionId !== "index.build-all") return;
-      const root = (event.data as { root?: string } | undefined)?.root;
-      if (!root) return;
-      setRows((prev) => {
-        const row = prev[root] ?? { busy: false, percent: null, error: null };
-        return { ...prev, [root]: { busy: true, percent: event.percent ?? row.percent, error: null } };
-      });
-    });
-    const timer = setInterval(async () => {
-      try {
-        const jobs = await api.knowledgeBuildStatus();
-        setRows((prev) => {
-          const next = { ...prev };
-          for (const job of jobs) {
-            next[job.root] = { busy: job.running, percent: job.percent, error: job.error };
-          }
-          return next;
-        });
-        if (jobs.some((job) => !job.running && job.percent === 100)) {
-          void reload();
-        }
-      } catch {
-        // status poll failure is non-fatal
-      }
-    }, 2000);
-    return () => {
-      off();
-      clearInterval(timer);
-    };
-  }, [reload]);
+    }
+    if (needsReload) void reload();
+  }, [buildJobs, reload]);
 
   /** Build one workspace: serial symbols → Wiki → arch-map; failure stops. */
   const build = useCallback(
     async (root: string) => {
-      // R2-1: fire the MAIN-PROCESS build job and let the subscription render
+      // R2-1: fire the MAIN-PROCESS build job and let the shared store render
       // progress — this handler returns immediately; switching rows/tabs never
-      // cancels the job and re-mounting re-reads live status. Mode selection
+      // cancels the job and re-mounting re-reads live state. Mode selection
       // (init vs update) lives in the manager.
       const job = await api.knowledgeBuild(root);
-      setRows((prev) => ({
-        ...prev,
-        [root]: { busy: job.running, percent: job.percent, error: job.error },
-      }));
       if (!job.running) {
         await reload();
       }
@@ -140,6 +112,28 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
     const states = [status.codegraph.state, status.openwiki.state, status.archmaps.state];
     if (states.includes("indexed")) return states.includes("stale") || states.includes("empty") ? "partial" : "on";
     return "off";
+  };
+
+  /** Stage-aware progress text — the wiki stage has no percent stream, so
+   * rows show the running stage + elapsed instead of a frozen number. */
+  const rowProgress = (root: string): { busy: boolean; text: string; error: string | null } => {
+    const job = jobByRoot.get(root);
+    if (!job) return { busy: false, text: "", error: null };
+    if (job.running) {
+      const running = job.stages.find((s) => s.status === "running");
+      const label = running
+        ? running.labelKey === "codegraph"
+          ? t("index.buildStageCodegraph")
+          : running.labelKey === "wiki"
+            ? t("index.buildStageWiki")
+            : t("index.buildStageArch")
+        : t("index.building");
+      const elapsed = Math.max(0, Math.round((Date.now() - new Date(job.startedAt).getTime()) / 1000));
+      const mm = Math.floor(elapsed / 60);
+      const ss = String(elapsed % 60).padStart(2, "0");
+      return { busy: true, text: `${label} · ${mm}:${ss}`, error: null };
+    }
+    return { busy: false, text: "", error: job.error };
   };
 
   return (
@@ -155,7 +149,7 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
           <div className="ui-side-panel-empty">{t("index.empty")}</div>
         ) : (
           workspaces.map((w) => {
-            const row = rows[w.root] ?? { busy: false, percent: null, error: null };
+            const row = rowProgress(w.root);
             const status = statuses[w.root];
             const lastBuild = status?.openwiki.lastSync ?? status?.codegraph.lastSync ?? undefined;
             return (
@@ -165,7 +159,7 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
                   <div className="ui-ik-name">{w.label}</div>
                   <div className="ui-ik-meta">
                     {row.busy
-                      ? `${t("index.building")}${row.percent != null ? ` ${row.percent}%` : ""}`
+                      ? row.text
                       : row.error
                         ? row.error.slice(0, 60)
                         : `${formatRelative(lastBuild, t("index.freshness.justNow"), t("index.freshness.never"))}`}

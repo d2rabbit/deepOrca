@@ -155,11 +155,12 @@ export const IpcRequest = {
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
   MemoryRoutingStatus: "memoryRouting:status",
-  KnowledgeRenderArchmap: "knowledge:renderArchmap",
+  KnowledgeReadArchmap: "knowledge:readArchmap",
   KnowledgeBuild: "knowledge:build",
   KnowledgeBuildStatus: "knowledge:buildStatus",
   KnowledgeReadAgents: "knowledge:readAgents",
   KnowledgeListSymbols: "knowledge:listSymbols",
+  KnowledgeSymbolGraph: "knowledge:symbolGraph",
 
   // Designer — design artifact management (PM-Design + UI-Design)
   DesignList: "design:list",
@@ -499,7 +500,48 @@ export type KnowledgeSymbol = {
   signature?: string;
 };
 
-/** Main-process build job snapshot (R2-1) — rows render from these. */
+/** Display-only symbol graph (R3-6): nodes + relationships for human
+ * viewing in the knowledge tab. Read straight from the CodeGraph index —
+ * the MCP/agent-facing CodeGraph tools are untouched. */
+export type KnowledgeSymbolGraphNode = {
+  id: string;
+  name: string;
+  kind: string;
+  filePath: string;
+  /** "focus" (query match / hub), "caller" (edge into focus), "callee" (edge out). */
+  role: "focus" | "caller" | "callee";
+};
+
+export type KnowledgeSymbolGraphEdge = {
+  source: string;
+  target: string;
+  kind: "calls" | "references" | "instantiates" | "implements";
+};
+
+export type KnowledgeSymbolGraph = {
+  nodes: KnowledgeSymbolGraphNode[];
+  edges: KnowledgeSymbolGraphEdge[];
+  truncated: boolean;
+};
+
+/** One pipeline stage inside a build job (symbol → wiki → arch map). */
+export type KnowledgeBuildStageState = {
+  /** Stable id: "codegraph" | "wiki" | "arch-scan" (echoed by the action). */
+  id: string;
+  /** i18n label key index ("codegraph" | "wiki" | "arch"). */
+  labelKey: "codegraph" | "wiki" | "arch";
+  status: "pending" | "running" | "done" | "failed" | "skipped";
+  /** Last progress detail for this stage (live console line). */
+  detail?: string;
+  error?: string;
+  startedAt?: string;
+  endedAt?: string;
+};
+
+/** Main-process build job snapshot (R2-1) — rows render from these.
+ * R3-5: carries structured per-stage state and a console log ring buffer so
+ * the UI can show exactly WHERE a build is (the wiki stage has no progress
+ * stream and used to freeze the percent at 36% for minutes). */
 export type KnowledgeBuildJobSnapshot = {
   root: string;
   mode: "init" | "update";
@@ -507,7 +549,21 @@ export type KnowledgeBuildJobSnapshot = {
   percent: number | null;
   error: string | null;
   startedAt: string;
+  /** Last activity (any progress line) — powers elapsed/liveness display. */
+  updatedAt: string;
   running: boolean;
+  stages: KnowledgeBuildStageState[];
+  /** Console lines ("[HH:MM:SS] message", newest last); capped ring buffer. */
+  logs: string[];
+};
+
+/** Persisted A2UI architecture-map surface (`.deeporca/prototypes/arch-*.json`). */
+export type KnowledgeArchmapSurface = {
+  surfaceId: string;
+  title: string;
+  dataModel?: Record<string, unknown>;
+  components?: unknown[];
+  messages?: unknown[];
 };
 
 /**
@@ -886,8 +942,10 @@ export type DesktopApi = {
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
-  /** Render an architecture-map artifact (surface JSON) to self-contained HTML. */
-  knowledgeRenderArchmap(path: string): Promise<{ ok: true; html: string } | { ok: false; error: string }>;
+  /** Read an architecture-map artifact's persisted surface JSON (rendered by the real A2UI renderer). */
+  knowledgeReadArchmap(
+    path: string
+  ): Promise<{ ok: true; surface: KnowledgeArchmapSurface } | { ok: false; error: string }>;
   /** Start (or return the in-flight) background build for a root — idempotent. */
   knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
   /** Live snapshots of all build jobs (rows render from this). */
@@ -896,6 +954,8 @@ export type DesktopApi = {
   knowledgeReadAgents(root: string): Promise<{ ok: true; content: string } | { ok: false; error: string }>;
   /** Search a workspace's symbol index (kind/name/file/line), query optional. */
   knowledgeListSymbols(root: string, query?: string): Promise<Array<KnowledgeSymbol>>;
+  /** Display-only symbol relationship graph (callers/callees around a focus). */
+  knowledgeSymbolGraph(root: string, query?: string): Promise<KnowledgeSymbolGraph>;
   /** Memory/routing observability (moved out of the knowledge module, T4). */
   memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 

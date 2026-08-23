@@ -58,6 +58,9 @@ import type {
   KnowledgeStatusResponse,
   MemoryRoutingStatus,
   KnowledgeSymbol,
+  KnowledgeSymbolGraph,
+  KnowledgeSymbolGraphEdge,
+  KnowledgeSymbolGraphNode,
   MemoryPipelineStats,
   ThinkingModeSelection,
   UndoRestoreMode,
@@ -1142,12 +1145,46 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
       }
     };
 
-    // CodeGraph — .codegraph/ presence + staleness.
+    // Newest mtime under a directory (recursive walk of all subdirs) — ISO string.
+    const newestMtime = (dir: string, filter?: (name: string) => boolean): string | undefined => {
+      let best = 0;
+      const scan = (d: string): void => {
+        try {
+          for (const e of readdirSync(d, { withFileTypes: true })) {
+            const full = join(d, e.name);
+            if (e.isDirectory()) {
+              scan(full);
+            } else if (e.isFile() && (!filter || filter(e.name))) {
+              const m = statSync(full).mtimeMs;
+              if (m > best) best = m;
+            }
+          }
+        } catch {
+          // unreadable dir — skip
+        }
+      };
+      scan(dir);
+      return best > 0 ? new Date(best).toISOString() : undefined;
+    };
+
+    // CodeGraph — .codegraph/ presence + staleness. lastSync falls back to the
+    // database file's mtime: the in-memory freshness stamps only exist for the
+    // ACTIVE workspace's manager and vanish on restart, so without this every
+    // non-active (or freshly-relaunched) row read 未同步 forever even right
+    // after a successful build.
     const cgDir = join(root, ".codegraph");
+    const cgDbMtime = (() => {
+      try {
+        return statSync(join(cgDir, "codegraph.db")).mtime.toISOString();
+      } catch {
+        return undefined;
+      }
+    })();
+    const cgSync = freshness.codegraphSync ?? cgDbMtime;
     const codegraph: KnowledgeSourceStatus = existsSync(cgDir)
       ? {
-          state: isStale(freshness.codegraphSync) ? "stale" : "indexed",
-          lastSync: freshness.codegraphSync,
+          state: isStale(cgSync) ? "stale" : "indexed",
+          lastSync: cgSync,
           detail: ".codegraph/",
         }
       : { state: "empty", detail: "未构建" };
@@ -1161,12 +1198,14 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
         wikiPages += countDirFiles(join(wikiDir, sub), (n) => n.endsWith(".md"));
       }
     }
+    const wikiSync =
+      freshness.wikiSync ?? (existsSync(wikiDir) ? newestMtime(wikiDir, (n) => n.endsWith(".md")) : undefined);
     const openwiki: KnowledgeSourceStatus = existsSync(wikiDir)
       ? {
-          state: wikiPages === 0 ? "empty" : isStale(freshness.wikiSync) ? "stale" : "indexed",
+          state: wikiPages === 0 ? "empty" : isStale(wikiSync) ? "stale" : "indexed",
           count: wikiPages,
           unit: "页",
-          lastSync: freshness.wikiSync,
+          lastSync: wikiSync,
         }
       : { state: "empty", detail: "未构建" };
 
@@ -1248,44 +1287,17 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
     return { memory, routing, serena };
   });
 
-  // Architecture-map preview (T5): surface JSON → self-contained HTML. The
-  // artifact is an A2UI surface description; until the full A2UI runtime is
-  // embeddable, render a faithful component-tree view (structure first,
-  // fidelity later — the tab proves the open path).
+  // Architecture-map preview: hand the persisted surface JSON to the renderer,
+  // which draws it with the real A2UI component renderer (A2uiSurface) — the
+  // earlier main-process static-HTML tree was a placeholder that made every
+  // architecture map look broken (type names in a nested list instead of the
+  // actual cards/tabs/badges the model produced).
   handle(
-    IpcRequest.KnowledgeRenderArchmap,
-    (artPath: string): { ok: true; html: string } | { ok: false; error: string } => {
+    IpcRequest.KnowledgeReadArchmap,
+    (artPath: string): { ok: true; surface: unknown } | { ok: false; error: string } => {
       try {
-        const raw = JSON.parse(readFileSync(artPath, "utf-8")) as Record<string, unknown>;
-        const esc = (v: string): string => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        const renderNode = (node: unknown, depth: number): string => {
-          if (!node || typeof node !== "object") return "";
-          const n = node as Record<string, unknown>;
-          const label =
-            typeof n.label === "string"
-              ? n.label
-              : typeof n.title === "string"
-                ? n.title
-                : typeof n.type === "string"
-                  ? n.type
-                  : "node";
-          const children = Array.isArray(n.children) ? n.children : [];
-          return `${"  ".repeat(depth)}<li><span class="lbl">${esc(label)}</span>${
-            children.length > 0 ? `<ul>${children.map((c) => renderNode(c, depth + 1)).join("")}</ul>` : ""
-          }</li>`;
-        };
-        const tree = Array.isArray(raw.components)
-          ? raw.components.map((c) => renderNode(c, 0)).join("")
-          : Array.isArray(raw.nodes)
-            ? raw.nodes.map((c) => renderNode(c, 0)).join("")
-            : "<li><span class=lbl>(no components)</span></li>";
-        const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-body{font:13px/1.5 ui-monospace,monospace;background:#16181d;color:#d7dae0;padding:16px}
-ul{list-style:none;margin:0 0 0 14px;padding:0;border-left:1px solid #33363d}
-li{margin:4px 0}
-.lbl{background:#22252c;border:1px solid #3a3e46;border-radius:6px;padding:2px 8px}
-</style></head><body><ul>${tree}</ul></body></html>`;
-        return { ok: true, html };
+        const surface = JSON.parse(readFileSync(artPath, "utf-8")) as unknown;
+        return { ok: true, surface };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
@@ -1359,6 +1371,92 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     } catch (err) {
       console.error("[knowledge:listSymbols] failed:", err instanceof Error ? err.message : String(err));
       return [];
+    }
+  });
+
+  // Display-only symbol relationship graph (R3-6): callers/callees around a
+  // focus set. Pure read of the CodeGraph index for HUMAN viewing in the
+  // knowledge tab — the agent-facing CodeGraph MCP tools are untouched.
+  handle(IpcRequest.KnowledgeSymbolGraph, (root: string, query?: string): KnowledgeSymbolGraph => {
+    const dbPath = join(root || getBridge().projectRoot, ".codegraph", "codegraph.db");
+    if (!existsSync(dbPath)) return { nodes: [], edges: [], truncated: false };
+    try {
+      const { DatabaseSync } = moduleRequire("node:sqlite") as {
+        DatabaseSync: new (path: string, opts: { readOnly: boolean }) => DatabaseSyncType;
+      };
+      const db = new DatabaseSync(dbPath, { readOnly: true });
+      type NodeRow = { id: string; name: string; kind: string; file_path: string };
+      const trimmed = (query ?? "").trim();
+      // Focus set: query matches, else the most-referenced non-file symbols
+      // (in-degree hubs — an instant "what is this codebase wired around" view).
+      const focusRows = trimmed
+        ? (db
+            .prepare(
+              "SELECT id, name, kind, file_path FROM nodes WHERE (name LIKE ? OR qualified_name LIKE ?) AND kind NOT IN ('import','unknown','file') ORDER BY name LIMIT 12"
+            )
+            .all(`%${trimmed}%`, `%${trimmed}%`) as NodeRow[])
+        : (db
+            .prepare(
+              `SELECT n.id, n.name, n.kind, n.file_path, COUNT(*) AS deg
+               FROM nodes n JOIN edges e ON e.target = n.id
+               WHERE n.kind NOT IN ('import','unknown','file') AND e.kind IN ('calls','references','instantiates')
+               GROUP BY n.id ORDER BY deg DESC LIMIT 10`
+            )
+            .all() as (NodeRow & { deg: number })[]);
+      if (focusRows.length === 0) return { nodes: [], edges: [], truncated: false };
+      const focusIds = new Set(focusRows.map((r) => r.id));
+
+      // One-hop neighborhood: edges into/out of the focus set (relationship
+      // kinds only — "contains" is structural file nesting, not a graph link).
+      const REL = "('calls','references','instantiates','implements')";
+      const inRows = db
+        .prepare(
+          `SELECT source, target, kind FROM edges WHERE target IN (${focusRows.map(() => "?").join(",")}) AND kind IN ${REL} LIMIT 300`
+        )
+        .all(...focusIds) as Array<{ source: string; target: string; kind: string }>;
+      const outRows = db
+        .prepare(
+          `SELECT source, target, kind FROM edges WHERE source IN (${focusRows.map(() => "?").join(",")}) AND kind IN ${REL} LIMIT 300`
+        )
+        .all(...focusIds) as Array<{ source: string; target: string; kind: string }>;
+
+      const nodeIds = new Set<string>(focusIds);
+      for (const e of [...inRows, ...outRows]) {
+        nodeIds.add(e.source);
+        nodeIds.add(e.target);
+      }
+      const nodeRows = (
+        db
+          .prepare(`SELECT id, name, kind, file_path FROM nodes WHERE id IN (${[...nodeIds].map(() => "?").join(",")})`)
+          .all(...nodeIds) as NodeRow[]
+      ).filter((n) => n.kind !== "import");
+      const byId = new Map(nodeRows.map((n) => [n.id, n]));
+
+      const nodes: KnowledgeSymbolGraphNode[] = [];
+      for (const n of nodeRows) {
+        nodes.push({
+          id: n.id,
+          name: n.name,
+          kind: n.kind,
+          filePath: n.file_path,
+          role: focusIds.has(n.id) ? "focus" : inRows.some((e) => e.target === n.id) ? "caller" : "callee",
+        });
+      }
+      const allowedKinds = new Set(["calls", "references", "instantiates", "implements"]);
+      const seen = new Set<string>();
+      const edges: KnowledgeSymbolGraphEdge[] = [];
+      for (const e of [...inRows, ...outRows]) {
+        if (!allowedKinds.has(e.kind) || !byId.has(e.source) || !byId.has(e.target)) continue;
+        const key = `${e.source}→${e.target}:${e.kind}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({ source: e.source, target: e.target, kind: e.kind as KnowledgeSymbolGraphEdge["kind"] });
+      }
+      const truncated = inRows.length >= 300 || outRows.length >= 300;
+      return { nodes, edges, truncated };
+    } catch (err) {
+      console.error("[knowledge:symbolGraph] failed:", err instanceof Error ? err.message : String(err));
+      return { nodes: [], edges: [], truncated: false };
     }
   });
 

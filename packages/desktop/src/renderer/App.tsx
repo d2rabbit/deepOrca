@@ -58,6 +58,10 @@ import { TaskProgressPanel } from "./components/TaskProgressPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
+import { BuildConsolePanel } from "./components/BuildConsolePanel";
+import { SerenaPanel } from "./components/SerenaPanel";
+import { scanSerenaEvents } from "./lib/serena-extract";
+import { useBuildJobs } from "./hooks/useBuildJobs";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
 import { buildToolSummary, getPlanLines } from "./lib/messages";
 import { extractOpenuiFence } from "./openui/inline-extract";
@@ -1317,6 +1321,99 @@ export function App(): JSX.Element {
 
   const appearanceTitle = appearance === "dark" ? t("topbar.appearanceDark") : t("topbar.appearanceLight");
 
+  // Build console (R3-5): floats bottom-right while a build runs so progress
+  // is observable from ANY tab. Auto-opens for every NEW job; closing it only
+  // hides that job — the next build pops it again.
+  const buildJobs = useBuildJobs();
+  const [buildConsoleOpen, setBuildConsoleOpen] = useState(false);
+  const seenBuildJobStarts = useRef(new Set<string>());
+  useEffect(() => {
+    for (const job of buildJobs) {
+      const key = `${job.root}@${job.startedAt}`;
+      if (!seenBuildJobStarts.current.has(key)) {
+        seenBuildJobStarts.current.add(key);
+        setBuildConsoleOpen(true);
+      }
+    }
+  }, [buildJobs]);
+  const hasBuildJobs = buildJobs.length > 0;
+
+  // Serena panel (R3-6): mirror the agent's Serena tool results as targeted
+  // views in a floating right panel. Auto-opens on every NEW serena result;
+  // closing only hides it until the next one arrives.
+  const serenaEvents = useMemo(() => scanSerenaEvents(messages), [messages]);
+  const [serenaOpen, setSerenaOpen] = useState(false);
+  const lastSerenaId = useRef<string | null>(null);
+  useEffect(() => {
+    const latest = serenaEvents[serenaEvents.length - 1];
+    if (latest && latest.id !== lastSerenaId.current) {
+      lastSerenaId.current = latest.id;
+      setSerenaOpen(true);
+    }
+  }, [serenaEvents]);
+
+  // The main session conversation — rendered inside the first tab when
+  // workspace tabs exist, or as the whole content area when they don't.
+  // Extracted so the tab strip (below) never has to duplicate it.
+  const chatContent = (
+    <>
+      <MessageList
+        messages={messages}
+        hasActiveSession={activeId !== null || messages.length > 0}
+        reasoningMode={reasoningMode}
+        compacting={activeStatus === "compacting"}
+        onQuickAction={handleQuickAction}
+        footer={footer}
+      />
+      <TaskProgressPanel />
+      {showProcessPanel ? (
+        <ProcessOutputPanel
+          processes={runningProcesses}
+          stdoutRef={processStdoutRef}
+          onDismiss={() => setShowProcessPanel(false)}
+        />
+      ) : null}
+      <div className="ui-composer-dock" ref={composerDockRef}>
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSend={handleSend}
+          onStop={handleStop}
+          onPause={handlePause}
+          onResume={handleResumeClick}
+          canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
+          onEnhance={handleEnhanceClick}
+          enhancing={enhancing}
+          busy={busy}
+          disabled={composerDisabled}
+          planMode={planMode}
+          onTogglePlan={handleTogglePlan}
+          skills={skills}
+          selectedSkills={selectedSkills}
+          onToggleSkill={handleToggleSkill}
+          statusText={loadingText ?? statusLine}
+          errorText={errorLine}
+          imageUrls={imageUrls}
+          onRemoveImage={handleRemoveImage}
+          onAddImage={handleAddImage}
+          onSlashCommand={handleSlashCommand}
+        />
+        <ContextProgress
+          activeTokens={activeContextTokens}
+          model={settings?.model ?? ""}
+          thresholdOverride={settings?.compactTokenThreshold}
+          compacting={activeStatus === "compacting"}
+        />
+      </div>
+    </>
+  );
+
+  // The session workspace is ALWAYS the first tab; task-history and
+  // index-and-knowledge tabs follow it. The strip renders whenever auxiliary
+  // tabs exist — including when the main tab is the active one — so the
+  // conversation workspace keeps a visible, reachable first tab.
+  const hasWorkspaceTabs = taskTabs.length > 0 || knowledgeTabs.length > 0;
+
   return (
     <div
       className={`ui-shell${panelOpen ? " panel-open" : ""}${rightPanelOpen ? " right-open" : ""}`}
@@ -1579,10 +1676,10 @@ export function App(): JSX.Element {
           >
             <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
           </Suspense>
-        ) : activeTaskTabId || activeKnowledgeRoot ? (
+        ) : hasWorkspaceTabs ? (
           <div className="ui-tasktab-view">
             <div className="ui-tasktabs">
-              {/* Main session tab — always first, always present, not closable. */}
+              {/* Main session tab — always first, never closable. */}
               <div className={`ui-tasktab${!activeTaskTabId && !activeKnowledgeRoot ? " active" : ""}`}>
                 <button
                   type="button"
@@ -1644,63 +1741,16 @@ export function App(): JSX.Element {
             </div>
             {activeKnowledgeRoot ? (
               <KnowledgePanel root={activeKnowledgeRoot} onOpenFile={handleOpenEditor} />
-            ) : (
+            ) : activeTaskTabId ? (
               <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
                 <TaskTreePanel treeId={activeTaskTabId ?? undefined} />
               </Suspense>
+            ) : (
+              chatContent
             )}
           </div>
         ) : (
-          <>
-            <MessageList
-              messages={messages}
-              hasActiveSession={activeId !== null || messages.length > 0}
-              reasoningMode={reasoningMode}
-              compacting={activeStatus === "compacting"}
-              onQuickAction={handleQuickAction}
-              footer={footer}
-            />
-            <TaskProgressPanel />
-            {showProcessPanel ? (
-              <ProcessOutputPanel
-                processes={runningProcesses}
-                stdoutRef={processStdoutRef}
-                onDismiss={() => setShowProcessPanel(false)}
-              />
-            ) : null}
-            <div className="ui-composer-dock" ref={composerDockRef}>
-              <Composer
-                value={draft}
-                onChange={setDraft}
-                onSend={handleSend}
-                onStop={handleStop}
-                onPause={handlePause}
-                onResume={handleResumeClick}
-                canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
-                onEnhance={handleEnhanceClick}
-                enhancing={enhancing}
-                busy={busy}
-                disabled={composerDisabled}
-                planMode={planMode}
-                onTogglePlan={handleTogglePlan}
-                skills={skills}
-                selectedSkills={selectedSkills}
-                onToggleSkill={handleToggleSkill}
-                statusText={loadingText ?? statusLine}
-                errorText={errorLine}
-                imageUrls={imageUrls}
-                onRemoveImage={handleRemoveImage}
-                onAddImage={handleAddImage}
-                onSlashCommand={handleSlashCommand}
-              />
-              <ContextProgress
-                activeTokens={activeContextTokens}
-                model={settings?.model ?? ""}
-                thresholdOverride={settings?.compactTokenThreshold}
-                compacting={activeStatus === "compacting"}
-              />
-            </div>
-          </>
+          chatContent
         )}
       </div>
 
@@ -1768,6 +1818,14 @@ export function App(): JSX.Element {
             />
           </div>
         </div>
+      ) : null}
+
+      {/* Build console — temporary floating A2UI surface (R3-5) */}
+      {buildConsoleOpen && hasBuildJobs ? <BuildConsolePanel onClose={() => setBuildConsoleOpen(false)} /> : null}
+
+      {/* Serena result mirror — floating right panel (R3-6) */}
+      {serenaOpen && serenaEvents.length > 0 ? (
+        <SerenaPanel events={serenaEvents} onClose={() => setSerenaOpen(false)} />
       ) : null}
 
       {diffTarget ? (

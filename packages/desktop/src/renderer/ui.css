@@ -8384,6 +8384,11 @@ button.ui-topbar-pill {
   overflow: hidden;
   height: 420px;
 }
+.ui-knowledge-preview-a2ui {
+  height: 100%;
+  overflow: auto;
+  padding: 10px;
+}
 .ui-knowledge-preview-frame {
   width: 100%;
   height: 100%;
@@ -8471,4 +8476,450 @@ button.ui-topbar-pill {
   background: var(--ui-accent-soft, rgba(59, 130, 246, 0.15));
   color: var(--ui-accent, #3b82f6);
   vertical-align: 1px;
+}
+
+/* ── Build console (R3-5): floating temporary A2UI surface ────────────── */
+.ui-build-console {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-surface, #1c1e24);
+  border: 1px solid var(--ui-border, #33363d);
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
+  z-index: 60;
+  overflow: hidden;
+}
+.ui-build-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-border-soft, #2a2d34);
+  flex-shrink: 0;
+}
+.ui-build-console-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ui-build-console-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-secondary, #9aa0aa);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ui-build-console-close:hover {
+  background: var(--ui-surface-hover, #262932);
+  color: var(--ui-text, #e6e8ec);
+}
+.ui-build-console-body {
+  overflow: auto;
+  padding: 8px 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Knowledge: wiki/symbol master–detail (R3-5) ──────────────────────── */
+.ui-knowledge-wiki {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-knowledge-wiki-list {
+  overflow: auto;
+  border-right: 1px solid var(--ui-border-soft, #2a2d34);
+  min-height: 0;
+  padding: 6px 4px;
+}
+.ui-knowledge-wiki-group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-secondary, #9aa0aa);
+  padding: 8px 8px 4px;
+}
+.ui-knowledge-wiki-group-count {
+  opacity: 0.7;
+}
+.ui-knowledge-wiki-preview {
+  overflow: auto;
+  min-height: 0;
+  padding: 12px 16px;
+}
+.ui-knowledge-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ui-knowledge-symbol-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ui-knowledge-symbol-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-knowledge-symbol-detail-name {
+  font-size: 15px;
+}
+.ui-knowledge-symbol-signature {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--ui-surface-2, #22252c);
+  border: 1px solid var(--ui-border-soft, #2a2d34);
+  border-radius: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre;
+}
+.ui-knowledge-symbol-location {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--ui-text-secondary, #9aa0aa);
+}
+
+/* ── A2UI official renderer (R2): wrapper + theme bridge ──────────────── */
+/* The official @a2ui/react components style themselves via --a2ui-* CSS
+   variables. Bridge them onto DeepOrca's --ui-* semantic tokens once, on
+   the wrapper class — the variables inherit into the official components
+   and follow light/dark theme switches automatically. */
+.ui-a2ui-surfaces {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3, 12px);
+  padding: var(--ui-space-2, 8px) 0;
+}
+.ui-a2ui-empty {
+  padding: var(--ui-space-3, 12px);
+  font-size: 12px;
+  color: var(--ui-text-faint, #8590a0);
+  text-align: center;
+}
+.ui-a2ui-theme {
+  --a2ui-color-primary: var(--ui-accent, #0a84ff);
+  --a2ui-color-primary-hover: var(--ui-accent-strong, #0071e3);
+  --a2ui-color-on-primary: var(--ui-text-on-accent, #ffffff);
+  --a2ui-color-on-secondary: var(--ui-text, #1b2129);
+  --a2ui-color-surface: var(--ui-bg, #ffffff);
+  --a2ui-color-on-surface: var(--ui-text, #1b2129);
+  --a2ui-color-on-background: var(--ui-text, #1b2129);
+  --a2ui-color-border: var(--ui-border, #d0d5dd);
+  --a2ui-color-border-hover: var(--ui-border-strong, #98a2b3);
+  --a2ui-color-input: var(--ui-input-bg, #f5f6f8);
+  --a2ui-color-on-input: var(--ui-text, #1b2129);
+  --a2ui-font-family-title: var(--ui-font-sans, inherit);
+  --a2ui-text-caption-color: var(--ui-text-dim, #55606d);
+  --a2ui-text-a-color: var(--ui-accent, #0a84ff);
+  --a2ui-border-radius: var(--ui-radius-md, 8px);
+  --a2ui-border-width: 1px;
+  --a2ui-spacing-xs: 4px;
+  --a2ui-spacing-s: var(--ui-space-1, 6px);
+  --a2ui-spacing-m: var(--ui-space-2, 8px);
+  --a2ui-spacing-l: var(--ui-space-3, 12px);
+  --a2ui-line-height-body: 1.5;
+  --a2ui-line-height-headings: 1.25;
+}
+
+/* ── Serena panel (R3-6): floating right mirror of serena tool results ── */
+.ui-serena-panel {
+  position: fixed;
+  top: 52px;
+  right: 16px;
+  bottom: 16px;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.25);
+  z-index: 55;
+  overflow: hidden;
+}
+.ui-serena-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  flex-shrink: 0;
+}
+.ui-serena-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ui-serena-panel-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+.ui-serena-tab {
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ui-text-dim, #55606d);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-serena-tab.active {
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
+  color: var(--ui-accent, #0a84ff);
+  border-color: var(--ui-accent, #0a84ff);
+}
+.ui-serena-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-secondary, #8590a0);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ui-serena-close:hover {
+  background: var(--ui-bg-hover, #f0f2f5);
+  color: var(--ui-text, #1b2129);
+}
+.ui-serena-panel-body {
+  overflow: auto;
+  padding: 10px 12px;
+  flex: 1;
+  min-height: 0;
+}
+.ui-serena-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ui-serena-symbol-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.ui-serena-loc {
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-serena-code {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--ui-bg-soft, #f5f6f8);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 8px;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre;
+}
+.ui-serena-raw {
+  white-space: pre-wrap;
+  max-height: none;
+}
+.ui-serena-file-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-serena-file-label {
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+}
+.ui-serena-count {
+  color: var(--ui-text-faint, #8590a0);
+  font-weight: 400;
+}
+.ui-serena-symbol-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-left: 8px;
+}
+.ui-serena-symbol-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.ui-serena-ref-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding-left: 8px;
+}
+.ui-serena-match {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Wiki directory tree (R3-6) ─────────────────────────────────────────── */
+.ui-wiki-tree {
+  display: flex;
+  flex-direction: column;
+}
+.ui-wiki-tree-dir-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 4px 8px 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+.ui-wiki-tree-dir-label:hover {
+  background: var(--ui-bg-hover, #f0f2f5);
+}
+.ui-wiki-tree-chevron {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  transition: transform 0.12s ease;
+}
+.ui-wiki-tree-chevron.open {
+  transform: rotate(90deg);
+}
+.ui-wiki-tree-dir-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-wiki-tree-count {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-wiki-tree-file-icon {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  margin-right: 4px;
+}
+
+/* ── Symbol toolbar + relationship graph (R3-6) ─────────────────────────── */
+.ui-knowledge-symbol-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ui-knowledge-symbol-viewtoggle {
+  display: flex;
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 7px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ui-knowledge-symbol-viewtoggle button {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-knowledge-symbol-viewtoggle button.active {
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-symbol-graph {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.ui-symbol-graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px;
+  font-size: 10px;
+  color: var(--ui-text-dim, #55606d);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.ui-symbol-graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ui-symbol-graph-truncated {
+  color: var(--ui-text-faint, #8590a0);
+  font-style: italic;
+}
+.ui-symbol-graph-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 8px;
+  background: var(--ui-bg-soft, #fafbfc);
+}
+.ui-symbol-graph-col-label {
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--ui-text-faint, #8590a0);
+}
+.ui-symbol-graph-node {
+  cursor: pointer;
+}
+.ui-symbol-graph-node rect {
+  stroke: var(--ui-border, #d0d5dd);
+  stroke-width: 1;
+  transition: stroke 0.12s ease;
+}
+.ui-symbol-graph-node:hover rect {
+  stroke: var(--ui-accent, #0a84ff);
+  stroke-width: 1.5;
+}
+.ui-symbol-graph-node-name {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--ui-text, #1b2129);
+}
+.ui-symbol-graph-node-kind {
+  font-size: 9px;
+  fill: var(--ui-text-faint, #8590a0);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+}
+.ui-symbol-graph-hint {
+  padding: 5px 2px 0;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  flex-shrink: 0;
 }

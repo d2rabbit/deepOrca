@@ -57,3 +57,7 @@ packages/desktop/vendor/
 
 # Local security-tool scratch (not sources)
 .mimosa/
+
+# Generated workspace knowledge indices (built by 索引与知识 builds; the
+# OpenWiki GitHub Actions workflow regenerates pages from source)
+openwiki/

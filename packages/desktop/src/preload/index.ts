@@ -147,11 +147,12 @@ const api: DesktopApi = {
   // ── Knowledge dashboard ──────────────────────────────────────────
   knowledgeStatus: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeStatus, root),
   memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
-  knowledgeRenderArchmap: (path) => ipcRenderer.invoke(IpcRequest.KnowledgeRenderArchmap, path),
+  knowledgeReadArchmap: (path) => ipcRenderer.invoke(IpcRequest.KnowledgeReadArchmap, path),
   knowledgeBuild: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeBuild, root),
   knowledgeBuildStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeBuildStatus),
   knowledgeReadAgents: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeReadAgents, root),
   knowledgeListSymbols: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeListSymbols, root, query),
+  knowledgeSymbolGraph: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeSymbolGraph, root, query),
 
   // ── Designer (design artifacts) ────────────────────────────────────
   designList: () => ipcRenderer.invoke(IpcRequest.DesignList),

@@ -7,8 +7,8 @@
  * into DeepOrca's dependency graph).
  *
  * LLM credentials are passed via env vars (OPENAI_API_KEY / OPENAI_BASE_URL /
- * OPENWIKI_MODEL). Language is derived from the app locale and passed via
- * OPENWIKI_LANGUAGE so wiki pages are generated in the user's language.
+ * OPENWIKI_MODEL_ID). Language is derived from the app locale and passed via
+ * the `--language` CLI flag so wiki pages are generated in the user's language.
  *
  * The --print flag is used to get structured output (progress + result) on
  * stdout instead of the interactive TUI.
@@ -147,23 +147,37 @@ export class WikiCliController implements WikiController {
       env.ELECTRON_RUN_AS_NODE = "1";
     }
 
-    // Inject LLM creds from project settings if available.
+    // Inject LLM creds from project settings if available. NOTE: openwiki
+    // reads OPENWIKI_MODEL_ID (not OPENWIKI_MODEL) — the wrong env name used
+    // to leave the CLI on its built-in default model, which the configured
+    // OpenAI-compatible endpoint (DeepSeek) rejects with a 400.
     const creds = this.opts.getLlmCreds?.();
     if (creds?.apiKey) env.OPENAI_API_KEY = creds.apiKey;
     if (creds?.baseURL) env.OPENAI_BASE_URL = creds.baseURL;
-    env.OPENWIKI_MODEL = creds?.model ?? "deepseek-v4-flash";
+    env.OPENWIKI_MODEL_ID = creds?.model ?? "deepseek-v4-flash";
 
-    // Language: derive from app locale so wiki pages are generated in the
-    // user's language (OpenWiki reads OPENWIKI_LANGUAGE as BCP-47).
-    const lang = this.opts.getLanguage?.();
-    if (lang) {
-      env.OPENWIKI_LANGUAGE = lang;
-    }
-
-    // Use --print for structured non-interactive output (no TUI).
+    // Use --print for structured non-interactive output (no TUI). Language is
+    // a CLI flag (openwiki has no OPENWIKI_LANGUAGE env) so wiki pages are
+    // generated in the user's language (BCP-47 from the app locale).
     const flag = mode === "init" ? "--init" : "--update";
     const args = [this.opts.vendorEntry, flag, "--print"];
+    const lang = this.opts.getLanguage?.();
+    if (lang) {
+      args.push("--language", lang);
+    }
     onProgress?.({ message: `openwiki ${flag}`, percent: 10 });
+
+    // openwiki --print buffers ALL agent output and writes it at exit — during
+    // a long run (10+ minutes on a large repo) stdout is completely silent.
+    // A 20s heartbeat keeps the job's stage view and console honest ("alive,
+    // waiting on LLM") instead of a percent frozen at 36% with no signal.
+    const startedAtMs = Date.now();
+    const heartbeat = setInterval(() => {
+      const secs = Math.round((Date.now() - startedAtMs) / 1000);
+      onProgress?.({
+        message: `openwiki ${flag} 运行中 ${secs}s — LLM 文档生成阶段无进度流，请耐心等待`,
+      });
+    }, 20000);
 
     return new Promise<WikiResult>((resolve, reject) => {
       const child = spawn(this.opts.nodeRunner, args, {
@@ -171,6 +185,7 @@ export class WikiCliController implements WikiController {
         env: { ...process.env, ...env },
         stdio: ["ignore", "pipe", "pipe"],
       });
+      console.log(`[wiki] spawn pid=${child.pid} ${flag}${lang ? ` --language ${lang}` : ""} cwd=${root}`);
 
       const stderrLines: string[] = [];
       const stdoutLines: string[] = [];
@@ -186,14 +201,24 @@ export class WikiCliController implements WikiController {
       });
 
       child.stderr?.on("data", (chunk: Buffer) => {
-        stderrLines.push(chunk.toString());
+        const text = chunk.toString();
+        stderrLines.push(text);
+        // Startup/config errors land on stderr long before exit — surface
+        // them in the main log immediately (they used to be invisible).
+        for (const line of text.split("\n")) {
+          if (line.trim()) console.log(`[wiki stderr] ${line.slice(0, 200)}`);
+        }
       });
 
       child.on("error", (err) => {
+        clearInterval(heartbeat);
         reject(new Error(`openwiki spawn failed: ${err.message}`));
       });
 
       child.on("close", (code) => {
+        clearInterval(heartbeat);
+        const elapsed = Math.round((Date.now() - startedAtMs) / 1000);
+        console.log(`[wiki] pid=${child.pid} exited code=${code} after ${elapsed}s`);
         if (code !== 0) {
           const stderr = stderrLines.join("");
           reject(new Error(`openwiki exited ${code}${stderr ? `: ${stderr.slice(0, 500)}` : ""}`));
@@ -205,7 +230,7 @@ export class WikiCliController implements WikiController {
         const modelMatch = stdout.match(/model[:\s]+([^\s,]+)/i);
         resolve({
           ok: true,
-          model: modelMatch?.[1] ?? env.OPENWIKI_MODEL,
+          model: modelMatch?.[1] ?? env.OPENWIKI_MODEL_ID,
         });
       });
     });

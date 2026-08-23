@@ -82,6 +82,61 @@ function resolvePinnedVersion() {
   return PINNED_OPENWIKI_VERSION;
 }
 
+/** Electron version the desktop app runs (drives the native binding's ABI). */
+function resolveElectronVersion() {
+  try {
+    const pkg = JSON.parse(readFileSync(join(repoRoot, "node_modules", "electron", "package.json"), "utf8"));
+    if (typeof pkg.version === "string" && pkg.version) return pkg.version;
+  } catch {
+    // fall through
+  }
+  throw new Error("cannot resolve the installed Electron version — run npm install first");
+}
+
+/**
+ * Build better-sqlite3's native binding for the Electron ABI the desktop app
+ * ships. Runs `npm rebuild better-sqlite3 --build-from-source` with the
+ * electron npm_config_* knobs — source compilation against the pinned
+ * Electron headers is forced deliberately (published prebuilds would also
+ * work when the version is in better-sqlite3's matrix, but forcing source
+ * keeps the result independent of that matrix). Works under nvm/homebrew/
+ * system Node layouts alike (a direct node-gyp path guess does not).
+ * Hard-fails the vendor step when no binding lands — a missing binding
+ * surfaces at runtime as a wiki stage that produces nothing, which is exactly
+ * the silent failure this step exists to prevent.
+ */
+function buildSqliteBinding(staging) {
+  // The binding builds inside the TEMP INSTALL's node_modules (staging's own
+  // node_modules is only copied over after this step).
+  const pkgDir = join(staging, "_npm_install", "node_modules", "better-sqlite3");
+  if (!existsSync(pkgDir)) {
+    throw new Error(`better-sqlite3 not found at ${pkgDir} — openwiki's dependency tree changed?`);
+  }
+  const electronVersion = resolveElectronVersion();
+  log(`building better-sqlite3 binding (electron v${electronVersion}) …`);
+  const npmCli = resolveNpmCli();
+  const rebuildArgs = ["rebuild", "better-sqlite3", "--build-from-source"];
+  const env = {
+    ...process.env,
+    npm_config_runtime: "electron",
+    npm_config_target: electronVersion,
+    npm_config_dist_url: "https://electronjs.org/headers",
+  };
+  // The rebuild must run in the INSTALL ROOT (npm resolves the package by
+  // name from there), not inside the package dir.
+  const installRoot = join(staging, "_npm_install");
+  if (npmCli) {
+    execFileSync(process.execPath, [npmCli, ...rebuildArgs], { cwd: installRoot, stdio: "inherit", env });
+  } else {
+    execFileSync("npm", rebuildArgs, { cwd: installRoot, stdio: "inherit", env });
+  }
+  if (!existsSync(join(pkgDir, "build", "Release", "better_sqlite3.node"))) {
+    throw new Error(
+      `better-sqlite3 rebuild finished without producing build/Release/better_sqlite3.node (electron v${electronVersion})`
+    );
+  }
+}
+
 async function main() {
   const version = resolvePinnedVersion();
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
@@ -158,6 +213,16 @@ async function main() {
           cpSync(src, join(staging, item), { recursive: true });
         }
       }
+      // better-sqlite3 ships as source + prebuilds; the install above ran with
+      // --ignore-scripts so no binding exists. The desktop runs the CLI under
+      // Electron's Node (ELECTRON_RUN_AS_NODE, ABI pinned by the Electron
+      // version), so download/compile the binding for THAT ABI — a binding
+      // built for the vendoring machine's Node would dlopen-fail at runtime
+      // ("Could not locate the bindings file", observed 2026-08-23: wiki stage
+      // produced nothing while the build reported success). Must run BEFORE
+      // the temp install dir is removed — npm rebuild resolves the package
+      // from the install root.
+      buildSqliteBinding(staging);
       // Copy the full node_modules from the temp install (openwiki's runtime deps).
       cpSync(tempNodeModules, join(staging, "node_modules"), { recursive: true });
       // Clean up temp install dir inside staging.
@@ -165,7 +230,9 @@ async function main() {
       // Write the version marker atomically with the swap.
       writeFileSync(join(staging, ".vendored-openwiki-version"), version);
     },
-    verify: (staging) => resolveCliEntry(staging) !== null,
+    verify: (staging) =>
+      resolveCliEntry(staging) !== null &&
+      existsSync(join(staging, "node_modules", "better-sqlite3", "build", "Release", "better_sqlite3.node")),
   });
 
   log(`done → ${targetDir} (openwiki v${version})`);
