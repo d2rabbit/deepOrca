@@ -15,13 +15,7 @@ import {
   getSurfaceModels,
   processA2uiMessages,
 } from "../renderer/a2ui/processor";
-import {
-  BASIC_CATALOG_ID,
-  convertLegacyBatch,
-  convertLegacyComponents,
-  convertLegacySurfaceFile,
-  isLegacyBatch,
-} from "../shared/a2ui-legacy";
+import { BASIC_CATALOG_ID, convertLegacyBatch, convertLegacyComponents, isLegacyBatch } from "../shared/a2ui-legacy";
 
 const SURFACE = "façade-test-surface";
 
@@ -137,22 +131,6 @@ test("convertLegacyComponents synthesizes a Column root when none has id 'root'"
   ]);
   const root = out.find((c) => c.id === "root") as unknown as { children: string[] };
   assert.deepEqual([...root.children].sort(), ["a", "b"]);
-});
-
-test("convertLegacySurfaceFile synthesizes from components+dataModel snapshot", () => {
-  const messages = convertLegacySurfaceFile({
-    surfaceId: "arch-root",
-    components: [
-      { id: "root", type: "column" },
-      { id: "t", type: "text", parentId: "root", properties: { text: "架构" } },
-    ],
-    dataModel: { x: 1 },
-  });
-  assert.equal(messages.length, 3);
-  assert.deepEqual(messages[2], {
-    version: "v0.9",
-    updateDataModel: { surfaceId: "arch-root", path: "/", value: { x: 1 } },
-  });
 });
 
 test("extractSurfaceId finds ids in both dialects; clearSurfaces empties the map", () => {

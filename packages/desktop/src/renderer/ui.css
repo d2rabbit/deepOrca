@@ -8389,11 +8389,6 @@ button.ui-topbar-pill {
   overflow: auto;
   padding: 10px;
 }
-.ui-knowledge-preview-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
 .ui-knowledge-preview-loading {
   width: 28px;
   height: 28px;

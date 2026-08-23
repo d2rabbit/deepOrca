@@ -40,23 +40,19 @@ async function refresh(): Promise<void> {
 }
 
 function ensurePolling(): () => void {
-  listeners.add(notifyWrapper);
+  listeners.add(notify);
   if (!pollTimer) {
     pollTimer = setInterval(() => void refresh(), 2000);
     void refresh();
   }
   return () => {
-    listeners.delete(notifyWrapper);
+    listeners.delete(notify);
     if (listeners.size === 0 && pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
     }
   };
 }
-
-// Stable identity for the listener set (notify itself is stable already, but
-// keep an explicit wrapper so the unsubscribe logic stays obvious).
-const notifyWrapper = notify;
 
 // Instant refresh on progress events — the broadcast carries the full job
 // snapshot in event.data.job. Registered once at module load (the api event

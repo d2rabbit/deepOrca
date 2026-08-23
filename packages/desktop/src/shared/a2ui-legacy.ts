@@ -252,37 +252,3 @@ export function convertLegacyComponents(input: LegacyComponent[]): V09Component[
   }
   return [{ id: "root", component: "Column", children: rootIds }, ...converted, ...out];
 }
-
-/**
- * Convert a persisted legacy surface file (`.deeporca/prototypes/*.json`,
- * shape {surfaceId, title?, messages?, dataModel?, components?}) into v0.9
- * messages. Prefers replaying the recorded message history; falls back to
- * synthesizing from the component array + data model snapshot.
- */
-export function convertLegacySurfaceFile(file: {
-  surfaceId?: string;
-  messages?: unknown[];
-  dataModel?: Record<string, unknown>;
-  components?: unknown[];
-}): V09Message[] {
-  const surfaceId = file.surfaceId;
-  if (!surfaceId) return [];
-  if (Array.isArray(file.messages) && file.messages.length > 0) {
-    const converted = convertLegacyBatch(file.messages);
-    if (converted.length > 0) return converted;
-  }
-  const messages: V09Message[] = [{ version: "v0.9", createSurface: { surfaceId, catalogId: BASIC_CATALOG_ID } }];
-  if (Array.isArray(file.components) && file.components.length > 0) {
-    messages.push({
-      version: "v0.9",
-      updateComponents: {
-        surfaceId,
-        components: convertLegacyComponents(file.components as LegacyComponent[]),
-      },
-    });
-  }
-  if (file.dataModel && typeof file.dataModel === "object") {
-    messages.push({ version: "v0.9", updateDataModel: { surfaceId, path: "/", value: file.dataModel } });
-  }
-  return messages;
-}

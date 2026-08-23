@@ -1773,8 +1773,8 @@ function registerA2uiIpc({ handleShared }: IpcHelpers): void {
           output?: string;
           metadata?: { a2ui?: string };
         };
-        // If the action produced updated A2UI messages (e.g. navigate: page switch),
-        // push them to the renderer so the Surface refreshes in real-time.
+        // If the action's tool result carries updated A2UI messages, push them
+        // to the renderer so the Surface refreshes in real-time.
         if (result?.metadata?.a2ui) {
           emit(IpcEvent.A2uiSurfaceUpdate, { a2uiJson: result.metadata.a2ui, surfaceId });
         }

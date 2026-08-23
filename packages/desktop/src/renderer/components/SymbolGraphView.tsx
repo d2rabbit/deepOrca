@@ -103,11 +103,9 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       });
     }
     const visibleEdges = graph.edges.filter((e) => pos.has(e.source) && pos.has(e.target));
-    const hidden =
-      graph.nodes.filter((n) => n.role === "caller").length -
-      callers.length +
-      graph.nodes.filter((n) => n.role === "callee").length -
-      callees.length;
+    const beyond = (role: KnowledgeSymbolGraphNode["role"], shown: KnowledgeSymbolGraphNode[]): number =>
+      graph.nodes.filter((n) => n.role === role).length - shown.length;
+    const hidden = beyond("caller", callers) + beyond("callee", callees) + beyond("focus", focus);
     return { columns, pos, visibleEdges, width, height, hidden };
   }, [graph]);
 

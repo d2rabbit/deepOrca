@@ -75,6 +75,12 @@ function firstMatch(re: RegExp, text: string): string | undefined {
   return m?.[1]?.trim() || undefined;
 }
 
+/** Numeric <line> tag value of the first match, if present. */
+function lineOf(text: string): number | undefined {
+  const v = firstMatch(LINE_TAG, text);
+  return v ? Number(v) : undefined;
+}
+
 /** Short tool name from the fully-qualified MCP name (`mcp__serena__find_symbol`). */
 export function serenaShortTool(name: string): string {
   const idx = name.lastIndexOf("__");
@@ -87,7 +93,7 @@ function parseSymbolBlock(text: string, fallbackName: string): SerenaSymbol {
     name: fallbackName || firstMatch(/(?:^|\n)\s*([A-Za-z_$][\w$]*)/, text) || "(symbol)",
     kind: firstMatch(/\(([a-z_ ]+)\)/, text),
     filePath: firstMatch(FILE_TAG, text),
-    line: firstMatch(LINE_TAG, text) ? Number(firstMatch(LINE_TAG, text)) : undefined,
+    line: lineOf(text),
     body: text.match(new RegExp(BODY_TAG.source))?.[1]?.slice(1, -1),
   };
 }

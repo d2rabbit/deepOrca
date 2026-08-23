@@ -100,7 +100,7 @@ function ViewBody({ view }: { view: SerenaView }): JSX.Element {
               <div className="ui-serena-ref-lines">
                 {refs.map((r, i) => (
                   <span key={i} className="ui-serena-loc">
-                    {r.line != null ? `L${r.line}` : "—"}
+                    {r.line != null ? `L${r.line}${r.column != null ? `:C${r.column}` : ""}` : "—"}
                   </span>
                 ))}
               </div>
