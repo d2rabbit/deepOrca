@@ -156,6 +156,10 @@ export const IpcRequest = {
   KnowledgeStatus: "knowledge:status",
   MemoryRoutingStatus: "memoryRouting:status",
   KnowledgeRenderArchmap: "knowledge:renderArchmap",
+  KnowledgeBuild: "knowledge:build",
+  KnowledgeBuildStatus: "knowledge:buildStatus",
+  KnowledgeReadAgents: "knowledge:readAgents",
+  KnowledgeListSymbols: "knowledge:listSymbols",
 
   // Designer — design artifact management (PM-Design + UI-Design)
   DesignList: "design:list",
@@ -486,6 +490,26 @@ export type KnowledgeSourceStatus = {
 };
 
 /** Aggregated status of every knowledge source. */
+/** One indexed symbol (R2-4): row in the symbols sub-tab. */
+export type KnowledgeSymbol = {
+  name: string;
+  kind: string;
+  filePath: string;
+  startLine: number;
+  signature?: string;
+};
+
+/** Main-process build job snapshot (R2-1) — rows render from these. */
+export type KnowledgeBuildJobSnapshot = {
+  root: string;
+  mode: "init" | "update";
+  stage: string;
+  percent: number | null;
+  error: string | null;
+  startedAt: string;
+  running: boolean;
+};
+
 /**
  * Per-workspace knowledge assets (specs/index-knowledge-rework): UI-facing
  * keys are neutral (openwiki → "Wiki"); memory/routing moved out of this
@@ -864,6 +888,14 @@ export type DesktopApi = {
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
   /** Render an architecture-map artifact (surface JSON) to self-contained HTML. */
   knowledgeRenderArchmap(path: string): Promise<{ ok: true; html: string } | { ok: false; error: string }>;
+  /** Start (or return the in-flight) background build for a root — idempotent. */
+  knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
+  /** Live snapshots of all build jobs (rows render from this). */
+  knowledgeBuildStatus(): Promise<KnowledgeBuildJobSnapshot[]>;
+  /** Read a workspace's AGENTS.md (root-scoped) for in-place rendering. */
+  knowledgeReadAgents(root: string): Promise<{ ok: true; content: string } | { ok: false; error: string }>;
+  /** Search a workspace's symbol index (kind/name/file/line), query optional. */
+  knowledgeListSymbols(root: string, query?: string): Promise<Array<KnowledgeSymbol>>;
   /** Memory/routing observability (moved out of the knowledge module, T4). */
   memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 

@@ -1447,6 +1447,17 @@ export class SessionManager {
       const msgs = this.listSessionMessages(subSessionId);
       const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
       const content = typeof lastAssistant?.content === "string" ? lastAssistant.content : null;
+      if (opts.silent) {
+        // Zero-residue guarantee (specs/index-knowledge-rework R2): delete the
+        // sub-session entirely — index entry, message JSONL, in-memory state.
+        // Silent runs are pipeline internals; persisting them only pollutes
+        // the disk index and eats the MAX_SESSION_ENTRIES eviction pool.
+        try {
+          this.deleteSession(subSessionId);
+        } catch {
+          // best-effort — entry stays hidden via isSilentSubagent either way
+        }
+      }
       return { sessionId: subSessionId, content };
     } finally {
       // Restore the parent as the active session so the UI returns to it.

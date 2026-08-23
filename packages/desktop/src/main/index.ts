@@ -3,7 +3,7 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
-import { dirname, join, delimiter } from "node:path";
+import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
@@ -56,6 +56,7 @@ import type {
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   MemoryRoutingStatus,
+  KnowledgeSymbol,
   MemoryPipelineStats,
   ThinkingModeSelection,
   UndoRestoreMode,
@@ -74,6 +75,9 @@ import { OcrCliController } from "./tools/ocr-cli.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
+import { cleanupLeakedSubagentSessions } from "./subagent-cleanup.js";
+import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
+import { BuildJobManager } from "./build-job-manager.js";
 import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { CrgCliController } from "./tools/crg-cli.js";
 import {
@@ -1305,6 +1309,62 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.DesignList, async () => {
     return listDesignArtifacts(getBridge().projectRoot);
   });
+  // Background build jobs (R2-1): manager owns jobs in the MAIN process —
+  // renderer row state is a read-only subscription, so switching rows/tabs
+  // never drops a running build.
+  const buildJobs = new BuildJobManager(
+    () => getBridge().getSessionManager().getActionRegistry(),
+    (channel, payload) => emit(channel, payload)
+  );
+  handlePrivileged(IpcRequest.KnowledgeBuild, (root: string) => buildJobs.start(root));
+  handlePrivileged(IpcRequest.KnowledgeBuildStatus, () => buildJobs.status());
+
+  handle(IpcRequest.KnowledgeListSymbols, (_e, root: string, query?: string): Array<KnowledgeSymbol> => {
+    // SQLite read-only scan of <root>/.codegraph/codegraph.db (same pattern
+    // as CRG's direct read). node:sqlite requires Node >= 22.5 — load lazily
+    // so the handler degrades gracefully under older runtimes.
+    const dbPath = join(root || getBridge().projectRoot, ".codegraph", "codegraph.db");
+    if (!existsSync(dbPath)) return [];
+    try {
+      const { DatabaseSync } = require("node:sqlite") as {
+        DatabaseSync: new (path: string, opts: { readOnly: boolean }) => DatabaseSyncType;
+      };
+      const db = new DatabaseSync(dbPath, { readOnly: true });
+      const like = `%${(query ?? "").trim()}%`;
+      const rows = (
+        query && query.trim()
+          ? db
+              .prepare(
+                "SELECT name, kind, file_path, start_line, signature FROM nodes WHERE name LIKE ? OR qualified_name LIKE ? ORDER BY name LIMIT 300"
+              )
+              .all(like, like)
+          : db.prepare("SELECT name, kind, file_path, start_line, signature FROM nodes ORDER BY name LIMIT 300").all()
+      ) as Array<{ name: string; kind: string; file_path: string; start_line: number; signature?: string }>;
+      return rows.map((r) => ({
+        name: r.name,
+        kind: r.kind,
+        filePath: r.file_path,
+        startLine: r.start_line,
+        signature: r.signature ?? undefined,
+      }));
+    } catch {
+      return [];
+    }
+  });
+
+  handle(IpcRequest.KnowledgeReadAgents, (_e, root: string) => {
+    // Root-scoped read: only <root>/AGENTS.md, containment-checked.
+    const agentsPath = pathResolve(root || getBridge().projectRoot, "AGENTS.md");
+    const base = pathResolve(root || getBridge().projectRoot);
+    if (!agentsPath.startsWith(base + pathSep)) {
+      return { ok: false as const, error: "path escapes workspace" };
+    }
+    try {
+      return { ok: true as const, content: readFileSync(agentsPath, "utf8") };
+    } catch {
+      return { ok: false as const, error: "AGENTS.md not found" };
+    }
+  });
 
   handle(IpcRequest.DesignRead, async (id: string) => {
     return readDesignArtifact(getBridge().projectRoot, id);
@@ -1930,8 +1990,11 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
-  // Register IPC handlers first so the renderer can communicate as soon as
-  // the window loads. createWindow follows immediately — the window appears
+  // One-time purge of leaked subagent sessions (marker-gated, idempotent) —
+  // before the renderer loads so the first session list is already clean.
+  setImmediate(cleanupLeakedSubagentSessions);
+  // Register IPC handlers first so the renderer can communicate as soon as the
+  // window loads. createWindow follows immediately — the window appears
   // fast because the renderer HTML + JS start loading right away.
   registerIpc();
   createWindow();

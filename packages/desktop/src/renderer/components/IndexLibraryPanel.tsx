@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
-import type { KnowledgeStatusResponse, WorkspaceGroup } from "../../shared/ipc";
+import type { ActionProgressEvent, KnowledgeStatusResponse, WorkspaceGroup } from "../../shared/ipc";
 
 /**
  * Index & Knowledge — left rail view (specs/index-knowledge-rework T3).
@@ -76,50 +76,59 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
     void reload();
   }, [reload]);
 
-  // Stage progress from the unified action stream (index.* actions emit
-  // [k/3] stage messages; matched to the row via the tracked root — the
-  // stream itself is not root-tagged, so only the row whose build this panel
-  // started updates; concurrent rows stay independent).
-  const buildingRootsRef = useRef<Set<string>>(new Set());
+  // R2-1: rows are a read-only subscription over the main-process job map —
+  // ActionProgress (data.root tagged) for instant updates, plus a 2s poll of
+  // knowledgeBuildStatus so remounting picks up live jobs it didn't start.
   useEffect(() => {
-    const off = api.onActionProgress((event: { actionId: string; percent?: number; message?: string }) => {
-      if (!event.actionId.startsWith("index.") || buildingRootsRef.current.size === 0) return;
-      const root = [...buildingRootsRef.current][0]!;
+    const off = api.onActionProgress((event: ActionProgressEvent) => {
+      if (event.actionId !== "index.build-all") return;
+      const root = (event.data as { root?: string } | undefined)?.root;
+      if (!root) return;
       setRows((prev) => {
-        const row = prev[root];
-        if (!row?.busy) return prev;
-        return { ...prev, [root]: { ...row, percent: event.percent ?? row.percent, error: null } };
+        const row = prev[root] ?? { busy: false, percent: null, error: null };
+        return { ...prev, [root]: { busy: true, percent: event.percent ?? row.percent, error: null } };
       });
     });
-    return off;
-  }, []);
+    const timer = setInterval(async () => {
+      try {
+        const jobs = await api.knowledgeBuildStatus();
+        setRows((prev) => {
+          const next = { ...prev };
+          for (const job of jobs) {
+            next[job.root] = { busy: job.running, percent: job.percent, error: job.error };
+          }
+          return next;
+        });
+        if (jobs.some((job) => !job.running && job.percent === 100)) {
+          void reload();
+        }
+      } catch {
+        // status poll failure is non-fatal
+      }
+    }, 2000);
+    return () => {
+      off();
+      clearInterval(timer);
+    };
+  }, [reload]);
 
   /** Build one workspace: serial symbols → Wiki → arch-map; failure stops. */
   const build = useCallback(
     async (root: string) => {
-      const status = statuses[root];
-      const allReady = status && status.codegraph.state === "indexed" && status.openwiki.state === "indexed";
-      buildingRootsRef.current.add(root);
-      setRows((prev) => ({ ...prev, [root]: { busy: true, percent: 5, error: null } }));
-      try {
-        const res = await api.actionRun("index.build-all", { mode: allReady ? "update" : "init", root });
-        if (!res.ok) throw new Error(res.error || "Action failed");
+      // R2-1: fire the MAIN-PROCESS build job and let the subscription render
+      // progress — this handler returns immediately; switching rows/tabs never
+      // cancels the job and re-mounting re-reads live status. Mode selection
+      // (init vs update) lives in the manager.
+      const job = await api.knowledgeBuild(root);
+      setRows((prev) => ({
+        ...prev,
+        [root]: { busy: job.running, percent: job.percent, error: job.error },
+      }));
+      if (!job.running) {
         await reload();
-        setRows((prev) => ({ ...prev, [root]: { busy: false, percent: 100, error: null } }));
-      } catch (err) {
-        setRows((prev) => ({
-          ...prev,
-          [root]: {
-            busy: false,
-            percent: null,
-            error: err instanceof Error ? err.message : String(err),
-          },
-        }));
-      } finally {
-        buildingRootsRef.current.delete(root);
       }
     },
-    [reload, statuses]
+    [reload]
   );
 
   const stateDot = (status: KnowledgeStatusResponse | undefined): string => {
