@@ -841,6 +841,9 @@ export const en = {
   "review.noWorkspace": "No workspace open.",
   "review.graphReady": "Risk graph built",
   "review.graphUnbuilt": "Risk graph not built",
+  "review.oneClickFix": "One-click fix",
+  "review.fixHint": "Generate a fix plan from the current findings and fix them in session mode",
+  "review.findingsCount": "{n} findings",
   "review.action.review": "Review Changes",
   "review.action.review.hint": "AI semantic review of uncommitted changes (ocr).",
   "review.action.full": "Code Review (Full)",
@@ -1756,6 +1759,9 @@ export const zh: Record<MessageKey, string> = {
   "task.badgeHint": "点击查看详情",
 
   // ── Code Review (ocr + crg) ───────────────────────────────
+  "review.oneClickFix": "一键修复",
+  "review.fixHint": "根据当前审查病灶生成修复规划，切到会话模式执行修复",
+  "review.findingsCount": "{n} 项病灶",
   "rail.review": "代码审查",
   "review.title": "代码审查",
   "review.smartReview": "智能审查",

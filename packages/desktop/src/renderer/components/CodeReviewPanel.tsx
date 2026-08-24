@@ -3,6 +3,7 @@ import type { ActionProgressEvent, ActionRunResult, CrgIndexEntry } from "../../
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { Button } from "../ui/index";
+import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
 
 /**
  * Code Review panel — Phase 4 rework (spec §六/§十二).
@@ -17,13 +18,21 @@ import { Button } from "../ui/index";
  * (specs/ui-domain-regroup, 2026-08-21).
  *
  * Panel-derived state (workspace from api.crgList(), progress via the unified
- * onActionProgress event); the one prop, `onShowGraph`, hands the CRG
- * architecture-graph HTML up to the shared right dock in App.tsx.
+ * onActionProgress event); `onShowGraph` hands the CRG architecture-graph
+ * HTML up to the shared right dock, and `onOneClickFix` receives the CURRENT
+ * findings so App can inject the fix plan into session mode (一键修复).
  */
 
 type ReviewActionId = "review.full";
 
-export function CodeReviewPanel({ onShowGraph }: { onShowGraph: (html: string) => void }): JSX.Element {
+export function CodeReviewPanel({
+  onShowGraph,
+  onOneClickFix,
+}: {
+  onShowGraph: (html: string) => void;
+  /** One-click fix: hand the current findings to App (plan → session → fix). */
+  onOneClickFix: (findings: ReviewFinding[]) => void;
+}): JSX.Element {
   const { t } = useI18n();
   const [entry, setEntry] = useState<CrgIndexEntry | null>(null);
   const [running, setRunning] = useState<ReviewActionId | null>(null);
@@ -108,6 +117,9 @@ export function CodeReviewPanel({ onShowGraph }: { onShowGraph: (html: string) =
     }
   }, [onShowGraph, t]);
 
+  // Findings from the LATEST result drive the one-click fix button.
+  const currentFindings: ReviewFinding[] = result && result.res.ok ? extractReviewFindings(result.res.output) : [];
+
   const projectLabel = entry?.label ?? entry?.root ?? "";
   const hasGraph = entry?.hasGraph ?? false;
 
@@ -159,18 +171,36 @@ export function CodeReviewPanel({ onShowGraph }: { onShowGraph: (html: string) =
                   {t(b.hintKey)}
                 </p>
                 {result && result.id === b.id ? (
-                  <pre
-                    className="ui-muted"
-                    style={{
-                      fontSize: 10,
-                      margin: 0,
-                      maxHeight: 200,
-                      overflow: "auto",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {formatResult(result.res)}
-                  </pre>
+                  <>
+                    <pre
+                      className="ui-muted"
+                      style={{
+                        fontSize: 10,
+                        margin: 0,
+                        maxHeight: 200,
+                        overflow: "auto",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {formatResult(result.res)}
+                    </pre>
+                    {currentFindings.length > 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                        <Button
+                          size="sm"
+                          variant="subtle"
+                          disabled={running !== null}
+                          title={t("review.fixHint")}
+                          onClick={() => onOneClickFix(currentFindings)}
+                        >
+                          🔧 {t("review.oneClickFix")}
+                        </Button>
+                        <span className="ui-muted" style={{ fontSize: 10 }}>
+                          {t("review.findingsCount", { n: currentFindings.length })}
+                        </span>
+                      </div>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             ))}
@@ -186,12 +216,14 @@ function formatResult(res: ActionRunResult): string {
   if (!res.ok) return `✗ ${res.code}: ${res.error}`;
   const out = res.output;
   if (typeof out === "string") return out;
-  if (out && typeof out === "object" && "comments" in out) {
-    const comments = (out as { comments: { file: string; line: number; severity: string; message: string }[] })
-      .comments;
-    if (Array.isArray(comments) && comments.length > 0) {
-      return comments.map((c) => `[${c.severity}] ${c.file}:${c.line} — ${c.message}`).join("\n");
-    }
+  const findings = extractReviewFindings(out);
+  if (findings.length > 0) {
+    return findings
+      .map(
+        (c) =>
+          `${c.crgRisk ? `[${c.crgRisk}] ` : ""}${c.path}:${c.startLine} — ${c.content.replace(/\s+/g, " ").trim()}`
+      )
+      .join("\n");
   }
   try {
     return JSON.stringify(out, null, 2);

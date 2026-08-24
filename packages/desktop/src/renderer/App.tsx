@@ -66,6 +66,7 @@ import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
+import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
@@ -1387,6 +1388,19 @@ export function App(): JSX.Element {
     [selectView]
   );
 
+  // One-click fix (review module): current findings → fix brief → SESSION mode
+  // — switch the main area to the chat, inject the brief; the agent generates
+  // the UpdatePlan task plan from the findings and fixes them.
+  const handleReviewOneClickFix = useCallback(
+    (findings: ReviewFinding[]) => {
+      const text = buildReviewFixPrompt(findings);
+      if (!text) return;
+      setMainView("chat");
+      void runPrompt({ text });
+    },
+    [runPrompt, setMainView]
+  );
+
   // Serena panel (R3-6): mirror the agent's Serena tool results as targeted
   // views in a floating right panel. Auto-opens on every NEW serena result;
   // closing only hides it until the next one arrives.
@@ -1644,7 +1658,7 @@ export function App(): JSX.Element {
           <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel onShowGraph={handleShowGraph} />
+            <CodeReviewPanel onShowGraph={handleShowGraph} onOneClickFix={handleReviewOneClickFix} />
           </Suspense>
         ) : sidebarView === "prototype" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
