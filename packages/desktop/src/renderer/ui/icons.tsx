@@ -133,6 +133,17 @@ export function IconDesign(): JSX.Element {
   );
 }
 
+/** Document with pencil — prototype module (requirements doc → wireframe) */
+export function IconPrototype(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M5 3h6.5L16 7.5V17H5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M11.5 3v4.5H16" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M7.2 12.8l1.6-1.6 4.2 4.2-1.9.3z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Rooted node tree — task tree panel */
 export function IconTaskTree(): JSX.Element {
   return (

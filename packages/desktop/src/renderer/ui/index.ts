@@ -23,6 +23,7 @@ export {
   IconIndex,
   IconReview,
   IconDesign,
+  IconPrototype,
   IconTaskTree,
   IconGitmcp,
   IconMoon,

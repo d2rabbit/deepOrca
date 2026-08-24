@@ -89,6 +89,7 @@ import { SkillSpectorCliController } from "./tools/skill-spector-cli.js";
 import { CrgCliController } from "./tools/crg-cli.js";
 import {
   listDesignArtifacts,
+  onDesignStoreChange,
   readDesignArtifact,
   deleteDesignArtifact,
   saveFormState,
@@ -1360,6 +1361,12 @@ function readTailwindScript(): string | null {
 
 /** Designer artifact management — bridges the renderer to design-store. */
 function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
+  // design-store change events → renderer: artifacts are written by the a2ui
+  // MCP tools mid-agent-run; without this the panels show a stale list until a
+  // manual reload (chain-integrity fix, same class as the knowledge panel).
+  onDesignStoreChange((root) => {
+    emit(IpcEvent.DesignChanged, { root });
+  });
   handle(IpcRequest.DesignList, async () => {
     return listDesignArtifacts(getBridge().projectRoot);
   });

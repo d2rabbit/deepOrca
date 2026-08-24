@@ -10,7 +10,7 @@
  */
 
 export type PrototypeArtifact = {
-  mode: "a2ui" | "openui" | "design";
+  mode: "a2ui" | "openui" | "design" | "spec";
   /** Serialized payload exactly as the preview panel expects it. */
   payload: string;
   /** A2UI only: update_surface results don't force the preview tab open. */
@@ -22,6 +22,7 @@ type ToolResultRecord = {
     a2ui?: unknown;
     openui?: unknown;
     design?: unknown;
+    spec?: unknown;
   };
 };
 
@@ -45,7 +46,7 @@ export function detectPrototypeArtifact(toolContent: string): PrototypeArtifact 
   // Cheap pre-filter: skip JSON parsing for tool results that mention none of
   // the render/update tool names.
   if (
-    !/render_openui|update_openui|render_design|update_design|render_prototype|render_surface|update_surface/.test(
+    !/render_openui|update_openui|render_design|update_design|render_spec|render_prototype|render_surface|update_surface/.test(
       toolContent
     )
   ) {
@@ -56,6 +57,10 @@ export function detectPrototypeArtifact(toolContent: string): PrototypeArtifact 
 
   if (meta.design != null) {
     return { mode: "design", payload: asString(meta.design, String(meta.design)) };
+  }
+  if (meta.spec != null) {
+    // Requirements documents are markdown — rendered as a reading view.
+    return { mode: "spec", payload: asString(meta.spec, String(meta.spec)) };
   }
   if (meta.openui != null) {
     // update_openui sends the complete updated program (full replacement).

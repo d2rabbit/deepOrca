@@ -37,10 +37,17 @@ test("guard ②: DesignPipeline excludes a2ui — designs/ never stores interact
   assert.doesNotMatch(declaration[1], /a2ui/, `DesignPipeline must not include a2ui: ${declaration[1]}`);
 });
 
-test("guard ③: design.materialize routes only through the design sub-domain tools", () => {
-  const source = read("packages/core/src/actions/design.ts");
-  assert.match(source, /render_openui/, "materialize should reference render_openui");
-  assert.match(source, /render_design/, "materialize should reference render_design");
-  // A2UI interaction tools must not appear anywhere in the action's routing.
-  assert.doesNotMatch(source, /render_surface|update_surface|render_prototype|close_surface|a2ui_action/);
+test("guard ③: the split modules route only through the design sub-domain tools", () => {
+  // design.materialize (UI-design module) routes ONLY the .dd pipeline —
+  // render_openui moved to the prototype module (actions/prototype.ts).
+  const design = read("packages/core/src/actions/design.ts");
+  assert.match(design, /render_design/, "design.materialize should reference render_design");
+  assert.doesNotMatch(design, /render_openui/, "design.materialize must not route prototypes (module split)");
+  const proto = read("packages/core/src/actions/prototype.ts");
+  assert.match(proto, /render_openui/, "prototype.materialize should reference render_openui");
+  assert.match(proto, /render_spec/, "prototype.spec should reference render_spec");
+  // A2UI interaction tools must not appear anywhere in either routing.
+  for (const source of [design, proto]) {
+    assert.doesNotMatch(source, /render_surface|update_surface|render_prototype|close_surface|a2ui_action/);
+  }
 });

@@ -131,6 +131,10 @@ import {
   designDriftRun,
   designAuditDefinition,
   designAuditRun,
+  prototypeSpecDefinition,
+  prototypeSpecRun,
+  prototypeMaterializeDefinition,
+  prototypeMaterializeRun,
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,
@@ -1042,6 +1046,10 @@ export class SessionManager {
     // ── Designer — deterministic anti-slop audit (design.audit; taste #11
     // three-axis machine check + gate subset, zero LLM, changes nothing) ────
     this.actionRegistry.register(designAuditDefinition, designAuditRun);
+    // ── Prototype module (design-module split): 需求 → 需求文档 → 原型图 —
+    // two explicit steps, no auto-routing (real-machine feedback) ──────────
+    this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);
+    this.actionRegistry.register(prototypeMaterializeDefinition, prototypeMaterializeRun);
     // ── Phase 3: task trajectory actions (specs/task-tree P0) ────────────────
     // The tree service is the single writer of .deeporca/task-trees/** and is
     // exposed to actions via the context (accept-dependencies rule).

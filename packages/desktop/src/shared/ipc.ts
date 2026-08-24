@@ -217,6 +217,8 @@ export const IpcEvent = {
   ActionProgress: "event:actionProgress",
   /** Sandbox backend selection outcome per session (degradation is never silent). */
   SandboxStatusChanged: "event:sandboxStatusChanged",
+  /** design-store artifact saved/deleted (payload: { root }) — panels refresh live. */
+  DesignChanged: "event:designChanged",
 } as const;
 
 /** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
@@ -619,7 +621,7 @@ export type MemoryRoutingStatus = {
 export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 
 /** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
-export type DesignPipeline = "openui" | "design";
+export type DesignPipeline = "openui" | "design" | "spec";
 
 /** A stored design artifact's metadata (index entry). */
 export type DesignArtifactMeta = {
@@ -1076,6 +1078,8 @@ export type DesktopApi = {
   actionRun(id: string, input?: unknown): Promise<ActionRunResult>;
   /** Subscribe to the unified action progress stream. Returns unsubscribe fn. */
   onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
+  /** Design artifacts changed (a2ui tool saved mid-run / deleted) — live refresh. */
+  onDesignChanged(cb: (event: { root: string }) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */
   onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
   /** Pull the initial prototype-window payload by token (race-free handshake,

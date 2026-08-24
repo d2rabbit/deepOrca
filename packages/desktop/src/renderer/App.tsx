@@ -47,6 +47,9 @@ import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
+const PrototypeDesignPanel = lazy(() =>
+  import("./components/PrototypeDesignPanel").then((m) => ({ default: m.PrototypeDesignPanel }))
+);
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
 const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
@@ -62,6 +65,7 @@ import { ShortcutsModal } from "./components/ShortcutsModal";
 import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
+import { StreamdownView } from "./components/StreamdownView";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
@@ -93,6 +97,7 @@ import {
   IconIndex,
   IconReview,
   IconDesign,
+  IconPrototype,
   IconTaskTree,
   IconGitmcp,
   IconEditor,
@@ -479,9 +484,12 @@ export function App(): JSX.Element {
         activeIdRef.current = message.sessionId;
         setActiveId(message.sessionId);
       }
+      // Subagent tool artifacts (design/prototype materialize runs are
+      // silent sub-sessions) must still open the preview — the old
+      // sessionId filter dropped them, so materialize never auto-previewed.
+      applyPreviewToolMessage(message);
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
-        applyPreviewToolMessage(message);
         // Inline-mode (opt-in via settings.openuiInlineMode): render a
         // complete ```openui-lang block embedded in the assistant reply,
         // without waiting for a render_openui tool call. The tool channel
@@ -1150,9 +1158,15 @@ export function App(): JSX.Element {
         run: () => selectView("review"),
       },
       {
+        id: "view.prototype",
+        label: t("rail.prototype"),
+        keywords: "sidebar view prototype spec requirements 原型 需求文档",
+        run: () => selectView("prototype"),
+      },
+      {
         id: "view.design",
         label: t("rail.design"),
-        keywords: "sidebar view design pm prototype",
+        keywords: "sidebar view design ui ux",
         run: () => selectView("design"),
       },
       {
@@ -1531,6 +1545,14 @@ export function App(): JSX.Element {
           <IconReview />
         </RailButton>
         <RailButton
+          active={panelOpen && sidebarView === "prototype"}
+          title={t("rail.prototype")}
+          aria-label={t("rail.prototype")}
+          onClick={() => selectView("prototype")}
+        >
+          <IconPrototype />
+        </RailButton>
+        <RailButton
           active={panelOpen && sidebarView === "design"}
           title={t("rail.design")}
           aria-label={t("rail.design")}
@@ -1623,6 +1645,10 @@ export function App(): JSX.Element {
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
             <CodeReviewPanel onShowGraph={handleShowGraph} />
+          </Suspense>
+        ) : sidebarView === "prototype" ? (
+          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
           </Suspense>
         ) : sidebarView === "design" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
@@ -1854,8 +1880,12 @@ export function App(): JSX.Element {
               }
             >
               {previewTab === "design" && designContent ? (
-                <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
-              ) : prototypeMode !== "design" ? (
+                prototypeMode === "spec" ? (
+                  <StreamdownView className="ui-md ui-proto-spec-doc" markdown={designContent} />
+                ) : (
+                  <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
+                )
+              ) : prototypeMode !== "design" && prototypeMode !== "spec" ? (
                 <PrototypePanel
                   a2uiJson={prototypeJson ?? ""}
                   openuiCode={prototypeOpenuiCode}

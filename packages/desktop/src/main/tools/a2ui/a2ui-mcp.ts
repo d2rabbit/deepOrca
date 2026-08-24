@@ -760,6 +760,53 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
+  // Tool: render_spec — persist a requirements document (prototype module,
+  // step 1). The document is markdown; metadata.spec lets the renderer open a
+  // reading preview instead of an interactive one.
+  registerTool(
+    "render_spec",
+    {
+      description:
+        "Persist a structured requirements document (需求文档) as a spec artifact. " +
+        "Called by the spec-writer skill (prototype module step 1); prototype.materialize " +
+        "(step 2) designs the prototype against this document.",
+      inputSchema: {
+        document: z
+          .string()
+          .describe(
+            "The complete requirements document in markdown. Must contain the sections " +
+              "背景与目标 / 用户与场景 / 功能需求 / 页面清单 / 验收标准 (页面清单 drives the prototype pages)."
+          ),
+        requirement: z
+          .string()
+          .optional()
+          .describe("The user's original requirement text (persisted as requirement.md)."),
+      },
+    },
+    async (args) => {
+      const document = String(args.document ?? "");
+      if (!document.trim()) {
+        return { content: [{ type: "text", text: "Error: empty requirements document." }], isError: true };
+      }
+      const requirement =
+        typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      saveArtifactWithLineage(projectRoot, "spec", "render", {
+        title: deriveTitle(document),
+        content: document,
+        requirement,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Requirements document saved as a spec artifact. It is now the contract for prototype generation.",
+          },
+        ],
+        metadata: { spec: document },
+      } as CallToolResult;
+    }
+  );
+
   // Tool: render_openui — render an OpenUI Lang program (PM-Designer mode)
   // Unlike the A2UI tools above, this returns the OpenUI Lang code as plain
   // text with metadata.openui, not as an A2UI embedded resource. The renderer
@@ -1001,12 +1048,12 @@ let lastDesignDoc: string | null = null;
  * artifact per turn. `render_*` after a finished design starts a fresh
  * lineage, which is the intended semantics.
  */
-const latestArtifactIds = new Map<string, { openui?: string; design?: string }>();
+const latestArtifactIds = new Map<string, { openui?: string; design?: string; spec?: string }>();
 
 /** Save with lineage: create (render) or version (update), remembering the id. */
 function saveArtifactWithLineage(
   root: string | undefined,
-  kind: "openui" | "design",
+  kind: "openui" | "design" | "spec",
   mode: "render" | "update",
   input: { title: string; content: string; requirement?: string }
 ): void {

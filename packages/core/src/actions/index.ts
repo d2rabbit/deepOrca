@@ -115,6 +115,18 @@ export type {
   DesignAuditAxes,
 } from "./design-audit";
 export {
+  prototypeSpecDefinition,
+  prototypeSpecRun,
+  prototypeMaterializeDefinition,
+  prototypeMaterializeRun,
+} from "./prototype";
+export type {
+  PrototypeSpecInput,
+  PrototypeSpecOutput,
+  PrototypeMaterializeInput,
+  PrototypeMaterializeOutput,
+} from "./prototype";
+export {
   taskCreateDefinition,
   taskCreateRun,
   taskStepDefinition,

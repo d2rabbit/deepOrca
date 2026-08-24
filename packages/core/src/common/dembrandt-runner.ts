@@ -28,9 +28,13 @@ type SpawnerLike = {
  * stderr is drained concurrently so a verbose child cannot fill the pipe and
  * stall. The literal "node" executable resolves on PATH (desktop hosts run
  * with a Node ≥22 toolchain present — CodeGraph already depends on it).
+ *
+ * Abort support: an optional signal kills the CLI as soon as it fires —
+ * previously a cancelled action left the (Playwright-driving) child running
+ * to completion.
  */
 export async function runDembrandtProcess(
-  ctx: { spawner: SpawnerLike },
+  ctx: { spawner: SpawnerLike; signal?: AbortSignal },
   cliArgs: readonly string[],
   cwd: string
 ): Promise<{ code: number; stdout: string; stderr: string; spawnError?: string }> {
@@ -46,17 +50,36 @@ export async function runDembrandtProcess(
     for await (const chunk of proc.stderr) stderr += chunk;
   })();
   let stdout = "";
-  try {
-    for await (const chunk of proc.stdout) stdout += chunk;
-    await drainStderr;
-  } catch (err) {
+  let aborted = false;
+  const onAbort = (): void => {
+    aborted = true;
     try {
-      await drainStderr;
+      // Best-effort kill: the spawner surfaces it as a non-zero exited code
+      // (or a stream error), either of which settles this run.
+      (proc as unknown as { kill?: (sig?: string) => unknown }).kill?.("SIGKILL");
     } catch {
-      // The primary error wins.
+      // No kill surface — the process runs on; the run still rejects below.
     }
-    throw err;
+  };
+  ctx.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    try {
+      for await (const chunk of proc.stdout) stdout += chunk;
+      await drainStderr;
+    } catch (err) {
+      try {
+        await drainStderr;
+      } catch {
+        // The primary error wins.
+      }
+      throw err;
+    }
+    const exit = await proc.exited;
+    if (aborted) {
+      return { code: exit.code, stdout, stderr, spawnError: "aborted" };
+    }
+    return { code: exit.code, stdout, stderr };
+  } finally {
+    ctx.signal?.removeEventListener("abort", onAbort);
   }
-  const exit = await proc.exited;
-  return { code: exit.code, stdout, stderr };
 }

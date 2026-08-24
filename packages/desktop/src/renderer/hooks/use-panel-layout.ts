@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-/** The ten views the VSCode-style activity rail can select. */
+/** The views the VSCode-style activity rail can select. */
 export type SidebarView =
   | "explorer"
   | "scm"
@@ -8,6 +8,7 @@ export type SidebarView =
   | "tokens"
   | "index"
   | "review"
+  | "prototype"
   | "design"
   | "tasktree"
   | "gitmcp"

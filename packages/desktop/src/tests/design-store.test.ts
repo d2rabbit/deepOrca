@@ -10,6 +10,7 @@ import {
   deleteDesignArtifact,
   saveFormState,
   readFormState,
+  onDesignStoreChange,
 } from "../main/tools/design-store";
 
 const tempRoots: string[] = [];
@@ -124,4 +125,76 @@ test("artifact ids with traversal/absolute/separator are rejected (containment)"
   }
   // The legitimate artifact is untouched.
   assert.ok(readDesignArtifact(root, meta!.id));
+});
+
+// ── design-module split: the spec pipeline + change events ───────────────────
+
+test("spec pipeline round-trips (需求文档 artifacts, spec.md)", () => {
+  const root = tempRoot();
+  const meta = saveDesignArtifact(root, {
+    title: "任务看板 需求文档",
+    pipeline: "spec",
+    content: "# 任务看板 需求文档\n\n## 4. 页面清单\n- 看板视图\n",
+    requirement: "一个任务看板",
+  });
+  assert.ok(meta, "spec save must succeed");
+
+  const listed = listDesignArtifacts(root);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].pipeline, "spec");
+
+  const full = readDesignArtifact(root, meta!.id);
+  assert.ok(full);
+  assert.match(full!.content, /页面清单/);
+  assert.equal(full!.requirement, "一个任务看板");
+});
+
+test("spec, prototype and design artifacts coexist in one index", () => {
+  const root = tempRoot();
+  saveDesignArtifact(root, { title: "spec", pipeline: "spec", content: "# S" });
+  saveDesignArtifact(root, { title: "proto", pipeline: "openui", content: "root = Column([])" });
+  saveDesignArtifact(root, { title: "dd", pipeline: "design", content: "---\nname: d\n---\n" });
+  const pipelines = listDesignArtifacts(root)
+    .map((a) => a.pipeline)
+    .sort();
+  assert.deepEqual(pipelines, ["design", "openui", "spec"]);
+});
+
+test("save and delete fire change events with the root (live panel refresh)", () => {
+  const root = tempRoot();
+  const events: string[] = [];
+  const off = onDesignStoreChange((r) => events.push(r));
+  try {
+    const meta = saveDesignArtifact(root, { title: "s", pipeline: "spec", content: "# x" });
+    assert.ok(meta);
+    assert.equal(events.length, 1, "save must notify");
+    assert.equal(events[0], root);
+
+    deleteDesignArtifact(root, meta!.id);
+    assert.equal(events.length, 2, "delete must notify");
+  } finally {
+    off();
+  }
+  // Unsubscribed: no further events.
+  saveDesignArtifact(root, { title: "s2", pipeline: "spec", content: "# y" });
+  assert.equal(events.length, 2);
+});
+
+test("spec updates keep lineage (same id, prior content snapshotted)", () => {
+  const root = tempRoot();
+  const first = saveDesignArtifact(root, { title: "spec", pipeline: "spec", content: "# v1" });
+  assert.ok(first);
+  const second = saveDesignArtifact(root, {
+    id: first!.id,
+    title: "spec",
+    pipeline: "spec",
+    content: "# v2",
+  });
+  assert.equal(second!.id, first!.id, "same-artifact update keeps the id");
+  const full = readDesignArtifact(root, first!.id);
+  assert.match(full!.content, /v2/);
+  assert.ok(
+    full!.versions?.some((v) => v.content.includes("v1")),
+    "prior content snapshotted"
+  );
 });

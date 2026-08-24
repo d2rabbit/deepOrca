@@ -1,18 +1,20 @@
 /**
- * DesignPanel — the Designer module's left-sidebar workspace.
+ * DesignPanel — the UI-DESIGN module's left-sidebar workspace (design-module
+ * split: prototype design is its own module now, see PrototypeDesignPanel).
  *
- * Lists all design artifacts from `.deeporca/designs/` (persisted by
- * design-store), grouped by pipeline:
- *   - PM-Design prototypes (pipeline="openui")
- *   - UI-Design documents (pipeline="design", .dd format)
+ * UI/UX design takes a requirement — a single sentence is fine — and/or an
+ * existing PROTOTYPE artifact as the interaction basis, and produces a .dd
+ * design document (design.materialize → deep-design skill → render_design).
+ * The list shows design artifacts only; prototype/spec artifacts live in the
+ * prototype module.
  *
  * Also hosts the brand-contract loop (specs/ui-domain-regroup): the drift
  * gate (design.drift — deterministic dembrandt --compare) pairs with the
- * agent-side design.extract ingestion, keeping "摄取基线 → 检测漂移" in the
- * design domain. CodeReviewPanel stays pure code review.
+ * agent-side design.extract ingestion. CodeReviewPanel stays pure code review.
  *
- * Clicking an artifact opens it in the right-side preview panel.
- * Mirrors the IndexLibraryPanel pattern (workspace panel + artifact list).
+ * Chain integrity: live progress while materializing (terminal data.done is
+ * guaranteed by the action IPC) and the list refreshes from design-store
+ * change events — artifacts land mid-run, not on the next manual reload.
  */
 
 import { useCallback, useEffect, useState, type JSX } from "react";
@@ -26,7 +28,8 @@ type Props = {
   onOpenArtifact: (artifact: DesignArtifactMeta) => void;
 };
 
-type FilterTab = "all" | "openui" | "design";
+/** Prototype artifacts offered as the design basis ("无" = requirement only). */
+type PrototypeOption = { id: string; title: string };
 
 /** Shape of the design.drift action output (deterministic, zero LLM). */
 type DriftOutput = {
@@ -48,10 +51,12 @@ function timeAgo(iso: string): string {
 export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
   const { t } = useI18n();
   const [artifacts, setArtifacts] = useState<DesignArtifactMeta[]>([]);
-  const [filter, setFilter] = useState<FilterTab>("all");
-  // One-click materialize (specs/pm-design-v2 P0): requirement in, artifact out.
+  // One-click materialize: requirement (a single sentence is fine) and/or an
+  // existing prototype as the interaction basis.
   const [requirement, setRequirement] = useState("");
+  const [prototypeId, setPrototypeId] = useState("");
   const [materializing, setMaterializing] = useState(false);
+  const [materializeProgress, setMaterializeProgress] = useState("");
   const [materializeNote, setMaterializeNote] = useState<string | null>(null);
   // Brand drift gate (design.drift) — migrated from CodeReviewPanel per
   // specs/ui-domain-regroup. The baseline defaults to the conventional
@@ -76,19 +81,27 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
     void reload();
   }, [reload]);
 
-  // Subscribe to the unified action progress stream while the drift gate runs.
+  // Live refresh: artifacts are written by the a2ui tools mid-run.
+  useEffect(() => api.onDesignChanged(() => void reload()), [reload]);
+
+  // Progress lines while materialize / drift run (terminal data.done is
+  // guaranteed by the action IPC; the awaited promise clears busy state).
   useEffect(() => {
-    if (!driftRunning) {
-      setDriftProgress("");
-      return;
-    }
+    if (!materializing && !driftRunning) return;
     const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
-      if (evt.actionId === "design.drift") {
+      if (evt.actionId === "design.materialize" && materializing) {
+        setMaterializeProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
+      } else if (evt.actionId === "design.drift" && driftRunning) {
         setDriftProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
       }
     });
     return unsub;
-  }, [driftRunning]);
+  }, [materializing, driftRunning]);
+
+  const prototypes: PrototypeOption[] = artifacts
+    .filter((a) => a.pipeline === "openui")
+    .map((a) => ({ id: a.id, title: a.title }));
+  const designs = artifacts.filter((a) => a.pipeline === "design");
 
   const runDrift = useCallback(async () => {
     const baseline = driftBaseline.trim();
@@ -115,25 +128,30 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
 
   const handleMaterialize = useCallback(async () => {
     const text = requirement.trim();
-    if (!text || materializing) return;
+    const basis = prototypeId.trim();
+    if ((!text && !basis) || materializing) return;
     setMaterializing(true);
-    setMaterializeNote(t("design.materializing"));
+    setMaterializeNote(null);
+    setMaterializeProgress("");
     try {
-      const result = await api.actionRun("design.materialize", { requirement: text });
-      const output = (result as { output?: { ok?: boolean; error?: string; pipeline?: string } }).output;
+      const result = await api.actionRun("design.materialize", {
+        ...(text ? { requirement: text } : {}),
+        ...(basis ? { prototypeArtifactId: basis } : {}),
+      });
+      const output = (result as { output?: { ok?: boolean; error?: string } }).output;
       if (output && "ok" in output && output.ok !== true) {
         setMaterializeNote(output.error ?? "failed");
       } else {
         setMaterializeNote(t("design.materialized"));
         setRequirement("");
-        await reload();
       }
     } catch (err) {
       setMaterializeNote(err instanceof Error ? err.message : String(err));
     } finally {
       setMaterializing(false);
+      setMaterializeProgress("");
     }
-  }, [requirement, materializing, reload, t]);
+  }, [requirement, prototypeId, materializing, t]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -161,10 +179,6 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
     [t]
   );
 
-  const filtered = filter === "all" ? artifacts : artifacts.filter((a) => a.pipeline === filter);
-  const prototypes = artifacts.filter((a) => a.pipeline === "openui");
-  const documents = artifacts.filter((a) => a.pipeline === "design");
-
   return (
     <div className="ui-side-panel">
       <div className="ui-side-panel-head">
@@ -174,47 +188,50 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
         </IconButton>
       </div>
       <div className="ui-side-panel-body">
-        {/* One-click materialize (specs/pm-design-v2 P0): requirement → routed pipeline → artifact. */}
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            padding: "8px 12px",
-            borderBottom: "1px solid var(--ui-border-soft, #333)",
-          }}
-        >
-          <input
-            style={{
-              flex: 1,
-              fontSize: 11,
-              padding: "4px 6px",
-              borderRadius: 4,
-              border: "1px solid var(--ui-border-soft, #444)",
-              background: "var(--ui-input-bg, rgba(0,0,0,0.15))",
-              color: "var(--ui-text)",
-            }}
+        {/* UI-design entry: requirement (a single sentence is fine) and/or an
+            existing prototype as the interaction basis (module split). */}
+        <div className="ui-proto-step">
+          <textarea
+            className="ui-proto-input"
+            rows={2}
             placeholder={t("design.materializePrompt")}
             value={requirement}
             disabled={materializing}
             onChange={(e) => setRequirement(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void handleMaterialize();
-              }
-            }}
           />
-          <button
-            style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}
-            disabled={materializing || !requirement.trim()}
-            onClick={() => void handleMaterialize()}
-          >
-            🎯 {t("design.materializeBtn")}
-          </button>
+          {prototypes.length > 0 ? (
+            <select
+              className="ui-proto-select"
+              value={prototypeId}
+              disabled={materializing}
+              onChange={(e) => setPrototypeId(e.target.value)}
+            >
+              <option value="">{t("design.noPrototypeBasis")}</option>
+              {prototypes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {t("design.fromPrototype", { title: p.title })}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <div className="ui-proto-step-actions">
+            <button
+              type="button"
+              className="ui-proto-step-btn"
+              disabled={materializing || (!requirement.trim() && !prototypeId.trim())}
+              onClick={() => void handleMaterialize()}
+            >
+              🎨 {t("design.materializeBtn")}
+            </button>
+            {materializing && materializeProgress ? (
+              <span className="ui-proto-progress">{materializeProgress}</span>
+            ) : null}
+            {materializing && !materializeProgress ? (
+              <span className="ui-proto-progress">{t("proto.running")}</span>
+            ) : null}
+          </div>
         </div>
-        {materializeNote ? (
-          <div style={{ padding: "2px 12px 6px", fontSize: 10, color: "var(--ui-accent)" }}>{materializeNote}</div>
-        ) : null}
+        {materializeNote ? <div className="ui-proto-note">{materializeNote}</div> : null}
         {/* Brand drift gate (design.drift) — deterministic dembrandt --compare,
             zero LLM. Pairs with the agent-side design.extract ingestion
             (摄取基线 → 检测漂移) per specs/ui-domain-regroup. */}
@@ -291,133 +308,44 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
             ) : null
           ) : null}
         </div>
-        {artifacts.length === 0 ? (
+        {designs.length === 0 ? (
           <div className="ui-side-panel-empty">{t("design.empty")}</div>
         ) : (
-          <>
-            <div style={{ display: "flex", gap: 6, padding: "8px 12px", fontSize: 12 }}>
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                style={{
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  background: filter === "all" ? "var(--ui-accent, #3b82f6)" : "var(--ui-surface-hover, transparent)",
-                  color: filter === "all" ? "#fff" : "var(--ui-text, inherit)",
-                }}
-              >
-                {t("design.filter.all")} ({artifacts.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter("openui")}
-                style={{
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  background:
-                    filter === "openui" ? "var(--ui-accent, #3b82f6)" : "var(--ui-surface-hover, transparent)",
-                  color: filter === "openui" ? "#fff" : "var(--ui-text, inherit)",
-                }}
-              >
-                {t("design.filter.prototypes")} ({prototypes.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter("design")}
-                style={{
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  background:
-                    filter === "design" ? "var(--ui-accent, #3b82f6)" : "var(--ui-surface-hover, transparent)",
-                  color: filter === "design" ? "#fff" : "var(--ui-text, inherit)",
-                }}
-              >
-                {t("design.filter.documents")} ({documents.length})
-              </button>
-            </div>
-            <div style={{ padding: "4px 8px" }}>
-              {filtered.map((a) => (
-                <div
-                  key={a.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 10px",
-                    marginBottom: 4,
-                    borderRadius: 8,
-                    border: "1px solid var(--ui-border-soft, #333)",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => onOpenArtifact(a)}
-                >
-                  <span style={{ fontSize: 16 }}>{a.pipeline === "openui" ? "🎯" : "📐"}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--ui-text, inherit)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {a.title}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--ui-text-dim, #888)" }}>
-                      {a.pipeline === "openui" ? "PM-Design" : "UI-Design"} · {timeAgo(a.updatedAt)}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleExportPackage(a.id);
-                    }}
-                    style={{
-                      padding: "2px 6px",
-                      fontSize: 11,
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--ui-text-dim, #888)",
-                      cursor: "pointer",
-                    }}
-                    title={t("design.exportPackage")}
-                  >
-                    ⬇
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleDelete(a.id);
-                    }}
-                    style={{
-                      padding: "2px 6px",
-                      fontSize: 11,
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--ui-text-dim, #888)",
-                      cursor: "pointer",
-                    }}
-                    title={t("design.delete")}
-                  >
-                    🗑
-                  </button>
+          <div className="ui-proto-list">
+            {designs.map((a) => (
+              <div key={a.id} className="ui-proto-artifact" onClick={() => onOpenArtifact(a)}>
+                <span className="ui-proto-artifact-icon" aria-hidden>
+                  📐
+                </span>
+                <div className="ui-proto-artifact-main">
+                  <div className="ui-proto-artifact-title">{a.title}</div>
+                  <div className="ui-proto-artifact-meta">UI-Design · {timeAgo(a.updatedAt)}</div>
                 </div>
-              ))}
-            </div>
-          </>
+                <button
+                  type="button"
+                  className="ui-proto-artifact-btn"
+                  title={t("design.exportPackage")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleExportPackage(a.id);
+                  }}
+                >
+                  ⬇
+                </button>
+                <button
+                  type="button"
+                  className="ui-proto-artifact-btn"
+                  title={t("design.delete")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDelete(a.id);
+                  }}
+                >
+                  🗑
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

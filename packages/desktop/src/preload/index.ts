@@ -193,6 +193,7 @@ const api: DesktopApi = {
   actionList: () => ipcRenderer.invoke(IpcRequest.ActionList),
   actionRun: (id, input) => ipcRenderer.invoke(IpcRequest.ActionRun, id, input),
   onActionProgress: (cb) => subscribe(IpcEvent.ActionProgress, cb as (p: never) => void),
+  onDesignChanged: (cb) => subscribe(IpcEvent.DesignChanged, cb as (p: never) => void),
 
   // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),

@@ -16,6 +16,14 @@ YAML metadata + HTML body. **Do not write raw HTML files.** The `.dd` format
 gives you structured tokens, section markers for targeted editing, and live
 preview in DeepOrca's right-side panel.
 
+## Designing from a prototype (原型 → UI/UX 设计稿)
+
+When the prompt embeds a prototype (an OpenUI Lang program), the prototype is
+the interaction basis: the design must cover ALL of its pages and flows —
+elevate each into a polished, visually designed section. Do not drop or rename
+the prototype's functionality; your job is the UI/UX layer (visual system,
+layout, typography, states), not re-scoping the product.
+
 ## When to Use
 
 - User asks for a landing page / 落地页 / marketing page / homepage
