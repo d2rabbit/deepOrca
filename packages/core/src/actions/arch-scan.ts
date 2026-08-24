@@ -2,9 +2,11 @@
  * Phase 3 arch-scan action (spec §四/§五). The architecture-level scanner.
  *
  * Unlike the other index actions, arch-scan is NOT a deterministic spawn — it
- * is an LLM skill that reads code and emits an A2UI Surface. So its `run`
- * triggers a SUBAGENT (§十 runSubagent, P2) to execute the skill in isolation.
- * This is the first defineAction + Subagent + A2UI convergence point.
+ * is an LLM skill that reads code and persists a Mermaid architecture-map
+ * document (`.deeporca/prototypes/arch-<name>.md` via the a2ui MCP's
+ * save_archmap tool; the earlier A2UI-surface output read as a flat document,
+ * not a graph). So its `run` triggers a SUBAGENT (§十 runSubagent, P2) to
+ * execute the skill in isolation.
  *
  * Until §十 Subagent lands, `ctx.runSubagent` is undefined: the action then
  * returns a structured "pending" result (does not throw) so callers can detect
@@ -32,7 +34,7 @@ export interface ArchScanOutput {
 export const archScanRunDefinition: ActionDefinition<ArchScanInput> = {
   id: "arch-scan.run",
   description:
-    "Scan the codebase architecture and generate an interactive architecture map (perspective-driven: overall/data-flow/dependency/...). Returns an A2UI Surface rendered in-app. This is a non-deterministic, agent-driven action (it spawns a subagent that reads code and reasons about structure). Complements CodeGraph (symbol-level) and OpenWiki (document-level) as the architecture-level index.",
+    "Scan the codebase architecture and generate an architecture map (perspective-driven: overall/data-flow/dependency/...). Persists a Mermaid diagram document rendered in the Knowledge panel. This is a non-deterministic, agent-driven action (it spawns a subagent that reads code and reasons about structure). Complements CodeGraph (symbol-level) and OpenWiki (document-level) as the architecture-level index.",
   category: "index",
   parameters: {
     type: "object",

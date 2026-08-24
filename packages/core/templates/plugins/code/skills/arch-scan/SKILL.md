@@ -1,43 +1,43 @@
 ---
 name: arch-scan
 description: >-
-  Scan codebase architecture and generate an interactive A2UI architecture map
-  using perspective-driven recursive analysis. Use when users ask for "scan
+  Scan codebase architecture and generate a Mermaid architecture map using
+  perspective-driven recursive analysis. Use when users ask for "scan
   architecture", "架构图", "架构扫描", "architecture diagram", "代码结构",
-  "dependency map", or "how does this codebase work". Produces an A2UI Surface
-  (nestable component tree) rendered via DeepOrca's DesignPreview — no external
-  CLI, no Mermaid files. Methodology adopted from oh-my-mermaid (omm).
+  "dependency map", or "how does this codebase work". Produces a persisted
+  Mermaid document (.deeporca/prototypes/arch-<name>.md) whose diagrams render
+  in the Knowledge panel — real nodes and edges, not a flat document.
+  Methodology adopted from oh-my-mermaid (omm).
 ---
 
-# arch-scan — Perspective-Based Architecture Scanner (A2UI Renderer)
+# arch-scan — Perspective-Based Architecture Scanner (Mermaid Renderer)
 
 ## Purpose
 
-Analyze the codebase and generate an **interactive A2UI architecture map** using
-**perspective-driven recursive analysis**.
+Analyze the codebase and generate an **architecture map of actual diagrams**
+using **perspective-driven recursive analysis**.
 
 - A **perspective** is a top-level view — a distinct way to look at the
   architecture (structure, data flow, dependencies, etc.).
 - Each element in a perspective gets analyzed recursively. If it has internal
-  structure, it becomes a **nestable group** (click to expand in the A2UI
-  preview). If not, it stays a **leaf node**.
-- Output is an **A2UI Surface** (a tree of components), NOT Mermaid `.mmd` files.
-  Each perspective = a tab card; each element = a heading text with metadata
-  fields; groups = expandable nested surfaces.
+  structure, it becomes a **nested subgraph** (Mermaid `subgraph`). If not, it
+  stays a **leaf node**.
+- Output is ONE persisted **Mermaid document** per scan
+  (`.deeporca/prototypes/arch-<name>.md`), saved via the `save_archmap` tool.
+  A diagram must BE a diagram: nodes, edges, labeled relationships. Prose
+  belongs in the short overview lines, never as a substitute for edges.
 
 > **Methodology**: The perspective catalog and recursive drill-down approach are
 > adopted from [oh-my-mermaid](https://github.com/oh-my-mermaid/oh-my-mermaid)
-> (omm). DeepOrca replaces omm's Mermaid + CLI + `.omm/` file tree with A2UI
-> component trees rendered in-app. See
+> (omm). DeepOrca renders the diagrams in-app via Mermaid instead of omm's CLI
+> + `.omm/` file tree. See
 > `docs/research/2026-08-06-oh-my-mermaid-research.md`.
 >
 > **Editorial design discipline**: The density target (4/10), complexity budgets
-> (max 9 nodes / 12 edges), remove test, accent-color discipline, and the
-> "semantic pattern first, visual type second" routing methodology are adopted
+> (max 9 nodes / 12 edges per diagram), remove test, accent-color discipline, and
+> the "semantic pattern first, visual type second" routing methodology are adopted
 > from [diagram-design](https://github.com/cathrynlavery/diagram-design)
-> (MIT, by Cathryn Lavery) — with thanks. DeepOrca adapts these editorial
-> principles to A2UI component trees instead of self-contained HTML/SVG files.
-> Planned integration detail: `docs/research/2026-08-11-knowledge-memory-materialization-design.md` §改造 4。
+> (MIT, by Cathryn Lavery) — with thanks.
 
 ## 归属：工作区索引模块
 
@@ -47,9 +47,9 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
 | ------ | --------------------------------- | ---------------- | --------------------------------- |
 | 符号级 | **CodeGraph** (`codegraph index`) | 函数/类/调用链   | `.codegraph/` 知识图谱 + MCP 查询 |
 | 文档级 | **OpenWiki**                      | 项目文档/wiki    | 文档索引 + MCP 查询               |
-| 架构级 | **arch-scan**（本技能）           | 模块/数据流/依赖 | A2UI Surface 架构图               |
+| 架构级 | **arch-scan**（本技能）           | 模块/数据流/依赖 | Mermaid 架构图（arch-*.md）       |
 
-**同步构建**：在桌面端左侧「构建索引」按钮中，三者顺序自动执行：**索引（CodeGraph index）→ Wiki（OpenWiki）→ 架构图（arch-scan）**。单独使用本 skill 时（如对话中输入 `/arch-scan`）只执行架构图扫描本身，不触发前两步。架构图与符号索引互补 —— CodeGraph 回答"这个符号在哪/谁调用了它"，arch-scan 回答"整个系统的架构长什么样/数据怎么流动"。
+**同步构建**：在桌面端「构建索引」中，三者顺序自动执行：**索引（CodeGraph index）→ Wiki（OpenWiki）→ 架构图（arch-scan）**。单独使用本 skill 时（如对话中输入 `/arch-scan`）只执行架构图扫描本身，不触发前两步。架构图与符号索引互补 —— CodeGraph 回答"这个符号在哪/谁调用了它"，arch-scan 回答"整个系统的架构长什么样/数据怎么流动"。
 
 **增量更新**：代码变更后 `codegraph sync` 增量更新符号索引；架构变更较大时重新运行 `arch-scan` 刷新架构图（架构图不每轮自动同步，因为需要 LLM 分析，成本较高）。
 
@@ -59,10 +59,9 @@ Analyze the codebase and generate an **interactive A2UI architecture map** using
 
 ## Step 0: Detect Language
 
-Ask the user or infer from the project's primary language. Write all field
-content (description, context, concern, etc.) in the detected language
-(Chinese for DeepOrca's default). Element IDs and component keys are always
-English kebab-case.
+Ask the user or infer from the project's primary language. Write all node
+labels, edge labels and prose (description, overview) in the detected language
+(Chinese for DeepOrca's default). Node ids may be ASCII slugs.
 
 ## 设计原则（编辑级质量纪律）
 
@@ -74,17 +73,16 @@ English kebab-case.
 
 ### 复杂度预算（硬约束）
 
-- 单图最多 **9 个节点**
-- 单图最多 **12 条边**
-- 最多 **2 个强调元素**（focal elements，如 `concern` 类型节点）
-- **超出预算 → 递归下钻**，把子结构折叠为嵌套图，不要在一张图里塞 30 个节点
+- 单张图最多 **9 个节点**、**12 条边**
+- 最多 **2 个强调元素**（`concern` 类节点）
+- **超出预算 → 递归下钻**：把子结构折叠为 `subgraph`，或拆成独立小图，不要在一张图里塞 30 个节点
 
 ### 删除测试（成稿前必做）
 
 自问：能合并或删除任何节点/边/标签吗？如果能，就删。特别检查：
 
-- 只有一个子节点的分组 → 提升为叶子
-- 语义重复的边（A→B 和 B→A 表达同一关系）→ 合并为双向
+- 只有一个子节点的 subgraph → 提升为叶子
+- 语义重复的边（A→B 和 B→A 表达同一关系）→ 合并为双向 `A <--> B`
 - 无信息量的标签（"uses"、"calls"）→ 换成具体动作或删除
 
 ### 强调色纪律
@@ -147,7 +145,7 @@ English kebab-case.
 
 - CodeGraph 可用？→ 尝试调用 `codegraph_explore`，如果返回结果则可用
 - OpenWiki 可用？→ 尝试 `read openwiki/architecture.md`，如果文件存在则可用
-- Serena 可用？→ 检查 MCP 工具列表中是否有 `find_symbol` 等工具
+- Serena 可用？→ 检查 MCP 工具列表中是否有 `find_symbol` 等
 
 ## Step 2: Select Perspectives
 
@@ -173,128 +171,85 @@ codebase. **Always** include `overall-architecture`.
 
 Don't force perspectives that don't exist in the code.
 
-### 视角 → 最优图表类型
+### 视角 → Mermaid 图类型（语义先行）
 
-采纳 diagram-design 的**"先选语义模式，再选视觉类型"**方法论。不要所有视角都用
-`card` + `text` —— 选择最贴合语义的布局方式：
+采纳 diagram-design 的**"先选语义模式，再选视觉类型"**方法论：
 
-| 视角                    | 语义本质    | A2UI 组件                 | 理由               |
-| ----------------------- | ----------- | ------------------------- | ------------------ |
-| `overall-architecture`  | 模块 + 连接 | `card` + `text` tree      | 层级关系           |
-| `data-flow`             | 有向管道    | `column` 流式卡片         | 线性流动，箭头冗余 |
-| `dependency-map`        | 层级依赖    | `card` + 缩进 `text`      | 树状结构，自上而下 |
-| `request-lifecycle`     | 时序步骤    | `list` 编号               | 顺序执行，无分支   |
-| `state-transitions`     | 状态机      | `List` + `Text`           | 状态 + 触发条件    |
-| `external-integrations` | 信任边界    | `Card` 分组 + `Text` 标注 | 内外区分是重点     |
-| `storage`               | 分层存储    | `column` 堆叠卡片         | 层次而非网状       |
-| `command-surface`       | 命令树      | `list` + `text`           | 层级分发           |
-| `extension-points`      | 注册表      | `list` + `card`           | 枚举式，无拓扑     |
-| `route-page-map`        | 导航树      | `list` + `text`           | 页面层级           |
-| `pipeline`              | 阶段拓扑    | `column` 流式卡片         | 线性阶段           |
-| `orchestration`         | 发布订阅    | `Card` + `Text` 标注      | 多对多拓扑         |
+| 视角                    | 语义本质 | Mermaid 图类型                        |
+| ----------------------- | -------- | ------------------------------------- |
+| `overall-architecture`  | 模块+连接 | `flowchart TD` + `subgraph` 分组      |
+| `data-flow`             | 有向管道 | `flowchart LR`                        |
+| `dependency-map`        | 层级依赖 | `flowchart TD`（依赖方向自上而下）     |
+| `request-lifecycle`     | 时序步骤 | `sequenceDiagram`                     |
+| `state-transitions`     | 状态机   | `stateDiagram-v2`                     |
+| `external-integrations` | 信任边界 | `flowchart LR` + 内外 `subgraph` 区分 |
+| `storage`               | 分层存储 | `flowchart TD` 分层 `subgraph`        |
+| `command-surface`       | 命令树   | `flowchart TD`                        |
+| `extension-points`      | 注册表   | `flowchart LR`（注册中心为中枢节点）   |
+| `route-page-map`        | 导航树   | `flowchart TD`                        |
+| `pipeline`              | 阶段拓扑 | `flowchart LR`                        |
+| `orchestration`         | 发布订阅 | `flowchart LR`（broker 为中枢节点）    |
 
-## Step 3: Generate the A2UI Surface (Recursive)
+## Step 3: Generate the Mermaid document
 
-Build the A2UI Surface using the A2UI tools. The surface speaks the OFFICIAL
-A2UI v0.9 protocol — a FLAT adjacency list of components where containers
-reference children FORWARD by id, and exactly one component has `id: "root"`.
+Write ONE markdown document and save it via `save_archmap`. Layout contract:
 
-### Official component vocabulary (basicCatalog — nothing else exists)
+````markdown
+# <Project Name> 架构
 
-- **Layout**: `Row`, `Column`, `List` (take `children: [ids]`), `Card`
-  (takes ONE `child` id — wrap multiple children in a `Column` first),
-  `Tabs` (a SINGLE container holding the whole tab bar:
-  `{component: "Tabs", tabs: [{title, child}, …]}` — never emit sibling or
-  per-tab Tabs components), `Divider`
-- **Content**: `Text` (`text` + `variant: h1|h2|h3|h4|h5|body|caption`),
-  `Image`, `Icon` (Material-Symbols names only), `Video`, `AudioPlayer`
-- **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
-  `DateTimeInput`
+<一句话总览：这是什么系统、由哪几块组成。>
 
-There is NO `panel`, `graph`, `badge`, `flowstep`, `metriccard` or
-`kanbancard` — compose from the list above. Every property value is a
-literal, or `{path: "/data/key"}` bound to the dataModel.
+## <视角一标题>
 
-### Structural model
+<0-2 句该视角的要点。>
 
-- **Root**: `id: "root"` — a `Card` with the project name + overview.
-- **Perspective**: ONE `Tabs` container whose `tabs` array lists every
-  perspective ({title, child}); each child id points at that perspective's
-  content `Column`.
-- **Element**: a `Card` (via inner `Column` if it has multiple fields) with
-  `Text` fields: name (`h4`), file path (`caption`), description (`body`),
-  optional context/constraint/concern/todo/note lines.
-- **Group** (element with internal structure): the element card's inner
-  `Column` holds child element cards — recurse as deep as needed.
-- **Edge** (relationship): a `caption` `Text` line under the source element
-  (`→ IPC invoke/on → Main Process`) — there is no graph rendering.
-
-### 3a. Build the root surface
-
-**Surface IDs MUST use the `arch-` prefix** (`arch-root`, `arch-overall`, …) —
-the runtime flushes and displays architecture maps by this prefix, and it keeps
-them out of the design prototype preview.
-
-```
-render_surface({
-  surfaceId: "arch-root",
-  title: "<Project Name> Architecture",
-  components: [
-    { id: "root", component: "Card", child: "root-inner" },
-    { id: "root-inner", component: "Column", children: ["overview", "arch-tabs"] },
-    { id: "overview", component: "Text", text: "Monorepo: Electron desktop + shared core engine", variant: "body" },
-    {
-      id: "arch-tabs",
-      component: "Tabs",
-      tabs: [
-        { title: "Overall Architecture", child: "content-overall" },
-        { title: "Data Flow", child: "content-dataflow" }
-      ]
-    }
-  ],
-  dataModel: {}
-})
+```mermaid
+<diagram>
 ```
 
-### 3b. Fill a perspective with its element tree
+## <视角二标题>
+...
+````
 
-Static literals are fine (arch maps are read-only). Use indentation via
-nested Columns to imply hierarchy — there is no graph/node/edge rendering:
+### Mermaid 语法纪律（LLM 高频错误防线）
+
+- 节点文本含 `(){}[]:#|` 或中文标点时**必须加引号**：`R["渲染进程 (renderer)"]`
+- 边标签用 `-->|"写 JSON"| S` 或 `-- "写 JSON" -->` 形式；标签内的引号要转义或改用单引号
+- **禁止**把 `end`、`graph`、`subgraph` 等关键字用作节点 id 或裸文本
+- `sequenceDiagram` 的参与者名含空格用 `participant SM as Session Manager`
+- 一张图只讲一个视角；标题用 `##`，图前最多两句话
+
+### 节点类型（形状与描边编码）
+
+渲染端把 mermaid 配色接入应用主题（明/暗自适应），**图的语义编码不得依赖颜色填充**——
+硬编码 `fill` 在另一种外观下会不可读。用形状和描边：
+
+| Kind      | 编码方式                                        | When to use                                 |
+| --------- | ----------------------------------------------- | ------------------------------------------- |
+| `entry`   | 描边加粗：`stroke:#3b82f6,stroke-width:2.5px`   | 入口（HTTP handler、CLI、main）              |
+| `store`   | 圆柱形状：`ID[("标签")]`（不再用填充色）         | 持久存储（DB、缓存、文件系统）               |
+| `external`| 虚线描边：`stroke-dasharray: 4 3`               | 代码库之外的第三方服务                       |
+| `concern` | 红描边强调：`stroke:#ef4444`（每图最多 1-2 个）  | 已知风险或瓶颈                               |
+| `default` | 默认                                            | 普通模块/组件                                |
+
+示例（flowchart TD）：
 
 ```
-update_surface({
-  surfaceId: "arch-root",
-  components: [
-    { id: "root", component: "Card", child: "root-inner" },
-    { id: "root-inner", component: "Column", children: ["arch-tabs"] },
-    {
-      id: "arch-tabs",
-      component: "Tabs",
-      tabs: [{ title: "Overall Architecture", child: "content-overall" }]
-    },
-    { id: "content-overall", component: "Column", children: ["node-renderer", "node-main", "node-store"] },
-    { id: "node-renderer", component: "Text", text: "▸ Renderer (src/renderer/)", variant: "h4" },
-    { id: "edge-r-to-m", component: "Text", text: "  → IPC invoke/on → Main Process", variant: "caption" },
-    { id: "node-main", component: "Text", text: "▸ Main Process (src/main/)", variant: "h4" },
-    { id: "edge-m-to-s", component: "Text", text: "  → read/write JSON → Data Store", variant: "caption" },
-    { id: "node-store", component: "Text", text: "▸ Data Store", variant: "h4" }
-  ]
-})
+flowchart TD
+  subgraph Desktop["Electron 桌面端"]
+    R["Renderer (React)"]
+    M["Main Process"]
+  end
+  E["@deeporca/core 引擎"]
+  FS[("文件系统")]
+
+  R -->|"IPC invoke"| M
+  M -->|"会话循环 + 工具执行"| E
+  E -->|"read/write"| FS
+
+  classDef entry stroke:#3b82f6,stroke-width:2.5px
+  class R,M entry
 ```
-
-`update_surface` takes the COMPLETE component list (full snapshot): same-id
-components are replaced, ids dropped from a `children` list vanish from the
-tree. Copy the previous list and edit it — don't resend from scratch memory.
-
-### Node kinds (for color coding)
-
-| Kind       | Rendering hint                        | When to use                                 |
-| ---------- | ------------------------------------- | ------------------------------------------- |
-| `entry`    | `Text` variant `h4` + "◉" prefix      | Entry points (HTTP handler, CLI, main)      |
-| `store`    | `Text` variant `h4` + "▣" prefix      | Persistent storage (DB, cache, file system) |
-| `external` | `Text` variant `body` + "◇" prefix    | Third-party services outside the codebase   |
-| `concern`  | `Text` variant `caption` + "⚠" prefix | Known risk or bottleneck                    |
-| `default`  | `Text` variant `h4` + "▸" prefix      | Regular module/component                    |
 
 ### 3c. Recursive drill-down — analyze every element
 
@@ -302,26 +257,24 @@ tree. Copy the previous list and edit it — don't resend from scratch memory.
 
 1. **Analyze** the code it represents (`read` the relevant files/directories).
 
-2. **Add a detail card** to the element with at least a `description` `Text`.
-   Optionally add context/constraint/concern/todo/note `Text` lines.
-
-3. **Decide leaf or group:**
-   - **Distinct internal components found** → the element card's inner
-     `Column` gains child element cards — recurse deeper.
+2. **Decide leaf or group:**
+   - **Distinct internal components found** → the node becomes a `subgraph`
+     holding child nodes — recurse deeper (respect the 9-node budget per
+     DIAGRAM; deeper structure goes into a separate perspective section).
    - **No meaningful sub-components** (single file, trivial wrapper, external
-     system) → leaf node, just fill in the metadata fields.
+     system) → leaf node with a concise label.
 
-4. **If group** — add the nested element cards and repeat step 3c for each.
+3. **Label discipline**: node label = 名称 +（可选）一句话职责；细节放 prose，不塞进图。
 
 ### Example recursion
 
 ```
 overall-architecture (perspective)
-  elements: renderer, main-process, engine-system, data-store
+  elements: renderer, main-process, engine, data-store
 
   → analyze renderer (src/renderer/)
     → finds: App.tsx, components/, hooks/, stores/
-    → GROUP → inner Column gains child cards: components, stores, hooks
+    → GROUP → subgraph "Renderer" containing app / components / state
       → analyze components → 15 files, no sub-structure → LEAF
       → analyze stores → 4 stores → LEAF
 
@@ -329,27 +282,33 @@ overall-architecture (perspective)
     → single file → LEAF
 ```
 
-## Step 4: Summarize
+## Step 4: Save and Summarize
 
-Report to the user:
-
-- Which perspectives were generated
-- How many elements / groups / leaves
-- Suggest viewing in the A2UI preview pane (the surface renders automatically)
+1. Call `save_archmap` ONCE with the complete document:
+   `save_archmap({ name: "<project-slug>", markdown: "<full document>" })`.
+   The file lands at `.deeporca/prototypes/arch-<project-slug>.md` and appears
+   in the Knowledge panel's 架构图 tab immediately.
+2. Report to the user: which perspectives were generated, how many
+   nodes/subgraphs/edges, and anything that hit the complexity budget and was
+   split into its own section.
 
 ## Edge Rules
 
-- Every edge must have a meaningful label: `A --"why this connection exists"--> B`
-  rendered as a `caption` `Text` line under the source element.
-- More elements in one perspective → recurse deeper (don't cram 30 nodes in one view).
+- Every edge must have a meaningful label: `A -->|"为什么存在这条连接"| B` —
+  never bare arrows between unrelated boxes.
+- Edges come from evidence (CodeGraph callers/callees, OpenWiki workflows),
+  not vibes. If you cannot say what flows across an edge, delete the edge.
+- More elements in one perspective → recurse into subgraphs or split sections
+  (don't cram 30 nodes into one diagram).
 
 ## General Rules
 
-- **Use the A2UI tools (`render_surface` / `update_surface`) only** — do NOT
-  write Mermaid `.mmd` files, do NOT call any external CLI, do NOT create
-  `.omm/` directories.
-- Always keep exactly one `id: "root"` component; keep the list FLAT
-  (children by id reference, never nested objects).
+- **Persist via `save_archmap` only** — do NOT write the file yourself, do NOT
+  call any external CLI, do NOT create `.omm/` directories, do NOT use
+  `render_surface`/`update_surface` for architecture maps (the A2UI shape is
+  the legacy format and renders as a flat document, not a graph).
+- Re-running a scan replaces the previous `arch-<name>.md` (full document,
+  full replacement).
 - Do not re-analyze elements that haven't changed (incremental updates).
-- Do not create circular references — a child element must never reference its parent.
-- Write all human-readable fields in the detected language (Chinese by default).
+- Write all human-readable labels and prose in the detected language (Chinese
+  by default).

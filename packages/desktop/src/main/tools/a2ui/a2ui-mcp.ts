@@ -660,6 +660,74 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
+  // Tool: save_archmap — persist a Mermaid architecture-map document.
+  // arch-scan's current output format: a markdown file whose ```mermaid fences
+  // render as actual diagrams in the Knowledge panel (the legacy A2UI arch
+  // surface read as a flat document). Persistence stays main-process-owned
+  // (same model as persistSurfaces) so the background build task needs no
+  // write-tool permission; the name is sanitized and pinned into the
+  // prototypes directory.
+  registerTool(
+    "save_archmap",
+    {
+      description:
+        "Save an architecture map as a Mermaid document under .deeporca/prototypes/arch-<name>.md. " +
+        "The Knowledge panel renders each ```mermaid fenced block as an interactive diagram. " +
+        "Document layout: '# <Title>' heading, one-sentence overview, then one '## <Perspective>' " +
+        "section per perspective containing exactly one mermaid fence. " +
+        "Call ONCE per scan with the COMPLETE document (full replacement).",
+      inputSchema: {
+        name: z
+          .string()
+          .describe(
+            "Map slug, kebab-case (e.g. 'root' or 'deeporca'). Stored as arch-<name>.md; an explicit 'arch-' prefix is stripped."
+          ),
+        markdown: z
+          .string()
+          .describe(
+            "Complete markdown document with ```mermaid fences. Full replacement of the previous file content."
+          ),
+      },
+    },
+    async (args) => {
+      const rawName = String(args.name ?? "").trim();
+      const slug = rawName
+        .toLowerCase()
+        .replace(/^arch-/, "")
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const markdown = String(args.markdown ?? "");
+      if (!slug) {
+        return {
+          content: [{ type: "text", text: "Error: `name` must contain letters, digits or dashes." }],
+          isError: true,
+        };
+      }
+      if (!markdown.trim()) {
+        return { content: [{ type: "text", text: "Error: `markdown` must be a non-empty document." }], isError: true };
+      }
+      try {
+        const dir = getPrototypesDir(projectRoot ?? process.cwd());
+        fs.mkdirSync(dir, { recursive: true });
+        const file = nodePath.join(dir, `arch-${slug}.md`);
+        fs.writeFileSync(file, markdown.endsWith("\n") ? markdown : `${markdown}\n`, "utf-8");
+        return {
+          content: [{ type: "text", text: `Architecture map saved: ${file} (${markdown.split("\n").length} lines).` }],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error saving architecture map: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
   // Tool: a2ui_action — receive user interaction (official A2uiClientAction
   // shape: the renderer bridge forwards {surfaceId, name, context}).
   registerTool(

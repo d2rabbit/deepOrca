@@ -69,17 +69,45 @@ function parseMessages(messagesJson: string): unknown[] | null {
   }
 }
 
+/** surfaceIds a batch (already v0.9) re-creates — replayed batches must reset these. */
+function collectCreatedSurfaceIds(messages: unknown[]): Set<string> {
+  const ids = new Set<string>();
+  for (const raw of messages) {
+    if (!raw || typeof raw !== "object") continue;
+    const surfaceId = (raw as { createSurface?: { surfaceId?: unknown } }).createSurface?.surfaceId;
+    if (typeof surfaceId === "string") ids.add(surfaceId);
+  }
+  return ids;
+}
+
 /**
  * Process one A2UI message batch (JSON text). Official v0.9 batches pass
  * straight through; legacy pre-v0.9 batches are converted first (tolerance
  * for persisted artifacts and straggler producers from before the R2 revamp).
+ *
+ * The processor is a renderer-wide SINGLETON while call sites remount freely
+ * (KnowledgePanel's arch preview on every sub-tab switch, PrototypeWindow on
+ * open) and re-feed the same batch. The official engine throws on a duplicate
+ * createSurface — an exception inside a component effect unmounts the whole
+ * React tree (black screen). Replayed batches therefore DELETE the surfaces
+ * they re-create first (idempotent reset), and processing is wrapped so a
+ * malformed batch degrades to a console warning instead of a crash.
  */
 export function processA2uiMessages(messagesJson: string): void {
   const parsed = parseMessages(messagesJson);
   if (!parsed) return;
   const messages = isLegacyBatch(parsed) ? convertLegacyBatch(parsed) : parsed;
-  if (messages.length > 0) {
+  if (messages.length === 0) return;
+  const recreated = collectCreatedSurfaceIds(messages);
+  if (recreated.size > 0) {
+    a2uiProcessor.processMessages(
+      [...recreated].map((surfaceId) => ({ version: "v0.9", deleteSurface: { surfaceId } }))
+    );
+  }
+  try {
     a2uiProcessor.processMessages(messages as never);
+  } catch (err) {
+    console.warn("[a2ui] message batch rejected:", err);
   }
 }
 

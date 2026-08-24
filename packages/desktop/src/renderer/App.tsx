@@ -180,7 +180,59 @@ export function App(): JSX.Element {
   const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
   // Branch the user tried to switch to while the working tree had blocking local changes.
 
-  const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
+  // ── Main-area tab model ─────────────────────────────────────────────────────
+  // The session tab is the workspace's fixed first tab (never closable); every
+  // other surface — settings, plugin detail, editor files, task records,
+  // knowledge views — opens as its OWN tab and never overwrites another.
+  // Panels close only via their tab's ✕ (falling back to the session tab).
+  // This replaced the old pre-empting `mainView` state, whose bug: while
+  // settings/plugins filled the main area, opening another panel added a tab
+  // underneath that could never be reached.
+  type MainTab =
+    | { kind: "chat" }
+    | { kind: "settings" }
+    | { kind: "plugins" }
+    | { kind: "editor"; file: string }
+    | { kind: "knowledge"; root: string }
+    | { kind: "task"; treeId: string };
+  const [activeTab, setActiveTab] = useState<MainTab>({ kind: "chat" });
+  /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, one per editor file. */
+  const [auxTabs, setAuxTabs] = useState<
+    Array<{ key: string; kind: "settings" | "plugins" | "editor"; file?: string }>
+  >([]);
+  // Back-compat view for consumers keyed on the old tri-state (composer dock,
+  // rail active state) and the settings hook's dispatcher.
+  const mainView: "chat" | "settings" | "plugins" =
+    activeTab.kind === "settings" || activeTab.kind === "plugins" ? activeTab.kind : "chat";
+  const setMainView = useCallback((view: "chat" | "settings" | "plugins") => {
+    if (view === "settings" || view === "plugins") {
+      setAuxTabs((tabs) => (tabs.some((tab) => tab.kind === view) ? tabs : [...tabs, { key: view, kind: view }]));
+      setActiveTab({ kind: view });
+    } else {
+      setActiveTab({ kind: "chat" });
+    }
+  }, []);
+  const openEditorTab = useCallback((file: string) => {
+    const key = `editor:${file}`;
+    setAuxTabs((tabs) => (tabs.some((tab) => tab.key === key) ? tabs : [...tabs, { key, kind: "editor", file }]));
+    setActiveTab({ kind: "editor", file });
+  }, []);
+  const handleCloseAuxTab = useCallback((key: string) => {
+    setAuxTabs((tabs) => tabs.filter((tab) => tab.key !== key));
+    setActiveTab((current) => {
+      const currentKey =
+        current.kind === "chat"
+          ? null
+          : current.kind === "editor"
+            ? `editor:${current.file}`
+            : current.kind === "knowledge"
+              ? `knowledge:${current.root}`
+              : current.kind === "task"
+                ? `task:${current.treeId}`
+                : current.kind;
+      return currentKey === key ? { kind: "chat" } : current;
+    });
+  }, []);
   const {
     prototypeJson,
     prototypeMode,
@@ -207,14 +259,11 @@ export function App(): JSX.Element {
   );
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
-  const [editorFile, setEditorFile] = useState<string | null>(null);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
   // opened from session badges, one tree per tab in the main area.
   const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
-  const [activeTaskTabId, setActiveTaskTabId] = useState<string | null>(null);
   /** Knowledge tab (specs/index-knowledge-rework T3): one per workspace root. */
   const [knowledgeTabs, setKnowledgeTabs] = useState<Array<{ root: string; label: string }>>([]);
-  const [activeKnowledgeRoot, setActiveKnowledgeRoot] = useState<string | null>(null);
   const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
   const taskTabsRef = useRef(taskTabs);
   taskTabsRef.current = taskTabs;
@@ -241,15 +290,15 @@ export function App(): JSX.Element {
     openTokensView,
     handleCollapsePanel,
   } = usePanelLayout();
-  // Opening a file in the main-area editor needs BOTH `editorFile` and
-  // `sidebarView === "editor"`; setting the file alone left the main area
-  // unchanged when invoked from the Git panel / DiffOverlay (audit P1-2).
+  // Opening a file opens (or focuses) its OWN editor tab in the main area and
+  // flips the left panel to the file tree (audit P1-2 behavior preserved) —
+  // other tabs are never overwritten.
   const handleOpenEditor = useCallback(
     (file: string) => {
-      setEditorFile(file);
+      openEditorTab(file);
       setSidebarView("editor");
     },
-    [setSidebarView]
+    [openEditorTab, setSidebarView]
   );
   // CRG architecture graph (Code Review panel) shares the right dock with the
   // design preview — opening one evicts the other (single-slot mutex; the
@@ -792,7 +841,7 @@ export function App(): JSX.Element {
       setMainView("chat");
       await api.setProjectRoot(picked);
     }
-  }, []);
+  }, [setMainView]);
 
   // New session within a workspace: switch root if needed (fresh slate follows),
   // else just reset the current workspace to a fresh session.
@@ -806,7 +855,7 @@ export function App(): JSX.Element {
       }
       await loadSession(null);
     },
-    [loadSession]
+    [loadSession, setMainView]
   );
 
   const handleUndoRestored = useCallback(async () => {
@@ -822,7 +871,7 @@ export function App(): JSX.Element {
   const handleNewSession = useCallback(() => {
     setMainView("chat");
     void loadSession(null);
-  }, [loadSession]);
+  }, [loadSession, setMainView]);
   const handleDeleteSession = useCallback(
     async (id: string) => {
       await api.deleteSession(id);
@@ -868,8 +917,7 @@ export function App(): JSX.Element {
       // Selecting a conversation always lands on its workspace (💬) tab —
       // the task-badge entry relies on this (R3-8): leaving an aux tab
       // active would hide the chat the user asked for.
-      setActiveTaskTabId(null);
-      setActiveKnowledgeRoot(null);
+      setActiveTab({ kind: "chat" });
       if (root && root !== projectRootRef.current) {
         pendingSelectRef.current = id;
         await api.setProjectRoot(root);
@@ -879,7 +927,7 @@ export function App(): JSX.Element {
       setMainView("chat");
       await loadSession(id);
     },
-    [loadSession]
+    [loadSession, setMainView]
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
@@ -888,28 +936,25 @@ export function App(): JSX.Element {
   // tree through its own root-scoped IPC.
   const handleOpenTaskRecord = useCallback((treeId: string, title: string, root: string) => {
     setTaskTabs((tabs) => (tabs.some((tab) => tab.treeId === treeId) ? tabs : [...tabs, { treeId, title, root }]));
-    setActiveTaskTabId(treeId);
-    setActiveKnowledgeRoot(null);
+    setActiveTab({ kind: "task", treeId });
   }, []);
   const knowledgeTabsRef = useRef(knowledgeTabs);
   knowledgeTabsRef.current = knowledgeTabs;
   const handleOpenKnowledgeTab = useCallback((root: string) => {
     const label = root.split(/[\\/]/).filter(Boolean).pop() ?? root;
     setKnowledgeTabs((tabs) => (tabs.some((tab) => tab.root === root) ? tabs : [...tabs, { root, label }]));
-    setActiveKnowledgeRoot(root);
-    // Opening a knowledge tab leaves the task view (they share the strip).
-    setActiveTaskTabId(null);
+    setActiveTab({ kind: "knowledge", root });
   }, []);
   const handleCloseKnowledgeTab = useCallback((root: string) => {
     setKnowledgeTabs((tabs) => tabs.filter((tab) => tab.root !== root));
-    setActiveKnowledgeRoot((current) => (current === root ? null : current));
+    setActiveTab((current) => (current.kind === "knowledge" && current.root === root ? { kind: "chat" } : current));
   }, []);
   const handleCloseTaskTab = useCallback((treeId: string) => {
     setTaskTabs((tabs) => tabs.filter((tab) => tab.treeId !== treeId));
-    setActiveTaskTabId((current) => {
-      if (current !== treeId) return current;
+    setActiveTab((current) => {
+      if (current.kind !== "task" || current.treeId !== treeId) return current;
       const remaining = taskTabsRef.current.filter((tab) => tab.treeId !== treeId);
-      return remaining[remaining.length - 1]?.treeId ?? null;
+      return remaining.length > 0 ? { kind: "task", treeId: remaining[remaining.length - 1].treeId } : { kind: "chat" };
     });
   }, []);
 
@@ -922,11 +967,13 @@ export function App(): JSX.Element {
   const handleAddImage = useCallback((dataUrl: string) => setImageUrls((prev) => [...prev, dataUrl]), []);
   const handleResumeClick = useCallback(() => void handleResume(), [handleResume]);
   const handleEnhanceClick = useCallback(() => void handleEnhance(), [handleEnhance]);
-  const handleBackToChat = useCallback(() => setMainView("chat"), []);
-  const handleSelectPlugin = useCallback((sel: PluginSelection) => {
-    setSelectedPlugin(sel);
-    setMainView("plugins");
-  }, []);
+  const handleSelectPlugin = useCallback(
+    (sel: PluginSelection) => {
+      setSelectedPlugin(sel);
+      setMainView("plugins");
+    },
+    [setMainView]
+  );
 
   const handleQuickAction = useCallback(
     (action: "plan" | "init" | "skills" | "undo") => {
@@ -1397,11 +1444,10 @@ export function App(): JSX.Element {
     </>
   );
 
-  // The session workspace is ALWAYS the first tab; task-history and
-  // index-and-knowledge tabs follow it. The strip renders whenever auxiliary
-  // tabs exist — including when the main tab is the active one — so the
-  // conversation workspace keeps a visible, reachable first tab.
-  const hasWorkspaceTabs = taskTabs.length > 0 || knowledgeTabs.length > 0;
+  // The session workspace is ALWAYS the first, locked tab; every auxiliary
+  // surface (settings / plugin detail / editor files / task records /
+  // knowledge) is its own tab in the strip. The strip is permanently visible —
+  // even with no auxiliary tabs the session tab anchors the main area.
 
   return (
     <div
@@ -1636,113 +1682,145 @@ export function App(): JSX.Element {
       />
 
       <div className="ui-main">
-        {mainView === "settings" && editable ? (
-          <SettingsPanel
-            initial={editable}
-            initialTab={settingsInitialTab}
-            onSave={handleSaveSettings}
-            onClose={handleBackToChat}
-            platform={platform}
-            theme={theme}
-            onSelectTheme={handleSelectTheme}
-          />
-        ) : mainView === "plugins" ? (
-          <PluginDetail
-            selection={selectedPlugin}
-            skills={skills}
-            selectedSkills={selectedSkills}
-            onToggleSkill={handleToggleSkill}
-            onBack={handleBackToChat}
-          />
-        ) : sidebarView === "editor" && editorFile ? (
-          <Suspense
-            fallback={
-              <div className="ui-editor-empty">
-                <span className="ui-spinner" /> Loading editor…
-              </div>
-            }
-          >
-            <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
-          </Suspense>
-        ) : hasWorkspaceTabs ? (
-          <div className="ui-tasktab-view">
-            <div className="ui-tasktabs">
-              {/* Main session tab — always first, never closable. */}
-              <div className={`ui-tasktab${!activeTaskTabId && !activeKnowledgeRoot ? " active" : ""}`}>
+        <div className="ui-tasktab-view">
+          <div className="ui-tasktabs">
+            {/* Main session tab — always first, locked (never closable). */}
+            <div className={`ui-tasktab${activeTab.kind === "chat" ? " active" : ""}`}>
+              <button type="button" className="ui-tasktab-main" onClick={() => setActiveTab({ kind: "chat" })}>
+                💬 {projectRoot ? (projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? "Session") : "Session"}
+              </button>
+            </div>
+            {auxTabs.map((tab) => (
+              <div
+                key={tab.key}
+                className={`ui-tasktab${
+                  tab.kind === "editor"
+                    ? activeTab.kind === "editor" && activeTab.file === tab.file
+                      ? " active"
+                      : ""
+                    : activeTab.kind === tab.kind
+                      ? " active"
+                      : ""
+                }`}
+              >
                 <button
                   type="button"
                   className="ui-tasktab-main"
-                  onClick={() => {
-                    setActiveTaskTabId(null);
-                    setActiveKnowledgeRoot(null);
-                  }}
+                  onClick={() =>
+                    setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
+                  }
+                  title={tab.kind === "editor" ? tab.file : undefined}
                 >
-                  💬 {projectRoot ? (projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? "Session") : "Session"}
+                  {tab.kind === "settings"
+                    ? `⚙ ${t("settings.title")}`
+                    : tab.kind === "plugins"
+                      ? `🧩 ${t("plugins.title")}`
+                      : `📄 ${(tab.file ?? "").split(/[\\/]/).pop()}`}
+                </button>
+                <button
+                  type="button"
+                  className="ui-tasktab-close"
+                  onClick={() => handleCloseAuxTab(tab.key)}
+                  title={t("tasktree.closeTab")}
+                  aria-label={t("tasktree.closeTab")}
+                >
+                  ✕
                 </button>
               </div>
-              {taskTabs.map((tab) => (
-                <div key={tab.treeId} className={`ui-tasktab${tab.treeId === activeTaskTabId ? " active" : ""}`}>
-                  <button
-                    type="button"
-                    className="ui-tasktab-main"
-                    onClick={() => {
-                      setActiveTaskTabId(tab.treeId);
-                      setActiveKnowledgeRoot(null);
-                    }}
-                  >
-                    <IconTaskTree /> {tab.title}
-                  </button>
-                  <button
-                    type="button"
-                    className="ui-tasktab-close"
-                    onClick={() => handleCloseTaskTab(tab.treeId)}
-                    title={t("tasktree.closeTab")}
-                    aria-label={t("tasktree.closeTab")}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              {knowledgeTabs.map((tab) => (
-                <div key={tab.root} className={`ui-tasktab${tab.root === activeKnowledgeRoot ? " active" : ""}`}>
-                  <button
-                    type="button"
-                    className="ui-tasktab-main"
-                    onClick={() => {
-                      setActiveKnowledgeRoot(tab.root);
-                      setActiveTaskTabId(null);
-                    }}
-                  >
-                    📚 {tab.label}
-                  </button>
-                  <button
-                    type="button"
-                    className="ui-tasktab-close"
-                    onClick={() => handleCloseKnowledgeTab(tab.root)}
-                    title={t("tasktree.closeTab")}
-                    aria-label={t("tasktree.closeTab")}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-            {activeKnowledgeRoot ? (
-              <KnowledgePanel root={activeKnowledgeRoot} onOpenFile={handleOpenEditor} />
-            ) : activeTaskTabId ? (
-              <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
-                <TaskRecordPanel
-                  treeId={activeTaskTabId}
-                  workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTaskTabId)?.root ?? undefined}
-                />
-              </Suspense>
-            ) : (
-              chatContent
-            )}
+            ))}
+            {taskTabs.map((tab) => (
+              <div
+                key={tab.treeId}
+                className={`ui-tasktab${activeTab.kind === "task" && activeTab.treeId === tab.treeId ? " active" : ""}`}
+              >
+                <button
+                  type="button"
+                  className="ui-tasktab-main"
+                  onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
+                >
+                  <IconTaskTree /> {tab.title}
+                </button>
+                <button
+                  type="button"
+                  className="ui-tasktab-close"
+                  onClick={() => handleCloseTaskTab(tab.treeId)}
+                  title={t("tasktree.closeTab")}
+                  aria-label={t("tasktree.closeTab")}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {knowledgeTabs.map((tab) => (
+              <div
+                key={tab.root}
+                className={`ui-tasktab${activeTab.kind === "knowledge" && activeTab.root === tab.root ? " active" : ""}`}
+              >
+                <button
+                  type="button"
+                  className="ui-tasktab-main"
+                  onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
+                >
+                  📚 {tab.label}
+                </button>
+                <button
+                  type="button"
+                  className="ui-tasktab-close"
+                  onClick={() => handleCloseKnowledgeTab(tab.root)}
+                  title={t("tasktree.closeTab")}
+                  aria-label={t("tasktree.closeTab")}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          chatContent
-        )}
+          {activeTab.kind === "settings" && editable ? (
+            <SettingsPanel
+              initial={editable}
+              initialTab={settingsInitialTab}
+              onSave={handleSaveSettings}
+              onClose={() => handleCloseAuxTab("settings")}
+              platform={platform}
+              theme={theme}
+              onSelectTheme={handleSelectTheme}
+            />
+          ) : activeTab.kind === "plugins" ? (
+            <PluginDetail
+              selection={selectedPlugin}
+              skills={skills}
+              selectedSkills={selectedSkills}
+              onToggleSkill={handleToggleSkill}
+              onBack={() => handleCloseAuxTab("plugins")}
+            />
+          ) : activeTab.kind === "editor" && activeTab.file ? (
+            <Suspense
+              fallback={
+                <div className="ui-editor-empty">
+                  <span className="ui-spinner" /> Loading editor…
+                </div>
+              }
+            >
+              <EditorOverlay
+                filePath={activeTab.file}
+                onClose={() => handleCloseAuxTab(`editor:${activeTab.file}`)}
+                appearance={appearance}
+                inline
+              />
+            </Suspense>
+          ) : activeTab.kind === "knowledge" ? (
+            <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} />
+          ) : activeTab.kind === "task" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
+              <TaskRecordPanel
+                treeId={activeTab.treeId}
+                workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
+              />
+            </Suspense>
+          ) : (
+            chatContent
+          )}
+        </div>
       </div>
 
       {/* Right-side preview panel — PM-Design / DeepDesign output */}

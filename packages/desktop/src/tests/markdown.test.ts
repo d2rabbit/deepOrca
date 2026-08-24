@@ -184,3 +184,24 @@ test("cached re-render returns the same sanitized result", async () => {
 test("empty input returns empty string", async () => {
   assert.equal(await render(""), "");
 });
+
+// ── Frontmatter (openwiki pages) ────────────────────────────────────────────
+
+test("leading YAML frontmatter is stripped, not rendered as body junk", async () => {
+  const out = await render("---\ntype: architecture\ntitle: T\n---\n\n# Real Title\n\nBody");
+  assert.ok(!out.includes("type: architecture"), `frontmatter leaked into body: ${out}`);
+  assert.ok(/<h1[^>]*>Real Title/.test(out), `real title missing: ${out}`);
+});
+
+test("unclosed frontmatter-like opener is left alone", async () => {
+  // `---` without a closing line is a thematic break / setext context, not
+  // frontmatter — must pass through untouched.
+  const out = await render("---\nplain text");
+  assert.ok(out.includes("plain text"), `content lost: ${out}`);
+});
+
+test("frontmatter with CRLF line endings is stripped", async () => {
+  const out = await render("---\r\ntype: architecture\r\n---\r\n\r\n# Title\r\n\r\nBody");
+  assert.ok(!out.includes("type: architecture"), `CRLF frontmatter leaked: ${out}`);
+  assert.ok(/<h1[^>]*>Title/.test(out), `title missing after CRLF strip: ${out}`);
+});

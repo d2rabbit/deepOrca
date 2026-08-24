@@ -669,6 +669,11 @@ export const zhHK: Record<MessageKey, string> = {
   "index.empty": "暫無可索引的工作區。",
   "index.freshness.justNow": "剛剛同步",
   "index.freshness.never": "未同步",
+  "index.freshness.minutes": "{n} 分鐘",
+  "index.freshness.hours": "{n} 小時",
+  "index.freshness.days": "{n} 天",
+  "index.symbolViewGraph": "關係圖",
+  "index.symbolViewList": "清單",
 
   "design.title": "設計",
   "design.materializePrompt": "描述一個需求，一鍵具現化…",

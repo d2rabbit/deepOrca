@@ -692,6 +692,11 @@ export const ja: Record<MessageKey, string> = {
   "index.empty": "インデックス対象のワークスペースがありません。",
   "index.freshness.justNow": "同期済み",
   "index.freshness.never": "未同期",
+  "index.freshness.minutes": "{n}分",
+  "index.freshness.hours": "{n}時間",
+  "index.freshness.days": "{n}日",
+  "index.symbolViewGraph": "グラフ",
+  "index.symbolViewList": "リスト",
 
   "design.title": "デザイナー",
   "design.materializePrompt": "要件を記述して具現化…",

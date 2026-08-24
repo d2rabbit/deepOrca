@@ -72,17 +72,30 @@ function setCached(text: string, html: string): void {
   mdCache.set(text, html);
 }
 
+/**
+ * Strip a leading YAML frontmatter block (openwiki pages, some skills and
+ * specs carry one). marked has no frontmatter support: without stripping,
+ * `---\nkey: value\n---` renders as an <hr> plus a giant <h2> of raw YAML at
+ * the top of every wiki page.
+ */
+function stripFrontmatter(text: string): string {
+  if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return text;
+  const match = text.match(/^---\r?\n[\s\S]*?\r?\n---(?:[ \t]*(?:\r?\n|$))/);
+  return match ? text.slice(match[0].length) : text;
+}
+
 export function renderMarkdown(text: string): string {
   if (!text) {
     return "";
   }
-  const cached = getCached(text);
+  const source = stripFrontmatter(text);
+  const cached = getCached(source);
   if (cached !== undefined) {
     return cached;
   }
-  const html = marked.parse(text, { async: false }) as string;
+  const html = marked.parse(source, { async: false }) as string;
   const safe = sanitizeHtml(html);
-  setCached(text, safe);
+  setCached(source, safe);
   return safe;
 }
 

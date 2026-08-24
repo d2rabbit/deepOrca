@@ -686,6 +686,11 @@ export const ko: Record<MessageKey, string> = {
   "index.empty": "인덱싱할 워크스페이스가 없습니다.",
   "index.freshness.justNow": "방금 동기화",
   "index.freshness.never": "동기화 안 됨",
+  "index.freshness.minutes": "{n}분",
+  "index.freshness.hours": "{n}시간",
+  "index.freshness.days": "{n}일",
+  "index.symbolViewGraph": "그래프",
+  "index.symbolViewList": "목록",
 
   "design.title": "디자이너",
   "design.materializePrompt": "요구사항을 입력해 구체화…",

@@ -149,3 +149,69 @@ test("extractSurfaceId finds ids in both dialects; clearSurfaces empties the map
   clearSurfaces();
   assert.equal(getSurfaceModels().length, 0);
 });
+
+// ── Replay idempotency (black-screen fix) ───────────────────────────────────
+// The processor is a renderer-wide singleton while panels remount freely
+// (KnowledgePanel's arch preview on every sub-tab switch). Re-feeding a batch
+// that creates an already-live surface must RESET that surface, never throw —
+// an exception inside a component effect unmounts the whole React tree.
+
+test("replaying a createSurface batch resets the surface instead of throwing", () => {
+  reset();
+  const batch = JSON.stringify([
+    { version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } },
+    {
+      version: "v0.9",
+      updateComponents: {
+        surfaceId: SURFACE,
+        components: [
+          { id: "root", component: "Column", children: ["t"] },
+          { id: "t", component: "Text", text: "first" },
+        ],
+      },
+    },
+  ]);
+  processA2uiMessages(batch);
+  assert.equal(
+    (getSurfaceModel(SURFACE)?.componentsModel.get("t") as unknown as { properties: { text: string } })?.properties
+      .text,
+    "first"
+  );
+
+  // Remount + replay with DIFFERENT content — must not throw, must refresh.
+  const replay = JSON.stringify([
+    { version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } },
+    {
+      version: "v0.9",
+      updateComponents: {
+        surfaceId: SURFACE,
+        components: [
+          { id: "root", component: "Column", children: ["t"] },
+          { id: "t", component: "Text", text: "second" },
+        ],
+      },
+    },
+  ]);
+  assert.doesNotThrow(() => processA2uiMessages(replay));
+  assert.ok(getSurfaceModel(SURFACE), "surface survives replay");
+  assert.equal(
+    (getSurfaceModel(SURFACE)?.componentsModel.get("t") as unknown as { properties: { text: string } })?.properties
+      .text,
+    "second",
+    "replayed batch content wins"
+  );
+  assert.equal(getSurfaceModels().filter((s) => s.id === SURFACE).length, 1, "no duplicate surfaces");
+});
+
+test("a malformed batch degrades to a no-op instead of crashing the caller", () => {
+  reset();
+  processA2uiMessages(
+    JSON.stringify([{ version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: "no-such-catalog" } }])
+  );
+  assert.ok(!getSurfaceModel(SURFACE), "unknown catalog did not create a surface");
+  // Surfaces untouched by the bad batch keep working.
+  processA2uiMessages(
+    JSON.stringify([{ version: "v0.9", createSurface: { surfaceId: "ok-1", catalogId: BASIC_CATALOG_ID } }])
+  );
+  assert.ok(getSurfaceModel("ok-1"));
+});

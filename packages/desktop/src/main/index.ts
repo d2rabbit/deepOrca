@@ -56,6 +56,8 @@ import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
   EditableSettings,
+  KnowledgeArchmapContent,
+  KnowledgeArchmapSurface,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   MemoryRoutingStatus,
@@ -1223,18 +1225,24 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
       ? { state: "indexed", count: agentLines, unit: "行" }
       : { state: "empty", detail: "无 AGENTS.md" };
 
-    // Architecture maps (T4) — A2UI surface artifacts persisted under
-    // .deeporca/prototypes/ (arch-scan's update_surface output) + any legacy
-    // arch-*.html in the workspace root.
+    // Architecture maps (T4) — artifacts persisted under
+    // .deeporca/prototypes/: current arch-scan writes Mermaid documents
+    // (`arch-*.md`, diagram-first) via the write tool; legacy A2UI surface
+    // JSON (`arch-*.json`) from the pre-Mermaid skill revision stays listed
+    // and renders through the A2UI preview path.
     const protoDir = join(root, ".deeporca", "prototypes");
     const archFiles: Array<{ name: string; path: string; mtime: string }> = [];
     if (existsSync(protoDir)) {
       try {
         for (const f of readdirSync(protoDir)) {
-          if (!f.endsWith(".json")) continue;
+          if (!f.startsWith("arch-") || (!f.endsWith(".json") && !f.endsWith(".md"))) continue;
           const full = join(protoDir, f);
           try {
-            archFiles.push({ name: f.replace(/\.json$/, ""), path: full, mtime: statSync(full).mtime.toISOString() });
+            archFiles.push({
+              name: f.replace(/\.(json|md)$/, ""),
+              path: full,
+              mtime: statSync(full).mtime.toISOString(),
+            });
           } catch {
             // unreadable entry — skip
           }
@@ -1287,22 +1295,20 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
     return { memory, routing, serena };
   });
 
-  // Architecture-map preview: hand the persisted surface JSON to the renderer,
-  // which draws it with the real A2UI component renderer (A2uiSurface) — the
-  // earlier main-process static-HTML tree was a placeholder that made every
-  // architecture map look broken (type names in a nested list instead of the
-  // actual cards/tabs/badges the model produced).
-  handle(
-    IpcRequest.KnowledgeReadArchmap,
-    (artPath: string): { ok: true; surface: unknown } | { ok: false; error: string } => {
-      try {
-        const surface = JSON.parse(readFileSync(artPath, "utf-8")) as unknown;
-        return { ok: true, surface };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  // Architecture-map preview: `.md` artifacts are Mermaid documents handed to
+  // the renderer as markdown (diagrams hydrate in the preview); legacy `.json`
+  // artifacts are the persisted A2UI surface drawn by the real A2UI renderer.
+  handle(IpcRequest.KnowledgeReadArchmap, (artPath: string): KnowledgeArchmapContent => {
+    try {
+      const raw = readFileSync(artPath, "utf-8");
+      if (artPath.endsWith(".md")) {
+        return { ok: true, markdown: raw };
       }
+      return { ok: true, surface: JSON.parse(raw) as KnowledgeArchmapSurface };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
-  );
+  });
 }
 
 /**

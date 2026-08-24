@@ -576,7 +576,12 @@ export type KnowledgeBuildJobSnapshot = {
   logs: string[];
 };
 
-/** Persisted A2UI architecture-map surface (`.deeporca/prototypes/arch-*.json`). */
+/**
+ * Persisted architecture-map artifacts under `.deeporca/prototypes/`:
+ * - legacy A2UI surface JSON (`arch-*.json`)
+ * - Mermaid diagram documents (`arch-*.md`) — the current arch-scan output
+ *   format (diagram-first; the A2UI variant rendered as a flat document).
+ */
 export type KnowledgeArchmapSurface = {
   surfaceId: string;
   title: string;
@@ -584,6 +589,12 @@ export type KnowledgeArchmapSurface = {
   components?: unknown[];
   messages?: unknown[];
 };
+
+/** KnowledgeReadArchmap response: exactly one of surface (JSON) / markdown (md). */
+export type KnowledgeArchmapContent =
+  | { ok: true; surface: KnowledgeArchmapSurface; markdown?: undefined }
+  | { ok: true; surface?: undefined; markdown: string }
+  | { ok: false; error: string };
 
 /**
  * Per-workspace knowledge assets (specs/index-knowledge-rework): UI-facing
@@ -961,10 +972,8 @@ export type DesktopApi = {
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
-  /** Read an architecture-map artifact's persisted surface JSON (rendered by the real A2UI renderer). */
-  knowledgeReadArchmap(
-    path: string
-  ): Promise<{ ok: true; surface: KnowledgeArchmapSurface } | { ok: false; error: string }>;
+  /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`) or Mermaid document (`.md`). */
+  knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;
   /** Start (or return the in-flight) background build for a root — idempotent. */
   knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
   /** Live snapshots of all build jobs (rows render from this). */
