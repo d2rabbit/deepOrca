@@ -8721,6 +8721,8 @@ button.ui-topbar-pill {
 }
 
 /* ── Build console (R3-5): floating temporary A2UI surface ────────────── */
+/* Build console — temporary floating A2UI surface (R3-5), on demand from the
+   background-task badge (never auto-opens over the chat view). */
 .ui-build-console {
   position: fixed;
   right: 16px;
@@ -8736,6 +8738,65 @@ button.ui-topbar-pill {
   box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
   z-index: 60;
   overflow: hidden;
+}
+
+/* Background-task badge — compact circular ring with the module icon in the
+   center (◈ 索引与知识 / ⚖ 代码审查). Replaces the auto-opening console as
+   the bottom-right presence for running background work. */
+.ui-task-badge {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: var(--ui-surface, #1c1e24);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  transition: transform 0.15s ease;
+}
+.ui-task-badge:hover {
+  transform: scale(1.08);
+}
+.ui-task-badge-icon {
+  font-size: 17px;
+  line-height: 1;
+  pointer-events: none;
+}
+.ui-task-badge.kind-knowledge .ui-task-badge-icon {
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-task-badge.kind-review .ui-task-badge-icon {
+  color: var(--ui-success, #57c98b);
+}
+.ui-task-badge-track {
+  stroke: var(--ui-border-soft, #33363d);
+}
+.ui-task-badge.kind-knowledge .ui-task-badge-arc {
+  stroke: var(--ui-accent, #3b82f6);
+}
+.ui-task-badge.kind-review .ui-task-badge-arc {
+  stroke: var(--ui-success, #57c98b);
+}
+.ui-task-badge svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ui-task-badge.indeterminate .ui-task-badge-sweep {
+  transform-origin: 50% 50%;
+  animation: ui-task-badge-spin 1.6s linear infinite;
+}
+@keyframes ui-task-badge-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .ui-build-console-head {
   display: flex;

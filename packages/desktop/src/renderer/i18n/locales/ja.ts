@@ -806,6 +806,8 @@ export const ja: Record<MessageKey, string> = {
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "コードレビュー",
+  "task.reviewRunning": "コードレビュー実行中",
+  "task.badgeHint": "クリックで詳細を表示",
   "review.title": "コードレビュー",
   "review.noWorkspace": "No workspace open.",
   "review.graphReady": "Risk graph built",

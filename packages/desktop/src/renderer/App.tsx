@@ -62,6 +62,7 @@ import { ShortcutsModal } from "./components/ShortcutsModal";
 import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
+import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
 import { useBuildJobs } from "./hooks/useBuildJobs";
@@ -1357,22 +1358,20 @@ export function App(): JSX.Element {
 
   const appearanceTitle = appearance === "dark" ? t("topbar.appearanceDark") : t("topbar.appearanceLight");
 
-  // Build console (R3-5): floats bottom-right while a build runs so progress
-  // is observable from ANY tab. Auto-opens for every NEW job; closing it only
-  // hides that job — the next build pops it again.
+  // Background tasks (R3-5 → real-machine feedback): a compact circular badge
+  // (module icon in the center) is the bottom-right presence while builds or
+  // reviews run — the big console NEVER auto-opens anymore (it used to plaster
+  // 460px over the chat view); it opens on demand from the badge.
   const buildJobs = useBuildJobs();
   const [buildConsoleOpen, setBuildConsoleOpen] = useState(false);
-  const seenBuildJobStarts = useRef(new Set<string>());
-  useEffect(() => {
-    for (const job of buildJobs) {
-      const key = `${job.root}@${job.startedAt}`;
-      if (!seenBuildJobStarts.current.has(key)) {
-        seenBuildJobStarts.current.add(key);
-        setBuildConsoleOpen(true);
-      }
-    }
-  }, [buildJobs]);
   const hasBuildJobs = buildJobs.length > 0;
+  const openBackgroundTask = useCallback(
+    (kind: "knowledge" | "review") => {
+      if (kind === "knowledge") setBuildConsoleOpen((v) => !v);
+      else selectView("review");
+    },
+    [selectView]
+  );
 
   // Serena panel (R3-6): mirror the agent's Serena tool results as targeted
   // views in a floating right panel. Auto-opens on every NEW serena result;
@@ -1890,7 +1889,13 @@ export function App(): JSX.Element {
         </div>
       ) : null}
 
-      {/* Build console — temporary floating A2UI surface (R3-5) */}
+      {/* Background-task badge — compact circular presence (module icon in
+          center) for running builds/reviews; the big console below opens ONLY
+          from the badge (real-machine feedback: never auto-pop over chat).
+          The badge hides while its console is open (same corner, no overlap). */}
+      {!buildConsoleOpen ? <BackgroundTaskBadge onOpen={openBackgroundTask} /> : null}
+
+      {/* Build console — temporary floating A2UI surface (R3-5), on demand */}
       {buildConsoleOpen && hasBuildJobs ? <BuildConsolePanel onClose={() => setBuildConsoleOpen(false)} /> : null}
 
       {/* Serena result mirror — floating right panel (R3-6) */}

@@ -800,6 +800,8 @@ export const ko: Record<MessageKey, string> = {
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "코드 리뷰",
+  "task.reviewRunning": "코드 리뷰 진행 중",
+  "task.badgeHint": "클릭하여 자세히 보기",
   "review.title": "코드 리뷰",
   "review.noWorkspace": "No workspace open.",
   "review.graphReady": "Risk graph built",

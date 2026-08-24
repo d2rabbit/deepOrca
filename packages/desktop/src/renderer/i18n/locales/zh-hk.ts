@@ -783,6 +783,8 @@ export const zhHK: Record<MessageKey, string> = {
 
   // ── Code Review (ocr) ─────────────────────────────────────
   "rail.review": "程式碼審查",
+  "task.reviewRunning": "程式碼審查進行中",
+  "task.badgeHint": "點擊查看詳情",
   "review.title": "程式碼審查",
   "review.noWorkspace": "未開啟工作區。",
   "review.graphReady": "風險圖譜已建",

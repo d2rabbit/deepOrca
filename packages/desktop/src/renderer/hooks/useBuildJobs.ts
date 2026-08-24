@@ -19,6 +19,9 @@ import type { ActionProgressEvent, KnowledgeBuildJobSnapshot } from "../../share
 let cache: KnowledgeBuildJobSnapshot[] = [];
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
+/** Wall-clock of the last event-carried snapshot — a poll response older than
+ *  this must not overwrite it (poll response races an interleaved event). */
+let lastEventAt = 0;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -28,8 +31,10 @@ function notify(): void {
 async function refresh(): Promise<void> {
   if (inFlight) return;
   inFlight = true;
+  const requestedAt = Date.now();
   try {
     const jobs = await api.knowledgeBuildStatus();
+    if (requestedAt < lastEventAt) return; // an event snapshot is newer
     cache = jobs;
     notify();
   } catch {
@@ -40,13 +45,17 @@ async function refresh(): Promise<void> {
 }
 
 function ensurePolling(): () => void {
-  listeners.add(notify);
+  // NOTE: only the lifecycle is managed here — NEVER add `notify` itself to
+  // `listeners`: notify() iterates the set and calls each listener, so a
+  // self-entry recurses until RangeError. That exact bug shipped silently
+  // (the poll path's catch swallowed the stack overflow, the event path threw
+  // inside the preload callback) and meant consumers' setJobs NEVER ran —
+  // the deepest root cause of the "no progress / frozen time" reports.
   if (!pollTimer) {
     pollTimer = setInterval(() => void refresh(), 2000);
     void refresh();
   }
   return () => {
-    listeners.delete(notify);
     if (listeners.size === 0 && pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
@@ -65,6 +74,7 @@ function wireEvents(): void {
     if (event.actionId !== "index.build-all") return;
     const job = (event.data as { job?: KnowledgeBuildJobSnapshot } | undefined)?.job;
     if (job) {
+      lastEventAt = Date.now();
       const idx = cache.findIndex((j) => j.root === job.root);
       if (idx >= 0) cache[idx] = job;
       else cache = [...cache, job];

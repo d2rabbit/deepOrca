@@ -816,6 +816,9 @@ export const en = {
   "index.buildKnowledge": "Build Index & Knowledge",
   "index.building": "Building…",
 
+  "task.reviewRunning": "Code review running",
+  "task.badgeHint": "Click for details",
+
   // ── Code Review (ocr + crg) ───────────────────────────────
   "rail.review": "Code Review",
   "review.title": "Code Review",
@@ -1718,6 +1721,9 @@ export const zh: Record<MessageKey, string> = {
   "index.build": "构建",
   "index.buildKnowledge": "构建索引与知识",
   "index.building": "构建中…",
+
+  "task.reviewRunning": "代码审查进行中",
+  "task.badgeHint": "点击查看详情",
 
   // ── Code Review (ocr + crg) ───────────────────────────────
   "rail.review": "代码审查",
