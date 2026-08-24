@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type JSX, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
 import { Button } from "../ui/index";
@@ -7,7 +7,11 @@ import type { ActionProgressEvent, KnowledgeStatusResponse, KnowledgeSymbol } fr
 import { BASIC_CATALOG_ID } from "../../shared/a2ui-legacy";
 import { SymbolGraphView } from "./SymbolGraphView";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { MarkdownView } from "./MarkdownView";
+import { StreamdownView } from "./StreamdownView";
+import { MermaidDiagram } from "./MermaidDiagram";
+import { buildStageVerb, formatBuildDuration } from "./KnowledgeBuildProgress";
+import { FRONTMATTER_RE } from "../lib/frontmatter";
+import { useBuildJobs } from "../hooks/useBuildJobs";
 
 /**
  * Knowledge tab body (specs/index-knowledge-rework T3.3): three sub-tabs —
@@ -55,7 +59,7 @@ function formatRelative(iso: string | undefined, t: Translate): string {
  * rendered twice (frontmatter title IS the page title in wiki convention).
  */
 function extractWikiPageMeta(raw: string): { title: string | null; body: string } {
-  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:[ \t]*\r?\n)/);
+  const fm = raw.match(FRONTMATTER_RE);
   const fmTitle = fm?.[1]
     .match(/^title:[ \t]*(.+)$/m)?.[1]
     ?.trim()
@@ -100,6 +104,10 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
   // R3-6: symbols default to the GRAPH view (display-only relationship
   // graph); the grouped list stays one toggle away.
   const [symbolView, setSymbolView] = useState<"graph" | "list">("graph");
+  // Live build state for THIS workspace — the knowledge tab is where users
+  // look after clicking "build" in the rail, and it used to show nothing.
+  const buildJobs = useBuildJobs();
+  const activeJob = buildJobs.find((j) => j.root === root && j.running);
 
   const reload = useCallback(async () => {
     try {
@@ -133,6 +141,24 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
     });
     return off;
   }, [root, reload]);
+
+  // While a build runs for this root, keep the wiki page list LIVE — pages
+  // are written incrementally, and the user must SEE the run advance and
+  // finish instead of guessing from a stale list (real-machine feedback).
+  const building = activeJob != null;
+  useEffect(() => {
+    if (!building) return;
+    const timer = setInterval(() => {
+      void (async () => {
+        try {
+          setWikiPages(await api.wikiListPages(root));
+        } catch {
+          // Keep the last list; the next tick retries.
+        }
+      })();
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [building, root]);
 
   // Symbols sub-tab: debounced search over the index.
   useEffect(() => {
@@ -214,6 +240,26 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
           </button>
         ))}
       </div>
+      {/* Slim status line only — the full stage checklist lives UNDER the
+          workspace's row in the left rail. The trailing live line carries the
+          freshest heartbeat (page counts, 完成标记) so the tab itself states
+          whether wiki is still working (real-machine feedback). */}
+      {activeJob ? (
+        <div className="ui-knowledge-buildbar" role="status">
+          <span className="ui-spinner" aria-hidden />
+          <span className="ui-knowledge-buildbar-label">
+            {(() => {
+              const running = activeJob.stages.find((s) => s.status === "running");
+              const label = running ? buildStageVerb(running, activeJob.mode, t) : t("index.building");
+              return `${label} · ${formatBuildDuration(activeJob.startedAt, undefined, Date.now())}`;
+            })()}
+          </span>
+          {(() => {
+            const running = activeJob.stages.find((s) => s.status === "running");
+            return running?.detail ? <span className="ui-knowledge-buildbar-live">{running.detail}</span> : null;
+          })()}
+        </div>
+      ) : null}
       <div className="ui-knowledge-body">
         <ErrorBoundary>
           {sub === "wiki" ? (
@@ -259,7 +305,7 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
                       {t("index.openAgents")}
                     </Button>
                   </div>
-                  <MarkdownView className="ui-knowledge-agents-md" markdown={agentsContent} />
+                  <StreamdownView className="ui-knowledge-agents-md ui-md" markdown={agentsContent} />
                 </>
               ) : (
                 <div className="ui-side-panel-empty">{t("index.agentsMissing")}</div>
@@ -362,6 +408,7 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
                   <KnowledgeArchPreview
                     path={preview}
                     title={(status?.archmaps.files ?? []).find((f) => f.path === preview)?.name ?? preview}
+                    onOpenFile={onOpenFile}
                   />
                 </div>
               ) : null}
@@ -374,21 +421,6 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
 }
 
 /** Delegated code-copy for the wiki preview (same contract as chat). */
-function handleWikiCopyClick(e: ReactMouseEvent<HTMLDivElement>): void {
-  const btn = (e.target as HTMLElement).closest(".code-block-copy");
-  if (!btn) return;
-  const wrap = btn.closest(".code-block-wrap");
-  const code = wrap?.querySelector("code");
-  if (code) {
-    void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
-      btn.textContent = "✓";
-      setTimeout(() => {
-        btn.textContent = "⧉";
-      }, 1500);
-    });
-  }
-}
-
 /**
  * Standard wiki page presentation: a page header row (frontmatter title on the
  * left, "open in editor" on the right) above the rendered document in a
@@ -413,23 +445,191 @@ function WikiPageView({
           {openLabel}
         </Button>
       </div>
-      <MarkdownView
-        className="ui-knowledge-agents-md ui-md ui-wiki-doc"
-        markdown={body}
-        onClick={handleWikiCopyClick}
-      />
+      <StreamdownView className="ui-knowledge-agents-md ui-md ui-wiki-doc" markdown={body} />
     </div>
   );
 }
 
 /** Architecture-map preview. Two artifact generations:
- *  - `.md` (current): a Mermaid diagram document — diagrams hydrate inline,
- *    so the map reads as an actual graph, not a flat card list.
+ *  - `.md` (current): a Mermaid diagram document — only the diagrams render
+ *    (the map IS a picture; the prose between the fences is scan narration).
  *  - `.json` (legacy): the persisted A2UI surface JSON replayed through the
  *    real A2UI component renderer (the same one the conversation surfaces use). */
 type ArchContent = { kind: "md"; markdown: string } | { kind: "a2ui"; messagesJson: string; surfaceId: string };
 
-function KnowledgeArchPreview({ path, title }: { path: string; title: string }): JSX.Element {
+/** Extract ```mermaid fence bodies — the arch doc's prose is not displayed. */
+function extractMermaidBlocks(markdown: string): string[] {
+  const blocks: string[] = [];
+  const re = /```mermaid\s*\n([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(markdown)) !== null) {
+    const chart = m[1].trim();
+    if (chart) blocks.push(chart);
+  }
+  return blocks;
+}
+
+/**
+ * Arch map viewer (real-machine feedback: the presentation was too bare).
+ * The `.md` artifact is scan narration around mermaid fences; the panel's job
+ * is to show the MAP well:
+ *   - multiple diagrams become a switcher (图 1/2/…) instead of a long scroll;
+ *   - zoom −/+ plus 适配宽度 (fit-to-width) that auto-scales to the pane and
+ *     re-fits on window resize (ResizeObserver — the map adapts to the
+ *     window, never a fixed size, same principle as the symbol graph);
+ *   - "open in editor" for the artifact source.
+ * Documents with no mermaid block fall back to full markdown so nothing
+ * renders blank.
+ */
+function ArchDiagrams({
+  markdown,
+  onOpenSource,
+}: {
+  markdown: string;
+  onOpenSource: (() => void) | null;
+}): JSX.Element {
+  const { t } = useI18n();
+  const charts = useMemo(() => extractMermaidBlocks(markdown), [markdown]);
+  const [idx, setIdx] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [fit, setFit] = useState(true);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [frameW, setFrameW] = useState(0);
+  const [naturalW, setNaturalW] = useState(0);
+
+  // Pane width drives the fit scale — re-fits on window/panel resizes.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.floor(entries[0]?.contentRect.width ?? 0);
+      if (w > 0) setFrameW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Unscaled content width — ResizeObserver fires when mermaid injects the
+  // svg, so the fit baseline lands without polling.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const w = stageRef.current?.offsetWidth ?? 0;
+      if (w > 0) setNaturalW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  if (charts.length === 0) {
+    return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
+  }
+  const active = charts[Math.min(idx, charts.length - 1)];
+  const fitScale = naturalW > 0 && frameW > 0 ? Math.min(1, Math.max(0.15, frameW / naturalW)) : 1;
+  const scale = fit ? fitScale : zoom;
+  const clampZoom = (z: number): number => Math.min(3, Math.max(0.2, z));
+
+  return (
+    <div className="ui-arch-viewer">
+      <div className="ui-arch-toolbar">
+        {charts.length > 1 ? (
+          <div className="ui-arch-chartswitch" role="tablist">
+            {charts.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                role="tab"
+                aria-selected={i === idx}
+                className={i === idx ? "active" : ""}
+                onClick={() => {
+                  setIdx(i);
+                  setFit(true);
+                }}
+              >
+                {t("index.archChart", { n: i + 1 })}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="ui-arch-zoom">
+          <button
+            type="button"
+            title={t("index.archZoomOut")}
+            aria-label={t("index.archZoomOut")}
+            onClick={() => {
+              setZoom(clampZoom((fit ? fitScale : zoom) / 1.25));
+              setFit(false);
+            }}
+          >
+            −
+          </button>
+          <span className="ui-arch-zoom-value">{Math.round(scale * 100)}%</span>
+          <button
+            type="button"
+            title={t("index.archZoomIn")}
+            aria-label={t("index.archZoomIn")}
+            onClick={() => {
+              setZoom(clampZoom((fit ? fitScale : zoom) * 1.25));
+              setFit(false);
+            }}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className={fit ? "active" : ""}
+            title={t("index.archFitWidth")}
+            onClick={() => setFit(true)}
+          >
+            ⤢ {t("index.archFitWidth")}
+          </button>
+        </div>
+        {onOpenSource ? (
+          <Button size="sm" variant="subtle" onClick={onOpenSource}>
+            {t("index.openInEditor")}
+          </Button>
+        ) : null}
+      </div>
+      <div className="ui-arch-frame" ref={frameRef}>
+        <div
+          className="ui-arch-stage"
+          ref={stageRef}
+          style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+        >
+          <MermaidDiagram chart={active} />
+        </div>
+      </div>
+      {charts.length > 1 ? (
+        <div className="ui-arch-pager">
+          <button type="button" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>
+            ←
+          </button>
+          <span>
+            {idx + 1} / {charts.length}
+          </span>
+          <button
+            type="button"
+            disabled={idx >= charts.length - 1}
+            onClick={() => setIdx((i) => Math.min(charts.length - 1, i + 1))}
+          >
+            →
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function KnowledgeArchPreview({
+  path,
+  title,
+  onOpenFile,
+}: {
+  path: string;
+  title: string;
+  onOpenFile: (path: string) => void;
+}): JSX.Element {
   const archTitle = title.replace(/^arch-/, "").replace(/\.json$/, "");
   const [content, setContent] = useState<ArchContent | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -490,7 +690,7 @@ function KnowledgeArchPreview({ path, title }: { path: string; title: string }):
       </div>
       <div className="ui-knowledge-preview-a2ui">
         {content?.kind === "md" ? (
-          <MarkdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={content.markdown} />
+          <ArchDiagrams markdown={content.markdown} onOpenSource={() => onOpenFile(path)} />
         ) : content?.kind === "a2ui" ? (
           <A2uiSurface messagesJson={content.messagesJson} surfaceId={content.surfaceId} />
         ) : (

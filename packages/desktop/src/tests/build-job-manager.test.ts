@@ -120,9 +120,13 @@ test("happy path: [n/3] lines fold into stage states, job completes, settled emi
   );
   assert.ok(job.logs.some((l) => l.includes("build init started")));
   assert.ok(job.logs.some((l) => l.includes("build complete")));
-  // Broadcasts carry the full snapshot; settled fires once at the end.
+  // Broadcasts carry the full snapshot; the FIRST one is start()'s immediate
+  // broadcast, and it must already show stage 1 running — the UI's first frame
+  // reads "正在生成/更新索引", never the generic "构建中…" fallback.
   const buildEvents = emitted.filter((e) => e.actionId === "index.build-all");
   assert.ok(buildEvents.length >= 2);
+  const firstJob = (buildEvents[0].data as { job?: KnowledgeBuildJobSnapshot }).job;
+  assert.equal(firstJob?.stages[0]?.status, "running", "first broadcast has stage 1 running");
   assert.ok((buildEvents[0].data as { job?: unknown })?.job, "progress events embed the job snapshot");
   const settled = emitted.filter((e) => e.actionId === "knowledge.buildComplete");
   assert.equal(settled.length, 1);
@@ -179,9 +183,10 @@ test("registry throw fails the job and marks the running stage failed", async ()
   assert.equal(job.stage, "failed");
   assert.match(job.error ?? "", /no project open/);
   assert.equal(job.stages[1]?.status, "failed", "wiki was running when the action threw");
-  // codegraph never emitted a single [1/3] line — "skipped" is the honest
-  // verdict (auto-completion only upgrades stages that actually RAN).
-  assert.equal(job.stages[0]?.status, "skipped");
+  // Stage 1 starts "running" by construction (the action always begins with
+  // the symbol index), so the [2/3] line implicitly completes it — "done" is
+  // the honest verdict, not "skipped".
+  assert.equal(job.stages[0]?.status, "done");
   assert.equal(emitted.filter((e) => e.actionId === "knowledge.buildComplete").length, 1);
 });
 

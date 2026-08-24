@@ -1,8 +1,8 @@
 ---
 type: package
-title: Task Trajectory Tree (TaskTreeService)
-description: Workspace-level task trajectory: tree/branch/node, reflog, snapshot materialization, merge/fork/switch/abandon, session binding, Plan materialization, and memory-driven fork.
-tags: [task-tree, task-trajectory, planning]
+title: 任务轨迹树（TaskTreeService）
+description: 工作区级任务轨迹树：内容寻址节点、分支/合并/归档、会话绑定、记忆 fork、桌面跨工作区读取与操作轨迹（taskTreeTrajectory）。
+tags: [core, task-tree, trajectory]
 ---
 
 # Task Trajectory Tree (TaskTreeService)
@@ -55,6 +55,7 @@ tags: [task-tree, task-trajectory, planning]
 - `probeTaskRecallAtDecision`: probes memory recall at decision points (P2 fork closed loop).
 - Cascade archiving: desktop `cascadeTaskTreeArchive` (session deletion → tree-wide archive cascade; refined before freezing, commit 946cf77b).
 - `task.*` actions (`actions/task.ts`) are the LLM-side entry point; the desktop TaskTreePanel is the UI-side entry point.
+- **跨工作区读取（desktop R3-7）**: main 侧 `registerTaskTreeIpc` 的 `rootService(workspaceRoot)` 对显式 root `new TaskTreeService(root)` 读取该工作区已落盘状态（与归档处理同一一致性论证）；`TaskTreeTrajectory` IPC → `main/task-trajectory.ts` 的 `extractTaskTrajectory(sessionIds, projectDir)` 把绑定会话 JSONL 归约为**操作记录**（tool/ok/summary/触及文件，最多 8 会话 × 500 操作，**从不读入会话正文**），由 `TaskRecordPanel` 展示（见 [desktop/renderer-components](../desktop/renderer-components.md)）。
 
 ## Security Invariants
 
@@ -65,7 +66,7 @@ tags: [task-tree, task-trajectory, planning]
 
 - `task-tree.test.ts` (759 lines / 35KB): **lineage** (create → append → fork produces two visible branches; fork requires why), **content addressing** (node id shape is stable), **containment** (treeId traversal ids cannot escape the storage root), **restore** (a new instance reads the persisted tree), **fail-open** (corrupted/missing trees degrade rather than throw), merge/abandon/snapshot/reflog/session binding/archiving.
 - `actions.test.ts` (task.* action contract).
-- Desktop `TaskTreePanel` is covered in the app-level DOM harness.
+- Desktop: `task-trajectory.test.ts`（操作轨迹归约）、`symbol-graph-query.test.ts` 同族纯函数测试；`TaskTreePanel`/`TaskRecordPanel` 覆盖在 app 级 DOM harness。
 
 ## Related Pages
 

@@ -21,6 +21,8 @@ tags: [session-bridge, desktop-core-boundary]
 
 `onAssistantMessage` → `event:assistantMessage`、`onSessionEntryUpdated` → `event:sessionEntryUpdated`、`onLlmStreamProgress` → `event:llmStreamProgress`、`onMcpStatusChanged` → `event:mcpStatusChanged`、`onSandboxStatusChanged` → `event:sandboxStatusChanged`、`onProcessStdout` → `event:processStdout`。
 
+**静默子代理过滤（双侧）**：`onAssistantMessage`/`onSessionEntryUpdated` 都丢弃 `isSilentSubagent` 条目——只过滤消息流时，未过滤的 entry 事件会把流水线会话插进侧边栏列表（尽管 `listSessions` 会过滤它）；R2-2 起索引构建走无会话后台任务，该过滤兜底 legacy 路径。
+
 ### 桌面服务委托
 
 | 服务 | 委托内容 |

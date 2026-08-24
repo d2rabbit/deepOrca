@@ -45,6 +45,17 @@ export function CodeReviewPanel({ onShowGraph }: { onShowGraph: (html: string) =
     void reload();
   }, [reload]);
 
+  // Refresh the graph-state dot whenever a CRG rebuild settles — including
+  // out-of-band builds (agent-driven crg.reindex, post-turn auto sync). The
+  // dot used to load once and only refresh after THIS panel's own actions,
+  // so graphs built elsewhere left it stale (index-module stuck-state class).
+  useEffect(() => {
+    const unsub = api.onCrgProgress((evt: { done?: boolean }) => {
+      if (evt.done) void reload();
+    });
+    return unsub;
+  }, [reload]);
+
   // Subscribe to the unified action progress stream while an action runs.
   useEffect(() => {
     if (!running) {

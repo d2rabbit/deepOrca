@@ -43,7 +43,10 @@ type Job = KnowledgeBuildJobSnapshot;
 
 function initialStages(mode: "init" | "update"): KnowledgeBuildStageState[] {
   const stages: KnowledgeBuildStageState[] = [
-    { id: "codegraph", labelKey: "codegraph", status: "pending" },
+    // The action always starts with the symbol index — mark it running from
+    // the first broadcast so the very first frame reads "正在生成/更新索引"
+    // instead of the generic "构建中…" fallback (progress complaint).
+    { id: "codegraph", labelKey: "codegraph", status: "running", startedAt: nowIso() },
     { id: "wiki", labelKey: "wiki", status: "pending" },
   ];
   if (mode === "init") {
@@ -94,6 +97,10 @@ export class BuildJobManager {
     };
     this.jobs.set(root, job);
     console.log(`[build:${root}] ${resolved} started`);
+    // Broadcast immediately — the first action progress line can arrive many
+    // seconds in (codegraph warmup), and without this the row/knowledge tab
+    // show no busy state at all during that window ("no progress" report).
+    this.broadcast(job);
     void this.run(job);
     return this.snapshot(job);
   }

@@ -1398,6 +1398,7 @@ export function App(): JSX.Element {
         hasActiveSession={activeId !== null || messages.length > 0}
         reasoningMode={reasoningMode}
         compacting={activeStatus === "compacting"}
+        streaming={busy}
         onQuickAction={handleQuickAction}
         footer={footer}
       />

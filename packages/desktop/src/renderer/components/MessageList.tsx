@@ -44,6 +44,9 @@ type Props = {
   footer?: React.ReactNode;
   /** Whether the session is currently compacting its context. */
   compacting?: boolean;
+  /** True while the session is busy (tokens, tools, compaction) — forwarded
+   *  to the last message so its markdown can show the streaming caret. */
+  streaming?: boolean;
 };
 
 // Memoized: every prop is a stable reference from App (messages array identity
@@ -56,6 +59,7 @@ export const MessageList = memo(function MessageList({
   onQuickAction,
   footer,
   compacting = false,
+  streaming = false,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -194,7 +198,12 @@ export const MessageList = memo(function MessageList({
                   <span className="ui-date-separator-line" />
                 </div>
               ) : null}
-              <Message message={message} reasoningMode={reasoningMode} expandedThinkingId={expandedThinkingId} />
+              <Message
+                message={message}
+                reasoningMode={reasoningMode}
+                expandedThinkingId={expandedThinkingId}
+                streaming={streaming && idx === messages.length - 1}
+              />
             </div>
           );
         })}

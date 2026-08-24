@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton } from "../ui/index";
 import { useBuildJobs } from "../hooks/useBuildJobs";
+import { buildStageVerb, KnowledgeBuildProgress } from "./KnowledgeBuildProgress";
 import type { KnowledgeStatusResponse, WorkspaceGroup } from "../../shared/ipc";
 
 /**
@@ -114,20 +115,15 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
     return "off";
   };
 
-  /** Stage-aware progress text — the wiki stage has no percent stream, so
-   * rows show the running stage + elapsed instead of a frozen number. */
+  /** Stage-aware progress text — mode-aware verb (生成/更新索引 → 构建 Wiki →
+   * 架构图) + elapsed; the wiki stage has no percent stream, so rows show the
+   * running stage instead of a frozen number. */
   const rowProgress = (root: string): { busy: boolean; text: string; error: string | null } => {
     const job = jobByRoot.get(root);
     if (!job) return { busy: false, text: "", error: null };
     if (job.running) {
       const running = job.stages.find((s) => s.status === "running");
-      const label = running
-        ? running.labelKey === "codegraph"
-          ? t("index.buildStageCodegraph")
-          : running.labelKey === "wiki"
-            ? t("index.buildStageWiki")
-            : t("index.buildStageArch")
-        : t("index.building");
+      const label = running ? buildStageVerb(running, job.mode, t) : t("index.building");
       const elapsed = Math.max(0, Math.round((Date.now() - new Date(job.startedAt).getTime()) / 1000));
       const mm = Math.floor(elapsed / 60);
       const ss = String(elapsed % 60).padStart(2, "0");
@@ -152,32 +148,38 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
             const row = rowProgress(w.root);
             const status = statuses[w.root];
             const lastBuild = status?.openwiki.lastSync ?? status?.codegraph.lastSync ?? undefined;
+            const runningJob = jobByRoot.get(w.root);
             return (
-              <div key={w.root} className="ui-ik-row" onClick={() => onOpenWorkspace(w.root)}>
-                <span className={`ui-ik-dot ${stateDot(status)}`} aria-hidden />
-                <div className="ui-ik-row-main">
-                  <div className="ui-ik-name">{w.label}</div>
-                  <div className="ui-ik-meta">
-                    {row.busy
-                      ? row.text
-                      : row.error
-                        ? row.error.slice(0, 60)
-                        : `${formatRelative(lastBuild, t("index.freshness.justNow"), t("index.freshness.never"))}`}
+              <div key={w.root} className="ui-ik-rowwrap">
+                <div className="ui-ik-row" onClick={() => onOpenWorkspace(w.root)}>
+                  <span className={`ui-ik-dot ${stateDot(status)}`} aria-hidden />
+                  <div className="ui-ik-row-main">
+                    <div className="ui-ik-name">{w.label}</div>
+                    <div className="ui-ik-meta">
+                      {row.busy
+                        ? row.text
+                        : row.error
+                          ? row.error.slice(0, 60)
+                          : `${formatRelative(lastBuild, t("index.freshness.justNow"), t("index.freshness.never"))}`}
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    className="ui-ik-build"
+                    disabled={row.busy}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void build(w.root);
+                    }}
+                    title={t("index.buildKnowledge")}
+                  >
+                    {row.busy ? "…" : t("index.build")}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  className="ui-ik-build"
-                  disabled={row.busy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void build(w.root);
-                  }}
-                  title={t("index.buildKnowledge")}
-                >
-                  {row.busy ? "…" : t("index.build")}
-                </Button>
+                {/* Real-machine feedback: progress lives UNDER the workspace's
+                    row — next to the thing being built, not inside the tab. */}
+                {row.busy && runningJob ? <KnowledgeBuildProgress job={runningJob} variant="compact" /> : null}
               </div>
             );
           })

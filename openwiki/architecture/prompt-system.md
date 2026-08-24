@@ -1,8 +1,8 @@
 ---
 type: architecture
-title: Prompt System
-description: core's prompt engineering: system prompt chain construction order, tool documentation EJS templates, Skills injection, Plan Mode prompts, runtime context, and the OS-Link command dictionary.
-tags: [prompt, system-prompt, skills, plan-mode]
+title: 提示词系统
+description: prompt.ts 构建全部提示模板：缓存稳定前缀、工具文档、Skills 注入、Plan Mode、运行时上下文与压缩提示。
+tags: [architecture, prompts, context]
 ---
 
 # Prompt System

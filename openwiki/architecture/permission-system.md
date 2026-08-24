@@ -1,8 +1,8 @@
 ---
 type: architecture
-title: Permission System
-description: Side-effect-classification-based scoped permission engine: 10 permission scopes, computeToolCallPermissions decisions, Plan Mode forced ask, quarantine tightening, path-level always-allow, and ToolExecutionGate.
-tags: [permissions, security, scopes]
+title: 权限系统
+description: 基于副作用分类的作用域权限模型：10 作用域、决策优先级、quarantine、路径级始终允许与 bash 副作用声明。
+tags: [architecture, permissions, security]
 ---
 
 # Permission System

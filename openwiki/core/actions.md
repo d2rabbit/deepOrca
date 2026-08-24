@@ -1,8 +1,8 @@
 ---
 type: package
-title: Actions Capability Layer
-description: The defineAction/ActionRegistry "define once, call everywhere" mechanism: registration, three-surface exposure (LLM tools/IPC/composition execution), progress and cancellation, plus all built-in Action families.
-tags: [actions, action-registry, define-action]
+title: Actions 能力层（defineAction / ActionRegistry）
+description: defineAction 定义可组合的项目能力：注册表、三面暴露（LLM 工具/IPC/组合工作流）、内置 action 族、无会话后台任务通道（runBackgroundTask）与聚焦测试。
+tags: [core, actions, registry]
 ---
 
 # Actions Capability Layer
@@ -42,8 +42,8 @@ flowchart LR
 | `crg.*` | `actions/crg.ts` + `crg-query.ts` + `crg-controller.ts` | Code risk graph: reindex/visualize/graph query (`CrgGraphQuery` reads SQLite directly); `mergeReviewWithCrgRisk`, `formatCrgContextForOcr` |
 | `codegraph.*` | `actions/codegraph.ts` + `codegraph-controller.ts` | reindex/list (`SdkCodegraphController` injected) |
 | `wiki.*` | `actions/wiki.ts` + `wiki-controller.ts` | OpenWiki init/update/listPages/readPage (`WikiCliController` injected) |
-| `index.build-all` | `actions/index-build.ts` | One-click knowledge index build (serial codegraph→wiki→AGENTS→archmap), `IndexBuildStage` staged output |
-| `arch-scan.run` | `actions/arch-scan.ts` | A2UI architecture diagram scan (uses `runSubagent` silent subagent, produces surface JSON) |
+| `index.build-all` | `actions/index-build.ts` | One-click knowledge index build (serial codegraph→wiki→arch), `IndexBuildStage` staged output; arch-scan stage runs on the **sessionless background channel** (`runBackgroundTask`, R2-2), cancelled via `ctx.signal` | 
+| `arch-scan.run` | `actions/arch-scan.ts` | **架构图扫描**：优先走 `runBackgroundTask`（无会话后台 LLM 循环），回退 `runSubagent`；产出 **Mermaid 架构图文档**（`.deeporca/prototypes/arch-<name>.md`，经 a2ui MCP `save_archmap` 落盘），取代早期 A2UI surface JSON 输出 |
 | `task.*` | `actions/task.ts` | Task tree operations (create/step/fork/switch/abandon/list/merge/recall, via `TaskTreeService`) |
 | `design.*` | `actions/design.ts` | `design.materialize` (A2UI materialization) / `design.extract` (dembrandt brand extraction) |
 | `design.audit` | `actions/design-audit.ts` | Three-axis automated check (design-quality audit action) |
@@ -52,17 +52,19 @@ flowchart LR
 
 ## Key Types
 
-- `ActionDefinition` (id/description/parameters zod→JSON Schema), `ActionContext` (emit progress, signal, runSubagent, executeMcpTool, judgeViaLlm, spawner, taskTrees, projectRoot).
+- `ActionDefinition` (id/description/parameters zod→JSON Schema), `ActionContext` (emit progress, signal, runSubagent, **runBackgroundTask**, executeMcpTool, judgeViaLlm, spawner, taskTrees, projectRoot).
+- `BackgroundLlmTaskOptions`/`BackgroundLlmTaskResult`（R2-2，导出自 `@deeporca/core`）：`skill`/`prompt`/`input`/`root`/`signal`/`onProgress`；结果 `{ content, iterations }`。
 - `ActionError` + `ActionErrorCode` (`ACTION_NOT_FOUND`/`INPUT_INVALID`/`ACTION_FAILED`/`CANCELLED`).
 - `Spawner`/`SpawnedProcess` (line-buffered stdout/stderr async iterable; desktop `ElectronNodeSpawner` is the production implementation, injected via `configureActionSpawner`).
 
 ## Focused Tests
 
 - `actions.test.ts` (15KB): registry registration/execution/progress buffering/cancellation.
-- `phase-actions.test.ts`: phase action contract.
-- `design-action.test.ts`, `design-audit.test.ts` (10KB), `design-dembrandt.test.ts` (30KB, core).
-- `action-ipc.test.ts` (desktop, 10KB): IPC surface.
-- `review`-related tests are in `phase-actions.test.ts` + desktop `app-boot.test.ts`.
+- `phase-actions.test.ts`: phase action contract（arch-scan：无 agent 运行时返回 pending；注入 `runBackgroundTask` 时优先走它、不碰 runSubagent；缺失时回退 runSubagent）。
+- `background-task.test.ts`（145 行）：`runBackgroundLlmTask` 零会话残留（无 sessions-index 条目/无消息 JSONL/无活动会话切换/无流）。
+- `design-action.test.ts`, `design-audit.test.ts` (10KB), `design-dembrandt.test.ts` (30KB, core)。
+- `action-ipc.test.ts` (desktop, 10KB): IPC surface。
+- `review`-related tests are in `phase-actions.test.ts` + desktop `app-boot.test.ts`。
 
 ## Related Pages
 

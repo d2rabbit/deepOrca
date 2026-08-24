@@ -14,17 +14,60 @@
  * stdout instead of the interactive TUI.
  */
 
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { WikiController, WikiResult, ControllerProgress } from "@deeporca/core";
-import { getSerenaController } from "@deeporca/core";
+import type { WikiController, WikiResult, ControllerProgress, SpawnTrackedResult } from "@deeporca/core";
+import { getSerenaController, spawnTracked } from "@deeporca/core";
+import { readWikiCompletionMarker } from "./wiki-marker";
 
 const CONNECTOR_CONFIG_DIR = path.join(os.homedir(), ".openwiki", "connectors", "custom-mcp");
 const CONNECTOR_CONFIG_FILE = path.join(CONNECTOR_CONFIG_DIR, "config.json");
 const SERENA_CONNECTOR_DIR = path.join(os.homedir(), ".openwiki", "connectors", "serena-mcp");
 const SERENA_CONNECTOR_FILE = path.join(SERENA_CONNECTOR_DIR, "config.json");
+
+/**
+ * Hard cap on one wiki run. The CLI's --print mode buffers ALL stdout until
+ * exit, so a wedged child is indistinguishable from a slow one for the whole
+ * run — without a cap the build spinner can run forever (real-machine report:
+ * "half an hour and wiki still not done"). Default 60 min; override with
+ * DEEPORCA_WIKI_TIMEOUT_MS (milliseconds).
+ */
+const WIKI_TIMEOUT_MS = Number(process.env.DEEPORCA_WIKI_TIMEOUT_MS ?? "") || 60 * 60 * 1000;
+
+/**
+ * Count .md pages under <root>/openwiki modified since `sinceMs`. openwiki
+ * writes pages incrementally while its agent works, so mtimes are the only
+ * REAL progress signal available mid-run — the heartbeat surfaces this count
+ * ("已生成 N 个页面") instead of a bare elapsed timer. Returns -1 when the
+ * tree can't be read (early init, permission error).
+ */
+function countRecentWikiPages(root: string, sinceMs: number): number {
+  const stack: string[] = [path.join(root, "openwiki")];
+  let count = 0;
+  try {
+    // Guard bounds the walk: openwiki trees are tens of dirs, not millions.
+    for (let guard = 0; stack.length > 0 && guard < 2000; guard++) {
+      const dir = stack.pop();
+      if (!dir) break;
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.name.startsWith(".")) continue;
+        const p = path.join(dir, ent.name);
+        if (ent.isDirectory()) stack.push(p);
+        else if (ent.isFile() && ent.name.endsWith(".md")) {
+          try {
+            if (fs.statSync(p).mtimeMs >= sinceMs) count++;
+          } catch {
+            // File raced away mid-stat — ignore.
+          }
+        }
+      }
+    }
+    return count;
+  } catch {
+    return -1;
+  }
+}
 
 export class WikiCliController implements WikiController {
   constructor(
@@ -165,74 +208,74 @@ export class WikiCliController implements WikiController {
     if (lang) {
       args.push("--language", lang);
     }
-    onProgress?.({ message: `openwiki ${flag}`, percent: 10 });
+    onProgress?.({ message: `wiki ${mode} started`, percent: 10 });
 
     // openwiki --print buffers ALL agent output and writes it at exit — during
     // a long run (10+ minutes on a large repo) stdout is completely silent.
-    // A 20s heartbeat keeps the job's stage view and console honest ("alive,
-    // waiting on LLM") instead of a percent frozen at 36% with no signal.
+    // The 20s heartbeat counts pages actually written so far from the
+    // filesystem ("已生成 N 个页面" is real forward progress, not a ticking
+    // timer) and watches openwiki's completion marker: .last-update.json with
+    // status "complete" is the CLI's final act and authoritative even if the
+    // process then hangs on exit — finishOk force-settles success then
+    // (real-machine report: "wiki finished but the status never changed").
     const startedAtMs = Date.now();
-    const heartbeat = setInterval(() => {
-      const secs = Math.round((Date.now() - startedAtMs) / 1000);
-      onProgress?.({
-        message: `openwiki ${flag} 运行中 ${secs}s — LLM 文档生成阶段无进度流，请耐心等待`,
-      });
-    }, 20000);
+    let markerSeenAt = 0;
+    let markerModel: string | undefined;
 
-    return new Promise<WikiResult>((resolve, reject) => {
-      const child = spawn(this.opts.nodeRunner, args, {
+    let result: SpawnTrackedResult;
+    try {
+      result = await spawnTracked({
+        label: `wiki ${mode}`,
+        command: this.opts.nodeRunner,
+        args,
         cwd: root,
-        env: { ...process.env, ...env },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      console.log(`[wiki] spawn pid=${child.pid} ${flag}${lang ? ` --language ${lang}` : ""} cwd=${root}`);
-
-      const stderrLines: string[] = [];
-      const stdoutLines: string[] = [];
-
-      child.stdout?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString();
-        stdoutLines.push(text);
-        for (const line of text.split("\n")) {
-          if (line.trim()) {
-            onProgress?.({ message: `wiki: ${line.slice(0, 120)}` });
+        env,
+        timeoutMs: WIKI_TIMEOUT_MS,
+        heartbeatMs: 20_000,
+        onHeartbeat: ({ elapsedSecs, finishOk }) => {
+          const marker = readWikiCompletionMarker(root, startedAtMs - 5000);
+          if (marker?.status === "complete") {
+            if (markerSeenAt === 0) {
+              markerSeenAt = Date.now();
+              markerModel = marker.model;
+              onProgress?.({ message: `wiki ${mode} 完成标记已收到（status: complete），等待 CLI 退出…` });
+            } else if (Date.now() - markerSeenAt > 60_000) {
+              // Work is DONE and recorded; only the exit is wedged (typically
+              // pipe-inherited MCP connector children). Force-finish success —
+              // a hung exit must never mask a completed wiki.
+              onProgress?.({ message: `wiki ${mode} CLI 退出卡住超过 60s — 强制结束，构建按完成处理` });
+              finishOk("完成标记已确认，强制结束卡住的退出");
+            }
+            return null;
           }
-        }
+          const pages = countRecentWikiPages(root, startedAtMs - 5000);
+          const pageText = pages >= 0 ? ` · 已生成 ${pages} 个页面` : "";
+          onProgress?.({
+            message: `wiki ${mode} 运行中 ${elapsedSecs}s${pageText} · 读取符号索引加速生成（LLM 阶段无进度流，请耐心等待）`,
+          });
+          return null;
+        },
+        onStdoutLine: (line) => onProgress?.({ message: `wiki: ${line.slice(0, 120)}` }),
       });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("超时")) {
+        throw new Error(`${message} — 如需更长时间请设置环境变量 DEEPORCA_WIKI_TIMEOUT_MS（毫秒）`);
+      }
+      throw err;
+    }
 
-      child.stderr?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString();
-        stderrLines.push(text);
-        // Startup/config errors land on stderr long before exit — surface
-        // them in the main log immediately (they used to be invisible).
-        for (const line of text.split("\n")) {
-          if (line.trim()) console.log(`[wiki stderr] ${line.slice(0, 200)}`);
-        }
-      });
-
-      child.on("error", (err) => {
-        clearInterval(heartbeat);
-        reject(new Error(`openwiki spawn failed: ${err.message}`));
-      });
-
-      child.on("close", (code) => {
-        clearInterval(heartbeat);
-        const elapsed = Math.round((Date.now() - startedAtMs) / 1000);
-        console.log(`[wiki] pid=${child.pid} exited code=${code} after ${elapsed}s`);
-        if (code !== 0) {
-          const stderr = stderrLines.join("");
-          reject(new Error(`openwiki exited ${code}${stderr ? `: ${stderr.slice(0, 500)}` : ""}`));
-          return;
-        }
-        onProgress?.({ message: `wiki ${mode} complete`, percent: 100 });
-        // Try to parse model from stdout output (--print mode).
-        const stdout = stdoutLines.join("");
-        const modelMatch = stdout.match(/model[:\s]+([^\s,]+)/i);
-        resolve({
-          ok: true,
-          model: modelMatch?.[1] ?? env.OPENWIKI_MODEL_ID,
-        });
-      });
-    });
+    const ok = result.forcedOk || result.code === 0 || markerSeenAt > 0;
+    if (!ok) {
+      throw new Error(
+        `openwiki exited ${result.code}${result.signal ?? ""}${result.stderr ? `: ${result.stderr.slice(0, 500)}` : ""}`
+      );
+    }
+    const exitNote =
+      result.forcedOk || (result.code !== 0 && markerSeenAt > 0) ? `（${result.forcedNote ?? "完成标记已确认"}）` : "";
+    onProgress?.({ message: `wiki ${mode} complete${exitNote}`, percent: 100 });
+    // Try to parse model from stdout output (--print mode).
+    const modelMatch = result.stdout.match(/model[:\s]+([^\s,]+)/i);
+    return { ok: true, model: markerModel ?? modelMatch?.[1] ?? env.OPENWIKI_MODEL_ID };
   }
 }

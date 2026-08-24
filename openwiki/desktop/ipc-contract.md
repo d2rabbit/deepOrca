@@ -1,8 +1,8 @@
 ---
 type: desktop
-title: IPC Contract (shared/ipc.ts)
-description: IPC contract shared by main/preload/renderer: IpcRequest channels, IpcEvent events, serialization types, and privileged channel policies.
-tags: [ipc, contract, types]
+title: IPC 契约（shared/ipc.ts）
+description: 两端共享的 IPC 契约：IpcRequest/IpcEvent 通道清单、关键类型（含符号关系图/轨迹/构建阶段）、三档权限策略与 sender 校验、跨工作区任务树读取。
+tags: [desktop, ipc, contract]
 ---
 
 # IPC Contract (shared/ipc.ts)
@@ -13,7 +13,7 @@ tags: [ipc, contract, types]
 
 ### `IpcRequest` (renderer → main, `ipcRenderer.invoke`, ~90 channels)
 
-Grouped by domain: app/window (PickFolder, SetProjectRoot, WindowMinimize…), session (list/get/messages/setActive/delete/rename/archive/unarchive/export), prompt (send/interrupt/pause/resume/enhance), permission (deny/adjustBashTimeout), settings/model (get/update/set/thinkingMode/sessionLocale), skills/plugins (search/refresh/readDoc/upsertMcpServer/remove/builtin*), mcp (status/reconnect), undo, workspace, git (status/stage/unstage/discard/commit/branches/checkout/stash/diff/log/commitDiff/commitFiles), codegraph, review, crg, wiki, gitmcp, editor, memory, knowledge (status/build/renderArchmap/listSymbols/readAgents), design, tasktree, a2ui (action/openWindow/requestPayload), action (list/run).
+Grouped by domain: app/window (PickFolder, SetProjectRoot, WindowMinimize…), session (list/get/messages/setActive/delete/rename/archive/unarchive/export), prompt (send/interrupt/pause/resume/enhance), permission (deny/adjustBashTimeout), settings/model (get/update/set/thinkingMode/sessionLocale), skills/plugins (search/refresh/readDoc/upsertMcpServer/remove/builtin*), mcp (status/reconnect), undo, workspace, git (status/stage/unstage/discard/commit/branches/checkout/stash/diff/log/commitDiff/commitFiles), codegraph, review, crg, wiki, gitmcp, editor, memory, knowledge (status/build/readArchmap/listSymbols/symbolGraph/readAgents), design, tasktree (incl. `tasktree:trajectory`), a2ui (action/openWindow/requestPayload), action (list/run).
 
 ### `IpcEvent` (main → renderer, `webContents.send`, 15 channels)
 
@@ -27,9 +27,15 @@ Grouped by domain: app/window (PickFolder, SetProjectRoot, WindowMinimize…), s
 | `SerializableSessionEntry` | JSON-safe form of SessionEntry (flattened processes + `archived`/`workspaceRoot`) |
 | `WorkspaceGroup` / `WorkspaceSessions` | VSCode-style workspace tree |
 | `KnowledgeStatusResponse` / `MemoryRoutingStatus` / `KnowledgeSymbol` | Knowledge dashboard payloads |
+| `KnowledgeSymbolGraph` / `KnowledgeSymbolGraphNode` / `KnowledgeSymbolGraphEdge` | Display-only symbol relationship graph (R3-6): `knowledgeSymbolGraph(root, query)`; nodes carry `role: focus/caller/callee`, edges `calls/references/instantiates/implements`, `truncated` flag at the 300-edge cap |
+| `KnowledgeArchmapContent` / `KnowledgeArchmapSurface` | `knowledgeReadArchmap(path)` result: exactly one of `surface` (legacy `.json`) or `markdown` (current `.md`) |
+| `KnowledgeBuildStageState` | One pipeline stage (`codegraph`/`wiki`/`arch-scan`) with status/startedAt/endedAt/error — part of `KnowledgeBuildJobSnapshot` (plus `updatedAt` and a 500-line `logs` ring buffer) |
+| `TaskTrajectory` / `TaskTrajectoryOp` | Operation trace over a task's bound sessions (`taskTreeTrajectory`): tool/ok/summary/files — deliberately **not** conversation content |
 | `EditableSettings` / `SettingsSummary` | Editable surface of the settings panel |
 | `DesignArtifactMeta`, `ReviewComment`, `ReviewProgressEvent`, `CrgIndexEntry`, `WikiPageEntry`, `WikiProgressEvent`, `CodegraphProgressEvent`, `A2uiSurfaceUpdateEvent`, `A2uiWindowPayloadEvent`, `ThinkingModeSelection`, `UndoRestoreMode` | Per-domain payloads |
 | `ActionRunResult` | Structured return of ActionRun: `{ ok: true, output } \| { ok: false, error, code }` (defined in action-ipc.ts, one of the three surfaces exposed by [actions](../core/actions.md)) |
+
+**Cross-workspace reads**（task-tree R3-7）：`taskTreeList`/`taskTreeGet`/`taskTreeReflog`/`taskTreeTrajectory`/`taskTreeFork`/`taskTreeSwitch`/`taskTreeAbandon`/`taskTreeMerge` 均接受可选 `workspaceRoot`——省略时回落到活动工作区；显式 root 时 main 侧用 `new TaskTreeService(root)` 读取该工作区已落盘的树状态（与归档处理同一一致性论证）。
 
 ## Privilege Policy (ipc-security.ts)
 

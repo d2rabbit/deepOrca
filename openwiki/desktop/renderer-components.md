@@ -7,7 +7,7 @@ tags: [renderer, components, panels]
 
 # 渲染层组件
 
-`packages/desktop/src/renderer/components/` 的 35 个组件按领域分组（`App.tsx` 负责装配与状态分发；本页给每个组件一个职责锚点）。
+`packages/desktop/src/renderer/components/` 的 40+ 个组件按领域分组（`App.tsx` 负责装配与状态分发；本页给每个组件一个职责锚点）。
 
 ## 对话域
 
@@ -42,7 +42,9 @@ tags: [renderer, components, panels]
 | 组件 | 职责 |
 | --- | --- |
 | `IndexLibraryPanel` | 代码索引库（工作区列表 + 行内构建 + 状态） |
-| `KnowledgePanel` | 知识仪表盘：CodeGraph/OpenWiki/AGENTS/archmap 状态聚合、构建按钮 |
+| `KnowledgePanel`（25KB） | 知识 tab（每工作区一个）：**4 个子 tab — Wiki / AGENTS / 架构图 / 索引关系图**；Wiki 内联主从预览（frontmatter title 标准页头 + H1 去重）；架构图子 tab 只渲染 ```mermaid fence（无图的文档回退全文）；活动构建时叠加 `KnowledgeBuildProgress` |
+| `SymbolGraphView` | 只读符号关系图（R3-6）：callers/focus/callees 三列 + 按 kind 着色的边 + 点击节点重定中心 + 返回栈；数据来自 `knowledgeSymbolGraph` IPC（不改 agent 侧 CodeGraph MCP） |
+| `KnowledgeBuildProgress` | 构建阶段清单（符号索引→文档 Wiki→架构图 状态标记 + console tail 环缓冲），mode-aware 首阶段文案 |
 | `CodeReviewPanel` | OCR 代码评审（运行/进度/评论）、View Graph 入口 |
 | `GitMcpPanel` | GitMCP 模块管理 |
 | `SourceControlPanel` | Git 面板：status/stage/diff/commit/branches |
@@ -55,13 +57,15 @@ tags: [renderer, components, panels]
 | `DesignPreview` | .dd 文档预览 |
 | `PrototypePanel` / `PrototypeWindow` | A2UI 原型渲染与弹出窗口 |
 | `ComparisonMatrix` | 设计对比矩阵 |
+| `MermaidDiagram` | ```mermaid fence → 主题化 SVG（串行队列渲染，失败回退源码文本） |
 
 ## 任务域
 
 | 组件 | 职责 |
 | --- | --- |
 | `TaskPanel` / `TaskProgressPanel` | 任务运行与进度 |
-| `TaskTreePanel`（25.8KB） | 任务轨迹树：树图、分支、节点、reflog、会话徽标、归档联动 |
+| `TaskTreePanel`（9.4KB，R3-7 重设计） | **工作区维度任务历史**：树/分支/reflog 列表 + 从会话徽标直切任务 tab；树本体与操作轨迹移到内容区 tab（见下） |
+| `TaskRecordPanel`（14KB） | 内容区任务记录 tab：任务 RECORD（分支、节点树 with why/status/产物）+ 操作 TRAJECTORY（`taskTreeTrajectory`：工具调用轨迹 tool/ok/summary/触及文件 + 树的 reflog）——**刻意不是会话视图**，不渲染聊天内容 |
 
 ## 工作台
 
@@ -72,10 +76,12 @@ tags: [renderer, components, panels]
 | `Toast` | 通知容器 |
 | `WorkspaceTrustDialog` | 首开工作区信任询问 |
 | `JsonView` | JSON 查看 |
+| `ErrorBoundary` / `ErrorFallback` | **面板级崩溃围栏**（黑屏根治）：A2UI surface/markdown 预览的动态内容抛错时只卸载面板，不卸载整棵 React 树；包裹在 KnowledgePanel 预览区等动态渲染点 |
+| `StreamdownView` | markdown → React 元素树渲染器（见 [renderer](renderer.md)）；`Message` 的 `Md`、wiki/AGENTS 预览、架构图回退全文等所有 markdown 展示均经它（Mermaid fence 交给 `MermaidDiagram`） |
 
 ## 测试说明
 
-无独立组件级测试套件——`dom-harness.ts` 驱动 App 级测试（jsdom + @testing-library/react），关键交互（权限卡、Plan 卡、Composer 发送）在 harness 层验证。
+组件级测试走 `dom-harness.ts`（jsdom + @testing-library/react）：`streamdown-view.test.ts`（markdown 安全边界）、`knowledge-build-progress.test.ts`（构建阶段清单）。关键交互（权限卡、Plan 卡、Composer 发送）在 harness 层验证。
 
 ## 相关页面
 

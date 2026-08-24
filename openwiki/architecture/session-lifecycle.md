@@ -1,16 +1,15 @@
 ---
 type: architecture
-title: Session Lifecycle and the LLM Tool-Calling Loop
-description: The complete SessionManager lifecycle: session creation/reply/activation, the LLM tool-calling loop, auto-recovery, compaction, persistence and the undo file history, along with the session-index debounce invariant.
-tags: [session, llm, lifecycle, persistence]
+title: 会话生命周期与 LLM 工具循环
+description: SessionManager 的会话状态机、创建/回复/激活循环、压缩/持久化/undo、finalization hooks、静默子代理与无会话后台任务（runBackgroundLlmTask）不变式。
+tags: [core, session, lifecycle]
 ---
 
 # Session Lifecycle and the LLM Tool-Calling Loop
 
 `SessionManager` (`packages/core/src/session.ts`, roughly 6,000 lines) is the heart of the core engine: it manages the session state machine, the LLM tool-calling loop, compaction, persistence, Skills injection, built-in MCP server augmentation, and various finalization hooks. At construction time, the host (desktop `SessionBridge`) injects:
 
-<!-- openwiki: broken internal link [core/common-utilities.md] file "core/common-utilities.md" does not exist. Fix the href or restore the target, then delete this comment. -->
-- `createOpenAIClient` / `createSecondaryClient` (client factories, see [common-utilities](core/common-utilities.md))
+- `createOpenAIClient` / `createSecondaryClient` (client factories, see [common-utilities](../core/common-utilities.md))
 - `fetchWebPage` (WebFetch's rendering/static fetcher, for which the desktop injects an offscreen Chromium version)
 - Callback set: `onAssistantMessage`, `onSessionEntryUpdated`, `onLlmStreamProgress`, `onMcpStatusChanged`, `onSandboxStatusChanged`, `onProcessStdout`
 - `getResolvedSettings` (settings snapshot)
@@ -132,12 +131,14 @@ After an activation turn finishes, the following run in order: `maybeNotifyTaskC
 - **Built-in MCP augmentation**: `augmentMcpServersWithBuiltins` conditionally appends the codegraph/serena/skill-spector/dembrandt servers based on the project and resolves GitMCP placeholder configuration; see [core/mcp](../core/mcp.md).
 - **Skill discovery and injection**: skill scan roots `.deeporca/skills/` → `.agents/skills/` → user-level → bundled; `SKILL.md` frontmatter (name/description); LLM self-matching; sharding (`maybeShardSkillContent`, G3).
 - **Background LLM**: `createBackgroundLlm`/`judgeViaLlm` for single-turn judgments used by the task tree, actions, skill matching, and so on.
-- **Silent subagents**: `runSubagent` supports `silent: true` (hidden from lists/streams, used for index building).
-- **Session locale**: `configureSessionLocale`/`formatSessionPrompt` (zh/en prompt templates).
+- **Silent subagents**: `runSubagent` supports `silent: true` (hidden from lists/streams; the bridge also filters `isSilentSubagent` entries from the entry feed, see [desktop/session-bridge](../desktop/session-bridge.md)).
+- **Sessionless background LLM task** (`runBackgroundLlmTask`, R2-2): skill-driven LLM loop with **no session at all** — no sessions-index entry, no message JSONL, no active-session switch, nothing streamed to the conversation view (invariant locked by `background-task.test.ts`). Powers `index.build-all`'s arch-scan stage and standalone `arch-scan.run` (via `ActionContext.runBackgroundTask`). Contract: narrow tool surface (`read`/`bash` + `mcp__a2ui__`/`mcp__codegraph__`/`mcp__serena__`), 80-iteration cap, cancellation via an adopted `AbortSignal` (stops at the next iteration boundary; produced arch surfaces are still flushed), A2UI surface-stamp-scoped flush into the target root's `.deeporca/prototypes/`. **Deliberately not gated by the session permission system**: issuing the build instruction IS the blanket pre-approval for this narrow tool surface (decision 2026-08-23, design-r2.md §三 R3-4); artifacts display only in the Index & Knowledge module.
+- **Session locale**: `configureSessionLocale`/`formatSessionPrompt` (zh/en prompt templates). The desktop also forwards the app UI locale here and to the OpenWiki CLI `--language` flag (see [desktop/knowledge-indexing](../desktop/knowledge-indexing.md)).
 
 ## Focused Tests
 
 - `session.test.ts` (roughly 4.2K lines / 155KB): covers the full session creation/reply/compaction/recovery/permissions/persistence paths.
+- `background-task.test.ts`: sessionless background task leaves zero session residue.
 - `compaction.test.ts`, `resume-synthesis.test.ts`: compaction and resume synthesis.
 - `tool-execution-gate.test.ts`: execution-layer gate semantics.
 - `memory-leak.test.ts`: message cache and process cleanup.

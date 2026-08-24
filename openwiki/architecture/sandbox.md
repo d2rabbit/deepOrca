@@ -1,8 +1,8 @@
 ---
 type: architecture
-title: Sandbox System (P1–P3)
-description: Side-effect audit bus, Sans-IO policy engine, and macOS sandbox-exec backend: chained-hash JSONL audit, 10-scope policy matrix, generation fencing, bash sandbox wiring, and mandatory degradation reporting.
-tags: [sandbox, security, audit, policy]
+title: 沙箱体系（P1–P3）
+description: 三级渐进实现：副作用审计总线、sans-I/O 策略引擎与 macOS sandbox-exec 后端，含降级必须显式报告的约束。
+tags: [architecture, sandbox, security]
 ---
 
 # Sandbox System (P1–P3)

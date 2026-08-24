@@ -1,7 +1,7 @@
 ---
 type: desktop
-title: Activity-Frames Behavior Memory (specs/activity-frames)
-description: An in-process MCP server collects file/Git/Shell/session activity as behavior frames: entity models, sessionization, activity database, five collectors, and the core seam.
+title: Activity-Frames 行为记忆
+description: 进程内 MCP 服务器采集文件/Git/Shell/会话活动为行为帧：实体模型、会话化、活动数据库、五类采集器与 core seam。
 tags: [activity-frames, behavior-memory, mcp]
 ---
 

@@ -47,7 +47,7 @@ State machine `starting → ready | failed | reconnecting`: **a single failed at
 | `serena` | uv available and not disabled | Host-injected `SerenaController.buildMcpServerConfig` (SolidLSP, symbol operations for 40+ languages) |
 | `skill-spector` | uv available and not disabled | `SkillSpectorCliController` (AI skill/MCP security scanning; installed from git+SHA — the PyPI package is malware) |
 | `dembrandt` | Project has design context (designs/ or `.deeporca/DESIGN.md`) and not disabled | Pinned npx spawn (self-managed Playwright browser); URL → W3C DTCG tokens / DESIGN.md + drift gate |
-| `a2ui` | Desktop-injected builder | In-process `deeporca-a2ui` server (11 tools; see [design-system](../desktop/design-system.md)) |
+| `a2ui` | Desktop-injected builder | In-process `deeporca-a2ui` server (11 tools incl. `save_archmap`; see [design-system](../desktop/design-system.md)) |
 | `activity-frames` | Desktop-injected builder | In-process behavioral memory server (see [activity-frames](../desktop/activity-frames.md)) |
 | `vision` | `visionModel` non-empty | Desktop-injected `VisionServerBuilder` (built-in vision MCP plugin) |
 | `gitmcp:*` | Dynamic prefix | One server per GitHub repo (placeholder config → host resolves the real spawn) |
@@ -60,7 +60,7 @@ core defines the seams; desktop injects implementations at startup (AGENTS.md re
 - `configureSkillSpectorController`/`getSkillSpectorController`
 - `configureActivityFramesServerBuilder`/`getActivityFramesServerBuilder` (`mcp/activity-frames-seam.ts`)
 - `configureVisionServerBuilder`/`getVisionServerBuilder` (`mcp/vision-seam.ts`)
-- `configureA2uiServerBuilder`/`getA2uiServerBuilder`/`setA2uiDisabled`/`isA2uiDisabled` (`mcp/a2ui-seam.ts`)
+- `configureA2uiServerBuilder`/`getA2uiServerBuilder`/`setA2uiDisabled`/`isA2uiDisabled` (`mcp/a2ui-seam.ts`) — the `A2uiLifecycle` seam also exposes **scoped persistence**: `persistSurfaces(projectRoot, idPrefix?, sinceStamp?)` (prefix-scoped flush for background tasks; unknown files never swept) and `surfaceStamp()` (monotonic mutation stamp for "flush exactly what THIS task produced" — see [design-system](../desktop/design-system.md) and [session-lifecycle](../architecture/session-lifecycle.md)).
 - `configureGitmcpConfigBuilder`/`getGitmcpConfigBuilder` (`mcp/gitmcp-seam.ts`)
 
 ## GitMCP Module (`gitmcp/resolve.ts` + desktop `main/tools/gitmcp/`)

@@ -1,8 +1,8 @@
 ---
 type: package
-title: Built-in Tools and ToolExecutor
-description: Contracts and implementations of the 8 built-in tools: bash/read/write/edit/AskUserQuestion/UpdatePlan/WebSearch/WebFetch, ToolExecutor dispatch, aliases, MCP fallback, and 1:1 result mapping.
-tags: [tools, tool-executor, bash, snippet]
+title: 内置工具与 ToolExecutor
+description: 刻意精简的内置工具集（bash/read/write/edit/AskUserQuestion/UpdatePlan/WebSearch/WebFetch）与 ToolExecutor 执行契约（含 snippet 编辑）。
+tags: [core, tools, executor]
 ---
 
 # Built-in Tools and ToolExecutor

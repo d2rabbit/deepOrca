@@ -4763,8 +4763,16 @@ ${content}
     if (!this.codegraphDirtySessions.delete(sessionId)) {
       return;
     }
-    void getCodegraphController()?.sync(this.projectRoot);
-    this.knowledgeFreshness.codegraphSync = new Date().toISOString();
+    // Freshness is stamped when the sync SETTLES, not when it is fired —
+    // an at-fire stamp keeps lying for the whole (possibly failed) run.
+    void getCodegraphController()
+      ?.sync(this.projectRoot)
+      .then(() => {
+        this.knowledgeFreshness.codegraphSync = new Date().toISOString();
+      })
+      .catch(() => {
+        // Sync failures leave the previous stamp — the dashboard stays honest.
+      });
   }
 
   /**
@@ -4777,8 +4785,14 @@ ${content}
     if (!this.wikiDirtySessions.delete(sessionId)) {
       return;
     }
-    void getWikiController()?.update(this.projectRoot);
-    this.knowledgeFreshness.wikiSync = new Date().toISOString();
+    void getWikiController()
+      ?.update(this.projectRoot)
+      .then(() => {
+        this.knowledgeFreshness.wikiSync = new Date().toISOString();
+      })
+      .catch(() => {
+        // Update failures leave the previous stamp.
+      });
   }
 
   /**
@@ -4790,8 +4804,14 @@ ${content}
     if (!this.crgDirtySessions.delete(sessionId)) {
       return;
     }
-    void getCrgController()?.sync(this.projectRoot);
-    this.knowledgeFreshness.crgSync = new Date().toISOString();
+    void getCrgController()
+      ?.sync(this.projectRoot)
+      .then(() => {
+        this.knowledgeFreshness.crgSync = new Date().toISOString();
+      })
+      .catch(() => {
+        // Sync failures leave the previous stamp.
+      });
   }
 
   /** Knowledge-source freshness timestamps for the desktop dashboard. */

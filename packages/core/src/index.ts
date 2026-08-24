@@ -214,10 +214,13 @@ export {
   setCrgDisabled,
   isCrgDisabled,
   hasCrgProject,
-  buildCrgMcpServerConfig,
   runCrgResetWithOutput,
   runCrgVisualize,
 } from "./common/crg";
+
+// Hardened child-process runner shared by the wiki/CRG/OCR CLI adapters.
+export { spawnTracked, configureSpawnTrackedLogger } from "./common/spawn-tracked";
+export type { SpawnTrackedOptions, SpawnTrackedResult } from "./common/spawn-tracked";
 
 export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./common/serena-mcp";
 

@@ -49,7 +49,7 @@ tags: [core, package, api-surface]
 13. **GitMCP resolution**: `parseRepoSlug`/`gitmcpServerNameForSlug`/`buildGitmcpPlaceholderConfig`, etc.
 14. **Model capabilities**: `supportsMultimodal`/`defaultsToThinkingMode`/`resolveModelSpec`/`resolveBackgroundLlm` + types.
 15. **Permissions**: `computeToolCallPermissions`/`buildPermissionToolExecution`/`appendProjectAllowedPaths`, etc. + types.
-16. **Actions**: `ActionRegistry`/`defineAction`/`dispatchToolCall`/`configureActionSpawner` + all built-in action definitions and run functions + controller seam.
+16. **Actions**: `ActionRegistry`/`defineAction`/`dispatchToolCall`/`configureActionSpawner` + all built-in action definitions and run functions + controller seam + `BackgroundLlmTaskOptions`/`BackgroundLlmTaskResult`（无会话后台任务类型，见 [actions](actions.md)）。
 17. **Task tree**: `TaskTreeService` + types.
 18. **Session prompt i18n**: `configureSessionLocale`/`formatSessionPrompt`.
 

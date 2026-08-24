@@ -7,6 +7,11 @@
  * Pure visualization for HUMANS — the data comes from a dedicated read-only
  * IPC (knowledge:symbolGraph); the agent-facing CodeGraph MCP tools and the
  * indexed content itself are untouched.
+ *
+ * Responsive (real-machine feedback): the SVG size used to be hardcoded
+ * (~786×N) so the graph ignored window resizes — columns now stretch to the
+ * measured container width via ResizeObserver (clamped to a readable band),
+ * and node text truncation follows the live column width.
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
@@ -21,9 +26,15 @@ type Props = {
   onRecenter: (name: string) => void;
 };
 
-const COL_W = 230;
+/** Column layout band — below MIN the graph scrolls horizontally instead of
+ *  becoming unreadable; above MAX extra window width goes to text, not cols. */
+const MIN_COL_W = 220;
+const MAX_COL_W = 480;
+/** Fallback before the ResizeObserver reports (and in the DOM test harness). */
+const DEFAULT_COL_W = 230;
+const COL_GAP = 40;
 const NODE_H = 34;
-const GAP_X = 40;
+const PAD_X = 8;
 const PAD_Y = 16;
 
 const EDGE_STYLE: Record<string, { stroke: string; dash?: string }> = {
@@ -63,6 +74,19 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   const [history, setHistory] = useState<string[]>([]);
   const currentRef = useRef(query);
   currentRef.current = query;
+  // Live container width — drives the responsive three-column layout.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [availW, setAvailW] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.floor(entries[0]?.contentRect.width ?? 0);
+      if (w > 0) setAvailW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const recenter = (name: string): void => {
     if (name === query) return;
@@ -97,6 +121,16 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
 
   const layout = useMemo(() => {
     if (!graph || graph.nodes.length === 0) return null;
+    // Responsive columns: split the measured container width across the three
+    // columns (clamped) so the graph fills the window at any size.
+    const colW =
+      availW > 0
+        ? Math.max(MIN_COL_W, Math.min(MAX_COL_W, Math.floor((availW - PAD_X * 2 - 2 * COL_GAP) / 3)))
+        : DEFAULT_COL_W;
+    // Text budget follows the live column width (~7px/char at 11.5px font,
+    // node card leaves 46px for the kind dot + padding).
+    const nameMax = Math.max(10, Math.floor((colW - 46) / 7));
+    const fileMax = Math.max(10, Math.floor((colW - 46) / 6));
     const edgeCount = (id: string): number => graph.edges.filter((e) => e.source === id || e.target === id).length;
     const pick = (role: KnowledgeSymbolGraphNode["role"], cap: number): KnowledgeSymbolGraphNode[] =>
       graph.nodes
@@ -108,12 +142,12 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     const callees = pick("callee", 16);
 
     const columns: Array<{ x: number; nodes: KnowledgeSymbolGraphNode[]; label: string }> = [
-      { x: 8, nodes: callers, label: "调用方" },
-      { x: COL_W + GAP_X + 8, nodes: focus, label: "焦点符号" },
-      { x: 2 * (COL_W + GAP_X) + 8, nodes: callees, label: "被调用" },
+      { x: PAD_X, nodes: callers, label: "调用方" },
+      { x: colW + COL_GAP + PAD_X, nodes: focus, label: "焦点符号" },
+      { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: "被调用" },
     ];
     const height = Math.max(...columns.map((c) => c.nodes.length)) * NODE_H + PAD_Y * 2 + 26;
-    const width = 3 * COL_W + 2 * GAP_X + 16;
+    const width = 3 * colW + 2 * COL_GAP + PAD_X * 2;
     const pos = new Map<string, { x: number; y: number }>();
     for (const col of columns) {
       col.nodes.forEach((n, i) => {
@@ -124,8 +158,8 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     const beyond = (role: KnowledgeSymbolGraphNode["role"], shown: KnowledgeSymbolGraphNode[]): number =>
       graph.nodes.filter((n) => n.role === role).length - shown.length;
     const hidden = beyond("caller", callers) + beyond("callee", callees) + beyond("focus", focus);
-    return { columns, pos, visibleEdges, width, height, hidden };
-  }, [graph]);
+    return { columns, pos, visibleEdges, width, height, hidden, colW, nameMax, fileMax };
+  }, [graph, availW]);
 
   if (loading && !graph) {
     return (
@@ -165,7 +199,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
           <span className="ui-symbol-graph-truncated">已截断显示最高连接度节点</span>
         ) : null}
       </div>
-      <div className="ui-symbol-graph-scroll">
+      <div className="ui-symbol-graph-scroll" ref={scrollRef}>
         <svg width={layout.width} height={layout.height} role="img" aria-label="symbol relationship graph">
           <defs>
             {Object.entries(EDGE_STYLE).map(([kind, style]) => (
@@ -196,8 +230,8 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
             if (!from || !to) return null;
             const style = EDGE_STYLE[e.kind] ?? EDGE_STYLE.references;
             const fromRight = to.x > from.x;
-            const x1 = from.x + (fromRight ? COL_W - 16 : 0);
-            const x2 = to.x + (fromRight ? 0 : COL_W - 16);
+            const x1 = from.x + (fromRight ? layout.colW - 16 : 0);
+            const x2 = to.x + (fromRight ? 0 : layout.colW - 16);
             const midX = (x1 + x2) / 2;
             return (
               <path
@@ -224,13 +258,13 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                   role="button"
                   aria-label={`${n.name} (${n.kind})`}
                 >
-                  <rect x={p.x} y={p.y} width={COL_W - 16} height={NODE_H - 6} rx={7} fill={nodeFill(n)} />
+                  <rect x={p.x} y={p.y} width={layout.colW - 16} height={NODE_H - 6} rx={7} fill={nodeFill(n)} />
                   <circle cx={p.x + 12} cy={p.y + (NODE_H - 6) / 2} r={4} fill={KIND_COLOR[n.kind] ?? "#8a94a6"} />
                   <text x={p.x + 22} y={p.y + NODE_H / 2 - 2} className="ui-symbol-graph-node-name">
-                    {truncate(n.name, 22)}
+                    {truncate(n.name, layout.nameMax)}
                   </text>
                   <text x={p.x + 22} y={p.y + NODE_H / 2 + 9} className="ui-symbol-graph-node-kind">
-                    {truncate(n.filePath.split("/").pop() ?? n.kind, 26)}
+                    {truncate(n.filePath.split("/").pop() ?? n.kind, layout.fileMax)}
                   </text>
                 </g>
               );

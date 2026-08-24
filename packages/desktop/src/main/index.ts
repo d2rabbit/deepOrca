@@ -6,7 +6,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { readdir, readFile, writeFile, stat } from "node:fs/promises";
+import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
@@ -30,6 +30,7 @@ import {
   configureCrgController,
   configureRoutingModelDir,
   configureRoutingLogger,
+  configureSpawnTrackedLogger,
   closeEmbeddingService,
   type MemoryProvider,
   configureActionSpawner,
@@ -224,6 +225,18 @@ configureCodegraphController(new SdkCodegraphController());
 // OCR: CLI adapter (replaces configureOcrResolver + collectOcrReview spawn).
 // Uses correct flags (--audience agent --format json) + correct JSON schema.
 configureReviewController(new OcrCliController());
+// App UI locale as reported by the renderer (SessionLocaleSet) — drives the
+// wiki generation language. The renderer syncs it at boot and on change.
+let currentAppLocale: string | undefined;
+/** Renderer Locale → BCP-47 for the openwiki --language flag. */
+const APP_LOCALE_TO_BCP47: Record<string, string> = {
+  en: "en",
+  zh: "zh-CN",
+  "zh-TW": "zh-TW",
+  "zh-HK": "zh-HK",
+  ja: "ja",
+  ko: "ko",
+};
 // Wiki: CLI controller (replaces configureWikiResolver — vendored openwiki CLI).
 const wikiNode = resolveModernNode(22) ?? process.execPath;
 configureWikiController(
@@ -243,13 +256,12 @@ configureWikiController(
       }
     },
     getLanguage: () => {
-      // Derive BCP-47 from app locale (e.g. "zh-CN", "en-US").
+      // The app's UI locale (synced from the renderer via SessionLocaleSet),
+      // NOT the OS locale — wiki pages must come out in the language the user
+      // actually reads the app in, or the wiki tab ends up mixed-language.
       // Falls back to undefined (OpenWiki defaults to English).
-      try {
-        return Intl?.DateTimeFormat()?.resolvedOptions()?.locale ?? undefined;
-      } catch {
-        return undefined;
-      }
+      if (!currentAppLocale) return undefined;
+      return APP_LOCALE_TO_BCP47[currentAppLocale];
     },
   })
 );
@@ -325,6 +337,9 @@ const startDembrandtProvider = () => {
 // CRG version pin: read from vendor/crg/.vendored-crg-version (written by
 // scripts/vendor-crg.js). Pins `uv tool run --from code-review-graph==<version>`.
 configureCrgVersionRoot(join(__dirname, "..", "vendor", "crg"));
+// Host-injected log sink for the shared hardened CLI runner (spawnTracked)
+// — core never touches the console itself (layer rule).
+configureSpawnTrackedLogger((line) => console.log(line));
 
 // CRG controller: prefer local wheel (offline), fall back to PyPI spec.
 {
@@ -860,7 +875,10 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
     return result;
   });
   handlePrivileged(IpcRequest.ModelSet, (selection: ModelConfigSelection) => getBridge().setModel(selection));
-  handlePrivileged(IpcRequest.SessionLocaleSet, (locale: string) => configureSessionLocale(locale));
+  handlePrivileged(IpcRequest.SessionLocaleSet, (locale: string) => {
+    currentAppLocale = locale;
+    configureSessionLocale(locale);
+  });
   handlePrivileged(IpcRequest.ThinkingModeSet, (selection: ThinkingModeSelection) =>
     getBridge().setThinkingMode(selection)
   );
@@ -1067,10 +1085,25 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
     // Derive the workspace root server-side. Earlier code trusted a renderer-
     // supplied root and recursively removed .code-review-graph under it.
     const root = getBridge().projectRoot;
-    const exitCode = await runCrgResetWithOutput(root, (chunk: string, stream: "stdout" | "stderr") => {
-      emit(IpcEvent.CrgProgress, { root, chunk, stream, done: false });
-    });
-    emit(IpcEvent.CrgProgress, { root, chunk: "", stream: "stdout", done: true, exitCode });
+    // Terminal progress MUST fire on every path (success, non-zero exit, and
+    // throw) — the task row's done state hangs off this one event, and a
+    // missing terminal event is exactly the index-module stuck-state bug.
+    let exitCode = 1;
+    try {
+      exitCode = await runCrgResetWithOutput(root, (chunk: string, stream: "stdout" | "stderr") => {
+        emit(IpcEvent.CrgProgress, { root, chunk, stream, done: false });
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      emit(IpcEvent.CrgProgress, {
+        root,
+        chunk: `\n[Error] CRG reset failed: ${message}\n`,
+        stream: "stderr",
+        done: false,
+      });
+    } finally {
+      emit(IpcEvent.CrgProgress, { root, chunk: "", stream: "stdout", done: true, exitCode });
+    }
     return {
       ok: exitCode === 0,
       action: "reset" as const,
@@ -1889,6 +1922,38 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
   handlePrivileged(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
 
+  /**
+   * Tree label for a wiki page: the frontmatter `title` (localized at
+   * generation time) — filename-derived labels forced English filenames onto
+   * Chinese pages, which read as mixed-language in the tree. Falls back to a
+   * prettified filename when the page has no frontmatter title.
+   */
+  async function wikiPageTitle(absPath: string, fileName: string): Promise<string> {
+    const fallback = fileName.replace(/\.md$/, "").replace(/[-_]/g, " ");
+    try {
+      // Frontmatter lives at the top — reading the first 4 KB is enough and
+      // keeps listing cheap on large pages.
+      const fh = await open(absPath, "r");
+      let head: string;
+      try {
+        const buf = Buffer.alloc(4096);
+        const { bytesRead } = await fh.read(buf, 0, 4096, 0);
+        head = buf.toString("utf-8", 0, bytesRead);
+      } finally {
+        await fh.close();
+      }
+      const fm = head.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      const title = fm?.[1]
+        .match(/^title:[ \t]*(.+)$/m)?.[1]
+        ?.trim()
+        .replace(/^["']|["']$/g, "");
+      if (title) return title;
+    } catch {
+      // unreadable — fall through to the filename label
+    }
+    return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+  }
+
   handle(IpcRequest.WikiListPages, async (rootArg?: string): Promise<WikiPageEntry[]> => {
     const wikiDir = join(rootArg || getBridge().projectRoot, "openwiki");
     try {
@@ -1900,14 +1965,14 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
           if (item.isDirectory()) {
             await walk(join(dir, item.name), rel);
           } else if (item.name.endsWith(".md")) {
-            const title = item.name.replace(/\.md$/, "").replace(/[-_]/g, " ");
+            const absPath = join(dir, item.name);
             let mtime: string | undefined;
             try {
-              mtime = (await stat(join(dir, item.name))).mtime.toISOString();
+              mtime = (await stat(absPath)).mtime.toISOString();
             } catch {
               // unreadable — leave undated
             }
-            entries.push({ path: rel, title: title.charAt(0).toUpperCase() + title.slice(1), mtime });
+            entries.push({ path: rel, title: await wikiPageTitle(absPath, item.name), mtime });
           }
         }
       };

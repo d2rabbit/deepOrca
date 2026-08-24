@@ -35,8 +35,8 @@ function formatElapsed(fromIso: string | undefined, toIso: string | undefined, n
 }
 
 const STAGE_LABELS: Record<KnowledgeBuildStageState["labelKey"], string> = {
-  codegraph: "① 符号索引",
-  wiki: "② 文档 Wiki",
+  codegraph: "① 索引",
+  wiki: "② Wiki",
   arch: "③ 架构图",
 };
 
@@ -92,6 +92,7 @@ function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number): string {
     const elapsed = formatElapsed(stage.startedAt, stage.endedAt, nowMs);
     const detailText =
       `${STAGE_LABELS[stage.labelKey]}${elapsed ? ` · ${elapsed}` : ""}` +
+      (stage.labelKey === "wiki" && stage.status === "running" ? " · 读取索引加速生成" : "") +
       (stage.status === "failed" && stage.error ? ` — ${stage.error.slice(0, 80)}` : "");
     add(`label-${sid}`, "Text", {
       text: detailText,

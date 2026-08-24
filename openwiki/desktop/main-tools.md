@@ -1,8 +1,8 @@
 ---
 type: desktop
-title: Main Process Tool Controllers
-description: External capability controllers under main/tools/: OCR review, OpenWiki, Serena, CRG, SkillSpector, Vision MCP, WebFetch provider, GitMCP tools, and editor handling.
-tags: [main-process, controllers, cli, mcp]
+title: 主进程工具控制器（main/tools/）
+description: host 注入的外部能力控制器清单：OCR/Wiki/Serena/CRG/SkillSpector/CodeGraph/Vision/WebFetch/GitMCP/Dembrandt/DdPackage/Editor/A2UI 及安全降级红线。
+tags: [desktop, main-process, tools, controllers]
 ---
 
 # Main Process Tool Controllers
@@ -25,6 +25,7 @@ tags: [main-process, controllers, cli, mcp]
 | `DembrandtBrowser` | `dembrandt-browser.ts` | Brand ingestion via CDP (see [design-system](design-system.md)) |
 | `DdPackage` | `dd-package.ts` | `.ddp`/`.ddu` delivery package builds |
 | `EditorHandlers` | `editor-handlers.ts` | Monaco editor read/write/list (containment validation) |
+| `A2uiServerBuilder` | `tools/a2ui/a2ui-mcp.ts` | In-process A2UI MCP server (11 tools incl. `save_archmap`); scoped persistence (`persistSurfaces` idPrefix/stamp + `knownSurfaceIds` sweep guard, see [design-system](design-system.md)) |
 
 ## Security and Degradation Red Lines
 
@@ -38,6 +39,7 @@ tags: [main-process, controllers, cli, mcp]
 - `safe-path.test.ts` (9.8KB): path containment.
 - `workspace-trust.test.ts`: trust tiers.
 - `dd-package.test.ts`: delivery package builds.
+- A2UI side: `a2ui-normalize.test.ts`（v0.9 形状修复）、`a2ui-persist-race.test.ts`（持久化竞态）、`a2ui-processor.test.ts`（renderer）。
 - Core side: `codegraph.test.ts`, `mcp-client.test.ts`.
 
 ## Related Pages

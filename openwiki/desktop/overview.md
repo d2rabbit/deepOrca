@@ -7,7 +7,7 @@ tags: [desktop, electron, package]
 
 # @deeporca/desktop Overview
 
-`@deeporca/desktop` is the Electron GUI client built on top of the `@deeporca/core` engine. `main`/`types`: `dist/main.js` (Electron main process). Dependencies: core, memory, react/react-dom, monaco-editor, @openuidev/lang-core (OpenUI Lang), marked/dompurify/highlight.js, @alibaba-group/open-code-review, @colbymchenry/codegraph.
+`@deeporca/desktop` is the Electron GUI client built on top of the `@deeporca/core` engine. `main`/`types`: `dist/main.js` (Electron main process). Dependencies: core, memory, react/react-dom, monaco-editor, @openuidev/lang-core (OpenUI Lang), streamdown/remark-breaks (markdown → React 渲染, replaces marked/dompurify), mermaid (架构图 SVG 渲染), @a2ui/react + @a2ui/web_core (官方 A2UI v0.9 协议引擎), @alibaba-group/open-code-review, @colbymchenry/codegraph.
 
 ## Three-Layer Architecture
 
@@ -51,7 +51,7 @@ See [build-and-vendoring](build-and-vendoring.md).
 
 ## Testing
 
-`packages/desktop/src/tests/run-tests.mjs` (node:test + tsx + jsdom DOM harness). Covers: IPC contract/security, app startup path, gitmcp tools, dd packaging, design-store, activity-frames, safe-path, workspace-trust, markdown, etc.
+`packages/desktop/src/tests/run-tests.mjs` (node:test + tsx + jsdom DOM harness). Covers: IPC contract/security, app startup path, gitmcp tools, dd packaging, design-store, activity-frames, safe-path, workspace-trust, streamdown markdown security boundary, a2ui processor/normalize/persistence, build-job stages, task trajectory, symbol-graph query, etc.
 
 ## Related Pages
 

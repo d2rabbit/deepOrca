@@ -49,12 +49,12 @@ tags: [quickstart, navigation, index]
 - [SessionBridge](desktop/session-bridge.md) — desktop↔core 边界（权限中继/事件转发/服务委托）
 - [IPC 契约](desktop/ipc-contract.md) — 通道清单与类型
 - [Preload 桥](desktop/preload.md) — `window.deeporca` 与原型窗口受限桥
-- [渲染层](desktop/renderer.md) — App 状态机、hooks、i18n
-- [渲染层组件](desktop/renderer-components.md) — 对话/设置/知识/设计/任务面板
+- [渲染层](desktop/renderer.md) — App MainTab 模型、hooks、i18n、StreamdownView markdown 安全渲染、mermaid.ts
+- [渲染层组件](desktop/renderer-components.md) — 对话/设置/知识（4 子页签）/设计/任务（记录+轨迹）面板、ErrorBoundary
 - [插件系统](desktop/plugins.md) — 插件管理器、内置插件模板、技能发现
 - [技能评估](desktop/skill-evals.md) — skill-up pin + CI 回归
-- [知识索引](desktop/knowledge-indexing.md) — CodeGraph/CRG/OpenWiki/arch-scan、BuildJobManager
-- [设计系统](desktop/design-system.md) — A2UI 设计 MCP 服务器（11 工具三族）、.dd 格式、dembrandt
+- [知识索引](desktop/knowledge-indexing.md) — CodeGraph/OpenWiki/AGENTS/架构图（Mermaid 文档）、BuildJobManager 分阶段可观测、符号关系图
+- [设计系统](desktop/design-system.md) — A2UI 设计 MCP 服务器（11 工具，官方 v0.9.1 协议 + save_archmap）、.dd 格式、dembrandt
 - [主进程工具控制器](desktop/main-tools.md) — ocr/wiki/serena/crg/skill-spector/vision/gitmcp
 - [Activity-Frames](desktop/activity-frames.md) — 行为记忆子系统
 - [构建与 vendoring](desktop/build-and-vendoring.md) — esbuild 三 bundle、vendor-*.js、打包发布
@@ -69,7 +69,7 @@ tags: [quickstart, navigation, index]
 
 - [LLM 工具循环](workflows/llm-tool-loop.md) — 用户提示 → 工具执行端到端
 - [记忆流水线](workflows/memory-pipeline.md) — 捕获/召回/注入/清理
-- [知识构建](workflows/knowledge-build.md) — CodeGraph → OpenWiki → AGENTS → archmap
+- [知识构建](workflows/knowledge-build.md) — CodeGraph → OpenWiki → arch-scan（Mermaid 架构图）分阶段可观测流水线
 - [设计工作流](workflows/design-pipeline.md) — DesignPanel → action → A2UI/.dd → 交付包
 
 ## 任务路由表
@@ -84,13 +84,14 @@ tags: [quickstart, navigation, index]
 | 改 MCP 生命周期/内置服务器 | [MCP](core/mcp.md) | `core/src/mcp/mcp-manager.ts`、`session.ts augmentMcpServersWithBuiltins` | `mcp-client.test.ts`、`codegraph.test.ts` | `node packages/core/src/tests/run-tests.mjs packages/core/src/tests/mcp-client.test.ts` |
 | 新增/修改 Action | [Actions](core/actions.md) | `core/src/actions/registry.ts` + `actions/`、`desktop/src/main/action-ipc.ts` | `actions.test.ts`、`action-ipc.test.ts` | `node packages/core/src/tests/run-tests.mjs packages/core/src/tests/actions.test.ts` |
 | 改语义路由/嵌入召回 | [语义路由](core/routing.md) | `core/src/routing/`、`packages/embedding/` | `routing.test.ts`、`routing-facade.test.ts` | `node packages/core/src/tests/run-tests.mjs packages/core/src/tests/routing.test.ts` |
-| 改任务树 | [任务轨迹树](core/task-tree.md) | `core/src/tasks/task-tree-service.ts` | `task-tree.test.ts` | `node packages/core/src/tests/run-tests.mjs packages/core/src/tests/task-tree.test.ts` |
+| 改任务树 | [任务轨迹树](core/task-tree.md) | `core/src/tasks/task-tree-service.ts`、desktop `main/task-trajectory.ts`（操作轨迹） | `task-tree.test.ts`、`task-trajectory.test.ts` | `node packages/core/src/tests/run-tests.mjs packages/core/src/tests/task-tree.test.ts` |
 | 改设置/端点/模型注册 | [设置系统](core/settings.md) | `core/src/settings.ts`、`common/model-capabilities.ts` | `settings-and-notify.test.ts`、`model-capabilities.test.ts` | `node packages/core/src/tests/run-tests.mjs packages/core/src/tests/settings-and-notify.test.ts` |
 | 改 IPC 通道/契约 | [IPC 契约](desktop/ipc-contract.md) | `desktop/src/shared/ipc.ts`（两端同改） | `ipc-contract.test.ts`、`ipc-security.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/ipc-contract.test.ts` |
 | 改主进程组合/启动 | [主进程组合根](desktop/main-process.md) | `desktop/src/main/index.ts`、`session-bridge.ts` | `app-boot.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/app-boot.test.ts` |
-| 改渲染层 UI 逻辑 | [渲染层](desktop/renderer.md) + [组件](desktop/renderer-components.md) | `desktop/src/renderer/App.tsx`、`components/` | `markdown.test.ts`、`permissions-lib.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/markdown.test.ts` |
-| 改知识索引/一键构建 | [知识索引](desktop/knowledge-indexing.md) | `desktop/src/main/build-job-manager.ts`、`tools/codegraph-sdk.ts`、`tools/wiki-cli.ts` | `app-boot.test.ts`、core `actions.test.ts` | `npm run desktop:build && npm run desktop:start` |
-| 改设计系统/A2UI | [设计系统](desktop/design-system.md) + [设计工作流](workflows/design-pipeline.md) | `desktop/src/main/tools/a2ui/a2ui-mcp.ts`、`renderer/dd/`、`tools/design-store.ts` | `dd-parser.test.ts`、`a2ui-processor.test.ts`、`design-dembrandt.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/dd-package.test.ts` |
+| 改渲染层 UI 逻辑 | [渲染层](desktop/renderer.md) + [组件](desktop/renderer-components.md) | `desktop/src/renderer/App.tsx`（MainTab 模型）、`components/`、`mermaid.ts` | `streamdown-view.test.ts`、`knowledge-build-progress.test.ts`、`permissions-lib.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/streamdown-view.test.ts` |
+| 改知识索引/一键构建 | [知识索引](desktop/knowledge-indexing.md) | `desktop/src/main/build-job-manager.ts`、`tools/codegraph-sdk.ts`、`tools/wiki-cli.ts`、`main/symbol-graph-query.ts` | `build-job-manager.test.ts`、`app-boot.test.ts`、core `background-task.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/build-job-manager.test.ts` |
+| 改架构图扫描（arch-scan） | [知识索引](desktop/knowledge-indexing.md) + [Actions](core/actions.md) | `core/src/actions/arch-scan.ts`、`session.ts runBackgroundLlmTask`、`templates/plugins/code/skills/arch-scan/SKILL.md`、`main/tools/a2ui/a2ui-mcp.ts save_archmap` | `phase-actions.test.ts`、`background-task.test.ts`、`background-arch-flush.test.ts`、`a2ui-persist-race.test.ts` | `node scripts/test-arch-scan.mjs` |
+| 改设计系统/A2UI | [设计系统](desktop/design-system.md) + [设计工作流](workflows/design-pipeline.md) | `desktop/src/main/tools/a2ui/a2ui-mcp.ts`、`renderer/a2ui/processor.ts`、`shared/a2ui-legacy.ts`、`tools/design-store.ts` | `dd-parser.test.ts`、`a2ui-processor.test.ts`、`a2ui-normalize.test.ts`、`a2ui-persist-race.test.ts`、`design-dembrandt.test.ts` | `node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/a2ui-processor.test.ts` |
 | 改记忆流水线 | [记忆包](memory/overview.md) + [记忆工作流](workflows/memory-pipeline.md) | `memory/src/memory-manager.ts`、`adapter.ts`、`tdai/` | `capture.test.ts`、`runner-toolloop.test.ts` | `node packages/memory/src/tests/run-tests.mjs` |
 | 改嵌入服务 | [嵌入包](embedding/overview.md) | `embedding/src/transformers-embedding.ts`、`shared.ts` | `transformers-embedding.test.ts`、`shared-registry.test.ts` | `node packages/embedding/src/tests/run-tests.mjs` |
 | 改构建/vendoring/发布 | [构建与 vendoring](desktop/build-and-vendoring.md) | `desktop/build.mjs`、`scripts/vendor-*.js`、`electron-builder.yml` | — | `npm run desktop:build && npm run check` |

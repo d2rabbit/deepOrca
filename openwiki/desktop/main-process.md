@@ -41,6 +41,7 @@ sequenceDiagram
 ```
 
 - **Controller injection** (AGENTS.md red line: vendor paths and implementations are provided by the host): `configureSerenaController`, `configureSkillSpectorController`, `configureCrgController`, `configureCodegraphController`, `configureWikiController`, `configureVisionServerBuilder`, `configureA2uiServerBuilder`, `configureActivityFramesServerBuilder`, `configureGitmcpConfigBuilder`, `configureRoutingModelDir`/`configureRoutingLogger`, `configureActionSpawner` (`ElectronNodeSpawner`), `configureDembrandtVendorRoot`/`configureDembrandtCdpEndpointGetter`, `configureUvVendorRoot`/`configureCrgVersionRoot`.
+- **Wiki language**: `WikiCliController.getLanguage` returns the **app UI locale** (synced from the renderer via `SessionLocaleSet`, mapped through `APP_LOCALE_TO_BCP47`: zh→zh-CN, zh-TW, zh-HK, ja, ko, en), not the OS locale — wiki pages come out in the language the user reads the app in (see [knowledge-indexing](knowledge-indexing.md)).
 - **Window**: 1180×820, `frame:false`, `contextIsolation:true`, `nodeIntegration:false`, `sandbox:false`, `spellcheck:false`; brand icon `applyAppIcon`.
 - **Window security**: `will-navigate` interception (only allows its own renderer files or dev origin; external http(s) goes through `shell.openExternal`); `setWindowOpenHandler` always denies and opens externally.
 
@@ -58,9 +59,9 @@ Each registration group uses `IpcHelpers` (three tiers: `handle` / `handlePrivil
 | `registerCodegraphIpc` | Index repository list/reindex (SdkCodegraphController) |
 | `registerCrgIpc` | CRG availability/list/reindex/visualization |
 | `registerMemoryIpc` | Memory availability/start-stop/search/stats/clear |
-| `registerKnowledgeIpc` | Knowledge status aggregation (codegraph/openwiki/AGENTS/archmaps), archmap rendering, KnowledgeBuild |
+| `registerKnowledgeIpc` | Knowledge status aggregation (codegraph/openwiki/AGENTS/archmaps), archmap read (`KnowledgeReadArchmap`: `.md` → markdown / `.json` → A2UI surface), symbol graph (`KnowledgeSymbolGraph`), KnowledgeBuild |
 | `registerDesignIpc` | Design artifacts CRUD/form state/export (ddp/ddu), symbol list (SQLite read-only), AGENTS read |
-| `registerTaskTreeIpc` | All task tree operations |
+| `registerTaskTreeIpc` | All task tree operations — cross-workspace reads (`rootService(workspaceRoot)` spins a fresh `TaskTreeService` over a non-active root's flushed disk state; omitted root = active workspace), plus `TaskTreeTrajectory` (operation trace extraction via `main/task-trajectory.ts`, see [renderer-components](renderer-components.md)) |
 | `registerA2uiIpc` | A2UI surface actions/window opening |
 | `registerA2uiPrototypeWindowIpc` | Prototype window payload handshake |
 | `registerWikiIpc` | OpenWiki availability/init/update/list/read |

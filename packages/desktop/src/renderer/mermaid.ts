@@ -1,5 +1,6 @@
 /**
- * Mermaid loader + SVG renderer shared by MermaidDiagram and MarkdownView.
+ * Mermaid loader + SVG renderer shared by MermaidDiagram and StreamdownView's
+ * MermaidBlock renderer.
  *
  * mermaid is imported DYNAMICALLY so it only loads when a diagram actually
  * renders — it is a ~1MB dependency and must stay out of the initial bundle

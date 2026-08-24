@@ -9,13 +9,14 @@ tags: [renderer, react, hooks, i18n]
 
 `packages/desktop/src/renderer/` 是浏览器 bundle（无 Node/Electron 访问），唯一入口是 `window.deeporca`（[preload](preload.md)）。
 
-## App.tsx（68KB）
+## App.tsx（74KB）
 
 `App()` 是唯一顶层组件，管理：
 
 - **状态**：projectRoot、homeDir（避免把用户主目录当工作区呈现）、sessions、activeId、messages、draft、imageUrls、busy/enhancing、permission 待办、plan、设计产物、知识状态、任务树。
-- **布局**：左 rail（导航：会话/Git/任务/命令/插件/token/索引/评审/设计/任务树/GitMCP/编辑器/主题/撤销/设置）→ Sidebar → 主区（MessageList + Composer 或各面板）→ 右 dock（ContextProgress/TokenStats/ProcessOutput）。
-- **懒加载**：CodeReviewPanel、DiffOverlay、EditorOverlay、PrototypePanel、DesignPreview、DesignPanel、KnowledgePanel、TaskTreePanel（Monaco + markdown 渲染器 ~5MB+ 延迟到需要时）。
+- **主区 tab 模型**（`MainTab`）：会话 tab 是固定首 tab（不可关闭）；设置/插件/编辑器文件/知识/任务记录各自开 **自己的 tab**（`auxTabs` + `taskTabs` + `knowledgeTabs`），互不覆盖——取代了旧的 `mainView` 三态（其 bug：设置/插件占据主区时，其他面板开的 tab 在底下永远够不到）。`mainView` 仅保留为后向兼容派生值。关闭辅助 tab 回落到会话 tab。
+- **布局**：左 rail（导航：会话/Git/任务/命令/插件/token/索引/评审/设计/任务树/GitMCP/编辑器/主题/撤销/设置）→ Sidebar → 主区（MessageList + Composer 或各面板 tab）→ 右 dock（ContextProgress/TokenStats/ProcessOutput）。
+- **懒加载**：CodeReviewPanel、DiffOverlay、EditorOverlay、PrototypePanel、DesignPreview、DesignPanel、KnowledgePanel、TaskTreePanel、TaskRecordPanel（Monaco + markdown 渲染器 ~5MB+ 延迟到需要时）。
 - **辅助函数**：`findLatestPlan`、`syntheticUserMessage`、`findPendingAskUserQuestion`、`extractOpenuiFence`（OpenUI 内联块提取）、`extractProposedPlan`/`getImplementationPrompt`（Plan 审批）。
 - **命令面板**：CommandPalette（rail 命令、全局快捷键）。
 
@@ -55,13 +56,15 @@ tags: [renderer, react, hooks, i18n]
 
 ## 其他
 
-- `markdown.ts`：marked + DOMPurify 安全渲染管线（`markdown.test.ts`）。
+- **markdown 渲染**：`components/StreamdownView.tsx`（streamdown：remark/rehype → React 元素树，**无 `dangerouslySetInnerHTML`**；rehype-sanitize GitHub schema + rehype-harden URL allowlist；流式模式 remend 增量解析不闪断；remark-breaks 保留单换行 `<br>`；JSON 块 pretty-print；`MermaidBlock` 自定义渲染器把 ```mermaid fence 交给 mermaid.ts）。`Message`/`MessageList` 经 `streaming`/`isAnimating` 传流式与打字光标状态。`lib/frontmatter.ts` 提供共享 `FRONTMATTER_RE`/`stripFrontmatter`（wiki 页/技能文档的 YAML 头剥离）。旧 `markdown.ts`（marked + DOMPurify 字符串管线）已删除。
+- **mermaid.ts**：Mermaid 动态 import（~1MB，不进首包；CSP 禁止 CDN）+ `renderMermaidSvg`——主题取 `--ui-*` token（随明暗主题），渲染**串行队列**（mermaid.render 不能并行），`MermaidDiagram.tsx` 组件失败回退原始文本。
 - `ui/`：自绘 UI 组件库（Rail、Modal、Button、Dropdown、Tooltip（portal）、FileIcon（语言徽标 glyph）、icons、command-palette、controls、inputs、layout、surfaces、feedback）。
 - `main.tsx`：ReactDOM 挂载。
 
 ## 聚焦测试
 
-- `markdown.test.ts`（8.5KB）：渲染/净化。
+- `streamdown-view.test.ts`：**markdown 安全边界**（script/iframe/事件处理器净化、GFM 存活；jsdom + @testing-library/react）。
+- `knowledge-build-progress.test.ts`：知识 tab 构建阶段清单（索引→Wiki→架构图 状态标记、console tail）。
 - `permissions-lib.test.ts`：权限答复解析。
 - `dom-harness.ts`（8.5KB）：jsdom 测试 harness（App 级组件测试基础设施）。
 

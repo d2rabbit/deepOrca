@@ -2704,66 +2704,110 @@ button.ui-tool-head:hover {
 .ui-md p:last-child {
   margin-bottom: 0;
 }
-/* ── Code block wrapper (lang label + copy button) ─────────────────────── */
-.ui-md .code-block-wrap {
+/* ── Code block wrapper (Streamdown: lang label + copy button) ─────────────
+   Streamdown renders code fences as data-streamdown="code-block" containers
+   with Tailwind utility classes; its colour utilities (bg-sidebar, border-border,
+   text-muted-foreground) are shadcn tokens that don't exist in our Tailwind
+   config, so ALL colours come from here. The `.ui-md` prefix keeps specificity
+   above single-class utilities, so these rules win regardless of stylesheet
+   order (the Tailwind runtime injects its <style> after the linked CSS). */
+.ui-md [data-streamdown="code-block"] {
   position: relative;
   margin: 0 0 var(--ui-space-2);
+  padding: 0;
+  border: none;
+  background: transparent;
 }
-.ui-md .code-block-wrap pre.code-block {
-  margin: 0;
-  background: var(--ui-surface-sunken);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-md);
-  padding: var(--ui-space-3);
-  padding-top: calc(var(--ui-space-3) + 14px);
-  overflow-x: auto;
-  font-family: var(--ui-font-mono);
-  font-size: 12.5px;
-}
-.ui-md .code-block-lang {
+.ui-md [data-streamdown="code-block-header"] {
   position: absolute;
   top: 6px;
   left: 10px;
+  z-index: 1;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.ui-md [data-streamdown="code-block-header"] span {
+  margin: 0;
   font-size: 10px;
   font-family: var(--ui-font-mono);
   color: var(--ui-text-faint);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  pointer-events: none;
-  user-select: none;
 }
-.ui-md .code-block-copy {
+.ui-md [data-streamdown="code-block-actions"] {
   position: absolute;
   top: 4px;
   right: 6px;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+  opacity: 0;
+  transition: opacity 0.15s var(--ui-ease);
+}
+.ui-md [data-streamdown="code-block"]:hover [data-streamdown="code-block-actions"] {
+  opacity: 1;
+}
+.ui-md [data-streamdown="code-block-copy-button"],
+.ui-md [data-streamdown="code-block-download-button"] {
+  /* The download button is disabled in StreamdownView's controls today; its
+     selectors stay so enabling it later doesn't silently ship unstyled. */
   display: flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  padding: 0;
   border: none;
   border-radius: var(--ui-radius-sm);
   background: transparent;
   color: var(--ui-text-faint);
   font-size: 13px;
   cursor: pointer;
-  opacity: 0;
   transition:
-    opacity 0.15s var(--ui-ease),
     background 0.12s var(--ui-ease),
     color 0.12s var(--ui-ease);
 }
-.ui-md .code-block-wrap:hover .code-block-copy {
-  opacity: 1;
-}
-.ui-md .code-block-copy:hover {
+.ui-md [data-streamdown="code-block-copy-button"]:hover,
+.ui-md [data-streamdown="code-block-download-button"]:hover {
   background: var(--ui-surface-raised);
   color: var(--ui-text-primary);
 }
-.ui-md .code-block-copy:active {
+.ui-md [data-streamdown="code-block-copy-button"]:active,
+.ui-md [data-streamdown="code-block-download-button"]:active {
   transform: scale(0.9);
 }
-/* Legacy fallback: bare <pre> without wrapper */
+.ui-md [data-streamdown="code-block-body"] {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+.ui-md [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  padding-top: calc(var(--ui-space-3) + 14px);
+}
+/* Streaming caret — shown after the last block while tokens arrive. */
+.ui-streamdown.is-animating > div > *:last-child::after {
+  content: " ▋";
+  animation: ui-streamdown-caret 1s steps(2, start) infinite;
+}
+@keyframes ui-streamdown-caret {
+  50% {
+    opacity: 0;
+  }
+}
+/* Tables scroll horizontally inside the bubble instead of stretching it. */
+.ui-md [data-streamdown="table-wrapper"] {
+  overflow-x: auto;
+}
+/* Base code-block style — NOT a legacy fallback. The streamdown wrappers
+   above are deliberately transparent, so these rules supply the visible
+   chrome (background, border, radius, padding, mono font) for every fenced
+   block. Deleting them unstyles all code blocks. */
 .ui-md pre {
   background: var(--ui-surface-sunken);
   border: 1px solid var(--ui-border-soft);
@@ -2790,59 +2834,69 @@ button.ui-tool-head:hover {
    weight). The colour for each language matches the tool-card family
    that most often produces it (bash → green, json → amber, etc.) so the
    eye builds a consistent mental model. */
-.ui-md .code-block-wrap.code-json pre,
-.ui-md .code-block-wrap.code-jsonc pre {
+.ui-md [data-streamdown="code-block"][data-language="json"] pre,
+.ui-md [data-streamdown="code-block"][data-language="jsonc"] pre {
   border-left: 3px solid #f59e0b;
   background: color-mix(in srgb, #f59e0b 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-html pre,
-.ui-md .code-block-wrap.code-xml pre,
-.ui-md .code-block-wrap.code-svg pre {
+.ui-md [data-streamdown="code-block"][data-language="html"] pre,
+.ui-md [data-streamdown="code-block"][data-language="xml"] pre,
+.ui-md [data-streamdown="code-block"][data-language="svg"] pre {
   border-left: 3px solid #e879f9;
   background: color-mix(in srgb, #e879f9 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-bash pre,
-.ui-md .code-block-wrap.code-sh pre,
-.ui-md .code-block-wrap.code-shell pre,
-.ui-md .code-block-wrap.code-zsh pre {
+.ui-md [data-streamdown="code-block"][data-language="bash"] pre,
+.ui-md [data-streamdown="code-block"][data-language="sh"] pre,
+.ui-md [data-streamdown="code-block"][data-language="shell"] pre,
+.ui-md [data-streamdown="code-block"][data-language="zsh"] pre {
   border-left: 3px solid var(--ui-success);
   background: color-mix(in srgb, var(--ui-success) 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-typescript pre,
-.ui-md .code-block-wrap.code-tsx pre {
+.ui-md [data-streamdown="code-block"][data-language="typescript"] pre,
+.ui-md [data-streamdown="code-block"][data-language="tsx"] pre {
   border-left: 3px solid #3b82f6;
   background: color-mix(in srgb, #3b82f6 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-javascript pre,
-.ui-md .code-block-wrap.code-jsx pre {
+.ui-md [data-streamdown="code-block"][data-language="javascript"] pre,
+.ui-md [data-streamdown="code-block"][data-language="jsx"] pre {
   border-left: 3px solid #fbbf24;
   background: color-mix(in srgb, #fbbf24 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-python pre,
-.ui-md .code-block-wrap.code-py pre {
+.ui-md [data-streamdown="code-block"][data-language="python"] pre,
+.ui-md [data-streamdown="code-block"][data-language="py"] pre {
   border-left: 3px solid #14b8a6;
   background: color-mix(in srgb, #14b8a6 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-css pre,
-.ui-md .code-block-wrap.code-scss pre,
-.ui-md .code-block-wrap.code-less pre {
+.ui-md [data-streamdown="code-block"][data-language="css"] pre,
+.ui-md [data-streamdown="code-block"][data-language="scss"] pre,
+.ui-md [data-streamdown="code-block"][data-language="less"] pre {
   border-left: 3px solid #ec4899;
   background: color-mix(in srgb, #ec4899 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-yaml pre,
-.ui-md .code-block-wrap.code-yml pre,
-.ui-md .code-block-wrap.code-toml pre {
+.ui-md [data-streamdown="code-block"][data-language="yaml"] pre,
+.ui-md [data-streamdown="code-block"][data-language="yml"] pre,
+.ui-md [data-streamdown="code-block"][data-language="toml"] pre {
   border-left: 3px solid #a855f7;
   background: color-mix(in srgb, #a855f7 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-markdown pre,
-.ui-md .code-block-wrap.code-md pre {
+.ui-md [data-streamdown="code-block"][data-language="markdown"] pre,
+.ui-md [data-streamdown="code-block"][data-language="md"] pre {
   border-left: 3px solid var(--ui-accent);
   background: color-mix(in srgb, var(--ui-accent) 5%, var(--ui-surface-sunken));
 }
-.ui-md .code-block-wrap.code-diff pre {
+.ui-md [data-streamdown="code-block"][data-language="diff"] pre {
   border-left: 3px solid var(--ui-accent);
   background: var(--ui-surface-sunken);
+}
+/* Mermaid fence still streaming — plain source view until the fence closes. */
+.ui-mermaid-pending {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-3);
+  overflow-x: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
 }
 .ui-md a {
   color: var(--ui-accent);
@@ -8263,7 +8317,18 @@ button.ui-topbar-pill {
 }
 
 /* ── Index & Knowledge (specs/index-knowledge-rework) ─────────────────────── */
-/* Left rail: workspace rows with inline per-row build buttons. */
+/* Left rail: workspace rows with inline per-row build buttons. While a row's
+   build runs, the compact progress checklist attaches directly under it. */
+.ui-ik-rowwrap {
+  margin-bottom: 4px;
+}
+.ui-ik-rowwrap .ui-ik-row {
+  margin-bottom: 0;
+}
+.ui-ik-rowwrap:has(> .ui-knowledge-build) .ui-ik-row {
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
 .ui-ik-row {
   display: flex;
   align-items: center;
@@ -8338,6 +8403,139 @@ button.ui-topbar-pill {
 .ui-knowledge-subtab.active {
   background: var(--ui-accent, #3b82f6);
   color: #fff;
+}
+/* Live build progress — the stage checklist for a running build: pipeline
+   索引 → Wiki → 架构图, per-stage state, console tail (full variant).
+   The compact variant attaches under the workspace row in the left rail
+   (real-machine feedback: progress belongs next to the thing being built). */
+.ui-knowledge-build {
+  padding: 8px 12px 6px;
+  font-size: 12px;
+  background: var(--ui-surface-sunken, rgba(127, 127, 127, 0.08));
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+/* Slim one-line status bar in the knowledge tab (the full checklist lives in
+   the left rail, not in the tab). The trailing live span carries the freshest
+   heartbeat (page counts, 完成标记) so the tab states wiki liveness itself. */
+.ui-knowledge-buildbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--ui-text-dim, #888);
+  background: var(--ui-surface-sunken, rgba(127, 127, 127, 0.08));
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+.ui-knowledge-buildbar-label {
+  flex: none;
+}
+.ui-knowledge-buildbar-live {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ui-text-faint, #666);
+}
+/* Compact variant: attached to the bottom of the rail row. */
+.ui-knowledge-build.compact {
+  padding: 6px 10px 5px;
+  font-size: 11.5px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+  border-left: 1px solid var(--ui-border-soft, #333);
+  border-right: 1px solid var(--ui-border-soft, #333);
+  border-radius: 0 0 8px 8px;
+}
+.ui-knowledge-build.compact .ui-knowledge-build-head {
+  margin-bottom: 4px;
+}
+.ui-knowledge-build-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--ui-text, inherit);
+}
+.ui-knowledge-build-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-build-mark {
+  width: 14px;
+  flex: none;
+  text-align: center;
+  color: var(--ui-text-dim, #888);
+}
+.ui-knowledge-build-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ui-knowledge-build-stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ui-text-dim, #888);
+}
+/* Running stage's freshest progress line (heartbeats, page counts) — wraps to
+   its own row under the stage (the compact rail panel has no console tail). */
+.ui-knowledge-build-stage-live {
+  flex-basis: 100%;
+  padding-left: 20px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-knowledge-build-stage.st-running {
+  color: var(--ui-text, inherit);
+}
+.ui-knowledge-build-stage.st-done .ui-knowledge-build-mark {
+  color: var(--ui-success, #4caf50);
+}
+.ui-knowledge-build-stage.st-failed .ui-knowledge-build-mark,
+.ui-knowledge-build-stage.st-failed .ui-knowledge-build-stage-detail {
+  color: var(--ui-danger, #e5484d);
+}
+.ui-knowledge-build-stage.st-running .ui-knowledge-build-mark {
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-knowledge-build-stage-name {
+  flex: none;
+  min-width: 48px;
+  font-weight: 600;
+}
+.ui-knowledge-build-stage-detail {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-build-console {
+  margin-top: 6px;
+  border-top: 1px dashed var(--ui-border-soft, #333);
+  padding-top: 4px;
+}
+.ui-knowledge-build-console-title {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  margin-bottom: 2px;
+}
+.ui-knowledge-build-console-line {
+  font-family: var(--ui-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ui-knowledge-body {
   flex: 1;
@@ -8438,8 +8636,7 @@ button.ui-topbar-pill {
   font-size: 12px;
   color: var(--ui-text-faint, #888);
 }
-.ui-mermaid-fallback,
-.code-block-wrap.ui-mermaid-failed {
+.ui-mermaid-fallback {
   padding: var(--ui-space-2, 8px);
   font-size: 11px;
   font-family: var(--ui-font-mono, monospace);
@@ -9494,6 +9691,103 @@ button.ui-topbar-pill {
   border-radius: 10px;
   overflow: hidden;
   background: var(--ui-bg-soft, #fafbfc);
+}
+/* Arch map viewer: toolbar (chart switcher + zoom + open-source) over a
+   scaleable stage. The stage scales via transform; the frame scrolls when a
+   manual zoom exceeds the pane. */
+.ui-arch-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.ui-arch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding-bottom: 8px;
+}
+.ui-arch-chartswitch {
+  display: inline-flex;
+  gap: 2px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.ui-arch-chartswitch button {
+  border: none;
+  background: transparent;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+}
+.ui-arch-chartswitch button.active {
+  background: var(--ui-accent, #3b82f6);
+  color: #fff;
+}
+.ui-arch-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ui-arch-zoom button {
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: transparent;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+}
+.ui-arch-zoom button:hover,
+.ui-arch-zoom button.active {
+  border-color: var(--ui-accent, #3b82f6);
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-arch-zoom-value {
+  min-width: 38px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  font-variant-numeric: tabular-nums;
+}
+.ui-arch-frame {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 8px;
+  background: var(--ui-bg, #fff);
+}
+.ui-arch-stage {
+  width: max-content;
+  min-width: 100%;
+  padding: 10px;
+}
+.ui-arch-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 6px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  flex-shrink: 0;
+}
+.ui-arch-pager button {
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: transparent;
+  border-radius: 6px;
+  padding: 1px 10px;
+  cursor: pointer;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-arch-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .ui-knowledge-archframe-head {
   display: flex;

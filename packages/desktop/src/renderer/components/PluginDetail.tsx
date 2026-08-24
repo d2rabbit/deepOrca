@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import type { BuiltinPluginGroup, BuiltinPluginInfo, PluginMcpServer, SkillInfo } from "../../shared/ipc";
 import { api } from "../api";
 import { tOr, useI18n, type Translate } from "../i18n";
-import { renderMarkdown } from "../markdown";
+import { StreamdownView } from "./StreamdownView";
 import { Button, StatusDot, Switch } from "../ui/index";
 import { builtinLabel, isBundledSkill } from "./PluginMcpPanel";
 
@@ -86,15 +86,6 @@ function skillSourceLabel(t: Translate, path: string): string {
   if (path.startsWith("~/") || path.startsWith("~\\")) return t("plugins.source.home");
   if (path.startsWith("./") || path.startsWith(".\\")) return t("plugins.source.project");
   return path;
-}
-
-/** Drop the YAML frontmatter block so only the readable body is rendered. */
-function stripFrontmatter(md: string): string {
-  if (!md.startsWith("---")) return md;
-  const end = md.indexOf("\n---", 3);
-  if (end === -1) return md;
-  const after = md.indexOf("\n", end + 1);
-  return after === -1 ? "" : md.slice(after + 1);
 }
 
 /**
@@ -205,7 +196,7 @@ export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill 
           {docError ? (
             <div className="ui-plugin-detail-empty">{t("plugins.detail.docError")}</div>
           ) : (
-            <div className="ui-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(stripFrontmatter(doc)) }} />
+            <StreamdownView className="ui-md" markdown={doc} />
           )}
         </section>
       </div>
@@ -430,7 +421,7 @@ function BuiltinPluginDetail({ name }: { name: string }): JSX.Element {
         {docError ? (
           <div className="ui-plugin-detail-empty">{t("plugins.detail.docError")}</div>
         ) : doc ? (
-          <div className="ui-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(doc) }} />
+          <StreamdownView className="ui-md" markdown={doc} />
         ) : null}
       </section>
     </div>

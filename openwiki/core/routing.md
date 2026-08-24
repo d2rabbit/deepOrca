@@ -1,7 +1,7 @@
 ---
 type: package
-title: Semantic Routing
-description: Embedding-based skill/tool recall: SkillRouter.shortlist, ToolRouter.select, composeRoute compositional routing, RoutingFacade session freezing, skill sharding, fail-open degradation, and embedding service lifecycle.
+title: 语义路由
+description: 基于嵌入的技能/工具召回：SkillRouter.shortlist、ToolRouter.select、组合路由、会话冻结、fail-open 降级与嵌入服务生命周期。
 tags: [routing, embeddings, skills, semantic]
 ---
 

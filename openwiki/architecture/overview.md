@@ -1,7 +1,7 @@
 ---
 type: architecture
-title: System Architecture Overview
-description: DeepOrca overall architecture: a coding agent harness tuned for DeepSeek, four-package npm workspaces layering, layer rules, end-to-end data flow, and branch/release strategy.
+title: 系统架构总览
+description: DeepOrca 整体架构：为 DeepSeek 调优的编码 agent harness，npm workspaces 四包分层、layer rules、端到端数据流与分支/发布策略。
 tags: [architecture, overview, monorepo]
 ---
 
