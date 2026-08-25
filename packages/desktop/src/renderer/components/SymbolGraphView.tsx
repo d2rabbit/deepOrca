@@ -12,6 +12,11 @@
  * (~786×N) so the graph ignored window resizes — columns now stretch to the
  * measured container width via ResizeObserver (clamped to a readable band),
  * and node text truncation follows the live column width.
+ *
+ * Color: every fill/stroke is a CSS class (sym-card/sym-dot/sym-edge…) styled
+ * in ui.css from the --ui-diagram-hue-* ramp — no hex colors live here, so
+ * the graph follows the active theme AND matches the arch-map palette
+ * (columns get identity hues: callers violet · focus blue · callees teal).
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
@@ -28,41 +33,20 @@ type Props = {
 
 /** Column layout band — below MIN the graph scrolls horizontally instead of
  *  becoming unreadable; above MAX extra window width goes to text, not cols. */
-const MIN_COL_W = 220;
-const MAX_COL_W = 480;
+const MIN_COL_W = 240;
+const MAX_COL_W = 520;
 /** Fallback before the ResizeObserver reports (and in the DOM test harness). */
-const DEFAULT_COL_W = 230;
-const COL_GAP = 40;
-const NODE_H = 34;
-const PAD_X = 8;
-const PAD_Y = 16;
+const DEFAULT_COL_W = 250;
+const COL_GAP = 54;
+const NODE_H = 40;
+const PAD_X = 12;
+const PAD_Y = 22;
 
-const EDGE_STYLE: Record<string, { stroke: string; dash?: string }> = {
-  calls: { stroke: "#4a9eff" },
-  references: { stroke: "#8a94a6", dash: "5 3" },
-  instantiates: { stroke: "#b07cf0", dash: "2 3" },
-  implements: { stroke: "#57c98b", dash: "2 3" },
-};
-
-const KIND_COLOR: Record<string, string> = {
-  function: "#4a9eff",
-  method: "#57c98b",
-  class: "#f0a04b",
-  interface: "#b07cf0",
-  type_alias: "#8a94a6",
-  constant: "#e377c2",
-  variable: "#8a94a6",
-  property: "#8a94a6",
-  component: "#ff9896",
-};
+/** Edge kinds, in legend order. Paint + dash patterns live in ui.css. */
+const EDGE_KINDS = ["calls", "references", "instantiates", "implements"] as const;
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
-
-function nodeFill(node: KnowledgeSymbolGraphNode): string {
-  if (node.role === "focus") return "rgba(74, 158, 255, 0.16)";
-  return "rgba(127, 140, 166, 0.08)";
 }
 
 export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element {
@@ -156,10 +140,10 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     const callers = pick("caller", 14);
     const callees = pick("callee", 16);
 
-    const columns: Array<{ x: number; nodes: KnowledgeSymbolGraphNode[]; label: string }> = [
-      { x: PAD_X, nodes: callers, label: t("symbols.callers") },
-      { x: colW + COL_GAP + PAD_X, nodes: focus, label: t("symbols.focus") },
-      { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: t("symbols.callees") },
+    const columns: Array<{ x: number; nodes: KnowledgeSymbolGraphNode[]; label: string; hue: string }> = [
+      { x: PAD_X, nodes: callers, label: t("symbols.callers"), hue: "col-callers" },
+      { x: colW + COL_GAP + PAD_X, nodes: focus, label: t("symbols.focus"), hue: "col-focus" },
+      { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: t("symbols.callees"), hue: "col-callees" },
     ];
     const height = Math.max(...columns.map((c) => c.nodes.length)) * NODE_H + PAD_Y * 2 + 26;
     const width = 3 * colW + 2 * COL_GAP + PAD_X * 2;
@@ -210,10 +194,10 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
         <span className="ui-symbol-graph-center">◈ {query.trim() ? query.trim() : t("symbols.globalView")}</span>
       </div>
       <div className="ui-symbol-graph-legend">
-        {Object.entries(EDGE_STYLE).map(([kind, style]) => (
+        {EDGE_KINDS.map((kind) => (
           <span key={kind} className="ui-symbol-graph-legend-item">
             <svg width="22" height="6">
-              <line x1="0" y1="3" x2="22" y2="3" stroke={style.stroke} strokeWidth="2" strokeDasharray={style.dash} />
+              <line x1="0" y1="3" x2="22" y2="3" className={`sym-edge edge-${kind}`} strokeWidth="2" />
             </svg>
             {kind}
           </span>
@@ -225,7 +209,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       <div className="ui-symbol-graph-scroll" ref={scrollRef}>
         <svg width={layout.width} height={layout.height} role="img" aria-label="symbol relationship graph">
           <defs>
-            {Object.entries(EDGE_STYLE).map(([kind, style]) => (
+            {EDGE_KINDS.map((kind) => (
               <marker
                 key={kind}
                 id={`arrow-${kind}`}
@@ -236,13 +220,13 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                 markerHeight="7"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 1 L 9 5 L 0 9 z" fill={style.stroke} fillOpacity={0.7} />
+                <path d="M 0 1 L 9 5 L 0 9 z" className={`sym-arrow arrow-${kind}`} />
               </marker>
             ))}
           </defs>
           {layout.columns.map((col) =>
             col.nodes.length > 0 ? (
-              <text key={col.label} x={col.x + 4} y={PAD_Y + 10} className="ui-symbol-graph-col-label">
+              <text key={col.label} x={col.x + 4} y={PAD_Y + 10} className={`ui-symbol-graph-col-label ${col.hue}`}>
                 {col.label} · {col.nodes.length}
               </text>
             ) : null
@@ -251,7 +235,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
             const from = layout.pos.get(e.source);
             const to = layout.pos.get(e.target);
             if (!from || !to) return null;
-            const style = EDGE_STYLE[e.kind] ?? EDGE_STYLE.references;
+            const kind = (EDGE_KINDS as readonly string[]).includes(e.kind) ? e.kind : "references";
             const fromRight = to.x > from.x;
             const x1 = from.x + (fromRight ? layout.colW - 16 : 0);
             const x2 = to.x + (fromRight ? 0 : layout.colW - 16);
@@ -261,10 +245,9 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                 key={i}
                 d={`M ${x1} ${from.y + NODE_H / 2} C ${midX} ${from.y + NODE_H / 2}, ${midX} ${to.y + NODE_H / 2}, ${x2} ${to.y + NODE_H / 2}`}
                 fill="none"
-                stroke={style.stroke}
-                strokeWidth={1.2}
+                className={`sym-edge edge-${kind}`}
+                strokeWidth="1.2"
                 strokeOpacity={0.55}
-                strokeDasharray={style.dash}
                 markerEnd={`url(#arrow-${e.kind})`}
               />
             );
@@ -281,12 +264,19 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                   role="button"
                   aria-label={`${n.name} (${n.kind})`}
                 >
-                  <rect x={p.x} y={p.y} width={layout.colW - 16} height={NODE_H - 6} rx={7} fill={nodeFill(n)} />
-                  <circle cx={p.x + 12} cy={p.y + (NODE_H - 6) / 2} r={4} fill={KIND_COLOR[n.kind] ?? "#8a94a6"} />
-                  <text x={p.x + 22} y={p.y + NODE_H / 2 - 2} className="ui-symbol-graph-node-name">
+                  <rect
+                    x={p.x}
+                    y={p.y}
+                    width={layout.colW - 16}
+                    height={NODE_H - 6}
+                    rx={8}
+                    className={`sym-card role-${n.role}`}
+                  />
+                  <circle cx={p.x + 13} cy={p.y + (NODE_H - 6) / 2} r={4.5} className={`sym-dot kind-${n.kind}`} />
+                  <text x={p.x + 24} y={p.y + NODE_H / 2 - 3} className="ui-symbol-graph-node-name">
                     {truncate(n.name, layout.nameMax)}
                   </text>
-                  <text x={p.x + 22} y={p.y + NODE_H / 2 + 9} className="ui-symbol-graph-node-kind">
+                  <text x={p.x + 24} y={p.y + NODE_H / 2 + 10} className="ui-symbol-graph-node-kind">
                     {truncate(n.filePath.split(/[\\/]/).pop() ?? n.kind, layout.fileMax)}
                   </text>
                 </g>

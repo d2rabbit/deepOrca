@@ -244,7 +244,7 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
           <button
             key={key}
             type="button"
-            className={`ui-knowledge-subtab${sub === key ? " active" : ""}`}
+            className={`ui-knowledge-subtab subtab-${key}${sub === key ? " active" : ""}`}
             onClick={() => setSub(key)}
           >
             {t(labelKey)}
@@ -451,6 +451,9 @@ function WikiPageView({
   return (
     <div className="ui-wiki-page">
       <div className="ui-wiki-page-head">
+        <span className="ui-wiki-page-icon" aria-hidden>
+          ▤
+        </span>
         {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
         <Button size="sm" variant="subtle" onClick={onOpenFile}>
           {openLabel}
@@ -505,29 +508,38 @@ function ArchDiagrams({
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
   const frameRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const [frameW, setFrameW] = useState(0);
+  const [frameH, setFrameH] = useState(0);
   const [naturalW, setNaturalW] = useState(0);
+  const [naturalH, setNaturalH] = useState(0);
 
-  // Pane width drives the fit scale — re-fits on window/panel resizes.
+  // Pane size drives the fit scale — re-fits on window/panel resizes.
   useEffect(() => {
     const el = frameRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
-      const w = Math.floor(entries[0]?.contentRect.width ?? 0);
+      const rect = entries[0]?.contentRect;
+      const w = Math.floor(rect?.width ?? 0);
+      const h = Math.floor(rect?.height ?? 0);
       if (w > 0) setFrameW(w);
+      if (h > 0) setFrameH(h);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // Unscaled content width — ResizeObserver fires when mermaid injects the
-  // svg, so the fit baseline lands without polling.
+  // Unscaled content size — measured on the INNER box so the explicit scaled
+  // stage box below never feeds back into its own measurement. ResizeObserver
+  // fires when mermaid injects the svg, so the fit baseline lands without
+  // polling.
   useEffect(() => {
-    const el = stageRef.current;
+    const el = innerRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
-      const w = stageRef.current?.offsetWidth ?? 0;
-      if (w > 0) setNaturalW(w);
+      const inner = innerRef.current;
+      if (!inner) return;
+      if (inner.offsetWidth > 0) setNaturalW(inner.offsetWidth);
+      if (inner.offsetHeight > 0) setNaturalH(inner.offsetHeight);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -537,7 +549,15 @@ function ArchDiagrams({
     return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
   }
   const active = charts[Math.min(idx, charts.length - 1)];
-  const fitScale = naturalW > 0 && frameW > 0 ? Math.min(1, Math.max(0.15, frameW / naturalW)) : 1;
+  // 适配宽度 used to cap at 100% — a small diagram left a mostly-empty canvas
+  // and tiny text. Fit now scales UP so the map owns the pane: bounded by the
+  // width fit, the upscale ceiling, and (for tall charts) ~120% of the height
+  // fit so filling the width doesn't turn into three screens of scrolling.
+  // Diagrams WIDER than the pane still fit-to-width exactly as before.
+  const widthFit = naturalW > 0 && frameW > 0 ? frameW / naturalW : 1;
+  const heightFit = naturalH > 0 && frameH > 0 ? frameH / naturalH : Infinity;
+  const fitScale =
+    widthFit >= 1 ? Math.min(widthFit, 1.9, Math.max(1, heightFit * 1.2)) : Math.min(1, Math.max(0.15, widthFit));
   const scale = fit ? fitScale : zoom;
   const clampZoom = (z: number): number => Math.min(3, Math.max(0.2, z));
 
@@ -603,12 +623,22 @@ function ArchDiagrams({
         ) : null}
       </div>
       <div className="ui-arch-frame" ref={frameRef}>
+        {/* The stage carries an EXPLICIT scaled box (transform alone doesn't
+            grow the layout box, so manual zoom >100% used to clip the right
+            half with no way to scroll to it). The inner box stays unscaled
+            and is what fit-to-width measures. */}
         <div
           className="ui-arch-stage"
-          ref={stageRef}
-          style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+          style={{
+            width: naturalW > 0 ? naturalW * scale : undefined,
+            height: naturalH > 0 ? naturalH * scale : undefined,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
         >
-          <MermaidDiagram chart={active} />
+          <div className="ui-arch-stage-inner" ref={innerRef}>
+            <MermaidDiagram chart={active} />
+          </div>
         </div>
       </div>
       {charts.length > 1 ? (
