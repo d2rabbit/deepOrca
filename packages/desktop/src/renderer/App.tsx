@@ -1072,6 +1072,8 @@ export function App(): JSX.Element {
     newSession: handleNewSession,
     openSettings: handleOpenSettings,
     toggleShortcutsModal: () => setModal((v) => (v === "shortcuts" ? null : "shortcuts")),
+    // The trust dialog is modal by design — no shortcut may act behind it.
+    blocked: () => trustAskOpen,
   });
 
   const commandItems = useMemo<CommandItem[]>(

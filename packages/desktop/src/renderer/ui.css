@@ -8734,6 +8734,37 @@ button.ui-topbar-pill {
   border-radius: 8px;
   overflow-wrap: anywhere;
 }
+.ui-panel-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ui-panel-error-retry,
+.ui-panel-error-detail-toggle {
+  border: 1px solid var(--ui-danger-soft, rgba(239, 68, 68, 0.3));
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-panel-error-retry:hover,
+.ui-panel-error-detail-toggle:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-panel-error-stack {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  opacity: 0.85;
+}
 
 /* AGENTS sub-tab: in-place markdown rendering. */
 .ui-knowledge-agents {
@@ -8822,6 +8853,19 @@ button.ui-topbar-pill {
 /* Background-task badge — compact circular ring with the module icon in the
    center (◈ 索引与知识 / ⚖ 代码审查). Replaces the auto-opening console as
    the bottom-right presence for running background work. */
+.ui-task-badge-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 60;
+}
+.ui-task-badge-stack .ui-task-badge {
+  position: static;
+}
 .ui-task-badge {
   position: fixed;
   right: 16px;
@@ -10088,6 +10132,14 @@ button.ui-topbar-pill {
 }
 .ui-proto-artifact-btn:hover {
   color: var(--ui-text, inherit);
+}
+/* Armed state: first click landed — the next click deletes. */
+.ui-proto-artifact-btn.armed {
+  color: var(--ui-danger);
+  font-weight: 700;
+}
+.ui-proto-artifact-btn.armed:hover {
+  color: var(--ui-danger);
 }
 /* Spec documents render as a reading view in the design preview slot. */
 .ui-proto-spec-doc {

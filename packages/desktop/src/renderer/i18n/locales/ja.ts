@@ -1052,6 +1052,7 @@ export const ja: Record<MessageKey, string> = {
   "mcp.save": "追加",
   "mcp.enableTitle": "サーバーを有効化",
   "mcp.removeTitle": "サーバーを削除",
+  "mcp.removeConfirm": "もう一度クリックで削除",
   "tokens.currentWorkspace": "現在のワークスペース",
 
   // ── Editor (Monaco code editor) ───────────────────────────
@@ -1071,6 +1072,14 @@ export const ja: Record<MessageKey, string> = {
   "editor.readError": "ファイルの読み込みに失敗しました。",
   "editor.writeError": "ファイルの保存に失敗しました。",
   "editor.tooLarge": "ファイルが大きすぎて編集できません。",
+  "editor.closeDirtyTitle": "未保存の変更",
+  "editor.closeDirtyBody": "このファイルには未保存の変更があります。閉じますか？",
+  "editor.discardAndClose": "破棄して閉じる",
+  "editor.saveAndClose": "保存して閉じる",
+
+  // ── エラーバウンダリ ───────────────────────────────────────
+  "error.panelCrash": "パネルの描画に失敗しました。",
+  "error.retry": "再試行",
 
   // ── Language names ────────────────────────────────────────
   "lang.en": "English",

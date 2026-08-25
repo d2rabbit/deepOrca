@@ -159,7 +159,10 @@ export function getDiffLines(summary: ToolSummary): DiffLine[] {
 }
 
 export function getPlanLines(summary: ToolSummary): string[] {
-  if (!summary.ok || summary.name !== "UpdatePlan") {
+  // Case-insensitive like every other tool-name comparison in this tree —
+  // an exact `!== "UpdatePlan"` silently dropped plans from any caller that
+  // spelled the name differently (empty plan card, vanished task list).
+  if (!summary.ok || summary.name.toLowerCase() !== "updateplan") {
     return [];
   }
   const plan = summary.metadata?.["plan"];

@@ -17,7 +17,7 @@
  * change events — artifacts land mid-run, not on the next manual reload.
  */
 
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton, Input } from "../ui/index";
@@ -153,13 +153,36 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
     }
   }, [requirement, prototypeId, materializing, t]);
 
+  // Artifact delete is irreversible: armed two-step (same pattern as session
+  // delete), replacing the native window.confirm; failures surface in note.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+    },
+    []
+  );
+
   const handleDelete = useCallback(
     async (id: string) => {
-      if (!window.confirm(t("design.deleteConfirm"))) return;
-      await api.designDelete(id);
+      if (confirmDeleteId !== id) {
+        if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+        setConfirmDeleteId(id);
+        confirmDeleteTimerRef.current = setTimeout(() => setConfirmDeleteId(null), 3000);
+        return;
+      }
+      if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+      setConfirmDeleteId(null);
+      try {
+        await api.designDelete(id);
+      } catch (err) {
+        setMaterializeNote(err instanceof Error ? err.message : String(err));
+        return;
+      }
       void reload();
     },
-    [reload, t]
+    [confirmDeleteId, reload]
   );
 
   // P4-1 package export: main builds a .ddp (pm-design) or .ddu (ui-design)
@@ -334,14 +357,14 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
                 </button>
                 <button
                   type="button"
-                  className="ui-proto-artifact-btn"
-                  title={t("design.delete")}
+                  className={`ui-proto-artifact-btn${confirmDeleteId === a.id ? " armed" : ""}`}
+                  title={confirmDeleteId === a.id ? t("design.deleteConfirm") : t("design.delete")}
                   onClick={(e) => {
                     e.stopPropagation();
                     void handleDelete(a.id);
                   }}
                 >
-                  🗑
+                  {confirmDeleteId === a.id ? "!" : "🗑"}
                 </button>
               </div>
             ))}

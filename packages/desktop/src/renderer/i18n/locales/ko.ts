@@ -1044,6 +1044,7 @@ export const ko: Record<MessageKey, string> = {
   "mcp.save": "추가",
   "mcp.enableTitle": "서버 활성화",
   "mcp.removeTitle": "서버 제거",
+  "mcp.removeConfirm": "다시 클릭하면 제거됩니다",
   "tokens.currentWorkspace": "현재 워크스페이스",
 
   // ── Editor (Monaco code editor) ───────────────────────────
@@ -1063,6 +1064,14 @@ export const ko: Record<MessageKey, string> = {
   "editor.readError": "파일을 읽지 못했습니다.",
   "editor.writeError": "파일을 저장하지 못했습니다.",
   "editor.tooLarge": "파일이 너무 커서 편집할 수 없습니다.",
+  "editor.closeDirtyTitle": "저장되지 않은 변경 사항",
+  "editor.closeDirtyBody": "이 파일에 저장되지 않은 변경 사항이 있습니다. 그래도 닫으시겠습니까?",
+  "editor.discardAndClose": "버리고 닫기",
+  "editor.saveAndClose": "저장하고 닫기",
+
+  // ── 에러 바운더리 ──────────────────────────────────────────
+  "error.panelCrash": "패널 렌더링에 실패했습니다.",
+  "error.retry": "재시도",
 
   // ── Language names ────────────────────────────────────────
   "lang.en": "English",

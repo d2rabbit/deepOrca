@@ -18,6 +18,8 @@ export type ShortcutHandlers = {
   newSession: () => void;
   openSettings: () => void | Promise<void>;
   toggleShortcutsModal: () => void;
+  /** True while a blocking dialog (workspace trust) must swallow shortcuts. */
+  blocked?: () => boolean;
 };
 
 export function useGlobalShortcuts(handlers: ShortcutHandlers): void {
@@ -27,34 +29,43 @@ export function useGlobalShortcuts(handlers: ShortcutHandlers): void {
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       const h = ref.current;
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      // Guards: (a) Alt-modified combos must pass through — AltGr on Windows
+      // reports ctrlKey+altKey and would otherwise fire shortcuts while the
+      // user types special characters; (b) auto-repeat must not machine-gun
+      // (hold Ctrl+N opening sessions); (c) a blocking trust dialog owns the
+      // keyboard — shortcuts must not act behind it.
+      if (e.altKey || e.repeat) return;
+      if (h.blocked?.()) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === "k" || e.key === "K") {
         e.preventDefault();
         h.togglePalette();
       }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "o" || e.key === "O")) {
+      if (e.key === "o" || e.key === "O") {
         e.preventDefault();
         h.toggleProcessPanel();
       }
       // ⌘B / Ctrl+B — toggle sidebar panel
-      if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
+      if (e.key === "b" || e.key === "B") {
         e.preventDefault();
         h.togglePanel();
       }
       // ⌘J / Ctrl+J — toggle bottom process panel
-      if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
+      if (e.key === "j" || e.key === "J") {
         e.preventDefault();
         h.toggleProcessPanel();
       }
       // ⌘N / Ctrl+N — new session
-      if ((e.metaKey || e.ctrlKey) && (e.key === "n" || e.key === "N")) {
+      if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         h.newSession();
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+      if (e.key === ",") {
         e.preventDefault();
         void h.openSettings();
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "?" || e.key === "/")) {
+      if (e.shiftKey && (e.key === "?" || e.key === "/")) {
         e.preventDefault();
         h.toggleShortcutsModal();
       }

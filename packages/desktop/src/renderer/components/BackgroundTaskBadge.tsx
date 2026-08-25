@@ -127,64 +127,73 @@ export function BackgroundTaskBadge({ onOpen }: { onOpen: (kind: BadgeTaskKind) 
   const buildJobs = useBuildJobs();
   const reviewRuns = useActiveActionRuns(REVIEW_ACTION_PREFIXES);
 
-  const task = useMemo<BadgeTask | null>(() => {
-    const k = knowledgeTask(buildJobs, t);
-    const r = reviewTask(reviewRuns, t);
-    if (k && r) return k.startedAtMs >= r.startedAtMs ? k : r;
-    return k ?? r;
+  // BOTH task kinds get a badge when both run — the old newest-wins pick hid
+  // one of them entirely (its console stayed unreachable from the corner).
+  const tasks = useMemo<BadgeTask[]>(() => {
+    const list = [knowledgeTask(buildJobs, t), reviewTask(reviewRuns, t)].filter(
+      (task): task is BadgeTask => task !== null
+    );
+    return list.sort((a, b) => a.startedAtMs - b.startedAtMs);
     // buildJobs refreshes on every poll/event; the elapsed label stays fresh.
   }, [buildJobs, reviewRuns, t]);
 
-  if (!task) return null;
-  const indeterminate = task.percent == null;
-  const progress = Math.min(100, Math.max(0, task.percent ?? 0));
+  if (tasks.length === 0) return null;
 
   return (
-    <button
-      type="button"
-      className={`ui-task-badge kind-${task.kind}${indeterminate ? " indeterminate" : ""}`}
-      onClick={() => onOpen(task.kind)}
-      title={`${task.label} · ${t("task.badgeHint")}`}
-      aria-label={`${task.label} · ${t("task.badgeHint")}`}
-      role="status"
-    >
-      <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} aria-hidden>
-        <circle
-          className="ui-task-badge-track"
-          cx={RING_SIZE / 2}
-          cy={RING_SIZE / 2}
-          r={RING_R}
-          fill="none"
-          strokeWidth="3"
-        />
-        {indeterminate ? (
-          <circle
-            className="ui-task-badge-arc ui-task-badge-sweep"
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RING_R}
-            fill="none"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={`${RING_C * 0.72} ${RING_C * 0.28}`}
-          />
-        ) : (
-          <circle
-            className="ui-task-badge-arc"
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RING_R}
-            fill="none"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={String(RING_C)}
-            strokeDashoffset={String(RING_C * (1 - progress / 100))}
-          />
-        )}
-      </svg>
-      <span className="ui-task-badge-icon" aria-hidden>
-        {KIND_ICON[task.kind]}
-      </span>
-    </button>
+    <div className="ui-task-badge-stack">
+      {tasks.map((task) => {
+        const indeterminate = task.percent == null;
+        const progress = Math.min(100, Math.max(0, task.percent ?? 0));
+        return (
+          <button
+            key={task.kind}
+            type="button"
+            className={`ui-task-badge kind-${task.kind}${indeterminate ? " indeterminate" : ""}`}
+            onClick={() => onOpen(task.kind)}
+            title={`${task.label} · ${t("task.badgeHint")}`}
+            aria-label={`${task.label} · ${t("task.badgeHint")}`}
+            role="status"
+          >
+            <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} aria-hidden>
+              <circle
+                className="ui-task-badge-track"
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                fill="none"
+                strokeWidth="3"
+              />
+              {indeterminate ? (
+                <circle
+                  className="ui-task-badge-arc ui-task-badge-sweep"
+                  cx={RING_SIZE / 2}
+                  cy={RING_SIZE / 2}
+                  r={RING_R}
+                  fill="none"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={`${RING_C * 0.72} ${RING_C * 0.28}`}
+                />
+              ) : (
+                <circle
+                  className="ui-task-badge-arc"
+                  cx={RING_SIZE / 2}
+                  cy={RING_SIZE / 2}
+                  r={RING_R}
+                  fill="none"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={String(RING_C)}
+                  strokeDashoffset={String(RING_C * (1 - progress / 100))}
+                />
+              )}
+            </svg>
+            <span className="ui-task-badge-icon" aria-hidden>
+              {KIND_ICON[task.kind]}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

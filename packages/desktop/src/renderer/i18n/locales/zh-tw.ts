@@ -1026,6 +1026,7 @@ export const zhTW: Record<MessageKey, string> = {
   "mcp.save": "新增",
   "mcp.enableTitle": "啟用伺服器",
   "mcp.removeTitle": "移除伺服器",
+  "mcp.removeConfirm": "再點一次確認移除",
   "tokens.currentWorkspace": "目前工作區",
 
   // ── Editor (Monaco code editor) ───────────────────────────
@@ -1045,6 +1046,14 @@ export const zhTW: Record<MessageKey, string> = {
   "editor.readError": "讀取檔案失敗。",
   "editor.writeError": "儲存檔案失敗。",
   "editor.tooLarge": "檔案過大，無法編輯。",
+  "editor.closeDirtyTitle": "有未儲存的修改",
+  "editor.closeDirtyBody": "該檔案有未儲存的修改，確定關閉嗎？",
+  "editor.discardAndClose": "放棄並關閉",
+  "editor.saveAndClose": "儲存並關閉",
+
+  // ── 錯誤邊界 ───────────────────────────────────────────────
+  "error.panelCrash": "面板渲染失敗。",
+  "error.retry": "重試",
 
   // ── Language names ────────────────────────────────────────
   "lang.en": "English",

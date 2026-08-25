@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type JSX 
 import type { editor } from "monaco-editor";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { Button, FileIcon, IconButton } from "../ui/index";
+import { Button, FileIcon, IconButton, Modal } from "../ui/index";
 
 // Monaco is dynamically imported inside the component so its ~5MB of code
 // only loads when the user actually opens the editor. Combined with
@@ -260,17 +260,54 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     setDirty(next !== originalContentRef.current);
   }, []);
 
-  const handleClose = useCallback(() => {
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const requestClose = useCallback((): void => {
+    // In-app confirm instead of window.confirm — the native dialog's
+    // concatenated zh/en string read badly in every locale.
     if (dirty) {
-      const ok = window.confirm(t("editor.dirty") + " — " + t("common.close") + "?");
-      if (!ok) return;
+      setConfirmClose(true);
+      return;
     }
     onClose();
-  }, [dirty, onClose, t]);
+  }, [dirty, onClose]);
+
+  const saveAndClose = useCallback(async (): Promise<void> => {
+    if (content === null) {
+      onClose();
+      return;
+    }
+    if (loadedPathRef.current !== filePath) {
+      setConfirmClose(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await api.editorWriteFile(filePath, content);
+      if (result.ok) onClose();
+      else {
+        setConfirmClose(false);
+        setError(result.error ?? t("editor.writeError"));
+      }
+    } catch (error) {
+      setConfirmClose(false);
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }, [content, filePath, onClose, t]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
-      if (e.key === "Escape") handleClose();
+      if (e.key === "Escape") {
+        // The in-app confirm Modal owns Esc while it is open; and Monaco
+        // owns Esc while focus is inside the editor (completion/hover
+        // popups) — closing the file from under those was jarring.
+        if (confirmClose) return;
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.(".monaco-editor")) return;
+        requestClose();
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         void handleSave();
@@ -278,7 +315,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleClose, handleSave]);
+  }, [confirmClose, handleSave, requestClose]);
 
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
   const lang = languageForFile(filePath);
@@ -295,7 +332,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
           <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={() => void handleSave()}>
             {saving ? t("editor.saving") : t("editor.save")}
           </Button>
-          <IconButton onClick={handleClose} aria-label={t("common.close")} title={t("common.close")}>
+          <IconButton onClick={requestClose} aria-label={t("common.close")} title={t("common.close")}>
             ✕
           </IconButton>
         </div>
@@ -351,6 +388,22 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
           })()
         )}
       </div>
+      {confirmClose ? (
+        <Modal
+          title={t("editor.closeDirtyTitle")}
+          subtitle={t("editor.closeDirtyBody")}
+          onClose={() => setConfirmClose(false)}
+          actions={
+            <>
+              <Button onClick={() => setConfirmClose(false)}>{t("common.cancel")}</Button>
+              <Button onClick={onClose}>{t("editor.discardAndClose")}</Button>
+              <Button variant="primary" disabled={saving} onClick={() => void saveAndClose()}>
+                {saving ? t("editor.saving") : t("editor.saveAndClose")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
     </>
   );
 
@@ -359,7 +412,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
   }
 
   return (
-    <div className="ui-editor-overlay" onClick={handleClose}>
+    <div className="ui-editor-overlay" onClick={requestClose}>
       <div className="ui-editor-overlay-panel" onClick={(e) => e.stopPropagation()}>
         {editorContent}
       </div>

@@ -30,9 +30,16 @@ export function GitMcpPanel(): JSX.Element {
   const [busySlugs, setBusySlugs] = useState<string[]>([]);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    setEntries(await api.gitmcpList());
+    try {
+      setEntries(await api.gitmcpList());
+      setListError(null);
+    } catch (err) {
+      // A failed list must not look like "no repositories".
+      setListError(err instanceof Error ? err.message : String(err));
+    }
   }, []);
 
   useEffect(() => {
@@ -85,17 +92,32 @@ export function GitMcpPanel(): JSX.Element {
 
   const toggle = useCallback(
     async (entry: GitmcpRepoEntry) => {
-      await api.pluginSetMcpEnabled(entry.serverName, !entry.enabled);
-      await reload();
+      // Per-row busy guard: rapid toggles raced two pluginSetMcpEnabled
+      // calls and the final state was whichever resolved last.
+      setBusySlugs((prev) => (prev.includes(entry.slug) ? prev : [...prev, entry.slug]));
+      try {
+        await api.pluginSetMcpEnabled(entry.serverName, !entry.enabled);
+        await reload();
+      } catch (err) {
+        setRowErrors((prev) => ({ ...prev, [entry.slug]: err instanceof Error ? err.message : String(err) }));
+      } finally {
+        setBusySlugs((prev) => prev.filter((s) => s !== entry.slug));
+      }
     },
     [reload]
   );
 
   const remove = useCallback(
     async (slug: string) => {
-      setConfirmDelete(null);
-      await api.gitmcpRemove(slug);
-      await reload();
+      // Keep the armed confirm until success — clearing up-front left the
+      // row looking deleted when the IPC actually failed.
+      try {
+        await api.gitmcpRemove(slug);
+        setConfirmDelete(null);
+        await reload();
+      } catch (err) {
+        setRowErrors((prev) => ({ ...prev, [slug]: err instanceof Error ? err.message : String(err) }));
+      }
     },
     [reload]
   );
@@ -106,6 +128,7 @@ export function GitMcpPanel(): JSX.Element {
         <span>{t("gitmcp.title")}</span>
       </div>
       <div className="ui-side-panel-body">
+        {listError ? <div className="ui-scm-error">{listError}</div> : null}
         <div className="ui-mcp-add-form">
           <Input
             type="text"
@@ -177,7 +200,12 @@ export function GitMcpPanel(): JSX.Element {
                   )}
                 </div>
                 <div className="ui-mcp-row-actions">
-                  <Switch checked={entry.enabled} onChange={() => void toggle(entry)} title={t("mcp.enableTitle")} />
+                  <Switch
+                    checked={entry.enabled}
+                    disabled={busy}
+                    onChange={() => void toggle(entry)}
+                    title={t("mcp.enableTitle")}
+                  />
                 </div>
               </div>
             );

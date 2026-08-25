@@ -15,7 +15,7 @@
  * the next manual reload.
  */
 
-import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { IconButton } from "../ui/index";
@@ -26,13 +26,13 @@ type Props = {
   onOpenArtifact: (artifact: DesignArtifactMeta) => void;
 };
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: ReturnType<typeof useI18n>["t"]): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return "·";
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return t("index.freshness.justNow");
+  if (mins < 60) return t("index.freshness.minutes", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) return t("index.freshness.hours", { n: hours });
+  return t("index.freshness.days", { n: Math.floor(hours / 24) });
 }
 
 export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
@@ -134,13 +134,36 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
     }
   }, [specId, protoRunning, t]);
 
+  // Armed two-step delete (irreversible), matching the sidebar/SCM pattern;
+  // the old window.confirm also hid delete failures entirely.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+    },
+    []
+  );
+
   const handleDelete = useCallback(
     async (id: string) => {
-      if (!window.confirm(t("design.deleteConfirm"))) return;
-      await api.designDelete(id);
+      if (confirmDeleteId !== id) {
+        if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+        setConfirmDeleteId(id);
+        confirmDeleteTimerRef.current = setTimeout(() => setConfirmDeleteId(null), 3000);
+        return;
+      }
+      if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+      setConfirmDeleteId(null);
+      try {
+        await api.designDelete(id);
+      } catch (err) {
+        setNote(err instanceof Error ? err.message : String(err));
+        return;
+      }
       void reload();
     },
-    [reload, t]
+    [confirmDeleteId, reload]
   );
 
   const artifactRow = (a: DesignArtifactMeta, icon: string, kindLabel: string): JSX.Element => (
@@ -151,19 +174,19 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
       <div className="ui-proto-artifact-main">
         <div className="ui-proto-artifact-title">{a.title}</div>
         <div className="ui-proto-artifact-meta">
-          {kindLabel} · {timeAgo(a.updatedAt)}
+          {kindLabel} · {timeAgo(a.updatedAt, t)}
         </div>
       </div>
       <button
         type="button"
-        className="ui-proto-artifact-btn"
-        title={t("design.delete")}
+        className={`ui-proto-artifact-btn${confirmDeleteId === a.id ? " armed" : ""}`}
+        title={confirmDeleteId === a.id ? t("design.deleteConfirm") : t("design.delete")}
         onClick={(e) => {
           e.stopPropagation();
           void handleDelete(a.id);
         }}
       >
-        🗑
+        {confirmDeleteId === a.id ? "!" : "🗑"}
       </button>
     </div>
   );

@@ -53,22 +53,29 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
   }, []);
 
   const reload = useCallback(async () => {
-    const ws = await api.listWorkspaceSessions();
-    if (!mountedRef.current) return;
-    setWorkspaces(ws.workspaces);
-    // Per-root knowledge status (the handler accepts an optional root).
-    const next: Record<string, KnowledgeStatusResponse> = {};
-    await Promise.all(
-      ws.workspaces.map(async (w) => {
-        try {
-          next[w.root] = await api.knowledgeStatus(w.root);
-        } catch {
-          // Status failures leave the row status-less; the row still lists.
-        }
-      })
-    );
-    if (mountedRef.current) {
-      setStatuses(next);
+    try {
+      const ws = await api.listWorkspaceSessions();
+      if (!mountedRef.current) return;
+      setWorkspaces(ws.workspaces);
+      // Per-root knowledge status (the handler accepts an optional root).
+      const next: Record<string, KnowledgeStatusResponse> = {};
+      await Promise.all(
+        ws.workspaces.map(async (w) => {
+          try {
+            next[w.root] = await api.knowledgeStatus(w.root);
+          } catch {
+            // Status failures leave the row status-less; the row still lists.
+          }
+        })
+      );
+      if (mountedRef.current) {
+        setStatuses(next);
+        setPanelError(null);
+      }
+    } catch (err) {
+      // A failed list must surface — the old path rendered the "no
+      // workspaces" empty state, indistinguishable from a real empty list.
+      if (mountedRef.current) setPanelError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
@@ -94,15 +101,29 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
   }, [buildJobs, reload]);
 
   /** Build one workspace: serial symbols → Wiki → arch-map; failure stops. */
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const [buildErrors, setBuildErrors] = useState<Record<string, string>>({});
   const build = useCallback(
     async (root: string) => {
       // R2-1: fire the MAIN-PROCESS build job and let the shared store render
       // progress — this handler returns immediately; switching rows/tabs never
       // cancels the job and re-mounting re-reads live state. Mode selection
       // (init vs update) lives in the manager.
-      const job = await api.knowledgeBuild(root);
-      if (!job.running) {
-        await reload();
+      try {
+        setBuildErrors((prev) => {
+          if (!(root in prev)) return prev;
+          const next = { ...prev };
+          delete next[root];
+          return next;
+        });
+        const job = await api.knowledgeBuild(root);
+        if (!job.running) {
+          await reload();
+        }
+      } catch (err) {
+        // A rejected start used to look like a dead button — surface it on
+        // the row that was clicked.
+        setBuildErrors((prev) => ({ ...prev, [root]: err instanceof Error ? err.message : String(err) }));
       }
     },
     [reload]
@@ -141,12 +162,14 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
         </IconButton>
       </div>
       <div className="ui-side-panel-body">
-        {workspaces.length === 0 ? (
+        {panelError ? <div className="ui-scm-error">{panelError}</div> : null}
+        {workspaces.length === 0 && !panelError ? (
           <div className="ui-side-panel-empty">{t("index.empty")}</div>
         ) : (
           workspaces.map((w) => {
             const row = rowProgress(w.root);
             const status = statuses[w.root];
+            const buildError = buildErrors[w.root];
             const lastBuild = status?.openwiki.lastSync ?? status?.codegraph.lastSync ?? undefined;
             const runningJob = jobByRoot.get(w.root);
             return (
@@ -158,9 +181,11 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
                     <div className="ui-ik-meta">
                       {row.busy
                         ? row.text
-                        : row.error
-                          ? row.error.slice(0, 60)
-                          : `${formatRelative(lastBuild, t("index.freshness.justNow"), t("index.freshness.never"))}`}
+                        : buildError
+                          ? buildError.slice(0, 60)
+                          : row.error
+                            ? row.error.slice(0, 60)
+                            : formatRelative(lastBuild, t("index.freshness.justNow"), t("index.freshness.never"))}
                     </div>
                   </div>
                   <Button

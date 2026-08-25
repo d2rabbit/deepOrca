@@ -1066,6 +1066,14 @@ export const en = {
   "editor.readError": "Failed to read file.",
   "editor.writeError": "Failed to save file.",
   "editor.tooLarge": "File too large to edit.",
+  "editor.closeDirtyTitle": "Unsaved changes",
+  "editor.closeDirtyBody": "This file has unsaved modifications. Close it anyway?",
+  "editor.discardAndClose": "Discard & close",
+  "editor.saveAndClose": "Save & close",
+
+  // ── Error boundary ────────────────────────────────────────
+  "error.panelCrash": "This panel failed to render.",
+  "error.retry": "Retry",
 
   "scm.history": "History",
   "scm.noHistory": "No commits yet.",
@@ -1079,6 +1087,7 @@ export const en = {
   "mcp.save": "Add",
   "mcp.enableTitle": "Enable server",
   "mcp.removeTitle": "Remove server",
+  "mcp.removeConfirm": "Click again to remove",
   "tokens.currentWorkspace": "Current workspace",
 
   // ── Language names (settings language switcher) ───────────
@@ -2129,6 +2138,14 @@ export const zh: Record<MessageKey, string> = {
   "editor.readError": "读取文件失败。",
   "editor.writeError": "保存文件失败。",
   "editor.tooLarge": "文件过大，无法编辑。",
+  "editor.closeDirtyTitle": "有未保存的修改",
+  "editor.closeDirtyBody": "该文件有未保存的修改，确定关闭吗？",
+  "editor.discardAndClose": "放弃并关闭",
+  "editor.saveAndClose": "保存并关闭",
+
+  // ── 错误边界 ───────────────────────────────────────────────
+  "error.panelCrash": "面板渲染失败。",
+  "error.retry": "重试",
 
   "scm.history": "历史记录",
   "scm.noHistory": "暂无提交记录。",
@@ -2142,6 +2159,7 @@ export const zh: Record<MessageKey, string> = {
   "mcp.save": "添加",
   "mcp.enableTitle": "启用服务器",
   "mcp.removeTitle": "移除服务器",
+  "mcp.removeConfirm": "再点一次确认移除",
   "tokens.currentWorkspace": "当前工作区",
 
   // ── Language names (settings language switcher) ───────────
