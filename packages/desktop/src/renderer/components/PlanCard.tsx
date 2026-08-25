@@ -25,17 +25,26 @@ export function PlanCard({ onSelect, planText }: Props): JSX.Element {
     <Card warn>
       <CardHeader>
         {t("plan.ready")}
-        {topLevelCount > 0 ? <span className="ui-plan-card-count">{topLevelCount} steps</span> : null}
+        {topLevelCount > 0 ? (
+          <span className="ui-plan-card-count">{t("plan.stepsCount", { count: topLevelCount })}</span>
+        ) : null}
       </CardHeader>
-      {/* Plan step preview */}
+      {/* Plan step preview — top-level numbering is its own counter so
+          interleaved sub-steps don't create gaps (1, ·, 3 …). */}
       {steps.length > 0 ? (
         <div className="ui-plan-card-steps">
-          {steps.map((step, i) => (
-            <div key={i} className={`ui-plan-card-step${step.level > 0 ? " sub" : ""}`}>
-              <span className="ui-plan-card-step-num">{step.level === 0 ? i + 1 : "·"}</span>
-              <span className="ui-plan-card-step-text">{step.text}</span>
-            </div>
-          ))}
+          {(() => {
+            let topLevelIndex = 0;
+            return steps.map((step, i) => {
+              if (step.level === 0) topLevelIndex += 1;
+              return (
+                <div key={i} className={`ui-plan-card-step${step.level > 0 ? " sub" : ""}`}>
+                  <span className="ui-plan-card-step-num">{step.level === 0 ? topLevelIndex : "·"}</span>
+                  <span className="ui-plan-card-step-text">{step.text}</span>
+                </div>
+              );
+            });
+          })()}
         </div>
       ) : planText ? (
         <div className="ui-plan-card-raw">

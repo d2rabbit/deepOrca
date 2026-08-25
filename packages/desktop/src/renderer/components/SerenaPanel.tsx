@@ -9,8 +9,9 @@
  * so the user can follow along without reading raw tool dumps.
  */
 
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import type { SerenaEvent, SerenaView } from "../lib/serena-extract";
+import { useI18n } from "../i18n";
 
 type Props = {
   events: SerenaEvent[];
@@ -18,7 +19,8 @@ type Props = {
 };
 
 function shortPath(p: string): string {
-  const parts = p.split("/");
+  // Windows backslash paths shorten too — "/"-only split left them intact.
+  const parts = p.split(/[\\/]/);
   return parts.slice(-2).join("/");
 }
 
@@ -129,11 +131,14 @@ function ViewBody({ view }: { view: SerenaView }): JSX.Element {
 }
 
 export function SerenaPanel({ events, onClose }: Props): JSX.Element | null {
+  const { t } = useI18n();
   const [activeIndex, setActiveIndex] = useState<number>(-1);
-  // Default to the newest event; keep the user's manual selection while it
-  // stays in range.
+  // Follow the newest event ONLY while the user hasn't pinned an older tab;
+  // the old effect jumped away from whatever the user was reading on every
+  // new result (the comment claimed otherwise).
+  const followLatestRef = useRef(true);
   useEffect(() => {
-    setActiveIndex(events.length - 1);
+    if (followLatestRef.current) setActiveIndex(events.length - 1);
   }, [events.length]);
   if (events.length === 0) return null;
   const safeIndex = activeIndex >= 0 && activeIndex < events.length ? activeIndex : events.length - 1;
@@ -148,20 +153,23 @@ export function SerenaPanel({ events, onClose }: Props): JSX.Element | null {
             <button
               key={e.id}
               type="button"
-              className={`ui-serena-tab${i === safeIndex ? " active" : ""}`}
-              onClick={() => setActiveIndex(i)}
-              title={`${e.tool}${e.ok ? "" : " (failed)"}`}
+              className={`ui-serena-tab${i === safeIndex ? " active" : ""}${e.ok ? "" : " failed"}`}
+              onClick={() => {
+                followLatestRef.current = i === events.length - 1;
+                setActiveIndex(i);
+              }}
+              title={e.ok ? e.tool : `${e.tool} ${t("serena.failed")}`}
             >
               {e.tool.replace(/_/g, " ")}
             </button>
           ))}
         </div>
-        <button type="button" className="ui-serena-close" onClick={onClose} title="关闭（新的 Serena 结果会再次弹出）">
+        <button type="button" className="ui-serena-close" onClick={onClose} title={t("serena.closeHint")}>
           ✕
         </button>
       </div>
       <div className="ui-serena-panel-body">
-        {active ? <ViewBody view={active.view} /> : <div className="ui-side-panel-empty">暂无 Serena 结果</div>}
+        {active ? <ViewBody view={active.view} /> : <div className="ui-side-panel-empty">{t("serena.empty")}</div>}
       </div>
     </div>
   );

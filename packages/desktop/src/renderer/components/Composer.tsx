@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch, SkillInfo } from "../../shared/ipc";
-import { useI18n } from "../i18n";
+import { useI18n, type MessageKey } from "../i18n";
 import { FileMentionMenu } from "./FileMentionMenu";
 import { Button, Switch, IconMagicWand } from "../ui/index";
 
@@ -43,43 +43,36 @@ type SlashCandidate = {
   kind: "skill" | "builtin";
   name: string;
   label: string;
+  /** Builtin descriptions resolve through i18n; skills use their own text. */
   description: string;
 };
 
-const BUILTIN_SLASHES: SlashCandidate[] = [
-  { kind: "builtin", name: "skills", label: "/skills", description: "Browse and toggle available skills" },
-  { kind: "builtin", name: "model", label: "/model", description: "Switch model, thinking mode, or effort" },
-  { kind: "builtin", name: "plan", label: "/plan", description: "Toggle Plan Mode on/off" },
-  { kind: "builtin", name: "new", label: "/new", description: "Start a fresh conversation" },
-  { kind: "builtin", name: "init", label: "/init", description: "Generate an AGENTS.md for this project" },
-  { kind: "builtin", name: "resume", label: "/resume", description: "Pick a previous conversation" },
-  { kind: "builtin", name: "continue", label: "/continue", description: "Continue current conversation" },
-  { kind: "builtin", name: "undo", label: "/undo", description: "Restore to a previous checkpoint" },
-  { kind: "builtin", name: "raw", label: "/raw", description: "Cycle reasoning display (collapse/expand/hide)" },
-  { kind: "builtin", name: "mcp", label: "/mcp", description: "View MCP server status and tools" },
-  { kind: "builtin", name: "exit", label: "/exit", description: "Quit DeepOrca" },
-  { kind: "builtin", name: "settings", label: "/settings", description: "Open settings panel" },
-  {
-    kind: "builtin",
-    name: "pm-design",
-    label: "/pm-design",
-    description: "PM-Design: create an interactive A2UI prototype",
-  },
-  {
-    kind: "builtin",
-    name: "pm-design-openui",
-    label: "/pm-design-openui",
-    description: "PM-Design (OpenUI Lang): prototype with compact syntax",
-  },
-  { kind: "builtin", name: "prototype", label: "/prototype", description: "Alias for /pm-design" },
-  { kind: "builtin", name: "openui", label: "/openui", description: "Alias for /pm-design-openui" },
-  {
-    kind: "builtin",
-    name: "deep-design",
-    label: "/deep-design",
-    description: "DeepDesign: generate a web design in .dd format",
-  },
-  { kind: "builtin", name: "design", label: "/design", description: "Alias for /deep-design" },
+type BuiltinSlash = {
+  kind: "builtin";
+  name: string;
+  label: string;
+  descKey: MessageKey;
+};
+
+const BUILTIN_SLASHES: BuiltinSlash[] = [
+  { kind: "builtin", name: "skills", label: "/skills", descKey: "slash.desc.skills" },
+  { kind: "builtin", name: "model", label: "/model", descKey: "slash.desc.model" },
+  { kind: "builtin", name: "plan", label: "/plan", descKey: "slash.desc.plan" },
+  { kind: "builtin", name: "new", label: "/new", descKey: "slash.desc.new" },
+  { kind: "builtin", name: "init", label: "/init", descKey: "slash.desc.init" },
+  { kind: "builtin", name: "resume", label: "/resume", descKey: "slash.desc.resume" },
+  { kind: "builtin", name: "continue", label: "/continue", descKey: "slash.desc.continue" },
+  { kind: "builtin", name: "undo", label: "/undo", descKey: "slash.desc.undo" },
+  { kind: "builtin", name: "raw", label: "/raw", descKey: "slash.desc.raw" },
+  { kind: "builtin", name: "mcp", label: "/mcp", descKey: "slash.desc.mcp" },
+  { kind: "builtin", name: "exit", label: "/exit", descKey: "slash.desc.exit" },
+  { kind: "builtin", name: "settings", label: "/settings", descKey: "slash.desc.settings" },
+  { kind: "builtin", name: "pm-design", label: "/pm-design", descKey: "slash.desc.pmDesign" },
+  { kind: "builtin", name: "pm-design-openui", label: "/pm-design-openui", descKey: "slash.desc.pmDesignOpenui" },
+  { kind: "builtin", name: "prototype", label: "/prototype", descKey: "slash.desc.prototype" },
+  { kind: "builtin", name: "openui", label: "/openui", descKey: "slash.desc.openui" },
+  { kind: "builtin", name: "deep-design", label: "/deep-design", descKey: "slash.desc.deepDesign" },
+  { kind: "builtin", name: "design", label: "/design", descKey: "slash.desc.design" },
 ];
 
 /** Detect a token (starting with /, $ or @) at or before the cursor. */
@@ -156,10 +149,10 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       kind: "skill" as const,
       name: s.name,
       label: `/${s.name}`,
-      description: s.description || "(no description)",
+      description: s.description || t("slash.noDescription"),
     }));
-    return [...skillItems, ...BUILTIN_SLASHES];
-  }, [skills]);
+    return [...skillItems, ...BUILTIN_SLASHES.map((b) => ({ ...b, description: t(b.descKey) }))];
+  }, [skills, t]);
 
   // Detect token (slash or at) at cursor
   const currentToken = useMemo(() => getCurrentToken(value, cursorPos), [value, cursorPos]);
@@ -176,9 +169,12 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   // Slash matches
   const slashMatches = useMemo(() => {
     if (slashToken) return filterSlashCandidates(slashItems, slashToken);
-    if (dollarToken) return filterSlashCandidates(BUILTIN_SLASHES, dollarToken);
+    if (dollarToken) {
+      const builtins: SlashCandidate[] = BUILTIN_SLASHES.map((b) => ({ ...b, description: t(b.descKey) }));
+      return filterSlashCandidates(builtins, dollarToken);
+    }
     return [];
-  }, [slashToken, dollarToken, slashItems]);
+  }, [slashToken, dollarToken, slashItems, t]);
 
   // Auto-show/hide command menu on "/" or "$"
   useEffect(() => {

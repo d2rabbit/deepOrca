@@ -335,6 +335,80 @@ export const ja: Record<MessageKey, string> = {
   "process.noProcesses": "（実行中のプロセスなし）",
   "process.pidLabel": "PID",
 
+  // ── メッセージ描画その他 ───────────────────────────────────
+  "msg.loadingComparison": "比較表を読み込み中…",
+  "msg.params": "パラメータ",
+  "msg.loadingSurface": "Surface 読み込み中…",
+  "msg.jsonItems": "{n} 件",
+  "msg.jsonKeys": "{n} 個のキー",
+
+  // ── プランカード ───────────────────────────────────────────
+  "plan.stepsCount": "{count} ステップ",
+
+  // ── ファイルメンション（@）メニュー ────────────────────────
+  "fileMenu.scanning": "スキャン中…",
+  "fileMenu.noMatch": "一致するファイルはありません",
+  "fileMenu.typeToSearch": "入力してファイルを検索…",
+  "fileMenu.dir": "ディレクトリ",
+
+  // ── スラッシュコマンドメニュー ─────────────────────────────
+  "slash.noDescription": "（説明なし）",
+  "slash.desc.skills": "利用可能なスキルの閲覧と切り替え",
+  "slash.desc.model": "モデル・思考モード・強度の切り替え",
+  "slash.desc.plan": "プランモードのオン/オフ",
+  "slash.desc.new": "新しい会話を開始",
+  "slash.desc.init": "このプロジェクト用に AGENTS.md を生成",
+  "slash.desc.resume": "過去の会話を選択",
+  "slash.desc.continue": "現在の会話を続行",
+  "slash.desc.undo": "チェックポイントへ復元",
+  "slash.desc.raw": "推論表示の切替（折りたたみ/展開/非表示）",
+  "slash.desc.mcp": "MCP サーバー状態とツールを表示",
+  "slash.desc.exit": "DeepOrca を終了",
+  "slash.desc.settings": "設定パネルを開く",
+  "slash.desc.pmDesign": "PM-Design：インタラクティブな A2UI プロトタイプを作成",
+  "slash.desc.pmDesignOpenui": "PM-Design（OpenUI Lang）：コンパクト構文のプロトタイプ",
+  "slash.desc.prototype": "/pm-design のエイリアス",
+  "slash.desc.openui": "/pm-design-openui のエイリアス",
+  "slash.desc.deepDesign": "DeepDesign：.dd 形式で Web デザインを生成",
+  "slash.desc.design": "/deep-design のエイリアス",
+
+  // ── Serena 結果ミラーパネル ────────────────────────────────
+  "serena.closeHint": "閉じる（新しい Serena 結果で再表示されます）",
+  "serena.empty": "Serena の結果はまだありません",
+  "serena.failed": "（失敗）",
+
+  // ── リッチツール結果 ───────────────────────────────────────
+  "rich.symbols": "シンボル",
+  "rich.codeReview": "コードレビュー",
+  "rich.critical": "重大",
+  "rich.warnings": "警告",
+  "rich.info": "情報",
+  "rich.searchResults": "検索結果（{n}）",
+  "rich.gitChanges": "Git 変更（{n}）",
+  "rich.riskAnalysis": "リスク分析",
+  "rich.riskOverall": "全体",
+  "rich.riskSec": "セキュリティ",
+  "rich.riskNoTest": "テストなし",
+  "rich.documentation": "ドキュメント（{n}）",
+
+  // ── ナレッジ構築コンソール ─────────────────────────────────
+  "build.title": "索引構築 · {root}",
+  "build.mode.init": "フル構築",
+  "build.mode.incremental": "増分更新",
+  "build.overallRunning": "実行中 · {time} 経過",
+  "build.overallFailed": "失敗 · {time}",
+  "build.overallDone": "完了 · 所要 {time}",
+  "build.stage.codegraph": "① インデックス",
+  "build.stage.wiki": "② Wiki",
+  "build.stage.arch": "③ アーキテクチャ図",
+  "build.wikiHint": "インデックスを読み取り生成を高速化",
+  "build.consoleTitle": "コンソール出力",
+  "build.consoleEmpty": "（出力はまだありません）",
+  "build.closeHint": "閉じる（次回の構築で自動的に開きます）",
+
+  // ── Mermaid ───────────────────────────────────────────────
+  "mermaid.renderFailed": "図のレンダリングに失敗しました",
+
   // ── Settings modal ────────────────────────────────────────
   "settings.title": "設定",
   "settings.savingTo": "保存先",

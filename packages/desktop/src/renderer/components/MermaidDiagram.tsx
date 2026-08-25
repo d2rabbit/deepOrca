@@ -1,13 +1,16 @@
 import { useEffect, useState, type JSX } from "react";
 import { renderMermaidSvg } from "../mermaid";
+import { useI18n } from "../i18n";
 
 /**
  * Renders a Mermaid diagram from a chart definition string.
  *
  * If mermaid fails to load or the chart fails to parse, falls back to showing
- * the raw chart text instead of crashing the panel.
+ * the raw chart text instead of crashing the panel — with the failure reason
+ * above it, so the fallback isn't mistaken for the intended render.
  */
 export function MermaidDiagram({ chart }: { chart: string }): JSX.Element {
+  const { t } = useI18n();
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string>("");
 
@@ -28,7 +31,15 @@ export function MermaidDiagram({ chart }: { chart: string }): JSX.Element {
   }, [chart]);
 
   if (error) {
-    return <pre className="ui-mermaid-fallback">{chart}</pre>;
+    return (
+      <div className="ui-mermaid-failed">
+        <div className="ui-mermaid-failed-reason">
+          {t("mermaid.renderFailed")}
+          {error ? ` — ${error.slice(0, 200)}` : ""}
+        </div>
+        <pre className="ui-mermaid-fallback">{chart}</pre>
+      </div>
+    );
   }
 
   return (

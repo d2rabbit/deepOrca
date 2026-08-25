@@ -334,6 +334,80 @@ export const ko: Record<MessageKey, string> = {
   "process.noProcesses": "(실행 중인 프로세스 없음)",
   "process.pidLabel": "PID",
 
+  // ── 메시지 렌더링 기타 ─────────────────────────────────────
+  "msg.loadingComparison": "비교표 불러오는 중…",
+  "msg.params": "파라미터",
+  "msg.loadingSurface": "Surface 불러오는 중…",
+  "msg.jsonItems": "{n}개 항목",
+  "msg.jsonKeys": "{n}개 키",
+
+  // ── 플랜 카드 ──────────────────────────────────────────────
+  "plan.stepsCount": "{count}단계",
+
+  // ── 파일 멘션(@) 메뉴 ──────────────────────────────────────
+  "fileMenu.scanning": "스캔 중…",
+  "fileMenu.noMatch": "일치하는 파일이 없습니다",
+  "fileMenu.typeToSearch": "입력하여 파일 검색…",
+  "fileMenu.dir": "디렉터리",
+
+  // ── 슬래시 명령 메뉴 ───────────────────────────────────────
+  "slash.noDescription": "(설명 없음)",
+  "slash.desc.skills": "사용 가능한 스킬 탐색 및 전환",
+  "slash.desc.model": "모델·사고 모드·강도 전환",
+  "slash.desc.plan": "플랜 모드 켜기/끄기",
+  "slash.desc.new": "새 대화 시작",
+  "slash.desc.init": "이 프로젝트용 AGENTS.md 생성",
+  "slash.desc.resume": "이전 대화 선택",
+  "slash.desc.continue": "현재 대화 계속",
+  "slash.desc.undo": "체크포인트로 복원",
+  "slash.desc.raw": "추론 표시 전환(접기/펼치기/숨기기)",
+  "slash.desc.mcp": "MCP 서버 상태 및 도구 보기",
+  "slash.desc.exit": "DeepOrca 종료",
+  "slash.desc.settings": "설정 패널 열기",
+  "slash.desc.pmDesign": "PM-Design: 대화형 A2UI 프로토타입 생성",
+  "slash.desc.pmDesignOpenui": "PM-Design(OpenUI Lang): 간결한 문법 프로토타입",
+  "slash.desc.prototype": "/pm-design의 별칭",
+  "slash.desc.openui": "/pm-design-openui의 별칭",
+  "slash.desc.deepDesign": "DeepDesign: .dd 형식으로 웹 디자인 생성",
+  "slash.desc.design": "/deep-design의 별칭",
+
+  // ── Serena 결과 미러 패널 ──────────────────────────────────
+  "serena.closeHint": "닫기(새 Serena 결과가 있으면 다시 열립니다)",
+  "serena.empty": "아직 Serena 결과가 없습니다",
+  "serena.failed": "(실패)",
+
+  // ── 리치 도구 결과 ─────────────────────────────────────────
+  "rich.symbols": "심볼",
+  "rich.codeReview": "코드 리뷰",
+  "rich.critical": "치명적",
+  "rich.warnings": "경고",
+  "rich.info": "정보",
+  "rich.searchResults": "검색 결과({n})",
+  "rich.gitChanges": "Git 변경({n})",
+  "rich.riskAnalysis": "리스크 분석",
+  "rich.riskOverall": "전체",
+  "rich.riskSec": "보안",
+  "rich.riskNoTest": "테스트 없음",
+  "rich.documentation": "문서({n})",
+
+  // ── 지식 빌드 콘솔 ─────────────────────────────────────────
+  "build.title": "인덱스 빌드 · {root}",
+  "build.mode.init": "전체 빌드",
+  "build.mode.incremental": "증분 업데이트",
+  "build.overallRunning": "실행 중 · {time} 경과",
+  "build.overallFailed": "실패 · {time}",
+  "build.overallDone": "완료 · 소요 {time}",
+  "build.stage.codegraph": "① 인덱스",
+  "build.stage.wiki": "② Wiki",
+  "build.stage.arch": "③ 아키텍처 다이어그램",
+  "build.wikiHint": "인덱스를 읽어 생성 가속",
+  "build.consoleTitle": "콘솔 출력",
+  "build.consoleEmpty": "(아직 출력 없음)",
+  "build.closeHint": "닫기(다음 빌드 시 자동으로 열립니다)",
+
+  // ── Mermaid ───────────────────────────────────────────────
+  "mermaid.renderFailed": "다이어그램 렌더링 실패",
+
   // ── Settings modal ────────────────────────────────────────
   "settings.title": "설정",
   "settings.savingTo": "저장 위치",

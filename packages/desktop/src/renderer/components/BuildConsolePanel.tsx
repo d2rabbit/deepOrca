@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState, type JSX } from "react";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import { useBuildJobs } from "../hooks/useBuildJobs";
+import { useI18n, type Translate } from "../i18n";
 import { BASIC_CATALOG_ID } from "../../shared/a2ui-legacy";
 import type { KnowledgeBuildJobSnapshot, KnowledgeBuildStageState } from "../../shared/ipc";
 
@@ -34,10 +35,13 @@ function formatElapsed(fromIso: string | undefined, toIso: string | undefined, n
   return m > 0 ? `${m}m${String(s).padStart(2, "0")}s` : `${s}s`;
 }
 
-const STAGE_LABELS: Record<KnowledgeBuildStageState["labelKey"], string> = {
-  codegraph: "① 索引",
-  wiki: "② Wiki",
-  arch: "③ 架构图",
+const STAGE_LABEL_KEYS: Record<
+  KnowledgeBuildStageState["labelKey"],
+  "build.stage.codegraph" | "build.stage.wiki" | "build.stage.arch"
+> = {
+  codegraph: "build.stage.codegraph",
+  wiki: "build.stage.wiki",
+  arch: "build.stage.arch",
 };
 
 const STATUS_MARK: Record<KnowledgeBuildStageState["status"], string> = {
@@ -49,20 +53,20 @@ const STATUS_MARK: Record<KnowledgeBuildStageState["status"], string> = {
 };
 
 function rootLabel(root: string): string {
-  const parts = root.split("/").filter(Boolean);
+  const parts = root.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? root;
 }
 
 /** Build the official v0.9 message batch for a job snapshot (component
- * adjacency list: flat components with forward `children` references; one
- * component carries id "root"). Status marks are Text glyphs — the official
- * Icon enum only accepts Material-Symbols names. */
-function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number): string {
+ *  adjacency list: flat components with forward `children` references; one
+ *  component carries id "root"). Status marks are Text glyphs — the official
+ *  Icon enum only accepts Material-Symbols names. */
+function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number, t: Translate): string {
   const overall = job.running
-    ? `进行中 · 已运行 ${formatElapsed(job.startedAt, undefined, nowMs)}`
+    ? t("build.overallRunning", { time: formatElapsed(job.startedAt, undefined, nowMs) })
     : job.error
-      ? `失败 · ${formatElapsed(job.startedAt, job.updatedAt, nowMs)}`
-      : `完成 · 用时 ${formatElapsed(job.startedAt, job.updatedAt, nowMs)}`;
+      ? t("build.overallFailed", { time: formatElapsed(job.startedAt, job.updatedAt, nowMs) })
+      : t("build.overallDone", { time: formatElapsed(job.startedAt, job.updatedAt, nowMs) });
 
   const components: Array<{ id: string; component: string; children?: string[] } & Record<string, unknown>> = [];
   const add = (id: string, component: string, props: Record<string, unknown> = {}, children?: string[]): void => {
@@ -77,9 +81,9 @@ function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number): string {
     "sep2",
     "console",
   ]);
-  add("title", "Text", { text: `索引构建 · ${rootLabel(job.root)}`, variant: "h3" });
+  add("title", "Text", { text: t("build.title", { root: rootLabel(job.root) }), variant: "h3" });
   add("subtitle", "Text", {
-    text: `${job.mode === "init" ? "完整构建" : "增量更新"} · ${overall}`,
+    text: `${job.mode === "init" ? t("build.mode.init") : t("build.mode.incremental")} · ${overall}`,
     variant: "body",
   });
   add("sep1", "Divider");
@@ -91,8 +95,8 @@ function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number): string {
     add(`mark-${sid}`, "Text", { text: STATUS_MARK[stage.status], variant: "h4" });
     const elapsed = formatElapsed(stage.startedAt, stage.endedAt, nowMs);
     const detailText =
-      `${STAGE_LABELS[stage.labelKey]}${elapsed ? ` · ${elapsed}` : ""}` +
-      (stage.labelKey === "wiki" && stage.status === "running" ? " · 读取索引加速生成" : "") +
+      `${t(STAGE_LABEL_KEYS[stage.labelKey])}${elapsed ? ` · ${elapsed}` : ""}` +
+      (stage.labelKey === "wiki" && stage.status === "running" ? ` · ${t("build.wikiHint")}` : "") +
       (stage.status === "failed" && stage.error ? ` — ${stage.error.slice(0, 80)}` : "");
     add(`label-${sid}`, "Text", {
       text: detailText,
@@ -107,9 +111,9 @@ function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number): string {
   const consoleChildren = ["console-title", ...(tail.length > 0 ? tail.map((_, i) => `log-${i}`) : ["console-empty"])];
   add("console", "Card", {}, ["console-inner"]);
   add("console-inner", "Column", {}, consoleChildren);
-  add("console-title", "Text", { text: "控制台输出", variant: "caption" });
+  add("console-title", "Text", { text: t("build.consoleTitle"), variant: "caption" });
   if (tail.length === 0) {
-    add("console-empty", "Text", { text: "（暂无输出）", variant: "caption" });
+    add("console-empty", "Text", { text: t("build.consoleEmpty"), variant: "caption" });
   } else {
     tail.forEach((line, i) => {
       add(`log-${i}`, "Text", {
@@ -126,6 +130,7 @@ function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number): string {
 }
 
 export function BuildConsolePanel({ onClose }: { onClose: () => void }): JSX.Element | null {
+  const { t } = useI18n();
   const jobs = useBuildJobs();
 
   // Prefer a running job; else the most recently updated job (final verdict
@@ -145,16 +150,17 @@ export function BuildConsolePanel({ onClose }: { onClose: () => void }): JSX.Ele
     return () => clearInterval(timer);
   }, [job?.running]);
 
-  const messagesJson = useMemo(() => (job ? buildMessages(job, now) : null), [job, now]);
+  const messagesJson = useMemo(() => (job ? buildMessages(job, now, t) : null), [job, now, t]);
 
   if (!job || !messagesJson) return null;
   return (
     <div className="ui-build-console">
       <div className="ui-build-console-head">
         <span className="ui-build-console-title">
-          {STATUS_MARK[job.running ? "running" : job.error ? "failed" : "done"]} 索引构建 · {rootLabel(job.root)}
+          {STATUS_MARK[job.running ? "running" : job.error ? "failed" : "done"]}{" "}
+          {t("build.title", { root: rootLabel(job.root) })}
         </span>
-        <button type="button" className="ui-build-console-close" onClick={onClose} title="关闭（下次构建自动弹出）">
+        <button type="button" className="ui-build-console-close" onClick={onClose} title={t("build.closeHint")}>
           ✕
         </button>
       </div>

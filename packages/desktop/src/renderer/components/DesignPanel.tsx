@@ -39,13 +39,13 @@ type DriftOutput = {
   driftJson?: string;
 };
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: ReturnType<typeof useI18n>["t"]): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t("index.freshness.justNow");
+  if (mins < 60) return t("index.freshness.minutes", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t("index.freshness.hours", { n: hours });
+  return t("index.freshness.days", { n: Math.floor(hours / 24) });
 }
 
 export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
@@ -319,7 +319,7 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
                 </span>
                 <div className="ui-proto-artifact-main">
                   <div className="ui-proto-artifact-title">{a.title}</div>
-                  <div className="ui-proto-artifact-meta">UI-Design · {timeAgo(a.updatedAt)}</div>
+                  <div className="ui-proto-artifact-meta">UI-Design · {timeAgo(a.updatedAt, t)}</div>
                 </div>
                 <button
                   type="button"

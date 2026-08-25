@@ -78,8 +78,12 @@ const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> =
   { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
 ];
 
-/** DeepOrca desktop changelog. */
-const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
+/**
+ * DeepOrca desktop changelog — bilingual, mirroring OPEN_SOURCE_CREDITS below:
+ * `changes` is zh, `en` is the English rendering; other locales fall back to
+ * English.
+ */
+const CHANGELOG: { version: string; date: string; changes: string[]; en: string[] }[] = [
   {
     version: "v0.1.0",
     date: "2026-07",
@@ -87,6 +91,11 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "基于 DeepCode 核心引擎构建的 Electron 桌面客户端。",
       "新增 Aqua(macOS 原生)、Metro/Fluent(Windows 8 磁贴骨架)双主题体系。",
       "建立语义化 design-token 系统(--ui-* 变量),为后续主题切换奠定基础。",
+    ],
+    en: [
+      "Electron desktop client built on the DeepCode core engine.",
+      "Dual theme system: Aqua (macOS native) and Metro/Fluent (Windows 8 tile skeleton).",
+      "Semantic design-token system (--ui-* variables) as the foundation for future theming.",
     ],
   },
   {
@@ -97,6 +106,11 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "消息渲染现代化:支持思考过程、代码高亮、diff 覆盖层、可折叠工具卡。",
       "新增 Token 消耗分析面板(工作区维度统计 + bento 网格)。",
     ],
+    en: [
+      "Full CLI capability port to the desktop, plus the process output panel and file mention menu.",
+      "Modernized message rendering: thinking blocks, syntax highlighting, diff overlay, collapsible tool cards.",
+      "Token consumption analytics panel (per-workspace stats + bento grid).",
+    ],
   },
   {
     version: "v0.3.0",
@@ -104,6 +118,10 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
     changes: [
       "重塑品牌为 Orca,新增内置插件系统(BrowserSkill 等),与 Skills/MCP 并列的第三扩展类型。",
       "新增毛玻璃(Glass)主题,Linux 默认、macOS 可选。",
+    ],
+    en: [
+      "Rebranded to Orca; built-in plugin system (BrowserSkill etc.) as a third extension type beside Skills/MCP.",
+      "New glassmorphism (Glass) theme — default on Linux, optional on macOS.",
     ],
   },
   {
@@ -113,6 +131,11 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "新增 Fusion 主题:融合 Win8 磁贴多彩配色 × Win11 玻璃呼吸色 × 磁铁按钮质感,Windows 专属。",
       "设置面板新增「常规」Tab,内置平台感知的主题选择(Windows: Metro/Fusion)。",
       "索引库 rail 图标独立化(☷);启动不再将当前目录强行注入为空工作区。",
+    ],
+    en: [
+      "New Fusion theme: Win8 tile colors × Win11 glass breathing tints × magnet button feel, Windows-only.",
+      "Settings gains a General tab with platform-aware theme picks (Windows: Metro/Fusion).",
+      "Dedicated index-library rail icon (☷); startup no longer injects the cwd as an empty workspace.",
     ],
   },
   {
@@ -124,6 +147,12 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "集成 Open Code Review 代码审查面板与 Glass Prism 主题。",
       "仓库迁移至 GitHub 主仓库并以 master 为主干分支;上线 GitHub Pages 官网与 CI 工作流。",
     ],
+    en: [
+      "Integrated Monaco Editor: syntax highlighting, IntelliSense, in-place file editing.",
+      "New local GitMCP module: SQLite FTS5 full-text index + BM25 ranking with built-in doc/code search tools.",
+      "Integrated Open Code Review panel and the Glass Prism theme.",
+      "Repository moved to the GitHub main repo with master as mainline; GitHub Pages site and CI workflows launched.",
+    ],
   },
   {
     version: "v0.6.0",
@@ -134,6 +163,13 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "稳定性加固:IPC 错误统一归一化为可读信息;启动/切换工作区失败不再静默卡死,错误直接展示在输入区。",
       "资源回收:代码审查/Wiki 后台进程随应用退出自动终止,不再残留。",
       "顶栏修复:模型与思考模式下拉框按内容自适应宽度,窄窗口下不再截断文案。",
+    ],
+    en: [
+      "Performance self-iteration: cached markdown renders + memoized message components — much lower CPU in long sessions and at idle.",
+      "Loading heartbeat only runs while a task is active; sidebar refresh throttled to 1.5s during streaming, cutting IPC round-trips.",
+      "Stability hardening: normalized IPC error messages; boot/workspace-switch failures surface in the composer instead of hanging silently.",
+      "Resource cleanup: review/wiki background processes terminate on app exit.",
+      "Top bar fixes: model & thinking dropdowns size to content — no more truncation in narrow windows.",
     ],
   },
   {
@@ -148,6 +184,15 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "Vendor 统一:CodeGraph 改 npm 包,所有 GitHub 下载加代理兜底,BrowserSkill/Serena/CRG/Bento 版本锁定。",
       "清理:删除 WikiPanel/MermaidDiagram/mermaid 依赖等 412 行死代码;三遍深度审查修复 15+ Bug。",
     ],
+    en: [
+      "Plugin system rebuild: 7 plugin packages (meta-skills/browser/design/code/knowledge/memory/work) with skill.plugin.md as the uniform format.",
+      "Memory integrated at source level: TDAI Core (L0–L3) moved from an HTTP sidecar into the in-process @deeporca/memory workspace — zero HTTP overhead.",
+      "Unified index & knowledge panel: CodeGraph + OpenWiki run sequentially with a single progress-driven state and no internal tool names exposed.",
+      "Settings rebuild: endpoint & model onboarding (presets + capability checkboxes), capability config (thinking/vision per endpoint), memory UI.",
+      "Code review: smart-code-review skill orchestrating CRG risk analysis + OCR semantic review; architecture graphs rendered with D3.js.",
+      "Vendoring unified: CodeGraph via npm, proxy fallbacks for GitHub downloads, pinned versions for BrowserSkill/Serena/CRG/Bento.",
+      "Cleanup: 412 lines of dead code removed (WikiPanel/MermaidDiagram/mermaid); 15+ bugs fixed across three deep review passes.",
+    ],
   },
   {
     version: "v0.8.0",
@@ -158,6 +203,13 @@ const CHANGELOG: { version: string; date: string; changes: string[] }[] = [
       "编辑器修复:加载懒加载 chunk 的 CSS(消除中文输入白色框);文件树改用矢量图标 + VSCode 风格。",
       "设置页模型池重设计:扁平模型表 + 端点 API Key 复用 + 会话操作 tooltip。",
       "启动白屏修复:SkillSpector 同步安装改为异步后台执行;工作区列表过滤失效/临时目录;退出增加 5s 看门狗。",
+    ],
+    en: [
+      "DeepSeek prefix-cache hardening (Reasonix cache-first principles): day-varying date/model info moved out of the system prefix into a transient per-turn tail; system messages reordered by stability (AGENTS.md first); MCP tool definitions sorted deterministically by name. Cross-day/cross-session cache hit rates improved markedly.",
+      "SkillSpector background install failures are no longer silent: diagnostic logging via the host-injected logger makes network-restricted MCP breakage tractable.",
+      "Editor fixes: lazy-chunk CSS now loads (fixes the white box on CJK input); file tree switched to vector icons in VSCode style.",
+      "Settings model pool redesign: flat model table + endpoint API key reuse + session action tooltips.",
+      "Startup white-screen fix: SkillSpector installs asynchronously in the background; workspace list filters stale/temp dirs; 5s watchdog on quit.",
     ],
   },
 ];
@@ -1028,7 +1080,7 @@ export function SettingsPanel({
                           <span className="ui-changelog-date">{entry.date}</span>
                         </div>
                         <ul className="ui-changelog-list">
-                          {entry.changes.map((change, idx) => (
+                          {(locale.startsWith("zh") ? entry.changes : entry.en).map((change, idx) => (
                             <li key={idx}>{change}</li>
                           ))}
                         </ul>

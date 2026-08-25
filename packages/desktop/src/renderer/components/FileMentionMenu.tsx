@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { FileMatch } from "../../shared/ipc";
 import { api } from "../api";
+import { useI18n } from "../i18n";
 
 /** SVG icon for a directory folder. */
 function FolderIcon(): JSX.Element {
@@ -47,6 +48,7 @@ type Props = {
 };
 
 export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: Props): JSX.Element | null {
+  const { t } = useI18n();
   const [items, setItems] = useState<FileMatch[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -137,31 +139,40 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
       className="ui-file-mention-menu"
       style={anchorRect ? { maxHeight: Math.min(240, window.innerHeight - anchorRect.bottom - 20) } : undefined}
     >
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div className="ui-file-mention-loading">
           <span className="ui-file-mention-spinner" />
-          Scanning…
+          {t("fileMenu.scanning")}
         </div>
       ) : items.length === 0 ? (
-        <div className="ui-file-mention-empty">{query ? "No matching files" : "Type to search files…"}</div>
+        <div className="ui-file-mention-empty">{query ? t("fileMenu.noMatch") : t("fileMenu.typeToSearch")}</div>
       ) : (
-        items.map((item, i) => (
-          <button
-            key={item.path}
-            className={`ui-file-mention-option${i === activeIndex ? " active" : ""}${item.type === "directory" ? " is-dir" : ""}`}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(item);
-            }}
-            onMouseEnter={() => setActiveIndex(i)}
-          >
-            <span className="ui-file-mention-icon">{item.type === "directory" ? <FolderIcon /> : <FileIcon />}</span>
-            <span className="ui-file-mention-path">{item.path}</span>
-            <span className="ui-file-mention-type">
-              {item.type === "directory" ? "dir" : (item.path.split(".").pop() ?? "")}
-            </span>
-          </button>
-        ))
+        <>
+          {/* Stale results stay visible while a new scan runs — replacing
+              them with a spinner on every keystroke made the list flicker. */}
+          {loading ? (
+            <div className="ui-file-mention-loading ui-file-mention-refreshing">
+              <span className="ui-file-mention-spinner" />
+            </div>
+          ) : null}
+          {items.map((item, i) => (
+            <button
+              key={item.path}
+              className={`ui-file-mention-option${i === activeIndex ? " active" : ""}${item.type === "directory" ? " is-dir" : ""}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(item);
+              }}
+              onMouseEnter={() => setActiveIndex(i)}
+            >
+              <span className="ui-file-mention-icon">{item.type === "directory" ? <FolderIcon /> : <FileIcon />}</span>
+              <span className="ui-file-mention-path">{item.path}</span>
+              <span className="ui-file-mention-type">
+                {item.type === "directory" ? t("fileMenu.dir") : (item.path.split(".").pop() ?? "")}
+              </span>
+            </button>
+          ))}
+        </>
       )}
     </div>
   );

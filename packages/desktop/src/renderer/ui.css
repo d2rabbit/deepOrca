@@ -9072,6 +9072,10 @@ button.ui-topbar-pill {
   color: var(--ui-accent, #0a84ff);
   border-color: var(--ui-accent, #0a84ff);
 }
+.ui-serena-tab.failed {
+  color: var(--ui-danger);
+  border-color: color-mix(in srgb, var(--ui-danger) 45%, transparent);
+}
 .ui-serena-close {
   background: none;
   border: none;

@@ -160,16 +160,23 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
     return () => clearInterval(timer);
   }, [building, root]);
 
-  // Symbols sub-tab: debounced search over the index.
+  // Symbols sub-tab: debounced search over the index. The seq guard drops
+  // stale responses — a slow earlier query must not overwrite a newer one.
+  const symbolSeqRef = useRef(0);
   useEffect(() => {
+    const mySeq = ++symbolSeqRef.current;
     const timer = setTimeout(async () => {
       try {
-        setSymbols(await api.knowledgeListSymbols(root, symbolQuery || undefined));
+        const result = await api.knowledgeListSymbols(root, symbolQuery || undefined);
+        if (mySeq === symbolSeqRef.current) setSymbols(result);
       } catch {
-        setSymbols([]);
+        if (mySeq === symbolSeqRef.current) setSymbols([]);
       }
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      symbolSeqRef.current++;
+    };
   }, [root, symbolQuery]);
 
   // R3-5: reset inline selections when the workspace root changes.
@@ -630,6 +637,7 @@ function KnowledgeArchPreview({
   title: string;
   onOpenFile: (path: string) => void;
 }): JSX.Element {
+  const { t } = useI18n();
   const archTitle = title.replace(/^arch-/, "").replace(/\.json$/, "");
   const [content, setContent] = useState<ArchContent | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -643,7 +651,7 @@ function KnowledgeArchPreview({
         const result = await api.knowledgeReadArchmap(path);
         if (!alive) return;
         if (!result.ok) {
-          setError(result.error ?? "read failed");
+          setError(result.error ?? t("app.requestFailed"));
           return;
         }
         if (result.markdown != null) {

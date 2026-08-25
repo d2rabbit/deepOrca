@@ -342,6 +342,80 @@ export const en = {
   "process.noProcesses": "(no running processes)",
   "process.pidLabel": "PID",
 
+  // ── Message render misc ───────────────────────────────────
+  "msg.loadingComparison": "Loading comparison…",
+  "msg.params": "Params",
+  "msg.loadingSurface": "Loading Surface…",
+  "msg.jsonItems": "{n} items",
+  "msg.jsonKeys": "{n} keys",
+
+  // ── Plan card ─────────────────────────────────────────────
+  "plan.stepsCount": "{count} steps",
+
+  // ── File mention (@) menu ─────────────────────────────────
+  "fileMenu.scanning": "Scanning…",
+  "fileMenu.noMatch": "No matching files",
+  "fileMenu.typeToSearch": "Type to search files…",
+  "fileMenu.dir": "dir",
+
+  // ── Slash command menu ────────────────────────────────────
+  "slash.noDescription": "(no description)",
+  "slash.desc.skills": "Browse and toggle available skills",
+  "slash.desc.model": "Switch model, thinking mode, or effort",
+  "slash.desc.plan": "Toggle Plan Mode on/off",
+  "slash.desc.new": "Start a fresh conversation",
+  "slash.desc.init": "Generate an AGENTS.md for this project",
+  "slash.desc.resume": "Pick a previous conversation",
+  "slash.desc.continue": "Continue current conversation",
+  "slash.desc.undo": "Restore to a previous checkpoint",
+  "slash.desc.raw": "Cycle reasoning display (collapse/expand/hide)",
+  "slash.desc.mcp": "View MCP server status and tools",
+  "slash.desc.exit": "Quit DeepOrca",
+  "slash.desc.settings": "Open settings panel",
+  "slash.desc.pmDesign": "PM-Design: create an interactive A2UI prototype",
+  "slash.desc.pmDesignOpenui": "PM-Design (OpenUI Lang): prototype with compact syntax",
+  "slash.desc.prototype": "Alias for /pm-design",
+  "slash.desc.openui": "Alias for /pm-design-openui",
+  "slash.desc.deepDesign": "DeepDesign: generate a web design in .dd format",
+  "slash.desc.design": "Alias for /deep-design",
+
+  // ── Serena mirror panel ───────────────────────────────────
+  "serena.closeHint": "Close (new Serena results reopen it)",
+  "serena.empty": "No Serena results yet",
+  "serena.failed": "(failed)",
+
+  // ── Rich tool results ─────────────────────────────────────
+  "rich.symbols": "Symbols",
+  "rich.codeReview": "Code Review",
+  "rich.critical": "Critical",
+  "rich.warnings": "Warnings",
+  "rich.info": "Info",
+  "rich.searchResults": "Search Results ({n})",
+  "rich.gitChanges": "Git Changes ({n})",
+  "rich.riskAnalysis": "Risk Analysis",
+  "rich.riskOverall": "Overall",
+  "rich.riskSec": "sec",
+  "rich.riskNoTest": "no test",
+  "rich.documentation": "Documentation ({n})",
+
+  // ── Knowledge build console ───────────────────────────────
+  "build.title": "Index build · {root}",
+  "build.mode.init": "Full build",
+  "build.mode.incremental": "Incremental update",
+  "build.overallRunning": "Running · {time} elapsed",
+  "build.overallFailed": "Failed · {time}",
+  "build.overallDone": "Done · {time}",
+  "build.stage.codegraph": "① Index",
+  "build.stage.wiki": "② Wiki",
+  "build.stage.arch": "③ Architecture",
+  "build.wikiHint": "reading the index to speed up generation",
+  "build.consoleTitle": "Console output",
+  "build.consoleEmpty": "(no output yet)",
+  "build.closeHint": "Close (reopens automatically on the next build)",
+
+  // ── Mermaid ───────────────────────────────────────────────
+  "mermaid.renderFailed": "Diagram render failed",
+
   // ── Settings modal ────────────────────────────────────────
   "settings.title": "Settings",
   "settings.savingTo": "Saving to",
@@ -1350,6 +1424,80 @@ export const zh: Record<MessageKey, string> = {
   "process.noOutput": "（暂无输出）",
   "process.noProcesses": "（无运行中的进程）",
   "process.pidLabel": "PID",
+
+  // ── 消息渲染杂项 ───────────────────────────────────────────
+  "msg.loadingComparison": "对比表加载中…",
+  "msg.params": "参数",
+  "msg.loadingSurface": "Surface 加载中…",
+  "msg.jsonItems": "{n} 项",
+  "msg.jsonKeys": "{n} 个键",
+
+  // ── 计划卡片 ───────────────────────────────────────────────
+  "plan.stepsCount": "{count} 个步骤",
+
+  // ── 文件提及（@）菜单 ──────────────────────────────────────
+  "fileMenu.scanning": "扫描中…",
+  "fileMenu.noMatch": "没有匹配的文件",
+  "fileMenu.typeToSearch": "输入以搜索文件…",
+  "fileMenu.dir": "目录",
+
+  // ── 斜杠命令菜单 ───────────────────────────────────────────
+  "slash.noDescription": "（无描述）",
+  "slash.desc.skills": "浏览并开关可用技能",
+  "slash.desc.model": "切换模型、思考模式或力度",
+  "slash.desc.plan": "开/关计划模式",
+  "slash.desc.new": "开始新会话",
+  "slash.desc.init": "为本项目生成 AGENTS.md",
+  "slash.desc.resume": "选择一个历史会话",
+  "slash.desc.continue": "继续当前会话",
+  "slash.desc.undo": "恢复到某个检查点",
+  "slash.desc.raw": "切换推理展示（折叠/展开/隐藏）",
+  "slash.desc.mcp": "查看 MCP 服务器状态与工具",
+  "slash.desc.exit": "退出 DeepOrca",
+  "slash.desc.settings": "打开设置面板",
+  "slash.desc.pmDesign": "PM-Design：创建交互式 A2UI 原型",
+  "slash.desc.pmDesignOpenui": "PM-Design（OpenUI Lang）：紧凑语法原型",
+  "slash.desc.prototype": "/pm-design 的别名",
+  "slash.desc.openui": "/pm-design-openui 的别名",
+  "slash.desc.deepDesign": "DeepDesign：以 .dd 格式生成网页设计",
+  "slash.desc.design": "/deep-design 的别名",
+
+  // ── Serena 结果镜像面板 ────────────────────────────────────
+  "serena.closeHint": "关闭（新的 Serena 结果会再次弹出）",
+  "serena.empty": "暂无 Serena 结果",
+  "serena.failed": "（失败）",
+
+  // ── 富渲染工具结果 ─────────────────────────────────────────
+  "rich.symbols": "符号",
+  "rich.codeReview": "代码审查",
+  "rich.critical": "严重",
+  "rich.warnings": "警告",
+  "rich.info": "提示",
+  "rich.searchResults": "搜索结果（{n}）",
+  "rich.gitChanges": "Git 变更（{n}）",
+  "rich.riskAnalysis": "风险分析",
+  "rich.riskOverall": "总体",
+  "rich.riskSec": "安全",
+  "rich.riskNoTest": "无测试",
+  "rich.documentation": "文档（{n}）",
+
+  // ── 知识构建控制台 ─────────────────────────────────────────
+  "build.title": "索引构建 · {root}",
+  "build.mode.init": "完整构建",
+  "build.mode.incremental": "增量更新",
+  "build.overallRunning": "进行中 · 已运行 {time}",
+  "build.overallFailed": "失败 · {time}",
+  "build.overallDone": "完成 · 用时 {time}",
+  "build.stage.codegraph": "① 索引",
+  "build.stage.wiki": "② Wiki",
+  "build.stage.arch": "③ 架构图",
+  "build.wikiHint": "读取索引加速生成",
+  "build.consoleTitle": "控制台输出",
+  "build.consoleEmpty": "（暂无输出）",
+  "build.closeHint": "关闭（下次构建自动弹出）",
+
+  // ── Mermaid ───────────────────────────────────────────────
+  "mermaid.renderFailed": "图表渲染失败",
 
   // ── Settings modal ────────────────────────────────────────
   "settings.title": "设置",

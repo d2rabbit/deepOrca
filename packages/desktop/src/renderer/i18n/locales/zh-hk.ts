@@ -327,6 +327,80 @@ export const zhHK: Record<MessageKey, string> = {
   "process.noProcesses": "（無運行中的進程）",
   "process.pidLabel": "PID",
 
+  // ── 訊息渲染雜項 ───────────────────────────────────────────
+  "msg.loadingComparison": "對比表載入中…",
+  "msg.params": "參數",
+  "msg.loadingSurface": "Surface 載入中…",
+  "msg.jsonItems": "{n} 項",
+  "msg.jsonKeys": "{n} 個鍵",
+
+  // ── 計劃卡片 ───────────────────────────────────────────────
+  "plan.stepsCount": "{count} 個步驟",
+
+  // ── 檔案提及（@）選單 ──────────────────────────────────────
+  "fileMenu.scanning": "掃描中…",
+  "fileMenu.noMatch": "沒有符合的檔案",
+  "fileMenu.typeToSearch": "輸入以搜尋檔案…",
+  "fileMenu.dir": "目錄",
+
+  // ── 斜線命令選單 ───────────────────────────────────────────
+  "slash.noDescription": "（無描述）",
+  "slash.desc.skills": "瀏覽並開關可用技能",
+  "slash.desc.model": "切換模型、思考模式或力度",
+  "slash.desc.plan": "開/關計劃模式",
+  "slash.desc.new": "開始新會話",
+  "slash.desc.init": "為本專案產生 AGENTS.md",
+  "slash.desc.resume": "選擇一個歷史會話",
+  "slash.desc.continue": "繼續目前會話",
+  "slash.desc.undo": "還原到某個檢查點",
+  "slash.desc.raw": "切換推理顯示（摺疊/展開/隱藏）",
+  "slash.desc.mcp": "檢視 MCP 伺服器狀態與工具",
+  "slash.desc.exit": "結束 DeepOrca",
+  "slash.desc.settings": "開啟設定面板",
+  "slash.desc.pmDesign": "PM-Design：建立互動式 A2UI 原型",
+  "slash.desc.pmDesignOpenui": "PM-Design（OpenUI Lang）：緊湊語法原型",
+  "slash.desc.prototype": "/pm-design 的別名",
+  "slash.desc.openui": "/pm-design-openui 的別名",
+  "slash.desc.deepDesign": "DeepDesign：以 .dd 格式產生網頁設計",
+  "slash.desc.design": "/deep-design 的別名",
+
+  // ── Serena 結果鏡像面板 ────────────────────────────────────
+  "serena.closeHint": "關閉（新的 Serena 結果會再次彈出）",
+  "serena.empty": "暫無 Serena 結果",
+  "serena.failed": "（失敗）",
+
+  // ── 富渲染工具結果 ─────────────────────────────────────────
+  "rich.symbols": "符號",
+  "rich.codeReview": "程式碼審查",
+  "rich.critical": "嚴重",
+  "rich.warnings": "警告",
+  "rich.info": "提示",
+  "rich.searchResults": "搜尋結果（{n}）",
+  "rich.gitChanges": "Git 變更（{n}）",
+  "rich.riskAnalysis": "風險分析",
+  "rich.riskOverall": "總體",
+  "rich.riskSec": "安全",
+  "rich.riskNoTest": "無測試",
+  "rich.documentation": "文件（{n}）",
+
+  // ── 知識構建主控台 ─────────────────────────────────────────
+  "build.title": "索引構建 · {root}",
+  "build.mode.init": "完整構建",
+  "build.mode.incremental": "增量更新",
+  "build.overallRunning": "進行中 · 已運行 {time}",
+  "build.overallFailed": "失敗 · {time}",
+  "build.overallDone": "完成 · 用時 {time}",
+  "build.stage.codegraph": "① 索引",
+  "build.stage.wiki": "② Wiki",
+  "build.stage.arch": "③ 架構圖",
+  "build.wikiHint": "讀取索引加速產生",
+  "build.consoleTitle": "主控台輸出",
+  "build.consoleEmpty": "（暫無輸出）",
+  "build.closeHint": "關閉（下次構建自動彈出）",
+
+  // ── Mermaid ───────────────────────────────────────────────
+  "mermaid.renderFailed": "圖表渲染失敗",
+
   // ── Settings modal ────────────────────────────────────────
   "settings.title": "設定",
   "settings.savingTo": "儲存至",

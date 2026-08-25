@@ -331,7 +331,7 @@ function UserBubble({ message }: { message: SessionMessage }): JSX.Element {
   ) : message.content || attachments > 0 || skills.length === 0 ? (
     <div className="ui-bubble user">
       <span style={{ whiteSpace: "pre-wrap" }}>{message.content || t("msg.noContent")}</span>
-      {attachments > 0 ? <span className="ui-bubble-attach">{attachments} img</span> : null}
+      {attachments > 0 ? <span className="ui-bubble-attach">{t("msg.images", { n: attachments })}</span> : null}
       {message.createTime ? <span className="ui-msg-time user">{formatTime(message.createTime)}</span> : null}
     </div>
   ) : null;
@@ -467,11 +467,16 @@ function AssistantBubble({
 
   const handleCopy = useCallback(() => {
     if (!content) return;
-    void navigator.clipboard.writeText(content).then(() => {
-      setCopied(true);
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      })
+      // Clipboard can be locked — swallow so the unhandled rejection
+      // doesn't hit the console; the copied flag simply never flips.
+      .catch(() => {});
   }, [content]);
 
   return (
@@ -481,7 +486,7 @@ function AssistantBubble({
         {contentWithoutComparisons ? <Md text={contentWithoutComparisons} isAnimating={streaming} /> : null}
         {comparisonBlocks.length > 0
           ? comparisonBlocks.map((block, i) => (
-              <Suspense key={`cmp-${i}`} fallback={<div>Loading comparison…</div>}>
+              <Suspense key={`cmp-${i}`} fallback={<div>{t("msg.loadingComparison")}</div>}>
                 <ComparisonMatrix content={block} />
               </Suspense>
             ))
@@ -534,11 +539,14 @@ function BashTerminal({ command, resultMd }: { command: string; resultMd: string
   );
 
   const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(command).then(() => {
-      setCopied(true);
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(command)
+      .then(() => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
   }, [command]);
 
   const output = stripCodeFence(resultMd).trim();
@@ -608,11 +616,14 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
 
   const handleCopyResult = useCallback(() => {
     if (!resultMd) return;
-    void navigator.clipboard.writeText(resultMd).then(() => {
-      setResultCopied(true);
-      if (resultCopyTimerRef.current) clearTimeout(resultCopyTimerRef.current);
-      resultCopyTimerRef.current = setTimeout(() => setResultCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(resultMd)
+      .then(() => {
+        setResultCopied(true);
+        if (resultCopyTimerRef.current) clearTimeout(resultCopyTimerRef.current);
+        resultCopyTimerRef.current = setTimeout(() => setResultCopied(false), 1500);
+      })
+      .catch(() => {});
   }, [resultMd]);
 
   // The header element is a button for collapsible tools (so the whole
@@ -663,7 +674,7 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
       {!isFileTool && params ? (
         <div className="ui-tool-params-panel">
           <div className="ui-tool-params-label">
-            <span>Params</span>
+            <span>{t("msg.params")}</span>
             <span className="ui-tool-params-fmt">{isMcp ? "MCP" : "JSON"}</span>
           </div>
           <div className="ui-tool-params">{params}</div>
@@ -827,7 +838,7 @@ export const Message = memo(function Message({
         return (
           <div className="ui-bubble-row tool">
             <Avatar role="mcp" />
-            <Suspense fallback={<div className="ui-tool-card">Loading Surface…</div>}>
+            <Suspense fallback={<div className="ui-tool-card">{t("msg.loadingSurface")}</div>}>
               <A2uiMessage a2uiJson={a2uiJson} summary={summary} />
             </Suspense>
           </div>

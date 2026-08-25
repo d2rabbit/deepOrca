@@ -103,7 +103,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
       const result = await api.actionRun("prototype.spec", { requirement: text });
       const output = (result as { output?: { ok?: boolean; error?: string } }).output;
       if (output && output.ok !== true) {
-        setNote(output.error ?? "failed");
+        setNote(output.error ?? t("app.requestFailed"));
       } else {
         setRequirement("");
       }
@@ -113,7 +113,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
       setSpecRunning(false);
       setSpecProgress("");
     }
-  }, [requirement, specRunning]);
+  }, [requirement, specRunning, t]);
 
   const runPrototype = useCallback(async () => {
     if (!specId || protoRunning) return;
@@ -124,7 +124,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
       const result = await api.actionRun("prototype.materialize", { specArtifactId: specId });
       const output = (result as { output?: { ok?: boolean; error?: string } }).output;
       if (output && output.ok !== true) {
-        setNote(output.error ?? "failed");
+        setNote(output.error ?? t("app.requestFailed"));
       }
     } catch (err) {
       setNote(err instanceof Error ? err.message : String(err));
@@ -132,7 +132,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
       setProtoRunning(false);
       setProtoProgress("");
     }
-  }, [specId, protoRunning]);
+  }, [specId, protoRunning, t]);
 
   const handleDelete = useCallback(
     async (id: string) => {
