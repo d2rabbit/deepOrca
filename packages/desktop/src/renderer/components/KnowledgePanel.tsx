@@ -98,6 +98,28 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   const [agentsContent, setAgentsContent] = useState<string | null>(null);
   const [symbols, setSymbols] = useState<KnowledgeSymbol[]>([]);
   const [symbolQuery, setSymbolQuery] = useState("");
+  // Symbol navigation history — LIFTED from SymbolGraphView (real-machine
+  // feedback round 5) so Back/Home live in the panel toolbar and work for
+  // BOTH the graph and the list view. Typing in the search box does NOT push
+  // history; deliberate navigation (node recenter / home / back) does.
+  const [symbolHistory, setSymbolHistory] = useState<string[]>([]);
+  const navigateSymbol = useCallback(
+    (q: string) => {
+      setSymbolHistory((h) => [...h, symbolQuery]);
+      setSymbolQuery(q);
+    },
+    [symbolQuery]
+  );
+  const symbolBack = useCallback(() => {
+    const prev = symbolHistory[symbolHistory.length - 1];
+    if (prev === undefined) return;
+    setSymbolQuery(prev);
+    setSymbolHistory((h) => h.slice(0, -1));
+  }, [symbolHistory]);
+  const symbolHome = useCallback(() => {
+    setSymbolHistory([]);
+    setSymbolQuery("");
+  }, []);
   // R3-5 inline master–detail state.
   const [wikiSel, setWikiSel] = useState<string | null>(null);
   const [wikiContent, setWikiContent] = useState<string | null>(null);
@@ -191,6 +213,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     setWikiContent(null);
     setSymbolSel(null);
     setPreview(null);
+    setSymbolHistory([]);
   }, [root]);
 
   // 架构图直出：the map IS the first level — auto-select the NEWEST artifact
@@ -337,6 +360,28 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                   placeholder={t("index.symbolSearch")}
                   onChange={(e) => setSymbolQuery(e.target.value)}
                 />
+                <button
+                  type="button"
+                  className="ui-knowledge-symbol-navbtn"
+                  disabled={symbolHistory.length === 0}
+                  title={
+                    symbolHistory.length > 0
+                      ? t("symbols.backTo", { name: symbolHistory[symbolHistory.length - 1] || t("symbols.global") })
+                      : t("symbols.topmost")
+                  }
+                  onClick={symbolBack}
+                >
+                  ← {t("symbols.back")}
+                </button>
+                <button
+                  type="button"
+                  className="ui-knowledge-symbol-navbtn"
+                  title={t("symbols.homeTitle")}
+                  disabled={symbolQuery === "" && symbolHistory.length === 0}
+                  onClick={symbolHome}
+                >
+                  ⌂ {t("symbols.home")}
+                </button>
                 <div className="ui-knowledge-symbol-viewtoggle">
                   <button
                     type="button"
@@ -355,7 +400,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                 </div>
               </div>
               {symbolView === "graph" ? (
-                <SymbolGraphView root={root} query={symbolQuery} onRecenter={(name) => setSymbolQuery(name)} />
+                <SymbolGraphView root={root} query={symbolQuery} onRecenter={navigateSymbol} />
               ) : status && status.codegraph.state !== "indexed" ? (
                 <div className="ui-side-panel-empty">{t("index.symbolsEmpty")}</div>
               ) : symbols.length === 0 ? (
@@ -639,7 +684,7 @@ function ArchDiagrams({
       <div className="ui-arch-board">
         <div className="ui-arch-card ui-arch-card--hero">
           {head(hero, 1)}
-          <ArchChartFit chart={hero.chart} maxScale={1.8} />
+          <ArchChartFit chart={hero.chart} maxScale={2.4} />
         </div>
         {modules.length > 0 ? (
           <>
@@ -652,7 +697,7 @@ function ArchDiagrams({
               {modules.map((section, i) => (
                 <div className="ui-arch-card" key={i}>
                   {head(section, i + 2)}
-                  <ArchChartFit chart={section.chart} maxScale={1.5} />
+                  <ArchChartFit chart={section.chart} maxScale={2.2} />
                 </div>
               ))}
             </div>

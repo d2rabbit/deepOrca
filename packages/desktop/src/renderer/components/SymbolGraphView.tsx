@@ -57,17 +57,21 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   const [graph, setGraph] = useState<KnowledgeSymbolGraph | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Back stack (R3-8): every recenter pushes the previous center; the
-  // "返回上一层" button pops it — browsing the graph becomes non-destructive.
-  const [history, setHistory] = useState<string[]>([]);
+  // One-hop popover (real-machine feedback round 5): clicking a NON-focus
+  // node no longer navigates away — it opens a floating sub-graph preview
+  // (the node's own callers/callees, fetched lazily) with a "center here"
+  // action. Drilling is a deliberate choice, not a side effect of a click.
+  const [pop, setPop] = useState<{ name: string; kind: string; x: number; y: number } | null>(null);
+  const [popGraph, setPopGraph] = useState<KnowledgeSymbolGraph | null>(null);
+  const [popLoading, setPopLoading] = useState(false);
+  const popSeqRef = useRef(0);
   const currentRef = useRef(query);
   currentRef.current = query;
-  // Live container width — drives the responsive three-column layout.
-  // Real-machine feedback: a lone ResizeObserver(contentRect) missed the
-  // maximize transition (graph stayed at the mount-time width, centered but
-  // not filling), so measurement is belt-and-braces — direct
-  // getBoundingClientRect on mount, on every window resize, and on every
-  // graph change, PLUS the observer for panel-drag resizes.
+
+  // The CANVAS is fixed and follows the window (real-machine feedback: the
+  // board must not resize with the graph). Belt-and-braces measurement —
+  // direct getBoundingClientRect on mount/window-resize/graph-change plus
+  // the observer (a lone contentRect observer missed a maximize transition).
   const scrollRef = useRef<HTMLDivElement>(null);
   const [availW, setAvailW] = useState(0);
   const [availH, setAvailH] = useState(0);
@@ -92,30 +96,22 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       window.removeEventListener("resize", measure);
     };
   }, [measure]);
-  // The tab mounts lazily (Suspense) — re-measure once data lands so a
-  // zero/ambiguous first layout never sticks.
-  useEffect(() => {
-    measure();
-  }, [graph, measure]);
 
-  const recenter = (name: string): void => {
-    if (name === query) return;
-    setHistory((h) => [...h, query]);
-    onRecenter(name);
-  };
-  const back = (): void => {
-    setHistory((h) => {
-      const prev = h[h.length - 1];
-      if (prev !== undefined) onRecenter(prev);
-      return h.slice(0, -1);
-    });
-  };
-
-  // A new workspace root is a different graph entirely — stale back-stack
-  // entries would drag the user into the previous root's symbol context.
+  // Any navigation or context change invalidates the open popover.
   useEffect(() => {
-    setHistory([]);
-  }, [root]);
+    setPop(null);
+    setPopGraph(null);
+  }, [root, query]);
+
+  // Esc closes the popover.
+  useEffect(() => {
+    if (!pop) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setPop(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pop]);
 
   useEffect(() => {
     let alive = true;
@@ -143,10 +139,34 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     };
   }, [root, query]);
 
+  const openPopover = useCallback(
+    (node: KnowledgeSymbolGraphNode, clientX: number, clientY: number): void => {
+      // Clamp so the card never leaves the viewport (estimated footprint).
+      const x = Math.max(8, Math.min(clientX + 14, window.innerWidth - 316));
+      const y = Math.max(8, Math.min(clientY + 14, window.innerHeight - 320));
+      setPop({ name: node.name, kind: node.kind, x, y });
+      setPopGraph(null);
+      setPopLoading(true);
+      const seq = ++popSeqRef.current;
+      (async () => {
+        try {
+          const result = await api.knowledgeSymbolGraph(root, node.name);
+          if (seq !== popSeqRef.current) return;
+          setPopGraph(result);
+        } catch {
+          if (seq === popSeqRef.current) setPopGraph(null);
+        } finally {
+          if (seq === popSeqRef.current) setPopLoading(false);
+        }
+      })();
+    },
+    [root]
+  );
+
   const layout = useMemo(() => {
     if (!graph || graph.nodes.length === 0) return null;
-    // Responsive columns: split the measured container width across the three
-    // columns (clamped) so the graph fills the window at any size.
+    // Responsive columns: split the canvas width across the three columns
+    // (clamped) so the graph fills the window at any size.
     const colW =
       availW > 0
         ? Math.max(MIN_COL_W, Math.min(MAX_COL_W, Math.floor((availW - PAD_X * 2 - 2 * COL_GAP) / 3)))
@@ -170,18 +190,19 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       { x: colW + COL_GAP + PAD_X, nodes: focus, label: t("symbols.focus"), hue: "col-focus" },
       { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: t("symbols.callees"), hue: "col-callees" },
     ];
-    // Vertical sparsification (real-machine feedback: widening alone left the
-    // nodes as one dense ribbon). Rows spread across the measured pane
-    // height — a maximized window breathes (rows up to 130px); when a column
-    // is too long to fit even at minimum density it keeps the min gap and
-    // the canvas scrolls.
+    // Vertical sparsification: rows spread across the measured canvas
+    // height — a maximized window breathes (rows up to 130px); a too-long
+    // column keeps minimum density and the canvas scrolls.
     const headerH = 26;
     const minRow = NODE_H + 28;
     const maxNodes = Math.max(...columns.map((c) => c.nodes.length), 1);
     const rowH =
       availH > 0 ? Math.max(minRow, Math.min(130, Math.floor((availH - PAD_Y * 2 - headerH) / maxNodes))) : minRow;
-    const height = headerH + (maxNodes - 1) * rowH + NODE_H + PAD_Y * 2;
+    const contentH = headerH + (maxNodes - 1) * rowH + NODE_H + PAD_Y * 2;
     const width = 3 * colW + 2 * COL_GAP + PAD_X * 2;
+    // The CANVAS is the pane; the drawing only grows past it when density
+    // forces it (then it scrolls) — the board never shrinks to its content.
+    const height = Math.max(availH, contentH);
     const pos = new Map<string, { x: number; y: number }>();
     for (const col of columns) {
       col.nodes.forEach((n, i) => {
@@ -195,132 +216,195 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     return { columns, pos, visibleEdges, width, height, hidden, colW, nameMax, fileMax };
   }, [graph, availW, availH, t]);
 
-  if (loading && !graph) {
-    return (
-      <div className="ui-side-panel-empty">
+  const legend = (
+    <div className="ui-symbol-graph-legend">
+      {EDGE_KINDS.map((kind) => (
+        <span key={kind} className="ui-symbol-graph-legend-item">
+          <svg width="22" height="6">
+            <line x1="0" y1="3" x2="22" y2="3" className={`sym-edge edge-${kind}`} strokeWidth="2" />
+          </svg>
+          {kind}
+        </span>
+      ))}
+      {layout && (layout.hidden > 0 || graph?.truncated) ? (
+        <span className="ui-symbol-graph-truncated">{t("symbols.truncated")}</span>
+      ) : null}
+    </div>
+  );
+
+  // Empty/loading/error render INSIDE the canvas — the panel toolbar (with
+  // back/home) always stays mounted above, so a drilled-into dead end can
+  // never strand the user (real-machine feedback: the whole-view early
+  // return used to swallow the toolbar AND the legend).
+  const boardInner =
+    loading && !graph ? (
+      <div className="ui-symbol-graph-boardstate">
         <span className="ui-spinner" />
       </div>
+    ) : error ? (
+      <div className="ui-symbol-graph-boardstate">{t("symbols.error")}</div>
+    ) : !layout ? (
+      <div className="ui-symbol-graph-boardstate">{t("index.symbolsEmpty")}</div>
+    ) : (
+      <svg
+        width={Math.max(layout.width, availW)}
+        height={layout.height}
+        role="img"
+        aria-label="symbol relationship graph"
+        onClick={() => setPop(null)}
+      >
+        <defs>
+          {EDGE_KINDS.map((kind) => (
+            <marker
+              key={kind}
+              id={`arrow-${kind}`}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 9 5 L 0 9 z" className={`sym-arrow arrow-${kind}`} />
+            </marker>
+          ))}
+        </defs>
+        {layout.columns.map((col) =>
+          col.nodes.length > 0 ? (
+            <text key={col.label} x={col.x + 4} y={PAD_Y + 10} className={`ui-symbol-graph-col-label ${col.hue}`}>
+              {col.label} · {col.nodes.length}
+            </text>
+          ) : null
+        )}
+        {layout.visibleEdges.map((e, i) => {
+          const from = layout.pos.get(e.source);
+          const to = layout.pos.get(e.target);
+          if (!from || !to) return null;
+          const kind = (EDGE_KINDS as readonly string[]).includes(e.kind) ? e.kind : "references";
+          const fromRight = to.x > from.x;
+          const x1 = from.x + (fromRight ? layout.colW - 16 : 0);
+          const x2 = to.x + (fromRight ? 0 : layout.colW - 16);
+          const midX = (x1 + x2) / 2;
+          return (
+            <path
+              key={i}
+              d={`M ${x1} ${from.y + NODE_H / 2} C ${midX} ${from.y + NODE_H / 2}, ${midX} ${to.y + NODE_H / 2}, ${x2} ${to.y + NODE_H / 2}`}
+              fill="none"
+              className={`sym-edge edge-${kind}`}
+              strokeWidth="1.2"
+              strokeOpacity={0.55}
+              markerEnd={`url(#arrow-${e.kind})`}
+            />
+          );
+        })}
+        {layout.columns.map((col) =>
+          col.nodes.map((n) => {
+            const p = layout.pos.get(n.id);
+            if (!p) return null;
+            return (
+              <g
+                key={n.id}
+                className="ui-symbol-graph-node"
+                role="button"
+                aria-label={`${n.name} (${n.kind})`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Focus-column clicks drill (that IS the center); outer
+                  // columns open the one-hop popover instead of navigating.
+                  if (n.role === "focus") onRecenter(n.name);
+                  else openPopover(n, e.clientX, e.clientY);
+                }}
+              >
+                <rect
+                  x={p.x}
+                  y={p.y}
+                  width={layout.colW - 16}
+                  height={NODE_H - 6}
+                  rx={8}
+                  className={`sym-card role-${n.role}`}
+                />
+                <circle cx={p.x + 13} cy={p.y + (NODE_H - 6) / 2} r={4.5} className={`sym-dot kind-${n.kind}`} />
+                <text x={p.x + 24} y={p.y + NODE_H / 2 - 3} className="ui-symbol-graph-node-name">
+                  {truncate(n.name, layout.nameMax)}
+                </text>
+                <text x={p.x + 24} y={p.y + NODE_H / 2 + 10} className="ui-symbol-graph-node-kind">
+                  {truncate(n.filePath.split(/[\\/]/).pop() ?? n.kind, layout.fileMax)}
+                </text>
+              </g>
+            );
+          })
+        )}
+      </svg>
     );
-  }
-  if (error) {
-    return <div className="ui-side-panel-empty">{t("symbols.error")}</div>;
-  }
-  if (!layout) {
-    return <div className="ui-side-panel-empty">{t("index.symbolsEmpty")}</div>;
-  }
 
   return (
     <div className="ui-symbol-graph">
-      <div className="ui-symbol-graph-toolbar">
-        <button
-          type="button"
-          className="ui-symbol-graph-back"
-          onClick={back}
-          disabled={history.length === 0}
-          title={
-            history.length > 0
-              ? t("symbols.backTo", { name: history[history.length - 1] || t("symbols.global") })
-              : t("symbols.topmost")
-          }
-        >
-          ← {t("symbols.back")}
-          {history.length > 1 ? ` (${history.length})` : ""}
-        </button>
-        <span className="ui-symbol-graph-center">◈ {query.trim() ? query.trim() : t("symbols.globalView")}</span>
-      </div>
-      <div className="ui-symbol-graph-legend">
-        {EDGE_KINDS.map((kind) => (
-          <span key={kind} className="ui-symbol-graph-legend-item">
-            <svg width="22" height="6">
-              <line x1="0" y1="3" x2="22" y2="3" className={`sym-edge edge-${kind}`} strokeWidth="2" />
-            </svg>
-            {kind}
-          </span>
-        ))}
-        {layout.hidden > 0 || graph?.truncated ? (
-          <span className="ui-symbol-graph-truncated">{t("symbols.truncated")}</span>
-        ) : null}
-      </div>
-      <div className="ui-symbol-graph-scroll" ref={scrollRef}>
-        <svg width={layout.width} height={layout.height} role="img" aria-label="symbol relationship graph">
-          <defs>
-            {EDGE_KINDS.map((kind) => (
-              <marker
-                key={kind}
-                id={`arrow-${kind}`}
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 1 L 9 5 L 0 9 z" className={`sym-arrow arrow-${kind}`} />
-              </marker>
-            ))}
-          </defs>
-          {layout.columns.map((col) =>
-            col.nodes.length > 0 ? (
-              <text key={col.label} x={col.x + 4} y={PAD_Y + 10} className={`ui-symbol-graph-col-label ${col.hue}`}>
-                {col.label} · {col.nodes.length}
-              </text>
-            ) : null
-          )}
-          {layout.visibleEdges.map((e, i) => {
-            const from = layout.pos.get(e.source);
-            const to = layout.pos.get(e.target);
-            if (!from || !to) return null;
-            const kind = (EDGE_KINDS as readonly string[]).includes(e.kind) ? e.kind : "references";
-            const fromRight = to.x > from.x;
-            const x1 = from.x + (fromRight ? layout.colW - 16 : 0);
-            const x2 = to.x + (fromRight ? 0 : layout.colW - 16);
-            const midX = (x1 + x2) / 2;
-            return (
-              <path
-                key={i}
-                d={`M ${x1} ${from.y + NODE_H / 2} C ${midX} ${from.y + NODE_H / 2}, ${midX} ${to.y + NODE_H / 2}, ${x2} ${to.y + NODE_H / 2}`}
-                fill="none"
-                className={`sym-edge edge-${kind}`}
-                strokeWidth="1.2"
-                strokeOpacity={0.55}
-                markerEnd={`url(#arrow-${e.kind})`}
-              />
-            );
-          })}
-          {layout.columns.map((col) =>
-            col.nodes.map((n) => {
-              const p = layout.pos.get(n.id);
-              if (!p) return null;
-              return (
-                <g
-                  key={n.id}
-                  className="ui-symbol-graph-node"
-                  onClick={() => recenter(n.name)}
-                  role="button"
-                  aria-label={`${n.name} (${n.kind})`}
-                >
-                  <rect
-                    x={p.x}
-                    y={p.y}
-                    width={layout.colW - 16}
-                    height={NODE_H - 6}
-                    rx={8}
-                    className={`sym-card role-${n.role}`}
-                  />
-                  <circle cx={p.x + 13} cy={p.y + (NODE_H - 6) / 2} r={4.5} className={`sym-dot kind-${n.kind}`} />
-                  <text x={p.x + 24} y={p.y + NODE_H / 2 - 3} className="ui-symbol-graph-node-name">
-                    {truncate(n.name, layout.nameMax)}
-                  </text>
-                  <text x={p.x + 24} y={p.y + NODE_H / 2 + 10} className="ui-symbol-graph-node-kind">
-                    {truncate(n.filePath.split(/[\\/]/).pop() ?? n.kind, layout.fileMax)}
-                  </text>
-                </g>
-              );
-            })
-          )}
-        </svg>
+      {legend}
+      <div className="ui-symbol-graph-scroll" ref={scrollRef} onScroll={() => setPop(null)}>
+        {boardInner}
       </div>
       <div className="ui-symbol-graph-hint">{t("symbols.clickHint")}</div>
+      {pop ? (
+        <div className="ui-sym-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
+          <div className="ui-sym-pop-head">
+            <span className={`sym-dot kind-${pop.kind} ui-sym-pop-dot`} />
+            <span className="ui-sym-pop-name">{pop.name}</span>
+            <button type="button" className="ui-sym-pop-close" aria-label="close" onClick={() => setPop(null)}>
+              ✕
+            </button>
+          </div>
+          {popLoading ? (
+            <div className="ui-sym-pop-loading">
+              <span className="ui-spinner" />
+            </div>
+          ) : popGraph && popGraph.nodes.length > 0 ? (
+            <>
+              {(["caller", "callee"] as const).map((role) => {
+                const items = popGraph.nodes.filter((n) => n.role === role).slice(0, 12);
+                return (
+                  <div className="ui-sym-pop-sec" key={role}>
+                    <div className="ui-sym-pop-sec-label">
+                      {role === "caller" ? t("symbols.callers") : t("symbols.callees")}
+                    </div>
+                    {items.length === 0 ? (
+                      <span className="ui-sym-pop-none">{t("symbols.noRelations")}</span>
+                    ) : (
+                      <div className="ui-sym-pop-chips">
+                        {items.map((n) => (
+                          <button
+                            key={n.id}
+                            type="button"
+                            className="ui-sym-pop-chip"
+                            onClick={() => {
+                              setPop(null);
+                              onRecenter(n.name);
+                            }}
+                          >
+                            <span className={`sym-dot kind-${n.kind}`} />
+                            {truncate(n.name, 26)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                className="ui-sym-pop-center"
+                onClick={() => {
+                  setPop(null);
+                  onRecenter(pop.name);
+                }}
+              >
+                ◈ {t("symbols.recenter")}
+              </button>
+            </>
+          ) : (
+            <div className="ui-sym-pop-none">{t("symbols.noRelations")}</div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

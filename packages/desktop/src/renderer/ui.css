@@ -9564,38 +9564,173 @@ button.ui-topbar-pill {
   flex: 1;
   min-height: 0;
 }
-.ui-symbol-graph-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 2px;
-  flex-shrink: 0;
-}
-.ui-symbol-graph-back {
-  background: none;
+/* Panel-level Back / Home (history lives in KnowledgePanel, so these work
+   for BOTH the graph and the list view — and never disappear on empty). */
+.ui-knowledge-symbol-navbtn {
   border: 1px solid var(--ui-border, #d0d5dd);
   border-radius: 7px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   font-size: 11px;
   color: var(--ui-text-dim, #55606d);
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+  background: transparent;
+  transition:
+    border-color 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
 }
-.ui-symbol-graph-back:hover:not(:disabled) {
+.ui-knowledge-symbol-navbtn:hover:not(:disabled) {
   border-color: var(--ui-accent, #0a84ff);
   color: var(--ui-accent, #0a84ff);
 }
-.ui-symbol-graph-back:disabled {
+.ui-knowledge-symbol-navbtn:disabled {
   opacity: 0.45;
   cursor: default;
 }
-.ui-symbol-graph-center {
-  font-size: 11px;
-  font-family: var(--ui-font-mono, ui-monospace, monospace);
+/* Loading/error/empty INSIDE the fixed canvas — the toolbar above (with
+   back/home) stays mounted, so a dead-end drill never strands the user. */
+.ui-symbol-graph-boardstate {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
   color: var(--ui-text-faint, #8590a0);
+  font-size: 12px;
+}
+/* One-hop popover: floating sub-graph preview for a clicked outer node.
+   Fixed-positioned at the click point (clamped by the caller) so the scroll
+   container never clips it. */
+.ui-sym-pop {
+  position: fixed;
+  z-index: 90;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 35%, var(--ui-border-soft, #e3e6eb));
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32));
+  animation: ui-sym-pop-in 0.16s var(--ui-ease) both;
+}
+@keyframes ui-sym-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-sym-pop {
+    animation: none;
+  }
+}
+.ui-sym-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ui-sym-pop-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ui-sym-pop-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ui-text, inherit);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ui-sym-pop-close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint, #8590a0);
+  font-size: 10px;
+  cursor: pointer;
+}
+.ui-sym-pop-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-sym-pop-loading {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+.ui-sym-pop-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-sym-pop-sec-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-sym-pop-none {
+  font-size: 11.5px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-sym-pop-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ui-sym-pop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  background: transparent;
+  color: var(--ui-text-dim, #55606d);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.13s var(--ui-ease),
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-sym-pop-chip:hover {
+  border-color: var(--ui-accent, #0a84ff);
+  color: var(--ui-accent, #0a84ff);
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.1));
+}
+.ui-sym-pop-chip .sym-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ui-sym-pop-center {
+  margin-top: 2px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
 }
 .ui-symbol-graph-legend {
   display: flex;
