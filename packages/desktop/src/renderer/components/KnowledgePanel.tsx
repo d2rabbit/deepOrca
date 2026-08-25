@@ -529,39 +529,52 @@ function extractArchSections(markdown: string): ArchSection[] {
 }
 
 /**
- * One chart scaled to FILL the page width independently. The whole-stack
- * uniform scale (round 2) was systemic, not special-case: every chart
- * narrower than the widest one rendered proportionally small (the "图 2 is
- * tiny" report). Here each chart measures its own natural size and scales to
- * the stack width (capped 3×), so every chart reads at the same width — like
- * slides in a deck.
+ * One chart FITTED inside its card: measures its own natural size and scales
+ * to the card's content width — down freely, up capped (maxScale) so text
+ * sizes stay comparable across cards. Explicit scaled box (transform alone
+ * doesn't grow the layout box); the inner box stays unscaled and is what the
+ * observer measures. Per-card measurement means CSS grid reflows re-fit each
+ * chart automatically — no page-level zoom math.
  */
-function ArchChartCard({ chart, width }: { chart: string; width: number | undefined }): JSX.Element {
+function ArchChartFit({ chart, maxScale }: { chart: string; maxScale: number }): JSX.Element {
+  const frameRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [natural, setNatural] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = innerRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => {
-      const inner = innerRef.current;
-      if (!inner) return;
-      if (inner.offsetWidth > 0 || inner.offsetHeight > 0) {
-        setNatural((prev) =>
-          prev.w === inner.offsetWidth && prev.h === inner.offsetHeight
-            ? prev
-            : { w: inner.offsetWidth, h: inner.offsetHeight }
-        );
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+  const [boxW, setBoxW] = useState(0);
+  // Card content width (frame) — belt-and-braces measurement, same rationale
+  // as the symbol graph (a lone contentRect observer missed a maximize).
+  const measure = useCallback(() => {
+    const frame = frameRef.current;
+    const inner = innerRef.current;
+    if (frame) {
+      const w = Math.floor(frame.getBoundingClientRect().width);
+      if (w > 0) setBoxW((prev) => (Math.abs(prev - w) > 1 ? w : prev));
+    }
+    if (inner && (inner.offsetWidth > 0 || inner.offsetHeight > 0)) {
+      setNatural((prev) =>
+        prev.w === inner.offsetWidth && prev.h === inner.offsetHeight
+          ? prev
+          : { w: inner.offsetWidth, h: inner.offsetHeight }
+      );
+    }
   }, []);
-  const scale = natural.w > 0 && width ? Math.min(3, width / natural.w) : 1;
+  useEffect(() => {
+    measure();
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => measure());
+      if (frameRef.current) ro.observe(frameRef.current);
+      if (innerRef.current) ro.observe(innerRef.current);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [measure]);
+  const scale = natural.w > 0 && boxW > 0 ? Math.min(maxScale, Math.max(0.2, boxW / natural.w)) : 1;
   return (
-    <div className="ui-arch-chart" style={width ? { width } : undefined}>
-      {/* Explicit scaled box: transform alone doesn't grow the layout box
-          (zoomed content used to clip with no way to scroll). Inner stays
-          unscaled at natural size and is what the observer measures. */}
+    <div className="ui-arch-chart-fit" ref={frameRef}>
       <div
         className="ui-arch-chart-box"
         style={natural.w > 0 ? { width: natural.w * scale, height: natural.h * scale } : undefined}
@@ -579,16 +592,16 @@ function ArchChartCard({ chart, width }: { chart: string; width: number | undefi
 }
 
 /**
- * Arch map viewer — ONE PAGE, ALL CHARTS, EACH FILLED TO THE PAGE WIDTH.
- * (Real-machine feedback rounds 2+3: the switcher felt stingy; the uniform
- * stack scale left narrower charts small and the density felt messy.)
- *   - every mermaid section renders stacked on one dotted canvas under its
- *     section badge + heading, joined by a drill rail (the scan IS a
- *     top-down progression — the rail shows it);
- *   - each chart scales INDEPENDENTLY to fill the stack width (ArchChartCard)
- *     — same reading width for every chart;
- *   - zoom −/+ multiplies the stack width (fit-to-width = 100%); the page
- *     scrolls vertically by design.
+ * Arch map viewer — a BOARD, not a document (real-machine feedback round 4:
+ * the vertical stack still read as one long messy column).
+ *   - the FIRST chart (arch-scan's overall view) is the HERO card, full width;
+ *   - every following module chart is a card in a responsive CSS grid
+ *     (auto-fit ≥ 380px columns) — a maximized window shows 2-4 cards per
+ *     row, so the page fills BOTH dimensions instead of one long column;
+ *   - a drill rail joins the hero zone to the module zone (the scan IS a
+ *     top-down progression);
+ *   - each chart fits its card independently (down freely, up capped), so
+ *     text sizes stay comparable and nothing balloons or shrinks to noise.
  * Documents with no mermaid block fall back to full markdown so nothing
  * renders blank.
  */
@@ -601,97 +614,50 @@ function ArchDiagrams({
 }): JSX.Element {
   const { t } = useI18n();
   const sections = useMemo(() => extractArchSections(markdown), [markdown]);
-  const [zoom, setZoom] = useState(1);
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [frameW, setFrameW] = useState(0);
-
-  // Pane width drives the stack width — re-fits on window/panel resizes.
-  // Belt-and-braces like the symbol graph: direct measurement on mount and
-  // window resize, plus the observer (a lone contentRect observer has
-  // already missed a maximize transition on real hardware).
-  const measure = useCallback(() => {
-    const el = frameRef.current;
-    if (!el) return;
-    const w = Math.floor(el.getBoundingClientRect().width);
-    if (w > 0) setFrameW((prev) => (Math.abs(prev - w) > 1 ? w : prev));
-  }, []);
-  useEffect(() => {
-    measure();
-    const el = frameRef.current;
-    let ro: ResizeObserver | undefined;
-    if (el && typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => measure());
-      ro.observe(el);
-    }
-    window.addEventListener("resize", measure);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [measure]);
 
   if (sections.length === 0) {
     return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
   }
-  const clampZoom = (z: number): number => Math.min(3, Math.max(0.4, z));
-  const stackW = frameW > 0 ? Math.max(240, Math.floor(frameW * zoom)) : undefined;
+  const [hero, ...modules] = sections;
+  const head = (section: ArchSection, n: number): JSX.Element => (
+    <div className="ui-arch-section-head">
+      <span className="ui-arch-section-badge">{t("index.archChart", { n })}</span>
+      <span className="ui-arch-section-title">{section.title || t("index.archChart", { n })}</span>
+    </div>
+  );
 
   return (
     <div className="ui-arch-viewer">
       <div className="ui-arch-toolbar">
         <span className="ui-arch-count">{t("index.archChartCount", { n: sections.length })}</span>
-        <div className="ui-arch-zoom">
-          <button
-            type="button"
-            title={t("index.archZoomOut")}
-            aria-label={t("index.archZoomOut")}
-            onClick={() => setZoom((z) => clampZoom(z / 1.25))}
-          >
-            −
-          </button>
-          <span className="ui-arch-zoom-value">{Math.round(zoom * 100)}%</span>
-          <button
-            type="button"
-            title={t("index.archZoomIn")}
-            aria-label={t("index.archZoomIn")}
-            onClick={() => setZoom((z) => clampZoom(z * 1.25))}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className={zoom === 1 ? "active" : ""}
-            title={t("index.archFitWidth")}
-            onClick={() => setZoom(1)}
-          >
-            ⤢ {t("index.archFitWidth")}
-          </button>
-        </div>
         {onOpenSource ? (
           <Button size="sm" variant="subtle" onClick={onOpenSource}>
             {t("index.openInEditor")}
           </Button>
         ) : null}
       </div>
-      <div className="ui-arch-frame" ref={frameRef}>
-        <div className="ui-arch-stage" style={stackW ? { width: stackW } : undefined}>
-          {sections.map((section, i) => (
-            <div className="ui-arch-section" key={i}>
-              <div className="ui-arch-section-head">
-                <span className="ui-arch-section-badge">{t("index.archChart", { n: i + 1 })}</span>
-                <span className="ui-arch-section-title">{section.title || t("index.archChart", { n: i + 1 })}</span>
-              </div>
-              <ArchChartCard chart={section.chart} width={stackW} />
-              {i < sections.length - 1 ? (
-                <div className="ui-arch-flow" aria-hidden>
-                  <span className="ui-arch-flow-line" />
-                  <span className="ui-arch-flow-node">◆</span>
-                  <span className="ui-arch-flow-line" />
-                </div>
-              ) : null}
-            </div>
-          ))}
+      <div className="ui-arch-board">
+        <div className="ui-arch-card ui-arch-card--hero">
+          {head(hero, 1)}
+          <ArchChartFit chart={hero.chart} maxScale={1.8} />
         </div>
+        {modules.length > 0 ? (
+          <>
+            <div className="ui-arch-flow" aria-hidden>
+              <span className="ui-arch-flow-line" />
+              <span className="ui-arch-flow-node">◆</span>
+              <span className="ui-arch-flow-line" />
+            </div>
+            <div className="ui-arch-grid">
+              {modules.map((section, i) => (
+                <div className="ui-arch-card" key={i}>
+                  {head(section, i + 2)}
+                  <ArchChartFit chart={section.chart} maxScale={1.5} />
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

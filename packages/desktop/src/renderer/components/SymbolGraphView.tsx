@@ -70,11 +70,13 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   // graph change, PLUS the observer for panel-drag resizes.
   const scrollRef = useRef<HTMLDivElement>(null);
   const [availW, setAvailW] = useState(0);
+  const [availH, setAvailH] = useState(0);
   const measure = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const w = Math.floor(el.getBoundingClientRect().width);
-    if (w > 0) setAvailW((prev) => (Math.abs(prev - w) > 1 ? w : prev));
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0) setAvailW((prev) => (Math.abs(prev - rect.width) > 1 ? Math.floor(rect.width) : prev));
+    if (rect.height > 0) setAvailH((prev) => (Math.abs(prev - rect.height) > 1 ? Math.floor(rect.height) : prev));
   }, []);
   useEffect(() => {
     measure();
@@ -168,12 +170,22 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       { x: colW + COL_GAP + PAD_X, nodes: focus, label: t("symbols.focus"), hue: "col-focus" },
       { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: t("symbols.callees"), hue: "col-callees" },
     ];
-    const height = Math.max(...columns.map((c) => c.nodes.length)) * NODE_H + PAD_Y * 2 + 26;
+    // Vertical sparsification (real-machine feedback: widening alone left the
+    // nodes as one dense ribbon). Rows spread across the measured pane
+    // height — a maximized window breathes (rows up to 130px); when a column
+    // is too long to fit even at minimum density it keeps the min gap and
+    // the canvas scrolls.
+    const headerH = 26;
+    const minRow = NODE_H + 28;
+    const maxNodes = Math.max(...columns.map((c) => c.nodes.length), 1);
+    const rowH =
+      availH > 0 ? Math.max(minRow, Math.min(130, Math.floor((availH - PAD_Y * 2 - headerH) / maxNodes))) : minRow;
+    const height = headerH + (maxNodes - 1) * rowH + NODE_H + PAD_Y * 2;
     const width = 3 * colW + 2 * COL_GAP + PAD_X * 2;
     const pos = new Map<string, { x: number; y: number }>();
     for (const col of columns) {
       col.nodes.forEach((n, i) => {
-        pos.set(n.id, { x: col.x, y: PAD_Y + 26 + i * NODE_H });
+        pos.set(n.id, { x: col.x, y: PAD_Y + headerH + i * rowH });
       });
     }
     const visibleEdges = graph.edges.filter((e) => pos.has(e.source) && pos.has(e.target));
@@ -181,7 +193,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       graph.nodes.filter((n) => n.role === role).length - shown.length;
     const hidden = beyond("caller", callers) + beyond("callee", callees) + beyond("focus", focus);
     return { columns, pos, visibleEdges, width, height, hidden, colW, nameMax, fileMax };
-  }, [graph, availW, t]);
+  }, [graph, availW, availH, t]);
 
   if (loading && !graph) {
     return (
