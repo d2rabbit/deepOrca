@@ -12,9 +12,16 @@ type ProcessOutputPanelProps = {
   processes: SerializableProcess[];
   stdoutRef: React.RefObject<Map<number, string>>;
   onDismiss: () => void;
+  /** Host platform ("darwin"/"win32"/"linux") — shortcut glyphs in tooltips. */
+  platform?: string;
 };
 
-export function ProcessOutputPanel({ processes, stdoutRef, onDismiss }: ProcessOutputPanelProps): JSX.Element {
+export function ProcessOutputPanel({
+  processes,
+  stdoutRef,
+  onDismiss,
+  platform,
+}: ProcessOutputPanelProps): JSX.Element {
   const { t } = useI18n();
   const [stdoutText, setStdoutText] = useState("");
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -32,12 +39,12 @@ export function ProcessOutputPanel({ processes, stdoutRef, onDismiss }: ProcessO
           const stdout = stdoutRef.current?.get(pidNum) ?? "";
           if (text) text += "\n";
           if (processes.length > 1) {
-            text += `── Process ${proc.pid} [${proc.command}] ──\n`;
+            text += `${t("process.processHeader", { pid: proc.pid, command: proc.command })}\n`;
           }
-          text += stdout || "(no output yet)";
+          text += stdout || t("process.noOutput");
         }
       } else {
-        text = "(no running processes)";
+        text = t("process.noProcesses");
       }
       setStdoutText(text);
     };
@@ -139,31 +146,40 @@ export function ProcessOutputPanel({ processes, stdoutRef, onDismiss }: ProcessO
           >
             −
           </button>
-          <button className="ui-process-btn ui-process-btn-close" onClick={onDismiss} title="⌘J / Esc">
+          {/* Single global stop: interrupt kills the WHOLE agent turn (there is
+              no per-PID channel), so one clearly-labelled button replaces the
+              old per-card ■ that implied single-process control. */}
+          <button
+            className="ui-process-btn ui-process-btn-stop"
+            onClick={() => void api.interrupt()}
+            title={t("process.stopAll")}
+          >
+            ■
+          </button>
+          <button
+            className="ui-process-btn ui-process-btn-close"
+            onClick={onDismiss}
+            title={`${platform === "darwin" ? "⌘" : "Ctrl"}J / Esc`}
+          >
             ✕
           </button>
         </span>
       </div>
-      {/* Per-process status cards with stop button */}
+      {/* Per-process status cards (info only — stopping is global, above) */}
       {processes.length > 0 ? (
         <div className="ui-process-cards">
           {processes.map((proc) => (
             <div key={proc.pid} className="ui-process-card">
               <span className="ui-process-card-dot" />
-              <span className="ui-process-card-pid">PID {proc.pid}</span>
+              <span className="ui-process-card-pid">
+                {t("process.pidLabel")} {proc.pid}
+              </span>
               <span className="ui-process-card-cmd ui-mono">{proc.command}</span>
               {proc.deadlineAt ? (
                 <span className="ui-process-card-deadline">
                   ⏱ {new Date(proc.deadlineAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               ) : null}
-              <button
-                className="ui-process-card-stop"
-                onClick={() => void api.interrupt()}
-                title={t("common.interrupt")}
-              >
-                ■
-              </button>
             </div>
           ))}
         </div>

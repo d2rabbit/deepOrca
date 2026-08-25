@@ -1,18 +1,18 @@
-import { useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useState, type JSX } from "react";
 import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
 import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
-import { Button, Checkbox, Field, Input, Select } from "../ui/index";
+import { Button, Checkbox, Field, Input, Modal, Select } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
 import { ActionsPanel } from "./ActionsPanel";
 
 type Props = {
   initial: EditableSettings;
   initialTab?: string;
-  onSave: (next: EditableSettings) => void;
+  onSave: (next: EditableSettings) => void | Promise<void>;
   onClose: () => void;
   /** Platform string (e.g. "win32") — scopes which themes are offered. */
   platform: string;
@@ -281,6 +281,35 @@ export function SettingsPanel({
   const [addVision, setAddVision] = useState(false);
   const [addError, setAddError] = useState("");
 
+  // ── Save/close hardening ──────────────────────────────────────────────────
+  // Close used to throw away half-edited settings silently, and a failed
+  // updateSettings rejected into an unhandled promise (no feedback at all).
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const dirty = JSON.stringify(s) !== JSON.stringify(initial);
+
+  const handleSave = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(s);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }, [onSave, s, saving]);
+
+  const handleClose = useCallback((): void => {
+    if (dirty) {
+      setConfirmClose(true);
+      return;
+    }
+    onClose();
+  }, [dirty, onClose]);
+
   // Probe the memory gateway whenever the memory tab is opened.
   useEffect(() => {
     if (tab !== "memory") return;
@@ -494,14 +523,30 @@ export function SettingsPanel({
       <div className="ui-settings-panel-head">
         <span className="ui-settings-panel-title">{t("settings.title")}</span>
         <div className="ui-settings-panel-actions">
-          <Button variant="primary" size="sm" onClick={() => onSave(s)}>
-            {t("common.save")}
+          <Button variant="primary" size="sm" disabled={saving} onClick={() => void handleSave()}>
+            {saving ? t("settings.saving") : t("common.save")}
           </Button>
-          <Button size="sm" onClick={onClose}>
+          <Button size="sm" onClick={handleClose}>
             {t("common.close")}
           </Button>
         </div>
       </div>
+      {saveError ? <div className="ui-scm-error">{saveError}</div> : null}
+      {confirmClose ? (
+        <Modal
+          title={t("settings.unsavedTitle")}
+          subtitle={t("settings.unsavedBody")}
+          onClose={() => setConfirmClose(false)}
+          actions={
+            <>
+              <Button onClick={() => setConfirmClose(false)}>{t("common.cancel")}</Button>
+              <Button variant="primary" onClick={onClose}>
+                {t("settings.unsavedDiscard")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
 
       <div className="ui-settings-layout">
         <nav className="ui-settings-nav" aria-label={t("settings.title")}>

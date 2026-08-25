@@ -46,6 +46,9 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [newPrompt, setNewPrompt] = useState("");
   const [newWhy, setNewWhy] = useState("");
+  // Double-submit guard: the create round-trip is slow enough that a second
+  // click landed a duplicate tree.
+  const [creating, setCreating] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -104,20 +107,26 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
   }, []);
 
   const create = async () => {
+    if (creating) return;
     const p = newPrompt.trim();
     const w = newWhy.trim();
     if (!p || !w) return;
-    const result = await api.taskTreeCreate(p, w).catch((err: Error) => ({ error: err.message }));
-    if ("error" in result && result.error) {
-      setNotice(result.error);
-      return;
+    setCreating(true);
+    try {
+      const result = await api.taskTreeCreate(p, w).catch((err: Error) => ({ error: err.message }));
+      if ("error" in result && result.error) {
+        setNotice(result.error);
+        return;
+      }
+      setNewPrompt("");
+      setNewWhy("");
+      setCreateFormOpen(false);
+      setNotice(t("tasktree.created"));
+      setExpanded(projectRoot);
+      void loadRoot(projectRoot);
+    } finally {
+      setCreating(false);
     }
-    setNewPrompt("");
-    setNewWhy("");
-    setCreateFormOpen(false);
-    setNotice(t("tasktree.created"));
-    setExpanded(projectRoot);
-    void loadRoot(projectRoot);
   };
 
   return (
@@ -154,7 +163,7 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
               {open ? (
                 <div className="ui-tasktree-ws-body">
                   {active.length === 0 ? (
-                    <div className="ui-tasktree-empty-hint">暂无任务记录</div>
+                    <div className="ui-tasktree-empty-hint">{t("tasktree.noRecords")}</div>
                   ) : (
                     active.map((tr) => (
                       <button
@@ -166,7 +175,7 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
                       >
                         <span className="ui-tasktree-task-title">{tr.title}</span>
                         <span className="ui-tasktree-task-meta">
-                          {tr.branchCount} 分支 · {tr.nodeCount} 节点 ·{" "}
+                          {t("tasktree.branchNode", { branches: tr.branchCount, nodes: tr.nodeCount })} ·{" "}
                           {formatRelative(tr.updatedAt, t("index.freshness.justNow"), t("index.freshness.never"))}
                         </span>
                       </button>
@@ -179,7 +188,7 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
                         className="ui-tasktree-archived-toggle"
                         onClick={() => setArchivedOpen((v) => !v)}
                       >
-                        {archivedOpen ? "▾" : "▸"} 已归档 · {archived.length}
+                        {archivedOpen ? "▾" : "▸"} {t("tasktree.archivedCount", { count: archived.length })}
                       </button>
                       {archivedOpen
                         ? archived.map((tr) => (
@@ -205,7 +214,7 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
                       className="ui-tasktree-create-toggle"
                       onClick={() => setCreateFormOpen((v) => !v)}
                     >
-                      + 新建任务
+                      + {t("tasktree.newTask")}
                     </button>
                   ) : null}
                 </div>
@@ -228,7 +237,7 @@ export function TaskTreePanel({ onOpenTask }: Props): JSX.Element {
               placeholder={t("tasktree.newWhy")}
               onChange={(e) => setNewWhy(e.target.value)}
             />
-            <Button size="sm" disabled={!newPrompt.trim() || !newWhy.trim()} onClick={() => void create()}>
+            <Button size="sm" disabled={!newPrompt.trim() || !newWhy.trim() || creating} onClick={() => void create()}>
               {t("tasktree.create")}
             </Button>
           </div>

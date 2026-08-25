@@ -6695,6 +6695,10 @@ button.ui-topbar-pill {
   background: var(--ui-surface-hover);
   color: var(--ui-text);
 }
+.ui-process-btn-stop:hover {
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-danger);
+}
 .ui-process-btn-close:hover {
   background: var(--ui-danger);
   color: #fff;

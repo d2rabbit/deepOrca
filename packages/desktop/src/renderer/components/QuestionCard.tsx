@@ -44,14 +44,20 @@ export function QuestionCard({ questions, onSubmit, onCancel }: Props): JSX.Elem
     return (selections[i]?.size ?? 0) > 0;
   });
 
-  // Keyboard: number keys select options for the first unanswered question
+  // Keyboard: number keys select options for the first unanswered CHOICE
+  // question. Text questions can never be satisfied by a digit, so they are
+  // skipped — otherwise the first pending text question silenced the keys
+  // for every later choice question.
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
+      if (e.repeat || e.altKey || e.metaKey || e.ctrlKey) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const num = parseInt(e.key, 10);
       if (num < 1 || num > 9) return;
-      // Find first unanswered question
-      const qIdx = questions.findIndex((_, i) => (selections[i]?.size ?? 0) === 0);
+      // Find first unanswered choice question
+      const qIdx = questions.findIndex(
+        (_, i) => questions[i]?.inputType !== "text" && (selections[i]?.size ?? 0) === 0
+      );
       if (qIdx === -1) return;
       const q = questions[qIdx]!;
       const optIdx = num - 1;
@@ -96,7 +102,7 @@ export function QuestionCard({ questions, onSubmit, onCancel }: Props): JSX.Elem
             <input
               className="ui-q-text-input"
               type="text"
-              placeholder={q.placeholder ?? "Type your answer…"}
+              placeholder={q.placeholder ?? t("question.textPlaceholder")}
               value={textAnswers[qIndex] ?? ""}
               onChange={(e) => setTextAnswers((prev) => ({ ...prev, [qIndex]: e.target.value }))}
               onKeyDown={(e) => {

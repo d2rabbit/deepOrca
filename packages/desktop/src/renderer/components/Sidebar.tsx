@@ -19,6 +19,8 @@ type Props = {
   onRename: (id: string, summary: string) => void;
   onArchive: (id: string, workspaceRoot?: string) => void;
   onUnarchive: (id: string) => void;
+  /** Export a session to markdown — the handler owns success/failure toasts. */
+  onExportSession?: (id: string) => void;
   /** Open the session's bound task tree as a workspace tab (specs/task-tree). */
   onCollapse: () => void;
   onNewWorkspace: () => void;
@@ -81,6 +83,7 @@ export const Sidebar = memo(function Sidebar({
   onRename,
   onArchive,
   onUnarchive,
+  onExportSession,
   onCollapse,
   onNewWorkspace,
   onNewSessionInWorkspace,
@@ -254,7 +257,7 @@ export const Sidebar = memo(function Sidebar({
               className="ui-icon-btn--sm"
               data-tip={t("sidebar.export")}
               aria-label={t("sidebar.export")}
-              onClick={() => void api.exportSession(entry.id)}
+              onClick={() => (onExportSession ? onExportSession(entry.id) : void api.exportSession(entry.id))}
             >
               ⤓
             </IconButton>

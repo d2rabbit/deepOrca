@@ -951,6 +951,21 @@ export function App(): JSX.Element {
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
+  // Session export with visible outcome — the sidebar's ⤓ used to fire the
+  // IPC and leave the user with no idea where the file went (or that it failed).
+  const handleExportSession = useCallback(
+    (id: string) => {
+      void api.exportSession(id).then((res) => {
+        if (res.ok && res.path) {
+          pushToast("success", `${t("command.export.label")}: ${res.path.split(/[\\/]/).pop()}`);
+        } else if (!res.ok) {
+          pushToast("error", res.error ?? t("app.requestFailed"));
+        }
+      });
+    },
+    [pushToast, t]
+  );
+
   // Left-rail task history (R3-7): open a task RECORD tab for ANY workspace
   // without switching the active project root — the record panel reads the
   // tree through its own root-scoped IPC.
@@ -1446,6 +1461,7 @@ export function App(): JSX.Element {
           processes={runningProcesses}
           stdoutRef={processStdoutRef}
           onDismiss={() => setShowProcessPanel(false)}
+          platform={platform}
         />
       ) : null}
       <div className="ui-composer-dock" ref={composerDockRef}>
@@ -1649,6 +1665,7 @@ export function App(): JSX.Element {
             onRename={handleRenameSession}
             onArchive={handleArchiveSession}
             onUnarchive={handleUnarchiveSession}
+            onExportSession={handleExportSession}
             onCollapse={handleCollapsePanel}
             onNewWorkspace={handleNewWorkspace}
             onNewSessionInWorkspace={handleNewSessionInWorkspace}

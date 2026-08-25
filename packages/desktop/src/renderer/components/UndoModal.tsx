@@ -34,6 +34,9 @@ export function UndoModal({ sessionId, onClose, onRestored }: Props): JSX.Elemen
       try {
         const list = await api.listUndoTargets(sessionId);
         if (!disposed) setTargets(list);
+      } catch (err) {
+        // A failed load must not masquerade as "no checkpoints" — surface it.
+        if (!disposed) setError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!disposed) setLoading(false);
       }

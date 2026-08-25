@@ -69,6 +69,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   const { t } = useI18n();
   const [graph, setGraph] = useState<KnowledgeSymbolGraph | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Back stack (R3-8): every recenter pushes the previous center; the
   // "返回上一层" button pops it — browsing the graph becomes non-destructive.
   const [history, setHistory] = useState<string[]>([]);
@@ -101,15 +102,29 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     });
   };
 
+  // A new workspace root is a different graph entirely — stale back-stack
+  // entries would drag the user into the previous root's symbol context.
+  useEffect(() => {
+    setHistory([]);
+  }, [root]);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
     (async () => {
       try {
         const result = await api.knowledgeSymbolGraph(root, query || undefined);
-        if (alive) setGraph(result);
-      } catch {
-        if (alive) setGraph({ nodes: [], edges: [], truncated: false });
+        if (alive) {
+          setGraph(result);
+          setError(null);
+        }
+      } catch (err) {
+        // Distinguish failure from a genuinely empty graph — the old catch
+        // faked an empty result and the user saw "no symbols" instead.
+        if (alive) {
+          setGraph(null);
+          setError(err instanceof Error ? err.message : String(err));
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -142,9 +157,9 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     const callees = pick("callee", 16);
 
     const columns: Array<{ x: number; nodes: KnowledgeSymbolGraphNode[]; label: string }> = [
-      { x: PAD_X, nodes: callers, label: "调用方" },
-      { x: colW + COL_GAP + PAD_X, nodes: focus, label: "焦点符号" },
-      { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: "被调用" },
+      { x: PAD_X, nodes: callers, label: t("symbols.callers") },
+      { x: colW + COL_GAP + PAD_X, nodes: focus, label: t("symbols.focus") },
+      { x: 2 * (colW + COL_GAP) + PAD_X, nodes: callees, label: t("symbols.callees") },
     ];
     const height = Math.max(...columns.map((c) => c.nodes.length)) * NODE_H + PAD_Y * 2 + 26;
     const width = 3 * colW + 2 * COL_GAP + PAD_X * 2;
@@ -159,7 +174,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       graph.nodes.filter((n) => n.role === role).length - shown.length;
     const hidden = beyond("caller", callers) + beyond("callee", callees) + beyond("focus", focus);
     return { columns, pos, visibleEdges, width, height, hidden, colW, nameMax, fileMax };
-  }, [graph, availW]);
+  }, [graph, availW, t]);
 
   if (loading && !graph) {
     return (
@@ -167,6 +182,9 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
         <span className="ui-spinner" />
       </div>
     );
+  }
+  if (error) {
+    return <div className="ui-side-panel-empty">{t("symbols.error")}</div>;
   }
   if (!layout) {
     return <div className="ui-side-panel-empty">{t("index.symbolsEmpty")}</div>;
@@ -180,11 +198,16 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
           className="ui-symbol-graph-back"
           onClick={back}
           disabled={history.length === 0}
-          title={history.length > 0 ? `返回 ${history[history.length - 1] || "全局"}` : "已是最顶层"}
+          title={
+            history.length > 0
+              ? t("symbols.backTo", { name: history[history.length - 1] || t("symbols.global") })
+              : t("symbols.topmost")
+          }
         >
-          ← 返回上一层{history.length > 1 ? ` (${history.length})` : ""}
+          ← {t("symbols.back")}
+          {history.length > 1 ? ` (${history.length})` : ""}
         </button>
-        <span className="ui-symbol-graph-center">{query.trim() ? `◈ ${query.trim()}` : "◈ 全局枢纽视图"}</span>
+        <span className="ui-symbol-graph-center">◈ {query.trim() ? query.trim() : t("symbols.globalView")}</span>
       </div>
       <div className="ui-symbol-graph-legend">
         {Object.entries(EDGE_STYLE).map(([kind, style]) => (
@@ -196,7 +219,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
           </span>
         ))}
         {layout.hidden > 0 || graph?.truncated ? (
-          <span className="ui-symbol-graph-truncated">已截断显示最高连接度节点</span>
+          <span className="ui-symbol-graph-truncated">{t("symbols.truncated")}</span>
         ) : null}
       </div>
       <div className="ui-symbol-graph-scroll" ref={scrollRef}>
@@ -264,7 +287,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
                     {truncate(n.name, layout.nameMax)}
                   </text>
                   <text x={p.x + 22} y={p.y + NODE_H / 2 + 9} className="ui-symbol-graph-node-kind">
-                    {truncate(n.filePath.split("/").pop() ?? n.kind, layout.fileMax)}
+                    {truncate(n.filePath.split(/[\\/]/).pop() ?? n.kind, layout.fileMax)}
                   </text>
                 </g>
               );
@@ -272,7 +295,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
           )}
         </svg>
       </div>
-      <div className="ui-symbol-graph-hint">点击节点以该符号为中心重新展开</div>
+      <div className="ui-symbol-graph-hint">{t("symbols.clickHint")}</div>
     </div>
   );
 }

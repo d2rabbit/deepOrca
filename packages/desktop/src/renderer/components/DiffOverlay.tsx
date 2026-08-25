@@ -151,15 +151,23 @@ export function DiffOverlay({
   const { t } = useI18n();
   const [payload, setPayload] = useState<DiffPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     void (async () => {
-      const p = await loadDiff(target);
-      if (!cancelled) {
-        setPayload(p);
-        setLoading(false);
+      try {
+        const p = await loadDiff(target);
+        if (!cancelled) {
+          setPayload(p);
+        }
+      } catch (err) {
+        // A rejected load left loading=true forever — the overlay spun eternally.
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -221,6 +229,8 @@ export function DiffOverlay({
             <div className="ui-diff-empty ui-diff-loading">
               <span className="ui-spinner" /> {t("diff.loading") || "Loading…"}
             </div>
+          ) : error ? (
+            <div className="ui-diff-empty">{error}</div>
           ) : !payload ? (
             <div className="ui-diff-empty">{t("diff.selectFile")}</div>
           ) : payload.binary ? (

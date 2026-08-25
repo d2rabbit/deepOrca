@@ -80,9 +80,15 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
   const specs = useMemo(() => artifacts.filter((a) => a.pipeline === "spec"), [artifacts]);
   const prototypes = useMemo(() => artifacts.filter((a) => a.pipeline === "openui"), [artifacts]);
 
-  // Default step ② to the newest spec.
+  // Default step ② to the newest spec; deleting every spec must clear the
+  // selection too — a stale id left the button enabled and materialize then
+  // failed against a nonexistent artifact.
   useEffect(() => {
-    if ((!specId || !specs.some((s) => s.id === specId)) && specs.length > 0) {
+    if (specs.length === 0) {
+      if (specId) setSpecId("");
+      return;
+    }
+    if (!specId || !specs.some((s) => s.id === specId)) {
       setSpecId(specs[0].id);
     }
   }, [specs, specId]);
