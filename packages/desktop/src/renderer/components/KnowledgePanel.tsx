@@ -534,7 +534,10 @@ function WikiPageView({
  *    (the map IS a picture; the prose between the fences is scan narration).
  *  - `.json` (legacy): the persisted A2UI surface JSON replayed through the
  *    real A2UI component renderer (the same one the conversation surfaces use). */
-type ArchContent = { kind: "md"; markdown: string } | { kind: "a2ui"; messagesJson: string; surfaceId: string };
+type ArchContent =
+  | { kind: "md"; markdown: string }
+  | { kind: "html"; html: string }
+  | { kind: "a2ui"; messagesJson: string; surfaceId: string };
 
 /** Extract ```mermaid fence bodies — the arch doc's prose is not displayed. */
 /** One rendered chart plus the document section it belongs to.
@@ -748,6 +751,10 @@ function KnowledgeArchPreview({
           setContent({ kind: "md", markdown: result.markdown });
           return;
         }
+        if (result.html != null) {
+          setContent({ kind: "html", html: result.html });
+          return;
+        }
         const surface = result.surface;
         // Prefer replaying the recorded message history; fall back to a
         // synthesized snapshot for older files that only stored components.
@@ -779,7 +786,14 @@ function KnowledgeArchPreview({
   }, [path, t]);
 
   if (error) return <div className="ui-knowledge-preview-error">{error}</div>;
-  const meta = content?.kind === "md" ? "Mermaid" : content?.kind === "a2ui" ? `A2UI v0.9 · ${content.surfaceId}` : "…";
+  const meta =
+    content?.kind === "md"
+      ? "Mermaid"
+      : content?.kind === "html"
+        ? "HTML Board"
+        : content?.kind === "a2ui"
+          ? `A2UI v0.9 · ${content.surfaceId}`
+          : "…";
   return (
     <div className="ui-knowledge-archframe">
       <div className="ui-knowledge-archframe-head">
@@ -789,6 +803,17 @@ function KnowledgeArchPreview({
       <div className="ui-knowledge-preview-a2ui">
         {content?.kind === "md" ? (
           <ArchDiagrams markdown={content.markdown} onOpenSource={() => onOpenFile(path)} />
+        ) : content?.kind === "html" ? (
+          /* The layered board: self-contained, JavaScript-free HTML painted on a
+           * fully-sandboxed canvas (empty sandbox = no scripts, no same-origin,
+           * no navigation — the board is pure CSS). Same srcDoc channel the CRG
+           * architecture graph uses in the right dock. */
+          <iframe
+            srcDoc={content.html}
+            title={archTitle}
+            sandbox=""
+            style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+          />
         ) : content?.kind === "a2ui" ? (
           <A2uiSurface messagesJson={content.messagesJson} surfaceId={content.surfaceId} />
         ) : (

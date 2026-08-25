@@ -592,10 +592,11 @@ export type KnowledgeArchmapSurface = {
   messages?: unknown[];
 };
 
-/** KnowledgeReadArchmap response: exactly one of surface (JSON) / markdown (md). */
+/** KnowledgeReadArchmap response: exactly one of surface (JSON) / markdown (md) / html (board). */
 export type KnowledgeArchmapContent =
-  | { ok: true; surface: KnowledgeArchmapSurface; markdown?: undefined }
-  | { ok: true; surface?: undefined; markdown: string }
+  | { ok: true; surface: KnowledgeArchmapSurface; markdown?: undefined; html?: undefined }
+  | { ok: true; surface?: undefined; markdown: string; html?: undefined }
+  | { ok: true; surface?: undefined; markdown?: undefined; html: string }
   | { ok: false; error: string };
 
 /**
@@ -974,7 +975,7 @@ export type DesktopApi = {
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
-  /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`) or Mermaid document (`.md`). */
+  /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`), Mermaid document (`.md`), or HTML board (`.html`). */
   knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;
   /** Start (or return the in-flight) background build for a root — idempotent. */
   knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;

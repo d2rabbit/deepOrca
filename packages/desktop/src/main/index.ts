@@ -1269,11 +1269,11 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
     if (existsSync(protoDir)) {
       try {
         for (const f of readdirSync(protoDir)) {
-          if (!f.startsWith("arch-") || (!f.endsWith(".json") && !f.endsWith(".md"))) continue;
+          if (!f.startsWith("arch-") || (!f.endsWith(".json") && !f.endsWith(".md") && !f.endsWith(".html"))) continue;
           const full = join(protoDir, f);
           try {
             archFiles.push({
-              name: f.replace(/\.(json|md)$/, ""),
+              name: f.replace(/\.(json|md|html)$/, ""),
               path: full,
               mtime: statSync(full).mtime.toISOString(),
             });
@@ -1337,6 +1337,9 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
       const raw = readFileSync(artPath, "utf-8");
       if (artPath.endsWith(".md")) {
         return { ok: true, markdown: raw };
+      }
+      if (artPath.endsWith(".html")) {
+        return { ok: true, html: raw };
       }
       return { ok: true, surface: JSON.parse(raw) as KnowledgeArchmapSurface };
     } catch (err) {

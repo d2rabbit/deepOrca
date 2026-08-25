@@ -671,21 +671,36 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     "save_archmap",
     {
       description:
-        "Save an architecture map as a Mermaid document under .deeporca/prototypes/arch-<name>.md. " +
-        "The Knowledge panel renders each ```mermaid fenced block as an interactive diagram. " +
-        "Document layout: '# <Title>' heading, one-sentence overview, then one '## <Perspective>' " +
-        "section per perspective containing exactly one mermaid fence. " +
-        "Call ONCE per scan with the COMPLETE document (full replacement).",
+        "Save an architecture map under .deeporca/prototypes/. Two formats: " +
+        "(1) format:'md' (default) — a Mermaid document (arch-<name>.md); the Knowledge panel renders " +
+        "each ```mermaid fenced block as an interactive diagram. Document layout: '# <Title>' heading, " +
+        "one-sentence overview, then one '## <Perspective>' section per perspective containing exactly " +
+        "one mermaid fence. " +
+        "(2) format:'html' — the layered architecture board (arch-<name>.html): a self-contained, " +
+        "JavaScript-free HTML page with horizontal capability layers and kind-colored component chips; " +
+        "the Knowledge panel renders it on a sandboxed canvas. " +
+        "Call ONCE per scan per format with the COMPLETE content (full replacement).",
       inputSchema: {
         name: z
           .string()
           .describe(
-            "Map slug, kebab-case (e.g. 'root' or 'deeporca'). Stored as arch-<name>.md; an explicit 'arch-' prefix is stripped."
+            "Map slug, kebab-case (e.g. 'root' or 'deeporca'). Stored as arch-<name>.md / arch-<name>.html; an explicit 'arch-' prefix is stripped."
           ),
+        format: z
+          .enum(["md", "html"])
+          .optional()
+          .describe("Output format: 'md' (Mermaid document, default) or 'html' (layered board)."),
         markdown: z
           .string()
+          .optional()
           .describe(
-            "Complete markdown document with ```mermaid fences. Full replacement of the previous file content."
+            "Complete markdown document with ```mermaid fences (format 'md'). Full replacement of the previous file content."
+          ),
+        html: z
+          .string()
+          .optional()
+          .describe(
+            "Complete self-contained HTML board (format 'html'): no external resources, no JavaScript, light/dark via prefers-color-scheme."
           ),
       },
     },
@@ -696,23 +711,35 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         .replace(/^arch-/, "")
         .replace(/[^a-z0-9-]+/g, "-")
         .replace(/^-+|-+$/g, "");
+      const format =
+        args.format === "html" || (args.format == null && args.html != null && args.markdown == null) ? "html" : "md";
       const markdown = String(args.markdown ?? "");
+      const html = String(args.html ?? "");
       if (!slug) {
         return {
           content: [{ type: "text", text: "Error: `name` must contain letters, digits or dashes." }],
           isError: true,
         };
       }
-      if (!markdown.trim()) {
+      if (format === "md" && !markdown.trim()) {
         return { content: [{ type: "text", text: "Error: `markdown` must be a non-empty document." }], isError: true };
+      }
+      if (format === "html" && !html.trim()) {
+        return { content: [{ type: "text", text: "Error: `html` must be a non-empty document." }], isError: true };
       }
       try {
         const dir = getPrototypesDir(projectRoot ?? process.cwd());
         fs.mkdirSync(dir, { recursive: true });
-        const file = nodePath.join(dir, `arch-${slug}.md`);
-        fs.writeFileSync(file, markdown.endsWith("\n") ? markdown : `${markdown}\n`, "utf-8");
+        const file = nodePath.join(dir, format === "html" ? `arch-${slug}.html` : `arch-${slug}.md`);
+        const body = format === "html" ? html : markdown;
+        fs.writeFileSync(file, body.endsWith("\n") ? body : `${body}\n`, "utf-8");
         return {
-          content: [{ type: "text", text: `Architecture map saved: ${file} (${markdown.split("\n").length} lines).` }],
+          content: [
+            {
+              type: "text",
+              text: `Architecture ${format === "html" ? "board" : "map"} saved: ${file} (${body.split("\n").length} lines).`,
+            },
+          ],
         };
       } catch (err) {
         return {

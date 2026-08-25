@@ -46,6 +46,19 @@ using **perspective-driven recursive analysis**.
 > Cocoon AI). DeepOrca keeps its Mermaid pipeline (auto-layout instead of
 > hand-positioned SVG) and paints the kinds theme-adaptively in the
 > renderer instead of Cocoon's fixed dark palette.
+>
+> **Layered board methodology**: the horizontal capability-layer composition
+> (entry → interface → service → data → infrastructure → external) draws on
+> the 五层面/C4/业务-应用-数据-技术 domain layering used by
+> [product-architecture-diagrams](https://github.com/shangbianai/product-architecture-diagrams)
+> (shangbianai). **Quality contracts & loop engineering**: the count-based
+> budgets, the "evaluate, don't assert" verification loop, and the bounded
+> correction passes are adapted from
+> [fireworks-tech-graph](https://github.com/yizhiyanhua-ai/fireworks-tech-graph)
+> (yizhiyanhua-ai, MIT). **Editable-source discipline** (plain-text,
+> diff-friendly artifacts over opaque binaries) echoes
+> [drawio-generator](https://github.com/pmlaowangba-lab/drawio-generator)
+> (pmlaowangba-lab, MIT) — with thanks to all three.
 
 ## 归属：工作区索引模块
 
@@ -342,15 +355,68 @@ overall-architecture (perspective)
     → single file → LEAF
 ```
 
+## Step 3.5: 分层架构总览板（HTML Board）
+
+> 思想来源：product-architecture-diagrams 的分层产品架构图方法论（用户体验五层面 /
+> C4 / 业务-应用-数据-技术四域分层）。mermaid 图集擅长**关系与流程**，但"整个产品
+> 从上到下由哪几层构成"这种**分层全景**，横向色带式的 HTML 板表达力远胜节点连线图。
+> 两者互补：图集回答"怎么流动"，总览板回答"怎么堆叠"。
+
+在生成 mermaid 图集（Step 3）**之后**，再产出一份 `arch-<name>.html` —— 分层架构
+总览板，通过 `save_archmap({ name, format: "html", html })` 保存。硬性契约：
+
+### 板结构（标准层序，自上而下）
+
+1. **入口层**（Channels）— CLI / 桌面端 / Web / API 等触点
+2. **接口层**（Interface）— 路由 / IPC / 协议适配
+3. **业务服务层**（Services）— 核心领域服务与编排
+4. **数据与智能层**（Data & Intelligence）— 存储 / 索引 / 模型 / 检索
+5. **基础设施层**（Infrastructure）— 运行时 / 构建 / 进程间通信
+6. **外部依赖**（External）— 代码库之外的第三方服务（虚线边框右移或独立带）
+
+按项目实际裁剪层数（4-6 层），但**层序不得颠倒**，层名用上述双语格式。
+
+### 技术契约（渲染环境是沙箱 iframe，违反即不可渲染）
+
+- **完全自包含**：零外部资源 —— 禁 CDN、禁外链字体、禁图片、禁 JavaScript（纯 CSS）
+- **亮暗自适应**：用 `prefers-color-scheme` 媒体查询提供两套 CSS 变量
+- **语义配色**：组件 chip 按 kind 着色，色值与渲染端一致 ——
+  entry `#3b82f6` / frontend `#22d3ee` / backend `#2dd4bf` / store `#a78bfa` /
+  bus `#fbbf24` / cloud `#818cf8` / concern `#ef4444` / external 灰虚线；
+  暗色模式用对应 300 级色（`#60a5fa/#22d3ee/#2dd4bf/#a78bfa/#fbbf24/#818cf8/#fb7185`）
+- **层带构图**：每层 = 全宽横向色带（左侧竖排层名 + 右侧组件 chip 流式排布），
+  层带背景用该层主导 kind 的 6-8% 透明色；组件 chip = 圆角胶囊（名称 + 3-8 字职责）
+- **预算**：每层 2-8 个组件，全板 ≤ 30 个；底部图例条列出全部 kind 色样
+- **标题头**：项目名 + 一句话定位 + 生成日期
+
+## Step 3.9: 成稿验证环（Loop Engineering — evaluate, don't assert）
+
+> 思想来源：fireworks-tech-graph 的 Loop Engineering。**完成度由清点证据支撑，
+> 不由"看起来没问题"的断言支撑。** 保存前必须执行以下确定性检查，并把数字写进
+> 最终汇报；不合格项允许最多两轮定点修正（只改被诊断的问题，不全量重写）：
+
+1. **图集预算清点**：逐张 mermaid 图数出 节点数 / 边数 / subgraph 数，
+   对照区间（6-12 节点、6-12 边、flowchart ≥2 subgraph）——超限拆分，不足下钻
+2. **图例一致性检查**：每张 flowchart 结尾是否原样携带标准 classDef 块；
+   kind 指派是否只用了标准 9 类
+3. **语法纪律抽查**：含特殊字符的节点文本是否加引号；是否有裸箭头；
+   是否误用 `end`/`graph` 关键字作 id
+4. **总览板契约检查**：层序正确 / 零外部资源 / 零 JavaScript /
+   prefers-color-scheme 双主题 / 每层 2-8 组件
+5. **汇报格式**（必须带数字）：
+   `图集: N 张(节点数序列 [a,b,c…]) · 总览板: M 层/K 组件 · 验证: 通过/经 X 轮修正`
+
 ## Step 4: Save and Summarize
 
-1. Call `save_archmap` ONCE with the complete document:
+1. Call `save_archmap` ONCE with the complete mermaid document:
    `save_archmap({ name: "<project-slug>", markdown: "<full document>" })`.
-   The file lands at `.deeporca/prototypes/arch-<project-slug>.md` and appears
-   in the Knowledge panel's 架构图 tab immediately.
-2. Report to the user: which perspectives were generated, how many
-   nodes/subgraphs/edges, and anything that hit the complexity budget and was
-   split into its own section.
+2. Call `save_archmap` ONCE with the layered board:
+   `save_archmap({ name: "<project-slug>", format: "html", html: "<full board>" })`.
+   Both land under `.deeporca/prototypes/` and appear in the Knowledge
+   panel's 架构图 tab immediately (board renders on a sandboxed canvas).
+3. Report to the user (Step 3.9 format, with numbers): which perspectives
+   were generated, per-diagram node/edge counts, board layer/component
+   counts, and anything that hit a budget and was split or drilled.
 
 ## Edge Rules
 
