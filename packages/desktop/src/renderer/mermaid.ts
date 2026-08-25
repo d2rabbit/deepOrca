@@ -71,6 +71,11 @@ function configureMermaid(mermaid: MermaidApi): void {
     theme: "base",
     securityLevel: "strict",
     fontFamily: "inherit",
+    // Source-size lever (real-machine feedback: node-sparse charts like the
+    // dataflow map render tiny at mermaid's default 16px — labels are
+    // measured at this size at layout time, so nodes and spacing grow with
+    // it; the fit-in-card pass then only needs to close the remainder).
+    fontSize: 18,
     flowchart: {
       htmlLabels: true,
       curve: "basis",
@@ -83,6 +88,7 @@ function configureMermaid(mermaid: MermaidApi): void {
     themeVariables: {
       background: "transparent",
       fontFamily: "inherit",
+      fontSize: "18px",
       // Nodes follow the active app theme (token → resolved color). The
       // decorate pass below re-paints flowchart/class/state/sequence shapes
       // with the hue ramp; these cover everything it doesn't reach.
