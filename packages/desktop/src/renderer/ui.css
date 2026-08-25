@@ -10340,6 +10340,142 @@ button.ui-topbar-pill {
   margin: 0 auto;
   padding: 18px 12px 40px;
 }
+/* ── Wiki reading shell (Oink ideas) ────────────────────────────────────── */
+.ui-wiki-breadcrumb {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  margin-bottom: 2px;
+}
+.ui-wiki-breadcrumb-part:not(:last-child)::after {
+  content: "/";
+  margin-left: 6px;
+  opacity: 0.6;
+}
+.ui-wiki-page-desc {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ui-text-dim, #55606d);
+  margin-top: 3px;
+  max-width: 72em;
+}
+.ui-wiki-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+/* On-this-page TOC rides beside the reading column on wide panes; below that
+   it simply doesn't render (progressive disclosure, no hamburger). */
+@media (min-width: 1100px) {
+  .ui-wiki-columns {
+    grid-template-columns: minmax(0, 1fr) 208px;
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .ui-wiki-columns .ui-wiki-doc {
+    max-width: none;
+  }
+}
+.ui-wiki-toc {
+  position: sticky;
+  top: 64px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  border-left: 2px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 60%, transparent);
+  padding: 6px 0 6px 14px;
+  font-size: 11.5px;
+  scrollbar-width: none;
+}
+.ui-wiki-toc::-webkit-scrollbar {
+  display: none;
+}
+.ui-wiki-toc-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ui-text-faint, #8590a0);
+  margin-bottom: 6px;
+}
+.ui-wiki-toc-item {
+  display: block;
+  padding: 3px 0;
+  color: var(--ui-text-dim, #55606d);
+  text-decoration: none;
+  line-height: 1.4;
+  border-left: 2px solid transparent;
+  margin-left: -16px;
+  padding-left: 14px;
+  transition:
+    color 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease);
+}
+.ui-wiki-toc-item.level-3 {
+  padding-left: 26px;
+  font-size: 11px;
+}
+.ui-wiki-toc-item:hover {
+  color: var(--ui-text);
+}
+.ui-wiki-toc-item.active {
+  color: var(--ui-accent, #0a84ff);
+  border-left-color: var(--ui-accent, #0a84ff);
+}
+/* Tree-order pager (shares the sidebar's one root/order). */
+.ui-wiki-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 12px 26px;
+}
+@media (min-width: 1100px) {
+  .ui-wiki-pager {
+    max-width: 1100px;
+  }
+}
+.ui-wiki-pager-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  max-width: 46%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 75%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 30%, var(--ui-surface, #fff));
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-wiki-pager-btn.next {
+  align-items: flex-end;
+  text-align: right;
+  margin-left: auto;
+}
+.ui-wiki-pager-btn:hover {
+  border-color: color-mix(in srgb, var(--ui-accent, #0a84ff) 45%, transparent);
+  background: color-mix(in srgb, var(--ui-accent, #0a84ff) 6%, transparent);
+}
+.ui-wiki-pager-dir {
+  font-size: 10.5px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-wiki-pager-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
 .ui-wiki-doc h1,
 .ui-wiki-doc h2,
 .ui-wiki-doc h3,

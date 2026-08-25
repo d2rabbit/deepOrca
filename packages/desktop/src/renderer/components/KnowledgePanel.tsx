@@ -60,22 +60,27 @@ function formatRelative(iso: string | undefined, t: Translate): string {
  * with an H1 carrying the same text, that H1 is dropped so the title is not
  * rendered twice (frontmatter title IS the page title in wiki convention).
  */
-function extractWikiPageMeta(raw: string): { title: string | null; body: string } {
+function extractWikiPageMeta(raw: string): { title: string | null; description: string | null; body: string } {
   const fm = raw.match(FRONTMATTER_RE);
   const fmTitle = fm?.[1]
     .match(/^title:[ \t]*(.+)$/m)?.[1]
     ?.trim()
     .replace(/^["']|["']$/g, "");
-  if (!fm || !fmTitle) return { title: null, body: raw };
+  const fmDesc =
+    fm?.[1]
+      .match(/^description:[ \t]*(.+)$/m)?.[1]
+      ?.trim()
+      .replace(/^["']|["']$/g, "") ?? null;
+  if (!fm || !fmTitle) return { title: null, description: null, body: raw };
   const body = raw.slice(fm[0].length);
   const h1 = body.match(/^#[ \t]*(.+)$/m);
   if (h1) {
     const normalize = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
     if (normalize(h1[1]).includes(normalize(fmTitle)) || normalize(fmTitle).includes(normalize(h1[1]))) {
-      return { title: fmTitle, body: body.replace(h1[0], "") };
+      return { title: fmTitle, description: fmDesc, body: body.replace(h1[0], "") };
     }
   }
-  return { title: fmTitle, body };
+  return { title: fmTitle, description: fmDesc, body };
 }
 
 type WikiPage = { title: string; path: string; mtime?: string };
@@ -234,6 +239,28 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the file set + current pick
   }, [archFilePaths, preview]);
 
+  // Reading order for prev/next paging (Oink shell idea: the sidebar tree and
+  // the pager share ONE root and order — directory-grouped depth-first).
+  const wikiOrder = useMemo(() => {
+    const root = buildWikiTree(wikiPages);
+    const order: string[] = [];
+    const walk = (dir: { dirs: Map<string, ReturnType<typeof buildWikiTree>>; pages: WikiPage[] }): void => {
+      for (const d of [...dir.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) walk(d);
+      for (const page of dir.pages) order.push(page.path);
+    };
+    walk(root);
+    return order;
+  }, [wikiPages]);
+  const wikiNeighbours = useMemo(() => {
+    const idx = wikiOrder.indexOf(wikiSel ?? "");
+    const at = (i: number): WikiPage | null => {
+      if (i < 0 || i >= wikiOrder.length) return null;
+      const path = wikiOrder[i];
+      return wikiPages.find((pg) => pg.path === path) ?? { title: path.split("/").pop() ?? path, path };
+    };
+    return { prev: idx > 0 ? at(idx - 1) : null, next: idx >= 0 ? at(idx + 1) : null };
+  }, [wikiOrder, wikiSel, wikiPages]);
+
   // Inline wiki preview: auto-select the first page once, load on selection.
   useEffect(() => {
     if (!wikiSel && wikiPages.length > 0) {
@@ -325,6 +352,10 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                         onQuote={onQuoteToChat ? (title) => onQuoteToChat(root, wikiSel, title) : undefined}
                         quoteLabel={t("index.quoteWiki")}
                         fallbackTitle={wikiSel}
+                        prev={wikiNeighbours.prev}
+                        next={wikiNeighbours.next}
+                        onNavigate={(path) => setWikiSel(path)}
+                        tocLabel={t("index.wikiToc")}
                       />
                     ) : (
                       <div className="ui-side-panel-empty">{t("index.wikiPreviewFailed")}</div>
@@ -483,10 +514,12 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
 
 /** Delegated code-copy for the wiki preview (same contract as chat). */
 /**
- * Standard wiki page presentation: a page header row (frontmatter title on the
- * left, "open in editor" on the right) above the rendered document in a
- * reading-measure column — the shape a wiki reader expects, instead of a bare
- * markdown dump.
+ * Wiki reading shell (ideas adopted from the Oink Hugo theme's shell/nav
+ * contracts — pgsty/oink.pgsty.com, Apache-2.0): breadcrumb + frontmatter
+ * description in the hero, a sticky on-this-page TOC with scrollspy beside
+ * the reading column, and tree-order prev/next paging at the foot. Our
+ * openwiki pages already carry title/description/tags front matter; the
+ * shell is what turns those pages into a *site* instead of a file dump.
  */
 function WikiPageView({
   raw,
@@ -495,6 +528,10 @@ function WikiPageView({
   onQuote,
   quoteLabel,
   fallbackTitle,
+  prev,
+  next,
+  onNavigate,
+  tocLabel,
 }: {
   raw: string;
   onOpenFile: () => void;
@@ -505,26 +542,147 @@ function WikiPageView({
   /** Page path — the basename becomes the quote title when the page has no
    *  frontmatter title (quote must not silently disappear for those pages). */
   fallbackTitle: string;
+  /** Tree-order neighbours (Oink: sidebar and pager share one root/order). */
+  prev: WikiPage | null;
+  next: WikiPage | null;
+  onNavigate: (path: string) => void;
+  tocLabel: string;
 }): JSX.Element {
-  const { title, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
+  const { t } = useI18n();
+  const { title, description, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
   const quoteTitle = title ?? fallbackTitle.split("/").pop() ?? "wiki";
+  const docRef = useRef<HTMLDivElement>(null);
+  // TOC entries are derived from the RENDERED headings (StreamdownView does
+  // not run rehype-slug), so a post-render pass assigns ids and lists them.
+  const [toc, setToc] = useState<Array<{ id: string; text: string; level: number }>>([]);
+  const [activeId, setActiveId] = useState("");
+
+  useEffect(() => {
+    const doc = docRef.current;
+    if (!doc) return;
+    const headings = Array.from(doc.querySelectorAll<HTMLElement>("h2, h3"));
+    const slugCount = new Map<string, number>();
+    const entries: Array<{ id: string; text: string; level: number }> = [];
+    for (const h of headings) {
+      const text = (h.textContent ?? "").trim();
+      if (!text) continue;
+      let slug =
+        text
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, "-")
+          .replace(/^-+|-+$/g, "") || "sec";
+      const n = slugCount.get(slug) ?? 0;
+      slugCount.set(slug, n + 1);
+      if (n > 0) slug = `${slug}-${n}`;
+      if (!h.id) h.id = `wiki-${slug}`;
+      entries.push({ id: h.id, text, level: Number(h.tagName.slice(1)) });
+    }
+    setToc(entries);
+    setActiveId(entries[0]?.id ?? "");
+  }, [body]);
+
+  // Scrollspy: the last heading whose top passed the line wins.
+  useEffect(() => {
+    if (toc.length === 0) return;
+    const doc = docRef.current;
+    if (!doc) return;
+    const onScroll = (): void => {
+      const headings = toc
+        .map((e) => doc.querySelector<HTMLElement>(`#${CSS.escape(e.id)}`))
+        .filter((el): el is HTMLElement => el != null);
+      let current = headings[0]?.id ?? "";
+      for (const el of headings) {
+        if (el.getBoundingClientRect().top <= 96) current = el.id;
+      }
+      setActiveId(current);
+    };
+    onScroll();
+    // The scroll container is the preview pane (the page itself doesn't
+    // scroll) — listen on both window and the closest scroller.
+    const scroller = doc.closest(".ui-knowledge-wiki-preview");
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+      scroller?.removeEventListener("scroll", onScroll);
+    };
+  }, [toc]);
+
+  const crumb = fallbackTitle.split("/").filter(Boolean);
+
   return (
     <div className="ui-wiki-page">
       <div className="ui-wiki-page-head">
-        <span className="ui-wiki-page-icon" aria-hidden>
-          ▤
-        </span>
-        {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
-        {onQuote ? (
-          <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
-            {quoteLabel}
-          </Button>
-        ) : null}
-        <Button size="sm" variant="subtle" onClick={onOpenFile}>
-          {openLabel}
-        </Button>
+        <div className="ui-wiki-page-head-main">
+          {crumb.length > 1 ? (
+            <div className="ui-wiki-breadcrumb" aria-hidden>
+              {crumb.slice(0, -1).map((part, i) => (
+                <span key={i} className="ui-wiki-breadcrumb-part">
+                  {part}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="ui-wiki-page-head-row">
+            <span className="ui-wiki-page-icon" aria-hidden>
+              ▤
+            </span>
+            {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
+            {onQuote ? (
+              <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
+                {quoteLabel}
+              </Button>
+            ) : null}
+            <Button size="sm" variant="subtle" onClick={onOpenFile}>
+              {openLabel}
+            </Button>
+          </div>
+          {description ? <div className="ui-wiki-page-desc">{description}</div> : null}
+        </div>
       </div>
-      <StreamdownView className="ui-knowledge-agents-md ui-md ui-wiki-doc" markdown={body} />
+      <div className="ui-wiki-columns">
+        <div ref={docRef} className="ui-wiki-doc-wrap">
+          <StreamdownView className="ui-knowledge-agents-md ui-md ui-wiki-doc" markdown={body} />
+        </div>
+        {toc.length > 0 ? (
+          <nav className="ui-wiki-toc" aria-label={tocLabel}>
+            <div className="ui-wiki-toc-label">{tocLabel}</div>
+            {toc.map((e) => (
+              <a
+                key={e.id}
+                href={`#${e.id}`}
+                className={`ui-wiki-toc-item level-${e.level}${activeId === e.id ? " active" : ""}`}
+                onClick={(ev) => {
+                  ev.preventDefault();
+                  docRef.current?.querySelector(`#${CSS.escape(e.id)}`)?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                {e.text}
+              </a>
+            ))}
+          </nav>
+        ) : null}
+      </div>
+      {prev || next ? (
+        <div className="ui-wiki-pager">
+          {prev ? (
+            <button type="button" className="ui-wiki-pager-btn" onClick={() => onNavigate(prev.path)}>
+              <span className="ui-wiki-pager-dir">← {t("index.wikiPrev")}</span>
+              <span className="ui-wiki-pager-title">{prev.title}</span>
+            </button>
+          ) : (
+            <span />
+          )}
+          {next ? (
+            <button type="button" className="ui-wiki-pager-btn next" onClick={() => onNavigate(next.path)}>
+              <span className="ui-wiki-pager-dir">{t("index.wikiNext")} →</span>
+              <span className="ui-wiki-pager-title">{next.title}</span>
+            </button>
+          ) : (
+            <span />
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
