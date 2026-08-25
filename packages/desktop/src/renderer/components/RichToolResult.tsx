@@ -66,6 +66,24 @@ export function RichToolResult({ message }: Props): JSX.Element | null {
   }
 }
 
+/** Parse-failure fallback for the rich renderers: a tool was routed here by
+ *  name, but its content isn't the expected JSON shape. Returning null would
+ *  leave the message row EMPTY (Message drops the plain ToolCard once a rich
+ *  type matches) — the raw result must stay visible. */
+function RichFallback({ message }: { message: SessionMessage }): JSX.Element {
+  return (
+    <div className="ui-rich-result ui-rich-fallback">
+      <pre>{message.content || ""}</pre>
+    </div>
+  );
+}
+
+/** Only http(s) URLs become links — model-provided strings (or the "#"
+ *  parse fallback) must never yield a clickable javascript:/data: href. */
+function safeHref(url: string): string | null {
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // #11 — CodeGraph Symbol Tree (collapsible)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -77,7 +95,7 @@ function SymbolTreeResult({ message }: { message: SessionMessage }): JSX.Element
   // Output typically contains file paths, symbols, and call relationships.
   const tree = useMemo(() => parseSymbolTree(text), [text]);
 
-  if (tree.length === 0) return null;
+  if (tree.length === 0) return <RichFallback message={message} />;
 
   return (
     <div className="ui-rich-result ui-symbol-tree">
@@ -167,7 +185,7 @@ type ReviewItem = { file: string; line: number; severity: string; message: strin
 function ReviewCommentsResult({ message }: { message: SessionMessage }): JSX.Element | null {
   const comments = useMemo(() => parseReviewComments(message.content || ""), [message.content]);
 
-  if (comments.length === 0) return null;
+  if (comments.length === 0) return <RichFallback message={message} />;
 
   const critical = comments.filter((c) => c.severity === "critical");
   const warnings = comments.filter((c) => c.severity === "warning");
@@ -231,20 +249,27 @@ type SearchResult = { title: string; url: string; snippet: string };
 function SearchResultsResult({ message }: { message: SessionMessage }): JSX.Element | null {
   const results = useMemo(() => parseSearchResults(message.content || ""), [message.content]);
 
-  if (results.length === 0) return null;
+  if (results.length === 0) return <RichFallback message={message} />;
 
   return (
     <div className="ui-rich-result ui-search-cards">
       <div className="ui-rich-result-label">🔎 Search Results ({results.length})</div>
-      {results.map((r, i) => (
-        <div key={i} className="ui-search-card">
-          <a className="ui-search-card-title" href={r.url} target="_blank" rel="noopener noreferrer">
-            {r.title}
-          </a>
-          <div className="ui-search-card-url">{r.url}</div>
-          {r.snippet ? <div className="ui-search-card-snippet">{r.snippet}</div> : null}
-        </div>
-      ))}
+      {results.map((r, i) => {
+        const href = safeHref(r.url);
+        return (
+          <div key={i} className="ui-search-card">
+            {href ? (
+              <a className="ui-search-card-title" href={href} target="_blank" rel="noopener noreferrer">
+                {r.title}
+              </a>
+            ) : (
+              <span className="ui-search-card-title">{r.title}</span>
+            )}
+            <div className="ui-search-card-url">{r.url}</div>
+            {r.snippet ? <div className="ui-search-card-snippet">{r.snippet}</div> : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -272,7 +297,7 @@ type GitChange = { file: string; status: string; insertions?: number; deletions?
 
 function GitChangesResult({ message }: { message: SessionMessage }): JSX.Element | null {
   const changes = useMemo(() => parseGitChanges(message.content || ""), [message.content]);
-  if (changes.length === 0) return null;
+  if (changes.length === 0) return <RichFallback message={message} />;
   return (
     <div className="ui-rich-result ui-git-changes">
       <div className="ui-rich-result-label">📂 Git Changes ({changes.length})</div>
@@ -328,7 +353,7 @@ type RiskItem = { name: string; riskScore: number; testCoverage?: boolean; secur
 
 function RiskAnalysisResult({ message }: { message: SessionMessage }): JSX.Element | null {
   const data = useMemo(() => parseRiskAnalysis(message.content || ""), [message.content]);
-  if (!data) return null;
+  if (!data) return <RichFallback message={message} />;
   const riskColor = (score: number): string =>
     score >= 0.85 ? "var(--ui-danger, #ef4444)" : score >= 0.7 ? "var(--ui-warning, #f59e0b)" : "#3fb950";
   return (
@@ -405,7 +430,7 @@ type WikiPage = { path: string; title: string };
 
 function WikiPagesResult({ message }: { message: SessionMessage }): JSX.Element | null {
   const pages = useMemo(() => parseWikiPages(message.content || ""), [message.content]);
-  if (pages.length === 0) return null;
+  if (pages.length === 0) return <RichFallback message={message} />;
   return (
     <div className="ui-rich-result ui-wiki-pages">
       <div className="ui-rich-result-label">📖 Documentation ({pages.length})</div>

@@ -1212,13 +1212,29 @@ select {
   border-radius: var(--ui-radius-sm);
 }
 /* Two-step delete confirm: armed = first click landed, next click deletes. */
-.ui-delete-btn.armed {
+.ui-delete-btn.armed,
+.ui-scm-act--danger.armed {
   background: color-mix(in srgb, var(--ui-danger) 16%, transparent);
   color: var(--ui-danger);
 }
-.ui-delete-btn.armed:hover:not(:disabled) {
+.ui-delete-btn.armed:hover:not(:disabled),
+.ui-scm-act--danger.armed:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ui-danger) 28%, transparent);
   color: var(--ui-danger);
+}
+
+/* Raw-text fallback for rich tool results whose content failed to parse —
+   the result must stay readable even when the structured view bailed. */
+.ui-rich-fallback pre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0.9;
 }
 
 /* Pills / tags / badges */

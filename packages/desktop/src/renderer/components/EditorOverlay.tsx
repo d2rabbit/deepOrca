@@ -174,7 +174,16 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     setError(null);
     setBinary(false);
     setDirty(false);
-    const result = await api.editorReadFile(filePath);
+    let result: Awaited<ReturnType<typeof api.editorReadFile>>;
+    try {
+      result = await api.editorReadFile(filePath);
+    } catch (error) {
+      // IPC rejection left loading=true forever — the spinner would never stop.
+      if (myReqId !== loadReqIdRef.current) return;
+      setLoading(false);
+      setError(error instanceof Error ? error.message : String(error));
+      return;
+    }
     // A newer load for a different filePath started — discard this stale result.
     if (myReqId !== loadReqIdRef.current) return;
     setLoading(false);
@@ -206,8 +215,16 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
       return;
     }
     setSaving(true);
-    const result = await api.editorWriteFile(filePath, content);
-    setSaving(false);
+    let result: Awaited<ReturnType<typeof api.editorWriteFile>>;
+    try {
+      result = await api.editorWriteFile(filePath, content);
+    } catch (error) {
+      // Rejection skipped setSaving(false) — the Save button stayed disabled.
+      setError(error instanceof Error ? error.message : String(error));
+      return;
+    } finally {
+      setSaving(false);
+    }
     if (!result.ok) {
       setError(result.error ?? t("editor.writeError"));
       return;
@@ -276,7 +293,7 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
         </span>
         <div className="ui-editor-overlay-actions">
           <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={() => void handleSave()}>
-            {saving ? t("editor.loading") : t("editor.save")}
+            {saving ? t("editor.saving") : t("editor.save")}
           </Button>
           <IconButton onClick={handleClose} aria-label={t("common.close")} title={t("common.close")}>
             ✕

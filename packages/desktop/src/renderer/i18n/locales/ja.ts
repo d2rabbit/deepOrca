@@ -121,6 +121,8 @@ export const ja: Record<MessageKey, string> = {
   "msg.jumpToLatest": "最新のメッセージへ",
   "msg.countOne": "メッセージ 1件",
   "msg.countMany": "メッセージ {count}件",
+  "msg.today": "今日",
+  "msg.yesterday": "昨日",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "許可が必要です",
@@ -640,6 +642,7 @@ export const ja: Record<MessageKey, string> = {
   "scm.stageAll": "すべてステージ",
   "scm.unstageAll": "すべてステージ解除",
   "scm.discard": "変更を破棄",
+  "scm.confirmDiscard": "もう一度クリックで破棄 — 元に戻せません",
   "scm.commit": "コミット",
   "scm.commitPlaceholder": "コミットメッセージ…",
   "scm.refresh": "更新",
@@ -926,6 +929,7 @@ export const ja: Record<MessageKey, string> = {
   "editor.binary": "バイナリファイル — 編集できません。",
   "editor.save": "保存",
   "editor.saved": "保存しました",
+  "editor.saving": "保存中…",
   "editor.dirty": "変更あり",
   "editor.openInEditor": "エディタで開く",
   "editor.back": "戻る",

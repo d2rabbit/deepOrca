@@ -127,6 +127,8 @@ export const en = {
   "msg.jumpToLatest": "Jump to latest",
   "msg.countOne": "1 message",
   "msg.countMany": "{count} messages",
+  "msg.today": "Today",
+  "msg.yesterday": "Yesterday",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "Permission required",
@@ -652,6 +654,7 @@ export const en = {
   "scm.stageAll": "Stage All",
   "scm.unstageAll": "Unstage All",
   "scm.discard": "Discard Changes",
+  "scm.confirmDiscard": "Click again to discard — this cannot be undone",
   "scm.commit": "Commit",
   "scm.commitPlaceholder": "Commit message…",
   "scm.refresh": "Refresh",
@@ -921,6 +924,7 @@ export const en = {
   "editor.binary": "Binary file — cannot edit.",
   "editor.save": "Save",
   "editor.saved": "Saved",
+  "editor.saving": "Saving…",
   "editor.dirty": "Modified",
   "editor.openInEditor": "Open in Editor",
   "editor.back": "Back",
@@ -1082,6 +1086,8 @@ export const zh: Record<MessageKey, string> = {
   "msg.jumpToLatest": "跳到最新",
   "msg.countOne": "1 条消息",
   "msg.countMany": "{count} 条消息",
+  "msg.today": "今天",
+  "msg.yesterday": "昨天",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "需要授权",
@@ -1582,6 +1588,7 @@ export const zh: Record<MessageKey, string> = {
   "scm.stageAll": "全部暂存",
   "scm.unstageAll": "全部取消暂存",
   "scm.discard": "丢弃更改",
+  "scm.confirmDiscard": "再点一次确认丢弃——此操作不可撤销",
   "scm.commit": "提交",
   "scm.commitPlaceholder": "提交信息…",
   "scm.refresh": "刷新",
@@ -1847,6 +1854,7 @@ export const zh: Record<MessageKey, string> = {
   "editor.binary": "二进制文件 — 无法编辑。",
   "editor.save": "保存",
   "editor.saved": "已保存",
+  "editor.saving": "保存中…",
   "editor.dirty": "已修改",
   "editor.openInEditor": "在编辑器中打开",
   "editor.back": "返回",

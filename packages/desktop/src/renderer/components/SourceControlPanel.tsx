@@ -59,6 +59,21 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
   const [commitFiles, setCommitFiles] = useState<Record<string, GitCommitFileEntry[]>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  // Discard is irreversible (git checkout -- file): the row's ✕ needs a second
+  // click to fire. The armed state resets after a few seconds, like the
+  // session-delete confirm in the sidebar.
+  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
+  const confirmDiscardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const disarmDiscardConfirm = useCallback(() => {
+    if (confirmDiscardTimerRef.current) {
+      clearTimeout(confirmDiscardTimerRef.current);
+      confirmDiscardTimerRef.current = null;
+    }
+    setConfirmDiscard(null);
+  }, []);
+
+  useEffect(() => disarmDiscardConfirm, [disarmDiscardConfirm]);
 
   const handleSplitResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -85,46 +100,45 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
     window.addEventListener("mouseup", onUp);
   }, []);
 
+  const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
   const reload = useCallback(async () => {
-    const [nextStatus, nextLog, nextAgent] = await Promise.all([
-      api.gitStatus(),
-      api.gitLog(),
-      sessionId ? api.agentChangesList(sessionId) : Promise.resolve<AgentChangeFile[]>([]),
-    ]);
-    setStatus(nextStatus);
-    setLog(nextLog);
-    setAgentFiles(nextAgent);
+    try {
+      const [nextStatus, nextLog, nextAgent] = await Promise.all([
+        api.gitStatus(),
+        api.gitLog(),
+        sessionId ? api.agentChangesList(sessionId) : Promise.resolve<AgentChangeFile[]>([]),
+      ]);
+      setStatus(nextStatus);
+      setLog(nextLog);
+      setAgentFiles(nextAgent);
+    } catch (error) {
+      // A failed reload must surface, not silently keep stale list state.
+      setError(describeError(error));
+    }
   }, [sessionId]);
 
   useEffect(() => {
     void reload();
   }, [reload, refreshKey]);
 
-  const stage = useCallback(
-    async (file: string) => {
-      await api.gitStage(file);
+  const runGitOp = useCallback(
+    async (op: () => Promise<unknown>) => {
+      try {
+        await op();
+      } catch (error) {
+        setError(describeError(error));
+        return;
+      }
       await reload();
     },
     [reload]
   );
 
-  const unstage = useCallback(
-    async (file: string) => {
-      await api.gitUnstage(file);
-      await reload();
-    },
-    [reload]
-  );
-
-  const stageAll = useCallback(async () => {
-    await api.gitStage(".");
-    await reload();
-  }, [reload]);
-
-  const unstageAll = useCallback(async () => {
-    await api.gitUnstage(".");
-    await reload();
-  }, [reload]);
+  const stage = useCallback((file: string) => runGitOp(() => api.gitStage(file)), [runGitOp]);
+  const unstage = useCallback((file: string) => runGitOp(() => api.gitUnstage(file)), [runGitOp]);
+  const stageAll = useCallback(() => runGitOp(() => api.gitStage(".")), [runGitOp]);
+  const unstageAll = useCallback(() => runGitOp(() => api.gitUnstage(".")), [runGitOp]);
 
   const discard = useCallback(
     async (file: string) => {
@@ -138,6 +152,20 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
     [reload, t]
   );
 
+  const handleDiscardClick = useCallback(
+    (file: string) => {
+      if (confirmDiscard === file) {
+        disarmDiscardConfirm();
+        void discard(file);
+        return;
+      }
+      if (confirmDiscardTimerRef.current) clearTimeout(confirmDiscardTimerRef.current);
+      setConfirmDiscard(file);
+      confirmDiscardTimerRef.current = setTimeout(disarmDiscardConfirm, 3000);
+    },
+    [confirmDiscard, disarmDiscardConfirm, discard]
+  );
+
   const commit = useCallback(async () => {
     const msg = message.trim();
     if (!msg) {
@@ -146,14 +174,19 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
     }
     setBusy(true);
     setError(null);
-    const result = await api.gitCommit(msg);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error ?? t("app.requestFailed"));
-      return;
+    try {
+      const result = await api.gitCommit(msg);
+      if (!result.ok) {
+        setError(result.error ?? t("app.requestFailed"));
+        return;
+      }
+      setMessage("");
+      await reload();
+    } catch (error) {
+      setError(describeError(error));
+    } finally {
+      setBusy(false);
     }
-    setMessage("");
-    await reload();
   }, [message, reload, t]);
 
   // First click on a history row expands its file list (second level);
@@ -166,8 +199,14 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
       }
       setExpandedHash(hash);
       if (!commitFiles[hash]) {
-        const files = await api.gitCommitFiles(hash);
-        setCommitFiles((prev) => ({ ...prev, [hash]: files }));
+        try {
+          const files = await api.gitCommitFiles(hash);
+          setCommitFiles((prev) => ({ ...prev, [hash]: files }));
+        } catch (error) {
+          // Collapse again instead of leaving a perpetual "Loading diff…".
+          setError(describeError(error));
+          setExpandedHash(null);
+        }
       }
     },
     [expandedHash, commitFiles]
@@ -218,11 +257,11 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
               +
             </button>
             <button
-              className="ui-scm-act ui-scm-act--danger"
-              onClick={() => void discard(file.path)}
-              title={t("scm.discard")}
+              className={`ui-scm-act ui-scm-act--danger${confirmDiscard === file.path ? " armed" : ""}`}
+              onClick={() => handleDiscardClick(file.path)}
+              title={confirmDiscard === file.path ? t("scm.confirmDiscard") : t("scm.discard")}
             >
-              ✕
+              {confirmDiscard === file.path ? "!" : "✕"}
             </button>
           </>
         )}

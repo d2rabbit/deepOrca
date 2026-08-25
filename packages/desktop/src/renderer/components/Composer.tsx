@@ -220,7 +220,8 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     prevDisabledRef.current = disabled;
   }, [disabled]);
 
-  const canSend = !busy && !disabled && !enhancing && (value.trim().length > 0 || selectedSkills.length > 0);
+  const canSend =
+    !busy && !disabled && !enhancing && (value.trim().length > 0 || selectedSkills.length > 0 || imageUrls.length > 0);
 
   const applySlash = useCallback(
     (item: SlashCandidate) => {
@@ -278,6 +279,14 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
       if (e.key === "Escape") {
         e.preventDefault();
         setShowFileMenu(false);
+        return;
+      }
+      // Enter defers to the menu (it inserts the highlighted file via its own
+      // window listener). Sending here would BOTH fire the half-typed prompt
+      // and let the menu's stale closure re-insert the path into the cleared
+      // draft — so the send branch below must not run while the menu is open.
+      if (e.key === "Enter") {
+        e.preventDefault();
         return;
       }
     }

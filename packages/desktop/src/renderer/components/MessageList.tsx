@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { findExpandedThinkingId } from "../lib/messages";
@@ -6,28 +6,40 @@ import { Message } from "./Message";
 import { useI18n } from "../i18n";
 import { IconWelcomePlan, IconWelcomeInit, IconWelcomeSkills, IconWelcomeUndo } from "../ui/index";
 
-/** Format an ISO date string as a short locale date (e.g. "Jul 21, 2026").
+/** Format an ISO date string as an absolute short locale date (e.g. "Jul 21, 2026").
  *  Cached per calendar DAY (not per raw timestamp — that key grew without
- *  bound over a long session); the map is therefore bounded by session age. */
+ *  bound over a long session); the map is therefore bounded by session age.
+ *  Relative labels ("Today"/"Yesterday") are deliberately NOT cached — they
+ *  are computed per render so they roll over at midnight. */
 const dateSepCache = new Map<string, string>();
-function formatDateSeparator(iso: string): string {
+function formatAbsoluteDate(iso: string): string {
   const dayKey = dateKey(iso);
   const cached = dateSepCache.get(dayKey);
   if (cached !== undefined) return cached;
   let result = "";
   try {
-    const d = new Date(iso);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    if (d.toDateString() === today.toDateString()) result = "Today";
-    else if (d.toDateString() === yesterday.toDateString()) result = "Yesterday";
-    else result = d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+    result = new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   } catch {
     result = "";
   }
   if (dayKey) dateSepCache.set(dayKey, result);
   return result;
+}
+
+/** Resolve the separator label: relative terms when adjacent to now, else the
+ *  cached absolute date. Evaluated at render time, so it survives midnight. */
+function formatDateSeparator(iso: string, t: { (key: "msg.today" | "msg.yesterday"): string }): string {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  try {
+    const d = new Date(iso);
+    if (d.toDateString() === today.toDateString()) return t("msg.today");
+    if (d.toDateString() === yesterday.toDateString()) return t("msg.yesterday");
+  } catch {
+    // fall through to the absolute date
+  }
+  return formatAbsoluteDate(iso);
 }
 
 /** Get the date key (YYYY-MM-DD) from an ISO string for grouping. */
@@ -39,8 +51,10 @@ function dateKey(iso: string | undefined): string {
 type Props = {
   messages: SessionMessage[];
   hasActiveSession: boolean;
-  /** How assistant reasoning/thinking blocks are displayed. */
+  /** Whether assistant reasoning/thinking blocks are displayed. */
   reasoningMode: ReasoningMode;
+  /** Modifier glyph for shortcut hints (⌘ on macOS, Ctrl elsewhere). */
+  modKey?: string;
   /** Quick-start actions surfaced on the welcome screen. */
   onQuickAction?: (action: "plan" | "init" | "skills" | "undo") => void;
   /** Interactive prompt cards (permission / question / plan) shown after the messages. */
@@ -59,6 +73,7 @@ export const MessageList = memo(function MessageList({
   messages,
   hasActiveSession,
   reasoningMode,
+  modKey = "Ctrl",
   onQuickAction,
   footer,
   compacting = false,
@@ -90,10 +105,41 @@ export const MessageList = memo(function MessageList({
   // (because the scroll position is now in a different "place" relative
   // to the new content height). 80px of slack matches how the rest of
   // the UI (slack toasts, jump-to-bottom buttons) treats "near the end".
+  //
+  // While a PROGRAMMATIC smooth scroll runs, its own intermediate scroll
+  // events would flip stuck→false mid-animation (distance briefly >80px),
+  // so the next stream chunk looked like "the user scrolled up" — follow
+  // broke intermittently with a ghost unread pill. Those events are
+  // suppressed for the animation window, then the state is re-derived.
+  const suppressStickUntilRef = useRef(0);
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runProgrammaticScroll = useCallback((): void => {
+    suppressStickUntilRef.current = Date.now() + 600;
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = setTimeout(() => {
+      suppressTimerRef.current = null;
+      suppressStickUntilRef.current = 0;
+      const el = scrollerRef.current;
+      if (!el) return;
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const next = distance < 80;
+      stuckToBottomRef.current = next;
+      setStuckToBottom(next);
+    }, 600);
+  }, []);
+  useEffect(
+    () => () => {
+      if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    },
+    []
+  );
+
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
     const update = () => {
+      if (Date.now() < suppressStickUntilRef.current) return;
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
       const next = distance < 80;
       stuckToBottomRef.current = next;
@@ -122,9 +168,9 @@ export const MessageList = memo(function MessageList({
     }
     if (stuckToBottomRef.current) {
       setUnreadCount(0);
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      runProgrammaticScroll();
     }
-  }, [messages, footer]);
+  }, [messages, footer, runProgrammaticScroll]);
 
   // If the user clicks into the conversation from elsewhere (or expands
   // a thinking block and then scrolls back), keep them pinned by
@@ -134,7 +180,7 @@ export const MessageList = memo(function MessageList({
     stuckToBottomRef.current = true;
     setStuckToBottom(true);
     setUnreadCount(0);
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    runProgrammaticScroll();
   };
 
   if (!hasActiveSession) {
@@ -168,8 +214,8 @@ export const MessageList = memo(function MessageList({
             </div>
           </div>
           <div className="ui-welcome-hints">
-            <kbd>⌘N</kbd> {t("welcome.hintNew")} · <kbd>⌘K</kbd> {t("welcome.hintPalette")} · <kbd>⌘?</kbd>{" "}
-            {t("welcome.hintShortcuts")}
+            <kbd>{modKey}N</kbd> {t("welcome.hintNew")} · <kbd>{modKey}K</kbd> {t("welcome.hintPalette")} ·{" "}
+            <kbd>{modKey}?</kbd> {t("welcome.hintShortcuts")}
           </div>
         </div>
       </div>
@@ -197,7 +243,7 @@ export const MessageList = memo(function MessageList({
               {showSep ? (
                 <div className="ui-date-separator">
                   <span className="ui-date-separator-line" />
-                  <span className="ui-date-separator-label">{formatDateSeparator(message.createTime)}</span>
+                  <span className="ui-date-separator-label">{formatDateSeparator(message.createTime, t)}</span>
                   <span className="ui-date-separator-line" />
                 </div>
               ) : null}

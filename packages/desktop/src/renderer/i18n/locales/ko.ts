@@ -121,6 +121,8 @@ export const ko: Record<MessageKey, string> = {
   "msg.jumpToLatest": "최신 메시지로 이동",
   "msg.countOne": "메시지 1개",
   "msg.countMany": "메시지 {count}개",
+  "msg.today": "오늘",
+  "msg.yesterday": "어제",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "권한이 필요합니다",
@@ -635,6 +637,7 @@ export const ko: Record<MessageKey, string> = {
   "scm.stageAll": "모두 스테이징",
   "scm.unstageAll": "모두 스테이징 해제",
   "scm.discard": "변경 사항 취소",
+  "scm.confirmDiscard": "다시 클릭하면 취소됩니다 — 되돌릴 수 없습니다",
   "scm.commit": "커밋",
   "scm.commitPlaceholder": "커밋 메시지…",
   "scm.refresh": "새로 고침",
@@ -918,6 +921,7 @@ export const ko: Record<MessageKey, string> = {
   "editor.binary": "바이너리 파일 — 편집할 수 없습니다.",
   "editor.save": "저장",
   "editor.saved": "저장됨",
+  "editor.saving": "저장 중…",
   "editor.dirty": "수정됨",
   "editor.openInEditor": "에디터에서 열기",
   "editor.back": "뒤로",

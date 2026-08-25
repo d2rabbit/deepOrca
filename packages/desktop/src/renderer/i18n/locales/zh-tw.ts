@@ -122,6 +122,8 @@ export const zhTW: Record<MessageKey, string> = {
   "msg.jumpToLatest": "跳到最新",
   "msg.countOne": "1 則訊息",
   "msg.countMany": "{count} 則訊息",
+  "msg.today": "今天",
+  "msg.yesterday": "昨天",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "需要授權",
@@ -618,6 +620,7 @@ export const zhTW: Record<MessageKey, string> = {
   "scm.stageAll": "全部暫存",
   "scm.unstageAll": "全部取消暫存",
   "scm.discard": "丟棄變更",
+  "scm.confirmDiscard": "再點一次確認丟棄——此操作無法復原",
   "scm.commit": "提交",
   "scm.commitPlaceholder": "提交訊息…",
   "scm.refresh": "重新整理",
@@ -900,6 +903,7 @@ export const zhTW: Record<MessageKey, string> = {
   "editor.binary": "二進位檔案 — 無法編輯。",
   "editor.save": "儲存",
   "editor.saved": "已儲存",
+  "editor.saving": "儲存中…",
   "editor.dirty": "已修改",
   "editor.openInEditor": "在編輯器中開啟",
   "editor.back": "返回",
