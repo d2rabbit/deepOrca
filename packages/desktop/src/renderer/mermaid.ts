@@ -79,11 +79,13 @@ function configureMermaid(mermaid: MermaidApi): void {
     flowchart: {
       htmlLabels: true,
       curve: "basis",
-      // Generous layout — arch maps should read like posters, not terminal
-      // output: air between ranks/nodes and a real margin around the canvas.
-      diagramPadding: 20,
-      nodeSpacing: 64,
-      rankSpacing: 84,
+      // Balanced layout (real-machine feedback: 64/84 spacing made sparse
+      // charts sprawl — "why does it spread out by itself?"). Compact
+      // spacing keeps few-node charts tight; the fit-in-card pass scales
+      // them up for readability instead of relying on layout air.
+      diagramPadding: 14,
+      nodeSpacing: 44,
+      rankSpacing: 58,
     },
     themeVariables: {
       background: "transparent",

@@ -574,14 +574,24 @@ function extractArchSections(markdown: string): ArchSection[] {
 }
 
 /**
- * One chart FITTED inside its card: measures its own natural size and scales
- * to the card's content width — down freely, up capped (maxScale) so text
- * sizes stay comparable across cards. Explicit scaled box (transform alone
- * doesn't grow the layout box); the inner box stays unscaled and is what the
- * observer measures. Per-card measurement means CSS grid reflows re-fit each
- * chart automatically — no page-level zoom math.
+ * One chart FITTED inside its card within a NARROW SCALE BAND. Real-machine
+ * feedback ("图好乱"): uncapped fill-width scaling made text sizes swing
+ * wildly across cards — a 3-node chart ballooned while a dense one shrank to
+ * noise. Every chart now renders at 18px source font, and the scale is
+ * clamped to [minScale, maxScale] so effective text height stays comparable
+ * card-to-card; a chart that doesn't fill its card just centers with air.
+ * Explicit scaled box (transform alone doesn't grow the layout box); the
+ * inner box stays unscaled and is what the observer measures.
  */
-function ArchChartFit({ chart, maxScale }: { chart: string; maxScale: number }): JSX.Element {
+function ArchChartFit({
+  chart,
+  minScale,
+  maxScale,
+}: {
+  chart: string;
+  minScale: number;
+  maxScale: number;
+}): JSX.Element {
   const frameRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [natural, setNatural] = useState({ w: 0, h: 0 });
@@ -617,7 +627,7 @@ function ArchChartFit({ chart, maxScale }: { chart: string; maxScale: number }):
       window.removeEventListener("resize", measure);
     };
   }, [measure]);
-  const scale = natural.w > 0 && boxW > 0 ? Math.min(maxScale, Math.max(0.2, boxW / natural.w)) : 1;
+  const scale = natural.w > 0 && boxW > 0 ? Math.min(maxScale, Math.max(minScale, boxW / natural.w)) : 1;
   return (
     <div className="ui-arch-chart-fit" ref={frameRef}>
       <div
@@ -684,7 +694,7 @@ function ArchDiagrams({
       <div className="ui-arch-board">
         <div className="ui-arch-card ui-arch-card--hero">
           {head(hero, 1)}
-          <ArchChartFit chart={hero.chart} maxScale={2.4} />
+          <ArchChartFit chart={hero.chart} minScale={0.6} maxScale={1.8} />
         </div>
         {modules.length > 0 ? (
           <>
@@ -697,7 +707,7 @@ function ArchDiagrams({
               {modules.map((section, i) => (
                 <div className="ui-arch-card" key={i}>
                   {head(section, i + 2)}
-                  <ArchChartFit chart={section.chart} maxScale={2.2} />
+                  <ArchChartFit chart={section.chart} minScale={0.55} maxScale={1.6} />
                 </div>
               ))}
             </div>

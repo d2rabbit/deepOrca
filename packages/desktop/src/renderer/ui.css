@@ -9026,6 +9026,10 @@ button.ui-topbar-pill {
 }
 .ui-knowledge-agents-md {
   overflow-y: auto;
+  /* Centered reading column (real-machine feedback: AGENTS/arch fallback
+     content hugged the left edge) — same measure as the wiki document. */
+  max-width: 860px;
+  margin: 0 auto;
   padding: 4px 8px;
   font-size: 13px;
   line-height: 1.6;
@@ -10333,6 +10337,7 @@ button.ui-topbar-pill {
 }
 .ui-wiki-doc {
   max-width: 860px;
+  margin: 0 auto;
   padding: 18px 12px 40px;
 }
 .ui-wiki-doc h1,

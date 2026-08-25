@@ -71,11 +71,24 @@ labels, edge labels and prose (description, overview) in the detected language
 
 "最高质量的操作通常是删除。"每个节点都要有存在的理由。宁可少画，不要塞满。
 
-### 复杂度预算（硬约束）
+### 复杂度预算（硬约束——注意是"区间"，不是只有上限）
 
-- 单张图最多 **9 个节点**、**12 条边**
+每张图的规模必须落在统一区间内，让整套架构图的**尺寸与密度保持一致**（渲染端按卡片排版，稀疏图与稠密图混排会显得杂乱）：
+
+- 每张图 **6-12 个节点**、**6-12 条边**
+- flowchart 类图至少 **2 个 `subgraph` 分组**（有分组才有结构感）
 - 最多 **2 个强调元素**（`concern` 类节点）
-- **超出预算 → 递归下钻**：把子结构折叠为 `subgraph`，或拆成独立小图，不要在一张图里塞 30 个节点
+- **少于 6 个节点 → 必须下钻一层补足**：把其中某个节点展开为 `subgraph`（其内部组件成为子节点）。禁止输出 3-4 个节点的稀疏小图——它们在渲染端尺寸失控、信息量不足
+- **多于 12 个节点 → 上浮或拆分**：把子结构折叠为 `subgraph`，或拆成独立小图，不要在一张图里塞 30 个节点
+- `overall-architecture` 是首页总览，取区间上限：**8-12 节点 + 2-4 个 subgraph**
+
+### 标签与尺寸纪律（所有图统一）
+
+- 节点标签 **4-14 个字符**（过短无信息，过长换行会让节点卡片高低参差）
+- subgraph 标题 2-8 个字符，纯名称
+- 边标签 2-10 个字符，动词短语（"写 JSON"、"IPC invoke"），禁止裸箭头
+- 同一份文档内不要混用中英文标签；全文遵循 Step 0 检测的语言
+- 相同语义用相同形状（见下方节点类型表），不同图之间保持编码一致——读者不应为每张图重新学习图例
 
 ### 删除测试（成稿前必做）
 
@@ -232,6 +245,21 @@ Write ONE markdown document and save it via `save_archmap`. Layout contract:
 | `concern` | 红描边强调：`stroke:#ef4444`（每图最多 1-2 个）  | 已知风险或瓶颈                               |
 | `default` | 默认                                            | 普通模块/组件                                |
 
+### 标准图例块（每张 flowchart 必须原样携带）
+
+为了让整套架构图的**图例完全一致**，每张 flowchart 的**结尾必须原样附上**下面这段
+classDef（用到的行才写 `class` 指派；用不到的 kind 省略指派但保留定义行也无妨）：
+
+```
+  classDef entry stroke:#3b82f6,stroke-width:2.5px
+  classDef external stroke-dasharray: 4 3
+  classDef concern stroke:#ef4444,stroke-width:2px
+```
+
+禁止自创其他 classDef、禁止 `fill:` 填充色、禁止改变这些描边值——
+统一图例是整套文档"看起来是一个产品"的关键。`sequenceDiagram`/`stateDiagram-v2`
+不适用此块（它们的形状语义由图类型自带）。
+
 示例（flowchart TD）：
 
 ```
@@ -240,14 +268,20 @@ flowchart TD
     R["Renderer (React)"]
     M["Main Process"]
   end
-  E["@deeporca/core 引擎"]
+  subgraph Engine["@deeporca/core"]
+    E["Session 引擎"]
+    T["工具执行器"]
+  end
   FS[("文件系统")]
 
   R -->|"IPC invoke"| M
-  M -->|"会话循环 + 工具执行"| E
-  E -->|"read/write"| FS
+  M -->|"会话循环"| E
+  E -->|"工具调用"| T
+  T -->|"read/write"| FS
 
   classDef entry stroke:#3b82f6,stroke-width:2.5px
+  classDef external stroke-dasharray: 4 3
+  classDef concern stroke:#ef4444,stroke-width:2px
   class R,M entry
 ```
 
