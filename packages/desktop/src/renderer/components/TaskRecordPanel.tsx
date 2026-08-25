@@ -147,29 +147,31 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
   /** Run one tree op. Returns true on success — callers gate input cleanup
    *  (e.g. fork reason) on it, and the notice auto-expires instead of
    *  lingering over the next operation's result. */
-  const run = async (
-    label: string,
-    fn: () => Promise<{ ok?: boolean; error?: string } | boolean | string | null>
-  ): Promise<boolean> => {
-    if (acting) return false;
-    const runKey = label;
-    setActing(runKey);
-    try {
-      const result = await fn();
-      const bad =
-        result === false || (typeof result === "object" && result !== null && "error" in result && result.error);
-      setNotice(bad ? String((result as { error?: string }).error ?? label) : t("taskrec.done", { label }));
-      await reload();
-      return !bad;
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : String(err));
-      return false;
-    } finally {
-      setActing(null);
-      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-      noticeTimerRef.current = setTimeout(() => setNotice(null), 5000);
-    }
-  };
+  const run = useCallback(
+    async (
+      label: string,
+      fn: () => Promise<{ ok?: boolean; error?: string } | boolean | string | null>
+    ): Promise<boolean> => {
+      if (acting) return false;
+      setActing(label);
+      try {
+        const result = await fn();
+        const bad =
+          result === false || (typeof result === "object" && result !== null && "error" in result && result.error);
+        setNotice(bad ? String((result as { error?: string }).error ?? label) : t("taskrec.done", { label }));
+        await reload();
+        return !bad;
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : String(err));
+        return false;
+      } finally {
+        setActing(null);
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = setTimeout(() => setNotice(null), 5000);
+      }
+    },
+    [acting, reload, t]
+  );
 
   /** First click arms the destructive op; a second click within 3s fires it. */
   const armOrRun = useCallback(

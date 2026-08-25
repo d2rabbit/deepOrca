@@ -52,7 +52,7 @@ export function ProcessOutputPanel({
     updateStdout();
     const interval = setInterval(updateStdout, REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [processes, stdoutRef]);
+  }, [processes, stdoutRef, t]);
 
   // Auto-scroll to bottom when new content arrives (unless user scrolled up)
   useEffect(() => {

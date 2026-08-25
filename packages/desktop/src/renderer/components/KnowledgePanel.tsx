@@ -175,6 +175,10 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
     }, 250);
     return () => {
       clearTimeout(timer);
+      // Same rationale as FileMentionMenu's reqId guard: reading the CURRENT
+      // ref value and bumping it is the invalidation mechanism — copying it
+      // to a local would increment a stale counter and stop invalidating.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       symbolSeqRef.current++;
     };
   }, [root, symbolQuery]);
@@ -686,7 +690,7 @@ function KnowledgeArchPreview({
     return () => {
       alive = false;
     };
-  }, [path]);
+  }, [path, t]);
 
   if (error) return <div className="ui-knowledge-preview-error">{error}</div>;
   const meta = content?.kind === "md" ? "Mermaid" : content?.kind === "a2ui" ? `A2UI v0.9 · ${content.surfaceId}` : "…";

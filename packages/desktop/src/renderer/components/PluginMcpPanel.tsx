@@ -124,21 +124,6 @@ export function PluginMcpPanel({
     [reload]
   );
 
-  // Note: list-level server removal intentionally lives in the plugin DETAIL
-  // page (with its confirm step) — `remove` here is kept for that flow's data
-  // contract and is not surfaced as a row action.
-  const remove = useCallback(
-    async (srv: PluginMcpServer) => {
-      try {
-        await api.pluginRemoveMcpServer(srv.name);
-        await reload();
-      } catch (err) {
-        setListError(err instanceof Error ? err.message : String(err));
-      }
-    },
-    [reload]
-  );
-
   const applyPreset = useCallback((preset: McpPreset) => {
     setName(preset.name);
     setCommand(preset.command);
