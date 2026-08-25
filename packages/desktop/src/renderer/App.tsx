@@ -1011,7 +1011,7 @@ export function App(): JSX.Element {
   );
 
   const handleQuickAction = useCallback(
-    (action: "plan" | "init" | "skills" | "undo") => {
+    (action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review") => {
       if (action === "plan") {
         setPlanMode((v) => !v);
       } else if (action === "init") {
@@ -1020,9 +1020,30 @@ export function App(): JSX.Element {
         selectView("plugins");
       } else if (action === "undo") {
         setModal("undo");
+      } else if (action === "knowledge") {
+        // Flow bridge: welcome → index rail view; the workspace's own row
+        // carries the per-root build action.
+        selectView("index");
+      } else if (action === "review") {
+        selectView("review");
       }
     },
     [runPrompt, selectView]
+  );
+
+  // Flow bridge (wiki → chat): quote a Wiki page into the composer as an
+  // @-mention so the agent reads the exact page, then land the user back in
+  // the conversation — knowledge becomes usable inside the chat without a
+  // manual copy-paste round-trip.
+  const handleQuoteWikiToChat = useCallback(
+    (root: string, path: string, title: string) => {
+      setActiveTab({ kind: "chat" });
+      setDraft((current) => {
+        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${root}/openwiki/${path}\n`;
+      });
+    },
+    [t]
   );
 
   const handleSlashCommand = useCallback(
@@ -1215,6 +1236,15 @@ export function App(): JSX.Element {
         keywords: "sidebar view editor files",
         run: () => selectView("editor"),
       },
+      // ── Flow bridges: main-area surfaces ──
+      {
+        id: "knowledge.center",
+        label: t("command.knowledge.label"),
+        keywords: "knowledge center wiki archmap symbols 架构 图谱",
+        run: () => {
+          if (projectRoot) setActiveTab({ kind: "knowledge", root: projectRoot });
+        },
+      },
       // ── Themes (all 6, via the same handler the settings panel uses) ──
       {
         id: "theme.aqua",
@@ -1289,6 +1319,7 @@ export function App(): JSX.Element {
       handleToggleLineVariant,
       modKey,
       openTokensView,
+      projectRoot,
       pushToast,
       runPrompt,
       selectView,
@@ -1879,7 +1910,7 @@ export function App(): JSX.Element {
               />
             </Suspense>
           ) : activeTab.kind === "knowledge" ? (
-            <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} />
+            <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} onQuoteToChat={handleQuoteWikiToChat} />
           ) : activeTab.kind === "task" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
               <TaskRecordPanel

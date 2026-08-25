@@ -297,6 +297,50 @@ export function IconWelcomeUndo(): JSX.Element {
   );
 }
 
+/** Book with graph nodes — knowledge (Wiki / arch maps / symbol index) */
+export function IconWelcomeKnowledge(): JSX.Element {
+  return (
+    <svg {...W}>
+      <path
+        d="M3 4.5A1.5 1.5 0 0 1 4.5 3H9a1.5 1.5 0 0 1 1.5 1.5V16a1.5 1.5 0 0 0-1.5-1.5H4.5A1.5 1.5 0 0 1 3 13V4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17 4.5A1.5 1.5 0 0 0 15.5 3H11a1.5 1.5 0 0 0-1.5 1.5V16a1.5 1.5 0 0 1 1.5-1.5h4.5a1.5 1.5 0 0 0 1.5-1.5V4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <circle cx="13.5" cy="8" r="1.4" fill="currentColor" />
+      <circle cx="15.8" cy="11.4" r="1.1" fill="currentColor" />
+      <path d="M13.5 8L15.8 11.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Shield with check — code review */
+export function IconWelcomeReview(): JSX.Element {
+  return (
+    <svg {...W}>
+      <path
+        d="M10 2.5l6 2.2v4.6c0 3.9-2.6 6.9-6 8.2-3.4-1.3-6-4.3-6-8.2V4.7l6-2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 10l2.2 2.2L13.4 8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /* ── Tool-type icons (16×16 viewBox, rendered at 13px) ───────────────────── */
 
 const T = { width: 13, height: 13, viewBox: "0 0 16 16", fill: "none", "aria-hidden": true, focusable: false } as const;

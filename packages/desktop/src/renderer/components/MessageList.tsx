@@ -4,7 +4,14 @@ import type { ReasoningMode } from "../lib/appearance";
 import { findExpandedThinkingId } from "../lib/messages";
 import { Message } from "./Message";
 import { useI18n } from "../i18n";
-import { IconWelcomePlan, IconWelcomeInit, IconWelcomeSkills, IconWelcomeUndo } from "../ui/index";
+import {
+  IconWelcomePlan,
+  IconWelcomeInit,
+  IconWelcomeSkills,
+  IconWelcomeUndo,
+  IconWelcomeKnowledge,
+  IconWelcomeReview,
+} from "../ui/index";
 
 /** Format an ISO date string as an absolute short locale date (e.g. "Jul 21, 2026").
  *  Cached per calendar DAY (not per raw timestamp — that key grew without
@@ -56,7 +63,7 @@ type Props = {
   /** Modifier glyph for shortcut hints (⌘ on macOS, Ctrl elsewhere). */
   modKey?: string;
   /** Quick-start actions surfaced on the welcome screen. */
-  onQuickAction?: (action: "plan" | "init" | "skills" | "undo") => void;
+  onQuickAction?: (action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review") => void;
   /** Interactive prompt cards (permission / question / plan) shown after the messages. */
   footer?: React.ReactNode;
   /** Whether the session is currently compacting its context. */
@@ -184,9 +191,21 @@ export const MessageList = memo(function MessageList({
   };
 
   if (!hasActiveSession) {
-    const cards: { action: "plan" | "init" | "skills" | "undo"; icon: JSX.Element; title: string; desc: string }[] = [
+    const cards: {
+      action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review";
+      icon: JSX.Element;
+      title: string;
+      desc: string;
+    }[] = [
       { action: "plan", icon: <IconWelcomePlan />, title: t("welcome.planTitle"), desc: t("welcome.planDesc") },
       { action: "init", icon: <IconWelcomeInit />, title: t("welcome.initTitle"), desc: t("welcome.initDesc") },
+      {
+        action: "knowledge",
+        icon: <IconWelcomeKnowledge />,
+        title: t("welcome.knowledgeTitle"),
+        desc: t("welcome.knowledgeDesc"),
+      },
+      { action: "review", icon: <IconWelcomeReview />, title: t("welcome.reviewTitle"), desc: t("welcome.reviewDesc") },
       { action: "skills", icon: <IconWelcomeSkills />, title: t("welcome.skillsTitle"), desc: t("welcome.skillsDesc") },
       { action: "undo", icon: <IconWelcomeUndo />, title: t("welcome.undoTitle"), desc: t("welcome.undoDesc") },
     ];

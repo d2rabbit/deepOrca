@@ -47,4 +47,6 @@ export {
   IconMagicWand,
   IconFolder,
   IconFile,
+  IconWelcomeKnowledge,
+  IconWelcomeReview,
 } from "./icons";

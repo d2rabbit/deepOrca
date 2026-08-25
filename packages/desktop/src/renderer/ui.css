@@ -237,24 +237,46 @@ select {
   }
 }
 
-/* ── Icon rail ───────────────────────────────────────────────────────────── */
+/* ── Icon rail ─────────────────────────────────────────────────────────────
+   Modern "floating island" rail (Arc/Linear style): instead of a VSCode-style
+   edge-glued activity strip, the buttons float on a rounded raised island
+   inset from the window edges, and the active item is a filled pill rather
+   than an edge bar. The 52px grid column is unchanged — only the paint. */
 .ui-rail {
   grid-area: rail;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--ui-space-1);
-  padding: var(--ui-space-2) 0;
-  background: var(--ui-surface-sunken);
-  border-right: 1px solid var(--ui-border-soft);
+  padding: 10px 4px;
+  background: transparent;
   /* Scroll fallback for short windows — buttons must stay reachable. */
   overflow-y: auto;
   scrollbar-width: none;
   -webkit-app-region: drag;
+  position: relative;
+}
+
+/* The island: painted behind the buttons via a pseudo element so the rail's
+   JSX stays untouched. inset follows the rail padding; it grows with the
+   scrollable content, never clipping buttons in short windows. */
+.ui-rail::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 4px;
+  right: 4px;
+  border-radius: 16px;
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 70%, transparent);
+  box-shadow: var(--ui-shadow-sm);
+  pointer-events: none;
 }
 
 .ui-rail > * {
   -webkit-app-region: no-drag;
+  position: relative;
 }
 
 .ui-rail::-webkit-scrollbar {
@@ -269,21 +291,28 @@ select {
 }
 
 .ui-rail-btn {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border-radius: var(--ui-radius-md);
+  border-radius: 11px;
   color: var(--ui-text-dim);
-  font-size: 17px;
+  font-size: 15px;
   transition:
     background 0.15s var(--ui-ease),
-    color 0.15s var(--ui-ease);
+    color 0.15s var(--ui-ease),
+    transform 0.12s var(--ui-ease);
 }
 
 .ui-rail-btn:hover {
   background: var(--ui-surface-hover);
   color: var(--ui-text);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ui-rail-btn:active:not(:disabled) {
+    transform: scale(0.94);
+  }
 }
 
 /* Always-mounted rail actions dim instead of unmounting: conditional removal
@@ -300,20 +329,23 @@ select {
   transform: none;
 }
 
+/* Active = filled identity pill on the island (NOT the VSCode edge bar). */
 .ui-rail-btn.ui-rail-btn--active {
-  background: var(--ui-accent-soft);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent, #3b82f6) 20%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 14%, transparent)
+  );
   color: var(--ui-accent);
-  box-shadow: inset 3px 0 0 var(--ui-accent);
-  transition:
-    background 0.15s var(--ui-ease),
-    color 0.15s var(--ui-ease),
-    box-shadow 0.2s var(--ui-ease);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, transparent),
+    0 2px 8px color-mix(in srgb, var(--ui-accent, #3b82f6) 16%, transparent);
   animation: ui-rail-active-in 0.2s var(--ui-ease) both;
 }
 @keyframes ui-rail-active-in {
   from {
     background: transparent;
-    box-shadow: inset 3px 0 0 transparent;
+    box-shadow: none;
   }
 }
 .ui-rail-btn--badge {
@@ -322,13 +354,13 @@ select {
 .ui-rail-btn--badge::after {
   content: "";
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 5px;
+  right: 5px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--ui-warning);
-  border: 1.5px solid var(--ui-bg);
+  border: 1.5px solid var(--ui-surface);
   animation: ui-dot-pulse 1.8s ease-in-out infinite;
 }
 
@@ -340,7 +372,6 @@ select {
   min-width: 0;
   overflow: hidden;
   background: var(--ui-surface);
-  border-right: 1px solid var(--ui-border-soft);
   animation: ui-panel-content-in 0.2s var(--ui-ease) both;
 }
 @keyframes ui-panel-content-in {
@@ -534,8 +565,10 @@ select {
      the rail. */
   padding: 0 var(--ui-space-2) 0 var(--ui-space-4);
   min-width: 0;
-  background: var(--ui-surface);
-  border-bottom: 1px solid var(--ui-border-soft);
+  /* Chromeless top bar: floats on the app background instead of owning a
+     solid strip — the content card below provides the separation. */
+  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 45%, transparent);
   -webkit-app-region: drag;
 }
 
@@ -690,17 +723,25 @@ select {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Canvas layout: the main area is a raised rounded card floating on the
+     app background (margin all around) — replacing the IDE "pane glued to
+     the chrome" look. The gap makes the rail island / side panel / window
+     bar read as separate objects instead of one split window. */
+  padding: 0 12px 12px;
   overflow: hidden;
 }
 /* Subtle top fade for visual depth — messages emerge from under the top bar */
+/* Top fade for visual depth — messages emerge from under the tab strip.
+   Colored with the CARD surface (the strip above it sits on the same card),
+   starting just below the strip so it only washes over the conversation. */
 .ui-main::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 24px;
-  background: linear-gradient(to bottom, var(--ui-bg), transparent);
+  top: 40px;
+  left: 12px;
+  right: 12px;
+  height: 20px;
+  background: linear-gradient(to bottom, var(--ui-surface, #fff), transparent);
   pointer-events: none;
   z-index: 2;
 }
@@ -881,7 +922,14 @@ select {
   right: 0;
   bottom: 0;
   padding: 0 var(--ui-space-4) var(--ui-space-4);
-  background: linear-gradient(to top, var(--ui-bg) 55%, transparent);
+  /* Anchored inside the main CARD (see .ui-tasktab-view), so the fade must
+     blend from the card surface — not the app background. */
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--ui-surface, #fff) 72%) 34%,
+    var(--ui-surface, #fff)
+  );
   pointer-events: none;
 }
 
@@ -1639,7 +1687,7 @@ select {
 }
 @media (min-width: 900px) {
   .ui-welcome-cards {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 .ui-welcome-card {
@@ -1666,6 +1714,12 @@ select {
 }
 .ui-welcome-card:nth-child(4) {
   animation-delay: 0.15s;
+}
+.ui-welcome-card:nth-child(5) {
+  animation-delay: 0.2s;
+}
+.ui-welcome-card:nth-child(6) {
+  animation-delay: 0.25s;
 }
 @keyframes ui-card-stagger {
   from {
@@ -5097,37 +5151,59 @@ button.ui-tool-head:hover {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  /* The card surface itself. `position: relative` anchors the composer dock
+     (absolute bottom) to the card, not the shell. */
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 65%, transparent);
+  background: var(--ui-surface, #fff);
+  box-shadow: var(--ui-shadow-card);
+  overflow: hidden;
 }
 .ui-tasktab-view > :last-child {
   flex: 1;
   min-height: 0;
 }
+/* Modern segmented pill tabs — replaces the editor-tab look (top-only
+   radius + border merged into content) that read as "VSCode clone". */
 .ui-tasktabs {
   display: flex;
-  align-items: stretch;
-  gap: 2px;
-  padding: 6px 10px 0;
-  border-bottom: 1px solid var(--ui-border-soft);
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 60%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 32%, var(--ui-surface, #fff));
   overflow-x: auto;
   flex: none;
+  scrollbar-width: none;
+}
+.ui-tasktabs::-webkit-scrollbar {
+  display: none;
 }
 .ui-tasktab {
   display: inline-flex;
   align-items: stretch;
-  max-width: 220px;
+  max-width: 240px;
   border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: var(--ui-radius-md) var(--ui-radius-md) 0 0;
+  border-radius: 999px;
   background: transparent;
+  transition:
+    background 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.ui-tasktab:hover {
+  background: var(--ui-surface-hover);
 }
 .ui-tasktab.active {
-  background: var(--ui-surface-sunken);
-  border-color: var(--ui-border-soft);
+  background: var(--ui-surface-raised, #fff);
+  border-color: var(--ui-border-soft, #c3cdd9);
+  box-shadow: var(--ui-shadow-sm);
 }
 .ui-tasktab-main {
   flex: 1;
   min-width: 0;
-  padding: 5px 4px 5px 10px;
+  padding: 4px 6px 4px 12px;
   border: none;
   background: transparent;
   color: var(--ui-text-dim);
@@ -5141,18 +5217,26 @@ button.ui-tool-head:hover {
   color: var(--ui-text);
   font-weight: 600;
 }
+/* Close affordance reveals on intent (tab hover/active) instead of sitting
+   on every tab — calmer strip, same reachability. */
 .ui-tasktab-close {
   flex: none;
   display: grid;
   place-items: center;
   width: 20px;
-  margin: 3px 3px 3px 0;
+  margin: 3px 4px 3px 0;
   border: none;
-  border-radius: var(--ui-radius-sm);
+  border-radius: 999px;
   background: transparent;
   color: var(--ui-text-faint);
   font-size: 10px;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s var(--ui-ease);
+}
+.ui-tasktab:hover .ui-tasktab-close,
+.ui-tasktab.active .ui-tasktab-close {
+  opacity: 1;
 }
 .ui-tasktab-close:hover {
   background: color-mix(in srgb, var(--ui-danger) 14%, transparent);

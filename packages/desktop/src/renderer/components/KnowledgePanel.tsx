@@ -28,6 +28,8 @@ import { useBuildJobs } from "../hooks/useBuildJobs";
 type Props = {
   root: string;
   onOpenFile: (path: string) => void;
+  /** Flow bridge: quote a wiki page into the chat composer as an @-mention. */
+  onQuoteToChat?: (root: string, path: string, title: string) => void;
 };
 
 type SubTab = "wiki" | "agents" | "archmaps" | "symbols";
@@ -87,7 +89,7 @@ function groupSymbols(syms: KnowledgeSymbol[]): Array<[string, KnowledgeSymbol[]
   return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
 }
 
-export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
+export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
   const [sub, setSub] = useState<SubTab>("wiki");
@@ -297,6 +299,8 @@ export function KnowledgePanel({ root, onOpenFile }: Props): JSX.Element {
                         raw={wikiContent}
                         onOpenFile={() => onOpenFile(`${root}/openwiki/${wikiSel}`)}
                         openLabel={t("index.openInEditor")}
+                        onQuote={onQuoteToChat ? (title) => onQuoteToChat(root, wikiSel, title) : undefined}
+                        quoteLabel={t("index.quoteWiki")}
                       />
                     ) : (
                       <div className="ui-side-panel-empty">{t("index.wikiPreviewFailed")}</div>
@@ -442,10 +446,15 @@ function WikiPageView({
   raw,
   onOpenFile,
   openLabel,
+  onQuote,
+  quoteLabel,
 }: {
   raw: string;
   onOpenFile: () => void;
   openLabel: string;
+  /** Quote this page into the chat composer (carries the extracted title). */
+  onQuote?: (title: string) => void;
+  quoteLabel: string;
 }): JSX.Element {
   const { title, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
   return (
@@ -455,6 +464,11 @@ function WikiPageView({
           ▤
         </span>
         {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
+        {onQuote && title ? (
+          <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(title)}>
+            {quoteLabel}
+          </Button>
+        ) : null}
         <Button size="sm" variant="subtle" onClick={onOpenFile}>
           {openLabel}
         </Button>
