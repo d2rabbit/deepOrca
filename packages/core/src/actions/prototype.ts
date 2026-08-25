@@ -32,10 +32,15 @@ function isSafeArtifactId(id: string): boolean {
 function readArtifactFile(projectRoot: string, id: string, file: string): string | null {
   if (!isSafeArtifactId(id)) return null;
   try {
-    const dir = path.resolve(projectRoot, DESIGNS_DIR, id);
+    // Containment (scan fix, high): resolve every dynamic segment, then
+    // require the result to stay inside its root — `../` or absolute
+    // segments resolve outside and are rejected before any fs call.
     const base = path.resolve(projectRoot, DESIGNS_DIR);
-    if (dir !== path.join(base, id)) return null; // containment
-    const content = fs.readFileSync(path.join(dir, file), "utf8");
+    const dir = path.resolve(base, id);
+    if (!dir.startsWith(base + path.sep)) return null;
+    const target = path.resolve(dir, file);
+    if (!target.startsWith(dir + path.sep)) return null;
+    const content = fs.readFileSync(target, "utf8");
     return content.trim() ? content : null;
   } catch {
     return null;
