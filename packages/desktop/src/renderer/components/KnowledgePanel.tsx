@@ -301,6 +301,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                         openLabel={t("index.openInEditor")}
                         onQuote={onQuoteToChat ? (title) => onQuoteToChat(root, wikiSel, title) : undefined}
                         quoteLabel={t("index.quoteWiki")}
+                        fallbackTitle={wikiSel}
                       />
                     ) : (
                       <div className="ui-side-panel-empty">{t("index.wikiPreviewFailed")}</div>
@@ -448,6 +449,7 @@ function WikiPageView({
   openLabel,
   onQuote,
   quoteLabel,
+  fallbackTitle,
 }: {
   raw: string;
   onOpenFile: () => void;
@@ -455,8 +457,12 @@ function WikiPageView({
   /** Quote this page into the chat composer (carries the extracted title). */
   onQuote?: (title: string) => void;
   quoteLabel: string;
+  /** Page path — the basename becomes the quote title when the page has no
+   *  frontmatter title (quote must not silently disappear for those pages). */
+  fallbackTitle: string;
 }): JSX.Element {
   const { title, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
+  const quoteTitle = title ?? fallbackTitle.split("/").pop() ?? "wiki";
   return (
     <div className="ui-wiki-page">
       <div className="ui-wiki-page-head">
@@ -464,8 +470,8 @@ function WikiPageView({
           ▤
         </span>
         {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
-        {onQuote && title ? (
-          <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(title)}>
+        {onQuote ? (
+          <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
             {quoteLabel}
           </Button>
         ) : null}

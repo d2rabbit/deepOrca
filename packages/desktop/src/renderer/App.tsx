@@ -1242,7 +1242,9 @@ export function App(): JSX.Element {
         label: t("command.knowledge.label"),
         keywords: "knowledge center wiki archmap symbols 架构 图谱",
         run: () => {
+          // Silent no-op would read as a broken command — say why instead.
           if (projectRoot) setActiveTab({ kind: "knowledge", root: projectRoot });
+          else pushToast("info", t("topbar.pickFolderHint"));
         },
       },
       // ── Themes (all 6, via the same handler the settings panel uses) ──

@@ -730,38 +730,10 @@ select {
   padding: 0 12px 12px;
   overflow: hidden;
 }
-/* Subtle top fade for visual depth — messages emerge from under the top bar */
-/* Top fade for visual depth — messages emerge from under the tab strip.
-   Colored with the CARD surface (the strip above it sits on the same card),
-   starting just below the strip so it only washes over the conversation. */
-.ui-main::before {
-  content: "";
-  position: absolute;
-  top: 40px;
-  left: 12px;
-  right: 12px;
-  height: 20px;
-  background: linear-gradient(to bottom, var(--ui-surface, #fff), transparent);
-  pointer-events: none;
-  z-index: 2;
-}
-/* Ambient breathing on the top fade — a very slow opacity swell gives the
-   conversation a "living" feel. Opacity-only, zero layout/paint churn beyond
-   the composited fade layer itself. */
-@media (prefers-reduced-motion: no-preference) {
-  .ui-main::before {
-    animation: ui-main-fade-breathe 9s ease-in-out infinite;
-  }
-}
-@keyframes ui-main-fade-breathe {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
-}
+/* (No top fade on the main area anymore: the canvas-card layout separates
+   the tab strip from the conversation with an opaque strip background, so
+   a hand-positioned overlay gradient would only add brittle magic numbers
+   — its old "emerging messages" job is done by the strip itself.) */
 
 .ui-conversation {
   flex: 1;
@@ -10120,6 +10092,12 @@ button.ui-topbar-pill {
   line-height: 1.3;
   color: var(--ui-text, inherit);
   overflow-wrap: anywhere;
+}
+/* Primary "quote in chat" action — fixed footprint so translations of any
+   length never squeeze the title out of its own header. */
+.ui-wiki-page-quote {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .ui-wiki-doc {
   max-width: 860px;

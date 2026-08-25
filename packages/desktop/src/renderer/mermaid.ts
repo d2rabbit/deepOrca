@@ -155,10 +155,15 @@ function ensureHueStyles(): void {
   const style = document.createElement("style");
   style.id = HUE_STYLE_ID;
   const rules: string[] = [];
+  // DIRECT-CHILD selectors are load-bearing: cluster <g>s WRAP node <g>s, so a
+  // descendant rule like `.do-cluster.do-hue-N rect` (0,2,1) would out-rank the
+  // node rule `.do-hue-N rect` (0,1,1) under !important and repaint every node
+  // inside a subgraph with the cluster tint — exactly the diagrams (arch maps
+  // with subgraphs) this palette exists for.
   for (let i = 0; i < HUE_COUNT; i++) {
     const hue = `var(--ui-diagram-hue-${i}, #60a5fa)`;
     rules.push(`
-.do-hue-${i} rect, .do-hue-${i} polygon, .do-hue-${i} circle, .do-hue-${i} ellipse, .do-hue-${i} path {
+.do-hue-${i} > rect, .do-hue-${i} > polygon, .do-hue-${i} > circle, .do-hue-${i} > ellipse, .do-hue-${i} > path {
   fill: color-mix(in srgb, ${hue} 14%, var(--ui-surface, #fff)) !important;
   stroke: ${hue} !important;
   stroke-width: 1.5px !important;
@@ -168,11 +173,12 @@ function ensureHueStyles(): void {
   color: var(--ui-text, #1b2129) !important;
 }`);
   }
-  // Subgraph/cluster frames: faint tint of the same ramp + dashed rail.
+  // Subgraph/cluster frames: faint tint of the same ramp + dashed rail. Only
+  // the cluster's OWN shape (direct child) — nodes inside keep their hues.
   for (let i = 0; i < HUE_COUNT; i++) {
     const hue = `var(--ui-diagram-hue-${i}, #60a5fa)`;
     rules.push(`
-.do-cluster.do-hue-${i} rect, .do-cluster.do-hue-${i} polygon {
+.do-cluster.do-hue-${i} > rect, .do-cluster.do-hue-${i} > polygon {
   fill: color-mix(in srgb, ${hue} 5%, var(--ui-surface-sunken, #eef1f6)) !important;
   stroke: color-mix(in srgb, ${hue} 42%, transparent) !important;
   stroke-width: 1.2px !important;
@@ -187,8 +193,7 @@ g.edgePaths path, g.edgePath path, path.flowchart-link, path.flowchart-v2-link {
 .ui-mermaid-container marker path {
   fill: color-mix(in srgb, var(--ui-text, #1b2129) 40%, transparent) !important;
   stroke: none !important;
-}
-g.cluster text, g.cluster span.cluster-label { color: var(--ui-text-dim, #55606d) !important; fill: var(--ui-text-dim, #55606d) !important; }`);
+}`);
   style.textContent = rules.join("\n");
   document.head.appendChild(style);
 }
