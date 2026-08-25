@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { safePathWithinRoot, safeWikiPath, isStrictlyRelative } from "../main/safe-path.js";
+import { safePathWithinRoot, safeWikiPath, isStrictlyRelative, safeArchmapPath } from "../main/safe-path.js";
 
 async function withTempTree(fn: (dir: string) => Promise<void>): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "safe-path-"));
@@ -239,5 +239,70 @@ test("safeWikiPath: empty string is rejected (non-markdown, since it doesn't end
     const wikiRoot = path.join(dir, "notes");
     const result = safeWikiPath(wikiRoot, "");
     assert.equal(result.ok, false);
+  });
+});
+
+// ── safeArchmapPath (audit 2026-08-25) ─────────────────────────────────────
+
+test("safeArchmapPath: legitimate arch-*.md under prototypes root resolves (absolute)", async () => {
+  await withTempTree(async (dir) => {
+    const protoRoot = path.join(dir, ".deeporca", "prototypes");
+    await fs.mkdir(protoRoot, { recursive: true });
+    await fs.writeFile(path.join(protoRoot, "arch-root.md"), "m");
+    const result = safeArchmapPath(protoRoot, path.join(protoRoot, "arch-root.md"));
+    assert.equal(result.ok, true);
+  });
+});
+
+test("safeArchmapPath: arch-*.html and arch-*.json are accepted", async () => {
+  await withTempTree(async (dir) => {
+    const protoRoot = path.join(dir, ".deeporca", "prototypes");
+    await fs.mkdir(protoRoot, { recursive: true });
+    await fs.writeFile(path.join(protoRoot, "arch-root.html"), "<p/>");
+    await fs.writeFile(path.join(protoRoot, "arch-root.json"), "{}");
+    assert.equal(safeArchmapPath(protoRoot, path.join(protoRoot, "arch-root.html")).ok, true);
+    assert.equal(safeArchmapPath(protoRoot, path.join(protoRoot, "arch-root.json")).ok, true);
+  });
+});
+
+test("safeArchmapPath: arbitrary secret read via archmap channel is rejected (non-archmap)", async () => {
+  await withTempTree(async (dir) => {
+    const protoRoot = path.join(dir, ".deeporca", "prototypes");
+    await fs.mkdir(protoRoot, { recursive: true });
+    // The exact arbitrary-file-read shape the audit flagged: ~/.ssh keys,
+    // .env, anything — wrong basename never reaches the fs.
+    const result = safeArchmapPath(protoRoot, path.join(os.homedir(), ".ssh", "id_rsa"));
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "non-archmap");
+    const env = safeArchmapPath(protoRoot, path.join(dir, "..", "secret-env"));
+    assert.equal(env.ok, false);
+  });
+});
+
+test("safeArchmapPath: traversal styled as archmap name escapes-root is rejected", async () => {
+  await withTempTree(async (dir) => {
+    const protoRoot = path.join(dir, ".deeporca", "prototypes");
+    await fs.mkdir(protoRoot, { recursive: true });
+    // ../outside/arch-x.md — right basename, outside the root.
+    const result = safeArchmapPath(protoRoot, path.join(protoRoot, "..", "..", "arch-x.md"));
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, "escapes-root");
+  });
+});
+
+test("safeArchmapPath: absolute path to another tree's archmap is rejected", async () => {
+  await withTempTree(async (dir) => {
+    const protoRoot = path.join(dir, ".deeporca", "prototypes");
+    await fs.mkdir(protoRoot, { recursive: true });
+    const other = path.join(os.tmpdir(), `other-${Date.now()}`);
+    await fs.mkdir(other, { recursive: true });
+    try {
+      await fs.writeFile(path.join(other, "arch-other.md"), "x");
+      const result = safeArchmapPath(protoRoot, path.join(other, "arch-other.md"));
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.reason, "escapes-root");
+    } finally {
+      await fs.rm(other, { recursive: true, force: true });
+    }
   });
 });

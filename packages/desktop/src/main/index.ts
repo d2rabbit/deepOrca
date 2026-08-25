@@ -106,7 +106,7 @@ import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
-import { safeWikiPath } from "./safe-path.js";
+import { safeArchmapPath, safeWikiPath } from "./safe-path.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ESM-safe require (bare `require` breaks in the bundled ESM main).
@@ -1334,11 +1334,30 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
   // artifacts are the persisted A2UI surface drawn by the real A2UI renderer.
   handle(IpcRequest.KnowledgeReadArchmap, (artPath: string): KnowledgeArchmapContent => {
     try {
-      const raw = readFileSync(artPath, "utf-8");
-      if (artPath.endsWith(".md")) {
+      // Containment (audit 2026-08-25): this handler used to read whatever
+      // path the renderer passed — an arbitrary-file-read primitive for a
+      // compromised renderer. The knowledge panel serves MULTIPLE workspaces
+      // (knowledge tabs carry their own root), so the pin is: the target must
+      // sit under `<registeredWorkspace>/.deeporca/prototypes/` for a root the
+      // workspace registry knows (or the current project root), with an
+      // arch-*.{md,json,html} basename — then lexical+realpath containment.
+      const knownRoots = new Set<string>([getBridge().projectRoot]);
+      for (const w of listWorkspaceSessions(getBridge().projectRoot).workspaces) knownRoots.add(w.root);
+      const marker = join(".deeporca", "prototypes");
+      const idx = artPath.lastIndexOf(marker);
+      const candidateRoot = idx > 0 ? artPath.slice(0, idx - 1) : "";
+      if (!candidateRoot || !knownRoots.has(candidateRoot)) {
+        return { ok: false, error: "Invalid architecture-map path (unregistered workspace)." };
+      }
+      const check = safeArchmapPath(join(candidateRoot, marker), artPath);
+      if (!check.ok) {
+        return { ok: false, error: `Invalid architecture-map path (${check.reason}).` };
+      }
+      const raw = readFileSync(check.absPath, "utf-8");
+      if (check.absPath.endsWith(".md")) {
         return { ok: true, markdown: raw };
       }
-      if (artPath.endsWith(".html")) {
+      if (check.absPath.endsWith(".html")) {
         return { ok: true, html: raw };
       }
       return { ok: true, surface: JSON.parse(raw) as KnowledgeArchmapSurface };

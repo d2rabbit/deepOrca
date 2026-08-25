@@ -1090,6 +1090,10 @@ export function App(): JSX.Element {
           const key = `${root}@${job.startedAt}`;
           if (kbSuggestedRef.current.has(key)) return;
           kbSuggestedRef.current.add(key);
+          // Bounded: one key per settled build; long sessions shouldn't grow it forever.
+          if (kbSuggestedRef.current.size > 50) {
+            kbSuggestedRef.current = new Set([...kbSuggestedRef.current].slice(-50));
+          }
           const pages = await api.wikiListPages(root);
           setKbSuggest({ pages: pages.length });
         } catch {
