@@ -38,6 +38,14 @@ using **perspective-driven recursive analysis**.
 > the "semantic pattern first, visual type second" routing methodology are adopted
 > from [diagram-design](https://github.com/cathrynlavery/diagram-design)
 > (MIT, by Cathryn Lavery) — with thanks.
+>
+> **Semantic component palette**: the per-kind fixed-hue component typing
+> (frontend / backend / store / bus / cloud / external / concern) is adopted
+> from [Cocoon-AI/architecture-diagram-generator]
+> (https://github.com/Cocoon-AI/architecture-diagram-generator) (MIT, by
+> Cocoon AI). DeepOrca keeps its Mermaid pipeline (auto-layout instead of
+> hand-positioned SVG) and paints the kinds theme-adaptively in the
+> renderer instead of Cocoon's fixed dark palette.
 
 ## 归属：工作区索引模块
 
@@ -232,33 +240,44 @@ Write ONE markdown document and save it via `save_archmap`. Layout contract:
 - `sequenceDiagram` 的参与者名含空格用 `participant SM as Session Manager`
 - 一张图只讲一个视角；标题用 `##`，图前最多两句话
 
-### 节点类型（形状与描边编码）
+### 节点类型（语义 kind —— 全套文档统一图例）
 
-渲染端把 mermaid 配色接入应用主题（明/暗自适应），**图的语义编码不得依赖颜色填充**——
-硬编码 `fill` 在另一种外观下会不可读。用形状和描边：
+渲染端把 mermaid 配色接入应用主题（明/暗自适应），并**按语义 kind 固定色相**：
+同一 kind 在所有图里颜色一致，读者只需学一次图例。**图的语义编码不得依赖颜色填充**
+——不要在 classDef 里写 `fill`，kind 语义交给下面的标准 classDef 描述（描边/虚线），
+颜色由渲染端按主题绘制：
 
-| Kind      | 编码方式                                        | When to use                                 |
-| --------- | ----------------------------------------------- | ------------------------------------------- |
-| `entry`   | 描边加粗：`stroke:#3b82f6,stroke-width:2.5px`   | 入口（HTTP handler、CLI、main）              |
-| `store`   | 圆柱形状：`ID[("标签")]`（不再用填充色）         | 持久存储（DB、缓存、文件系统）               |
-| `external`| 虚线描边：`stroke-dasharray: 4 3`               | 代码库之外的第三方服务                       |
-| `concern` | 红描边强调：`stroke:#ef4444`（每图最多 1-2 个）  | 已知风险或瓶颈                               |
-| `default` | 默认                                            | 普通模块/组件                                |
+| Kind       | classDef 编码                                   | When to use                          | 渲染色相   |
+| ---------- | ----------------------------------------------- | ------------------------------------ | ---------- |
+| `entry`    | `stroke:#3b82f6,stroke-width:2.5px`             | 入口（HTTP handler、CLI、main）       | 蓝（加粗） |
+| `frontend` | `stroke:#22d3ee`                                | UI/前端层                             | 青         |
+| `backend`  | `stroke:#2dd4bf`                                | 服务/业务逻辑层                       | 绿         |
+| `store`    | 圆柱形状 `ID[("标签")]` + `stroke:#a78bfa`      | 持久存储（DB、缓存、文件系统）        | 紫         |
+| `bus`      | `stroke:#fbbf24`                                | 消息/事件总线（Kafka、MQ）            | 琥珀       |
+| `cloud`    | `stroke:#818cf8`                                | 云服务/运行时平台                     | 靛         |
+| `external` | `stroke-dasharray: 4 3`                         | 代码库之外的第三方服务                | 灰（虚线） |
+| `concern`  | `stroke:#ef4444,stroke-width:2px`（每图≤2 个）  | 已知风险或瓶颈                        | 玫红       |
+| `default`  | （不加 class）                                   | 普通模块/组件                        | 自动循环色 |
 
 ### 标准图例块（每张 flowchart 必须原样携带）
 
 为了让整套架构图的**图例完全一致**，每张 flowchart 的**结尾必须原样附上**下面这段
-classDef（用到的行才写 `class` 指派；用不到的 kind 省略指派但保留定义行也无妨）：
+classDef（用到的 kind 才写 `class` 指派）：
 
 ```
   classDef entry stroke:#3b82f6,stroke-width:2.5px
+  classDef frontend stroke:#22d3ee
+  classDef backend stroke:#2dd4bf
+  classDef store stroke:#a78bfa
+  classDef bus stroke:#fbbf24
+  classDef cloud stroke:#818cf8
   classDef external stroke-dasharray: 4 3
   classDef concern stroke:#ef4444,stroke-width:2px
 ```
 
 禁止自创其他 classDef、禁止 `fill:` 填充色、禁止改变这些描边值——
-统一图例是整套文档"看起来是一个产品"的关键。`sequenceDiagram`/`stateDiagram-v2`
-不适用此块（它们的形状语义由图类型自带）。
+渲染端按 kind 名称映射固定色相，命名一致才能全套统一。
+`sequenceDiagram`/`stateDiagram-v2` 不适用此块（形状语义由图类型自带）。
 
 示例（flowchart TD）：
 
@@ -280,9 +299,16 @@ flowchart TD
   T -->|"read/write"| FS
 
   classDef entry stroke:#3b82f6,stroke-width:2.5px
+  classDef frontend stroke:#22d3ee
+  classDef backend stroke:#2dd4bf
+  classDef store stroke:#a78bfa
+  classDef bus stroke:#fbbf24
+  classDef cloud stroke:#818cf8
   classDef external stroke-dasharray: 4 3
   classDef concern stroke:#ef4444,stroke-width:2px
-  class R,M entry
+  class R frontend
+  class M,E,T backend
+  class FS store
 ```
 
 ### 3c. Recursive drill-down — analyze every element

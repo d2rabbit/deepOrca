@@ -44,6 +44,13 @@ let configuredAppearance = "";
 const HUE_COUNT = 8;
 /** Injected stylesheet id — the paint side of the do-hue-* classes. */
 const HUE_STYLE_ID = "deeporca-mermaid-hues";
+/**
+ * Semantic component kinds (fixed hue per kind, suite-wide legend — design
+ * system adopted from Cocoon-AI/architecture-diagram-generator, MIT). The
+ * arch-scan skill tags nodes with these via mermaid `class`/`classDef`; the
+ * kind→hue mapping lives in the injected stylesheet.
+ */
+const SEMANTIC_KINDS = ["entry", "store", "frontend", "backend", "bus", "cloud", "external", "concern"] as const;
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === "undefined") return fallback;
@@ -193,6 +200,34 @@ function ensureHueStyles(): void {
   stroke-dasharray: 7 5 !important;
 }`);
   }
+  // Semantic kinds — FIXED hue per component type, so the same kind reads
+  // the same color across every diagram in a suite (one legend everywhere).
+  // entry=blue bold, frontend=cyan, backend=teal, store=violet, bus=amber,
+  // cloud=indigo, external=neutral dashed, concern=rose.
+  const KIND_RULES: Array<[string, string]> = [
+    ["entry", "var(--ui-diagram-hue-0, #60a5fa)"],
+    ["frontend", "var(--ui-diagram-hue-5, #22d3ee)"],
+    ["backend", "var(--ui-diagram-hue-2, #2dd4bf)"],
+    ["store", "var(--ui-diagram-hue-1, #a78bfa)"],
+    ["bus", "var(--ui-diagram-hue-3, #fbbf24)"],
+    ["cloud", "var(--ui-diagram-hue-6, #818cf8)"],
+    ["concern", "var(--ui-diagram-hue-4, #fb7185)"],
+  ];
+  for (const [kind, hue] of KIND_RULES) {
+    rules.push(`
+.do-kind-${kind} > rect, .do-kind-${kind} > polygon, .do-kind-${kind} > circle, .do-kind-${kind} > ellipse, .do-kind-${kind} > path {
+  fill: color-mix(in srgb, ${hue} 14%, var(--ui-surface, #fff)) !important;
+  stroke: ${hue} !important;
+  stroke-width: ${kind === "entry" ? "2.2px" : "1.5px"} !important;
+}`);
+  }
+  rules.push(`
+.do-kind-external > rect, .do-kind-external > polygon, .do-kind-external > circle, .do-kind-external > ellipse, .do-kind-external > path {
+  fill: color-mix(in srgb, var(--ui-text, #1b2129) 5%, var(--ui-surface, #fff)) !important;
+  stroke: color-mix(in srgb, var(--ui-text, #1b2129) 48%, transparent) !important;
+  stroke-width: 1.2px !important;
+  stroke-dasharray: 4 3 !important;
+}`);
   // Edge ink + arrowheads: quiet neutral so the node colors carry the show.
   rules.push(`
 g.edgePaths path, g.edgePath path, path.flowchart-link, path.flowchart-v2-link {
@@ -219,11 +254,25 @@ export function decorateMermaidSvg(svg: string): string {
     const root = doc.documentElement;
     if (!root || root.getElementsByTagName("parsererror").length > 0) return svg;
 
-    // Flowchart / class / state nodes — one hue each, in document order.
+    // Semantic-kind paint (design system adopted from Cocoon-AI's
+    // architecture-diagram-generator, MIT): when the chart's classDefs tag a
+    // node with a known kind (entry/store/frontend/backend/bus/cloud/
+    // external/concern), it gets that kind's FIXED hue — the same component
+    // type reads the same color across every diagram in the suite (one
+    // legend for the whole document). Untagged nodes fall back to the
+    // document-order hue cycle.
+    const kindOf = (el: Element): string | null => {
+      for (const kind of SEMANTIC_KINDS) {
+        if (el.classList.contains(kind)) return kind;
+      }
+      return null;
+    };
+    // Flowchart / class / state nodes.
     let hue = 0;
     root.querySelectorAll("g.node, g.statediagram-state").forEach((el) => {
-      el.classList.add("do-node", `do-hue-${hue % HUE_COUNT}`);
-      hue++;
+      const kind = kindOf(el);
+      el.classList.add("do-node", kind ? `do-kind-${kind}` : `do-hue-${hue % HUE_COUNT}`);
+      if (!kind) hue++;
     });
     // Subgraph frames cycle the ramp independently.
     let clusterHue = 0;
