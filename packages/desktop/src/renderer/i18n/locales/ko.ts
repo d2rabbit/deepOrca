@@ -851,6 +851,8 @@ export const ko: Record<MessageKey, string> = {
   "symbols.home": "홈",
   "symbols.homeTitle": "전역 보기로 돌아가기",
   "symbols.recenter": "여기를 중심으로 펼치기",
+  "symbols.flowDown": "호출자 → 포커스",
+  "symbols.flowUp": "포커스 → 피호출자",
   "symbols.noRelations": "직접 관계 없음",
   "symbols.global": "전역",
   "symbols.globalView": "전역 허브 보기",

@@ -251,7 +251,12 @@ configureWikiController(
       if (!root) return {};
       try {
         const s = resolveCurrentSettings(root);
-        return { apiKey: s.apiKey, baseURL: s.baseURL, model: "deepseek-v4-flash" };
+        // Audit 2026-08-26 ("openwiki exited 1: terminated"): the CLI used to
+        // get a HARDCODED model while chat used the configured one, so a
+        // custom endpoint that only accepts its own model name aborted the
+        // wiki's LLM request at the network layer. Feed the active settings
+        // model through (chat-verified), keeping a sane fallback.
+        return { apiKey: s.apiKey, baseURL: s.baseURL, model: s.model ?? "deepseek-v4-flash" };
       } catch {
         return {};
       }

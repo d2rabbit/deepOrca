@@ -857,6 +857,8 @@ export const ja: Record<MessageKey, string> = {
   "symbols.home": "ホーム",
   "symbols.homeTitle": "グローバル表示に戻る",
   "symbols.recenter": "ここを中心に展開",
+  "symbols.flowDown": "呼び出し元 → 焦点",
+  "symbols.flowUp": "焦点 → 被呼び出し",
   "symbols.noRelations": "直接の関係なし",
   "symbols.global": "グローバル",
   "symbols.globalView": "グローバルハブビュー",

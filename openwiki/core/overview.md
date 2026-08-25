@@ -22,11 +22,11 @@ tags: [core, package, api-surface]
 | `src/prompt.ts` | Prompt templates | [Architecture/Prompt System](../architecture/prompt-system.md) |
 | `src/tools/` | `ToolExecutor` + 8 handlers | [tools](tools.md) |
 | `src/mcp/` | `McpManager` + built-in server seams | [mcp](mcp.md) |
-| `src/actions/` | `ActionRegistry`/`defineAction` + built-in actions | [actions](actions.md) |
+| `src/actions/` | `ActionRegistry`/`defineAction` + built-in actions (incl. `prototype.spec`/`prototype.materialize` since the design-module split) | [actions](actions.md) |
 | `src/routing/` | Embedded semantic routing | [routing](routing.md) |
 | `src/tasks/` | `TaskTreeService` | [task-tree](task-tree.md) |
 | `src/sandbox/` | Audit/policy/backends | [Architecture/Sandbox](../architecture/sandbox.md) |
-| `src/common/` | Common utilities | [common-utilities](common-utilities.md) |
+| `src/common/` | Common utilities (incl. `spawn-tracked.ts` hardened child runner) | [common-utilities](common-utilities.md) |
 | `src/gitmcp/` | GitMCP slug/path resolution | [mcp](mcp.md) |
 | `src/tests/` | Unit tests (50+ files) | "Focused Tests" on each page |
 
@@ -44,14 +44,15 @@ tags: [core, package, api-surface]
 8. **Files and paths**: `readTextFileWithMetadata`/`buildDiffPreview`/`gateWrite`/`gateRead`/`grantOutsideRootsFlags`.
 9. **Sandbox**: full `AuditLog` suite, `SandboxPolicyEngine`, `NoopSandboxBackend`, `MacosSandboxExecBackend`/`buildSeatbeltProfile`/`detectBashSandboxBackend`, `applyQuarantinePermissionClamp`.
 10. **State and history**: `normalizeFilePath`/`getSnippet`/`recordFileState`/`GitFileHistory`/`killProcessTree`/`launchNotifyScript`.
-11. **Knowledge index configuration**: codegraph (`buildCodegraphMcpServerConfig`), CRG (`configureCrgVersionRoot`/`runCrgResetWithOutput`), Serena, SkillSpector, Dembrandt, `resolveModernNode`, `resolveUvBinary`.
-12. **Host injection seams**: `configureSerenaController`, `configureSkillSpectorController`, `configureActivityFramesServerBuilder`, `configureGitmcpConfigBuilder`, `configureVisionServerBuilder`, `configureA2uiServerBuilder`, `configureRoutingModelDir`.
-13. **GitMCP resolution**: `parseRepoSlug`/`gitmcpServerNameForSlug`/`buildGitmcpPlaceholderConfig`, etc.
-14. **Model capabilities**: `supportsMultimodal`/`defaultsToThinkingMode`/`resolveModelSpec`/`resolveBackgroundLlm` + types.
-15. **Permissions**: `computeToolCallPermissions`/`buildPermissionToolExecution`/`appendProjectAllowedPaths`, etc. + types.
-16. **Actions**: `ActionRegistry`/`defineAction`/`dispatchToolCall`/`configureActionSpawner` + all built-in action definitions and run functions + controller seam + `BackgroundLlmTaskOptions`/`BackgroundLlmTaskResult`（无会话后台任务类型，见 [actions](actions.md)）。
-17. **Task tree**: `TaskTreeService` + types.
-18. **Session prompt i18n**: `configureSessionLocale`/`formatSessionPrompt`.
+11. **Knowledge index configuration**: codegraph (`buildCodegraphMcpServerConfig`), CRG (`configureCrgVersionRoot`/`runCrgResetWithOutput` — the CRG MCP server config builder was removed 2026-08-23, queries go through `crg-query`/direct SQLite), Serena, SkillSpector, Dembrandt, `resolveModernNode`, `resolveUvBinary`.
+12. **Hardened child-process runner**: `spawnTracked`/`configureSpawnTrackedLogger` (exit-authoritative settlement, hard timeout, heartbeat with `finishOk` force-success, single-settle guard — shared by the wiki/CRG/OCR CLI adapters in desktop, see [common-utilities](common-utilities.md)).
+13. **Host injection seams**: `configureSerenaController`, `configureSkillSpectorController`, `configureActivityFramesServerBuilder`, `configureGitmcpConfigBuilder`, `configureVisionServerBuilder`, `configureA2uiServerBuilder`, `configureRoutingModelDir`.
+14. **GitMCP resolution**: `parseRepoSlug`/`gitmcpServerNameForSlug`/`buildGitmcpPlaceholderConfig`, etc.
+15. **Model capabilities**: `supportsMultimodal`/`defaultsToThinkingMode`/`resolveModelSpec`/`resolveBackgroundLlm` + types.
+16. **Permissions**: `computeToolCallPermissions`/`buildPermissionToolExecution`/`appendProjectAllowedPaths`, etc. + types.
+17. **Actions**: `ActionRegistry`/`defineAction`/`dispatchToolCall`/`configureActionSpawner` + all built-in action definitions and run functions + controller seam + `BackgroundLlmTaskOptions`/`BackgroundLlmTaskResult`（无会话后台任务类型，见 [actions](actions.md)）。
+18. **Task tree**: `TaskTreeService` + types.
+19. **Session prompt i18n**: `configureSessionLocale`/`formatSessionPrompt`.
 
 ## ESM Build Notes
 

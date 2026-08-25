@@ -31,6 +31,7 @@ tags: [common, utilities, openai-client]
 | `uv.ts` | `resolveUvBinary`/`configureUvVendorRoot` (shared uv resolution for CRG/Serena/SkillSpector) |
 | `shell-utils.ts` | `findGitBashPath`/`resolveShellPath`/`setShellIfWindows` (Windows bash tools must use Git Bash) |
 | `process-tree.ts` | `killProcessTree` (cleans up the process tree during session cleanup) |
+| `spawn-tracked.ts` | **`spawnTracked` 加固单次子进程 runner**（`configureSpawnTrackedLogger` 注入 host 日志，core 从不直接 console）：`exit` 权威结算 + 2s stdout 冲刷宽限、硬超时（SIGKILL + reject）、心跳钩子带 `finishOk()` 强制按成功结算（权威完成标记——工作已完成只剩 exit 卡住时不得报失败）、单次结算防护、stderr 即时入 host 日志。wiki/CRG/OCR CLI 适配器共用的**唯一**实现（desktop 不得反向复制，见 [desktop/main-tools](../desktop/main-tools.md)） |
 | `bash-timeout.ts` | `clampBashTimeoutMs` + increment/decrement constants |
 | `notify.ts` | `launchNotifyScript` (system notification when a task completes) |
 

@@ -267,8 +267,20 @@ export class WikiCliController implements WikiController {
 
     const ok = result.forcedOk || result.code === 0 || markerSeenAt > 0;
     if (!ok) {
+      // Audit 2026-08-26: a bare "openwiki exited 1: terminated" was
+      // unactionable — "terminated" is LangChain's network-error pattern
+      // (undici connection aborted). Surface the used model and a fix hint
+      // (secrets never printed) when the stderr matches the pattern family.
+      const stderrMsg = result.stderr ? result.stderr.slice(0, 500) : "";
+      const netFail =
+        /^(terminated|fetch failed|Network request failed|The Internet connection appears to be offline)/i.test(
+          result.stderr.trimStart()
+        );
+      const hint = netFail
+        ? `（LLM 网络层被中断：请核对 设置→模型 / API Key / Base URL；本次使用模型 ${env.OPENWIKI_MODEL_ID ?? "默认"}）`
+        : "";
       throw new Error(
-        `openwiki exited ${result.code}${result.signal ?? ""}${result.stderr ? `: ${result.stderr.slice(0, 500)}` : ""}`
+        `openwiki exited ${result.code}${result.signal ?? ""}${stderrMsg ? `: ${stderrMsg}` : ""}${hint}`
       );
     }
     const exitNote =

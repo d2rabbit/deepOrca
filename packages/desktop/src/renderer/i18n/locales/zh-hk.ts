@@ -833,6 +833,8 @@ export const zhHK: Record<MessageKey, string> = {
   "symbols.home": "首頁",
   "symbols.homeTitle": "回到全域檢視",
   "symbols.recenter": "以此為中心展開",
+  "symbols.flowDown": "調用方 → 焦點",
+  "symbols.flowUp": "焦點 → 被調用",
   "symbols.noRelations": "無直接關係",
   "symbols.global": "全域",
   "symbols.globalView": "全域樞紐檢視",
