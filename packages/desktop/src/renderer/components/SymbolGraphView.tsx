@@ -32,9 +32,12 @@ type Props = {
 };
 
 /** Column layout band — below MIN the graph scrolls horizontally instead of
- *  becoming unreadable; above MAX extra window width goes to text, not cols. */
+ *  becoming unreadable. The old 520px MAX cap left a maximized window with
+ *  three narrow columns hugging the left edge (real-machine feedback); the
+ *  cap now only guards absurdity — the graph is expected to FILL the pane,
+ *  with text budgets growing alongside the columns. */
 const MIN_COL_W = 240;
-const MAX_COL_W = 520;
+const MAX_COL_W = 1200;
 /** Fallback before the ResizeObserver reports (and in the DOM test harness). */
 const DEFAULT_COL_W = 250;
 const COL_GAP = 54;

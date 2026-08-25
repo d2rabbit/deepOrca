@@ -9620,6 +9620,13 @@ button.ui-topbar-pill {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  /* Fill the pane AND stay centered: on a wide window the (now uncapped)
+     columns stretch to the full width; if the graph is still narrower than
+     the pane it centers instead of piling on the left edge; wider than the
+     pane → scroll from the start edge (`safe center`). */
+  display: grid;
+  justify-content: safe center;
+  align-content: start;
   border: 1px solid var(--ui-border-soft, #e3e6eb);
   border-radius: 10px;
   background-color: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
@@ -10362,35 +10369,20 @@ button.ui-topbar-pill {
   border-bottom: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
   background: color-mix(in srgb, var(--ui-surface, #fff) 55%, transparent);
 }
-.ui-arch-chartswitch {
+/* Chart count chip — replaces the old chart switcher now that ALL charts
+   render on one page. */
+.ui-arch-count {
   display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--ui-border-soft, #e3e6eb);
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--ui-surface, #fff);
-}
-.ui-arch-chartswitch button {
-  border: none;
-  background: transparent;
+  align-items: center;
+  gap: 6px;
   padding: 3px 12px;
-  font-size: 11px;
   border-radius: 999px;
-  color: var(--ui-text-dim, #55606d);
-  cursor: pointer;
-  transition:
-    background 0.15s var(--ui-ease),
-    color 0.15s var(--ui-ease);
-}
-.ui-arch-chartswitch button:hover {
-  color: var(--ui-text);
-}
-.ui-arch-chartswitch button.active {
-  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
-  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 35%, transparent);
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 9%, transparent);
+  color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 85%, var(--ui-text, inherit));
+  font-size: 11px;
   font-weight: 600;
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 40%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 .ui-arch-zoom {
   display: inline-flex;
@@ -10455,10 +10447,74 @@ button.ui-topbar-pill {
   position: relative;
   border-radius: 12px;
 }
-/* Measured, unscaled content box inside the scaled stage. */
+/* Measured, unscaled content box inside the scaled stage. The stack centers
+   inside the stage box (stage width = widest chart × scale). */
 .ui-arch-stage-inner {
   width: max-content;
   padding: 10px;
+}
+/* One chart section: badge + heading above the map, narrower charts center
+   under wider siblings. */
+.ui-arch-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.ui-arch-section-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  margin: 6px 0 14px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 60%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ui-arch-section-badge {
+  flex-shrink: 0;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+.ui-arch-section-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ui-text, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Drill rail between charts — the scan is a top-down progression (overview →
+   module → detail); the diamond node marks each step down. */
+.ui-arch-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 4px 0;
+}
+.ui-arch-flow-line {
+  width: 2px;
+  height: 20px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 45%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 45%, transparent)
+  );
+}
+.ui-arch-flow-node {
+  font-size: 9px;
+  line-height: 1;
+  padding: 3px;
+  color: var(--ui-diagram-hue-1, #a78bfa);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 55%, transparent);
 }
 /* Inside the canvas the diagram floats bare — the container card look is for
    inline wiki markdown, not for the full-pane map. */
@@ -10467,37 +10523,6 @@ button.ui-topbar-pill {
   border: none;
   margin: 0;
   padding: 0;
-}
-.ui-arch-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 8px 0 2px;
-  font-size: 11px;
-  color: var(--ui-text-dim, #55606d);
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-.ui-arch-pager button {
-  width: 26px;
-  height: 22px;
-  border: 1px solid var(--ui-border-soft, #e3e6eb);
-  background: var(--ui-surface, #fff);
-  border-radius: 999px;
-  cursor: pointer;
-  color: var(--ui-text-dim, #55606d);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.ui-arch-pager button:hover:not(:disabled) {
-  border-color: var(--ui-accent, #3b82f6);
-  color: var(--ui-accent, #3b82f6);
-}
-.ui-arch-pager button:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 .ui-knowledge-archframe-head {
   display: flex;

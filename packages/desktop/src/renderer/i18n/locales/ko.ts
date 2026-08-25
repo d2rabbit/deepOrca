@@ -943,6 +943,7 @@ export const ko: Record<MessageKey, string> = {
   "index.buildElapsed": "경과 {time}",
   "index.buildConsole": "콘솔 출력",
   "index.archChart": "다이어그램 {n}",
+  "index.archChartCount": "전체 다이어그램 · {n}개",
   "index.archZoomIn": "확대",
   "index.archZoomOut": "축소",
   "index.archFitWidth": "폭 맞춤",

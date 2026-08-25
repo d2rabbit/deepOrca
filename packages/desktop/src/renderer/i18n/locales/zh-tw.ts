@@ -925,6 +925,7 @@ export const zhTW: Record<MessageKey, string> = {
   "index.buildElapsed": "已執行 {time}",
   "index.buildConsole": "主控台輸出",
   "index.archChart": "圖 {n}",
+  "index.archChartCount": "共 {n} 圖",
   "index.archZoomIn": "放大",
   "index.archZoomOut": "縮小",
   "index.archFitWidth": "適配寬度",

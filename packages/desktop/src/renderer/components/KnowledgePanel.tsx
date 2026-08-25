@@ -492,26 +492,52 @@ function WikiPageView({
 type ArchContent = { kind: "md"; markdown: string } | { kind: "a2ui"; messagesJson: string; surfaceId: string };
 
 /** Extract ```mermaid fence bodies — the arch doc's prose is not displayed. */
-function extractMermaidBlocks(markdown: string): string[] {
-  const blocks: string[] = [];
-  const re = /```mermaid\s*\n([\s\S]*?)```/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(markdown)) !== null) {
-    const chart = m[1].trim();
-    if (chart) blocks.push(chart);
+/** One rendered chart plus the document section it belongs to.
+ *  The nearest preceding heading becomes the chart's title — arch-scan writes
+ *  its narration as headed sections, so the heading IS the relationship the
+ *  chart bears to the ones around it (top-level → module → detail). */
+type ArchSection = { title: string; chart: string };
+
+/** Split an arch doc into headed mermaid sections (state machine over lines —
+ *  fence-aware, so a heading inside a diagram is never mistaken for a doc
+ *  heading). Charts with no preceding heading fall back to 图 N. */
+function extractArchSections(markdown: string): ArchSection[] {
+  const sections: ArchSection[] = [];
+  let heading = "";
+  let inFence = false;
+  let chartLines: string[] = [];
+  for (const line of markdown.split(/\r?\n/)) {
+    if (!inFence && /^```mermaid\s*$/.test(line)) {
+      inFence = true;
+      chartLines = [];
+      continue;
+    }
+    if (inFence && /^```\s*$/.test(line)) {
+      inFence = false;
+      const chart = chartLines.join("\n").trim();
+      if (chart) sections.push({ title: heading, chart });
+      continue;
+    }
+    if (inFence) {
+      chartLines.push(line);
+      continue;
+    }
+    const h = line.match(/^#{1,4}\s+(.+?)\s*#*\s*$/);
+    if (h) heading = h[1].trim();
   }
-  return blocks;
+  return sections;
 }
 
 /**
- * Arch map viewer (real-machine feedback: the presentation was too bare).
- * The `.md` artifact is scan narration around mermaid fences; the panel's job
- * is to show the MAP well:
- *   - multiple diagrams become a switcher (图 1/2/…) instead of a long scroll;
- *   - zoom −/+ plus 适配宽度 (fit-to-width) that auto-scales to the pane and
- *     re-fits on window resize (ResizeObserver — the map adapts to the
- *     window, never a fixed size, same principle as the symbol graph);
- *   - "open in editor" for the artifact source.
+ * Arch map viewer — ONE PAGE, ALL CHARTS (real-machine feedback round 2: the
+ * chart-switcher felt stingy, and its fit logic clamped tall diagrams to
+ * 100% so they never grew).
+ *   - every mermaid section of the artifact renders stacked on one dotted
+ *     canvas, each under its section badge + heading, connected by a drill
+ *     rail (the scan IS a top-down progression — the rail shows it);
+ *   - 适配宽度 scales the whole stack to the pane width (upscaling allowed,
+ *     capped 1.9×; no height clamp — the page is meant to scroll vertically);
+ *   - zoom −/+ and "open in editor" for the artifact source.
  * Documents with no mermaid block fall back to full markdown so nothing
  * renders blank.
  */
@@ -523,35 +549,30 @@ function ArchDiagrams({
   onOpenSource: (() => void) | null;
 }): JSX.Element {
   const { t } = useI18n();
-  const charts = useMemo(() => extractMermaidBlocks(markdown), [markdown]);
-  const [idx, setIdx] = useState(0);
+  const sections = useMemo(() => extractArchSections(markdown), [markdown]);
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
   const frameRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [frameW, setFrameW] = useState(0);
-  const [frameH, setFrameH] = useState(0);
   const [naturalW, setNaturalW] = useState(0);
   const [naturalH, setNaturalH] = useState(0);
 
-  // Pane size drives the fit scale — re-fits on window/panel resizes.
+  // Pane width drives the fit scale — re-fits on window/panel resizes.
   useEffect(() => {
     const el = frameRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      const w = Math.floor(rect?.width ?? 0);
-      const h = Math.floor(rect?.height ?? 0);
+      const w = Math.floor(entries[0]?.contentRect.width ?? 0);
       if (w > 0) setFrameW(w);
-      if (h > 0) setFrameH(h);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // Unscaled content size — measured on the INNER box so the explicit scaled
+  // Unscaled stack size — measured on the INNER box so the explicit scaled
   // stage box below never feeds back into its own measurement. ResizeObserver
-  // fires when mermaid injects the svg, so the fit baseline lands without
-  // polling.
+  // fires as each mermaid svg injects, so the fit baseline lands without
+  // polling. The stack width settles at its WIDEST chart.
   useEffect(() => {
     const el = innerRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -565,44 +586,21 @@ function ArchDiagrams({
     return () => ro.disconnect();
   }, []);
 
-  if (charts.length === 0) {
+  if (sections.length === 0) {
     return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
   }
-  const active = charts[Math.min(idx, charts.length - 1)];
-  // 适配宽度 used to cap at 100% — a small diagram left a mostly-empty canvas
-  // and tiny text. Fit now scales UP so the map owns the pane: bounded by the
-  // width fit, the upscale ceiling, and (for tall charts) ~120% of the height
-  // fit so filling the width doesn't turn into three screens of scrolling.
-  // Diagrams WIDER than the pane still fit-to-width exactly as before.
+  // Fit = width only, upscale allowed (a small map owns the pane). The old
+  // height-fit clamp kept every tall diagram pinned at 100% — the exact
+  // "still stingy" report. The stacked page scrolls vertically by design.
   const widthFit = naturalW > 0 && frameW > 0 ? frameW / naturalW : 1;
-  const heightFit = naturalH > 0 && frameH > 0 ? frameH / naturalH : Infinity;
-  const fitScale =
-    widthFit >= 1 ? Math.min(widthFit, 1.9, Math.max(1, heightFit * 1.2)) : Math.min(1, Math.max(0.15, widthFit));
+  const fitScale = Math.min(1.9, Math.max(0.15, widthFit));
   const scale = fit ? fitScale : zoom;
   const clampZoom = (z: number): number => Math.min(3, Math.max(0.2, z));
 
   return (
     <div className="ui-arch-viewer">
       <div className="ui-arch-toolbar">
-        {charts.length > 1 ? (
-          <div className="ui-arch-chartswitch" role="tablist">
-            {charts.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                role="tab"
-                aria-selected={i === idx}
-                className={i === idx ? "active" : ""}
-                onClick={() => {
-                  setIdx(i);
-                  setFit(true);
-                }}
-              >
-                {t("index.archChart", { n: i + 1 })}
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <span className="ui-arch-count">{t("index.archChartCount", { n: sections.length })}</span>
         <div className="ui-arch-zoom">
           <button
             type="button"
@@ -657,27 +655,25 @@ function ArchDiagrams({
           }}
         >
           <div className="ui-arch-stage-inner" ref={innerRef}>
-            <MermaidDiagram chart={active} />
+            {sections.map((section, i) => (
+              <div className="ui-arch-section" key={i}>
+                <div className="ui-arch-section-head">
+                  <span className="ui-arch-section-badge">{t("index.archChart", { n: i + 1 })}</span>
+                  <span className="ui-arch-section-title">{section.title || t("index.archChart", { n: i + 1 })}</span>
+                </div>
+                <MermaidDiagram chart={section.chart} />
+                {i < sections.length - 1 ? (
+                  <div className="ui-arch-flow" aria-hidden>
+                    <span className="ui-arch-flow-line" />
+                    <span className="ui-arch-flow-node">◆</span>
+                    <span className="ui-arch-flow-line" />
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </div>
         </div>
       </div>
-      {charts.length > 1 ? (
-        <div className="ui-arch-pager">
-          <button type="button" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>
-            ←
-          </button>
-          <span>
-            {idx + 1} / {charts.length}
-          </span>
-          <button
-            type="button"
-            disabled={idx >= charts.length - 1}
-            onClick={() => setIdx((i) => Math.min(charts.length - 1, i + 1))}
-          >
-            →
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

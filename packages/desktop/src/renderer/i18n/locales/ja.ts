@@ -949,6 +949,7 @@ export const ja: Record<MessageKey, string> = {
   "index.buildElapsed": "経過 {time}",
   "index.buildConsole": "コンソール出力",
   "index.archChart": "図 {n}",
+  "index.archChartCount": "全図 · {n} 件",
   "index.archZoomIn": "拡大",
   "index.archZoomOut": "縮小",
   "index.archFitWidth": "幅に合わせる",
