@@ -19,7 +19,7 @@
  * (columns get identity hues: callers violet · focus blue · callees teal).
  */
 
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import type { KnowledgeSymbolGraph, KnowledgeSymbolGraphNode } from "../../shared/ipc";
@@ -63,18 +63,38 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   const currentRef = useRef(query);
   currentRef.current = query;
   // Live container width — drives the responsive three-column layout.
+  // Real-machine feedback: a lone ResizeObserver(contentRect) missed the
+  // maximize transition (graph stayed at the mount-time width, centered but
+  // not filling), so measurement is belt-and-braces — direct
+  // getBoundingClientRect on mount, on every window resize, and on every
+  // graph change, PLUS the observer for panel-drag resizes.
   const scrollRef = useRef<HTMLDivElement>(null);
   const [availW, setAvailW] = useState(0);
-  useEffect(() => {
+  const measure = useCallback(() => {
     const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      const w = Math.floor(entries[0]?.contentRect.width ?? 0);
-      if (w > 0) setAvailW(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    if (!el) return;
+    const w = Math.floor(el.getBoundingClientRect().width);
+    if (w > 0) setAvailW((prev) => (Math.abs(prev - w) > 1 ? w : prev));
   }, []);
+  useEffect(() => {
+    measure();
+    const el = scrollRef.current;
+    let ro: ResizeObserver | undefined;
+    if (el && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => measure());
+      ro.observe(el);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [measure]);
+  // The tab mounts lazily (Suspense) — re-measure once data lands so a
+  // zero/ambiguous first layout never sticks.
+  useEffect(() => {
+    measure();
+  }, [graph, measure]);
 
   const recenter = (name: string): void => {
     if (name === query) return;

@@ -10445,16 +10445,23 @@ button.ui-topbar-pill {
 }
 .ui-arch-stage {
   position: relative;
-  border-radius: 12px;
+  /* Width comes from the zoom × frame measurement (inline style); flow
+     layout — each chart card carries its own scaled box. */
+  min-width: min-content;
 }
-/* Measured, unscaled content box inside the scaled stage. The stack centers
-   inside the stage box (stage width = widest chart × scale). */
-.ui-arch-stage-inner {
+/* One chart card: natural content inside, explicit scaled box outside. The
+   box centers when a chart's upscale is capped (very narrow chart). */
+.ui-arch-chart {
+  position: relative;
+}
+.ui-arch-chart-box {
+  margin: 0 auto;
+}
+.ui-arch-chart-inner {
   width: max-content;
-  padding: 10px;
+  margin: 0 auto;
 }
-/* One chart section: badge + heading above the map, narrower charts center
-   under wider siblings. */
+/* One chart section: badge + heading above the map. */
 .ui-arch-section {
   display: flex;
   flex-direction: column;
@@ -10466,8 +10473,8 @@ button.ui-topbar-pill {
   align-items: center;
   gap: 10px;
   max-width: 100%;
-  margin: 6px 0 14px;
-  padding: 4px 8px;
+  margin: 2px 0 10px;
+  padding: 3px 8px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
   border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 60%, transparent);
@@ -10484,7 +10491,7 @@ button.ui-topbar-pill {
   background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
 }
 .ui-arch-section-title {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--ui-text, inherit);
   white-space: nowrap;
@@ -10497,11 +10504,11 @@ button.ui-topbar-pill {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 .ui-arch-flow-line {
   width: 2px;
-  height: 20px;
+  height: 14px;
   border-radius: 2px;
   background: linear-gradient(
     to bottom,
