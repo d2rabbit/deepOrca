@@ -9,6 +9,7 @@ import { SymbolGraphView } from "./SymbolGraphView";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { StreamdownView } from "./StreamdownView";
 import { MermaidDiagram } from "./MermaidDiagram";
+import { TocNav, useHeadingToc } from "./TocNav";
 import { buildStageVerb, formatBuildDuration } from "./KnowledgeBuildProgress";
 import { FRONTMATTER_RE } from "../lib/frontmatter";
 import { useBuildJobs } from "../hooks/useBuildJobs";
@@ -226,6 +227,19 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   // concept (product decision); reselect whenever the current pick vanishes
   // (deleted or replaced by a fresh scan).
   const archFilePaths = (status?.archmaps.files ?? []).map((f) => f.path).join("|");
+  // Artifact pager neighbours (Oink: pager shares the tree's one order —
+  // here: mtime-desc, the exact order the auto-select newest logic uses).
+  const archNeighbours = useMemo(() => {
+    const ordered = [...(status?.archmaps.files ?? [])].sort((a, b) => b.mtime.localeCompare(a.mtime));
+    const idx = ordered.findIndex((f) => f.path === preview);
+    return {
+      prevName: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1].name : null,
+      prevPath: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1].path : null,
+      nextName: idx > 0 ? ordered[idx - 1].name : null,
+      nextPath: idx > 0 ? ordered[idx - 1].path : null,
+    };
+  }, [status?.archmaps.files, preview]);
+
   useEffect(() => {
     const files = status?.archmaps.files ?? [];
     if (files.length === 0) {
@@ -367,20 +381,13 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
               </div>
             )
           ) : sub === "agents" ? (
-            <div className="ui-knowledge-agents">
-              {agentsContent != null ? (
-                <>
-                  <div className="ui-knowledge-agents-actions">
-                    <Button size="sm" variant="subtle" onClick={() => onOpenFile(`${root}/AGENTS.md`)}>
-                      {t("index.openAgents")}
-                    </Button>
-                  </div>
-                  <StreamdownView className="ui-knowledge-agents-md ui-md" markdown={agentsContent} />
-                </>
-              ) : (
-                <div className="ui-side-panel-empty">{t("index.agentsMissing")}</div>
-              )}
-            </div>
+            <AgentsDocView
+              content={agentsContent}
+              onOpenFile={() => onOpenFile(`${root}/AGENTS.md`)}
+              openLabel={t("index.openAgents")}
+              missingLabel={t("index.agentsMissing")}
+              tocLabel={t("index.wikiToc")}
+            />
           ) : sub === "symbols" ? (
             <div className="ui-knowledge-symbols">
               <div className="ui-knowledge-symbol-toolbar">
@@ -501,6 +508,8 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                     path={preview}
                     title={(status?.archmaps.files ?? []).find((f) => f.path === preview)?.name ?? preview}
                     onOpenFile={onOpenFile}
+                    onNavigate={(path) => setPreview(path)}
+                    neighbours={archNeighbours}
                   />
                 </div>
               ) : null}
@@ -513,6 +522,55 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
 }
 
 /** Delegated code-copy for the wiki preview (same contract as chat). */
+/** AGENTS document view — same reading shell as wiki pages (Oink adaptation):
+ *  centered 860 column + on-this-page TOC with scrollspy on wide panes. */
+function AgentsDocView({
+  content,
+  onOpenFile,
+  openLabel,
+  missingLabel,
+  tocLabel,
+}: {
+  content: string | null;
+  onOpenFile: () => void;
+  openLabel: string;
+  missingLabel: string;
+  tocLabel: string;
+}): JSX.Element {
+  const docRef = useRef<HTMLDivElement>(null);
+  const { toc, activeId } = useHeadingToc(docRef, content, {
+    idPrefix: "agents",
+    scrollerClosest: ".ui-knowledge-body",
+  });
+  if (content == null) {
+    return (
+      <div className="ui-knowledge-agents">
+        <div className="ui-side-panel-empty">{missingLabel}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="ui-knowledge-agents">
+      <div className="ui-knowledge-agents-actions">
+        <Button size="sm" variant="subtle" onClick={onOpenFile}>
+          {openLabel}
+        </Button>
+      </div>
+      <div className="ui-wiki-columns">
+        <div ref={docRef}>
+          <StreamdownView className="ui-knowledge-agents-md ui-md" markdown={content} />
+        </div>
+        <TocNav
+          entries={toc}
+          activeId={activeId}
+          label={tocLabel}
+          onJump={(id) => docRef.current?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: "smooth" })}
+        />
+      </div>
+    </div>
+  );
+}
+
 /**
  * Wiki reading shell (ideas adopted from the Oink Hugo theme's shell/nav
  * contracts — pgsty/oink.pgsty.com, Apache-2.0): breadcrumb + frontmatter
@@ -552,61 +610,10 @@ function WikiPageView({
   const { title, description, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
   const quoteTitle = title ?? fallbackTitle.split("/").pop() ?? "wiki";
   const docRef = useRef<HTMLDivElement>(null);
-  // TOC entries are derived from the RENDERED headings (StreamdownView does
-  // not run rehype-slug), so a post-render pass assigns ids and lists them.
-  const [toc, setToc] = useState<Array<{ id: string; text: string; level: number }>>([]);
-  const [activeId, setActiveId] = useState("");
-
-  useEffect(() => {
-    const doc = docRef.current;
-    if (!doc) return;
-    const headings = Array.from(doc.querySelectorAll<HTMLElement>("h2, h3"));
-    const slugCount = new Map<string, number>();
-    const entries: Array<{ id: string; text: string; level: number }> = [];
-    for (const h of headings) {
-      const text = (h.textContent ?? "").trim();
-      if (!text) continue;
-      let slug =
-        text
-          .toLowerCase()
-          .replace(/[^\p{L}\p{N}]+/gu, "-")
-          .replace(/^-+|-+$/g, "") || "sec";
-      const n = slugCount.get(slug) ?? 0;
-      slugCount.set(slug, n + 1);
-      if (n > 0) slug = `${slug}-${n}`;
-      if (!h.id) h.id = `wiki-${slug}`;
-      entries.push({ id: h.id, text, level: Number(h.tagName.slice(1)) });
-    }
-    setToc(entries);
-    setActiveId(entries[0]?.id ?? "");
-  }, [body]);
-
-  // Scrollspy: the last heading whose top passed the line wins.
-  useEffect(() => {
-    if (toc.length === 0) return;
-    const doc = docRef.current;
-    if (!doc) return;
-    const onScroll = (): void => {
-      const headings = toc
-        .map((e) => doc.querySelector<HTMLElement>(`#${CSS.escape(e.id)}`))
-        .filter((el): el is HTMLElement => el != null);
-      let current = headings[0]?.id ?? "";
-      for (const el of headings) {
-        if (el.getBoundingClientRect().top <= 96) current = el.id;
-      }
-      setActiveId(current);
-    };
-    onScroll();
-    // The scroll container is the preview pane (the page itself doesn't
-    // scroll) — listen on both window and the closest scroller.
-    const scroller = doc.closest(".ui-knowledge-wiki-preview");
-    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
-    scroller?.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
-      scroller?.removeEventListener("scroll", onScroll);
-    };
-  }, [toc]);
+  const { toc, activeId } = useHeadingToc(docRef, body, { idPrefix: "wiki" });
+  const jump = (id: string): void => {
+    docRef.current?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const crumb = fallbackTitle.split("/").filter(Boolean);
 
@@ -644,24 +651,7 @@ function WikiPageView({
         <div ref={docRef} className="ui-wiki-doc-wrap">
           <StreamdownView className="ui-knowledge-agents-md ui-md ui-wiki-doc" markdown={body} />
         </div>
-        {toc.length > 0 ? (
-          <nav className="ui-wiki-toc" aria-label={tocLabel}>
-            <div className="ui-wiki-toc-label">{tocLabel}</div>
-            {toc.map((e) => (
-              <a
-                key={e.id}
-                href={`#${e.id}`}
-                className={`ui-wiki-toc-item level-${e.level}${activeId === e.id ? " active" : ""}`}
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  docRef.current?.querySelector(`#${CSS.escape(e.id)}`)?.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                {e.text}
-              </a>
-            ))}
-          </nav>
-        ) : null}
+        <TocNav entries={toc} activeId={activeId} label={tocLabel} onJump={jump} />
       </div>
       {prev || next ? (
         <div className="ui-wiki-pager">
@@ -824,12 +814,26 @@ function ArchChartFit({
 function ArchDiagrams({
   markdown,
   onOpenSource,
+  tocLabel,
 }: {
   markdown: string;
   onOpenSource: (() => void) | null;
+  tocLabel: string;
 }): JSX.Element {
   const { t } = useI18n();
   const sections = useMemo(() => extractArchSections(markdown), [markdown]);
+  // On-this-page rail (Oink adaptation): one entry per chart section,
+  // scrollspy over the board's own scroll container.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const { toc, activeId } = useHeadingToc(boardRef, sections, {
+    selector: ".ui-arch-card",
+    idPrefix: "arch",
+    scrollerClosest: ".ui-arch-board",
+    textOf: (el) => el.getAttribute("data-toc") ?? "",
+  });
+  const jump = (id: string): void => {
+    boardRef.current?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   if (sections.length === 0) {
     return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
@@ -852,28 +856,38 @@ function ArchDiagrams({
           </Button>
         ) : null}
       </div>
-      <div className="ui-arch-board">
-        <div className="ui-arch-card ui-arch-card--hero">
-          {head(hero, 1)}
-          <ArchChartFit chart={hero.chart} minScale={0.6} maxScale={1.8} />
+      <div className="ui-arch-shell">
+        <div className="ui-arch-board" ref={boardRef}>
+          <div
+            className="ui-arch-card ui-arch-card--hero"
+            data-toc={`${t("index.archChart", { n: 1 })} · ${hero.title || ""}`}
+          >
+            {head(hero, 1)}
+            <ArchChartFit chart={hero.chart} minScale={0.6} maxScale={1.8} />
+          </div>
+          {modules.length > 0 ? (
+            <>
+              <div className="ui-arch-flow" aria-hidden>
+                <span className="ui-arch-flow-line" />
+                <span className="ui-arch-flow-node">◆</span>
+                <span className="ui-arch-flow-line" />
+              </div>
+              <div className="ui-arch-grid">
+                {modules.map((section, i) => (
+                  <div
+                    className="ui-arch-card"
+                    key={i}
+                    data-toc={`${t("index.archChart", { n: i + 2 })} · ${section.title || ""}`}
+                  >
+                    {head(section, i + 2)}
+                    <ArchChartFit chart={section.chart} minScale={0.55} maxScale={1.6} />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
-        {modules.length > 0 ? (
-          <>
-            <div className="ui-arch-flow" aria-hidden>
-              <span className="ui-arch-flow-line" />
-              <span className="ui-arch-flow-node">◆</span>
-              <span className="ui-arch-flow-line" />
-            </div>
-            <div className="ui-arch-grid">
-              {modules.map((section, i) => (
-                <div className="ui-arch-card" key={i}>
-                  {head(section, i + 2)}
-                  <ArchChartFit chart={section.chart} minScale={0.55} maxScale={1.6} />
-                </div>
-              ))}
-            </div>
-          </>
-        ) : null}
+        <TocNav entries={toc} activeId={activeId} label={tocLabel} onJump={jump} className="ui-arch-toc" />
       </div>
     </div>
   );
@@ -883,10 +897,15 @@ function KnowledgeArchPreview({
   path,
   title,
   onOpenFile,
+  onNavigate,
+  neighbours,
 }: {
   path: string;
   title: string;
   onOpenFile: (path: string) => void;
+  /** Artifact pager (Oink idea: one order, pager navigates it). */
+  onNavigate: (path: string) => void;
+  neighbours: { prevName: string | null; prevPath: string | null; nextName: string | null; nextPath: string | null };
 }): JSX.Element {
   const { t } = useI18n();
   const archTitle = title.replace(/^arch-/, "").replace(/\.json$/, "");
@@ -956,11 +975,37 @@ function KnowledgeArchPreview({
     <div className="ui-knowledge-archframe">
       <div className="ui-knowledge-archframe-head">
         <span className="ui-knowledge-archframe-title">◈ {archTitle}</span>
+        <div className="ui-arch-pager">
+          {neighbours.prevPath ? (
+            <button
+              type="button"
+              title={neighbours.prevName ?? undefined}
+              aria-label={t("index.wikiPrev")}
+              onClick={() => onNavigate(neighbours.prevPath ?? "")}
+            >
+              ←
+            </button>
+          ) : null}
+          {neighbours.nextPath ? (
+            <button
+              type="button"
+              title={neighbours.nextName ?? undefined}
+              aria-label={t("index.wikiNext")}
+              onClick={() => onNavigate(neighbours.nextPath ?? "")}
+            >
+              →
+            </button>
+          ) : null}
+        </div>
         <span className="ui-knowledge-archframe-meta">{meta}</span>
       </div>
       <div className="ui-knowledge-preview-a2ui">
         {content?.kind === "md" ? (
-          <ArchDiagrams markdown={content.markdown} onOpenSource={() => onOpenFile(path)} />
+          <ArchDiagrams
+            markdown={content.markdown}
+            onOpenSource={() => onOpenFile(path)}
+            tocLabel={t("index.wikiToc")}
+          />
         ) : content?.kind === "html" ? (
           /* The layered board: self-contained, JavaScript-free HTML painted on a
            * fully-sandboxed canvas (empty sandbox = no scripts, no same-origin,
