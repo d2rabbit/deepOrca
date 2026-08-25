@@ -102,6 +102,9 @@ export const zhTW: Record<MessageKey, string> = {
   "welcome.hintNew": "新增工作階段",
   "welcome.hintPalette": "命令面板",
   "welcome.hintShortcuts": "所有快捷鍵",
+  "suggest.knowledgeTitle": "Wiki 已更新 · {n} 頁",
+  "suggest.viewWiki": "檢視",
+  "suggest.askArch": "請基於 @openwiki/ 目錄下的 Wiki，分析這個專案的整體架構，並指出最值得改進的 3 個點：",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "（無內容）",
@@ -953,6 +956,8 @@ export const zhTW: Record<MessageKey, string> = {
   "review.oneClickFix": "一鍵修復",
   "review.fixHint": "根據目前審查病灶生成修復規劃，切到會話模式執行修復",
   "review.findingsCount": "{n} 項病灶",
+  "review.askInChat": "在對話中追問",
+  "review.askPrompt": "請分析以下程式碼審查發現，並逐條給予處理建議：",
   "review.action.review": "審查變更",
   "review.action.review.hint": "對未提交變更進行 AI 語義審查(ocr)。",
   "review.action.full": "一鍵程式碼審查",

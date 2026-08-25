@@ -28,10 +28,13 @@ type ReviewActionId = "review.full";
 export function CodeReviewPanel({
   onShowGraph,
   onOneClickFix,
+  onAskInChat,
 }: {
   onShowGraph: (html: string) => void;
   /** One-click fix: hand the current findings to App (plan → session → fix). */
   onOneClickFix: (findings: ReviewFinding[]) => void;
+  /** Flow bridge: quote the findings into the chat composer for follow-up. */
+  onAskInChat?: (findings: ReviewFinding[]) => void;
 }): JSX.Element {
   const { t } = useI18n();
   const [entry, setEntry] = useState<CrgIndexEntry | null>(null);
@@ -185,7 +188,7 @@ export function CodeReviewPanel({
                       {formatResult(result.res)}
                     </pre>
                     {currentFindings.length > 0 ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                         <Button
                           size="sm"
                           variant="subtle"
@@ -195,6 +198,17 @@ export function CodeReviewPanel({
                         >
                           🔧 {t("review.oneClickFix")}
                         </Button>
+                        {onAskInChat ? (
+                          <Button
+                            size="sm"
+                            variant="subtle"
+                            disabled={running !== null}
+                            title={t("review.askInChat")}
+                            onClick={() => onAskInChat(currentFindings)}
+                          >
+                            💬 {t("review.askInChat")}
+                          </Button>
+                        ) : null}
                         <span className="ui-muted" style={{ fontSize: 10 }}>
                           {t("review.findingsCount", { n: currentFindings.length })}
                         </span>

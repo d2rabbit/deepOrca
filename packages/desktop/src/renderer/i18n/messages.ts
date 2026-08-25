@@ -107,6 +107,10 @@ export const en = {
   "welcome.hintNew": "New session",
   "welcome.hintPalette": "Command palette",
   "welcome.hintShortcuts": "All shortcuts",
+  "suggest.knowledgeTitle": "Wiki updated · {n} pages",
+  "suggest.viewWiki": "View",
+  "suggest.askArch":
+    "Based on the Wiki under @openwiki/ , analyze this project's overall architecture and call out the 3 improvements that would matter most:",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "(no content)",
@@ -990,6 +994,8 @@ export const en = {
   "review.oneClickFix": "One-click fix",
   "review.fixHint": "Generate a fix plan from the current findings and fix them in session mode",
   "review.findingsCount": "{n} findings",
+  "review.askInChat": "Ask in chat",
+  "review.askPrompt": "Analyze these code-review findings and propose how to handle each:",
   "review.action.review": "Review Changes",
   "review.action.review.hint": "AI semantic review of uncommitted changes (ocr).",
   "review.action.full": "Code Review (Full)",
@@ -1215,6 +1221,9 @@ export const zh: Record<MessageKey, string> = {
   "welcome.hintNew": "新建会话",
   "welcome.hintPalette": "命令面板",
   "welcome.hintShortcuts": "所有快捷键",
+  "suggest.knowledgeTitle": "Wiki 已更新 · {n} 页",
+  "suggest.viewWiki": "查看",
+  "suggest.askArch": "请基于 @openwiki/ 目录下的 Wiki，分析这个项目的整体架构，并指出最值得改进的 3 个点：",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "（无内容）",
@@ -2064,6 +2073,8 @@ export const zh: Record<MessageKey, string> = {
   "review.oneClickFix": "一键修复",
   "review.fixHint": "根据当前审查病灶生成修复规划，切到会话模式执行修复",
   "review.findingsCount": "{n} 项病灶",
+  "review.askInChat": "在对话中追问",
+  "review.askPrompt": "请分析以下代码审查发现，并逐条给出处理建议：",
   "rail.review": "代码审查",
   "review.title": "代码审查",
   "review.smartReview": "智能审查",

@@ -101,6 +101,10 @@ export const ja: Record<MessageKey, string> = {
   "welcome.hintNew": "新規セッション",
   "welcome.hintPalette": "コマンドパレット",
   "welcome.hintShortcuts": "すべてのショートカット",
+  "suggest.knowledgeTitle": "Wiki を更新しました · {n} ページ",
+  "suggest.viewWiki": "表示",
+  "suggest.askArch":
+    "@openwiki/ 配下の Wiki に基づいて、このプロジェクトの全体アーキテクチャを分析し、最も改善価値の高い 3 点を指摘してください：",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "（内容なし）",
@@ -976,6 +980,8 @@ export const ja: Record<MessageKey, string> = {
   "review.oneClickFix": "ワンクリック修正",
   "review.fixHint": "現在の所見から修正計画を生成し、セッションモードで修正します",
   "review.findingsCount": "所見 {n} 件",
+  "review.askInChat": "チャットで質問",
+  "review.askPrompt": "以下のコードレビュー所見を分析し、それぞれの対応策を提案してください：",
   "review.action.review": "Review Changes",
   "review.action.review.hint": "AI semantic review of uncommitted changes (ocr).",
   "review.action.full": "Code Review (Full)",

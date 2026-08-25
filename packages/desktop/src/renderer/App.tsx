@@ -12,6 +12,7 @@ import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useSettingsData } from "./hooks/use-settings-data";
 import type {
+  ActionProgressEvent,
   AskPermissionRequest,
   DesignArtifactMeta,
   SerializableSessionEntry,
@@ -1046,6 +1047,63 @@ export function App(): JSX.Element {
     [t]
   );
 
+  // Flow bridge (review → chat): "ask in chat" quotes the current findings
+  // into the composer as a numbered list (capped — a 40-finding dump in the
+  // draft is unreadable; the count note keeps the truncation honest).
+  const handleReviewAskInChat = useCallback(
+    (findings: Array<{ path: string; startLine: number; content: string; crgRisk?: string }>) => {
+      setActiveTab({ kind: "chat" });
+      const MAX = 8;
+      const lines = findings
+        .slice(0, MAX)
+        .map(
+          (f) =>
+            `- ${f.crgRisk ? `[${f.crgRisk}] ` : ""}${f.path}:${f.startLine} — ${f.content.replace(/\s+/g, " ").trim().slice(0, 160)}`
+        );
+      if (findings.length > MAX) lines.push(`…(+${findings.length - MAX})`);
+      setDraft((current) => {
+        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+        return `${prefix}${t("review.askPrompt")}\n${lines.join("\n")}\n`;
+      });
+    },
+    [t]
+  );
+
+  // ── Knowledge build → chat suggestion bar (flow closure) ─────────────────
+  // A settled build used to end with the badge silently vanishing; the
+  // conversation never learned the knowledge it just paid for is ready. On a
+  // SUCCESSFUL settle for the current workspace, show a dismissible bar over
+  // the composer: view the Wiki, or quote it straight into a question.
+  const [kbSuggest, setKbSuggest] = useState<{ pages: number } | null>(null);
+  const kbSuggestedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const off = api.onActionProgress((event: ActionProgressEvent) => {
+      if (event.actionId !== "knowledge.buildComplete") return;
+      const root = (event.data as { root?: string } | undefined)?.root;
+      if (!root || root !== projectRoot) return;
+      void (async () => {
+        try {
+          // buildComplete fires on failure too — only successful builds suggest.
+          const jobs = await api.knowledgeBuildStatus();
+          const job = jobs.find((j) => j.root === root);
+          if (!job || job.running || job.error) return;
+          const key = `${root}@${job.startedAt}`;
+          if (kbSuggestedRef.current.has(key)) return;
+          kbSuggestedRef.current.add(key);
+          const pages = await api.wikiListPages(root);
+          setKbSuggest({ pages: pages.length });
+        } catch {
+          // The suggestion is best-effort; failure just means no bar.
+        }
+      })();
+    });
+    return off;
+  }, [projectRoot]);
+  // A different workspace is a different knowledge base — never carry the bar over.
+  useEffect(() => {
+    setKbSuggest(null);
+  }, [projectRoot]);
+
   const handleSlashCommand = useCallback(
     (cmd: string) => {
       if (cmd === "new") {
@@ -1500,6 +1558,45 @@ export function App(): JSX.Element {
         />
       ) : null}
       <div className="ui-composer-dock" ref={composerDockRef}>
+        {kbSuggest ? (
+          <div className="ui-chat-suggest" role="status">
+            <span className="ui-chat-suggest-icon" aria-hidden>
+              ◈
+            </span>
+            <span className="ui-chat-suggest-text">{t("suggest.knowledgeTitle", { n: kbSuggest.pages })}</span>
+            <button
+              type="button"
+              className="ui-chat-suggest-btn"
+              onClick={() => {
+                setKbSuggest(null);
+                if (projectRoot) setActiveTab({ kind: "knowledge", root: projectRoot });
+              }}
+            >
+              {t("suggest.viewWiki")}
+            </button>
+            <button
+              type="button"
+              className="ui-chat-suggest-btn primary"
+              onClick={() => {
+                setKbSuggest(null);
+                setDraft((current) => {
+                  const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+                  return `${prefix}${t("suggest.askArch")}\n`;
+                });
+              }}
+            >
+              {t("index.quoteWiki")}
+            </button>
+            <button
+              type="button"
+              className="ui-chat-suggest-close"
+              aria-label={t("common.close")}
+              onClick={() => setKbSuggest(null)}
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
         <Composer
           value={draft}
           onChange={setDraft}
@@ -1721,7 +1818,11 @@ export function App(): JSX.Element {
           <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
         ) : sidebarView === "review" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel onShowGraph={handleShowGraph} onOneClickFix={handleReviewOneClickFix} />
+            <CodeReviewPanel
+              onShowGraph={handleShowGraph}
+              onOneClickFix={handleReviewOneClickFix}
+              onAskInChat={handleReviewAskInChat}
+            />
           </Suspense>
         ) : sidebarView === "prototype" ? (
           <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>

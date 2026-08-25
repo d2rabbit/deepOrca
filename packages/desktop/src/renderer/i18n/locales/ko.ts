@@ -101,6 +101,10 @@ export const ko: Record<MessageKey, string> = {
   "welcome.hintNew": "새 세션",
   "welcome.hintPalette": "명령 팔레트",
   "welcome.hintShortcuts": "모든 단축키",
+  "suggest.knowledgeTitle": "Wiki 업데이트됨 · {n}개 문서",
+  "suggest.viewWiki": "보기",
+  "suggest.askArch":
+    "@openwiki/ 디렉터리의 Wiki를 바탕으로 이 프로젝트의 전체 아키텍처를 분석하고 가장 개선할 가치가 있는 3가지를 지적해 주세요:",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "(내용 없음)",
@@ -970,6 +974,8 @@ export const ko: Record<MessageKey, string> = {
   "review.oneClickFix": "원클릭 수정",
   "review.fixHint": "현재 결과로부터 수정 계획을 생성하고 세션 모드에서 수정합니다",
   "review.findingsCount": "결함 {n}건",
+  "review.askInChat": "채팅에서 질문",
+  "review.askPrompt": "다음 코드 리뷰 결과를 분석하고 각 항목에 대한 처리 방안을 제안해 주세요:",
   "review.action.review": "Review Changes",
   "review.action.review.hint": "AI semantic review of uncommitted changes (ocr).",
   "review.action.full": "Code Review (Full)",
