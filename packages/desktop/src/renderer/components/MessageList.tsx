@@ -6,10 +6,13 @@ import { Message } from "./Message";
 import { useI18n } from "../i18n";
 import { IconWelcomePlan, IconWelcomeInit, IconWelcomeSkills, IconWelcomeUndo } from "../ui/index";
 
-/** Format an ISO date string as a short locale date (e.g. "Jul 21, 2026"). */
+/** Format an ISO date string as a short locale date (e.g. "Jul 21, 2026").
+ *  Cached per calendar DAY (not per raw timestamp — that key grew without
+ *  bound over a long session); the map is therefore bounded by session age. */
 const dateSepCache = new Map<string, string>();
 function formatDateSeparator(iso: string): string {
-  const cached = dateSepCache.get(iso);
+  const dayKey = dateKey(iso);
+  const cached = dateSepCache.get(dayKey);
   if (cached !== undefined) return cached;
   let result = "";
   try {
@@ -23,7 +26,7 @@ function formatDateSeparator(iso: string): string {
   } catch {
     result = "";
   }
-  dateSepCache.set(iso, result);
+  if (dayKey) dateSepCache.set(dayKey, result);
   return result;
 }
 
@@ -182,7 +185,7 @@ export const MessageList = memo(function MessageList({
           </div>
         ) : messages.length > 0 ? (
           <div className="ui-msg-count-indicator">
-            {messages.length} {messages.length === 1 ? "message" : "messages"}
+            {messages.length === 1 ? t("msg.countOne") : t("msg.countMany", { count: messages.length })}
           </div>
         ) : null}
         {messages.map((message, idx) => {

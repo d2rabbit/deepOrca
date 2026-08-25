@@ -45,6 +45,7 @@ export const zhTW: Record<MessageKey, string> = {
   "sidebar.rename": "重新命名",
   "sidebar.export": "匯出",
   "sidebar.delete": "刪除",
+  "sidebar.confirmDelete": "再點一次確認刪除",
 
   // ── Relative time ─────────────────────────────────────────
   "time.justNow": "剛剛",
@@ -119,6 +120,8 @@ export const zhTW: Record<MessageKey, string> = {
   "msg.skillSourceLocal": "本機",
   "msg.summaryInserted": "（已插入對話摘要）",
   "msg.jumpToLatest": "跳到最新",
+  "msg.countOne": "1 則訊息",
+  "msg.countMany": "{count} 則訊息",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "需要授權",

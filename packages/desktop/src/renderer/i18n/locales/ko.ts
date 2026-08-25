@@ -44,6 +44,7 @@ export const ko: Record<MessageKey, string> = {
   "sidebar.rename": "이름 바꾸기",
   "sidebar.export": "내보내기",
   "sidebar.delete": "삭제",
+  "sidebar.confirmDelete": "한 번 더 누르면 삭제",
 
   // ── Relative time ─────────────────────────────────────────
   "time.justNow": "방금",
@@ -118,6 +119,8 @@ export const ko: Record<MessageKey, string> = {
   "msg.skillSourceLocal": "로컬",
   "msg.summaryInserted": "(대화 요약이 삽입됨)",
   "msg.jumpToLatest": "최신 메시지로 이동",
+  "msg.countOne": "메시지 1개",
+  "msg.countMany": "메시지 {count}개",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "권한이 필요합니다",

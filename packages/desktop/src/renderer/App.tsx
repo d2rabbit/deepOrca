@@ -147,7 +147,7 @@ function syntheticUserMessage(sessionId: string, content: string): SessionMessag
 
 export function App(): JSX.Element {
   const { t } = useI18n();
-  const { toasts, push: pushToast } = useToasts();
+  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts();
   const [trustAskOpen, setTrustAskOpen] = useState(false);
   const [trustBusy, setTrustBusy] = useState(false);
   const [projectRoot, setProjectRoot] = useState("");
@@ -678,10 +678,17 @@ export function App(): JSX.Element {
       setBusy(true);
       setErrorLine(null);
       setStatusLine(null);
+      // A failed send must not eat the user's typing: handleSend clears the
+      // draft up-front, so on failure we hand the original text back (only
+      // when the composer is still empty — never clobber fresh keystrokes).
+      const restoreDraftOnFailure = opts.showUser !== false && !opts.isContinue ? (prompt.text ?? "") : "";
       try {
         const result = await api.sendPrompt(prompt);
         if (!result.ok) {
           setErrorLine(result.error ?? t("app.requestFailed"));
+          if (restoreDraftOnFailure) {
+            setDraft((current) => (current.trim().length === 0 ? restoreDraftOnFailure : current));
+          }
         }
         if (reply) {
           setPendingPermissionReply(null);
@@ -702,6 +709,9 @@ export function App(): JSX.Element {
         await Promise.all([refreshSessions(), refreshSkills(finalId ?? undefined)]);
       } catch (error) {
         setErrorLine(error instanceof Error ? error.message : String(error));
+        if (restoreDraftOnFailure) {
+          setDraft((current) => (current.trim().length === 0 ? restoreDraftOnFailure : current));
+        }
       } finally {
         setBusy(false);
         setStreamProgress(null);
@@ -1987,7 +1997,7 @@ export function App(): JSX.Element {
         onClose={() => setPaletteOpen(false)}
       />
 
-      <ToastContainer toasts={toasts} />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

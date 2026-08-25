@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SerializableSessionEntry, WorkspaceSessions } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
@@ -93,6 +93,35 @@ export const Sidebar = memo(function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // Delete needs a second click to actually fire: sessions are unrecoverable,
+  // so a single stray ✕ must not wipe a conversation. The armed state resets
+  // itself after a few seconds or when another row is armed.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const disarmDeleteConfirm = useCallback(() => {
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    setConfirmDeleteId(null);
+  }, []);
+
+  useEffect(() => disarmDeleteConfirm, [disarmDeleteConfirm]);
+
+  const handleDeleteClick = useCallback(
+    (id: string) => {
+      if (confirmDeleteId === id) {
+        disarmDeleteConfirm();
+        onDelete(id);
+        return;
+      }
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      setConfirmDeleteId(id);
+      confirmTimerRef.current = setTimeout(disarmDeleteConfirm, 3000);
+    },
+    [confirmDeleteId, disarmDeleteConfirm, onDelete]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -238,10 +267,10 @@ export const Sidebar = memo(function Sidebar({
               ▣
             </IconButton>
             <IconButton
-              className="ui-icon-btn--sm"
-              data-tip={t("sidebar.delete")}
-              aria-label={t("sidebar.delete")}
-              onClick={() => onDelete(entry.id)}
+              className={`ui-icon-btn--sm ui-delete-btn${confirmDeleteId === entry.id ? " armed" : ""}`}
+              data-tip={confirmDeleteId === entry.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+              aria-label={confirmDeleteId === entry.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+              onClick={() => handleDeleteClick(entry.id)}
             >
               ✕
             </IconButton>
@@ -355,10 +384,10 @@ export const Sidebar = memo(function Sidebar({
                         ▣
                       </IconButton>
                       <IconButton
-                        className="ui-icon-btn--sm"
-                        data-tip={t("sidebar.delete")}
-                        aria-label={t("sidebar.delete")}
-                        onClick={() => onDelete(session.id)}
+                        className={`ui-icon-btn--sm ui-delete-btn${confirmDeleteId === session.id ? " armed" : ""}`}
+                        data-tip={confirmDeleteId === session.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+                        aria-label={confirmDeleteId === session.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+                        onClick={() => handleDeleteClick(session.id)}
                       >
                         ✕
                       </IconButton>

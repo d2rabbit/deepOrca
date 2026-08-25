@@ -45,6 +45,7 @@ export const zhHK: Record<MessageKey, string> = {
   "sidebar.rename": "重新命名",
   "sidebar.export": "匯出",
   "sidebar.delete": "刪除",
+  "sidebar.confirmDelete": "再點一次確認刪除",
 
   // ── Relative time ─────────────────────────────────────────
   "time.justNow": "剛剛",
@@ -119,6 +120,8 @@ export const zhHK: Record<MessageKey, string> = {
   "msg.skillSourceLocal": "本地",
   "msg.summaryInserted": "（已插入對話摘要）",
   "msg.jumpToLatest": "跳到最新",
+  "msg.countOne": "1 條消息",
+  "msg.countMany": "{count} 條消息",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "需要授權",

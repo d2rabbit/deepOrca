@@ -50,6 +50,7 @@ export const en = {
   "sidebar.rename": "Rename",
   "sidebar.export": "Export",
   "sidebar.delete": "Delete",
+  "sidebar.confirmDelete": "Click again to delete",
 
   // ── Relative time ─────────────────────────────────────────
   "time.justNow": "just now",
@@ -124,6 +125,8 @@ export const en = {
   "msg.skillSourceLocal": "Local",
   "msg.summaryInserted": "(conversation summary inserted)",
   "msg.jumpToLatest": "Jump to latest",
+  "msg.countOne": "1 message",
+  "msg.countMany": "{count} messages",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "Permission required",
@@ -1002,6 +1005,7 @@ export const zh: Record<MessageKey, string> = {
   "sidebar.rename": "重命名",
   "sidebar.export": "导出",
   "sidebar.delete": "删除",
+  "sidebar.confirmDelete": "再次点击确认删除",
 
   // ── Relative time ─────────────────────────────────────────
   "time.justNow": "刚刚",
@@ -1076,6 +1080,8 @@ export const zh: Record<MessageKey, string> = {
   "msg.skillSourceLocal": "本地",
   "msg.summaryInserted": "（已插入对话摘要）",
   "msg.jumpToLatest": "跳到最新",
+  "msg.countOne": "1 条消息",
+  "msg.countMany": "{count} 条消息",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "需要授权",

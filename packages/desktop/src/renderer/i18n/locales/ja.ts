@@ -44,6 +44,7 @@ export const ja: Record<MessageKey, string> = {
   "sidebar.rename": "名前を変更",
   "sidebar.export": "エクスポート",
   "sidebar.delete": "削除",
+  "sidebar.confirmDelete": "もう一度クリックで削除",
 
   // ── Relative time ─────────────────────────────────────────
   "time.justNow": "たった今",
@@ -118,6 +119,8 @@ export const ja: Record<MessageKey, string> = {
   "msg.skillSourceLocal": "ローカル",
   "msg.summaryInserted": "（会話の要約を挿入しました）",
   "msg.jumpToLatest": "最新のメッセージへ",
+  "msg.countOne": "メッセージ 1件",
+  "msg.countMany": "メッセージ {count}件",
 
   // ── Permission card ───────────────────────────────────────
   "perm.required": "許可が必要です",
