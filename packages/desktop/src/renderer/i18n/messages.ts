@@ -31,7 +31,7 @@ export const en = {
   "topbar.settingsTitle": "Settings",
   "topbar.model": "model",
   "topbar.configureModelPool": "Configure model pool…",
-  "topbar.noApiKey": "⚠ No API key configured",
+  "topbar.noApiKey": "No API key configured",
   "topbar.configureApiKey": "Configure API key",
   "topbar.languageTitle": "Language",
   "topbar.pluginsTitle": "Plugin Center",
@@ -179,7 +179,7 @@ export const en = {
 
   // ── MCP status modal ──────────────────────────────────────
   "mcp.title": "MCP servers",
-  "mcp.none": "No MCP servers configured. Add one from the ⚙ Settings → MCP servers tab.",
+  "mcp.none": "No MCP servers configured. Add one from Settings → MCP servers tab.",
   "mcp.reconnect": "Reconnect",
   "mcp.toolsCount": "{n} tools",
   "mcpStatus.ready": "ready",
@@ -1168,7 +1168,7 @@ export const zh: Record<MessageKey, string> = {
   "topbar.settingsTitle": "设置",
   "topbar.model": "模型",
   "topbar.configureModelPool": "配置模型池…",
-  "topbar.noApiKey": "⚠ 未配置 API Key",
+  "topbar.noApiKey": "未配置 API Key",
   "topbar.configureApiKey": "配置 API Key",
   "topbar.languageTitle": "语言",
   "topbar.pluginsTitle": "插件中心",
@@ -1315,7 +1315,7 @@ export const zh: Record<MessageKey, string> = {
 
   // ── MCP status modal ──────────────────────────────────────
   "mcp.title": "MCP 服务器",
-  "mcp.none": "尚未配置 MCP 服务器。可在 ⚙ 设置 → MCP 服务器 标签页中添加。",
+  "mcp.none": "尚未配置 MCP 服务器。可在 设置 → MCP 服务器 标签页中添加。",
   "mcp.reconnect": "重连",
   "mcp.toolsCount": "{n} 个工具",
   "mcpStatus.ready": "就绪",

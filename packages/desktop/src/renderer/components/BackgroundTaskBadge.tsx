@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n, type Translate } from "../i18n";
+import { IconBalance, IconIndex } from "../ui/index";
 import { useBuildJobs } from "../hooks/useBuildJobs";
 import { buildStageVerb, formatBuildDuration } from "./KnowledgeBuildProgress";
 import type { ActionProgressEvent, KnowledgeBuildJobSnapshot } from "../../shared/ipc";
@@ -11,15 +12,15 @@ import type { ActionProgressEvent, KnowledgeBuildJobSnapshot } from "../../share
  * the chat view whenever a build ran; switching to a session should not be
  * interrupted by a large panel). The badge is a small circular progress ring
  * with the MODULE ICON in the center so task types are distinguishable at a
- * glance (◈ 索引与知识 / ⚖ 代码审查); clicking opens the detail view (build
- * console / review panel). The big console itself never auto-opens anymore.
+ * glance (index-and-knowledge / code review); clicking opens the detail view
+ * (build console / review panel). The big console itself never auto-opens.
  */
 
 export type BadgeTaskKind = "knowledge" | "review";
 
-const KIND_ICON: Record<BadgeTaskKind, string> = {
-  knowledge: "◈",
-  review: "⚖",
+const KIND_ICON: Record<BadgeTaskKind, JSX.Element> = {
+  knowledge: <IconIndex />,
+  review: <IconBalance />,
 };
 
 export type BadgeTask = {

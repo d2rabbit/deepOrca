@@ -11,7 +11,7 @@ import {
   type PermissionResult,
 } from "../lib/permissions";
 import { useI18n, type MessageKey } from "../i18n";
-import { Button, Card, CardHeader, Row } from "../ui/index";
+import { Button, Card, CardHeader, IconWarn, Row } from "../ui/index";
 
 type Props = {
   requests: AskPermissionRequest[];
@@ -144,7 +144,7 @@ export function PermissionCard({ requests, onSubmit, onCancel }: Props): JSX.Ele
     <Card warn className="ui-card-enter ui-perm-card">
       <CardHeader>
         <span className="ui-perm-warn-icon" aria-hidden="true">
-          ⚠
+          <IconWarn />
         </span>{" "}
         {t("perm.required")}{" "}
         <span style={{ color: "var(--ui-text-faint)", fontWeight: 400 }}>

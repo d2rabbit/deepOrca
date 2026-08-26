@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
+import { IconClock } from "../ui/index";
 import type { SerializableProcess } from "../../shared/ipc";
 import { useI18n } from "../i18n";
 
@@ -177,7 +178,8 @@ export function ProcessOutputPanel({
               <span className="ui-process-card-cmd ui-mono">{proc.command}</span>
               {proc.deadlineAt ? (
                 <span className="ui-process-card-deadline">
-                  ⏱ {new Date(proc.deadlineAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  <IconClock />{" "}
+                  {new Date(proc.deadlineAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               ) : null}
             </div>

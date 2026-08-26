@@ -12,6 +12,7 @@ import { useMemo, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { buildToolSummary } from "../lib/messages";
 import { useI18n } from "../i18n";
+import { IconFile, IconFlame, IconFolder, IconGit, IconLock, IconBook, IconWarn, IconToolSearch } from "../ui/index";
 
 type Props = {
   message: SessionMessage;
@@ -101,7 +102,9 @@ function SymbolTreeResult({ message }: { message: SessionMessage }): JSX.Element
 
   return (
     <div className="ui-rich-result ui-symbol-tree">
-      <div className="ui-rich-result-label">📁 {t("rich.symbols")}</div>
+      <div className="ui-rich-result-label">
+        <IconFolder /> {t("rich.symbols")}
+      </div>
       <div className="ui-symbol-tree-body">
         {tree.map((node, i) => (
           <SymbolNode key={i} node={node} depth={0} />
@@ -116,7 +119,18 @@ type SymbolNode = { label: string; children?: SymbolNode[]; kind?: string };
 function SymbolNode({ node, depth }: { node: SymbolNode; depth: number }): JSX.Element {
   const [open, setOpen] = useState(depth < 1);
   const hasChildren = (node.children?.length ?? 0) > 0;
-  const icon = node.kind === "file" ? "📄" : node.kind === "function" ? "ƒ" : node.kind === "class" ? "C" : "•";
+  const icon =
+    node.kind === "file" ? (
+      <span className="ui-symbol-node-ico">
+        <IconFile />
+      </span>
+    ) : node.kind === "function" ? (
+      "ƒ"
+    ) : node.kind === "class" ? (
+      "C"
+    ) : (
+      "•"
+    );
 
   return (
     <div className="ui-symbol-node" style={{ paddingLeft: `${depth * 12}px` }}>
@@ -196,7 +210,9 @@ function ReviewCommentsResult({ message }: { message: SessionMessage }): JSX.Ele
 
   return (
     <div className="ui-rich-result ui-review-grouped">
-      <div className="ui-rich-result-label">🔍 {t("rich.codeReview")}</div>
+      <div className="ui-rich-result-label">
+        <IconToolSearch /> {t("rich.codeReview")}
+      </div>
       {critical.length > 0 ? (
         <ReviewGroup title={t("rich.critical")} color="var(--ui-danger, #ef4444)" items={critical} />
       ) : null}
@@ -261,7 +277,9 @@ function SearchResultsResult({ message }: { message: SessionMessage }): JSX.Elem
 
   return (
     <div className="ui-rich-result ui-search-cards">
-      <div className="ui-rich-result-label">🔎 {t("rich.searchResults", { n: results.length })}</div>
+      <div className="ui-rich-result-label">
+        <IconToolSearch /> {t("rich.searchResults", { n: results.length })}
+      </div>
       {results.map((r, i) => {
         const href = safeHref(r.url);
         return (
@@ -309,7 +327,9 @@ function GitChangesResult({ message }: { message: SessionMessage }): JSX.Element
   if (changes.length === 0) return <RichFallback message={message} />;
   return (
     <div className="ui-rich-result ui-git-changes">
-      <div className="ui-rich-result-label">📂 {t("rich.gitChanges", { n: changes.length })}</div>
+      <div className="ui-rich-result-label">
+        <IconGit /> {t("rich.gitChanges", { n: changes.length })}
+      </div>
       <div className="ui-git-changes-body">
         {changes.map((c, i) => (
           <div key={i} className="ui-git-change-row">
@@ -369,7 +389,7 @@ function RiskAnalysisResult({ message }: { message: SessionMessage }): JSX.Eleme
   return (
     <div className="ui-rich-result ui-risk-analysis">
       <div className="ui-rich-result-label">
-        🔥 {t("rich.riskAnalysis")}
+        <IconFlame /> {t("rich.riskAnalysis")}
         <span className="ui-risk-overall" style={{ color: riskColor(data.overallRisk) }}>
           {t("rich.riskOverall")}: {Math.round(data.overallRisk * 100)}%
         </span>
@@ -380,9 +400,15 @@ function RiskAnalysisResult({ message }: { message: SessionMessage }): JSX.Eleme
             <div className="ui-risk-item-header">
               <span className="ui-risk-item-name">{item.name}</span>
               <div className="ui-risk-item-badges">
-                {item.securityRelevant ? <span className="ui-risk-badge sec">🔒 {t("rich.riskSec")}</span> : null}
+                {item.securityRelevant ? (
+                  <span className="ui-risk-badge sec">
+                    <IconLock /> {t("rich.riskSec")}
+                  </span>
+                ) : null}
                 {item.testCoverage === false ? (
-                  <span className="ui-risk-badge no-test">⚠ {t("rich.riskNoTest")}</span>
+                  <span className="ui-risk-badge no-test">
+                    <IconWarn /> {t("rich.riskNoTest")}
+                  </span>
                 ) : null}
                 <span className="ui-risk-score" style={{ color: riskColor(item.riskScore) }}>
                   {Math.round(item.riskScore * 100)}%
@@ -446,11 +472,15 @@ function WikiPagesResult({ message }: { message: SessionMessage }): JSX.Element 
   if (pages.length === 0) return <RichFallback message={message} />;
   return (
     <div className="ui-rich-result ui-wiki-pages">
-      <div className="ui-rich-result-label">📖 {t("rich.documentation", { n: pages.length })}</div>
+      <div className="ui-rich-result-label">
+        <IconBook /> {t("rich.documentation", { n: pages.length })}
+      </div>
       <div className="ui-wiki-pages-body">
         {pages.map((p, i) => (
           <div key={i} className="ui-wiki-page-row">
-            <span className="ui-wiki-page-icon">📄</span>
+            <span className="ui-wiki-page-icon">
+              <IconFile />
+            </span>
             <span className="ui-wiki-page-title">{p.title}</span>
             <span className="ui-wiki-page-path">{p.path}</span>
           </div>

@@ -24,7 +24,7 @@ type Props = {
 
 const KIND_ICON: Record<TaskNode["kind"], string> = {
   root: "◆",
-  step: "▪",
+  step: "•",
   fork: "⑂",
   merge: "⑃",
   "memory-spawn": "✦",

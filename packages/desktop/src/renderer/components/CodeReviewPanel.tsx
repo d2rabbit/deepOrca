@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from "react";
 import type { ActionProgressEvent, ActionRunResult, CrgIndexEntry } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
-import { Button } from "../ui/index";
+import { Button, IconMagicWand, IconChat } from "../ui/index";
 import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
 
 /**
@@ -196,7 +196,7 @@ export function CodeReviewPanel({
                           title={t("review.fixHint")}
                           onClick={() => onOneClickFix(currentFindings)}
                         >
-                          🔧 {t("review.oneClickFix")}
+                          <IconMagicWand /> {t("review.oneClickFix")}
                         </Button>
                         {onAskInChat ? (
                           <Button
@@ -206,7 +206,7 @@ export function CodeReviewPanel({
                             title={t("review.askInChat")}
                             onClick={() => onAskInChat(currentFindings)}
                           >
-                            💬 {t("review.askInChat")}
+                            <IconChat /> {t("review.askInChat")}
                           </Button>
                         ) : null}
                         <span className="ui-muted" style={{ fontSize: 10 }}>

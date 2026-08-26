@@ -322,7 +322,7 @@ export const TopBar = memo(function TopBar({
               // especially when it is empty and the list above is the hardcoded
               // fallback pair. The controlled value never moves; the menu just
               // closes and the settings panel opens.
-              { value: POOL_CONFIG_VALUE, label: `⚙ ${t("topbar.configureModelPool")}` },
+              { value: POOL_CONFIG_VALUE, label: t("topbar.configureModelPool") },
             ]}
             onSelect={(val) => {
               if (val === POOL_CONFIG_VALUE) {

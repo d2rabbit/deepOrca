@@ -78,7 +78,7 @@ export function useAppearance(platform: string): AppearanceState {
     });
   }, [platform]);
 
-  // Line theme flavour toggle: original stroke look ↔ punk (2077 tribute).
+  // Line theme flavour toggle: original stroke look <-> punk (2077 tribute).
   const handleToggleLineVariant = useCallback(() => {
     setLineVariantState((prev) => {
       const next: LineVariant = prev === "punk" ? "stroke" : "punk";

@@ -538,3 +538,195 @@ export function IconFile(): JSX.Element {
     </svg>
   );
 }
+
+/** Plus — generic add affordance (quick dock new-session, …) */
+export function IconPlus(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M10 4.5v11M4.5 10h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Circle-i — informational marker */
+export function IconInfo(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 9v4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10" cy="6.4" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Clock — deadline / elapsed markers */
+export function IconClock(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M10 5.75V10l3 1.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Trash — destructive delete */
+export function IconTrash(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M4.5 6h11M8 6V4.6c0-.6.5-1.1 1.1-1.1h1.8c.6 0 1.1.5 1.1 1.1V6m2.8 0-.55 9.05A1.6 1.6 0 0 1 12.96 16.5H7.04a1.6 1.6 0 0 1-1.6-1.45L4.9 6M8.3 9v4.4M11.7 9v4.4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Triangle-alert — warning */
+export function IconWarn(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M10 3.6 17.2 15.9a1.15 1.15 0 0 1-1 1.73H3.8a1.15 1.15 0 0 1-1-1.73L10 3.6Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M10 8v3.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10" cy="14.35" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Padlock — security-relevant marker */
+export function IconLock(): JSX.Element {
+  return (
+    <svg {...S}>
+      <rect x="4.75" y="8.75" width="10.5" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7.25 8.5V6.9a2.75 2.75 0 0 1 5.5 0v1.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10" cy="12.4" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Flame — hot-risk marker */
+export function IconFlame(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M10.4 2.9s.62 2.06-.86 3.85C8.22 8.31 6.4 9.3 6.4 11.9a3.98 3.98 0 0 0 7.96.18c.1-1.78-.72-3.02-1.36-3.87-.24.62-.6 1.1-1.08 1.44.28-2.6-.66-5.53-1.52-6.75Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Scales — comparison / review weighting */
+export function IconBalance(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M10 4v12M6.8 16h6.4M4 6.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M4 6.5 1.9 11a2.3 2.3 0 0 0 4.2 0L4 6.5ZM16 6.5 13.9 11a2.3 2.3 0 0 0 4.2 0L16 6.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Palette — design / materialize actions */
+export function IconPalette(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M10 2.9a7.25 7.25 0 0 0 0 14.5c1.34 0 1.9-.76 1.9-1.55 0-.97-.78-1.44-.78-2.27 0-.86.7-1.33 1.83-1.33h1.2c2 0 3.15-1.06 3.15-3.05C17.3 5.5 14.1 2.9 10 2.9Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="6.9" cy="8.2" r="1" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="6.4" r="1" fill="currentColor" stroke="none" />
+      <circle cx="13.1" cy="8.2" r="1" fill="currentColor" stroke="none" />
+      <circle cx="6.7" cy="11.8" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Bolt — live/agent activity (Serena badge, streaming avatar) */
+export function IconBolt(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M11.2 2.75 4.8 11.1h4.1l-.9 6.15 6.6-8.65h-4.2l.8-5.85Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Checkmark — pass / success */
+export function IconCheck(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="m4.5 10.5 3.6 3.6L15.5 6.7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Open book — documentation */
+export function IconBook(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M10 5.2C8.8 4 7 3.5 4.9 3.5c-.8 0-1.4.06-1.9.16v11.2c.5-.1 1.1-.16 1.9-.16 2.1 0 3.9.5 5.1 1.7 1.2-1.2 3-1.7 5.1-1.7.8 0 1.4.06 1.9.16V3.66c-.5-.1-1.1-.16-1.9-.16-2.1 0-3.9.5-5.1 1.7ZM10 5.2v11"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Pencil — rename / edit-in-editor (same glyph as new-session) */
+export function IconPencil(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M13.5 3.5a2.12 2.12 0 0 1 3 3L7 16l-4 1 1-4 9.5-9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Three horizontal bars — menu / list toggle */
+export function IconMenuBars(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}

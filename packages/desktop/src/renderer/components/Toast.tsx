@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { useI18n } from "../i18n";
+import { IconInfo } from "../ui/index";
 
 export type ToastKind = "info" | "success" | "error";
 export type Toast = { id: number; kind: ToastKind; text: string };
@@ -12,7 +13,11 @@ let nextId = 1;
  */
 const TOAST_DURATION_MS: Record<ToastKind, number> = { info: 3500, success: 3500, error: 6500 };
 
-const TOAST_GLYPH: Record<ToastKind, string> = { info: "ℹ", success: "✓", error: "✗" };
+const TOAST_GLYPH: Record<ToastKind, JSX.Element> = {
+  info: <IconInfo />,
+  success: <span>✓</span>,
+  error: <span>✗</span>,
+};
 
 /**
  * Lightweight toast notification hook + renderer. Call `push(kind, text)`

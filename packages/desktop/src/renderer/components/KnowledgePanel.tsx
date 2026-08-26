@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
-import { Button } from "../ui/index";
+import { Button, IconMenuBars } from "../ui/index";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import type { ActionProgressEvent, KnowledgeStatusResponse, KnowledgeSymbol, WikiPageEntry } from "../../shared/ipc";
 import { BASIC_CATALOG_ID } from "../../shared/a2ui-legacy";
@@ -471,7 +471,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                     className={symbolView === "list" ? "active" : ""}
                     onClick={() => setSymbolView("list")}
                   >
-                    ☰ {t("index.symbolViewList")}
+                    <IconMenuBars /> {t("index.symbolViewList")}
                   </button>
                 </div>
               </div>

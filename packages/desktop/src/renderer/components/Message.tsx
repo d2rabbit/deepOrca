@@ -20,6 +20,7 @@ import { useI18n } from "../i18n";
 import { JsonView } from "./JsonView";
 import {
   IconCommand,
+  IconBolt,
   IconToolRead,
   IconToolWrite,
   IconToolEdit,
@@ -54,7 +55,18 @@ function Md({
  * (type-tinted). Mirrors the avatar-per-message layout of modern chat UIs.
  */
 function Avatar({ role }: { role: "user" | "assistant" | "thinking" | "tool" | "mcp" }): JSX.Element {
-  const glyph = role === "user" ? "U" : role === "assistant" ? "AI" : role === "thinking" ? "✦" : "⚡";
+  const glyph =
+    role === "user" ? (
+      "U"
+    ) : role === "assistant" ? (
+      "AI"
+    ) : role === "thinking" ? (
+      "✦"
+    ) : (
+      <span className="ui-avatar-bolt">
+        <IconBolt />
+      </span>
+    );
   return (
     <div className={`ui-avatar ui-avatar--${role}`} aria-hidden="true">
       {glyph}

@@ -176,7 +176,7 @@
 }
 
 /* Background-task badge — compact circular ring with the module icon in the
-   center (◈ 索引与知识 / ⚖ 代码审查). Replaces the auto-opening console as
+   center (index-and-knowledge / code review). Replaces the auto-opening console as
    the bottom-right presence for running background work. */
 .ui-task-badge-stack {
   position: fixed;

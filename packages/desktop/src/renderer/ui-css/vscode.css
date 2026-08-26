@@ -707,7 +707,7 @@
   font-weight: 500;
 }
 
-/* Session-row task badge — the session↔task cross-reference entry. */
+/* Session-row task badge — the session<->task cross-reference entry. */
 .ui-session-task {
   display: inline-flex;
   align-items: center;

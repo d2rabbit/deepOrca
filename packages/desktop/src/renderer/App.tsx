@@ -88,7 +88,11 @@ import { useI18n } from "./i18n";
 import {
   CommandPalette,
   GlobalTooltip,
+  IconChat,
   IconCommand,
+  IconFile,
+  IconIndex,
+  IconPlugins,
   IconTaskTree,
   IconMoon,
   IconSun,
@@ -944,7 +948,7 @@ export function App(): JSX.Element {
   );
   const handleSelectSession = useCallback(
     async (root: string, id: string) => {
-      // Selecting a conversation always lands on its workspace (💬) tab —
+      // Selecting a conversation always lands on its workspace (chat) tab —
       // the task-badge entry relies on this (R3-8): leaving an aux tab
       // active would hide the chat the user asked for.
       setActiveTab({ kind: "chat" });
@@ -1666,19 +1670,25 @@ export function App(): JSX.Element {
           onClick={() => setActiveTab({ kind: "chat" })}
           data-tip={t("surface.chat")}
         >
-          💬
+          <IconChat />
         </button>
         {auxTabs.map((tab) => {
           const active =
             tab.kind === "editor"
               ? activeTab.kind === "editor" && activeTab.file === tab.file
               : activeTab.kind === tab.kind;
-          const label =
+          const title =
             tab.kind === "settings"
-              ? `⚙ ${t("settings.title")}`
+              ? t("settings.title")
               : tab.kind === "plugins"
-                ? `🧩 ${t("plugins.title")}`
-                : `📄 ${(tab.file ?? "").split(/[\\/]/).pop()}`;
+                ? t("plugins.title")
+                : ((tab.file ?? "").split(/[\\/]/).pop() ?? "");
+          const label = (
+            <>
+              {tab.kind === "settings" ? <IconSettings /> : tab.kind === "plugins" ? <IconPlugins /> : <IconFile />}
+              {title}
+            </>
+          );
           return (
             <div key={tab.key} className={cx("ui-surface-chip", active && "active")}>
               <button
@@ -1687,7 +1697,7 @@ export function App(): JSX.Element {
                 onClick={() =>
                   setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
                 }
-                data-tip={tab.kind === "editor" ? tab.file : label}
+                data-tip={tab.kind === "editor" ? tab.file : title}
               >
                 {label}
               </button>
@@ -1736,7 +1746,7 @@ export function App(): JSX.Element {
               onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
               data-tip={tab.root}
             >
-              📚 {tab.label}
+              <IconIndex /> {tab.label}
             </button>
             <button
               type="button"

@@ -25,7 +25,7 @@ export const ja: Record<MessageKey, string> = {
   "topbar.settingsTitle": "設定",
   "topbar.model": "モデル",
   "topbar.configureModelPool": "モデルプールを設定…",
-  "topbar.noApiKey": "⚠ API キーが未設定",
+  "topbar.noApiKey": "API キーが未設定",
   "topbar.configureApiKey": "API キーを設定",
   "topbar.languageTitle": "言語",
   "topbar.pluginsTitle": "プラグインセンター",
@@ -173,7 +173,7 @@ export const ja: Record<MessageKey, string> = {
 
   // ── MCP status modal ──────────────────────────────────────
   "mcp.title": "MCP サーバー",
-  "mcp.none": "MCP サーバーが設定されていません。⚙ 設定 → MCP サーバー タブから追加してください。",
+  "mcp.none": "MCP サーバーが設定されていません。設定 → MCP サーバー タブから追加してください。",
   "mcp.reconnect": "再接続",
   "mcp.toolsCount": "{n} 個のツール",
   "mcpStatus.ready": "準備完了",

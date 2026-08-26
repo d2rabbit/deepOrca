@@ -3,6 +3,7 @@ import hljs from "highlight.js/lib/common";
 import type { DiffPayload } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
+import { IconPencil } from "../ui/index";
 
 /** A universal diff target: git working tree, agent change, or a whole commit. */
 export type DiffTarget =
@@ -212,7 +213,7 @@ export function DiffOverlay({
               onClick={() => onOpenEditor(payload.file)}
               title={t("editor.openInEditor")}
             >
-              ✎ {t("editor.openInEditor")}
+              <IconPencil /> {t("editor.openInEditor")}
             </button>
           ) : null}
           <button

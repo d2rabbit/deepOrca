@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } fro
 import type { SerializableSessionEntry, WorkspaceSessions } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
-import { IconButton, Input, StatusDot, IconChat } from "../ui/index";
+import { IconButton, Input, StatusDot, IconChat, IconPencil, IconTaskTree } from "../ui/index";
 import { aggregateByWorkspace, aggregateUsage, formatTokens } from "../lib/token-usage";
 
 type Props = {
@@ -181,8 +181,8 @@ export const Sidebar = memo(function Sidebar({
   const overallTotal = useMemo(() => aggregateByWorkspace(tree).reduce((sum, row) => sum + row.total, 0), [tree]);
 
   /**
-   * Task badge on a session row — the session↔task cross-reference entry.
-   * Clicking goes STRAIGHT to that conversation's workspace (💬) tab: the
+   * Task badge on a session row — the session<->task cross-reference entry.
+   * Clicking goes STRAIGHT to that conversation's workspace (chat) tab: the
    * user asked for the chat, not a detour into the task record — the task
    * history remains reachable from the 任务树 rail (R3-8).
    */
@@ -200,7 +200,7 @@ export const Sidebar = memo(function Sidebar({
           onSelectSession(entry.workspaceRoot ?? root, entry.id);
         }}
       >
-        🌳 {title}
+        <IconTaskTree /> {title}
       </button>
     );
   }
@@ -251,7 +251,7 @@ export const Sidebar = memo(function Sidebar({
               aria-label={t("sidebar.rename")}
               onClick={() => beginRename(entry)}
             >
-              ✎
+              <IconPencil />
             </IconButton>
             <IconButton
               className="ui-icon-btn--sm"

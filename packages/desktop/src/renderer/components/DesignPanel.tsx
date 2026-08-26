@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { Button, IconButton, Input } from "../ui/index";
+import { Button, IconCheck, IconDesign, IconTrash, IconWarn, Input, IconButton } from "../ui/index";
 import type { ActionProgressEvent, ActionRunResult, DesignArtifactMeta } from "../../shared/ipc";
 
 type Props = {
@@ -244,7 +244,7 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
               disabled={materializing || (!requirement.trim() && !prototypeId.trim())}
               onClick={() => void handleMaterialize()}
             >
-              🎨 {t("design.materializeBtn")}
+              <IconDesign /> {t("design.materializeBtn")}
             </button>
             {materializing && materializeProgress ? (
               <span className="ui-proto-progress">{materializeProgress}</span>
@@ -298,7 +298,15 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
             ) : driftOutput ? (
               <div className="ui-review-drift-result">
                 <div className={`ui-review-drift-badge${driftOutput.driftDetected ? " bad" : " good"}`}>
-                  {driftOutput.driftDetected ? `⚠ ${t("design.drift.detected")}` : `✅ ${t("design.drift.pass")}`}
+                  {driftOutput.driftDetected ? (
+                    <>
+                      <IconWarn /> {t("design.drift.detected")}
+                    </>
+                  ) : (
+                    <>
+                      <IconCheck /> {t("design.drift.pass")}
+                    </>
+                  )}
                   {typeof driftOutput.score === "number"
                     ? ` · ${t("design.drift.score", { score: driftOutput.score })}`
                     : ""}
@@ -338,7 +346,7 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
             {designs.map((a) => (
               <div key={a.id} className="ui-proto-artifact" onClick={() => onOpenArtifact(a)}>
                 <span className="ui-proto-artifact-icon" aria-hidden>
-                  📐
+                  <IconDesign />
                 </span>
                 <div className="ui-proto-artifact-main">
                   <div className="ui-proto-artifact-title">{a.title}</div>
@@ -353,7 +361,7 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
                     void handleExportPackage(a.id);
                   }}
                 >
-                  ⬇
+                  ↓
                 </button>
                 <button
                   type="button"
@@ -364,7 +372,7 @@ export function DesignPanel({ onOpenArtifact }: Props): JSX.Element {
                     void handleDelete(a.id);
                   }}
                 >
-                  {confirmDeleteId === a.id ? "!" : "🗑"}
+                  {confirmDeleteId === a.id ? "!" : <IconTrash />}
                 </button>
               </div>
             ))}

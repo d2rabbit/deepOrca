@@ -5,7 +5,7 @@ import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
 import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
-import { Button, Checkbox, Field, Input, Modal, Select } from "../ui/index";
+import { Button, Checkbox, Field, IconInfo, IconLock, IconSettings, Input, Modal, Select } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
 import { ActionsPanel } from "./ActionsPanel";
 
@@ -34,14 +34,14 @@ const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "about", labelKey: "settings.tab.about" },
 ];
 
-const TAB_ICONS: Record<Tab, string> = {
-  endpoints: "⌁",
-  model: "✦",
-  appearance: "◐",
-  memory: "❍",
-  permissions: "⊘",
-  actions: "⚙",
-  about: "ℹ",
+const TAB_ICONS: Record<Tab, JSX.Element> = {
+  endpoints: <span>⌁</span>,
+  model: <span>✦</span>,
+  appearance: <span>◐</span>,
+  memory: <span>❍</span>,
+  permissions: <IconLock />,
+  actions: <IconSettings />,
+  about: <IconInfo />,
 };
 
 const PERMISSION_SCOPES: PermissionScope[] = [
@@ -130,12 +130,12 @@ const CHANGELOG: { version: string; date: string; changes: string[]; en: string[
     changes: [
       "新增 Fusion 主题:融合 Win8 磁贴多彩配色 × Win11 玻璃呼吸色 × 磁铁按钮质感,Windows 专属。",
       "设置面板新增「常规」Tab,内置平台感知的主题选择(Windows: Metro/Fusion)。",
-      "索引库 rail 图标独立化(☷);启动不再将当前目录强行注入为空工作区。",
+      "索引库 rail 图标独立化;启动不再将当前目录强行注入为空工作区。",
     ],
     en: [
       "New Fusion theme: Win8 tile colors × Win11 glass breathing tints × magnet button feel, Windows-only.",
       "Settings gains a General tab with platform-aware theme picks (Windows: Metro/Fusion).",
-      "Dedicated index-library rail icon (☷); startup no longer injects the cwd as an empty workspace.",
+      "Dedicated index-library rail icon; startup no longer injects the cwd as an empty workspace.",
     ],
   },
   {

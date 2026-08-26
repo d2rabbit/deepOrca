@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { AgentChangeFile, GitCommitFileEntry, GitLogEntry, GitStatus, GitStatusFile } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { Button, IconButton, Input } from "../ui/index";
+import { Button, IconPencil, IconButton, Input } from "../ui/index";
 import type { DiffTarget } from "./DiffOverlay";
 
 type Props = {
@@ -244,7 +244,7 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
       <span className="ui-scm-file-actions" onClick={(e) => e.stopPropagation()}>
         {onOpenEditor ? (
           <button className="ui-scm-act" onClick={() => onOpenEditor(file.path)} title={t("editor.openInEditor")}>
-            ✎
+            <IconPencil />
           </button>
         ) : null}
         {isStaged ? (
@@ -341,7 +341,9 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
                 className="ui-scm-file"
                 onClick={() => sessionId && onOpenDiff({ kind: "agent", sessionId, file: f.path })}
               >
-                <span className="ui-scm-status">✎</span>
+                <span className="ui-scm-status">
+                  <IconPencil />
+                </span>
                 <span className="ui-scm-pathwrap" title={f.path}>
                   <span className="ui-scm-dir">{dirName(f.path)}</span>
                   <span className="ui-scm-name">{baseName(f.path)}</span>

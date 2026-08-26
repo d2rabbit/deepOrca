@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { IconButton } from "../ui/index";
+import { IconButton, IconFile, IconPalette, IconTrash } from "../ui/index";
 import type { ActionProgressEvent, DesignArtifactMeta } from "../../shared/ipc";
 
 type Props = {
@@ -166,7 +166,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
     [confirmDeleteId, reload]
   );
 
-  const artifactRow = (a: DesignArtifactMeta, icon: string, kindLabel: string): JSX.Element => (
+  const artifactRow = (a: DesignArtifactMeta, icon: JSX.Element, kindLabel: string): JSX.Element => (
     <div key={a.id} className="ui-proto-artifact" onClick={() => onOpenArtifact(a)}>
       <span className="ui-proto-artifact-icon" aria-hidden>
         {icon}
@@ -186,7 +186,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
           void handleDelete(a.id);
         }}
       >
-        {confirmDeleteId === a.id ? "!" : "🗑"}
+        {confirmDeleteId === a.id ? "!" : <IconTrash />}
       </button>
     </div>
   );
@@ -218,7 +218,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
               disabled={specRunning || !requirement.trim()}
               onClick={() => void runSpec()}
             >
-              📝 {t("proto.specBtn")}
+              <IconFile /> {t("proto.specBtn")}
             </button>
             {specRunning && specProgress ? <span className="ui-proto-progress">{specProgress}</span> : null}
             {specRunning && !specProgress ? <span className="ui-proto-progress">{t("proto.running")}</span> : null}
@@ -250,7 +250,7 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
               disabled={protoRunning || !specId}
               onClick={() => void runPrototype()}
             >
-              🎨 {t("proto.prototypeBtn")}
+              <IconPalette /> {t("proto.prototypeBtn")}
             </button>
             {protoRunning && protoProgress ? <span className="ui-proto-progress">{protoProgress}</span> : null}
             {protoRunning && !protoProgress ? <span className="ui-proto-progress">{t("proto.running")}</span> : null}
@@ -262,8 +262,8 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
           <div className="ui-side-panel-empty">{t("proto.empty")}</div>
         ) : (
           <div className="ui-proto-list">
-            {prototypes.map((a) => artifactRow(a, "🎯", t("proto.kindPrototype")))}
-            {specs.map((a) => artifactRow(a, "📄", t("proto.kindSpec")))}
+            {prototypes.map((a) => artifactRow(a, <IconPalette />, t("proto.kindPrototype")))}
+            {specs.map((a) => artifactRow(a, <IconFile />, t("proto.kindSpec")))}
           </div>
         )}
       </div>

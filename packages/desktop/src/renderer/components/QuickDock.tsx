@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useI18n } from "../i18n";
 import { cx } from "../ui/class-names";
+import { IconChat, IconFolder, IconPlus } from "../ui/index";
 
 type QuickDockProps = {
   /** Active session title (may be null on a fresh slate). */
@@ -18,9 +19,9 @@ type QuickDockProps = {
  * Stage quick dock — the always-visible top-left capsule holding the three
  * everyday moves that must never sit behind a navigation layer:
  *
- *   💬 sessions (opens the hub extended straight onto the session list)
- *   ＋  new session
- *   📁 open workspace
+ *   · chat bubble — sessions (opens the hub extended onto the session list)
+ *   · plus — new session
+ *   · folder — open workspace
  *
  * Hidden while the hub rail is up — the two live in the same corner and the
  * rail already covers browsing; the dock is the fast path when it's away.
@@ -43,7 +44,7 @@ export function QuickDock({
         data-tip={t("rail.sessions")}
         aria-label={t("rail.sessions")}
       >
-        💬
+        <IconChat />
       </button>
       <span className="ui-quickdock-title">{sessionTitle ?? t("sidebar.untitled")}</span>
       <span className="ui-quickdock-sep" aria-hidden />
@@ -55,7 +56,7 @@ export function QuickDock({
         data-tip={`${t("command.new.label")} (${modKey}N)`}
         aria-label={t("command.new.label")}
       >
-        ＋
+        <IconPlus />
       </button>
       <button
         type="button"
@@ -65,7 +66,7 @@ export function QuickDock({
         data-tip={t("sidebar.newWorkspace")}
         aria-label={t("sidebar.newWorkspace")}
       >
-        ▤
+        <IconFolder />
       </button>
     </div>
   );

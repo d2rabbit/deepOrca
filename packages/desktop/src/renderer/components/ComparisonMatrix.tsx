@@ -16,6 +16,7 @@
  */
 
 import { useMemo, type JSX } from "react";
+import { IconBalance } from "../ui/index";
 
 type Props = {
   /** Raw markdown table content (between <comparison> tags). */
@@ -69,7 +70,9 @@ export function ComparisonMatrix({ content }: Props): JSX.Element {
 
   return (
     <div className="ui-comparison-matrix">
-      <div className="ui-comparison-matrix-title">⚖ Option Comparison</div>
+      <div className="ui-comparison-matrix-title">
+        <IconBalance /> Option Comparison
+      </div>
       <table className="ui-comparison-matrix-table">
         <thead>
           <tr>

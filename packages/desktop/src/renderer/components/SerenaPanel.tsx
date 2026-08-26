@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import type { SerenaEvent, SerenaView } from "../lib/serena-extract";
 import { useI18n } from "../i18n";
+import { IconBolt } from "../ui/index";
 
 type Props = {
   events: SerenaEvent[];
@@ -147,7 +148,9 @@ export function SerenaPanel({ events, onClose }: Props): JSX.Element | null {
   return (
     <div className="ui-serena-panel">
       <div className="ui-serena-panel-head">
-        <span className="ui-serena-panel-title">⚡ Serena</span>
+        <span className="ui-serena-panel-title">
+          <IconBolt /> Serena
+        </span>
         <div className="ui-serena-panel-tabs">
           {events.map((e, i) => (
             <button

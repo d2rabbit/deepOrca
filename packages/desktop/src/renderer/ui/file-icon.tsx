@@ -85,7 +85,7 @@ const EXT_GLYPHS: Record<string, FileGlyph> = {
 
 /** Iconic files matched by exact (lowercased) name — before any ext lookup. */
 const NAME_GLYPHS: Record<string, FileGlyph> = {
-  // Open-source license family — © in gold.
+  // Open-source license family — gold circle-c mark.
   license: { shape: "copyright", color: "#c9a227" },
   licence: { shape: "copyright", color: "#c9a227" },
   copying: { shape: "copyright", color: "#c9a227" },
@@ -132,21 +132,13 @@ function glyphFor(name: string): FileGlyph | null {
   return EXT_GLYPHS[ext] ?? null;
 }
 
-/** Copyright mark — a plain © reads cleaner at this size than drawn scales. */
+/** Copyright mark — drawn circle-c (SVG-only icon rule; no text symbols). */
 function CopyrightGlyph({ color }: { color: string }): JSX.Element {
   return (
-    <text
-      x="8"
-      y="8.5"
-      textAnchor="middle"
-      dominantBaseline="central"
-      fill={color}
-      fontSize="11"
-      fontWeight="600"
-      fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-    >
-      ©
-    </text>
+    <g stroke={color} strokeWidth="1.1" fill="none">
+      <circle cx="8" cy="8" r="4.6" />
+      <path d="M9.9 6.6a2.3 2.3 0 1 0 0 2.8" strokeLinecap="round" />
+    </g>
   );
 }
 

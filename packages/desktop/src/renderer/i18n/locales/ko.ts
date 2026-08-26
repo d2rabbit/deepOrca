@@ -25,7 +25,7 @@ export const ko: Record<MessageKey, string> = {
   "topbar.settingsTitle": "설정",
   "topbar.model": "모델",
   "topbar.configureModelPool": "모델 풀 구성…",
-  "topbar.noApiKey": "⚠ API 키가 설정되지 않음",
+  "topbar.noApiKey": "API 키가 설정되지 않음",
   "topbar.configureApiKey": "API 키 설정",
   "topbar.languageTitle": "언어",
   "topbar.pluginsTitle": "플러그인 센터",
@@ -173,7 +173,7 @@ export const ko: Record<MessageKey, string> = {
 
   // ── MCP status modal ──────────────────────────────────────
   "mcp.title": "MCP 서버",
-  "mcp.none": "구성된 MCP 서버가 없습니다. ⚙ 설정 → MCP 서버 탭에서 추가하세요.",
+  "mcp.none": "구성된 MCP 서버가 없습니다. 설정 → MCP 서버 탭에서 추가하세요.",
   "mcp.reconnect": "재연결",
   "mcp.toolsCount": "도구 {n}개",
   "mcpStatus.ready": "준비됨",

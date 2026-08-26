@@ -26,7 +26,7 @@ export const zhHK: Record<MessageKey, string> = {
   "topbar.settingsTitle": "設定",
   "topbar.model": "模型",
   "topbar.configureModelPool": "設定模型池…",
-  "topbar.noApiKey": "⚠ 未設定 API Key",
+  "topbar.noApiKey": "未設定 API Key",
   "topbar.configureApiKey": "設定 API Key",
   "topbar.languageTitle": "語言",
   "topbar.pluginsTitle": "外掛中心",
@@ -173,7 +173,7 @@ export const zhHK: Record<MessageKey, string> = {
 
   // ── MCP status modal ──────────────────────────────────────
   "mcp.title": "MCP 伺服器",
-  "mcp.none": "尚未設定 MCP 伺服器。可在 ⚙ 設定 → MCP 伺服器 分頁中新增。",
+  "mcp.none": "尚未設定 MCP 伺服器。可在 設定 → MCP 伺服器 分頁中新增。",
   "mcp.reconnect": "重新連線",
   "mcp.toolsCount": "{n} 個工具",
   "mcpStatus.ready": "就緒",

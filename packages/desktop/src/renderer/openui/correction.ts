@@ -5,7 +5,7 @@
  * missing-required, parse-failed, …). Instead of only showing a local error
  * panel, organize them into a feedback message the agent can act on and send
  * it back through the normal prompt channel — once per prototype version,
- * never twice for the same code+errors (prevents an LLM↔renderer loop).
+ * never twice for the same code+errors (prevents an LLM<->renderer loop).
  */
 
 export type RendererErrorLike = {
