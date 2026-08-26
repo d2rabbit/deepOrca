@@ -1365,6 +1365,8 @@ export const ko: Record<MessageKey, string> = {
   "deck.compacted": "컨텍스트 압축됨 · {freed} 확보",
   "deck.cc.planHint": "다음 전송은 Plan 모드——에이전트가 먼저 계획 제안",
   "deck.cc.enhanceHint": "전송 전 모델로 프롬프트 강화",
+  "deck.cc.modelHint": "현재 모델 — 전환은 이후 요청부터 적용",
+  "deck.cc.thinkHint": "사고 단계 — 현재 모델 계열이 지원하는 단계만 표시",
   "deck.onboard.autonomy": "기본 자율도",
   "deck.onboard.auto0": "고위험만 확인",
   "deck.onboard.auto1": "쓰기 전에 확인 · 권장",

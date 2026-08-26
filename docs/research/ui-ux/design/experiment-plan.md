@@ -190,6 +190,17 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 与冻结线的经典层改动互不污染的隔离红线继续有效；后续冻结线新能力（如 compactTokenThreshold 自定义、doc-wiki D 线落地后的第七知识源卡）在 deck 侧按需复刻。
 
+## 9. E15 — 控制中心模型/思考热切换 + 压缩阈值对齐（2026-08-27）
+
+> 口径：E13 把指令统一收进控制中心后，模型与思考档位仍要去经典层顶栏才能切——这是布局内最大的交互缺口；同时冻结线把压缩阈值做成用户可配，deck 的上下文水位若不读取就会虚高/虚低。本批零新后端通道，全部走既有 IPC。
+
+- **E15.1 模型/思考胶囊行**（CC 仪表格与指令区之间）：`use-deck-settings` 读 `getSettings()` 快照；模型下拉来自 endpoint 注册表（同经典 TopBar 数据源），思考下拉按当前模型家族真实档位派生（`@deeporca/core/capabilities` 的 `familyThinkLevels`/`resolveModelSpec`/`lib/model-utils` 同源复用）；切换走 `setModel` / `setThinkingMode` 热路径并整包采用回传 summary；引擎忙时禁用。
+- **E15.2 压缩阈值对齐**：上下文焦点卡的水位与阈值改传 `settings.compactTokenThreshold` override——与经典层 ContextProgress 完全同口径，用户自定义阈值在 deck 生效。
+- **实现说明**：`hooks/use-deck-settings.ts` 对 summary 做形状守卫（stub/半残载荷一律落 null，消费端必须空保护）；`components/model-capsule.tsx` 自持组件+`deck.css` 胶囊行样式；i18n 六语言 +2 键（tooltip）。
+- **验收**：deck-model-capsule 4 用例（注册表渲染与激活键/setModel 能力感知载荷/setThinkingMode 热补丁/override 阈值生效）；desktop 全量 341 用例绿；typecheck/lint/format 全过。
+
+**已知留白**：会话管理三操作（重命名/删除/导出）尚未进车间墙卡——需先拍板卡片动作的密度口径；archmaps 详情可进一步接 `knowledgeReadArchmap` 内联预览（HTML/Mermaid 双形态）。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。

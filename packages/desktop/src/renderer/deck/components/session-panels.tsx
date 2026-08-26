@@ -7,6 +7,7 @@ import type { SerializableSessionEntry, TaskTreeSummary, UndoTarget, WorkspaceSe
 import { aggregateUsage, compactTokenThreshold, formatTokens } from "../../lib/token-usage";
 import { useI18n } from "../../i18n";
 import type { DeckEngine } from "../hooks/use-deck-engine";
+import { useDeckSettings } from "../hooks/use-deck-settings";
 
 /** Semantic tag class per session status (E6.2 card wall) — no emoji. */
 function statusTagClass(status: string): string {
@@ -263,6 +264,9 @@ export function LedgerPanel(): JSX.Element {
 export function ContextPanel(props: { engine: DeckEngine }): JSX.Element {
   const { t } = useI18n();
   const entry = props.engine.entry;
+  // 用户自定义压缩阈值（设置里可改）优先于模型家族默认值 —— 与经典层
+  // ContextProgress 的 override 口径一致，否则 deck 的水位会虚高/虚低。
+  const { settings } = useDeckSettings();
 
   if (!entry) return <div className="deck-empty">{t("deck.noSession")}</div>;
 
@@ -272,7 +276,7 @@ export function ContextPanel(props: { engine: DeckEngine }): JSX.Element {
         ([, a], [, b]) => (b?.total_tokens ?? 0) - (a?.total_tokens ?? 0)
       )[0]?.[0]
     : undefined;
-  const threshold = compactTokenThreshold(heaviestModel ?? "");
+  const threshold = compactTokenThreshold(heaviestModel ?? "", settings?.compactTokenThreshold);
   const active = entry.activeTokens ?? 0;
   const activePct = Math.min(100, Math.round((active / threshold) * 100));
   const cacheHit = usage?.prompt_cache_hit_tokens ?? 0;

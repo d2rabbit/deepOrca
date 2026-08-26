@@ -1375,6 +1375,8 @@ export const ja: Record<MessageKey, string> = {
   "deck.compacted": "コンテキスト圧縮済み · {freed} 解放",
   "deck.cc.planHint": "次の送信で Plan モード——まず計画を提案",
   "deck.cc.enhanceHint": "送信前にモデルでプロンプトを強化",
+  "deck.cc.modelHint": "現在のモデル——切り替えは以降のリクエストに反映",
+  "deck.cc.thinkHint": "思考ティア——現在のモデルファミリーが対応する段階のみ表示",
   "deck.onboard.autonomy": "デフォルト自律度",
   "deck.onboard.auto0": "高リスクのみ確認",
   "deck.onboard.auto1": "書き込み前に確認 · 推奨",

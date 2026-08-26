@@ -12,6 +12,7 @@ import type { FileMatch, SerializableSessionEntry, SkillInfo } from "../../../sh
 import { api } from "../../api";
 import { formatTokens } from "../../lib/token-usage";
 import { useI18n } from "../../i18n";
+import { ModelCapsule } from "./model-capsule";
 import type { DeckEvent } from "../types";
 
 function formatDuration(ms: number): string {
@@ -368,6 +369,9 @@ export function ControlCenter(props: {
         />
         <Meter label={t("deck.cc.tokens")} value={tokens} />
       </div>
+
+      {/* E15: model & thinking hot-swap — same channels as the classic top bar. */}
+      <ModelCapsule busy={props.busy} />
 
       {props.onSend ? (
         <div className="deck-cc-sec">

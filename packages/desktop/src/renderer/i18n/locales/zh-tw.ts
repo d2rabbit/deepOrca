@@ -1345,6 +1345,8 @@ export const zhTW: Record<MessageKey, string> = {
   "deck.compacted": "上下文已壓縮 · 釋放 {freed}",
   "deck.cc.planHint": "下次傳送進入 Plan 模式——agent 先出方案再施工",
   "deck.cc.enhanceHint": "傳送前用模型增強提示詞",
+  "deck.cc.modelHint": "當前模型——切換對後續請求生效",
+  "deck.cc.thinkHint": "思考檔位——跟隨當前模型家族實際支援的檔位",
   "deck.onboard.autonomy": "預設自律度",
   "deck.onboard.auto0": "只有高危才攔你",
   "deck.onboard.auto1": "寫檔案前問我 · 推薦",
