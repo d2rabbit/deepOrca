@@ -1304,6 +1304,7 @@ export const ko: Record<MessageKey, string> = {
   "deck.tree.snapshot": "스냅샷 복원(파일 {count}개)",
   "deck.tree.emptyBranch": "(고유 노드 없음)",
   "deck.sources.workspaces": "워크스페이스",
+  "deck.sources.files": "파일",
   "deck.sources.pages": "지식 페이지",
   "deck.sources.ready": "{ready}/{total} 준비됨",
   "deck.sources.hint": "리콜 품질이 agent 성능에 직결 · 모두 로컬 · 카드를 클릭해 상세 보기",

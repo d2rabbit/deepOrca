@@ -1284,6 +1284,7 @@ export const zhTW: Record<MessageKey, string> = {
   "deck.tree.snapshot": "還原快照（{count} 個檔案）",
   "deck.tree.emptyBranch": "（無獨有節點）",
   "deck.sources.workspaces": "工作區",
+  "deck.sources.files": "檔案",
   "deck.sources.pages": "知識頁",
   "deck.sources.ready": "{ready}/{total} 就緒",
   "deck.sources.hint": "召回品質直接影響 agent 表現 · 全部本機 · 點擊卡片進詳情",

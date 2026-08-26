@@ -4,7 +4,7 @@
 // streaming unless the user scrolls up.
 import { useEffect, useMemo, useRef, type JSX } from "react";
 import type { SessionMessage } from "../../../shared/ipc";
-import { renderMarkdown } from "../../markdown";
+import { StreamdownView } from "../../components/StreamdownView";
 import { buildToolSummary } from "../../lib/messages";
 import { useI18n } from "../../i18n";
 
@@ -55,12 +55,10 @@ export function DeckTape(props: { messages: SessionMessage[] }): JSX.Element {
         if (message.role === "assistant") {
           return (
             <div key={message.id} className="deck-tape-row assistant">
-              <div
-                className="deck-tape-bubble assistant deck-md"
-                // Rendered by the shared pipeline (marked + DOMPurify) — same
-                // sanitization path as the classic message view.
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content ?? "") }}
-              />
+              <div className="deck-tape-bubble assistant deck-md">
+                {/* Shared Streamdown pipeline — same sanitization path as the classic message view. */}
+                <StreamdownView markdown={message.content ?? ""} />
+              </div>
             </div>
           );
         }

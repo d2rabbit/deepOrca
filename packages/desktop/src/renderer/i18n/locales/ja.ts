@@ -1314,6 +1314,7 @@ export const ja: Record<MessageKey, string> = {
   "deck.tree.snapshot": "スナップショット復元（{count} ファイル）",
   "deck.tree.emptyBranch": "（固有ノードなし）",
   "deck.sources.workspaces": "ワークスペース",
+  "deck.sources.files": "ファイル",
   "deck.sources.pages": "ナレッジページ",
   "deck.sources.ready": "{ready}/{total} 準備完了",
   "deck.sources.hint": "召回品質が agent の性能を左右 · すべてローカル · カードをクリックで詳細",

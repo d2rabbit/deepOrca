@@ -1,7 +1,8 @@
 // Knowledge & index full-body dashboard (E8): a card wall over every real
-// source (knowledgeStatus + the CRG graph library), per-source detail with
-// stats / workspace & page lists, wiki page reading, and rebuild actions
-// with live progress streaming. The overlay keeps the list→detail thumbnail.
+// source (knowledgeStatus + memoryRouting status + the CRG graph library),
+// per-source detail with stats / workspace & page lists, wiki page reading,
+// and rebuild actions with live progress streaming. The overlay keeps the
+// list→detail thumbnail.
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../../api";
 import type {
@@ -9,6 +10,8 @@ import type {
   CrgIndexEntry,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
+  MemoryPipelineStats,
+  MemoryRoutingStatus,
   WikiPageEntry,
 } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
@@ -20,11 +23,17 @@ const STATE_DOT: Record<string, string> = {
   stale: "warn",
 };
 
-type SourceKey = keyof KnowledgeStatusResponse;
+// Post-merge contract: core knowledge sources live in knowledgeStatus(),
+// while memory/routing/serena report through the dedicated
+// MemoryRoutingStatus surface — the dashboard unions both into one wall.
+type KnowledgeSourceKey = keyof KnowledgeStatusResponse;
+type SourceKey = KnowledgeSourceKey | keyof MemoryRoutingStatus;
+type SourceEntry = KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
 
 export const SOURCE_LABEL: Record<SourceKey, string> = {
   codegraph: "CodeGraph",
   openwiki: "OpenWiki",
+  archmaps: "ArchMaps",
   serena: "Serena",
   agents: "AGENTS.md",
   memory: "Memory",
@@ -34,6 +43,7 @@ export const SOURCE_LABEL: Record<SourceKey, string> = {
 export function SourcesDashboard(): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
+  const [legacy, setLegacy] = useState<MemoryRoutingStatus | null>(null);
   const [crg, setCrg] = useState<CrgIndexEntry[] | null>(null);
   const [selected, setSelected] = useState<SourceKey | "crg" | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
@@ -47,6 +57,10 @@ export function SourcesDashboard(): JSX.Element {
     void api
       .knowledgeStatus()
       .then(setStatus)
+      .catch(() => {});
+    void api
+      .memoryRoutingStatus()
+      .then(setLegacy)
       .catch(() => {});
     void api
       .crgList()
@@ -94,7 +108,10 @@ export function SourcesDashboard(): JSX.Element {
 
   if (!status) return <div className="deck-empty">{t("deck.loading")}</div>;
 
-  const entries = Object.entries(status) as Array<[SourceKey, KnowledgeSourceStatus]>;
+  const entries: Array<[SourceKey, SourceEntry]> = [
+    ...(Object.entries(status) as Array<[KnowledgeSourceKey, SourceEntry]>),
+    ...Object.entries(legacy ?? {}).map(([k, v]) => [k as SourceKey, v as SourceEntry] as [SourceKey, SourceEntry]),
+  ];
   const ready = entries.filter(([, s]) => s.state === "indexed").length;
 
   const runRebuild = (what: "all" | SourceKey | "crg") => {
@@ -123,7 +140,10 @@ export function SourcesDashboard(): JSX.Element {
 
   // ── 详情（二级页） ──────────────────────────────────────────────────────
   if (selected) {
-    const source = selected === "crg" ? null : status[selected];
+    const byKey = (key: string): SourceEntry | undefined =>
+      (status as Partial<Record<string, SourceEntry>>)[key] ??
+      ((legacy ?? {}) as Partial<Record<string, SourceEntry>>)[key];
+    const source = selected === "crg" ? null : (byKey(selected) ?? null);
     return (
       <div className="deck-srcdash">
         <div className="deck-sub-head">
@@ -154,17 +174,17 @@ export function SourcesDashboard(): JSX.Element {
                 <span className="v">{source.detail}</span>
               </div>
             ) : null}
-            {selected === "memory" && status.memory.stats ? (
+            {selected === "memory" && source.stats ? (
               <>
                 <div className="deck-kv">
                   <span className="k">L0/L1/L2</span>
                   <span className="v">
-                    {status.memory.stats.l0}/{status.memory.stats.l1}/{status.memory.stats.l2}
+                    {source.stats.l0}/{source.stats.l1}/{source.stats.l2}
                   </span>
                 </div>
                 <div className="deck-kv">
                   <span className="k">L3 persona</span>
-                  <span className="v">{status.memory.stats.l3 ? "✓" : "—"}</span>
+                  <span className="v">{source.stats.l3 ? "✓" : "—"}</span>
                 </div>
               </>
             ) : null}
@@ -194,6 +214,18 @@ export function SourcesDashboard(): JSX.Element {
                 <span className={`deck-sdot ${ws.initialized ? "ok" : "idle"}`} aria-hidden="true" />
                 <span className="deck-row-main">{ws.label}</span>
                 <span className="deck-row-meta">{ws.root}</span>
+              </div>
+            ))}
+          </>
+        ) : null}
+
+        {selected === "archmaps" && status.archmaps.files && status.archmaps.files.length > 0 ? (
+          <>
+            <div className="deck-panel-group-title">{t("deck.sources.files")}</div>
+            {status.archmaps.files.map((f) => (
+              <div key={f.path} className="deck-row static">
+                <span className="deck-row-main">{f.name}</span>
+                <span className="deck-row-meta">{f.mtime ? f.mtime.slice(0, 16).replace("T", " ") : f.path}</span>
               </div>
             ))}
           </>
