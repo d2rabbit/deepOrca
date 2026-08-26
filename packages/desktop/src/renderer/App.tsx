@@ -1798,18 +1798,23 @@ export function App(): JSX.Element {
     ]
   );
 
-  // Esc dismisses the hub sheet — unless a modal surface (palette, dialog,
-  // diff, trust ask) is open; those own the Escape key while visible.
+  // Esc dismisses the hub sheet / the settings modal — unless a system modal
+  // surface (palette, dialog, diff, trust ask) is open; those own the Escape
+  // key while visible.
   useEffect(() => {
-    if (!panelOpen) return;
+    if (!panelOpen && activeTab.kind !== "settings") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (paletteOpen || modal !== null || diffTarget !== null || trustAskOpen) return;
-      handleCollapsePanel();
+      if (panelOpen) {
+        handleCollapsePanel();
+        return;
+      }
+      if (activeTab.kind === "settings") handleCloseAuxTab("settings");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [panelOpen, paletteOpen, modal, diffTarget, trustAskOpen, handleCollapsePanel]);
+  }, [panelOpen, activeTab.kind, paletteOpen, modal, diffTarget, trustAskOpen, handleCollapsePanel, handleCloseAuxTab]);
 
   // Focusing a surface sheet auto-collapses the hub: the sheet is the new
   // point of attention (and spans the stage, so a hub floating over it only
@@ -1948,19 +1953,10 @@ export function App(): JSX.Element {
       />
 
       <div className="ui-main">
-        {activeTab.kind === "settings" && editable ? (
-          <div className="ui-sheet">
-            <SettingsPanel
-              initial={editable}
-              initialTab={settingsInitialTab}
-              onSave={handleSaveSettings}
-              onClose={() => handleCloseAuxTab("settings")}
-              platform={platform}
-              theme={theme}
-              onSelectTheme={handleSelectTheme}
-            />
-          </div>
-        ) : activeTab.kind === "plugins" ? (
+        {/* Settings renders at SHELL level (modal family) — here the chain
+            falls through to the conversation, which stays visible (dimmed by
+            the scrim) instead of being covered by a full-stage sheet. */}
+        {activeTab.kind === "plugins" ? (
           <div className="ui-sheet">
             <PluginDetail
               selection={selectedPlugin}
@@ -2020,6 +2016,28 @@ export function App(): JSX.Element {
           chatContent
         )}
       </div>
+
+      {/* Settings — centered modal card (shell level, modal family): settings
+          is a form dialog, not a workspace surface. Compact card over a
+          click-to-dismiss scrim; the conversation stage stays visible behind.
+          scrim 98 · card 99 — above the floating islands, below the app's
+          .ui-modal-overlay (100) / palette (120) / toasts (200). */}
+      {activeTab.kind === "settings" && editable ? (
+        <>
+          <div className="ui-settings-scrim" onClick={() => handleCloseAuxTab("settings")} aria-hidden />
+          <div className="ui-settings-modal">
+            <SettingsPanel
+              initial={editable}
+              initialTab={settingsInitialTab}
+              onSave={handleSaveSettings}
+              onClose={() => handleCloseAuxTab("settings")}
+              platform={platform}
+              theme={theme}
+              onSelectTheme={handleSelectTheme}
+            />
+          </div>
+        </>
+      ) : null}
 
       {/* Right-side companion card — PM-Design / DeepDesign output */}
       {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (

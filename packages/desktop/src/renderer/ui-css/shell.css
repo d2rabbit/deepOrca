@@ -992,6 +992,43 @@ button.ui-surface-chip {
   border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 
+/* ── Settings modal (centered card, NOT a full-stage sheet) ──────────────────
+   Settings is a form dialog, not a workspace surface: it opens as a compact
+   centered card over a click-to-dismiss scrim so the stage — including a
+   streaming conversation — stays visible around it. Layered with the app's
+   modal family: scrim 98 · card 99, below .ui-modal-overlay (100), palette
+   (120) and toasts (200). */
+.ui-settings-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.32);
+  animation: ui-overlay-fade 0.15s ease both;
+}
+.ui-settings-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 99;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  /* Clicks pass through the empty grid area to the scrim below. */
+  pointer-events: none;
+}
+.ui-settings-modal > * {
+  pointer-events: auto;
+  width: min(960px, 100%);
+  height: min(700px, 100%);
+  min-width: 0;
+  min-height: 0;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* ── Tide orb (bottom-left navigation) ─────────────────────────────────────── */
 .ui-orb {
   position: absolute;

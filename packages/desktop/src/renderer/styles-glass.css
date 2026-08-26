@@ -144,6 +144,7 @@
    are the primary glass objects now. */
 .ui-hub-sheet,
 .ui-sheet,
+.ui-settings-modal > *,
 .ui-preview-panel,
 .ui-orb,
 .ui-surface-chips,
@@ -182,6 +183,7 @@
 /* Surface sheet + companion card: lighter frost than the hub — they cover
    the stage, so a higher surface ratio keeps their content readable. */
 .ui-sheet,
+.ui-settings-modal > *,
 .ui-preview-panel {
   background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
   border: 1px solid var(--glass-edge-soft);
@@ -368,6 +370,7 @@ textarea:focus {
   }
   .ui-hub-sheet,
   .ui-sheet,
+  .ui-settings-modal > *,
   .ui-preview-panel,
   .ui-orb,
   .ui-surface-chips,
@@ -383,6 +386,7 @@ textarea:focus {
   }
   .ui-hub-sheet,
   .ui-sheet,
+  .ui-settings-modal > *,
   .ui-preview-panel {
     background: var(--ui-surface);
   }
@@ -529,6 +533,7 @@ textarea:focus {
    above. Each surface already draws its 1px edge from --ui-border(-soft). */
 .ui-hub-sheet,
 .ui-sheet,
+.ui-settings-modal > *,
 .ui-preview-panel,
 .ui-orb,
 .ui-surface-chips,
