@@ -3,6 +3,7 @@ import { api } from "./api";
 import { useTreeRefresh } from "./hooks/use-tree-refresh";
 import { useDocumentTitle } from "./hooks/use-document-title";
 import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
+import type { SidebarView } from "./hooks/use-panel-layout";
 import { usePanelLayout } from "./hooks/use-panel-layout";
 import { useCompanionWidth } from "./hooks/use-companion-width";
 import { useAppearance } from "./hooks/use-appearance";
@@ -280,12 +281,30 @@ export function App(): JSX.Element {
     setSidebarView,
     panelOpen,
     setPanelOpen,
+    viewExtended,
+    setViewExtended,
     panelWidth,
     handleResizeStart,
-    selectView,
+    selectView: selectViewBase,
     openTokensView,
     handleCollapsePanel,
   } = usePanelLayout();
+  /** Palette / slash-command / quick-action entries land DIRECTLY on their
+   *  module extended — unlike rail clicks (which own the level-2 toggle),
+   *  an intent to "open X" from elsewhere always extends the flyout. */
+  const selectView = useCallback(
+    (view: SidebarView) => {
+      setViewExtended(true);
+      selectViewBase(view);
+    },
+    [selectViewBase, setViewExtended]
+  );
+  /** Orb / ⌘B: pure summon-dismiss of level 1 (the icon rail). Opening
+   *  starts rail-only; picking a module is what extends level 2. */
+  const handleToggleHub = useCallback(() => {
+    setPanelOpen((open) => !open);
+    setViewExtended(false);
+  }, [setPanelOpen, setViewExtended]);
   const { companionWidth, handleCompanionResizeStart } = useCompanionWidth();
   // Opening a file opens (or focuses) its OWN editor tab in the main area and
   // flips the left panel to the file tree (audit P1-2 behavior preserved) —
@@ -1148,7 +1167,7 @@ export function App(): JSX.Element {
   useGlobalShortcuts({
     togglePalette: () => setPaletteOpen((v) => !v),
     toggleProcessPanel: () => setShowProcessPanel((v) => !v),
-    togglePanel: () => setPanelOpen((v) => !v),
+    togglePanel: handleToggleHub,
     newSession: handleNewSession,
     openSettings: handleOpenSettings,
     toggleShortcutsModal: () => setModal((v) => (v === "shortcuts" ? null : "shortcuts")),
@@ -1225,7 +1244,7 @@ export function App(): JSX.Element {
         label: t("shortcuts.toggleSidebar"),
         keywords: "sidebar panel toggle",
         shortcut: `${modKey}B`,
-        run: () => setPanelOpen((v) => !v),
+        run: handleToggleHub,
       },
       {
         id: "shortcuts",
@@ -1377,6 +1396,7 @@ export function App(): JSX.Element {
       handleSelectTheme,
       handleStop,
       handleToggleAppearance,
+      handleToggleHub,
       handleToggleLineVariant,
       modKey,
       openTokensView,
@@ -1384,7 +1404,6 @@ export function App(): JSX.Element {
       pushToast,
       runPrompt,
       selectView,
-      setPanelOpen,
       setShowProcessPanel,
       t,
     ]
@@ -1798,23 +1817,35 @@ export function App(): JSX.Element {
     ]
   );
 
-  // Esc dismisses the hub sheet / the settings modal — unless a system modal
-  // surface (palette, dialog, diff, trust ask) is open; those own the Escape
-  // key while visible.
+  // Esc unwinds the hub level by level — flyout first, then the rail itself.
+  // A system modal surface (palette, dialog, diff, trust ask) owns Escape
+  // while visible; those bail out first.
   useEffect(() => {
     if (!panelOpen && activeTab.kind !== "settings") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (paletteOpen || modal !== null || diffTarget !== null || trustAskOpen) return;
       if (panelOpen) {
-        handleCollapsePanel();
+        if (viewExtended) setViewExtended(false);
+        else handleCollapsePanel();
         return;
       }
       if (activeTab.kind === "settings") handleCloseAuxTab("settings");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [panelOpen, activeTab.kind, paletteOpen, modal, diffTarget, trustAskOpen, handleCollapsePanel, handleCloseAuxTab]);
+  }, [
+    panelOpen,
+    viewExtended,
+    setViewExtended,
+    activeTab.kind,
+    paletteOpen,
+    modal,
+    diffTarget,
+    trustAskOpen,
+    handleCollapsePanel,
+    handleCloseAuxTab,
+  ]);
 
   // Focusing a surface sheet auto-collapses the hub: the sheet is the new
   // point of attention (and spans the stage, so a hub floating over it only
@@ -1839,7 +1870,10 @@ export function App(): JSX.Element {
   } as CSSProperties;
 
   return (
-    <div className={`ui-shell${panelOpen ? " panel-open" : ""}`} style={shellVars}>
+    <div
+      className={`ui-shell${panelOpen ? " panel-open" : ""}${panelOpen && viewExtended ? " hub-expanded" : ""}`}
+      style={shellVars}
+    >
       {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position. */}
       <GlobalTooltip />
 
@@ -1849,8 +1883,10 @@ export function App(): JSX.Element {
       {panelOpen ? (
         <HubSheet
           view={sidebarView}
+          expanded={viewExtended}
           disabledViews={hasPlan ? [] : ["tasks"]}
-          onSelectView={selectView}
+          onSelectView={selectViewBase}
+          onCollapseFlyout={() => setViewExtended(false)}
           onClose={handleCollapsePanel}
           onResizeStart={handleResizeStart}
         >
@@ -2128,7 +2164,7 @@ export function App(): JSX.Element {
         open={panelOpen}
         badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
         modKey={modKey}
-        onClick={() => selectView(sidebarView)}
+        onClick={handleToggleHub}
       />
 
       {/* Background-task badge — compact circular presence (module icon in

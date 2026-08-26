@@ -71,11 +71,18 @@ function loadView(): SidebarView {
 export type PanelLayout = {
   sidebarView: SidebarView;
   setSidebarView: React.Dispatch<React.SetStateAction<SidebarView>>;
+  /** The hub rail is summoned (orb / ⌘B / palette). */
   panelOpen: boolean;
   setPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  /** Level-2 flyout: the selected module's content card is extended beside
+   *  the rail. Independent so opening the hub can show ONLY the icon column
+   *  until the user picks one. */
+  viewExtended: boolean;
+  setViewExtended: React.Dispatch<React.SetStateAction<boolean>>;
   panelWidth: number;
   handleResizeStart: (e: React.MouseEvent) => void;
-  /** Selecting the active view again toggles the hub. */
+  /** Selecting a view extends its flyout; re-selecting the active one
+   *  collapses the flyout back to the rail (level-2 toggle). */
   selectView: (view: SidebarView) => void;
   openTokensView: () => void;
   handleCollapsePanel: () => void;
@@ -84,8 +91,8 @@ export type PanelLayout = {
 export function usePanelLayout(): PanelLayout {
   const [sidebarView, setSidebarView] = useState<SidebarView>(loadView);
   const [panelOpen, setPanelOpen] = useState(true);
-  // 320 default (was 280): the hub island's 4-column launcher tile grid needs
-  // the extra room so CJK tile labels don't ellipsize on first open.
+  const [viewExtended, setViewExtended] = useState(false);
+  // 320 default matches the flyout card's resizable width range.
   const [panelWidth, setPanelWidth] = useState<number>(loadWidth);
 
   // Remember the last hub view — reopening the hub (or relaunching the app)
@@ -127,18 +134,21 @@ export function usePanelLayout(): PanelLayout {
     [panelWidth]
   );
 
-  // Hub tiles: selecting a tile swaps the sheet's view; re-selecting the
-  // active tile toggles the hub (same semantics as the old rail).
-  const selectView = useCallback((view: SidebarView) => {
-    setSidebarView((prev) => {
-      if (prev === view) {
-        setPanelOpen((wasOpen) => !wasOpen);
-        return view;
+  // Rail item click: a different module extends its flyout; the SAME module
+  // toggles level-2 (extended ⇄ rail-only) without ever closing the rail.
+  const selectView = useCallback(
+    (view: SidebarView) => {
+      if (sidebarView === view) {
+        setViewExtended((was) => !was);
+        setPanelOpen(true);
+      } else {
+        setSidebarView(view);
+        setViewExtended(true);
+        setPanelOpen(true);
       }
-      setPanelOpen(true);
-      return view;
-    });
-  }, []);
+    },
+    [sidebarView]
+  );
   const openTokensView = useCallback(() => selectView("tokens"), [selectView]);
   const handleCollapsePanel = useCallback(() => setPanelOpen(false), []);
 
@@ -147,6 +157,8 @@ export function usePanelLayout(): PanelLayout {
     setSidebarView,
     panelOpen,
     setPanelOpen,
+    viewExtended,
+    setViewExtended,
     panelWidth,
     handleResizeStart,
     selectView,

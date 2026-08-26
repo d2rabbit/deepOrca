@@ -552,6 +552,7 @@ export const zhHK: Record<MessageKey, string> = {
   // ── Rail (icon navigation) ────────────────────────────────
   "rail.newSession": "新增工作階段",
   "hub.title": "樞紐",
+  "hub.collapseToRail": "收起面板",
   "surface.chat": "對話",
   "rail.sessions": "工作階段",
   "rail.plugins": "外掛中心",

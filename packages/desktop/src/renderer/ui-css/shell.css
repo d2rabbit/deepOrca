@@ -20,8 +20,15 @@
 .ui-shell {
   --ui-right-w: 480px;
   --ui-cockpit-h: 52px;
-  /* Stage inset while the hub sheet is open — the centered conversation
-     column glides right instead of being occluded (Arc-style reflow). */
+  /* Hub geometry — shared by the rail/flyout positioning, orb docking and
+     the stage's Arc-style reflow below. */
+  --ui-hub-inset: 14px;
+  --ui-hub-rail-w: 64px;
+  --ui-hub-gap: 10px;
+  /* Stage inset while the hub is open — the centered conversation column
+     glides right instead of being occluded (Arc-style reflow). Level 1
+     (rail only) shifts just past the slim icon column; extending level 2
+     pushes further to clear the content card as well. */
   --ui-stage-pad-l: 0px;
   display: flex;
   flex-direction: column;
@@ -32,7 +39,13 @@
 }
 
 .ui-shell.panel-open {
-  --ui-stage-pad-l: calc(var(--ui-panel-w, 320px) + 24px);
+  --ui-stage-pad-l: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + 22px);
+}
+
+.ui-shell.panel-open.hub-expanded {
+  --ui-stage-pad-l: calc(
+    var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + 26px
+  );
 }
 
 /* Ambient tide glow — two soft radial washes anchored to opposite corners.
@@ -541,18 +554,22 @@ button.ui-surface-chip {
   pointer-events: auto;
 }
 
-/* ── Hub sheet (floating glass island, left) ───────────────────────────────── */
-.ui-hub-sheet {
+/* ── Hub (two levels: icon rail → flyout card) ───────────────────────────────
+   Level 1 summons a slim vertical glass column of module icons; picking one
+   extends the level-2 content card out beside it. The orb docks past
+   whichever surface is outermost. */
+.ui-hub-rail {
   position: absolute;
   top: calc(var(--ui-cockpit-h) + 8px);
   bottom: 14px;
-  left: 14px;
-  width: var(--ui-panel-w, 320px);
-  z-index: 30;
+  left: var(--ui-hub-inset);
+  width: var(--ui-hub-rail-w);
+  z-index: 31;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  border-radius: 18px;
+  align-items: center;
+  padding: 10px 6px 8px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
   backdrop-filter: blur(20px) saturate(1.25);
   -webkit-backdrop-filter: blur(20px) saturate(1.25);
@@ -565,6 +582,121 @@ button.ui-surface-chip {
   from {
     opacity: 0;
     transform: translateX(-16px) scale(0.985);
+  }
+}
+
+/* Brand mark capping the rail. */
+.ui-hub-mark {
+  flex: none;
+  font-size: 17px;
+  line-height: 1;
+  margin-bottom: 8px;
+  color: var(--ui-accent);
+}
+
+/* Vertical module list — the single glowing column. */
+.ui-hub-rail-items {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.ui-hub-rail-items::-webkit-scrollbar {
+  display: none;
+}
+.ui-hub-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 46px;
+  padding: 7px 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease),
+    transform 0.12s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.ui-hub-item:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-hub-item:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-hub-item:not(:disabled):active {
+    transform: scale(0.95);
+  }
+}
+.ui-hub-item.active {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent, #3b82f6) 18%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 12%, transparent)
+  );
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 30%, transparent);
+}
+.ui-hub-item-icon {
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+.ui-hub-item-label {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rail bottom ⟨ — collapses the whole hub back to just the orb. */
+.ui-hub-collapse {
+  flex: none;
+  margin-top: 6px;
+}
+
+/* Level 2 — the content card extending out beside the rail. Anchored to the
+   rail's right edge with the shared gap; its own glass slab so it reads as a
+   distinct floating layer rather than pane #2 of one island. */
+.ui-hub-flyout {
+  position: absolute;
+  top: calc(var(--ui-cockpit-h) + 8px);
+  bottom: 14px;
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap));
+  width: var(--ui-panel-w, 320px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-hub-flyout-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-hub-flyout-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
   }
 }
 
@@ -603,74 +735,6 @@ button.ui-surface-chip {
 .ui-hub-close:hover {
   background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
   color: var(--ui-danger);
-}
-
-/* Launcher tile grid — the app-drawer replacement for the activity rail. */
-.ui-hub-tiles {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-  padding: 2px 12px 10px;
-}
-.ui-hub-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 52px;
-  padding: 7px 4px 6px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--ui-text-dim);
-  font-size: 10px;
-  line-height: 1.25;
-  text-align: center;
-  cursor: pointer;
-  transition:
-    background 0.14s var(--ui-ease),
-    color 0.14s var(--ui-ease),
-    border-color 0.14s var(--ui-ease),
-    transform 0.12s var(--ui-ease);
-}
-.ui-hub-tile:hover {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-}
-.ui-hub-tile:disabled {
-  opacity: 0.38;
-  cursor: default;
-}
-.ui-hub-tile:disabled:hover {
-  background: transparent;
-  color: var(--ui-text-dim);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .ui-hub-tile:active {
-    transform: scale(0.95);
-  }
-}
-.ui-hub-tile.active {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--ui-accent, #3b82f6) 18%, transparent),
-    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 12%, transparent)
-  );
-  color: var(--ui-accent);
-  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 30%, transparent);
-}
-.ui-hub-tile-icon {
-  display: grid;
-  place-items: center;
-  font-size: 16px;
-}
-.ui-hub-tile-label {
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ui-hub-body {
@@ -1106,10 +1170,14 @@ button.ui-surface-chip {
     box-shadow 0.15s var(--ui-ease),
     transform 0.12s var(--ui-ease);
 }
-/* While the hub sheet is open the orb docks to the island's right edge —
-   it remains the one-tap close, and the slide sells the "summon" metaphor. */
+/* While the hub is open the orb docks just past the icon rail — it remains
+   the one-tap close, and the slide sells the "summon" metaphor. When level 2
+   (content card) is extended, it docks past that card's edge instead. */
 .ui-shell.panel-open .ui-orb {
-  left: calc(14px + var(--ui-panel-w, 320px) + 10px);
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + 12px);
+}
+.ui-shell.panel-open.hub-expanded .ui-orb {
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + 12px);
 }
 .ui-orb:hover {
   color: var(--ui-accent);

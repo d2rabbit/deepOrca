@@ -36,27 +36,37 @@ const VIEW_LABEL_KEYS: Record<SidebarView, MessageKey> = {
 type HubViewDef = { id: SidebarView; labelKey: MessageKey; icon: JSX.Element };
 
 type HubSheetProps = {
-  /** Currently active sidebar view (tile highlight + sheet title). */
+  /** Currently active sidebar view (item highlight + flyout title). */
   view: SidebarView;
+  /** Whether the level-2 content card is extended beside the rail. */
+  expanded: boolean;
   /** Views whose backing data is absent (rendered dimmed, not clickable). */
   disabledViews?: SidebarView[];
   onSelectView: (view: SidebarView) => void;
+  /** Collapse ONLY the flyout back to the icon rail (flyout header ✕). */
+  onCollapseFlyout: () => void;
+  /** Close the whole hub (rail bottom ⟨ / Esc / orb). */
   onClose: () => void;
   onResizeStart: (e: MouseEvent) => void;
   children: ReactNode;
 };
 
 /**
- * Hub sheet — the floating glass island that replaced the VSCode-style
- * activity-rail + docked-sidebar pair. It overlays the conversation stage
- * (never reflows into a grid track), carries its own launcher tile grid for
- * switching views, and keeps the legacy drag-to-resize interaction on its
- * right edge.
+ * Hub — two stacked levels:
+ *
+ *   Level 1 · `.ui-hub-rail`    a slim vertical glass column of module icons;
+ *                               summoned by the tide orb / ⌘B.
+ *   Level 2 · `.ui-hub-flyout`  the selected module's content card, extending
+ *                               out beside the rail once an item is picked.
+ *
+ * The orb stays level-1 only; picking an icon is what extends level 2.
  */
 export function HubSheet({
   view,
+  expanded,
   disabledViews = [],
   onSelectView,
+  onCollapseFlyout,
   onClose,
   onResizeStart,
   children,
@@ -77,45 +87,66 @@ export function HubSheet({
     { id: "plugins", labelKey: VIEW_LABEL_KEYS.plugins, icon: <IconPlugins /> },
   ];
   return (
-    <aside className="ui-hub-sheet" role="complementary" aria-label={t("hub.title")}>
-      <div className="ui-hub-head">
-        <span className="ui-hub-title">{t(VIEW_LABEL_KEYS[view])}</span>
+    <>
+      {/* Level 1: vertical rail — one glowing entry per row. */}
+      <nav className="ui-hub-rail" aria-label={t("hub.title")}>
+        <span className="ui-hub-mark" aria-hidden>
+          ◈
+        </span>
+        <div className="ui-hub-rail-items" role="tablist" aria-label={t("hub.title")}>
+          {views.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="tab"
+              aria-selected={v.id === view}
+              disabled={disabledViews.includes(v.id)}
+              className={cx("ui-hub-item", v.id === view && "active")}
+              onClick={() => onSelectView(v.id)}
+            >
+              <span className="ui-hub-item-icon" aria-hidden>
+                {v.icon}
+              </span>
+              <span className="ui-hub-item-label">{t(v.labelKey)}</span>
+            </button>
+          ))}
+        </div>
         <button
           type="button"
-          className="ui-hub-close"
+          className="ui-hub-close ui-hub-collapse"
           onClick={onClose}
           title={t("common.close")}
           aria-label={t("common.close")}
         >
-          ✕
+          ⟨
         </button>
-      </div>
-      <div className="ui-hub-tiles" role="tablist" aria-label={t("hub.title")}>
-        {views.map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            role="tab"
-            aria-selected={v.id === view}
-            disabled={disabledViews.includes(v.id)}
-            className={cx("ui-hub-tile", v.id === view && "active")}
-            onClick={() => onSelectView(v.id)}
-          >
-            <span className="ui-hub-tile-icon" aria-hidden>
-              {v.icon}
-            </span>
-            <span className="ui-hub-tile-label">{t(v.labelKey)}</span>
-          </button>
-        ))}
-      </div>
-      <div className="ui-hub-body">
-        {/* key change re-triggers the per-view entrance animation */}
-        <div className="ui-hub-body-view" key={view}>
-          {children}
-        </div>
-      </div>
-      <div className="ui-hub-resize" onMouseDown={onResizeStart} role="separator" aria-orientation="vertical" />
-    </aside>
+      </nav>
+
+      {/* Level 2: floating content card anchored beside the rail. Rendered
+          only when extended; the inner key re-triggers the per-view fade. */}
+      {expanded ? (
+        <section className="ui-hub-flyout" aria-label={t(VIEW_LABEL_KEYS[view])}>
+          <header className="ui-hub-head">
+            <span className="ui-hub-title">{t(VIEW_LABEL_KEYS[view])}</span>
+            <button
+              type="button"
+              className="ui-hub-close"
+              onClick={onCollapseFlyout}
+              title={t("hub.collapseToRail")}
+              aria-label={t("hub.collapseToRail")}
+            >
+              ✕
+            </button>
+          </header>
+          <div className="ui-hub-body">
+            <div className="ui-hub-body-view" key={view}>
+              {children}
+            </div>
+          </div>
+          <div className="ui-hub-resize" onMouseDown={onResizeStart} role="separator" aria-orientation="vertical" />
+        </section>
+      ) : null}
+    </>
   );
 }
 
@@ -129,10 +160,9 @@ type HubOrbProps = {
 };
 
 /**
- * Tide orb — the single persistent navigation affordance. A floating orb at
- * the bottom-left corner of the stage that summons/dismisses the hub sheet.
- * When the sheet is open the orb slides to the sheet's right edge, staying
- * reachable as the close affordance.
+ * Tide orb — summons/dismisses the icon rail (level 1). Picking a module
+ * extends its content card (level 2); the orb docks past whichever surface
+ * is outermost so it remains the one-tap close.
  */
 export function HubOrb({ open, badge = false, modKey, onClick }: HubOrbProps): JSX.Element {
   const { t } = useI18n();
