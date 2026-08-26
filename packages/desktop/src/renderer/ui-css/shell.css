@@ -271,9 +271,10 @@
 
 /* ── Surface chips (cockpit center) ──────────────────────────────────────────
    The tab strip's successor: one glowing chip per open surface, always-first
-   chip for the conversation. Icon-only with tooltips; the close ✕ reveals on
-   hover. Lives inside the cockpit so switching surfaces never depends on a
-   second chrome row. */
+   chip for the conversation. Closable chips are a container div with two
+   SIBLING buttons (switch + close) — no nested interactive elements. Lives
+   inside the cockpit so switching surfaces never depends on a second chrome
+   row. */
 .ui-surface-chips {
   display: inline-flex;
   align-items: center;
@@ -286,13 +287,10 @@
   -webkit-app-region: no-drag;
 }
 .ui-surface-chip {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
   max-width: 180px;
   height: 26px;
-  padding: 0 10px;
   border: none;
   border-radius: var(--ui-radius-pill);
   background: transparent;
@@ -301,11 +299,32 @@
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
-  cursor: pointer;
   transition:
     background 0.14s var(--ui-ease),
     color 0.14s var(--ui-ease),
     box-shadow 0.14s var(--ui-ease);
+}
+/* Standalone chip (the conversation chip) is itself the button. */
+button.ui-surface-chip {
+  padding: 0 10px;
+  cursor: pointer;
+}
+.ui-surface-chip-main {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 0 0 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 .ui-surface-chip:hover {
   background: var(--ui-surface-hover);
@@ -322,11 +341,12 @@
 }
 .ui-surface-chip-close {
   flex: none;
+  align-self: center;
   display: grid;
   place-items: center;
   width: 16px;
   height: 16px;
-  margin-left: 2px;
+  margin: 0 4px;
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -895,11 +915,17 @@
 /* ── Surface sheet (rounded overlay card) ────────────────────────────────────
    Settings / plugins / editor files / knowledge / task records render as a
    large rounded card floating over the stage — never as a top tab strip's
-   pane. Entrance: rise + settle. */
+   pane. Entrance: rise + settle.
+   Layering contract: companion 25 < sheet 28 < hub 30 < orb 40 < system
+   overlays (serena 55 · console 60 · modal 100 · palette 120 · toast 200).
+   The sheet floats above the companion so an open editor/preview never
+   occludes it; the hub stays above the sheet so summoning it while a sheet
+   is focused is always visible (App also auto-collapses the hub when a
+   sheet activates). */
 .ui-sheet {
   position: absolute;
   inset: 16px;
-  z-index: 20;
+  z-index: 28;
   display: flex;
   flex-direction: column;
   min-width: 0;

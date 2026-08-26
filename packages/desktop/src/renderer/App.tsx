@@ -86,6 +86,7 @@ import { useI18n } from "./i18n";
 import {
   CommandPalette,
   GlobalTooltip,
+  IconCommand,
   IconTaskTree,
   IconMoon,
   IconSun,
@@ -1630,11 +1631,8 @@ export function App(): JSX.Element {
   // Successor of the editor-style tab strip: one glowing chip per open
   // surface plus the always-first conversation chip. Rendered only when at
   // least one auxiliary surface exists — a lone conversation keeps the
-  // cockpit clean.
-  const chipClose = (onClose: () => void) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClose();
-  };
+  // cockpit clean. Chip = container div + two SIBLING buttons (switch +
+  // close) — nested interactive elements are an a11y/HTML anti-pattern.
   const hasAuxSurfaces = auxTabs.length > 0 || taskTabs.length > 0 || knowledgeTabs.length > 0;
   const surfaceChips = useMemo(() => {
     if (!hasAuxSurfaces) return null;
@@ -1660,69 +1658,73 @@ export function App(): JSX.Element {
                 ? `🧩 ${t("plugins.title")}`
                 : `📄 ${(tab.file ?? "").split(/[\\/]/).pop()}`;
           return (
-            <button
-              key={tab.key}
-              type="button"
-              className={cx("ui-surface-chip", active && "active")}
-              onClick={() =>
-                setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
-              }
-              data-tip={tab.kind === "editor" ? tab.file : label}
-            >
-              <span>{label}</span>
-              <span
+            <div key={tab.key} className={cx("ui-surface-chip", active && "active")}>
+              <button
+                type="button"
+                className="ui-surface-chip-main"
+                onClick={() =>
+                  setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
+                }
+                data-tip={tab.kind === "editor" ? tab.file : label}
+              >
+                {label}
+              </button>
+              <button
+                type="button"
                 className="ui-surface-chip-close"
-                role="button"
-                tabIndex={-1}
+                onClick={() => handleCloseAuxTab(tab.key)}
                 aria-label={t("tasktree.closeTab")}
-                onClick={chipClose(() => handleCloseAuxTab(tab.key))}
               >
                 ✕
-              </span>
-            </button>
+              </button>
+            </div>
           );
         })}
         {taskTabs.map((tab) => (
-          <button
+          <div
             key={tab.treeId}
-            type="button"
             className={cx("ui-surface-chip", activeTab.kind === "task" && activeTab.treeId === tab.treeId && "active")}
-            onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
-            data-tip={tab.title}
           >
-            <span>
+            <button
+              type="button"
+              className="ui-surface-chip-main"
+              onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
+              data-tip={tab.title}
+            >
               <IconTaskTree /> {tab.title}
-            </span>
-            <span
+            </button>
+            <button
+              type="button"
               className="ui-surface-chip-close"
-              role="button"
-              tabIndex={-1}
+              onClick={() => handleCloseTaskTab(tab.treeId)}
               aria-label={t("tasktree.closeTab")}
-              onClick={chipClose(() => handleCloseTaskTab(tab.treeId))}
             >
               ✕
-            </span>
-          </button>
+            </button>
+          </div>
         ))}
         {knowledgeTabs.map((tab) => (
-          <button
+          <div
             key={tab.root}
-            type="button"
             className={cx("ui-surface-chip", activeTab.kind === "knowledge" && activeTab.root === tab.root && "active")}
-            onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
-            data-tip={tab.root}
           >
-            <span>📚 {tab.label}</span>
-            <span
+            <button
+              type="button"
+              className="ui-surface-chip-main"
+              onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
+              data-tip={tab.root}
+            >
+              📚 {tab.label}
+            </button>
+            <button
+              type="button"
               className="ui-surface-chip-close"
-              role="button"
-              tabIndex={-1}
+              onClick={() => handleCloseKnowledgeTab(tab.root)}
               aria-label={t("tasktree.closeTab")}
-              onClick={chipClose(() => handleCloseKnowledgeTab(tab.root))}
             >
               ✕
-            </span>
-          </button>
+            </button>
+          </div>
         ))}
       </div>
     );
@@ -1738,12 +1740,22 @@ export function App(): JSX.Element {
     taskTabs,
   ]);
 
-  // Cockpit right cluster — the old rail's bottom icons (appearance / undo /
-  // settings) live here now, floating with the other cockpit pills. Memoized
-  // so TopBar (React.memo) isn't defeated by an unstable prop identity.
+  // Cockpit right cluster — the old rail's bottom icons (commands / undo /
+  // appearance / settings) live here now, floating with the other cockpit
+  // pills. The ⌘K button keeps the palette reachable for mouse-only users —
+  // its only discoverable entry died with the rail. Memoized so TopBar
+  // (React.memo) isn't defeated by an unstable prop identity.
   const cockpitActions = useMemo(
     () => (
       <div className="ui-cockpit-actions">
+        <button
+          type="button"
+          className="ui-cockpit-icon-btn"
+          onClick={() => setPaletteOpen(true)}
+          data-tip={`${t("rail.commands")} (${modKey}K)`}
+        >
+          <IconCommand />
+        </button>
         <button
           type="button"
           className="ui-cockpit-icon-btn"
@@ -1771,7 +1783,17 @@ export function App(): JSX.Element {
         </button>
       </div>
     ),
-    [appearance, appearanceTitle, handleOpenSettings, handleToggleAppearance, mainView, modKey, t, theme]
+    [
+      appearance,
+      appearanceTitle,
+      handleOpenSettings,
+      handleToggleAppearance,
+      mainView,
+      modKey,
+      setPaletteOpen,
+      t,
+      theme,
+    ]
   );
 
   // Esc dismisses the hub sheet — unless a modal surface (palette, dialog,
@@ -1786,6 +1808,13 @@ export function App(): JSX.Element {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [panelOpen, paletteOpen, modal, diffTarget, trustAskOpen, handleCollapsePanel]);
+
+  // Focusing a surface sheet auto-collapses the hub: the sheet is the new
+  // point of attention (and spans the stage, so a hub floating over it only
+  // occludes). Reopening the hub later still works — it layers above sheets.
+  useEffect(() => {
+    if (activeTab.kind !== "chat") setPanelOpen(false);
+  }, [activeTab.kind, setPanelOpen]);
 
   // The conversation is the stage's base layer; every auxiliary surface
   // (settings / plugin detail / editor files / task records / knowledge)
@@ -2043,6 +2072,7 @@ export function App(): JSX.Element {
       <HubOrb
         open={panelOpen}
         badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
+        modKey={modKey}
         onClick={() => selectView(sidebarView)}
       />
 

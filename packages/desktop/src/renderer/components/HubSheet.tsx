@@ -123,6 +123,8 @@ type HubOrbProps = {
   open: boolean;
   /** Attention dot (permission pending / waiting for user). */
   badge?: boolean;
+  /** Platform modifier label (⌘ / Ctrl) for the shortcut hint. */
+  modKey: string;
   onClick: () => void;
 };
 
@@ -132,14 +134,14 @@ type HubOrbProps = {
  * When the sheet is open the orb slides to the sheet's right edge, staying
  * reachable as the close affordance.
  */
-export function HubOrb({ open, badge = false, onClick }: HubOrbProps): JSX.Element {
+export function HubOrb({ open, badge = false, modKey, onClick }: HubOrbProps): JSX.Element {
   const { t } = useI18n();
   return (
     <button
       type="button"
       className={cx("ui-orb", open && "ui-orb--open", badge && "ui-orb--badge")}
       onClick={onClick}
-      title={`${t("hub.title")} (⌘B)`}
+      title={`${t("hub.title")} (${modKey}B)`}
       aria-label={t("hub.title")}
       aria-expanded={open}
     >
