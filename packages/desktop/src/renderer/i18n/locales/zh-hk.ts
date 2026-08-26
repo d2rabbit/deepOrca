@@ -943,6 +943,11 @@ export const zhHK: Record<MessageKey, string> = {
   "index.wikiPrev": "上一篇",
   "index.wikiNext": "下一篇",
   "index.wikiPreviewFailed": "讀取頁面失敗",
+  // Wiki build hints ship in zh/en only (product call) — reference the
+  // canonical zh text from messages.ts; do not translate these keys.
+  "buildHint.wikiNetwork": "LLM 网络层被中断：请核对 设置→模型 / API Key / Base URL。",
+  "buildHint.modelUsed": "本次使用模型：{model}。",
+  "buildHint.wikiTimeout": "Wiki 构建超时：可设置环境变量 DEEPORCA_WIKI_TIMEOUT_MS（毫秒）延长时限。",
   "index.symbolPickHint": "選擇符號查看詳情",
   "index.symbolSearch": "搜尋符號…",
   "index.symbolsEmpty": "符號索引尚未構建",

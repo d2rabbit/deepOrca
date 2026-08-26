@@ -9643,6 +9643,10 @@ button.ui-topbar-pill {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  /* Audit fix: this rule only ever set size — every popover dot rendered
+     transparent. Background here is the unknown-kind fallback; the kind-*
+     rules further down win where they apply. */
+  background: var(--ui-diagram-hue-6, #818cf8);
 }
 .ui-sym-pop-name {
   flex: 1;
@@ -9724,6 +9728,7 @@ button.ui-topbar-pill {
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
+  background: var(--ui-diagram-hue-6, #818cf8);
 }
 .ui-sym-pop-center {
   margin-top: 2px;
@@ -9851,28 +9856,43 @@ button.ui-topbar-pill {
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  /* HTML chip: fill is SVG-only, map kind → background via the same vars. */
-  background: var(--sym-hue, var(--ui-diagram-hue-6, #818cf8));
+  background: var(--ui-diagram-hue-6, #818cf8);
 }
-.ui-sym-chip.role-caller .sym-dot {
-  --sym-hue: var(--ui-diagram-hue-1, #a78bfa);
+/* Kind coding on the dot (audit fix): the markup emits `sym-dot kind-<kind>`
+   on board chips, the popover head and popover chips — but no .kind-* rule
+   existed, so the coding silently did nothing (and popover dots had no
+   background at all). Role coding already lives on the chip border /
+   background / band position; the dot carries the symbol KIND. These sit
+   after every context rule above and share (0,2,0) specificity, so source
+   order makes them the winning background wherever the kind is known;
+   unknown kinds fall back to the indigo default above. */
+.sym-dot.kind-function {
+  background: var(--ui-diagram-hue-0, #60a5fa);
 }
-.ui-sym-chip.role-focus .sym-dot {
-  --sym-hue: var(--ui-diagram-hue-0, #60a5fa);
+.sym-dot.kind-method {
+  background: var(--ui-diagram-hue-1, #a78bfa);
 }
-.ui-sym-chip.role-callee .sym-dot {
-  --sym-hue: var(--ui-diagram-hue-2, #2dd4bf);
+.sym-dot.kind-class {
+  background: var(--ui-diagram-hue-2, #2dd4bf);
 }
-.ui-sym-chip.kind-function,
-.ui-sym-chip.kind-class,
-.ui-sym-chip.kind-method,
-.ui-sym-chip.kind-interface,
-.ui-sym-chip.kind-constant,
-.ui-sym-chip.kind-type_alias,
-.ui-sym-chip.kind-variable,
-.ui-sym-chip.kind-property,
-.ui-sym-chip.kind-component {
-  background: var(--ui-surface, #fff);
+.sym-dot.kind-interface {
+  background: var(--ui-diagram-hue-3, #fbbf24);
+}
+.sym-dot.kind-constant {
+  background: var(--ui-diagram-hue-4, #fb7185);
+}
+.sym-dot.kind-type_alias {
+  background: var(--ui-diagram-hue-5, #22d3ee);
+}
+.sym-dot.kind-variable {
+  background: var(--ui-diagram-hue-6, #818cf8);
+}
+.sym-dot.kind-property {
+  background: var(--ui-diagram-hue-7, #a3e635);
+}
+/* Components are function-like — reuse the blue instead of inventing a 9th hue. */
+.sym-dot.kind-component {
+  background: var(--ui-diagram-hue-0, #60a5fa);
 }
 .ui-sym-chip.role-caller {
   border-color: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 34%, transparent);

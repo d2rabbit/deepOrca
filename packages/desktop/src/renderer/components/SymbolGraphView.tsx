@@ -69,6 +69,10 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    // Drop the previous query's board immediately: the focus band header
+    // already shows the NEW query, so rendering the old bands under it until
+    // the response lands reads as wrong data, not as loading.
+    setGraph(null);
     (async () => {
       try {
         const result = await api.knowledgeSymbolGraph(root, query || undefined);
@@ -150,6 +154,10 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       hidden:
         graph.nodes.filter((n) => n.role === "caller").length -
         callers.length +
+        // Focus is capped at 10 while the query may match up to 12 — without
+        // this term the "已截断" note never appears for 11-12 focus hits.
+        graph.nodes.filter((n) => n.role === "focus").length -
+        focus.length +
         graph.nodes.filter((n) => n.role === "callee").length -
         callees.length,
     };
@@ -161,8 +169,14 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       type="button"
       className={`ui-sym-chip role-${flowRole}`}
       onClick={(e) => {
-        if (flowRole === "focus") onRecenter(n.name);
-        else openPopover(n, e.clientX, e.clientY);
+        if (flowRole === "focus") {
+          // The current query's own symbol is already the focus hub —
+          // recentering onto it would push a duplicate entry into the
+          // parent's navigation history (Back would no-op and burn a step).
+          if (n.name !== query.trim()) onRecenter(n.name);
+        } else {
+          openPopover(n, e.clientX, e.clientY);
+        }
       }}
     >
       <span className={`sym-dot kind-${n.kind}`} />
@@ -214,7 +228,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
           </header>
           <div className="ui-sym-chips">{bands.focus.map((n) => chip(n, "focus"))}</div>
         </section>
-        {connector(t("symbols.flowUp"), bands.down, "up")}
+        {connector(t("symbols.flowUp"), bands.down, "down")}
         <section className="ui-sym-band">
           <header className="ui-sym-band-head callee">
             {t("symbols.callees")} · {bands.callees.length}

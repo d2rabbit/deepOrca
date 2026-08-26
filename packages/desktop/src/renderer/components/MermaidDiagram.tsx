@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from "react";
-import { renderMermaidSvg } from "../mermaid";
+import { renderMermaidSvg, useMermaidSkinVersion } from "../mermaid";
 import { useI18n } from "../i18n";
 
 /**
@@ -8,9 +8,14 @@ import { useI18n } from "../i18n";
  * If mermaid fails to load or the chart fails to parse, falls back to showing
  * the raw chart text instead of crashing the panel — with the failure reason
  * above it, so the fallback isn't mistaken for the intended render.
+ *
+ * The effect also keys on the skin version: mermaid locks themeVariables at
+ * initialize() time, so a theme/appearance switch must re-render the SVG or
+ * the native (non-decorated) colors keep the previous skin indefinitely.
  */
 export function MermaidDiagram({ chart }: { chart: string }): JSX.Element {
   const { t } = useI18n();
+  const skin = useMermaidSkinVersion();
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string>("");
 
@@ -28,7 +33,7 @@ export function MermaidDiagram({ chart }: { chart: string }): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [chart]);
+  }, [chart, skin]);
 
   if (error) {
     return (

@@ -961,6 +961,12 @@ export const ko: Record<MessageKey, string> = {
   "index.wikiPrev": "이전 글",
   "index.wikiNext": "다음 글",
   "index.wikiPreviewFailed": "페이지 읽기 실패",
+  // Wiki build hints ship in zh/en only (product call) — reference the
+  // canonical EN text from messages.ts; do not translate these keys.
+  "buildHint.wikiNetwork": "The LLM connection was interrupted — check Settings → Model (API key / base URL).",
+  "buildHint.modelUsed": "Model used: {model}.",
+  "buildHint.wikiTimeout":
+    "Wiki build timed out — set the DEEPORCA_WIKI_TIMEOUT_MS environment variable (milliseconds) to allow longer runs.",
   "index.symbolPickHint": "심볼을 선택해 상세 보기",
   "index.symbolSearch": "심볼 검색…",
   "index.symbolsEmpty": "심볼 인덱스가 아직 없습니다",

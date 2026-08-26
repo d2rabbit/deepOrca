@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState, type JSX } from "react";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import { useBuildJobs } from "../hooks/useBuildJobs";
 import { useI18n, type Translate } from "../i18n";
+import { formatBuildError } from "../lib/build-error";
 import { BASIC_CATALOG_ID } from "../../shared/a2ui-legacy";
 import type { KnowledgeBuildJobSnapshot, KnowledgeBuildStageState } from "../../shared/ipc";
 
@@ -97,7 +98,7 @@ function buildMessages(job: KnowledgeBuildJobSnapshot, nowMs: number, t: Transla
     const detailText =
       `${t(STAGE_LABEL_KEYS[stage.labelKey])}${elapsed ? ` · ${elapsed}` : ""}` +
       (stage.labelKey === "wiki" && stage.status === "running" ? ` · ${t("build.wikiHint")}` : "") +
-      (stage.status === "failed" && stage.error ? ` — ${stage.error.slice(0, 80)}` : "");
+      (stage.status === "failed" && stage.error ? ` — ${formatBuildError(stage.error, t, 80)}` : "");
     add(`label-${sid}`, "Text", {
       text: detailText,
       variant: stage.status === "running" ? "h5" : "body",

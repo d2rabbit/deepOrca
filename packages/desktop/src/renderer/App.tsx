@@ -1076,15 +1076,22 @@ export function App(): JSX.Element {
   // the composer: view the Wiki, or quote it straight into a question.
   const [kbSuggest, setKbSuggest] = useState<{ pages: number } | null>(null);
   const kbSuggestedRef = useRef<Set<string>>(new Set());
+  // Latest-root mirror: the event callback validates `root !== projectRoot`
+  // synchronously, but two IPC roundtrips follow — without a re-check the
+  // bar for workspace A could land on workspace B if the user switches in
+  // that window (the clearing effect below already ran once, too early).
+  const kbSuggestRootRef = useRef(projectRoot);
+  kbSuggestRootRef.current = projectRoot;
   useEffect(() => {
     const off = api.onActionProgress((event: ActionProgressEvent) => {
       if (event.actionId !== "knowledge.buildComplete") return;
       const root = (event.data as { root?: string } | undefined)?.root;
-      if (!root || root !== projectRoot) return;
+      if (!root || root !== kbSuggestRootRef.current) return;
       void (async () => {
         try {
           // buildComplete fires on failure too — only successful builds suggest.
           const jobs = await api.knowledgeBuildStatus();
+          if (kbSuggestRootRef.current !== root) return;
           const job = jobs.find((j) => j.root === root);
           if (!job || job.running || job.error) return;
           const key = `${root}@${job.startedAt}`;
@@ -1095,6 +1102,7 @@ export function App(): JSX.Element {
             kbSuggestedRef.current = new Set([...kbSuggestedRef.current].slice(-50));
           }
           const pages = await api.wikiListPages(root);
+          if (kbSuggestRootRef.current !== root) return;
           setKbSuggest({ pages: pages.length });
         } catch {
           // The suggestion is best-effort; failure just means no bar.
@@ -1102,7 +1110,7 @@ export function App(): JSX.Element {
       })();
     });
     return off;
-  }, [projectRoot]);
+  }, []);
   // A different workspace is a different knowledge base — never carry the bar over.
   useEffect(() => {
     setKbSuggest(null);

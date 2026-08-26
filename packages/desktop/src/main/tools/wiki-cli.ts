@@ -260,7 +260,10 @@ export class WikiCliController implements WikiController {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes("超时")) {
-        throw new Error(`${message} — 如需更长时间请设置环境变量 DEEPORCA_WIKI_TIMEOUT_MS（毫秒）`);
+        // Fix hint rides along as a machine-readable token — the renderer's
+        // build-error formatter translates it into the UI locale (main has
+        // no i18n runtime; see renderer/lib/build-error.ts).
+        throw new Error(`${message} [hint:wiki-timeout]`);
       }
       throw err;
     }
@@ -269,16 +272,17 @@ export class WikiCliController implements WikiController {
     if (!ok) {
       // Audit 2026-08-26: a bare "openwiki exited 1: terminated" was
       // unactionable — "terminated" is LangChain's network-error pattern
-      // (undici connection aborted). Surface the used model and a fix hint
-      // (secrets never printed) when the stderr matches the pattern family.
+      // (undici connection aborted). The localized fix hint (model +
+      // settings pointers; secrets never printed) is embedded as a
+      // structured token the renderer translates — a second-stage
+      // translation, because the LLM itself may be what's broken.
       const stderrMsg = result.stderr ? result.stderr.slice(0, 500) : "";
       const netFail =
         /^(terminated|fetch failed|Network request failed|The Internet connection appears to be offline)/i.test(
           result.stderr.trimStart()
         );
-      const hint = netFail
-        ? `（LLM 网络层被中断：请核对 设置→模型 / API Key / Base URL；本次使用模型 ${env.OPENWIKI_MODEL_ID ?? "默认"}）`
-        : "";
+      const modelId = env.OPENWIKI_MODEL_ID;
+      const hint = netFail ? ` [hint:wiki-network${modelId ? ` model=${modelId}` : ""}]` : "";
       throw new Error(
         `openwiki exited ${result.code}${result.signal ?? ""}${stderrMsg ? `: ${stderrMsg}` : ""}${hint}`
       );

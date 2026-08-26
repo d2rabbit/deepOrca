@@ -1,5 +1,6 @@
 import { useEffect, useState, type JSX } from "react";
 import { useI18n, type Translate } from "../i18n";
+import { formatBuildError } from "../lib/build-error";
 import type { KnowledgeBuildJobSnapshot, KnowledgeBuildStageState } from "../../shared/ipc";
 
 /**
@@ -87,7 +88,7 @@ export function KnowledgeBuildProgress({
         time: formatBuildDuration(job.startedAt, undefined, now),
       })}`
     : job.error
-      ? `${t("index.stageFailed")} — ${job.error.slice(0, 160)}`
+      ? `${t("index.stageFailed")} — ${formatBuildError(job.error, t, 160)}`
       : `${t("index.stageDone")} · ${modeLabel} · ${formatBuildDuration(job.startedAt, job.updatedAt, now)}`;
   const tail = job.logs.slice(-TAIL_LINES);
 
@@ -113,7 +114,7 @@ export function KnowledgeBuildProgress({
             const dur = formatBuildDuration(stage.startedAt, stage.endedAt, now);
             detail = `${t("index.stageDone")}${dur ? ` · ${dur}` : ""}`;
           } else if (stage.status === "failed") {
-            detail = `${t("index.stageFailed")}${stage.error ? ` — ${stage.error.slice(0, 120)}` : ""}`;
+            detail = `${t("index.stageFailed")}${stage.error ? ` — ${formatBuildError(stage.error, t, 120)}` : ""}`;
           } else if (stage.status === "skipped") {
             detail = t("index.stageSkipped");
           } else {

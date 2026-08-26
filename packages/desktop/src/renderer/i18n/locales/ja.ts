@@ -967,6 +967,12 @@ export const ja: Record<MessageKey, string> = {
   "index.wikiPrev": "前のページ",
   "index.wikiNext": "次のページ",
   "index.wikiPreviewFailed": "ページの読み込みに失敗",
+  // Wiki build hints ship in zh/en only (product call) — reference the
+  // canonical EN text from messages.ts; do not translate these keys.
+  "buildHint.wikiNetwork": "The LLM connection was interrupted — check Settings → Model (API key / base URL).",
+  "buildHint.modelUsed": "Model used: {model}.",
+  "buildHint.wikiTimeout":
+    "Wiki build timed out — set the DEEPORCA_WIKI_TIMEOUT_MS environment variable (milliseconds) to allow longer runs.",
   "index.symbolPickHint": "シンボルを選んで詳細を見る",
   "index.symbolSearch": "シンボルを検索…",
   "index.symbolsEmpty": "シンボルインデックス未構築",

@@ -139,22 +139,53 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   const buildJobs = useBuildJobs();
   const activeJob = buildJobs.find((j) => j.root === root && j.running);
 
+  // Last-writer-wins guard for root-scoped data: bumped on every reload
+  // start AND on root change, so an in-flight response from the previous
+  // workspace can never overwrite the new root's state (same seq pattern as
+  // the symbol search below).
+  const dataSeqRef = useRef(0);
+
+  // R3-5: reset inline selections when the workspace root changes. The
+  // previous root's LISTS must go too: keeping wikiPages would let the
+  // auto-select effect below re-fill wikiSel with A's first page while B's
+  // reload is in flight, leaving the wiki preview in a persistent
+  // "read failed" state (P1 audit fix). Stale symbols would render old-root
+  // rows that click into `${newRoot}/${oldPath}`. Declared BEFORE the reload
+  // effect on purpose: effects run in declaration order, so the seq bump
+  // here lands before the new root's reload captures its ticket — otherwise
+  // the fresh reload itself would be invalidated on every switch.
+  useEffect(() => {
+    setWikiPages([]);
+    setWikiSel(null);
+    setWikiContent(null);
+    setSymbols([]);
+    setSymbolQuery("");
+    setSymbolSel(null);
+    setStatus(null);
+    setPreview(null);
+    setSymbolHistory([]);
+    dataSeqRef.current++;
+  }, [root]);
+
   const reload = useCallback(async () => {
+    const mySeq = ++dataSeqRef.current;
     try {
-      setStatus(await api.knowledgeStatus(root));
+      const s = await api.knowledgeStatus(root);
+      if (mySeq === dataSeqRef.current) setStatus(s);
     } catch {
-      setStatus(null);
+      if (mySeq === dataSeqRef.current) setStatus(null);
     }
     try {
-      setWikiPages(await api.wikiListPages(root));
+      const pages = await api.wikiListPages(root);
+      if (mySeq === dataSeqRef.current) setWikiPages(pages);
     } catch {
-      setWikiPages([]);
+      if (mySeq === dataSeqRef.current) setWikiPages([]);
     }
     try {
       const res = await api.knowledgeReadAgents(root);
-      setAgentsContent(res.ok ? res.content : null);
+      if (mySeq === dataSeqRef.current) setAgentsContent(res.ok ? res.content : null);
     } catch {
-      setAgentsContent(null);
+      if (mySeq === dataSeqRef.current) setAgentsContent(null);
     }
   }, [root]);
 
@@ -179,9 +210,12 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   useEffect(() => {
     if (!building) return;
     const timer = setInterval(() => {
+      const mySeq = dataSeqRef.current;
       void (async () => {
         try {
-          setWikiPages(await api.wikiListPages(root));
+          const pages = await api.wikiListPages(root);
+          // A root change or a newer reload must win over this tick's snapshot.
+          if (mySeq === dataSeqRef.current) setWikiPages(pages);
         } catch {
           // Keep the last list; the next tick retries.
         }
@@ -212,15 +246,6 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
       symbolSeqRef.current++;
     };
   }, [root, symbolQuery]);
-
-  // R3-5: reset inline selections when the workspace root changes.
-  useEffect(() => {
-    setWikiSel(null);
-    setWikiContent(null);
-    setSymbolSel(null);
-    setPreview(null);
-    setSymbolHistory([]);
-  }, [root]);
 
   // 架构图直出：the map IS the first level — auto-select the NEWEST artifact
   // and render it full-pane. No artifact list, no "root"-style intermediate
@@ -696,19 +721,22 @@ type ArchSection = { title: string; chart: string };
 
 /** Split an arch doc into headed mermaid sections (state machine over lines —
  *  fence-aware, so a heading inside a diagram is never mistaken for a doc
- *  heading). Charts with no preceding heading fall back to 图 N. */
+ *  heading). Charts with no preceding heading fall back to 图 N. Fences may be
+ *  indented (list-nested or hand-written docs) — the skill contract only
+ *  guarantees top-level fences for its OWN output; silently dropping every
+ *  indented chart was a compat regression vs the old regex extractor. */
 function extractArchSections(markdown: string): ArchSection[] {
   const sections: ArchSection[] = [];
   let heading = "";
   let inFence = false;
   let chartLines: string[] = [];
   for (const line of markdown.split(/\r?\n/)) {
-    if (!inFence && /^```mermaid\s*$/.test(line)) {
+    if (!inFence && /^\s*```mermaid\s*$/.test(line)) {
       inFence = true;
       chartLines = [];
       continue;
     }
-    if (inFence && /^```\s*$/.test(line)) {
+    if (inFence && /^\s*```\s*$/.test(line)) {
       inFence = false;
       const chart = chartLines.join("\n").trim();
       if (chart) sections.push({ title: heading, chart });
@@ -908,7 +936,7 @@ function KnowledgeArchPreview({
   neighbours: { prevName: string | null; prevPath: string | null; nextName: string | null; nextPath: string | null };
 }): JSX.Element {
   const { t } = useI18n();
-  const archTitle = title.replace(/^arch-/, "").replace(/\.json$/, "");
+  const archTitle = title.replace(/^arch-/, "").replace(/\.(json|md|html)$/, "");
   const [content, setContent] = useState<ArchContent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1015,7 +1043,12 @@ function KnowledgeArchPreview({
             srcDoc={content.html}
             title={archTitle}
             sandbox=""
-            style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+            /* Transparent, not white: the board's own prefers-color-scheme
+             * supplies both palettes, and a hard white backing lit the whole
+             * pane when the system ran dark. (The board follows the SYSTEM
+             * scheme — a sandboxed srcDoc iframe cannot see the in-app
+             * appearance toggle.) */
+            style={{ width: "100%", height: "100%", border: "none", background: "transparent" }}
           />
         ) : content?.kind === "a2ui" ? (
           <A2uiSurface messagesJson={content.messagesJson} surfaceId={content.surfaceId} />

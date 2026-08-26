@@ -27,6 +27,8 @@
  * parallel calls used to make random diagrams throw and fall back to source.
  */
 
+import { useSyncExternalStore } from "react";
+
 type MermaidApi = {
   initialize: (config: Record<string, unknown>) => void;
   render: (id: string, chart: string) => Promise<{ svg: string }>;
@@ -37,8 +39,63 @@ let mermaidLoadPromise: Promise<MermaidApi> | null = null;
 let diagramCounter = 0;
 let renderQueue: Promise<unknown> = Promise.resolve();
 
-/** Appearance mermaid.initialize() last ran with (token values lock at init). */
-let configuredAppearance = "";
+/** Skin identity mermaid.initialize() last ran with (token values lock at init):
+ *  appearance + active theme stylesheet + line variant. Any of these changing
+ *  native mermaid colors (edge-label rects, pie/gantt fills) means the locked
+ *  themeVariables are stale and initialize() must run again. */
+let configuredSkin = "";
+
+/** Skin change notification — see the watcher below. */
+let skinVersion = 0;
+const skinListeners = new Set<() => void>();
+
+function currentSkin(): string {
+  if (typeof document === "undefined") return "";
+  const de = document.documentElement;
+  const themeHref = document.getElementById("deeporca-theme-css")?.getAttribute("href") ?? "";
+  return `${de.getAttribute("data-appearance") ?? ""}|${themeHref}|${de.dataset.lineVariant ?? ""}`;
+}
+
+function notifySkinChange(): void {
+  skinVersion++;
+  for (const fn of skinListeners) fn();
+}
+
+// Watch every axis of the skin. Appearance and the line variant are data
+// attributes on <html> (synchronous CSS-var overrides). Themes swap the
+// #deeporca-theme-css <link> href — the vars only reflect the new sheet once
+// it LOADS, so the `load` event (not the href mutation) is the notify point;
+// the head childList observer re-arms when the link appears at boot.
+if (typeof document !== "undefined") {
+  const attrObserver = new MutationObserver(() => notifySkinChange());
+  attrObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-appearance", "data-line-variant"],
+  });
+  const armLinkWatcher = (): void => {
+    const link = document.getElementById("deeporca-theme-css");
+    if (!link || link.dataset.mermaidSkinWatched === "1") return;
+    link.dataset.mermaidSkinWatched = "1";
+    link.addEventListener("load", notifySkinChange);
+  };
+  armLinkWatcher();
+  new MutationObserver(armLinkWatcher).observe(document.head, { childList: true, subtree: false });
+}
+
+/** React hook: re-render the caller whenever the skin flips (theme, light/dark,
+ *  line variant). MermaidDiagram keys its render effect on this so mounted
+ *  diagrams repaint instead of keeping the previous skin's native colors. */
+export function useMermaidSkinVersion(): number {
+  return useSyncExternalStore(
+    (onChange) => {
+      skinListeners.add(onChange);
+      return () => {
+        skinListeners.delete(onChange);
+      };
+    },
+    () => skinVersion
+  );
+}
 
 /** Node/cluster hue ramp length — mirrors --ui-diagram-hue-0..7 in ui.css. */
 const HUE_COUNT = 8;
@@ -58,20 +115,19 @@ function cssVar(name: string, fallback: string): string {
   return value || fallback;
 }
 
-function currentAppearance(): string {
-  if (typeof document === "undefined") return "";
-  return document.documentElement.getAttribute("data-appearance") ?? "";
-}
-
 function configureMermaid(mermaid: MermaidApi): void {
-  configuredAppearance = currentAppearance();
+  configuredSkin = currentSkin();
   const hue = (i: number, fallback: string): string => cssVar(`--ui-diagram-hue-${i}`, fallback);
   const cScale: Record<string, string> = {};
   const pie: Record<string, string> = {};
-  for (let i = 0; i < HUE_COUNT; i++) {
-    cScale[`cScale${i}`] = hue(i, "#60a5fa");
+  // mermaid's pie chart addresses pie1..pie12 and mindmap branches can index
+  // cScale past 8 — cycle the 8-hue ramp so entries beyond the ramp still
+  // follow the theme instead of dropping to mermaid's light-only defaults.
+  const paletteSlots = Math.max(HUE_COUNT, 12);
+  for (let i = 0; i < paletteSlots; i++) {
+    cScale[`cScale${i}`] = hue(i % HUE_COUNT, "#60a5fa");
     cScale[`cScaleLabel${i}`] = cssVar("--ui-text", "#1b2129");
-    pie[`pie${i + 1}`] = hue(i, "#60a5fa");
+    pie[`pie${i + 1}`] = hue(i % HUE_COUNT, "#60a5fa");
   }
   mermaid.initialize({
     startOnLoad: false,
@@ -296,10 +352,11 @@ export function decorateMermaidSvg(svg: string): string {
 export function renderMermaidSvg(chart: string): Promise<string> {
   const job = renderQueue.then(async () => {
     const mermaid = await ensureMermaid();
-    // themeVariables lock at init — re-resolve them when the appearance has
-    // flipped since (the do-hue paints are var()-live; this refreshes the
-    // mermaid-native edges/labels that are not covered by the decorate pass).
-    if (configuredAppearance !== currentAppearance()) configureMermaid(mermaid);
+    // themeVariables lock at init — re-resolve them when the skin has changed
+    // since (appearance flip, theme swap, or line variant). The do-hue paints
+    // are var()-live; this refreshes the mermaid-native edges/labels/pie
+    // fills that the decorate pass does not cover.
+    if (configuredSkin !== currentSkin()) configureMermaid(mermaid);
     const { svg } = await mermaid.render(`mermaid-diagram-${++diagramCounter}`, chart);
     return decorateMermaidSvg(svg);
   });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
+import { formatBuildError } from "../lib/build-error";
 import { Button, IconButton } from "../ui/index";
 import { useBuildJobs } from "../hooks/useBuildJobs";
 import { buildStageVerb, KnowledgeBuildProgress } from "./KnowledgeBuildProgress";
@@ -182,9 +183,9 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
                       {row.busy
                         ? row.text
                         : buildError
-                          ? buildError.slice(0, 60)
+                          ? formatBuildError(buildError, t, 60)
                           : row.error
-                            ? row.error.slice(0, 60)
+                            ? formatBuildError(row.error, t, 60)
                             : formatRelative(lastBuild, t("index.freshness.justNow"), t("index.freshness.never"))}
                     </div>
                   </div>
