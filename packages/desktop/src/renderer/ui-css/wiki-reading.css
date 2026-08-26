@@ -1,0 +1,766 @@
+/* ── Wiki document typography (R3-8): full markdown treatment ───────────── */
+/* .ui-md (chat styles) provides code blocks; this layer adds the long-form
+   document reading experience: readable measure, spaced headings, zebra
+   tables, blockquotes, rule/links — the pieces a wiki page needs beyond
+   chat-bubble typography. */
+
+/* Standard wiki page shell: hero header (icon chip + frontmatter title +
+   actions) over the document, on a raised reading surface — token-driven for
+   light/dark. The header sticks to the top of the reading pane with a blur
+   backdrop and a gradient accent strip along its bottom edge. */
+.ui-wiki-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.ui-wiki-page-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 884px; /* 860 reading measure + doc padding */
+  margin: 0 auto;
+  padding: 16px 12px 12px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  background-color: color-mix(in srgb, var(--ui-surface, #fff) 82%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-image: linear-gradient(
+    90deg,
+    var(--ui-diagram-hue-0, #60a5fa),
+    var(--ui-diagram-hue-1, #a78bfa) 34%,
+    var(--ui-diagram-hue-2, #2dd4bf) 62%,
+    transparent 92%
+  );
+  background-size: 220px 2.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+}
+.ui-wiki-page-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  font-size: 15px;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--ui-diagram-hue-0, #60a5fa),
+    var(--ui-diagram-hue-1, #a78bfa) 55%,
+    var(--ui-diagram-hue-2, #2dd4bf)
+  );
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 38%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.ui-wiki-page-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+  color: var(--ui-text, inherit);
+  overflow-wrap: anywhere;
+}
+/* Primary "quote in chat" action — fixed footprint so translations of any
+   length never squeeze the title out of its own header. */
+.ui-wiki-page-quote {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ui-wiki-doc {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 18px 12px 40px;
+}
+/* ── Wiki reading shell (Oink ideas) ────────────────────────────────────── */
+.ui-wiki-breadcrumb {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  margin-bottom: 2px;
+}
+.ui-wiki-breadcrumb-part:not(:last-child)::after {
+  content: "/";
+  margin-left: 6px;
+  opacity: 0.6;
+}
+.ui-wiki-page-desc {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ui-text-dim, #55606d);
+  margin-top: 3px;
+  max-width: 72em;
+}
+.ui-wiki-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+/* On-this-page TOC rides beside the reading column on wide panes; below that
+   it simply doesn't render (progressive disclosure, no hamburger). */
+@media (min-width: 1100px) {
+  .ui-wiki-columns {
+    grid-template-columns: minmax(0, 1fr) 208px;
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .ui-wiki-columns .ui-wiki-doc {
+    max-width: none;
+  }
+}
+.ui-wiki-toc {
+  position: sticky;
+  top: 64px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  border-left: 2px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 60%, transparent);
+  padding: 6px 0 6px 14px;
+  font-size: 11.5px;
+  scrollbar-width: none;
+}
+.ui-wiki-toc::-webkit-scrollbar {
+  display: none;
+}
+.ui-wiki-toc-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ui-text-faint, #8590a0);
+  margin-bottom: 6px;
+}
+.ui-wiki-toc-item {
+  display: block;
+  padding: 3px 0;
+  color: var(--ui-text-dim, #55606d);
+  text-decoration: none;
+  line-height: 1.4;
+  border-left: 2px solid transparent;
+  margin-left: -16px;
+  padding-left: 14px;
+  transition:
+    color 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease);
+}
+.ui-wiki-toc-item.level-3 {
+  padding-left: 26px;
+  font-size: 11px;
+}
+.ui-wiki-toc-item:hover {
+  color: var(--ui-text);
+}
+.ui-wiki-toc-item.active {
+  color: var(--ui-accent, #0a84ff);
+  border-left-color: var(--ui-accent, #0a84ff);
+}
+/* Tree-order pager (shares the sidebar's one root/order). */
+.ui-wiki-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 12px 26px;
+}
+@media (min-width: 1100px) {
+  .ui-wiki-pager {
+    max-width: 1100px;
+  }
+}
+.ui-wiki-pager-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  max-width: 46%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 75%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 30%, var(--ui-surface, #fff));
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-wiki-pager-btn.next {
+  align-items: flex-end;
+  text-align: right;
+  margin-left: auto;
+}
+.ui-wiki-pager-btn:hover {
+  border-color: color-mix(in srgb, var(--ui-accent, #0a84ff) 45%, transparent);
+  background: color-mix(in srgb, var(--ui-accent, #0a84ff) 6%, transparent);
+}
+.ui-wiki-pager-dir {
+  font-size: 10.5px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-wiki-pager-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ui-wiki-doc h1,
+.ui-wiki-doc h2,
+.ui-wiki-doc h3,
+.ui-wiki-doc h4 {
+  color: var(--ui-text, inherit);
+  line-height: 1.3;
+  margin: 1.5em 0 0.55em;
+  letter-spacing: -0.01em;
+}
+.ui-wiki-doc h1 {
+  font-size: 23px;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+}
+.ui-wiki-doc h2 {
+  font-size: 18.5px;
+  padding-left: 11px;
+  border-left: 3px solid var(--ui-accent, #0a84ff);
+  border-radius: 1px;
+}
+.ui-wiki-doc h3 {
+  font-size: 15.5px;
+  color: var(--ui-text, inherit);
+}
+.ui-wiki-doc h3::after {
+  content: "";
+  display: block;
+  width: 26px;
+  height: 2px;
+  margin-top: 5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ui-accent, #0a84ff), transparent);
+}
+.ui-wiki-doc p {
+  margin: 0.65em 0;
+}
+.ui-wiki-doc ul,
+.ui-wiki-doc ol {
+  margin: 0.65em 0;
+  padding-left: 1.6em;
+}
+.ui-wiki-doc ul {
+  list-style: disc;
+}
+.ui-wiki-doc ul li::marker {
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-wiki-doc ol li::marker {
+  color: var(--ui-accent, #0a84ff);
+  font-weight: 600;
+}
+.ui-wiki-doc ol {
+  list-style: decimal;
+}
+.ui-wiki-doc li {
+  margin: 0.28em 0;
+}
+.ui-wiki-doc table {
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1.1em 0;
+  width: 100%;
+  font-size: 12.5px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ui-wiki-doc th,
+.ui-wiki-doc td {
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  padding: 7px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.ui-wiki-doc tr:last-child td {
+  border-bottom: none;
+}
+.ui-wiki-doc th {
+  background: color-mix(in srgb, var(--ui-accent, #0a84ff) 8%, var(--ui-surface, #fff));
+  font-weight: 600;
+}
+.ui-wiki-doc tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 5%, transparent);
+}
+.ui-wiki-doc tbody tr:hover {
+  background: color-mix(in srgb, var(--ui-accent, #0a84ff) 6%, transparent);
+}
+.ui-wiki-doc blockquote {
+  margin: 0.9em 0;
+  padding: 8px 16px;
+  border: none;
+  border-left: 3px solid var(--ui-diagram-hue-1, #a78bfa);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 8%, transparent),
+    transparent 80%
+  );
+  border-radius: 0 8px 8px 0;
+  color: var(--ui-text-dim, inherit);
+}
+.ui-wiki-doc a {
+  color: var(--ui-accent, #0a84ff);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--ui-accent, #0a84ff) 55%, transparent);
+  transition:
+    border-color 0.15s var(--ui-ease),
+    color 0.15s var(--ui-ease);
+}
+.ui-wiki-doc a:hover {
+  border-bottom-color: var(--ui-accent, #0a84ff);
+  border-bottom-style: solid;
+}
+.ui-wiki-doc hr {
+  border: none;
+  height: 1px;
+  margin: 1.8em 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--ui-border-soft, #e3e6eb) 18%,
+    var(--ui-border-soft, #e3e6eb) 82%,
+    transparent
+  );
+}
+.ui-wiki-doc :not(pre) > code {
+  background: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 9%, var(--ui-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 22%, transparent);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+}
+.ui-wiki-doc img {
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: var(--ui-shadow-card, 0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* ── Architecture-map observable pane (R3-8) ────────────────────────────── */
+.ui-knowledge-archframe {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ui-bg-soft, #fafbfc);
+  box-shadow: var(--ui-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+/* Arch map viewer: toolbar (chart switcher + zoom + open-source) over a
+   scaleable stage. The stage scales via transform; the frame scrolls when a
+   manual zoom exceeds the pane. */
+.ui-arch-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.ui-arch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 55%, transparent);
+}
+/* Chart count chip — the board shows every chart at once; the chip states how
+   many cards the scan produced. */
+.ui-arch-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 35%, transparent);
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 9%, transparent);
+  color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 85%, var(--ui-text, inherit));
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* The board: a scrollable dotted canvas holding the hero card + the module
+   card grid. Cards float as objects on the drafting surface — the page fills
+   BOTH window dimensions instead of one long column. */
+.ui-arch-board {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  gap: 20px;
+  background-color: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
+  background-image:
+    radial-gradient(color-mix(in srgb, var(--ui-text, #1b2129) 9%, transparent) 1px, transparent 1.2px),
+    radial-gradient(
+      ellipse at 50% 0%,
+      color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 6%, transparent),
+      transparent 65%
+    );
+  background-size:
+    22px 22px,
+    100% 420px;
+}
+/* One chart card: raised surface with a section head. The hero (overall
+   view) spans the full board width; module cards live in the grid below. */
+.ui-arch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 18px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 65%, transparent);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-arch-card--hero {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 30%, var(--ui-border-soft, #e3e6eb));
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 24px color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 7%, transparent);
+}
+/* Module grid: responsive columns via CSS — the window size decides how many
+   cards sit per row (no JS measurement involved at this level). */
+.ui-arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  gap: 20px;
+}
+.ui-arch-section-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  align-self: flex-start;
+  /* Top-left corner of the card body (audit: "图 1 放到正文左上角") —
+     negative offsets pull the pill onto the card's padding edge. */
+  margin: -6px 0 10px -8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 55%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, transparent);
+}
+.ui-arch-section-badge {
+  flex-shrink: 0;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+.ui-arch-section-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ui-text, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Chart fitter: measures the card's content width and scales the chart to
+   it. The box carries the explicit scaled size (scroll/clipping safety);
+   the inner stays natural-size and centered. */
+.ui-arch-chart-fit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.ui-arch-chart-box {
+  margin: 0 auto;
+}
+.ui-arch-chart-inner {
+  width: max-content;
+}
+/* Board shell: the scrollable board + its on-this-page rail side by side on
+   wide panes (Oink adaptation); the rail hides below 1100px. */
+.ui-arch-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 18px;
+}
+.ui-arch-shell .ui-arch-board {
+  flex: 1;
+  min-width: 0;
+}
+.ui-arch-toc {
+  display: none;
+}
+@media (min-width: 1100px) {
+  .ui-arch-toc {
+    display: block;
+    position: sticky;
+    top: 8px;
+    align-self: flex-start;
+    flex: 0 0 190px;
+    max-height: calc(100vh - 140px);
+  }
+}
+/* Artifact pager (head-level prev/next across maps, mtime order). */
+.ui-arch-pager {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.ui-arch-pager button {
+  width: 24px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+}
+.ui-arch-pager button:hover {
+  border-color: var(--ui-accent, #3b82f6);
+  color: var(--ui-accent, #3b82f6);
+}
+/* Symbols list: kind group labels pin while the list scrolls (section nav). */
+.ui-knowledge-symbols .ui-knowledge-wiki-group-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 38%, var(--ui-surface, #fff));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Drill rail: hero zone → module zone (the scan's top-down progression). */
+.ui-arch-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: -6px 0;
+}
+.ui-arch-flow-line {
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 45%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 45%, transparent)
+  );
+}
+.ui-arch-flow-node {
+  font-size: 9px;
+  line-height: 1;
+  padding: 3px;
+  color: var(--ui-diagram-hue-1, #a78bfa);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 55%, transparent);
+}
+/* Inside cards the diagram floats bare — the container card look is for
+   inline wiki markdown, not for the board. */
+.ui-arch-card .ui-mermaid-container {
+  background: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+.ui-knowledge-archframe-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 7%, var(--ui-surface, #fff)),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 6%, var(--ui-surface, #fff)) 55%,
+    var(--ui-surface, #fff)
+  );
+  flex-shrink: 0;
+}
+.ui-knowledge-archframe-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ui-text, #1b2129);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-archframe-meta {
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 10%, transparent);
+  color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 80%, var(--ui-text, inherit));
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  flex-shrink: 0;
+}
+.ui-knowledge-preview {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  margin-top: 0;
+}
+
+/* ── Prototype module panel (design-module split) ─────────────────────────── */
+.ui-proto-step {
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+.ui-proto-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim, #888);
+  margin-bottom: 6px;
+}
+.ui-proto-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 5px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--ui-border-soft, #444);
+  background: var(--ui-input-bg, rgba(0, 0, 0, 0.15));
+  color: var(--ui-text, inherit);
+  resize: vertical;
+}
+.ui-proto-select {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  font-size: 11.5px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--ui-border-soft, #444);
+  background: var(--ui-input-bg, rgba(0, 0, 0, 0.15));
+  color: var(--ui-text, inherit);
+}
+.ui-proto-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-bottom: 4px;
+}
+.ui-proto-step-btn {
+  font-size: 10.5px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--ui-border-soft, #444);
+  background: transparent;
+  color: var(--ui-text, inherit);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-proto-step-btn:hover:not(:disabled) {
+  border-color: var(--ui-accent, #3b82f6);
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-proto-step-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ui-proto-progress {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--ui-text-dim, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-proto-hint {
+  font-size: 10.5px;
+  color: var(--ui-text-faint, #666);
+  padding: 2px 0 4px;
+}
+.ui-proto-note {
+  padding: 4px 12px;
+  font-size: 10px;
+  color: var(--ui-accent, #3b82f6);
+  word-break: break-all;
+}
+.ui-proto-list {
+  padding: 6px 8px;
+}
+.ui-proto-artifact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft, #333);
+  cursor: pointer;
+}
+.ui-proto-artifact:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-proto-artifact-icon {
+  font-size: 15px;
+}
+.ui-proto-artifact-main {
+  flex: 1;
+  min-width: 0;
+}
+.ui-proto-artifact-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-proto-artifact-meta {
+  font-size: 10.5px;
+  color: var(--ui-text-dim, #888);
+}
+.ui-proto-artifact-btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text-dim, #888);
+  cursor: pointer;
+}
+.ui-proto-artifact-btn:hover {
+  color: var(--ui-text, inherit);
+}
+/* Armed state: first click landed — the next click deletes. */
+.ui-proto-artifact-btn.armed {
+  color: var(--ui-danger);
+  font-weight: 700;
+}
+.ui-proto-artifact-btn.armed:hover {
+  color: var(--ui-danger);
+}
+/* Spec documents render as a reading view in the design preview slot. */
+.ui-proto-spec-doc {
+  padding: 20px 28px;
+  max-width: 860px;
+  margin: 0 auto;
+}

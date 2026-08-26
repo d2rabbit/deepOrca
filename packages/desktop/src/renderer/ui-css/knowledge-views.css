@@ -1,0 +1,1498 @@
+/* Mermaid diagram blocks hydrated in rendered markdown (wiki pages, arch maps). */
+.ui-mermaid-container {
+  padding: 14px;
+  margin: 12px 0;
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 65%, transparent);
+  border-radius: var(--ui-radius-md, 8px);
+  overflow-x: auto;
+  text-align: center;
+}
+.ui-mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+/* Decorated diagrams (mermaid.ts tags nodes/clusters with do-* classes and
+   injects the hue stylesheet): soft card lift + hover feedback. Cluster
+   groups get no shadow — they frame, not float. */
+.ui-mermaid-container svg g.do-node {
+  filter: drop-shadow(0 1.5px 3px color-mix(in srgb, var(--ui-text, #1b2129) 22%, transparent));
+}
+.ui-mermaid-container svg g.do-cluster {
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--ui-text, #1b2129) 8%, transparent));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-mermaid-container svg g.do-node {
+    transition: filter 0.15s var(--ui-ease);
+  }
+  .ui-mermaid-container svg g.do-node:hover {
+    filter: drop-shadow(0 3px 8px color-mix(in srgb, var(--ui-text, #1b2129) 30%, transparent));
+  }
+}
+.ui-mermaid-loading {
+  font-size: 12px;
+  color: var(--ui-text-faint, #888);
+}
+.ui-mermaid-fallback {
+  padding: var(--ui-space-2, 8px);
+  font-size: 11px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-faint, #888);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ErrorBoundary fallback: a contained panel crash, never a black window. */
+.ui-panel-error {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--ui-danger, #ef4444);
+  background: var(--ui-surface-alt, rgba(239, 68, 68, 0.06));
+  border: 1px solid var(--ui-danger-soft, rgba(239, 68, 68, 0.3));
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.ui-panel-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ui-panel-error-retry,
+.ui-panel-error-detail-toggle {
+  border: 1px solid var(--ui-danger-soft, rgba(239, 68, 68, 0.3));
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-panel-error-retry:hover,
+.ui-panel-error-detail-toggle:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-panel-error-stack {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  opacity: 0.85;
+}
+
+/* AGENTS sub-tab: in-place markdown rendering. */
+.ui-knowledge-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.ui-knowledge-agents-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.ui-knowledge-agents-md {
+  overflow-y: auto;
+  /* Centered reading column (real-machine feedback: AGENTS/arch fallback
+     content hugged the left edge) — same measure as the wiki document. */
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ui-text, inherit);
+}
+.ui-knowledge-agents-md pre {
+  background: var(--ui-surface-sunken, rgba(0, 0, 0, 0.25));
+  border-radius: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.ui-knowledge-agents-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.ui-knowledge-agents-md table {
+  border-collapse: collapse;
+}
+.ui-knowledge-agents-md th,
+.ui-knowledge-agents-md td {
+  border: 1px solid var(--ui-border-soft, #333);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* Symbols sub-tab. */
+.ui-knowledge-symbols {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.ui-knowledge-symbol-search {
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border-soft, #444);
+  background: var(--ui-input-bg, rgba(0, 0, 0, 0.15));
+  color: var(--ui-text, inherit);
+}
+.ui-knowledge-sym-kind {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 1px 8px;
+  margin-right: 4px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+  vertical-align: 1px;
+}
+
+/* ── Build console (R3-5): floating temporary A2UI surface ────────────── */
+/* Build console — temporary floating A2UI surface (R3-5), on demand from the
+   background-task badge (never auto-opens over the chat view). */
+.ui-build-console {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-surface, #1c1e24);
+  border: 1px solid var(--ui-border, #33363d);
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
+  z-index: 60;
+  overflow: hidden;
+}
+
+/* Background-task badge — compact circular ring with the module icon in the
+   center (◈ 索引与知识 / ⚖ 代码审查). Replaces the auto-opening console as
+   the bottom-right presence for running background work. */
+.ui-task-badge-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 60;
+}
+.ui-task-badge-stack .ui-task-badge {
+  position: static;
+}
+.ui-task-badge {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: var(--ui-surface, #1c1e24);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  transition: transform 0.15s ease;
+}
+.ui-task-badge:hover {
+  transform: scale(1.08);
+}
+.ui-task-badge-icon {
+  font-size: 17px;
+  line-height: 1;
+  pointer-events: none;
+}
+.ui-task-badge.kind-knowledge .ui-task-badge-icon {
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-task-badge.kind-review .ui-task-badge-icon {
+  color: var(--ui-success, #57c98b);
+}
+.ui-task-badge-track {
+  stroke: var(--ui-border-soft, #33363d);
+}
+.ui-task-badge.kind-knowledge .ui-task-badge-arc {
+  stroke: var(--ui-accent, #3b82f6);
+}
+.ui-task-badge.kind-review .ui-task-badge-arc {
+  stroke: var(--ui-success, #57c98b);
+}
+.ui-task-badge svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ui-task-badge.indeterminate .ui-task-badge-sweep {
+  transform-origin: 50% 50%;
+  animation: ui-task-badge-spin 1.6s linear infinite;
+}
+@keyframes ui-task-badge-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ui-build-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-border-soft, #2a2d34);
+  flex-shrink: 0;
+}
+.ui-build-console-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ui-build-console-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-secondary, #9aa0aa);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ui-build-console-close:hover {
+  background: var(--ui-surface-hover, #262932);
+  color: var(--ui-text, #e6e8ec);
+}
+.ui-build-console-body {
+  overflow: auto;
+  padding: 8px 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Knowledge: wiki/symbol master–detail (R3-5) ──────────────────────── */
+.ui-knowledge-wiki {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-knowledge-wiki-list {
+  overflow: auto;
+  border-right: 1px solid var(--ui-border-soft, #2a2d34);
+  min-height: 0;
+  padding: 8px 6px 12px;
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 38%, var(--ui-surface, transparent));
+}
+.ui-knowledge-wiki-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-text-secondary, #9aa0aa);
+  padding: 8px 8px 4px;
+}
+.ui-knowledge-wiki-group-label::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+.ui-knowledge-wiki-group-count {
+  margin-left: auto;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.ui-knowledge-wiki-preview {
+  overflow: auto;
+  min-height: 0;
+  padding: 0 0 24px;
+  background: var(--ui-surface, transparent);
+}
+.ui-knowledge-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ui-knowledge-symbol-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.ui-knowledge-symbol-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-knowledge-symbol-detail-name {
+  font-size: 15px;
+}
+.ui-knowledge-symbol-signature {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--ui-surface-2, #22252c);
+  border: 1px solid var(--ui-border-soft, #2a2d34);
+  border-radius: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre;
+}
+.ui-knowledge-symbol-location {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--ui-text-secondary, #9aa0aa);
+}
+
+/* ── A2UI official renderer (R2): wrapper + theme bridge ──────────────── */
+/* The official @a2ui/react components style themselves via --a2ui-* CSS
+   variables. Bridge them onto DeepOrca's --ui-* semantic tokens once, on
+   the wrapper class — the variables inherit into the official components
+   and follow light/dark theme switches automatically. */
+.ui-a2ui-surfaces {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3, 12px);
+  padding: var(--ui-space-2, 8px) 0;
+}
+.ui-a2ui-empty {
+  padding: var(--ui-space-3, 12px);
+  font-size: 12px;
+  color: var(--ui-text-faint, #8590a0);
+  text-align: center;
+}
+.ui-a2ui-theme {
+  --a2ui-color-primary: var(--ui-accent, #0a84ff);
+  --a2ui-color-primary-hover: var(--ui-accent-strong, #0071e3);
+  --a2ui-color-on-primary: var(--ui-text-on-accent, #ffffff);
+  --a2ui-color-on-secondary: var(--ui-text, #1b2129);
+  --a2ui-color-surface: var(--ui-bg, #ffffff);
+  --a2ui-color-on-surface: var(--ui-text, #1b2129);
+  --a2ui-color-on-background: var(--ui-text, #1b2129);
+  --a2ui-color-border: var(--ui-border, #d0d5dd);
+  --a2ui-color-border-hover: var(--ui-border-strong, #98a2b3);
+  --a2ui-color-input: var(--ui-input-bg, #f5f6f8);
+  --a2ui-color-on-input: var(--ui-text, #1b2129);
+  --a2ui-font-family-title: var(--ui-font-sans, inherit);
+  --a2ui-text-caption-color: var(--ui-text-dim, #55606d);
+  --a2ui-text-a-color: var(--ui-accent, #0a84ff);
+  --a2ui-border-radius: var(--ui-radius-md, 8px);
+  --a2ui-border-width: 1px;
+  --a2ui-spacing-xs: 4px;
+  --a2ui-spacing-s: var(--ui-space-1, 6px);
+  --a2ui-spacing-m: var(--ui-space-2, 8px);
+  --a2ui-spacing-l: var(--ui-space-3, 12px);
+  --a2ui-line-height-body: 1.5;
+  --a2ui-line-height-headings: 1.25;
+}
+
+/* ── Serena panel (R3-6): floating right mirror of serena tool results ── */
+.ui-serena-panel {
+  position: fixed;
+  top: 52px;
+  right: 16px;
+  bottom: 16px;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.25);
+  z-index: 55;
+  overflow: hidden;
+}
+.ui-serena-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  flex-shrink: 0;
+}
+.ui-serena-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ui-serena-panel-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+.ui-serena-tab {
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ui-text-dim, #55606d);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-serena-tab.active {
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
+  color: var(--ui-accent, #0a84ff);
+  border-color: var(--ui-accent, #0a84ff);
+}
+.ui-serena-tab.failed {
+  color: var(--ui-danger);
+  border-color: color-mix(in srgb, var(--ui-danger) 45%, transparent);
+}
+.ui-serena-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-secondary, #8590a0);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ui-serena-close:hover {
+  background: var(--ui-bg-hover, #f0f2f5);
+  color: var(--ui-text, #1b2129);
+}
+.ui-serena-panel-body {
+  overflow: auto;
+  padding: 10px 12px;
+  flex: 1;
+  min-height: 0;
+}
+.ui-serena-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ui-serena-symbol-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.ui-serena-loc {
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-serena-code {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--ui-bg-soft, #f5f6f8);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 8px;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre;
+}
+.ui-serena-raw {
+  white-space: pre-wrap;
+  max-height: none;
+}
+.ui-serena-file-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-serena-file-label {
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+}
+.ui-serena-count {
+  color: var(--ui-text-faint, #8590a0);
+  font-weight: 400;
+}
+.ui-serena-symbol-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-left: 8px;
+}
+.ui-serena-symbol-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.ui-serena-ref-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding-left: 8px;
+}
+.ui-serena-match {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Wiki directory tree (R3-6) ─────────────────────────────────────────── */
+.ui-wiki-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ui-wiki-tree-dir-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 4px 8px 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+.ui-wiki-tree-dir-label:hover {
+  background: var(--ui-bg-hover, #f0f2f5);
+}
+.ui-wiki-tree-chevron {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  transition: transform 0.15s var(--ui-ease);
+}
+.ui-wiki-tree-chevron.open {
+  transform: rotate(90deg);
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-wiki-tree-dir-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-wiki-tree-count {
+  font-weight: 400;
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--ui-text-faint, #8590a0);
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 12%, transparent);
+}
+.ui-wiki-tree-file-icon {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 85%, var(--ui-text-faint, #8590a0));
+  margin-right: 4px;
+}
+
+/* ── Symbol toolbar + relationship graph (R3-6) ─────────────────────────── */
+.ui-knowledge-symbol-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ui-knowledge-symbol-viewtoggle {
+  display: flex;
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 7px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ui-knowledge-symbol-viewtoggle button {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-knowledge-symbol-viewtoggle button.active {
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-symbol-graph {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+/* Panel-level Back / Home (history lives in KnowledgePanel, so these work
+   for BOTH the graph and the list view — and never disappear on empty). */
+.ui-knowledge-symbol-navbtn {
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: transparent;
+  transition:
+    border-color 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-knowledge-symbol-navbtn:hover:not(:disabled) {
+  border-color: var(--ui-accent, #0a84ff);
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-knowledge-symbol-navbtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Loading/error/empty INSIDE the fixed canvas — the toolbar above (with
+   back/home) stays mounted, so a dead-end drill never strands the user. */
+.ui-symbol-graph-boardstate {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--ui-text-faint, #8590a0);
+  font-size: 12px;
+}
+/* One-hop popover: floating sub-graph preview for a clicked outer node.
+   Fixed-positioned at the click point (clamped by the caller) so the scroll
+   container never clips it. */
+.ui-sym-pop {
+  position: fixed;
+  z-index: 90;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 35%, var(--ui-border-soft, #e3e6eb));
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32));
+  animation: ui-sym-pop-in 0.16s var(--ui-ease) both;
+}
+@keyframes ui-sym-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-sym-pop {
+    animation: none;
+  }
+}
+.ui-sym-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ui-sym-pop-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  /* Audit fix: this rule only ever set size — every popover dot rendered
+     transparent. Background here is the unknown-kind fallback; the kind-*
+     rules further down win where they apply. */
+  background: var(--ui-diagram-hue-6, #818cf8);
+}
+.ui-sym-pop-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-sym-pop-close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint, #8590a0);
+  font-size: 10px;
+  cursor: pointer;
+}
+.ui-sym-pop-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-sym-pop-loading {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+.ui-sym-pop-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-sym-pop-sec-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-sym-pop-none {
+  font-size: 11.5px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-sym-pop-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ui-sym-pop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  background: transparent;
+  color: var(--ui-text-dim, #55606d);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.13s var(--ui-ease),
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-sym-pop-chip:hover {
+  border-color: var(--ui-accent, #0a84ff);
+  color: var(--ui-accent, #0a84ff);
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.1));
+}
+.ui-sym-pop-chip .sym-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ui-diagram-hue-6, #818cf8);
+}
+.ui-sym-pop-center {
+  margin-top: 2px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+.ui-symbol-graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px;
+  font-size: 10px;
+  color: var(--ui-text-dim, #55606d);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.ui-symbol-graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ui-symbol-graph-truncated {
+  color: var(--ui-text-faint, #8590a0);
+  font-style: italic;
+}
+.ui-symbol-graph-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  /* Fill the pane AND stay centered: on a wide window the (now uncapped)
+     columns stretch to the full width; if the graph is still narrower than
+     the pane it centers instead of piling on the left edge; wider than the
+     pane → scroll from the start edge (`safe center`). */
+  display: grid;
+  justify-content: safe center;
+  align-content: start;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 10px;
+  background-color: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
+  background-image: radial-gradient(color-mix(in srgb, var(--ui-text, #1b2129) 9%, transparent) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+/* ── Symbol flow board (audit 2026-08-26 redesign) ─────────────────────────
+   Vertical flow bands: callers on top, focus hub, callees at the bottom.
+   Chips wrap responsively — the board follows the window, nothing sprawls. */
+.ui-sym-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px 26px;
+  width: 100%;
+  min-height: 200px;
+}
+.ui-sym-band {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 65%, transparent);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 62%, transparent);
+}
+.ui-sym-band.focus {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 38%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 8%, transparent);
+}
+.ui-sym-band-head {
+  align-self: center;
+  padding: 2px 14px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ui-text, inherit);
+  background: var(--ui-surface-sunken, #eef1f6);
+}
+.ui-sym-band-head.caller {
+  color: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 85%, var(--ui-text, inherit));
+  background: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 10%, transparent);
+}
+.ui-sym-band-head.focus {
+  color: #fff;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+.ui-sym-band-head.callee {
+  color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 85%, var(--ui-text, inherit));
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 10%, transparent);
+}
+.ui-sym-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.ui-sym-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 7px 12px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--ui-surface, #fff);
+  cursor: pointer;
+  text-align: left;
+  max-width: 260px;
+  transition:
+    border-color 0.14s var(--ui-ease),
+    transform 0.12s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.ui-sym-chip:hover {
+  border-color: var(--ui-accent, #0a84ff);
+  transform: translateY(-1px);
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-sym-chip .sym-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ui-diagram-hue-6, #818cf8);
+}
+
+/* ── Wiki 原文/译文 toggle (backend bilingual translation) ────────────────── */
+.ui-wiki-lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  background: var(--ui-surface-sunken, #eef1f6);
+}
+.ui-wiki-lang-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim, #55606d);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-wiki-lang-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+}
+.ui-wiki-lang-btn:not(.active):hover {
+  color: var(--ui-text, inherit);
+}
+/* Kind coding on the dot (audit fix): the markup emits `sym-dot kind-<kind>`
+   on board chips, the popover head and popover chips — but no .kind-* rule
+   existed, so the coding silently did nothing (and popover dots had no
+   background at all). Role coding already lives on the chip border /
+   background / band position; the dot carries the symbol KIND. These sit
+   after every context rule above and share (0,2,0) specificity, so source
+   order makes them the winning background wherever the kind is known;
+   unknown kinds fall back to the indigo default above. */
+.sym-dot.kind-function {
+  background: var(--ui-diagram-hue-0, #60a5fa);
+}
+.sym-dot.kind-method {
+  background: var(--ui-diagram-hue-1, #a78bfa);
+}
+.sym-dot.kind-class {
+  background: var(--ui-diagram-hue-2, #2dd4bf);
+}
+.sym-dot.kind-interface {
+  background: var(--ui-diagram-hue-3, #fbbf24);
+}
+.sym-dot.kind-constant {
+  background: var(--ui-diagram-hue-4, #fb7185);
+}
+.sym-dot.kind-type_alias {
+  background: var(--ui-diagram-hue-5, #22d3ee);
+}
+.sym-dot.kind-variable {
+  background: var(--ui-diagram-hue-6, #818cf8);
+}
+.sym-dot.kind-property {
+  background: var(--ui-diagram-hue-7, #a3e635);
+}
+/* Components are function-like — reuse the blue instead of inventing a 9th hue. */
+.sym-dot.kind-component {
+  background: var(--ui-diagram-hue-0, #60a5fa);
+}
+.ui-sym-chip.role-caller {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 34%, transparent);
+  background: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 7%, var(--ui-surface, #fff));
+}
+.ui-sym-chip.role-focus {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 50%, transparent);
+  background: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 12%, var(--ui-surface, #fff));
+}
+.ui-sym-chip.role-callee {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 34%, transparent);
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 7%, var(--ui-surface, #fff));
+}
+.ui-sym-chip-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ui-sym-chip-meta {
+  font-size: 10px;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  color: var(--ui-text-faint, #8590a0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+/* Flow connector between bands: aggregate summary pills (real per-edge
+   detail lives in the click popover). */
+.ui-sym-flowgap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: -2px 0;
+}
+.ui-sym-flowgap-line {
+  width: 2px;
+  height: 10px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 45%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 45%, transparent)
+  );
+}
+.ui-sym-flowgap-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+}
+.ui-sym-flowgap-label {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-sym-flowgap-pill {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-dim, #55606d);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  background: transparent;
+}
+.ui-sym-flowgap-pill.edge-calls {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 45%, transparent);
+  color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 85%, var(--ui-text, inherit));
+}
+.ui-sym-flowgap-pill.edge-references {
+  border-color: color-mix(in srgb, var(--ui-text, #1b2129) 45%, transparent);
+}
+.ui-sym-flowgap-pill.edge-instantiates {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 45%, transparent);
+  color: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 85%, var(--ui-text, inherit));
+}
+.ui-sym-flowgap-pill.edge-implements {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 45%, transparent);
+  color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 85%, var(--ui-text, inherit));
+}
+.ui-sym-flowgap-arrow {
+  font-size: 9px;
+  color: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 70%, transparent);
+}
+
+/* Edges + arrowheads: kind-coded hue, quiet translucency. */
+.sym-edge {
+  fill: none;
+}
+.sym-edge.edge-calls {
+  stroke: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 78%, transparent);
+}
+.sym-edge.edge-references {
+  stroke: color-mix(in srgb, var(--ui-text, #1b2129) 48%, transparent);
+  stroke-dasharray: 5 3;
+}
+.sym-edge.edge-instantiates {
+  stroke: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 78%, transparent);
+  stroke-dasharray: 2 3;
+}
+.sym-edge.edge-implements {
+  stroke: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 78%, transparent);
+  stroke-dasharray: 2 3;
+}
+.sym-arrow.arrow-calls {
+  fill: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 78%, transparent);
+  fill-opacity: 0.7;
+}
+.sym-arrow.arrow-references {
+  fill: color-mix(in srgb, var(--ui-text, #1b2129) 48%, transparent);
+  fill-opacity: 0.7;
+}
+.sym-arrow.arrow-instantiates {
+  fill: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 78%, transparent);
+  fill-opacity: 0.7;
+}
+.sym-arrow.arrow-implements {
+  fill: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 78%, transparent);
+  fill-opacity: 0.7;
+}
+.ui-symbol-graph-node-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  fill: var(--ui-text, #1b2129);
+}
+.ui-symbol-graph-node-kind {
+  font-size: 9.5px;
+  fill: var(--ui-text-faint, #8590a0);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+}
+.ui-symbol-graph-hint {
+  padding: 5px 2px 0;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  flex-shrink: 0;
+}
+
+/* ── Task tree left rail: workspace-dimension history (R3-7) ────────────── */
+.ui-tasktree-ws {
+  margin-bottom: 2px;
+}
+.ui-tasktree-ws-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+.ui-tasktree-ws-row:hover {
+  background: var(--ui-bg-hover, #f0f2f5);
+}
+.ui-tasktree-ws-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tasktree-ws-count {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-tasktree-ws-body {
+  padding: 0 4px 6px 14px;
+}
+.ui-tasktree-task {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+.ui-tasktree-task:hover {
+  background: var(--ui-bg-hover, #f0f2f5);
+}
+.ui-tasktree-task-title {
+  font-size: 12px;
+  color: var(--ui-text, #1b2129);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tasktree-task-meta {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-tasktree-task.archived .ui-tasktree-task-title {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+.ui-tasktree-empty-hint {
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  padding: 4px 8px;
+}
+.ui-tasktree-archived-toggle {
+  background: none;
+  border: none;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.ui-tasktree-create-toggle {
+  background: none;
+  border: 1px dashed var(--ui-border, #d0d5dd);
+  border-radius: 6px;
+  color: var(--ui-text-dim, #55606d);
+  font-size: 11px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  cursor: pointer;
+  width: 100%;
+}
+.ui-tasktree-create-toggle:hover {
+  border-color: var(--ui-accent, #0a84ff);
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-tasktree-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  margin-top: 6px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 8px;
+}
+.ui-tasktree-create input {
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 6px;
+  background: var(--ui-input-bg, #fff);
+  color: var(--ui-text, #1b2129);
+}
+.ui-tasktree-notice {
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  padding: 4px 8px;
+}
+
+/* ── Task record panel (content tab, R3-7) ──────────────────────────────── */
+.ui-taskrec {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-taskrec-head {
+  padding: 12px 16px 0;
+  flex-shrink: 0;
+}
+.ui-taskrec-title-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-taskrec-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+}
+.ui-taskrec-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
+  color: var(--ui-accent, #0a84ff);
+}
+.ui-taskrec-badge.archived {
+  background: var(--ui-bg-soft, #f0f2f5);
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-taskrec-subtitle {
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  margin-top: 4px;
+}
+.ui-taskrec-section-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+}
+.ui-taskrec-section-tabs button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--ui-text-dim, #55606d);
+  cursor: pointer;
+}
+.ui-taskrec-section-tabs button.active {
+  color: var(--ui-accent, #0a84ff);
+  border-bottom-color: var(--ui-accent, #0a84ff);
+  font-weight: 600;
+}
+.ui-taskrec-notice {
+  margin: 8px 16px 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  background: var(--ui-bg-soft, #f5f6f8);
+  color: var(--ui-text-dim, #55606d);
+  flex-shrink: 0;
+}
+.ui-taskrec-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ui-taskrec-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-faint, #8590a0);
+  margin-bottom: 6px;
+}
+.ui-taskrec-branch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.ui-taskrec-branch.active {
+  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.08));
+}
+.ui-taskrec-branch.abandoned .ui-taskrec-branch-name {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.ui-taskrec-branch-name {
+  font-size: 12px;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  flex: 1;
+}
+.ui-taskrec-branch-meta {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-taskrec-node-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.ui-taskrec-node-icon {
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-taskrec-node-status {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ui-taskrec-node-status.planned {
+  background: var(--ui-text-faint, #8590a0);
+}
+.ui-taskrec-node-status.running {
+  background: #f0a04b;
+}
+.ui-taskrec-node-status.done {
+  background: #57c98b;
+}
+.ui-taskrec-node-status.abandoned {
+  background: var(--ui-danger, #e5484d);
+  opacity: 0.6;
+}
+.ui-taskrec-node-title {
+  font-size: 12px;
+  color: var(--ui-text, #1b2129);
+}
+.ui-taskrec-node-meta {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-taskrec-node-why {
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+  padding: 1px 0 4px;
+}
+.ui-taskrec-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ui-taskrec-stat {
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-taskrec-stat strong {
+  font-size: 14px;
+  color: var(--ui-text, #1b2129);
+}
+.ui-taskrec-tool-chip {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--ui-bg-soft, #f5f6f8);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  color: var(--ui-text-dim, #55606d);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+}
+.ui-taskrec-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ui-taskrec-file {
+  font-size: 10px;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--ui-bg-soft, #f5f6f8);
+  color: var(--ui-text-dim, #55606d);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-taskrec-op {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 11px;
+}
+.ui-taskrec-op.dim {
+  opacity: 0.75;
+}
+.ui-taskrec-op-time {
+  color: var(--ui-text-faint, #8590a0);
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  flex-shrink: 0;
+}
+.ui-taskrec-op-tool {
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  color: var(--ui-accent, #0a84ff);
+  flex-shrink: 0;
+}
+.ui-taskrec-op-tool.fail {
+  color: var(--ui-danger, #e5484d);
+}
+.ui-taskrec-op-summary {
+  color: var(--ui-text-dim, #55606d);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-taskrec-ops {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ui-taskrec-fork {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 260px;
+}
+.ui-taskrec-fork input {
+  flex: 1;
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--ui-border, #d0d5dd);
+  border-radius: 6px;
+  background: var(--ui-input-bg, #fff);
+  color: var(--ui-text, #1b2129);
+}
+

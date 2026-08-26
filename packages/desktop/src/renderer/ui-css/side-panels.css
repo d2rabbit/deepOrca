@@ -1,0 +1,1481 @@
+/* =========================================================================
+   VSCode-style side-panel modules (items 4/6/7/8) + universal diff overlay
+   ========================================================================= */
+
+/* ── Token view: stacked stats + index library in one scrollable panel ───── */
+
+.ui-token-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+}
+.ui-token-hero {
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-accent-soft);
+  text-align: center;
+  animation: ui-card-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-token-hero-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-accent);
+}
+.ui-token-hero-label {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+.ui-token-hero-sub {
+  margin-top: var(--ui-space-1);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-token-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ui-space-2);
+}
+.ui-token-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+}
+.ui-token-metric span {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ui-token-metric label {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.ui-token-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-token-bar-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  gap: var(--ui-space-2);
+  animation: ui-card-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-token-bar-row:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.ui-token-bar-row:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.ui-token-bar-row:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.ui-token-bar-label {
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-token-bar-track {
+  height: 8px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-sunken);
+  overflow: hidden;
+}
+.ui-token-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ui-token-bar-fill.model {
+  background: linear-gradient(90deg, var(--ui-accent), #8b5cf6);
+}
+.ui-token-bar-value {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-dim);
+}
+
+/* ── Index library rows (item 7) ─────────────────────────────────────────── */
+
+.ui-index-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-index-state {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-index-state.on {
+  color: var(--ui-success, #16a34a);
+}
+
+/* ── Brand drift gate card (E1d, deterministic review dimension) ─────────── */
+.ui-review-drift {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+}
+.ui-review-drift-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+}
+.ui-review-drift-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.ui-review-drift-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--ui-radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ui-review-drift-badge.good {
+  color: var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+}
+.ui-review-drift-badge.bad {
+  color: var(--ui-warning);
+  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+}
+
+/* ── Index log output (live indexing progress) ────────────────────────────── */
+
+/* ── Code Review panel (ocr) ─────────────────────────────────────────────── */
+
+/* ── Review panel tabs ─────────────────────────────────────────────────── */
+
+/* ── CRG (code-review-graph) panel styles ──────────────────────────────── */
+
+/* ── Plugin MCP rows (items 5 & 8) ───────────────────────────────────────── */
+.ui-mcp-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-mcp-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-mcp-row.disabled {
+  opacity: 0.6;
+}
+.ui-mcp-row.selected {
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-accent);
+}
+.ui-mcp-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-mcp-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  font-size: 13px;
+  font-weight: 500;
+}
+.ui-mcp-badge {
+  padding: 1px 7px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.ui-mcp-badge.builtin {
+  background: var(--ui-success-soft, rgba(22, 163, 74, 0.12));
+  color: var(--ui-success, #16a34a);
+}
+/* Pin the "built-in" badge to the bottom-right corner of a group card. */
+.ui-plugin-group-card .ui-mcp-badge.builtin {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+.ui-mcp-row-cmd {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-mcp-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  flex-shrink: 0;
+}
+.ui-mcp-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  margin-top: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+}
+.ui-mcp-env {
+  min-height: 56px;
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  resize: vertical;
+}
+.ui-mcp-add-actions {
+  display: flex;
+  gap: var(--ui-space-2);
+}
+.ui-mcp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-2);
+}
+.ui-mcp-presets-label {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-mcp-preset {
+  padding: 2px 10px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    background var(--ui-ease),
+    color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.ui-mcp-preset:hover {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+.ui-skill-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding-bottom: var(--ui-space-1);
+}
+.ui-skill-toolbar-count {
+  min-width: 20px;
+  padding: 1px 8px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.ui-skill-hint {
+  margin-top: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.ui-mcp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-2);
+}
+.ui-mcp-presets-label {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-mcp-preset {
+  padding: 2px 10px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    background var(--ui-ease),
+    color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.ui-mcp-preset:hover {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+.ui-skill-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding-bottom: var(--ui-space-1);
+}
+.ui-skill-toolbar-count {
+  min-width: 20px;
+  padding: 1px 8px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.ui-skill-hint {
+  margin-top: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px dashed var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* ── Source control: upper (changes) / lower (history) split ─────────────── */
+.ui-scm-split-top {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--ui-space-1) var(--ui-space-1);
+}
+.ui-scm-split-handle {
+  flex: 0 0 5px;
+  cursor: row-resize;
+  position: relative;
+  transition: background 0.15s var(--ui-ease);
+}
+.ui-scm-split-handle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  top: -3px;
+  bottom: -3px;
+}
+.ui-scm-split-handle:hover,
+.ui-scm-split-handle:active {
+  background: var(--ui-accent);
+}
+.ui-scm-split-bottom {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--ui-space-1) var(--ui-space-1);
+  border-top: 1px solid var(--ui-border-soft);
+  position: relative;
+}
+.ui-scm-split-bottom::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ui-border-soft);
+}
+.ui-scm-commit-row {
+  display: grid;
+  /* caret · short hash · subject (fills, ellipsizes) · date — all on ONE line */
+  grid-template-columns: 12px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px var(--ui-space-2);
+  border-radius: var(--ui-radius-md);
+  cursor: pointer;
+  transition: background 0.12s var(--ui-ease);
+}
+.ui-scm-commit-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-scm-commit-hash {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11px;
+  color: var(--ui-accent);
+}
+.ui-scm-commit-subject {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-scm-commit-meta {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  white-space: nowrap;
+}
+
+/* ── Universal diff overlay (item 6) ─────────────────────────────────────── */
+.ui-diff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--ui-space-6, 32px);
+  background: rgba(0, 0, 0, 0.42);
+  -webkit-app-region: no-drag;
+  animation: ui-overlay-fade 0.18s ease both;
+}
+@keyframes ui-overlay-fade {
+  from {
+    opacity: 0;
+  }
+}
+.ui-diff-overlay-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 92vw);
+  height: min(760px, 88vh);
+  max-height: calc(100vh - 64px);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-lg, 0 24px 64px rgba(0, 0, 0, 0.32));
+  overflow: hidden;
+  animation: ui-panel-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-panel-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+.ui-diff-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-diff-overlay-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-diff-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  flex: none;
+}
+.ui-diff-stat-add {
+  color: var(--ui-success);
+}
+.ui-diff-stat-del {
+  color: var(--ui-danger);
+}
+.ui-diff-overlay-close {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-dim);
+}
+.ui-diff-overlay-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-diff-overlay-close:active {
+  transform: scale(0.92);
+}
+@media (max-width: 700px) {
+  .ui-diff-overlay {
+    padding: var(--ui-space-3);
+  }
+  .ui-diff-overlay-panel {
+    width: 98vw;
+    height: 92vh;
+  }
+  .ui-diff-ln {
+    width: 32px;
+    min-width: 32px;
+  }
+}
+.ui-diff-overlay-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--ui-space-3) var(--ui-space-4);
+}
+
+/* ── Settings token bento grid (item 9) ──────────────────────────────────── */
+
+/* Context-compression progress bar (below the composer).
+   Toylike: gradient fill with a traveling shine, an 80% threshold tick, and an
+   escalating pulse as the context nears/overruns the compaction threshold. */
+.ui-context-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ui-space-2) var(--ui-space-1) 0;
+}
+.ui-context-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-context-progress-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+/* The numeric readout echoes the fill state so the label feels alive too. */
+.ui-context-progress.near .ui-context-progress-value {
+  color: var(--ui-warning, #d08b1e);
+}
+.ui-context-progress.critical .ui-context-progress-value {
+  color: var(--ui-danger, #e0494e);
+}
+.ui-context-progress.compacting .ui-context-progress-value {
+  color: var(--ui-info);
+}
+.ui-context-progress.compacting .ui-context-progress-label {
+  color: var(--ui-info);
+  animation: ui-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.ui-context-progress-track {
+  position: relative;
+  height: 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-border-soft);
+  overflow: hidden;
+}
+/* 80% threshold tick — a faint notch marking where "near compaction" starts. */
+.ui-context-progress-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ui-text-faint);
+  opacity: 0.35;
+  border-radius: 1px;
+  z-index: 1;
+}
+
+.ui-context-progress-fill {
+  position: relative;
+  height: 100%;
+  border-radius: var(--ui-radius-pill);
+  background: linear-gradient(90deg, var(--ui-accent), color-mix(in srgb, var(--ui-accent) 55%, #fff));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  transition:
+    width 0.35s cubic-bezier(0.22, 0.8, 0.2, 1),
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.ui-context-progress-fill.near {
+  background: linear-gradient(
+    90deg,
+    var(--ui-warning, #d08b1e),
+    color-mix(in srgb, var(--ui-warning, #d08b1e) 50%, #ffd47a)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ui-warning, #d08b1e) 55%, transparent);
+}
+.ui-context-progress-fill.critical {
+  background: linear-gradient(
+    90deg,
+    var(--ui-danger, #e0494e),
+    color-mix(in srgb, var(--ui-danger, #e0494e) 50%, #ff9aa0)
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ui-danger, #e0494e) 65%, transparent);
+}
+
+/* Traveling shine — a bright sliver that sweeps across the fill, giving the bar
+   a sense of flow ("still counting, still alive"). It rides inside the fill so
+   it's clipped to the current width and never escapes into the empty track. */
+.ui-context-progress-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  transform: translateX(-120%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-context-progress-shine {
+    animation: ui-progress-shine 2.4s ease-in-out infinite;
+  }
+  /* Escalation: near = faster shine + subtle pulse; critical = urgent pulse. */
+  .ui-context-progress-fill.near {
+    animation: ui-progress-pulse 2s ease-in-out infinite;
+  }
+  .ui-context-progress-fill.near .ui-context-progress-shine {
+    animation-duration: 1.6s;
+  }
+  .ui-context-progress-fill.critical {
+    animation: ui-progress-pulse 1s ease-in-out infinite;
+  }
+  .ui-context-progress-fill.critical .ui-context-progress-shine {
+    animation-duration: 1.1s;
+  }
+}
+@keyframes ui-progress-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  60%,
+  100% {
+    transform: translateX(320%);
+  }
+}
+@keyframes ui-progress-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.18);
+  }
+}
+
+/* VSCode-style plugin detail pane (workspace/main area). */
+.ui-plugin-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-5);
+  overflow-y: auto;
+  height: 100%;
+}
+.ui-plugin-detail-empty {
+  color: var(--ui-text-faint);
+  padding: var(--ui-space-5);
+  text-align: center;
+}
+
+.ui-plugin-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+
+.ui-plugin-mono {
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-faint);
+  font-size: 12px;
+}
+.ui-plugin-caps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+}
+.ui-plugin-cap-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-plugin-cap-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+}
+.ui-plugin-cap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.ui-plugin-cap-chip {
+  padding: 2px 8px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  border: 1px solid var(--ui-border-soft);
+  font-size: 11.5px;
+  font-family: var(--ui-font-mono);
+}
+
+/* Built-in MCP servers managed inside a plugin group detail (not the MCP tab). */
+
+/* ── Plugin detail — unified hero/caps/actions/doc layout ─────────────────── */
+.ui-detail-hero {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-raised);
+  margin-bottom: var(--ui-space-4);
+}
+.ui-detail-hero-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  flex-wrap: wrap;
+}
+.ui-detail-hero-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-detail-hero-lead {
+  margin: var(--ui-space-2) 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ui-text-dim);
+}
+.ui-detail-meta {
+  margin: var(--ui-space-3) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-detail-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-3);
+}
+.ui-detail-meta-row dt {
+  flex: none;
+  width: 88px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-faint);
+}
+.ui-detail-meta-row dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+  word-break: break-all;
+}
+.ui-detail-caps,
+.ui-detail-actions,
+.ui-detail-doc {
+  margin-bottom: var(--ui-space-4);
+}
+.ui-detail-caps h3,
+.ui-detail-doc h3 {
+  margin: 0 0 var(--ui-space-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-faint);
+}
+.ui-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-sunken);
+}
+.ui-detail-readonly {
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  font-style: italic;
+}
+
+/* ── Task progress panel (unified progress for codegraph/CRG/wiki/review) ─── */
+.ui-task-progress-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ui-task-progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 0;
+  transition: opacity 0.3s;
+}
+.ui-task-progress-item.done {
+  opacity: 0.5;
+}
+.ui-task-progress-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: 11px;
+}
+.ui-task-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  flex-shrink: 0;
+  animation: ui-pulse 1.5s ease-in-out infinite;
+}
+.ui-task-progress-dot.done {
+  background: #3fb950;
+  animation: none;
+}
+.ui-task-progress-label {
+  font-weight: 600;
+  color: var(--ui-text-dim);
+}
+.ui-task-progress-root {
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-task-progress-percent {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-task-progress-bar {
+  height: 3px;
+  background: var(--ui-surface-sunken);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ui-task-progress-fill {
+  height: 100%;
+  background: var(--ui-accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.ui-task-progress-item.done .ui-task-progress-fill {
+  background: #3fb950;
+}
+.ui-task-progress-line {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Process output panel (Ctrl+O toggle) ──────────────────────────────────── */
+.ui-process-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  min-height: 80px;
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-sunken);
+  animation: ui-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+/* Per-process status cards */
+.ui-process-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-process-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 3px 0;
+  font-size: 11px;
+}
+.ui-process-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3fb950;
+  flex-shrink: 0;
+  animation: ui-pulse 1.5s ease-in-out infinite;
+}
+.ui-process-card-pid {
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  flex-shrink: 0;
+}
+.ui-process-card-cmd {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-dim);
+}
+.ui-process-card-deadline {
+  color: var(--ui-warning);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.ui-process-card-stop {
+  background: var(--ui-danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.ui-process-card-stop:hover {
+  opacity: 0.8;
+}
+@keyframes ui-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.ui-process-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 4px var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  flex: none;
+}
+.ui-process-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-process-running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-success, #34c759);
+  animation: ui-dot-pulse 1.4s ease-in-out infinite;
+}
+.ui-process-panel-meta {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-process-panel-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.ui-process-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.ui-process-btn:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-process-btn-stop:hover {
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-danger);
+}
+.ui-process-btn-close:hover {
+  background: var(--ui-danger);
+  color: #fff;
+}
+.ui-process-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px var(--ui-space-3);
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+}
+.ui-process-line {
+  display: flex;
+  gap: var(--ui-space-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ui-process-line-no {
+  flex: none;
+  min-width: 32px;
+  text-align: right;
+  color: var(--ui-text-faint);
+  opacity: 0.5;
+  font-size: 11px;
+  user-select: none;
+}
+.ui-process-line-text {
+  flex: 1;
+  min-width: 0;
+}
+.ui-process-panel-status {
+  padding: 3px var(--ui-space-3);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  border-top: 1px solid var(--ui-border-soft);
+}
+
+/* Session item stagger entrance — each item fades in with a slight delay
+   based on its position, creating a cascading reveal effect. */
+.ui-tree-children .ui-session-item {
+  animation: ui-session-stagger 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-tree-children .ui-session-item:nth-child(1) {
+  animation-delay: 0s;
+}
+.ui-tree-children .ui-session-item:nth-child(2) {
+  animation-delay: 0.03s;
+}
+.ui-tree-children .ui-session-item:nth-child(3) {
+  animation-delay: 0.06s;
+}
+.ui-tree-children .ui-session-item:nth-child(4) {
+  animation-delay: 0.09s;
+}
+.ui-tree-children .ui-session-item:nth-child(5) {
+  animation-delay: 0.12s;
+}
+.ui-tree-children .ui-session-item:nth-child(6) {
+  animation-delay: 0.15s;
+}
+.ui-tree-children .ui-session-item:nth-child(7) {
+  animation-delay: 0.18s;
+}
+.ui-tree-children .ui-session-item:nth-child(8) {
+  animation-delay: 0.21s;
+}
+@keyframes ui-session-stagger {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+/* TopBar streaming indicator — pulsing ellipsis shown while the LLM streams. */
+.ui-topbar-streaming {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--ui-accent);
+  font-weight: 500;
+}
+.ui-topbar-streaming-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  will-change: transform;
+  animation:
+    ui-streaming-bounce 1.2s ease-in-out infinite,
+    ui-streaming-glow 1.2s ease-in-out infinite;
+}
+.ui-topbar-streaming-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ui-topbar-streaming-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.ui-topbar-streaming-time {
+  margin-left: 4px;
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+@keyframes ui-streaming-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+/* Soft halo synced to the bounce — the dot "inhales" light at the top of its
+   hop. Box-shadow on a 4px dot is a trivial paint cost. */
+@keyframes ui-streaming-glow {
+  0%,
+  60%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    box-shadow: 0 0 6px 1px var(--ui-accent-soft);
+  }
+}
+
+/* Jump-to-latest unread badge */
+.ui-jump-to-latest .ui-jump-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent);
+  color: var(--ui-text-on-accent);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--ui-font-mono);
+}
+
+/* Sidebar view content transition — applied via key change in React */
+.ui-session-panel-view {
+  display: contents;
+  animation: ui-view-fade 0.18s ease both;
+}
+@keyframes ui-view-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* Composer busy state — subtle accent border pulse while streaming */
+.ui-composer-card.busy {
+  border-color: var(--ui-accent);
+  animation: ui-composer-busy-pulse 2s ease-in-out infinite;
+}
+@keyframes ui-composer-busy-pulse {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 4px var(--ui-accent-soft);
+  }
+}
+
+/* Composer ready state — gentle glow when text is ready to send */
+.ui-composer-card.ready:not(.busy) {
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 1px var(--ui-accent-soft);
+}
+
+/* ── Composer breathing （呼吸感） ────────────────────────────────────────────
+   Slow, ambient glow pulses that make the composer feel alive without moving
+   a single pixel of layout. The 0%/100% stops exactly match the static
+   focus/ready box-shadows above, so the animation fades in and out seamlessly
+   when focus or readiness changes. `:not(.busy)` keeps the (faster, more
+   urgent) busy pulse in charge while streaming. Motion-sensitive users get
+   the static styles only. */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-composer-card:focus-within:not(.busy) {
+    animation: ui-focus-breathe 3.2s ease-in-out infinite;
+  }
+  .ui-composer-card.plan-mode:focus-within:not(.busy) {
+    animation: ui-focus-breathe-plan 3.2s ease-in-out infinite;
+  }
+  .ui-composer-card.ready:not(.busy):not(:focus-within) {
+    animation: ui-ready-breathe 3.6s ease-in-out infinite;
+  }
+}
+@keyframes ui-focus-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 3px var(--ui-accent-soft),
+      0 0 16px 2px var(--ui-accent-soft);
+  }
+}
+@keyframes ui-focus-breathe-plan {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px color-mix(in srgb, var(--ui-info) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 3px color-mix(in srgb, var(--ui-info) 22%, transparent),
+      0 0 16px 2px color-mix(in srgb, var(--ui-info) 16%, transparent);
+  }
+}
+@keyframes ui-ready-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 1px var(--ui-accent-soft);
+  }
+  50% {
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 0 2px var(--ui-accent-soft),
+      0 0 12px 1px var(--ui-accent-soft);
+  }
+}
+
+/* Plan mode badge — small tag at top-right of composer card */
+.ui-composer-plan-badge {
+  position: absolute;
+  top: -9px;
+  right: 12px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-info);
+  background: color-mix(in srgb, var(--ui-info) 12%, var(--ui-surface-raised));
+  border: 1px solid color-mix(in srgb, var(--ui-info) 35%, transparent);
+  border-radius: var(--ui-radius-pill);
+  animation: ui-view-fade 0.2s var(--ui-ease) both;
+}
+
+/* ── Responsive: smaller windows ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ui-topbar-token-label {
+    display: none;
+  }
+  .ui-conversation-inner {
+    max-width: 95%;
+  }
+  .ui-topbar-streaming-time {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .ui-topbar-tokens {
+    display: none;
+  }
+  .ui-topbar-project-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ui-bubble {
+    max-width: 92%;
+  }
+  .ui-tool-card {
+    max-width: 95%;
+  }
+  .ui-composer-hint {
+    display: none;
+  }
+  .ui-composer-card {
+    padding: var(--ui-space-2);
+  }
+  .ui-welcome-cards {
+    grid-template-columns: 1fr;
+  }
+  .ui-modal {
+    padding: var(--ui-space-4);
+  }
+  .ui-command {
+    width: 95%;
+  }
+  .ui-settings-nav {
+    width: 140px;
+  }
+  .ui-welcome h1 {
+    font-size: 26px;
+  }
+  .ui-welcome {
+    padding-top: clamp(24px, 6vh, 60px);
+  }
+  .ui-conversation-inner {
+    gap: var(--ui-space-4);
+  }
+}
+
+/* ── Toast notifications ─────────────────────────────────────────────────── */
+.ui-toast-container {
+  position: fixed;
+  bottom: var(--ui-space-5);
+  right: var(--ui-space-5);
+  z-index: 200;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--ui-space-2);
+  pointer-events: none;
+}
+.ui-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+  border-left: 3px solid var(--ui-border-soft);
+  box-shadow: var(--ui-shadow-card);
+  font-size: 12.5px;
+  color: var(--ui-text);
+  animation: ui-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  max-width: 360px;
+  pointer-events: auto;
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+}
+.ui-toast-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ui-toast-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kind accents — previously the variant classes existed in TSX but had no CSS,
+   so an error toast was visually identical to a success one. */
+.ui-toast--success {
+  border-left-color: var(--ui-success);
+}
+.ui-toast--success .ui-toast-icon {
+  background: color-mix(in srgb, var(--ui-success) 16%, transparent);
+  color: var(--ui-success);
+}
+.ui-toast--error {
+  border-left-color: var(--ui-danger);
+}
+.ui-toast--error .ui-toast-icon {
+  background: color-mix(in srgb, var(--ui-danger) 16%, transparent);
+  color: var(--ui-danger);
+}
+.ui-toast--info .ui-toast-icon {
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
+}
+
+.ui-toast-close {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
+}
+.ui-toast:hover .ui-toast-close,
+.ui-toast-close:focus-visible {
+  opacity: 1;
+}
+.ui-toast-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+

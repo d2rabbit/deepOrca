@@ -219,7 +219,13 @@ async function aliasChunkCss() {
 async function copyStaticAssets() {
   await mkdir(resolve(outdir, "renderer"), { recursive: true });
   await cp(resolve(__dirname, "src/renderer/index.html"), resolve(outdir, "renderer/index.html"));
+  // ui.css is a thin @import index over the ui-css/ module dir (kept small:
+  // every stylesheet stays under the 2500-line repo limit). The modules
+  // resolve relative to this file, so the directory must ship next to it.
   await cp(resolve(__dirname, "src/renderer/ui.css"), resolve(outdir, "renderer/ui.css"));
+  await cp(resolve(__dirname, "src/renderer/ui-css"), resolve(outdir, "renderer/ui-css"), {
+    recursive: true,
+  });
   // Official A2UI basic-catalog structural styles (R2). The package's
   // exports map exposes no css subpath, so the file is copied from its
   // installed location at build time — always in sync with the dependency.

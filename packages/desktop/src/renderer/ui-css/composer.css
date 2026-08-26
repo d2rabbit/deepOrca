@@ -1,0 +1,409 @@
+/* =========================================================================
+   Token usage panel
+   ========================================================================= */
+
+.ui-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-sunken);
+}
+
+.ui-usage-section-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ui-text-dim);
+}
+
+/* =========================================================================
+   Composer (floating card)
+   ========================================================================= */
+.ui-composer {
+  position: relative;
+  max-width: clamp(320px, 88%, 900px);
+  margin: 0 auto;
+}
+/* ── Chat suggestion bar (flow closure: knowledge build → conversation) ────
+   Pops in above the composer when a knowledge build settles successfully for
+   the active workspace. Same measure as the composer, pill actions, one
+   dismiss — it suggests the next move instead of shouting. */
+.ui-chat-suggest {
+  max-width: clamp(320px, 88%, 900px);
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px 7px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 38%, transparent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 10%, var(--ui-surface, #fff)),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 8%, var(--ui-surface, #fff)) 70%,
+    var(--ui-surface, #fff)
+  );
+  box-shadow: var(--ui-shadow-sm);
+  font-size: 12px;
+  animation: ui-chat-suggest-in 0.25s var(--ui-ease) both;
+}
+@keyframes ui-chat-suggest-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-chat-suggest {
+    animation: none;
+  }
+}
+.ui-chat-suggest-icon {
+  color: var(--ui-diagram-hue-2, #2dd4bf);
+  flex-shrink: 0;
+}
+.ui-chat-suggest-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ui-text, inherit);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-chat-suggest-btn {
+  flex-shrink: 0;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 45%, transparent);
+  background: transparent;
+  color: var(--ui-text, inherit);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease);
+}
+.ui-chat-suggest-btn:hover {
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 14%, transparent);
+}
+.ui-chat-suggest-btn.primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 35%, transparent);
+}
+.ui-chat-suggest-btn.primary:hover {
+  filter: brightness(1.08);
+}
+.ui-chat-suggest-close {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint, #8590a0);
+  font-size: 10px;
+  cursor: pointer;
+}
+.ui-chat-suggest-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-composer-card {
+  position: relative;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-card);
+  padding: var(--ui-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  transition:
+    border-color 0.18s var(--ui-ease),
+    box-shadow 0.18s var(--ui-ease);
+}
+.ui-composer-card:focus-within {
+  border-color: var(--ui-accent);
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 2px var(--ui-accent-soft);
+}
+.ui-composer-card.plan-mode {
+  border-color: var(--ui-info);
+  background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-surface-raised));
+}
+.ui-composer-card.plan-mode:focus-within {
+  border-color: var(--ui-info);
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 2px color-mix(in srgb, var(--ui-info) 18%, transparent);
+}
+.ui-composer-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-image-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.ui-image-attachment {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-image-attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ui-image-attachment .remove-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+.ui-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ui-prompt {
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--ui-text);
+  font-size: 14px;
+  line-height: 1.55;
+  resize: none;
+  max-height: 220px;
+  /* Generous horizontal padding gives the input a more breathable feel and
+     a softer "inner frame" — the textarea no longer hugs the card edges.
+     The focus glow (theme-overridden) anchors the eye without a hard border. */
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
+  /* Subtle sunken surface so the prompt reads as a distinct input region
+     even when the card itself has no border. Themes can override. */
+  background: var(--ui-surface-sunken);
+  transition:
+    background 0.15s ease,
+    box-shadow 0.2s ease;
+}
+.ui-prompt:focus {
+  outline: none;
+  background: var(--ui-surface-raised);
+}
+.ui-prompt::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 0.8;
+}
+.ui-prompt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ui-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+.ui-composer-toolbar-left,
+.ui-composer-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+.ui-status-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  animation: ui-card-enter 0.2s ease both;
+}
+.ui-status-strip .err-strip {
+  color: var(--ui-danger);
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Character count in composer toolbar — visible only when typing. */
+.ui-composer-charcount {
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  opacity: 0.7;
+  transition: color 0.2s ease;
+}
+.ui-composer-charcount.warn {
+  color: var(--ui-warning);
+  opacity: 1;
+}
+.ui-composer-hint {
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+}
+.ui-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ui-border);
+  border-top-color: var(--ui-accent);
+  border-radius: 50%;
+  animation: ui-spin 0.7s linear infinite;
+}
+/* Animated thinking dots — three dots that bounce in sequence */
+.ui-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.ui-thinking-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  animation: ui-dot-bounce 1.2s ease-in-out infinite;
+}
+.ui-thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ui-thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ui-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Slash menu + file mention menu */
+.ui-slash-menu,
+.ui-file-mention-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-modal);
+  padding: var(--ui-space-1);
+  z-index: 20;
+  animation: ui-menu-pop 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+.ui-slash-option,
+.ui-file-mention-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  padding: 6px var(--ui-space-2);
+  border-radius: var(--ui-radius-sm);
+  text-align: left;
+  transition: background 0.1s var(--ui-ease);
+}
+.ui-slash-option:hover,
+.ui-file-mention-option:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-slash-option.active,
+.ui-file-mention-option.active {
+  background: var(--ui-accent-soft);
+}
+.ui-slash-label {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.ui-slash-desc {
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-file-mention-icon {
+  flex: none;
+}
+.ui-file-mention-path {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-file-mention-loading,
+.ui-file-mention-empty {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  color: var(--ui-text-faint);
+  font-size: 12px;
+}
+.ui-file-mention-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-file-mention-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ui-border-soft);
+  border-top-color: var(--ui-accent);
+  border-radius: 50%;
+  animation: ui-spin 0.7s linear infinite;
+}
+.ui-file-mention-option.is-dir .ui-file-mention-icon {
+  color: var(--ui-warning);
+}
+.ui-file-mention-type {
+  margin-left: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex: none;
+}
+
