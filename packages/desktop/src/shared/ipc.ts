@@ -280,6 +280,18 @@ export type WikiPageEntry = {
   title: string;
   /** Last modified time (ISO) — freshness label. */
   mtime?: string;
+  /**
+   * Backend bilingual translation sibling (`<page>.<lang>.md`), present when
+   * the wiki.translate build stage produced one. The reader offers a
+   * 原文/译文 toggle when this exists.
+   */
+  translation?: {
+    /** Language of the TRANSLATION (the other of zh/en). */
+    lang: "zh" | "en";
+    /** Relative path of the variant file within openwiki/. */
+    path: string;
+    mtime?: string;
+  };
 };
 
 /** Payload for the CodegraphProgress event (streamed indexing output). */
@@ -545,12 +557,12 @@ export type TaskTrajectory = {
   sessionCount: number;
 };
 
-/** One pipeline stage inside a build job (symbol → wiki → arch map). */
+/** One pipeline stage inside a build job (symbol → wiki → arch map → translate). */
 export type KnowledgeBuildStageState = {
-  /** Stable id: "codegraph" | "wiki" | "arch-scan" (echoed by the action). */
+  /** Stable id: "codegraph" | "wiki" | "arch-scan" | "wiki-translate" (echoed by the action). */
   id: string;
-  /** i18n label key index ("codegraph" | "wiki" | "arch"). */
-  labelKey: "codegraph" | "wiki" | "arch";
+  /** i18n label key index ("codegraph" | "wiki" | "arch" | "wiki-translate"). */
+  labelKey: "codegraph" | "wiki" | "arch" | "wiki-translate";
   status: "pending" | "running" | "done" | "failed" | "skipped";
   /** Last progress detail for this stage (live console line). */
   detail?: string;

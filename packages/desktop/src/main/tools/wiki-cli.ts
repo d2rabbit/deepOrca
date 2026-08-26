@@ -242,16 +242,22 @@ export class WikiCliController implements WikiController {
             } else if (Date.now() - markerSeenAt > 60_000) {
               // Work is DONE and recorded; only the exit is wedged (typically
               // pipe-inherited MCP connector children). Force-finish success —
-              // a hung exit must never mask a completed wiki.
-              onProgress?.({ message: `wiki ${mode} CLI 退出卡住超过 60s — 强制结束，构建按完成处理` });
-              finishOk("完成标记已确认，强制结束卡住的退出");
+              // a hung exit must never mask a completed wiki. Bilingual
+              // progress lines (zh · en) — the console shows both, matching
+              // the build pipeline's bilingual contract.
+              onProgress?.({
+                message: `wiki ${mode} 退出卡住超过 60s，强制结束，构建按完成处理 / exit stuck >60s — force-killed, treated as complete`,
+              });
+              finishOk("完成标记已确认，强制结束卡住的退出 / completion marker confirmed, stuck exit force-killed");
             }
             return null;
           }
           const pages = countRecentWikiPages(root, startedAtMs - 5000);
-          const pageText = pages >= 0 ? ` · 已生成 ${pages} 个页面` : "";
+          const pageText = pages >= 0 ? ` · 已生成 ${pages} 页 / ${pages} pages written` : "";
           onProgress?.({
-            message: `wiki ${mode} 运行中 ${elapsedSecs}s${pageText} · 读取符号索引加速生成（LLM 阶段无进度流，请耐心等待）`,
+            message:
+              `wiki ${mode} 运行中 ${elapsedSecs}s / running ${elapsedSecs}s${pageText}` +
+              " · 读取符号索引加速生成，LLM 阶段无进度流请耐心等待 / using the symbol index, no LLM progress stream",
           });
           return null;
         },
@@ -288,7 +294,9 @@ export class WikiCliController implements WikiController {
       );
     }
     const exitNote =
-      result.forcedOk || (result.code !== 0 && markerSeenAt > 0) ? `（${result.forcedNote ?? "完成标记已确认"}）` : "";
+      result.forcedOk || (result.code !== 0 && markerSeenAt > 0)
+        ? `（${result.forcedNote ?? "完成标记已确认 / completion marker confirmed"}）`
+        : "";
     onProgress?.({ message: `wiki ${mode} complete${exitNote}`, percent: 100 });
     // Try to parse model from stdout output (--print mode).
     const modelMatch = result.stdout.match(/model[:\s]+([^\s,]+)/i);

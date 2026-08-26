@@ -403,6 +403,13 @@ export {
   getWikiController,
   indexBuildAllDefinition,
   indexBuildAllRun,
+  wikiTranslateDefinition,
+  wikiTranslateRun,
+  detectWikiLanguage,
+  wikiVariantPath,
+  isWikiVariantFile,
+  containedUnderWiki,
+  listWikiBasePages,
   archScanRunDefinition,
   archScanRunRun,
 } from "./actions";

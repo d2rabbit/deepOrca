@@ -55,13 +55,15 @@ export function buildStageVerb(
   return stage.labelKey === "wiki" ? t("index.buildStageWiki") : t("index.buildStageArch");
 }
 
-/** Checklist noun: 索引 / Wiki / 架构图. */
+/** Checklist noun: 索引 / Wiki / 架构图 / 双语翻译. */
 export function buildStageName(stage: Pick<KnowledgeBuildStageState, "labelKey">, t: Translate): string {
   return stage.labelKey === "codegraph"
     ? t("index.stageIndexName")
     : stage.labelKey === "wiki"
       ? t("index.stageWikiName")
-      : t("index.stageArchName");
+      : stage.labelKey === "wiki-translate"
+        ? t("index.stageTranslateName")
+        : t("index.stageArchName");
 }
 
 export function KnowledgeBuildProgress({

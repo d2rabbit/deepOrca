@@ -409,6 +409,7 @@ export const ja: Record<MessageKey, string> = {
   "build.stage.codegraph": "① インデックス",
   "build.stage.wiki": "② Wiki",
   "build.stage.arch": "③ アーキテクチャ図",
+  "build.stage.wikiTranslate": "④ Bilingual",
   "build.wikiHint": "インデックスを読み取り生成を高速化",
   "build.consoleTitle": "コンソール出力",
   "build.consoleEmpty": "（出力はまだありません）",
@@ -945,6 +946,7 @@ export const ja: Record<MessageKey, string> = {
   "index.stageIndexName": "インデックス",
   "index.stageWikiName": "Wiki",
   "index.stageArchName": "アーキテクチャ図",
+  "index.stageTranslateName": "Bilingual translation",
   "index.stageDone": "完了",
   "index.stagePending": "待機中",
   "index.stageSkipped": "スキップ",
@@ -967,6 +969,8 @@ export const ja: Record<MessageKey, string> = {
   "index.wikiPrev": "前のページ",
   "index.wikiNext": "次のページ",
   "index.wikiPreviewFailed": "ページの読み込みに失敗",
+  "index.wikiOriginal": "Original",
+  "index.wikiTranslation": "Translation",
   // Wiki build hints ship in zh/en only (product call) — reference the
   // canonical EN text from messages.ts; do not translate these keys.
   "buildHint.wikiNetwork": "The LLM connection was interrupted — check Settings → Model (API key / base URL).",

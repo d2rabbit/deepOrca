@@ -77,6 +77,15 @@ export {
 export type { WikiInitOutput, WikiPage, WikiPageDetail, WikiFrontmatter, WikiController, WikiResult } from "./wiki";
 export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
+export { wikiTranslateDefinition, wikiTranslateRun } from "./wiki-translate";
+export type { WikiTranslateInput, WikiTranslateOutput } from "./wiki-translate";
+export {
+  detectWikiLanguage,
+  wikiVariantPath,
+  isWikiVariantFile,
+  containedUnderWiki,
+  listWikiBasePages,
+} from "./wiki-translate";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";
 export type { ArchScanInput, ArchScanOutput } from "./arch-scan";
 export {

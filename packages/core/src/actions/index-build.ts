@@ -1,20 +1,24 @@
 /**
- * Phase 2 orchestrator (spec §四). Builds the full workspace index trio —
- * symbol (CodeGraph) → document (OpenWiki) → architecture (arch-scan) — in
- * sequence, emitting stage progress. Replaces the renderer's 40-line promise
- * chain + prompt hack with a first-class core action.
+ * Phase 2 orchestrator (spec §四). Builds the workspace index pipeline —
+ * symbol (CodeGraph) → document (OpenWiki) → architecture (arch-scan, init)
+ * → bilingual translation (wiki.translate) — in sequence, emitting stage
+ * progress. Replaces the renderer's 40-line promise chain + prompt hack with
+ * a first-class core action.
  *
  * Calls the same core helpers the individual actions use (no duplication).
  * arch-scan (stage 3) runs on the sessionless BackgroundLlmTask channel
  * (specs/index-knowledge-rework R2-2); when the host hasn't injected it,
  * buildAll completes the two deterministic stages and reports arch-scan as
- * skipped — the legacy /arch-scan prompt path still works.
+ * skipped — the legacy /arch-scan prompt path still works. Stage 4 runs on
+ * BOTH modes (update refreshes pages too) and is ordered LAST so its
+ * `*.zh.md`/`*.en.md` variant files never feed arch-scan's wiki context.
  */
 
 import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getCodegraphController } from "./codegraph-controller";
 import { getWikiController } from "./wiki-controller";
+import { wikiTranslateRun } from "./wiki-translate";
 
 export interface IndexBuildInput {
   /** "init" runs all three stages (incl. arch-scan when subagent is available);
@@ -29,7 +33,7 @@ export interface IndexBuildInput {
 }
 
 export interface IndexBuildStage {
-  readonly stage: "codegraph" | "wiki" | "arch-scan";
+  readonly stage: "codegraph" | "wiki" | "arch-scan" | "wiki-translate";
   readonly ok: boolean;
   readonly skipped?: boolean;
   readonly error?: string;
@@ -59,24 +63,24 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
   const stages: IndexBuildStage[] = [];
 
   // Stage 1: CodeGraph symbol index (via controller — SDK in production).
-  ctx.emit({ message: `[1/3] CodeGraph symbol index`, percent: 5 });
+  ctx.emit({ message: `[1/4] CodeGraph symbol index`, percent: 5 });
   const cgController = getCodegraphController();
   if (!cgController) {
     stages.push({ stage: "codegraph", ok: false, skipped: true, error: "no CodegraphController configured" });
   } else {
     try {
       await cgController.reindex(root, (p: ControllerProgress) =>
-        ctx.emit({ message: `[1/3] ${p.message}`, percent: p.percent ? Math.floor(p.percent / 3) : undefined })
+        ctx.emit({ message: `[1/4] ${p.message}`, percent: p.percent ? Math.floor(p.percent / 4) : undefined })
       );
       stages.push({ stage: "codegraph", ok: true });
     } catch (err) {
       stages.push({ stage: "codegraph", ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   }
-  ctx.emit({ message: `[1/3] CodeGraph done`, percent: 33 });
+  ctx.emit({ message: `[1/4] CodeGraph done`, percent: 25 });
 
   // Stage 2: OpenWiki document index (via controller — CLI in desktop).
-  ctx.emit({ message: `[2/3] OpenWiki document index`, percent: 38 });
+  ctx.emit({ message: `[2/4] OpenWiki document index`, percent: 28 });
   const wikiController = getWikiController();
   if (!wikiController) {
     stages.push({ stage: "wiki", ok: false, skipped: true, error: "no WikiController configured" });
@@ -85,23 +89,25 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
       const fn =
         mode === "init" ? wikiController.init.bind(wikiController) : wikiController.update.bind(wikiController);
       await fn(root, (p: ControllerProgress) =>
-        ctx.emit({ message: `[2/3] ${p.message}`, percent: p.percent ? 33 + Math.floor(p.percent / 3) : undefined })
+        ctx.emit({ message: `[2/4] ${p.message}`, percent: p.percent ? 25 + Math.floor(p.percent / 4) : undefined })
       );
       stages.push({ stage: "wiki", ok: true });
     } catch (err) {
       stages.push({ stage: "wiki", ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   }
-  ctx.emit({ message: `[2/3] wiki done`, percent: 66 });
+  ctx.emit({ message: `[2/4] wiki done`, percent: 50 });
 
   // Stage 3: arch-scan (init only). Generates an interactive architecture map
   // by consuming the CodeGraph + OpenWiki indices built in stages 1-2. Runs on
   // the sessionless BackgroundLlmTask channel (specs/index-knowledge-rework
   // R2-2): no session, no index entry, nothing in the conversation view —
   // manual builds must never produce foreground conversation content.
+  let archOk = true;
   if (mode === "init") {
-    ctx.emit({ message: `[3/3] arch-scan`, percent: 70 });
+    ctx.emit({ message: `[3/4] arch-scan`, percent: 52 });
     if (!ctx.runBackgroundTask) {
+      archOk = false;
       stages.push({
         stage: "arch-scan",
         ok: false,
@@ -117,12 +123,40 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
           // next iteration boundary (otherwise an 80-iteration scan would run
           // to completion after the user cancelled).
           signal: ctx.signal,
-          onProgress: (message) => ctx.emit({ message: `[3/3] ${message}` }),
+          onProgress: (message) => ctx.emit({ message: `[3/4] ${message}` }),
         });
         stages.push({ stage: "arch-scan", ok: true });
       } catch (err) {
+        archOk = false;
         stages.push({ stage: "arch-scan", ok: false, error: err instanceof Error ? err.message : String(err) });
       }
+    }
+  }
+
+  // Stage 4: bilingual translation (backend agent). Runs on BOTH modes —
+  // update builds refresh pages too, and the mtime skip means only changed
+  // pages cost a completion. Still runs when arch-scan was skipped/unavailable
+  // (independent stage), but a FAILED arch-scan skips translation to keep the
+  // classic "stop at first broken stage" UX for init builds.
+  // Stage prefix differs by mode: init orders it [4/4] (after arch-scan),
+  // update orders it [3/4] (last stage) — matching the job's stage array.
+  const tPrefix = mode === "init" ? "[4/4]" : "[3/4]";
+  const wikiOk = stages.find((s) => s.stage === "wiki")?.ok ?? false;
+  if (!wikiOk || (mode === "init" && !archOk)) {
+    stages.push({ stage: "wiki-translate", ok: false, skipped: true, error: "wiki stage did not complete" });
+  } else {
+    ctx.emit({ message: `${tPrefix} wiki 翻译 · bilingual translation`, percent: 80 });
+    try {
+      await wikiTranslateRun(
+        { root },
+        {
+          ...ctx,
+          emit: (e) => ctx.emit({ ...e, message: `${tPrefix} ${e.message}` }),
+        }
+      );
+      stages.push({ stage: "wiki-translate", ok: true });
+    } catch (err) {
+      stages.push({ stage: "wiki-translate", ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   }
   ctx.emit({

@@ -38,11 +38,12 @@ function formatElapsed(fromIso: string | undefined, toIso: string | undefined, n
 
 const STAGE_LABEL_KEYS: Record<
   KnowledgeBuildStageState["labelKey"],
-  "build.stage.codegraph" | "build.stage.wiki" | "build.stage.arch"
+  "build.stage.codegraph" | "build.stage.wiki" | "build.stage.arch" | "build.stage.wikiTranslate"
 > = {
   codegraph: "build.stage.codegraph",
   wiki: "build.stage.wiki",
   arch: "build.stage.arch",
+  "wiki-translate": "build.stage.wikiTranslate",
 };
 
 const STATUS_MARK: Record<KnowledgeBuildStageState["status"], string> = {

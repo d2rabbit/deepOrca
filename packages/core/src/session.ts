@@ -113,6 +113,8 @@ import {
   wikiReadPageRun,
   indexBuildAllDefinition,
   indexBuildAllRun,
+  wikiTranslateDefinition,
+  wikiTranslateRun,
   archScanRunDefinition,
   archScanRunRun,
   browserSessionStartDefinition,
@@ -997,6 +999,7 @@ export class SessionManager {
       // LLM single-choice judgment for classification-shaped actions
       // (design.materialize routing). Fail-open: null → caller's heuristic.
       judgeViaLlm: (prompt, choices) => this.judgeViaLlm(prompt, choices),
+      completeViaLlm: (messages, opts) => this.completeTextViaLlm(messages, opts),
       // Task trajectory (specs/task-tree P0): the tree service is the single
       // writer of .deeporca/task-trees/** — actions receive it via context.
       taskTrees: () => this.getTaskTreeService(),
@@ -1029,6 +1032,8 @@ export class SessionManager {
     this.actionRegistry.register(wikiReadPageDefinition, wikiReadPageRun);
     // The unified trio orchestrator (replaces the renderer promise chain).
     this.actionRegistry.register(indexBuildAllDefinition, indexBuildAllRun);
+    // Backend wiki translation (bilingual-ize stage of the build pipeline).
+    this.actionRegistry.register(wikiTranslateDefinition, wikiTranslateRun);
     // ── Phase 3: arch-scan (gated on runSubagent — §十 P2) ─────────────────
     this.actionRegistry.register(archScanRunDefinition, archScanRunRun);
     // ── Browser actions (BrowserSkill bsk CLI wrappers) ──────────────────────
@@ -1429,6 +1434,44 @@ export class SessionManager {
       const parsed = typeof rawContent === "string" ? (JSON.parse(rawContent) as { choice?: unknown }) : null;
       const choice = parsed?.choice;
       return typeof choice === "string" && choices.includes(choice) ? choice : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Free-form backend text completion on the PRIMARY (settings) model — the
+   * content-work counterpart of judgeViaLlm's flash-class classification.
+   * Translation-grade output: no JSON mode, no max_tokens cap, thinking off
+   * (cost/latency), temperature pinned low for fidelity. Returns null on any
+   * failure so callers can fail open.
+   */
+  private async completeTextViaLlm(
+    messages: Array<{ role: "system" | "user"; content: string }>,
+    opts?: { signal?: AbortSignal }
+  ): Promise<string | null> {
+    const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    if (!client) return null;
+    try {
+      const response = await this.createChatCompletionStream(
+        client,
+        {
+          model,
+          temperature: 0.2,
+          messages,
+          ...buildThinkingRequestOptions(false, baseURL, "max", model),
+        },
+        opts?.signal ? { signal: opts.signal } : undefined,
+        undefined,
+        {
+          enabled: debugLogEnabled,
+          location: "SessionManager.completeTextViaLlm",
+          baseURL,
+          params: { purpose: "backend-completion", model },
+        }
+      );
+      const content = response.choices?.[0]?.message?.content;
+      return typeof content === "string" && content.trim() ? content : null;
     } catch {
       return null;
     }

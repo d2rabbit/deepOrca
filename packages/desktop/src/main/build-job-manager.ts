@@ -52,6 +52,9 @@ function initialStages(mode: "init" | "update"): KnowledgeBuildStageState[] {
   if (mode === "init") {
     stages.push({ id: "arch-scan", labelKey: "arch", status: "pending" });
   }
+  // Bilingual translation runs on BOTH modes (stage 4 on init, stage 3 on
+  // update) — its [n/4] prefix matches this array position.
+  stages.push({ id: "wiki-translate", labelKey: "wiki-translate", status: "pending" });
   return stages;
 }
 
@@ -187,7 +190,7 @@ export class BuildJobManager {
     job.stage = message;
     if (typeof percent === "number") job.percent = percent;
     job.updatedAt = nowIso();
-    const stageMatch = message.match(/^\[(\d)\/3\]\s*(.*)$/);
+    const stageMatch = message.match(/^\[(\d)\/4\]\s*(.*)$/);
     if (stageMatch) {
       const idx = Number(stageMatch[1]) - 1;
       const rest = stageMatch[2] ?? "";

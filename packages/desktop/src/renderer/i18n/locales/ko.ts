@@ -408,6 +408,7 @@ export const ko: Record<MessageKey, string> = {
   "build.stage.codegraph": "① 인덱스",
   "build.stage.wiki": "② Wiki",
   "build.stage.arch": "③ 아키텍처 다이어그램",
+  "build.stage.wikiTranslate": "④ Bilingual",
   "build.wikiHint": "인덱스를 읽어 생성 가속",
   "build.consoleTitle": "콘솔 출력",
   "build.consoleEmpty": "(아직 출력 없음)",
@@ -939,6 +940,7 @@ export const ko: Record<MessageKey, string> = {
   "index.stageIndexName": "인덱스",
   "index.stageWikiName": "Wiki",
   "index.stageArchName": "아키텍처 맵",
+  "index.stageTranslateName": "Bilingual translation",
   "index.stageDone": "완료",
   "index.stagePending": "대기 중",
   "index.stageSkipped": "건너뜀",
@@ -961,6 +963,8 @@ export const ko: Record<MessageKey, string> = {
   "index.wikiPrev": "이전 글",
   "index.wikiNext": "다음 글",
   "index.wikiPreviewFailed": "페이지 읽기 실패",
+  "index.wikiOriginal": "Original",
+  "index.wikiTranslation": "Translation",
   // Wiki build hints ship in zh/en only (product call) — reference the
   // canonical EN text from messages.ts; do not translate these keys.
   "buildHint.wikiNetwork": "The LLM connection was interrupted — check Settings → Model (API key / base URL).",

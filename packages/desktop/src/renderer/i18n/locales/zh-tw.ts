@@ -400,6 +400,7 @@ export const zhTW: Record<MessageKey, string> = {
   "build.stage.codegraph": "① 索引",
   "build.stage.wiki": "② Wiki",
   "build.stage.arch": "③ 架構圖",
+  "build.stage.wikiTranslate": "④ 双语翻译",
   "build.wikiHint": "讀取索引加速產生",
   "build.consoleTitle": "主控台輸出",
   "build.consoleEmpty": "（暫無輸出）",
@@ -921,6 +922,7 @@ export const zhTW: Record<MessageKey, string> = {
   "index.stageIndexName": "索引",
   "index.stageWikiName": "Wiki",
   "index.stageArchName": "架構圖",
+  "index.stageTranslateName": "双语翻译",
   "index.stageDone": "完成",
   "index.stagePending": "待開始",
   "index.stageSkipped": "已跳過",
@@ -943,6 +945,8 @@ export const zhTW: Record<MessageKey, string> = {
   "index.wikiPrev": "上一篇",
   "index.wikiNext": "下一篇",
   "index.wikiPreviewFailed": "讀取頁面失敗",
+  "index.wikiOriginal": "原文",
+  "index.wikiTranslation": "译文",
   // Wiki build hints ship in zh/en only (product call) — reference the
   // canonical zh text from messages.ts; do not translate these keys.
   "buildHint.wikiNetwork": "LLM 网络层被中断：请核对 设置→模型 / API Key / Base URL。",

@@ -43,6 +43,9 @@ import {
   configureGitmcpConfigBuilder,
   buildGitmcpMcpServerConfig,
   TaskTreeService,
+  detectWikiLanguage,
+  wikiVariantPath,
+  isWikiVariantFile,
 } from "@deeporca/core";
 import { extractTaskTrajectory } from "./task-trajectory";
 import { buildSymbolGraph } from "./symbol-graph-query";
@@ -1998,7 +2001,7 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
           const rel = prefix ? `${prefix}/${item.name}` : item.name;
           if (item.isDirectory()) {
             await walk(join(dir, item.name), rel);
-          } else if (item.name.endsWith(".md")) {
+          } else if (item.name.endsWith(".md") && !isWikiVariantFile(item.name)) {
             const absPath = join(dir, item.name);
             let mtime: string | undefined;
             try {
@@ -2006,7 +2009,29 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
             } catch {
               // unreadable — leave undated
             }
-            entries.push({ path: rel, title: await wikiPageTitle(absPath, item.name), mtime });
+            // Bilingual translation sibling (wiki.translate build stage):
+            // detect the base page's language with the SAME heuristic core
+            // uses, then probe the other-language variant. Cheap existence
+            // check on a path we derived ourselves — no renderer input.
+            let translation: WikiPageEntry["translation"];
+            try {
+              const head = await readFile(absPath, "utf8");
+              const lang = detectWikiLanguage(head);
+              if (lang) {
+                const vLang: "zh" | "en" = lang === "zh" ? "en" : "zh";
+                const vRel = wikiVariantPath(rel, vLang);
+                const vStat = await stat(join(wikiDir, vRel));
+                translation = { lang: vLang, path: vRel, mtime: vStat.mtime.toISOString() };
+              }
+            } catch {
+              // No variant (or unreadable base) — no toggle.
+            }
+            entries.push({
+              path: rel,
+              title: await wikiPageTitle(absPath, item.name),
+              mtime,
+              ...(translation ? { translation } : {}),
+            });
           }
         }
       };

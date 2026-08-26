@@ -115,6 +115,17 @@ export interface ActionContext {
    */
   readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
   /**
+   * Free-form backend LLM text completion on the PRIMARY (settings) model —
+   * injected by SessionManager. Returns the completion text, or null when
+   * unavailable/failed — callers MUST degrade deterministically on null
+   * (fail-open). Used by content-shaped actions (wiki.translate's per-page
+   * translation); classification stays on judgeViaLlm's flash-class JSON mode.
+   */
+  readonly completeViaLlm?: (
+    messages: Array<{ role: "system" | "user"; content: string }>,
+    opts?: { signal?: AbortSignal }
+  ) => Promise<string | null>;
+  /**
    * Task trajectory service (specs/task-tree P0) — lazily provided by the
    * host; task.* actions read it via ctx and fail open when absent.
    */

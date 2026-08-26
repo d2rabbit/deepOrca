@@ -3,7 +3,7 @@ import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
 import { Button } from "../ui/index";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
-import type { ActionProgressEvent, KnowledgeStatusResponse, KnowledgeSymbol } from "../../shared/ipc";
+import type { ActionProgressEvent, KnowledgeStatusResponse, KnowledgeSymbol, WikiPageEntry } from "../../shared/ipc";
 import { BASIC_CATALOG_ID } from "../../shared/a2ui-legacy";
 import { SymbolGraphView } from "./SymbolGraphView";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -84,7 +84,7 @@ function extractWikiPageMeta(raw: string): { title: string | null; description: 
   return { title: fmTitle, description: fmDesc, body };
 }
 
-type WikiPage = { title: string; path: string; mtime?: string };
+type WikiPage = WikiPageEntry;
 
 /** Group symbols by kind, largest groups first. */
 function groupSymbols(syms: KnowledgeSymbol[]): Array<[string, KnowledgeSymbol[]]> {
@@ -99,7 +99,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   const { t } = useI18n();
   const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
   const [sub, setSub] = useState<SubTab>("wiki");
-  const [wikiPages, setWikiPages] = useState<Array<{ title: string; path: string; mtime?: string }>>([]);
+  const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
   const [agentsContent, setAgentsContent] = useState<string | null>(null);
   const [symbols, setSymbols] = useState<KnowledgeSymbol[]>([]);
@@ -307,6 +307,16 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     }
   }, [wikiPages, wikiSel]);
 
+  // 原文/译文 toggle (backend bilingual translation): per-page preference,
+  // reset when the selection changes — landing on a new page should always
+  // show the original first, then honor a deliberate toggle.
+  const wikiEntry = wikiPages.find((pg) => pg.path === wikiSel) ?? null;
+  const [preferTranslation, setPreferTranslation] = useState(false);
+  useEffect(() => {
+    setPreferTranslation(false);
+  }, [wikiSel]);
+  const readPath = preferTranslation && wikiEntry?.translation ? wikiEntry.translation.path : wikiSel;
+
   useEffect(() => {
     if (!wikiSel) return;
     let alive = true;
@@ -314,7 +324,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     setWikiContent(null);
     (async () => {
       try {
-        const res = await api.editorReadFile(`${root}/openwiki/${wikiSel}`);
+        const res = await api.editorReadFile(`${root}/openwiki/${readPath}`);
         if (!alive) return;
         setWikiContent(res.ok && !res.binary ? (res.content ?? "") : null);
       } catch {
@@ -326,7 +336,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     return () => {
       alive = false;
     };
-  }, [root, wikiSel]);
+  }, [root, wikiSel, readPath]);
 
   return (
     <div className="ui-knowledge-view">
@@ -395,6 +405,9 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                         next={wikiNeighbours.next}
                         onNavigate={(path) => setWikiSel(path)}
                         tocLabel={t("index.wikiToc")}
+                        translation={wikiEntry?.translation}
+                        preferTranslation={preferTranslation}
+                        onToggleTranslation={setPreferTranslation}
                       />
                     ) : (
                       <div className="ui-side-panel-empty">{t("index.wikiPreviewFailed")}</div>
@@ -615,6 +628,9 @@ function WikiPageView({
   next,
   onNavigate,
   tocLabel,
+  translation,
+  preferTranslation,
+  onToggleTranslation,
 }: {
   raw: string;
   onOpenFile: () => void;
@@ -630,6 +646,10 @@ function WikiPageView({
   next: WikiPage | null;
   onNavigate: (path: string) => void;
   tocLabel: string;
+  /** Backend bilingual sibling (wiki.translate stage) — enables 原文/译文. */
+  translation?: WikiPageEntry["translation"];
+  preferTranslation: boolean;
+  onToggleTranslation: (preferred: boolean) => void;
 }): JSX.Element {
   const { t } = useI18n();
   const { title, description, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
@@ -660,6 +680,26 @@ function WikiPageView({
               ▤
             </span>
             {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
+            {translation ? (
+              <div className="ui-wiki-lang-toggle" role="group">
+                <button
+                  type="button"
+                  className={`ui-wiki-lang-btn${!preferTranslation ? " active" : ""}`}
+                  aria-pressed={!preferTranslation}
+                  onClick={() => onToggleTranslation(false)}
+                >
+                  {t("index.wikiOriginal")}
+                </button>
+                <button
+                  type="button"
+                  className={`ui-wiki-lang-btn${preferTranslation ? " active" : ""}`}
+                  aria-pressed={preferTranslation}
+                  onClick={() => onToggleTranslation(true)}
+                >
+                  {t("index.wikiTranslation")} · {translation.lang.toUpperCase()}
+                </button>
+              </div>
+            ) : null}
             {onQuote ? (
               <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
                 {quoteLabel}
