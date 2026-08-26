@@ -18,6 +18,7 @@ expect:
   must_contain:
     - "save_archmap"
     - "mermaid"
+    - "架构分析"
   must_not_contain:
     - "render_surface"
 judge:

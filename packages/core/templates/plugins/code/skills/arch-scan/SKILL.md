@@ -2,12 +2,14 @@
 name: arch-scan
 description: >-
   Scan codebase architecture and generate a Mermaid architecture map using
-  perspective-driven recursive analysis. Use when users ask for "scan
-  architecture", "架构图", "架构扫描", "architecture diagram", "代码结构",
+  perspective-driven recursive analysis, then run an evidence-based
+  architecture review (analysis findings + prioritized optimization advice).
+  Use when users ask for "scan architecture", "架构图", "架构扫描", "架构评审",
+  "架构分析", "architecture diagram", "architecture review", "代码结构",
   "dependency map", or "how does this codebase work". Produces a persisted
   Mermaid document (.deeporca/prototypes/arch-<name>.md) whose diagrams render
-  in the Knowledge panel — real nodes and edges, not a flat document.
-  Methodology adopted from oh-my-mermaid (omm).
+  in the Knowledge panel — real nodes and edges, not a flat document — plus a
+  layered HTML overview board. Methodology adopted from oh-my-mermaid (omm).
 ---
 
 # arch-scan — Perspective-Based Architecture Scanner (Mermaid Renderer)
@@ -59,6 +61,12 @@ using **perspective-driven recursive analysis**.
 > diff-friendly artifacts over opaque binaries) echoes
 > [drawio-generator](https://github.com/pmlaowangba-lab/drawio-generator)
 > (pmlaowangba-lab, MIT) — with thanks to all three.
+>
+> **五阶段管线**（架构风格识别 → 结构化抽取 → 图生成 → 架构师评审 →
+> 文档融合）：方法论对标 showapi「软件架构图生成器」skill（showapi.com
+> 商业云服务；仅方法论对标，未采用其代码与云渲染依赖）。DeepOrca 版本的
+> 差异：输入是代码与索引证据而非说明书文本，评审必须证据驱动，渲染全部
+> 本地完成。
 
 ## 归属：工作区索引模块
 
@@ -135,7 +143,7 @@ labels, edge labels and prose (description, overview) in the detected language
 
 ## Step 1: Gather Knowledge from Existing Indices
 
-**优先消费已构建的索引**，而非从零读文件。arch-scan 通常在 `index.build-all` 的第三步执行，此时 CodeGraph 符号索引（Step 1）和 OpenWiki 文档（Step 2）已经构建完成。直接复用它们的产出，避免重复分析。
+**优先消费已构建的索引**，而非从零读文件。arch-scan 通常在 `index.build-all` 的第三步执行，此时 CodeGraph 符号索引（Step 1）和 OpenWiki 文档（Step 2）已经构建完成。直接复用它们的产出，避免重复分析。用户请求中随附的说明文本（需求摘录、设计文档片段）是补充输入：用于理解意图与聚焦重点，但事实以代码与索引证据为准——冲突时修正的是理解，不是证据。
 
 ### 知识获取优先级（从高到低）
 
@@ -180,6 +188,31 @@ labels, edge labels and prose (description, overview) in the detected language
 - CodeGraph 可用？→ 尝试调用 `codegraph_explore`，如果返回结果则可用
 - OpenWiki 可用？→ 尝试 `read openwiki/architecture.md`，如果文件存在则可用
 - Serena 可用？→ 检查 MCP 工具列表中是否有 `find_symbol` 等
+
+## Step 1.5: Identify Architecture Style（架构风格识别）
+
+在选视角之前，先从已收集的证据中**显式识别架构风格**——它是视角选择、
+总览措辞和评审维度（Step 3.6）的共同输入。风格从证据推断（目录结构、
+依赖图、进程拓扑、框架特征），不要照抄 README 的自称。
+
+常见风格（可并存，全部列出；混合架构是常态而非例外）：
+
+| 风格                   | 证据特征                                    | 强相关视角                            |
+| ---------------------- | ------------------------------------------- | ------------------------------------- |
+| 单体分层               | 单进程 + controller/service/dao 式分层目录  | overall / dependency-map              |
+| 前后端分离（B/S）      | 独立前端工程 + HTTP API 契约                | request-lifecycle / route-page-map    |
+| 桌面客户端（Electron） | 主进程 + 渲染进程 + IPC 桥                  | request-lifecycle（IPC 生命周期）     |
+| 微服务                 | 多进程/多部署单元 + 服务间调用              | orchestration / external-integrations |
+| 事件驱动               | MQ / 事件总线 / 发布订阅拓扑                | orchestration / state-transitions     |
+| 插件化                 | 运行时加载的扩展点 / 注册表                 | extension-points                      |
+| monorepo 多包          | workspaces + 包间依赖方向                   | dependency-map                        |
+| 数据/ML 流水线         | stage 化处理链                              | pipeline                              |
+| CLI 工具               | 命令分发入口                                | command-surface                       |
+
+- 风格结论写进文档总览段（Step 3 骨架），一行写明："本系统为 X + Y 构成的
+  Z 风格架构"。
+- 自称与证据冲突（如 README 称微服务、实为共享库堆叠的分布式单体）→
+  不改风格结论，而是记入 Step 3.6 评审发现。
 
 ## Step 2: Select Perspectives
 
@@ -231,7 +264,8 @@ Write ONE markdown document and save it via `save_archmap`. Layout contract:
 ````markdown
 # <Project Name> 架构
 
-<一句话总览：这是什么系统、由哪几块组成。>
+<一句话定位：这是什么系统、由哪几块组成。>
+<架构风格：Step 1.5 的结论，一行（多风格并存时全部写出）。>
 
 ## <视角一标题>
 
@@ -243,6 +277,14 @@ Write ONE markdown document and save it via `save_archmap`. Layout contract:
 
 ## <视角二标题>
 ...
+
+## 架构分析
+
+<Step 3.6 的评审发现，每条带证据。>
+
+## 优化建议
+
+<Step 3.6 的改进计划，问题 → 建议 → 优先级。>
 ````
 
 ### Mermaid 语法纪律（LLM 高频错误防线）
@@ -389,6 +431,47 @@ overall-architecture (perspective)
 - **预算**：每层 2-8 个组件，全板 ≤ 30 个；底部图例条列出全部 kind 色样
 - **标题头**：项目名 + 一句话定位 + 生成日期
 
+## Step 3.6: 架构评审 — 分析与优化建议（证据驱动）
+
+图集回答"系统长什么样"，评审回答"系统健不健康"。两个收尾章节
+（`## 架构分析` / `## 优化建议`）**只消费扫描过程中已经拿到的证据**
+（CodeGraph 调用链与 impact、依赖方向、目录形态、AGENTS.md 红线、
+concern 候选），不为此重新通读代码。
+
+### 评审维度（按 Step 1.5 识别的风格选 3-5 个）
+
+| 风格           | 重点维度                                 |
+| -------------- | ---------------------------------------- |
+| 单体/分层      | 层间耦合、依赖方向违规、模块边界         |
+| 前后端分离     | 接口契约稳定性、请求链路延迟点、错误传播 |
+| 微服务         | 服务解耦度、数据一致性、故障隔离         |
+| 事件驱动       | 消息可靠性、背压/积压、消费幂等          |
+| 插件化         | 扩展点稳定性、版本兼容、权限边界         |
+| monorepo       | 包边界、公共依赖提取、循环依赖           |
+| 通用（都查）   | 高可用、可扩展、性能瓶颈、安全边界       |
+
+### `## 架构分析` 条目格式
+
+每条发现一行，**必须带证据**（`file.ts:符号`、调用链或 CodeGraph 查询结论）：
+
+- **<风险/现状标题>**：<现象一句话> — 证据：`session.ts updateSessionEntry 17×/轮`；影响：<不修复的后果>
+
+没有代码证据、只有推断的条目必须标注"待验证"，且每章最多 1 条。
+
+### `## 优化建议` 条目格式
+
+与分析发现**一一呼应**（不引入无对应问题的新建议），按优先级排序：
+
+- **P0/P1/P2 <建议一句话>**：针对"<分析发现标题>"；预期<收益一句话>
+
+### 纪律
+
+- 两个章节各 **3-6 条**，宁缺毋滥；禁止"建议引入最佳实践"式空话
+- **concern 联动**：图中的 `concern` 节点必须在`架构分析`有对应条目；
+  分析中的 P0 发现也应体现在某张图的 `concern` 节点上——图与文互为索引
+- AGENTS.md / docs 声明的架构红线（如 core UI-free）被违反 → 自动成为 P0 发现
+- 优化建议**不得**虚构扫描中未见的技术栈（"建议引入 Redis"仅当存储瓶颈有证据）
+
 ## Step 3.9: 成稿验证环（Loop Engineering — evaluate, don't assert）
 
 > 思想来源：fireworks-tech-graph 的 Loop Engineering。**完成度由清点证据支撑，
@@ -403,8 +486,10 @@ overall-architecture (perspective)
    是否误用 `end`/`graph` 关键字作 id
 4. **总览板契约检查**：层序正确 / 零外部资源 / 零 JavaScript /
    prefers-color-scheme 双主题 / 每层 2-8 组件
-5. **汇报格式**（必须带数字）：
-   `图集: N 张(节点数序列 [a,b,c…]) · 总览板: M 层/K 组件 · 验证: 通过/经 X 轮修正`
+5. **评审证据检查**：`架构分析`/`优化建议` 是否各 3-6 条且逐条带证据
+   （或标注"待验证"）；concern 节点与分析条目是否一一对应
+6. **汇报格式**（必须带数字）：
+   `图集: N 张(节点数序列 [a,b,c…]) · 总览板: M 层/K 组件 · 评审: A 项发现/B 条建议 · 验证: 通过/经 X 轮修正`
 
 ## Step 4: Save and Summarize
 
@@ -416,7 +501,8 @@ overall-architecture (perspective)
    panel's 架构图 tab immediately (board renders on a sandboxed canvas).
 3. Report to the user (Step 3.9 format, with numbers): which perspectives
    were generated, per-diagram node/edge counts, board layer/component
-   counts, and anything that hit a budget and was split or drilled.
+   counts, review finding/advice counts, and anything that hit a budget
+   and was split or drilled.
 
 ## Edge Rules
 

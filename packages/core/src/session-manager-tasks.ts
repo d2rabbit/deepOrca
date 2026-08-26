@@ -19,8 +19,8 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     if (skill === "arch-scan") {
       const perspective = (input as { perspective?: string } | undefined)?.perspective;
       return perspective
-        ? `Scan the codebase architecture focusing on ${perspective} and generate the interactive architecture map (A2UI Surface).`
-        : "Scan the codebase architecture and generate the interactive architecture map (A2UI Surface).";
+        ? `Scan the codebase architecture focusing on ${perspective} and generate the architecture map: a Mermaid diagram document plus the layered HTML board, both persisted via save_archmap (never A2UI surfaces).`
+        : "Scan the codebase architecture and generate the architecture map: a Mermaid diagram document plus the layered HTML board, both persisted via save_archmap (never A2UI surfaces).";
     }
     return `Execute the ${skill} skill for this project.`;
   }
@@ -94,7 +94,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
             "You are a non-interactive background analysis task inside DeepOrca. " +
             "Work autonomously to completion: never ask the user questions, never wait for input — " +
             "make reasonable assumptions and finish the task described below. " +
-            "Your only lasting output is the tool-side artifacts you produce (e.g. A2UI surfaces); " +
+            "Your only lasting output is the tool-side artifacts you produce (e.g. the architecture map persisted via save_archmap); " +
             "your final text is a brief completion report to the orchestrator, not to a human.",
         },
         { role: "system", content: getStableRuntimeContext(this.projectRoot) },

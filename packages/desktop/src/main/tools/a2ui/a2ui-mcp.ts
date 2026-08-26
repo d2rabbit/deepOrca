@@ -674,8 +674,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         "Save an architecture map under .deeporca/prototypes/. Two formats: " +
         "(1) format:'md' (default) — a Mermaid document (arch-<name>.md); the Knowledge panel renders " +
         "each ```mermaid fenced block as an interactive diagram. Document layout: '# <Title>' heading, " +
-        "one-sentence overview, then one '## <Perspective>' section per perspective containing exactly " +
-        "one mermaid fence. " +
+        "one-sentence positioning + one architecture-style line, then one '## <Perspective>' section per " +
+        "perspective containing exactly one mermaid fence, closed by '## 架构分析' (evidence-based findings) " +
+        "and '## 优化建议' (problem → advice → priority) review sections. " +
         "(2) format:'html' — the layered architecture board (arch-<name>.html): a self-contained, " +
         "JavaScript-free HTML page with horizontal capability layers and kind-colored component chips; " +
         "the Knowledge panel renders it on a sandboxed canvas. " +
