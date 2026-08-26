@@ -507,6 +507,48 @@
     opacity: 1;
   }
 }
+/* Left-edge drag-to-resize — mirrors the hub sheet's right-edge handle so
+   both floating islands share one resize interaction. */
+.ui-companion-resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 3;
+  transition: background 0.15s var(--ui-ease);
+}
+.ui-companion-resize::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 34px;
+  border-radius: 2px;
+  background: var(--ui-border-soft);
+  opacity: 0;
+  transition: opacity 0.15s var(--ui-ease);
+}
+.ui-companion-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  left: -4px;
+  right: -4px;
+}
+.ui-companion-resize:hover,
+.ui-companion-resize:active {
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+}
+.ui-companion-resize:hover::before,
+.ui-companion-resize:active::before {
+  opacity: 1;
+  background: var(--ui-accent);
+}
+
 .ui-preview-panel-head {
   display: flex;
   align-items: center;

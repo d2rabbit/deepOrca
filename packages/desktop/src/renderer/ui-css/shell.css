@@ -285,6 +285,16 @@
   border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 55%, transparent);
   box-shadow: var(--ui-shadow-sm);
   -webkit-app-region: no-drag;
+  /* Many open surfaces must stay REACHABLE: the chip row scrolls horizontally
+     (invisible scrollbar) instead of clipping chips past the cockpit's edge.
+     The cap keeps the session title/model pills breathing room on wide rows. */
+  max-width: min(56vw, 100%);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.ui-surface-chips::-webkit-scrollbar {
+  display: none;
 }
 .ui-surface-chip {
   display: inline-flex;

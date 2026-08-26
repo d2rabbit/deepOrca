@@ -4,6 +4,7 @@ import { useTreeRefresh } from "./hooks/use-tree-refresh";
 import { useDocumentTitle } from "./hooks/use-document-title";
 import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
 import { usePanelLayout } from "./hooks/use-panel-layout";
+import { useCompanionWidth } from "./hooks/use-companion-width";
 import { useAppearance } from "./hooks/use-appearance";
 import { usePreview } from "./hooks/use-preview";
 import { useSkills } from "./hooks/use-skills";
@@ -285,6 +286,7 @@ export function App(): JSX.Element {
     openTokensView,
     handleCollapsePanel,
   } = usePanelLayout();
+  const { companionWidth, handleCompanionResizeStart } = useCompanionWidth();
   // Opening a file opens (or focuses) its OWN editor tab in the main area and
   // flips the left panel to the file tree (audit P1-2 behavior preserved) —
   // other tabs are never overwritten.
@@ -1821,11 +1823,18 @@ export function App(): JSX.Element {
   // floats over it as a rounded sheet and stays reachable through the
   // cockpit's surface chips.
 
+  // Floating-island size vars — the hub sheet and the companion card each own
+  // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
+  // reflow and card width in lock-step.
+  const companionOpen =
+    Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent)) || Boolean(graphHtml);
+  const shellVars = {
+    ...(panelOpen ? { "--ui-panel-w": `${panelWidth}px` } : {}),
+    ...(companionOpen ? { "--ui-right-w": `${companionWidth}px` } : {}),
+  } as CSSProperties;
+
   return (
-    <div
-      className={`ui-shell${panelOpen ? " panel-open" : ""}`}
-      style={panelOpen ? ({ "--ui-panel-w": `${panelWidth}px` } as CSSProperties) : undefined}
-    >
+    <div className={`ui-shell${panelOpen ? " panel-open" : ""}`} style={shellVars}>
       {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position. */}
       <GlobalTooltip />
 
@@ -2012,9 +2021,15 @@ export function App(): JSX.Element {
         )}
       </div>
 
-      {/* Right-side preview panel — PM-Design / DeepDesign output */}
+      {/* Right-side companion card — PM-Design / DeepDesign output */}
       {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
         <div className="ui-preview-panel">
+          <div
+            className="ui-companion-resize"
+            onMouseDown={handleCompanionResizeStart}
+            role="separator"
+            aria-orientation="vertical"
+          />
           <div className="ui-preview-panel-head">
             <div className="ui-preview-tabs">
               <button
@@ -2063,6 +2078,12 @@ export function App(): JSX.Element {
 
       {graphHtml ? (
         <div className="ui-preview-panel">
+          <div
+            className="ui-companion-resize"
+            onMouseDown={handleCompanionResizeStart}
+            role="separator"
+            aria-orientation="vertical"
+          />
           <div className="ui-preview-panel-head">
             <div className="ui-preview-tabs">
               <span className="ui-preview-tab active"> ◈ Architecture Graph</span>
