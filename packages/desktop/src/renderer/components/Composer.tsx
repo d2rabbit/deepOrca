@@ -127,6 +127,11 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   const [cursorPos, setCursorPos] = useState(0);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
+  // Drag-over highlight while image files hover above the card. A depth
+  // counter is needed because dragenter/dragleave fire on every child the
+  // pointer crosses — a plain boolean flickers.
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepthRef = useRef(0);
 
   // File mention state
   const [showFileMenu, setShowFileMenu] = useState(false);
@@ -430,15 +435,32 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   }
 
   // ── Drag & drop image files onto the composer card ────────────────────────
-  function handleDragOver(e: React.DragEvent<HTMLDivElement>): void {
+  function hasFiles(e: React.DragEvent<HTMLDivElement>): boolean {
+    return e.dataTransfer?.types.includes("Files") ?? false;
+  }
+
+  function handleDragEnter(e: React.DragEvent<HTMLDivElement>): void {
+    if (!onAddImage || !hasFiles(e)) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDragOver(true);
+  }
+
+  function handleDragLeave(): void {
     if (!onAddImage) return;
-    if (e.dataTransfer.types.includes("Files")) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
-    }
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragOver(false);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>): void {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
   }
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>): void {
+    dragDepthRef.current = 0;
+    setDragOver(false);
     if (!onAddImage) return;
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
@@ -495,7 +517,11 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
 
       {/* Unified floating composer card: attachments → input → toolbar */}
       <div
-        className={`ui-composer-card${planMode ? " plan-mode" : ""}${busy ? " busy" : ""}${canSend ? " ready" : ""}`}
+        className={`ui-composer-card${planMode ? " plan-mode" : ""}${busy ? " busy" : ""}${canSend ? " ready" : ""}${
+          dragOver ? " drag-over" : ""
+        }`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >

@@ -264,16 +264,26 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   color: var(--ui-text-dim);
   font-size: 13px;
   line-height: 1;
   transition:
-    background 0.1s var(--ui-ease),
-    color 0.1s var(--ui-ease);
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease),
+    transform 0.14s var(--ui-ease);
 }
+/* Danger fill + slight grow on hover — the affordance reads "removes this
+   skill" and the scale confirms the click target is live. */
 .ui-composer-skill-card-remove:hover {
-  background: var(--ui-surface-hover);
-  color: var(--ui-danger);
+  background: var(--ui-danger);
+  color: #fff;
+  transform: scale(1.15);
+}
+.ui-composer-skill-card-remove:active {
+  transform: scale(0.9);
 }
 
 /* ── Index library progress bar ──────────────────────────────────────── */
@@ -614,4 +624,3 @@
   flex: 1;
   overflow: hidden;
 }
-

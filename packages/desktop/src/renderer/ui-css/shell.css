@@ -837,12 +837,35 @@ button.ui-surface-chip {
   cursor: pointer;
   transition:
     background 0.12s var(--ui-ease),
-    transform 0.12s var(--ui-ease);
+    transform 0.12s var(--ui-ease),
+    box-shadow 0.18s var(--ui-ease);
+  position: relative;
 }
 
 .ui-session-item:hover {
   background: var(--ui-surface-hover);
   transform: translateX(2px);
+}
+
+/* Subtle left-edge glow on hover to preview the active indicator. */
+.ui-session-item:hover::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  transition: opacity 0.18s var(--ui-ease);
+}
+/* Focus-visible ring for keyboard navigation (accessibility). */
+.ui-session-item:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--ui-accent-soft),
+    inset 0 0 0 1px var(--ui-accent);
 }
 
 .ui-session-item.active {
@@ -902,7 +925,7 @@ button.ui-surface-chip {
   overflow: hidden;
   transition:
     opacity 0.18s var(--ui-ease),
-    max-height 0.18s var(--ui-ease),
+    max-height 0.22s var(--ui-ease),
     margin-top 0.18s var(--ui-ease);
 }
 .ui-session-item:hover .ui-session-actions,
@@ -912,6 +935,35 @@ button.ui-surface-chip {
   /* Once expanded, let content overflow so the action buttons' data-tip
      tooltips aren't clipped by the collapse animation's overflow:hidden. */
   overflow: visible;
+}
+
+/* Staggered entrance for action buttons — each icon fades in slightly 
+   after the previous one for a polished cascade feel. */
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm,
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm {
+  animation: ui-action-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(1),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(2),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(3),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(4),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(4) {
+  animation-delay: 0.14s;
+}
+@keyframes ui-action-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
 }
 
 .ui-session-empty {

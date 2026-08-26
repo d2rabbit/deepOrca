@@ -347,6 +347,18 @@
   height: 24px;
   font-size: 12px;
   border-radius: var(--ui-radius-sm);
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    transform 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.ui-icon-btn--sm:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.ui-icon-btn--sm:active:not(:disabled) {
+  transform: scale(0.92);
 }
 /* Two-step delete confirm: armed = first click landed, next click deletes. */
 .ui-delete-btn.armed,
@@ -832,4 +844,3 @@
   font-weight: 600;
   color: var(--ui-text-dim);
 }
-
