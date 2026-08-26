@@ -577,6 +577,8 @@ export const en = {
 
   // ── Rail (icon navigation) ────────────────────────────────
   "rail.newSession": "New session",
+  "hub.title": "Hub",
+  "surface.chat": "Conversation",
   "rail.sessions": "Sessions",
   "rail.plugins": "Plugin Center",
   "rail.settings": "Settings",
@@ -1692,6 +1694,8 @@ export const zh: Record<MessageKey, string> = {
 
   // ── Rail (icon navigation) ────────────────────────────────
   "rail.newSession": "新建会话",
+  "hub.title": "枢纽",
+  "surface.chat": "对话",
   "rail.sessions": "会话",
   "rail.plugins": "插件中心",
   "rail.settings": "设置",

@@ -86,23 +86,7 @@ import { useI18n } from "./i18n";
 import {
   CommandPalette,
   GlobalTooltip,
-  Rail,
-  RailButton,
-  RailSpacer,
-  IconNewSession,
-  IconSessions,
-  IconGit,
-  IconTasks,
-  IconCommand,
-  IconPlugins,
-  IconTokens,
-  IconIndex,
-  IconReview,
-  IconDesign,
-  IconPrototype,
   IconTaskTree,
-  IconGitmcp,
-  IconEditor,
   IconMoon,
   IconSun,
   IconUndo,
@@ -111,6 +95,8 @@ import {
   Button,
   type CommandItem,
 } from "./ui/index";
+import { cx } from "./ui/class-names";
+import { HubOrb, HubSheet } from "./components/HubSheet";
 
 type PendingPermissionReply = {
   sessionId: string;
@@ -1480,11 +1466,8 @@ export function App(): JSX.Element {
 
   const composerDisabled = showQuestion || showPermission || showPlan;
 
-  // Right dock is mounted when either preview surface has content (F1): the
-  // shell gains `right-open` so the 4th grid track gets real width. Without
-  // it the auto-placed panel landed in a 0px track and rendered off-window.
-  const previewPanelMounted = Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent));
-  const rightPanelOpen = previewPanelMounted || Boolean(graphHtml);
+  // (The right-side preview surfaces render as floating companion cards over
+  // the stage — no shell grid track to enable anymore.)
 
   // Token mini-panel figures: active session context + workspace grand total.
   const workspaceUsage = useMemo(() => aggregateUsage(sessions), [sessions]);
@@ -1643,231 +1626,258 @@ export function App(): JSX.Element {
     </>
   );
 
-  // The session workspace is ALWAYS the first, locked tab; every auxiliary
-  // surface (settings / plugin detail / editor files / task records /
-  // knowledge) is its own tab in the strip. The strip is permanently visible —
-  // even with no auxiliary tabs the session tab anchors the main area.
+  // ── Surface chips (cockpit center) ────────────────────────────────────────
+  // Successor of the editor-style tab strip: one glowing chip per open
+  // surface plus the always-first conversation chip. Rendered only when at
+  // least one auxiliary surface exists — a lone conversation keeps the
+  // cockpit clean.
+  const chipClose = (onClose: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClose();
+  };
+  const hasAuxSurfaces = auxTabs.length > 0 || taskTabs.length > 0 || knowledgeTabs.length > 0;
+  const surfaceChips = useMemo(() => {
+    if (!hasAuxSurfaces) return null;
+    return (
+      <div className="ui-surface-chips">
+        <button
+          type="button"
+          className={cx("ui-surface-chip", activeTab.kind === "chat" && "active")}
+          onClick={() => setActiveTab({ kind: "chat" })}
+          data-tip={t("surface.chat")}
+        >
+          💬
+        </button>
+        {auxTabs.map((tab) => {
+          const active =
+            tab.kind === "editor"
+              ? activeTab.kind === "editor" && activeTab.file === tab.file
+              : activeTab.kind === tab.kind;
+          const label =
+            tab.kind === "settings"
+              ? `⚙ ${t("settings.title")}`
+              : tab.kind === "plugins"
+                ? `🧩 ${t("plugins.title")}`
+                : `📄 ${(tab.file ?? "").split(/[\\/]/).pop()}`;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              className={cx("ui-surface-chip", active && "active")}
+              onClick={() =>
+                setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
+              }
+              data-tip={tab.kind === "editor" ? tab.file : label}
+            >
+              <span>{label}</span>
+              <span
+                className="ui-surface-chip-close"
+                role="button"
+                tabIndex={-1}
+                aria-label={t("tasktree.closeTab")}
+                onClick={chipClose(() => handleCloseAuxTab(tab.key))}
+              >
+                ✕
+              </span>
+            </button>
+          );
+        })}
+        {taskTabs.map((tab) => (
+          <button
+            key={tab.treeId}
+            type="button"
+            className={cx("ui-surface-chip", activeTab.kind === "task" && activeTab.treeId === tab.treeId && "active")}
+            onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
+            data-tip={tab.title}
+          >
+            <span>
+              <IconTaskTree /> {tab.title}
+            </span>
+            <span
+              className="ui-surface-chip-close"
+              role="button"
+              tabIndex={-1}
+              aria-label={t("tasktree.closeTab")}
+              onClick={chipClose(() => handleCloseTaskTab(tab.treeId))}
+            >
+              ✕
+            </span>
+          </button>
+        ))}
+        {knowledgeTabs.map((tab) => (
+          <button
+            key={tab.root}
+            type="button"
+            className={cx("ui-surface-chip", activeTab.kind === "knowledge" && activeTab.root === tab.root && "active")}
+            onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
+            data-tip={tab.root}
+          >
+            <span>📚 {tab.label}</span>
+            <span
+              className="ui-surface-chip-close"
+              role="button"
+              tabIndex={-1}
+              aria-label={t("tasktree.closeTab")}
+              onClick={chipClose(() => handleCloseKnowledgeTab(tab.root))}
+            >
+              ✕
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }, [
+    activeTab,
+    auxTabs,
+    handleCloseAuxTab,
+    handleCloseKnowledgeTab,
+    handleCloseTaskTab,
+    hasAuxSurfaces,
+    knowledgeTabs,
+    t,
+    taskTabs,
+  ]);
+
+  // Cockpit right cluster — the old rail's bottom icons (appearance / undo /
+  // settings) live here now, floating with the other cockpit pills. Memoized
+  // so TopBar (React.memo) isn't defeated by an unstable prop identity.
+  const cockpitActions = useMemo(
+    () => (
+      <div className="ui-cockpit-actions">
+        <button
+          type="button"
+          className="ui-cockpit-icon-btn"
+          onClick={handleToggleAppearance}
+          disabled={theme === "orca"}
+          data-tip={appearanceTitle}
+        >
+          {appearance === "dark" ? <IconMoon /> : <IconSun />}
+        </button>
+        <button
+          type="button"
+          className="ui-cockpit-icon-btn"
+          onClick={() => setModal("undo")}
+          data-tip={`${t("rail.undo")} (${modKey}Z)`}
+        >
+          <IconUndo />
+        </button>
+        <button
+          type="button"
+          className={cx("ui-cockpit-icon-btn", mainView === "settings" && "active")}
+          onClick={() => void handleOpenSettings()}
+          data-tip={`${t("rail.settings")} (${modKey},)`}
+        >
+          <IconSettings />
+        </button>
+      </div>
+    ),
+    [appearance, appearanceTitle, handleOpenSettings, handleToggleAppearance, mainView, modKey, t, theme]
+  );
+
+  // Esc dismisses the hub sheet — unless a modal surface (palette, dialog,
+  // diff, trust ask) is open; those own the Escape key while visible.
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (paletteOpen || modal !== null || diffTarget !== null || trustAskOpen) return;
+      handleCollapsePanel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panelOpen, paletteOpen, modal, diffTarget, trustAskOpen, handleCollapsePanel]);
+
+  // The conversation is the stage's base layer; every auxiliary surface
+  // (settings / plugin detail / editor files / task records / knowledge)
+  // floats over it as a rounded sheet and stays reachable through the
+  // cockpit's surface chips.
 
   return (
     <div
-      className={`ui-shell${panelOpen ? " panel-open" : ""}${rightPanelOpen ? " right-open" : ""}`}
+      className={`ui-shell${panelOpen ? " panel-open" : ""}`}
       style={panelOpen ? ({ "--ui-panel-w": `${panelWidth}px` } as CSSProperties) : undefined}
     >
-      {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position
-          (the old CSS ::after tips clipped inside the rail's scroll container). */}
+      {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position. */}
       <GlobalTooltip />
-      <Rail>
-        <RailButton
-          title={`${t("rail.newSession")} (${modKey}N)`}
-          aria-label={t("rail.newSession")}
-          onClick={handleNewSession}
-        >
-          <IconNewSession />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "explorer"}
-          badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
-          title={`${t("rail.sessions")} (${modKey}B)`}
-          aria-label={t("rail.sessions")}
-          onClick={() => selectView("explorer")}
-        >
-          <IconSessions />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "scm"}
-          title={t("rail.git")}
-          aria-label={t("rail.git")}
-          onClick={() => selectView("scm")}
-        >
-          <IconGit />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "tasks"}
-          disabled={!hasPlan}
-          title={t("rail.tasks")}
-          aria-label={t("rail.tasks")}
-          onClick={() => selectView("tasks")}
-        >
-          <IconTasks />
-        </RailButton>
-        <RailButton
-          title={`${t("rail.commands")} (${modKey}K)`}
-          aria-label={t("rail.commands")}
-          onClick={() => setPaletteOpen(true)}
-        >
-          <IconCommand />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "plugins"}
-          title={t("rail.plugins")}
-          aria-label={t("rail.plugins")}
-          onClick={() => selectView("plugins")}
-        >
-          <IconPlugins />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "tokens"}
-          title={t("rail.tokens")}
-          aria-label={t("rail.tokens")}
-          onClick={openTokensView}
-        >
-          <IconTokens />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "index"}
-          title={t("rail.index")}
-          aria-label={t("rail.index")}
-          onClick={() => selectView("index")}
-        >
-          <IconIndex />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "review"}
-          title={t("rail.review")}
-          aria-label={t("rail.review")}
-          onClick={() => selectView("review")}
-        >
-          <IconReview />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "prototype"}
-          title={t("rail.prototype")}
-          aria-label={t("rail.prototype")}
-          onClick={() => selectView("prototype")}
-        >
-          <IconPrototype />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "design"}
-          title={t("rail.design")}
-          aria-label={t("rail.design")}
-          onClick={() => selectView("design")}
-        >
-          <IconDesign />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "tasktree"}
-          title={t("rail.tasktree")}
-          aria-label={t("rail.tasktree")}
-          onClick={() => selectView("tasktree")}
-        >
-          <IconTaskTree />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "gitmcp"}
-          title={t("rail.gitmcp")}
-          aria-label={t("rail.gitmcp")}
-          onClick={() => selectView("gitmcp")}
-        >
-          <IconGitmcp />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "editor"}
-          title={t("rail.editor")}
-          aria-label={t("rail.editor")}
-          onClick={() => selectView("editor")}
-        >
-          <IconEditor />
-        </RailButton>
-        <RailSpacer />
-        {/* Bottom cluster: appearance / undo / settings only (rail declutter —
-            reasoning cycle, line variant and glass theme live on their
-            shortcuts + command palette). Orca is dark-only, so the light/dark
-            toggle is disabled while it's active. */}
-        <RailButton
-          title={appearanceTitle}
-          aria-label={appearanceTitle}
-          disabled={theme === "orca"}
-          onClick={handleToggleAppearance}
-        >
-          {appearance === "dark" ? <IconMoon /> : <IconSun />}
-        </RailButton>
-        <RailButton title={t("rail.undo")} aria-label={t("rail.undo")} onClick={() => setModal("undo")}>
-          <IconUndo />
-        </RailButton>
-        <RailButton
-          active={mainView === "settings"}
-          title={`${t("rail.settings")} (${modKey},)`}
-          aria-label={t("rail.settings")}
-          onClick={() => void handleOpenSettings()}
-        >
-          <IconSettings />
-        </RailButton>
-      </Rail>
 
-      {/* Sidebar view transition wrapper — key change triggers fade animation */}
-      <div className="ui-session-panel-view" key={sidebarView}>
-        {sidebarView === "explorer" ? (
-          <Sidebar
-            activeId={activeId}
-            currentRoot={projectRoot}
-            refreshKey={treeRefreshKey}
-            sessions={sessions}
-            treeTitles={treeTitles}
-            onSelectSession={handleSelectSession}
-            onDelete={handleDeleteSession}
-            onRename={handleRenameSession}
-            onArchive={handleArchiveSession}
-            onUnarchive={handleUnarchiveSession}
-            onExportSession={handleExportSession}
-            onCollapse={handleCollapsePanel}
-            onNewWorkspace={handleNewWorkspace}
-            onNewSessionInWorkspace={handleNewSessionInWorkspace}
-            onOpenTokens={openTokensView}
-          />
-        ) : sidebarView === "scm" ? (
-          <SourceControlPanel
-            refreshKey={treeRefreshKey}
-            sessionId={activeId}
-            onOpenDiff={handleOpenDiff}
-            onOpenEditor={handleOpenEditor}
-          />
-        ) : sidebarView === "tasks" ? (
-          <TaskPanel messages={messages} />
-        ) : sidebarView === "tokens" ? (
-          <TokenStatsPanel sessions={sessions} />
-        ) : sidebarView === "index" ? (
-          <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
-        ) : sidebarView === "review" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel
-              onShowGraph={handleShowGraph}
-              onOneClickFix={handleReviewOneClickFix}
-              onAskInChat={handleReviewAskInChat}
-            />
-          </Suspense>
-        ) : sidebarView === "prototype" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
-          </Suspense>
-        ) : sidebarView === "design" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
-          </Suspense>
-        ) : sidebarView === "tasktree" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <TaskTreePanel onOpenTask={handleOpenTaskRecord} />
-          </Suspense>
-        ) : sidebarView === "gitmcp" ? (
-          <GitMcpPanel />
-        ) : sidebarView === "editor" ? (
-          <EditorPanel onOpenFile={handleOpenEditor} />
-        ) : (
-          <PluginMcpPanel
-            skills={skills}
-            selectedSkills={selectedSkills}
-            onToggleSkill={handleToggleSkill}
-            onRefreshSkills={handleRefreshPluginSkills}
-            selected={selectedPlugin}
-            onSelect={handleSelectPlugin}
-            platform={platform}
-          />
-        )}
-      </div>
-
-      {/* Panel resize handle */}
+      {/* Hub sheet — floating glass island (launcher tiles + sidebar views),
+          the successor of the activity rail + docked sidebar. The stage
+          reflows its centered column instead of being occluded. */}
       {panelOpen ? (
-        <div className="ui-panel-resize" style={{ left: `${52 + panelWidth - 2}px` }} onMouseDown={handleResizeStart} />
+        <HubSheet
+          view={sidebarView}
+          disabledViews={hasPlan ? [] : ["tasks"]}
+          onSelectView={selectView}
+          onClose={handleCollapsePanel}
+          onResizeStart={handleResizeStart}
+        >
+          {sidebarView === "explorer" ? (
+            <Sidebar
+              activeId={activeId}
+              currentRoot={projectRoot}
+              refreshKey={treeRefreshKey}
+              sessions={sessions}
+              treeTitles={treeTitles}
+              onSelectSession={handleSelectSession}
+              onDelete={handleDeleteSession}
+              onRename={handleRenameSession}
+              onArchive={handleArchiveSession}
+              onUnarchive={handleUnarchiveSession}
+              onExportSession={handleExportSession}
+              onCollapse={handleCollapsePanel}
+              onNewWorkspace={handleNewWorkspace}
+              onNewSessionInWorkspace={handleNewSessionInWorkspace}
+              onOpenTokens={openTokensView}
+            />
+          ) : sidebarView === "scm" ? (
+            <SourceControlPanel
+              refreshKey={treeRefreshKey}
+              sessionId={activeId}
+              onOpenDiff={handleOpenDiff}
+              onOpenEditor={handleOpenEditor}
+            />
+          ) : sidebarView === "tasks" ? (
+            <TaskPanel messages={messages} />
+          ) : sidebarView === "tokens" ? (
+            <TokenStatsPanel sessions={sessions} />
+          ) : sidebarView === "index" ? (
+            <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
+          ) : sidebarView === "review" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <CodeReviewPanel
+                onShowGraph={handleShowGraph}
+                onOneClickFix={handleReviewOneClickFix}
+                onAskInChat={handleReviewAskInChat}
+              />
+            </Suspense>
+          ) : sidebarView === "prototype" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+            </Suspense>
+          ) : sidebarView === "design" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+            </Suspense>
+          ) : sidebarView === "tasktree" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <TaskTreePanel onOpenTask={handleOpenTaskRecord} />
+            </Suspense>
+          ) : sidebarView === "gitmcp" ? (
+            <GitMcpPanel />
+          ) : sidebarView === "editor" ? (
+            <EditorPanel onOpenFile={handleOpenEditor} />
+          ) : (
+            <PluginMcpPanel
+              skills={skills}
+              selectedSkills={selectedSkills}
+              onToggleSkill={handleToggleSkill}
+              onRefreshSkills={handleRefreshPluginSkills}
+              selected={selectedPlugin}
+              onSelect={handleSelectPlugin}
+              platform={platform}
+            />
+          )}
+        </HubSheet>
       ) : null}
 
       <TopBar
@@ -1895,103 +1905,13 @@ export function App(): JSX.Element {
             ? Math.max(0, Math.floor((Date.now() - Date.parse(streamProgress.startedAt)) / 1000))
             : 0
         }
+        center={surfaceChips}
+        actions={cockpitActions}
       />
 
       <div className="ui-main">
-        <div className="ui-tasktab-view">
-          <div className="ui-tasktabs">
-            {/* Main session tab — always first, locked (never closable). */}
-            <div className={`ui-tasktab${activeTab.kind === "chat" ? " active" : ""}`}>
-              <button type="button" className="ui-tasktab-main" onClick={() => setActiveTab({ kind: "chat" })}>
-                💬 {projectRoot ? (projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? "Session") : "Session"}
-              </button>
-            </div>
-            {auxTabs.map((tab) => (
-              <div
-                key={tab.key}
-                className={`ui-tasktab${
-                  tab.kind === "editor"
-                    ? activeTab.kind === "editor" && activeTab.file === tab.file
-                      ? " active"
-                      : ""
-                    : activeTab.kind === tab.kind
-                      ? " active"
-                      : ""
-                }`}
-              >
-                <button
-                  type="button"
-                  className="ui-tasktab-main"
-                  onClick={() =>
-                    setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
-                  }
-                  title={tab.kind === "editor" ? tab.file : undefined}
-                >
-                  {tab.kind === "settings"
-                    ? `⚙ ${t("settings.title")}`
-                    : tab.kind === "plugins"
-                      ? `🧩 ${t("plugins.title")}`
-                      : `📄 ${(tab.file ?? "").split(/[\\/]/).pop()}`}
-                </button>
-                <button
-                  type="button"
-                  className="ui-tasktab-close"
-                  onClick={() => handleCloseAuxTab(tab.key)}
-                  title={t("tasktree.closeTab")}
-                  aria-label={t("tasktree.closeTab")}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            {taskTabs.map((tab) => (
-              <div
-                key={tab.treeId}
-                className={`ui-tasktab${activeTab.kind === "task" && activeTab.treeId === tab.treeId ? " active" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="ui-tasktab-main"
-                  onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
-                >
-                  <IconTaskTree /> {tab.title}
-                </button>
-                <button
-                  type="button"
-                  className="ui-tasktab-close"
-                  onClick={() => handleCloseTaskTab(tab.treeId)}
-                  title={t("tasktree.closeTab")}
-                  aria-label={t("tasktree.closeTab")}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            {knowledgeTabs.map((tab) => (
-              <div
-                key={tab.root}
-                className={`ui-tasktab${activeTab.kind === "knowledge" && activeTab.root === tab.root ? " active" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="ui-tasktab-main"
-                  onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
-                >
-                  📚 {tab.label}
-                </button>
-                <button
-                  type="button"
-                  className="ui-tasktab-close"
-                  onClick={() => handleCloseKnowledgeTab(tab.root)}
-                  title={t("tasktree.closeTab")}
-                  aria-label={t("tasktree.closeTab")}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-          {activeTab.kind === "settings" && editable ? (
+        {activeTab.kind === "settings" && editable ? (
+          <div className="ui-sheet">
             <SettingsPanel
               initial={editable}
               initialTab={settingsInitialTab}
@@ -2001,7 +1921,9 @@ export function App(): JSX.Element {
               theme={theme}
               onSelectTheme={handleSelectTheme}
             />
-          ) : activeTab.kind === "plugins" ? (
+          </div>
+        ) : activeTab.kind === "plugins" ? (
+          <div className="ui-sheet">
             <PluginDetail
               selection={selectedPlugin}
               skills={skills}
@@ -2009,7 +1931,9 @@ export function App(): JSX.Element {
               onToggleSkill={handleToggleSkill}
               onBack={() => handleCloseAuxTab("plugins")}
             />
-          ) : activeTab.kind === "editor" && activeTab.file ? (
+          </div>
+        ) : activeTab.kind === "editor" && activeTab.file ? (
+          <div className="ui-sheet">
             <Suspense
               fallback={
                 <div className="ui-editor-empty">
@@ -2024,19 +1948,23 @@ export function App(): JSX.Element {
                 inline
               />
             </Suspense>
-          ) : activeTab.kind === "knowledge" ? (
+          </div>
+        ) : activeTab.kind === "knowledge" ? (
+          <div className="ui-sheet">
             <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} onQuoteToChat={handleQuoteWikiToChat} />
-          ) : activeTab.kind === "task" ? (
+          </div>
+        ) : activeTab.kind === "task" ? (
+          <div className="ui-sheet">
             <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
               <TaskRecordPanel
                 treeId={activeTab.treeId}
                 workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
               />
             </Suspense>
-          ) : (
-            chatContent
-          )}
-        </div>
+          </div>
+        ) : (
+          chatContent
+        )}
       </div>
 
       {/* Right-side preview panel — PM-Design / DeepDesign output */}
@@ -2108,6 +2036,15 @@ export function App(): JSX.Element {
           </div>
         </div>
       ) : null}
+
+      {/* Tide orb — the one persistent navigation affordance on the stage:
+          summons / dismisses the hub sheet. Slides to the sheet's edge while
+          open; pulses when the session needs the user (permission/question). */}
+      <HubOrb
+        open={panelOpen}
+        badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
+        onClick={() => selectView(sidebarView)}
+      />
 
       {/* Background-task badge — compact circular presence (module icon in
           center) for running builds/reviews; the big console below opens ONLY

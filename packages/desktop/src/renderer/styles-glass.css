@@ -139,15 +139,15 @@
   background-attachment: fixed;
 }
 
-/* Frost every surface with the Prism blur stack. The rail island is the
-   ::before pseudo (ui.css) — the rail element itself stays transparent, so
-   the frost targets the island and the main canvas card explicitly. */
-.ui-rail::before,
-.ui-window-bar,
-.ui-session-panel,
-.ui-side-panel,
-.ui-rightpanel,
-.ui-tasktab-view,
+/* Frost every surface with the Prism blur stack. The stage's floating
+   islands (hub sheet / surface sheet / companion / orb / cockpit clusters)
+   are the primary glass objects now. */
+.ui-hub-sheet,
+.ui-sheet,
+.ui-preview-panel,
+.ui-orb,
+.ui-surface-chips,
+.ui-cockpit-actions,
 .ui-composer-card,
 .ui-card,
 .ui-modal,
@@ -169,20 +169,20 @@
   box-shadow: var(--glass-glow), var(--ui-shadow-card);
 }
 
-/* Rail island (modern layout): frosted glass slab floating off the window
-   edge — the rail element itself is transparent, the island is its ::before. */
-.ui-rail::before {
-  background: color-mix(in srgb, var(--ui-surface) 78%, transparent);
+/* Hub sheet: frosted glass slab floating off the stage edge. */
+.ui-hub-sheet {
+  background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
   border: 1px solid var(--glass-edge-soft);
   box-shadow:
     1px 0 12px rgba(99, 132, 255, 0.04),
-    var(--glass-glow);
+    var(--glass-glow),
+    var(--ui-shadow-modal);
 }
 
-/* Main canvas card: the conversation area is now a raised card (ui.css);
-   frost THAT instead of painting a scrim across the whole main grid cell,
-   which the opaque card would hide anyway. */
-.ui-tasktab-view {
+/* Surface sheet + companion card: lighter frost than the hub — they cover
+   the stage, so a higher surface ratio keeps their content readable. */
+.ui-sheet,
+.ui-preview-panel {
   background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
   border: 1px solid var(--glass-edge-soft);
 }
@@ -366,12 +366,12 @@ textarea:focus {
     background-attachment: scroll;
     animation: none;
   }
-  .ui-rail::before,
-  .ui-window-bar,
-  .ui-session-panel,
-  .ui-side-panel,
-  .ui-rightpanel,
-  .ui-tasktab-view,
+  .ui-hub-sheet,
+  .ui-sheet,
+  .ui-preview-panel,
+  .ui-orb,
+  .ui-surface-chips,
+  .ui-cockpit-actions,
   .ui-composer-card,
   .ui-card,
   .ui-modal,
@@ -381,8 +381,9 @@ textarea:focus {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .ui-rail::before,
-  .ui-tasktab-view {
+  .ui-hub-sheet,
+  .ui-sheet,
+  .ui-preview-panel {
     background: var(--ui-surface);
   }
   .ui-composer-card,
@@ -526,11 +527,12 @@ textarea:focus {
 
 /* Frost every surface: strong backdrop blur behind the translucent fills bound
    above. Each surface already draws its 1px edge from --ui-border(-soft). */
-.ui-rail,
-.ui-window-bar,
-.ui-session-panel,
-.ui-side-panel,
-.ui-rightpanel,
+.ui-hub-sheet,
+.ui-sheet,
+.ui-preview-panel,
+.ui-orb,
+.ui-surface-chips,
+.ui-cockpit-actions,
 .ui-composer-card,
 .ui-card,
 .ui-modal,

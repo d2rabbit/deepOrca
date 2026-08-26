@@ -477,24 +477,33 @@
   margin-left: auto;
 }
 
-/* ── Right-side preview panel (PM-Design / DeepDesign split view) ─────────── */
+/* ── Right-side companion card (PM-Design / DeepDesign split view) ──────────
+   Floating island over the stage's right edge — no grid track, no docked
+   border; rounded card with its own shadow, like every other stage layer. */
 .ui-preview-panel {
-  grid-area: rightpanel;
+  position: absolute;
+  top: calc(var(--ui-cockpit-h, 52px) + 10px);
+  right: 14px;
+  bottom: 14px;
+  width: min(var(--ui-right-w, 480px), 46vw);
+  z-index: 25;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-left: 1px solid var(--ui-border-soft);
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
   background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-modal);
   overflow: hidden;
-  animation: ui-preview-slide-in 0.2s ease both;
+  animation: ui-preview-slide-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes ui-preview-slide-in {
   from {
-    transform: translateX(100%);
+    transform: translateX(26px) scale(0.98);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
     opacity: 1;
   }
 }
@@ -1009,4 +1018,3 @@
   font-size: 12px;
   color: var(--ui-danger, #ef4444);
 }
-

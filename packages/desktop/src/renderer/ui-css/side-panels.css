@@ -1203,11 +1203,8 @@
   font-family: var(--ui-font-mono);
 }
 
-/* Sidebar view content transition — applied via key change in React */
-.ui-session-panel-view {
-  display: contents;
-  animation: ui-view-fade 0.18s ease both;
-}
+/* Sidebar view content transition — now owned by the hub sheet's
+   .ui-hub-body-view wrapper (key change re-triggers the fade). */
 @keyframes ui-view-fade {
   from {
     opacity: 0;
@@ -1478,4 +1475,3 @@
   background: var(--ui-surface-hover);
   color: var(--ui-text);
 }
-

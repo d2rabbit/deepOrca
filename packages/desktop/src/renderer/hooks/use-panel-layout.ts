@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-/** The views the VSCode-style activity rail can select. */
+/** The views the hub sheet (floating island) can select. */
 export type SidebarView =
   | "explorer"
   | "scm"

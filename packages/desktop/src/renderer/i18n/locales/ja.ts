@@ -566,6 +566,8 @@ export const ja: Record<MessageKey, string> = {
 
   // ── Rail (icon navigation) ────────────────────────────────
   "rail.newSession": "新規セッション",
+  "hub.title": "ハブ",
+  "surface.chat": "会話",
   "rail.sessions": "セッション",
   "rail.plugins": "プラグインセンター",
   "rail.settings": "設定",

@@ -1,4 +1,4 @@
-import { memo, useMemo, type JSX } from "react";
+import { memo, useMemo, type JSX, type ReactNode } from "react";
 import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
@@ -37,6 +37,13 @@ type Props = {
   streaming?: boolean;
   /** Elapsed seconds since streaming started (for live counter). */
   streamElapsedSecs?: number;
+  /** Stage-surface switcher chips rendered in the capsule's center — the
+   *  replacement for the old editor-style tab strip. Rendered BEFORE the
+   *  session title so open surfaces stay reachable at all times. */
+  center?: ReactNode;
+  /** Right-edge icon cluster (appearance / undo / settings) — the old rail's
+   *  bottom buttons, floated into the cockpit. */
+  actions?: ReactNode;
 };
 
 /** Default model lineup (DeepSeek V4 family) used when no endpoint models are
@@ -130,6 +137,8 @@ export const TopBar = memo(function TopBar({
   sessionStatus,
   streaming = false,
   streamElapsedSecs = 0,
+  center,
+  actions,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const isMac = platform === "darwin";
@@ -274,6 +283,7 @@ export const TopBar = memo(function TopBar({
       )}
 
       <div className="ui-window-bar-spacer">
+        {center}
         {streaming ? (
           <span className="ui-topbar-streaming" aria-label="streaming">
             <span className="ui-topbar-streaming-dot" />
@@ -389,6 +399,8 @@ export const TopBar = memo(function TopBar({
           {t("topbar.noApiKey")}
         </Pill>
       ) : null}
+
+      {actions}
 
       {isMac ? null : winControls}
     </div>
