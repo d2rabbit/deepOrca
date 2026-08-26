@@ -80,6 +80,16 @@
   margin: 0 auto;
   padding: 18px 12px 40px;
 }
+/* Architecture/diagram blocks anchor to the TOP-LEFT of the reading column:
+   the global mermaid container centers its SVG, which floats the page-top
+   architecture diagrams mid-column — disconnected from the left-aligned
+   prose around them. Inside the wiki body they hug the text edge instead. */
+.ui-wiki-doc .ui-mermaid-container {
+  text-align: left;
+}
+.ui-wiki-doc .ui-mermaid-container svg {
+  margin: 0 auto 0 0;
+}
 /* ── Wiki reading shell (Oink ideas) ────────────────────────────────────── */
 .ui-wiki-breadcrumb {
   display: flex;

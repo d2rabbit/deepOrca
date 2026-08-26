@@ -734,7 +734,9 @@
 .ui-knowledge-subtabs {
   display: flex;
   gap: 4px;
-  padding: 10px 14px 8px;
+  /* Right clearance for the sheet's floating "back to conversation" pill
+     (top-right of the knowledge sheet) so the last subtab is never covered. */
+  padding: 10px 138px 8px 14px;
   border-bottom: 1px solid var(--ui-border-soft, #333);
 }
 .ui-knowledge-subtab {

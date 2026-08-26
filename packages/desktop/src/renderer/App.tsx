@@ -1980,10 +1980,26 @@ export function App(): JSX.Element {
           </div>
         ) : activeTab.kind === "knowledge" ? (
           <div className="ui-sheet">
+            <button
+              type="button"
+              className="ui-sheet-close"
+              onClick={() => handleCloseKnowledgeTab(activeTab.root)}
+              aria-label={t("sheet.backToChat")}
+            >
+              ✕ {t("sheet.backToChat")}
+            </button>
             <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} onQuoteToChat={handleQuoteWikiToChat} />
           </div>
         ) : activeTab.kind === "task" ? (
           <div className="ui-sheet">
+            <button
+              type="button"
+              className="ui-sheet-close"
+              onClick={() => handleCloseTaskTab(activeTab.treeId)}
+              aria-label={t("sheet.backToChat")}
+            >
+              ✕ {t("sheet.backToChat")}
+            </button>
             <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
               <TaskRecordPanel
                 treeId={activeTab.treeId}

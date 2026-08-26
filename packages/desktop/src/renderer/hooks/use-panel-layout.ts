@@ -38,7 +38,9 @@ export type PanelLayout = {
 export function usePanelLayout(): PanelLayout {
   const [sidebarView, setSidebarView] = useState<SidebarView>("explorer");
   const [panelOpen, setPanelOpen] = useState(true);
-  const [panelWidth, setPanelWidth] = useState(280);
+  // 320 default (was 280): the hub island's 4-column launcher tile grid needs
+  // the extra room so CJK tile labels don't ellipsize on first open.
+  const [panelWidth, setPanelWidth] = useState(320);
 
   // ── Panel resize handle ──────────────────────────────────────────────────────
   const resizingRef = useRef(false);
