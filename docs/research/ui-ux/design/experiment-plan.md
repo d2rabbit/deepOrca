@@ -171,6 +171,25 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 **E9 交付记录（2026-08-21）**：✅ 全部完成。新增 `studio-panel.tsx`；坞/类型/标签页/命令层/宽浮层接线；i18n 六语言 +16 键；`deck.css` 1875 行（门禁 2000 内）。已知留白：action 无取消按钮（registry 有 CANCELLED 错误面但 IPC 未暴露取消句柄，待 H 线 module-system 阶段一并）；history 仅会话内存不落盘（与 E8.5 同口径）。
 
+### E10–E14 — 交互层补全 + 视觉对拍对齐 + 引擎深度集成（2026-08-22，`7efb951`）
+
+> 本批后 Deck 的设计稿 27 帧承诺全部落地；交付明细以该提交信息为台账，此处仅存目。
+
+- **E10 交互层补全**：步骤板完全体、AskUserQuestion 决策块（修复 deck 无法作答导致 `waiting_for_user` 卡死）、zen 专注模式 ⌘.、j/k 步骤导航、onboarding 自律度三选、空态 CTA。
+- **E11 模块深化**：账本按模型分段 + meter 条、上下文拆解焦点卡、插件二级页、资产 designRead 详情。
+- **E12 视觉对拍对齐**（Playwright + stub 截图核验）：深玻璃基底补齐、浮层锚定与单 scrim、`:where()` 按钮零优先级重置等。
+- **E13/E14 引擎深度集成**：中央区回归设计稿形态（指令统一走控制中心，@文件引用 / ✨提示词增强 / Plan 芯片），技能菜单与 chips 下发、工具事件进观测流、审查 overlay⇨tab 运行记录连续。测试 267/267 绿。
+
+## 8. 并线批次 — modern-ui-redesign 合并基座（2026-08-26）
+
+冻结线 `feat/modern-ui-redesign`（潮汐舞台/枢纽重构等 100 提交）已并入本分支作为演进基座。合并带来的契约演进的 deck 侧适配：
+
+1. **知识源域拆分**：核心四源留在 `knowledgeStatus()`（新增 archmaps），memory/routing/serena 移入独立 `MemoryRoutingStatus()`——`sources-dashboard.tsx` 并双源为一张七卡墙，archmaps 详情补文件清单。
+2. **渲染管线统一**：经典层的 marked+DOMPurify 字符串管线已被 Streamdown 取代，deck `tape.tsx` 同步迁移至共享 `StreamdownView`（XSS 边界同源）。注意 Streamdown 粗体输出为 `span[data-streamdown=strong]`。
+3. **测试口径同步**：全量去 emoji 后徽标图标为 SVG，字形断言改结构断言；tape 测试补 Suspense flush。合并后全仓 `npm test` 682+337+14+57 全绿。
+
+与冻结线的经典层改动互不污染的隔离红线继续有效；后续冻结线新能力（如 compactTokenThreshold 自定义、doc-wiki D 线落地后的第七知识源卡）在 deck 侧按需复刻。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。
