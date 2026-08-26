@@ -2694,6 +2694,71 @@ button.deck-row:hover {
 
 /* 目标带保持极简（设计稿 ribbon 只有目标 + 迷你进度点）——步骤计数在目标头 */
 
+/* E16 车间墙卡片操作簇：hover 显现的改名/归档/删除（删除二次确认 .armed） */
+.deck-wo-ops {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: none;
+  gap: 4px;
+}
+
+.deck-wo-card:hover .deck-wo-ops,
+.deck-wo-card:focus-within .deck-wo-ops {
+  display: inline-flex;
+}
+
+.deck-wo-op {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--ink2);
+  background: var(--paper2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.deck-wo-op svg {
+  width: 12px;
+  height: 12px;
+}
+
+.deck-wo-op.armed {
+  color: #fff;
+  background: var(--bad);
+}
+
+/* 改名行内输入：覆盖卡片标题区 */
+.deck-wo-rename input {
+  width: 100%;
+  margin-top: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+/* E16 archmap 内联预览：HTML 板全沙箱 iframe / mermaid 文档 */
+.deck-archview-board {
+  width: 100%;
+  height: clamp(320px, 56vh, 640px);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper2);
+}
+
+.deck-archview-md svg,
+.deck-archview-md pre {
+  max-width: 100%;
+}
+
 /* 设置面板布局段 */
 .deck-settings-layout {
   margin-bottom: 10px;
@@ -2870,22 +2935,7 @@ button.deck-meter.linked:hover {
   text-align: left;
 }
 
-.deck-wo-archive {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  font-size: 10px;
-  color: var(--ink3);
-  display: none;
-  padding: 2px 5px;
-  border-radius: 6px;
-}
-
-.deck-wo-card-wrap:hover .deck-wo-archive {
-  display: block;
-}
-
-.deck-wo-archive:hover {
+.deck-wo-op:hover {
   color: var(--bad);
   background: var(--bad-soft);
 }

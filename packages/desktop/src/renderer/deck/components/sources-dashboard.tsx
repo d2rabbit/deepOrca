@@ -8,12 +8,14 @@ import { api } from "../../api";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
+  KnowledgeArchmapContent,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   MemoryPipelineStats,
   MemoryRoutingStatus,
   WikiPageEntry,
 } from "../../../shared/ipc";
+import { MermaidDiagram } from "../../components/MermaidDiagram";
 import { useI18n } from "../../i18n";
 
 const STATE_DOT: Record<string, string> = {
@@ -51,6 +53,7 @@ export function SourcesDashboard(): JSX.Element {
   const [page, setPage] = useState<{ path: string; content: string } | null>(null);
   const [pages, setPages] = useState<WikiPageEntry[] | null>(null);
   const [workspaces, setWorkspaces] = useState<CodegraphIndexEntry[] | null>(null);
+  const [archView, setArchView] = useState<{ path: string; content: KnowledgeArchmapContent } | null>(null);
   const busyRef = useRef(false);
 
   const reload = useCallback(() => {
@@ -94,6 +97,7 @@ export function SourcesDashboard(): JSX.Element {
     setPage(null);
     setPages(null);
     setWorkspaces(null);
+    setArchView(null);
     if (selected === "openwiki")
       void api
         .wikiListPages()
@@ -136,6 +140,16 @@ export function SourcesDashboard(): JSX.Element {
       .wikiReadPage(path)
       .then((content) => setPage({ path, content }))
       .catch(() => setPage({ path, content: t("deck.opFailed", { error: "wikiReadPage" }) }));
+  };
+
+  // E16: open an archmap artifact — html boards show in a sandboxed iframe,
+  // mermaid docs render through the shared diagram pipeline, legacy A2UI
+  // surface JSON falls back to pretty-printed text.
+  const readArchmap = (path: string) => {
+    void api
+      .knowledgeReadArchmap(path)
+      .then((content) => setArchView({ path, content }))
+      .catch(() => setArchView({ path, content: { ok: false, error: "knowledgeReadArchmap" } }));
   };
 
   // ── 详情（二级页） ──────────────────────────────────────────────────────
@@ -220,15 +234,48 @@ export function SourcesDashboard(): JSX.Element {
         ) : null}
 
         {selected === "archmaps" && status.archmaps.files && status.archmaps.files.length > 0 ? (
-          <>
-            <div className="deck-panel-group-title">{t("deck.sources.files")}</div>
-            {status.archmaps.files.map((f) => (
-              <div key={f.path} className="deck-row static">
-                <span className="deck-row-main">{f.name}</span>
-                <span className="deck-row-meta">{f.mtime ? f.mtime.slice(0, 16).replace("T", " ") : f.path}</span>
+          archView ? (
+            <>
+              <div className="deck-sub-head">
+                <button type="button" className="deck-sub-back" onClick={() => setArchView(null)}>
+                  ‹ {t("deck.sources.files")}
+                </button>
+                <span className="deck-sub-title">{archView.path}</span>
               </div>
-            ))}
-          </>
+              {!archView.content.ok ? (
+                <div className="deck-empty deck-archview-fail">
+                  {t("deck.opFailed", { error: archView.content.error })}
+                </div>
+              ) : archView.content.html !== undefined ? (
+                // HTML board: fully sandboxed iframe — no same-origin, no
+                // scripts, so the artifact can't reach back into the shell.
+                <iframe
+                  className="deck-archview-board"
+                  sandbox=""
+                  title={archView.path}
+                  srcDoc={archView.content.html}
+                />
+              ) : archView.content.markdown !== undefined ? (
+                <div className="deck-archview-md">
+                  <MermaidDiagram chart={archView.content.markdown} />
+                </div>
+              ) : (
+                <pre className="deck-srcpage">{JSON.stringify(archView.content.surface, null, 2)}</pre>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="deck-panel-group-title">
+                {t("deck.sources.files")} · {status.archmaps.files.length}
+              </div>
+              {status.archmaps.files.map((f) => (
+                <button key={f.path} type="button" className="deck-row linked" onClick={() => readArchmap(f.path)}>
+                  <span className="deck-row-main">{f.name}</span>
+                  <span className="deck-row-meta">{f.mtime ? f.mtime.slice(0, 16).replace("T", " ") : f.path} ›</span>
+                </button>
+              ))}
+            </>
+          )
         ) : null}
 
         {selected === "openwiki" && pages ? (

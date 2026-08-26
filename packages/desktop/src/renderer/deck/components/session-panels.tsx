@@ -8,6 +8,7 @@ import { aggregateUsage, compactTokenThreshold, formatTokens } from "../../lib/t
 import { useI18n } from "../../i18n";
 import type { DeckEngine } from "../hooks/use-deck-engine";
 import { useDeckSettings } from "../hooks/use-deck-settings";
+import { DeckIcon } from "../icons";
 
 /** Semantic tag class per session status (E6.2 card wall) — no emoji. */
 function statusTagClass(status: string): string {
@@ -47,9 +48,15 @@ function statusLabelKey(
 // ── 车间墙：全部工作区的会话总览（3 列工单卡片），点击切换当前目标 ────────
 // E13: live refresh on engine entry updates + hover archive op (real
 // archiveSession IPC), so the wall never shows stale状态.
+// E16: hover op cluster — rename (inline edit), archive, delete. Delete is
+// destructive and goes through a two-step in-place confirmation (mirrors the
+// classic layer's confirm-on-delete UX rule); refresh re-runs after every op.
 export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): JSX.Element {
   const { t } = useI18n();
   const [data, setData] = useState<WorkspaceSessions | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     void api
@@ -68,17 +75,37 @@ export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): 
     props.onClose();
   };
 
-  const archive = (id: string) => {
+  const commitRename = () => {
+    const id = renamingId;
+    const summary = renameDraft.trim();
+    setRenamingId(null);
+    if (!id || !summary) return;
     void api
-      .archiveSession(id)
+      .renameSession(id, summary)
       .then(refresh)
+      .catch(() => {});
+  };
+
+  const remove = (id: string) => {
+    if (confirmDeleteId !== id) {
+      // First click arms the confirm; clicking elsewhere or re-running an
+      // operation resets it via state below.
+      setConfirmDeleteId(id);
+      return;
+    }
+    setConfirmDeleteId(null);
+    void api
+      .deleteSession(id)
+      .then((deleted) => {
+        if (deleted) refresh();
+      })
       .catch(() => {});
   };
 
   if (!data) return <div className="deck-empty">{t("deck.loading")}</div>;
 
   return (
-    <div className="deck-panel">
+    <div className="deck-panel" onClick={() => setConfirmDeleteId(null)}>
       {data.workspaces.map((ws) => (
         <div key={ws.root} className="deck-panel-group">
           <div className="deck-panel-group-title">{ws.label}</div>
@@ -88,6 +115,7 @@ export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): 
               <div
                 key={session.id}
                 className={`deck-wo-card sh-card deck-wo-card-wrap${session.id === props.engine.activeId ? " active" : ""}`}
+                onClick={() => setConfirmDeleteId(null)}
               >
                 <button type="button" className="deck-wo-card-hit" onClick={() => pick(session.id)}>
                   <span className={`deck-wo-tag ${statusTagClass(session.status)}`}>
@@ -97,14 +125,90 @@ export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): 
                   <span className="deck-wo-meta">{session.updateTime.slice(0, 16).replace("T", " ")}</span>
                 </button>
                 {session.id !== props.engine.activeId ? (
-                  <button
-                    type="button"
-                    className="deck-wo-archive"
-                    title={t("deck.floor.archive")}
-                    onClick={() => archive(session.id)}
+                  <span className="deck-wo-ops" onClick={(e) => e.stopPropagation()}>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="deck-wo-op"
+                      title={t("deck.floor.rename")}
+                      onClick={() => {
+                        setConfirmDeleteId(null);
+                        setRenamingId(session.id);
+                        setRenameDraft(session.summary ?? "");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setRenamingId(session.id);
+                          setRenameDraft(session.summary ?? "");
+                        }
+                      }}
+                    >
+                      <DeckIcon id="edit" />
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="deck-wo-op"
+                      title={t("deck.floor.archive")}
+                      onClick={() => {
+                        setConfirmDeleteId(null);
+                        void api
+                          .archiveSession(session.id)
+                          .then(refresh)
+                          .catch(() => {});
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          void api
+                            .archiveSession(session.id)
+                            .then(refresh)
+                            .catch(() => {});
+                        }
+                      }}
+                    >
+                      ✕
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className={`deck-wo-op${confirmDeleteId === session.id ? " armed" : ""}`}
+                      title={confirmDeleteId === session.id ? t("deck.floor.deleteConfirm") : t("deck.floor.delete")}
+                      onClick={() => remove(session.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          remove(session.id);
+                        }
+                      }}
+                    >
+                      <DeckIcon id="trash" />
+                    </span>
+                  </span>
+                ) : null}
+                {renamingId === session.id ? (
+                  <form
+                    className="deck-wo-rename"
+                    onClick={(e) => e.stopPropagation()}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      commitRename();
+                    }}
                   >
-                    ✕
-                  </button>
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation();
+                          setRenamingId(null);
+                        }
+                      }}
+                    />
+                  </form>
                 ) : null}
               </div>
             ))}

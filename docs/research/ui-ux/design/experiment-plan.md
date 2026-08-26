@@ -201,6 +201,17 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 **已知留白**：会话管理三操作（重命名/删除/导出）尚未进车间墙卡——需先拍板卡片动作的密度口径；archmaps 详情可进一步接 `knowledgeReadArchmap` 内联预览（HTML/Mermaid 双形态）。
 
+## 10. E16 — 车间墙会话操作簇 + archmaps 内联预览（2026-08-27）
+
+> 口径：上节两项留白落地。导出（exportSession）暂缓——写盘结果需要 toast 呈现路径，与 deck 现有静默 best-effort 操作语言不一致，待通知面拍板后一并。
+
+- **E16.1 车间墙操作簇**：非激活卡片 hover 显现三操作——改名（行内编辑器，Enter 提交走 `renameSession`，Esc 取消，失焦即提交）、归档（原 ✕ 语义不变）、删除（图标升级为 trash SVG；两步就地确认——首击 armed 态、再击执行 `deleteSession`，点击卡外/其它操作自动解除）。激活会话不出操作簇。删除二步确认对齐经典层"删除二次确认"UX 规则。
+- **E16.2 archmaps 内联预览**：详情页文件清单可点开，`knowledgeReadArchmap` 按形态分派——HTML 板进 `sandbox=""` 全沙箱 iframe（无同源无脚本，工件无法触及外壳）；Mermaid 文档走共享 `MermaidDiagram` 管线；遗留 A2UI surface JSON 降级 pretty JSON 文本展示。错误态诚实显示 `deck.opFailed`。
+- **实现说明**：`icons.tsx` 补 trash 图标 id；死样式 `.deck-wo-archive` 清除；i18n 六语言 +3 键（rename/delete/deleteConfirm）。
+- **验收**：deck-e16-ops 3 用例（改名载荷/删除两步确认与解锁/archmap iframe sandbox 与读取载荷）；desktop 全量 344 用例绿；`npm run check` 全过（deck-size 门禁含）。
+
+**仍留白**：exportSession 车间墙入口（见口径）；action 取消句柄（等 H 线 module-system）；CC 上下文仪表加水位色带（低价值观察项）。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。
