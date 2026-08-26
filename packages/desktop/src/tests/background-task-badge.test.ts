@@ -116,7 +116,8 @@ test("knowledge build event → ◈ ring with progress arc; click routes to know
   const badge = out.querySelector(".ui-task-badge");
   assert.ok(badge, `badge missing: ${out.innerHTML}`);
   assert.ok(badge.classList.contains("kind-knowledge"), `kind class missing: ${badge.className}`);
-  assert.ok(badge.textContent?.includes("◈"), `knowledge icon missing: ${badge.textContent}`);
+  // 全量去 emoji 后徽标图标是 SVG（IconIndex），不再是 ◈ 字形。
+  assert.ok(badge.querySelector(".ui-task-badge-icon svg"), `knowledge icon missing: ${badge.className}`);
   assert.ok(!badge.classList.contains("indeterminate"), `known percent must not be indeterminate`);
   const arc = badge.querySelector(".ui-task-badge-arc");
   assert.ok(arc, "progress arc missing");
@@ -146,7 +147,8 @@ test("review run appears on review.* progress and clears on terminal data.done",
   const badge = out.querySelector(".ui-task-badge");
   assert.ok(badge, `review badge missing: ${out.innerHTML}`);
   assert.ok(badge.classList.contains("kind-review"), `kind class missing: ${badge.className}`);
-  assert.ok(badge.textContent?.includes("⚖"), `review icon missing: ${badge.textContent}`);
+  // 全量去 emoji 后徽标图标是 SVG（IconBalance），不再是 ⚖ 字形。
+  assert.ok(badge.querySelector(".ui-task-badge-icon svg"), `review icon missing: ${badge.className}`);
   assert.ok(badge.getAttribute("title")?.includes("代码审查进行中"), `title: ${badge.getAttribute("title")}`);
   badge.dispatchEvent(new window.Event("click", { bubbles: true }));
   assert.deepEqual(opened, ["review"]);

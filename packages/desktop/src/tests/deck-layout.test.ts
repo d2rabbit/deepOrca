@@ -316,6 +316,11 @@ describe("Deck E1 core loop", () => {
     const tape = mounted.container.querySelector(".deck-tape");
     assert.ok(tape, "tape overlay did not open");
     assert.ok(tape!.textContent?.includes("你好"), "user message missing from tape");
-    assert.ok(tape!.querySelector(".deck-md strong"), "assistant markdown was not rendered");
+    // Streamdown 渲染管线经 Suspense/lazy 解析，断言前先 flush；
+    // 粗体输出为 <span data-streamdown="strong">，不再是原生 <strong>。
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.ok(tape!.querySelector('.deck-md [data-streamdown="strong"]'), "assistant markdown was not rendered");
   });
 });
