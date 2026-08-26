@@ -33,6 +33,8 @@
 @import url("./ui-css/vscode.css");
 /* Side-panel modules: plugin MCP rows · diff overlay · task progress · topbar states */
 @import url("./ui-css/side-panels.css");
+/* Stage quick dock: persistent sessions/new/workspace capsule */
+@import url("./ui-css/quick-dock.css");
 /* Command / skill trigger cards · knowledge cards · diff syntax highlight */
 @import url("./ui-css/skill-cards.css");
 /* Editor file tree · symbol tree · search cards · wiki list · knowledge tab */

@@ -568,6 +568,7 @@ export const ja: Record<MessageKey, string> = {
   "rail.newSession": "新規セッション",
   "hub.title": "ハブ",
   "hub.collapseToRail": "パネルを折りたたむ",
+  "quickdock.title": "クイック操作",
   "surface.chat": "会話",
   "rail.sessions": "セッション",
   "rail.plugins": "プラグインセンター",

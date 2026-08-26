@@ -100,6 +100,7 @@ import {
 } from "./ui/index";
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
+import { QuickDock } from "./components/QuickDock";
 
 type PendingPermissionReply = {
   sessionId: string;
@@ -2155,6 +2156,20 @@ export function App(): JSX.Element {
             />
           </div>
         </div>
+      ) : null}
+
+      {/* Quick dock — the everyday trio (sessions / new / workspace) pulled
+          out of the hub into a persistent top-left capsule. Hidden while the
+          hub rail is up: same corner, and browsing belongs to the rail. */}
+      {!panelOpen ? (
+        <QuickDock
+          sessionTitle={activeSessionTitle}
+          busy={busy}
+          modKey={modKey}
+          onOpenSessions={() => selectView("explorer")}
+          onNewSession={handleNewSession}
+          onNewWorkspace={() => void handleNewWorkspace()}
+        />
       ) : null}
 
       {/* Tide orb — the one persistent navigation affordance on the stage:

@@ -553,6 +553,7 @@ export const zhTW: Record<MessageKey, string> = {
   "rail.newSession": "新增工作階段",
   "hub.title": "樞紐",
   "hub.collapseToRail": "收起面板",
+  "quickdock.title": "快捷操作",
   "surface.chat": "對話",
   "rail.sessions": "工作階段",
   "rail.plugins": "外掛中心",

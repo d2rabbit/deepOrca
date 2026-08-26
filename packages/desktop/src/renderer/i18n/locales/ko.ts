@@ -567,6 +567,7 @@ export const ko: Record<MessageKey, string> = {
   "rail.newSession": "새 세션",
   "hub.title": "허브",
   "hub.collapseToRail": "패널 접기",
+  "quickdock.title": "빠른 작업",
   "surface.chat": "대화",
   "rail.sessions": "세션",
   "rail.plugins": "플러그인 센터",
