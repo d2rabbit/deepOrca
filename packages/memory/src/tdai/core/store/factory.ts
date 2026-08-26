@@ -102,8 +102,13 @@ export async function createStoreBundle(
       if (config.embedding.enabled && config.embedding.provider === "local-onnx") {
         const modelDir = options.graniteModelDir ?? path.join(options.dataDir, "models");
         try {
-          const { TransformersEmbeddingService } = await import("@deeporca/embedding");
-          const svc = new TransformersEmbeddingService({
+          // Process-wide shared session (Phase 3 / T3.1): core's semantic
+          // routing uses the same registry, so one ONNX session + one warmup
+          // serves both consumers when modelDirs match. The handle's close()
+          // is refcounted — the store-release path (releaseStores) only
+          // drops our reference.
+          const { acquireSharedEmbeddingService } = await import("@deeporca/embedding");
+          const svc = acquireSharedEmbeddingService({
             modelDir,
             logger: logger as unknown as {
               debug?: (m: string) => void;
@@ -116,7 +121,7 @@ export async function createStoreBundle(
           // (caught by callers → fail-open to BM25/FTS) until ready.
           svc.startWarmup();
           embeddingService = svc as unknown as EmbeddingService;
-          logger?.debug?.(`${TAG} local-onnx embedding created (modelDir=${modelDir}), warmup started`);
+          logger?.debug?.(`${TAG} local-onnx embedding acquired (shared, modelDir=${modelDir}), warmup started`);
         } catch (err) {
           // @deeporca/embedding not installed or load failure → fail-open (no embedding).
           logger?.warn?.(
@@ -142,7 +147,19 @@ export async function createStoreBundle(
       // dimensions from config (0 when provider="none" → vec0 deferred)
       const dims = config.embedding.dimensions;
       const dbPath = path.join(options.dataDir, "vectors.db");
-      const store = new VectorStore(dbPath, dims, logger);
+      let store: VectorStore;
+      try {
+        store = new VectorStore(dbPath, dims, logger);
+      } catch (err) {
+        // The shared embedding handle was acquired above — release it or the
+        // process-wide refcount never drops back to zero (adversarial review P2-6).
+        try {
+          await embeddingService?.close?.();
+        } catch {
+          // best-effort
+        }
+        throw err;
+      }
 
       logger?.debug?.(
         `${TAG} Store created: backend=sqlite, dbPath=${dbPath}, dimensions=${dims}, ` +

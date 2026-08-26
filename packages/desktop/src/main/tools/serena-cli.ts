@@ -167,7 +167,18 @@ export class SerenaCliController implements SerenaController {
     return {
       command,
       args: [...prefixArgs, "start-mcp-server", "--context", "ide-assistant", "--project", projectRoot],
-      env: { SERENA_HOME: ensureSerenaHeadlessHome() },
+      env: {
+        SERENA_HOME: ensureSerenaHeadlessHome(),
+        // Serena's MCP responses ride its Python stdout. Under Electron the
+        // piped stdout is block-buffered (~8KB) and FastMCP does not flush
+        // after small writes — the initialize response (~200B) sits in the
+        // buffer, the SDK handshake times out (30s) and the manager marks the
+        // server failed with no retry. Forcing unbuffered stdout makes the
+        // handshake reply land in ~5ms (verified via Electron+cross-spawn
+        // probe); big responses flushed regardless, which is why tools/list
+        // worked once initialize got unstuck.
+        PYTHONUNBUFFERED: "1",
+      },
     };
   }
 

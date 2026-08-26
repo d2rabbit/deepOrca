@@ -200,8 +200,10 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* TopBar — 玻璃 + 辉光呼吸 */
-  .ui-window-bar {
+  /* 驾驶舱胶囊簇 — 玻璃 + 辉光呼吸 */
+  .ui-surface-chips,
+  .ui-cockpit-actions,
+  .ui-orb {
     backdrop-filter: blur(28px) saturate(1.5);
     -webkit-backdrop-filter: blur(28px) saturate(1.5);
     border-color: var(--fusion-glass-border);
@@ -213,8 +215,9 @@ body {
       fusion-glass-glow 8s ease-in-out infinite;
   }
 
-  /* 侧栏 rail — 玻璃,错峰 -2s */
-  .ui-rail {
+  /* 枢纽浮岛 — 玻璃,错峰 -2s */
+  .ui-hub-rail,
+  .ui-hub-flyout {
     backdrop-filter: blur(28px) saturate(1.5);
     -webkit-backdrop-filter: blur(28px) saturate(1.5);
     background: var(--fusion-glass);
@@ -238,8 +241,11 @@ body {
 }
 
 /* reduced-motion 时仍保留玻璃材质(静态),只是不流转。 */
-.ui-window-bar,
-.ui-rail,
+.ui-surface-chips,
+.ui-cockpit-actions,
+.ui-orb,
+.ui-hub-rail,
+.ui-hub-flyout,
 .ui-prompt,
 .ui-composer {
   backdrop-filter: blur(28px) saturate(1.5);
@@ -313,11 +319,6 @@ body {
   background: var(--ui-surface-sunken);
 }
 .ui-md pre {
-  background: var(--ui-surface-sunken);
-  border-color: var(--fusion-glass-border);
-  border-radius: var(--ui-radius-md);
-}
-.ui-md .code-block-wrap pre.code-block {
   background: var(--ui-surface-sunken);
   border-color: var(--fusion-glass-border);
   border-radius: var(--ui-radius-md);

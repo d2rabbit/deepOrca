@@ -4,6 +4,7 @@ import type {
   EditableSettings,
   McpServerStatus,
   ModelConfigSelection,
+  ThinkingModeSelection,
   SessionMessage,
   SettingsSummary,
 } from "../../shared/ipc";
@@ -40,6 +41,8 @@ export type SettingsState = {
   refreshSettings: () => Promise<void>;
   refreshMcp: () => Promise<void>;
   handleSetModel: (selection: ModelConfigSelection) => Promise<void>;
+  /** Hot thinking-mode switch — no model change, no session message. */
+  handleSetThinking: (selection: ThinkingModeSelection) => Promise<void>;
   handleOpenSettings: () => Promise<void>;
   handleSaveSettings: (next: EditableSettings) => Promise<void>;
 };
@@ -70,6 +73,12 @@ export function useSettingsData({ setMainView, setMessages, activeIdRef, refresh
     [activeIdRef, setMessages]
   );
 
+  const handleSetThinking = useCallback(async (selection: ThinkingModeSelection) => {
+    // Settings-only hot patch: requests read settings fresh each turn, and no
+    // /model system message is appended — tier changes are silent.
+    setSettings(await api.setThinkingMode(selection));
+  }, []);
+
   const handleOpenSettings = useCallback(async () => {
     setEditable(await api.getEditableSettings());
     setSettingsInitialTab(undefined);
@@ -96,6 +105,7 @@ export function useSettingsData({ setMainView, setMessages, activeIdRef, refresh
     refreshSettings,
     refreshMcp,
     handleSetModel,
+    handleSetThinking,
     handleOpenSettings,
     handleSaveSettings,
   };

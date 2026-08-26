@@ -1,5 +1,8 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { randomUUID } from "node:crypto";
-import { defaultsToThinkingMode, DEEPSEEK_V4_MODELS, NON_MULTIMODAL_MODELS } from "./common/model-capabilities";
+import { defaultsToThinkingMode, supportsMultimodal } from "./common/model-capabilities";
+import { isThinkLevel, type ThinkLevel } from "./common/think-level";
 import {
   getProjectConfigRoot,
   getUserConfigRoot,
@@ -21,7 +24,14 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
   STREAM_IDLE_TIMEOUT_MS?: string;
 };
 
-export type ReasoningEffort = "high" | "max";
+/**
+ * Reasoning effort — the unified five-tier thinking scale (low/medium/high/
+ * xhigh/max) defined in common/think-level.ts. UI and settings always store
+ * the unified tier; the per-family projection onto native API tiers happens
+ * at request-build time (mapThinkLevel). Display shows 初/中/高 plus the
+ * hidden 极高/至高 tiers; the vendor default is high.
+ */
+export type ReasoningEffort = ThinkLevel;
 
 export type McpServerConfig = {
   command: string;
@@ -115,6 +125,17 @@ export type MemorySettings = {
    *   Set back to "none" to stop the model and revert to keyword-only recall.
    */
   embedding?: "none" | "local-onnx";
+  /**
+   * Days to retain L0/L1 memory shards + store rows (Phase 4 / T4.2). Default
+   * 30 (conservative — the cleaner never drops below 50 L0 / 20 L1 rows);
+   * 0 disables cleanup entirely.
+   */
+  retentionDays?: number;
+  /**
+   * Conversations per L1 extraction batch (Phase 4 / T4.5). Default 10;
+   * higher = cheaper, lower = fresher facts.
+   */
+  everyNConversations?: number;
 };
 
 export type DeepcodingSettings = {
@@ -153,6 +174,12 @@ export type DeepcodingSettings = {
    * Default: 300000 (5 minutes) — long enough for extended thinking pauses.
    */
   streamIdleTimeoutMs?: number;
+  /**
+   * User override for the automatic-compaction trigger threshold (tokens).
+   * When unset, the threshold comes from the model family registry
+   * (512K for DeepSeek V4 models, 128K otherwise).
+   */
+  compactTokenThreshold?: number;
   /**
    * PM-Design inline mode: render a complete ```openui-lang block embedded in
    * an assistant reply without waiting for the render_openui tool call.
@@ -235,6 +262,12 @@ export type ResolvedDeepcodingSettings = {
   visionApiKey?: string;
   /** LLM stream idle watchdog timeout in ms (default 300000). */
   streamIdleTimeoutMs: number;
+  /**
+   * User override for the compaction trigger threshold (tokens). Undefined =
+   * no override; callers fall back to the per-model family registry value
+   * (getCompactPromptTokenThreshold).
+   */
+  compactTokenThreshold?: number;
 };
 
 export type ModelConfigSelection = {
@@ -250,7 +283,7 @@ export type ModelConfigSelection = {
 export type SettingsProcessEnv = Record<string, string | undefined>;
 
 function resolveReasoningEffort(value: unknown): ReasoningEffort | undefined {
-  return value === "high" || value === "max" ? value : undefined;
+  return isThinkLevel(value) ? value : undefined;
 }
 
 function parseBoolean(value: unknown): boolean | undefined {
@@ -581,6 +614,11 @@ function mergeMemory(
     port: project?.port ?? user?.port ?? 8420,
     apiKey: project?.apiKey ?? user?.apiKey ?? "",
     embedding: project?.embedding ?? user?.embedding ?? "none",
+    retentionDays: project?.retentionDays ?? user?.retentionDays ?? 30,
+    // Clamp >= 1: a hand-edited 0/negative must not degrade into "extract on
+    // every turn" (adversarial review P2-8); 0 means "disable cleaner", not
+    // "disable buffering".
+    everyNConversations: Math.max(1, project?.everyNConversations ?? user?.everyNConversations ?? 10),
   };
 }
 
@@ -772,7 +810,7 @@ export function resolveSettingsSources(
     resolveReasoningEffort(projectEnv.REASONING_EFFORT) ??
     resolveReasoningEffort(userSettings?.reasoningEffort) ??
     resolveReasoningEffort(userEnv.REASONING_EFFORT) ??
-    "max";
+    "high";
 
   const temperature =
     parseTemperature(systemEnv.TEMPERATURE) ??
@@ -815,6 +853,15 @@ export function resolveSettingsSources(
     parsePositiveInteger(userSettings?.streamIdleTimeoutMs) ??
     parsePositiveInteger(userEnv.STREAM_IDLE_TIMEOUT_MS) ??
     DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+
+  // Compaction threshold override: undefined = no override (registry default
+  // per model family). Invalid values (non-integer / <= 0) are ignored.
+  const compactTokenThreshold =
+    parsePositiveInteger(systemEnv.COMPACT_TOKEN_THRESHOLD) ??
+    parsePositiveInteger(projectSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(projectEnv.COMPACT_TOKEN_THRESHOLD) ??
+    parsePositiveInteger(userSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(userEnv.COMPACT_TOKEN_THRESHOLD);
 
   // ── Multi-endpoint resolution ────────────────────────────────────────────
   // Merge endpoints from user + project settings (project overrides user by id,
@@ -903,6 +950,7 @@ export function resolveSettingsSources(
     visionBaseURL,
     visionApiKey,
     streamIdleTimeoutMs,
+    compactTokenThreshold,
   };
 }
 
@@ -1056,11 +1104,11 @@ export function resolveModelCapability(
       };
     }
   }
-  // Fallback: use the raw modelId against hardcoded tables.
+  // Fallback: use the raw modelId against the model family registry.
   const modelId = parsed?.modelId ?? modelKey;
   return {
-    thinking: DEEPSEEK_V4_MODELS.has(modelId),
-    vision: !NON_MULTIMODAL_MODELS.has(modelId.trim()),
+    thinking: defaultsToThinkingMode(modelId),
+    vision: supportsMultimodal(modelId),
   };
 }
 

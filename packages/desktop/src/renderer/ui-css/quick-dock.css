@@ -1,0 +1,99 @@
+/* =========================================================================
+   Quick dock — persistent top-left capsule (sessions / new / workspace)
+
+   The three everyday moves pulled out of the hub: fast session switching,
+   one-click new session, one-click workspace picker. Lives only while the
+   hub rail is away (same corner); slides in from the top when the stage
+   clears. Pure presentational — all actions are App-level callbacks.
+   ========================================================================= */
+.ui-quickdock {
+  position: absolute;
+  top: calc(var(--ui-cockpit-h) + 10px);
+  left: var(--ui-hub-inset);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(46vw, 420px);
+  padding: 4px 8px 4px 6px;
+  border-radius: var(--ui-radius-pill);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 82%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 55%, transparent);
+  box-shadow: var(--ui-shadow-card);
+  animation: ui-quickdock-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-quickdock-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-quickdock {
+    animation: none;
+  }
+}
+
+.ui-quickdock-btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease),
+    transform 0.12s var(--ui-ease);
+}
+.ui-quickdock-btn:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+  transform: translateY(-1px);
+}
+.ui-quickdock-btn:not(:disabled):active {
+  transform: scale(0.92);
+}
+.ui-quickdock-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* The sessions entry is the dock's primary purpose — give it a permanent
+   accent tint so the corner reads "conversations live here". */
+.ui-quickdock-sessions {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 25%, transparent);
+}
+.ui-quickdock-sessions:hover {
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-accent);
+}
+
+.ui-quickdock-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-quickdock-sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 70%, transparent);
+}

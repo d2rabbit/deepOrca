@@ -30,6 +30,7 @@ The following components from TDAI Core were incorporated into this package:
 ## Modifications
 
 The source files have been modified to:
+
 1. Remove OpenClaw-specific dependencies and references
 2. Adjust import paths for the new directory structure
 3. Integrate with DeepOrca's HostAdapter and LLMRunner interfaces

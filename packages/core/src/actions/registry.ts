@@ -20,6 +20,8 @@ import type {
   ActionDefinition,
   ActionProgress,
   ActionRun,
+  BackgroundLlmTaskOptions,
+  BackgroundLlmTaskResult,
   McpDispatchResult,
   RunSubagentOptions,
   Spawner,
@@ -48,10 +50,25 @@ export interface RegistryHost {
    */
   readonly runSubagent?: (opts: RunSubagentOptions) => Promise<unknown>;
   /**
+   * Sessionless background LLM loop — injected by SessionManager
+   * (specs/index-knowledge-rework R2-2). index.build-all's arch-scan stage
+   * reads it via {@link ActionContext.runBackgroundTask}.
+   */
+  readonly runBackgroundTask?: (opts: BackgroundLlmTaskOptions) => Promise<BackgroundLlmTaskResult>;
+  /**
    * LLM single-choice judgment — injected by SessionManager. Actions read it
    * via {@link ActionContext.judgeViaLlm} and must fail open when absent.
    */
   readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
+  /**
+   * Free-form backend LLM text completion (primary model) — injected by
+   * SessionManager. Actions read it via {@link ActionContext.completeViaLlm}
+   * and must fail open when absent (e.g. wiki.translate's per-page work).
+   */
+  readonly completeViaLlm?: (
+    messages: Array<{ role: "system" | "user"; content: string }>,
+    opts?: { signal?: AbortSignal }
+  ) => Promise<string | null>;
   /** Task trajectory service provider (injected by SessionManager). */
   readonly taskTrees?: () => TaskTreeService | null;
   /** Current active session id provider (session-binding actions). */
@@ -103,7 +120,12 @@ export class ActionRegistry {
     args: Record<string, unknown>
   ) => Promise<McpDispatchResult>;
   private readonly subagentDispatch?: (opts: RunSubagentOptions) => Promise<unknown>;
+  private readonly backgroundTaskDispatch?: (opts: BackgroundLlmTaskOptions) => Promise<BackgroundLlmTaskResult>;
   private readonly judgeDispatch?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
+  private readonly completeDispatch?: (
+    messages: Array<{ role: "system" | "user"; content: string }>,
+    opts?: { signal?: AbortSignal }
+  ) => Promise<string | null>;
   private readonly taskTreeProvider?: () => TaskTreeService | null;
   private readonly activeSessionProvider?: () => string | null;
   private readonly setTaskRef?: (
@@ -120,7 +142,9 @@ export class ActionRegistry {
     this.spawner = host.spawner ?? NULL_SPAWNER;
     this.mcpDispatch = host.executeMcpTool;
     this.subagentDispatch = host.runSubagent;
+    this.backgroundTaskDispatch = host.runBackgroundTask;
     this.judgeDispatch = host.judgeViaLlm;
+    this.completeDispatch = host.completeViaLlm;
     this.taskTreeProvider = host.taskTrees;
     this.activeSessionProvider = host.activeSessionId;
     this.setTaskRef = host.setSessionTaskRef;
@@ -223,7 +247,9 @@ export class ActionRegistry {
         spawner: this.spawner,
         executeMcpTool: this.mcpDispatch,
         runSubagent: this.subagentDispatch,
+        runBackgroundTask: this.backgroundTaskDispatch,
         judgeViaLlm: this.judgeDispatch,
+        completeViaLlm: this.completeDispatch,
         taskTrees: this.taskTreeProvider,
         activeSessionId: this.activeSessionProvider,
         setSessionTaskRef: this.setTaskRef,

@@ -2,7 +2,7 @@
   "name": "deeporca",
   "version": "0.1.34",
   "description": "DeepOrca — desktop client and core engine",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "packageManager": "npm@10.9.4",
   "type": "module",
   "workspaces": [

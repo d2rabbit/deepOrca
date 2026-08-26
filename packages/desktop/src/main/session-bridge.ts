@@ -32,6 +32,8 @@ import {
   readWorkspaceTrustStore,
   writeWorkspaceTrustStore,
   writeModelConfigSelection,
+  formatSessionPrompt,
+  formatThinkingModeLabel,
   writeProjectSettings,
   writeSettings,
 } from "@deeporca/core";
@@ -70,6 +72,7 @@ import type {
   SerializableProcess,
   SerializableSessionEntry,
   SettingsSummary,
+  ThinkingModeSelection,
 } from "../shared/ipc.js";
 import { purgeArchivedId } from "./archive-store.js";
 import { readDisabledMcp, setMcpDisabled } from "./mcp-store.js";
@@ -246,6 +249,7 @@ export function toSettingsSummary(root: string): SettingsSummary {
     visionModel: s.visionModel,
     visionEndpointId: s.visionEndpointId,
     workspaceTrust: s.workspaceTrust,
+    compactTokenThreshold: s.compactTokenThreshold,
   };
 }
 
@@ -294,9 +298,22 @@ export class SessionBridge {
       },
       renderMarkdown: (text) => text,
       onAssistantMessage: (message: SessionMessage) => {
+        // Silent subagents (index.build-all arch-scan) never stream into the
+        // user's conversation view (specs/index-knowledge-rework T2).
+        const entry = this.manager.getSession(message.sessionId);
+        if (entry?.isSilentSubagent) {
+          return;
+        }
         this.emit(IpcEvent.AssistantMessage, message);
       },
       onSessionEntryUpdated: (entry) => {
+        // Silent subagents never reach the renderer — not via the message
+        // stream (above) and not via the entry feed either: an unfiltered
+        // entry event inserts the pipeline session into the sidebar list even
+        // though listSessions filters it out.
+        if (entry.isSilentSubagent) {
+          return;
+        }
         this.emit(IpcEvent.SessionEntryUpdated, toSerializableEntry(entry));
       },
       onLlmStreamProgress: (progress) => {
@@ -544,6 +561,7 @@ export class SessionBridge {
       apiKey: env.API_KEY ?? "",
       model: raw.model ?? "",
       temperature: raw.temperature != null ? String(raw.temperature) : "",
+      compactTokenThreshold: raw.compactTokenThreshold != null ? String(raw.compactTokenThreshold) : "",
       thinkingEnabled: raw.thinkingEnabled ?? resolved.thinkingEnabled,
       reasoningEffort: raw.reasoningEffort ?? resolved.reasoningEffort,
       debugLogEnabled: raw.debugLogEnabled ?? false,
@@ -571,6 +589,8 @@ export class SessionBridge {
         enabled: raw.memory?.enabled ?? false,
         port: raw.memory?.port ?? 8420,
         embedding: raw.memory?.embedding ?? "none",
+        retentionDays: raw.memory?.retentionDays ?? 30,
+        everyNConversations: raw.memory?.everyNConversations ?? 10,
       },
     };
   }
@@ -640,6 +660,13 @@ export class SessionBridge {
       delete next.temperature;
     }
 
+    const compactTokenThreshold = Number(patch.compactTokenThreshold);
+    if (patch.compactTokenThreshold.trim() && Number.isInteger(compactTokenThreshold) && compactTokenThreshold > 0) {
+      next.compactTokenThreshold = compactTokenThreshold;
+    } else {
+      delete next.compactTokenThreshold;
+    }
+
     next.thinkingEnabled = patch.thinkingEnabled;
     if (patch.thinkingEnabled) {
       next.reasoningEffort = patch.reasoningEffort;
@@ -680,6 +707,14 @@ export class SessionBridge {
         enabled: patch.memory.enabled,
         port: patch.memory.port || 8420,
         embedding: patch.memory.embedding ?? "none",
+        retentionDays:
+          typeof patch.memory.retentionDays === "number" && patch.memory.retentionDays >= 0
+            ? Math.floor(patch.memory.retentionDays)
+            : 30,
+        everyNConversations:
+          typeof patch.memory.everyNConversations === "number" && patch.memory.everyNConversations > 0
+            ? Math.min(100, Math.floor(patch.memory.everyNConversations))
+            : 10,
       };
     }
 
@@ -694,11 +729,29 @@ export class SessionBridge {
     return { summary: toSettingsSummary(this.projectRoot), editable: this.getEditableSettings() };
   }
 
+  /**
+   * Hot-swap thinking mode — patches settings ONLY (model untouched, no
+   * /model system message, no reload). Requests read settings fresh each
+   * turn, so the next request already runs at the new tier.
+   */
+  setThinkingMode(selection: ThinkingModeSelection): SettingsSummary {
+    const current = resolveCurrentSettings(this.projectRoot);
+    writeModelConfigSelection(
+      { model: current.model, thinkingEnabled: selection.thinkingEnabled, reasoningEffort: selection.reasoningEffort },
+      current,
+      this.projectRoot
+    );
+    return toSettingsSummary(this.projectRoot);
+  }
+
   setModel(selection: ModelConfigSelection): SettingsSummary {
     const current = resolveCurrentSettings(this.projectRoot);
     const { changed } = writeModelConfigSelection(selection, current, this.projectRoot);
     if (changed) {
-      const content = `/model\n└ Set model to ${selection.model} (${selection.thinkingEnabled ? selection.reasoningEffort : "no thinking"})`;
+      const content = `/model\n└ ${formatSessionPrompt("modelChanged", {
+        model: selection.model,
+        mode: formatThinkingModeLabel(selection.thinkingEnabled, selection.reasoningEffort),
+      })}`;
       const active = this.manager.getActiveSessionId();
       if (active) {
         this.manager.addSessionSystemMessage(active, content, true, { isModelChange: true });

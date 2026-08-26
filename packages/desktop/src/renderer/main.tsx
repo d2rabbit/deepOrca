@@ -85,7 +85,12 @@ async function bootstrap(): Promise<void> {
   const theme = resolveTheme(platform);
   applyAppearance(resolveAppearance(platform, theme));
   if (theme === "line") applyLineVariant(getStoredLineVariant());
-  await Promise.all([injectStylesheet("./ui.css"), injectStylesheet(themeStylesheet(theme), THEME_LINK_ID)]);
+  await Promise.all([
+    injectStylesheet("./ui.css"),
+    // Official A2UI basic-catalog structural styles (copied by build.mjs).
+    injectStylesheet("./a2ui-basic.css"),
+    injectStylesheet(themeStylesheet(theme), THEME_LINK_ID),
+  ]);
 
   if (isPrototypeWindow) {
     // Standalone prototype window — render only the prototype surface.

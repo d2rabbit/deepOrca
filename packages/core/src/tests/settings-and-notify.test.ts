@@ -127,6 +127,25 @@ test("resolveSettings gives top-level model priority over env MODEL", () => {
   assert.equal(resolved.model, "deepseek-v4-flash");
 });
 
+test("resolveSettings reads compactTokenThreshold and rejects invalid values", () => {
+  const defaults = { model: "default-model", baseURL: "https://default.example.com" };
+
+  const withOverride = resolveSettings({ compactTokenThreshold: 100_000 }, defaults, TEST_PROCESS_ENV);
+  assert.equal(withOverride.compactTokenThreshold, 100_000);
+
+  const fromEnv = resolveSettings({}, defaults, { DEEPORCA_COMPACT_TOKEN_THRESHOLD: "65536" });
+  assert.equal(fromEnv.compactTokenThreshold, 65536);
+
+  const invalid = resolveSettings({ compactTokenThreshold: -5 }, defaults, TEST_PROCESS_ENV);
+  assert.equal(invalid.compactTokenThreshold, undefined, "non-positive values ignored");
+
+  const notAnInteger = resolveSettings({ compactTokenThreshold: 1.5 }, defaults, TEST_PROCESS_ENV);
+  assert.equal(notAnInteger.compactTokenThreshold, undefined, "non-integer values ignored");
+
+  const unset = resolveSettings({}, defaults, TEST_PROCESS_ENV);
+  assert.equal(unset.compactTokenThreshold, undefined, "unset = fall back to the registry default");
+});
+
 test("resolveSettings reads TEMPERATURE, THINKING_ENABLED, REASONING_EFFORT, and DEBUG_LOG_ENABLED from env", () => {
   const resolved = resolveSettings(
     {
@@ -663,10 +682,10 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
   assert.equal(resolved.thinkingEnabled, false);
 });
 
-test("resolveSettings defaults invalid reasoning effort to max", () => {
+test("resolveSettings defaults invalid reasoning effort to the vendor default (high)", () => {
   const resolved = resolveSettings(
     {
-      reasoningEffort: "medium" as never,
+      reasoningEffort: "extreme" as never,
     },
     {
       model: "default-model",
@@ -675,7 +694,9 @@ test("resolveSettings defaults invalid reasoning effort to max", () => {
     TEST_PROCESS_ENV
   );
 
-  assert.equal(resolved.reasoningEffort, "max");
+  // DeepSeek thinking-mode guide: effective tiers are low/high/max and the
+  // vendor default is high (specs/model-fleet-adaptation G2b).
+  assert.equal(resolved.reasoningEffort, "high");
 });
 
 test("resolveSettings ignores invalid temperature values", () => {

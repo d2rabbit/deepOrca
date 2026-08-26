@@ -222,11 +222,6 @@
   border-color: var(--metro-bg-tile);
   border-radius: 8px;
 }
-.ui-md .code-block-wrap pre.code-block {
-  background: var(--metro-bg-recessed);
-  border-color: var(--metro-bg-tile);
-  border-radius: 8px;
-}
 .ui-md code {
   background: var(--metro-bg-recessed);
   border-radius: 4px;

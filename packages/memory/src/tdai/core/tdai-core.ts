@@ -71,6 +71,15 @@ export interface TdaiCoreOptions {
    * provider="local-onnx". Optional; defaults to <dataDir>/models.
    */
   graniteModelDir?: string;
+  /**
+   * Phase 0 stopgap (specs/memory-remediation, 2026-08-21): skip wiring the
+   * L2 scene / L3 persona runners entirely. The DeepOrca LLMRunner has no
+   * tool loop yet (it ignores `enableTools`), so every L2 cycle burns a
+   * flash call producing zero scene files, and L3 always fails to read back
+   * persona.md. Remove this option and the gate in `wirePipelineRunners`
+   * once the runner gains sandboxed file tools — Phase 1 of the spec.
+   */
+  disableL2L3?: boolean;
 }
 
 // ============================
@@ -86,6 +95,7 @@ export class TdaiCore {
   private sessionFilter: SessionFilter;
   private instanceId?: string;
   private graniteModelDir?: string;
+  private readonly disableL2L3: boolean;
 
   // Lazy-initialized resources
   private vectorStore?: IMemoryStore;
@@ -137,6 +147,7 @@ export class TdaiCore {
     this.sessionFilter = opts.sessionFilter ?? new SessionFilter([]);
     this.instanceId = opts.instanceId;
     this.graniteModelDir = opts.graniteModelDir;
+    this.disableL2L3 = opts.disableL2L3 ?? false;
   }
 
   // ============================
@@ -427,6 +438,16 @@ export class TdaiCore {
     }
   }
 
+  /**
+   * Resolve the vector store once the (lazy, fire-and-forget) store init
+   * settles. Returns undefined when store init failed or is degraded —
+   * callers (e.g. the retention cleaner) must treat that as JSONL-only mode.
+   */
+  async getReadyVectorStore(): Promise<IMemoryStore | undefined> {
+    await this.storeReady?.catch(() => {});
+    return this.vectorStore;
+  }
+
   private wirePipelineRunners(): void {
     if (!this.scheduler) return;
 
@@ -444,7 +465,10 @@ export class TdaiCore {
     const runnerFactory = this.runnerFactory;
 
     const l1LlmRunner = useStandaloneRunner ? runnerFactory.createRunner({ enableTools: false }) : undefined;
-    const l2l3LlmRunner = useStandaloneRunner ? runnerFactory.createRunner({ enableTools: true }) : undefined;
+    // Phase 0 stopgap: with the tool-less DeepOrcaLLMRunner, an L2/L3 runner
+    // is a guaranteed-wasted flash call (see TdaiCoreOptions.disableL2L3).
+    const l2l3LlmRunner =
+      useStandaloneRunner && !this.disableL2L3 ? runnerFactory.createRunner({ enableTools: true }) : undefined;
 
     // L1 runner
     this.scheduler.setL1Runner(
@@ -463,33 +487,42 @@ export class TdaiCore {
     // Persister
     this.scheduler.setPersister(createPersister(this.dataDir, this.logger));
 
-    // L2 runner
-    this.scheduler.setL2Runner(async (sessionKey: string, cursor?: string) => {
-      const l2Runner = createL2Runner({
-        pluginDataDir: this.dataDir,
-        cfg: this.cfg,
-        openclawConfig,
-        vectorStore: this.vectorStore,
-        logger: this.logger,
-        instanceId: this.instanceId,
-        llmRunner: l2l3LlmRunner,
+    // L2/L3 runners — Phase 0 stopgap (specs/memory-remediation): not wired
+    // while the LLM runner has no tool loop. MemoryPipelineManager null-guards
+    // missing runners (runL2/runL3 skip with a warn), so L1 keeps flowing and
+    // timers fire harmlessly. Phase 1 (sandboxed read/write/edit tools)
+    // removes this gate.
+    if (this.disableL2L3) {
+      this.logger.info(`${TAG} L2/L3 runners NOT wired (Phase 0 stopgap — see specs/memory-remediation)`);
+    } else {
+      // L2 runner
+      this.scheduler.setL2Runner(async (sessionKey: string, cursor?: string) => {
+        const l2Runner = createL2Runner({
+          pluginDataDir: this.dataDir,
+          cfg: this.cfg,
+          openclawConfig,
+          vectorStore: this.vectorStore,
+          logger: this.logger,
+          instanceId: this.instanceId,
+          llmRunner: l2l3LlmRunner,
+        });
+        return l2Runner(sessionKey, cursor);
       });
-      return l2Runner(sessionKey, cursor);
-    });
 
-    // L3 runner
-    this.scheduler.setL3Runner(async () => {
-      const l3Runner = createL3Runner({
-        pluginDataDir: this.dataDir,
-        cfg: this.cfg,
-        openclawConfig,
-        vectorStore: this.vectorStore,
-        logger: this.logger,
-        instanceId: this.instanceId,
-        llmRunner: l2l3LlmRunner,
+      // L3 runner
+      this.scheduler.setL3Runner(async () => {
+        const l3Runner = createL3Runner({
+          pluginDataDir: this.dataDir,
+          cfg: this.cfg,
+          openclawConfig,
+          vectorStore: this.vectorStore,
+          logger: this.logger,
+          instanceId: this.instanceId,
+          llmRunner: l2l3LlmRunner,
+        });
+        return l3Runner();
       });
-      await l3Runner();
-    });
+    }
 
     this.logger.debug?.(`${TAG} Pipeline runners wired`);
   }

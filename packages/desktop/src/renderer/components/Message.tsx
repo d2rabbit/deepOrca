@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type JSX } from "react";
 import type { SessionMessage, SkillInfo } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
-import { renderMarkdown } from "../markdown";
+import { StreamdownView } from "./StreamdownView";
 
 // Lazy-load A2UI Surface renderer — only needed when agent produces A2UI output.
 const A2uiMessage = lazy(() => import("../a2ui/A2uiMessage").then((m) => ({ default: m.A2uiMessage })));
@@ -20,6 +20,7 @@ import { useI18n } from "../i18n";
 import { JsonView } from "./JsonView";
 import {
   IconCommand,
+  IconBolt,
   IconToolRead,
   IconToolWrite,
   IconToolEdit,
@@ -30,25 +31,22 @@ import {
   IconToolGeneric,
 } from "../ui/index";
 
-function Md({ text }: { text: string }): JSX.Element {
-  // Markdown parsing is the hot path of the chat view — cache the rendered
-  // HTML so re-renders (ticks, list updates) don't re-parse unchanged text.
-  const html = useMemo(() => renderMarkdown(text), [text]);
-  function handleClick(e: React.MouseEvent<HTMLDivElement>): void {
-    const btn = (e.target as HTMLElement).closest(".code-block-copy");
-    if (!btn) return;
-    const wrap = btn.closest(".code-block-wrap");
-    const code = wrap?.querySelector("code");
-    if (code) {
-      void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
-        btn.textContent = "✓";
-        setTimeout(() => {
-          btn.textContent = "⧉";
-        }, 1500);
-      });
-    }
-  }
-  return <div className="ui-md" onClick={handleClick} dangerouslySetInnerHTML={{ __html: html }} />;
+function Md({
+  text,
+  isAnimating = false,
+  streaming = true,
+}: {
+  text: string;
+  isAnimating?: boolean;
+  /** Streaming parse mode for live content; immutable payloads (tool results)
+   *  pass false so remend/block-splitting is skipped on every expand. */
+  streaming?: boolean;
+}): JSX.Element {
+  // Streaming mode: Streamdown splits the text into memoized blocks and
+  // remend repairs unclosed syntax, so mid-stream chunks don't flash broken
+  // markup. The caret is our own CSS (.ui-streamdown.is-animating), not
+  // Streamdown's caret prop — don't pass both. Code-block copy is built in.
+  return <StreamdownView className="ui-md" markdown={text} streaming={streaming} isAnimating={isAnimating} />;
 }
 
 /**
@@ -57,7 +55,18 @@ function Md({ text }: { text: string }): JSX.Element {
  * (type-tinted). Mirrors the avatar-per-message layout of modern chat UIs.
  */
 function Avatar({ role }: { role: "user" | "assistant" | "thinking" | "tool" | "mcp" }): JSX.Element {
-  const glyph = role === "user" ? "U" : role === "assistant" ? "AI" : role === "thinking" ? "✦" : "⚡";
+  const glyph =
+    role === "user" ? (
+      "U"
+    ) : role === "assistant" ? (
+      "AI"
+    ) : role === "thinking" ? (
+      "✦"
+    ) : (
+      <span className="ui-avatar-bolt">
+        <IconBolt />
+      </span>
+    );
   return (
     <div className={`ui-avatar ui-avatar--${role}`} aria-hidden="true">
       {glyph}
@@ -219,18 +228,18 @@ function ToolResult({
 }): JSX.Element {
   const ext = fileExtensionFromParams(toolName, params);
   if (toolName.toLowerCase() === "read" && (ext === "md" || ext === "markdown")) {
-    return <Md text={stripReadLineNumbers(resultMd)} />;
+    return <Md text={stripReadLineNumbers(resultMd)} streaming={false} />;
   }
   if (toolName.toLowerCase() === "read" && (ext === "html" || ext === "htm")) {
     // HTML is rendered as HTML (CSP blocks inline scripts); the line
     // numbers in the output would otherwise leak into the markup.
-    return <Md text={stripReadLineNumbers(resultMd)} />;
+    return <Md text={stripReadLineNumbers(resultMd)} streaming={false} />;
   }
   const json = tryParseJsonResult(resultMd);
   if (json !== undefined) {
     return <JsonView data={json} />;
   }
-  return <Md text={resultMd} />;
+  return <Md text={resultMd} streaming={false} />;
 }
 
 function fileExtensionFromParams(toolName: string, params: string): string {
@@ -334,7 +343,7 @@ function UserBubble({ message }: { message: SessionMessage }): JSX.Element {
   ) : message.content || attachments > 0 || skills.length === 0 ? (
     <div className="ui-bubble user">
       <span style={{ whiteSpace: "pre-wrap" }}>{message.content || t("msg.noContent")}</span>
-      {attachments > 0 ? <span className="ui-bubble-attach">{attachments} img</span> : null}
+      {attachments > 0 ? <span className="ui-bubble-attach">{t("msg.images", { n: attachments })}</span> : null}
       {message.createTime ? <span className="ui-msg-time user">{formatTime(message.createTime)}</span> : null}
     </div>
   ) : null;
@@ -363,12 +372,14 @@ function ThinkingBlock({
   reasoningMode,
   isLatest,
   elapsed,
+  streaming = false,
 }: {
   content: string;
   messageParams: unknown;
   reasoningMode: ReasoningMode;
   isLatest: boolean;
   elapsed?: string;
+  streaming?: boolean;
 }): JSX.Element | null {
   const { t } = useI18n();
   const summary = buildThinkingSummary(content, messageParams);
@@ -413,7 +424,7 @@ function ThinkingBlock({
         </button>
         {expanded && content ? (
           <div className="ui-thinking-body" ref={bodyRef}>
-            <Md text={content} />
+            <Md text={content} isAnimating={streaming} />
           </div>
         ) : null}
       </div>
@@ -432,7 +443,13 @@ function formatTime(iso: string): string {
   }
 }
 
-function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element {
+function AssistantBubble({
+  message,
+  streaming = false,
+}: {
+  message: SessionMessage;
+  streaming?: boolean;
+}): JSX.Element {
   const { t } = useI18n();
   const content = (message.content || "").trim();
   const [copied, setCopied] = useState(false);
@@ -462,21 +479,26 @@ function AssistantBubble({ message }: { message: SessionMessage }): JSX.Element 
 
   const handleCopy = useCallback(() => {
     if (!content) return;
-    void navigator.clipboard.writeText(content).then(() => {
-      setCopied(true);
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      })
+      // Clipboard can be locked — swallow so the unhandled rejection
+      // doesn't hit the console; the copied flag simply never flips.
+      .catch(() => {});
   }, [content]);
 
   return (
     <div className="ui-bubble-row assistant">
       <Avatar role="assistant" />
       <div className="ui-bubble assistant">
-        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} /> : null}
+        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} isAnimating={streaming} /> : null}
         {comparisonBlocks.length > 0
           ? comparisonBlocks.map((block, i) => (
-              <Suspense key={`cmp-${i}`} fallback={<div>Loading comparison…</div>}>
+              <Suspense key={`cmp-${i}`} fallback={<div>{t("msg.loadingComparison")}</div>}>
                 <ComparisonMatrix content={block} />
               </Suspense>
             ))
@@ -529,11 +551,14 @@ function BashTerminal({ command, resultMd }: { command: string; resultMd: string
   );
 
   const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(command).then(() => {
-      setCopied(true);
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(command)
+      .then(() => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
   }, [command]);
 
   const output = stripCodeFence(resultMd).trim();
@@ -603,11 +628,14 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
 
   const handleCopyResult = useCallback(() => {
     if (!resultMd) return;
-    void navigator.clipboard.writeText(resultMd).then(() => {
-      setResultCopied(true);
-      if (resultCopyTimerRef.current) clearTimeout(resultCopyTimerRef.current);
-      resultCopyTimerRef.current = setTimeout(() => setResultCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(resultMd)
+      .then(() => {
+        setResultCopied(true);
+        if (resultCopyTimerRef.current) clearTimeout(resultCopyTimerRef.current);
+        resultCopyTimerRef.current = setTimeout(() => setResultCopied(false), 1500);
+      })
+      .catch(() => {});
   }, [resultMd]);
 
   // The header element is a button for collapsible tools (so the whole
@@ -658,7 +686,7 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
       {!isFileTool && params ? (
         <div className="ui-tool-params-panel">
           <div className="ui-tool-params-label">
-            <span>Params</span>
+            <span>{t("msg.params")}</span>
             <span className="ui-tool-params-fmt">{isMcp ? "MCP" : "JSON"}</span>
           </div>
           <div className="ui-tool-params">{params}</div>
@@ -776,10 +804,13 @@ export const Message = memo(function Message({
   message,
   reasoningMode = "normal",
   expandedThinkingId,
+  streaming = false,
 }: {
   message: SessionMessage;
   reasoningMode?: ReasoningMode;
   expandedThinkingId?: string | null;
+  /** True on the last message while the session is busy — shows the caret. */
+  streaming?: boolean;
 }): JSX.Element | null {
   const { t } = useI18n();
   if (!message.visible) return null;
@@ -801,10 +832,11 @@ export const Message = memo(function Message({
               ? formatElapsed(message.createTime, message.updateTime)
               : undefined
           }
+          streaming={streaming}
         />
       );
     }
-    return <AssistantBubble message={message} />;
+    return <AssistantBubble message={message} streaming={streaming} />;
   }
 
   if (message.role === "tool") {
@@ -818,7 +850,7 @@ export const Message = memo(function Message({
         return (
           <div className="ui-bubble-row tool">
             <Avatar role="mcp" />
-            <Suspense fallback={<div className="ui-tool-card">Loading Surface…</div>}>
+            <Suspense fallback={<div className="ui-tool-card">{t("msg.loadingSurface")}</div>}>
               <A2uiMessage a2uiJson={a2uiJson} summary={summary} />
             </Suspense>
           </div>

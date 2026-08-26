@@ -65,7 +65,7 @@ export class PersonaGenerator {
   /**
    * Execute local persona generation without advancing checkpoint.
    */
-  async generateLocalPersona(triggerReason?: string): Promise<boolean> {
+  async generateLocalPersona(triggerReason?: string): Promise<boolean | "skipped"> {
     const startMs = Date.now();
     this.logger?.debug?.(`${TAG} Starting generation: reason="${triggerReason ?? "none"}"`);
 
@@ -117,7 +117,10 @@ export class PersonaGenerator {
 
     if (changedSceneContents.length === 0 && existingPersona) {
       this.logger?.debug?.(`${TAG} No scene changes and persona exists, skipping generation`);
-      return false;
+      // "skipped" (zero-cost no-op) vs false (a real attempt that produced
+      // nothing) — the L3 runner maps them differently so a no-op does not
+      // arm the failure backoff (adversarial review P2-4).
+      return "skipped" as const;
     }
 
     // 4. Determine mode
@@ -167,6 +170,10 @@ export class PersonaGenerator {
         timeoutMs: 180_000,
         // maxTokens omitted → core uses the resolved model's maxTokens from catalog
         workspaceDir: this.dataDir,
+        // persona.md sits at the dataDir root next to vectors.db / L0 JSONL —
+        // hard-allowlist so a prompt-injected instruction cannot make the
+        // model clobber the store or forge L0 lines (adversarial review P1-3).
+        allowedFiles: ["persona.md"],
       });
       this.logger?.debug?.(`${TAG} LLM runner completed`);
     } catch (err) {

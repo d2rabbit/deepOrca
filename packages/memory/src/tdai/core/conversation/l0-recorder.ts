@@ -26,7 +26,13 @@ import { sanitizeText, stripCodeBlocks, shouldCaptureL0 } from "../../utils/sani
 export interface ConversationMessage {
   /** Unique message ID (used by L1 prompt for source_message_ids tracking) */
   id: string;
-  role: "user" | "assistant";
+  /**
+   * Dialogue roles plus "system" — Phase 4 / T4.3: task-lineage / recall-hint
+   * entries are persisted to L0 under their REAL role (searchable via
+   * tdai_conversation_search) instead of masquerading as assistant speech;
+   * the L1 extraction input filters them out (pipeline-factory).
+   */
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: number; // epoch ms
 }
@@ -46,7 +52,7 @@ export interface L0MessageRecord {
   sessionId: string;
   recordedAt: string; // ISO timestamp
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: number; // epoch ms
 }
@@ -372,7 +378,7 @@ export async function readConversationRecords(
           // Wrap into L0ConversationRecord for uniform downstream consumption
           const msg: ConversationMessage = {
             id: typeof parsed.id === "string" && parsed.id ? parsed.id : generateMessageId(),
-            role: parsed.role as "user" | "assistant",
+            role: parsed.role as "user" | "assistant" | "system",
             content: parsed.content as string,
             timestamp: typeof parsed.timestamp === "number" ? parsed.timestamp : Date.now(),
           };
@@ -530,7 +536,8 @@ export async function readConversationMessagesGroupedBySessionId(
 // ============================
 
 /**
- * Extract user and assistant messages from raw hook message array.
+ * Extract user/assistant messages (plus system-role hints — T4.3) from the
+ * raw hook message array.
  */
 function extractUserAssistantMessages(messages: unknown[]): ConversationMessage[] {
   const result: ConversationMessage[] = [];
@@ -540,7 +547,7 @@ function extractUserAssistantMessages(messages: unknown[]): ConversationMessage[
     const m = msg as Record<string, unknown>;
     const role = m.role as string | undefined;
 
-    if (role !== "user" && role !== "assistant") continue;
+    if (role !== "user" && role !== "assistant" && role !== "system") continue;
 
     let content: string | undefined;
     if (typeof m.content === "string") {

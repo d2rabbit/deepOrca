@@ -86,6 +86,19 @@ export interface ActionContext {
   /** Only injected for non-deterministic actions (e.g. arch-scan.run). */
   readonly runSubagent?: (opts: RunSubagentOptions) => Promise<unknown>;
   /**
+   * Sessionless background LLM loop (specs/index-knowledge-rework R2-2): runs a
+   * skill-driven LLM task WITHOUT creating a session — no index entry, no
+   * message JSONL, no active-session switch, nothing streamed to the user's
+   * conversation view. index.build-all's arch-scan stage uses this so manual
+   * builds never produce foreground conversation content.
+   *
+   * Permissions: this loop is deliberately NOT gated by the session permission
+   * system — issuing the build instruction IS the pre-approval for its narrow
+   * tool surface (decision 2026-08-23, design-r2.md §三 R3-4). Its arch-*
+   * artifacts display exclusively in the Index & Knowledge module.
+   */
+  readonly runBackgroundTask?: (opts: BackgroundLlmTaskOptions) => Promise<BackgroundLlmTaskResult>;
+  /**
    * Dispatch an MCP tool call by its fully-qualified namespaced name
    * (e.g. "mcp__code-review-graph__detect_changes_tool"). Injected by the host
    * (SessionManager wires it to mcpManager.executeMcpTool). Only actions that
@@ -101,6 +114,17 @@ export interface ActionContext {
    * upgrade from keyword heuristics without core gaining an LLM dependency.
    */
   readonly judgeViaLlm?: (prompt: string, choices: readonly string[]) => Promise<string | null>;
+  /**
+   * Free-form backend LLM text completion on the PRIMARY (settings) model —
+   * injected by SessionManager. Returns the completion text, or null when
+   * unavailable/failed — callers MUST degrade deterministically on null
+   * (fail-open). Used by content-shaped actions (wiki.translate's per-page
+   * translation); classification stays on judgeViaLlm's flash-class JSON mode.
+   */
+  readonly completeViaLlm?: (
+    messages: Array<{ role: "system" | "user"; content: string }>,
+    opts?: { signal?: AbortSignal }
+  ) => Promise<string | null>;
   /**
    * Task trajectory service (specs/task-tree P0) — lazily provided by the
    * host; task.* actions read it via ctx and fail open when absent.
@@ -128,6 +152,44 @@ export interface RunSubagentOptions {
   readonly skill: string;
   readonly prompt?: string;
   readonly input?: Record<string, unknown>;
+  /**
+   * Silent mode (specs/index-knowledge-rework T2): the sub-session's messages
+   * are NOT surfaced to the user's conversation view — the result is returned
+   * to the caller only. Background pipelines (index.build-all's arch-scan
+   * stage) use this so workspace building never leaks chat behavior into the
+   * main session; interactive subagents keep the default surfaced behavior.
+   */
+  readonly silent?: boolean;
+}
+
+/** Options for the sessionless background LLM task (see ActionContext.runBackgroundTask). */
+export interface BackgroundLlmTaskOptions {
+  /** Skill to force-load as the task's instruction document (e.g. "arch-scan"). */
+  readonly skill: string;
+  /** User-turn prompt; defaults to the skill's canonical task prompt. */
+  readonly prompt?: string;
+  readonly input?: Record<string, unknown>;
+  /**
+   * Workspace root the task's artifacts belong to (defaults to the manager's
+   * projectRoot). A2UI surfaces are flushed into this root's
+   * `.deeporca/prototypes/` on completion.
+   */
+  readonly root?: string;
+  /**
+   * Cancellation signal (usually the owning action's `ctx.signal`). Aborting
+   * stops the loop at the next iteration boundary and rejects the task with
+   * an AbortError; surfaces produced so far are still flushed.
+   */
+  readonly signal?: AbortSignal;
+  /** Progress callback for the owning pipeline (iteration/tool milestones). */
+  readonly onProgress?: (message: string) => void;
+}
+
+export interface BackgroundLlmTaskResult {
+  /** Final assistant text (null when the loop ended on tool calls / cap). */
+  readonly content: string | null;
+  /** LLM loop iterations consumed. */
+  readonly iterations: number;
 }
 
 /** The `run` function authors implement. */

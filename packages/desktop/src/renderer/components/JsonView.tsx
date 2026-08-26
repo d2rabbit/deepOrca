@@ -37,6 +37,7 @@ function JsonNode({
   depth: number;
   isLast: boolean;
 }): JSX.Element {
+  const { t } = useI18n();
   // Deep levels start collapsed so huge payloads stay compact.
   const [open, setOpen] = useState(depth < 2);
   const comma = isLast ? null : <span className="ui-json-punc">,</span>;
@@ -75,7 +76,7 @@ function JsonNode({
         <span className="ui-json-punc">{openCh}</span>
         {!open ? (
           <>
-            <span className="ui-json-count">{entries.length} items</span>
+            <span className="ui-json-count">{t("msg.jsonItems", { n: entries.length })}</span>
             <span className="ui-json-punc">{closeCh}</span>
             {comma}
           </>
@@ -115,11 +116,16 @@ export const JsonView = memo(function JsonView({ data, label }: { data: unknown;
   );
 
   const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(raw).then(() => {
-      setCopied(true);
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
-    });
+    void navigator.clipboard
+      .writeText(raw)
+      .then(() => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      })
+      // Clipboard can be locked/permission-denied — silently ignoring is the
+      // least-noisy failure for a copy affordance (no state change).
+      .catch(() => {});
   }, [raw]);
 
   return (
@@ -130,7 +136,8 @@ export const JsonView = memo(function JsonView({ data, label }: { data: unknown;
         </span>
         <span className="ui-json-head-name">{label ?? "JSON"}</span>
         <span className="ui-json-head-badge">
-          JSON • {keyCount} {Array.isArray(data) ? "Items" : "Keys"}
+          JSON • {keyCount}{" "}
+          {Array.isArray(data) ? t("msg.jsonItems", { n: keyCount }) : t("msg.jsonKeys", { n: keyCount })}
         </span>
         <div className="ui-json-view-switch" role="group">
           <button

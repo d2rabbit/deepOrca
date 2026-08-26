@@ -1,0 +1,1064 @@
+/* ── Editor file entry selected state ───────────────────────────────────── */
+/* (see the file-tree block below — background/inset-bar live there) */
+
+.ui-editor-file-entry.is-selected {
+  background: var(--ui-accent-soft);
+}
+
+.ui-editor-file-entry.is-selected:hover {
+  background: var(--ui-accent-soft);
+}
+
+/* ── Editor overlay ─────────────────────────────────────────────────────── */
+
+.ui-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.ui-editor-overlay-panel {
+  width: 92vw;
+  height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  box-shadow: var(--ui-shadow-lg);
+  overflow: hidden;
+}
+
+.ui-editor-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg-soft);
+  flex-shrink: 0;
+}
+
+/* File-type badge icon spacing (ui/file-icon.tsx). */
+.ui-editor-overlay-title .ui-file-icon {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.ui-editor-file-icon .ui-file-icon {
+  display: block;
+}
+.ui-editor-overlay-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-editor-dirty-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ui-editor-overlay-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ui-editor-overlay-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.ui-editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--ui-text-dim);
+  font-size: 13px;
+}
+
+.ui-editor-error {
+  color: var(--ui-error, #e5484d);
+}
+
+/* ── Editor panel (sidebar file tree) ───────────────────────────────────── */
+
+.ui-editor-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  font-size: 12px;
+}
+
+.ui-editor-breadcrumb-btn {
+  background: none;
+  border: none;
+  color: var(--ui-accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.ui-editor-breadcrumb-btn:hover {
+  background: var(--ui-bg-hover);
+}
+
+.ui-editor-breadcrumb-path {
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-editor-file-entry {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 22px;
+  color: var(--ui-text);
+  transition:
+    background 0.1s ease,
+    box-shadow 0.15s ease;
+}
+
+.ui-editor-file-entry:hover {
+  background: var(--ui-bg-hover);
+}
+
+.ui-editor-file-entry.is-dir {
+  font-weight: 500;
+}
+
+.ui-editor-file-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ui-text-faint);
+}
+
+.ui-editor-file-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ui-editor-file-icon.is-dir {
+  color: var(--ui-text-dim);
+}
+
+.ui-editor-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Selected file: accent wash + inset bar, same language as the session list. */
+.ui-editor-file-entry.is-selected {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+
+.ui-editor-file-entry.is-selected:hover {
+  background: var(--ui-accent-soft);
+}
+
+.ui-editor-file-entry.is-selected .ui-editor-file-icon {
+  color: var(--ui-accent);
+}
+
+/* ── Diff overlay action button ─────────────────────────────────────────── */
+
+.ui-diff-overlay-action {
+  background: none;
+  border: 1px solid var(--ui-border-soft);
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.ui-diff-overlay-action:hover {
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+/* ── Rich tool results (P2 structured display) ────────────────────────────── */
+.ui-rich-result {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+}
+.ui-rich-result-label {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+
+/* Symbol tree */
+.ui-symbol-tree-body {
+  padding: var(--ui-space-2);
+  font-size: 12px;
+  font-family: var(--ui-font-mono, monospace);
+  max-height: 400px;
+  overflow-y: auto;
+}
+.ui-symbol-node {
+  line-height: 1.6;
+}
+.ui-symbol-node-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
+}
+.ui-symbol-node-label.clickable {
+  cursor: pointer;
+}
+.ui-symbol-node-label.clickable:hover {
+  color: var(--ui-accent);
+}
+.ui-symbol-chevron {
+  width: 12px;
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  text-align: center;
+  flex-shrink: 0;
+}
+.ui-symbol-icon {
+  width: 16px;
+  font-size: 10px;
+  text-align: center;
+  color: var(--ui-accent);
+  flex-shrink: 0;
+}
+
+/* Review comments grouped */
+.ui-review-group {
+  margin-bottom: var(--ui-space-2);
+}
+.ui-review-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ui-review-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.ui-review-item {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-review-item-file {
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-faint);
+}
+.ui-review-item-msg {
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  margin-top: 2px;
+}
+.ui-review-item-sug {
+  font-size: 11px;
+  color: var(--ui-accent);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Search result cards */
+.ui-search-card {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-search-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-accent);
+  text-decoration: none;
+}
+.ui-search-card-title:hover {
+  text-decoration: underline;
+}
+.ui-search-card-url {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+}
+.ui-search-card-snippet {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  margin-top: 2px;
+}
+
+/* Git changes (#12) */
+.ui-git-changes-body {
+  padding: var(--ui-space-1) 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ui-git-change-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 2px var(--ui-space-3);
+  font-size: 12px;
+}
+.ui-git-status-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--ui-radius-sm);
+  flex-shrink: 0;
+}
+
+.ui-git-change-file {
+  flex: 1;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-git-change-stats {
+  display: flex;
+  gap: 4px;
+  font-size: 10px;
+  font-family: var(--ui-font-mono, monospace);
+  flex-shrink: 0;
+}
+.ui-git-add {
+  color: #3fb950;
+}
+.ui-git-del {
+  color: #f85149;
+}
+
+/* Risk analysis (#14) */
+.ui-risk-overall {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ui-risk-body {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-risk-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  margin-bottom: 2px;
+}
+.ui-risk-item-name {
+  flex: 1;
+  font-size: 12px;
+  font-family: var(--ui-font-mono, monospace);
+  color: var(--ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-risk-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.ui-risk-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.ui-risk-badge.sec {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+.ui-risk-badge.no-test {
+  background: rgba(210, 153, 34, 0.15);
+  color: #d29922;
+}
+.ui-risk-score {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ui-risk-bar {
+  height: 3px;
+  background: var(--ui-surface-sunken);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ui-risk-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Wiki pages (#16) */
+.ui-wiki-pages-body {
+  padding: var(--ui-space-1) 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.ui-wiki-page-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 3px var(--ui-space-3);
+  font-size: 12px;
+}
+.ui-wiki-page-icon {
+  flex-shrink: 0;
+}
+.ui-wiki-page-title {
+  font-weight: 500;
+  color: var(--ui-text-primary);
+}
+.ui-wiki-page-path {
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 10px;
+  margin-left: auto;
+}
+
+/* ── Right-side companion card (PM-Design / DeepDesign split view) ──────────
+   Floating island over the stage's right edge — no grid track, no docked
+   border; rounded card with its own shadow, like every other stage layer. */
+.ui-preview-panel {
+  position: absolute;
+  top: calc(var(--ui-cockpit-h, 52px) + 10px);
+  right: 14px;
+  bottom: 14px;
+  width: min(var(--ui-right-w, 480px), 46vw);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-preview-slide-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-preview-slide-in {
+  from {
+    transform: translateX(26px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+/* Left-edge drag-to-resize — mirrors the hub sheet's right-edge handle so
+   both floating islands share one resize interaction. */
+.ui-companion-resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 3;
+  transition: background 0.15s var(--ui-ease);
+}
+.ui-companion-resize::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 34px;
+  border-radius: 2px;
+  background: var(--ui-border-soft);
+  opacity: 0;
+  transition: opacity 0.15s var(--ui-ease);
+}
+.ui-companion-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  left: -4px;
+  right: -4px;
+}
+.ui-companion-resize:hover,
+.ui-companion-resize:active {
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+}
+.ui-companion-resize:hover::before,
+.ui-companion-resize:active::before {
+  opacity: 1;
+  background: var(--ui-accent);
+}
+
+.ui-preview-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  flex-shrink: 0;
+}
+.ui-preview-tabs {
+  display: flex;
+  gap: 2px;
+}
+.ui-preview-tab {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.ui-preview-tab:hover {
+  color: var(--ui-text-secondary);
+}
+.ui-preview-tab.active {
+  color: var(--ui-accent);
+  border-bottom-color: var(--ui-accent);
+}
+.ui-preview-close {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+  transition: background 0.15s;
+}
+.ui-preview-close:hover {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-primary);
+}
+.ui-preview-panel-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Prototype panel (now embedded in preview panel, no own header) ───────── */
+.ui-prototype-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-surface);
+  flex: 1;
+  overflow: hidden;
+}
+
+.ui-prototype-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ui-space-4);
+}
+.ui-prototype-panel-composer {
+  display: flex;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+}
+.ui-prototype-panel-input {
+  flex: 1;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+}
+.ui-prototype-panel-input:focus {
+  border-color: var(--ui-accent);
+}
+.ui-prototype-panel-send {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 14px;
+  color: var(--ui-text-on-accent, #fff);
+  background: var(--ui-accent);
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ui-prototype-panel-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ui-prototype-panel-send:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+/* ── Workspace trust dialog (specs/sandbox/design.md §10.3) ────────────── */
+.ui-trust-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(460px, calc(100vw - 48px));
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-trust-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ui-trust-body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+.ui-trust-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.ui-trust-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ui-trust-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ui-trust-btn--trusted:hover:not(:disabled) {
+  border-color: rgba(80, 200, 120, 0.6);
+}
+.ui-trust-btn--quarantine:hover:not(:disabled) {
+  border-color: rgba(230, 160, 60, 0.7);
+}
+
+/* ── Index & Knowledge (specs/index-knowledge-rework) ─────────────────────── */
+/* Left rail: workspace rows with inline per-row build buttons. While a row's
+   build runs, the compact progress checklist attaches directly under it. */
+.ui-ik-rowwrap {
+  margin-bottom: 4px;
+}
+.ui-ik-rowwrap .ui-ik-row {
+  margin-bottom: 0;
+}
+.ui-ik-rowwrap:has(> .ui-knowledge-build) .ui-ik-row {
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.ui-ik-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft, #333);
+  cursor: pointer;
+}
+.ui-ik-row:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-ik-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ui-text-dim, #888);
+}
+.ui-ik-dot.on {
+  background: var(--ui-accent, #3b82f6);
+}
+.ui-ik-dot.partial {
+  background: #f7a04f;
+}
+.ui-ik-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.ui-ik-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ik-meta {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ik-build {
+  flex-shrink: 0;
+}
+
+/* Knowledge tab body: sub-tabs + lists + preview. */
+.ui-knowledge-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.ui-knowledge-subtabs {
+  display: flex;
+  gap: 4px;
+  /* Right clearance for the sheet's floating "back to conversation" pill
+     (top-right of the knowledge sheet) so the last subtab is never covered. */
+  padding: 10px 138px 8px 14px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+.ui-knowledge-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+  background: transparent;
+  color: var(--ui-text-dim, #888);
+  transition:
+    background 0.15s var(--ui-ease),
+    color 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease);
+}
+.ui-knowledge-subtab::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tab-hue, color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent));
+  transition:
+    background 0.15s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
+}
+.ui-knowledge-subtab:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+/* Per-tab identity dot — one hue from the diagram ramp per sub-tab. */
+.ui-knowledge-subtab.subtab-wiki {
+  --tab-hue: var(--ui-diagram-hue-0, #60a5fa);
+}
+.ui-knowledge-subtab.subtab-agents {
+  --tab-hue: var(--ui-diagram-hue-1, #a78bfa);
+}
+.ui-knowledge-subtab.subtab-archmaps {
+  --tab-hue: var(--ui-diagram-hue-2, #2dd4bf);
+}
+.ui-knowledge-subtab.subtab-symbols {
+  --tab-hue: var(--ui-diagram-hue-3, #fbbf24);
+}
+.ui-knowledge-subtab.active {
+  background: color-mix(in srgb, var(--tab-hue, var(--ui-accent, #3b82f6)) 12%, transparent);
+  border-color: color-mix(in srgb, var(--tab-hue, var(--ui-accent, #3b82f6)) 32%, transparent);
+  color: var(--ui-text, inherit);
+  font-weight: 600;
+}
+.ui-knowledge-subtab.active::before {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tab-hue, var(--ui-accent, #3b82f6)) 22%, transparent);
+}
+/* Live build progress — the stage checklist for a running build: pipeline
+   索引 → Wiki → 架构图, per-stage state, console tail (full variant).
+   The compact variant attaches under the workspace row in the left rail
+   (real-machine feedback: progress belongs next to the thing being built). */
+.ui-knowledge-build {
+  padding: 8px 12px 6px;
+  font-size: 12px;
+  background: var(--ui-surface-sunken, rgba(127, 127, 127, 0.08));
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+/* Slim one-line status bar in the knowledge tab (the full checklist lives in
+   the left rail, not in the tab). The trailing live span carries the freshest
+   heartbeat (page counts, 完成标记) so the tab states wiki liveness itself. */
+.ui-knowledge-buildbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--ui-text-dim, #888);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ui-accent, #3b82f6) 9%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 7%, transparent) 55%,
+    transparent
+  );
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+}
+.ui-knowledge-buildbar-label {
+  flex: none;
+}
+.ui-knowledge-buildbar-live {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ui-text-faint, #666);
+}
+/* Compact variant: attached to the bottom of the rail row. */
+.ui-knowledge-build.compact {
+  padding: 6px 10px 5px;
+  font-size: 11.5px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+  border-left: 1px solid var(--ui-border-soft, #333);
+  border-right: 1px solid var(--ui-border-soft, #333);
+  border-radius: 0 0 8px 8px;
+}
+.ui-knowledge-build.compact .ui-knowledge-build-head {
+  margin-bottom: 4px;
+}
+.ui-knowledge-build-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--ui-text, inherit);
+}
+.ui-knowledge-build-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-build-mark {
+  width: 14px;
+  flex: none;
+  text-align: center;
+  color: var(--ui-text-dim, #888);
+}
+.ui-knowledge-build-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ui-knowledge-build-stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ui-text-dim, #888);
+}
+/* Running stage's freshest progress line (heartbeats, page counts) — wraps to
+   its own row under the stage (the compact rail panel has no console tail). */
+.ui-knowledge-build-stage-live {
+  flex-basis: 100%;
+  padding-left: 20px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-knowledge-build-stage.st-running {
+  color: var(--ui-text, inherit);
+}
+.ui-knowledge-build-stage.st-done .ui-knowledge-build-mark {
+  color: var(--ui-success, #4caf50);
+}
+.ui-knowledge-build-stage.st-failed .ui-knowledge-build-mark,
+.ui-knowledge-build-stage.st-failed .ui-knowledge-build-stage-detail {
+  color: var(--ui-danger, #e5484d);
+}
+.ui-knowledge-build-stage.st-running .ui-knowledge-build-mark {
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-knowledge-build-stage-name {
+  flex: none;
+  min-width: 48px;
+  font-weight: 600;
+}
+.ui-knowledge-build-stage-detail {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-build-console {
+  margin-top: 6px;
+  border-top: 1px dashed var(--ui-border-soft, #333);
+  padding-top: 4px;
+}
+.ui-knowledge-build-console-title {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  margin-bottom: 2px;
+}
+.ui-knowledge-build-console-line {
+  font-family: var(--ui-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-knowledge-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+}
+.ui-knowledge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-knowledge-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.12s var(--ui-ease),
+    border-color 0.12s var(--ui-ease);
+}
+.ui-knowledge-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-knowledge-item.selected {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 26%, transparent);
+  box-shadow: inset 2.5px 0 0 var(--ui-accent, #3b82f6);
+}
+.ui-knowledge-item.selected .ui-knowledge-item-name {
+  font-weight: 600;
+}
+.ui-knowledge-item-name {
+  font-size: 12.5px;
+  color: var(--ui-text, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-knowledge-item-meta {
+  font-size: 11px;
+  color: var(--ui-text-dim, #888);
+  flex-shrink: 0;
+}
+.ui-knowledge-preview {
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft, #333);
+  overflow: hidden;
+  height: 420px;
+}
+/* 架构图直出：full-pane map — the diagram is the first level, no list above it. */
+.ui-knowledge-arch {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ui-knowledge-preview-full {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+  height: auto;
+}
+.ui-knowledge-preview-a2ui {
+  height: 100%;
+  overflow: auto;
+  padding: 10px 12px 12px;
+}
+.ui-knowledge-preview-loading {
+  width: 28px;
+  height: 28px;
+  margin: 40px auto;
+  border-radius: 50%;
+  border: 3px solid var(--ui-border-soft, #333);
+  border-top-color: var(--ui-accent, #3b82f6);
+  animation: ui-ik-spin 0.8s linear infinite;
+}
+@keyframes ui-ik-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ui-knowledge-preview-error {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--ui-danger, #ef4444);
+}

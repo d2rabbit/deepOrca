@@ -4,6 +4,8 @@ Executes a given bash command. Working directory persists between commands; shel
 
 On Windows, Bash runs through Git Bash. Use POSIX commands and quote Windows paths carefully.
 
+Cross-shell commands: the runtime environment block includes an **os-link** dictionary mapping common operations to their bash / cmd.exe / PowerShell equivalents. Always build commands from the **bash** column for this tool — never emit cmd/PowerShell syntax here; use the cmd/pwsh columns only when composing a command that will explicitly run inside one of those shells.
+
 IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
 
 IMPORTANT: Before reaching for generic shell pipelines, prefer purpose-built CLI tools when they make the task more accurate, safer, faster, or easier to understand:

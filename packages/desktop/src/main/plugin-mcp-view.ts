@@ -16,13 +16,22 @@ import {
   CRG_MCP_SERVER_NAME,
   SERENA_MCP_SERVER_NAME,
   SKILL_SPECTOR_MCP_SERVER_NAME,
-  buildCrgMcpServerConfig,
   getSkillSpectorController,
   getSerenaController,
   hasCodegraphProject,
   isGitmcpServerName,
   resolveCurrentSettings,
 } from "@deeporca/core";
+
+/**
+ * CRG (code-review-graph) is retired from the MCP surface: queries go through
+ * the in-process Node SQLite reader (CrgGraphQuery), no server is spawned,
+ * and the plugin center must not list it — neither a legacy configured entry
+ * (filtered below) nor a synthesized display row (removed 2026-08-23).
+ */
+function isRetiredMcpName(name: string): boolean {
+  return name === CRG_MCP_SERVER_NAME;
+}
 import type { BuiltinPluginInfo, McpServerConfigEntry } from "@deeporca/core";
 import type { BuiltinPluginGroup, McpServerStatus, PluginMcpServer, SkillInfo } from "../shared/ipc.js";
 import { readDisabledMcp } from "./mcp-store.js";
@@ -55,6 +64,7 @@ export function buildPluginMcpList(projectRoot: string, deps: PluginViewDeps): P
   const statuses = new Map(deps.getMcpStatus().map((s) => [s.name, s]));
   const list: PluginMcpServer[] = [];
   for (const [name, cfg] of Object.entries(configured)) {
+    if (isRetiredMcpName(name)) continue;
     list.push({
       name,
       command: cfg.command,
@@ -65,7 +75,6 @@ export function buildPluginMcpList(projectRoot: string, deps: PluginViewDeps): P
       // may toggle them but never remove them (same contract as codegraph).
       builtin:
         name === CODEGRAPH_MCP_SERVER_NAME ||
-        name === CRG_MCP_SERVER_NAME ||
         name === SERENA_MCP_SERVER_NAME ||
         name === SKILL_SPECTOR_MCP_SERVER_NAME ||
         name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
@@ -87,22 +96,8 @@ export function buildPluginMcpList(projectRoot: string, deps: PluginViewDeps): P
       status: statuses.get(CODEGRAPH_MCP_SERVER_NAME),
     });
   }
-  // Built-in CRG (code-review-graph): analysis-layer MCP server. Shown even
-  // when the project has not built a graph yet, so it can be toggled.
-  if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
-    const cfg = buildCrgMcpServerConfig(projectRoot);
-    if (cfg) {
-      list.push({
-        name: CRG_MCP_SERVER_NAME,
-        command: cfg.command,
-        args: (cfg.args ?? []).join(" "),
-        env: stringifyEnv(cfg.env),
-        enabled: !disabled.has(CRG_MCP_SERVER_NAME),
-        builtin: true,
-        status: statuses.get(CRG_MCP_SERVER_NAME),
-      });
-    }
-  }
+  // Built-in CRG display row removed (2026-08-23): CRG queries run through the
+  // in-process CrgGraphQuery SQLite reader — no MCP server exists to list.
   // Built-in Serena MCP server: semantic code operations (find symbol,
   // references, rename, replace body). Shown when uv is available
   // (vendored or system). Covers 40+ languages via SolidLSP.
@@ -161,19 +156,20 @@ export async function buildBuiltinPluginGroups(
   const statuses = new Map(deps.getMcpStatus().map((s) => [s.name, s]));
   const isBuiltin = (name: string): boolean =>
     name === CODEGRAPH_MCP_SERVER_NAME ||
-    name === CRG_MCP_SERVER_NAME ||
     name === SERENA_MCP_SERVER_NAME ||
     name === SKILL_SPECTOR_MCP_SERVER_NAME ||
     name === ACTIVITY_FRAMES_MCP_SERVER_NAME ||
     name === A2UI_MCP_SERVER_NAME ||
     isGitmcpServerName(name);
-  const entries: McpServerConfigEntry[] = Object.entries(configured).map(([name, cfg]) => ({
-    name,
-    config: cfg,
-    builtin: isBuiltin(name),
-    enabled: !disabled.has(name),
-    status: statuses.get(name)?.status,
-  }));
+  const entries: McpServerConfigEntry[] = Object.entries(configured)
+    .filter(([name]) => !isRetiredMcpName(name))
+    .map(([name, cfg]) => ({
+      name,
+      config: cfg,
+      builtin: isBuiltin(name),
+      enabled: !disabled.has(name),
+      status: statuses.get(name)?.status,
+    }));
   // Built-in servers not yet configured by the user (codegraph, CRG, dart)
   // are synthesized from their builders so the group card lists them regardless.
   // Each carries enabled/status so the group detail can show a toggle + state dot.
@@ -185,17 +181,6 @@ export async function buildBuiltinPluginGroups(
       enabled: !disabled.has(CODEGRAPH_MCP_SERVER_NAME),
       status: statuses.get(CODEGRAPH_MCP_SERVER_NAME)?.status,
     });
-  }
-  if (!Object.prototype.hasOwnProperty.call(configured, CRG_MCP_SERVER_NAME)) {
-    const cfg = buildCrgMcpServerConfig(projectRoot);
-    if (cfg)
-      entries.push({
-        name: CRG_MCP_SERVER_NAME,
-        config: cfg,
-        builtin: true,
-        enabled: !disabled.has(CRG_MCP_SERVER_NAME),
-        status: statuses.get(CRG_MCP_SERVER_NAME)?.status,
-      });
   }
   if (!Object.prototype.hasOwnProperty.call(configured, SERENA_MCP_SERVER_NAME)) {
     const cfg = getSerenaController()?.buildMcpServerConfig(projectRoot) ?? null;

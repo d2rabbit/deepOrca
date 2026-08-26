@@ -88,6 +88,7 @@ export type { ToolDefinition, SkillPromptDocument } from "./prompt";
 export { ToolExecutor } from "./tools/executor";
 export type {
   CreateOpenAIClient,
+  CreateSecondaryClient,
   ToolCall,
   ToolExecutionContext,
   ToolExecutionHooks,
@@ -120,7 +121,12 @@ export type { McpServerStatus } from "./mcp/mcp-manager";
 export { createMcpSpawnSpec, type McpSpawnSpec } from "./mcp/spawn-spec";
 
 // Common utilities
-export { createOpenAIClient, createSecondaryClient, createVisionClient } from "./common/openai-client";
+export {
+  createOpenAIClient,
+  createSecondaryClient,
+  createVisionClient,
+  createEndpointClient,
+} from "./common/openai-client";
 export { buildThinkingRequestOptions } from "./common/openai-thinking";
 export {
   readTextFileWithMetadata,
@@ -208,10 +214,13 @@ export {
   setCrgDisabled,
   isCrgDisabled,
   hasCrgProject,
-  buildCrgMcpServerConfig,
   runCrgResetWithOutput,
   runCrgVisualize,
 } from "./common/crg";
+
+// Hardened child-process runner shared by the wiki/CRG/OCR CLI adapters.
+export { spawnTracked, configureSpawnTrackedLogger } from "./common/spawn-tracked";
+export type { SpawnTrackedOptions, SpawnTrackedResult } from "./common/spawn-tracked";
 
 export { SERENA_MCP_SERVER_NAME, setSerenaDisabled, isSerenaDisabled } from "./common/serena-mcp";
 
@@ -293,12 +302,22 @@ export {
   resolveGitmcpServerEntry,
 } from "./gitmcp/resolve";
 export {
-  DEEPSEEK_V4_MODELS,
-  COMPACTION_MODEL,
   supportsMultimodal,
   defaultsToThinkingMode,
+  resolveModelSpec,
+  resolveBackgroundLlm,
+  findModelRegistration,
+  type ModelCapabilityRegistration,
+  type ModelFamilyId,
+  type ModelFamilySpec,
+  type ModelSpec,
+  type ReasoningReplayMode,
+  type ThinkingProtocolId,
+  type BackgroundLlmChoice,
 } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
+export { getOsLinkEntry, listOsLinkEntries, renderOsLinkDictionary, renderOsLinkPromptSection } from "./common/os-link";
+export type { OsLinkEntry, OsLinkShell } from "./common/os-link";
 export { logApiError } from "./common/error-logger";
 export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
 export { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
@@ -384,6 +403,13 @@ export {
   getWikiController,
   indexBuildAllDefinition,
   indexBuildAllRun,
+  wikiTranslateDefinition,
+  wikiTranslateRun,
+  detectWikiLanguage,
+  wikiVariantPath,
+  isWikiVariantFile,
+  containedUnderWiki,
+  listWikiBasePages,
   archScanRunDefinition,
   archScanRunRun,
 } from "./actions";
@@ -398,6 +424,8 @@ export type {
   ActionParameters,
   ActionProgress,
   ActionRun,
+  BackgroundLlmTaskOptions,
+  BackgroundLlmTaskResult,
   RunSubagentOptions,
   SpawnedProcess,
   Spawner,
@@ -434,3 +462,10 @@ export type {
   TaskTreeSummary,
 } from "./tasks/types";
 export { TaskTreeService } from "./tasks/task-tree-service";
+export {
+  configureSessionLocale,
+  formatSessionPrompt,
+  formatThinkingModeLabel,
+  type SessionPromptKey,
+  type SessionPromptLocale,
+} from "./common/session-prompts";

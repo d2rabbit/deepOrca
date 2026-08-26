@@ -227,8 +227,7 @@
 }
 
 /* Code blocks: sunken with precise border — like a nested viewBox. */
-.ui-md pre,
-.ui-md .code-block-wrap pre.code-block {
+.ui-md pre {
   background: var(--ui-surface-sunken);
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);

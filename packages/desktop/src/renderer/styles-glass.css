@@ -139,12 +139,17 @@
   background-attachment: fixed;
 }
 
-/* Frost every surface with the Prism blur stack. */
-.ui-rail,
-.ui-window-bar,
-.ui-session-panel,
-.ui-side-panel,
-.ui-rightpanel,
+/* Frost every surface with the Prism blur stack. The stage's floating
+   islands (hub sheet / surface sheet / companion / orb / cockpit clusters)
+   are the primary glass objects now. */
+.ui-hub-rail,
+.ui-hub-flyout,
+.ui-sheet,
+.ui-settings-modal > *,
+.ui-preview-panel,
+.ui-orb,
+.ui-surface-chips,
+.ui-cockpit-actions,
 .ui-composer-card,
 .ui-card,
 .ui-modal,
@@ -166,15 +171,24 @@
   box-shadow: var(--glass-glow), var(--ui-shadow-card);
 }
 
-/* Rail: vertical glass separation with a subtle gradient edge. */
-.ui-rail {
-  border-right: 1px solid var(--glass-edge-soft);
-  box-shadow: 1px 0 12px rgba(99, 132, 255, 0.04);
+/* Hub sheet: frosted glass slab floating off the stage edge. */
+.ui-hub-rail,
+.ui-hub-flyout {
+  background: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+  border: 1px solid var(--glass-edge-soft);
+  box-shadow:
+    1px 0 12px rgba(99, 132, 255, 0.04),
+    var(--glass-glow),
+    var(--ui-shadow-modal);
 }
 
-/* Contrast scrim behind conversation area. */
-.ui-main {
-  background: var(--glass-scrim);
+/* Surface sheet + companion card: lighter frost than the hub — they cover
+   the stage, so a higher surface ratio keeps their content readable. */
+.ui-sheet,
+.ui-settings-modal > *,
+.ui-preview-panel {
+  background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+  border: 1px solid var(--glass-edge-soft);
 }
 
 /* Composer dock: transparent (the card itself is glass). */
@@ -356,11 +370,14 @@ textarea:focus {
     background-attachment: scroll;
     animation: none;
   }
-  .ui-rail,
-  .ui-window-bar,
-  .ui-session-panel,
-  .ui-side-panel,
-  .ui-rightpanel,
+  .ui-hub-rail,
+  .ui-hub-flyout,
+  .ui-sheet,
+  .ui-settings-modal > *,
+  .ui-preview-panel,
+  .ui-orb,
+  .ui-surface-chips,
+  .ui-cockpit-actions,
   .ui-composer-card,
   .ui-card,
   .ui-modal,
@@ -370,8 +387,12 @@ textarea:focus {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .ui-main {
-    background: none;
+  .ui-hub-rail,
+  .ui-hub-flyout,
+  .ui-sheet,
+  .ui-settings-modal > *,
+  .ui-preview-panel {
+    background: var(--ui-surface);
   }
   .ui-composer-card,
   .ui-card,
@@ -514,11 +535,14 @@ textarea:focus {
 
 /* Frost every surface: strong backdrop blur behind the translucent fills bound
    above. Each surface already draws its 1px edge from --ui-border(-soft). */
-.ui-rail,
-.ui-window-bar,
-.ui-session-panel,
-.ui-side-panel,
-.ui-rightpanel,
+.ui-hub-rail,
+.ui-hub-flyout,
+.ui-sheet,
+.ui-settings-modal > *,
+.ui-preview-panel,
+.ui-orb,
+.ui-surface-chips,
+.ui-cockpit-actions,
 .ui-composer-card,
 .ui-card,
 .ui-modal,

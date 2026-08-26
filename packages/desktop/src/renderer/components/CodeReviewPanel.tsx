@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState, type JSX } from "react";
 import type { ActionProgressEvent, ActionRunResult, CrgIndexEntry } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
-import { Button, Input } from "../ui/index";
+import { Button, IconMagicWand, IconChat } from "../ui/index";
+import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
 
 /**
  * Code Review panel — Phase 4 rework (spec §六/§十二).
@@ -11,35 +12,36 @@ import { Button, Input } from "../ui/index";
  * with an IndexLibraryPanel-style workspace-partitioned layout: a single
  * workspace card + one-click action buttons that route through the unified
  * ActionRegistry (the same actions the agent reaches as LLM tools):
- *   - 审查 (review.run)         → ocr AI semantic review of uncommitted changes
- *   - 品牌漂移闸门 (design.drift) → E1d: deterministic dembrandt --compare gate
+ *   - 审查 (review.run/review.full) → OCR semantic review + CRG risk analysis
  *
- * Zero props — derives the current workspace from api.crgList() (mirroring
- * IndexLibraryPanel's api.codegraphList() pattern). Progress streams via the
- * unified onActionProgress event; results render in-panel.
+ * Pure code review — the brand drift gate (design.drift) moved to DesignPanel
+ * (specs/ui-domain-regroup, 2026-08-21).
+ *
+ * Panel-derived state (workspace from api.crgList(), progress via the unified
+ * onActionProgress event); `onShowGraph` hands the CRG architecture-graph
+ * HTML up to the shared right dock, and `onOneClickFix` receives the CURRENT
+ * findings so App can inject the fix plan into session mode (一键修复).
  */
 
-type ReviewActionId = "review.full" | "design.drift";
+type ReviewActionId = "review.full";
 
-/** Shape of the design.drift action output (deterministic, zero LLM). */
-type DriftOutput = {
-  driftDetected?: boolean;
-  score?: number;
-  summary?: string;
-  driftJson?: string;
-};
-
-export function CodeReviewPanel(): JSX.Element {
+export function CodeReviewPanel({
+  onShowGraph,
+  onOneClickFix,
+  onAskInChat,
+}: {
+  onShowGraph: (html: string) => void;
+  /** One-click fix: hand the current findings to App (plan → session → fix). */
+  onOneClickFix: (findings: ReviewFinding[]) => void;
+  /** Flow bridge: quote the findings into the chat composer for follow-up. */
+  onAskInChat?: (findings: ReviewFinding[]) => void;
+}): JSX.Element {
   const { t } = useI18n();
   const [entry, setEntry] = useState<CrgIndexEntry | null>(null);
   const [running, setRunning] = useState<ReviewActionId | null>(null);
   const [progress, setProgress] = useState<string>("");
   const [result, setResult] = useState<{ id: ReviewActionId; res: ActionRunResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Brand drift gate inputs (E1d). The baseline defaults to the conventional
-  // location written by design.extract's persist instruction.
-  const [driftBaseline, setDriftBaseline] = useState(".deeporca/design-baseline.json");
-  const [driftCurrent, setDriftCurrent] = useState("");
 
   // Resolve the current workspace + CRG graph state (mirrors IndexLibraryPanel).
   const reload = useCallback(async () => {
@@ -53,6 +55,17 @@ export function CodeReviewPanel(): JSX.Element {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  // Refresh the graph-state dot whenever a CRG rebuild settles — including
+  // out-of-band builds (agent-driven crg.reindex, post-turn auto sync). The
+  // dot used to load once and only refresh after THIS panel's own actions,
+  // so graphs built elsewhere left it stale (index-module stuck-state class).
+  useEffect(() => {
+    const unsub = api.onCrgProgress((evt: { done?: boolean }) => {
+      if (evt.done) void reload();
+    });
+    return unsub;
   }, [reload]);
 
   // Subscribe to the unified action progress stream while an action runs.
@@ -90,15 +103,25 @@ export function CodeReviewPanel(): JSX.Element {
     [reload]
   );
 
-  const runDrift = useCallback(() => {
-    const baseline = driftBaseline.trim();
-    const current = driftCurrent.trim();
-    if (!baseline || !current) {
-      setError(t("review.drift.hint"));
-      return;
+  // CRG architecture graph: visualize emits a self-contained D3 HTML page that
+  // renders in the shared right dock — App owns the single-slot mutex with the
+  // design preview. Lost in the Phase-4 rework, restored 2026-08-19.
+  const [graphLoading, setGraphLoading] = useState(false);
+  const viewGraph = useCallback(async () => {
+    setGraphLoading(true);
+    try {
+      const res = await api.crgVisualize();
+      if (res.html) onShowGraph(res.html);
+      else setError(res.error ?? t("app.requestFailed"));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGraphLoading(false);
     }
-    void run("design.drift", { baseline, current });
-  }, [driftBaseline, driftCurrent, run, t]);
+  }, [onShowGraph, t]);
+
+  // Findings from the LATEST result drive the one-click fix button.
+  const currentFindings: ReviewFinding[] = result && result.res.ok ? extractReviewFindings(result.res.output) : [];
 
   const projectLabel = entry?.label ?? entry?.root ?? "";
   const hasGraph = entry?.hasGraph ?? false;
@@ -106,9 +129,6 @@ export function CodeReviewPanel(): JSX.Element {
   const buttons: { id: ReviewActionId; labelKey: MessageKey; hintKey: MessageKey }[] = [
     { id: "review.full", labelKey: "review.action.full", hintKey: "review.action.full.hint" },
   ];
-
-  const driftResult =
-    result && result.id === "design.drift" && result.res.ok ? (result.res.output as DriftOutput) : null;
 
   return (
     <div className="ui-side-panel">
@@ -126,6 +146,14 @@ export function CodeReviewPanel(): JSX.Element {
               <div className={`ui-index-state${hasGraph ? " on" : ""}`}>
                 {hasGraph ? t("review.graphReady") : t("review.graphUnbuilt")}
               </div>
+            </div>
+
+            {/* Architecture graph — always mounted, gated on graph state (same
+                stability rule as the rail buttons). Opens in the right dock. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Button size="sm" variant="subtle" disabled={!hasGraph || graphLoading} onClick={() => void viewGraph()}>
+                {graphLoading ? t("actions.running") : t("crg.viewGraph")}
+              </Button>
             </div>
 
             {error ? <div className="ui-error">{error}</div> : null}
@@ -146,92 +174,50 @@ export function CodeReviewPanel(): JSX.Element {
                   {t(b.hintKey)}
                 </p>
                 {result && result.id === b.id ? (
-                  <pre
-                    className="ui-muted"
-                    style={{
-                      fontSize: 10,
-                      margin: 0,
-                      maxHeight: 200,
-                      overflow: "auto",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {formatResult(result.res)}
-                  </pre>
+                  <>
+                    <pre
+                      className="ui-muted"
+                      style={{
+                        fontSize: 10,
+                        margin: 0,
+                        maxHeight: 200,
+                        overflow: "auto",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {formatResult(result.res)}
+                    </pre>
+                    {currentFindings.length > 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                        <Button
+                          size="sm"
+                          variant="subtle"
+                          disabled={running !== null}
+                          title={t("review.fixHint")}
+                          onClick={() => onOneClickFix(currentFindings)}
+                        >
+                          <IconMagicWand /> {t("review.oneClickFix")}
+                        </Button>
+                        {onAskInChat ? (
+                          <Button
+                            size="sm"
+                            variant="subtle"
+                            disabled={running !== null}
+                            title={t("review.askInChat")}
+                            onClick={() => onAskInChat(currentFindings)}
+                          >
+                            <IconChat /> {t("review.askInChat")}
+                          </Button>
+                        ) : null}
+                        <span className="ui-muted" style={{ fontSize: 10 }}>
+                          {t("review.findingsCount", { n: currentFindings.length })}
+                        </span>
+                      </div>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             ))}
-
-            {/* E1d — brand drift gate: a deterministic review dimension (specs
-                pre-production E1d). Inputs are the action's two required args. */}
-            <div className="ui-review-drift">
-              <div className="ui-review-drift-title">{t("review.drift.title")}</div>
-              <p className="ui-muted" style={{ fontSize: 10, margin: "2px 0 6px" }}>
-                {t("review.drift.hint")}
-              </p>
-              <Input
-                type="text"
-                value={driftBaseline}
-                placeholder={t("review.drift.baseline")}
-                onChange={(e) => setDriftBaseline(e.target.value)}
-              />
-              <Input
-                type="text"
-                value={driftCurrent}
-                placeholder={t("review.drift.current")}
-                onChange={(e) => setDriftCurrent(e.target.value)}
-              />
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                <Button size="sm" variant="subtle" onClick={runDrift} disabled={running !== null}>
-                  {running === "design.drift" ? t("actions.running") : t("review.drift.run")}
-                </Button>
-                {running === "design.drift" && progress ? (
-                  <span className="ui-muted" style={{ fontSize: 11 }}>
-                    {progress}
-                  </span>
-                ) : null}
-              </div>
-              {result && result.id === "design.drift" ? (
-                !result.res.ok ? (
-                  <pre className="ui-muted" style={{ fontSize: 10, margin: "6px 0 0", whiteSpace: "pre-wrap" }}>
-                    {`✗ ${result.res.code}: ${result.res.error}`}
-                  </pre>
-                ) : driftResult ? (
-                  <div className="ui-review-drift-result">
-                    <div className={`ui-review-drift-badge${driftResult.driftDetected ? " bad" : " good"}`}>
-                      {driftResult.driftDetected ? `⚠ ${t("review.drift.detected")}` : `✅ ${t("review.drift.pass")}`}
-                      {typeof driftResult.score === "number"
-                        ? ` · ${t("review.drift.score", { score: driftResult.score })}`
-                        : ""}
-                    </div>
-                    {driftResult.summary ? (
-                      <div className="ui-muted" style={{ fontSize: 11 }}>
-                        {driftResult.summary}
-                      </div>
-                    ) : null}
-                    {driftResult.driftJson ? (
-                      <details>
-                        <summary className="ui-muted" style={{ fontSize: 10.5, cursor: "pointer" }}>
-                          {t("review.drift.details")}
-                        </summary>
-                        <pre
-                          className="ui-muted"
-                          style={{
-                            fontSize: 10,
-                            margin: "4px 0 0",
-                            maxHeight: 220,
-                            overflow: "auto",
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
-                          {prettyJson(driftResult.driftJson)}
-                        </pre>
-                      </details>
-                    ) : null}
-                  </div>
-                ) : null
-              ) : null}
-            </div>
           </div>
         )}
       </div>
@@ -244,25 +230,18 @@ function formatResult(res: ActionRunResult): string {
   if (!res.ok) return `✗ ${res.code}: ${res.error}`;
   const out = res.output;
   if (typeof out === "string") return out;
-  if (out && typeof out === "object" && "comments" in out) {
-    const comments = (out as { comments: { file: string; line: number; severity: string; message: string }[] })
-      .comments;
-    if (Array.isArray(comments) && comments.length > 0) {
-      return comments.map((c) => `[${c.severity}] ${c.file}:${c.line} — ${c.message}`).join("\n");
-    }
+  const findings = extractReviewFindings(out);
+  if (findings.length > 0) {
+    return findings
+      .map(
+        (c) =>
+          `${c.crgRisk ? `[${c.crgRisk}] ` : ""}${c.path}:${c.startLine} — ${c.content.replace(/\s+/g, " ").trim()}`
+      )
+      .join("\n");
   }
   try {
     return JSON.stringify(out, null, 2);
   } catch {
     return String(out);
-  }
-}
-
-/** Pretty-print a raw JSON payload string (best effort, raw on parse failure). */
-function prettyJson(raw: string): string {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return raw;
   }
 }

@@ -138,6 +138,17 @@ export function registerActionIpc(helpers: ActionIpcHelpers, deps: ActionIpcDeps
         return { ok: false, error: err.message, code: err.code };
       }
       return { ok: false, error: err instanceof Error ? err.message : String(err), code: "ACTION_FAILED" };
+    } finally {
+      // Terminal marker on EVERY settle path (success, action error, throw) —
+      // background-task indicators (bottom-right badge) key off data.done.
+      // Without a guaranteed terminal event an indicator can stick "running"
+      // forever — the same stuck-state class as the index-module incident.
+      emit(IpcActionEvent.Progress, {
+        actionId: id,
+        message: "done",
+        percent: 100,
+        data: { done: true },
+      });
     }
   });
 }

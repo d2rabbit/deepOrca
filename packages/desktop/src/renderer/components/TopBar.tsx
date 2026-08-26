@@ -1,10 +1,11 @@
-import { memo, useMemo, type JSX } from "react";
+import { memo, useMemo, type JSX, type ReactNode } from "react";
 import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
-import { Pill, Select } from "../ui/index";
+import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
-import { collectAllModelKeys, parseModelKey, resolveModelCapability } from "../lib/model-utils";
+import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
+import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 
 type Props = {
   platform: string;
@@ -18,6 +19,8 @@ type Props = {
   branches: string[];
   onSwitchBranch: (branch: string) => void;
   onSetModel: (selection: ModelConfigSelection) => void;
+  /** Hot thinking-mode switch (settings-only; falls back to onSetModel). */
+  onSetThinking?: (selection: { thinkingEnabled: boolean; reasoningEffort: ReasoningEffort }) => void;
   onOpenSettings: () => void;
   onOpenTokens: () => void;
   activeTokens: number;
@@ -34,13 +37,22 @@ type Props = {
   streaming?: boolean;
   /** Elapsed seconds since streaming started (for live counter). */
   streamElapsedSecs?: number;
+  /** Stage-surface switcher chips rendered in the capsule's center — the
+   *  replacement for the old editor-style tab strip. Rendered BEFORE the
+   *  session title so open surfaces stay reachable at all times. */
+  center?: ReactNode;
+  /** Right-edge icon cluster (appearance / undo / settings) — the old rail's
+   *  bottom buttons, floated into the cockpit. */
+  actions?: ReactNode;
 };
 
-const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
+/** Default model lineup (DeepSeek V4 family) used when no endpoint models are
+ * configured — mirrors the registry's registered deepseek models. */
+const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"];
 
 /** Sentinel option value: opens the settings panel's model pool (endpoints
- * tab). Selecting it never changes the model — the DOM select is snapped back
- * to the current value because no state change triggers a re-render. */
+ * tab). Selecting it never changes the model — the controlled value stays
+ * put and the menu simply closes. */
 const POOL_CONFIG_VALUE = "__configure_model_pool__";
 
 type ThinkingOption = {
@@ -49,20 +61,36 @@ type ThinkingOption = {
   thinkingEnabled: boolean;
   reasoningEffort?: ReasoningEffort;
 };
-const THINKING_OPTIONS: ThinkingOption[] = [
-  { key: "max", labelKey: "model.thinkingMax", thinkingEnabled: true, reasoningEffort: "max" },
-  { key: "high", labelKey: "model.thinkingHigh", thinkingEnabled: true, reasoningEffort: "high" },
-  { key: "off", labelKey: "model.noThinking", thinkingEnabled: false },
-];
+
+function thinkingOptionsForFamily(familyId: string): ThinkingOption[] {
+  // Tiers the family actually serves (common/think-level.ts) — deepseek shows
+  // its real low/high/max; unknown families fall back to the generic visible
+  // scale. "Off" always terminates the list.
+  return [
+    ...familyThinkLevels(familyId).map(
+      (level): ThinkingOption => ({
+        key: level.id,
+        labelKey: thinkingLabelKey(level.id),
+        thinkingEnabled: true,
+        reasoningEffort: level.id,
+      })
+    ),
+    { key: "off", labelKey: "model.noThinking", thinkingEnabled: false },
+  ];
+}
 
 function projectName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length > 0 ? parts[parts.length - 1]! : path;
 }
 
-function currentThinkingKey(s: SettingsSummary): string {
+function currentThinkingKey(s: SettingsSummary, options: ThinkingOption[]): string {
   if (!s.thinkingEnabled) return "off";
-  return s.reasoningEffort === "high" ? "high" : "max";
+  // Settings may hold a tier the current family doesn't serve (e.g. medium
+  // stored earlier — deepseek folds it to high): snap to the exact tier if
+  // offered, else the family's high, else its first tier.
+  if (options.some((o) => o.key === s.reasoningEffort && o.thinkingEnabled)) return s.reasoningEffort;
+  return options.find((o) => o.key === "high")?.key ?? options.find((o) => o.thinkingEnabled)?.key ?? "off";
 }
 
 // Window caption glyphs as inline SVG (Windows 11 Fluent style). 1.5px stroke
@@ -98,6 +126,7 @@ export const TopBar = memo(function TopBar({
   branches,
   onSwitchBranch,
   onSetModel,
+  onSetThinking,
   onOpenSettings,
   onOpenTokens,
   activeTokens,
@@ -108,6 +137,8 @@ export const TopBar = memo(function TopBar({
   sessionStatus,
   streaming = false,
   streamElapsedSecs = 0,
+  center,
+  actions,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const isMac = platform === "darwin";
@@ -196,7 +227,12 @@ export const TopBar = memo(function TopBar({
   const modelCap = settings
     ? resolveModelCapability(settings.endpoints, currentKey)
     : { thinking: true, vision: false };
-  const thinkingOptions = modelCap.thinking ? THINKING_OPTIONS : THINKING_OPTIONS.filter((o) => o.key === "off");
+  // Thinking tiers follow the CURRENT model's family capability — menus never
+  // offer a tier the family doesn't actually serve.
+  const thinkingOptions = useMemo(() => {
+    const familyOptions = thinkingOptionsForFamily(resolveModelSpec({ model: currentModel }).id);
+    return modelCap.thinking ? familyOptions : familyOptions.filter((o) => o.key === "off");
+  }, [currentModel, modelCap.thinking]);
 
   const modelSelectValue = availableModels.includes(currentKey)
     ? currentKey
@@ -247,6 +283,7 @@ export const TopBar = memo(function TopBar({
       )}
 
       <div className="ui-window-bar-spacer">
+        {center}
         {streaming ? (
           <span className="ui-topbar-streaming" aria-label="streaming">
             <span className="ui-topbar-streaming-dot" />
@@ -263,18 +300,32 @@ export const TopBar = memo(function TopBar({
       </div>
 
       {/* Dual model selectors: model + thinking mode, paired inside one pill.
-         The model list is derived from the endpoint configuration in settings. */}
+         The model list is derived from the endpoint configuration in settings.
+         Both use the animated DropdownSelect — same interaction as the old
+         native selects, smooth expansion (specs: rail/topbar polish). */}
       {settings ? (
         <div className="ui-topbar-pill ui-topbar-models">
-          <Select
-            className="ui-topbar-model"
+          <DropdownSelect
+            triggerClassName="ui-topbar-model"
             value={modelSelectValue}
             title={t("topbar.model")}
-            onChange={(e) => {
-              const val = e.target.value;
+            options={[
+              ...availableModels.map((m): DropdownOption => {
+                const parsed = parseModelKey(m);
+                const label = parsed
+                  ? `${settings?.endpoints?.find((e) => e.id === parsed.endpointId)?.name ?? parsed.endpointId} / ${parsed.modelId}`
+                  : m;
+                return { value: m, label };
+              }),
+              // Pool entry point: one click from the top bar to the model pool
+              // (endpoints tab). Makes the pool the visible source of truth —
+              // especially when it is empty and the list above is the hardcoded
+              // fallback pair. The controlled value never moves; the menu just
+              // closes and the settings panel opens.
+              { value: POOL_CONFIG_VALUE, label: t("topbar.configureModelPool") },
+            ]}
+            onSelect={(val) => {
               if (val === POOL_CONFIG_VALUE) {
-                // Snap the DOM select back — the controlled value never moved.
-                e.target.value = modelSelectValue;
                 onOpenSettings();
                 return;
               }
@@ -291,44 +342,24 @@ export const TopBar = memo(function TopBar({
                 reasoningEffort: settings.reasoningEffort,
               });
             }}
-          >
-            {availableModels.map((m) => {
-              const parsed = parseModelKey(m);
-              const label = parsed
-                ? `${settings?.endpoints?.find((e) => e.id === parsed.endpointId)?.name ?? parsed.endpointId} / ${parsed.modelId}`
-                : m;
-              return (
-                <option key={m} value={m}>
-                  {label}
-                </option>
-              );
-            })}
-            {/* Pool entry point: one click from the top bar to the model pool
-                (endpoints tab). Makes the pool the visible source of truth —
-                especially when it is empty and the list above is the hardcoded
-                fallback pair. */}
-            <option value={POOL_CONFIG_VALUE}>{`⚙ ${t("topbar.configureModelPool")}`}</option>
-          </Select>
+          />
           <span className="ui-topbar-divider" aria-hidden="true" />
-          <Select
-            className="ui-topbar-thinking"
-            value={currentThinkingKey(settings)}
+          <DropdownSelect
+            triggerClassName="ui-topbar-thinking"
+            value={currentThinkingKey(settings, thinkingOptions)}
             title={t("topbar.thinkingModel")}
-            onChange={(e) => {
-              const opt = thinkingOptions.find((o) => o.key === e.target.value) ?? thinkingOptions[0]!;
-              onSetModel({
-                model: settings.model,
+            options={thinkingOptions.map((o): DropdownOption => ({ value: o.key, label: t(o.labelKey) }))}
+            onSelect={(key) => {
+              const opt = thinkingOptions.find((o) => o.key === key) ?? thinkingOptions[0]!;
+              const selection = {
                 thinkingEnabled: opt.thinkingEnabled,
                 reasoningEffort: opt.reasoningEffort ?? settings.reasoningEffort,
-              });
+              };
+              // Hot path: settings-only patch, no model-switch bookkeeping.
+              if (onSetThinking) onSetThinking(selection);
+              else onSetModel({ model: settings.model, ...selection });
             }}
-          >
-            {thinkingOptions.map((o) => (
-              <option key={o.key} value={o.key}>
-                {t(o.labelKey)}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
       ) : null}
 
@@ -346,8 +377,14 @@ export const TopBar = memo(function TopBar({
         {activeTokens > 0 && settings ? (
           <span className="ui-topbar-token-bar">
             <span
-              className={`ui-topbar-token-bar-fill${activeTokens / compactTokenThreshold(settings.model) >= 0.8 ? " near" : ""}`}
-              style={{ width: `${Math.min(100, (activeTokens / compactTokenThreshold(settings.model)) * 100)}%` }}
+              className={`ui-topbar-token-bar-fill${
+                activeTokens / compactTokenThreshold(settings.model, settings.compactTokenThreshold) >= 0.8
+                  ? " near"
+                  : ""
+              }`}
+              style={{
+                width: `${Math.min(100, (activeTokens / compactTokenThreshold(settings.model, settings.compactTokenThreshold)) * 100)}%`,
+              }}
             />
           </span>
         ) : null}
@@ -362,6 +399,8 @@ export const TopBar = memo(function TopBar({
           {t("topbar.noApiKey")}
         </Pill>
       ) : null}
+
+      {actions}
 
       {isMac ? null : winControls}
     </div>

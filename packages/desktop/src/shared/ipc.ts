@@ -24,6 +24,9 @@ import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "
 import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
+/** Thinking-mode-only hot update (no model change, no session system message). */
+export type ThinkingModeSelection = Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">;
+
 export const IpcRequest = {
   Ready: "app:ready",
   PickFolder: "app:pickFolder",
@@ -57,6 +60,8 @@ export const IpcRequest = {
   WorkspaceTrustGet: "workspace:getTrust",
   WorkspaceTrustSet: "workspace:setTrust",
   ModelSet: "model:set",
+  ThinkingModeSet: "thinkingMode:set",
+  SessionLocaleSet: "sessionLocale:set",
 
   McpStatus: "mcp:status",
   McpReconnect: "mcp:reconnect",
@@ -149,6 +154,13 @@ export const IpcRequest = {
 
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
+  MemoryRoutingStatus: "memoryRouting:status",
+  KnowledgeReadArchmap: "knowledge:readArchmap",
+  KnowledgeBuild: "knowledge:build",
+  KnowledgeBuildStatus: "knowledge:buildStatus",
+  KnowledgeReadAgents: "knowledge:readAgents",
+  KnowledgeListSymbols: "knowledge:listSymbols",
+  KnowledgeSymbolGraph: "knowledge:symbolGraph",
 
   // Designer — design artifact management (PM-Design + UI-Design)
   DesignList: "design:list",
@@ -162,6 +174,7 @@ export const IpcRequest = {
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
   TaskTreeReflog: "tasktree:reflog",
+  TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
   TaskTreeUnarchive: "tasktree:unarchive",
   TaskTreeSnapshotRestore: "tasktree:snapshotRestore",
@@ -204,6 +217,8 @@ export const IpcEvent = {
   ActionProgress: "event:actionProgress",
   /** Sandbox backend selection outcome per session (degradation is never silent). */
   SandboxStatusChanged: "event:sandboxStatusChanged",
+  /** design-store artifact saved/deleted (payload: { root }) — panels refresh live. */
+  DesignChanged: "event:designChanged",
 } as const;
 
 /** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
@@ -263,6 +278,20 @@ export type WikiPageEntry = {
   path: string;
   /** Display title derived from filename or first heading. */
   title: string;
+  /** Last modified time (ISO) — freshness label. */
+  mtime?: string;
+  /**
+   * Backend bilingual translation sibling (`<page>.<lang>.md`), present when
+   * the wiki.translate build stage produced one. The reader offers a
+   * 原文/译文 toggle when this exists.
+   */
+  translation?: {
+    /** Language of the TRANSLATION (the other of zh/en). */
+    lang: "zh" | "en";
+    /** Relative path of the variant file within openwiki/. */
+    path: string;
+    mtime?: string;
+  };
 };
 
 /** Payload for the CodegraphProgress event (streamed indexing output). */
@@ -433,7 +462,21 @@ export type GitmcpAddResult = {
   error?: "invalid" | "exists";
 };
 
-/** Resolved settings summary surfaced to the renderer (never leaks the API key). */
+/**
+ * Memory-pipeline LLM consumption (Phase 2, specs/memory-remediation).
+ * Structurally mirrors @deeporca/memory's MemoryUsageStats — kept inline so
+ * this contract file stays dependency-free.
+ */
+export type MemoryUsageSnapshot = {
+  /** Total LLM run() invocations (successful + failed). */
+  calls: number;
+  failedCalls: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  byLayer: Record<"l1" | "l2" | "l3" | "other", { calls: number; totalTokens: number }>;
+};
+
 /** L0-L3 memory pipeline counts for the knowledge dashboard. */
 export type MemoryPipelineStats = {
   /** L0 — raw conversation files. */
@@ -444,6 +487,8 @@ export type MemoryPipelineStats = {
   l2: number;
   /** L3 — whether the user persona has been generated. */
   l3: boolean;
+  /** Secondary-model consumption of this process (undefined pre-Phase-2 hosts). */
+  usage?: MemoryUsageSnapshot;
 };
 
 /** Status of a single knowledge source in the dashboard. */
@@ -461,21 +506,135 @@ export type KnowledgeSourceStatus = {
 };
 
 /** Aggregated status of every knowledge source. */
+/** One indexed symbol (R2-4): row in the symbols sub-tab. */
+export type KnowledgeSymbol = {
+  name: string;
+  kind: string;
+  filePath: string;
+  startLine: number;
+  signature?: string;
+};
+
+/** Display-only symbol graph (R3-6): nodes + relationships for human
+ * viewing in the knowledge tab. Read straight from the CodeGraph index —
+ * the MCP/agent-facing CodeGraph tools are untouched. */
+export type KnowledgeSymbolGraphNode = {
+  id: string;
+  name: string;
+  kind: string;
+  filePath: string;
+  /** "focus" (query match / hub), "caller" (edge into focus), "callee" (edge out). */
+  role: "focus" | "caller" | "callee";
+};
+
+export type KnowledgeSymbolGraphEdge = {
+  source: string;
+  target: string;
+  kind: "calls" | "references" | "instantiates" | "implements";
+};
+
+export type KnowledgeSymbolGraph = {
+  nodes: KnowledgeSymbolGraphNode[];
+  edges: KnowledgeSymbolGraphEdge[];
+  truncated: boolean;
+};
+
+/** One agent operation extracted from a task's bound sessions (task-record
+ * view): tool name, ok, first-line param summary, touched files.
+ * Deliberately NOT conversation content — only the operational trace. */
+export type TaskTrajectoryOp = {
+  at: string;
+  tool: string;
+  ok: boolean;
+  summary?: string;
+  files?: string[];
+};
+
+export type TaskTrajectory = {
+  operations: TaskTrajectoryOp[];
+  toolCounts: Record<string, number>;
+  filesTouched: string[];
+  sessionCount: number;
+};
+
+/** One pipeline stage inside a build job (symbol → wiki → arch map → translate). */
+export type KnowledgeBuildStageState = {
+  /** Stable id: "codegraph" | "wiki" | "arch-scan" | "wiki-translate" (echoed by the action). */
+  id: string;
+  /** i18n label key index ("codegraph" | "wiki" | "arch" | "wiki-translate"). */
+  labelKey: "codegraph" | "wiki" | "arch" | "wiki-translate";
+  status: "pending" | "running" | "done" | "failed" | "skipped";
+  /** Last progress detail for this stage (live console line). */
+  detail?: string;
+  error?: string;
+  startedAt?: string;
+  endedAt?: string;
+};
+
+/** Main-process build job snapshot (R2-1) — rows render from these.
+ * R3-5: carries structured per-stage state and a console log ring buffer so
+ * the UI can show exactly WHERE a build is (the wiki stage has no progress
+ * stream and used to freeze the percent at 36% for minutes). */
+export type KnowledgeBuildJobSnapshot = {
+  root: string;
+  mode: "init" | "update";
+  stage: string;
+  percent: number | null;
+  error: string | null;
+  startedAt: string;
+  /** Last activity (any progress line) — powers elapsed/liveness display. */
+  updatedAt: string;
+  running: boolean;
+  stages: KnowledgeBuildStageState[];
+  /** Console lines ("[HH:MM:SS] message", newest last); capped ring buffer. */
+  logs: string[];
+};
+
+/**
+ * Persisted architecture-map artifacts under `.deeporca/prototypes/`:
+ * - legacy A2UI surface JSON (`arch-*.json`)
+ * - Mermaid diagram documents (`arch-*.md`) — the current arch-scan output
+ *   format (diagram-first; the A2UI variant rendered as a flat document).
+ */
+export type KnowledgeArchmapSurface = {
+  surfaceId: string;
+  title: string;
+  dataModel?: Record<string, unknown>;
+  components?: unknown[];
+  messages?: unknown[];
+};
+
+/** KnowledgeReadArchmap response: exactly one of surface (JSON) / markdown (md) / html (board). */
+export type KnowledgeArchmapContent =
+  | { ok: true; surface: KnowledgeArchmapSurface; markdown?: undefined; html?: undefined }
+  | { ok: true; surface?: undefined; markdown: string; html?: undefined }
+  | { ok: true; surface?: undefined; markdown?: undefined; html: string }
+  | { ok: false; error: string };
+
+/**
+ * Per-workspace knowledge assets (specs/index-knowledge-rework): UI-facing
+ * keys are neutral (openwiki → "Wiki"); memory/routing moved out of this
+ * module. archmaps counts architecture-map artifacts.
+ */
 export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
-  serena: KnowledgeSourceStatus;
   agents: KnowledgeSourceStatus;
+  archmaps: KnowledgeSourceStatus & { files?: Array<{ name: string; path: string; mtime: string }> };
+};
+
+/** Legacy shape kept for the memory/routing observability surfaces. */
+export type MemoryRoutingStatus = {
   memory: KnowledgeSourceStatus & { stats?: MemoryPipelineStats };
-  /** Semantic routing (skill/tool recall) — R4 observability card. */
   routing: KnowledgeSourceStatus;
+  serena: KnowledgeSourceStatus;
 };
 
 // ── Task trajectory (specs/task-tree P0) ─────────────────────────────────────
 export type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 
 /** Designer artifact pipeline: openui = PM-Design prototype, design = UI-Design .dd document. */
-export type DesignPipeline = "openui" | "design";
+export type DesignPipeline = "openui" | "design" | "spec";
 
 /** A stored design artifact's metadata (index entry). */
 export type DesignArtifactMeta = {
@@ -508,6 +667,7 @@ export type SandboxStatusEvent = {
   detail: string;
 };
 
+/** Resolved settings summary surfaced to the renderer (never leaks the API key). */
 export type SettingsSummary = {
   model: string;
   baseURL: string;
@@ -523,6 +683,8 @@ export type SettingsSummary = {
   visionModel: string;
   visionEndpointId: string;
   workspaceTrust: WorkspaceTrustLevel;
+  /** User override for the compaction trigger (tokens); undefined = model-family default. */
+  compactTokenThreshold?: number;
 };
 
 /** A per-scope permission decision as edited in the GUI. */
@@ -554,6 +716,8 @@ export type EditableSettings = {
   model: string;
   /** Empty string means "unset". */
   temperature: string;
+  /** Compaction trigger override in tokens, as edited ("" = unset → family default). */
+  compactTokenThreshold: string;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
@@ -573,7 +737,15 @@ export type EditableSettings = {
   /** Which endpoint the vision model uses. */
   visionEndpointId: string;
   /** Memory system settings (TencentDB-Agent-Memory sidecar). */
-  memory: { enabled: boolean; port: number; embedding: "none" | "local-onnx" };
+  memory: {
+    enabled: boolean;
+    port: number;
+    embedding: "none" | "local-onnx";
+    /** Days to retain memory shards (0 = never clean). Phase 4 / T4.2. */
+    retentionDays: number;
+    /** Conversations per L1 extraction batch. Phase 4 / T4.5. */
+    everyNConversations: number;
+  };
 };
 
 export type ProcessStdoutEvent = { pid: number; chunk: string };
@@ -646,6 +818,10 @@ export type DesktopApi = {
   getEditableSettings(): Promise<EditableSettings>;
   updateSettings(patch: EditableSettings): Promise<{ summary: SettingsSummary; editable: EditableSettings }>;
   setModel(selection: ModelConfigSelection): Promise<SettingsSummary>;
+  /** Hot-swap thinking mode — patches settings only, no model-switch bookkeeping. */
+  setThinkingMode(selection: ThinkingModeSelection): Promise<SettingsSummary>;
+  /** Sync the session-prompt catalog locale (core side, zh/en). */
+  setSessionLocale(locale: string): void;
 
   mcpStatus(): Promise<McpServerStatus[]>;
   mcpReconnect(name: string): Promise<void>;
@@ -765,7 +941,7 @@ export type DesktopApi = {
   /** Incrementally update the project wiki (openwiki --update). */
   wikiUpdate(): Promise<{ ok: boolean; error?: string }>;
   /** List all wiki pages in the project's openwiki/ directory. */
-  wikiListPages(): Promise<WikiPageEntry[]>;
+  wikiListPages(root?: string): Promise<WikiPageEntry[]>;
   /** Read the markdown content of a wiki page. */
   wikiReadPage(path: string): Promise<string>;
   /** Subscribe to streaming wiki generation output. Returns unsubscribe fn. */
@@ -809,7 +985,22 @@ export type DesktopApi = {
 
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
-  knowledgeStatus(): Promise<KnowledgeStatusResponse>;
+  knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
+  /** Enumerate a workspace's wiki pages (name/path/mtime). */
+  /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`), Mermaid document (`.md`), or HTML board (`.html`). */
+  knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;
+  /** Start (or return the in-flight) background build for a root — idempotent. */
+  knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
+  /** Live snapshots of all build jobs (rows render from this). */
+  knowledgeBuildStatus(): Promise<KnowledgeBuildJobSnapshot[]>;
+  /** Read a workspace's AGENTS.md (root-scoped) for in-place rendering. */
+  knowledgeReadAgents(root: string): Promise<{ ok: true; content: string } | { ok: false; error: string }>;
+  /** Search a workspace's symbol index (kind/name/file/line), query optional. */
+  knowledgeListSymbols(root: string, query?: string): Promise<Array<KnowledgeSymbol>>;
+  /** Display-only symbol relationship graph (callers/callees around a focus). */
+  knowledgeSymbolGraph(root: string, query?: string): Promise<KnowledgeSymbolGraph>;
+  /** Memory/routing observability (moved out of the knowledge module, T4). */
+  memoryRoutingStatus(): Promise<MemoryRoutingStatus>;
 
   // ── Designer (design artifacts) ────────────────────────────────────────
   /** List all design artifacts (PM-Design prototypes + UI-Design documents). */
@@ -833,11 +1024,14 @@ export type DesktopApi = {
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
   /** List task trees (id, title, active branch, counts). */
-  taskTreeList(): Promise<TaskTreeSummary[]>;
+  /** Task trees of a workspace (defaults to the ACTIVE workspace). */
+  taskTreeList(workspaceRoot?: string): Promise<TaskTreeSummary[]>;
   /** Read one tree (index + all nodes) for the panel view. */
-  taskTreeGet(treeId: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
+  taskTreeGet(treeId: string, workspaceRoot?: string): Promise<{ index: TaskTreeIndex; nodes: TaskNode[] } | null>;
   /** Read the tree's append-only operation journal (newest last). */
-  taskTreeReflog(treeId: string): Promise<TaskReflogEntry[]>;
+  taskTreeReflog(treeId: string, workspaceRoot?: string): Promise<TaskReflogEntry[]>;
+  /** Operation trajectory extracted from the task's bound sessions. */
+  taskTreeTrajectory(treeId: string, workspaceRoot?: string): Promise<TaskTrajectory | null>;
   /**
    * Archive a whole tree (never a delete — files/reflog stay). Falls back to
    * the current workspace when `workspaceRoot` is omitted.
@@ -860,16 +1054,18 @@ export type DesktopApi = {
   taskTreeFork(
     treeId: string,
     why: string,
-    opts?: { name?: string; fromBranch?: string }
+    opts?: { name?: string; fromBranch?: string },
+    workspaceRoot?: string
   ): Promise<{ nodeId: string; branch: string } | { error: string }>;
   /** Switch the tree's active branch. */
-  taskTreeSwitch(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  taskTreeSwitch(treeId: string, branch: string, workspaceRoot?: string): Promise<{ ok: boolean; error?: string }>;
   /** Abandon a non-active branch. */
-  taskTreeAbandon(treeId: string, branch: string): Promise<{ ok: boolean; error?: string }>;
+  taskTreeAbandon(treeId: string, branch: string, workspaceRoot?: string): Promise<{ ok: boolean; error?: string }>;
   /** Merge a whole branch (all its lineage-unique nodes) onto the active branch. */
   taskTreeMerge(
     treeId: string,
-    srcBranch: string
+    srcBranch: string,
+    workspaceRoot?: string
   ): Promise<
     | { ok: true; mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> }
     | { ok: false; error: string }
@@ -895,6 +1091,8 @@ export type DesktopApi = {
   actionRun(id: string, input?: unknown): Promise<ActionRunResult>;
   /** Subscribe to the unified action progress stream. Returns unsubscribe fn. */
   onActionProgress(cb: (event: ActionProgressEvent) => void): () => void;
+  /** Design artifacts changed (a2ui tool saved mid-run / deleted) — live refresh. */
+  onDesignChanged(cb: (event: { root: string }) => void): () => void;
   /** Subscribe to the initial payload sent to a popout prototype window. */
   onA2uiWindowPayload(cb: (event: A2uiWindowPayloadEvent) => void): () => void;
   /** Pull the initial prototype-window payload by token (race-free handshake,

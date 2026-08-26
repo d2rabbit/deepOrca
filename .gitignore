@@ -57,3 +57,9 @@ packages/desktop/vendor/
 
 # Local security-tool scratch (not sources)
 .mimosa/
+
+# Generated workspace knowledge artifacts — the wiki pages and arch-map
+# surfaces ARE committed (R3-8: they are reviewable products of the index
+# build); only the binary CodeGraph DB (.codegraph/, has its own inner
+# .gitignore) stays untracked.
+

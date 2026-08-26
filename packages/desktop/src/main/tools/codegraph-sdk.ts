@@ -19,14 +19,35 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { CodegraphController, ControllerProgress } from "@deeporca/core";
 
-const { CodeGraph } = codegraphModule;
 type CodeGraphInstance = codegraphModule.CodeGraph;
+
+/**
+ * Resolve the SDK class robustly (audit 2026-08-26 build failure:
+ * "Cannot read properties of undefined (reading 'init')"). Because npm-sdk.js
+ * is a DYNAMIC CJS re-export, esbuild's ESM namespace exposes ONLY `default`
+ * — a plain destructure yields `undefined`, the codegraph stage then threw
+ * before doing any work (which also made an existing index look like it
+ * rebuilt in 0s). Unwrap default-first, and fail with an actionable message
+ * instead of a cryptic TypeError when the bundle is genuinely missing.
+ */
+function resolveCodeGraphSdk(): typeof codegraphModule.CodeGraph {
+  const mod = codegraphModule as unknown as { CodeGraph?: unknown; default?: { CodeGraph?: unknown } };
+  const candidate = (mod.CodeGraph ?? mod.default?.CodeGraph) as typeof codegraphModule.CodeGraph | undefined;
+  if (!candidate || typeof candidate.init !== "function") {
+    throw new Error(
+      "CodeGraph SDK failed to load — interop/install problem. Ensure `@colbymchenry/codegraph` and its " +
+        "platform bundle (`@colbymchenry/codegraph-<platform>-<arch>`) are installed."
+    );
+  }
+  return candidate;
+}
 
 export class SdkCodegraphController implements CodegraphController {
   /** Per-project-root CodeGraph instances (session is single-project). */
   private instances = new Map<string, CodeGraphInstance>();
 
   private async getOrOpen(root: string): Promise<CodeGraphInstance> {
+    const CodeGraph = resolveCodeGraphSdk();
     let cg = this.instances.get(root);
     if (!cg) {
       cg = await CodeGraph.open(root, { sync: true });
@@ -36,6 +57,7 @@ export class SdkCodegraphController implements CodegraphController {
   }
 
   async reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void> {
+    const CodeGraph = resolveCodeGraphSdk();
     onProgress?.({ message: "clearing existing index", percent: 5 });
     // Destroy old instance if any, then init fresh.
     const old = this.instances.get(root);

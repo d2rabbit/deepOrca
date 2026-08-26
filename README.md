@@ -47,7 +47,7 @@
 
 DeepOrca 起源于 [Deep Code](https://github.com/lessweb/deepcode-cli)（`@vegamo/deepcode`）的 fork，现已发展为独立项目。我们保留了 Deep Code 优秀的核心引擎架构（LLM 会话循环、内置工具、Skills/MCP 扩展、权限控制），并在此基础上增加桌面 GUI、Actions 能力层、本地记忆与嵌入、内置扩展、GitMCP、Monaco Editor 等能力，同时移除了终端 CLI 与 VSCode 插件形态。
 
-Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留其原始版权声明（见 [LICENSE](LICENSE)），并在此向原作者致谢。
+Deep Code 基于 MIT 协议开源，本项目依照协议要求完整保留其原始版权声明（见 [NOTICE](NOTICE)），并在此向原作者致谢。
 
 此外，DeepOrca 的 LLM 会话稳健性层（usage/cache 互斥折算、溢出自动压缩重试、流 idle 看门狗）在设计上借鉴了 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness)（MIT License）——纯设计吸收，不包含其代码，详见 [CHANGELOG 致谢](CHANGELOG.md#致谢--acknowledgements)。感谢 DeepSeek 团队的开源设计。
 
@@ -109,13 +109,15 @@ const output = await run.result;
 
 ### 🎨 桌面客户端亮点
 
+- **现代化画布布局** — 浮动功能岛屿 + 圆角工作卡片 + 胶囊任务页签，告别 IDE 窗格拼接感；6 套主题（Aqua / Metro / Glass / Fusion / Line / Orca）× 亮暗双外观
+- **知识中心** — 架构图在点阵画布上多彩铺展（8 色节点环 + 子图虚线框，适配宽度可放大），Wiki 文档站排版，符号关系图三列色卡可下钻
+- **模块流程闭环** — 知识构建完成在对话中出现「查看 / 引用」建议条；Wiki 页面一键引用到对话；审查发现可「在对话中追问」或「一键修复」；原型预览内直接迭代
 - **Monaco Editor 集成** — 专业代码编辑器，支持语法高亮、智能提示
 - **Actions 面板** — 浏览已注册能力、运行无参数 Action、查看统一进度和结构化结果
 - **GitMCP 面板** — 管理 GitHub 仓库索引，语义搜索文档和代码
 - **代码审查面板** — 一键审查未提交的工作区变更；OCR 生成结构化意见，CRG 图谱可用时补充结构风险
 - **代码索引面板** — 编排 CodeGraph、OpenWiki 与 arch-scan，并展示阶段进度
 - **源码管理面板** — Git 操作（stage/commit/diff/branch）
-- **多主题系统** — Aqua 原生 / Glass Prism 玻璃拟态 / Punk 2077 赛博朋克
 - **6 语言国际化** — en / zh / ja / ko / zh-HK / zh-TW
 
 ### 🧠 本地向量嵌入 + 语义路由
@@ -136,7 +138,9 @@ const output = await run.result;
 | 2. Wiki   | **OpenWiki**  | 文档级 | 项目文档说了什么？               |
 | 3. 架构图 | **arch-scan** | 架构级 | 整体架构长什么样？数据怎么流动？ |
 
-首次构建执行三个阶段；后续“全部更新”只刷新 CodeGraph 与 OpenWiki。每个阶段独立返回成功、跳过或错误状态，单阶段失败不会抹掉其他阶段的结果。`arch-scan` 使用 12 视角目录与递归下钻方法，并通过 A2UI 渲染可嵌套组件树。
+首次构建执行三个阶段；后续“全部更新”只刷新 CodeGraph 与 OpenWiki。每个阶段独立返回成功、跳过或错误状态，单阶段失败不会抹掉其他阶段的结果。`arch-scan` 使用 12 视角目录与递归下钻方法。
+
+**构建之后，知识与对话是连通的**：构建成功时输入框上方弹出「Wiki 已更新 · N 页」建议条（查看 / 引用到对话）；知识中心里任何 Wiki 页面可一键 `@` 引用进提问；符号关系图三列色卡（调用方 / 焦点 / 被调用）点击即下钻。端到端工作流见 [开发者使用案例](docs/use-cases.md)。
 
 ### 🚀 为 DeepSeek 优化
 
@@ -167,9 +171,9 @@ const output = await run.result;
 | 源码管理      | Git 面板（stage/commit/diff/branch）              | ✅   |
 | 权限控制      | 内置工具细粒度 scope 策略                         | ✅   |
 | 会话持久化    | 跨会话恢复、归档、导出                            | ✅   |
-| 联网搜索      | 内置 WebSearch 工具（第一方自研，DDG 免密钥默认）  | ✅   |
-| 网页访问      | 内置 WebFetch 工具（无头渲染 + 静态兑底）          | ✅   |
-| 隐私          | 零遥测零机器标识；查询仅发往所选搜索引擎           | ✅   |
+| 联网搜索      | 内置 WebSearch 工具（第一方自研，DDG 免密钥默认） | ✅   |
+| 网页访问      | 内置 WebFetch 工具（无头渲染 + 静态兑底）         | ✅   |
+| 隐私          | 零遥测零机器标识；查询仅发往所选搜索引擎          | ✅   |
 | 多模态        | 图片粘贴/拖拽输入                                 | ✅   |
 
 > 🧪 Actions 的核心注册、LLM/IPC 接入和桌面浏览器已可用；更多调用面与权限集成仍在迭代。
@@ -248,6 +252,7 @@ npm run desktop:start
 | -------------------------------------------------------------------- | ----------------------------------- |
 | [CHANGELOG.md](CHANGELOG.md)                                         | 更新日志                            |
 | [docs/quickstart.md](docs/quickstart.md)                             | 快速上手                            |
+| [docs/use-cases.md](docs/use-cases.md)                               | 开发者使用案例（端到端工作流）      |
 | [docs/architecture.md](docs/architecture.md)                         | 架构设计和核心流程                  |
 | [docs/configuration.md](docs/configuration.md)                       | 配置文件详解                        |
 | [docs/mcp.md](docs/mcp.md)                                           | MCP 服务器配置指南                  |
@@ -302,34 +307,35 @@ node packages/desktop/src/tests/run-tests.mjs packages/desktop/src/tests/action-
 
 DeepOrca 站在这些开源项目的肩膀上。完整清单（含随安装包分发的组件声明与协议全文）见构建时生成的 `packages/desktop/vendor/ThirdPartyNotices.txt`（由 [scripts/vendor-notice.js](scripts/vendor-notice.js) 维护）；全依赖树的协议合规由 `npm run license:check`（[scripts/check-licenses.js](scripts/check-licenses.js)）在 `npm run check` 中强制把关。
 
-| 项目 | 用途 | 协议 |
-| --- | --- | --- |
-| [Deep Code](https://github.com/lessweb/deepcode-cli) | 本项目上游来源 | MIT |
-| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | LLM 会话稳健性层设计参考（未使用其代码） | MIT |
-| [TencentDB Agent Memory (TDAI Core)](https://github.com/TencentCloud/TencentDB-Agent-Memory) | L0–L3 记忆管线（完整 fork 于 `packages/memory/src/tdai/`，见该目录 NOTICE.md） | MIT |
-| [Electron](https://github.com/electron/electron) | 桌面客户端运行时 | MIT |
-| [Monaco Editor](https://github.com/microsoft/monaco-editor) | 代码编辑器 | MIT |
-| [OpenAI Node SDK](https://github.com/openai/openai-node) | LLM API 客户端 | Apache-2.0 |
-| [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk) | MCP 工具扩展协议 | MIT |
-| [transformers.js](https://github.com/huggingface/transformers.js) + [ONNX Runtime](https://github.com/microsoft/onnxruntime) | 本地嵌入推理 | Apache-2.0 / MIT |
-| [IBM Granite Embedding 97M R2](https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2) | 语义路由嵌入模型权重 | Apache-2.0 |
-| [CodeGraph](https://github.com/colbymchenry/codegraph) · [OpenWiki](https://github.com/langchain-ai/openwiki) · [CRG](https://github.com/tirth8205/code-review-graph) · [Serena](https://github.com/oraios/serena) · [SkillSpector](https://github.com/NVIDIA/SkillSpector) · [BrowserSkill](https://github.com/Tencent/BrowserSkill) · [uv](https://github.com/astral-sh/uv) · [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) · [Bento](https://github.com/nyblnet/bento) | 随产品 vendored 的能力组件 | MIT / Apache-2.0（Bento 内嵌字体为 SIL OFL 1.1） |
-| [sharp](https://github.com/lovell/sharp) + [libvips](https://github.com/libvips/libvips) | transformers.js 的图像处理（本项目仅使用文本嵌入） | Apache-2.0 / **LGPL-3.0-or-later** |
+| 项目                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 用途                                                                           | 协议                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------ |
+| [Deep Code](https://github.com/lessweb/deepcode-cli)                                                                                                                                                                                                                                                                                                                                                                                                                                    | 本项目上游来源                                                                 | MIT                                              |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)                                                                                                                                                                                                                                                                                                                                                                                                                     | LLM 会话稳健性层设计参考（未使用其代码）                                       | MIT                                              |
+| [TencentDB Agent Memory (TDAI Core)](https://github.com/TencentCloud/TencentDB-Agent-Memory)                                                                                                                                                                                                                                                                                                                                                                                            | L0–L3 记忆管线（完整 fork 于 `packages/memory/src/tdai/`，见该目录 NOTICE.md） | MIT                                              |
+| [Electron](https://github.com/electron/electron)                                                                                                                                                                                                                                                                                                                                                                                                                                        | 桌面客户端运行时                                                               | MIT                                              |
+| [Monaco Editor](https://github.com/microsoft/monaco-editor)                                                                                                                                                                                                                                                                                                                                                                                                                             | 代码编辑器                                                                     | MIT                                              |
+| [OpenAI Node SDK](https://github.com/openai/openai-node)                                                                                                                                                                                                                                                                                                                                                                                                                                | LLM API 客户端                                                                 | Apache-2.0                                       |
+| [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk)                                                                                                                                                                                                                                                                                                                                                                                                    | MCP 工具扩展协议                                                               | MIT                                              |
+| [transformers.js](https://github.com/huggingface/transformers.js) + [ONNX Runtime](https://github.com/microsoft/onnxruntime)                                                                                                                                                                                                                                                                                                                                                            | 本地嵌入推理                                                                   | Apache-2.0 / MIT                                 |
+| [IBM Granite Embedding 97M R2](https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2)                                                                                                                                                                                                                                                                                                                                                                                | 语义路由嵌入模型权重                                                           | Apache-2.0                                       |
+| [CodeGraph](https://github.com/colbymchenry/codegraph) · [OpenWiki](https://github.com/langchain-ai/openwiki) · [CRG](https://github.com/tirth8205/code-review-graph) · [Serena](https://github.com/oraios/serena) · [SkillSpector](https://github.com/NVIDIA/SkillSpector) · [BrowserSkill](https://github.com/Tencent/BrowserSkill) · [uv](https://github.com/astral-sh/uv) · [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) · [Bento](https://github.com/nyblnet/bento) | 随产品 vendored 的能力组件                                                     | MIT / Apache-2.0（Bento 内嵌字体为 SIL OFL 1.1） |
+| [sharp](https://github.com/lovell/sharp) + [libvips](https://github.com/libvips/libvips)                                                                                                                                                                                                                                                                                                                                                                                                | transformers.js 的图像处理（本项目仅使用文本嵌入）                             | Apache-2.0 / **LGPL-3.0-or-later**               |
 
-**关于 libvips（LGPL-3.0）的说明**：libvips 是 sharp 动态加载的独立预编译原生库，随安装包**原样分发、可被用户替换**（未修改、动态链接、未启用 asar），因此不对 DeepOrca 产生 copyleft 传染，本项目可继续以 MIT 分发并用于商业用途。我们按 LGPL-3.0 要求在 `ThirdPartyNotices.txt` 中附带其声明、LGPL-3.0 与 GPL-3.0 协议全文及源码获取方式。
+**关于 libvips（LGPL-3.0）的说明**：libvips 是 sharp 动态加载的独立预编译原生库，随安装包**原样分发、可被用户替换**（未修改、动态链接、未启用 asar），因此不对 DeepOrca 产生 copyleft 传染，本项目可继续以 MPL-2.0 分发并用于商业用途。我们按 LGPL-3.0 要求在 `ThirdPartyNotices.txt` 中附带其声明、LGPL-3.0 与 GPL-3.0 协议全文及源码获取方式。
 
-除上表外，全部 npm 依赖均为 MIT/ISC/BSD/Apache-2.0 等宽松协议；无 GPL/AGPL/SSPL/Commons Clause/BUSL 等传染性或商业限制协议。
+除上表外，全部 npm 依赖均为 MIT/ISC/BSD/Apache-2.0 等宽松协议；无 GPL/AGPL/SSPL/Commons Clause/BUSL 等传染性或商业限制协议（由 `scripts/check-licenses.js` 门禁持续保证）。
 
 ---
 
 ## 📄 开源协议
 
-本项目采用 [MIT License](LICENSE) 开源。
+本项目采用 [Mozilla Public License 2.0](LICENSE)（MPL-2.0）开源。
 
-- DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License）。
+- **MPL-2.0 是文件级弱 copyleft**：任何人（含商业公司）可以自由使用、修改、分发、并将 DeepOrca 与自己的闭源代码组合成更大的作品；唯一的要求是——对 DeepOrca 自身源码文件的修改，再分发时必须以 MPL-2.0 公开这些修改后的文件。
+- 第三方成分不受影响：`packages/memory/src/tdai/`（TDAI Core fork）保持 MIT；vendored 能力组件保持各自上游协议（见 `ThirdPartyNotices.txt`）；范围划分详见 [NOTICE](NOTICE)。
+- **上游继承说明**：DeepOrca 源自 [Deep Code](https://github.com/lessweb/deepcode-cli)（Copyright (c) 2026 lessweb，MIT License）。经成分核查（见 [NOTICE](NOTICE)），`packages/core` 引擎中约 2000 行实质代码继承自上游（会话循环、read/edit/bash/write 等工具 handler、prompt/settings 等），其余全部为本项目自研。对继承部分，接收方可自行选择依 MIT（原始声明已在 NOTICE 逐字保留，上游仓库为 MIT 正源）或依 MPL-2.0 使用；MPL-2.0 的文件级 copyleft 完整作用于本项目自研与修改的全部代码。
 - LLM 会话稳健性层的设计借鉴自 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（deepseek-ai，MIT License）——仅设计参考，未使用其代码。
-- 根据 MIT 协议条款，本仓库完整保留原始版权声明与许可声明；使用、修改或分发本项目（及其实质部分）时，也需保留 [LICENSE](LICENSE) 中的版权声明与许可声明。
-- 软件按“原样”提供，不附带任何形式的担保，详见协议全文。
+- 软件按"原样"提供，不附带任何形式的担保，详见协议全文。
 
 ---
 

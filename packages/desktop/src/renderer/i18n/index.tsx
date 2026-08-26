@@ -2,7 +2,7 @@
 // locale (persisted to localStorage, auto-detected on first run) and exposes a
 // `t(key, params)` helper with `{name}` placeholder interpolation.
 
-import { createContext, useCallback, useContext, useMemo, useState, type JSX, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useEffect, useState, type JSX, type ReactNode } from "react";
 import { messages, type Locale, type MessageKey } from "./messages";
 
 type TranslateParams = Record<string, string | number>;
@@ -57,6 +57,12 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 export function I18nProvider({ children }: { children: ReactNode }): JSX.Element {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
 
+  // Sync the persisted locale into the core session-prompt catalog once on
+  // mount (main process cannot read renderer localStorage).
+  useEffect(() => {
+    void window.deeporca?.setSessionLocale?.(locale);
+  }, [locale]);
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
     try {
@@ -64,6 +70,8 @@ export function I18nProvider({ children }: { children: ReactNode }): JSX.Element
     } catch {
       // Persisting is best-effort.
     }
+    // Keep the core session-prompt catalog (zh/en) in sync with the UI locale.
+    void window.deeporca?.setSessionLocale?.(next);
   }, []);
 
   const t = useCallback<Translate>(

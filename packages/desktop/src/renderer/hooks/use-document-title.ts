@@ -10,11 +10,11 @@ export function useDocumentTitle(busy: boolean, activeStatus: string | null): vo
   useEffect(() => {
     const base = "DeepOrca";
     if (busy) {
-      document.title = `⚡ ${base}`;
+      document.title = `[busy] ${base}`;
     } else if (activeStatus === "ask_permission" || activeStatus === "waiting_for_user") {
-      document.title = `⚠️ ${base}`;
+      document.title = `[warn] ${base}`;
     } else if (activeStatus === "error") {
-      document.title = `✖ ${base}`;
+      document.title = `[done] ${base}`;
     } else {
       document.title = base;
     }

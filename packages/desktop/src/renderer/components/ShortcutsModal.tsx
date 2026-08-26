@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { useEffect, type JSX } from "react";
 import { useI18n } from "../i18n";
 
 type Props = {
@@ -16,6 +16,16 @@ type ShortcutEntry = { keys: string; desc: string };
 export function ShortcutsModal({ platform, onClose }: Props): JSX.Element {
   const { t } = useI18n();
   const mod = platform === "darwin" ? "⌘" : "Ctrl";
+
+  // The reference itself advertises "Esc — close overlay"; the modal must
+  // actually honor it (overlay click and ✕ were the only ways out).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const global: ShortcutEntry[] = [
     { keys: `${mod}+K`, desc: t("shortcuts.commandPalette") },

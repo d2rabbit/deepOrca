@@ -59,6 +59,25 @@ test(
   }
 );
 
+test("WebSearch activity label strips bidi/zero-width characters (taint hardening)", async () => {
+  const workspace = createTempWorkspace();
+  globalThis.fetch = (async () => new Response("", { status: 200 })) as typeof fetch;
+  try {
+    const labels: string[] = [];
+    const result = await handleWebSearchTool(
+      // U+202E (RTL override) + U+200B (zero-width space): invisible label-spoofing vectors.
+      { query: "node\u202e release \u200bnotes" },
+      createContext(workspace, { onProcessStart: (_id, command) => labels.push(command) })
+    );
+    assert.equal(result.ok, true);
+    assert.equal(labels.length, 1);
+    assert.ok(!/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/.test(labels[0]!));
+    assert.equal(labels[0], "WebSearch: node release notes");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("WebSearch without a script uses the built-in first-party provider (query-only, no identifiers)", async () => {
   const workspace = createTempWorkspace();
   const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];

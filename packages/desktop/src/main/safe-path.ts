@@ -134,3 +134,27 @@ export function safeWikiPath(wikiRoot: string, relPath: string): WikiPathCheck {
   }
   return { ok: true, absPath };
 }
+
+/**
+ * Architecture-map read guard (audit 2026-08-25): KnowledgeReadArchmap used
+ * to readFileSync() whatever path the renderer passed — unlike editor/wiki it
+ * had NO containment, so a compromised renderer had an arbitrary-file-read
+ * primitive (~/.ssh, .env). Same contract as safeWikiPath, but the renderer
+ * legitimately sends ABSOLUTE paths (from the status file list), so instead
+ * of strict-relativity we require: basename matches the archmap naming
+ * (arch-*.md|json|html) AND the target stays contained under the prototypes
+ * root (lexical + realpath, via safePathWithinRoot).
+ */
+export type ArchmapPathCheck = { ok: true; absPath: string } | { ok: false; reason: "non-archmap" | "escapes-root" };
+
+export function safeArchmapPath(prototypesRoot: string, targetPath: string): ArchmapPathCheck {
+  const base = path.basename(targetPath);
+  if (!/^arch-.+\.(md|json|html)$/.test(base)) {
+    return { ok: false, reason: "non-archmap" };
+  }
+  const absPath = safePathWithinRoot(prototypesRoot, targetPath);
+  if (!absPath) {
+    return { ok: false, reason: "escapes-root" };
+  }
+  return { ok: true, absPath };
+}

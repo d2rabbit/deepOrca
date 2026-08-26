@@ -167,7 +167,7 @@ describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
 });
 
 describe("arch-scan.run (Phase 3 — runSubagent gated)", () => {
-  test("returns structured pending when runSubagent is not injected", async () => {
+  test("returns structured pending when no agent runtime is injected", async () => {
     const r = fullRegistry();
     const out = (await r.execute("arch-scan.run", {}).result) as {
       ok: boolean;
@@ -176,13 +176,41 @@ describe("arch-scan.run (Phase 3 — runSubagent gated)", () => {
     };
     assert.equal(out.ok, false);
     assert.equal(out.pending, true);
-    assert.match(out.reason ?? "", /Subagent/i);
+    assert.match(out.reason ?? "", /background-task|Subagent/i);
   });
 
-  test("dispatches a real subagent when runSubagent is injected (Phase 3 closes)", async () => {
-    // Mirrors how SessionManager wires this.runSubagent into the registry host.
-    // With a real LLM the sub-session runs the arch-scan skill; here a mock
-    // proves the action stops returning pending and forwards the subagent result.
+  test("prefers the sessionless background task when injected (R2-2)", async () => {
+    // Index builds must not spawn sub-sessions: when the host injects
+    // runBackgroundTask, the action runs there and never touches runSubagent.
+    const bgCalls: { skill: string; input?: unknown }[] = [];
+    let subagentCalled = false;
+    const r = new ActionRegistry({
+      projectRoot: PROJECT_ROOT,
+      spawner: NULL_SPAWNER,
+      runBackgroundTask: async (opts) => {
+        bgCalls.push({ skill: opts.skill, input: opts.input });
+        return { content: "<arch-scan surface emitted>", iterations: 3 };
+      },
+      runSubagent: async () => {
+        subagentCalled = true;
+        return { sessionId: "sub-1", content: null };
+      },
+    });
+    r.register(archScanRunDefinition, archScanRunRun);
+    const out = (await r.execute("arch-scan.run", { perspective: "data-flow" }).result) as {
+      ok: boolean;
+      pending?: boolean;
+      result?: { content: string | null; iterations: number };
+    };
+    assert.equal(out.ok, true);
+    assert.equal(out.pending, undefined);
+    assert.equal(subagentCalled, false);
+    assert.equal(bgCalls[0].skill, "arch-scan");
+    assert.equal((bgCalls[0].input as { perspective: string }).perspective, "data-flow");
+    assert.match(out.result?.content ?? "", /arch-scan surface/);
+  });
+
+  test("falls back to runSubagent when the background channel is absent", async () => {
     const calls: { skill: string; input?: unknown }[] = [];
     const r = new ActionRegistry({
       projectRoot: PROJECT_ROOT,

@@ -99,6 +99,14 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
   adds them) — match existing core files.
 - **Lint:** `no-console` is off. Unused vars/params may be `_`-prefixed.
   `@typescript-eslint/consistent-type-imports` is on (warn) — reinforces `import type`.
+- **File length hard limit: 2500 lines** (any hand-written source file — `.ts`,
+  `.tsx`, `.css`, `.mjs`, `.js`). Vendored code (`memory/src/tdai/`), generated
+  files, and `dist/`/`out/` artifacts are exempt. When a file approaches the
+  limit, split it by cohesive feature into sibling modules and keep the original
+  file as a thin top-level composition root that only imports/re-exports/wires
+  the modules (see `packages/desktop/src/renderer/ui.css` + `ui-css/` for CSS,
+  `packages/core/src/session.ts` + `session-manager-*.ts` for a large class).
+  Never grow a file past the limit "just this once" — split first.
 - **Pre-commit:** Husky runs `lint-staged` (eslint --fix + prettier --write on
   staged `*.{ts,tsx,js,mjs,cjs,jsx}` and `*.json`). Format before building to avoid
   surprises.
@@ -250,3 +258,16 @@ Before changing these, read the corresponding doc first:
 - MCP lifecycle → `docs/mcp.md` + `packages/core/src/mcp/`.
 - Plan Mode (read-only first turn, `<proposed_plan>` approval) → `docs/plan-mode.md`.
 - Skills discovery/loading → `docs/agent-skills.md`.
+
+<!-- OPENWIKI:START -->
+
+## OpenWiki
+
+This repository has a generated `openwiki/` evidence index. It is optional just-in-time context, not required startup reading.
+
+- Treat source code and tests as authoritative. A brief's unknowns and review items are verification gaps, not automatic requirements.
+- Prefer the narrowest quiet validation that proves the changed behavior. Preserve complete failure output.
+
+The scheduled OpenWiki GitHub Actions workflow refreshes the repository wiki. Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting OpenWiki regenerate.
+
+<!-- OPENWIKI:END -->

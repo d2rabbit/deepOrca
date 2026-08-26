@@ -19,7 +19,7 @@ import type { SessionMessage } from "../../shared/ipc";
  */
 export type PreviewState = {
   prototypeJson: string | null;
-  prototypeMode: "a2ui" | "openui" | "design";
+  prototypeMode: "a2ui" | "openui" | "design" | "spec";
   prototypeOpenuiCode: string;
   designContent: string | null;
   graphHtml: string | null;
@@ -31,7 +31,7 @@ export type PreviewState = {
   /** Auto-open the matching preview when a render/update tool result arrives. */
   applyToolMessage: (message: SessionMessage) => void;
   /** Open a stored design artifact in the preview (from DesignPanel). */
-  openDesignArtifact: (pipeline: "openui" | "design", content: string) => void;
+  openDesignArtifact: (pipeline: "openui" | "design" | "spec", content: string) => void;
   /** Clear preview state (and cached A2UI surfaces) when switching sessions. */
   resetForSession: () => void;
   closePreview: () => void;
@@ -39,7 +39,7 @@ export type PreviewState = {
 
 export function usePreview(): PreviewState {
   const [prototypeJson, setPrototypeJson] = useState<string | null>(null);
-  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design">("openui");
+  const [prototypeMode, setPrototypeMode] = useState<"a2ui" | "openui" | "design" | "spec">("openui");
   const [prototypeOpenuiCode, setPrototypeOpenuiCode] = useState<string>("");
   const [designContent, setDesignContent] = useState<string | null>(null);
   const [graphHtml, setGraphHtml] = useState<string | null>(null);
@@ -52,8 +52,12 @@ export function usePreview(): PreviewState {
     const artifact = detectPrototypeArtifact(message.content || "");
     if (!artifact) return;
 
-    if (artifact.mode === "design") {
-      setPrototypeMode("design");
+    // Single right-slot rule: opening the preview panel evicts the graph panel.
+    setGraphHtml(null);
+    if (artifact.mode === "design" || artifact.mode === "spec") {
+      // Spec documents (requirements) share the design slot — a reading view
+      // next to the list, same as .dd documents.
+      setPrototypeMode(artifact.mode);
       setDesignContent(artifact.payload);
       setPreviewOpen(true);
       setPreviewTab("design");
@@ -93,13 +97,15 @@ export function usePreview(): PreviewState {
   }, []);
 
   /** Open a stored design artifact in the preview panel (from DesignPanel). */
-  const openDesignArtifact = useCallback((pipeline: "openui" | "design", content: string) => {
+  const openDesignArtifact = useCallback((pipeline: "openui" | "design" | "spec", content: string) => {
+    setGraphHtml(null);
     if (pipeline === "openui") {
       setPrototypeMode("openui");
       setPrototypeOpenuiCode(content);
       setPreviewTab("prototype");
     } else {
-      setPrototypeMode("design");
+      // .dd documents AND spec markdown share the design/reading slot.
+      setPrototypeMode(pipeline);
       setDesignContent(content);
       setPreviewTab("design");
     }

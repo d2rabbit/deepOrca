@@ -1,0 +1,1669 @@
+/* =========================================================================
+   QQ-style Chat Bubbles & Tool Cards
+   ========================================================================= */
+
+/* ── Bubble rows (alignment wrapper) ──────────────────────────────────────── */
+/* Each row holds an avatar + bubble laid out horizontally; alignment (left/right)
+   is driven by the justify-content modifier. The avatar sits beside the bubble
+   so the chat reads like a modern messenger thread. */
+.ui-bubble-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  width: 100%;
+}
+.ui-bubble-row.user {
+  justify-content: flex-end;
+}
+.ui-bubble-row.assistant {
+  justify-content: flex-start;
+}
+.ui-bubble-row.tool {
+  justify-content: flex-start;
+}
+.ui-bubble-row.system {
+  justify-content: center;
+}
+/* Entry animation: each new row fades and slides up briefly on mount, giving
+   the thread a lively "message arriving" feel. Reduced-motion users see it
+   static (the global reduce media zeroes animation-duration). */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-bubble-row {
+    animation: ui-bubble-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+@keyframes ui-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Avatars (role-colored circles beside each bubble) ───────────────────── */
+.ui-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--ui-radius-pill);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  border: 1px solid var(--ui-border);
+  box-shadow: var(--ui-shadow-sm);
+  user-select: none;
+}
+
+/* Bubbles share the row with the avatar now; let them take available space but
+   still respect their max-width cap so long content wraps rather than spanning
+   the whole row. */
+.ui-bubble-row > .ui-bubble,
+.ui-bubble-row > .ui-tool-card {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* ── Bubble base ──────────────────────────────────────────────────────────── */
+.ui-bubble {
+  max-width: 85%;
+  min-width: 40px;
+  border-radius: var(--ui-radius-lg);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+/* User bubble: accent background, right-aligned, tail on right */
+.ui-bubble.user {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+  position: relative;
+}
+/* QQ-style bubble tails (rendering-engine spec): a small triangle on the
+   avatar side. Right tail for the user, left tail for agent-side bubbles. */
+.ui-bubble.user::before {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--ui-accent-fill);
+}
+.ui-bubble-attach {
+  display: inline-block;
+  margin-left: var(--ui-space-2);
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Assistant bubble: subtle surface, left-aligned, tail on left */
+.ui-bubble.assistant {
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+  border-bottom-left-radius: 4px;
+  position: relative;
+}
+.ui-bubble.assistant::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid var(--ui-surface-raised);
+}
+
+/* Copy button on assistant messages — appears on hover */
+.ui-msg-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  font-size: 13px;
+  color: var(--ui-text-faint);
+  opacity: 0;
+  transition:
+    opacity 0.15s var(--ui-ease),
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
+}
+.ui-bubble.assistant:hover .ui-msg-copy {
+  opacity: 1;
+}
+.ui-msg-copy:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-msg-copy.copied {
+  color: var(--ui-success);
+  opacity: 1;
+  animation: ui-copy-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ui-copy-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Message timestamp — small, muted, bottom-right */
+.ui-msg-time {
+  display: block;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  text-align: right;
+  opacity: 0.7;
+}
+/* User bubble timestamp — lighter to contrast with accent background. */
+.ui-msg-time.user {
+  color: var(--ui-text-on-accent);
+  opacity: 0.6;
+}
+
+/* ── Thinking block ───────────────────────────────────────────────────────── */
+.ui-bubble.thinking {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: 0;
+  max-width: 90%;
+  overflow: hidden;
+  position: relative;
+  overflow: visible;
+}
+.ui-bubble.thinking::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid var(--ui-surface-sunken);
+}
+.ui-bubble.thinking > .ui-thinking-toggle {
+  border-radius: var(--ui-radius-md) var(--ui-radius-md) 0 0;
+}
+.ui-thinking-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.ui-thinking-toggle:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-thinking-icon {
+  flex: none;
+  font-size: 14px;
+}
+.ui-thinking-label {
+  flex: none;
+  font-weight: 600;
+  color: var(--ui-tool-hue-think); /* think header is amber */
+}
+.ui-thinking-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-faint);
+}
+.ui-thinking-chevron {
+  flex: none;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+/* Character count badge in thinking toggle — shows content size at a glance. */
+.ui-thinking-chars {
+  flex: none;
+  font-size: 10px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-faint);
+  padding: 1px 5px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  opacity: 0.8;
+}
+/* Elapsed-time badge in thinking toggle ("耗时 1.4s" in the spec). */
+.ui-thinking-elapsed {
+  flex: none;
+  font-size: 10.5px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-faint);
+}
+/* The body holds the model's reasoning text. Long traces are common, so
+   cap the height at ~60vh and let the body scroll internally — the rest of
+   the conversation stays put and the user can read top-to-bottom without
+   losing context. */
+.ui-thinking-body {
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-3);
+  border-top: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  max-height: 60vh;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+  font-style: italic; /* spec: reasoning reads as an italic aside */
+  scrollbar-width: thin;
+  animation: ui-expand-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* ── Tool card ────────────────────────────────────────────────────────────── */
+.ui-tool-card {
+  max-width: 85%;
+  min-width: 200px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ui-tool-card:hover {
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-tool-card.open {
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+}
+.ui-tool-card.err {
+  border-color: var(--ui-danger);
+}
+
+/* Tool head: icon + name + badge.
+   The same class is used as a static <div> for non-file tools and as a
+   <button> toggle for file tools (read/write/edit) — so reset button
+   defaults to keep the layout identical. */
+.ui-tool-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-bottom: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: default;
+  color: inherit;
+  font: inherit;
+}
+button.ui-tool-head {
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+  transition: background 0.12s ease;
+}
+button.ui-tool-head:hover {
+  background: var(--ui-surface-hover);
+}
+/* When the card is collapsible but still folded, give the header a hint of
+   extra padding so the click target is comfortable. */
+.ui-tool-card.collapsible:not(.open) > .ui-tool-head {
+  padding: 4px 0 6px;
+}
+/* Smooth entrance for tool card body when expanded */
+.ui-tool-card.collapsible.open > :not(.ui-tool-head) {
+  animation: ui-expand-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-tool-icon {
+  flex: none;
+  font-size: 13px;
+  width: 20px;
+  text-align: center;
+}
+.ui-tool-name {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--ui-tool-hue-amber); /* tool::name reads mono amber */
+  font-family: var(--ui-font-mono);
+  flex: none;
+}
+/* MCP calls read mono purple with a purple frame (spec card #4). */
+.ui-tool-card.mcp .ui-tool-name {
+  color: var(--ui-tool-hue-purple);
+}
+/* Muted "Tool:" prefix label before the mono tool name. */
+.ui-tool-kind {
+  flex: none;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+/* Inline file path shown in the header for file tools so the user can
+   identify which file they're looking at without expanding the body. */
+.ui-tool-params-inline {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  padding-left: 2px;
+}
+.ui-tool-chevron {
+  flex: none;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  margin-left: var(--ui-space-1);
+  width: 14px;
+  text-align: center;
+  transition:
+    transform 0.15s var(--ui-ease),
+    color 0.12s ease;
+}
+.ui-tool-card.open .ui-tool-chevron {
+  color: var(--ui-accent);
+}
+.ui-tool-badge {
+  flex: none;
+  font-size: 11px;
+  padding: 0 5px;
+  border-radius: var(--ui-radius-pill);
+}
+.ui-tool-badge.err {
+  background: color-mix(in srgb, var(--ui-danger) 15%, transparent);
+  color: var(--ui-danger);
+}
+/* Success + MCP badges (rendering-engine spec): tinted pills with a
+   1px border of the same hue, echoing the 已成功 / MCP Server chips. */
+.ui-tool-badge.ok {
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+  color: var(--ui-success);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 25%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.ui-tool-badge.mcp {
+  background: color-mix(in srgb, #a855f7 12%, transparent);
+  color: #d8b4fe;
+  border: 1px solid color-mix(in srgb, #a855f7 25%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+/* Elapsed time badge in tool header — shows how long the tool took. */
+.ui-tool-elapsed {
+  flex: none;
+  font-size: 10.5px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-faint);
+  padding: 1px 5px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  opacity: 0.85;
+}
+
+/* Tool params (one-liner) inside the dark PARAMS panel (spec card #3):
+   an uppercase tracking label row over the mono argument line. */
+.ui-tool-params-panel {
+  margin-top: var(--ui-space-1);
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+}
+.ui-tool-params-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ui-text-faint);
+  margin-bottom: 2px;
+}
+.ui-tool-params-fmt {
+  font-size: 9px;
+  opacity: 0.7;
+}
+.ui-tool-params {
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  font-family: var(--ui-font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Per-tool-type param & result accent. The colors echo the left-border
+   accent so the eye recognises the family at a glance, but tinted bright
+   enough to read on a sunken/raised surface (avoids the "all white text"
+   complaint that motivated this block). */
+.ui-tool-card.bash .ui-tool-params,
+.ui-tool-card.bash .ui-tool-params-inline,
+.ui-tool-card.bash .ui-tool-result-hint {
+  color: color-mix(in srgb, var(--ui-success) 80%, var(--ui-text));
+}
+.ui-tool-card.read .ui-tool-params,
+.ui-tool-card.read .ui-tool-params-inline,
+.ui-tool-card.read .ui-tool-result-hint {
+  color: color-mix(in srgb, var(--ui-accent) 85%, var(--ui-text));
+}
+.ui-tool-card.write .ui-tool-params,
+.ui-tool-card.write .ui-tool-params-inline,
+.ui-tool-card.write .ui-tool-result-hint {
+  color: var(--ui-tool-hue-indigo);
+}
+.ui-tool-card.edit .ui-tool-params,
+.ui-tool-card.edit .ui-tool-params-inline,
+.ui-tool-card.edit .ui-tool-result-hint {
+  color: var(--ui-tool-hue-amber);
+}
+.ui-tool-card.ask .ui-tool-params,
+.ui-tool-card.ask .ui-tool-params-inline,
+.ui-tool-card.ask .ui-tool-result-hint {
+  color: var(--ui-tool-hue-purple);
+}
+.ui-tool-card.plan .ui-tool-params,
+.ui-tool-card.plan .ui-tool-params-inline,
+.ui-tool-card.plan .ui-tool-result-hint {
+  color: var(--ui-tool-hue-sky);
+}
+.ui-tool-card.search .ui-tool-params,
+.ui-tool-card.search .ui-tool-params-inline,
+.ui-tool-card.search .ui-tool-result-hint {
+  color: var(--ui-tool-hue-teal);
+}
+.ui-tool-card.mcp .ui-tool-params,
+.ui-tool-card.mcp .ui-tool-params-inline,
+.ui-tool-card.mcp .ui-tool-result-hint {
+  color: var(--ui-tool-hue-purple);
+}
+.ui-tool-card.generic .ui-tool-params,
+.ui-tool-card.generic .ui-tool-params-inline,
+.ui-tool-card.generic .ui-tool-result-hint {
+  color: var(--ui-text-dim);
+}
+
+/* Result text: the markdown inside .ui-tool-result inherits the bubble
+   text color, which is var(--ui-text (white on Metro) — so it reads as a
+   single solid block. Tinting the result container + its left border per
+   tool type adds a subtle frame that says "this output came from <tool>"
+   without the user having to read the header. */
+.ui-tool-card.bash .ui-tool-result {
+  border-left-color: var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 6%, transparent);
+}
+.ui-tool-card.read .ui-tool-result {
+  border-left-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+}
+.ui-tool-card.write .ui-tool-result {
+  border-left-color: #6366f1;
+  background: color-mix(in srgb, #6366f1 6%, transparent);
+}
+.ui-tool-card.edit .ui-tool-result {
+  border-left-color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 6%, transparent);
+}
+.ui-tool-card.ask .ui-tool-result {
+  border-left-color: #a855f7;
+  background: color-mix(in srgb, #a855f7 6%, transparent);
+}
+.ui-tool-card.plan .ui-tool-result {
+  border-left-color: #0ea5e9;
+  background: color-mix(in srgb, #0ea5e9 6%, transparent);
+}
+.ui-tool-card.search .ui-tool-result {
+  border-left-color: #14b8a6;
+  background: color-mix(in srgb, #14b8a6 6%, transparent);
+}
+.ui-tool-card.mcp .ui-tool-result {
+  border-left-color: #a855f7;
+  background: color-mix(in srgb, #a855f7 6%, transparent);
+}
+
+/* Tool-type accent bars (left border color) */
+.ui-tool-card.bash {
+  border-left: 3px solid var(--ui-success);
+}
+.ui-tool-card.read {
+  border-left: 3px solid var(--ui-accent);
+}
+.ui-tool-card.write {
+  border-left: 3px solid #6366f1;
+}
+.ui-tool-card.edit {
+  border-left: 3px solid #f59e0b;
+}
+.ui-tool-card.ask {
+  border-left: 3px solid #a855f7;
+}
+.ui-tool-card.plan {
+  border-left: 3px solid #0ea5e9;
+}
+.ui-tool-card.search {
+  border-left: 3px solid #14b8a6;
+}
+.ui-tool-card.mcp {
+  border-left: 3px solid #a855f7;
+  border-color: color-mix(in srgb, #a855f7 30%, var(--ui-border-soft));
+  border-left-color: #a855f7;
+}
+.ui-tool-card.generic {
+  border-left: 3px solid var(--ui-border-soft);
+}
+
+/* ── Plan block ───────────────────────────────────────────────────────────── */
+.ui-tool-plan {
+  margin-top: var(--ui-space-2);
+  border: 1px solid color-mix(in srgb, #0ea5e9 30%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-sm);
+  overflow: hidden;
+}
+.ui-tool-plan-label {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  background: color-mix(in srgb, #0ea5e9 8%, transparent);
+  color: var(--ui-text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-tool-plan-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill, 999px);
+}
+.ui-tool-plan-body {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Interactive plan checklist items */
+.ui-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  padding: 2px 0;
+  cursor: default;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ui-plan-item.sub {
+  padding-left: var(--ui-space-4);
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+.ui-plan-item input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--ui-accent);
+  cursor: default;
+  flex-shrink: 0;
+}
+.ui-plan-item.done .ui-plan-item-text {
+  text-decoration: line-through;
+  color: var(--ui-text-faint);
+}
+.ui-plan-item-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* ── Tool result (collapsible) ────────────────────────────────────────────── */
+.ui-tool-result-wrap {
+  margin-top: var(--ui-space-2);
+}
+.ui-tool-result-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  padding: 4px var(--ui-space-1);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  text-align: left;
+  border-radius: var(--ui-radius-sm);
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.ui-tool-result-toggle:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+.ui-tool-result-hint {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tool-result {
+  margin-top: var(--ui-space-2);
+  border-left: 2px solid var(--ui-border-soft);
+  padding-left: var(--ui-space-3);
+  position: relative;
+}
+/* Copy button for tool results */
+.ui-tool-result-copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  opacity: 0;
+  transition:
+    opacity 0.15s var(--ui-ease),
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
+}
+.ui-tool-result:hover .ui-tool-result-copy {
+  opacity: 1;
+}
+.ui-tool-result-copy:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-tool-result-copy.copied {
+  color: var(--ui-success);
+  opacity: 1;
+}
+
+/* ── Diff preview ─────────────────────────────────────────────────────────── */
+.ui-diff {
+  margin-top: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  overflow: hidden;
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.ui-diff > div {
+  padding: 1px var(--ui-space-2);
+  white-space: pre-wrap;
+  transition: background 0.1s ease;
+}
+.ui-diff .add {
+  background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+  color: color-mix(in srgb, var(--ui-success) 80%, var(--ui-text));
+}
+.ui-diff .del {
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: color-mix(in srgb, var(--ui-danger) 80%, var(--ui-text));
+}
+.ui-diff .ctx {
+  color: var(--ui-text-dim);
+}
+.ui-diff > div:hover {
+  filter: brightness(1.05);
+}
+
+/* ── Bash terminal frame (rendering-engine spec, card #8) ───────────────── */
+/* A macOS-style terminal window: traffic-light dots + title + copy in the
+   header, prompt-colored command line and muted output in the body. Always
+   dark — terminals stay dark in both appearances. */
+.ui-term {
+  margin-top: var(--ui-space-2);
+  background: #020617; /* slate-950 */
+  border: 1px solid #1e293b; /* slate-800 */
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  font-family: var(--ui-font-mono);
+}
+.ui-term-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #0f172a; /* slate-900 */
+  border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+}
+.ui-term-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.ui-term-dot.red {
+  background: rgba(239, 68, 68, 0.8);
+}
+.ui-term-dot.amber {
+  background: rgba(245, 158, 11, 0.8);
+}
+.ui-term-dot.green {
+  background: rgba(16, 185, 129, 0.8);
+}
+.ui-term-title {
+  flex: 1;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1; /* slate-300 */
+}
+.ui-term-copy {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
+  color: #94a3b8; /* slate-400 */
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.ui-term-copy:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.ui-term-copy.copied {
+  color: #34d399; /* emerald-400 */
+}
+.ui-term-body {
+  padding: var(--ui-space-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+  max-height: 320px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.ui-term-cmd {
+  color: #38bdf8; /* sky-400 — the command itself */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ui-term-user {
+  color: #34d399; /* emerald-400 — user@host */
+}
+.ui-term-path {
+  color: #818cf8; /* indigo-400 — cwd */
+}
+.ui-term-punc {
+  color: #64748b; /* slate-500 */
+}
+.ui-term-input {
+  color: #38bdf8;
+}
+.ui-term-out {
+  margin-top: 4px;
+  padding-left: var(--ui-space-2);
+  color: #94a3b8; /* slate-400 — output is muted */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── JSON card (rendering-engine spec, card #7) ──────────────────────── */
+/* Header: {} icon + name + "JSON • N Keys" pill + Tree/Raw switch + copy.
+   Body: syntax-colored collapsible tree or the raw pretty-printed source. */
+.ui-json-card {
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  background: var(--ui-surface-sunken);
+}
+.ui-json-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 6px 10px;
+  background: var(--ui-surface-raised);
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-json-head-icon {
+  flex: none;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8; /* sky-400 */
+}
+.ui-json-head-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-json-head-badge {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  color: #7dd3fc; /* sky-300 */
+}
+.ui-json-view-switch {
+  flex: none;
+  display: flex;
+  padding: 2px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-json-view-switch button {
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.ui-json-view-switch button:hover {
+  color: var(--ui-text);
+}
+.ui-json-view-switch button.active {
+  background: var(--ui-accent-fill);
+  color: var(--ui-text-on-accent);
+  font-weight: 600;
+}
+.ui-json-copy {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.ui-json-copy:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+.ui-json-copy.copied {
+  color: var(--ui-success);
+}
+.ui-json-body {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  overflow-x: auto;
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  user-select: text;
+}
+.ui-json-line {
+  display: block;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-align: left;
+  color: var(--ui-text-dim);
+  width: 100%;
+}
+.ui-json-line:hover {
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+}
+.ui-json-toggle {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  font: inherit;
+}
+.ui-json-caret {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  transition: transform 0.15s var(--ui-ease);
+}
+.ui-json-caret.closed {
+  transform: rotate(-90deg);
+}
+/* Dashed indent guide for nested levels (spec: json-indent-line). */
+.ui-json-children {
+  border-left: 1px dashed color-mix(in srgb, var(--ui-text-faint) 35%, transparent);
+  margin-left: 9px;
+  padding-left: 12px;
+}
+.ui-json-key {
+  color: #7dd3fc; /* sky-300 */
+}
+.ui-json-str {
+  color: #6ee7b7; /* emerald-300 */
+}
+.ui-json-num {
+  color: #fb923c; /* orange-400 */
+}
+.ui-json-bool {
+  color: #c084fc; /* purple-400 */
+  font-weight: 600;
+}
+.ui-json-null {
+  color: var(--ui-text-faint);
+  font-style: italic;
+}
+.ui-json-punc {
+  color: var(--ui-text-faint);
+}
+.ui-json-count {
+  display: inline-block;
+  margin: 0 4px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius-pill);
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-raised);
+  font-size: 9px;
+  color: var(--ui-text-faint);
+}
+.ui-json-raw {
+  margin: 0;
+  white-space: pre;
+  color: var(--ui-text-dim);
+}
+
+/* ── System note (centered) ───────────────────────────────────────────────── */
+.ui-system-note {
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  background: var(--ui-surface-sunken);
+  border-radius: var(--ui-radius-pill);
+  display: inline-block;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.ui-system-note:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-dim);
+}
+
+/* ── Markdown container ───────────────────────────────────────────────────── */
+.ui-md {
+  overflow-wrap: anywhere;
+}
+.ui-md p {
+  margin: 0 0 var(--ui-space-2);
+}
+.ui-md p:last-child {
+  margin-bottom: 0;
+}
+/* ── Code block wrapper (Streamdown: lang label + copy button) ─────────────
+   Streamdown renders code fences as data-streamdown="code-block" containers
+   with Tailwind utility classes; its colour utilities (bg-sidebar, border-border,
+   text-muted-foreground) are shadcn tokens that don't exist in our Tailwind
+   config, so ALL colours come from here. The `.ui-md` prefix keeps specificity
+   above single-class utilities, so these rules win regardless of stylesheet
+   order (the Tailwind runtime injects its <style> after the linked CSS). */
+.ui-md [data-streamdown="code-block"] {
+  position: relative;
+  margin: 0 0 var(--ui-space-2);
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.ui-md [data-streamdown="code-block-header"] {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  z-index: 1;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.ui-md [data-streamdown="code-block-header"] span {
+  margin: 0;
+  font-size: 10px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ui-md [data-streamdown="code-block-actions"] {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+  opacity: 0;
+  transition: opacity 0.15s var(--ui-ease);
+}
+.ui-md [data-streamdown="code-block"]:hover [data-streamdown="code-block-actions"] {
+  opacity: 1;
+}
+.ui-md [data-streamdown="code-block-copy-button"],
+.ui-md [data-streamdown="code-block-download-button"] {
+  /* The download button is disabled in StreamdownView's controls today; its
+     selectors stay so enabling it later doesn't silently ship unstyled. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
+}
+.ui-md [data-streamdown="code-block-copy-button"]:hover,
+.ui-md [data-streamdown="code-block-download-button"]:hover {
+  background: var(--ui-surface-raised);
+  color: var(--ui-text-primary);
+}
+.ui-md [data-streamdown="code-block-copy-button"]:active,
+.ui-md [data-streamdown="code-block-download-button"]:active {
+  transform: scale(0.9);
+}
+.ui-md [data-streamdown="code-block-body"] {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+.ui-md [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  padding-top: calc(var(--ui-space-3) + 14px);
+}
+/* Streaming caret — shown after the last block while tokens arrive. */
+.ui-streamdown.is-animating > div > *:last-child::after {
+  content: " ▋";
+  animation: ui-streamdown-caret 1s steps(2, start) infinite;
+}
+@keyframes ui-streamdown-caret {
+  50% {
+    opacity: 0;
+  }
+}
+/* Tables scroll horizontally inside the bubble instead of stretching it. */
+.ui-md [data-streamdown="table-wrapper"] {
+  overflow-x: auto;
+}
+/* Base code-block style — NOT a legacy fallback. The streamdown wrappers
+   above are deliberately transparent, so these rules supply the visible
+   chrome (background, border, radius, padding, mono font) for every fenced
+   block. Deleting them unstyles all code blocks. */
+.ui-md pre {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-3);
+  overflow-x: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  position: relative;
+}
+.ui-md code {
+  font-family: var(--ui-font-mono);
+  font-size: 0.92em;
+  background: var(--ui-surface-sunken);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.ui-md pre code {
+  background: none;
+  padding: 0;
+}
+/* Code block language accent — the left border colour is the primary
+   visual cue since we don't ship a full syntax highlighter (bundle
+   weight). The colour for each language matches the tool-card family
+   that most often produces it (bash → green, json → amber, etc.) so the
+   eye builds a consistent mental model. */
+.ui-md [data-streamdown="code-block"][data-language="json"] pre,
+.ui-md [data-streamdown="code-block"][data-language="jsonc"] pre {
+  border-left: 3px solid #f59e0b;
+  background: color-mix(in srgb, #f59e0b 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="html"] pre,
+.ui-md [data-streamdown="code-block"][data-language="xml"] pre,
+.ui-md [data-streamdown="code-block"][data-language="svg"] pre {
+  border-left: 3px solid #e879f9;
+  background: color-mix(in srgb, #e879f9 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="bash"] pre,
+.ui-md [data-streamdown="code-block"][data-language="sh"] pre,
+.ui-md [data-streamdown="code-block"][data-language="shell"] pre,
+.ui-md [data-streamdown="code-block"][data-language="zsh"] pre {
+  border-left: 3px solid var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="typescript"] pre,
+.ui-md [data-streamdown="code-block"][data-language="tsx"] pre {
+  border-left: 3px solid #3b82f6;
+  background: color-mix(in srgb, #3b82f6 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="javascript"] pre,
+.ui-md [data-streamdown="code-block"][data-language="jsx"] pre {
+  border-left: 3px solid #fbbf24;
+  background: color-mix(in srgb, #fbbf24 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="python"] pre,
+.ui-md [data-streamdown="code-block"][data-language="py"] pre {
+  border-left: 3px solid #14b8a6;
+  background: color-mix(in srgb, #14b8a6 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="css"] pre,
+.ui-md [data-streamdown="code-block"][data-language="scss"] pre,
+.ui-md [data-streamdown="code-block"][data-language="less"] pre {
+  border-left: 3px solid #ec4899;
+  background: color-mix(in srgb, #ec4899 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="yaml"] pre,
+.ui-md [data-streamdown="code-block"][data-language="yml"] pre,
+.ui-md [data-streamdown="code-block"][data-language="toml"] pre {
+  border-left: 3px solid #a855f7;
+  background: color-mix(in srgb, #a855f7 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="markdown"] pre,
+.ui-md [data-streamdown="code-block"][data-language="md"] pre {
+  border-left: 3px solid var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 5%, var(--ui-surface-sunken));
+}
+.ui-md [data-streamdown="code-block"][data-language="diff"] pre {
+  border-left: 3px solid var(--ui-accent);
+  background: var(--ui-surface-sunken);
+}
+/* Mermaid fence still streaming — plain source view until the fence closes. */
+.ui-mermaid-pending {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-3);
+  overflow-x: auto;
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+}
+.ui-md a {
+  color: var(--ui-accent);
+}
+.ui-md h1,
+.ui-md h2,
+.ui-md h3 {
+  margin: var(--ui-space-3) 0 var(--ui-space-2);
+}
+.ui-md h1 {
+  font-size: 1.3em;
+}
+.ui-md h2 {
+  font-size: 1.15em;
+}
+.ui-md h3 {
+  font-size: 1.05em;
+}
+.ui-md blockquote {
+  border-left: 3px solid var(--ui-border-soft);
+  padding-left: var(--ui-space-3);
+  color: var(--ui-text-dim);
+  margin: var(--ui-space-2) 0;
+}
+.ui-md table {
+  border-collapse: collapse;
+  margin: var(--ui-space-2) 0;
+  font-size: 13px;
+}
+.ui-md th,
+.ui-md td {
+  border: 1px solid var(--ui-border-soft);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  text-align: left;
+}
+.ui-md th {
+  background: var(--ui-surface-sunken);
+  font-weight: 600;
+}
+
+/* =========================================================================
+   Option rows (permission / question / plan cards)
+   ========================================================================= */
+.ui-opt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.ui-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 140px;
+  padding: var(--ui-space-3);
+  padding-right: calc(var(--ui-space-3) + 14px); /* room for the › chevron */
+  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+  text-align: left;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease),
+    transform 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+/* Decision-option chevron (spec card #11) — replaced by ✓ when selected. */
+.ui-opt::after {
+  content: "›";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-52%);
+  font-size: 13px;
+  color: var(--ui-text-faint);
+  transition: color 0.14s var(--ui-ease);
+}
+.ui-opt:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.ui-opt:hover::after {
+  color: var(--ui-accent);
+}
+.ui-opt:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
+}
+.ui-opt.selected {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ui-accent);
+}
+.ui-opt.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  transform: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-accent);
+}
+/* Permission-card action variants (spec card #9): filled emerald allow,
+   neutral deny — compact pill-ish buttons rather than full option tiles. */
+.ui-opt--allow {
+  background: var(--ui-success);
+  border-color: var(--ui-success);
+  color: #fff;
+  font-weight: 600;
+}
+.ui-opt--allow:hover {
+  background: color-mix(in srgb, var(--ui-success) 85%, #fff);
+  border-color: var(--ui-success);
+  color: #fff;
+}
+.ui-opt--allow::after,
+.ui-opt--deny::after {
+  content: none;
+}
+.ui-opt--deny:hover {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
+.ui-opt {
+  position: relative;
+}
+.ui-opt-desc {
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+.ui-mono {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+  word-break: break-all;
+}
+.ui-scope-tag {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Permission card (rendering-engine spec, card #9) ──────────────────── */
+.ui-perm-card .ui-card-header {
+  color: var(--ui-tool-hue-think); /* sensitive-operation warning header */
+}
+.ui-perm-warn-icon {
+  margin-right: 2px;
+}
+/* The command under review: dark mono panel tinted amber, like the spec's
+   "exec: kubectl …" strip. */
+.ui-perm-cmd {
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  color: var(--ui-tool-hue-amber);
+}
+/* Side-effect scope tags — visual risk indicators on permission cards */
+.ui-perm-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-2);
+}
+.ui-perm-scope-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: var(--ui-radius-pill, 999px);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--ui-surface-sunken);
+}
+.ui-perm-scope-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ui-perm-scope-desc {
+  color: var(--ui-text-faint);
+  font-weight: 400;
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+/* ── Question card title (rendering-engine spec, card #10) ──────────────── */
+.ui-q-text {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ui-accent) 80%, var(--ui-text));
+}
+
+/* Permission card progress bar */
+.ui-perm-progress {
+  display: flex;
+  gap: 3px;
+  margin: var(--ui-space-2) 0;
+}
+.ui-perm-progress-dot {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ui-border-soft);
+  transition: background 0.2s var(--ui-ease);
+}
+.ui-perm-progress-dot.done {
+  background: var(--ui-success);
+}
+.ui-perm-progress-dot.current {
+  background: var(--ui-accent);
+  animation: ui-perm-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ui-perm-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Permission card keyboard hint */
+.ui-perm-kbd-hint {
+  display: flex;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-2);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-perm-kbd-hint kbd {
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  margin-right: 3px;
+}
+
+/* Permission card entrance */
+.ui-card-enter {
+  animation: ui-card-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+.ui-q-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-q-text {
+  font-weight: 600;
+}
+.ui-q-text-input {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: 13px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-q-text-input:focus {
+  border-color: var(--ui-accent);
+}
+
+/* Question card option stagger entrance */
+.ui-opt-row .ui-opt {
+  animation: ui-opt-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-opt-row .ui-opt:nth-child(1) {
+  animation-delay: 0s;
+}
+.ui-opt-row .ui-opt:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.ui-opt-row .ui-opt:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.ui-opt-row .ui-opt:nth-child(4) {
+  animation-delay: 0.12s;
+}
+@keyframes ui-opt-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ── Plan card step preview ────────────────────────────────────────────────── */
+.ui-plan-card-count {
+  margin-left: var(--ui-space-2);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill, 999px);
+}
+.ui-plan-card-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--ui-space-1) 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ui-plan-card-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+}
+.ui-plan-card-step.sub {
+  padding-left: var(--ui-space-4);
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+}
+.ui-plan-card-step-num {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--ui-accent);
+  font-size: 11px;
+}
+.ui-plan-card-step-text {
+  flex: 1;
+  word-break: break-word;
+}
+.ui-plan-card-raw {
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin: var(--ui-space-1) 0;
+}
+
+/* ── Comparison matrix ─────────────────────────────────────────────────────── */
+.ui-comparison-matrix {
+  margin: var(--ui-space-2) 0;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+}
+.ui-comparison-matrix-title {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-secondary);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+}
+.ui-comparison-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ui-comparison-matrix-table th,
+.ui-comparison-matrix-table td {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  text-align: left;
+  border-bottom: 1px solid var(--ui-border-soft);
+  border-right: 1px solid var(--ui-border-soft);
+}
+.ui-comparison-matrix-table th {
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  background: var(--ui-surface-alt, rgba(0, 0, 0, 0.02));
+  font-size: 11px;
+}
+.ui-comparison-matrix-table td {
+  color: var(--ui-text-primary);
+}
+.ui-comparison-matrix-table tr:last-child td {
+  border-bottom: none;
+}
+.ui-comparison-matrix-table td:last-child,
+.ui-comparison-matrix-table th:last-child {
+  border-right: none;
+}
+.ui-comparison-matrix-dim {
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
+}
+
+/* Compaction notification banner */
+.ui-compaction-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  margin: var(--ui-space-2) auto;
+  border-radius: var(--ui-radius-md);
+  background: color-mix(in srgb, var(--ui-info) 8%, var(--ui-surface));
+  border: 1px solid color-mix(in srgb, var(--ui-info) 25%, transparent);
+  color: var(--ui-info);
+  font-size: 12.5px;
+  font-weight: 500;
+  animation: ui-view-fade 0.25s var(--ui-ease) both;
+}
+.ui-compaction-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--ui-info) 30%, transparent);
+  border-top-color: var(--ui-info);
+  border-radius: 50%;
+  animation: ui-spin 0.8s linear infinite;
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

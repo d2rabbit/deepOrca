@@ -1,4 +1,7 @@
+// Portions Copyright (c) 2026 lessweb — engine code adapted from Deep Code
+// (deepcode-cli, MIT); see the repository NOTICE for the preserved MIT grant.
 import { handleAskUserQuestionTool } from "./ask-user-question-handler";
+import { lenientParseToolArguments } from "../common/tool-call-repair";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
 import { handleReadTool } from "./read-handler";
@@ -24,6 +27,7 @@ import type { BashSandboxSpawner } from "../common/tool-types";
 
 export type {
   CreateOpenAIClient,
+  CreateSecondaryClient,
   ToolCall,
   ToolExecutionContext,
   ToolExecutionHooks,
@@ -44,12 +48,32 @@ const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
   ["Edit", "edit"],
 ]);
 
+/**
+ * Read-only retrieval tools contributed by the memory provider (Phase 4 /
+ * T4.1, specs/memory-remediation). Structurally matches core's
+ * prompt.ToolDefinition without importing it (tool-types stays leaf-level).
+ */
+export interface MemoryToolBridge {
+  /** Tool definitions in OpenAI function-calling shape; empty when no provider. */
+  getToolDefinitions(): Array<{
+    type: "function";
+    function: {
+      name: string;
+      description: string;
+      parameters: { type: "object"; properties: Record<string, unknown>; required?: string[] };
+    };
+  }>;
+  /** Run one tool by name; rejects on unknown name or misuse. */
+  invoke(name: string, args: Record<string, unknown>): Promise<string>;
+}
+
 export class ToolExecutor {
   private readonly projectRoot: string;
   private readonly createOpenAIClient?: CreateOpenAIClient;
   private readonly fetchWebPage?: WebPageFetcher;
   private readonly mcpManager?: McpManager;
   private readonly actionRegistry?: ActionRegistry;
+  private readonly memoryTools?: MemoryToolBridge;
   private readonly toolHandlers = new Map<string, ToolHandler>();
 
   constructor(
@@ -57,13 +81,15 @@ export class ToolExecutor {
     createOpenAIClient?: CreateOpenAIClient,
     mcpManager?: McpManager,
     actionRegistry?: ActionRegistry,
-    fetchWebPage?: WebPageFetcher
+    fetchWebPage?: WebPageFetcher,
+    memoryTools?: MemoryToolBridge
   ) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
     this.actionRegistry = actionRegistry;
     this.fetchWebPage = fetchWebPage;
+    this.memoryTools = memoryTools;
     this.registerToolHandlers();
   }
 
@@ -246,6 +272,32 @@ export class ToolExecutor {
           return { ok: false, name: toolName, error: message, errorType, retryable };
         }
       }
+      // Memory provider surface (Phase 4 / T4.1): tdai_memory_search /
+      // tdai_conversation_search — read-only retrieval through the host
+      // bridge. Resolved last so it can never shadow builtin/MCP/action.
+      const memoryToolHandled =
+        this.memoryTools !== undefined &&
+        this.memoryTools.getToolDefinitions().some((def) => def.function.name === toolName);
+      if (memoryToolHandled && this.memoryTools) {
+        const parsed = this.parseToolArguments(toolCall.function.arguments);
+        if (!parsed.ok) {
+          return {
+            ok: false,
+            name: toolName,
+            error: parsed.error,
+            errorType: "INVALID_INPUT",
+            retryable: false,
+          };
+        }
+        try {
+          const output = await this.memoryTools.invoke(toolName, parsed.args);
+          return { ok: true, name: toolName, output };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const { errorType, retryable } = this.classifyThrownError(error);
+          return { ok: false, name: toolName, error: message, errorType, retryable };
+        }
+      }
       return {
         ok: false,
         name: toolName,
@@ -325,9 +377,17 @@ export class ToolExecutor {
     return { errorType: "INTERNAL", retryable: false };
   }
 
+  /**
+   * Parse tool-call arguments. Weaker models routinely emit malformed JSON
+   * (max_tokens truncation, markdown fences, prose-wrapped objects), so a
+   * plain-parse failure routes through the repair chain in
+   * common/tool-call-repair.ts (mechanism from dirge's agent loop) before
+   * giving up. Repair notes ride back so callers can surface them to the
+   * model in the tool result — it adapts subsequent calls.
+   */
   private parseToolArguments(
     rawArguments: string
-  ): { ok: true; args: Record<string, unknown> } | { ok: false; error: string } {
+  ): { ok: true; args: Record<string, unknown>; repairedNotes?: string[] } | { ok: false; error: string } {
     if (!rawArguments) {
       return { ok: true, args: {} };
     }
@@ -338,13 +398,16 @@ export class ToolExecutor {
         return { ok: false, error: "InputParseError: Tool arguments must be a JSON object." };
       }
       return { ok: true, args: parsed as Record<string, unknown> };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch {
+      // Plain parse failed — run the repair chain (truncation closer →
+      // fence strip → prose extraction) before declaring failure.
+      const repaired = lenientParseToolArguments(rawArguments);
+      if (repaired.ok) {
+        return { ok: true, args: repaired.args, repairedNotes: repaired.repairedNotes };
+      }
       return {
         ok: false,
-        error:
-          `InputParseError: Failed to parse tool arguments: ${message}. ` +
-          "Ensure the tool call arguments are valid JSON. Prefer Edit over Write for large existing-file changes.",
+        error: `InputParseError: ${repaired.error} Prefer Edit over Write for large existing-file changes.`,
       };
     }
   }

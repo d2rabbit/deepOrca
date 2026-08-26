@@ -22,6 +22,7 @@ import type { ZodRawShape } from "zod/v3";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { generatePrototype, listTemplates } from "./a2ui-templates";
+import { BASIC_CATALOG_ID, convertLegacyComponents } from "../../../shared/a2ui-legacy";
 import { saveDesignArtifact, deriveTitle } from "../design-store.js";
 
 export const A2UI_MCP_SERVER_NAME = "a2ui";
@@ -54,6 +55,8 @@ interface SurfaceState {
   dataModel: Record<string, unknown>;
   /** Current component set (the latest `updateComponents` payload). */
   components: unknown[];
+  /** Monotonic stamp of the last mutation (see surfaceVersionStamp). */
+  stamp: number;
 }
 
 // Module-level surfaces are intentionally kept here because:
@@ -64,6 +67,32 @@ interface SurfaceState {
 // However, we clear it on rebuild to prevent cross-session leakage.
 const surfaces = new Map<string, SurfaceState>();
 
+// Surface ids THIS PROCESS has managed (created, restored, or closed).
+// The dispose-time full flush may only sweep files it knows about — an
+// unknown file (e.g. an arch map persisted by an earlier process) must
+// NEVER be deleted by a flush. Without this, a boot race where dispose()
+// runs before the async restore populated the surfaces Map sweeps the whole
+// prototypes dir and rewrites nothing, destroying persisted artifacts
+// (observed: arch-root.json deleted within seconds of every app start).
+const knownSurfaceIds = new Set<string>();
+
+// Monotonic mutation counter: every surface create/update/restore bumps it.
+// A background task snapshots surfaceVersionStamp() before running and passes
+// it back as persistSurfaces(…, sinceStamp) so its flush writes exactly the
+// surfaces IT produced — never leftovers from an earlier task in the same
+// process (e.g. a build of a different workspace root).
+let surfaceStampCounter = 0;
+
+function nextSurfaceStamp(): number {
+  surfaceStampCounter += 1;
+  return surfaceStampCounter;
+}
+
+/** Current surface-mutation stamp (monotonic; snapshot for scoped flushes). */
+export function surfaceVersionStamp(): number {
+  return surfaceStampCounter;
+}
+
 // ── Persistence (save/load to .deeporca/prototypes/) ────────────────────────
 
 /** Directory for persisted prototype surfaces. */
@@ -71,13 +100,24 @@ function getPrototypesDir(projectRoot: string): string {
   return nodePath.join(projectRoot, ".deeporca", "prototypes");
 }
 
-/** Save all active surfaces to disk. Called on session dispose. */
-export function persistSurfaces(projectRoot: string): void {
+/** Save active surfaces to disk. Called on session dispose (full flush) and
+ * by background tasks (prefix- and stamp-scoped — see surfaceVersionStamp). */
+export function persistSurfaces(projectRoot: string, idPrefix?: string, sinceStamp?: number): void {
   const dir = getPrototypesDir(projectRoot);
   try {
     fs.mkdirSync(dir, { recursive: true });
-    // Clear directory first to remove stale files from closed surfaces.
-    const existing = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    // Clear directory first to remove stale files from closed surfaces. With
+    // an idPrefix (background-task flush) only same-prefixed files/surfaces
+    // are touched — the user's design prototypes in the same dir survive.
+    // Full flushes sweep only ids THIS process has managed (knownSurfaceIds):
+    // a file we never saw (persisted by an earlier process, restore still in
+    // flight) must survive — see the note on knownSurfaceIds.
+    const fileId = (f: string): string => f.replace(/\.json$/, "");
+    const existing = fs.readdirSync(dir).filter((f) => {
+      if (!f.endsWith(".json")) return false;
+      if (idPrefix) return f.startsWith(idPrefix);
+      return knownSurfaceIds.has(fileId(f));
+    });
     for (const f of existing) {
       try {
         fs.unlinkSync(nodePath.join(dir, f));
@@ -85,8 +125,12 @@ export function persistSurfaces(projectRoot: string): void {
         // Best-effort.
       }
     }
-    // Write current surfaces.
+    // Write current surfaces. With sinceStamp, only surfaces mutated after
+    // that stamp are written (what THIS background task produced); same-
+    // prefixed files this run does not rewrite were just swept as stale.
     for (const [id, state] of surfaces) {
+      if (idPrefix && !id.startsWith(idPrefix)) continue;
+      if (sinceStamp !== undefined && state.stamp <= sinceStamp) continue;
       const filePath = nodePath.join(dir, `${id}.json`);
       fs.writeFileSync(
         filePath,
@@ -125,6 +169,7 @@ export function restoreSurfaces(projectRoot: string): void {
           dataModel: Record<string, unknown>;
           components?: unknown[];
         };
+        knownSurfaceIds.add(data.surfaceId);
         surfaces.set(data.surfaceId, {
           surfaceId: data.surfaceId,
           title: data.title,
@@ -133,6 +178,7 @@ export function restoreSurfaces(projectRoot: string): void {
           // Back-compat: older persisted files lack `components`. Recover it
           // by scanning the message history for the last updateComponents.
           components: data.components ?? extractComponentsFromMessages(data.messages),
+          stamp: nextSurfaceStamp(),
         });
       } catch {
         // Skip malformed files.
@@ -156,57 +202,150 @@ export function clearAllSurfaces(projectRoot: string): void {
   }
 }
 
-// ── A2UI message builders ────────────────────────────────────────────────────
+// ── A2UI v0.9 message builders ───────────────────────────────────────────────
 
-/** Build a `createSurface` A2UI message. */
-function createSurfaceMessage(surfaceId: string, title: string): unknown {
-  return {
-    type: "createSurface",
-    surfaceId,
-    title,
-    catalog: "basic",
-  };
+/** Official v0.9 createSurface (catalogId is required by the protocol). */
+function createSurfaceMessage(surfaceId: string): unknown {
+  return { version: "v0.9", createSurface: { surfaceId, catalogId: BASIC_CATALOG_ID } };
 }
 
-/** Build an `updateComponents` A2UI message from a flat component list (full replace). */
+/** Official v0.9 updateComponents (flat list; replacing a children list
+ * drops the removed ids from the tree — the client GCs unreachable ones). */
 function updateComponentsMessage(surfaceId: string, components: unknown[]): unknown {
-  return {
-    type: "updateComponents",
-    surfaceId,
-    components,
-  };
+  return { version: "v0.9", updateComponents: { surfaceId, components } };
+}
+
+/** Official v0.9 updateDataModel (JSON-Pointer set; "/" = whole model). */
+function updateDataModelMessage(surfaceId: string, value: Record<string, unknown>): unknown {
+  return { version: "v0.9", updateDataModel: { surfaceId, path: "/", value } };
+}
+
+/** Official v0.9 deleteSurface. */
+function deleteSurfaceMessage(surfaceId: string): unknown {
+  return { version: "v0.9", deleteSurface: { surfaceId } };
 }
 
 /**
- * Build a `patchComponents` A2UI message — delta-only merge patch.
- * Components with matching id replace existing ones; new ids are added;
- * `{ id, _delete: true }` removes a component. Unreachable components are
- * GC'd by the processor. This is inspired by OpenUI's mergeStatements.
+ * Normalize an incoming component array to official v0.9 shape. Accepts BOTH
+ * dialects: legacy pre-R2 trees (lowercase `type` + `parentId` back
+ * references) are converted by the shared converter, and v0.9 components get
+ * a schema-shape repair pass (normalizeV09Shapes) — models frequently emit
+ * near-miss shapes (sibling Tabs, Card with children; observed on the real
+ * arch-scan run 2026-08-24), and repairing at the MCP boundary keeps every
+ * downstream renderer (official processor) validation-clean.
  */
-function patchComponentsMessage(surfaceId: string, components: unknown[]): unknown {
-  return {
-    type: "updateComponents",
-    surfaceId,
-    components,
-    mode: "merge",
-  };
+export function normalizeComponents(raw: unknown): Array<Record<string, unknown>> {
+  const list = (Array.isArray(raw) ? raw : []).filter((c) => c && typeof c === "object");
+  const legacy = list.some((c) => "type" in (c as object) || "parentId" in (c as object));
+  const components = (
+    legacy ? convertLegacyComponents(list as never) : (list as Array<Record<string, unknown>>)
+  ).filter((c) => typeof (c as { id?: unknown }).id === "string");
+  return ensureRootComponent(normalizeV09Shapes(components));
 }
 
-/** Build an `updateDataModel` A2UI message. */
-function updateDataModelMessage(surfaceId: string, dataModel: Record<string, unknown>): unknown {
-  return {
-    type: "updateDataModel",
-    surfaceId,
-    dataModel,
-  };
+/**
+ * Repair near-miss v0.9 component shapes in place (all observed LLM slips):
+ * 1. Card with `children` → single `child` + synthesized inner Column.
+ * 2. Card with no child → placeholder Text child (schema requires one).
+ * 3. Row/Column/List with single `child` → `children: [child]`.
+ * 4. Sibling Tabs each carrying {title, child} → ONE container Tabs with a
+ *    `tabs: [{title, child}]` array (the official shape is a single
+ *    component holding the whole tab bar).
+ */
+function normalizeV09Shapes(components: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const inserts: Array<Record<string, unknown>> = [];
+
+  for (const c of components) {
+    const kind = String(c.component ?? "");
+    if (kind === "Card") {
+      if (Array.isArray(c.children)) {
+        const kids = c.children as string[];
+        const inner: Record<string, unknown> = { id: `${c.id}-inner`, component: "Column", children: kids };
+        inserts.push(inner);
+        delete c.children;
+        c.child = inner.id;
+      } else if (typeof c.child !== "string") {
+        const ph: Record<string, unknown> = { id: `${c.id}-empty`, component: "Text", text: "" };
+        inserts.push(ph);
+        c.child = ph.id;
+      }
+    } else if (kind === "Row" || kind === "Column" || kind === "List") {
+      if (typeof c.child === "string" && !Array.isArray(c.children)) {
+        c.children = [c.child];
+        delete c.child;
+      }
+    }
+  }
+
+  // Sibling Tabs merge: Tabs components that carry a `title` (the per-tab
+  // near-miss shape) sharing a container's children list collapse into ONE.
+  const perTabTabs = components.filter(
+    (c) => String(c.component) === "Tabs" && typeof c.title === "string" && typeof c.child === "string"
+  );
+  if (perTabTabs.length > 0) {
+    const tabIds = new Set(perTabTabs.map((c) => String(c.id)));
+    const entries = perTabTabs.map((c) => ({ title: c.title, child: c.child }));
+    const first = perTabTabs[0] as Record<string, unknown>;
+    const firstId = String(first.id);
+    // Rewrite every children list: first tab id stays (becomes the merged
+    // container), the rest drop.
+    for (const c of components) {
+      if (!Array.isArray(c.children)) continue;
+      const kids = c.children as string[];
+      if (!kids.some((k) => tabIds.has(k))) continue;
+      const out: string[] = [];
+      let seenFirst = false;
+      for (const k of kids) {
+        if (tabIds.has(k)) {
+          if (!seenFirst) {
+            out.push(k);
+            seenFirst = true;
+          }
+        } else {
+          out.push(k);
+        }
+      }
+      c.children = out;
+      // A Card holding a single tab child keeps pointing at the merged one.
+      if (String(c.component) === "Card" && typeof c.child === "string" && tabIds.has(String(c.child))) {
+        c.child = firstId;
+      }
+    }
+    // The first tab becomes the container; the rest are removed below.
+    delete first.title;
+    delete first.child;
+    first.tabs = entries;
+    for (let i = components.length - 1; i >= 0; i--) {
+      const c = components[i] as Record<string, unknown>;
+      if (String(c.component) === "Tabs" && tabIds.has(String(c.id)) && String(c.id) !== firstId) {
+        components.splice(i, 1);
+      }
+    }
+  }
+
+  return [...components, ...inserts];
 }
 
-/** Build a `deleteSurface` A2UI message. */
-function deleteSurfaceMessage(surfaceId: string): unknown {
-  return {
-    type: "deleteSurface",
-    surfaceId,
-  };
+/**
+ * The v0.9 protocol derives the tree root by convention: one component MUST
+ * have id "root". Wrap unreferenced top-level components in a Column root
+ * when the producer forgot (harmless no-op when "root" exists).
+ */
+function ensureRootComponent(components: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  if (components.length === 0 || components.some((c) => c.id === "root")) return components;
+  const referenced = new Set<string>();
+  for (const c of components) {
+    const children = c.children;
+    if (Array.isArray(children)) {
+      for (const id of children) referenced.add(String(id));
+    } else if (children && typeof children === "object" && "componentId" in (children as object)) {
+      referenced.add(String((children as { componentId: unknown }).componentId));
+    }
+    if (typeof c.child === "string") referenced.add(c.child);
+  }
+  const topLevel = components.filter((c) => !referenced.has(String(c.id))).map((c) => String(c.id));
+  if (topLevel.length === 0) return components;
+  return [{ id: "root", component: "Column", children: topLevel }, ...components];
 }
 
 // ── Tool result with EmbeddedResource ────────────────────────────────────────
@@ -231,25 +370,21 @@ function a2uiResult(messages: unknown[], text: string, surfaceId?: string): Call
   };
 }
 
-/** Recover the latest components from a message history (back-compat for old persisted files). */
+/**
+ * Recover the latest components from a recorded message history. Reads both
+ * the official v0.9 shape ({updateComponents:{components}}) and the legacy
+ * flat dialect ({type:"updateComponents", components}) — pre-R2 files keep
+ * the old shape and are converted lazily by the renderer façade.
+ */
 function extractComponentsFromMessages(messages: unknown[]): unknown[] {
   let components: unknown[] = [];
   for (const msg of messages) {
-    if (msg && typeof msg === "object" && (msg as { type?: string }).type === "updateComponents") {
-      const comps = (msg as { components?: unknown[] }).components;
-      if (Array.isArray(comps)) components = comps;
-    }
+    if (!msg || typeof msg !== "object") continue;
+    const m = msg as { type?: string; updateComponents?: { components?: unknown[] }; components?: unknown[] };
+    const comps = m.updateComponents?.components ?? (m.type === "updateComponents" ? m.components : undefined);
+    if (Array.isArray(comps)) components = comps;
   }
   return components;
-}
-
-/** Build a self-contained snapshot of a surface (createSurface + components + dataModel). */
-function snapshotMessages(state: SurfaceState): unknown[] {
-  return [
-    createSurfaceMessage(state.surfaceId, state.title),
-    updateComponentsMessage(state.surfaceId, state.components),
-    updateDataModelMessage(state.surfaceId, state.dataModel),
-  ];
 }
 
 // ── MCP Server builder ───────────────────────────────────────────────────────
@@ -276,46 +411,66 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
   const server = new McpServer(SERVER_INFO);
   const registerTool = server.registerTool.bind(server) as unknown as RegisterToolLoose;
 
-  // Tool: render_surface — create a new interactive Surface
+  // Tool: render_surface — create a new interactive Surface (A2UI v0.9)
   registerTool(
     "render_surface",
     {
       description:
-        "Create a new A2UI Surface — an interactive, declarative UI that renders in the conversation. " +
-        "Use this to build prototypes, dashboards, forms, or any UI that needs user interaction. " +
-        "The Surface is a live object: the user can click buttons, fill forms, and you can " +
-        "incrementally update it via `update_surface`.",
+        "Create a new A2UI Surface — an interactive, declarative UI rendered in the conversation. " +
+        "Speaks the OFFICIAL A2UI v0.9 protocol. Component vocabulary (basicCatalog): " +
+        "Layout Row/Column/List/Card/Tabs/Modal/Divider · Content Text/Image/Icon/Video/AudioPlayer · " +
+        "Input Button/TextField/CheckBox/ChoicePicker/Slider/DateTimeInput.\n\n" +
+        "Wire format rules:\n" +
+        '1. Adjacency list: every component is `{id, component: "PascalName", ...props}` in a FLAT array. ' +
+        'Containers reference children by id: `{id: "root", component: "Column", children: ["a", "b"]}`. ' +
+        'Card/Tabs take a single `child` id. Exactly one component MUST have `id: "root"`.\n' +
+        '2. Dynamic values: a property accepts a literal, or `{path: "/data/key"}` (JSON Pointer into the data model).\n' +
+        '3. Text: `{component: "Text", text: {path: "/title"}, variant: "h1|h2|h3|h4|h5|body|caption"}`.\n' +
+        "4. Button: needs a child Text for its label and an action object: " +
+        '`{component: "Button", child: "btn-label", variant: "primary", action: {event: {name: "submit"}}}`.\n' +
+        'Example: components=[{id:"root",component:"Column",children:["t","b"]},' +
+        '{id:"t",component:"Text",text:{path:"/title"}},' +
+        '{id:"b",component:"Button",child:"bl",action:{event:{name:"go"}}},' +
+        '{id:"bl",component:"Text",text:"Go"}], dataModel={title:"Hello"}',
       inputSchema: {
         surfaceId: z.string().describe("Unique identifier for this Surface"),
-        title: z.string().describe("Display title for the Surface"),
+        title: z.string().optional().describe("Display title (host metadata; not part of the v0.9 protocol)"),
         components: z
           .array(z.record(z.unknown()))
           .describe(
-            "A2UI component definitions (adjacency list). Each component has: id, type (Row/Column/Card/Text/Button/TextField/etc.), parentId, and properties."
+            "A2UI v0.9 component adjacency list (flat; forward children references; one component with id 'root'). " +
+              "Legacy trees (lowercase type + parentId) are tolerated and converted, but prefer the official shape."
           ),
         dataModel: z
           .record(z.unknown())
-          .describe("Initial data model state (key-value pairs bound to components via JSON Pointer)"),
+          .describe("Initial data model (key-value state bound via {path: '/key'} references)"),
       },
     },
     async (args) => {
       const surfaceId = String(args.surfaceId ?? `surface-${Date.now()}`);
       const title = String(args.title ?? "A2UI Surface");
-      const components = (args.components as unknown[]) ?? [];
+      const components = normalizeComponents(args.components);
       const dataModel = (args.dataModel as Record<string, unknown>) ?? {};
+      if (components.length === 0) {
+        return {
+          content: [{ type: "text", text: "Error: `components` must be a non-empty A2UI v0.9 adjacency list." }],
+          isError: true,
+        };
+      }
 
       const messages: unknown[] = [
-        createSurfaceMessage(surfaceId, title),
+        createSurfaceMessage(surfaceId),
         updateComponentsMessage(surfaceId, components),
         updateDataModelMessage(surfaceId, dataModel),
       ];
-
+      knownSurfaceIds.add(surfaceId);
       surfaces.set(surfaceId, {
         surfaceId,
         title,
         messages,
         dataModel,
         components,
+        stamp: nextSurfaceStamp(),
       });
 
       return a2uiResult(
@@ -331,9 +486,9 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     {
       description:
         "Generate an interactive prototype Surface from a pre-built template. " +
-        "Pick a template (login-form, dashboard, list-detail, wizard, kanban, data-table) " +
-        "and fill in params (field names, column names, items, etc.). The server generates " +
-        "the complete component tree — you don't need to write A2UI JSON manually. " +
+        "Pick a template (login-form, dashboard, list-detail, wizard, kanban, or data-table) " +
+        "and fill in params (field names, column names, items, etc.). The server generates the " +
+        "complete official A2UI v0.9 component tree — you don't need to write A2UI JSON manually. " +
         "Use `list_templates` to see available templates and their params.",
       inputSchema: {
         template: z
@@ -371,23 +526,27 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
         };
       }
 
+      // Templates emit their internal shape; normalizeComponents converts it
+      // to the official v0.9 adjacency list (shared converter).
+      const components = normalizeComponents(result.components);
       const messages: unknown[] = [
-        createSurfaceMessage(surfaceId, title),
-        updateComponentsMessage(surfaceId, result.components),
+        createSurfaceMessage(surfaceId),
+        updateComponentsMessage(surfaceId, components),
         updateDataModelMessage(surfaceId, result.dataModel),
       ];
-
+      knownSurfaceIds.add(surfaceId);
       surfaces.set(surfaceId, {
         surfaceId,
         title,
         messages,
         dataModel: result.dataModel,
-        components: result.components,
+        components,
+        stamp: nextSurfaceStamp(),
       });
 
       return a2uiResult(
         messages,
-        `Prototype "${title}" created from template "${template}" with ${result.components.length} components. Surface ID: ${surfaceId}. Ask the user to interact with it, or use update_surface to iterate.`
+        `Prototype "${title}" created from template "${template}" with ${components.length} components. Surface ID: ${surfaceId}.`
       );
     }
   );
@@ -410,27 +569,27 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
-  // Tool: update_surface — incrementally patch an existing Surface
+  // Tool: update_surface — full-snapshot update of an existing Surface (v0.9)
   registerTool(
     "update_surface",
     {
       description:
-        "Update an existing A2UI Surface. Can add/remove/modify components or update the data model. " +
-        "Use this to iterate on a prototype based on user feedback — the Surface updates live without " +
-        "rebuilding from scratch.\n\n" +
-        "Components are sent as a DELTA PATCH (not full replacement): components with matching id " +
-        'replace existing ones, new ids are added, and `{ id: "...", _delete: true }` removes a component. ' +
-        "Only send the components that changed — the renderer merges them into the existing surface.",
+        "Update an existing A2UI Surface (official v0.9). Send the COMPLETE updated component " +
+        "list (full snapshot, not a delta): components with the same id are replaced, and ids you " +
+        "remove from a container's `children` list disappear from the tree (unreachable components " +
+        "are garbage-collected client-side). Data model updates merge shallowly via `dataModelPatch`.\n\n" +
+        "Iterating efficiently: copy the previous component list and modify only what changed — " +
+        "the client re-renders just the diffs.",
       inputSchema: {
         surfaceId: z.string().describe("ID of the Surface to update"),
         components: z
           .array(z.record(z.unknown()))
-          .describe(
-            "Delta patch of components. Same id = replace, new id = add, { id, _delete: true } = remove. " +
-              "Only send changed/new components — not the full set."
-          ),
-        dataModelPatch: z.record(z.unknown()).describe("Partial data model update (merged into existing data model)"),
-        title: z.string().optional().describe("Optional new title for the Surface"),
+          .optional()
+          .describe("Complete updated v0.9 component adjacency list (full replacement of the tree)."),
+        dataModelPatch: z
+          .record(z.unknown())
+          .describe("Shallow-merged data model update (bound components update reactively)."),
+        title: z.string().optional().describe("Optional new display title (host metadata)."),
       },
     },
     async (args) => {
@@ -444,50 +603,39 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
       }
 
       const messages: unknown[] = [];
-      let changedCount = 0;
-
       if (args.title) {
         state.title = String(args.title);
       }
 
-      if (args.components) {
-        const incoming = args.components as unknown[];
-        // Merge into state.components by id (delta patch, not full replace).
-        const componentMap = new Map((state.components as Array<{ id?: string }>).map((c) => [c.id ?? "", c]));
-        for (const comp of incoming) {
-          if (!comp || typeof (comp as { id?: unknown }).id !== "string") continue;
-          const id = (comp as { id: string }).id;
-          if ((comp as { _delete?: boolean })._delete) {
-            componentMap.delete(id);
-          } else {
-            componentMap.set(id, comp);
-          }
-          changedCount++;
-        }
-        state.components = Array.from(componentMap.values());
-
-        // Return a merge-mode patch message (delta-only, not full snapshot).
-        // The processor will merge these by id and GC unreachable components.
-        messages.push(patchComponentsMessage(surfaceId, incoming));
+      if (Array.isArray(args.components)) {
+        state.components = normalizeComponents(args.components);
+        const msg = updateComponentsMessage(surfaceId, state.components);
+        messages.push(msg);
+        state.messages = [...state.messages, msg];
       }
 
-      if (args.dataModelPatch) {
+      if (args.dataModelPatch && typeof args.dataModelPatch === "object") {
         const patch = args.dataModelPatch as Record<string, unknown>;
         state.dataModel = { ...state.dataModel, ...patch };
-        // dataModel is already merged on the processor side, so send only
-        // the patch keys (not the full dataModel).
-        messages.push(updateDataModelMessage(surfaceId, patch));
+        const msg = updateDataModelMessage(surfaceId, state.dataModel);
+        messages.push(msg);
+        state.messages = [...state.messages, msg];
       }
 
-      state.messages = [...state.messages, ...messages];
+      if (messages.length === 0) {
+        return {
+          content: [{ type: "text", text: "Error: provide `components` and/or `dataModelPatch`." }],
+          isError: true,
+        };
+      }
 
-      // Build the result payload. If this is the first update (no prior
-      // components existed before this call), send a full snapshot so a
-      // fresh renderer can hydrate. Otherwise, send only the delta messages.
-      const hadComponentsBefore = changedCount > 0 && state.components.length > changedCount;
-      const payload = hadComponentsBefore ? messages : snapshotMessages(state);
-      const summary = `Surface "${state.title}" updated: ${changedCount} component(s) patched.`;
-      return a2uiResult(payload, summary);
+      state.stamp = nextSurfaceStamp();
+      // First update over a freshly created surface often follows immediately;
+      // replay the full history so a renderer that only sees THIS result can
+      // hydrate from scratch.
+      const payload = state.messages;
+      const summary = `Surface "${state.title}" updated: ${messages.length} message(s).`;
+      return a2uiResult(payload, summary, surfaceId);
     }
   );
 
@@ -512,43 +660,123 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
-  // Tool: a2ui_action — receive user interaction (called by the host when user clicks/interacts)
+  // Tool: save_archmap — persist a Mermaid architecture-map document.
+  // arch-scan's current output format: a markdown file whose ```mermaid fences
+  // render as actual diagrams in the Knowledge panel (the legacy A2UI arch
+  // surface read as a flat document). Persistence stays main-process-owned
+  // (same model as persistSurfaces) so the background build task needs no
+  // write-tool permission; the name is sanitized and pinned into the
+  // prototypes directory.
+  registerTool(
+    "save_archmap",
+    {
+      description:
+        "Save an architecture map under .deeporca/prototypes/. Two formats: " +
+        "(1) format:'md' (default) — a Mermaid document (arch-<name>.md); the Knowledge panel renders " +
+        "each ```mermaid fenced block as an interactive diagram. Document layout: '# <Title>' heading, " +
+        "one-sentence positioning + one architecture-style line, then one '## <Perspective>' section per " +
+        "perspective containing exactly one mermaid fence, closed by '## 架构分析' (evidence-based findings) " +
+        "and '## 优化建议' (problem → advice → priority) review sections. " +
+        "(2) format:'html' — the layered architecture board (arch-<name>.html): a self-contained, " +
+        "JavaScript-free HTML page with horizontal capability layers and kind-colored component chips; " +
+        "the Knowledge panel renders it on a sandboxed canvas. " +
+        "Call ONCE per scan per format with the COMPLETE content (full replacement).",
+      inputSchema: {
+        name: z
+          .string()
+          .describe(
+            "Map slug, kebab-case (e.g. 'root' or 'deeporca'). Stored as arch-<name>.md / arch-<name>.html; an explicit 'arch-' prefix is stripped."
+          ),
+        format: z
+          .enum(["md", "html"])
+          .optional()
+          .describe("Output format: 'md' (Mermaid document, default) or 'html' (layered board)."),
+        markdown: z
+          .string()
+          .optional()
+          .describe(
+            "Complete markdown document with ```mermaid fences (format 'md'). Full replacement of the previous file content."
+          ),
+        html: z
+          .string()
+          .optional()
+          .describe(
+            "Complete self-contained HTML board (format 'html'): no external resources, no JavaScript, light/dark via prefers-color-scheme."
+          ),
+      },
+    },
+    async (args) => {
+      const rawName = String(args.name ?? "").trim();
+      const slug = rawName
+        .toLowerCase()
+        .replace(/^arch-/, "")
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const format =
+        args.format === "html" || (args.format == null && args.html != null && args.markdown == null) ? "html" : "md";
+      const markdown = String(args.markdown ?? "");
+      const html = String(args.html ?? "");
+      if (!slug) {
+        return {
+          content: [{ type: "text", text: "Error: `name` must contain letters, digits or dashes." }],
+          isError: true,
+        };
+      }
+      if (format === "md" && !markdown.trim()) {
+        return { content: [{ type: "text", text: "Error: `markdown` must be a non-empty document." }], isError: true };
+      }
+      if (format === "html" && !html.trim()) {
+        return { content: [{ type: "text", text: "Error: `html` must be a non-empty document." }], isError: true };
+      }
+      try {
+        const dir = getPrototypesDir(projectRoot ?? process.cwd());
+        fs.mkdirSync(dir, { recursive: true });
+        const file = nodePath.join(dir, format === "html" ? `arch-${slug}.html` : `arch-${slug}.md`);
+        const body = format === "html" ? html : markdown;
+        fs.writeFileSync(file, body.endsWith("\n") ? body : `${body}\n`, "utf-8");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Architecture ${format === "html" ? "board" : "map"} saved: ${file} (${body.split("\n").length} lines).`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error saving architecture map: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: a2ui_action — receive user interaction (official A2uiClientAction
+  // shape: the renderer bridge forwards {surfaceId, name, context}).
   registerTool(
     "a2ui_action",
     {
       description:
-        "Receive a user interaction from an A2UI Surface. " +
-        "Called automatically when the user clicks a button, submits a form, or interacts with any " +
-        "action-enabled component. The action name and context are provided by the component's " +
-        "action configuration.",
+        "Receive a user interaction from an A2UI Surface. Called automatically " +
+        "by the host when the user activates a component's action " +
+        "(`{event: {name}}` on Buttons, form submissions, etc.). The official " +
+        "A2uiClientAction carries the action name and a resolved context " +
+        "(bound data-model values, source component id).",
       inputSchema: {
         surfaceId: z.string().describe("Surface the interaction originated from"),
-        actionName: z.string().describe("Name of the action (from component's action config)"),
-        context: z.record(z.unknown()).describe("Additional context data from the interaction"),
+        actionName: z.string().describe("Action name (the Button action.event.name)"),
+        context: z.record(z.unknown()).describe("Resolved action context from the client"),
       },
     },
     async (args) => {
       const surfaceId = String(args.surfaceId ?? "");
       const actionName = String(args.actionName ?? "");
       const context = args.context ?? {};
-
-      // Auto-handle navigation actions (navigate:<pageName>) — delegates to
-      // the same logic as navigate_to tool to keep a single code path.
-      if (actionName.startsWith("navigate:")) {
-        const pageName = actionName.slice("navigate:".length);
-        const state = surfaces.get(surfaceId);
-        if (state) {
-          state.dataModel = {
-            ...state.dataModel,
-            "nav.currentPage": pageName.charAt(0).toUpperCase() + pageName.slice(1),
-            "nav.currentPageContent": `Content for ${pageName} — ask me to add components here.`,
-            "nav.currentPageId": pageName,
-          };
-          state.messages = [...state.messages, updateDataModelMessage(surfaceId, state.dataModel)];
-          return a2uiResult(snapshotMessages(state), `Navigated to page "${pageName}".`);
-        }
-      }
-
       return {
         content: [
           {
@@ -560,46 +788,50 @@ export function buildA2uiServer(projectRoot?: string): McpServer {
     }
   );
 
-  // Tool: navigate_to — switch the current page in a multi-page prototype
+  // Tool: render_spec — persist a requirements document (prototype module,
+  // step 1). The document is markdown; metadata.spec lets the renderer open a
+  // reading preview instead of an interactive one.
   registerTool(
-    "navigate_to",
+    "render_spec",
     {
       description:
-        "Switch the current page in a multi-page prototype Surface. Updates the " +
-        "dataModel to show the new page's title and content placeholder. Use this " +
-        "when the user clicks a navigation button with action 'navigate:<pageName>'.",
+        "Persist a structured requirements document (需求文档) as a spec artifact. " +
+        "Called by the spec-writer skill (prototype module step 1); prototype.materialize " +
+        "(step 2) designs the prototype against this document.",
       inputSchema: {
-        surfaceId: z.string().describe("ID of the multi-page Surface"),
-        pageName: z.string().describe("Name of the page to navigate to"),
-        pageTitle: z.string().optional().describe("Display title for the page (defaults to pageName)"),
-        pageContent: z.string().optional().describe("Content text for the page (defaults to a placeholder)"),
+        document: z
+          .string()
+          .describe(
+            "The complete requirements document in markdown. Must contain the sections " +
+              "背景与目标 / 用户与场景 / 功能需求 / 页面清单 / 验收标准 (页面清单 drives the prototype pages)."
+          ),
+        requirement: z
+          .string()
+          .optional()
+          .describe("The user's original requirement text (persisted as requirement.md)."),
       },
     },
     async (args) => {
-      const surfaceId = String(args.surfaceId ?? "");
-      const pageName = String(args.pageName ?? "");
-      const pageTitle = String(args.pageTitle ?? pageName);
-      const pageContent = String(args.pageContent ?? `Content for ${pageTitle} — ask me to add components here.`);
-
-      const state = surfaces.get(surfaceId);
-      if (!state) {
-        return {
-          content: [{ type: "text", text: `Surface "${surfaceId}" not found.` }],
-          isError: true,
-        };
+      const document = String(args.document ?? "");
+      if (!document.trim()) {
+        return { content: [{ type: "text", text: "Error: empty requirements document." }], isError: true };
       }
-
-      // Update data model to switch page
-      state.dataModel = {
-        ...state.dataModel,
-        "nav.currentPage": pageTitle,
-        "nav.currentPageContent": pageContent,
-        "nav.currentPageId": pageName,
-      };
-
-      state.messages = [...state.messages, updateDataModelMessage(surfaceId, state.dataModel)];
-
-      return a2uiResult(snapshotMessages(state), `Navigated to page "${pageTitle}" (id: ${pageName}).`);
+      const requirement =
+        typeof args.requirement === "string" && args.requirement.trim() ? args.requirement : undefined;
+      saveArtifactWithLineage(projectRoot, "spec", "render", {
+        title: deriveTitle(document),
+        content: document,
+        requirement,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Requirements document saved as a spec artifact. It is now the contract for prototype generation.",
+          },
+        ],
+        metadata: { spec: document },
+      } as CallToolResult;
     }
   );
 
@@ -844,12 +1076,12 @@ let lastDesignDoc: string | null = null;
  * artifact per turn. `render_*` after a finished design starts a fresh
  * lineage, which is the intended semantics.
  */
-const latestArtifactIds = new Map<string, { openui?: string; design?: string }>();
+const latestArtifactIds = new Map<string, { openui?: string; design?: string; spec?: string }>();
 
 /** Save with lineage: create (render) or version (update), remembering the id. */
 function saveArtifactWithLineage(
   root: string | undefined,
-  kind: "openui" | "design",
+  kind: "openui" | "design" | "spec",
   mode: "render" | "update",
   input: { title: string; content: string; requirement?: string }
 ): void {

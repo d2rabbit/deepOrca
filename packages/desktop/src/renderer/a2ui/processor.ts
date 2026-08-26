@@ -1,220 +1,145 @@
 /**
- * A2UI Surface Processor — lightweight custom processor.
+ * A2UI processor façade (specs/a2ui-integration R2) — the app-wide singleton
+ * over the OFFICIAL v0.9 protocol engine (`@a2ui/web_core/v0_9`
+ * MessageProcessor + `@a2ui/react/v0_9` basicCatalog). Replaces the 220-line
+ * homegrown processor: schema validation, adjacency-list GC, dynamic-value
+ * binding, checks and client functions all come from the official engine now.
  *
- * Replaces @a2ui/web_core's A2uiMessageProcessor (which speaks the
- * standardized v0.8 protocol incompatible with our simplified format).
+ * Kept façade API (call sites unchanged): processA2uiMessages(json),
+ * extractSurfaceId(json), clearSurfaces(), plus surface-model accessors for
+ * the A2uiSurface component. Legacy pre-v0.9 batches (homegrown dialect) are
+ * tolerated via the shared converter — see src/shared/a2ui-legacy.ts.
  *
- * Our MCP server emits messages in this format:
- *   { type: "createSurface", surfaceId, title }
- *   { type: "updateComponents", surfaceId, components: [{id, type, parentId, properties}] }
- *   { type: "updateDataModel", surfaceId, dataModel: {...} }
- *   { type: "deleteSurface", surfaceId }
- *
- * This processor consumes those messages directly — no zod schema validation,
- * no strict protocol enforcement. The renderer's A2uiSurface component was
- * already written to read this shape.
+ * NOTE: no CSS imports in this module — it is loaded by node-based tests;
+ * the official stylesheet is imported by the A2uiSurface component only.
  */
 
-/** A component node in the A2UI adjacency list. */
-export interface A2uiComponent {
-  id: string;
-  type: string;
-  parentId?: string;
-  properties?: Record<string, unknown>;
-}
+import { MessageProcessor } from "@a2ui/web_core/v0_9";
+import type { ReactComponentImplementation } from "@a2ui/react/v0_9";
+import { basicCatalog } from "@a2ui/react/v0_9";
+import { convertLegacyBatch, isLegacyBatch } from "../../shared/a2ui-legacy";
 
-/** A surface with its rendered component tree. */
-export interface A2uiSurfaceState {
-  surfaceId: string;
-  title: string;
-  components: A2uiComponent[];
-  dataModel: Record<string, unknown>;
-}
+/** The surface-model flavor the official React renderer consumes. */
+import type { SurfaceModel } from "@a2ui/web_core/v0_9";
 
-/** Per-surface state managed by the processor. */
-interface InternalSurface {
-  surfaceId: string;
-  title: string;
-  components: Map<string, A2uiComponent>;
-  dataModel: Record<string, unknown>;
-}
+/** The surface-model flavor the official React renderer consumes. */
+export type ReactSurfaceModel = SurfaceModel<ReactComponentImplementation>;
 
-/** Global singleton processor. */
-let surfaces = new Map<string, InternalSurface>();
+/** Forwarder shape mirroring the legacy onAction callback contract. */
+export type A2uiActionForwarder = (surfaceId: string, actionName: string, context: Record<string, unknown>) => void;
 
-/** Get all surfaces as renderable state. */
-export function getSurfaces(): A2uiSurfaceState[] {
-  const result: A2uiSurfaceState[] = [];
-  for (const [, surface] of surfaces) {
-    result.push({
-      surfaceId: surface.surfaceId,
-      title: surface.title,
-      components: Array.from(surface.components.values()),
-      dataModel: surface.dataModel,
-    });
-  }
-  return result;
-}
-
-/** Get a single surface by ID (returns null if not found). */
-export function getSurface(surfaceId: string): A2uiSurfaceState | null {
-  const surface = surfaces.get(surfaceId);
-  if (!surface) return null;
-  return {
-    surfaceId: surface.surfaceId,
-    title: surface.title,
-    components: Array.from(surface.components.values()),
-    dataModel: surface.dataModel,
-  };
-}
+const actionForwarders = new Set<A2uiActionForwarder>();
 
 /**
- * Extract the surfaceId from the first message in a JSON payload.
- * Used to scope update subscriptions to the relevant surface only.
+ * The single processor for the whole renderer. The global action handler
+ * fans official A2uiClientActions out to registered forwarders (the
+ * conversation renderer forwards them over IPC to the a2ui_action MCP tool).
  */
-export function extractSurfaceId(messagesJson: string): string | null {
+export const a2uiProcessor = new MessageProcessor(
+  [basicCatalog],
+  (action) => {
+    const context: Record<string, unknown> = { ...action.context };
+    if (action.sourceComponentId) context.sourceComponentId = action.sourceComponentId;
+    for (const forward of actionForwarders) forward(action.surfaceId, action.name, context);
+  },
+  { version: "v0.9.1" }
+);
+
+/** Register a global action forwarder; returns an unregister function. */
+export function onA2uiAction(forward: A2uiActionForwarder): () => void {
+  actionForwarders.add(forward);
+  return () => actionForwarders.delete(forward);
+}
+
+/** Surface validation/processing errors surface in the console, never crash. */
+a2uiProcessor.onSurfaceCreated((surface) => {
+  void surface.onError.subscribe((err) => {
+    console.warn(`[a2ui] surface "${surface.id}" error:`, err);
+  });
+});
+
+function parseMessages(messagesJson: string): unknown[] | null {
   try {
-    const messages = JSON.parse(messagesJson);
-    if (!Array.isArray(messages)) return null;
-    for (const msg of messages) {
-      if (msg && typeof msg.surfaceId === "string") return msg.surfaceId;
-    }
+    const parsed: unknown = JSON.parse(messagesJson);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === "object") return [parsed];
     return null;
   } catch {
     return null;
   }
 }
 
-/** Clear all surfaces. */
-export function clearSurfaces(): void {
-  surfaces = new Map();
+/** surfaceIds a batch (already v0.9) re-creates — replayed batches must reset these. */
+function collectCreatedSurfaceIds(messages: unknown[]): Set<string> {
+  const ids = new Set<string>();
+  for (const raw of messages) {
+    if (!raw || typeof raw !== "object") continue;
+    const surfaceId = (raw as { createSurface?: { surfaceId?: unknown } }).createSurface?.surfaceId;
+    if (typeof surfaceId === "string") ids.add(surfaceId);
+  }
+  return ids;
 }
 
 /**
- * Process A2UI messages from a tool result. The messages array is the
- * JSON payload from the MCP server (either embedded resource or metadata).
+ * Process one A2UI message batch (JSON text). Official v0.9 batches pass
+ * straight through; legacy pre-v0.9 batches are converted first (tolerance
+ * for persisted artifacts and straggler producers from before the R2 revamp).
+ *
+ * The processor is a renderer-wide SINGLETON while call sites remount freely
+ * (KnowledgePanel's arch preview on every sub-tab switch, PrototypeWindow on
+ * open) and re-feed the same batch. The official engine throws on a duplicate
+ * createSurface — an exception inside a component effect unmounts the whole
+ * React tree (black screen). Replayed batches therefore DELETE the surfaces
+ * they re-create first (idempotent reset), and processing is wrapped so a
+ * malformed batch degrades to a console warning instead of a crash.
  */
 export function processA2uiMessages(messagesJson: string): void {
+  const parsed = parseMessages(messagesJson);
+  if (!parsed) return;
+  const messages = isLegacyBatch(parsed) ? convertLegacyBatch(parsed) : parsed;
+  if (messages.length === 0) return;
+  const recreated = collectCreatedSurfaceIds(messages);
+  if (recreated.size > 0) {
+    a2uiProcessor.processMessages(
+      [...recreated].map((surfaceId) => ({ version: "v0.9", deleteSurface: { surfaceId } }))
+    );
+  }
   try {
-    const messages = JSON.parse(messagesJson);
-    if (!Array.isArray(messages)) return;
-    for (const msg of messages) {
-      if (!msg || typeof msg.type !== "string") continue;
-      switch (msg.type) {
-        case "createSurface":
-          handleCreateSurface(msg);
-          break;
-        case "updateComponents":
-          handleUpdateComponents(msg);
-          break;
-        case "updateDataModel":
-          handleUpdateDataModel(msg);
-          break;
-        case "deleteSurface":
-          surfaces.delete(String(msg.surfaceId ?? ""));
-          break;
-        default:
-          break;
-      }
-    }
-  } catch {
-    // Malformed JSON — silently ignore.
+    a2uiProcessor.processMessages(messages as never);
+  } catch (err) {
+    console.warn("[a2ui] message batch rejected:", err);
   }
 }
 
-function handleCreateSurface(msg: Record<string, unknown>): void {
-  const surfaceId = String(msg.surfaceId ?? "");
-  if (!surfaceId) return;
-  surfaces.set(surfaceId, {
-    surfaceId,
-    title: String(msg.title ?? ""),
-    components: new Map(),
-    dataModel: {},
-  });
+/** First surfaceId referenced anywhere in the batch (v0.9 or legacy shape). */
+export function extractSurfaceId(messagesJson: string): string | null {
+  const parsed = parseMessages(messagesJson);
+  if (!parsed) return null;
+  for (const raw of parsed) {
+    if (!raw || typeof raw !== "object") continue;
+    const m = raw as Record<string, unknown>;
+    for (const key of ["createSurface", "updateComponents", "updateDataModel", "deleteSurface"]) {
+      const payload = m[key] as { surfaceId?: unknown } | undefined;
+      if (payload && typeof payload.surfaceId === "string") return payload.surfaceId;
+    }
+    if (typeof m.surfaceId === "string") return m.surfaceId;
+  }
+  return null;
 }
 
-function handleUpdateComponents(msg: Record<string, unknown>): void {
-  const surfaceId = String(msg.surfaceId ?? "");
-  const surface = surfaces.get(surfaceId);
-  if (!surface) return;
-  const components = msg.components;
-  if (Array.isArray(components)) {
-    // Mode: "replace" (default) wipes all existing components first.
-    // Mode: "merge" patches by id — same id replaces, new id adds,
-    // `{ id, _delete: true }` removes. Inspired by OpenUI merge.ts.
-    const mode = msg.mode === "merge" ? "merge" : "replace";
-    if (mode === "replace") {
-      surface.components = new Map();
-    }
-    for (const comp of components) {
-      if (!comp || typeof comp.id !== "string") continue;
-      const c = comp as A2uiComponent & { _delete?: boolean };
-      if (c._delete) {
-        surface.components.delete(c.id);
-      } else {
-        surface.components.set(c.id, c);
-      }
-    }
-    // GC: in merge mode, remove components whose parentId is no longer
-    // reachable from any root component (parentId undefined or pointing to
-    // a non-existent parent). This prevents orphaned subtrees after deletes.
-    if (mode === "merge") {
-      gcUnreachableComponents(surface);
-    }
-  }
+/** Live surface models in creation order (official SurfaceModel instances). */
+export function getSurfaceModels(): ReactSurfaceModel[] {
+  return [...a2uiProcessor.model.surfacesMap.values()];
 }
 
-/**
- * Garbage-collect components unreachable from root components.
- *
- * A root is a component with NO parentId. A component whose parentId points to
- * a non-existent component is an ORPHAN, not a root — it (and its subtree)
- * must be removed. Earlier code treated orphans as roots, so deleting a parent
- * left its children promoted to the top level (deleted dialogs/cards lingered).
- *
- * Cycle-safe: the `reachable` set guarantees each node is enqueued at most once,
- * so a parental cycle cannot loop forever.
- */
-function gcUnreachableComponents(surface: InternalSurface): void {
-  const reachable = new Set<string>();
-  const queue: string[] = [];
-
-  // Seed: ONLY true roots (no parentId). Orphans (parentId set but missing)
-  // are deliberately NOT seeded — they will be unreachable and pruned.
-  for (const [id, comp] of surface.components) {
-    if (!comp.parentId) {
-      reachable.add(id);
-      queue.push(id);
-    }
-  }
-
-  // BFS: mark children as reachable. The reachable check before enqueue makes
-  // this safe against parental cycles (a node is enqueued only once).
-  while (queue.length > 0) {
-    const id = queue.pop()!;
-    for (const [childId, comp] of surface.components) {
-      if (comp.parentId === id && !reachable.has(childId)) {
-        reachable.add(childId);
-        queue.push(childId);
-      }
-    }
-  }
-
-  // Remove unreachable (orphans + their descendants + cycle-only nodes).
-  for (const id of surface.components.keys()) {
-    if (!reachable.has(id)) {
-      surface.components.delete(id);
-    }
-  }
+export function getSurfaceModel(surfaceId: string): ReactSurfaceModel | null {
+  return a2uiProcessor.model.surfacesMap.get(surfaceId) ?? null;
 }
 
-function handleUpdateDataModel(msg: Record<string, unknown>): void {
-  const surfaceId = String(msg.surfaceId ?? "");
-  const surface = surfaces.get(surfaceId);
-  if (!surface) return;
-  const dataModel = msg.dataModel;
-  if (dataModel && typeof dataModel === "object" && !Array.isArray(dataModel)) {
-    // Merge new keys into existing dataModel (supports partial updates).
-    surface.dataModel = { ...surface.dataModel, ...(dataModel as Record<string, unknown>) };
+/** Delete every live surface (used by the preview-reset hook). */
+export function clearSurfaces(): void {
+  const ids = [...a2uiProcessor.model.surfacesMap.keys()];
+  if (ids.length > 0) {
+    a2uiProcessor.processMessages(ids.map((surfaceId) => ({ version: "v0.9", deleteSurface: { surfaceId } })));
   }
 }

@@ -219,7 +219,28 @@ async function aliasChunkCss() {
 async function copyStaticAssets() {
   await mkdir(resolve(outdir, "renderer"), { recursive: true });
   await cp(resolve(__dirname, "src/renderer/index.html"), resolve(outdir, "renderer/index.html"));
+  // ui.css is a thin @import index over the ui-css/ module dir (kept small:
+  // every stylesheet stays under the 2500-line repo limit). The modules
+  // resolve relative to this file, so the directory must ship next to it.
   await cp(resolve(__dirname, "src/renderer/ui.css"), resolve(outdir, "renderer/ui.css"));
+  await cp(resolve(__dirname, "src/renderer/ui-css"), resolve(outdir, "renderer/ui-css"), {
+    recursive: true,
+  });
+  // Official A2UI basic-catalog structural styles (R2). The package's
+  // exports map exposes no css subpath, so the file is copied from its
+  // installed location at build time — always in sync with the dependency.
+  try {
+    // The package may be hoisted to the repo root or nested in the workspace.
+    const candidates = [
+      resolve(__dirname, "../../node_modules/@a2ui/react/v0_9/index.css"),
+      resolve(__dirname, "node_modules/@a2ui/react/v0_9/index.css"),
+    ];
+    const src = candidates.find((c) => existsSync(c));
+    if (!src) throw new Error(`not found in ${candidates.join(" | ")}`);
+    await cp(src, resolve(outdir, "renderer/a2ui-basic.css"));
+  } catch (err) {
+    console.warn(`[desktop] @a2ui/react v0_9 stylesheet missing — a2ui surfaces render unstyled (${err.message})`);
+  }
   await cp(resolve(__dirname, "src/renderer/styles.css"), resolve(outdir, "renderer/styles.css"));
   // Brand icon (orca): main process rasterizes dist/orca-icon.svg; renderer uses it as favicon.
   const orcaSvg = resolve(__dirname, "src/assets/orca-icon.svg");

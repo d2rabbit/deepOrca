@@ -16,6 +16,8 @@ export type {
   ActionParameters,
   ActionProgress,
   ActionRun,
+  BackgroundLlmTaskOptions,
+  BackgroundLlmTaskResult,
   RunSubagentOptions,
   SpawnedProcess,
   Spawner,
@@ -75,6 +77,15 @@ export {
 export type { WikiInitOutput, WikiPage, WikiPageDetail, WikiFrontmatter, WikiController, WikiResult } from "./wiki";
 export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
+export { wikiTranslateDefinition, wikiTranslateRun } from "./wiki-translate";
+export type { WikiTranslateInput, WikiTranslateOutput } from "./wiki-translate";
+export {
+  detectWikiLanguage,
+  wikiVariantPath,
+  isWikiVariantFile,
+  containedUnderWiki,
+  listWikiBasePages,
+} from "./wiki-translate";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";
 export type { ArchScanInput, ArchScanOutput } from "./arch-scan";
 export {
@@ -112,6 +123,18 @@ export type {
   DesignAuditSeverity,
   DesignAuditAxes,
 } from "./design-audit";
+export {
+  prototypeSpecDefinition,
+  prototypeSpecRun,
+  prototypeMaterializeDefinition,
+  prototypeMaterializeRun,
+} from "./prototype";
+export type {
+  PrototypeSpecInput,
+  PrototypeSpecOutput,
+  PrototypeMaterializeInput,
+  PrototypeMaterializeOutput,
+} from "./prototype";
 export {
   taskCreateDefinition,
   taskCreateRun,

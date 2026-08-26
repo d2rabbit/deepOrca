@@ -2,7 +2,7 @@
   "name": "@deeporca/desktop",
   "version": "0.1.34",
   "description": "DeepOrca Desktop — an Electron GUI client on top of the DeepOrca core engine",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "type": "module",
   "main": "./dist/main.js",
   "repository": {
@@ -23,24 +23,29 @@
     "package": "node ../../scripts/package-desktop.js && electron-builder --config electron-builder.yml --publish never"
   },
   "dependencies": {
+    "@a2ui/react": "^0.10.2",
+    "@a2ui/web_core": "^0.10.6",
     "@alibaba-group/open-code-review": "^1.8.0",
     "@colbymchenry/codegraph": "^1.5.0",
     "@deeporca/core": "file:../core",
     "@deeporca/memory": "file:../memory",
-    "dompurify": "^3.4.8",
     "@monaco-editor/react": "^4.7.0",
     "@openuidev/lang-core": "^0.2.10",
     "@openuidev/react-lang": "^0.2.9",
     "highlight.js": "^11.11.1",
-    "marked": "^14.1.4",
+    "mermaid": "^11.16.0",
     "monaco-editor": "^0.56.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "remark-breaks": "^4.0.0",
+    "streamdown": "^2.5.0",
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/jsdom": "^30.0.0",
+    "@types/mdast": "^4.0.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "electron": "^43.0.0",

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react";
 import { api } from "./api";
 import { useTreeRefresh } from "./hooks/use-tree-refresh";
 import { useDocumentTitle } from "./hooks/use-document-title";
 import { useComposerDockHeight } from "./hooks/use-composer-dock-height";
+import type { SidebarView } from "./hooks/use-panel-layout";
 import { usePanelLayout } from "./hooks/use-panel-layout";
+import { useCompanionWidth } from "./hooks/use-companion-width";
 import { useAppearance } from "./hooks/use-appearance";
 import { usePreview } from "./hooks/use-preview";
 import { useSkills } from "./hooks/use-skills";
@@ -12,6 +14,7 @@ import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useSettingsData } from "./hooks/use-settings-data";
 import type {
+  ActionProgressEvent,
   AskPermissionRequest,
   DesignArtifactMeta,
   SerializableSessionEntry,
@@ -47,8 +50,15 @@ import type { DiffTarget } from "./components/DiffOverlay";
 const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
+const PrototypeDesignPanel = lazy(() =>
+  import("./components/PrototypeDesignPanel").then((m) => ({ default: m.PrototypeDesignPanel }))
+);
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
+const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
 const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
+const TaskRecordPanel = lazy(() =>
+  import("./components/TaskRecordPanel").then((m) => ({ default: m.TaskRecordPanel }))
+);
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
@@ -57,6 +67,13 @@ import { TaskProgressPanel } from "./components/TaskProgressPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
+import { BuildConsolePanel } from "./components/BuildConsolePanel";
+import { StreamdownView } from "./components/StreamdownView";
+import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
+import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
+import { SerenaPanel } from "./components/SerenaPanel";
+import { scanSerenaEvents } from "./lib/serena-extract";
+import { useBuildJobs } from "./hooks/useBuildJobs";
 import { aggregateUsage, cacheHitRate } from "./lib/token-usage";
 import { buildToolSummary, getPlanLines } from "./lib/messages";
 import { extractOpenuiFence } from "./openui/inline-extract";
@@ -70,33 +87,24 @@ import { extractProposedPlan, getImplementationPrompt, type PlanImplementationCh
 import { useI18n } from "./i18n";
 import {
   CommandPalette,
-  Rail,
-  RailButton,
-  RailSpacer,
-  IconNewSession,
-  IconSessions,
-  IconGit,
-  IconTasks,
+  GlobalTooltip,
+  IconChat,
   IconCommand,
-  IconPlugins,
-  IconTokens,
+  IconFile,
   IconIndex,
-  IconReview,
-  IconGitmcp,
-  IconEditor,
-  IconReasoningHidden,
-  IconReasoningNormal,
-  IconReasoningExpanded,
+  IconPlugins,
+  IconTaskTree,
   IconMoon,
   IconSun,
-  IconGlass,
-  IconPunk,
   IconUndo,
   IconSettings,
   Modal,
   Button,
   type CommandItem,
 } from "./ui/index";
+import { cx } from "./ui/class-names";
+import { HubOrb, HubSheet } from "./components/HubSheet";
+import { QuickDock } from "./components/QuickDock";
 
 type PendingPermissionReply = {
   sessionId: string;
@@ -134,7 +142,7 @@ function syntheticUserMessage(sessionId: string, content: string): SessionMessag
 
 export function App(): JSX.Element {
   const { t } = useI18n();
-  const { toasts, push: pushToast } = useToasts();
+  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts();
   const [trustAskOpen, setTrustAskOpen] = useState(false);
   const [trustBusy, setTrustBusy] = useState(false);
   const [projectRoot, setProjectRoot] = useState("");
@@ -142,6 +150,13 @@ export function App(): JSX.Element {
   // so the UI never presents the user's home as a real workspace.
   const [homeDir, setHomeDir] = useState("");
   const [platform, setPlatform] = useState<string>("");
+  /**
+   * Modifier-key label for shortcut hints: ⌘ on macOS, Ctrl elsewhere. Falls
+   * back to a userAgent sniff until main reports the real platform, so the
+   * first paint already shows the right glyph (the handler itself accepts
+   * metaKey || ctrlKey on every platform — this is display only).
+   */
+  const modKey = platform === "darwin" || (!platform && /Mac|iPhone|iPad/.test(navigator.userAgent)) ? "⌘" : "Ctrl";
   const [sessions, setSessions] = useState<SerializableSessionEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -167,7 +182,59 @@ export function App(): JSX.Element {
   const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
   // Branch the user tried to switch to while the working tree had blocking local changes.
 
-  const [mainView, setMainView] = useState<"chat" | "settings" | "plugins">("chat");
+  // ── Main-area tab model ─────────────────────────────────────────────────────
+  // The session tab is the workspace's fixed first tab (never closable); every
+  // other surface — settings, plugin detail, editor files, task records,
+  // knowledge views — opens as its OWN tab and never overwrites another.
+  // Panels close only via their tab's ✕ (falling back to the session tab).
+  // This replaced the old pre-empting `mainView` state, whose bug: while
+  // settings/plugins filled the main area, opening another panel added a tab
+  // underneath that could never be reached.
+  type MainTab =
+    | { kind: "chat" }
+    | { kind: "settings" }
+    | { kind: "plugins" }
+    | { kind: "editor"; file: string }
+    | { kind: "knowledge"; root: string }
+    | { kind: "task"; treeId: string };
+  const [activeTab, setActiveTab] = useState<MainTab>({ kind: "chat" });
+  /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, one per editor file. */
+  const [auxTabs, setAuxTabs] = useState<
+    Array<{ key: string; kind: "settings" | "plugins" | "editor"; file?: string }>
+  >([]);
+  // Back-compat view for consumers keyed on the old tri-state (composer dock,
+  // rail active state) and the settings hook's dispatcher.
+  const mainView: "chat" | "settings" | "plugins" =
+    activeTab.kind === "settings" || activeTab.kind === "plugins" ? activeTab.kind : "chat";
+  const setMainView = useCallback((view: "chat" | "settings" | "plugins") => {
+    if (view === "settings" || view === "plugins") {
+      setAuxTabs((tabs) => (tabs.some((tab) => tab.kind === view) ? tabs : [...tabs, { key: view, kind: view }]));
+      setActiveTab({ kind: view });
+    } else {
+      setActiveTab({ kind: "chat" });
+    }
+  }, []);
+  const openEditorTab = useCallback((file: string) => {
+    const key = `editor:${file}`;
+    setAuxTabs((tabs) => (tabs.some((tab) => tab.key === key) ? tabs : [...tabs, { key, kind: "editor", file }]));
+    setActiveTab({ kind: "editor", file });
+  }, []);
+  const handleCloseAuxTab = useCallback((key: string) => {
+    setAuxTabs((tabs) => tabs.filter((tab) => tab.key !== key));
+    setActiveTab((current) => {
+      const currentKey =
+        current.kind === "chat"
+          ? null
+          : current.kind === "editor"
+            ? `editor:${current.file}`
+            : current.kind === "knowledge"
+              ? `knowledge:${current.root}`
+              : current.kind === "task"
+                ? `task:${current.treeId}`
+                : current.kind;
+      return currentKey === key ? { kind: "chat" } : current;
+    });
+  }, []);
   const {
     prototypeJson,
     prototypeMode,
@@ -194,26 +261,21 @@ export function App(): JSX.Element {
   );
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
-  const [editorFile, setEditorFile] = useState<string | null>(null);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
   // opened from session badges, one tree per tab in the main area.
-  const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string }>>([]);
-  const [activeTaskTabId, setActiveTaskTabId] = useState<string | null>(null);
+  const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
+  /** Knowledge tab (specs/index-knowledge-rework T3): one per workspace root. */
+  const [knowledgeTabs, setKnowledgeTabs] = useState<Array<{ root: string; label: string }>>([]);
   const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
   const taskTabsRef = useRef(taskTabs);
   taskTabsRef.current = taskTabs;
-  const treeTitlesRef = useRef(treeTitles);
-  treeTitlesRef.current = treeTitles;
-  const pendingTaskTabRef = useRef<string | null>(null);
 
   const {
     appearance,
     theme,
-    lineVariant,
     reasoningMode,
     initFromPlatform: initAppearanceFromPlatform,
     handleToggleAppearance,
-    handleToggleTheme,
     handleToggleLineVariant,
     handleSelectTheme,
     handleCycleReasoning,
@@ -221,14 +283,54 @@ export function App(): JSX.Element {
 
   const {
     sidebarView,
+    setSidebarView,
     panelOpen,
     setPanelOpen,
+    viewExtended,
+    setViewExtended,
     panelWidth,
     handleResizeStart,
-    selectView,
+    selectView: selectViewBase,
     openTokensView,
     handleCollapsePanel,
   } = usePanelLayout();
+  /** Palette / slash-command / quick-action entries land DIRECTLY on their
+   *  module extended — unlike rail clicks (which own the level-2 toggle),
+   *  an intent to "open X" from elsewhere always extends the flyout. */
+  const selectView = useCallback(
+    (view: SidebarView) => {
+      setViewExtended(true);
+      selectViewBase(view);
+    },
+    [selectViewBase, setViewExtended]
+  );
+  /** Orb / ⌘B: pure summon-dismiss of level 1 (the icon rail). Opening
+   *  starts rail-only; picking a module is what extends level 2. */
+  const handleToggleHub = useCallback(() => {
+    setPanelOpen((open) => !open);
+    setViewExtended(false);
+  }, [setPanelOpen, setViewExtended]);
+  const { companionWidth, handleCompanionResizeStart } = useCompanionWidth();
+  // Opening a file opens (or focuses) its OWN editor tab in the main area and
+  // flips the left panel to the file tree (audit P1-2 behavior preserved) —
+  // other tabs are never overwritten.
+  const handleOpenEditor = useCallback(
+    (file: string) => {
+      openEditorTab(file);
+      setSidebarView("editor");
+    },
+    [openEditorTab, setSidebarView]
+  );
+  // CRG architecture graph (Code Review panel) shares the right dock with the
+  // design preview — opening one evicts the other (single-slot mutex; the
+  // reverse direction lives in use-preview's open paths).
+  const handleShowGraph = useCallback(
+    (html: string) => {
+      setGraphHtml(html);
+      closePreview();
+    },
+    [closePreview, setGraphHtml]
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
     showProcessPanel,
@@ -296,6 +398,7 @@ export function App(): JSX.Element {
     refreshSettings,
     refreshMcp,
     handleSetModel,
+    handleSetThinking,
     handleOpenSettings,
     handleSaveSettings,
   } = useSettingsData({ setMainView, setMessages, activeIdRef, refreshSkills });
@@ -396,9 +499,12 @@ export function App(): JSX.Element {
         activeIdRef.current = message.sessionId;
         setActiveId(message.sessionId);
       }
+      // Subagent tool artifacts (design/prototype materialize runs are
+      // silent sub-sessions) must still open the preview — the old
+      // sessionId filter dropped them, so materialize never auto-previewed.
+      applyPreviewToolMessage(message);
       if (message.sessionId === activeIdRef.current) {
         setMessages((prev) => [...prev, message]);
-        applyPreviewToolMessage(message);
         // Inline-mode (opt-in via settings.openuiInlineMode): render a
         // complete ```openui-lang block embedded in the assistant reply,
         // without waiting for a render_openui tool call. The tool channel
@@ -503,10 +609,7 @@ export function App(): JSX.Element {
           await checkWorkspaceTrust();
           const pending = pendingSelectRef.current;
           pendingSelectRef.current = null;
-          const pendingTask = pendingTaskTabRef.current;
-          pendingTaskTabRef.current = null;
           await loadSession(pending);
-          if (pendingTask) openTaskTreeRef.current(pendingTask);
           bumpTree();
         } catch (error) {
           console.error("[workspace] switch reload failed:", error);
@@ -589,10 +692,17 @@ export function App(): JSX.Element {
       setBusy(true);
       setErrorLine(null);
       setStatusLine(null);
+      // A failed send must not eat the user's typing: handleSend clears the
+      // draft up-front, so on failure we hand the original text back (only
+      // when the composer is still empty — never clobber fresh keystrokes).
+      const restoreDraftOnFailure = opts.showUser !== false && !opts.isContinue ? (prompt.text ?? "") : "";
       try {
         const result = await api.sendPrompt(prompt);
         if (!result.ok) {
           setErrorLine(result.error ?? t("app.requestFailed"));
+          if (restoreDraftOnFailure) {
+            setDraft((current) => (current.trim().length === 0 ? restoreDraftOnFailure : current));
+          }
         }
         if (reply) {
           setPendingPermissionReply(null);
@@ -613,6 +723,9 @@ export function App(): JSX.Element {
         await Promise.all([refreshSessions(), refreshSkills(finalId ?? undefined)]);
       } catch (error) {
         setErrorLine(error instanceof Error ? error.message : String(error));
+        if (restoreDraftOnFailure) {
+          setDraft((current) => (current.trim().length === 0 ? restoreDraftOnFailure : current));
+        }
       } finally {
         setBusy(false);
         setStreamProgress(null);
@@ -706,6 +819,9 @@ export function App(): JSX.Element {
           alwaysAllowPaths: result.alwaysAllowPaths,
         });
         setStatusLine(t("app.permissionDenied"));
+        // F5: the deny decision is silently merged into the next prompt —
+        // surface it so users know where their decision went (audit P1-5).
+        pushToast("info", t("app.permissionDeniedToast"));
         setAskPermissions(undefined);
         void api.denyPermission();
         return;
@@ -720,7 +836,7 @@ export function App(): JSX.Element {
         { isContinue: true }
       );
     },
-    [runPrompt, t]
+    [pushToast, runPrompt, t]
   );
 
   const handlePermissionCancel = useCallback(() => {
@@ -759,7 +875,7 @@ export function App(): JSX.Element {
       setMainView("chat");
       await api.setProjectRoot(picked);
     }
-  }, []);
+  }, [setMainView]);
 
   // New session within a workspace: switch root if needed (fresh slate follows),
   // else just reset the current workspace to a fresh session.
@@ -773,7 +889,7 @@ export function App(): JSX.Element {
       }
       await loadSession(null);
     },
-    [loadSession]
+    [loadSession, setMainView]
   );
 
   const handleUndoRestored = useCallback(async () => {
@@ -789,7 +905,7 @@ export function App(): JSX.Element {
   const handleNewSession = useCallback(() => {
     setMainView("chat");
     void loadSession(null);
-  }, [loadSession]);
+  }, [loadSession, setMainView]);
   const handleDeleteSession = useCallback(
     async (id: string) => {
       await api.deleteSession(id);
@@ -832,6 +948,10 @@ export function App(): JSX.Element {
   );
   const handleSelectSession = useCallback(
     async (root: string, id: string) => {
+      // Selecting a conversation always lands on its workspace (chat) tab —
+      // the task-badge entry relies on this (R3-8): leaving an aux tab
+      // active would hide the chat the user asked for.
+      setActiveTab({ kind: "chat" });
       if (root && root !== projectRootRef.current) {
         pendingSelectRef.current = id;
         await api.setProjectRoot(root);
@@ -841,37 +961,49 @@ export function App(): JSX.Element {
       setMainView("chat");
       await loadSession(id);
     },
-    [loadSession]
+    [loadSession, setMainView]
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
-  // ── Workspace task tabs (session→task cross-reference entry) ───────────────
-  const handleOpenTaskTree = useCallback(
-    (treeId: string, workspaceRoot?: string) => {
-      // Cross-workspace badges follow the same flow as selecting that session:
-      // switch root first; the tab opens when the new workspace lands.
-      if (workspaceRoot && workspaceRoot !== projectRootRef.current) {
-        pendingTaskTabRef.current = treeId;
-        void api.setProjectRoot(workspaceRoot);
-        return;
-      }
-      setTaskTabs((tabs) =>
-        tabs.some((tab) => tab.treeId === treeId)
-          ? tabs
-          : [...tabs, { treeId, title: treeTitlesRef.current[treeId]?.title ?? t("tasktree.taskFallback") }]
-      );
-      setActiveTaskTabId(treeId);
+  // Session export with visible outcome — the sidebar's ⤓ used to fire the
+  // IPC and leave the user with no idea where the file went (or that it failed).
+  const handleExportSession = useCallback(
+    (id: string) => {
+      void api.exportSession(id).then((res) => {
+        if (res.ok && res.path) {
+          pushToast("success", `${t("command.export.label")}: ${res.path.split(/[\\/]/).pop()}`);
+        } else if (!res.ok) {
+          pushToast("error", res.error ?? t("app.requestFailed"));
+        }
+      });
     },
-    [t]
+    [pushToast, t]
   );
-  const openTaskTreeRef = useRef(handleOpenTaskTree);
-  openTaskTreeRef.current = handleOpenTaskTree;
+
+  // Left-rail task history (R3-7): open a task RECORD tab for ANY workspace
+  // without switching the active project root — the record panel reads the
+  // tree through its own root-scoped IPC.
+  const handleOpenTaskRecord = useCallback((treeId: string, title: string, root: string) => {
+    setTaskTabs((tabs) => (tabs.some((tab) => tab.treeId === treeId) ? tabs : [...tabs, { treeId, title, root }]));
+    setActiveTab({ kind: "task", treeId });
+  }, []);
+  const knowledgeTabsRef = useRef(knowledgeTabs);
+  knowledgeTabsRef.current = knowledgeTabs;
+  const handleOpenKnowledgeTab = useCallback((root: string) => {
+    const label = root.split(/[\\/]/).filter(Boolean).pop() ?? root;
+    setKnowledgeTabs((tabs) => (tabs.some((tab) => tab.root === root) ? tabs : [...tabs, { root, label }]));
+    setActiveTab({ kind: "knowledge", root });
+  }, []);
+  const handleCloseKnowledgeTab = useCallback((root: string) => {
+    setKnowledgeTabs((tabs) => tabs.filter((tab) => tab.root !== root));
+    setActiveTab((current) => (current.kind === "knowledge" && current.root === root ? { kind: "chat" } : current));
+  }, []);
   const handleCloseTaskTab = useCallback((treeId: string) => {
     setTaskTabs((tabs) => tabs.filter((tab) => tab.treeId !== treeId));
-    setActiveTaskTabId((current) => {
-      if (current !== treeId) return current;
+    setActiveTab((current) => {
+      if (current.kind !== "task" || current.treeId !== treeId) return current;
       const remaining = taskTabsRef.current.filter((tab) => tab.treeId !== treeId);
-      return remaining[remaining.length - 1]?.treeId ?? null;
+      return remaining.length > 0 ? { kind: "task", treeId: remaining[remaining.length - 1].treeId } : { kind: "chat" };
     });
   }, []);
 
@@ -884,14 +1016,16 @@ export function App(): JSX.Element {
   const handleAddImage = useCallback((dataUrl: string) => setImageUrls((prev) => [...prev, dataUrl]), []);
   const handleResumeClick = useCallback(() => void handleResume(), [handleResume]);
   const handleEnhanceClick = useCallback(() => void handleEnhance(), [handleEnhance]);
-  const handleBackToChat = useCallback(() => setMainView("chat"), []);
-  const handleSelectPlugin = useCallback((sel: PluginSelection) => {
-    setSelectedPlugin(sel);
-    setMainView("plugins");
-  }, []);
+  const handleSelectPlugin = useCallback(
+    (sel: PluginSelection) => {
+      setSelectedPlugin(sel);
+      setMainView("plugins");
+    },
+    [setMainView]
+  );
 
   const handleQuickAction = useCallback(
-    (action: "plan" | "init" | "skills" | "undo") => {
+    (action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review") => {
       if (action === "plan") {
         setPlanMode((v) => !v);
       } else if (action === "init") {
@@ -900,10 +1034,100 @@ export function App(): JSX.Element {
         selectView("plugins");
       } else if (action === "undo") {
         setModal("undo");
+      } else if (action === "knowledge") {
+        // Flow bridge: welcome → index rail view; the workspace's own row
+        // carries the per-root build action.
+        selectView("index");
+      } else if (action === "review") {
+        selectView("review");
       }
     },
     [runPrompt, selectView]
   );
+
+  // Flow bridge (wiki → chat): quote a Wiki page into the composer as an
+  // @-mention so the agent reads the exact page, then land the user back in
+  // the conversation — knowledge becomes usable inside the chat without a
+  // manual copy-paste round-trip.
+  const handleQuoteWikiToChat = useCallback(
+    (root: string, path: string, title: string) => {
+      setActiveTab({ kind: "chat" });
+      setDraft((current) => {
+        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${root}/openwiki/${path}\n`;
+      });
+    },
+    [t]
+  );
+
+  // Flow bridge (review → chat): "ask in chat" quotes the current findings
+  // into the composer as a numbered list (capped — a 40-finding dump in the
+  // draft is unreadable; the count note keeps the truncation honest).
+  const handleReviewAskInChat = useCallback(
+    (findings: Array<{ path: string; startLine: number; content: string; crgRisk?: string }>) => {
+      setActiveTab({ kind: "chat" });
+      const MAX = 8;
+      const lines = findings
+        .slice(0, MAX)
+        .map(
+          (f) =>
+            `- ${f.crgRisk ? `[${f.crgRisk}] ` : ""}${f.path}:${f.startLine} — ${f.content.replace(/\s+/g, " ").trim().slice(0, 160)}`
+        );
+      if (findings.length > MAX) lines.push(`…(+${findings.length - MAX})`);
+      setDraft((current) => {
+        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+        return `${prefix}${t("review.askPrompt")}\n${lines.join("\n")}\n`;
+      });
+    },
+    [t]
+  );
+
+  // ── Knowledge build → chat suggestion bar (flow closure) ─────────────────
+  // A settled build used to end with the badge silently vanishing; the
+  // conversation never learned the knowledge it just paid for is ready. On a
+  // SUCCESSFUL settle for the current workspace, show a dismissible bar over
+  // the composer: view the Wiki, or quote it straight into a question.
+  const [kbSuggest, setKbSuggest] = useState<{ pages: number } | null>(null);
+  const kbSuggestedRef = useRef<Set<string>>(new Set());
+  // Latest-root mirror: the event callback validates `root !== projectRoot`
+  // synchronously, but two IPC roundtrips follow — without a re-check the
+  // bar for workspace A could land on workspace B if the user switches in
+  // that window (the clearing effect below already ran once, too early).
+  const kbSuggestRootRef = useRef(projectRoot);
+  kbSuggestRootRef.current = projectRoot;
+  useEffect(() => {
+    const off = api.onActionProgress((event: ActionProgressEvent) => {
+      if (event.actionId !== "knowledge.buildComplete") return;
+      const root = (event.data as { root?: string } | undefined)?.root;
+      if (!root || root !== kbSuggestRootRef.current) return;
+      void (async () => {
+        try {
+          // buildComplete fires on failure too — only successful builds suggest.
+          const jobs = await api.knowledgeBuildStatus();
+          if (kbSuggestRootRef.current !== root) return;
+          const job = jobs.find((j) => j.root === root);
+          if (!job || job.running || job.error) return;
+          const key = `${root}@${job.startedAt}`;
+          if (kbSuggestedRef.current.has(key)) return;
+          kbSuggestedRef.current.add(key);
+          // Bounded: one key per settled build; long sessions shouldn't grow it forever.
+          if (kbSuggestedRef.current.size > 50) {
+            kbSuggestedRef.current = new Set([...kbSuggestedRef.current].slice(-50));
+          }
+          const pages = await api.wikiListPages(root);
+          if (kbSuggestRootRef.current !== root) return;
+          setKbSuggest({ pages: pages.length });
+        } catch {
+          // The suggestion is best-effort; failure just means no bar.
+        }
+      })();
+    });
+    return off;
+  }, []);
+  // A different workspace is a different knowledge base — never carry the bar over.
+  useEffect(() => {
+    setKbSuggest(null);
+  }, [projectRoot]);
 
   const handleSlashCommand = useCallback(
     (cmd: string) => {
@@ -948,15 +1172,23 @@ export function App(): JSX.Element {
   useGlobalShortcuts({
     togglePalette: () => setPaletteOpen((v) => !v),
     toggleProcessPanel: () => setShowProcessPanel((v) => !v),
-    togglePanel: () => setPanelOpen((v) => !v),
+    togglePanel: handleToggleHub,
     newSession: handleNewSession,
     openSettings: handleOpenSettings,
     toggleShortcutsModal: () => setModal((v) => (v === "shortcuts" ? null : "shortcuts")),
+    // The trust dialog is modal by design — no shortcut may act behind it.
+    blocked: () => trustAskOpen,
   });
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
-      { id: "new", label: t("command.new.label"), keywords: "new session", shortcut: "⌘N", run: handleNewSession },
+      {
+        id: "new",
+        label: t("command.new.label"),
+        keywords: "new session",
+        shortcut: `${modKey}N`,
+        run: handleNewSession,
+      },
       {
         id: "plan",
         label: t("command.plan.label"),
@@ -974,14 +1206,14 @@ export function App(): JSX.Element {
         id: "settings",
         label: t("command.settings.label"),
         keywords: "settings config",
-        shortcut: "⌘,",
+        shortcut: `${modKey},`,
         run: () => void handleOpenSettings(),
       },
       {
         id: "undo",
         label: t("command.undo.label"),
         keywords: "undo restore",
-        shortcut: "⌘Z",
+        shortcut: `${modKey}Z`,
         run: () => setModal("undo"),
       },
       {
@@ -1016,26 +1248,168 @@ export function App(): JSX.Element {
         id: "sidebar",
         label: t("shortcuts.toggleSidebar"),
         keywords: "sidebar panel toggle",
-        shortcut: "⌘B",
-        run: () => setPanelOpen((v) => !v),
+        shortcut: `${modKey}B`,
+        run: handleToggleHub,
       },
       {
         id: "shortcuts",
         label: t("shortcuts.title"),
         keywords: "keyboard help hotkeys",
-        shortcut: "⌘?",
+        shortcut: `${modKey}?`,
         run: () => setModal("shortcuts"),
+      },
+      // ── Sidebar views (audit P1-4: every rail-reachable view must be ⌘K-reachable) ──
+      {
+        id: "view.explorer",
+        label: t("rail.sessions"),
+        keywords: "sidebar view sessions explorer",
+        run: () => selectView("explorer"),
+      },
+      {
+        id: "view.scm",
+        label: t("rail.git"),
+        keywords: "sidebar view git scm source control",
+        run: () => selectView("scm"),
+      },
+      {
+        id: "view.tasks",
+        label: t("rail.tasks"),
+        keywords: "sidebar view tasks plan todo",
+        run: () => selectView("tasks"),
+      },
+      {
+        id: "view.index",
+        label: t("rail.index"),
+        keywords: "sidebar view index library knowledge",
+        run: () => selectView("index"),
+      },
+      {
+        id: "view.review",
+        label: t("rail.review"),
+        keywords: "sidebar view code review comments",
+        run: () => selectView("review"),
+      },
+      {
+        id: "view.prototype",
+        label: t("rail.prototype"),
+        keywords: "sidebar view prototype spec requirements 原型 需求文档",
+        run: () => selectView("prototype"),
+      },
+      {
+        id: "view.design",
+        label: t("rail.design"),
+        keywords: "sidebar view design ui ux",
+        run: () => selectView("design"),
+      },
+      {
+        id: "view.tasktree",
+        label: t("rail.tasktree"),
+        keywords: "sidebar view task tree history",
+        run: () => selectView("tasktree"),
+      },
+      {
+        id: "view.gitmcp",
+        label: t("rail.gitmcp"),
+        keywords: "sidebar view gitmcp remote",
+        run: () => selectView("gitmcp"),
+      },
+      {
+        id: "view.editor",
+        label: t("rail.editor"),
+        keywords: "sidebar view editor files",
+        run: () => selectView("editor"),
+      },
+      // ── Flow bridges: main-area surfaces ──
+      {
+        id: "knowledge.center",
+        label: t("command.knowledge.label"),
+        keywords: "knowledge center wiki archmap symbols 架构 图谱",
+        run: () => {
+          // Silent no-op would read as a broken command — say why instead.
+          if (projectRoot) setActiveTab({ kind: "knowledge", root: projectRoot });
+          else pushToast("info", t("topbar.pickFolderHint"));
+        },
+      },
+      // ── Themes (all 6, via the same handler the settings panel uses) ──
+      {
+        id: "theme.aqua",
+        label: t("theme.aqua"),
+        keywords: "theme appearance aqua native",
+        run: () => handleSelectTheme("aqua"),
+      },
+      {
+        id: "theme.metro",
+        label: t("theme.metro"),
+        keywords: "theme appearance metro native",
+        run: () => handleSelectTheme("metro"),
+      },
+      {
+        id: "theme.glass",
+        label: t("theme.glass"),
+        keywords: "theme appearance glass",
+        run: () => handleSelectTheme("glass"),
+      },
+      {
+        id: "theme.fusion",
+        label: t("theme.fusion"),
+        keywords: "theme appearance fusion tile",
+        run: () => handleSelectTheme("fusion"),
+      },
+      {
+        id: "theme.line",
+        label: t("theme.line"),
+        keywords: "theme appearance line stroke",
+        run: () => handleSelectTheme("line"),
+      },
+      {
+        id: "theme.orca",
+        label: t("theme.orca"),
+        keywords: "theme appearance orca cyber hud",
+        run: () => handleSelectTheme("orca"),
+      },
+      // ── Appearance / panel toggles ──
+      {
+        id: "appearance.toggle",
+        label: t("command.appearance.label"),
+        keywords: "appearance dark light mode",
+        run: handleToggleAppearance,
+      },
+      {
+        id: "line.variant",
+        label: t("command.lineVariant.label"),
+        keywords: "line variant punk style",
+        run: handleToggleLineVariant,
+      },
+      {
+        id: "processPanel",
+        label: t("shortcuts.processPanel"),
+        keywords: "process output panel terminal",
+        shortcut: `${modKey}J`,
+        run: () => setShowProcessPanel((v) => !v),
+      },
+      {
+        id: "stop",
+        label: t("shortcuts.stopGeneration"),
+        keywords: "stop interrupt cancel generation",
+        run: handleStop,
       },
     ],
     [
       handleCycleReasoning,
       handleNewSession,
       handleOpenSettings,
+      handleSelectTheme,
+      handleStop,
+      handleToggleAppearance,
+      handleToggleHub,
+      handleToggleLineVariant,
+      modKey,
       openTokensView,
+      projectRoot,
       pushToast,
       runPrompt,
       selectView,
-      setPanelOpen,
+      setShowProcessPanel,
       t,
     ]
   );
@@ -1119,6 +1493,9 @@ export function App(): JSX.Element {
 
   const composerDisabled = showQuestion || showPermission || showPlan;
 
+  // (The right-side preview surfaces render as floating companion cards over
+  // the stage — no shell grid track to enable anymore.)
+
   // Token mini-panel figures: active session context + workspace grand total.
   const workspaceUsage = useMemo(() => aggregateUsage(sessions), [sessions]);
   const activeContextTokens = useMemo(() => {
@@ -1134,233 +1511,463 @@ export function App(): JSX.Element {
     return s?.status ?? null;
   }, [activeId, sessions]);
 
-  const reasoningIconEl =
-    reasoningMode === "hidden" ? (
-      <IconReasoningHidden />
-    ) : reasoningMode === "expanded" ? (
-      <IconReasoningExpanded />
-    ) : (
-      <IconReasoningNormal />
-    );
-  const reasoningTitle =
-    reasoningMode === "hidden"
-      ? t("topbar.reasoningHidden")
-      : reasoningMode === "expanded"
-        ? t("topbar.reasoningExpanded")
-        : t("topbar.reasoningNormal");
   const appearanceTitle = appearance === "dark" ? t("topbar.appearanceDark") : t("topbar.appearanceLight");
-  const themeTitle = theme === "glass" ? t("topbar.themeGlass") : t("topbar.themeNative");
-  const lineVariantTitle = lineVariant === "punk" ? t("topbar.linePunk") : t("topbar.lineStroke");
+
+  // Background tasks (R3-5 → real-machine feedback): a compact circular badge
+  // (module icon in the center) is the bottom-right presence while builds or
+  // reviews run — the big console NEVER auto-opens anymore (it used to plaster
+  // 460px over the chat view); it opens on demand from the badge.
+  const buildJobs = useBuildJobs();
+  const [buildConsoleOpen, setBuildConsoleOpen] = useState(false);
+  const hasBuildJobs = buildJobs.length > 0;
+  const openBackgroundTask = useCallback(
+    (kind: "knowledge" | "review") => {
+      if (kind === "knowledge") setBuildConsoleOpen((v) => !v);
+      else selectView("review");
+    },
+    [selectView]
+  );
+
+  // One-click fix (review module): current findings → fix brief → SESSION mode
+  // — switch the main area to the chat, inject the brief; the agent generates
+  // the UpdatePlan task plan from the findings and fixes them.
+  const handleReviewOneClickFix = useCallback(
+    (findings: ReviewFinding[]) => {
+      const text = buildReviewFixPrompt(findings);
+      if (!text) return;
+      setMainView("chat");
+      void runPrompt({ text });
+    },
+    [runPrompt, setMainView]
+  );
+
+  // Serena panel (R3-6): mirror the agent's Serena tool results as targeted
+  // views in a floating right panel. Auto-opens on every NEW serena result;
+  // closing only hides it until the next one arrives.
+  const serenaEvents = useMemo(() => scanSerenaEvents(messages), [messages]);
+  const [serenaOpen, setSerenaOpen] = useState(false);
+  const lastSerenaId = useRef<string | null>(null);
+  useEffect(() => {
+    const latest = serenaEvents[serenaEvents.length - 1];
+    if (latest && latest.id !== lastSerenaId.current) {
+      lastSerenaId.current = latest.id;
+      setSerenaOpen(true);
+    }
+  }, [serenaEvents]);
+
+  // The main session conversation — rendered inside the first tab when
+  // workspace tabs exist, or as the whole content area when they don't.
+  // Extracted so the tab strip (below) never has to duplicate it.
+  const chatContent = (
+    <>
+      <MessageList
+        messages={messages}
+        hasActiveSession={activeId !== null || messages.length > 0}
+        reasoningMode={reasoningMode}
+        modKey={modKey}
+        compacting={activeStatus === "compacting"}
+        streaming={busy}
+        onQuickAction={handleQuickAction}
+        footer={footer}
+      />
+      <TaskProgressPanel />
+      {showProcessPanel ? (
+        <ProcessOutputPanel
+          processes={runningProcesses}
+          stdoutRef={processStdoutRef}
+          onDismiss={() => setShowProcessPanel(false)}
+          platform={platform}
+        />
+      ) : null}
+      <div className="ui-composer-dock" ref={composerDockRef}>
+        {kbSuggest ? (
+          <div className="ui-chat-suggest" role="status">
+            <span className="ui-chat-suggest-icon" aria-hidden>
+              ◈
+            </span>
+            <span className="ui-chat-suggest-text">{t("suggest.knowledgeTitle", { n: kbSuggest.pages })}</span>
+            <button
+              type="button"
+              className="ui-chat-suggest-btn"
+              onClick={() => {
+                setKbSuggest(null);
+                if (projectRoot) setActiveTab({ kind: "knowledge", root: projectRoot });
+              }}
+            >
+              {t("suggest.viewWiki")}
+            </button>
+            <button
+              type="button"
+              className="ui-chat-suggest-btn primary"
+              onClick={() => {
+                setKbSuggest(null);
+                setDraft((current) => {
+                  const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+                  return `${prefix}${t("suggest.askArch")}\n`;
+                });
+              }}
+            >
+              {t("index.quoteWiki")}
+            </button>
+            <button
+              type="button"
+              className="ui-chat-suggest-close"
+              aria-label={t("common.close")}
+              onClick={() => setKbSuggest(null)}
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSend={handleSend}
+          onStop={handleStop}
+          onPause={handlePause}
+          onResume={handleResumeClick}
+          canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
+          onEnhance={handleEnhanceClick}
+          enhancing={enhancing}
+          busy={busy}
+          disabled={composerDisabled}
+          planMode={planMode}
+          onTogglePlan={handleTogglePlan}
+          skills={skills}
+          selectedSkills={selectedSkills}
+          onToggleSkill={handleToggleSkill}
+          statusText={loadingText ?? statusLine}
+          errorText={errorLine}
+          imageUrls={imageUrls}
+          onRemoveImage={handleRemoveImage}
+          onAddImage={handleAddImage}
+          onSlashCommand={handleSlashCommand}
+        />
+        <ContextProgress
+          activeTokens={activeContextTokens}
+          model={settings?.model ?? ""}
+          thresholdOverride={settings?.compactTokenThreshold}
+          compacting={activeStatus === "compacting"}
+        />
+      </div>
+    </>
+  );
+
+  // ── Surface chips (cockpit center) ────────────────────────────────────────
+  // Successor of the editor-style tab strip: one glowing chip per open
+  // surface plus the always-first conversation chip. Rendered only when at
+  // least one auxiliary surface exists — a lone conversation keeps the
+  // cockpit clean. Chip = container div + two SIBLING buttons (switch +
+  // close) — nested interactive elements are an a11y/HTML anti-pattern.
+  const hasAuxSurfaces = auxTabs.length > 0 || taskTabs.length > 0 || knowledgeTabs.length > 0;
+  const surfaceChips = useMemo(() => {
+    if (!hasAuxSurfaces) return null;
+    return (
+      <div className="ui-surface-chips">
+        <button
+          type="button"
+          className={cx("ui-surface-chip", activeTab.kind === "chat" && "active")}
+          onClick={() => setActiveTab({ kind: "chat" })}
+          data-tip={t("surface.chat")}
+        >
+          <IconChat />
+        </button>
+        {auxTabs.map((tab) => {
+          const active =
+            tab.kind === "editor"
+              ? activeTab.kind === "editor" && activeTab.file === tab.file
+              : activeTab.kind === tab.kind;
+          const title =
+            tab.kind === "settings"
+              ? t("settings.title")
+              : tab.kind === "plugins"
+                ? t("plugins.title")
+                : ((tab.file ?? "").split(/[\\/]/).pop() ?? "");
+          const label = (
+            <>
+              {tab.kind === "settings" ? <IconSettings /> : tab.kind === "plugins" ? <IconPlugins /> : <IconFile />}
+              {title}
+            </>
+          );
+          return (
+            <div key={tab.key} className={cx("ui-surface-chip", active && "active")}>
+              <button
+                type="button"
+                className="ui-surface-chip-main"
+                onClick={() =>
+                  setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
+                }
+                data-tip={tab.kind === "editor" ? tab.file : title}
+              >
+                {label}
+              </button>
+              <button
+                type="button"
+                className="ui-surface-chip-close"
+                onClick={() => handleCloseAuxTab(tab.key)}
+                aria-label={t("tasktree.closeTab")}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+        {taskTabs.map((tab) => (
+          <div
+            key={tab.treeId}
+            className={cx("ui-surface-chip", activeTab.kind === "task" && activeTab.treeId === tab.treeId && "active")}
+          >
+            <button
+              type="button"
+              className="ui-surface-chip-main"
+              onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
+              data-tip={tab.title}
+            >
+              <IconTaskTree /> {tab.title}
+            </button>
+            <button
+              type="button"
+              className="ui-surface-chip-close"
+              onClick={() => handleCloseTaskTab(tab.treeId)}
+              aria-label={t("tasktree.closeTab")}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {knowledgeTabs.map((tab) => (
+          <div
+            key={tab.root}
+            className={cx("ui-surface-chip", activeTab.kind === "knowledge" && activeTab.root === tab.root && "active")}
+          >
+            <button
+              type="button"
+              className="ui-surface-chip-main"
+              onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
+              data-tip={tab.root}
+            >
+              <IconIndex /> {tab.label}
+            </button>
+            <button
+              type="button"
+              className="ui-surface-chip-close"
+              onClick={() => handleCloseKnowledgeTab(tab.root)}
+              aria-label={t("tasktree.closeTab")}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }, [
+    activeTab,
+    auxTabs,
+    handleCloseAuxTab,
+    handleCloseKnowledgeTab,
+    handleCloseTaskTab,
+    hasAuxSurfaces,
+    knowledgeTabs,
+    t,
+    taskTabs,
+  ]);
+
+  // Cockpit right cluster — the old rail's bottom icons (commands / undo /
+  // appearance / settings) live here now, floating with the other cockpit
+  // pills. The ⌘K button keeps the palette reachable for mouse-only users —
+  // its only discoverable entry died with the rail. Memoized so TopBar
+  // (React.memo) isn't defeated by an unstable prop identity.
+  const cockpitActions = useMemo(
+    () => (
+      <div className="ui-cockpit-actions">
+        <button
+          type="button"
+          className="ui-cockpit-icon-btn"
+          onClick={() => setPaletteOpen(true)}
+          data-tip={`${t("rail.commands")} (${modKey}K)`}
+        >
+          <IconCommand />
+        </button>
+        <button
+          type="button"
+          className="ui-cockpit-icon-btn"
+          onClick={handleToggleAppearance}
+          disabled={theme === "orca"}
+          data-tip={appearanceTitle}
+        >
+          {appearance === "dark" ? <IconMoon /> : <IconSun />}
+        </button>
+        <button
+          type="button"
+          className="ui-cockpit-icon-btn"
+          onClick={() => setModal("undo")}
+          data-tip={`${t("rail.undo")} (${modKey}Z)`}
+        >
+          <IconUndo />
+        </button>
+        <button
+          type="button"
+          className={cx("ui-cockpit-icon-btn", mainView === "settings" && "active")}
+          onClick={() => void handleOpenSettings()}
+          data-tip={`${t("rail.settings")} (${modKey},)`}
+        >
+          <IconSettings />
+        </button>
+      </div>
+    ),
+    [
+      appearance,
+      appearanceTitle,
+      handleOpenSettings,
+      handleToggleAppearance,
+      mainView,
+      modKey,
+      setPaletteOpen,
+      t,
+      theme,
+    ]
+  );
+
+  // Esc unwinds the hub level by level — flyout first, then the rail itself.
+  // A system modal surface (palette, dialog, diff, trust ask) owns Escape
+  // while visible; those bail out first.
+  useEffect(() => {
+    if (!panelOpen && activeTab.kind !== "settings") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (paletteOpen || modal !== null || diffTarget !== null || trustAskOpen) return;
+      if (panelOpen) {
+        if (viewExtended) setViewExtended(false);
+        else handleCollapsePanel();
+        return;
+      }
+      if (activeTab.kind === "settings") handleCloseAuxTab("settings");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    panelOpen,
+    viewExtended,
+    setViewExtended,
+    activeTab.kind,
+    paletteOpen,
+    modal,
+    diffTarget,
+    trustAskOpen,
+    handleCollapsePanel,
+    handleCloseAuxTab,
+  ]);
+
+  // Focusing a surface sheet auto-collapses the hub: the sheet is the new
+  // point of attention (and spans the stage, so a hub floating over it only
+  // occludes). Reopening the hub later still works — it layers above sheets.
+  useEffect(() => {
+    if (activeTab.kind !== "chat") setPanelOpen(false);
+  }, [activeTab.kind, setPanelOpen]);
+
+  // The conversation is the stage's base layer; every auxiliary surface
+  // (settings / plugin detail / editor files / task records / knowledge)
+  // floats over it as a rounded sheet and stays reachable through the
+  // cockpit's surface chips.
+
+  // Floating-island size vars — the hub sheet and the companion card each own
+  // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
+  // reflow and card width in lock-step.
+  const companionOpen =
+    Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent)) || Boolean(graphHtml);
+  const shellVars = {
+    ...(panelOpen ? { "--ui-panel-w": `${panelWidth}px` } : {}),
+    ...(companionOpen ? { "--ui-right-w": `${companionWidth}px` } : {}),
+  } as CSSProperties;
 
   return (
     <div
-      className={`ui-shell${panelOpen ? " panel-open" : ""}`}
-      style={panelOpen ? { gridTemplateColumns: `52px ${panelWidth}px 1fr 0` } : undefined}
+      className={`ui-shell${panelOpen ? " panel-open" : ""}${panelOpen && viewExtended ? " hub-expanded" : ""}`}
+      style={shellVars}
     >
-      <Rail>
-        <RailButton title={`${t("rail.newSession")} (⌘N)`} aria-label={t("rail.newSession")} onClick={handleNewSession}>
-          <IconNewSession />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "explorer"}
-          badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
-          title={`${t("rail.sessions")} (⌘B)`}
-          aria-label={t("rail.sessions")}
-          onClick={() => selectView("explorer")}
-        >
-          <IconSessions />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "scm"}
-          title={t("rail.git")}
-          aria-label={t("rail.git")}
-          onClick={() => selectView("scm")}
-        >
-          <IconGit />
-        </RailButton>
-        {hasPlan ? (
-          <RailButton
-            active={panelOpen && sidebarView === "tasks"}
-            title={t("rail.tasks")}
-            aria-label={t("rail.tasks")}
-            onClick={() => selectView("tasks")}
-          >
-            <IconTasks />
-          </RailButton>
-        ) : null}
-        <RailButton
-          title={`${t("rail.commands")} (⌘K)`}
-          aria-label={t("rail.commands")}
-          onClick={() => setPaletteOpen(true)}
-        >
-          <IconCommand />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "plugins"}
-          title={t("rail.plugins")}
-          aria-label={t("rail.plugins")}
-          onClick={() => selectView("plugins")}
-        >
-          <IconPlugins />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "tokens"}
-          title={t("rail.tokens")}
-          aria-label={t("rail.tokens")}
-          onClick={openTokensView}
-        >
-          <IconTokens />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "index"}
-          title={t("rail.index")}
-          aria-label={t("rail.index")}
-          onClick={() => selectView("index")}
-        >
-          <IconIndex />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "review"}
-          title={t("rail.review")}
-          aria-label={t("rail.review")}
-          onClick={() => selectView("review")}
-        >
-          <IconReview />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "design"}
-          title={t("rail.design")}
-          aria-label={t("rail.design")}
-          onClick={() => selectView("design")}
-        >
-          <span style={{ fontSize: 16 }}>🎯</span>
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "tasktree"}
-          title={t("rail.tasktree")}
-          aria-label={t("rail.tasktree")}
-          onClick={() => selectView("tasktree")}
-        >
-          <span style={{ fontSize: 16 }}>🌳</span>
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "gitmcp"}
-          title={t("rail.gitmcp")}
-          aria-label={t("rail.gitmcp")}
-          onClick={() => selectView("gitmcp")}
-        >
-          <IconGitmcp />
-        </RailButton>
-        <RailButton
-          active={panelOpen && sidebarView === "editor"}
-          title={t("rail.editor")}
-          aria-label={t("rail.editor")}
-          onClick={() => selectView("editor")}
-        >
-          <IconEditor />
-        </RailButton>
-        <RailSpacer />
-        <RailButton title={reasoningTitle} aria-label={reasoningTitle} onClick={handleCycleReasoning}>
-          {reasoningIconEl}
-        </RailButton>
-        {/* Orca is dark-only — hide the light/dark toggle while it's active. */}
-        {theme !== "orca" ? (
-          <RailButton title={appearanceTitle} aria-label={appearanceTitle} onClick={handleToggleAppearance}>
-            {appearance === "dark" ? <IconMoon /> : <IconSun />}
-          </RailButton>
-        ) : null}
-        {theme === "line" ? (
-          <RailButton
-            active={lineVariant === "punk"}
-            title={lineVariantTitle}
-            aria-label={lineVariantTitle}
-            onClick={handleToggleLineVariant}
-          >
-            <IconPunk />
-          </RailButton>
-        ) : theme !== "orca" && platform !== "win32" ? (
-          <RailButton active={theme === "glass"} title={themeTitle} aria-label={themeTitle} onClick={handleToggleTheme}>
-            <IconGlass />
-          </RailButton>
-        ) : null}
-        <RailButton title={t("rail.undo")} aria-label={t("rail.undo")} onClick={() => setModal("undo")}>
-          <IconUndo />
-        </RailButton>
-        <RailButton
-          active={mainView === "settings"}
-          title={`${t("rail.settings")} (⌘,)`}
-          aria-label={t("rail.settings")}
-          onClick={() => void handleOpenSettings()}
-        >
-          <IconSettings />
-        </RailButton>
-      </Rail>
+      {/* Global [data-tip] hover tooltip — portal-rendered, fixed-position. */}
+      <GlobalTooltip />
 
-      {/* Sidebar view transition wrapper — key change triggers fade animation */}
-      <div className="ui-session-panel-view" key={sidebarView}>
-        {sidebarView === "explorer" ? (
-          <Sidebar
-            activeId={activeId}
-            currentRoot={projectRoot}
-            refreshKey={treeRefreshKey}
-            sessions={sessions}
-            treeTitles={treeTitles}
-            onSelectSession={handleSelectSession}
-            onDelete={handleDeleteSession}
-            onRename={handleRenameSession}
-            onArchive={handleArchiveSession}
-            onUnarchive={handleUnarchiveSession}
-            onOpenTaskTree={handleOpenTaskTree}
-            onCollapse={handleCollapsePanel}
-            onNewWorkspace={handleNewWorkspace}
-            onNewSessionInWorkspace={handleNewSessionInWorkspace}
-            onOpenTokens={openTokensView}
-          />
-        ) : sidebarView === "scm" ? (
-          <SourceControlPanel
-            refreshKey={treeRefreshKey}
-            sessionId={activeId}
-            onOpenDiff={handleOpenDiff}
-            onOpenEditor={setEditorFile}
-          />
-        ) : sidebarView === "tasks" ? (
-          <TaskPanel messages={messages} />
-        ) : sidebarView === "tokens" ? (
-          <TokenStatsPanel sessions={sessions} />
-        ) : sidebarView === "index" ? (
-          <IndexLibraryPanel />
-        ) : sidebarView === "review" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <CodeReviewPanel />
-          </Suspense>
-        ) : sidebarView === "design" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
-          </Suspense>
-        ) : sidebarView === "tasktree" ? (
-          <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
-            <TaskTreePanel />
-          </Suspense>
-        ) : sidebarView === "gitmcp" ? (
-          <GitMcpPanel />
-        ) : sidebarView === "editor" ? (
-          <EditorPanel onOpenFile={setEditorFile} />
-        ) : (
-          <PluginMcpPanel
-            skills={skills}
-            selectedSkills={selectedSkills}
-            onToggleSkill={handleToggleSkill}
-            onRefreshSkills={handleRefreshPluginSkills}
-            selected={selectedPlugin}
-            onSelect={handleSelectPlugin}
-            platform={platform}
-          />
-        )}
-      </div>
-
-      {/* Panel resize handle */}
+      {/* Hub sheet — floating glass island (launcher tiles + sidebar views),
+          the successor of the activity rail + docked sidebar. The stage
+          reflows its centered column instead of being occluded. */}
       {panelOpen ? (
-        <div className="ui-panel-resize" style={{ left: `${52 + panelWidth - 2}px` }} onMouseDown={handleResizeStart} />
+        <HubSheet
+          view={sidebarView}
+          expanded={viewExtended}
+          disabledViews={hasPlan ? [] : ["tasks"]}
+          onSelectView={selectViewBase}
+          onCollapseFlyout={() => setViewExtended(false)}
+          onClose={handleCollapsePanel}
+          onResizeStart={handleResizeStart}
+        >
+          {sidebarView === "explorer" ? (
+            <Sidebar
+              activeId={activeId}
+              currentRoot={projectRoot}
+              refreshKey={treeRefreshKey}
+              sessions={sessions}
+              treeTitles={treeTitles}
+              onSelectSession={handleSelectSession}
+              onDelete={handleDeleteSession}
+              onRename={handleRenameSession}
+              onArchive={handleArchiveSession}
+              onUnarchive={handleUnarchiveSession}
+              onExportSession={handleExportSession}
+              onCollapse={handleCollapsePanel}
+              onNewWorkspace={handleNewWorkspace}
+              onNewSessionInWorkspace={handleNewSessionInWorkspace}
+              onOpenTokens={openTokensView}
+            />
+          ) : sidebarView === "scm" ? (
+            <SourceControlPanel
+              refreshKey={treeRefreshKey}
+              sessionId={activeId}
+              onOpenDiff={handleOpenDiff}
+              onOpenEditor={handleOpenEditor}
+            />
+          ) : sidebarView === "tasks" ? (
+            <TaskPanel messages={messages} />
+          ) : sidebarView === "tokens" ? (
+            <TokenStatsPanel sessions={sessions} />
+          ) : sidebarView === "index" ? (
+            <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
+          ) : sidebarView === "review" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <CodeReviewPanel
+                onShowGraph={handleShowGraph}
+                onOneClickFix={handleReviewOneClickFix}
+                onAskInChat={handleReviewAskInChat}
+              />
+            </Suspense>
+          ) : sidebarView === "prototype" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+            </Suspense>
+          ) : sidebarView === "design" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
+            </Suspense>
+          ) : sidebarView === "tasktree" ? (
+            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+              <TaskTreePanel onOpenTask={handleOpenTaskRecord} />
+            </Suspense>
+          ) : sidebarView === "gitmcp" ? (
+            <GitMcpPanel />
+          ) : sidebarView === "editor" ? (
+            <EditorPanel onOpenFile={handleOpenEditor} />
+          ) : (
+            <PluginMcpPanel
+              skills={skills}
+              selectedSkills={selectedSkills}
+              onToggleSkill={handleToggleSkill}
+              onRefreshSkills={handleRefreshPluginSkills}
+              selected={selectedPlugin}
+              onSelect={handleSelectPlugin}
+              platform={platform}
+            />
+          )}
+        </HubSheet>
       ) : null}
 
       <TopBar
@@ -1373,6 +1980,7 @@ export function App(): JSX.Element {
         branches={branches}
         onSwitchBranch={handleSwitchBranch}
         onSetModel={handleSetModel}
+        onSetThinking={handleSetThinking}
         onOpenSettings={handleOpenSettings}
         onOpenTokens={openTokensView}
         activeTokens={activeContextTokens}
@@ -1387,117 +1995,106 @@ export function App(): JSX.Element {
             ? Math.max(0, Math.floor((Date.now() - Date.parse(streamProgress.startedAt)) / 1000))
             : 0
         }
+        center={surfaceChips}
+        actions={cockpitActions}
       />
 
       <div className="ui-main">
-        {mainView === "settings" && editable ? (
-          <SettingsPanel
-            initial={editable}
-            initialTab={settingsInitialTab}
-            onSave={handleSaveSettings}
-            onClose={handleBackToChat}
-            platform={platform}
-            theme={theme}
-            onSelectTheme={handleSelectTheme}
-          />
-        ) : mainView === "plugins" ? (
-          <PluginDetail
-            selection={selectedPlugin}
-            skills={skills}
-            selectedSkills={selectedSkills}
-            onToggleSkill={handleToggleSkill}
-            onBack={handleBackToChat}
-          />
-        ) : sidebarView === "editor" && editorFile ? (
-          <Suspense
-            fallback={
-              <div className="ui-editor-empty">
-                <span className="ui-spinner" /> Loading editor…
-              </div>
-            }
-          >
-            <EditorOverlay filePath={editorFile} onClose={() => setEditorFile(null)} appearance={appearance} inline />
-          </Suspense>
-        ) : activeTaskTabId ? (
-          <div className="ui-tasktab-view">
-            <div className="ui-tasktabs">
-              {taskTabs.map((tab) => (
-                <div key={tab.treeId} className={`ui-tasktab${tab.treeId === activeTaskTabId ? " active" : ""}`}>
-                  <button type="button" className="ui-tasktab-main" onClick={() => setActiveTaskTabId(tab.treeId)}>
-                    🌳 {tab.title}
-                  </button>
-                  <button
-                    type="button"
-                    className="ui-tasktab-close"
-                    onClick={() => handleCloseTaskTab(tab.treeId)}
-                    title={t("tasktree.closeTab")}
-                    aria-label={t("tasktree.closeTab")}
-                  >
-                    ✕
-                  </button>
+        {/* Settings renders at SHELL level (modal family) — here the chain
+            falls through to the conversation, which stays visible (dimmed by
+            the scrim) instead of being covered by a full-stage sheet. */}
+        {activeTab.kind === "plugins" ? (
+          <div className="ui-sheet">
+            <PluginDetail
+              selection={selectedPlugin}
+              skills={skills}
+              selectedSkills={selectedSkills}
+              onToggleSkill={handleToggleSkill}
+              onBack={() => handleCloseAuxTab("plugins")}
+            />
+          </div>
+        ) : activeTab.kind === "editor" && activeTab.file ? (
+          <div className="ui-sheet">
+            <Suspense
+              fallback={
+                <div className="ui-editor-empty">
+                  <span className="ui-spinner" /> Loading editor…
                 </div>
-              ))}
-            </div>
+              }
+            >
+              <EditorOverlay
+                filePath={activeTab.file}
+                onClose={() => handleCloseAuxTab(`editor:${activeTab.file}`)}
+                appearance={appearance}
+                inline
+              />
+            </Suspense>
+          </div>
+        ) : activeTab.kind === "knowledge" ? (
+          <div className="ui-sheet">
+            <button
+              type="button"
+              className="ui-sheet-close"
+              onClick={() => handleCloseKnowledgeTab(activeTab.root)}
+              aria-label={t("sheet.backToChat")}
+            >
+              ✕ {t("sheet.backToChat")}
+            </button>
+            <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} onQuoteToChat={handleQuoteWikiToChat} />
+          </div>
+        ) : activeTab.kind === "task" ? (
+          <div className="ui-sheet">
+            <button
+              type="button"
+              className="ui-sheet-close"
+              onClick={() => handleCloseTaskTab(activeTab.treeId)}
+              aria-label={t("sheet.backToChat")}
+            >
+              ✕ {t("sheet.backToChat")}
+            </button>
             <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
-              <TaskTreePanel treeId={activeTaskTabId} />
+              <TaskRecordPanel
+                treeId={activeTab.treeId}
+                workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
+              />
             </Suspense>
           </div>
         ) : (
-          <>
-            <MessageList
-              messages={messages}
-              hasActiveSession={activeId !== null || messages.length > 0}
-              reasoningMode={reasoningMode}
-              compacting={activeStatus === "compacting"}
-              onQuickAction={handleQuickAction}
-              footer={footer}
-            />
-            <TaskProgressPanel />
-            {showProcessPanel ? (
-              <ProcessOutputPanel
-                processes={runningProcesses}
-                stdoutRef={processStdoutRef}
-                onDismiss={() => setShowProcessPanel(false)}
-              />
-            ) : null}
-            <div className="ui-composer-dock" ref={composerDockRef}>
-              <Composer
-                value={draft}
-                onChange={setDraft}
-                onSend={handleSend}
-                onStop={handleStop}
-                onPause={handlePause}
-                onResume={handleResumeClick}
-                canResume={!busy && (activeStatus === "paused" || activeStatus === "interrupted")}
-                onEnhance={handleEnhanceClick}
-                enhancing={enhancing}
-                busy={busy}
-                disabled={composerDisabled}
-                planMode={planMode}
-                onTogglePlan={handleTogglePlan}
-                skills={skills}
-                selectedSkills={selectedSkills}
-                onToggleSkill={handleToggleSkill}
-                statusText={loadingText ?? statusLine}
-                errorText={errorLine}
-                imageUrls={imageUrls}
-                onRemoveImage={handleRemoveImage}
-                onAddImage={handleAddImage}
-                onSlashCommand={handleSlashCommand}
-              />
-              <ContextProgress
-                activeTokens={activeContextTokens}
-                model={settings?.model ?? ""}
-                compacting={activeStatus === "compacting"}
-              />
-            </div>
-          </>
+          chatContent
         )}
       </div>
 
-      {/* Right-side preview panel — PM-Design / DeepDesign output */}
+      {/* Settings — centered modal card (shell level, modal family): settings
+          is a form dialog, not a workspace surface. Compact card over a
+          click-to-dismiss scrim; the conversation stage stays visible behind.
+          scrim 98 · card 99 — above the floating islands, below the app's
+          .ui-modal-overlay (100) / palette (120) / toasts (200). */}
+      {activeTab.kind === "settings" && editable ? (
+        <>
+          <div className="ui-settings-scrim" onClick={() => handleCloseAuxTab("settings")} aria-hidden />
+          <div className="ui-settings-modal">
+            <SettingsPanel
+              initial={editable}
+              initialTab={settingsInitialTab}
+              onSave={handleSaveSettings}
+              onClose={() => handleCloseAuxTab("settings")}
+              platform={platform}
+              theme={theme}
+              onSelectTheme={handleSelectTheme}
+            />
+          </div>
+        </>
+      ) : null}
+
+      {/* Right-side companion card — PM-Design / DeepDesign output */}
       {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
         <div className="ui-preview-panel">
+          <div
+            className="ui-companion-resize"
+            onMouseDown={handleCompanionResizeStart}
+            role="separator"
+            aria-orientation="vertical"
+          />
           <div className="ui-preview-panel-head">
             <div className="ui-preview-tabs">
               <button
@@ -1526,8 +2123,12 @@ export function App(): JSX.Element {
               }
             >
               {previewTab === "design" && designContent ? (
-                <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
-              ) : prototypeMode !== "design" ? (
+                prototypeMode === "spec" ? (
+                  <StreamdownView className="ui-md ui-proto-spec-doc" markdown={designContent} />
+                ) : (
+                  <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
+                )
+              ) : prototypeMode !== "design" && prototypeMode !== "spec" ? (
                 <PrototypePanel
                   a2uiJson={prototypeJson ?? ""}
                   openuiCode={prototypeOpenuiCode}
@@ -1542,6 +2143,12 @@ export function App(): JSX.Element {
 
       {graphHtml ? (
         <div className="ui-preview-panel">
+          <div
+            className="ui-companion-resize"
+            onMouseDown={handleCompanionResizeStart}
+            role="separator"
+            aria-orientation="vertical"
+          />
           <div className="ui-preview-panel-head">
             <div className="ui-preview-tabs">
               <span className="ui-preview-tab active"> ◈ Architecture Graph</span>
@@ -1561,9 +2168,47 @@ export function App(): JSX.Element {
         </div>
       ) : null}
 
+      {/* Quick dock — the everyday trio (sessions / new / workspace) pulled
+          out of the hub into a persistent top-left capsule. Hidden while the
+          hub rail is up: same corner, and browsing belongs to the rail. */}
+      {!panelOpen ? (
+        <QuickDock
+          sessionTitle={activeSessionTitle}
+          busy={busy}
+          modKey={modKey}
+          onOpenSessions={() => selectView("explorer")}
+          onNewSession={handleNewSession}
+          onNewWorkspace={() => void handleNewWorkspace()}
+        />
+      ) : null}
+
+      {/* Tide orb — the one persistent navigation affordance on the stage:
+          summons / dismisses the hub sheet. Slides to the sheet's edge while
+          open; pulses when the session needs the user (permission/question). */}
+      <HubOrb
+        open={panelOpen}
+        badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
+        modKey={modKey}
+        onClick={handleToggleHub}
+      />
+
+      {/* Background-task badge — compact circular presence (module icon in
+          center) for running builds/reviews; the big console below opens ONLY
+          from the badge (real-machine feedback: never auto-pop over chat).
+          The badge hides while its console is open (same corner, no overlap). */}
+      {!buildConsoleOpen ? <BackgroundTaskBadge onOpen={openBackgroundTask} /> : null}
+
+      {/* Build console — temporary floating A2UI surface (R3-5), on demand */}
+      {buildConsoleOpen && hasBuildJobs ? <BuildConsolePanel onClose={() => setBuildConsoleOpen(false)} /> : null}
+
+      {/* Serena result mirror — floating right panel (R3-6) */}
+      {serenaOpen && serenaEvents.length > 0 ? (
+        <SerenaPanel events={serenaEvents} onClose={() => setSerenaOpen(false)} />
+      ) : null}
+
       {diffTarget ? (
         <Suspense fallback={<div className="ui-editor-overlay" />}>
-          <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={setEditorFile} />
+          <DiffOverlay target={diffTarget} onClose={() => setDiffTarget(null)} onOpenEditor={handleOpenEditor} />
         </Suspense>
       ) : null}
 
@@ -1601,7 +2246,7 @@ export function App(): JSX.Element {
         onClose={() => setPaletteOpen(false)}
       />
 
-      <ToastContainer toasts={toasts} />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

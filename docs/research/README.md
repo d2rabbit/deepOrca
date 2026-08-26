@@ -12,7 +12,7 @@
 
 ## 总览
 
-39+4 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-20 预研 4 份；另有 3 份配套 HTML 视觉稿不计入）：**✅ 20 · 🟡 9 · ⬜ 11 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+47 份调研文档（含 1 份 EN 孪生；另有多份配套 HTML 视觉稿不计入）：状态分布 **✅ 21 · 🟡 10 · ⬜ 13 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板。2026-08-26 合并现代 UI 分支：新增内核 wasm 化 / MoonBit·仓颉 / llm_wiki / scriptc+tsgo / vycode-dirge 等 5 份预研，UI/UX 重设计原始代系姊妹篇归入 [`ui-ux/`](./ui-ux/)。
 
 ## 目录分组（2026-08-20 目录化整理）
 
@@ -24,14 +24,13 @@
 | [`memory/`](./memory/) | 记忆管线（L0–L3 物化、行为记忆 vs 任务轨迹） | 2 |
 | [`routing/`](./routing/) | 语义路由（SkillWeaver 集成 G1–G3、路由闭环 R1–R4） | 2 |
 | [`designer/`](./designer/) | designer 模块与动态 UI（A2UI、OpenUI 深潜与全量采纳、OpenDesign 对比、Tailwind 实现层） | 5 |
-| [`ui-ux/`](./ui-ux/) | **UI/UX 重设计全线**（现状审计 + [`design/`](./ui-ux/design/)：愿景/规格/覆盖矩阵/27 帧基座/可交互 Demo） | 1 + design/ |
+| [`ui-ux/`](./ui-ux/) | **UI/UX 重设计全线**（现状审计 + 重设计愿景/线框/验证姊妹篇 + [`design/`](./ui-ux/design/)：愿景/规格/覆盖矩阵/27 帧基座/可交互 Demo） | 4 + design/ |
 | [`integrations/`](./integrations/) | 协议与外部能力集成（MCP SDK 迁移、OpenOPC） | 2 |
 | [`external-eval/`](./external-eval/) | 外部项目评估（四项目评估、五项目可行性、外部仓库预研、hallmark/CodeBrain/MemBrain、OCR+UA） | 5 |
 | [`platform/`](./platform/) | 平台与移植（鸿蒙 PC、远程访问、html-in-canvas 核实、模板拆分） | 4 |
 | [`quality/`](./quality/) | 质量审计（问题清单、全量回归、spec 缺口） | 3 |
 | [`media-gen/`](./media-gen/) | 生成式能力（img2threejs/CAD、mermaid 渲染） | 2 |
 | [`archive/`](./archive/) | 作废/归档（zread、MemOS、dsh 原始三份、pi-sdk 等，划线留溯源） | 既有 |
-
 
 ---
 
@@ -109,6 +108,17 @@
 | [design/vision.md](./ui-ux/design/vision.md) | 重设计愿景「Orca Deck · 工单工作台」：为什么脱离聊天本体 | 工单/步骤一等状态、闸门前置+自律度、对象锚定介入、Tape（⌘T）、车间墙 ⌘⇧M | ⬜ | 对话降级为只读记录仪，工单升格为界面本体；回合制改并行值守；去气泡/头像/"思考中" |
 | [design/wireframes.md](./ui-ux/design/wireframes.md) | 交互规格：线框、尺寸、键盘地图、浮层栈、token 增补 | renderer 视图层 | ⬜ | 正式实现一律以 specs/ 为准（总口径） |
 | [design/coverage.md](./ui-ux/design/coverage.md) + [design/base-complete-design.html](./ui-ux/design/base-complete-design.html) | 模块覆盖矩阵（审计项 → v3 落点 → 帧号）+ 27 帧基座设计稿（Liquid Glass） | renderer 全面重构蓝图；`liquid` 作为第 7 套主题 | ⬜ | 11 个侧栏面板全部重定位、8 类浮层归统一栈、三卡改闸门+起草+内联问答；含未覆盖声明（Monaco 全屏实例、PrototypeWindow 独立窗、A2UI 仅换肤） |
+| [2026-08-19-ui-ux-redesign-vision.md](ui-ux/2026-08-19-ui-ux-redesign-vision.md) | 重设计愿景「Orca Deck · 阶段指挥舱」（**原始代系·冻结线出品**）+ 竞品差异化定位（vs Cursor/Codex/Threads） | 提案落点：消息流阶段化、rail 五区收编、Inspector 右栏、审批队列、命令面板全覆盖 | ⬜ | 核心概念：平铺线程 → 五阶段脊柱（理解/计划/执行/验证/交付）；三波路径：止损 → 结构 → 差异化。与 [`design/vision.md`](./ui-ux/design/vision.md) 的 v3 工单工作台为前后两代提案 |
+| [2026-08-19-ui-ux-redesign-wireframes.md](ui-ux/2026-08-19-ui-ux-redesign-wireframes.md) + 视觉稿 `ui-ux/2026-08-19-ui-ux-redesign-mockup.html` | 设计稿：全界面 ASCII 线框 + 尺寸/交互规格 + 键盘地图 + token 增补 | 提案落点：`ui.css`、rail.tsx、MessageList、Composer、command-palette、浮层栈 | ⬜ | HTML 视觉稿经 Playwright 截图验证渲染正确；正式实现一律以 specs/ 为准（总口径） |
+| [2026-08-19-ui-ux-audit-verification.md](ui-ux/2026-08-19-ui-ux-audit-verification.md) | 审计报告逐条核对 + 三批次修复方案 + 实施记录 | 同审计报告范围（`fix/test-baseline-ui-feedback@da20d16`） | ✅ | **核对结论：P0×2 / P1×5 全部坐实**，P2 九属实一过时（deepcode-cli 证据已失效）、rail 按钮数修正为 18；**批次一+二（F1–F5）已实施**——F1 右栏 `right-open` 接线 + 单槽互斥、F2 rail 常驻禁用态 + overflow 兜底、F3 编辑器联动切视图、F4 命令面板 11→30 条、F5 deny toast；门禁全绿，真机冒烟待做；CRG 架构图触发链路已补闭环（CodeReviewPanel 恢复 View Graph 按钮，`7d3ca8d` 重构丢的线） |
+
+---
+
+## 2026-08-19 · 知识编译预研（llm_wiki）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-19-llm-wiki-prestudy.md](./2026-08-19-llm-wiki-prestudy.md) | llm_wiki「编译型知识库」预研：知识编译一次、持续维护；四阶段路线图与 GPL-3.0 净室红线 | [`specs/doc-wiki/`](../../specs/doc-wiki/design.md) | 🟡 | 思想借鉴落地为 doc-wiki D 线立项（见 `docs/features/next-version-plan.md` 主线 D）；零代码继承、不 vendor、不拷贝提示词 |
 
 ---
 
@@ -120,6 +130,31 @@
 | [2026-08-20-fastcode-iterative-retrieval-prestudy.md](agent-harness/2026-08-20-fastcode-iterative-retrieval-prestudy.md) | FastCode 多级索引 + 置信度驱动迭代检索预研（indexer/iterative_agent 源码走读） | 产物：`specs/index-knowledge-boost/`（K2a/K2b 轨道） | ⬜ | **结论型：整体不引入**（与 CodeGraph/Serena/routing 全重叠）；借鉴两思想——检索预算显式化（自适应预算/边际收益递减/ROI）、粒度感知上下文选择；repo overview 路由记入 doc-wiki spec 对照 |
 | [2026-08-20-helix-harness-lego-prestudy.md](external-eval/2026-08-20-helix-harness-lego-prestudy.md) | HKUDS/HELIX harness 乐高化工作台预研（4 harness 拆 1,332 原子 / 装配契约 96 port / recipe 组装 / rollout 回训） | 产物：`specs/studio-base-boost/`（H 线四项任务化，挂 module-system 既有阶段）+ `specs/module-system/design.md` 附录 A（思想映射）+ next-version 主线 A/E3 注记 | ⬜ | **结论型：整体不引入**（lego-runtime 是替代性 harness 内核；research prototype + license 未核验）；价值 = 三条架构选择（契约先行/声明式组装/policy 一等维度）获独立先证 + 机制借鉴：port fixture 激活门禁、dist.json provenance、平台 API 契约测试套（B1 验收项）、发行版编辑器四步流；E3/E1 借其搜索空间组织与 trace 标签分类 |
 | [2026-08-20-leann-vector-db-prestudy.md](memory/2026-08-20-leann-vector-db-prestudy.md) | LEANN 向量库预研：能否替代 sqlite+vfs 作底层持久化（对照 memory 包 L0–L3 / routing / doc-wiki 现行 node:sqlite+sqlite-vec+FTS5 路线） | 评估对象：`packages/memory/src/tdai/core/store/sqlite.ts` 等 | ⬜ | **结论：不替代**——三重错配（进程外 Python 服务 vs 进程内 TS / 纯向量近似 vs 向量+BM25+SQL 混合 / 超大规模卖点 vs 个人记忆规模）+ 双许可与原文明文存储减分；分层 HNSW 思想与 MCP 记忆服务形态记观察项（触发：10万+ chunk 瓶颈 / M 线多端共享记忆） |
+
+---
+
+## 2026-08-19 · 超级大版本重构预研（内核 wasm 化 / 系统语言）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-19-kernel-wasm-systems-refactor-prestudy.md](./2026-08-19-kernel-wasm-systems-refactor-prestudy.md) | 超大版本重构：内核 wasm 化（A）与系统语言重写（B）解耦裁决，M0–M4 五段排程 | 提案落点：M0 内存止血（offscreen Chromium/embedding 单例/子进程懒启动）、M1 传输中立化、M2 内核重写、M3 壳替换、M4 wasm 双目标 | ⬜ | **2026-08-21 用户拍板更正 M2 语言裁决：不换语言、维持 TypeScript**，迁移载体改为 scriptc + tsgo——见 [2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md](./2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md)；本文 M0/M1 结论不受影响，Rust 降为备选线 |
+| [2026-08-19-moonbit-cangjie-language-prestudy.md](./2026-08-19-moonbit-cangjie-language-prestudy.md) | 内核重写后备语言深挖：MoonBit / 仓颉 | 提案落点：module-system guest 语言（MoonBit）、鸿蒙移植触发线（仓颉） | ⬜ | 裁决：两者不撼动主线（GC + 未 GA + 生态差）；**MoonBit 工具链 AGPL-3.0 + 运行时豁免悬置**为最重要单条结论；仓颉 Apache-2.0-with-exception 干净。主线由 Rust 改为 TS 原生路径后，本文 guest 线/鸿蒙线裁决仍独立成立 |
+
+---
+
+## 2026-08-21 · TS 原生化迁移路径
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md](./2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md) | **M2 更正后的承接报告**：scriptc（TS→原生二进制）+ TypeScript 7/tsgo（Go 编译器）双调研 + 迁移卫生规则 | 提案落点：tsconfig `rootDir` 显式化、CI 非阻塞 `tsgo --noEmit` 对账、三条接缝（进程/网络/动态加载）注入式隔离红线、`scriptc coverage` spike | 🟡 | 裁决：**tsgo 近期采纳**（本仓已在 TS 6.0.3 桥接版、tsconfig 几乎全绿、零编程式 API 依赖；待 7.1 API 解 typescript-eslint）；**scriptc 观察名单 + 最小 spike**（child_process/fetch/dynamic import 三存亡项原生目标未证实，experimental 单供应商）；08-19 报告 M0/M1 不变且权重上调，Rust 降备选。**同日立项 [`specs/ts-native-migration/`](../../specs/ts-native-migration/design.md)**：包拓扑拆分（shell/design 独立成包）为迁移前置 P0，tsgo=M1 段、scriptc spike=P4-a，M2 原生化为条件触发段 |
+
+---
+
+## 2026-08-23 · 自愈预研（vycode / dirge）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-23-vycode-dirge-selfheal-prestudy.md](./2026-08-23-vycode-dirge-selfheal-prestudy.md) | vycode/dirge 自愈机制外部产品调研 | 待立项评估 | ⬜ | 预研究阶段，未排期 |
 
 ---
 

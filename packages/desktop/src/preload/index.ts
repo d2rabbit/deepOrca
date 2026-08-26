@@ -42,6 +42,8 @@ const api: DesktopApi = {
   getEditableSettings: () => ipcRenderer.invoke(IpcRequest.SettingsGetEditable),
   updateSettings: (patch) => ipcRenderer.invoke(IpcRequest.SettingsUpdate, patch),
   setModel: (selection) => ipcRenderer.invoke(IpcRequest.ModelSet, selection),
+  setThinkingMode: (selection) => ipcRenderer.invoke(IpcRequest.ThinkingModeSet, selection),
+  setSessionLocale: (locale) => void ipcRenderer.invoke(IpcRequest.SessionLocaleSet, locale),
 
   mcpStatus: () => ipcRenderer.invoke(IpcRequest.McpStatus),
   getWorkspaceTrust: () => ipcRenderer.invoke(IpcRequest.WorkspaceTrustGet),
@@ -116,7 +118,7 @@ const api: DesktopApi = {
   wikiCheckAvailable: () => ipcRenderer.invoke(IpcRequest.WikiCheckAvailable),
   wikiInit: () => ipcRenderer.invoke(IpcRequest.WikiInit),
   wikiUpdate: () => ipcRenderer.invoke(IpcRequest.WikiUpdate),
-  wikiListPages: () => ipcRenderer.invoke(IpcRequest.WikiListPages),
+  wikiListPages: (root) => ipcRenderer.invoke(IpcRequest.WikiListPages, root),
   wikiReadPage: (path) => ipcRenderer.invoke(IpcRequest.WikiReadPage, path),
   onWikiProgress: (cb) => subscribe(IpcEvent.WikiProgress, cb as (p: never) => void),
 
@@ -143,7 +145,14 @@ const api: DesktopApi = {
   memoryClear: () => ipcRenderer.invoke(IpcRequest.MemoryClear),
 
   // ── Knowledge dashboard ──────────────────────────────────────────
-  knowledgeStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeStatus),
+  knowledgeStatus: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeStatus, root),
+  memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
+  knowledgeReadArchmap: (path) => ipcRenderer.invoke(IpcRequest.KnowledgeReadArchmap, path),
+  knowledgeBuild: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeBuild, root),
+  knowledgeBuildStatus: () => ipcRenderer.invoke(IpcRequest.KnowledgeBuildStatus),
+  knowledgeReadAgents: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeReadAgents, root),
+  knowledgeListSymbols: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeListSymbols, root, query),
+  knowledgeSymbolGraph: (root, query) => ipcRenderer.invoke(IpcRequest.KnowledgeSymbolGraph, root, query),
 
   // ── Designer (design artifacts) ────────────────────────────────────
   designList: () => ipcRenderer.invoke(IpcRequest.DesignList),
@@ -154,17 +163,22 @@ const api: DesktopApi = {
   designExportPackage: (id) => ipcRenderer.invoke(IpcRequest.DesignExportPackage, id),
 
   // ── Task trajectory (read-only panel surface) ────────────────────────────
-  taskTreeList: () => ipcRenderer.invoke(IpcRequest.TaskTreeList),
-  taskTreeGet: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId),
-  taskTreeReflog: (treeId) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId),
+  taskTreeList: (workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeList, workspaceRoot),
+  taskTreeGet: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeGet, treeId, workspaceRoot),
+  taskTreeReflog: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeReflog, treeId, workspaceRoot),
+  taskTreeTrajectory: (treeId, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeTrajectory, treeId, workspaceRoot),
   taskTreeArchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeArchive, treeId, workspaceRoot),
   taskTreeUnarchive: (treeId, workspaceRoot) => ipcRenderer.invoke(IpcRequest.TaskTreeUnarchive, treeId, workspaceRoot),
   taskTreeSnapshotRestore: (treeId, nodeId, workspaceRoot) =>
     ipcRenderer.invoke(IpcRequest.TaskTreeSnapshotRestore, treeId, nodeId, workspaceRoot),
   taskTreeCreate: (prompt, why, branchName) => ipcRenderer.invoke(IpcRequest.TaskTreeCreate, prompt, why, branchName),
-  taskTreeFork: (treeId, why, opts) => ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts),
-  taskTreeSwitch: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch),
-  taskTreeAbandon: (treeId, branch) => ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch),
+  taskTreeFork: (treeId, why, opts, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeFork, treeId, why, opts, workspaceRoot),
+  taskTreeSwitch: (treeId, branch, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeSwitch, treeId, branch, workspaceRoot),
+  taskTreeAbandon: (treeId, branch, workspaceRoot) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch, workspaceRoot),
   taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
@@ -179,6 +193,7 @@ const api: DesktopApi = {
   actionList: () => ipcRenderer.invoke(IpcRequest.ActionList),
   actionRun: (id, input) => ipcRenderer.invoke(IpcRequest.ActionRun, id, input),
   onActionProgress: (cb) => subscribe(IpcEvent.ActionProgress, cb as (p: never) => void),
+  onDesignChanged: (cb) => subscribe(IpcEvent.DesignChanged, cb as (p: never) => void),
 
   // ── Agent changes ───────────────────────────────────────────────
   agentChangesList: (sessionId) => ipcRenderer.invoke(IpcRequest.AgentChangesList, sessionId),

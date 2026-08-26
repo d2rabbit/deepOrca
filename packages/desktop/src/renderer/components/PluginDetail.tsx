@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { BuiltinPluginGroup, BuiltinPluginInfo, PluginMcpServer, SkillInfo } from "../../shared/ipc";
 import { api } from "../api";
 import { tOr, useI18n, type Translate } from "../i18n";
-import { renderMarkdown } from "../markdown";
+import { StreamdownView } from "./StreamdownView";
 import { Button, StatusDot, Switch } from "../ui/index";
 import { builtinLabel, isBundledSkill } from "./PluginMcpPanel";
 
@@ -88,27 +88,36 @@ function skillSourceLabel(t: Translate, path: string): string {
   return path;
 }
 
-/** Drop the YAML frontmatter block so only the readable body is rendered. */
-function stripFrontmatter(md: string): string {
-  if (!md.startsWith("---")) return md;
-  const end = md.indexOf("\n---", 3);
-  if (end === -1) return md;
-  const after = md.indexOf("\n", end + 1);
-  return after === -1 ? "" : md.slice(after + 1);
-}
-
 /**
  * Plugin detail pane — unified four-section layout shared by all kinds:
  *   hero card → capabilities → actions → documentation.
  * The left list carries only summary info; this pane carries the full picture.
  */
-export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill }: Props): JSX.Element {
+export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill, onBack }: Props): JSX.Element {
   const { t, locale } = useI18n();
   const [servers, setServers] = useState<PluginMcpServer[]>([]);
   const [doc, setDoc] = useState<string>("");
   const [docError, setDocError] = useState(false);
+  const [serversError, setServersError] = useState<string | null>(null);
+  // MCP remove is irreversible: first click arms, second click fires.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const confirmRemoveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const reloadServers = useCallback(async () => setServers(await api.pluginMcpList()), []);
+  useEffect(
+    () => () => {
+      if (confirmRemoveTimerRef.current) clearTimeout(confirmRemoveTimerRef.current);
+    },
+    []
+  );
+
+  const reloadServers = useCallback(async () => {
+    try {
+      setServers(await api.pluginMcpList());
+      setServersError(null);
+    } catch (err) {
+      setServersError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
 
   useEffect(() => {
     void reloadServers();
@@ -205,7 +214,7 @@ export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill 
           {docError ? (
             <div className="ui-plugin-detail-empty">{t("plugins.detail.docError")}</div>
           ) : (
-            <div className="ui-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(stripFrontmatter(doc)) }} />
+            <StreamdownView className="ui-md" markdown={doc} />
           )}
         </section>
       </div>
@@ -239,12 +248,35 @@ export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill 
     ((status.tools?.length ?? 0) > 0 || (status.prompts?.length ?? 0) > 0 || (status.resources?.length ?? 0) > 0);
 
   const setEnabled = async (enabled: boolean) => {
-    await api.pluginSetMcpEnabled(server.name, enabled);
-    await reloadServers();
+    try {
+      await api.pluginSetMcpEnabled(server.name, enabled);
+      await reloadServers();
+    } catch (err) {
+      setServersError(err instanceof Error ? err.message : String(err));
+    }
   };
   const remove = async () => {
-    await api.pluginRemoveMcpServer(server.name);
-    await reloadServers();
+    try {
+      const removed = server.name;
+      await api.pluginRemoveMcpServer(server.name);
+      setConfirmRemove(null);
+      await reloadServers();
+      // The detail pane must not linger on a server that no longer exists.
+      if (selection?.kind === "mcp" && selection.name === removed) onBack();
+    } catch (err) {
+      setServersError(err instanceof Error ? err.message : String(err));
+    }
+  };
+  const handleRemoveClick = (): void => {
+    if (confirmRemove === server.name) {
+      if (confirmRemoveTimerRef.current) clearTimeout(confirmRemoveTimerRef.current);
+      setConfirmRemove(null);
+      void remove();
+      return;
+    }
+    if (confirmRemoveTimerRef.current) clearTimeout(confirmRemoveTimerRef.current);
+    setConfirmRemove(server.name);
+    confirmRemoveTimerRef.current = setTimeout(() => setConfirmRemove(null), 3000);
   };
 
   return (
@@ -340,13 +372,19 @@ export function PluginDetail({ selection, skills, selectedSkills, onToggleSkill 
 
       {/* Actions */}
       <section className="ui-detail-actions">
+        {serversError ? <div className="ui-scm-error">{serversError}</div> : null}
         <label className="ui-plugin-detail-toggle">
           <span>{t("mcp.enableTitle")}</span>
           <Switch checked={server.enabled} onChange={() => void setEnabled(!server.enabled)} />
         </label>
         {server.builtin ? null : (
-          <Button size="sm" variant="subtle" onClick={() => void remove()} title={t("mcp.removeTitle")}>
-            {t("common.remove")}
+          <Button
+            size="sm"
+            variant={confirmRemove === server.name ? "danger" : "subtle"}
+            onClick={handleRemoveClick}
+            title={confirmRemove === server.name ? t("mcp.removeConfirm") : t("mcp.removeTitle")}
+          >
+            {confirmRemove === server.name ? t("mcp.removeConfirm") : t("common.remove")}
           </Button>
         )}
       </section>
@@ -430,7 +468,7 @@ function BuiltinPluginDetail({ name }: { name: string }): JSX.Element {
         {docError ? (
           <div className="ui-plugin-detail-empty">{t("plugins.detail.docError")}</div>
         ) : doc ? (
-          <div className="ui-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(doc) }} />
+          <StreamdownView className="ui-md" markdown={doc} />
         ) : null}
       </section>
     </div>

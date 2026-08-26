@@ -20,7 +20,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 
-export type DesignPipeline = "openui" | "design";
+export type DesignPipeline = "openui" | "design" | "spec";
 
 /** Prior content snapshot, taken automatically when a save changes the content. */
 export interface DesignArtifactVersion {
@@ -54,7 +54,32 @@ const MAX_VERSIONS = 20;
 const FILE_BY_PIPELINE: Record<DesignPipeline, string> = {
   openui: "prototype.openui.txt",
   design: "prototype.dd",
+  spec: "spec.md",
 };
+
+// ── Change notification ──────────────────────────────────────────────────────
+// Design artifacts are written by the a2ui MCP tools mid-agent-run, not by
+// the panels — a save/delete event lets the panels refresh live instead of
+// showing a stale list until the next manual reload (chain-integrity fix).
+
+type DesignStoreListener = (root: string) => void;
+const listeners = new Set<DesignStoreListener>();
+
+/** Subscribe to artifact saves/deletes; returns an unsubscribe function. */
+export function onDesignStoreChange(cb: DesignStoreListener): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function notifyChange(root: string): void {
+  for (const cb of listeners) {
+    try {
+      cb(root);
+    } catch {
+      // A broken listener must never break the store.
+    }
+  }
+}
 
 function getDesignsDir(root: string): string {
   return path.join(root, ".deeporca", "designs");
@@ -176,6 +201,7 @@ export function saveDesignArtifact(
       index.artifacts.push(lightMeta);
     }
     writeIndex(root, index);
+    notifyChange(root);
     return meta;
   } catch {
     return null; // best-effort
@@ -263,6 +289,7 @@ export function deleteDesignArtifact(root: string, id: string): boolean {
     const next = index.artifacts.filter((a) => a.id !== id);
     if (next.length !== index.artifacts.length) {
       writeIndex(root, { ...index, artifacts: next });
+      notifyChange(root);
     }
     return true;
   } catch {

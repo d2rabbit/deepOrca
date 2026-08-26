@@ -1,9 +1,7 @@
-import { spawn, type ChildProcess } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import { createMcpSpawnSpec } from "../mcp/spawn-spec";
-import type { McpServerConfig } from "../settings";
 import { resolveUvBinary } from "./uv";
+import { spawnTracked } from "./spawn-tracked";
 
 /**
  * code-review-graph (CRG) integration.
@@ -55,24 +53,6 @@ export const CRG_MCP_SERVER_NAME = "code-review-graph";
 
 /** Project-local directory that holds the CRG graph (SQLite + FTS5). */
 export const CRG_DIR_NAME = ".code-review-graph";
-
-/**
- * Only expose analysis-layer tools (10/30) to avoid overlap with CodeGraph's
- * navigation tools. These are the tools CodeGraph does NOT have:
- * risk scoring, impact radius, community detection, hub/bridge analysis, etc.
- */
-export const CRG_ANALYSIS_TOOLS = [
-  "detect_changes_tool",
-  "get_impact_radius_tool",
-  "get_review_context_tool",
-  "get_hub_nodes_tool",
-  "get_bridge_nodes_tool",
-  "get_surprising_connections_tool",
-  "get_knowledge_gaps_tool",
-  "get_architecture_overview_tool",
-  "list_communities_tool",
-  "get_suggested_questions_tool",
-].join(",");
 
 /**
  * How to spawn CRG: the executable (uv binary) plus args that must precede the
@@ -146,79 +126,60 @@ export function hasCrgProject(projectRoot: string): boolean {
 }
 
 // ── MCP server config ────────────────────────────────────────────────────────
-
-/**
- * Build the MCP server configuration for CRG. The command comes from
- * {@link resolveCrgExecutable} (vendored uv or system uvx). The `cwd` is pinned
- * to the project root so the server targets the right project's graph.
- * Only analysis-layer tools are exposed (via `--tools`) to avoid overlap with
- * CodeGraph's navigation tools.
- */
-export function buildCrgMcpServerConfig(projectRoot: string): McpServerConfig | null {
-  const exe = resolveCrgExecutable();
-  if (!exe) {
-    return null;
-  }
-  const config: McpServerConfig = {
-    command: exe.command,
-    args: [...exe.prefixArgs, "serve", "--tools", CRG_ANALYSIS_TOOLS],
-    cwd: projectRoot,
-  };
-  if (exe.env && Object.keys(exe.env).length > 0) {
-    config.env = exe.env;
-  }
-  return config;
-}
+// (Retired 2026-08-23: CRG's MCP surface was folded into the plugin-MCP view;
+// analysis queries now go through the crg-query action / direct SQLite reads.
+// buildCrgMcpServerConfig and the analysis-tool allowlist were removed.)
 
 // ── Subprocess execution ─────────────────────────────────────────────────────
 
-/** Spawn a CRG subcommand with piped stdio for output capture. */
-function spawnCrgPiped(projectRoot: string, subcommand: string[]): ChildProcess | null {
-  const exe = resolveCrgExecutable();
-  if (!exe) {
-    return null;
-  }
-  const spec = createMcpSpawnSpec(exe.command, [...exe.prefixArgs, ...subcommand]);
-  const env = exe.env && Object.keys(exe.env).length > 0 ? { ...process.env, ...exe.env } : process.env;
-  return spawn(spec.command, spec.args, {
-    cwd: projectRoot,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-    shell: spec.shell,
-    windowsHide: spec.windowsHide,
-  });
-}
+/**
+ * Hard cap on one CRG build/update/visualize run; override with
+ * DEEPORCA_CRG_TIMEOUT_MS (milliseconds). A wedged uv-managed Python child
+ * must never spin the UI forever (the index-knowledge failure class).
+ */
+const CRG_TIMEOUT_MS = Number(process.env.DEEPORCA_CRG_TIMEOUT_MS ?? "") || 20 * 60 * 1000;
 
 /**
- * Build (or rebuild) the CRG graph with live output: spawns `code-review-graph
- * build` with piped stdio and invokes `onOutput` for each chunk. Resolves with
- * the exit code. Used by the desktop UI to visualize indexing progress.
+ * Build (or rebuild) the CRG graph with live output: runs `code-review-graph
+ * build` through spawnTracked (exit-authoritative settlement + hard timeout +
+ * heartbeat) and invokes `onOutput` for each line. Resolves with the exit
+ * code — always settles, even on timeout/spawn failure (code 1 + an error
+ * line), so UI progress streams always get a terminal event.
  */
 function runCrgBuildWithOutput(
   projectRoot: string,
   onOutput: (chunk: string, stream: "stdout" | "stderr") => void
 ): Promise<number> {
-  return new Promise<number>((resolve) => {
+  return (async (): Promise<number> => {
+    const exe = resolveCrgExecutable();
+    if (!exe) {
+      onOutput("\n[Error] uv binary not available — cannot run code-review-graph\n", "stderr");
+      return 1;
+    }
     try {
-      const cp = spawnCrgPiped(projectRoot, ["build"]);
-      if (!cp) {
-        onOutput("\n[Error] uv binary not available — cannot run code-review-graph\n", "stderr");
-        resolve(1);
-        return;
-      }
-      cp.stdout?.on("data", (d: Buffer) => onOutput(d.toString(), "stdout"));
-      cp.stderr?.on("data", (d: Buffer) => onOutput(d.toString(), "stderr"));
-      cp.on("error", (err) => {
-        onOutput(`\n[Error] Failed to spawn code-review-graph: ${err.message}\n`, "stderr");
-        resolve(1);
+      const result = await spawnTracked({
+        label: "CRG build",
+        command: exe.command,
+        args: [...exe.prefixArgs, "build"],
+        cwd: projectRoot,
+        env: exe.env,
+        timeoutMs: CRG_TIMEOUT_MS,
+        heartbeatMs: 20_000,
+        onHeartbeat: ({ elapsedSecs }) => {
+          onOutput(`CRG: 运行中 ${elapsedSecs}s（图谱构建无进度流，请耐心等待）\n`, "stdout");
+          return null;
+        },
+        onStdoutLine: (line) => onOutput(`${line}\n`, "stdout"),
+        onStderrLine: (line) => onOutput(`${line}\n`, "stderr"),
       });
-      cp.on("close", (code) => resolve(code ?? 0));
+      if (result.forcedOk || result.code === 0) return 0;
+      return result.code ?? 1;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      onOutput(`\n[Error] Failed to start code-review-graph: ${message}\n`, "stderr");
-      resolve(1);
+      onOutput(`\n[Error] code-review-graph build failed: ${message}\n`, "stderr");
+      return 1;
     }
-  });
+  })();
 }
 
 /**
@@ -240,39 +201,27 @@ export async function runCrgResetWithOutput(
 
 /**
  * Run `code-review-graph visualize` to generate a D3.js interactive HTML graph.
- * Returns the HTML content as a string, or null on failure.
+ * Returns the HTML content as a string, or null on failure/timeout.
  *
  * The visualize command writes a self-contained HTML file (D3.js force-directed
  * graph with community detection, hub/bridge nodes, search). We capture its
  * stdout to get the HTML content directly.
  */
-export function runCrgVisualize(projectRoot: string): Promise<string | null> {
-  return new Promise<string | null>((resolve) => {
-    try {
-      const cp = spawnCrgPiped(projectRoot, ["visualize"]);
-      if (!cp) {
-        resolve(null);
-        return;
-      }
-      let output = "";
-      cp.stdout?.on("data", (d: Buffer) => {
-        output += d.toString();
-      });
-      cp.stderr?.on("data", () => {
-        // Ignore stderr — visualize may print progress messages.
-      });
-      cp.on("error", () => resolve(null));
-      cp.on("close", (code) => {
-        if (code === 0 && output.trim()) {
-          resolve(output);
-        } else {
-          resolve(null);
-        }
-      });
-    } catch {
-      resolve(null);
-    }
-  });
+export async function runCrgVisualize(projectRoot: string): Promise<string | null> {
+  const exe = resolveCrgExecutable();
+  if (!exe) return null;
+  try {
+    const result = await spawnTracked({
+      label: "CRG visualize",
+      command: exe.command,
+      args: [...exe.prefixArgs, "visualize"],
+      cwd: projectRoot,
+      env: exe.env,
+      timeoutMs: CRG_TIMEOUT_MS,
+    });
+    if ((result.forcedOk || result.code === 0) && result.stdout.trim()) return result.stdout;
+    return null;
+  } catch {
+    return null;
+  }
 }
-
-// ── Incremental sync (fire-and-forget) ───────────────────────────────────────

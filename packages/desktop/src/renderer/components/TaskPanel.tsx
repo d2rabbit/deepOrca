@@ -2,7 +2,7 @@ import { useMemo, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { useI18n } from "../i18n";
 import { buildToolSummary, getPlanLines } from "../lib/messages";
-import { renderMarkdown } from "../markdown";
+import { StreamdownView } from "./StreamdownView";
 
 type Props = {
   messages: SessionMessage[];
@@ -66,7 +66,7 @@ export function TaskPanel({ messages }: Props): JSX.Element {
       ) : null}
       <div className="ui-side-panel-body">
         {plan ? (
-          <div className="ui-task-plan ui-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(plan) }} />
+          <StreamdownView className="ui-task-plan ui-md" markdown={plan} />
         ) : (
           <div className="ui-side-panel-empty">{t("task.empty")}</div>
         )}

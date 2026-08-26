@@ -7,24 +7,67 @@
  * into DeepOrca's dependency graph).
  *
  * LLM credentials are passed via env vars (OPENAI_API_KEY / OPENAI_BASE_URL /
- * OPENWIKI_MODEL). Language is derived from the app locale and passed via
- * OPENWIKI_LANGUAGE so wiki pages are generated in the user's language.
+ * OPENWIKI_MODEL_ID). Language is derived from the app locale and passed via
+ * the `--language` CLI flag so wiki pages are generated in the user's language.
  *
  * The --print flag is used to get structured output (progress + result) on
  * stdout instead of the interactive TUI.
  */
 
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { WikiController, WikiResult, ControllerProgress } from "@deeporca/core";
-import { getSerenaController } from "@deeporca/core";
+import type { WikiController, WikiResult, ControllerProgress, SpawnTrackedResult } from "@deeporca/core";
+import { getSerenaController, spawnTracked } from "@deeporca/core";
+import { readWikiCompletionMarker } from "./wiki-marker";
 
 const CONNECTOR_CONFIG_DIR = path.join(os.homedir(), ".openwiki", "connectors", "custom-mcp");
 const CONNECTOR_CONFIG_FILE = path.join(CONNECTOR_CONFIG_DIR, "config.json");
 const SERENA_CONNECTOR_DIR = path.join(os.homedir(), ".openwiki", "connectors", "serena-mcp");
 const SERENA_CONNECTOR_FILE = path.join(SERENA_CONNECTOR_DIR, "config.json");
+
+/**
+ * Hard cap on one wiki run. The CLI's --print mode buffers ALL stdout until
+ * exit, so a wedged child is indistinguishable from a slow one for the whole
+ * run — without a cap the build spinner can run forever (real-machine report:
+ * "half an hour and wiki still not done"). Default 60 min; override with
+ * DEEPORCA_WIKI_TIMEOUT_MS (milliseconds).
+ */
+const WIKI_TIMEOUT_MS = Number(process.env.DEEPORCA_WIKI_TIMEOUT_MS ?? "") || 60 * 60 * 1000;
+
+/**
+ * Count .md pages under <root>/openwiki modified since `sinceMs`. openwiki
+ * writes pages incrementally while its agent works, so mtimes are the only
+ * REAL progress signal available mid-run — the heartbeat surfaces this count
+ * ("已生成 N 个页面") instead of a bare elapsed timer. Returns -1 when the
+ * tree can't be read (early init, permission error).
+ */
+function countRecentWikiPages(root: string, sinceMs: number): number {
+  const stack: string[] = [path.join(root, "openwiki")];
+  let count = 0;
+  try {
+    // Guard bounds the walk: openwiki trees are tens of dirs, not millions.
+    for (let guard = 0; stack.length > 0 && guard < 2000; guard++) {
+      const dir = stack.pop();
+      if (!dir) break;
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.name.startsWith(".")) continue;
+        const p = path.join(dir, ent.name);
+        if (ent.isDirectory()) stack.push(p);
+        else if (ent.isFile() && ent.name.endsWith(".md")) {
+          try {
+            if (fs.statSync(p).mtimeMs >= sinceMs) count++;
+          } catch {
+            // File raced away mid-stat — ignore.
+          }
+        }
+      }
+    }
+    return count;
+  } catch {
+    return -1;
+  }
+}
 
 export class WikiCliController implements WikiController {
   constructor(
@@ -147,67 +190,116 @@ export class WikiCliController implements WikiController {
       env.ELECTRON_RUN_AS_NODE = "1";
     }
 
-    // Inject LLM creds from project settings if available.
+    // Inject LLM creds from project settings if available. NOTE: openwiki
+    // reads OPENWIKI_MODEL_ID (not OPENWIKI_MODEL) — the wrong env name used
+    // to leave the CLI on its built-in default model, which the configured
+    // OpenAI-compatible endpoint (DeepSeek) rejects with a 400.
     const creds = this.opts.getLlmCreds?.();
     if (creds?.apiKey) env.OPENAI_API_KEY = creds.apiKey;
     if (creds?.baseURL) env.OPENAI_BASE_URL = creds.baseURL;
-    env.OPENWIKI_MODEL = creds?.model ?? "deepseek-v4-flash";
+    env.OPENWIKI_MODEL_ID = creds?.model ?? "deepseek-v4-flash";
 
-    // Language: derive from app locale so wiki pages are generated in the
-    // user's language (OpenWiki reads OPENWIKI_LANGUAGE as BCP-47).
-    const lang = this.opts.getLanguage?.();
-    if (lang) {
-      env.OPENWIKI_LANGUAGE = lang;
-    }
-
-    // Use --print for structured non-interactive output (no TUI).
+    // Use --print for structured non-interactive output (no TUI). Language is
+    // a CLI flag (openwiki has no OPENWIKI_LANGUAGE env) so wiki pages are
+    // generated in the user's language (BCP-47 from the app locale).
     const flag = mode === "init" ? "--init" : "--update";
     const args = [this.opts.vendorEntry, flag, "--print"];
-    onProgress?.({ message: `openwiki ${flag}`, percent: 10 });
+    const lang = this.opts.getLanguage?.();
+    if (lang) {
+      args.push("--language", lang);
+    }
+    onProgress?.({ message: `wiki ${mode} started`, percent: 10 });
 
-    return new Promise<WikiResult>((resolve, reject) => {
-      const child = spawn(this.opts.nodeRunner, args, {
+    // openwiki --print buffers ALL agent output and writes it at exit — during
+    // a long run (10+ minutes on a large repo) stdout is completely silent.
+    // The 20s heartbeat counts pages actually written so far from the
+    // filesystem ("已生成 N 个页面" is real forward progress, not a ticking
+    // timer) and watches openwiki's completion marker: .last-update.json with
+    // status "complete" is the CLI's final act and authoritative even if the
+    // process then hangs on exit — finishOk force-settles success then
+    // (real-machine report: "wiki finished but the status never changed").
+    const startedAtMs = Date.now();
+    let markerSeenAt = 0;
+    let markerModel: string | undefined;
+
+    let result: SpawnTrackedResult;
+    try {
+      result = await spawnTracked({
+        label: `wiki ${mode}`,
+        command: this.opts.nodeRunner,
+        args,
         cwd: root,
-        env: { ...process.env, ...env },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      const stderrLines: string[] = [];
-      const stdoutLines: string[] = [];
-
-      child.stdout?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString();
-        stdoutLines.push(text);
-        for (const line of text.split("\n")) {
-          if (line.trim()) {
-            onProgress?.({ message: `wiki: ${line.slice(0, 120)}` });
+        env,
+        timeoutMs: WIKI_TIMEOUT_MS,
+        heartbeatMs: 20_000,
+        onHeartbeat: ({ elapsedSecs, finishOk }) => {
+          const marker = readWikiCompletionMarker(root, startedAtMs - 5000);
+          if (marker?.status === "complete") {
+            if (markerSeenAt === 0) {
+              markerSeenAt = Date.now();
+              markerModel = marker.model;
+              onProgress?.({ message: `wiki ${mode} 完成标记已收到（status: complete），等待 CLI 退出…` });
+            } else if (Date.now() - markerSeenAt > 60_000) {
+              // Work is DONE and recorded; only the exit is wedged (typically
+              // pipe-inherited MCP connector children). Force-finish success —
+              // a hung exit must never mask a completed wiki. Bilingual
+              // progress lines (zh · en) — the console shows both, matching
+              // the build pipeline's bilingual contract.
+              onProgress?.({
+                message: `wiki ${mode} 退出卡住超过 60s，强制结束，构建按完成处理 / exit stuck >60s — force-killed, treated as complete`,
+              });
+              finishOk("完成标记已确认，强制结束卡住的退出 / completion marker confirmed, stuck exit force-killed");
+            }
+            return null;
           }
-        }
+          const pages = countRecentWikiPages(root, startedAtMs - 5000);
+          const pageText = pages >= 0 ? ` · 已生成 ${pages} 页 / ${pages} pages written` : "";
+          onProgress?.({
+            message:
+              `wiki ${mode} 运行中 ${elapsedSecs}s / running ${elapsedSecs}s${pageText}` +
+              " · 读取符号索引加速生成，LLM 阶段无进度流请耐心等待 / using the symbol index, no LLM progress stream",
+          });
+          return null;
+        },
+        onStdoutLine: (line) => onProgress?.({ message: `wiki: ${line.slice(0, 120)}` }),
       });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("超时")) {
+        // Fix hint rides along as a machine-readable token — the renderer's
+        // build-error formatter translates it into the UI locale (main has
+        // no i18n runtime; see renderer/lib/build-error.ts).
+        throw new Error(`${message} [hint:wiki-timeout]`);
+      }
+      throw err;
+    }
 
-      child.stderr?.on("data", (chunk: Buffer) => {
-        stderrLines.push(chunk.toString());
-      });
-
-      child.on("error", (err) => {
-        reject(new Error(`openwiki spawn failed: ${err.message}`));
-      });
-
-      child.on("close", (code) => {
-        if (code !== 0) {
-          const stderr = stderrLines.join("");
-          reject(new Error(`openwiki exited ${code}${stderr ? `: ${stderr.slice(0, 500)}` : ""}`));
-          return;
-        }
-        onProgress?.({ message: `wiki ${mode} complete`, percent: 100 });
-        // Try to parse model from stdout output (--print mode).
-        const stdout = stdoutLines.join("");
-        const modelMatch = stdout.match(/model[:\s]+([^\s,]+)/i);
-        resolve({
-          ok: true,
-          model: modelMatch?.[1] ?? env.OPENWIKI_MODEL,
-        });
-      });
-    });
+    const ok = result.forcedOk || result.code === 0 || markerSeenAt > 0;
+    if (!ok) {
+      // Audit 2026-08-26: a bare "openwiki exited 1: terminated" was
+      // unactionable — "terminated" is LangChain's network-error pattern
+      // (undici connection aborted). The localized fix hint (model +
+      // settings pointers; secrets never printed) is embedded as a
+      // structured token the renderer translates — a second-stage
+      // translation, because the LLM itself may be what's broken.
+      const stderrMsg = result.stderr ? result.stderr.slice(0, 500) : "";
+      const netFail =
+        /^(terminated|fetch failed|Network request failed|The Internet connection appears to be offline)/i.test(
+          result.stderr.trimStart()
+        );
+      const modelId = env.OPENWIKI_MODEL_ID;
+      const hint = netFail ? ` [hint:wiki-network${modelId ? ` model=${modelId}` : ""}]` : "";
+      throw new Error(
+        `openwiki exited ${result.code}${result.signal ?? ""}${stderrMsg ? `: ${stderrMsg}` : ""}${hint}`
+      );
+    }
+    const exitNote =
+      result.forcedOk || (result.code !== 0 && markerSeenAt > 0)
+        ? `（${result.forcedNote ?? "完成标记已确认 / completion marker confirmed"}）`
+        : "";
+    onProgress?.({ message: `wiki ${mode} complete${exitNote}`, percent: 100 });
+    // Try to parse model from stdout output (--print mode).
+    const modelMatch = result.stdout.match(/model[:\s]+([^\s,]+)/i);
+    return { ok: true, model: markerModel ?? modelMatch?.[1] ?? env.OPENWIKI_MODEL_ID };
   }
 }

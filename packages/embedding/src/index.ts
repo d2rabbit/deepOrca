@@ -8,6 +8,7 @@
 
 export { TransformersEmbeddingService } from "./transformers-embedding.js";
 export type { TransformersEmbeddingConfig } from "./transformers-embedding.js";
+export { acquireSharedEmbeddingService, SharedEmbeddingRef } from "./shared.js";
 
 export {
   EmbeddingNotReadyError,

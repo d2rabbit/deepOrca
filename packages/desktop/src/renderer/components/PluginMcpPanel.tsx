@@ -82,13 +82,25 @@ export function PluginMcpPanel({
   const [command, setCommand] = useState("");
   const [args, setArgs] = useState("");
   const [env, setEnv] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    setServers(await api.pluginMcpList());
+    try {
+      setServers(await api.pluginMcpList());
+      setListError(null);
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : String(err));
+    }
   }, []);
 
   const reloadGroups = useCallback(async () => {
-    setGroups(await api.pluginBuiltinGroups());
+    try {
+      setGroups(await api.pluginBuiltinGroups());
+    } catch {
+      // Groups stay empty — the skills tab shows its own empty state.
+    }
   }, []);
 
   useEffect(() => {
@@ -102,21 +114,15 @@ export function PluginMcpPanel({
 
   const toggle = useCallback(
     async (srv: PluginMcpServer) => {
-      await api.pluginSetMcpEnabled(srv.name, !srv.enabled);
-      await reload();
+      try {
+        await api.pluginSetMcpEnabled(srv.name, !srv.enabled);
+        await reload();
+      } catch (err) {
+        setListError(err instanceof Error ? err.message : String(err));
+      }
     },
     [reload]
   );
-
-  const remove = useCallback(
-    async (srv: PluginMcpServer) => {
-      await api.pluginRemoveMcpServer(srv.name);
-      await reload();
-    },
-    [reload]
-  );
-
-  void remove;
 
   const applyPreset = useCallback((preset: McpPreset) => {
     setName(preset.name);
@@ -129,26 +135,35 @@ export function PluginMcpPanel({
   const save = useCallback(async () => {
     const n = name.trim();
     const c = command.trim();
-    if (!n || !c) return;
+    if (!n || !c || saving) return;
     const argv = args.split(/\s+/).filter(Boolean);
     const envMap: Record<string, string> = {};
     for (const line of env.split("\n")) {
       const idx = line.indexOf("=");
       if (idx > 0) envMap[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
     }
-    await api.pluginUpsertMcpServer(
-      n,
-      c,
-      argv.length > 0 ? argv : undefined,
-      Object.keys(envMap).length > 0 ? envMap : undefined
-    );
-    setName("");
-    setCommand("");
-    setArgs("");
-    setEnv("");
-    setAdding(false);
-    await reload();
-  }, [args, command, env, name, reload]);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.pluginUpsertMcpServer(
+        n,
+        c,
+        argv.length > 0 ? argv : undefined,
+        Object.keys(envMap).length > 0 ? envMap : undefined
+      );
+      setName("");
+      setCommand("");
+      setArgs("");
+      setEnv("");
+      setAdding(false);
+      await reload();
+    } catch (err) {
+      // Keep the draft — a failed upsert must not eat the entered config.
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }, [args, command, env, name, reload, saving]);
 
   const refreshSkills = useCallback(async () => {
     if (!onRefreshSkills) return;
@@ -178,6 +193,7 @@ export function PluginMcpPanel({
       </div>
 
       <div className="ui-side-panel-body">
+        {listError ? <div className="ui-scm-error">{listError}</div> : null}
         {section === "mcp" ? (
           <>
             {servers
@@ -238,13 +254,14 @@ export function PluginMcpPanel({
                   onChange={(e) => setEnv(e.target.value)}
                 />
                 <div className="ui-mcp-add-actions">
-                  <Button size="sm" variant="primary" onClick={() => void save()}>
-                    {t("mcp.save")}
+                  <Button size="sm" variant="primary" disabled={saving} onClick={() => void save()}>
+                    {saving ? t("settings.saving") : t("mcp.save")}
                   </Button>
-                  <Button size="sm" variant="subtle" onClick={() => setAdding(false)}>
+                  <Button size="sm" variant="subtle" disabled={saving} onClick={() => setAdding(false)}>
                     {t("common.cancel")}
                   </Button>
                 </div>
+                {saveError ? <div className="ui-scm-error">{saveError}</div> : null}
               </div>
             ) : (
               <>

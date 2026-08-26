@@ -6,8 +6,11 @@ export { Panel, Card, CardHeader, CardBody, EmptyState } from "./surfaces";
 export { Modal } from "./modal";
 export { Button, IconButton, Pill, Tag, Badge, Switch, Checkbox, Segmented } from "./controls";
 export { Field, Input, TextArea, Select } from "./inputs";
-export { StatusDot, Tooltip } from "./feedback";
-export { Rail, RailBrand, RailSpacer, RailButton } from "./rail";
+export { DropdownSelect, type DropdownOption } from "./dropdown";
+export { StatusDot } from "./feedback";
+export { GlobalTooltip } from "./tooltip";
+export { FileIcon, DirIcon } from "./file-icon";
+export { Rail, RailSpacer, RailButton } from "./rail";
 export { CommandPalette, type CommandItem } from "./command-palette";
 export {
   IconNewSession,
@@ -19,15 +22,12 @@ export {
   IconTokens,
   IconIndex,
   IconReview,
+  IconDesign,
+  IconPrototype,
+  IconTaskTree,
   IconGitmcp,
-  IconWiki,
-  IconReasoningHidden,
-  IconReasoningNormal,
-  IconReasoningExpanded,
   IconMoon,
   IconSun,
-  IconGlass,
-  IconPunk,
   IconUndo,
   IconSettings,
   IconWelcomePlan,
@@ -47,4 +47,20 @@ export {
   IconMagicWand,
   IconFolder,
   IconFile,
+  IconWelcomeKnowledge,
+  IconWelcomeReview,
+  IconPlus,
+  IconInfo,
+  IconClock,
+  IconTrash,
+  IconWarn,
+  IconLock,
+  IconFlame,
+  IconBalance,
+  IconPalette,
+  IconBolt,
+  IconCheck,
+  IconBook,
+  IconPencil,
+  IconMenuBars,
 } from "./icons";

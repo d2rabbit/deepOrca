@@ -1,0 +1,626 @@
+/* ── Command / skill trigger cards (chat + composer) ───────────────────── */
+/* Column wrapper so a user turn can stack skill cards above its bubble while
+   the row itself stays right-aligned. */
+.ui-user-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ui-space-2);
+  max-width: 85%;
+  min-width: 0;
+}
+.ui-user-stack > .ui-bubble {
+  max-width: 100%;
+}
+
+/* Slash command invocation card (user side) */
+.ui-cmd-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-md);
+  border-bottom-right-radius: 4px;
+  background: var(--ui-accent-soft);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  min-width: 180px;
+  transition: box-shadow 0.15s ease;
+}
+.ui-cmd-card:hover {
+  box-shadow: var(--ui-shadow-sm);
+}
+.ui-cmd-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: var(--ui-radius-sm);
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent);
+}
+.ui-cmd-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ui-cmd-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-cmd-card-kind {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-accent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+.ui-cmd-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-cmd-card-args {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 420px;
+}
+
+/* Skill attachments on a user message */
+.ui-msg-skills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+}
+.ui-msg-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  padding: 5px var(--ui-space-3);
+  max-width: 320px;
+  min-width: 0;
+}
+.ui-msg-skill-card-icon {
+  color: var(--ui-accent);
+  font-size: 13px;
+  flex: none;
+}
+.ui-msg-skill-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ui-msg-skill-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ui-msg-skill-card-kind {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-accent);
+}
+.ui-msg-skill-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-msg-skill-card-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Skill loaded" system card (centered row) */
+.ui-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-raised);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  max-width: 560px;
+  min-width: 0;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ui-skill-card:hover {
+  box-shadow: var(--ui-shadow-sm);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+}
+.ui-skill-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  color: var(--ui-accent);
+  font-size: 13px;
+}
+.ui-skill-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ui-skill-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.ui-skill-card-title {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-skill-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-skill-card-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+  flex: none;
+}
+.ui-skill-card-badge.bundled {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+}
+.ui-skill-card-desc {
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-skill-card-check {
+  flex: none;
+  color: var(--ui-success);
+  font-size: 13px;
+}
+
+/* Selected-skill cards inside the composer attachment zone */
+.ui-composer-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-accent-soft);
+  padding: 4px var(--ui-space-2) 4px var(--ui-space-3);
+  max-width: 280px;
+  min-width: 0;
+}
+.ui-composer-skill-card-icon {
+  color: var(--ui-accent);
+  font-size: 12px;
+  flex: none;
+}
+.ui-composer-skill-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.ui-composer-skill-card-name {
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-composer-skill-card-desc {
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-composer-skill-card-remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ui-text-dim);
+  font-size: 13px;
+  line-height: 1;
+  transition:
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease),
+    transform 0.14s var(--ui-ease);
+}
+/* Danger fill + slight grow on hover — the affordance reads "removes this
+   skill" and the scale confirms the click target is live. */
+.ui-composer-skill-card-remove:hover {
+  background: var(--ui-danger);
+  color: #fff;
+  transform: scale(1.15);
+}
+.ui-composer-skill-card-remove:active {
+  transform: scale(0.9);
+}
+
+/* ── Index library progress bar ──────────────────────────────────────── */
+.ui-index-progress {
+  margin-top: var(--ui-space-2);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ui-border-soft);
+  overflow: hidden;
+}
+.ui-index-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--ui-accent);
+  transition: width 0.25s ease;
+}
+.ui-index-progress-fill.indeterminate {
+  width: 40%;
+  will-change: transform;
+  animation: ui-index-indeterminate 1.2s ease-in-out infinite;
+}
+/* Composited slide: the fill is 40% of the track, so translateX(-100%) parks
+   it fully off the left edge and translateX(250%) (=100% of track) fully off
+   the right edge — identical motion to the old margin-left animation, but it
+   stays on the compositor instead of forcing layout every frame. */
+@keyframes ui-index-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+/* ── Knowledge dashboard: per-source status cards ───────────────────── */
+.ui-knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-3);
+}
+.ui-knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 8px);
+  background: var(--ui-surface-raised, transparent);
+}
+.ui-knowledge-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-knowledge-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.ui-knowledge-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.ui-knowledge-count {
+  font-size: 11px;
+  color: var(--ui-text-dim);
+}
+.ui-knowledge-detail,
+.ui-knowledge-freshness {
+  font-size: 10px;
+  color: var(--ui-text-faint, var(--ui-text-dim));
+  word-break: break-all;
+}
+/* L0-L3 pipeline breakdown inside the memory card. */
+.ui-knowledge-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+/* Stale = index exists but files changed since the last sync. */
+.ui-index-state.stale {
+  color: var(--ui-warning, #d97706);
+}
+.ui-knowledge-search {
+  margin-top: var(--ui-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+.ui-knowledge-search-result {
+  margin: 0;
+  padding: var(--ui-space-2);
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-md, 8px);
+  background: var(--ui-surface-sunken, transparent);
+  color: var(--ui-text-dim);
+}
+
+.ui-scm-commit-block {
+  display: flex;
+  flex-direction: column;
+}
+.ui-scm-commit-caret {
+  flex: none;
+  width: 12px;
+  font-size: 9px;
+  color: var(--ui-text-faint);
+  text-align: center;
+  user-select: none;
+}
+.ui-scm-commit-row.expanded {
+  background: var(--ui-surface-hover);
+}
+.ui-scm-commit-row.expanded .ui-scm-commit-caret {
+  color: var(--ui-accent);
+}
+.ui-scm-commit-files {
+  margin-left: 16px;
+  padding: 2px 0 4px 4px;
+  border-left: 1px solid var(--ui-border-soft);
+  animation: ui-view-fade 0.15s var(--ui-ease) both;
+}
+.ui-scm-commit-file {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+/* ── Diff syntax highlighting (highlight.js tokens, scoped to diff text) ──── */
+.ui-diff-text .hljs-comment,
+.ui-diff-text .hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+.ui-diff-text .hljs-keyword,
+.ui-diff-text .hljs-selector-tag,
+.ui-diff-text .hljs-type,
+.ui-diff-text .hljs-tag {
+  color: #d73a49;
+}
+.ui-diff-text .hljs-string,
+.ui-diff-text .hljs-regexp,
+.ui-diff-text .hljs-addition {
+  color: #22863a;
+}
+.ui-diff-text .hljs-number,
+.ui-diff-text .hljs-literal,
+.ui-diff-text .hljs-attr,
+.ui-diff-text .hljs-attribute,
+.ui-diff-text .hljs-symbol,
+.ui-diff-text .hljs-selector-attr,
+.ui-diff-text .hljs-selector-pseudo,
+.ui-diff-text .hljs-selector-id,
+.ui-diff-text .hljs-selector-class {
+  color: #005cc5;
+}
+.ui-diff-text .hljs-title,
+.ui-diff-text .hljs-function .hljs-title,
+.ui-diff-text .hljs-title.function_,
+.ui-diff-text .hljs-title.class_ {
+  color: #6f42c1;
+}
+.ui-diff-text .hljs-built_in,
+.ui-diff-text .hljs-builtin-name,
+.ui-diff-text .hljs-variable,
+.ui-diff-text .hljs-template-variable,
+.ui-diff-text .hljs-params {
+  color: #e36209;
+}
+.ui-diff-text .hljs-meta,
+.ui-diff-text .hljs-doctag,
+.ui-diff-text .hljs-deletion {
+  color: #b31d28;
+}
+.ui-diff-text .hljs-name,
+.ui-diff-text .hljs-section,
+.ui-diff-text .hljs-bullet {
+  color: #735c0f;
+}
+.ui-diff-text .hljs-emphasis {
+  font-style: italic;
+}
+.ui-diff-text .hljs-strong {
+  font-weight: 600;
+}
+
+:root[data-appearance="dark"] .ui-diff-text .hljs-comment,
+:root[data-appearance="dark"] .ui-diff-text .hljs-quote {
+  color: #8b949e;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-keyword,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-tag,
+:root[data-appearance="dark"] .ui-diff-text .hljs-type,
+:root[data-appearance="dark"] .ui-diff-text .hljs-tag {
+  color: #ff7b72;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-string,
+:root[data-appearance="dark"] .ui-diff-text .hljs-regexp,
+:root[data-appearance="dark"] .ui-diff-text .hljs-addition {
+  color: #a5d6ff;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-number,
+:root[data-appearance="dark"] .ui-diff-text .hljs-literal,
+:root[data-appearance="dark"] .ui-diff-text .hljs-attr,
+:root[data-appearance="dark"] .ui-diff-text .hljs-attribute,
+:root[data-appearance="dark"] .ui-diff-text .hljs-symbol,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-attr,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-pseudo,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-id,
+:root[data-appearance="dark"] .ui-diff-text .hljs-selector-class {
+  color: #79c0ff;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-title,
+:root[data-appearance="dark"] .ui-diff-text .hljs-function .hljs-title,
+:root[data-appearance="dark"] .ui-diff-text .hljs-title.function_,
+:root[data-appearance="dark"] .ui-diff-text .hljs-title.class_ {
+  color: #d2a8ff;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-built_in,
+:root[data-appearance="dark"] .ui-diff-text .hljs-builtin-name,
+:root[data-appearance="dark"] .ui-diff-text .hljs-variable,
+:root[data-appearance="dark"] .ui-diff-text .hljs-template-variable,
+:root[data-appearance="dark"] .ui-diff-text .hljs-params {
+  color: #ffa657;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-meta,
+:root[data-appearance="dark"] .ui-diff-text .hljs-doctag,
+:root[data-appearance="dark"] .ui-diff-text .hljs-deletion {
+  color: #ffdcd7;
+}
+:root[data-appearance="dark"] .ui-diff-text .hljs-name,
+:root[data-appearance="dark"] .ui-diff-text .hljs-section,
+:root[data-appearance="dark"] .ui-diff-text .hljs-bullet {
+  color: #7ee787;
+}
+
+/* ── Global tooltip (ui/tooltip.tsx — fixed-position portal) ──────────────── */
+.ui-gtip {
+  position: fixed;
+  max-width: 320px;
+  padding: 3px 8px;
+  border-radius: var(--ui-radius-sm);
+  border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
+  background: rgba(24, 24, 28, 0.94);
+  color: #f3f4f6;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2000;
+  animation: ui-gtip-in 0.12s ease both;
+}
+:root[data-appearance="dark"] .ui-gtip {
+  background: rgba(240, 240, 244, 0.96);
+  color: #17181c;
+  border-color: color-mix(in srgb, #000000 15%, transparent);
+}
+@keyframes ui-gtip-in {
+  from {
+    opacity: 0;
+  }
+}
+.ui-rail [data-tip]:hover::after {
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ── Command / skill card polish ─────────────────────────────────── */
+.ui-cmd-card {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface-raised)),
+    color-mix(in srgb, var(--ui-accent) 5%, var(--ui-surface-raised))
+  );
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+.ui-cmd-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border-soft));
+  box-shadow:
+    var(--ui-shadow-sm),
+    0 0 0 1px var(--ui-accent-soft);
+}
+.ui-cmd-card-icon {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 30%, transparent);
+}
+.ui-cmd-card-name {
+  letter-spacing: 0.01em;
+}
+.ui-msg-skill-card {
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+.ui-msg-skill-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
+  box-shadow: var(--ui-shadow-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── Editor inline (workspace mode) ─────────────────────────────────────── */
+
+.ui-editor-inline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-bg);
+  overflow: hidden;
+}
+
+.ui-editor-inline .ui-editor-overlay-head {
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg-soft);
+}
+
+.ui-editor-inline .ui-editor-overlay-body {
+  flex: 1;
+  overflow: hidden;
+}

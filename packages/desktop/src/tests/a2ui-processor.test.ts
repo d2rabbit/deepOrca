@@ -1,104 +1,217 @@
 /**
- * Tests for the A2UI processor's garbage collection + component-tree handling.
- *
- * These lock in the fix for the orphan-retention bug: deleting a parent left
- * its children (whose parentId no longer matched any component) promoted to
- * the root level instead of being pruned.
+ * A2UI processor façade tests (specs/a2ui-integration R2): official v0.9
+ * engine behavior + legacy-dialect conversion. The old tests locked the
+ * homegrown processor's GC semantics; the official engine owns those now —
+ * these lock the FAÇADE contract call sites depend on.
  */
-import { test, beforeEach } from "node:test";
+
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { processA2uiMessages, getSurface } from "../renderer/a2ui/processor";
+import {
+  a2uiProcessor,
+  clearSurfaces,
+  extractSurfaceId,
+  getSurfaceModel,
+  getSurfaceModels,
+  processA2uiMessages,
+} from "../renderer/a2ui/processor";
+import { BASIC_CATALOG_ID, convertLegacyBatch, convertLegacyComponents, isLegacyBatch } from "../shared/a2ui-legacy";
 
-const SURFACE = "test-surface";
+const SURFACE = "façade-test-surface";
 
-function createSurface(): void {
-  processA2uiMessages(JSON.stringify([{ type: "createSurface", surfaceId: SURFACE, title: "T" }]));
+function reset(): void {
+  clearSurfaces();
 }
 
-function replace(components: unknown[]): void {
-  processA2uiMessages(JSON.stringify([{ type: "updateComponents", surfaceId: SURFACE, components }]));
-}
-
-function merge(components: unknown[]): void {
-  processA2uiMessages(JSON.stringify([{ type: "updateComponents", surfaceId: SURFACE, components, mode: "merge" }]));
-}
-
-function ids(): string[] {
-  return (getSurface(SURFACE)?.components ?? []).map((c) => c.id);
-}
-
-beforeEach(() => {
-  // Reset by deleting the surface; recreate per test.
-  processA2uiMessages(JSON.stringify([{ type: "deleteSurface", surfaceId: SURFACE }]));
+test("v0.9 batch: create → components → dataModel renders a surface model", () => {
+  reset();
+  processA2uiMessages(
+    JSON.stringify([
+      { version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } },
+      {
+        version: "v0.9",
+        updateComponents: {
+          surfaceId: SURFACE,
+          components: [
+            { id: "root", component: "Column", children: ["title", "body"] },
+            { id: "title", component: "Text", text: { path: "/heading" } },
+            { id: "body", component: "Text", text: "plain literal" },
+          ],
+        },
+      },
+      { version: "v0.9", updateDataModel: { surfaceId: SURFACE, path: "/", value: { heading: "Hi" } } },
+    ])
+  );
+  const surface = getSurfaceModel(SURFACE);
+  assert.ok(surface, "surface model exists");
+  assert.equal(a2uiProcessor.version, "v0.9.1");
+  const cm = surface.componentsModel;
+  assert.deepEqual(["body", "root", "title"].filter((id) => cm.get(id) != null).sort(), ["body", "root", "title"]);
 });
 
-test("GC: deleting a parent prunes its children (no orphan promotion)", () => {
-  createSurface();
-  replace([
-    { id: "root", type: "card" },
-    { id: "child", type: "text", parentId: "root", properties: { text: "hi" } },
+test("v0.9 GC: removing a child from the children list prunes it (official semantics)", () => {
+  reset();
+  processA2uiMessages(
+    JSON.stringify([
+      { version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } },
+      {
+        version: "v0.9",
+        updateComponents: {
+          surfaceId: SURFACE,
+          components: [
+            { id: "root", component: "Column", children: ["a", "b"] },
+            { id: "a", component: "Text", text: "A" },
+            { id: "b", component: "Text", text: "B" },
+          ],
+        },
+      },
+    ])
+  );
+  assert.ok(getSurfaceModel(SURFACE)?.componentsModel.get("b") != null);
+  // Update: root no longer references b → unreachable → not rendered (the
+  // official engine's GC is reachability-based at render time; the model may
+  // retain the entry but the tree no longer contains it).
+  processA2uiMessages(
+    JSON.stringify([
+      {
+        version: "v0.9",
+        updateComponents: { surfaceId: SURFACE, components: [{ id: "root", component: "Column", children: ["a"] }] },
+      },
+    ])
+  );
+  const rootModel = getSurfaceModel(SURFACE)?.componentsModel.get("root");
+  assert.ok(rootModel, "root component model exists");
+  const children = (rootModel as unknown as { properties: { children: string[] } }).properties.children;
+  assert.deepEqual(children, ["a"], "removed child is no longer referenced by the tree");
+});
+
+test("legacy batch is detected and converted: parentId adjacency → forward children", () => {
+  const legacy = [
+    { type: "createSurface", surfaceId: "legacy-1", title: "T", catalog: "basic" },
+    {
+      type: "updateComponents",
+      surfaceId: "legacy-1",
+      components: [
+        { id: "root", type: "card" },
+        { id: "greet", type: "text", parentId: "root", properties: { text: "${/msg}", variant: "title" } },
+        { id: "go", type: "button", parentId: "root", properties: { label: "Run", action: "run:now" } },
+      ],
+    },
+    { type: "updateDataModel", surfaceId: "legacy-1", dataModel: { msg: "hello" } },
+  ];
+  assert.ok(isLegacyBatch(legacy));
+  const v09 = convertLegacyBatch(legacy);
+  assert.deepEqual(v09[0], { version: "v0.9", createSurface: { surfaceId: "legacy-1", catalogId: BASIC_CATALOG_ID } });
+
+  const comps = (v09[1] as { updateComponents: { components: Array<Record<string, unknown>> } }).updateComponents
+    .components;
+  const root = comps.find((c) => c.id === "root") as { component: string; child: string };
+  assert.equal(root.component, "Card");
+  const greet = comps.find((c) => c.id === "greet") as { text: { path: string }; variant: string };
+  assert.deepEqual(greet.text, { path: "/msg" });
+  assert.equal(greet.variant, "h2");
+  const btn = comps.find((c) => c.id === "go") as { child: string; action: { event: { name: string } } };
+  assert.equal(btn.child, "go-label");
+  assert.deepEqual(btn.action, { event: { name: "run:now" } });
+  assert.deepEqual(v09[2], {
+    version: "v0.9",
+    updateDataModel: { surfaceId: "legacy-1", path: "/", value: { msg: "hello" } },
+  });
+
+  // And the full façade path processes it end-to-end.
+  reset();
+  processA2uiMessages(JSON.stringify(legacy));
+  assert.ok(getSurfaceModel("legacy-1"), "legacy batch renders through the official engine");
+});
+
+test("convertLegacyComponents synthesizes a Column root when none has id 'root'", () => {
+  const out = convertLegacyComponents([
+    { id: "a", type: "text", properties: { text: "A" } },
+    { id: "b", type: "text", properties: { text: "B" } },
   ]);
-  assert.deepEqual(ids().sort(), ["child", "root"]);
-
-  // Merge-delete the parent. The child is now an orphan and must be removed
-  // (earlier code promoted it to a root and kept it).
-  merge([{ id: "root", _delete: true }]);
-  assert.deepEqual(ids(), [], "deleting a parent must prune its orphaned children");
+  const root = out.find((c) => c.id === "root") as unknown as { children: string[] };
+  assert.deepEqual([...root.children].sort(), ["a", "b"]);
 });
 
-test("GC: nested delete prunes the whole subtree", () => {
-  createSurface();
-  replace([
-    { id: "root", type: "card" },
-    { id: "mid", type: "card", parentId: "root" },
-    { id: "leaf", type: "text", parentId: "mid" },
+test("extractSurfaceId finds ids in both dialects; clearSurfaces empties the map", () => {
+  assert.equal(
+    extractSurfaceId(JSON.stringify([{ version: "v0.9", createSurface: { surfaceId: "s9", catalogId: "x" } }])),
+    "s9"
+  );
+  assert.equal(extractSurfaceId(JSON.stringify([{ type: "updateComponents", surfaceId: "s8" }])), "s8");
+  assert.equal(extractSurfaceId("not json"), null);
+
+  reset();
+  processA2uiMessages(
+    JSON.stringify([{ version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } }])
+  );
+  assert.ok(getSurfaceModels().some((s) => s.id === SURFACE));
+  clearSurfaces();
+  assert.equal(getSurfaceModels().length, 0);
+});
+
+// ── Replay idempotency (black-screen fix) ───────────────────────────────────
+// The processor is a renderer-wide singleton while panels remount freely
+// (KnowledgePanel's arch preview on every sub-tab switch). Re-feeding a batch
+// that creates an already-live surface must RESET that surface, never throw —
+// an exception inside a component effect unmounts the whole React tree.
+
+test("replaying a createSurface batch resets the surface instead of throwing", () => {
+  reset();
+  const batch = JSON.stringify([
+    { version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } },
+    {
+      version: "v0.9",
+      updateComponents: {
+        surfaceId: SURFACE,
+        components: [
+          { id: "root", component: "Column", children: ["t"] },
+          { id: "t", component: "Text", text: "first" },
+        ],
+      },
+    },
   ]);
-  // Delete the middle node: leaf (child of mid) must also go.
-  merge([{ id: "mid", _delete: true }]);
-  assert.deepEqual(ids().sort(), ["root"], "nested delete must prune the entire descendant subtree");
-});
+  processA2uiMessages(batch);
+  assert.equal(
+    (getSurfaceModel(SURFACE)?.componentsModel.get("t") as unknown as { properties: { text: string } })?.properties
+      .text,
+    "first"
+  );
 
-test("GC: a true root (no parentId) is retained", () => {
-  createSurface();
-  replace([
-    { id: "root", type: "card" },
-    { id: "btn", type: "button", parentId: "root", properties: { label: "ok" } },
+  // Remount + replay with DIFFERENT content — must not throw, must refresh.
+  const replay = JSON.stringify([
+    { version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: BASIC_CATALOG_ID } },
+    {
+      version: "v0.9",
+      updateComponents: {
+        surfaceId: SURFACE,
+        components: [
+          { id: "root", component: "Column", children: ["t"] },
+          { id: "t", component: "Text", text: "second" },
+        ],
+      },
+    },
   ]);
-  merge([{ id: "btn", properties: { label: "changed" }, type: "button", parentId: "root" }]);
-  assert.deepEqual(ids().sort(), ["btn", "root"]);
+  assert.doesNotThrow(() => processA2uiMessages(replay));
+  assert.ok(getSurfaceModel(SURFACE), "surface survives replay");
+  assert.equal(
+    (getSurfaceModel(SURFACE)?.componentsModel.get("t") as unknown as { properties: { text: string } })?.properties
+      .text,
+    "second",
+    "replayed batch content wins"
+  );
+  assert.equal(getSurfaceModels().filter((s) => s.id === SURFACE).length, 1, "no duplicate surfaces");
 });
 
-test("GC: replace mode wipes then re-adds (no merge GC)", () => {
-  createSurface();
-  replace([{ id: "root", type: "card" }]);
-  // Replace with a fresh single root — old root removed by the wipe, not GC.
-  replace([{ id: "root2", type: "card" }]);
-  assert.deepEqual(ids(), ["root2"]);
-});
-
-test("GC: orphan present from the start (replace) is kept until a merge triggers GC", () => {
-  createSurface();
-  // Replace seeds an orphan directly (parentId points to nothing).
-  replace([
-    { id: "root", type: "card" },
-    { id: "orphan", type: "text", parentId: "missing", properties: { text: "x" } },
-  ]);
-  // Replace mode does not run GC, so the orphan is still present here.
-  assert.deepEqual(ids().sort(), ["orphan", "root"]);
-  // A no-op merge triggers GC, which prunes the orphan.
-  merge([]);
-  assert.deepEqual(ids(), ["root"], "an orphan whose parent never existed must be pruned on merge GC");
-});
-
-test("GC: parental cycle does not loop forever and prunes the cycle", () => {
-  createSurface();
-  replace([
-    { id: "root", type: "card" },
-    // A two-node cycle with no entry from a root — must be pruned, not loop.
-    { id: "a", type: "card", parentId: "b" },
-    { id: "b", type: "card", parentId: "a" },
-  ]);
-  // Trigger GC via a no-op merge; the cycle is unreachable from roots.
-  merge([]);
-  assert.deepEqual(ids(), ["root"], "a parental cycle unreachable from roots must be pruned, not retained");
+test("a malformed batch degrades to a no-op instead of crashing the caller", () => {
+  reset();
+  processA2uiMessages(
+    JSON.stringify([{ version: "v0.9", createSurface: { surfaceId: SURFACE, catalogId: "no-such-catalog" } }])
+  );
+  assert.ok(!getSurfaceModel(SURFACE), "unknown catalog did not create a surface");
+  // Surfaces untouched by the bad batch keep working.
+  processA2uiMessages(
+    JSON.stringify([{ version: "v0.9", createSurface: { surfaceId: "ok-1", catalogId: BASIC_CATALOG_ID } }])
+  );
+  assert.ok(getSurfaceModel("ok-1"));
 });

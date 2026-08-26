@@ -1,8 +1,8 @@
-import { memo, useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SerializableSessionEntry, WorkspaceSessions } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey, type Translate } from "../i18n";
-import { IconButton, Input, StatusDot, IconChat } from "../ui/index";
+import { IconButton, Input, StatusDot, IconChat, IconPencil, IconTaskTree } from "../ui/index";
 import { aggregateByWorkspace, aggregateUsage, formatTokens } from "../lib/token-usage";
 
 type Props = {
@@ -19,8 +19,9 @@ type Props = {
   onRename: (id: string, summary: string) => void;
   onArchive: (id: string, workspaceRoot?: string) => void;
   onUnarchive: (id: string) => void;
+  /** Export a session to markdown — the handler owns success/failure toasts. */
+  onExportSession?: (id: string) => void;
   /** Open the session's bound task tree as a workspace tab (specs/task-tree). */
-  onOpenTaskTree: (treeId: string, workspaceRoot?: string) => void;
   onCollapse: () => void;
   onNewWorkspace: () => void;
   onNewSessionInWorkspace: (root: string) => void;
@@ -82,7 +83,7 @@ export const Sidebar = memo(function Sidebar({
   onRename,
   onArchive,
   onUnarchive,
-  onOpenTaskTree,
+  onExportSession,
   onCollapse,
   onNewWorkspace,
   onNewSessionInWorkspace,
@@ -95,6 +96,35 @@ export const Sidebar = memo(function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // Delete needs a second click to actually fire: sessions are unrecoverable,
+  // so a single stray ✕ must not wipe a conversation. The armed state resets
+  // itself after a few seconds or when another row is armed.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const disarmDeleteConfirm = useCallback(() => {
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    setConfirmDeleteId(null);
+  }, []);
+
+  useEffect(() => disarmDeleteConfirm, [disarmDeleteConfirm]);
+
+  const handleDeleteClick = useCallback(
+    (id: string) => {
+      if (confirmDeleteId === id) {
+        disarmDeleteConfirm();
+        onDelete(id);
+        return;
+      }
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      setConfirmDeleteId(id);
+      confirmTimerRef.current = setTimeout(disarmDeleteConfirm, 3000);
+    },
+    [confirmDeleteId, disarmDeleteConfirm, onDelete]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -151,8 +181,10 @@ export const Sidebar = memo(function Sidebar({
   const overallTotal = useMemo(() => aggregateByWorkspace(tree).reduce((sum, row) => sum + row.total, 0), [tree]);
 
   /**
-   * Task badge on a session row — the session↔task cross-reference entry
-   * (specs/task-tree P1): clicking opens the bound tree as a workspace tab.
+   * Task badge on a session row — the session<->task cross-reference entry.
+   * Clicking goes STRAIGHT to that conversation's workspace (chat) tab: the
+   * user asked for the chat, not a detour into the task record — the task
+   * history remains reachable from the 任务树 rail (R3-8).
    */
   function renderTaskBadge(entry: SerializableSessionEntry, root: string): JSX.Element | null {
     const treeId = entry.taskRef?.treeId;
@@ -165,10 +197,10 @@ export const Sidebar = memo(function Sidebar({
         title={t("tasktree.sessionTask", { title })}
         onClick={(e) => {
           e.stopPropagation();
-          onOpenTaskTree(treeId, entry.workspaceRoot ?? root);
+          onSelectSession(entry.workspaceRoot ?? root, entry.id);
         }}
       >
-        🌳 {title}
+        <IconTaskTree /> {title}
       </button>
     );
   }
@@ -219,13 +251,13 @@ export const Sidebar = memo(function Sidebar({
               aria-label={t("sidebar.rename")}
               onClick={() => beginRename(entry)}
             >
-              ✎
+              <IconPencil />
             </IconButton>
             <IconButton
               className="ui-icon-btn--sm"
               data-tip={t("sidebar.export")}
               aria-label={t("sidebar.export")}
-              onClick={() => void api.exportSession(entry.id)}
+              onClick={() => (onExportSession ? onExportSession(entry.id) : void api.exportSession(entry.id))}
             >
               ⤓
             </IconButton>
@@ -238,10 +270,10 @@ export const Sidebar = memo(function Sidebar({
               ▣
             </IconButton>
             <IconButton
-              className="ui-icon-btn--sm"
-              data-tip={t("sidebar.delete")}
-              aria-label={t("sidebar.delete")}
-              onClick={() => onDelete(entry.id)}
+              className={`ui-icon-btn--sm ui-delete-btn${confirmDeleteId === entry.id ? " armed" : ""}`}
+              data-tip={confirmDeleteId === entry.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+              aria-label={confirmDeleteId === entry.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+              onClick={() => handleDeleteClick(entry.id)}
             >
               ✕
             </IconButton>
@@ -355,10 +387,10 @@ export const Sidebar = memo(function Sidebar({
                         ▣
                       </IconButton>
                       <IconButton
-                        className="ui-icon-btn--sm"
-                        data-tip={t("sidebar.delete")}
-                        aria-label={t("sidebar.delete")}
-                        onClick={() => onDelete(session.id)}
+                        className={`ui-icon-btn--sm ui-delete-btn${confirmDeleteId === session.id ? " armed" : ""}`}
+                        data-tip={confirmDeleteId === session.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+                        aria-label={confirmDeleteId === session.id ? t("sidebar.confirmDelete") : t("sidebar.delete")}
+                        onClick={() => handleDeleteClick(session.id)}
                       >
                         ✕
                       </IconButton>

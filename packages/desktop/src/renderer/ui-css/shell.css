@@ -1,0 +1,1213 @@
+/* =========================================================================
+   Stage shell — "Tide Stage" layout (post-VSCode redesign).
+
+   The app is no longer an IDE grid of rail/sidebar/main/right tracks. It is
+   a single ambient stage: the conversation IS the app. Every other surface
+   floats over the stage as a layered island —
+
+     · Cockpit  — transparent window strip (drag region + pill groups +
+                  the surface chips that replaced editor tabs)
+     · Stage    — full-bleed conversation + floating composer capsule
+     · Hub sheet— glass island from the left (launcher tiles + the old
+                  sidebar views), summoned by the tide orb or ⌘B
+     · Sheet    — rounded overlay card for settings/plugins/editor/
+                  knowledge/task-record surfaces
+     · Companion— floating right card for previews / architecture graphs
+
+   Nothing docks into a grid track; the stage reflows its centered column
+   (Arc-style) while the hub sheet is open.
+   ========================================================================= */
+.ui-shell {
+  --ui-right-w: 480px;
+  --ui-cockpit-h: 52px;
+  /* Hub geometry — shared by the rail/flyout positioning, orb docking and
+     the stage's Arc-style reflow below. */
+  --ui-hub-inset: 14px;
+  --ui-hub-rail-w: 64px;
+  --ui-hub-gap: 10px;
+  /* Stage inset while the hub is open — the centered conversation column
+     glides right instead of being occluded (Arc-style reflow). Level 1
+     (rail only) shifts just past the slim icon column; extending level 2
+     pushes further to clear the content card as well. */
+  --ui-stage-pad-l: 0px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.ui-shell.panel-open {
+  --ui-stage-pad-l: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + 22px);
+}
+
+.ui-shell.panel-open.hub-expanded {
+  --ui-stage-pad-l: calc(
+    var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + 26px
+  );
+}
+
+/* Ambient tide glow — two soft radial washes anchored to opposite corners.
+   Purely decorative; theme tokens drive the hues so every theme tints its
+   own stage. */
+.ui-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 760px at 16% -8%, color-mix(in srgb, var(--ui-accent) 8%, transparent), transparent 62%),
+    radial-gradient(
+      900px 680px at 102% 108%,
+      color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 7%, transparent),
+      transparent 58%
+    );
+  z-index: 0;
+}
+
+.ui-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 1100px) {
+  .ui-shell {
+    --ui-right-w: 380px;
+  }
+}
+
+/* ── Cockpit (window strip) ──────────────────────────────────────────────────
+   A transparent drag strip: no background, no bottom border — the pill
+   groups (project / model / tokens) float directly on the stage like
+   instrument clusters, not like an IDE titlebar. */
+.ui-window-bar {
+  flex: none;
+  height: var(--ui-cockpit-h);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  /* Left room for the macOS traffic lights, right room for the Windows
+     caption buttons to breathe inside the window edge. */
+  padding: 6px var(--ui-space-2) 0 var(--ui-space-3);
+  min-width: 0;
+  background: transparent;
+  border: none;
+  -webkit-app-region: drag;
+}
+
+.ui-window-bar button,
+.ui-window-bar .ui-pill,
+.ui-window-bar .ui-window-controls {
+  -webkit-app-region: no-drag;
+}
+
+.ui-window-bar-spacer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  overflow: hidden;
+}
+.ui-topbar-session-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Emphasis pill: at most ~5 CJK characters, the rest is ellipsized. */
+  max-width: calc(5em + 18px);
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border-soft));
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-accent-soft);
+  opacity: 0.92;
+  transition: opacity 0.2s ease;
+}
+.ui-topbar-session-status:hover .ui-topbar-session-title {
+  opacity: 1;
+}
+.ui-topbar-session-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ui-topbar-session-status .ui-status-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.ui-window-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  flex-shrink: 0;
+}
+
+.ui-window-controls.mac {
+  gap: 8px;
+  padding-left: var(--ui-space-2);
+}
+
+/* Windows / Linux caption buttons — naked, no chrome container. */
+.ui-window-controls.win {
+  align-self: stretch;
+  flex: none;
+  gap: 0;
+  margin-left: var(--ui-space-3);
+  margin-right: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.ui-gumdrop {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  position: relative;
+  transition: filter 0.15s;
+}
+/* Enlarged invisible hit-area so the 12px dot is easy to click. */
+.ui-gumdrop::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.ui-gumdrop.close {
+  background: #ff5f57;
+}
+.ui-gumdrop.min {
+  background: #febc2e;
+}
+.ui-gumdrop.zoom {
+  background: #28c840;
+}
+.ui-gumdrop.close:hover {
+  filter: brightness(1.15);
+}
+.ui-gumdrop.min:hover {
+  filter: brightness(1.15);
+}
+.ui-gumdrop.zoom:hover {
+  filter: brightness(1.15);
+}
+.ui-gumdrop:active {
+  transform: scale(0.9);
+}
+
+.ui-win-ctrl {
+  width: 46px;
+  height: 100%;
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  color: var(--ui-text-dim);
+  font-size: 13px;
+  line-height: 1;
+  background: transparent;
+  border-radius: 0;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.ui-win-ctrl:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-win-ctrl:active {
+  background: var(--ui-surface-active);
+}
+.ui-win-ctrl.close:hover {
+  background: var(--ui-danger);
+  color: #fff;
+}
+.ui-win-ctrl.close:active {
+  background: var(--ui-danger);
+  color: #fff;
+}
+
+/* ── Cockpit icon cluster (right edge, before caption buttons) ──────────────
+   Home of the old rail's bottom buttons — appearance / undo / settings. */
+.ui-cockpit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--ui-radius-pill);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 55%, transparent);
+  box-shadow: var(--ui-shadow-sm);
+  -webkit-app-region: no-drag;
+}
+.ui-cockpit-icon-btn {
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ui-radius-pill);
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-cockpit-icon-btn:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-cockpit-icon-btn.active {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+.ui-cockpit-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ui-cockpit-icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--ui-text-dim);
+}
+
+/* ── Surface chips (cockpit center) ──────────────────────────────────────────
+   The tab strip's successor: one glowing chip per open surface, always-first
+   chip for the conversation. Closable chips are a container div with two
+   SIBLING buttons (switch + close) — no nested interactive elements. Lives
+   inside the cockpit so switching surfaces never depends on a second chrome
+   row. */
+.ui-surface-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--ui-radius-pill);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 55%, transparent);
+  box-shadow: var(--ui-shadow-sm);
+  -webkit-app-region: no-drag;
+  /* Many open surfaces must stay REACHABLE: the chip row scrolls horizontally
+     (invisible scrollbar) instead of clipping chips past the cockpit's edge.
+     The cap keeps the session title/model pills breathing room on wide rows. */
+  max-width: min(56vw, 100%);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.ui-surface-chips::-webkit-scrollbar {
+  display: none;
+}
+.ui-surface-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  height: 26px;
+  border: none;
+  border-radius: var(--ui-radius-pill);
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+/* Standalone chip (the conversation chip) is itself the button. */
+button.ui-surface-chip {
+  padding: 0 10px;
+  cursor: pointer;
+}
+.ui-surface-chip-main {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 0 0 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.ui-surface-chip:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-surface-chip.active {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent, #3b82f6) 22%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 16%, transparent)
+  );
+  color: var(--ui-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 34%, transparent);
+}
+.ui-surface-chip-close {
+  flex: none;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-surface-chip:hover .ui-surface-chip-close,
+.ui-surface-chip.active .ui-surface-chip-close {
+  opacity: 1;
+}
+.ui-surface-chip-close:hover {
+  background: color-mix(in srgb, var(--ui-danger) 16%, transparent);
+  color: var(--ui-danger);
+}
+
+/* ── Stage (conversation) ──────────────────────────────────────────────────── */
+.ui-main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 0 14px var(--ui-stage-pad-l);
+  overflow: hidden;
+  transition: padding-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Glass theme paints a readability scrim here; other themes keep the
+   ambient stage showing through. */
+
+.ui-conversation {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-soft) transparent;
+  /* Bottom padding is set dynamically to the composer-dock height (plus a
+     small breathing gap) by App.tsx via a ResizeObserver, so the last
+     message never sits underneath the floating composer. The 360px
+     fallback covers the worst-case composer before the observer ran. */
+  padding: var(--ui-space-5) clamp(var(--ui-space-2), 3vw, var(--ui-space-5)) var(--ui-composer-reserved, 360px);
+  scroll-padding-bottom: 80px;
+}
+
+/* Floating "Jump to latest" pill — appears when the user has scrolled
+   up and the stream is producing new content below the fold. */
+.ui-jump-to-latest {
+  position: absolute;
+  right: var(--ui-space-4);
+  bottom: calc(var(--ui-composer-reserved, 220px) - 56px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-soft);
+  box-shadow: var(--ui-shadow-card);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 5;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+  animation: ui-jump-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-jump-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-jump-to-latest {
+    animation:
+      ui-jump-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both,
+      ui-jump-breathe 2.6s ease-in-out 0.4s infinite;
+    will-change: transform;
+  }
+}
+@keyframes ui-jump-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: var(--ui-shadow-card);
+  }
+  50% {
+    transform: translateY(-2px);
+    box-shadow:
+      var(--ui-shadow-card),
+      0 0 12px 1px var(--ui-accent-soft);
+  }
+}
+.ui-jump-to-latest:hover {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  transform: translateY(-1px);
+}
+.ui-jump-to-latest-arrow {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.ui-conversation-inner {
+  width: 100%;
+  max-width: clamp(320px, 88%, 900px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-5);
+}
+
+/* Message wrapper (needed for date separator + message grouping) */
+.ui-msg-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+}
+/* Subtle entrance for the newest message */
+.ui-msg-wrap:last-child {
+  animation: ui-msg-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-msg-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.ui-msg-count-indicator {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  opacity: 0.7;
+  padding: var(--ui-space-1) 0;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Date separator between messages from different days */
+.ui-date-separator {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3) 0;
+}
+.ui-date-separator-line {
+  flex: 1;
+  height: 1px;
+  background: var(--ui-border-soft);
+}
+.ui-date-separator-label {
+  flex: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-text-faint);
+  padding: 2px 10px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+}
+
+/* Floating composer capsule — anchored to the stage (not a card), fading
+   into the ambient background below the reading column. */
+.ui-composer-dock {
+  position: absolute;
+  left: var(--ui-stage-pad-l, 0px);
+  right: 0;
+  bottom: 0;
+  padding: 0 var(--ui-space-4) var(--ui-space-4);
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ui-bg) 78%) 34%, var(--ui-bg));
+  pointer-events: none;
+  transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ui-composer-dock > * {
+  pointer-events: auto;
+}
+
+/* ── Hub (two levels: icon rail → flyout card) ───────────────────────────────
+   Level 1 summons a slim vertical glass column of module icons; picking one
+   extends the level-2 content card out beside it. The orb docks past
+   whichever surface is outermost. */
+.ui-hub-rail {
+  position: absolute;
+  top: calc(var(--ui-cockpit-h) + 8px);
+  bottom: 14px;
+  left: var(--ui-hub-inset);
+  width: var(--ui-hub-rail-w);
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 6px 8px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-hub-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-hub-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.985);
+  }
+}
+
+/* Brand mark capping the rail. */
+.ui-hub-mark {
+  flex: none;
+  font-size: 17px;
+  line-height: 1;
+  margin-bottom: 8px;
+  color: var(--ui-accent);
+}
+
+/* Vertical module list — the single glowing column. */
+.ui-hub-rail-items {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.ui-hub-rail-items::-webkit-scrollbar {
+  display: none;
+}
+.ui-hub-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 46px;
+  padding: 7px 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease),
+    transform 0.12s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.ui-hub-item:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-hub-item:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-hub-item:not(:disabled):active {
+    transform: scale(0.95);
+  }
+}
+.ui-hub-item.active {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent, #3b82f6) 18%, transparent),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 12%, transparent)
+  );
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 30%, transparent);
+}
+.ui-hub-item-icon {
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+.ui-hub-item-label {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rail bottom ⟨ — collapses the whole hub back to just the orb. */
+.ui-hub-collapse {
+  flex: none;
+  margin-top: 6px;
+}
+
+/* Level 2 — the content card extending out beside the rail. Anchored to the
+   rail's right edge with the shared gap; its own glass slab so it reads as a
+   distinct floating layer rather than pane #2 of one island. */
+.ui-hub-flyout {
+  position: absolute;
+  top: calc(var(--ui-cockpit-h) + 8px);
+  bottom: 14px;
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap));
+  width: var(--ui-panel-w, 320px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-hub-flyout-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-hub-flyout-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+.ui-hub-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 6px 16px;
+}
+.ui-hub-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-hub-close {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-hub-close:hover {
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: var(--ui-danger);
+}
+
+.ui-hub-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 55%, transparent);
+  overflow: hidden;
+}
+.ui-hub-body-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: ui-view-fade 0.18s ease both;
+}
+
+/* Right-edge drag-to-resize — same interaction as the old docked sidebar,
+   on the island's edge. */
+.ui-hub-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 3;
+  transition: background 0.15s var(--ui-ease);
+}
+.ui-hub-resize::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 34px;
+  border-radius: 2px;
+  background: var(--ui-border-soft);
+  opacity: 0;
+  transition: opacity 0.15s var(--ui-ease);
+}
+.ui-hub-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  left: -4px;
+  right: -4px;
+}
+.ui-hub-resize:hover,
+.ui-hub-resize:active {
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+}
+.ui-hub-resize:hover::before,
+.ui-hub-resize:active::before {
+  opacity: 1;
+  background: var(--ui-accent);
+}
+
+/* Session panel (hub body content) — transparent so the sheet's glass
+   shows through; the island provides the chrome now. */
+.ui-session-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: transparent;
+  animation: ui-panel-content-in 0.2s var(--ui-ease) both;
+}
+@keyframes ui-panel-content-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+.ui-session-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ui-space-3);
+  font-weight: 600;
+}
+.ui-session-count-badge {
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  margin-left: var(--ui-space-2);
+  transition:
+    background 0.2s var(--ui-ease),
+    color 0.2s var(--ui-ease);
+}
+
+.ui-session-search {
+  position: relative;
+  padding: 0 var(--ui-space-3) var(--ui-space-2);
+}
+.ui-session-search::before {
+  content: "⌕";
+  position: absolute;
+  left: calc(var(--ui-space-3) + 10px);
+  top: 50%;
+  transform: translateY(calc(-50% - var(--ui-space-1)));
+  font-size: 14px;
+  color: var(--ui-text-faint);
+  pointer-events: none;
+}
+.ui-session-search .ui-input {
+  padding-left: 30px;
+  padding-right: 28px;
+}
+.ui-search-clear {
+  position: absolute;
+  right: calc(var(--ui-space-3) + 6px);
+  top: 50%;
+  transform: translateY(calc(-50% - var(--ui-space-1)));
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text-faint);
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.ui-search-clear:hover {
+  background: var(--ui-danger);
+  color: #fff;
+}
+.ui-search-clear:active {
+  transform: translateY(calc(-50% - var(--ui-space-1))) scale(0.88);
+}
+
+.ui-session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--ui-space-2) var(--ui-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ui-session-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ui-session-item {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
+  cursor: pointer;
+  transition:
+    background 0.12s var(--ui-ease),
+    transform 0.12s var(--ui-ease),
+    box-shadow 0.18s var(--ui-ease);
+  position: relative;
+}
+
+.ui-session-item:hover {
+  background: var(--ui-surface-hover);
+  transform: translateX(2px);
+}
+
+/* Subtle left-edge glow on hover to preview the active indicator. */
+.ui-session-item:hover::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  transition: opacity 0.18s var(--ui-ease);
+}
+/* Focus-visible ring for keyboard navigation (accessibility). */
+.ui-session-item:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--ui-accent-soft),
+    inset 0 0 0 1px var(--ui-accent);
+}
+
+.ui-session-item.active {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  animation: ui-session-active-in 0.2s var(--ui-ease) both;
+  transition:
+    background 0.12s var(--ui-ease),
+    box-shadow 0.2s var(--ui-ease);
+}
+@keyframes ui-session-active-in {
+  from {
+    background: transparent;
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}
+
+.ui-session-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-session-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+}
+/* Token usage badge in session meta — shows active context size. */
+.ui-session-tokens-badge {
+  font-family: var(--ui-font-mono);
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+.ui-session-time {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  opacity: 0.8;
+}
+
+.ui-session-actions {
+  display: flex;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-2);
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition:
+    opacity 0.18s var(--ui-ease),
+    max-height 0.22s var(--ui-ease),
+    margin-top 0.18s var(--ui-ease);
+}
+.ui-session-item:hover .ui-session-actions,
+.ui-session-item.active .ui-session-actions {
+  opacity: 1;
+  max-height: 40px;
+  /* Once expanded, let content overflow so the action buttons' data-tip
+     tooltips aren't clipped by the collapse animation's overflow:hidden. */
+  overflow: visible;
+}
+
+/* Staggered entrance for action buttons — each icon fades in slightly 
+   after the previous one for a polished cascade feel. */
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm,
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm {
+  animation: ui-action-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(1),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(2),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(3),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.ui-session-item:hover .ui-session-actions .ui-icon-btn--sm:nth-child(4),
+.ui-session-item.active .ui-session-actions .ui-icon-btn--sm:nth-child(4) {
+  animation-delay: 0.14s;
+}
+@keyframes ui-action-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.ui-session-empty {
+  padding: var(--ui-space-5) var(--ui-space-3);
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ── Surface sheet (rounded overlay card) ────────────────────────────────────
+   Settings / plugins / editor files / knowledge / task records render as a
+   large rounded card floating over the stage — never as a top tab strip's
+   pane. Entrance: rise + settle.
+   Layering contract: companion 25 < sheet 28 < hub 30 < orb 40 < system
+   overlays (serena 55 · console 60 · modal 100 · palette 120 · toast 200).
+   The sheet floats above the companion so an open editor/preview never
+   occludes it; the hub stays above the sheet so summoning it while a sheet
+   is focused is always visible (App also auto-collapses the hub when a
+   sheet activates). */
+.ui-sheet {
+  position: absolute;
+  inset: 16px;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 20px;
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ui-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+}
+.ui-sheet > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+/* Floating "back to conversation" pill — only mounted on sheets whose panel
+   has no close affordance of its own (knowledge / task records). The cockpit
+   chip ✕ stays the universal closer; this makes leaving a sheet a one-glance
+   action instead of a hunt. */
+.ui-sheet-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 65%, transparent);
+  border-radius: var(--ui-radius-pill);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--ui-shadow-sm);
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease);
+}
+.ui-sheet-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+}
+
+/* ── Settings modal (centered card, NOT a full-stage sheet) ──────────────────
+   Settings is a form dialog, not a workspace surface: it opens as a compact
+   centered card over a click-to-dismiss scrim so the stage — including a
+   streaming conversation — stays visible around it. Layered with the app's
+   modal family: scrim 98 · card 99, below .ui-modal-overlay (100), palette
+   (120) and toasts (200). */
+.ui-settings-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.32);
+  animation: ui-overlay-fade 0.15s ease both;
+}
+.ui-settings-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 99;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  /* Clicks pass through the empty grid area to the scrim below. */
+  pointer-events: none;
+}
+.ui-settings-modal > * {
+  pointer-events: auto;
+  width: min(960px, 100%);
+  height: min(700px, 100%);
+  min-width: 0;
+  min-height: 0;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Tide orb (bottom-left navigation) ─────────────────────────────────────── */
+.ui-orb {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 40;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ui-surface, #fff) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 60%, transparent);
+  box-shadow: var(--ui-shadow-card);
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  transition:
+    left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease),
+    transform 0.12s var(--ui-ease);
+}
+/* While the hub is open the orb docks just past the icon rail — it remains
+   the one-tap close, and the slide sells the "summon" metaphor. When level 2
+   (content card) is extended, it docks past that card's edge instead. */
+.ui-shell.panel-open .ui-orb {
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + 12px);
+}
+.ui-shell.panel-open.hub-expanded .ui-orb {
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + 12px);
+}
+.ui-orb:hover {
+  color: var(--ui-accent);
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-orb:active {
+    transform: scale(0.92);
+  }
+}
+.ui-orb--open {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  box-shadow:
+    var(--ui-shadow-card),
+    0 0 0 3px var(--ui-accent-soft);
+}
+.ui-orb-glyph {
+  font-size: 17px;
+  line-height: 1;
+}
+.ui-orb--badge::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-warning);
+  border: 2px solid var(--ui-surface);
+  animation: ui-dot-pulse 1.8s ease-in-out infinite;
+}
