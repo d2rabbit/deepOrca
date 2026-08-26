@@ -99,6 +99,14 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
   adds them) — match existing core files.
 - **Lint:** `no-console` is off. Unused vars/params may be `_`-prefixed.
   `@typescript-eslint/consistent-type-imports` is on (warn) — reinforces `import type`.
+- **File length hard limit: 2500 lines** (any hand-written source file — `.ts`,
+  `.tsx`, `.css`, `.mjs`, `.js`). Vendored code (`memory/src/tdai/`), generated
+  files, and `dist/`/`out/` artifacts are exempt. When a file approaches the
+  limit, split it by cohesive feature into sibling modules and keep the original
+  file as a thin top-level composition root that only imports/re-exports/wires
+  the modules (see `packages/desktop/src/renderer/ui.css` + `ui-css/` for CSS,
+  `packages/core/src/session.ts` + `session-manager-*.ts` for a large class).
+  Never grow a file past the limit "just this once" — split first.
 - **Pre-commit:** Husky runs `lint-staged` (eslint --fix + prettier --write on
   staged `*.{ts,tsx,js,mjs,cjs,jsx}` and `*.json`). Format before building to avoid
   surprises.
