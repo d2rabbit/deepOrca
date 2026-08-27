@@ -1061,8 +1061,11 @@ export type EndpointConfig = {
 /** Built-in endpoint presets offered in the settings panel. */
 export const ENDPOINT_PRESETS: ReadonlyArray<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
-  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
-  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
+  // opencode Zen/Go are OpenAI-compatible gateways that REQUIRE the /v1
+  // segment (the SDK appends /chat/completions verbatim; without /v1 the
+  // request hits the website and comes back as an HTML 404 page).
+  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go/v1" },
+  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen/v1" },
 ];
 
 /**

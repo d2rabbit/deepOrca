@@ -70,12 +70,14 @@ const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
 
 /**
  * Built-in endpoint presets — fixed and immutable. Users add an apiKey to
- * enable a preset; they cannot edit the id/name/baseURL.
+ * enable a preset; they cannot edit the id/name/baseURL. Mirrors core's
+ * ENDPOINT_PRESETS (settings.ts) — keep the two in sync.
  */
 const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
-  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go" },
-  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen" },
+  // /v1 is REQUIRED by the opencode gateways (see core settings.ts comment).
+  { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go/v1" },
+  { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen/v1" },
 ];
 
 /**
