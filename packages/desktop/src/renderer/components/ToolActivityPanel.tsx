@@ -33,8 +33,15 @@ function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…`;
 }
 
-/** Ordered (oldest→newest) slice of tool calls. */
-export function collectToolEvents(messages: SessionMessage[]): ToolEvent[] {
+type ToolActivity = {
+  /** Oldest→newest slice of the most recent calls (capped at MAX_EVENTS). */
+  readonly events: ToolEvent[];
+  /** Total tool calls in the transcript — the header count, not the slice length. */
+  readonly total: number;
+};
+
+/** Ordered (oldest→newest) tool-call slice plus the uncapped total. */
+export function collectToolEvents(messages: SessionMessage[]): ToolActivity {
   const events: ToolEvent[] = [];
   for (let i = 0; i < messages.length; i += 1) {
     const message = messages[i];
@@ -47,12 +54,13 @@ export function collectToolEvents(messages: SessionMessage[]): ToolEvent[] {
       ok: summary.ok,
     });
   }
-  return events.slice(-MAX_EVENTS);
+  return { events: events.slice(-MAX_EVENTS), total: events.length };
 }
 
 /** Build the official v0.9 batch: Column(root) → header + one Row per event. */
 function buildMessages(
   events: ToolEvent[],
+  totalCount: number,
   labels: { title: string; empty: string },
   format: (n: number) => string
 ): string {
@@ -62,7 +70,7 @@ function buildMessages(
   };
 
   add("root", "Column", {}, ["title", "sep", ...(events.length > 0 ? events.map((_, i) => `row-${i}`) : ["empty"])]);
-  add("title", "Text", { text: format(events.length), variant: "h5" });
+  add("title", "Text", { text: format(totalCount), variant: "h5" });
   add("sep", "Divider");
   if (events.length === 0) {
     add("empty", "Text", { text: labels.empty, variant: "caption" });
@@ -88,21 +96,21 @@ type Props = {
   onClose: () => void;
 };
 
-export function ToolActivityPanel({ messages, onClose }: Props): JSX.Element | null {
+export function ToolActivityPanel({ messages, onClose }: Props): JSX.Element {
   const { t } = useI18n();
-  const events = useMemo(() => collectToolEvents(messages), [messages]);
+  const { events, total } = useMemo(() => collectToolEvents(messages), [messages]);
 
   const messagesJson = useMemo(
     () =>
       buildMessages(
         events,
+        total,
         { title: t("activity.title"), empty: t("activity.none") },
         (count) => `${t("activity.title")} · ${count}`
       ),
-    [events, t]
+    [events, t, total]
   );
 
-  if (messagesJson == null) return null;
   return (
     <div className="ui-tool-activity">
       <div className="ui-tool-activity-head">

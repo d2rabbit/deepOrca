@@ -109,6 +109,9 @@ function resolveElectronVersion() {
  * SECURITY (Mimosa constraint): mirror URL below is a script constant.
  * Assert it (https + pinned host) so a future edit cannot aim node-gyp's
  * download at a non-public or foreign host without an explicit review here.
+ * Returns the url so callers can use the call inline as the env value — an
+ * assert helper without a return silently assigns `undefined`, and Node's
+ * child_process DROPS undefined env entries (the mirror never reaches npm).
  */
 function assertMirrorUrl(url, allowedHost) {
   let parsed;
@@ -120,6 +123,7 @@ function assertMirrorUrl(url, allowedHost) {
   if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== allowedHost) {
     throw new Error(`unsafe mirror url: ${url} (expected https://${allowedHost})`);
   }
+  return url;
 }
 
 /** Probe-free note: npm 11 stopped forwarding unknown .npmrc keys into

@@ -50,7 +50,7 @@ export interface IndexBuildOutput {
 /**
  * Artifact-aware init/update detection (real-machine ask 2026-08-27): the
  * build action must behave like "make current" per stage — an already-built
- * stage refresHEs instead of re-initializing, regardless of which button the
+ * stage refreshes instead of re-initializing, regardless of which button the
  * user pressed. wiki artifacts live under `<root>/openwiki/`; arch-scan
  * persists `arch-*.{md,html,json}` under `.deeporca/prototypes/`.
  */
@@ -133,7 +133,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
       const wikiInitialized = hasExistingWikiArtifacts(root);
       const wikiUpdate = wikiInitialized || mode === "update";
       if (wikiInitialized) {
-        ctx.emit({ message: `[2/4] 已有 wiki — 增量更新`, percent: 29 });
+        ctx.emit({ message: `[2/4] wiki artifacts exist — updating incrementally`, percent: 29 });
       }
       const fn = wikiUpdate ? wikiController.update.bind(wikiController) : wikiController.init.bind(wikiController);
       await fn(root, (p: ControllerProgress) =>
@@ -168,7 +168,7 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
         // (the skill's own Edge Rules define refresh-in-place semantics).
         const archUpdate = hasExistingArchmaps(root);
         if (archUpdate) {
-          ctx.emit({ message: `[3/4] 已有架构图产物 — 增量更新`, percent: 53 });
+          ctx.emit({ message: `[3/4] arch maps exist — updating incrementally`, percent: 53 });
         }
         await ctx.runBackgroundTask({
           skill: "arch-scan",

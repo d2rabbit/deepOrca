@@ -26,6 +26,7 @@
 //   HF_ENDPOINT          (default: https://huggingface.co — set to https://hf-mirror.com to force mirror)
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative as relativePath, resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
@@ -106,10 +107,54 @@ function hfResolveUrls(repo, file, tag) {
 }
 
 /**
+ * Fetch the repo's file tree manifest from the HF API (mirror of the same
+ * data the download URLs serve). Each entry carries either `lfs.oid` (the
+ * file's sha256 — LFS files, i.e. the 98MB ONNX) or `oid` (git blob sha1 for
+ * plain files). Both are content addresses: verifying downloaded bytes
+ * against them is the only end-to-end attestation that a mirror/CDN hop
+ * handed us the real model. Direct huggingface.co is tried FIRST so the
+ * common case cross-checks two different channels (content from mirror,
+ * manifest from origin); the mirror manifest is the degraded fallback.
+ */
+async function fetchTreeManifest(repo, tag) {
+  const urls = [
+    `https://huggingface.co/api/models/${repo}/tree/${tag}?recursive=true`,
+    `https://hf-mirror.com/api/models/${repo}/tree/${tag}?recursive=true`,
+  ];
+  // Two passes over both sources: these endpoints flap (observed 2026-08-27 —
+  // one minute reachable, the next ConnectTimeout), and a download run that
+  // would succeed should not die on a manifest blip.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const url of urls) {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!resp.ok) continue;
+        const entries = await resp.json();
+        if (Array.isArray(entries) && entries.length > 0) {
+          const map = new Map(entries.filter((e) => e?.type === "file").map((e) => [e.path, e]));
+          return map;
+        }
+      } catch {
+        // try next source
+      }
+    }
+  }
+  return null;
+}
+
+/** Git blob id — sha1("blob <size>\0" + bytes), what HF's non-LFS `oid` is. */
+function gitBlobSha1(buf) {
+  return createHash("sha1").update(`blob ${buf.length}\0`).update(buf).digest("hex");
+}
+
+/**
  * Download a single file (by remote name) to dest, trying each candidate URL.
  * Uses curl with -L to follow hf-mirror's 302 redirect to the LFS CDN.
+ * When a manifest entry is supplied the bytes are verified against it before
+ * the file is kept (sha256 for LFS files, git blob sha1 otherwise) — a
+ * mismatch fails the run (atomic swap keeps the previous known-good tree).
  */
-function downloadFile(repo, remoteFile, dest, tag, stagingDir) {
+function downloadFile(repo, remoteFile, dest, tag, stagingDir, manifestEntry) {
   // containment check (security scan): the destination must resolve inside the
   // staging directory before it is handed to curl.
   const destResolved = resolve(dest);
@@ -117,6 +162,16 @@ function downloadFile(repo, remoteFile, dest, tag, stagingDir) {
   if (relToStaging === "" || relToStaging.startsWith("..") || isAbsolute(relToStaging)) {
     throw new Error(`download destination escaped the staging directory: ${dest}`);
   }
+  if (!manifestEntry) {
+    throw new Error(`no manifest entry for ${remoteFile} — refusing to vendor unattested model files`);
+  }
+  // LFS entries hash sha256; plain entries hash the git blob sha1 — that is
+  // the upstream-published content address, not a chosen crypto primitive
+  // (SHA-1 preimage resistance is what a mirror would need to break; the
+  // collision weakness is irrelevant to content verification). The big model
+  // artifacts are LFS and therefore verified with sha256.
+  const expected = manifestEntry.lfs?.oid ?? manifestEntry.oid;
+  const algo = manifestEntry.lfs ? "sha256" : "sha1";
   const urls = hfResolveUrls(repo, remoteFile, tag);
   let lastError = null;
   for (let i = 0; i < urls.length; i++) {
@@ -127,22 +182,42 @@ function downloadFile(repo, remoteFile, dest, tag, stagingDir) {
     // plus the `--` option terminator — the externally influenced URL is the
     // only dynamic element and sits strictly AFTER the terminator, where it
     // can never be parsed as a curl option. Per-argument validation: the URL
-    // must be an https origin.
+    // must be an https origin. --proto-redir pins redirect hops to https so a
+    // malicious hop cannot downgrade the fetch (vendor-download.js M2).
     if (!/^https:\/\//.test(url)) {
       throw new Error(`unsafe download URL rejected: ${url}`);
     }
     try {
       const body = execFileSync(
         "curl",
-        ["-L", "--fail", "--retry", "2", "--connect-timeout", "12", "--max-time", "300", "--", url],
+        [
+          "-L",
+          // Separate-argument form — Windows System32 curl rejects "=" spelling.
+          "--proto-redir",
+          "https",
+          "--fail",
+          "--retry",
+          "2",
+          "--connect-timeout",
+          "12",
+          "--max-time",
+          "300",
+          "--",
+          url,
+        ],
         {
           encoding: null,
           maxBuffer: 512 * 1024 * 1024,
         }
       );
+      const actual = manifestEntry.lfs ? createHash("sha256").update(body).digest("hex") : gitBlobSha1(body);
+      if (actual.toLowerCase() !== String(expected).toLowerCase()) {
+        throw new Error(`${algo} mismatch for ${remoteFile} from ${url}: manifest expects ${expected}, got ${actual}`);
+      }
       // containment check (security scan): the already-validated destination
       // (inside the staging dir) receives the bytes; no shell involved.
       writeFileSync(destResolved, body);
+      log(`${algo} verified: ${remoteFile}`);
       return; // success
     } catch (err) {
       lastError = err;
@@ -172,13 +247,23 @@ async function main() {
     log,
     tag: "granite-embedding",
     async build(staging) {
+      // Manifest first: without content addresses we cannot attest the bytes,
+      // and a network that can deliver 98MB of model can deliver this JSON.
+      // Fail-closed — withAtomicSwap keeps the previous known-good tree.
+      const manifest = await fetchTreeManifest(MODEL_REPO, MODEL_TAG);
+      if (!manifest) {
+        throw new Error(
+          `cannot fetch HF tree manifest for ${MODEL_REPO}@${MODEL_TAG} — refusing to vendor unverifiable model files`
+        );
+      }
+      log(`manifest fetched: ${manifest.size} entries`);
       const modelRoot = join(staging, MODEL_REPO);
       mkdirSync(join(modelRoot, "onnx"), { recursive: true });
       for (const f of FILES) {
         const dest = join(modelRoot, f.local);
         // Ensure subdirs (e.g. onnx/) exist — harmless if already there.
         mkdirSync(dirname(dest), { recursive: true });
-        downloadFile(MODEL_REPO, f.remote, dest, MODEL_TAG, staging);
+        downloadFile(MODEL_REPO, f.remote, dest, MODEL_TAG, staging, manifest.get(f.remote));
       }
     },
     verify(staging) {

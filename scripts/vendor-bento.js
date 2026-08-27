@@ -37,40 +37,58 @@ function log(message) {
   console.log(`[vendor-bento] ${message}`);
 }
 
-async function resolveLatestVersion() {
-  if (process.env.BENTO_VERSION) {
-    return process.env.BENTO_VERSION;
-  }
-  try {
-    const apiUrl = "https://api.github.com/repos/nyblnet/bento/releases/latest";
-    let resp = await fetch(apiUrl, {
-      headers: { "User-Agent": "deeporca-vendor-bento" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!resp.ok) {
-      resp = await fetch(`${GITHUB_PROXY}${apiUrl}`, {
+/**
+ * Fetch a release's metadata (direct, then githubdog proxy). Returns
+ * { tag, digest } where digest is the Bento_Slides.bento.html asset's
+ * sha256 ("sha256:<hex>") — GitHub computes asset digests at upload time, so
+ * the download can be verified end-to-end even when the bytes came through
+ * the proxy (M1 hardening 2026-08-27). Null digest = not verifiable this run.
+ */
+async function fetchReleaseInfo(apiUrl) {
+  const tryUrls = [apiUrl, `${GITHUB_PROXY}${apiUrl}`];
+  for (const u of tryUrls) {
+    try {
+      const resp = await fetch(u, {
         headers: { "User-Agent": "deeporca-vendor-bento" },
         signal: AbortSignal.timeout(10000),
       });
-    }
-    if (resp.ok) {
+      if (!resp.ok) continue;
       const data = await resp.json();
-      const tag = data.tag_name; // e.g. "v1.0.15"
-      return tag.startsWith("v") ? tag.slice(1) : tag;
+      const tag = typeof data.tag_name === "string" ? data.tag_name : null;
+      const digest = data.assets?.find((a) => a?.name === "Bento_Slides.bento.html")?.digest ?? null;
+      if (tag) return { tag, digest };
+    } catch {
+      // try next source
     }
-  } catch {
-    // Offline — use fallback.
   }
-  log("could not resolve latest bento version — using fallback 1.0.15");
-  return "1.0.16";
+  return null;
 }
 
-async function download(url, dest) {
-  return sharedDownload(url, dest, log);
+async function resolveRelease() {
+  if (process.env.BENTO_VERSION) {
+    // Pinned by env — look the tag up so we still get its asset digest.
+    const info = await fetchReleaseInfo(
+      `https://api.github.com/repos/nyblnet/bento/releases/tags/v${process.env.BENTO_VERSION}`
+    );
+    return {
+      version: process.env.BENTO_VERSION,
+      digest: info?.digest ?? null,
+    };
+  }
+  const info = await fetchReleaseInfo("https://api.github.com/repos/nyblnet/bento/releases/latest");
+  if (info) {
+    return { version: info.tag.startsWith("v") ? info.tag.slice(1) : info.tag, digest: info.digest };
+  }
+  log("could not resolve latest bento version — using fallback 1.0.16");
+  return { version: "1.0.16", digest: null };
+}
+
+async function download(url, dest, expectedSha256) {
+  return sharedDownload(url, dest, log, expectedSha256);
 }
 
 async function main() {
-  const version = await resolveLatestVersion();
+  const { version, digest } = await resolveRelease();
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
 
   if (version === previousVersion && existsSync(targetPath) && !force) {
@@ -83,7 +101,7 @@ async function main() {
   const downloadUrl = `https://github.com/nyblnet/bento/releases/download/v${version}/Bento_Slides.bento.html`;
 
   try {
-    await download(downloadUrl, targetPath);
+    await download(downloadUrl, targetPath, digest);
   } catch (error) {
     log(`download failed: ${error.message}`);
     if (existsSync(targetPath)) {

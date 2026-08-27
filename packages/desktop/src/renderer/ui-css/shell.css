@@ -1042,16 +1042,17 @@ button.ui-surface-chip {
   line-height: 1.6;
 }
 
-/* ── Surface sheet (rounded overlay card) ────────────────────────────────────
-   Settings / plugins / editor files / knowledge / task records render as a
-   large rounded card floating over the stage — never as a top tab strip's
-   pane. Entrance: rise + settle.
-   Layering contract: companion 25 < sheet 28 < hub 30 < orb 40 < system
-   overlays (serena 55 · console 60 · modal 100 · palette 120 · toast 200).
-   The sheet floats above the companion so an open editor/preview never
-   occludes it; the hub stays above the sheet so summoning it while a sheet
-   is focused is always visible (App also auto-collapses the hub when a
-   sheet activates). */
+/* ── Surface sheet (flat workspace pane) ─────────────────────────────────────
+   Settings / plugins / editor files / knowledge / task records render as the
+   stage's workspace pane on the SAME PLANE as the conversation — no floating
+   card chrome (no modal shadow, no corner radius), matching the chat view.
+   Docking contract: with the hub open, the sheet starts AFTER whatever hub
+   surface is up (level-1 rail, then + level-2 flyout), so hub and workspace
+   coexist side by side until the user actively collapses the hub. Layering
+   values below are ties kept for paint order only — docked surfaces no
+   longer overlap: companion 25 < sheet 28 < flyout 30 < rail 31 < orb 40 <
+   system overlays (serena 55 · console 60 · modal 100 · palette 120 · toast
+   200). */
 .ui-sheet {
   position: absolute;
   /* Top clears the quick-dock capsule (--ui-sheet-top); the rest keeps the
@@ -1066,18 +1067,27 @@ button.ui-surface-chip {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-radius: 20px;
   background: var(--ui-surface);
-  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
-  box-shadow: var(--ui-shadow-modal);
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
   overflow: hidden;
+  transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes ui-sheet-in {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.985);
+    transform: translateY(10px);
   }
+}
+/* Dock beside level-1 (rail); when the flyout is extended, clear it too and
+   join the same content row the conversation occupies. */
+.panel-open .ui-sheet {
+  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap));
+}
+.panel-open.hub-expanded .ui-sheet {
+  left: calc(
+    var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + var(--ui-hub-gap)
+  );
 }
 .ui-sheet > :last-child {
   flex: 1;

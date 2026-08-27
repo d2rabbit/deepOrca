@@ -57,38 +57,54 @@ function hostTarget() {
   throw new Error(`unsupported platform: ${plat} ${arch}`);
 }
 
-/** Resolve the latest uv release tag from GitHub API (falls back to hardcoded). */
-async function resolveLatestVersion() {
-  if (process.env.UV_VERSION) {
-    return assertSafeVersion(process.env.UV_VERSION, "UV_VERSION");
-  }
-  try {
-    const apiUrl = "https://api.github.com/repos/astral-sh/uv/releases/latest";
-    let resp = await fetch(apiUrl, {
-      headers: { "User-Agent": "deeporca-vendor-uv" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!resp.ok) {
-      resp = await fetch(`${GITHUB_PROXY}${apiUrl}`, {
+/**
+ * Fetch a release's metadata (direct, then githubdog proxy). Returns the
+ * parsed release JSON or null. The asset `digest` fields ("sha256:<hex>")
+ * let the downloaded archive be verified end-to-end (M1 hardening 2026-08-27)
+ * — uv is an executable that runs Python tooling, so a tampered mirror must
+ * not survive into the vendor tree.
+ */
+async function fetchReleaseInfo(apiUrl) {
+  const tryUrls = [apiUrl, `${GITHUB_PROXY}${apiUrl}`];
+  for (const u of tryUrls) {
+    try {
+      const resp = await fetch(u, {
         headers: { "User-Agent": "deeporca-vendor-uv" },
         signal: AbortSignal.timeout(10000),
       });
+      if (resp.ok) return await resp.json();
+    } catch {
+      // try next source
     }
-    if (resp.ok) {
-      const data = await resp.json();
-      const tag = data.tag_name; // e.g. "0.11.32"
-      return assertSafeVersion(tag.startsWith("v") ? tag.slice(1) : tag, "uv release tag");
-    }
-  } catch {
-    // Offline or rate-limited — use fallback.
   }
-  log("could not resolve latest uv version from GitHub — using fallback 0.11.32");
-  return "0.11.32";
+  return null;
 }
 
-/** Download with proxy fallback. */
-async function download(url, dest) {
-  return sharedDownload(url, dest, log);
+/** Resolve { version, digest } for the host asset from GitHub (fallback hardcoded). */
+async function resolveRelease(assetName) {
+  if (process.env.UV_VERSION) {
+    const version = assertSafeVersion(process.env.UV_VERSION, "UV_VERSION");
+    // Pinned by env — look the tag up so we still get the asset digest.
+    const info = await fetchReleaseInfo(
+      `https://api.github.com/repos/astral-sh/uv/releases/tags/${process.env.UV_VERSION}`
+    );
+    return { version, digest: info?.assets?.find((a) => a?.name === assetName)?.digest ?? null };
+  }
+  const info = await fetchReleaseInfo("https://api.github.com/repos/astral-sh/uv/releases/latest");
+  if (info?.tag_name) {
+    const tag = info.tag_name; // e.g. "0.11.32"
+    return {
+      version: assertSafeVersion(tag.startsWith("v") ? tag.slice(1) : tag, "uv release tag"),
+      digest: info.assets?.find((a) => a?.name === assetName)?.digest ?? null,
+    };
+  }
+  log("could not resolve latest uv version from GitHub — using fallback 0.11.32");
+  return { version: "0.11.32", digest: null };
+}
+
+/** Download with proxy fallback (+ optional end-to-end sha256 verification). */
+async function download(url, dest, expectedSha256) {
+  return sharedDownload(url, dest, log, expectedSha256);
 }
 
 /** Extract a .tar.gz file using the system tar (available on all supported platforms). */
@@ -97,9 +113,11 @@ function extractTarGz(archivePath, destDir) {
 }
 
 async function main() {
-  const version = await resolveLatestVersion();
-  const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
   const target = hostTarget();
+  const ext = target.includes("windows") ? "zip" : "tar.gz";
+  const assetName = `uv-${target}.${ext}`;
+  const { version, digest } = await resolveRelease(assetName);
+  const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
 
   if (version === previousVersion && existsSync(join(targetDir, target)) && !force) {
     log(`up-to-date (v${version}) — skipping download.`);
@@ -108,8 +126,6 @@ async function main() {
 
   log(`downloading uv v${version} (prev: ${previousVersion ?? "none"}) …`);
 
-  const ext = target.includes("windows") ? "zip" : "tar.gz";
-  const assetName = `uv-${target}.${ext}`;
   const downloadUrl = `https://github.com/astral-sh/uv/releases/download/${version}/${assetName}`;
 
   // Atomic swap: build into a staging dir, swap into place only when the
@@ -121,7 +137,7 @@ async function main() {
     tag: "uv",
     build: async (staging) => {
       const archivePath = join(staging, assetName);
-      await download(downloadUrl, archivePath);
+      await download(downloadUrl, archivePath, digest);
 
       // Extract into a platform-specific subdirectory inside staging.
       const extractDir = join(staging, target);

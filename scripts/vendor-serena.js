@@ -11,7 +11,16 @@
 // Env overrides:
 //   SERENA_VERSION  (default: latest from PyPI API)
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, createWriteStream } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  createWriteStream,
+  createReadStream,
+  rmSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
@@ -61,6 +70,22 @@ async function downloadWheel(version) {
     const whlResp = await fetch(whl.url, { signal: AbortSignal.timeout(120000) });
     if (!whlResp.ok) return null;
     await pipeline(whlResp.body, createWriteStream(wheelFile));
+    // M1 hardening (2026-08-27): the SAME PyPI response carries the wheel's
+    // sha256 — verify the streamed bytes against it; a tampered/CDN-corrupted
+    // wheel is deleted, never installed. Missing digest = unverified (logged).
+    const expected = whl.digests?.sha256;
+    if (expected) {
+      const hash = createHash("sha256");
+      await pipeline(createReadStream(wheelFile), hash);
+      const actual = hash.digest("hex");
+      if (actual !== expected.toLowerCase()) {
+        rmSync(wheelFile, { force: true });
+        throw new Error(`sha256 mismatch for ${whl.filename}: expected ${expected}, got ${actual}`);
+      }
+      log(`sha256 verified: ${whl.filename}`);
+    } else {
+      log(`no sha256 digest in PyPI metadata — wheel left unverified`);
+    }
     log(`wheel saved → ${wheelFile}`);
     return whl.filename;
   } catch (error) {
