@@ -1232,6 +1232,44 @@ button.ui-tool-head:hover {
   background: var(--ui-surface-sunken);
   font-weight: 600;
 }
+/* Long-form gaps the chat-bubble layer never needed (plugin docs, wiki):
+   lists, deep headings, rules, images, zebra rows. Additive — chat keeps its
+   compact look, document surfaces gain the missing pieces. */
+.ui-md ul,
+.ui-md ol {
+  margin: var(--ui-space-2) 0;
+  padding-left: 1.5em;
+}
+.ui-md li {
+  margin: 0.25em 0;
+}
+.ui-md li::marker {
+  color: var(--ui-text-faint);
+}
+.ui-md li > ul,
+.ui-md li > ol {
+  margin: 0.25em 0;
+}
+.ui-md h4,
+.ui-md h5,
+.ui-md h6 {
+  margin: var(--ui-space-3) 0 var(--ui-space-2);
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--ui-text);
+}
+.ui-md hr {
+  border: 0;
+  border-top: 1px solid var(--ui-border-soft);
+  margin: var(--ui-space-3) 0;
+}
+.ui-md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.ui-md tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, transparent);
+}
 
 /* =========================================================================
    Option rows (permission / question / plan cards)

@@ -91,6 +91,13 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-2);
+  /* TOPMOST app chrome: the bar's dropdowns (branch / model / thinking) open
+     DOWN into the stage, whose surfaces stack up to toast 200 — without an
+     explicit top layer the menus paint under the stage and cannot be clicked
+     (covered menu = "无法切换"). 300 sits above every app layer, below only
+     the fullscreen editor (1000) and tooltips (2000). */
+  position: relative;
+  z-index: 300;
   /* Left room for the macOS traffic lights, right room for the Windows
      caption buttons to breathe inside the window edge. */
   padding: 6px var(--ui-space-2) 0 var(--ui-space-3);

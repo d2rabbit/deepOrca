@@ -306,11 +306,11 @@ export const zhHK: Record<MessageKey, string> = {
   "context.compacting": "壓縮中…",
 
   // ── Model modal ───────────────────────────────────────────
-  "model.thinkingMax": "至高",
-  "model.thinkingHigh": "高",
-  "model.thinkingXhigh": "極高",
-  "model.thinkingLow": "初",
-  "model.thinkingMedium": "中",
+  "model.thinkingMax": "Max",
+  "model.thinkingHigh": "High",
+  "model.thinkingXhigh": "Extra High",
+  "model.thinkingLow": "Low",
+  "model.thinkingMedium": "Medium",
   "model.noThinking": "關閉思考",
 
   // ── App status / errors ───────────────────────────────────

@@ -46,9 +46,9 @@ type Props = {
   actions?: ReactNode;
 };
 
-/** Default model lineup (DeepSeek V4 family) used when no endpoint models are
- * configured — mirrors the registry's registered deepseek models. */
-const FALLBACK_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"];
+/** Capability-resolution default (settings.model empty on a fresh install) —
+ * NEVER a selectable option: the menu lists configured models only. */
+const DEFAULT_MODEL = "deepseek-v4-pro";
 
 /** Sentinel option value: opens the settings panel's model pool (endpoints
  * tab). Selecting it never changes the model — the controlled value stays
@@ -197,19 +197,17 @@ export const TopBar = memo(function TopBar({
     </div>
   );
 
-  // Build the model list from settings endpoints. Falls back to hardcoded
-  // list when endpoints have no registered models (backward compat).
-  // Selection values are endpointId/modelId keys (so selecting a model also
-  // selects its endpoint) — except in the fallback case, where bare model
-  // names are used (no endpoints configured).
-  const availableModels = useMemo(() => {
-    if (!settings?.endpoints?.length) return FALLBACK_MODELS;
-    const keys = collectAllModelKeys(settings.endpoints);
-    return keys.length === 0 ? FALLBACK_MODELS : keys;
-  }, [settings?.endpoints]);
+  // Configured models ONLY (real-machine 2026-08-28): the hardcoded DeepSeek
+  // lineup used to fill the menu when nothing was configured, offering models
+  // the endpoints don't serve. Now an unconfigured workspace shows just the
+  // pool entry point. Values are endpointId/modelId keys.
+  const availableModels = useMemo(
+    () => (settings?.endpoints ? collectAllModelKeys(settings.endpoints) : []),
+    [settings?.endpoints]
+  );
 
   // Check if current model supports thinking (for the thinking dropdown gating).
-  const currentModel = settings?.model || FALLBACK_MODELS[0]!;
+  const currentModel = settings?.model || DEFAULT_MODEL;
   // Resolve capability against the primary endpoint's registration when the
   // current model is registered there; falls back to the hardcoded tables.
   const currentKey = useMemo(() => {
@@ -234,9 +232,10 @@ export const TopBar = memo(function TopBar({
     return modelCap.thinking ? familyOptions : familyOptions.filter((o) => o.key === "off");
   }, [currentModel, modelCap.thinking]);
 
-  const modelSelectValue = availableModels.includes(currentKey)
-    ? currentKey
-    : (availableModels[0] ?? FALLBACK_MODELS[0]!);
+  // Current model not among the configured keys (unconfigured workspace, or
+  // a legacy bare name): the trigger shows the pool entry point instead of
+  // pretending some other model is active.
+  const modelSelectValue = availableModels.includes(currentKey) ? currentKey : POOL_CONFIG_VALUE;
 
   return (
     <div className="ui-window-bar">
@@ -317,10 +316,10 @@ export const TopBar = memo(function TopBar({
                   : m;
                 return { value: m, label };
               }),
-              // Pool entry point: one click from the top bar to the model pool
-              // (endpoints tab). Makes the pool the visible source of truth —
-              // especially when it is empty and the list above is the hardcoded
-              // fallback pair. The controlled value never moves; the menu just
+              // Pool entry point: one click from the top bar to the endpoints
+              // tab. The menu lists CONFIGURED models only, so this is also
+              // the sole option (and the trigger label) on an unconfigured
+              // workspace. The controlled value never moves; the menu just
               // closes and the settings panel opens.
               { value: POOL_CONFIG_VALUE, label: t("topbar.configureModelPool") },
             ]}
