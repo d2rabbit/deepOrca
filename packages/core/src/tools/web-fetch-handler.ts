@@ -24,7 +24,7 @@
 import { randomUUID } from "crypto";
 import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
 import type { WebFetchPage } from "../common/tool-types";
-import { validatePublicHttpUrl } from "../common/public-url";
+import { assertPublicResolvedHost, validatePublicHttpUrl } from "../common/public-url";
 
 export type { WebFetchPage, WebPageFetcher } from "../common/tool-types";
 
@@ -41,10 +41,17 @@ export async function handleWebFetchTool(
     return { ok: false, name: "WebFetch", error: 'Missing required "url" string.' };
   }
 
-  // SSRF gate first — on every path, before anything is fetched.
+  // SSRF gate first — on every path, before anything is fetched. The DNS
+  // re-check closes the lexical-gate blind spot: a domain whose resolution
+  // points at loopback/RFC1918/link-local is refused before the first
+  // connect (post-resolution pinning, public-url.ts).
   const target = validatePublicHttpUrl(url);
   if (!target.ok) {
     return { ok: false, name: "WebFetch", error: target.error };
+  }
+  const resolved = await assertPublicResolvedHost(new URL(target.url).hostname);
+  if (!resolved.ok) {
+    return { ok: false, name: "WebFetch", error: resolved.error };
   }
 
   const activityId = `web-fetch-${randomUUID()}`;
@@ -102,6 +109,10 @@ async function fetchPageStatic(url: string): Promise<WebFetchPage> {
         const next = validatePublicHttpUrl(new URL(location, current).toString());
         if (!next.ok) {
           throw new Error(`redirect to non-public target refused: ${next.error}`);
+        }
+        const nextResolved = await assertPublicResolvedHost(new URL(next.url).hostname);
+        if (!nextResolved.ok) {
+          throw new Error(`redirect target refused: ${nextResolved.error}`);
         }
         current = next.url;
         continue;

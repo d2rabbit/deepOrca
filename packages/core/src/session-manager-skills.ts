@@ -448,10 +448,44 @@ Rules:
   }
 
   /**
+   * Containment gate for skill-doc reads (same threat model as the desktop's
+   * archmap path pin): the resolved file must live inside one of the known
+   * skill scan/plugin roots AND be named a SKILL.md document. Without this,
+   * resolveSkillPath happily maps `~/`-prefixed or absolute display strings to
+   * ANY filesystem path, turning this IPC-exposed reader into an
+   * arbitrary-file-read primitive (settings.json holds plaintext API keys).
+   */
+  protected isTrustedSkillDocPath(candidate: string): boolean {
+    if (!/(^|[\\/])SKILL(\.zh)?\.md$/i.test(candidate)) {
+      return false;
+    }
+    let resolvedFile: string;
+    try {
+      resolvedFile = fs.realpathSync(candidate);
+    } catch {
+      return false;
+    }
+    const roots = [...this.getSkillScanRoots().map((r) => r.root), ...this.getPluginSkillRoots().map((r) => r.root)];
+    for (const root of roots) {
+      let realRoot: string;
+      try {
+        realRoot = fs.realpathSync(root);
+      } catch {
+        continue;
+      }
+      if (resolvedFile === realRoot || resolvedFile.startsWith(`${realRoot}${path.sep}`)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Read the raw SKILL.md markdown for a skill by its (display) `path` — the same
    * value surfaced on SkillInfo. The desktop plugin center renders this document.
    * Resolution reuses resolveSkillPath so bundled/home/project display paths all
-   * map back to a real file (with the bundled-traversal guard preserved).
+   * map back to a real file (with the bundled-traversal guard preserved), and the
+   * result is gated by isTrustedSkillDocPath so out-of-root paths read as empty.
    *
    * When `locale` is a Chinese variant (zh / zh-TW / zh-HK / zh-CN), a sibling
    * `SKILL.zh.md` is preferred if present, falling back to the original file.
@@ -459,9 +493,12 @@ Rules:
    */
   readSkillDocument(skillPath: string, locale?: string): string {
     const basePath = this.resolveSkillPath(skillPath);
+    if (!this.isTrustedSkillDocPath(basePath)) {
+      return "";
+    }
     if (isChineseLocale(locale)) {
       const zhPath = basePath.replace(/\.md$/i, ".zh.md");
-      if (fs.existsSync(zhPath)) {
+      if (fs.existsSync(zhPath) && this.isTrustedSkillDocPath(zhPath)) {
         return fs.readFileSync(zhPath, "utf8");
       }
     }

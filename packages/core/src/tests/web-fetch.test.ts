@@ -17,6 +17,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../tools/executor";
 import type { WebFetchPage } from "../common/tool-types";
+import { setPublicUrlDnsLookup, type DnsLookupFn } from "../common/public-url";
 import { handleWebFetchTool } from "../tools/web-fetch-handler";
 
 const tempDirs: string[] = [];
@@ -41,7 +42,13 @@ afterEach(() => {
   }
 });
 
+// Hermetic DNS answers for the post-resolution SSRF re-check: every host the
+// tests use resolves to a PUBLIC address; a dedicated case pins 127.0.0.1.
+const hermeticLookup: DnsLookupFn = async (hostname) =>
+  hostname === "private.example" ? [{ address: "127.0.0.1", family: 4 }] : [{ address: "93.184.216.34", family: 4 }];
+
 function createContext(options: { fetchWebPage?: ToolExecutionContext["fetchWebPage"] } = {}): ToolExecutionContext {
+  setPublicUrlDnsLookup(hermeticLookup);
   return {
     sessionId: "web-fetch-test",
     projectRoot: makeRoot(),
@@ -230,4 +237,16 @@ test("static fallback: non-redirect 3xx (304) is NOT followed and surfaces as HT
   const result = await handleWebFetchTool({ url: "https://example.com/cached" }, createContext());
   assert.equal(result.ok, false);
   assert.match(String(result.error), /HTTP 304/);
+});
+
+test("post-resolution SSRF: a domain resolving to loopback is refused before any fetch", async () => {
+  let fetched = false;
+  mockFetch(() => {
+    fetched = true;
+    return new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } });
+  });
+  const result = await handleWebFetchTool({ url: "https://private.example/x" }, createContext());
+  assert.equal(result.ok, false);
+  assert.match(String(result.error), /resolves to (private|loopback)/);
+  assert.equal(fetched, false, "no request may reach the mocked fetch layer");
 });

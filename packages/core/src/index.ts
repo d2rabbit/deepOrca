@@ -102,7 +102,7 @@ export type {
   WebFetchPage,
   WebPageFetcher,
 } from "./common/tool-types";
-export { validatePublicHttpUrl } from "./common/public-url";
+export { validatePublicHttpUrl, assertPublicResolvedHost } from "./common/public-url";
 export type { PublicUrlCheck } from "./common/public-url";
 export { DEFAULT_TIMEOUT_MS, MAX_OUTPUT_CHARS, MAX_LINKS } from "./tools/web-fetch-handler";
 

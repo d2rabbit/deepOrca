@@ -162,10 +162,13 @@ test("settings resolution: quarantine skips project mcpServers and is user-store
     JSON.stringify({ mcpServers: { "repo-tool": { command: "node", args: ["server.js"] } } })
   );
 
-  // Never asked (no user-store entry): trusted, project servers load.
+  // Never asked (no user-store entry): FAIL-CLOSED (P0 2026-08-27) — the
+  // project file is attacker-controlled content, so an unanswered first-open
+  // resolves as quarantined and its servers stay dormant until the user
+  // explicitly answers the trust dialog.
   const unasked = resolveCurrentSettings(project);
-  assert.equal(unasked.workspaceTrust, "trusted");
-  assert.ok(unasked.mcpServers?.["repo-tool"]);
+  assert.equal(unasked.workspaceTrust, "quarantine");
+  assert.equal(unasked.mcpServers?.["repo-tool"], undefined, "unanswered trust must not auto-load project servers");
 
   // Quarantined via the USER-level store: the project file is attacker
   // content — its servers must not auto-load (design.md §10.3).

@@ -122,6 +122,38 @@ test("inferBashSideEffects: a benign read-only command returns [] (no additional
   assert.deepEqual(inferBashSideEffects("ls -la"), []);
   assert.deepEqual(inferBashSideEffects("rg TODO src"), []);
 });
+test("P2 hardening 2026-08-27: file-mutating primitives and repo-script execution gain write/delete scopes", () => {
+  // cp/mv/install/ln/touch/patch now carry write scopes (previously read-only).
+  for (const cmd of ["cp a /etc/cron.d/x", "touch marker", "patch -p1 < fix.diff", "install -m644 a /usr/local/b"]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(scopes.includes("write-out-cwd"), `${cmd} -> ${JSON.stringify(scopes)}`);
+  }
+  // mv additionally deletes its source operand.
+  assert.ok(inferBashSideEffects("mv a /tmp/").includes("delete-out-cwd"));
+  // sed in-place writes.
+  assert.ok(inferBashSideEffects("sed -i s/a/b/ file").includes("write-in-cwd"));
+  // sed without -i stays read-only.
+  assert.deepEqual(inferBashSideEffects("sed -n 1p file"), []);
+  // Interpreters running a REPO FILE are opaque (write+delete), and the
+  // classification is case-insensitive like every other rule — `Python x.py`
+  // must not slip through (review finding).
+  for (const cmd of [
+    "python tools/build.py",
+    "bash ./scripts/deploy.sh",
+    "node gen.js",
+    "Python build.py",
+    "NODE gen.js",
+  ]) {
+    const scopes = inferBashSideEffects(cmd);
+    assert.ok(scopes.includes("write-out-cwd"), `${cmd} -> ${JSON.stringify(scopes)}`);
+  }
+  // Benign read commands stay clean (anti-false-positive guard).
+  assert.deepEqual(inferBashSideEffects("rg pattern lib/"), []);
+  assert.deepEqual(inferBashSideEffects("grep -rn todo src/"), []);
+  assert.deepEqual(inferBashSideEffects("cat README.md"), []);
+  // Note: `cat install.md` DOES trip the loose word match by design —
+  // documented trade-off in inferBashSideEffects (a card, not a miss).
+});
 
 test("unionBashScopes: inference can only add risk, never remove it", () => {
   // Declared network + inferred network → still just network.

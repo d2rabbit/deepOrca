@@ -17,6 +17,24 @@
  * policy on top (e.g. dembrandt's copyright denylist).
  */
 
+import { lookup as dnsLookup } from "node:dns/promises";
+
+export type DnsLookupFn = (
+  hostname: string,
+  options: { all: true; verbatim: true }
+) => Promise<Array<{ address: string; family: number }>>;
+
+let activeLookup: DnsLookupFn = dnsLookup;
+
+/**
+ * Test seam ONLY: swaps the resolver used by {@link assertPublicResolvedHost}
+ * so unit tests stay hermetic (no real DNS). Passing null restores the
+ * platform resolver.
+ */
+export function setPublicUrlDnsLookup(lookup: DnsLookupFn | null): void {
+  activeLookup = lookup ?? dnsLookup;
+}
+
 export type PublicUrlCheck = { ok: true; url: string } | { ok: false; error: string };
 
 export function validatePublicHttpUrl(raw: string): PublicUrlCheck {
@@ -99,4 +117,71 @@ function isBlockedIpv4(a: number, b: number): boolean {
     (a === 198 && (b === 18 || b === 19)) ||
     a >= 224
   );
+}
+
+/**
+ * Post-resolution SSRF re-check (P2 hardening 2026-08-27): the lexical gate
+ * above never saw DNS, so "attacker.example" resolving straight to
+ * 127.0.0.1 / 169.254.169.254 / RFC1918 sailed through. Callers MUST invoke
+ * this right before every connect hop (initial URL AND each redirect) with
+ * the hop's hostname; it resolves the name and pushes EVERY returned address
+ * through the same range rules the literal checks use. A domain whose
+ * *persistent* answer is an internal address is now dead; note the residual
+ * classic-rebinding race (first query honest, second poisoned between this
+ * check and the engine's own connect-time resolution) is only closable with a
+ * connection-level pinning dispatcher — documented, accepted for now.
+ *
+ * Coverage note: wired into WebFetch's static and rendered paths. dembrandt's
+ * extraction target (common/dembrandt.ts) still uses only the lexical gate —
+ * its CLI renders via the isolated CDP child with no per-hop hook; treat that
+ * as a known exception rather than a promise of this helper.
+ */
+export async function assertPublicResolvedHost(hostname: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const host = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.+$/, "");
+  let records: Array<{ address: string; family: number }>;
+  try {
+    records = await activeLookup(host, { all: true, verbatim: true });
+  } catch {
+    // NXDOMAIN / unreachable resolver is a CONNECTIVITY problem, not SSRF
+    // evidence — the request itself will fail right after. Fail-open here;
+    // fail-CLOSED only when a resolution actually names a private address.
+    return { ok: true };
+  }
+  if (records.length === 0) {
+    return { ok: true };
+  }
+  for (const { address, family } of records) {
+    if (family === 4) {
+      const octets = address.split(".").map(Number);
+      if (octets.length !== 4 || isBlockedIpv4(octets[0]!, octets[1]!)) {
+        return { ok: false, error: `${host} resolves to private/loopback/reserved address ${address}` };
+      }
+      continue;
+    }
+    const lower = address.toLowerCase();
+    if (lower === "::" || lower === "::1" || /^(fc|fd|fe8|fe9|fea|feb)/.test(lower)) {
+      return { ok: false, error: `${host} resolves to non-public IPv6 address ${address}` };
+    }
+    // IPv4-mapped IPv6 answers carry the embedded v4 target. getaddrinfo
+    // prints these in dotted form ("::ffff:127.0.0.1", RFC 5952 §5) — handle
+    // BOTH that and the hex-word canonical form ("::ffff:7f00:1").
+    const dottedMapped = /^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(lower);
+    if (dottedMapped) {
+      if (isBlockedIpv4(Number(dottedMapped[1]), Number(dottedMapped[2]))) {
+        return { ok: false, error: `${host} resolves to IPv4-mapped private address ${address}` };
+      }
+      continue;
+    }
+    const mapped = /^::ffff:([0-9a-f]{1,4})(?::([0-9a-f]{1,4}))?$/.exec(lower);
+    if (mapped) {
+      const w1 = parseInt(mapped[1], 16);
+      if (isBlockedIpv4((w1 >> 8) & 0xff, w1 & 0xff)) {
+        return { ok: false, error: `${host} resolves to IPv4-mapped private address ${address}` };
+      }
+    }
+  }
+  return { ok: true };
 }

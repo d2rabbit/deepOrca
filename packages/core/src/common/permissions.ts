@@ -615,6 +615,42 @@ export function inferBashSideEffects(command: string): AskPermissionScope[] {
     scopes.add("write-out-cwd");
   }
 
+  // File-mutating primitives (P2 hardening 2026-08-27): these carried no
+  // write/delete scope before (rsync already had the network scope only), so
+  // `cp payload /etc/cron.d/x`, `mv index.html /tmp`, `ln -s target ~/.ssh`,
+  // `touch marker` and `patch -p1 < fix.diff` were auto-executed under
+  // allowAll defaults; `sed -i` rewrote files in place. cp/install/ln/touch/
+  // patch overwrite or create anywhere; mv additionally deletes its source.
+  // Word-position matching is deliberately loose (`cat install.md` asks too)
+  // — the cost is a permission card, the alternative is a missed write.
+  if (
+    /\b(cp|cpio|mv|install|ln|link|touch|patch|rsync|apply_patch)\b/.test(lower) ||
+    /\bsed\b[^|;&]*\s(-i\b|--in-place)/.test(lower)
+  ) {
+    scopes.add("write-in-cwd");
+    scopes.add("write-out-cwd");
+  }
+  if (/\b(mv|move)\b/.test(lower)) {
+    scopes.add("delete-in-cwd");
+    scopes.add("delete-out-cwd");
+  }
+
+  // Interpreters executing a REPO FILE (`python tools/build.py`,
+  // `bash ./scripts/deploy.sh`, `node gen.js`): the script body is invisible
+  // to the tokeniser and may write/delete anything — previously only the
+  // `-c/-e/--eval` forms were flagged, so running a checkout's scripts sailed
+  // through read-only classification. Anchored on the file-argument
+  // extension, not bare word matches, to keep `rg foo bar.py` clean (rg is
+  // not in the interpreter list anyway).
+  if (
+    /\b(python3?|pypy3?|node|deno|bun|tsx|perl|ruby|php|lua|raku|bash|sh|zsh|dash|ksh)\b[^|;&]*(\s["']?[\w.@/\\+-]+\.(py|pyw|js|mjs|cjs|ts|tsx|jsx|mts|cts|sh|bash|rb|pl|pm|php|lua|raku|ps1)\b)/.test(
+      lower
+    )
+  ) {
+    scopes.add("delete-out-cwd");
+    scopes.add("write-out-cwd");
+  }
+
   // Git history mutation (high confidence — these rewrites are irreversible).
   const gitHistoryMutationRe =
     /\bgit\s+(commit\s+--amend|rebase|reset\s+--hard|filter-branch|reflog\s+expire|gc\s+--prune=now)\b/;

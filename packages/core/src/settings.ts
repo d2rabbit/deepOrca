@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { defaultsToThinkingMode, supportsMultimodal } from "./common/model-capabilities";
 import { isThinkLevel, type ThinkLevel } from "./common/think-level";
 import {
+  effectiveWorkspaceTrust,
   getProjectConfigRoot,
   getUserConfigRoot,
   readWorkspaceTrustStore,
@@ -448,6 +449,19 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 // ── Multi-endpoint normalization & merge ──────────────────────────────────
 
 /**
+ * Preset URLs materialized into saved settings BEFORE those presets gained
+ * their required `/v1` segment. `normalizeEndpoints` rewrites an exact match
+ * to the current preset value at read time — the HTML-404 root cause persisted
+ * for users whose settings.json was written by an older build and would never
+ * self-heal. Exact-match only, so a deliberately customized URL (or any other
+ * gateway address) is never touched.
+ */
+const LEGACY_PRESET_BASE_URLS: Readonly<Record<string, string>> = {
+  "opencode-go": "https://opencode.ai/zen/go",
+  "opencode-zen": "https://opencode.ai/zen",
+};
+
+/**
  * Normalize an untrusted `endpoints` value from a settings file into a clean
  * {@link EndpointConfig} array. Rejects non-arrays, non-object or
  * field-missing entries, and drops duplicate ids (keeping the first).
@@ -494,7 +508,16 @@ export function normalizeEndpoints(value: unknown): EndpointConfig[] {
         });
       }
     }
-    result.push({ id, name, baseURL, apiKey, models: models.length > 0 ? models : undefined });
+    result.push({
+      id,
+      name,
+      baseURL:
+        LEGACY_PRESET_BASE_URLS[id] === baseURL
+          ? (ENDPOINT_PRESETS.find((p) => p.id === id)?.baseURL ?? baseURL)
+          : baseURL,
+      apiKey,
+      models: models.length > 0 ? models : undefined,
+    });
   }
   return result;
 }
@@ -755,8 +778,21 @@ export function resolveSettingsSources(
   processEnv: SettingsProcessEnv = process.env,
   workspaceTrust: WorkspaceTrustLevel = "trusted"
 ): ResolvedDeepcodingSettings {
+  // ── Quarantine clamp (P0 hardening, 2026-08-27) ────────────────────────
+  // A project settings file is committable repo content — attacker-
+  // controlled. Beyond mcpServers (mergeMcpServers gates on the trust level
+  // itself), several more fields can hijack credentials or spawn processes
+  // when a project is NOT trusted: env overrides (BASE_URL silently routes
+  // the USER's API key to an attacker endpoint), endpoint /
+  // primaryEndpointId redirects, memory-pipeline enablement (extraction
+  // starts unprompted with the user's key), and webSearchTool custom-script
+  // spawning. Strip the project's voice from ALL execution-relevant fields
+  // whenever the workspace is not explicitly trusted — which includes a
+  // first-open whose trust prompt was never answered.
+  const projectTrusted = workspaceTrust === "trusted";
+  const safeProject = projectTrusted ? projectSettings : null;
   const userEnv = normalizeEnv(userSettings?.env);
-  const projectEnv = normalizeEnv(projectSettings?.env);
+  const projectEnv = projectTrusted ? normalizeEnv(projectSettings?.env) : {};
   const systemEnv = collectDeepcodeEnv(processEnv);
   const env = {
     ...userEnv,
@@ -766,14 +802,14 @@ export function resolveSettingsSources(
 
   const model =
     trimString(systemEnv.MODEL) ||
-    trimString(projectSettings?.model) ||
+    trimString(safeProject?.model) ||
     trimString(projectEnv.MODEL) ||
     trimString(userSettings?.model) ||
     trimString(userEnv.MODEL) ||
     defaults.model;
 
   // Merge endpoints early — needed for thinkingEnabled fallback below.
-  const mergedEndpoints = mergeEndpoints(userSettings, projectSettings);
+  const mergedEndpoints = mergeEndpoints(userSettings, safeProject);
 
   // Resolve primaryEndpointId early so the capability fallback below can honour
   // the configured primary endpoint instead of scanning every endpoint by bare
@@ -782,13 +818,13 @@ export function resolveSettingsSources(
   const resolvedEndpointsForPrimary =
     mergedEndpoints.length > 0 ? mergedEndpoints : [{ id: "deepseek", name: "DeepSeek", baseURL: "", apiKey: "" }];
   const primaryEndpointId =
-    trimString(projectSettings?.primaryEndpointId) ||
+    trimString(safeProject?.primaryEndpointId) ||
     trimString(userSettings?.primaryEndpointId) ||
     resolvedEndpointsForPrimary[0]!.id;
 
   const thinkingEnabled =
     parseBoolean(systemEnv.THINKING_ENABLED) ??
-    parseBoolean(projectSettings?.thinkingEnabled) ??
+    parseBoolean(safeProject?.thinkingEnabled) ??
     parseBoolean(projectEnv.THINKING_ENABLED) ??
     parseBoolean(userSettings?.thinkingEnabled) ??
     parseBoolean(userEnv.THINKING_ENABLED) ??
@@ -806,7 +842,7 @@ export function resolveSettingsSources(
 
   const reasoningEffort =
     resolveReasoningEffort(systemEnv.REASONING_EFFORT) ??
-    resolveReasoningEffort(projectSettings?.reasoningEffort) ??
+    resolveReasoningEffort(safeProject?.reasoningEffort) ??
     resolveReasoningEffort(projectEnv.REASONING_EFFORT) ??
     resolveReasoningEffort(userSettings?.reasoningEffort) ??
     resolveReasoningEffort(userEnv.REASONING_EFFORT) ??
@@ -814,24 +850,24 @@ export function resolveSettingsSources(
 
   const temperature =
     parseTemperature(systemEnv.TEMPERATURE) ??
-    parseTemperature(projectSettings?.temperature) ??
+    parseTemperature(safeProject?.temperature) ??
     parseTemperature(projectEnv.TEMPERATURE) ??
     parseTemperature(userSettings?.temperature) ??
     parseTemperature(userEnv.TEMPERATURE);
 
   const debugLogEnabled =
     parseBoolean(systemEnv.DEBUG_LOG_ENABLED) ??
-    parseBoolean(projectSettings?.debugLogEnabled) ??
+    parseBoolean(safeProject?.debugLogEnabled) ??
     parseBoolean(projectEnv.DEBUG_LOG_ENABLED) ??
     parseBoolean(userSettings?.debugLogEnabled) ??
     parseBoolean(userEnv.DEBUG_LOG_ENABLED) ??
     false;
 
   const notify =
-    trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
+    trimString(systemEnv.NOTIFY) || trimString(safeProject?.notify) || trimString(userSettings?.notify) || "";
   const webSearchTool =
     trimString(systemEnv.WEB_SEARCH_TOOL) ||
-    trimString(projectSettings?.webSearchTool) ||
+    trimString(safeProject?.webSearchTool) ||
     trimString(userSettings?.webSearchTool) ||
     "";
 
@@ -842,13 +878,13 @@ export function resolveSettingsSources(
   // adapters remain, but no settings path feeds them a key.
   const webSearchProvider =
     trimString(systemEnv.WEB_SEARCH_PROVIDER) ||
-    trimString(projectSettings?.webSearchProvider) ||
+    trimString(safeProject?.webSearchProvider) ||
     trimString(userSettings?.webSearchProvider) ||
     "";
 
   const streamIdleTimeoutMs =
     parsePositiveInteger(systemEnv.STREAM_IDLE_TIMEOUT_MS) ??
-    parsePositiveInteger(projectSettings?.streamIdleTimeoutMs) ??
+    parsePositiveInteger(safeProject?.streamIdleTimeoutMs) ??
     parsePositiveInteger(projectEnv.STREAM_IDLE_TIMEOUT_MS) ??
     parsePositiveInteger(userSettings?.streamIdleTimeoutMs) ??
     parsePositiveInteger(userEnv.STREAM_IDLE_TIMEOUT_MS) ??
@@ -858,7 +894,7 @@ export function resolveSettingsSources(
   // per model family). Invalid values (non-integer / <= 0) are ignored.
   const compactTokenThreshold =
     parsePositiveInteger(systemEnv.COMPACT_TOKEN_THRESHOLD) ??
-    parsePositiveInteger(projectSettings?.compactTokenThreshold) ??
+    parsePositiveInteger(safeProject?.compactTokenThreshold) ??
     parsePositiveInteger(projectEnv.COMPACT_TOKEN_THRESHOLD) ??
     parsePositiveInteger(userSettings?.compactTokenThreshold) ??
     parsePositiveInteger(userEnv.COMPACT_TOKEN_THRESHOLD);
@@ -889,12 +925,10 @@ export function resolveSettingsSources(
   // so the capability lookup can honour it.
 
   const secondaryModel =
-    trimString(projectSettings?.secondaryModel) || trimString(userSettings?.secondaryModel) || DEFAULT_SECONDARY_MODEL;
+    trimString(safeProject?.secondaryModel) || trimString(userSettings?.secondaryModel) || DEFAULT_SECONDARY_MODEL;
 
   const secondaryEndpointId =
-    trimString(projectSettings?.secondaryEndpointId) ||
-    trimString(userSettings?.secondaryEndpointId) ||
-    primaryEndpointId;
+    trimString(safeProject?.secondaryEndpointId) || trimString(userSettings?.secondaryEndpointId) || primaryEndpointId;
 
   // Resolve the secondary endpoint's actual baseURL/apiKey.
   const secondaryEndpoint = endpoints.find((e) => e.id === secondaryEndpointId) ?? endpoints[0]!;
@@ -902,9 +936,9 @@ export function resolveSettingsSources(
   const secondaryApiKey = secondaryEndpoint?.apiKey || undefined;
 
   // Vision model (built-in vision MCP plugin). Empty = disabled.
-  const visionModel = trimString(projectSettings?.visionModel) || trimString(userSettings?.visionModel) || "";
+  const visionModel = trimString(safeProject?.visionModel) || trimString(userSettings?.visionModel) || "";
   const visionEndpointId =
-    trimString(projectSettings?.visionEndpointId) || trimString(userSettings?.visionEndpointId) || primaryEndpointId;
+    trimString(safeProject?.visionEndpointId) || trimString(userSettings?.visionEndpointId) || primaryEndpointId;
   const visionEndpoint = endpoints.find((e) => e.id === visionEndpointId) ?? endpoints[0];
   const visionBaseURL = visionEndpoint?.baseURL ?? resolvedBaseURL;
   const visionApiKey = visionModel ? visionEndpoint?.apiKey || undefined : undefined;
@@ -938,7 +972,7 @@ export function resolveSettingsSources(
     workspaceTrust,
     enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
     statusline: mergeStatusLine(userSettings, projectSettings),
-    memory: mergeMemory(userSettings, projectSettings),
+    memory: mergeMemory(userSettings, safeProject),
     endpoints,
     primaryEndpointId,
     secondaryModel,
@@ -1338,6 +1372,8 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
       baseURL: DEFAULT_BASE_URL,
     },
     process.env,
-    readWorkspaceTrustStore(projectRoot).level
+    // Fail-closed: a workspace whose trust prompt was never answered resolves
+    // as quarantined, not trusted (see effectiveWorkspaceTrust).
+    effectiveWorkspaceTrust(readWorkspaceTrustStore(projectRoot))
   );
 }

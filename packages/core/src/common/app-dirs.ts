@@ -115,3 +115,18 @@ export function writeWorkspaceTrustStore(projectRoot: string, level: WorkspaceTr
   fs.mkdirSync(path.dirname(storePath), { recursive: true });
   fs.writeFileSync(storePath, `${JSON.stringify({ level }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 }
+
+/**
+ * Fail-closed trust resolution for configuration loading (P0 hardening,
+ * 2026-08-27): an UNANSWERED first-open prompt (`explicit: false`) must never
+ * arm project-level execution surfaces. The project's .deeporca/settings.json
+ * is committable repo content — attacker-controlled — and a workspace that
+ * had never been asked previously resolved as trusted, so its
+ * mcpServers/env/memory/webSearchTool went live BEFORE the user could make
+ * any trust decision (and MCP servers kept running even after a later
+ * quarantine). Resolution treats it like quarantine until the user explicitly
+ * answers; the trust dialog itself keeps using the raw store status.
+ */
+export function effectiveWorkspaceTrust(status: WorkspaceTrustStatus): WorkspaceTrustLevel {
+  return status.explicit ? status.level : "quarantine";
+}
