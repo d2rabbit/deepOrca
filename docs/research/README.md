@@ -12,7 +12,7 @@
 
 ## 总览
 
-42 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份）：**✅ 21 · 🟡 10 · ⬜ 8 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+43 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份）：**✅ 21 · 🟡 10 · ⬜ 9 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -104,6 +104,14 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md](./2026-08-21-scriptc-tsgo-ts-native-path-prestudy.md) | **M2 更正后的承接报告**：scriptc（TS→原生二进制）+ TypeScript 7/tsgo（Go 编译器）双调研 + 迁移卫生规则 | 提案落点：tsconfig `rootDir` 显式化、CI 非阻塞 `tsgo --noEmit` 对账、三条接缝（进程/网络/动态加载）注入式隔离红线、`scriptc coverage` spike | 🟡 | 裁决：**tsgo 近期采纳**（本仓已在 TS 6.0.3 桥接版、tsconfig 几乎全绿、零编程式 API 依赖；待 7.1 API 解 typescript-eslint）；**scriptc 观察名单 + 最小 spike**（child_process/fetch/dynamic import 三存亡项原生目标未证实，experimental 单供应商）；08-19 报告 M0/M1 不变且权重上调，Rust 降备选。**同日立项 [`specs/ts-native-migration/`](../../specs/ts-native-migration/design.md)**：包拓扑拆分（shell/design 独立成包）为迁移前置 P0，tsgo=M1 段、scriptc spike=P4-a，M2 原生化为条件触发段 |
+
+---
+
+## 2026-08-27 · AI 协调工作链
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-08-27-coord-chain-technology-survey.md](./2026-08-27-coord-chain-technology-survey.md) | **王牌路线 OC 技术调研**：联盟式许可链选型（否决 PoW/Hypercore/OrbitDB/CRDT）、node:crypto 零依赖原语清单、mDNS/ws/blob 分发方案、prior art（Keybase sigchain/SSB/Hypercore） | 产物：[`specs/coord-chain/`](../../specs/coord-chain/design.md) 三件套 + [`docs/features/coord-chain-plan.md`](../features/coord-chain-plan.md)；规划落点 `packages/ledger/`、`desktop/main/coord-chain/` | ⬜ | 三个判定：许可链而非公链；链上只有元数据、资产走内容寻址层；差异化核心是任务谱系接续开发。Hypercore 与 CRDT 库列为观察项不引入。**优先级高于 next-version**（资源冲突时 OC 优先）。同日需求收紧（补记 §6）：UX 对标腾讯文档/飞书共享文档空间，**共享只认工作区主题**（git remote 归一/显式主题名 → themeId，跨主题发现层隔离；projectCode 为机器本地路径派生不可用作主题，`packages/core/src/common/app-dirs.ts:51` 取证） |
 
 ---
 

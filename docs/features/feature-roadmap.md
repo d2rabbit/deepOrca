@@ -1,6 +1,8 @@
 # DeepOrca 功能路线图
 
-> 版本：v3.22 · 日期：2026-08-19 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
+> 版本：v3.23 · 日期：2026-08-27 · 状态：**预生产冻结期**（dev 集成线 + test 冻结线；新功能一律 `next/*`）
+>
+> **v3.23 更新（王牌路线 OC 立项）**：基于 2026-08-27 方向确立与调研（`docs/research/2026-08-27-coord-chain-technology-survey.md`）新立 **§0 终判表 coord-chain 行 + 专属规划 [`docs/features/coord-chain-plan.md`](./coord-chain-plan.md)**——「AI 协调工作链」：局域网联盟式许可链（Ed25519 成员签名 + 轮值提议 + 联签终局，无 PoW/代币）+ 内容寻址资产层 + 任务谱系（task.share → 接续开发 → parentRecordId）。与 next-version 并列双王牌，**优先级高于其 A–D 主线**；新包 `packages/ledger/`（零依赖协议库）。spec 三件套见 [`specs/coord-chain/`](../../specs/coord-chain/design.md)。同日需求收紧：UX 对标腾讯文档/飞书「共享文档空间」（共享的是项目记录），**共享只认工作区主题**（git remote 归一/显式主题名 → themeId，跨主题发现层隔离）；再收紧：共享层为**自研类 Git「链工作区」**（blob/tree/commit + 谱系/diff/检出，复用 `GitFileHistory` 底子，第一版无 merge）。
 >
 > **v3.22 更新（知识编译立项）**：基于 llm_wiki 预研（`docs/research/2026-08-19-llm-wiki-prestudy.md`）新增 **§二「文档知识编译层 doc-wiki」**——核心论点：六源知识栈已覆盖「对话→记忆（memory）、代码→文档（openwiki）」，唯独缺「**资料→知识**」的编译路径；补齐后用户资料（MD/PDF/网页）被增量编译为互链 Wiki 页（两步摄入 + SHA256 缓存 + `sources[]` 溯源 + 删除级联），知识从"每次查询重新检索"变为"编译一次持续维护"。**许可红线**：llm_wiki 为 GPL-3.0（LICENSE 本体核证）→ 净室借鉴零代码继承，方法论与算法思想（两步摄入/四信号关联度/预算装配）不受版权保护可借鉴。分期 D0（purpose 注入 + kb-lint skill）→ D1（编译层 MVP）→ D2（检索/图谱/Deep Research 闭环）进下一版主线 D，D3（反向 MCP 暴露/多格式/剪藏）留后续版；spec 见 [`specs/doc-wiki/`](../../specs/doc-wiki/design.md)，§0 终判表同步新增（⬜ 设计定稿）。
 >
@@ -12,7 +14,7 @@
 
 **当前阶段**：预生产冻结期。收官计划 A–G 七线完成；F 线 F1–F3+F6+F5 完成，F4 推进中（Windows 真机构建/启动烟雾通过并修复 5 项真问题，交互清单待人工走查）；E1d 已闭环（review 面板品牌漂移卡片）；H（预生产切换：版本定格 → dev 合并 → tag → 冻结生效）待 F4 完成后执行。
 
-### 逐 spec 终判（✅8 · 🟡5 · ⬜5 · ❌2）
+### 逐 spec 终判（✅8 · 🟡5 · ⬜6 · ❌2）
 
 | spec | 终判 | 一句话 |
 | --- | --- | --- |
@@ -34,6 +36,7 @@
 | [desktop-pet](../../specs/desktop-pet/design.md) | ⬜ | 调研定稿未实现 |
 | [module-system](../../specs/module-system/design.md) | ⬜ | 发行版/模块系统远景规划 |
 | [doc-wiki](../../specs/doc-wiki/design.md) | ⬜ | 文档知识编译层（2026-08-19 新立设计稿，下一版主线 D；llm_wiki 净室借鉴，见 §二） |
+| [coord-chain](../../specs/coord-chain/design.md) | ⬜ | AI 协调工作链（2026-08-27 新立调研定稿，王牌路线 OC，优先级高于 next-version，见 [`docs/features/coord-chain-plan.md`](./coord-chain-plan.md)） |
 | [behavior-memory](../../specs/behavior-memory/design.md) | ❌ | 2026-08-17 作废，由 @deeporca/memory（TDAI L0–L3）承接 |
 | [harmonyos-dev-kit](../../specs/harmonyos-dev-kit/design.md) | ❌ | 曾落地后整体下线（`f680c14`）；鸿蒙 PC 移植 2026-08-18 调研结论"先不做"（`docs/research/2026-08-18-harmonyos-pc-electron-port-feasibility.md`） |
 
@@ -49,6 +52,7 @@
 见 [docs/README.md](../README.md)：**路线与现状 = 本文件 §0；实现方案 = specs/；调研 = docs/research/（仅供参考）；本版本收尾范围 = specs/pre-production/tasks.md**。
 
 **下一版本路线**：[`docs/features/next-version-plan.md`](./next-version-plan.md)（2026-08-18 立：自进化引擎 E1/E2 + Studio 基座 B1/B2 + 远程访问 M1–M3；2026-08-19 增补主线 D 知识编译 D0–D2，前置 = 本版本 F4/H 收尾）。
+**王牌专属路线（优先级更高）**：[`docs/features/coord-chain-plan.md`](./coord-chain-plan.md)（2026-08-27 立：AI 协调工作链 OC0–OC4，局域网联盟链 + 资产共享 + 任务谱系接续开发；与 next-version 并列双王牌，资源冲突时 OC 优先）。
 
 ---
 
@@ -74,6 +78,7 @@
 | [十六、能力编排协议](#十六能力编排协议)           | **defineAction 一次定义多表面（28 action 归位：LLM/MCP/IPC 三面 + 统一进度 + M2 spawner）** | **Studio 基座超大版本（下一版主线 B：B1 冷插拔 + B2 热激活/隔离）**, OpenWork 双工具 MCP 理念（不做）, 技能/工作流可迁移                                                                                                                                     | 统一能力发现和执行入口（一站化编排层）                   |
 | [十七、密钥保险库](#十七密钥保险库)               | —                                                                                                                 | OneCLI 理念 SQLite 重构（AES-256-GCM + 注入引擎）                                                                                                                                | Agent 持占位符 key，真实凭证加密存储+按需注入            |
 | [十八、3D 与制造](#十八3d-与制造)                 | —                                                                                                                 | **text-to-cad（build123d → STEP）**, **img2threejs（图片→Three.js）**, CADPreview 纯前端查看器（occt-import-js）                                                                 | 需求 → 可制造模型 / 可交互 3D —— 具现化第四条管线        |
+| [十九、协作链](#十九协作链)                       | —                                                                                                                 | **AI 协调工作链 Coord Chain（王牌路线 OC，优先级高于 next-version：联盟链 + 资产共享 + 任务谱系接续开发）**                                                                      | 按工作区主题自动同链：资料共享 · 任务接续 · 可审计      |
 | [搁置项](#搁置项)                                 | —                                                                                                                 | OpenSpec, Superpowers, OmniGent, Electron 自建                                                                                                                                   | 暂不规划，理由见下                                       |
 
 ---
@@ -968,6 +973,43 @@ CREATE TABLE vault_secrets (
 | kkFileView | Aspose-CAD/CADViewer 商业组件授权风险 + Java 服务端架构错配（详见调研附录） |
 | text-to-cad gcode/bambu/sendcutsend 技能 | 依赖外部 slicer/打印机/制造服务，非核心承诺，待需求验证 |
 | img2threejs CS2 武器模块 | 游戏垂直内容与 Studio 定位无关，裁剪 |
+
+---
+
+## 十九、协作链
+
+> 局域网内多台 DeepOrca 自动组成联盟链：需求文档/设计稿/架构图/任务记录以可审计方式共享，任何成员（的 AI）可基于链上任务记录**接续开发**。与其他 coding agent 的核心区分点（无云、无账号服务器、防篡改）。UX 对标腾讯文档/飞书「共享文档空间」、共享的是整个项目记录；**共享只认工作区主题**——同主题（同一项目）自动同链、跨主题发现层隔离。**王牌专属路线，优先级高于 next-version**——规划见 `docs/features/coord-chain-plan.md`，设计与任务见 `specs/coord-chain/`，调研见 `docs/research/2026-08-27-coord-chain-technology-survey.md`。
+
+### 背景
+
+竞品多人协作一律依赖云端账号 + Git 仓库；小团队的实际痛点（A 的踩坑 B 重来、资料靠 IM 传、协作无审计痕迹）没有被"再开一个网页"解决。2026-08-27 方向确立：内置联盟式许可链，与 next-version 并列双王牌；同日需求收紧为"共享只认工作区主题"。
+
+### 规划中（零代码，OC0–OC4）
+
+| 层 | 内容 | 优先级 |
+| --- | --- | --- |
+| 协议库 `packages/ledger/`（`@deeporca/ledger`，零依赖） | Ed25519 设备身份、JCS 规范编码、**工作区主题解析（git remote/显式名 → themeId）**、记录/区块/联签账本、`orca1` 链 ID（主题锚定）、从创世重放校验、CID 内容寻址、**链工作区对象模型（tree/commit/tree diff）**、node:sqlite 物化视图 | OC1 · P0 |
+| 组网同步（desktop `coord-chain/`） | mDNS/DNS-SD 发现（**按 themeId 匹配，跨主题发现层隔离**）+ 邀请码兜底、ws 加密传输（X25519+AES-GCM+挑战签名）、gossip、对象/blob have/want 分块分发 | OC2 · P0 |
+| **链工作区（自研类 Git 版本层）** | blob/tree/commit 内容寻址对象模型 + `ws.commit` 记录锚定；wsCommit/wsLog/wsDiff/wsCheckout（谱系/diff/历史检出 + `.chainignore`）；会话变更集直通（复用 `GitFileHistory`）；第一版无 merge（分叉保留 + 择线） | OC2–OC3 · P0 |
+| 共享语义与 UI | 资产发布（4MB 分块，链上只有 manifest CID）、task.share（TaskTrajectory 基座，变更随行 ws.commit）、接续开发（版本对齐 + parentRecordId 任务谱系）、AI 协调动作（chain.query/claim）、Hub「共享空间」面板（资料/任务流/动态 + 审计子页） | OC3 · P0 |
+| 深化加固 | blob 静态加密 + ACL、成员撤销与密钥轮换、账本快照修剪、规模压测（≤50 节点） | OC4 · P1 |
+
+### 关键决策（2026-08-27，调研定稿）
+
+- **只认工作区主题**：链由工作区主题唯一决定（git remote 归一优先、显式主题名次之、目录名不参与跨机匹配——现有 projectCode 为绝对路径派生，机器本地不可用作主题）；同主题自动同链，跨主题在发现层即隔离（不握手、不可见）。
+- **链工作区自研类 Git，不共享 .git 裸仓库**：blob/tree/commit 对象模型 + CID 寻址 + 记录锚定（复用 `GitFileHistory` 的 manifest→tree→commit 底子与会话变更集）；第一版无 merge——并行提交=谱系分叉保留 + LWW head 择线，三向合并留 OC4 评审。
+- **联盟链而非公链**：无 PoW/PoS/代币；轮值提议人 + 成员联签终局（quorum 默认多数派）；威胁模型是"事后可审计"而非匿名对手 BFT。"区块链"取哈希链 + 签名背书的本质，对外表述统一为联盟式许可链。
+- **链上只有元数据**：记录 ≤8KB，文件本体走内容寻址 blob 层——大文件永不进区块。
+- **默认关、显式共享**：隐私安全是第一约束；轨迹共享不含对话原文（TaskTrajectory 天然如此）；共享前强制预览确认。
+- **不进 core**：`@deeporca/ledger` 纯协议库 + desktop 桌面侧服务，LLM 会话回路零改动；AI 表面经 defineAction（静态注册起步）。
+
+### 与既有能力的关系
+
+- **GitFileHistory（file-history.ts）**：链工作区的直接底子——manifest→tree→commit 管线形态沿用，`recordCheckpoint` 的会话变更集（changedFilePaths/checkpointHash）即"本次会话改了什么"的现成提交来源；本地 undo 语义不变。
+- **§十三 远程接入**：同源地基（`ws` 依赖、Ed25519 设备身份、加密握手），OC0 协调会定公共件归属；远期 relay 可让链跨网段。
+- **§十 引擎演进（任务树/TaskTrajectory）**：任务轨迹是 task.share 的负载基座；任务谱系（parentRecordId）是跨设备版的任务树谱系。
+- **§十一 自进化**：链上任务谱系是 E1 执行捕获的天然跨设备语料（远期）。
+- **§十六 能力编排（defineAction）**：chain.query/claim 走 action 总线，B1 动态化后免费获益。
 
 ---
 
