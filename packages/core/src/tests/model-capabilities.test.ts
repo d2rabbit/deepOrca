@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   defaultsToThinkingMode,
+  isStepfunBaseUrl,
   familyThinkLevels,
   findModelRegistration,
   getCompactPromptTokenThreshold,
@@ -65,6 +66,79 @@ test("legacy deepseek-chat/reasoner keep their pre-registry capabilities", () =>
     assert.equal(spec.multimodal, false);
     assert.equal(spec.contextWindowTokens, 128 * 1024);
   }
+});
+
+// ---------------------------------------------------------------------------
+// StepFun family (id "stepfun"; step-3.7-flash adaptation, 2026-08-27) — first-party
+// vision/reasoning model: 256K window, native multimodal, always-thinking
+// (reasoning_effort low/medium/high, no off), reasoning_content convention.
+// ---------------------------------------------------------------------------
+
+test("step-3.7-flash resolves to the stepfun family with vision capabilities", () => {
+  const spec = resolveModelSpec({ model: "step-3.7-flash" });
+  assert.equal(spec.id, "stepfun");
+  assert.equal(spec.familyResolved, true);
+  assert.equal(spec.defaultsToThinking, true, "reasoning cannot be disabled server-side");
+  assert.equal(spec.multimodal, true, "native image (and video) input");
+  assert.equal(spec.contextWindowTokens, 256 * 1024);
+  assert.equal(spec.lightweightModel, undefined, "no assumed lightweight tier (step-3.5-flash unverified)");
+  assert.equal(spec.thinkingProtocol, "stepfun");
+  assert.equal(spec.reasoningField, "reasoning_content");
+  assert.deepEqual(spec.reasoningReadFields, ["reasoning_content", "reasoning"]);
+  assert.equal(spec.reasoningReplay, "omit", "never send a foreign reasoning field on replay");
+});
+
+test("step-router-v1 opts out of multimodal (Step Plan router rejects images)", () => {
+  // Chat Completions API doc, Step Plan channel field table: the router
+  // returns unsupported_content_type for image/document input even though
+  // one of its routes is a vision model.
+  const spec = resolveModelSpec({ model: "step-router-v1" });
+  assert.equal(spec.id, "stepfun");
+  assert.equal(spec.multimodal, false, "router never accepts image input");
+  // Direct vision models keep multimodal through the same pattern.
+  assert.equal(resolveModelSpec({ model: "step-3.7-flash" }).multimodal, true);
+});
+
+test("isStepfunBaseUrl gates both StepFun channels (and only StepFun)", () => {
+  for (const url of ["https://api.stepfun.com/v1", "https://api.stepfun.com", "https://api.stepfun.com/step_plan/v1"]) {
+    assert.equal(isStepfunBaseUrl(url), true, url);
+  }
+  for (const url of ["https://api.deepseek.com", "https://evil.stepfun.com.attacker.io", "", undefined]) {
+    assert.equal(isStepfunBaseUrl(url), false, String(url));
+  }
+});
+
+test("stepfun family resolves by api.stepfun.com baseURL hint when the model name is opaque", () => {
+  const spec = resolveModelSpec({ model: "custom-tuned-alias", baseURL: "https://api.stepfun.com/v1" });
+  assert.equal(spec.id, "stepfun");
+  assert.equal(spec.familyResolved, true);
+});
+
+test("stepfun family serves exactly low/medium/high effort tiers", () => {
+  assert.deepEqual(
+    familyThinkLevels("stepfun").map((l) => l.id),
+    ["low", "medium", "high"]
+  );
+});
+
+test("stepfun thinking requests carry a top-level reasoning_effort (no thinking envelope)", () => {
+  // ON: the mapped native tier, top-level (StepFun's documented param shape).
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.stepfun.com/v1", "high", "step-3.7-flash"), {
+    reasoning_effort: "high",
+  });
+  // Unified medium passes through (step serves it natively); xhigh/max fold to high.
+  assert.equal(
+    buildThinkingRequestOptions(true, "https://api.stepfun.com/v1", "xhigh", "step-3.7-flash").reasoning_effort,
+    "high"
+  );
+  assert.equal(
+    buildThinkingRequestOptions(true, "https://api.stepfun.com/v1", "max", "step-3.7-flash").reasoning_effort,
+    "high"
+  );
+  // OFF: the model has no off switch — the weakest tier is the honest floor.
+  assert.deepEqual(buildThinkingRequestOptions(false, "https://api.stepfun.com/v1", "high", "step-3.7-flash"), {
+    reasoning_effort: "low",
+  });
 });
 
 test("unlisted deepseek-* models keep the conservative family defaults", () => {

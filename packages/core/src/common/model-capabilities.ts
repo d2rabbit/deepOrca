@@ -13,7 +13,7 @@
  * behavior of another family or of the UNKNOWN fallback.
  */
 
-export type ModelFamilyId = "deepseek" | "glm" | "kimi" | "minimax" | "qwen" | "unknown";
+export type ModelFamilyId = "deepseek" | "stepfun" | "glm" | "kimi" | "minimax" | "qwen" | "unknown";
 
 // Unified thinking-effort scale + per-family native mappings (think-level.ts).
 // Only the symbols the renderer consumes are re-exported here — the
@@ -88,6 +88,11 @@ const DEEPSEEK_FAMILY: ModelFamilySpec = {
  * differences like thinking defaults or context windows.
  */
 const MODEL_OVERRIDES: Record<string, Partial<ModelFamilySpec>> = {
+  // Step Plan channel router (deepseek-v4-pro ↔ step-3.7-flash): images are
+  // REJECTED server-side (unsupported_content_type) even though one route is
+  // a vision model — the router itself never accepts multimodal input
+  // (Chat Completions API doc, Step Plan channel field table).
+  "step-router-v1": { multimodal: false },
   "deepseek-v4-flash": { defaultsToThinking: true, multimodal: false, contextWindowTokens: 512 * 1024 },
   "deepseek-v4-pro": { defaultsToThinking: true, multimodal: false, contextWindowTokens: 512 * 1024 },
   // Image-understanding experimental variant (2026-08-21 pricing page): thinking
@@ -101,6 +106,43 @@ const MODEL_OVERRIDES: Record<string, Partial<ModelFamilySpec>> = {
   },
   "deepseek-chat": { multimodal: false },
   "deepseek-reasoner": { multimodal: false },
+};
+
+/**
+ * StepFun family (step-3.7-flash, 2026-08-27 adaptation). First-party vision
+ * model: natively multimodal (image AND video input), sparse-MoE 198B/11B,
+ * 256K context. OpenAI-compatible `/v1/chat/completions` with streaming and
+ * tool calls, plus an Anthropic-compatible `/v1/messages` we don't use (the
+ * engine speaks the OpenAI protocol). Reasoning is ALWAYS on — the API's only
+ * effort control is `reasoning_effort` low/medium/high (see the step thinking
+ * builder) — so the family defaults to thinking mode and off projects to low.
+ * Reasoning output streams in `delta.reasoning` (OpenAI-style — StepFun's
+ * DEFAULT wire format per their reasoning best-practices page; the
+ * `reasoning_content` DeepSeek-style field only appears behind an explicit
+ * format param), which the read-fields chain covers while our canonical
+ * persisted/UI field stays `reasoning_content` (the renderer's thinking
+ * timeline and persistence read that key). Replay is "omit": unlike DeepSeek,
+ * Step documents no requirement to resend the reasoning field on replayed
+ * assistant messages, and an empty `reasoning_content` would be a FOREIGN
+ * field a strict compatibility layer could reject — replaying nothing is the
+ * universally accepted shape. No lightweight tier is registered: the
+ * text-only sibling step-3.5-flash is NOT assumed to be served by the
+ * endpoint, and a wrong-id background call would fail closed — backgrounds
+ * run on secondary/primary instead. The pattern ^step- also covers the Step
+ * Plan channel's step-router-v1 (routes deepseek-v4-pro ↔ step-3.7-flash)
+ * and the text-only step-3.5-flash(-2603) — all served under the same family.
+ */
+const STEPFUN_FAMILY: ModelFamilySpec = {
+  id: "stepfun",
+  modelPatterns: [/^step-/i],
+  baseURLHostHints: [/^(.+\.)?api\.stepfun\.com$/i],
+  contextWindowTokens: 256 * 1024,
+  defaultsToThinking: true,
+  multimodal: true,
+  thinkingProtocol: "stepfun",
+  reasoningField: "reasoning_content",
+  reasoningReadFields: ["reasoning_content", "reasoning"],
+  reasoningReplay: "omit",
 };
 
 /**
@@ -123,7 +165,7 @@ const UNKNOWN_FAMILY: ModelFamilySpec = {
 };
 
 /** Registered families. New vendors land here as one entry (plus overrides). */
-const FAMILIES: readonly ModelFamilySpec[] = [DEEPSEEK_FAMILY];
+const FAMILIES: readonly ModelFamilySpec[] = [DEEPSEEK_FAMILY, STEPFUN_FAMILY];
 
 function hostnameOf(baseURL: string | undefined): string {
   if (!baseURL) return "";
@@ -132,6 +174,31 @@ function hostnameOf(baseURL: string | undefined): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * True when a baseURL points at StepFun's API host. Both channels — the
+ * pay-as-you-go `…/v1` and the Step Plan subscription `…/step_plan/v1` —
+ * share api.stepfun.com, so one hostname check gates the account-balance
+ * probe for every StepFun endpoint shape (preset or custom).
+ */
+export function isStepfunBaseUrl(baseURL: string | undefined): boolean {
+  return /^(.+\.)?api\.stepfun\.com$/i.test(hostnameOf(baseURL));
+}
+
+/**
+ * Which quota probe an endpoint's baseURL selects (null = no quota surface).
+ * Quota follows the ENDPOINT: StepFun's two channels (pay-as-you-go /v1 and
+ * Step Plan /step_plan/v1) share api.stepfun.com and answer a live account
+ * balance; OpenCode's zen gateways share opencode.ai and expose only static
+ * plan limits (no balance API — anomalyco/opencode#10448). Shared by the
+ * renderer (settings card gating) and desktop main (IPC probe dispatch).
+ */
+export type EndpointQuotaKind = "stepfun-account" | "opencode-subscription";
+
+export function endpointQuotaKind(baseURL: string | undefined): EndpointQuotaKind | null {
+  if (isStepfunBaseUrl(baseURL)) return "stepfun-account";
+  return hostnameOf(baseURL) === "opencode.ai" ? "opencode-subscription" : null;
 }
 
 /**

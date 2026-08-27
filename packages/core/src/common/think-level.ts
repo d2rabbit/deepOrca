@@ -47,6 +47,9 @@ export const THINK_LEVELS: readonly ThinkLevelMeta[] = THINK_LEVEL_ORDER.map(
  */
 const THINK_LEVELS_BY_FAMILY: Readonly<Record<string, readonly ThinkLevel[]>> = {
   deepseek: ["low", "high", "max"],
+  // StepFun step-3.7-flash serves exactly the OpenAI-style three tiers
+  // (reasoning_effort low/medium/high — docs' effort table).
+  stepfun: ["low", "medium", "high"],
 };
 
 /** Visible menu tiers for a family id (generic scale for unregistered). */
@@ -76,6 +79,9 @@ const DEEPSEEK_V4_FAMILY: ThinkLevelFamilyMap = {
 /** Registered family maps — new vendors land here one at a time. */
 export const THINK_LEVEL_FAMILY_MAPS: Readonly<Record<string, ThinkLevelFamilyMap>> = {
   deepseek: DEEPSEEK_V4_FAMILY,
+  // StepFun step-3.7-flash: native low/medium/high; the hidden xhigh/max
+  // tiers fold onto high (the API's strongest effort).
+  stepfun: { low: "low", medium: "medium", high: "high", xhigh: "high", max: "high" },
 };
 
 export function isThinkLevel(value: unknown): value is ThinkLevel {
