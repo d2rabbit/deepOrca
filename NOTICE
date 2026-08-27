@@ -71,3 +71,36 @@ Third-party scope
   `scripts/vendor-notice.js`).
 - npm dependencies are permissive-only (MIT/ISC/BSD/Apache-2.0/…), enforced
   by `scripts/check-licenses.js`.
+
+Methodology acknowledgements (inspiration only — no code reuse)
+----------------------------------------------------------------
+The arch-scan skill (`packages/core/templates/plugins/code/skills/arch-scan/`)
+absorbs design methodology from the following projects. None of their code is
+used; their links live here instead of in the skill body, so the agent's
+prompt never contains fetchable URLs.
+
+- oh-my-mermaid (omm) — https://github.com/oh-my-mermaid/oh-my-mermaid —
+  perspective catalog + recursive drill-down exploration. Local research
+  notes: `docs/research/2026-08-06-oh-my-mermaid-research.md`.
+- diagram-design by Cathryn Lavery (MIT) —
+  https://github.com/cathrynlavery/diagram-design — density target (4/10),
+  complexity budgets, delete test, semantic-pattern-first diagram routing.
+- Cocoon-AI/architecture-diagram-generator (MIT) —
+  https://github.com/Cocoon-AI/architecture-diagram-generator — per-kind
+  fixed-hue semantic component palette (frontend/backend/store/bus/cloud/
+  external/concern).
+- product-architecture-diagrams (shangbianai) —
+  https://github.com/shangbianai/product-architecture-diagrams — layered
+  capability-board composition (entry → interface → service → data →
+  infrastructure → external), after the 五层面/C4 domain layering.
+- fireworks-tech-graph (yizhiyanhua-ai, MIT) —
+  https://github.com/yizhiyanhua-ai/fireworks-tech-graph — count-based
+  budgets and the "evaluate, don't assert" verification loop with bounded
+  correction passes.
+- drawio-generator (pmlaowangba-lab, MIT) —
+  https://github.com/pmlaowangba-lab/drawio-generator — editable plain-text
+  artifact discipline.
+- showapi「软件架构图生成器」(commercial cloud service, https://www.showapi.com)
+  — five-stage pipeline benchmark (style detection → structured extraction →
+  diagram generation → architect review → document fusion). Methodology
+  comparison only; no code and no cloud-rendering dependency was adopted.

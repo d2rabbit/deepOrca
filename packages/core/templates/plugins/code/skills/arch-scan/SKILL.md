@@ -9,7 +9,7 @@ description: >-
   "dependency map", or "how does this codebase work". Produces a persisted
   Mermaid document (.deeporca/prototypes/arch-<name>.md) whose diagrams render
   in the Knowledge panel — real nodes and edges, not a flat document — plus a
-  layered HTML overview board. Methodology adopted from oh-my-mermaid (omm).
+  layered HTML overview board.
 ---
 
 # arch-scan — Perspective-Based Architecture Scanner (Mermaid Renderer)
@@ -29,44 +29,10 @@ using **perspective-driven recursive analysis**.
   A diagram must BE a diagram: nodes, edges, labeled relationships. Prose
   belongs in the short overview lines, never as a substitute for edges.
 
-> **Methodology**: The perspective catalog and recursive drill-down approach are
-> adopted from [oh-my-mermaid](https://github.com/oh-my-mermaid/oh-my-mermaid)
-> (omm). DeepOrca renders the diagrams in-app via Mermaid instead of omm's CLI
-> + `.omm/` file tree. See
-> `docs/research/2026-08-06-oh-my-mermaid-research.md`.
->
-> **Editorial design discipline**: The density target (4/10), complexity budgets
-> (max 9 nodes / 12 edges per diagram), remove test, accent-color discipline, and
-> the "semantic pattern first, visual type second" routing methodology are adopted
-> from [diagram-design](https://github.com/cathrynlavery/diagram-design)
-> (MIT, by Cathryn Lavery) — with thanks.
->
-> **Semantic component palette**: the per-kind fixed-hue component typing
-> (frontend / backend / store / bus / cloud / external / concern) is adopted
-> from [Cocoon-AI/architecture-diagram-generator]
-> (https://github.com/Cocoon-AI/architecture-diagram-generator) (MIT, by
-> Cocoon AI). DeepOrca keeps its Mermaid pipeline (auto-layout instead of
-> hand-positioned SVG) and paints the kinds theme-adaptively in the
-> renderer instead of Cocoon's fixed dark palette.
->
-> **Layered board methodology**: the horizontal capability-layer composition
-> (entry → interface → service → data → infrastructure → external) draws on
-> the 五层面/C4/业务-应用-数据-技术 domain layering used by
-> [product-architecture-diagrams](https://github.com/shangbianai/product-architecture-diagrams)
-> (shangbianai). **Quality contracts & loop engineering**: the count-based
-> budgets, the "evaluate, don't assert" verification loop, and the bounded
-> correction passes are adapted from
-> [fireworks-tech-graph](https://github.com/yizhiyanhua-ai/fireworks-tech-graph)
-> (yizhiyanhua-ai, MIT). **Editable-source discipline** (plain-text,
-> diff-friendly artifacts over opaque binaries) echoes
-> [drawio-generator](https://github.com/pmlaowangba-lab/drawio-generator)
-> (pmlaowangba-lab, MIT) — with thanks to all three.
->
-> **五阶段管线**（架构风格识别 → 结构化抽取 → 图生成 → 架构师评审 →
-> 文档融合）：方法论对标 showapi「软件架构图生成器」skill（showapi.com
-> 商业云服务；仅方法论对标，未采用其代码与云渲染依赖）。DeepOrca 版本的
-> 差异：输入是代码与索引证据而非说明书文本，评审必须证据驱动，渲染全部
-> 本地完成。
+扫描遵循**五阶段管线**（架构风格识别 → 结构化抽取 → 图生成 → 架构师评审 →
+文档融合）。DeepOrca 版本的差异：输入是代码与索引证据而非说明书文本，评审必须
+证据驱动，渲染全部本地完成。方法论出处的完整署名见仓库根目录 `NOTICE` 的
+"Methodology acknowledgements" 一节。
 
 ## 归属：工作区索引模块
 
@@ -93,8 +59,6 @@ labels, edge labels and prose (description, overview) in the detected language
 (Chinese for DeepOrca's default). Node ids may be ASCII slugs.
 
 ## 设计原则（编辑级质量纪律）
-
-> 以下原则采纳自 [diagram-design](https://github.com/cathrynlavery/diagram-design)（MIT，Cathryn Lavery）。
 
 ### 密度目标 4/10
 
@@ -240,7 +204,7 @@ Don't force perspectives that don't exist in the code.
 
 ### 视角 → Mermaid 图类型（语义先行）
 
-采纳 diagram-design 的**"先选语义模式，再选视觉类型"**方法论：
+采用**"先选语义模式，再选视觉类型"**的方法论：
 
 | 视角                    | 语义本质 | Mermaid 图类型                        |
 | ----------------------- | -------- | ------------------------------------- |
@@ -399,10 +363,9 @@ overall-architecture (perspective)
 
 ## Step 3.5: 分层架构总览板（HTML Board）
 
-> 思想来源：product-architecture-diagrams 的分层产品架构图方法论（用户体验五层面 /
-> C4 / 业务-应用-数据-技术四域分层）。mermaid 图集擅长**关系与流程**，但"整个产品
-> 从上到下由哪几层构成"这种**分层全景**，横向色带式的 HTML 板表达力远胜节点连线图。
-> 两者互补：图集回答"怎么流动"，总览板回答"怎么堆叠"。
+> mermaid 图集擅长**关系与流程**，但"整个产品从上到下由哪几层构成"这种**分层全景**，
+> 横向色带式的 HTML 板表达力远胜节点连线图。两者互补：图集回答"怎么流动"，总览板
+> 回答"怎么堆叠"。
 
 在生成 mermaid 图集（Step 3）**之后**，再产出一份 `arch-<name>.html` —— 分层架构
 总览板，通过 `save_archmap({ name, format: "html", html })` 保存。硬性契约：
@@ -474,9 +437,9 @@ concern 候选），不为此重新通读代码。
 
 ## Step 3.9: 成稿验证环（Loop Engineering — evaluate, don't assert）
 
-> 思想来源：fireworks-tech-graph 的 Loop Engineering。**完成度由清点证据支撑，
-> 不由"看起来没问题"的断言支撑。** 保存前必须执行以下确定性检查，并把数字写进
-> 最终汇报；不合格项允许最多两轮定点修正（只改被诊断的问题，不全量重写）：
+> **完成度由清点证据支撑，不由"看起来没问题"的断言支撑。** 保存前必须执行以下
+> 确定性检查，并把数字写进最终汇报；不合格项允许最多两轮定点修正（只改被诊断
+> 的问题，不全量重写）：
 
 1. **图集预算清点**：逐张 mermaid 图数出 节点数 / 边数 / subgraph 数，
    对照区间（6-12 节点、6-12 边、flowchart ≥2 subgraph）——超限拆分，不足下钻
