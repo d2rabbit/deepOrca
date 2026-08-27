@@ -16,7 +16,7 @@ import { execFileSync } from "node:child_process";
 import { assertSafeVersion } from "./vendor-download.js";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL as NodeURL } from "node:url";
 import { withAtomicSwap } from "./vendor-fs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,6 +105,27 @@ function resolveElectronVersion() {
  * surfaces at runtime as a wiki stage that produces nothing, which is exactly
  * the silent failure this step exists to prevent.
  */
+/**
+ * SECURITY (Mimosa constraint): mirror URL below is a script constant.
+ * Assert it (https + pinned host) so a future edit cannot aim node-gyp's
+ * download at a non-public or foreign host without an explicit review here.
+ */
+function assertMirrorUrl(url, allowedHost) {
+  let parsed;
+  try {
+    parsed = new NodeURL(url);
+  } catch {
+    throw new Error(`unsafe mirror url: not a URL: ${JSON.stringify(url)}`);
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== allowedHost) {
+    throw new Error(`unsafe mirror url: ${url} (expected https://${allowedHost})`);
+  }
+}
+
+/** Probe-free note: npm 11 stopped forwarding unknown .npmrc keys into
+ *  lifecycle-script env (observed 2026-08-27), so the mirror is selected at
+ *  the dist_url source itself instead of steering script env afterwards. */
+
 function buildSqliteBinding(staging) {
   // The binding builds inside the TEMP INSTALL's node_modules (staging's own
   // node_modules is only copied over after this step).
@@ -120,7 +141,13 @@ function buildSqliteBinding(staging) {
     ...process.env,
     npm_config_runtime: "electron",
     npm_config_target: electronVersion,
-    npm_config_dist_url: "https://electronjs.org/headers",
+    // Header source: npmmirror carries the SAME Electron headers verbatim and
+    // stays reachable from China networks where electronjs.org (Cloudflare)
+    // times out (observed 2026-08-27). SECURITY: validated https + pinned host.
+    // Both spellings: node-gyp 12 only honors the canonical `disturl` when the
+    // config reaches its process through npm's lifecycle-env forwarding.
+    npm_config_dist_url: assertMirrorUrl("https://npmmirror.com/mirrors/electron/", "npmmirror.com"),
+    npm_config_disturl: assertMirrorUrl("https://npmmirror.com/mirrors/electron/", "npmmirror.com"),
   };
   // The rebuild must run in the INSTALL ROOT (npm resolves the package by
   // name from there), not inside the package dir.
@@ -141,9 +168,20 @@ async function main() {
   const version = resolvePinnedVersion();
   const previousVersion = existsSync(versionFile) ? readFileSync(versionFile, "utf8").trim() : null;
 
-  if (version === previousVersion && resolveCliEntry(targetDir) && !force) {
+  // Tree-completeness guard: "up-to-date" must also mean "tree intact". The
+  // skills/ dir was observed vanishing from an installed tree (real-machine
+  // 2026-08-27) while the version marker stayed current — every build then
+  // happily skipped while --init ENOENT'd at runtime. Require the same paths
+  // the installer copies before honoring the marker.
+  const requiredPaths = ["dist", "package.json", "skills"];
+  const treeComplete = requiredPaths.every((item) => existsSync(join(targetDir, item)));
+
+  if (version === previousVersion && treeComplete && resolveCliEntry(targetDir) && !force) {
     log(`up-to-date (v${version}) — skipping install.`);
     return;
+  }
+  if (version === previousVersion && !treeComplete) {
+    log(`v${version} marker present but vendored tree incomplete — reinstalling …`);
   }
 
   log(`installing openwiki v${version} (prev: ${previousVersion ?? "none"}) …`);
