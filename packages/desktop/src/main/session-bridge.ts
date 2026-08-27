@@ -188,8 +188,22 @@ export function buildPermissionSettings(
  */
 export function toSerializableEntry(entry: SessionEntry): SerializableSessionEntry {
   const processes = flattenProcesses(entry.processes);
-  return { ...entry, processes };
+  // Streaming turns fire this mapper ~2-3x per activation-loop iteration;
+  // assistantThinking is a raw reasoning dump no renderer reads, so cap it
+  // here as well as at persistence — otherwise every status tick clones tens
+  // of KB per entry over structured clone.
+  return {
+    ...entry,
+    processes,
+    assistantThinking:
+      entry.assistantThinking && entry.assistantThinking.length > IPC_THINKING_SNIPPET_CHARS
+        ? `${entry.assistantThinking.slice(0, IPC_THINKING_SNIPPET_CHARS)}…`
+        : entry.assistantThinking,
+  };
 }
+
+/** Same rationale as core's INDEX_THINKING_SNIPPET_CHARS, tuned for IPC. */
+const IPC_THINKING_SNIPPET_CHARS = 2048;
 
 function flattenProcesses(
   input: SessionEntry["processes"] | SerializableProcess[] | Record<string, unknown> | null | undefined

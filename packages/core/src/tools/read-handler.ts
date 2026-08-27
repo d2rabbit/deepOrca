@@ -4,7 +4,8 @@ import * as fs from "fs";
 import * as path from "path";
 import ignore from "ignore";
 import type { ToolExecutionContext, ToolExecutionFollowUpMessage, ToolExecutionResult } from "./executor";
-import { readTextFileWithMetadata, MAX_READ_FILE_BYTES } from "../common/file-utils";
+import { readTextFileWithMetadata, MAX_READ_FILE_BYTES, detectEncoding } from "../common/file-utils";
+import { StringDecoder } from "node:string_decoder";
 import { gateRead } from "../common/path-boundary";
 import {
   createFullFileSnippet,
@@ -17,6 +18,124 @@ import {
 const DEFAULT_LINE_LIMIT = 2000;
 const MAX_LINE_LENGTH = 2000;
 const LINE_NUMBER_WIDTH = 6;
+
+/** Above this size, an offset/limit read switches to the streamed slice path. */
+const STREAM_SLICE_THRESHOLD_BYTES = 2 * 1024 * 1024;
+const STREAM_CHUNK_BYTES = 512 * 1024;
+
+/**
+ * Single-pass streamed equivalent of the full readTextFile for paged views:
+ * walks the file in fixed-size chunks, decodes incrementally (multi-byte-safe
+ * via StringDecoder), and keeps only lines inside [startLine0, startLine0 +
+ * limit) while still counting totalLines — the semantics of
+ * `fullRaw.split("\n")` (elements = newline count + 1, including a trailing
+ * empty element) are preserved exactly. CRLF pairs are normalized per line
+ * and reported as lineEndings "CRLF", matching normalizeContent/detect-
+ * LineEndings on the legacy path.
+ * Content lines are kept full; only the rendered output truncates
+ * (same split of concerns as the legacy path).
+ */
+function streamSliceTextFile(filePath: string, startLine0: number, limit: number, st: fs.Stats): TextReadResult {
+  const fd = fs.openSync(filePath, "r");
+  try {
+    // BOM sniff mirrors file-utils detectEncoding (utf16le BOM → utf16le,
+    // else utf8) but reads only the first two bytes of the already-open fd.
+    const probe = Buffer.alloc(2);
+    const probed = fs.readSync(fd, probe, 0, 2, 0);
+    const encoding = detectEncoding(probe.subarray(0, probed));
+    const decoder = new StringDecoder(encoding === "utf16le" ? "utf16le" : "utf8");
+    const chunk = Buffer.alloc(STREAM_CHUNK_BYTES);
+    let carry = ""; // current line's decoded prefix, spanning chunk boundaries
+    let newlines = 0; // committed line terminators over the whole raw stream
+    let sawCrlf = false;
+    const selected: string[] = [];
+    /** Handle one newline-terminated segment: normalize CRLF, count it. */
+    const emitLine = (segment: string): void => {
+      let line = segment;
+      if (line.endsWith("\r")) {
+        sawCrlf = true;
+        line = line.slice(0, -1);
+      }
+      collectIfSelected(selected, line, newlines, startLine0, limit);
+      newlines += 1;
+    };
+    let position = 0;
+    let bytesRead = 0;
+    while ((bytesRead = fs.readSync(fd, chunk, 0, STREAM_CHUNK_BYTES, position)) > 0) {
+      position += bytesRead;
+      const text = carry + decoder.write(chunk.subarray(0, bytesRead));
+      carry = "";
+      let searchFrom = 0;
+      for (;;) {
+        const nl = text.indexOf("\n", searchFrom);
+        if (nl === -1) {
+          carry = text.slice(searchFrom);
+          break;
+        }
+        emitLine(text.slice(searchFrom, nl));
+        searchFrom = nl + 1;
+      }
+    }
+    // EOF: decoder remainder may complete `carry`; whatever remains is the
+    // final split element — emitted at index `newlines` exactly when
+    // raw.split("\n") would have it as element #newlines+1 with no trailing
+    // \n. A file ending in "\n" leaves carry === "" and adds nothing, which
+    // is also correct: that phantom trailing "" element exists purely via
+    // totalLines = newlines + 1.
+    carry += decoder.end();
+    let finalLine = carry;
+    if (finalLine.endsWith("\r")) {
+      sawCrlf = true;
+      finalLine = finalLine.slice(0, -1);
+    }
+    collectIfSelected(selected, finalLine, newlines, startLine0, limit);
+    return buildStreamedResult(
+      selected,
+      newlines,
+      startLine0,
+      st,
+      encoding === "utf16le" ? "utf16le" : "utf8",
+      sawCrlf ? "CRLF" : "LF"
+    );
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/** Push a line into the selection window when its global index qualifies. */
+function collectIfSelected(out: string[], line: string, index: number, startLine0: number, limit: number): void {
+  // Lines are stored FULL — `content` feeds markFileRead's file state and
+  // must match disk byte-for-byte (a truncated copy false-positives the
+  // "modified since read" guard). Only `output` truncates, in
+  // formatWithLineNumbers, exactly like the full-read path.
+  if (index >= startLine0 && index < startLine0 + limit) {
+    out.push(line);
+  }
+}
+
+function buildStreamedResult(
+  selected: string[],
+  newlines: number,
+  startLine0: number,
+  st: fs.Stats,
+  encoding: BufferEncoding,
+  lineEndings: "LF" | "CRLF"
+): TextReadResult {
+  const totalLines = newlines + 1;
+  const startLine = startLine0 + 1;
+  const endLine = selected.length > 0 ? startLine0 + selected.length : startLine;
+  return {
+    content: selected.join("\n"),
+    output: formatWithLineNumbers(selected, startLine),
+    startLine,
+    endLine,
+    totalLines,
+    isPartialView: startLine !== 1 || endLine < totalLines,
+    encoding,
+    lineEndings,
+    timestamp: Math.floor(st.mtimeMs),
+  };
+}
 const DEFAULT_GITIGNORE = [
   "node_modules/",
   ".git/",
@@ -75,38 +194,44 @@ export async function handleReadTool(
         error: "file_path must be an absolute path.",
       };
     }
-    const normalizedSuffix = normalizeRelativeSuffix(filePath);
-    const isIgnored = loadGitignoreMatcher(context.projectRoot);
-    const matches = normalizedSuffix ? findSuffixMatches(context.projectRoot, normalizedSuffix, isIgnored) : [];
-    if (matches.length > 1) {
-      return {
-        ok: false,
-        name: "read",
-        error:
-          "file_path must be an absolute path. " +
-          `The file_path is ambiguous and may refer to multiple files:\n${matches.slice(0, 3).join("\n")}` +
-          (matches.length > 3 ? `\n...and ${matches.length - 3} more.` : ""),
-      };
-    }
-
+    // Fast path first: a relative path that resolves directly against the
+    // project root (the overwhelmingly common case, e.g. "src/foo.ts") needs
+    // NO ambiguity scan. findSuffixMatches BFS-walks the whole tree
+    // synchronously — seconds on large monorepos — so paying that cost even
+    // when the direct hit exists was pure latency on the model's hot loop.
     const resolvedPath = path.resolve(context.projectRoot, filePath);
-    if (!fs.existsSync(resolvedPath)) {
-      if (matches.length > 0) {
+    if (fs.existsSync(resolvedPath)) {
+      filePath = resolvedPath;
+    } else {
+      const normalizedSuffix = normalizeRelativeSuffix(filePath);
+      const isIgnored = loadGitignoreMatcher(context.projectRoot);
+      const matches = normalizedSuffix ? findSuffixMatches(context.projectRoot, normalizedSuffix, isIgnored) : [];
+      if (matches.length > 1) {
         return {
           ok: false,
           name: "read",
-          error: "file_path must be an absolute path. " + `The file_path "${filePath}" is ambiguous.`,
+          error:
+            "file_path must be an absolute path. " +
+            `The file_path is ambiguous and may refer to multiple files:\n${matches.slice(0, 3).join("\n")}` +
+            (matches.length > 3 ? `\n...and ${matches.length - 3} more.` : ""),
         };
-      } else {
+      }
+      if (!fs.existsSync(resolvedPath)) {
+        if (matches.length > 0) {
+          return {
+            ok: false,
+            name: "read",
+            error: "file_path must be an absolute path. " + `The file_path "${filePath}" is ambiguous.`,
+          };
+        }
         return {
           ok: false,
           name: "read",
           error: `File not found: ${filePath}`,
         };
       }
+      filePath = resolvedPath;
     }
-
-    filePath = resolvedPath;
   }
 
   // Execution-time read boundary (P0, specs/sandbox/design.md §4.1): single
@@ -399,6 +524,15 @@ function parseLineLimit(value: unknown): { ok: true; value: number } | { ok: fal
 }
 
 function readTextFile(filePath: string, offset: number | null, limit: number): TextReadResult {
+  // Paged reads over big files skip the whole-file materialization below
+  // (buffer + full string + full line array = three copies just to throw
+  // most of them away) in favour of a single-pass streamed slice.
+  if (offset !== null) {
+    const st = fs.statSync(filePath);
+    if (st.isFile() && st.size > STREAM_SLICE_THRESHOLD_BYTES) {
+      return streamSliceTextFile(filePath, offset - 1, limit, st);
+    }
+  }
   const metadata = readTextFileWithMetadata(filePath);
   const raw = metadata.content;
   if (!raw) {
