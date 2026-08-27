@@ -1,0 +1,24 @@
+{
+  "name": "@deeporca/ledger",
+  "version": "0.1.0",
+  "description": "DeepOrca Coord Chain (OC) protocol library — device identity, JCS canonical encoding, workspace theme resolution, signed records, quorum blocks, hash-chain replay, content-addressed chain workspace objects, SQLite views. Zero runtime dependencies.",
+  "license": "MPL-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p ./ --noEmit",
+    "build": "tsc -p ./",
+    "test": "node src/tests/run-tests.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^6.0.3"
+  }
+}
