@@ -2735,6 +2735,11 @@ button.deck-row:hover {
   height: 12px;
 }
 
+.deck-op.armed {
+  color: #fff;
+  background: var(--bad);
+}
+
 .deck-wo-op.armed {
   color: #fff;
   background: var(--bad);

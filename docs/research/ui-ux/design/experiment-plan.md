@@ -257,6 +257,16 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 - **修复后回归**：deck-e18/e16 组 9 用例 + desktop 全量 351 用例绿；`npm run check` 全过。
 - 对拍基建（桩脚本 + 伺服方案）为一次性工件未入库；如需常态化，可考虑把 stub 固化为 `scripts/deck-visual-stub.js` 并接 Playwright CLI。
 
+## 15. E21 — 破坏性操作一致化（丢弃 / 放弃两步确认，2026-08-27）
+
+> 口径：E16 给车间墙删除立了"两步就地确认"规则后，deck 里仍有两处一键直达的破坏性操作——变更抽屉的 git 丢弃（不可逆销毁未提交改动）与任务树的放弃分支。本批把规则补齐到全部破坏性操作面。
+
+- **ChangesPanel 丢弃**：armed 状态按文件路径 keyed；首击变红（`.deck-op.armed`）+ tooltip 切换确认文案，再击执行 `gitDiscard`。
+- **TreeCanvas 放弃分支**：同一规则按 `${treeId}:${branch}` keyed。
+- **取舍说明**：原计划的"点击外部解除 armed"被主动放弃——React 委托事件下面板根 handler 与按钮 handler 在同一次原生 click 内竞态（child 先 root 后），实现需 stopPropagation 链且测试时序脆弱；armed 态本身自解释（再击即执行），保持零额外行为更简单。
+- i18n 六语言 +2 键（discardConfirm / abandonConfirm）；CSS `.deck-op.armed` 通用化。
+- **验收**：deck-e21 用例（首击 armed 且零调用 → 再击执行载荷正确）；desktop 全量 **352 用例绿**；`npm run check` 全过。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。

@@ -87,6 +87,9 @@ export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) =
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // E21: discard destroys uncommitted work irreversibly — two-step in-place
+  // confirmation (armed per file), matching the floor-wall delete rule.
+  const [armedDiscard, setArmedDiscard] = useState<string | null>(null);
 
   const refresh = () => {
     void api
@@ -114,6 +117,15 @@ export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) =
     if (!text || staged.length === 0) return;
     setMessage("");
     op(() => api.gitCommit(text));
+  };
+
+  const tryDiscard = (path: string) => {
+    if (armedDiscard !== path) {
+      setArmedDiscard(path);
+      return;
+    }
+    setArmedDiscard(null);
+    op(() => api.gitDiscard(path));
   };
 
   return (
@@ -163,7 +175,12 @@ export function ChangesPanel(props: { onDiff?: (file: string, staged: boolean) =
             <button type="button" className="deck-op" onClick={() => op(() => api.gitStage(file.path))}>
               {t("deck.changes.stage")}
             </button>
-            <button type="button" className="deck-op danger" onClick={() => op(() => api.gitDiscard(file.path))}>
+            <button
+              type="button"
+              className={`deck-op danger${armedDiscard === file.path ? " armed" : ""}`}
+              title={armedDiscard === file.path ? t("deck.changes.discardConfirm") : undefined}
+              onClick={() => tryDiscard(file.path)}
+            >
               {t("deck.changes.discard")}
             </button>
           </span>

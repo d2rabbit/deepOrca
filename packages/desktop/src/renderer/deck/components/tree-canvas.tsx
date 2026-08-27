@@ -42,6 +42,9 @@ export function TreeCanvas(): JSX.Element {
   const [forkWhy, setForkWhy] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // E21: abandoning a lane drops its ongoing work — two-step confirmation
+  // keyed by `${treeId}:${branch}`, same rule as discard / floor delete.
+  const [armedAbandon, setArmedAbandon] = useState<string | null>(null);
 
   useEffect(() => {
     void api
@@ -203,16 +206,30 @@ export function TreeCanvas(): JSX.Element {
                         >
                           {t("deck.tree.merge")}
                         </button>
-                        {!lane.abandoned ? (
-                          <button
-                            type="button"
-                            className="deck-op"
-                            disabled={busy}
-                            onClick={() => operate(() => api.taskTreeAbandon(data.index.id, lane.branch))}
-                          >
-                            {t("deck.tree.abandon")}
-                          </button>
-                        ) : null}
+                        {!lane.abandoned
+                          ? (() => {
+                              const key = `${data.index.id}:${lane.branch}`;
+                              const armed = armedAbandon === key;
+                              return (
+                                <button
+                                  type="button"
+                                  className={`deck-op${armed ? " danger armed" : ""}`}
+                                  disabled={busy}
+                                  title={armed ? t("deck.tree.abandonConfirm") : undefined}
+                                  onClick={() => {
+                                    if (!armed) {
+                                      setArmedAbandon(key);
+                                      return;
+                                    }
+                                    setArmedAbandon(null);
+                                    operate(() => api.taskTreeAbandon(data.index.id, lane.branch));
+                                  }}
+                                >
+                                  {t("deck.tree.abandon")}
+                                </button>
+                              );
+                            })()
+                          : null}
                       </span>
                     ) : null}
                   </div>
