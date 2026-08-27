@@ -295,8 +295,8 @@ export abstract class SessionManagerBase {
    * Per-session message cache. listSessionMessages is called multiple times
    * per loop iteration (×80000 max), each time re-reading and re-parsing the
    * entire JSONL file. This cache holds the parsed result so repeated reads
-   * within a turn are O(1). Invalidated on append/save and cleared on session
-   * switch or dispose.
+   * within a turn are O(1). Mirrored on append (see appendSessionMessage),
+   * replaced on full save, cleared on session switch or dispose.
    */
   protected readonly messageCache = new Map<string, SessionMessage[]>();
 
@@ -319,7 +319,22 @@ export abstract class SessionManagerBase {
 
   protected static readonly INDEX_WRITE_DELAY = 250;
 
+  /** Persistence-only cap for entry.assistantThinking in sessions-index.json
+   *  (see flushSessionsIndex) — reasoning dumps dominate index size otherwise. */
+  protected static readonly INDEX_THINKING_SNIPPET_CHARS = 2048;
+
   protected pendingIndex: SessionsIndex | null = null;
+
+  /**
+   * Set once dispose() finishes. A disposed manager must never touch the
+   * sessions index again: reload()/window recreation swaps in a fresh
+   * SessionManager while this instance's late async catch handlers (e.g. the
+   * abort path that stamps status:"interrupted") may still fire. Without this
+   * guard those handlers rebuild a stale snapshot from disk and its debounced
+   * timer later overwrites the new manager's writes — permanently losing any
+   * session created after the swap (see flushSessionsIndex/saveSessionsIndex).
+   */
+  protected disposed = false;
 
   protected readonly sessionAuditLogs = new Map<string, AuditLog>();
 
@@ -464,7 +479,20 @@ export abstract class SessionManagerBase {
       // system-prompt prefix).
       buildTurnTail: (model) => getCurrentTurnTail(model),
     });
+
+    // Must run after every field is initialized and BEFORE any consumer can
+    // observe sessions (no activation loop can exist yet — controllers are
+    // empty, so nothing live can be swept by accident).
+    this.sweepStaleRunsAfterRestart();
   }
+
+  /**
+   * Boot-time reconciliation hook. Declared here, IMPLEMENTED by the
+   * persistence layer (dynamic dispatch reaches the subclass override even
+   * though construction starts here) — sweeping stale `processing` entries
+   * needs sessions-index access that only lives below this class.
+   */
+  protected sweepStaleRunsAfterRestart(): void {}
 
   // ── Upward contracts ────────────────────────────────────────────────────────
   // The constructor's wiring closures, the permission gate listener, and lower
@@ -688,11 +716,27 @@ export abstract class SessionManagerBase {
   }
 
   protected estimateStreamTokens(text: string): number {
-    let tokens = 0;
-    for (const char of text) {
-      tokens += /[\u3400-\u9fff\uf900-\ufaff]/u.test(char) ? 0.6 : 0.3;
+    // Same projection as before (CJK ≈0.6 tokens/char, else ≈0.3) but via
+    // code-point range comparison: the per-character /u regex ran once per
+    // code point of every streamed delta — hundreds of thousands of regex
+    // calls over a long response. Also fixes the old range's skew by using
+    // the canonical CJK blocks compaction.ts already treats as dense.
+    let cjk = 0;
+    let other = 0;
+    for (const ch of text) {
+      const code = ch.codePointAt(0) ?? 0;
+      const isCjk =
+        (code >= 0x4e00 && code <= 0x9fff) ||
+        (code >= 0x3000 && code <= 0x30ff) ||
+        (code >= 0xff00 && code <= 0xffef) ||
+        (code >= 0xac00 && code <= 0xd7af);
+      if (isCjk) {
+        cjk += 1;
+      } else {
+        other += 1;
+      }
     }
-    return tokens;
+    return cjk * 0.6 + other * 0.3;
   }
 
   protected formatEstimatedTokens(tokens: number): string {

@@ -87,5 +87,11 @@ export class SessionManager extends SessionManagerTasks {
     this.shardConfig = null;
     this.frozenToolRoutes.clear();
     this.routerInitPromise = null;
+    // Flip LAST: everything above (including the final index flush) must still
+    // run. From here on, late async handlers aborted by dispose() — e.g. the
+    // activation-loop catch stamping status:"interrupted" — are barred from
+    // rebuilding a stale snapshot and racing the replacement manager's index
+    // writes (see the disposed guard in saveSessionsIndex/flushSessionsIndex).
+    this.disposed = true;
   }
 }

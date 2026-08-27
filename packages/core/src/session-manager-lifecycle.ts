@@ -867,7 +867,13 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     if (pending.toolCalls.length === 0) {
       return 0;
     }
-    const kind = status === "interrupted" ? "not-started" : "outcome-unknown";
+    // The boot sweep remaps stale `processing` → `interrupted` so the UI gets
+    // a resumable state — but that must NOT downgrade the synthesis kind:
+    // the run died mid-flight with the previous process, so outcomes stay
+    // unknown (the sweep stamps failReason with SWEEP_FAIL_REASON for
+    // exactly this discrimination; user interrupts carry no such marker).
+    const sweptByRestart = this.getSession(sessionId)?.failReason === SessionManagerPersistence.SWEEP_FAIL_REASON;
+    const kind = status === "interrupted" && !sweptByRestart ? "not-started" : "outcome-unknown";
     let synthesized = 0;
     for (const toolCall of pending.toolCalls) {
       const parsed = parseToolCallForPermissions(toolCall);

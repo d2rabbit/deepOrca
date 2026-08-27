@@ -5,6 +5,8 @@ import * as path from "path";
 
 const FILE_HISTORY_AUTHOR_NAME = "DeepOrca Checkpoint";
 const FILE_HISTORY_AUTHOR_EMAIL = "deeporca-checkpoint@localhost";
+/** Per-invocation ceiling for the synchronous git calls (see spawnGit). */
+const GIT_SYNC_TIMEOUT_MS = 10_000;
 const MANIFEST_PATH = ".deeporca-file-history.json";
 // Checkpoints written by legacy Deep Code installs used the old manifest name;
 // reads fall back to it so existing file-history repos stay undo-able.
@@ -353,12 +355,21 @@ export class GitFileHistory {
     encoding: BufferEncoding | "buffer"
   ): string | Buffer {
     const gitArgs = ["-c", "core.autocrlf=false", "-c", "core.eol=lf", `--git-dir=${this.gitDir}`, ...args];
+    // Hard timeout: this runs SYNCHRONOUSLY on the host's main thread (once
+    // per user prompt / before every write+edit checkpoint). A wedged git —
+    // network-mounted repo, AV scanner lock, stale index.lock — previously
+    // froze the whole app forever, because spawnSync without a timeout never
+    // returns. Surfaces as a normal git failure instead.
     const result = childProcess.spawnSync("git", gitArgs, {
       encoding,
       input: options.input,
       env: options.env,
       stdio: ["pipe", "pipe", "pipe"],
+      timeout: GIT_SYNC_TIMEOUT_MS,
     });
+    if (result.error) {
+      throw new Error(`git ${args.join(" ")} failed: ${result.error.message}`);
+    }
     if (result.status !== 0) {
       const stderr = Buffer.isBuffer(result.stderr) ? result.stderr.toString("utf8") : result.stderr;
       const stdout = Buffer.isBuffer(result.stdout) ? result.stdout.toString("utf8") : result.stdout;

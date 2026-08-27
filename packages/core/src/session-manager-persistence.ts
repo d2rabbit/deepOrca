@@ -234,6 +234,42 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
     return index.entries.filter((entry) => !entry.isSilentSubagent);
   }
 
+  /**
+   * One-time boot reconciliation (reliability audit R-batch): entries
+   * persisted as `processing` describe an activation loop that died with the
+   * previous app process — left as-is, such sessions stranded behind a
+   * "running" badge with neither Stop nor Resume wired, the only escape being
+   * to blind-type a new message. Remapping to `interrupted` routes recovery
+   * through the existing resume path (pending tool calls synthesized via
+   * resume-synthesis). Direct flush so the remap survives an immediate
+   * crash-on-next-boot; called from the base-constructor hook exactly once,
+   * while no activation loop can be running.
+   */
+  /** Stamped by sweepStaleRunsAfterRestart; synthesizePendingToolOutcomes
+   *  discriminates on it to keep swept runs on the conservative synthesis. */
+  static readonly SWEEP_FAIL_REASON = "application restarted mid-run";
+
+  protected override sweepStaleRunsAfterRestart(): void {
+    const index = this.loadSessionsIndex();
+    let changed = false;
+    for (const entry of index.entries) {
+      if (entry.status === "processing") {
+        entry.status = "interrupted";
+        entry.failReason = SessionManagerPersistence.SWEEP_FAIL_REASON;
+        entry.updateTime = new Date().toISOString();
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.pendingIndex = index;
+      try {
+        this.flushSessionsIndex();
+      } catch {
+        // Keep pendingIndex — the next save/flush retries this snapshot.
+      }
+    }
+  }
+
   getSession(sessionId: string): SessionEntry | null {
     const index = this.loadSessionsIndex();
     return index.entries.find((entry) => entry.id === sessionId) ?? null;
@@ -759,6 +795,11 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
   }
 
   protected saveSessionsIndex(index: SessionsIndex): void {
+    // A disposed manager lost its instance to reload()/window recreation; any
+    // late update (e.g. the abort catch stamping "interrupted") must not
+    // rebase the authoritative state onto a stale snapshot — the replacement
+    // manager owns the index from here on.
+    if (this.disposed) return;
     // Stash the latest index — the debounced write will pick it up.
     this.pendingIndex = index;
     if (this.indexWriteTimer) return;
@@ -781,7 +822,7 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       clearTimeout(this.indexWriteTimer);
       this.indexWriteTimer = null;
     }
-    if (!this.pendingIndex) return;
+    if (!this.pendingIndex || this.disposed) return;
     const index = this.pendingIndex;
     const { sessionsIndexPath } = this.getProjectStorage();
     this.ensureProjectDir();
@@ -793,7 +834,19 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       })),
       originalPath: this.projectRoot,
     };
-    const content = JSON.stringify(normalized, null, 2);
+    // Compact JSON, no indent: pretty-printing doubled the payload of an
+    // already heavy snapshot (up to MAX_SESSION_ENTRIES full last-turn
+    // bodies/thinking/toolCalls), and this runs on the host main thread.
+    // Thinking is additionally capped for persistence only — the full text
+    // lives in the JSONL transcript and no consumer reads it back from the
+    // index (renderer never touches the field; plan extraction uses the
+    // untruncated assistantReply, which stays intact).
+    for (const entry of normalized.entries) {
+      if (entry.assistantThinking && entry.assistantThinking.length > SessionManagerBase.INDEX_THINKING_SNIPPET_CHARS) {
+        entry.assistantThinking = `${entry.assistantThinking.slice(0, SessionManagerBase.INDEX_THINKING_SNIPPET_CHARS)}…`;
+      }
+    }
+    const content = JSON.stringify(normalized);
     const tmpPath = `${sessionsIndexPath}.tmp.${process.pid}.${crypto.randomUUID()}`;
     try {
       // Write beside the target and rename only after the complete payload is
@@ -897,15 +950,42 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
     // Restrictive perms (deep review 2026-08-15, C2): transcripts carry user
     // code and tool output — same 0600 treatment settings.json already gets.
     fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, { encoding: "utf8", mode: 0o600 });
-    // Invalidate cache so the next listSessionMessages re-reads from disk.
-    this.messageCache.delete(sessionId);
+    // Mirror the append into the live cache instead of invalidating it:
+    // deleting here made the very next listSessionMessages call (invoked at
+    // the top of every activation-loop iteration) re-read + re-parse the
+    // ENTIRE JSONL from disk, O(session bytes) per streamed tool round for
+    // zero correctness benefit — disk stays the source of truth either way.
+    const cached = this.messageCache.get(sessionId);
+    if (cached) {
+      cached.push(this.normalizeSessionMessage(message));
+    }
   }
 
   protected saveSessionMessages(sessionId: string, messages: SessionMessage[]): void {
     this.ensureProjectDir();
     const messagePath = this.getSessionMessagesPath(sessionId);
     const payload = messages.map((message) => JSON.stringify(message)).join("\n");
-    fs.writeFileSync(messagePath, payload ? `${payload}\n` : "", { encoding: "utf8", mode: 0o600 });
+    // Temp-then-rename (same pattern as flushSessionsIndex): the full
+    // rewrites of a transcript are compaction, undo/restore, and the
+    // checkpoint-hash stamp on write/edit. Opening with
+    // 'w' truncated FIRST, so a crash or ENOSPC mid-write permanently deleted
+    // the tail of the conversation — exactly the messages that had NOT been
+    // compacted away.
+    const tmpPath = `${messagePath}.tmp.${process.pid}.${crypto.randomUUID()}`;
+    try {
+      fs.writeFileSync(tmpPath, payload ? `${payload}\n` : "", { encoding: "utf8", mode: 0o600 });
+      if (process.platform !== "win32") {
+        fs.chmodSync(tmpPath, 0o600);
+      }
+      fs.renameSync(tmpPath, messagePath);
+    } catch (error) {
+      try {
+        fs.rmSync(tmpPath, { force: true });
+      } catch {
+        // Preserve the original persistence error.
+      }
+      throw error;
+    }
     // Update cache with the saved array (avoids a disk re-read).
     this.messageCache.set(sessionId, messages);
   }

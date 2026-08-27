@@ -880,29 +880,49 @@ export class McpManager {
     return this.disconnectPromise;
   }
 
+  /**
+   * Per-server refresh mutex (reliability audit R7): the tools/list-changed
+   * notification handler is async and unserialized. Two overlapping runs
+   * interleave their filter/push phases — filter(A) → filter(B, still sees
+   * A's old entries) → push(A) → push(B) — registering EVERY tool of that
+   * server twice. Duplicate function names in the merged tools array get a
+   * 400 from OpenAI-compatible endpoints, failing the whole session turn.
+   * Later notifications are dropped: the in-flight run re-lists tools anyway,
+   * so its result already reflects whatever triggered them.
+   */
+  private readonly refreshingServers = new Set<string>();
+
   private async refreshServerTools(serverName: string, client: Client): Promise<void> {
-    const serverTools = await this.listAllTools(client);
-    this.tools = this.tools.filter((t) => t.serverName !== serverName);
-    const toolNamespacedNames: string[] = [];
-    const usedToolNames = new Set(this.tools.map((tool) => tool.namespacedName));
-    for (const tool of serverTools) {
-      const namespacedName = buildMcpNamespacedName(serverName, tool.name, usedToolNames);
-      usedToolNames.add(namespacedName);
-      this.tools.push({
-        serverName,
-        originalName: tool.name,
-        namespacedName,
-        definition: tool,
-        client,
-      });
-      toolNamespacedNames.push(namespacedName);
+    if (this.refreshingServers.has(serverName)) {
+      return;
     }
-    const existing = this.serverStatuses.find((s) => s.name === serverName);
-    if (existing) {
-      existing.toolCount = serverTools.length;
-      existing.tools = toolNamespacedNames;
+    this.refreshingServers.add(serverName);
+    try {
+      const serverTools = await this.listAllTools(client);
+      this.tools = this.tools.filter((t) => t.serverName !== serverName);
+      const toolNamespacedNames: string[] = [];
+      const usedToolNames = new Set(this.tools.map((tool) => tool.namespacedName));
+      for (const tool of serverTools) {
+        const namespacedName = buildMcpNamespacedName(serverName, tool.name, usedToolNames);
+        usedToolNames.add(namespacedName);
+        this.tools.push({
+          serverName,
+          originalName: tool.name,
+          namespacedName,
+          definition: tool,
+          client,
+        });
+        toolNamespacedNames.push(namespacedName);
+      }
+      const existing = this.serverStatuses.find((s) => s.name === serverName);
+      if (existing) {
+        existing.toolCount = serverTools.length;
+        existing.tools = toolNamespacedNames;
+      }
+      this.onToolsListChanged?.();
+    } finally {
+      this.refreshingServers.delete(serverName);
     }
-    this.onToolsListChanged?.();
   }
 
   setOnToolsListChanged(handler: () => void): void {
