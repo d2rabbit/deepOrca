@@ -62,6 +62,14 @@ export function SourcesDashboard(): JSX.Element {
     filePath: string;
     startLine: number;
   }> | null>(null);
+  // E19: lite call-relation view for a picked symbol (focus + callers + callees).
+  const [symGraph, setSymGraph] = useState<{
+    name: string;
+    graph: {
+      nodes: Array<{ id: string; name: string; kind: string; filePath: string; role: "focus" | "caller" | "callee" }>;
+      truncated: boolean;
+    };
+  } | null>(null);
   const busyRef = useRef(false);
 
   const reload = useCallback(() => {
@@ -109,6 +117,7 @@ export function SourcesDashboard(): JSX.Element {
     setAgentsDoc(null);
     setSymbolQuery("");
     setSymbols(null);
+    setSymGraph(null);
     if (selected === "openwiki")
       void api
         .wikiListPages()
@@ -202,6 +211,15 @@ export function SourcesDashboard(): JSX.Element {
   // E16: open an archmap artifact — html boards show in a sandboxed iframe,
   // mermaid docs render through the shared diagram pipeline, legacy A2UI
   // surface JSON falls back to pretty-printed text.
+  // E19: open the lite call-relation view for a symbol name.
+  const readSymbolGraph = (name: string) => {
+    if (!activeRoot) return;
+    void api
+      .knowledgeSymbolGraph(activeRoot, name)
+      .then((graph) => setSymGraph({ name, graph }))
+      .catch(() => {});
+  };
+
   const readArchmap = (path: string) => {
     void api
       .knowledgeReadArchmap(path)
@@ -290,30 +308,76 @@ export function SourcesDashboard(): JSX.Element {
           </>
         ) : null}
 
-        {/* E18: symbol search against the active workspace's codegraph index. */}
+        {/* E18/E19: symbol search against the active workspace's codegraph
+            index; clicking a result opens the lite call-relation view. */}
         {selected === "codegraph" && activeRoot ? (
           <div className="deck-sym">
-            <input
-              className="deck-sym-input"
-              value={symbolQuery}
-              placeholder={t("deck.sources.symbolHint")}
-              onChange={(e) => setSymbolQuery(e.target.value)}
-            />
-            {symbols ? (
-              symbols.length > 0 ? (
-                symbols.map((sym) => (
-                  <div key={`${sym.filePath}:${sym.startLine}:${sym.name}`} className="deck-row static">
-                    <span className={`deck-wo-tag b`}>{sym.kind}</span>
-                    <span className="deck-row-main">{sym.name}</span>
-                    <span className="deck-row-meta">
-                      {sym.filePath}:{sym.startLine}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="deck-empty">{t("deck.sources.noResults")}</div>
-              )
-            ) : null}
+            {symGraph ? (
+              <>
+                <div className="deck-sub-head">
+                  <button type="button" className="deck-sub-back" onClick={() => setSymGraph(null)}>
+                    ‹ {t("deck.sources.symbolHint")}
+                  </button>
+                  <span className="deck-sub-title">{symGraph.name}</span>
+                </div>
+                {symGraph.graph.truncated ? (
+                  <div className="deck-row static warn-note">{t("deck.sources.graphTruncated")}</div>
+                ) : null}
+                {(
+                  [
+                    ["focus", t("deck.sources.roleFocus")],
+                    ["caller", t("deck.sources.roleCallers")],
+                    ["callee", t("deck.sources.roleCallees")],
+                  ] as const
+                ).map(([role, title]) => {
+                  const nodes = symGraph.graph.nodes.filter((n) => n.role === role);
+                  if (nodes.length === 0) return null;
+                  return (
+                    <div key={role}>
+                      <div className="deck-panel-group-title">
+                        {title} · {nodes.length}
+                      </div>
+                      {nodes.map((n) => (
+                        <div key={`${role}:${n.id}`} className="deck-row static">
+                          <span className="deck-wo-tag b">{n.kind}</span>
+                          <span className="deck-row-main">{n.name}</span>
+                          <span className="deck-row-meta">{n.filePath}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <input
+                  className="deck-sym-input"
+                  value={symbolQuery}
+                  placeholder={t("deck.sources.symbolHint")}
+                  onChange={(e) => setSymbolQuery(e.target.value)}
+                />
+                {symbols ? (
+                  symbols.length > 0 ? (
+                    symbols.map((sym) => (
+                      <button
+                        key={`${sym.filePath}:${sym.startLine}:${sym.name}`}
+                        type="button"
+                        className="deck-row linked"
+                        onClick={() => readSymbolGraph(sym.name)}
+                      >
+                        <span className="deck-wo-tag b">{sym.kind}</span>
+                        <span className="deck-row-main">{sym.name}</span>
+                        <span className="deck-row-meta">
+                          {sym.filePath}:{sym.startLine} ›
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="deck-empty">{t("deck.sources.noResults")}</div>
+                  )
+                ) : null}
+              </>
+            )}
           </div>
         ) : null}
 

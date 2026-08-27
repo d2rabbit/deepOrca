@@ -157,6 +157,52 @@ describe("deck E18 knowledge depth + notify archive", () => {
       mounted.unmount();
     }
   });
+
+  test("clicking a result opens the lite call-relation view grouped by role", async () => {
+    fixture.knowledgeListSymbols = async () => [
+      { name: "parseConfig", kind: "function", filePath: "src/config.ts", startLine: 42 },
+    ];
+    fixture.knowledgeSymbolGraph = async () => ({
+      nodes: [
+        { id: "1", name: "parseConfig", kind: "function", filePath: "src/config.ts", role: "focus" },
+        { id: "2", name: "loadSettings", kind: "function", filePath: "src/settings.ts", role: "caller" },
+        { id: "3", name: "readFile", kind: "function", filePath: "src/fs.ts", role: "callee" },
+      ],
+      edges: [],
+      truncated: true,
+    });
+
+    const mounted = await mountSources();
+    try {
+      await clickCard(mounted, "CodeGraph");
+      const input = mounted.container.querySelector<HTMLInputElement>(".deck-sym-input");
+      assert.ok(input, "symbol search input missing");
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "parse" } });
+        await new Promise((resolve) => setTimeout(resolve, 320));
+      });
+
+      const row = [...mounted.container.querySelectorAll("button.deck-row")].find((r) =>
+        r.textContent?.includes("parseConfig")
+      );
+      assert.ok(row, "search result row missing");
+      await act(async () => {
+        fireEvent.click(row);
+      });
+
+      const call = stub.calls.filter((c) => c.method === "knowledgeSymbolGraph").at(-1);
+      assert.ok(call, "knowledgeSymbolGraph not called");
+      assert.deepEqual(call.args, ["/tmp/demo", "parseConfig"]);
+
+      const html = mounted.container.innerHTML;
+      assert.ok(html.includes("loadSettings"), "caller node missing");
+      assert.ok(html.includes("readFile"), "callee node missing");
+      assert.ok(html.includes("Result list truncated"), `truncation note missing`);
+      assert.ok(mounted.container.querySelector(".deck-sub-back"), "back button missing");
+    } finally {
+      mounted.unmount();
+    }
+  });
 });
 
 describe("deck notifications manual archive", () => {

@@ -233,6 +233,16 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 - **实现说明**：i18n 六语言 +2 键（symbolHint / noResults）；工作区清单渲染收窄回 codegraph 详情自身。
 - **验收**：deck-e18 3 用例（agents 读取载荷与文档渲染/符号检索防抖与 kind·file:line 行/archive 触发 toast 孪生并落入环形缓冲）；desktop 全量 350 用例绿；`npm run check` 全过。
 
+## 13. E19 — 符号调用关系 lite 视图（2026-08-27）
+
+> 口径：E18 遗留的第三块（符号关系图）以"无画布"形态闭合——检索结果行点击后调 `knowledgeSymbolGraph(root, name)`，按 focus / callers / callees 三组分节陈列节点 + 截断提示。画布可视化仍留给知识源浮层宽窗化时另做。
+
+- 结果行升级为可点（deck-row linked）；子视图带 ‹ 返回、空分组隐藏、`truncated` 为真时显式告警行。
+- i18n 六语言 +4 键（roleFocus / roleCallers / roleCallees / graphTruncated）。
+- **验收**：新增用例（图载荷 `/tmp/demo"+"parseConfig"` 分组渲染 + caller/callee 节点在列 + 截断告警 + 返回按钮）；desktop 全量 **351 用例绿**；`npm run check` 全过。
+
+**至此知识模块三块能力全部入 deck**。剩余留白仅外部前置阻塞项：action 取消句柄（H 线）、doc-wiki 第七源卡（D 线实施）。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。
