@@ -121,10 +121,8 @@ const KNOWN_PRIVILEGED_KEYS = [
   // Filesystem writes.
   "EditorWriteFile",
   // External process spawn / reindex.
-  "ReviewRun",
   "WikiInit",
   "WikiUpdate",
-  "CodegraphReindex",
   "CrgReindex",
   // Memory lifecycle (start/stop in-process TdaiCore).
   "MemorySetEnabled",

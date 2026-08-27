@@ -17,7 +17,8 @@
  */
 
 import { getUserConfigRoot } from "@deeporca/core";
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, chmodSync, renameSync, writeFileSync } from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 
 /** Known subagent prompt prefixes that leaked as session summaries. */
@@ -126,7 +127,16 @@ export function cleanupLeakedSubagentSessions(): void {
     if (keep.length !== index.entries.length) {
       index.entries = keep;
       try {
-        writeFileSync(indexPath, JSON.stringify(index, null, 2), "utf8");
+        // Temp-then-rename, mirroring core's flushSessionsIndex: this boot
+        // hook races the first SessionManager's own index flushes, so a
+        // truncated direct write here could cascade into an "empty index"
+        // recovery that hides every session of the project.
+        const tmpPath = `${indexPath}.tmp.${process.pid}.${crypto.randomUUID()}`;
+        writeFileSync(tmpPath, JSON.stringify(index, null, 2), { encoding: "utf8", mode: 0o600 });
+        if (process.platform !== "win32") {
+          chmodSync(tmpPath, 0o600);
+        }
+        renameSync(tmpPath, indexPath);
       } catch {
         // best-effort
       }

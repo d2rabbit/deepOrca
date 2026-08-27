@@ -19,7 +19,13 @@
 
 import { BrowserWindow, app } from "electron";
 import type { WebFetchPage } from "@deeporca/core";
-import { validatePublicHttpUrl, DEFAULT_TIMEOUT_MS, MAX_LINKS, MAX_OUTPUT_CHARS } from "@deeporca/core";
+import {
+  assertPublicResolvedHost,
+  validatePublicHttpUrl,
+  DEFAULT_TIMEOUT_MS,
+  MAX_LINKS,
+  MAX_OUTPUT_CHARS,
+} from "@deeporca/core";
 
 /** Settle delay after did-finish-load so script-built DOM lands before extraction. */
 const SETTLE_DELAY_MS = 400;
@@ -105,6 +111,10 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** Redirect cap for the manual will-redirect replay loop (mirrors the static
+ *  path's MAX_REDIRECTS contract). */
+const MAX_REDIRECT_HOPS = 5;
+
 /** Load a page in the provider window and extract its rendered content. */
 async function loadAndExtract(url: string, timeoutMs: number): Promise<WebFetchPage> {
   const win = await ensureProviderWindow();
@@ -113,7 +123,9 @@ async function loadAndExtract(url: string, timeoutMs: number): Promise<WebFetchP
   const result = await new Promise<{ kind: "ok" } | { kind: "fail"; code: number; desc: string }>((resolve) => {
     let settled = false;
     const onFinish = (): void => {
-      if (settled) return;
+      // While a redirect re-check is pending, finish/fail events belong to
+      // the navigation WE just cancelled — never a verdict on the fetch.
+      if (settled || awaitingReplay) return;
       settled = true;
       cleanup();
       resolve({ kind: "ok" });
@@ -121,23 +133,55 @@ async function loadAndExtract(url: string, timeoutMs: number): Promise<WebFetchP
     // did-fail-load also fires for SUBFRAMES (dead iframes/trackers are
     // common); only a main-frame failure rejects the fetch.
     const onFail = (_e: unknown, code: number, desc: string, _validatedUrl: string, isMainFrame: boolean): void => {
-      if (settled || isMainFrame === false) return;
+      if (settled || isMainFrame === false || awaitingReplay) return;
       settled = true;
       cleanup();
       resolve({ kind: "fail", code, desc });
     };
     // SSRF: Chromium follows HTTP redirects inside loadURL — validate every
     // redirect target and cancel the navigation when it leaves public space
-    // (the core-side gate only saw the pre-redirect URL).
+    // (the core-side gate only saw the pre-redirect URL). DNS re-check
+    // (assertPublicResolvedHost) is async while will-redirect is sync, so we
+    // preventDefault FIRST (cancelling the redirect), stash awaitingReplay so
+    // the cancelled navigation's did-finish/did-fail (ERR_ABORTED) events are
+    // ignored, then re-verify: lexical fail cancels for good; otherwise a
+    // post-resolution check either replays loadURL (clearing the flag so the
+    // new navigation's events count again) or fails the fetch. hopCount is
+    // capped; the outer timer still bounds the whole wait.
+    let hopCount = 0;
+    let awaitingReplay = false;
     const onRedirect = (event: Electron.Event, redirectUrl: string): void => {
+      event.preventDefault();
+      if (settled) return;
       const check = validatePublicHttpUrl(redirectUrl);
       if (!check.ok) {
-        event.preventDefault();
-        if (settled) return;
         settled = true;
         cleanup();
         resolve({ kind: "fail", code: -4, desc: `redirect to non-public target refused: ${check.error}` });
+        return;
       }
+      awaitingReplay = true;
+      void assertPublicResolvedHost(new URL(check.url).hostname).then((resolved) => {
+        if (settled) return;
+        if (!resolved.ok) {
+          awaitingReplay = false;
+          settled = true;
+          cleanup();
+          resolve({ kind: "fail", code: -4, desc: `redirect target refused: ${resolved.error}` });
+          return;
+        }
+        if (++hopCount > MAX_REDIRECT_HOPS) {
+          awaitingReplay = false;
+          settled = true;
+          cleanup();
+          resolve({ kind: "fail", code: -4, desc: `too many redirects (more than ${MAX_REDIRECT_HOPS})` });
+          return;
+        }
+        // Replay counts as the next hop: events of THIS loadURL are verdicts
+        // again. If a further redirect fires, will-redirect re-arms the flag.
+        awaitingReplay = false;
+        wc.loadURL(check.url, { userAgent: wc.getUserAgent() }).catch(() => {});
+      });
     };
     const cleanup = (): void => {
       wc.off("did-finish-load", onFinish);

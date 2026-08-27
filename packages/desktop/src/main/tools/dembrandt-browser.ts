@@ -3,126 +3,125 @@
  * the Electron-built-in Chromium instead of any download (user decision
  * 2026-08-17: "使用内置的Chromium").
  *
- * How it works: Electron's own Chromium is the renderer of a hidden, offscreen
- * BrowserWindow started with remote debugging enabled; playwright-core's
- * `chromium.connectOverCDP()` drives it over the DevTools websocket. All
- * dembrandt surfaces (CLI, MCP server, PDF renderer) are patched at vendor
- * time to take a CDP endpoint from DEMBRANDT_CDP_ENDPOINT before falling back
- * to a plain launch — so the MCP server and PDF path, which upstream never
- * gave CDP support, work the same way.
- *
  * Lifecycle: lazily started on first request and kept alive for the app run —
  * browser startup is seconds and extractions may repeat within a design
- * session. It is closed on quit. A listener-side guard rejects connecting
- * when the endpoint is not loopback.
+ * session. The offscreen Chromium lives in an ISOLATED child process
+ * (dembrandt-provider-child.ts) that owns the only remote-debugging-enabled
+ * instance; it prints its random CDP endpoint on stdout. See that file for
+ * why the debugging port must never be attached to the main app process.
+ * Closed on quit.
  */
 
-import { BrowserWindow, app } from "electron";
-import { get as httpGet } from "node:http";
+import { app } from "electron";
+import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-/** Loopback port for the provider. Fixed by design: the window is app-owned,
- * and a collision is surfaced with a clear error rather than hunted. */
-const DEMBRANDT_CDP_PORT = 9333;
+// The ESM main bundle has no __dirname global (build.mjs injects only a
+// `require` shim) — derive it the same way main/index.ts does.
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let providerWindow: BrowserWindow | null = null;
+/** Child entry bundle produced by build.mjs next to main.js. */
+const PROVIDER_ENTRY = join(__dirname, "dembrandt-provider.cjs");
+const PROVIDER_READY_LINE = /^DEMBRANDT_CDP_READY (http:\/\/127\.0\.0\.1:\d+)$/;
+const READY_TIMEOUT_MS = 15000;
+
+let providerChild: ChildProcess | null = null;
 let providerUrl: string | null = null;
 let providerStarting: Promise<string> | null = null;
-let switchPrimed = false;
 
-/**
- * Append the remote-debugging switch BEFORE app ready — Chromium only honors
- * command-line switches at process startup, so appending after ready silently
- * never starts the CDP server and the readiness probe times out (F4 smoke
- * finding, 2026-08-18). Idempotent and side-effect free apart from the flag;
- * the BrowserWindow itself is created later by ensureDembrandtBrowserProvider
- * (BrowserWindow creation requires app ready).
- */
-export function primeDembrandtCommandLine(): void {
-  if (switchPrimed) return;
-  switchPrimed = true;
-  app.commandLine.appendSwitch("remote-debugging-port", String(DEMBRANDT_CDP_PORT));
+function isChildAlive(child: ChildProcess | null): child is ChildProcess {
+  return Boolean(child && child.exitCode === null && !child.killed);
 }
 
-/** Probe the CDP http endpoint until Chromium reports /json/version.
- *  12s deadline: cold machines can take >8s to spin up the offscreen window +
- *  debug server; the previous 8s cut real startups short (incident log
- *  2026-08-27 alongside the port-collision fix upstream of this module). */
-function waitForCdpReady(endpoint: string, deadlineMs: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const deadline = Date.now() + deadlineMs;
-    const probe = (): void => {
-      if (Date.now() > deadline) {
-        reject(new Error("dembrandt browser provider did not become ready in time"));
+function shutdownProvider(): void {
+  if (isChildAlive(providerChild)) {
+    try {
+      // Closing stdin signals the parent pipe contract first; kill covers a
+      // wedged child so quit never waits on the renderer teardown.
+      providerChild.stdin?.end();
+      providerChild.kill();
+    } catch {
+      // best effort
+    }
+  }
+  providerChild = null;
+  providerUrl = null;
+}
+
+function spawnProvider(): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    let settled = false;
+    let buffer = "";
+    const finish = (err: Error | null, url?: string): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) {
+        shutdownProvider();
+        reject(err);
         return;
       }
-      const req = httpGet(`${endpoint}/json/version`, (res) => {
-        if (res.statusCode === 200) {
-          res.resume();
-          resolve();
+      resolve(url as string);
+    };
+    const timer = setTimeout(() => {
+      finish(new Error("dembrandt browser provider did not become ready in time"));
+    }, READY_TIMEOUT_MS);
+
+    const child = spawn(process.execPath, [PROVIDER_ENTRY], {
+      stdio: ["pipe", "pipe", "inherit"],
+      windowsHide: true,
+    });
+    providerChild = child;
+    child.stdout?.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString("utf8");
+      for (const line of buffer.split("\n")) {
+        const match = line.trim().match(PROVIDER_READY_LINE);
+        if (match) {
+          providerUrl = match[1];
+          finish(null, match[1]);
           return;
         }
-        res.resume();
-        setTimeout(probe, 200);
-      });
-      req.on("error", () => setTimeout(probe, 200));
-      req.setTimeout(1500, () => req.destroy());
-    };
-    probe();
+      }
+      buffer = buffer.slice(buffer.lastIndexOf("\n") + 1);
+    });
+    child.on("error", (error) => finish(error));
+    child.on("exit", () => {
+      if (!settled) {
+        finish(
+          new Error(
+            existsSync(PROVIDER_ENTRY)
+              ? "dembrandt provider exited before becoming ready"
+              : `missing provider bundle: ${PROVIDER_ENTRY}`
+          )
+        );
+      }
+      if (providerChild === child) {
+        providerChild = null;
+        providerUrl = null;
+      }
+    });
   });
 }
 
 /**
- * Start (or return) the CDP endpoint of the hidden Electron-Chromium provider.
- * Throws with an actionable message when Electron's Chromium refuses remote
- * debugging (e.g. a sandboxed enterprise policy) — callers surface it, they
- * never fall back to a network download.
+ * Start (or return) the CDP endpoint of the isolated Electron-Chromium
+ * provider child. Throws with an actionable message when the child cannot
+ * come up — callers surface it, they never fall back to a network download.
  */
 export async function ensureDembrandtBrowserProvider(): Promise<string> {
-  if (providerUrl && providerWindow && !providerWindow.isDestroyed()) {
+  if (providerUrl && isChildAlive(providerChild)) {
     return providerUrl;
   }
   if (providerStarting) {
     return providerStarting;
   }
-  providerStarting = (async (): Promise<string> => {
-    // The switch itself must have been primed at boot (see
-    // primeDembrandtCommandLine); this call is a no-op by then and only covers
-    // standalone/test invocations that skipped the boot-time prime.
-    primeDembrandtCommandLine();
-    const win = new BrowserWindow({
-      show: false,
-      width: 1366,
-      height: 900,
-      webPreferences: {
-        offscreen: true,
-        sandbox: true,
-        contextIsolation: true,
-        nodeIntegration: false,
-        backgroundThrottling: false,
-      },
-    });
-    providerWindow = win;
-    win.on("closed", () => {
-      providerWindow = null;
-      providerUrl = null;
-    });
-    // A real (but trivial) page keeps the renderer alive; about:blank also works,
-    // but data: URLs keep remote-debugging-server startup deterministic in CI.
-    await win.loadURL("about:blank");
-    const endpoint = `http://127.0.0.1:${DEMBRANDT_CDP_PORT}`;
-    await waitForCdpReady(endpoint, 12000);
-    providerUrl = endpoint;
-    app.on("will-quit", () => {
-      try {
-        providerWindow?.destroy();
-      } catch {
-        // best effort
-      }
-      providerWindow = null;
-      providerUrl = null;
-    });
-    return endpoint;
-  })();
+  // One-shot quit hook, registered at first use so a dev checkout that never
+  // touches dembrandt pays nothing (previous code accumulated one listener
+  // per successful start).
+  app.once("will-quit", shutdownProvider);
+  providerStarting = spawnProvider();
   try {
     return await providerStarting;
   } finally {
@@ -131,22 +130,17 @@ export async function ensureDembrandtBrowserProvider(): Promise<string> {
 }
 
 /**
- * Synchronous read of the live CDP endpoint, or null when the provider window
+ * Synchronous read of the live CDP endpoint, or null when the provider child
  * is not up. Core's dembrandt spawn spec calls this through
  * configureDembrandtCdpEndpointGetter at config-build time (synchronous), so
  * the endpoint is only present once ensureDembrandtBrowserProvider() has
  * resolved at least once. The provider itself is started lazily — see boot.
  */
 export function getDembrandtCdpEndpoint(): string | null {
-  return providerUrl && providerWindow && !providerWindow.isDestroyed() ? providerUrl : null;
+  return providerUrl && isChildAlive(providerChild) ? providerUrl : null;
 }
 
 /** Tear down the provider (tests and graceful shutdown paths). */
 export async function closeDembrandtBrowserProvider(): Promise<void> {
-  const win = providerWindow;
-  providerWindow = null;
-  providerUrl = null;
-  if (win && !win.isDestroyed()) {
-    win.destroy();
-  }
+  shutdownProvider();
 }

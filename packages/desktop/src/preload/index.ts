@@ -99,13 +99,6 @@ const api: DesktopApi = {
 
   // ── CodeGraph index library ──────────────────────────────────
   codegraphList: () => ipcRenderer.invoke(IpcRequest.CodegraphList),
-  codegraphReindex: (root) => ipcRenderer.invoke(IpcRequest.CodegraphReindex, root),
-  onCodegraphProgress: (cb) => subscribe(IpcEvent.CodegraphProgress, cb as (p: never) => void),
-
-  // ── Code Review (ocr) ─────────────────────────────────────────
-  reviewCheckAvailable: () => ipcRenderer.invoke(IpcRequest.ReviewCheckAvailable),
-  reviewRun: () => ipcRenderer.invoke(IpcRequest.ReviewRun),
-  onReviewProgress: (cb) => subscribe(IpcEvent.ReviewProgress, cb as (p: never) => void),
 
   // ── code-review-graph (CRG — analysis-layer) ──────────────────
   crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),

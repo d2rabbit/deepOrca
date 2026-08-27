@@ -79,6 +79,19 @@ const prototypePreloadConfig = {
   external: ["electron"],
 };
 
+/** Dembrandt provider child: the isolated Electron process that owns the
+ *  app's only remote-debugging Chromium (random port). CJS so the parent can
+ *  spawn it as a plain script path; electron must resolve at runtime. */
+const dembrandtProviderConfig = {
+  ...shared,
+  entryPoints: [resolve(__dirname, "src/main/tools/dembrandt-provider-child.ts")],
+  outfile: resolve(outdir, "dembrandt-provider.cjs"),
+  platform: "node",
+  format: "cjs",
+  target: "node24",
+  packages: "external",
+};
+
 /**
  * Renderer: browser bundle with code splitting.
  * Splitting enables React.lazy() and dynamic import() to produce separate
@@ -346,6 +359,7 @@ async function run() {
       context(mainConfig),
       context(preloadConfig),
       context(prototypePreloadConfig),
+      context(dembrandtProviderConfig),
       context(rendererConfig),
     ]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));
@@ -355,7 +369,13 @@ async function run() {
   }
 
   await cleanRendererChunks();
-  await Promise.all([build(mainConfig), build(preloadConfig), build(prototypePreloadConfig), build(rendererConfig)]);
+  await Promise.all([
+    build(mainConfig),
+    build(preloadConfig),
+    build(prototypePreloadConfig),
+    build(dembrandtProviderConfig),
+    build(rendererConfig),
+  ]);
   await aliasChunkCss();
   await copyStaticAssets();
   console.log("[desktop] build complete → dist/");

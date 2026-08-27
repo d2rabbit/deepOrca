@@ -7,7 +7,7 @@ import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -51,11 +51,7 @@ import { extractTaskTrajectory } from "./task-trajectory";
 import { buildSymbolGraph } from "./symbol-graph-query";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
-import {
-  ensureDembrandtBrowserProvider,
-  getDembrandtCdpEndpoint,
-  primeDembrandtCommandLine,
-} from "./tools/dembrandt-browser";
+import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
@@ -114,6 +110,27 @@ import { safeArchmapPath, safeWikiPath } from "./safe-path.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ESM-safe require (bare `require` breaks in the bundled ESM main).
 const moduleRequire = nodeCreateRequire(import.meta.url);
+
+// ── Global crash fence ────────────────────────────────────────────────────────
+// Registered before any other boot step: Node ≥15 escalates an unhandled
+// rejection to an uncaught exception, which without a handler kills the main
+// process (white window, no diagnostics). Known live offenders are the fire-
+// and-forget boot calls below (`void pluginManager.initialize()`,
+// `void reconcileMemory()`). We log-and-continue for both kinds and keep a
+// best-effort breadcrumb file across restarts.
+function appendCrashLog(kind: "uncaughtException" | "unhandledRejection", error: unknown): void {
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  console.error(`[crash] ${kind}:`, error);
+  try {
+    const logDir = join(getUserConfigRoot(), "logs");
+    mkdirSync(logDir, { recursive: true });
+    appendFileSync(join(logDir, "main-crash.log"), `[${new Date().toISOString()}] ${kind}: ${detail}\n`, "utf8");
+  } catch {
+    // File logging is best-effort only.
+  }
+}
+process.on("uncaughtException", (error) => appendCrashLog("uncaughtException", error));
+process.on("unhandledRejection", (reason) => appendCrashLog("unhandledRejection", reason));
 
 // Long-running helper processes (ocr review / openwiki agent) spawned on behalf
 // of the renderer. Tracked so they are terminated when the app shuts down
@@ -303,13 +320,20 @@ configureGitmcpConfigBuilder(buildGitmcpMcpServerConfig);
   }
 }
 
-// Single-instance guard (incident 2026-08-27): the dembrandt CDP provider
-// listens on a FIXED loopback port, so two live app instances fight over it —
-// the second one logs a Chromium bind() error, its devtools HTTP server dies,
-// and the readiness probe times out ("did not become ready in time"). The lock
-// also protects userData-based stores (session index, sqlite libs). A duplicate
-// launch now refocuses the existing window and exits.
-if (!app.requestSingleInstanceLock()) {
+// Single-instance guard (incident 2026-08-27): two live app instances fought
+// over the then-fixed dembrandt CDP port and raced userData-based stores. The
+// CDP provider has since moved to an isolated child with a RANDOM port (see
+// dembrandt-browser.ts), so the port half is historical context now — the
+// durable reasons are the userData stores (session index, sqlite libs) and
+// duplicate-launch UX. A duplicate launch refocuses the existing window.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  // Losing instance: app.quit() is async at module scope, so every listener
+  // registered below still fires unless gated — keep all window/process-side
+  // effects behind gotSingleInstanceLock (the else branch only wires the
+  // focus handler). Prevents the narrow-but-real race where this instance
+  // reaches ready() before quitting and boots a window / spawns helper or
+  // provider processes alongside the winner.
   app.quit();
 } else {
   app.on("second-instance", () => {
@@ -332,27 +356,22 @@ configureUvVendorRoot(join(__dirname, "..", "vendor", "uv"));
 // copied to Resources/app/vendor by electron-builder's extraResources). The
 // core resolver spawns the vendored dist js via a literal `node` runner; a
 // missing vendored tree yields an explicit offline-provisioning error, never a
-// runtime download. The browser is Electron's own Chromium: a hidden offscreen
-// window exposes CDP on a fixed loopback port (main/tools/dembrandt-browser.ts)
-// and its endpoint is injected into core's spawn env (DEMBRANDT_CDP_ENDPOINT,
+// runtime download. The browser is Electron's own Chromium, running as an
+// ISOLATED child process that owns the app's only remote-debugging endpoint on
+// a RANDOM loopback port (main/tools/dembrandt-browser.ts + dembrandt-provider-
+// child.ts) — a CDP listener must never cover this process's privileged
+// windows, and a random port removes the fixed-port collision class entirely.
+// The endpoint is injected into core's spawn env (DEMBRANDT_CDP_ENDPOINT,
 // honored by the vendored build-time patch). Started lazily in the background —
-// first extraction may pay a one-time window startup; nothing blocks boot.
+// first extraction may pay a one-time child startup; nothing blocks boot.
 configureDembrandtVendorRoot(join(__dirname, "..", "vendor", "dembrandt"));
 configureDembrandtCdpEndpointGetter(getDembrandtCdpEndpoint);
-// F4 烟雾（2026-08-18）抓到的启动顺序问题，拆成两半各归其位：
-// ① Chromium 命令行开关必须在 app ready（进程启动）前附加——模块顶层调用；
-// ② provider 的隐藏 BrowserWindow 必须在 app ready 后创建——whenReady 里
-//    fire-and-forget（仍不阻塞首屏；首次提取最多付一次窗口启动成本）。
-// 开关与窗口共用同一个启动期决策：未打包且未 vendor dembrandt 的裸 dev
-// 检出不应监听一个永远不会用到的 CDP 调试端口（本机任意进程可经 CDP 完全
-// 控制渲染进程）。决策只在模块加载时求值一次——后台 vendoring 排在
+// 未打包且未 vendor dembrandt 的裸 dev 检出不启动子进程（无谓的 Chromium 进程
+// 与临时 userData 目录）。决策只在模块加载时求值一次——后台 vendoring 排在
 // setImmediate(startDembrandtProvider) 之后，此处与 whenReady 之间 marker
 // 状态不会翻转。
 const dembrandtProviderWanted =
   app.isPackaged || existsSync(join(__dirname, "..", "vendor", "dembrandt", ".vendored-dembrandt-version"));
-if (dembrandtProviderWanted) {
-  primeDembrandtCommandLine();
-}
 const startDembrandtProvider = () => {
   if (dembrandtProviderWanted) {
     void ensureDembrandtBrowserProvider().catch((err) => {
@@ -1191,9 +1210,35 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
  * is best-effort and independent — a failing source degrades to "empty" rather
  * than failing the whole response.
  */
+/**
+ * Pin renderer-supplied workspace roots to registered workspaces (P2
+ * hardening, 2026-08-27): the renderer is semi-trusted, and a compromised one
+ * previously could pass ANY absolute root to knowledge/taskTree channels —
+ * directory enumeration, symbol-graph reads from arbitrary projects,
+ * task-tree writes under ~/.ssh/<root>/. Same threat model as the archmap
+ * pin; an omitted root always means the ACTIVE workspace. Returns null when
+ * the supplied root is not a registered workspace.
+ */
+function resolveRegisteredRoot(rootArg?: string): string | null {
+  const root = typeof rootArg === "string" && rootArg ? rootArg : getBridge().projectRoot;
+  const known = new Set<string>([getBridge().projectRoot]);
+  try {
+    for (const w of listWorkspaceSessions(getBridge().projectRoot).workspaces) known.add(w.root);
+  } catch {
+    // Registry unreadable: fall back to current-root-only pinning.
+  }
+  return known.has(root) ? root : null;
+}
+
 function registerKnowledgeIpc({ handle }: IpcHelpers): void {
   handle(IpcRequest.KnowledgeStatus, async (rootArg?: string): Promise<KnowledgeStatusResponse> => {
-    const root = rootArg || getBridge().projectRoot;
+    const pinned = resolveRegisteredRoot(rootArg);
+    // Unregistered root → degrade to disabled statuses (never enumerate it).
+    const emptySource = () => ({ state: "disabled" as const, detail: "unregistered workspace" });
+    if (!pinned) {
+      return { codegraph: emptySource(), openwiki: emptySource(), agents: emptySource(), archmaps: emptySource() };
+    }
+    const root = pinned;
     const freshness = getBridge().getKnowledgeFreshness?.() ?? {};
     const isStale = (syncTime?: string): boolean =>
       !!(freshness.lastMutation && (!syncTime || freshness.lastMutation > syncTime));
@@ -1425,16 +1470,20 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     () => getBridge().getSessionManager().getActionRegistry(),
     (channel, payload) => emit(channel, payload)
   );
-  handlePrivileged(IpcRequest.KnowledgeBuild, (root: string, mode?: "init" | "update" | "auto") =>
-    buildJobs.start(root, mode)
-  );
+  handlePrivileged(IpcRequest.KnowledgeBuild, (root: string, mode?: "init" | "update" | "auto") => {
+    const pinned = resolveRegisteredRoot(root);
+    if (!pinned) return { ok: false, error: "unregistered workspace" };
+    return buildJobs.start(pinned, mode);
+  });
   handlePrivileged(IpcRequest.KnowledgeBuildStatus, () => buildJobs.status());
 
   handle(IpcRequest.KnowledgeListSymbols, (root: string, query?: string): Array<KnowledgeSymbol> => {
+    const pinnedRoot = resolveRegisteredRoot(root);
+    if (!pinnedRoot) return [];
     // SQLite read-only scan of <root>/.codegraph/codegraph.db (same pattern
     // as CRG's direct read). node:sqlite requires Node >= 22.5 — load lazily
     // so the handler degrades gracefully under older runtimes.
-    const dbPath = join(root || getBridge().projectRoot, ".codegraph", "codegraph.db");
+    const dbPath = join(pinnedRoot, ".codegraph", "codegraph.db");
     if (!existsSync(dbPath)) return [];
     try {
       const { DatabaseSync } = moduleRequire("node:sqlite") as {
@@ -1472,7 +1521,9 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // focus set. Pure read of the CodeGraph index for HUMAN viewing in the
   // knowledge tab — the agent-facing CodeGraph MCP tools are untouched.
   handle(IpcRequest.KnowledgeSymbolGraph, (root: string, query?: string): KnowledgeSymbolGraph => {
-    const dbPath = join(root || getBridge().projectRoot, ".codegraph", "codegraph.db");
+    const pinnedRoot = resolveRegisteredRoot(root);
+    if (!pinnedRoot) return { nodes: [], edges: [], truncated: false };
+    const dbPath = join(pinnedRoot, ".codegraph", "codegraph.db");
     if (!existsSync(dbPath)) return { nodes: [], edges: [], truncated: false };
     try {
       const { DatabaseSync } = moduleRequire("node:sqlite") as {
@@ -1486,9 +1537,12 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
   });
 
   handle(IpcRequest.KnowledgeReadAgents, (root: string) => {
-    // Root-scoped read: only <root>/AGENTS.md, containment-checked.
-    const agentsPath = pathResolve(root || getBridge().projectRoot, "AGENTS.md");
-    const base = pathResolve(root || getBridge().projectRoot);
+    // Root-scoped read: only <root>/AGENTS.md for a REGISTERED workspace,
+    // containment-checked.
+    const pinnedAgentsRoot = resolveRegisteredRoot(root);
+    if (!pinnedAgentsRoot) return { ok: false as const, error: "unregistered workspace" };
+    const agentsPath = pathResolve(pinnedAgentsRoot, "AGENTS.md");
+    const base = pathResolve(pinnedAgentsRoot);
     if (!agentsPath.startsWith(base + pathSep)) {
       return { ok: false as const, error: "path escapes workspace" };
     }
@@ -1587,20 +1641,26 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // Cross-workspace reads (R3-7): an explicit workspaceRoot spins up a fresh
   // service over that root's flushed disk state — same consistency argument
   // as the archive handlers below. Omitted root = ACTIVE workspace.
-  const rootService = (workspaceRoot?: string): TaskTreeService => {
-    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
-    return new TaskTreeService(root);
+  const rootService = (workspaceRoot?: string): TaskTreeService | null => {
+    // Registered-workspace pinning — see resolveRegisteredRoot. A compromised
+    // renderer must not be able to materialize task-tree stores (or run
+    // snapshot restores) under arbitrary absolute paths.
+    if (typeof workspaceRoot === "string" && workspaceRoot) {
+      const pinned = resolveRegisteredRoot(workspaceRoot);
+      return pinned ? new TaskTreeService(pinned) : null;
+    }
+    return new TaskTreeService(serviceRoot());
   };
   handle(IpcRequest.TaskTreeList, async (workspaceRoot?: string) => {
-    return rootService(workspaceRoot).listTrees();
+    return rootService(workspaceRoot)?.listTrees() ?? [];
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
-    return rootService(workspaceRoot).getTree(treeId);
+    return rootService(workspaceRoot)?.getTree(treeId) ?? null;
   });
   handle(IpcRequest.TaskTreeReflog, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return [];
-    return rootService(workspaceRoot).readReflog(treeId, 200);
+    return rootService(workspaceRoot)?.readReflog(treeId, 200) ?? [];
   });
 
   // Operation trajectory (R3-7): the agent's operational trace over a task's
@@ -1609,23 +1669,29 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // content, only the extracted operation records.
   handle(IpcRequest.TaskTreeTrajectory, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
-    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
-    const tree = new TaskTreeService(root).getTree(treeId);
+    const pinnedRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    if (!pinnedRoot) return null;
+    const tree = new TaskTreeService(pinnedRoot).getTree(treeId);
     if (!tree) return null;
-    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(root));
+    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinnedRoot));
     return extractTaskTrajectory(tree.index.sessionIds ?? [], projectDir);
   });
   handlePrivileged(IpcRequest.TaskTreeArchive, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return false;
     // A fresh service reads flushed disk state (all mutations flush), so it is
     // consistent with the panel singleton without sharing pending memory.
-    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
-    return new TaskTreeService(root).archiveTree(treeId, "manual (panel)");
+    const pinnedArchRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    if (!pinnedArchRoot) return false;
+    return new TaskTreeService(pinnedArchRoot).archiveTree(treeId, "manual (panel)");
   });
   handlePrivileged(IpcRequest.TaskTreeUnarchive, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return false;
-    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
-    return new TaskTreeService(root).unarchiveTree(treeId);
+    const pinnedUnarchRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    if (!pinnedUnarchRoot) return false;
+    return new TaskTreeService(pinnedUnarchRoot).unarchiveTree(treeId);
   });
   handlePrivileged(
     IpcRequest.TaskTreeSnapshotRestore,
@@ -1635,9 +1701,12 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       }
       // Fresh service reads flushed disk state (all mutations flush) — same
       // consistency argument as the archive handlers above. Restoring rewrites
-      // workspace files, hence privileged.
-      const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : serviceRoot();
-      return new TaskTreeService(root).restoreNodeSnapshot(treeId, nodeId);
+      // workspace files, hence privileged. Registered-workspace pinning keeps
+      // a compromised renderer from restoring snapshots anywhere on disk.
+      const pinnedRestoreRoot =
+        typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+      if (!pinnedRestoreRoot) return { ok: false, error: "unregistered workspace" };
+      return new TaskTreeService(pinnedRestoreRoot).restoreNodeSnapshot(treeId, nodeId);
     }
   );
 
@@ -2199,6 +2268,10 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) {
+    // Duplicate launch: quit is already in flight — boot nothing.
+    return;
+  }
   // One-time purge of leaked subagent sessions (marker-gated, idempotent) —
   // before the renderer loads so the first session list is already clean.
   setImmediate(cleanupLeakedSubagentSessions);

@@ -111,11 +111,6 @@ export const IpcRequest = {
 
   // CodeGraph index library
   CodegraphList: "codegraph:list",
-  CodegraphReindex: "codegraph:reindex",
-
-  // Code Review (Open Code Review / ocr CLI)
-  ReviewRun: "review:run",
-  ReviewCheckAvailable: "review:checkAvailable",
 
   // code-review-graph (CRG — analysis-layer: risk, impact, architecture)
   CrgCheckAvailable: "crg:checkAvailable",
@@ -207,8 +202,6 @@ export const IpcEvent = {
   ProcessStdout: "event:processStdout",
   ProjectRootChanged: "event:projectRootChanged",
   PluginEvent: "event:pluginEvent",
-  CodegraphProgress: "event:codegraphProgress",
-  ReviewProgress: "event:reviewProgress",
   CrgProgress: "event:crgProgress",
   WikiProgress: "event:wikiProgress",
   A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
@@ -235,18 +228,6 @@ export type A2uiWindowPayloadEvent = {
   a2uiJson: string;
   /** Display title for the prototype window. */
   title: string;
-};
-
-/** Payload for the ReviewProgress event (streamed ocr output). */
-export type ReviewProgressEvent = {
-  /** A chunk of process output. */
-  chunk: string;
-  /** Which stream produced the chunk. */
-  stream: "stdout" | "stderr";
-  /** True when the process has exited. */
-  done: boolean;
-  /** Exit code, present only when done=true. */
-  exitCode?: number;
 };
 
 /** A single review comment parsed from ocr JSON output. */
@@ -292,20 +273,6 @@ export type WikiPageEntry = {
     path: string;
     mtime?: string;
   };
-};
-
-/** Payload for the CodegraphProgress event (streamed indexing output). */
-export type CodegraphProgressEvent = {
-  /** The workspace root being indexed. */
-  root: string;
-  /** A chunk of process output. */
-  chunk: string;
-  /** Which stream produced the chunk. */
-  stream: "stdout" | "stderr";
-  /** True when the process has exited. */
-  done: boolean;
-  /** Exit code, present only when done=true. */
-  exitCode?: number;
 };
 
 /** Payload for the CrgProgress event (streamed CRG build/analysis output). */
@@ -908,18 +875,6 @@ export type DesktopApi = {
   // ── CodeGraph index library ─────────────────────────────────────────────
   /** List every known workspace with its CodeGraph initialization state. */
   codegraphList(): Promise<CodegraphIndexEntry[]>;
-  /** Re-index a workspace: removes `.codegraph/` and runs a fresh `init`. */
-  codegraphReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
-  /** Subscribe to streaming codegraph indexing output. Returns unsubscribe fn. */
-  onCodegraphProgress(cb: (event: CodegraphProgressEvent) => void): () => void;
-
-  // ── Code Review (ocr) ─────────────────────────────────────────────────────
-  /** Check whether the `ocr` CLI is available on PATH. */
-  reviewCheckAvailable(): Promise<{ available: boolean; version?: string }>;
-  /** Run a code review of the uncommitted workspace changes, streaming progress via onReviewProgress. */
-  reviewRun(): Promise<{ ok: boolean; error?: string }>;
-  /** Subscribe to streaming review output. Returns unsubscribe fn. */
-  onReviewProgress(cb: (event: ReviewProgressEvent) => void): () => void;
 
   // ── code-review-graph (CRG — analysis-layer) ──────────────────────────────
   /** Check whether `uv`/`uvx` and code-review-graph are available. */
