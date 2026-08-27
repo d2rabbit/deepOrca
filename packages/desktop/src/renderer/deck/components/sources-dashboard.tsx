@@ -223,7 +223,11 @@ export function SourcesDashboard(): JSX.Element {
   const readArchmap = (path: string) => {
     void api
       .knowledgeReadArchmap(path)
-      .then((content) => setArchView({ path, content }))
+      .then((content) =>
+        // Malformed resolves (contract drift / stubs) land as an honest
+        // failure — never as a shape the wall crashes on.
+        setArchView({ path, content: content && content.ok ? content : { ok: false, error: "malformed response" } })
+      )
       .catch(() => setArchView({ path, content: { ok: false, error: "knowledgeReadArchmap" } }));
   };
 

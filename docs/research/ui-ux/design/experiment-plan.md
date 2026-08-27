@@ -243,6 +243,20 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 **至此知识模块三块能力全部入 deck**。剩余留白仅外部前置阻塞项：action 取消句柄（H 线）、doc-wiki 第七源卡（D 线实施）。
 
+## 14. E20 — 真机对拍回归（E12 方法复跑，2026-08-27）
+
+> 口径：E15–E19 五批交付后的整版视觉与交互核验。方法沿 E12 先例——桌面构建产物（`dist/renderer`）注入 `__stub.js` IPC 桩（fixture 驱动），本地静态伺服 + Playwright 逐屏驱动断言，覆盖真 DOM/懒加载 chunk 路径，是 dom-harness 单测之外的真实打包验证层。
+
+- **核验矩阵（全部通过）**：
+  - **E15** 胶囊：模型激活值 `ep1/deepseek-v4-pro`、思考档位"高"、端点注册表下拉；
+  - **E17.2** 水位色阶：180k/200k=90% → `.deck-meter.warn` 实挂；
+  - **E16.1** 车间墙：操作簇四钮（重命名/导出/归档/删除）hover 呈现、行内改名词预填原摘要、激活卡无簇；
+  - **E16.2/E18/E19** 知识源浮层缩略 → ⇱ 标签页完全体：八源卡片墙（含 legacy 三卡 + CRG）、AGENTS.md 就地读全文、archmaps HTML 板入 `sandbox=""` iframe、Mermaid 文档渲染出 SVG、符号检索两行结果、行点击进 focus/callers/callees 三组关系视图；
+  - **六主题热切**：flat/glass/neu/clay/vern/liquid 全程 `data-deck-theme` 正确迁移。
+- **对拍抓到并修复 1 个真实缺陷**：`knowledgeReadArchmap` resolve 畸形值（stub 兜底 undefined）直接打崩详情渲染——补 shape 守卫落 `{ok:false}` 诚实失败态。教训同 E15 guard：所有新消费面一律不信任 resolve 形状。
+- **修复后回归**：deck-e18/e16 组 9 用例 + desktop 全量 351 用例绿；`npm run check` 全过。
+- 对拍基建（桩脚本 + 伺服方案）为一次性工件未入库；如需常态化，可考虑把 stub 固化为 `scripts/deck-visual-stub.js` 并接 Playwright CLI。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。
