@@ -164,22 +164,20 @@
   background: var(--metro-red);
 }
 
-/* ── Message bubbles (Metro 扁平深色) ─────────────────────────────────────── */
+/* ── Messages (Metro 平铺化) — assistant/thinking 不再上卡片底,user 为 accent 左缘淡蓝块 ── */
 .ui-bubble.user {
-  background: var(--metro-blue);
-  border-radius: 10px;
-  border-bottom-right-radius: 4px;
+  background: color-mix(in srgb, var(--metro-blue) 12%, var(--ui-surface-sunken));
+  border-left: 2px solid var(--metro-blue);
+  border-radius: var(--ui-radius-md);
 }
 .ui-bubble.assistant {
-  background: var(--metro-bg-tile);
-  border-color: var(--metro-bg-tile);
-  border-radius: 10px;
-  border-bottom-left-radius: 4px;
+  background: transparent;
+  border: none;
 }
 .ui-bubble.thinking {
   background: var(--metro-bg-recessed);
   border-color: var(--metro-bg-tile);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-md);
 }
 .ui-tool-card {
   background: var(--metro-bg-tile);

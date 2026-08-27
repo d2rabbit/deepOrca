@@ -151,7 +151,6 @@ export function HubSheet({
 }
 
 type HubOrbProps = {
-  open: boolean;
   /** Attention dot (permission pending / waiting for user). */
   badge?: boolean;
   /** Platform modifier label (⌘ / Ctrl) for the shortcut hint. */
@@ -160,20 +159,21 @@ type HubOrbProps = {
 };
 
 /**
- * Tide orb — summons/dismisses the icon rail (level 1). Picking a module
- * extends its content card (level 2); the orb docks past whichever surface
- * is outermost so it remains the one-tap close.
+ * Tide orb — summons the icon rail (level 1). Rendered ONLY while the hub is
+ * closed: once the rail is up it owns the corner entirely (its bottom ⟨ / Esc
+ * / ⌘B close it), so orb and rail never stack in the same spot. Picking a
+ * module extends the content card (level 2).
  */
-export function HubOrb({ open, badge = false, modKey, onClick }: HubOrbProps): JSX.Element {
+export function HubOrb({ badge = false, modKey, onClick }: HubOrbProps): JSX.Element {
   const { t } = useI18n();
   return (
     <button
       type="button"
-      className={cx("ui-orb", open && "ui-orb--open", badge && "ui-orb--badge")}
+      className={cx("ui-orb", badge && "ui-orb--badge")}
       onClick={onClick}
       title={`${t("hub.title")} (${modKey}B)`}
       aria-label={t("hub.title")}
-      aria-expanded={open}
+      aria-haspopup="true"
     >
       <span className="ui-orb-glyph" aria-hidden>
         ◈

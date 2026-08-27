@@ -421,6 +421,12 @@ export const en = {
   "build.consoleTitle": "Console output",
   "build.consoleEmpty": "(no output yet)",
   "build.closeHint": "Close (reopens automatically on the next build)",
+  "build.modelFaultTitle": "Model access failure",
+  "build.modelFaultBody":
+    "A background build failed while calling the model service (timeout / network / auth). Check the endpoint and API key in Settings, then retry. Raw error:",
+  "build.modelFaultOk": "Got it",
+  "activity.title": "Activity",
+  "activity.none": "No tool calls yet",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "Diagram render failed",
@@ -1548,6 +1554,12 @@ export const zh: Record<MessageKey, string> = {
   "build.consoleTitle": "控制台输出",
   "build.consoleEmpty": "（暂无输出）",
   "build.closeHint": "关闭（下次构建自动弹出）",
+  "build.modelFaultTitle": "模型访问异常",
+  "build.modelFaultBody":
+    "后台构建在访问模型服务时失败（超时 / 网络 / 鉴权）。请检查设置中的端点与 API Key 后重试。原始错误：",
+  "build.modelFaultOk": "知道了",
+  "activity.title": "活动轨迹",
+  "activity.none": "暂无工具调用",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "图表渲染失败",

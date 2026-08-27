@@ -414,6 +414,12 @@ export const ja: Record<MessageKey, string> = {
   "build.consoleTitle": "コンソール出力",
   "build.consoleEmpty": "（出力はまだありません）",
   "build.closeHint": "閉じる（次回の構築で自動的に開きます）",
+  "build.modelFaultTitle": "モデルアクセス異常",
+  "build.modelFaultBody":
+    "バックグラウンド構築がモデルサービスへのアクセスに失敗しました（タイムアウト / ネットワーク / 認証）。設定でエンドポイントと API キーを確認してから再試行してください。raw エラー:",
+  "build.modelFaultOk": "了解",
+  "activity.title": "アクティビティ",
+  "activity.none": "ツール呼び出しはまだありません",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "図のレンダリングに失敗しました",

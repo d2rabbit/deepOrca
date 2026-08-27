@@ -405,6 +405,12 @@ export const zhTW: Record<MessageKey, string> = {
   "build.consoleTitle": "主控台輸出",
   "build.consoleEmpty": "（暫無輸出）",
   "build.closeHint": "關閉（下次構建自動彈出）",
+  "build.modelFaultTitle": "模型存取異常",
+  "build.modelFaultBody":
+    "後台構建在存取模型服務時失敗（逾時 / 網路 / 鑑權）。請檢查設定中的端點與 API Key 後重試。原始錯誤：",
+  "build.modelFaultOk": "知道了",
+  "activity.title": "活動軌跡",
+  "activity.none": "暫無工具呼叫",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "圖表渲染失敗",

@@ -1,32 +1,26 @@
 /* =========================================================================
-   QQ-style Chat Bubbles & Tool Cards
+   Flat transcript & Tool Cards
+   No messenger bubbles: each turn is an edge-to-edge block. The assistant's
+   markdown sits directly on the stage; user turns are quiet accent-keyed
+   slabs so the roles stay distinguishable without right/left ping-pong.
    ========================================================================= */
 
-/* ── Bubble rows (alignment wrapper) ──────────────────────────────────────── */
-/* Each row holds an avatar + bubble laid out horizontally; alignment (left/right)
-   is driven by the justify-content modifier. The avatar sits beside the bubble
-   so the chat reads like a modern messenger thread. */
+/* ── Transcript rows ─────────────────────────────────────────────────────── */
 .ui-bubble-row {
   display: flex;
   align-items: flex-start;
   gap: var(--ui-space-2);
   width: 100%;
 }
-.ui-bubble-row.user {
-  justify-content: flex-end;
-}
-.ui-bubble-row.assistant {
-  justify-content: flex-start;
-}
+.ui-bubble-row.user,
+.ui-bubble-row.assistant,
 .ui-bubble-row.tool {
   justify-content: flex-start;
 }
 .ui-bubble-row.system {
   justify-content: center;
 }
-/* Entry animation: each new row fades and slides up briefly on mount, giving
-   the thread a lively "message arriving" feel. Reduced-motion users see it
-   static (the global reduce media zeroes animation-duration). */
+/* Entry animation: unchanged feel, applied to flat rows too. */
 @media (prefers-reduced-motion: no-preference) {
   .ui-bubble-row {
     animation: ui-bubble-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -35,72 +29,63 @@
 @keyframes ui-bubble-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
-/* ── Avatars (role-colored circles beside each bubble) ───────────────────── */
+/* ── Role rail ───────────────────────────────────────────────────────────── */
+/* The old round avatar became a slim muted glyph column that reads as the
+   author marker for the row it opens. */
 .ui-avatar {
   flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--ui-radius-pill);
+  width: 22px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: var(--ui-radius-sm);
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #fff;
-  border: 1px solid var(--ui-border);
-  box-shadow: var(--ui-shadow-sm);
+  color: var(--ui-text-faint);
+  background: none;
+  border: none;
+  box-shadow: none;
   user-select: none;
 }
 
-/* Bubbles share the row with the avatar now; let them take available space but
-   still respect their max-width cap so long content wraps rather than spanning
-   the whole row. */
 .ui-bubble-row > .ui-bubble,
 .ui-bubble-row > .ui-tool-card {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-/* ── Bubble base ──────────────────────────────────────────────────────────── */
+/* ── Bubble base ─────────────────────────────────────────────────────────── */
 .ui-bubble {
-  max-width: 85%;
-  min-width: 40px;
-  border-radius: var(--ui-radius-lg);
-  padding: var(--ui-space-3) var(--ui-space-4);
+  max-width: none;
+  min-width: 0;
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-1);
   word-wrap: break-word;
   overflow-wrap: anywhere;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
-/* User bubble: accent background, right-aligned, tail on right */
+/* User turn: sunken slab keyed by an accent left edge — quiet but clearly
+   "what I said". Kept left-aligned like every other row. */
 .ui-bubble.user {
-  background: var(--ui-accent-fill);
-  color: var(--ui-text-on-accent);
-  border-bottom-right-radius: 4px;
+  background: var(--ui-surface-sunken);
+  border-left: 2px solid var(--ui-accent);
+  color: var(--ui-text);
   white-space: pre-wrap;
   position: relative;
+  padding: var(--ui-space-2) var(--ui-space-3);
 }
-/* QQ-style bubble tails (rendering-engine spec): a small triangle on the
-   avatar side. Right tail for the user, left tail for agent-side bubbles. */
-.ui-bubble.user::before {
-  content: "";
-  position: absolute;
-  right: -6px;
-  top: 14px;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 6px solid var(--ui-accent-fill);
-}
+
 .ui-bubble-attach {
   display: inline-block;
   margin-left: var(--ui-space-2);
@@ -108,23 +93,12 @@
   opacity: 0.8;
 }
 
-/* Assistant bubble: subtle surface, left-aligned, tail on left */
+/* Assistant turn: chrome-free — the markdown IS the message. */
 .ui-bubble.assistant {
-  background: var(--ui-surface-raised);
-  border: 1px solid var(--ui-border-soft);
-  border-bottom-left-radius: 4px;
+  background: transparent;
+  border: none;
   position: relative;
-}
-.ui-bubble.assistant::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 14px;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-right: 6px solid var(--ui-surface-raised);
+  padding-top: 3px;
 }
 
 /* Copy button on assistant messages — appears on hover */
@@ -190,21 +164,10 @@
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);
   padding: 0;
-  max-width: 90%;
+  max-width: none;
   overflow: hidden;
   position: relative;
   overflow: visible;
-}
-.ui-bubble.thinking::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 14px;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-right: 6px solid var(--ui-surface-sunken);
 }
 .ui-bubble.thinking > .ui-thinking-toggle {
   border-radius: var(--ui-radius-md) var(--ui-radius-md) 0 0;
@@ -292,7 +255,7 @@
 
 /* ── Tool card ────────────────────────────────────────────────────────────── */
 .ui-tool-card {
-  max-width: 85%;
+  max-width: none;
   min-width: 200px;
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-md);

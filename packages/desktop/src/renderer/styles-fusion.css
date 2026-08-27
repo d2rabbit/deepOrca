@@ -253,14 +253,11 @@ body {
 }
 
 /* ===========================================================================
-   玻璃卡片 — 消息气泡 / 工具卡 / 模态
+   玻璃卡片 — 工具卡 / 模态（消息已平铺化:assistant/thinking 不再上玻璃卡）
 
    毛玻璃:实底(0.82,内容可读) + backdrop-filter 模糊 + 边缘高光 + 底部内阴影。
-   消息内容区用静态实底(不参与呼吸动画),避免阅读时闪烁;呼吸色仅用于
-   框架元素(TopBar/rail/输入框)以保持"活着"的感觉而不干扰内容。
+   呼吸色仅用于框架元素(TopBar/rail/输入框)以保持"活着"的感觉而不干扰内容。
    =========================================================================== */
-.ui-bubble.assistant,
-.ui-bubble.thinking,
 .ui-tool-card,
 .ui-system-note {
   backdrop-filter: blur(20px) saturate(1.4);
@@ -273,23 +270,15 @@ body {
     inset 0 -1px 0 var(--fusion-inset-bottom),
     var(--ui-shadow-card);
 }
-.ui-bubble.assistant {
-  border-bottom-left-radius: var(--ui-radius-sm);
-}
 
-/* 用户消息 — 多彩磁贴(主蓝),带受光高光 + 外投影 */
+/* 用户消息 — 平铺化后为 accent 左缘 + 淡主色底,不再做磁贴胶囊 */
 .ui-bubble.user {
-  background:
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(0, 0, 0, 0.16) 100%),
-    var(--fusion-primary);
-  color: #fff;
+  background: color-mix(in srgb, var(--fusion-primary) 10%, var(--ui-surface-sunken));
+  border-left: 2px solid var(--fusion-primary);
+  color: var(--ui-text);
   border: none;
-  border-radius: var(--ui-radius-lg);
-  border-bottom-right-radius: var(--ui-radius-sm);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.25),
-    0 4px 14px rgba(31, 111, 199, 0.35);
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
 }
 
 /* 工具卡左缘彩色条 — 多彩点缀(按工具类型分色) */

@@ -70,7 +70,9 @@ import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
+import { looksLikeLlmTransportError } from "./lib/llm-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
+import { ToolActivityPanel } from "./components/ToolActivityPanel";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
 import { useBuildJobs } from "./hooks/useBuildJobs";
@@ -1519,6 +1521,38 @@ export function App(): JSX.Element {
   // 460px over the chat view); it opens on demand from the badge.
   const buildJobs = useBuildJobs();
   const [buildConsoleOpen, setBuildConsoleOpen] = useState(false);
+  // Tool-activity float (real-machine ask 2026-08-27): pops the right-side
+  // A2UI trace window when the FIRST tool call of a run lands, and re-pops it
+  // if a later call arrives after a manual close (only while busy — an idle
+  // session never surprises the user with floating windows).
+  const [toolActivityOpen, setToolActivityOpen] = useState(false);
+  const toolEventCount = useMemo(() => messages.reduce((n, m) => (m.role === "tool" ? n + 1 : n), 0), [messages]);
+  const prevToolCountRef = useRef(0);
+  useEffect(() => {
+    const grew = toolEventCount > prevToolCountRef.current;
+    prevToolCountRef.current = toolEventCount;
+    if (!busy || !grew) return;
+    setToolActivityOpen(true);
+  }, [busy, toolEventCount]);
+  // Model-transport fault dialog (real-machine 2026-08-27): a background
+  // build dying on the LLM plumbing used to surface only as console tail —
+  // the user had no way to tell the endpoint broke, not the pipeline. Scan
+  // stage errors for transport signatures; the first match pops ONE
+  // dismissible dialog, deduped per root+error so poll ticks can't re-spam.
+  const [modelFault, setModelFault] = useState<string | null>(null);
+  const seenModelFaultsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const job of buildJobs) {
+      const errors = [job.error ?? "", ...job.stages.map((stage) => stage.error ?? "")];
+      for (const error of errors) {
+        if (!looksLikeLlmTransportError(error)) continue;
+        const key = `${job.root}:${error}`;
+        if (seenModelFaultsRef.current.has(key)) continue;
+        seenModelFaultsRef.current.add(key);
+        setModelFault((current) => current ?? error);
+      }
+    }
+  }, [buildJobs]);
   const hasBuildJobs = buildJobs.length > 0;
   const openBackgroundTask = useCallback(
     (kind: "knowledge" | "review") => {
@@ -2182,15 +2216,17 @@ export function App(): JSX.Element {
         />
       ) : null}
 
-      {/* Tide orb — the one persistent navigation affordance on the stage:
-          summons / dismisses the hub sheet. Slides to the sheet's edge while
-          open; pulses when the session needs the user (permission/question). */}
-      <HubOrb
-        open={panelOpen}
-        badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
-        modKey={modKey}
-        onClick={handleToggleHub}
-      />
+      {/* Tide orb — the stage's idle-state navigation affordance: summons the
+          hub sheet. Merged into the rail while it is open (the rail's bottom
+          ⟨ / Esc / ⌘B close it), so the corner never shows both. Pulses when
+          the session needs the user (permission/question). */}
+      {!panelOpen ? (
+        <HubOrb
+          badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
+          modKey={modKey}
+          onClick={handleToggleHub}
+        />
+      ) : null}
 
       {/* Background-task badge — compact circular presence (module icon in
           center) for running builds/reviews; the big console below opens ONLY
@@ -2200,6 +2236,10 @@ export function App(): JSX.Element {
 
       {/* Build console — temporary floating A2UI surface (R3-5), on demand */}
       {buildConsoleOpen && hasBuildJobs ? <BuildConsolePanel onClose={() => setBuildConsoleOpen(false)} /> : null}
+
+      {/* Tool activity trace — right-side floating A2UI surface; auto-opens
+          while the agent works, persists until manually dismissed. */}
+      {toolActivityOpen ? <ToolActivityPanel messages={messages} onClose={() => setToolActivityOpen(false)} /> : null}
 
       {/* Serena result mirror — floating right panel (R3-6) */}
       {serenaOpen && serenaEvents.length > 0 ? (
@@ -2214,6 +2254,23 @@ export function App(): JSX.Element {
 
       {modal === "undo" ? (
         <UndoModal sessionId={activeId} onClose={() => setModal(null)} onRestored={() => void handleUndoRestored()} />
+      ) : null}
+
+      {/* Model-transport fault dialog — the build console keeps the full
+          detail; this exists so a broken endpoint is impossible to miss. */}
+      {modelFault ? (
+        <Modal
+          title={t("build.modelFaultTitle")}
+          subtitle={t("build.modelFaultBody")}
+          onClose={() => setModelFault(null)}
+          actions={
+            <Button variant="primary" onClick={() => setModelFault(null)}>
+              {t("build.modelFaultOk")}
+            </Button>
+          }
+        >
+          <div className="ui-model-fault-detail">{modelFault}</div>
+        </Modal>
       ) : null}
 
       {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}

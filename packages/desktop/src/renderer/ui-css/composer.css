@@ -315,27 +315,40 @@
 .ui-prompt {
   width: 100%;
   border: none;
-  background: none;
   color: var(--ui-text);
   font-size: 14px;
   line-height: 1.55;
   resize: none;
   max-height: 220px;
-  /* Generous horizontal padding gives the input a more breathable feel and
-     a softer "inner frame" — the textarea no longer hugs the card edges.
-     The focus glow (theme-overridden) anchors the eye without a hard border. */
-  padding: var(--ui-space-2) var(--ui-space-3);
+  /* The card IS the input: the textarea melts into it (no sunken inner box)
+     and its text aligns with the toolbar row below. Themes that draw their
+     own boxed input (line/fusion) re-add background/border/padding here. */
+  padding: 6px 2px;
   border-radius: var(--ui-radius-md);
-  /* Subtle sunken surface so the prompt reads as a distinct input region
-     even when the card itself has no border. Themes can override. */
-  background: var(--ui-surface-sunken);
-  transition:
-    background 0.15s ease,
-    box-shadow 0.2s ease;
+  transition: background 0.15s ease;
+  /* Thin overlay-style scrollbar — the native track strip read as a bright
+     seam on the card's right edge, especially in dark themes. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-faint, #8590a0) 38%, transparent) transparent;
 }
 .ui-prompt:focus {
   outline: none;
-  background: var(--ui-surface-raised);
+}
+.ui-prompt::-webkit-scrollbar {
+  width: 8px;
+}
+.ui-prompt::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ui-prompt::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 32%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.ui-prompt::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent);
+  background-clip: padding-box;
 }
 .ui-prompt::placeholder {
   color: var(--ui-text-faint);

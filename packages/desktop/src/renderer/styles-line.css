@@ -189,12 +189,15 @@
   color: var(--ui-accent);
 }
 
-/* Input/prompt: defined by its border stroke, focus = accent stroke. */
+/* Input/prompt: defined by its border stroke, focus = accent stroke.
+   Boxed look is this theme's identity — it restores the inner padding the
+   base layer gave up when the textarea melted into the composer card. */
 .ui-prompt {
   border: 1px solid var(--ui-border);
   background: var(--ui-surface-sunken);
   border-radius: var(--ui-radius-md);
   box-shadow: none;
+  padding: 6px 12px;
 }
 .ui-prompt:focus {
   border-color: var(--ui-accent);

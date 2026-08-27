@@ -30,6 +30,10 @@
      (rail only) shifts just past the slim icon column; extending level 2
      pushes further to clear the content card as well. */
   --ui-stage-pad-l: 0px;
+  /* Workspace sheets (knowledge / task / editor / plugin detail) clear the
+     persistent quick-dock capsule: the dock row occupies cockpit+10 …
+     cockpit+48, so sheets start below it and the two never overlap. */
+  --ui-sheet-top: 56px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1050,7 +1054,13 @@ button.ui-surface-chip {
    sheet activates). */
 .ui-sheet {
   position: absolute;
-  inset: 16px;
+  /* Top clears the quick-dock capsule (--ui-sheet-top); the rest keeps the
+     16px stage inset. Shrinks every workspace sheet's default height so the
+     session capsule and the sheet content never cover each other. */
+  top: var(--ui-sheet-top);
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
   z-index: 28;
   display: flex;
   flex-direction: column;
@@ -1145,7 +1155,27 @@ button.ui-surface-chip {
   animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* ── Tide orb (bottom-left navigation) ─────────────────────────────────────── */
+/* Model-fault dialog error detail — raw transport error, honest and
+   copyable; capped so a long gateway HTML body can't flood the card. */
+.ui-model-fault-detail {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-sunken);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ui-danger);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* ── Tide orb (bottom-left navigation) ───────────────────────────────────────
+   Rendered only while the hub is CLOSED (App unmounts it once the rail is
+   up) — the rail owns the corner while open, its bottom ⟨ closes back to
+   the orb. */
 .ui-orb {
   position: absolute;
   left: 16px;
@@ -1164,20 +1194,22 @@ button.ui-surface-chip {
   color: var(--ui-text-dim);
   cursor: pointer;
   transition:
-    left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     color 0.15s var(--ui-ease),
     border-color 0.15s var(--ui-ease),
     box-shadow 0.15s var(--ui-ease),
     transform 0.12s var(--ui-ease);
+  animation: ui-orb-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-/* While the hub is open the orb docks just past the icon rail — it remains
-   the one-tap close, and the slide sells the "summon" metaphor. When level 2
-   (content card) is extended, it docks past that card's edge instead. */
-.ui-shell.panel-open .ui-orb {
-  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + 12px);
+@keyframes ui-orb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
 }
-.ui-shell.panel-open.hub-expanded .ui-orb {
-  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + 12px);
+@media (prefers-reduced-motion: reduce) {
+  .ui-orb {
+    animation: none;
+  }
 }
 .ui-orb:hover {
   color: var(--ui-accent);
@@ -1187,13 +1219,6 @@ button.ui-surface-chip {
   .ui-orb:active {
     transform: scale(0.92);
   }
-}
-.ui-orb--open {
-  color: var(--ui-accent);
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  box-shadow:
-    var(--ui-shadow-card),
-    0 0 0 3px var(--ui-accent-soft);
 }
 .ui-orb-glyph {
   font-size: 17px;

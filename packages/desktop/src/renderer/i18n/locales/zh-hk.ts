@@ -405,6 +405,12 @@ export const zhHK: Record<MessageKey, string> = {
   "build.consoleTitle": "主控台輸出",
   "build.consoleEmpty": "（暫無輸出）",
   "build.closeHint": "關閉（下次構建自動彈出）",
+  "build.modelFaultTitle": "模型存取異常",
+  "build.modelFaultBody":
+    "後台構建在存取模型服務時失敗（超時 / 網絡 / 鑑權）。請檢查設置中的端點與 API Key 後重試。原始錯誤：",
+  "build.modelFaultOk": "知道了",
+  "activity.title": "活動軌跡",
+  "activity.none": "暫無工具調用",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "圖表渲染失敗",
