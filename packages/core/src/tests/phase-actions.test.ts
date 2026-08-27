@@ -255,11 +255,16 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
     assert.equal(archStage?.skipped, true);
   });
 
-  test("mode='update' skips the arch-scan stage", async () => {
+  test("mode='update' also runs arch-scan (every build refreshes the maps)", async () => {
     const r = fullRegistry();
     const out = (await r.execute("index.build-all", { mode: "update" }).result) as {
-      stages: { stage: string }[];
+      stages: { stage: string; ok: boolean; skipped?: boolean }[];
     };
-    assert.ok(!out.stages.some((s) => s.stage === "arch-scan"));
+    // Arch is attempted on BOTH modes (real-machine 2026-08-27: an update
+    // build dropping the arch row read as "架构图没有执行"). No
+    // runBackgroundTask here → it reports skipped, but it must be PRESENT.
+    const archStage = out.stages.find((s) => s.stage === "arch-scan");
+    assert.ok(archStage, "update mode tracks the arch-scan stage");
+    assert.equal(archStage?.skipped, true);
   });
 });

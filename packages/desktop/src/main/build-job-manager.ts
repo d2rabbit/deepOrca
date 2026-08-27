@@ -41,21 +41,18 @@ type Emit = (channel: string, payload: unknown) => void;
 
 type Job = KnowledgeBuildJobSnapshot;
 
-function initialStages(mode: "init" | "update"): KnowledgeBuildStageState[] {
-  const stages: KnowledgeBuildStageState[] = [
+function initialStages(): KnowledgeBuildStageState[] {
+  // All three stages run on EVERY build (each refreshes in place when its
+  // artifacts exist) — arch included: an update build that dropped the arch
+  // row entirely read as "架构图没有执行" with no explanation (2026-08-27).
+  return [
     // The action always starts with the symbol index — mark it running from
     // the first broadcast so the very first frame reads "正在生成/更新索引"
     // instead of the generic "构建中…" fallback (progress complaint).
     { id: "codegraph", labelKey: "codegraph", status: "running", startedAt: nowIso() },
     { id: "wiki", labelKey: "wiki", status: "pending" },
+    { id: "arch-scan", labelKey: "arch", status: "pending" },
   ];
-  if (mode === "init") {
-    stages.push({ id: "arch-scan", labelKey: "arch", status: "pending" });
-  }
-  // Bilingual translation runs on BOTH modes (stage 4 on init, stage 3 on
-  // update) — its [n/4] prefix matches this array position.
-  stages.push({ id: "wiki-translate", labelKey: "wiki-translate", status: "pending" });
-  return stages;
 }
 
 function nowIso(): string {
@@ -95,7 +92,7 @@ export class BuildJobManager {
       startedAt,
       updatedAt: startedAt,
       running: true,
-      stages: initialStages(resolved),
+      stages: initialStages(),
       logs: [`${logStamp()} build ${resolved} started`],
     };
     this.jobs.set(root, job);
@@ -184,13 +181,13 @@ export class BuildJobManager {
    * Fold one progress line into the job: stage state machine + console log +
    * main-process log + broadcast. The action prefixes every line with
    * "[n/3]"; the stage that line n refers to is n-1 in our stage list (the
-   * action always runs codegraph → wiki → arch-scan; update mode stops at 2).
+   * action always runs codegraph → wiki → arch-scan).
    */
   private record(job: Job, message: string, percent?: number): void {
     job.stage = message;
     if (typeof percent === "number") job.percent = percent;
     job.updatedAt = nowIso();
-    const stageMatch = message.match(/^\[(\d)\/4\]\s*(.*)$/);
+    const stageMatch = message.match(/^\[(\d)\/3\]\s*(.*)$/);
     if (stageMatch) {
       const idx = Number(stageMatch[1]) - 1;
       const rest = stageMatch[2] ?? "";

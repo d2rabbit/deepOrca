@@ -17,12 +17,25 @@ export interface ControllerProgress {
   percent?: number;
 }
 
+/** Change-count summary of an incremental sync (empty when the adapter
+ *  can't produce one — e.g. the CRG CLI path). Mirrors the SDK's SyncResult. */
+export interface ControllerSyncResult {
+  filesChecked: number;
+  filesAdded: number;
+  filesModified: number;
+  filesRemoved: number;
+  durationMs: number;
+}
+
 export interface CodegraphController {
   /** Full re-index: clear existing `.codegraph/` and rebuild from scratch. */
   reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void>;
 
-  /** Incremental sync — re-parse only changed files. Fire-and-forget safe. */
-  sync(root: string): Promise<void>;
+  /** Incremental sync — re-parse only changed files. Fire-and-forget safe.
+   *  onProgress streams the same scanning/resolving phases a re-index emits
+   *  (a sync behind the build button must show flow, not a frozen line); the
+   *  resolved summary feeds the change-count log line. */
+  sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void>;
 
   /** True when `.codegraph/` exists (index has been initialized). */
   hasProject(root: string): boolean;

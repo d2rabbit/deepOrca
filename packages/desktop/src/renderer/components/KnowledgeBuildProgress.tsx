@@ -52,18 +52,19 @@ export function buildStageVerb(
   if (stage.labelKey === "codegraph") {
     return mode === "update" ? t("index.buildStageIndexUpdate") : t("index.buildStageIndexInit");
   }
-  return stage.labelKey === "wiki" ? t("index.buildStageWiki") : t("index.buildStageArch");
+  // Explicit per-stage verbs: a catch-all else here once made the translate
+  // stage print the ARCH verb ("双语翻译 · 正在生成架构图" — 2026-08-27).
+  if (stage.labelKey === "wiki") return t("index.buildStageWiki");
+  return t("index.buildStageArch");
 }
 
-/** Checklist noun: 索引 / Wiki / 架构图 / 双语翻译. */
+/** Checklist noun: 索引 / Wiki / 架构图. */
 export function buildStageName(stage: Pick<KnowledgeBuildStageState, "labelKey">, t: Translate): string {
   return stage.labelKey === "codegraph"
     ? t("index.stageIndexName")
     : stage.labelKey === "wiki"
       ? t("index.stageWikiName")
-      : stage.labelKey === "wiki-translate"
-        ? t("index.stageTranslateName")
-        : t("index.stageArchName");
+      : t("index.stageArchName");
 }
 
 export function KnowledgeBuildProgress({

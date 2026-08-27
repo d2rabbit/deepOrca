@@ -118,8 +118,7 @@ export interface ActionContext {
    * Free-form backend LLM text completion on the PRIMARY (settings) model —
    * injected by SessionManager. Returns the completion text, or null when
    * unavailable/failed — callers MUST degrade deterministically on null
-   * (fail-open). Used by content-shaped actions (wiki.translate's per-page
-   * translation); classification stays on judgeViaLlm's flash-class JSON mode.
+   * (fail-open); classification stays on judgeViaLlm's flash-class JSON mode.
    */
   readonly completeViaLlm?: (
     messages: Array<{ role: "system" | "user"; content: string }>,

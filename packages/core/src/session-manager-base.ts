@@ -38,8 +38,6 @@ import {
   wikiReadPageRun,
   indexBuildAllDefinition,
   indexBuildAllRun,
-  wikiTranslateDefinition,
-  wikiTranslateRun,
   archScanRunDefinition,
   archScanRunRun,
   browserSessionStartDefinition,
@@ -406,8 +404,6 @@ export abstract class SessionManagerBase {
     this.actionRegistry.register(wikiReadPageDefinition, wikiReadPageRun);
     // The unified trio orchestrator (replaces the renderer promise chain).
     this.actionRegistry.register(indexBuildAllDefinition, indexBuildAllRun);
-    // Backend wiki translation (bilingual-ize stage of the build pipeline).
-    this.actionRegistry.register(wikiTranslateDefinition, wikiTranslateRun);
     // ── Phase 3: arch-scan (gated on runSubagent — §十 P2) ─────────────────
     this.actionRegistry.register(archScanRunDefinition, archScanRunRun);
     // ── Browser actions (BrowserSkill bsk CLI wrappers) ──────────────────────

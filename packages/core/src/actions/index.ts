@@ -25,7 +25,7 @@ export type {
 
 // Controller seams (host-injected; core has zero tool-specific code).
 export { configureCodegraphController, getCodegraphController } from "./codegraph-controller";
-export type { CodegraphController, ControllerProgress } from "./codegraph-controller";
+export type { CodegraphController, ControllerProgress, ControllerSyncResult } from "./codegraph-controller";
 export { configureReviewController, getReviewController } from "./review-controller";
 export type { ReviewController, ReviewResult, ReviewComment, ReviewOptions } from "./review-controller";
 
@@ -77,15 +77,7 @@ export {
 export type { WikiInitOutput, WikiPage, WikiPageDetail, WikiFrontmatter, WikiController, WikiResult } from "./wiki";
 export { indexBuildAllDefinition, indexBuildAllRun } from "./index-build";
 export type { IndexBuildInput, IndexBuildStage, IndexBuildOutput } from "./index-build";
-export { wikiTranslateDefinition, wikiTranslateRun } from "./wiki-translate";
-export type { WikiTranslateInput, WikiTranslateOutput } from "./wiki-translate";
-export {
-  detectWikiLanguage,
-  wikiVariantPath,
-  isWikiVariantFile,
-  containedUnderWiki,
-  listWikiBasePages,
-} from "./wiki-translate";
+export { isWikiVariantFile } from "./wiki-variants";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";
 export type { ArchScanInput, ArchScanOutput } from "./arch-scan";
 export {

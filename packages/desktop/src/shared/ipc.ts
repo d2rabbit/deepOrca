@@ -149,6 +149,7 @@ export const IpcRequest = {
 
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
+  EndpointQuota: "endpoint:quota",
   MemoryRoutingStatus: "memoryRouting:status",
   KnowledgeReadArchmap: "knowledge:readArchmap",
   KnowledgeBuild: "knowledge:build",
@@ -261,18 +262,6 @@ export type WikiPageEntry = {
   title: string;
   /** Last modified time (ISO) — freshness label. */
   mtime?: string;
-  /**
-   * Backend bilingual translation sibling (`<page>.<lang>.md`), present when
-   * the wiki.translate build stage produced one. The reader offers a
-   * 原文/译文 toggle when this exists.
-   */
-  translation?: {
-    /** Language of the TRANSLATION (the other of zh/en). */
-    lang: "zh" | "en";
-    /** Relative path of the variant file within openwiki/. */
-    path: string;
-    mtime?: string;
-  };
 };
 
 /** Payload for the CrgProgress event (streamed CRG build/analysis output). */
@@ -524,12 +513,12 @@ export type TaskTrajectory = {
   sessionCount: number;
 };
 
-/** One pipeline stage inside a build job (symbol → wiki → arch map → translate). */
+/** One pipeline stage inside a build job (symbol → wiki → arch map). */
 export type KnowledgeBuildStageState = {
-  /** Stable id: "codegraph" | "wiki" | "arch-scan" | "wiki-translate" (echoed by the action). */
+  /** Stable id: "codegraph" | "wiki" | "arch-scan" (echoed by the action). */
   id: string;
-  /** i18n label key index ("codegraph" | "wiki" | "arch" | "wiki-translate"). */
-  labelKey: "codegraph" | "wiki" | "arch" | "wiki-translate";
+  /** i18n label key index ("codegraph" | "wiki" | "arch"). */
+  labelKey: "codegraph" | "wiki" | "arch";
   status: "pending" | "running" | "done" | "failed" | "skipped";
   /** Last progress detail for this stage (live console line). */
   detail?: string;
@@ -583,6 +572,28 @@ export type KnowledgeArchmapContent =
  * keys are neutral (openwiki → "Wiki"); memory/routing moved out of this
  * module. archmaps counts architecture-map artifacts.
  */
+/** Per-endpoint quota surface (subscription/prepaid providers).
+ *  kind=stepfun-account: live balance (GET /v1/accounts, cached 60s).
+ *  kind=opencode-subscription: plan rolling limits (no balance API exists —
+ *  anomalyco/opencode#10448 is still open; only the web dashboard shows it). */
+export type EndpointQuotaResponse = {
+  ok: boolean;
+  error?: string;
+  kind?: "stepfun-account" | "opencode-subscription";
+  /** stepfun: prepaid | postpaid. */
+  type?: "prepaid" | "postpaid";
+  /** stepfun: 可用余额（元）— cash + voucher. */
+  balance?: number;
+  /** stepfun: 累计充值（元）. */
+  totalCashBalance?: number;
+  /** stepfun: 累计赠送（元）. */
+  totalVoucherBalance?: number;
+  /** stepfun: ISO timestamp of the probe. */
+  fetchedAt?: string;
+  /** opencode: rolling usage limits (USD). */
+  limits?: { fiveHourUsd: number; weeklyUsd: number; monthlyUsd: number };
+};
+
 export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
@@ -941,6 +952,8 @@ export type DesktopApi = {
   // ── Knowledge dashboard ────────────────────────────────────────────────
   /** Aggregated status of every knowledge source (codegraph/wiki/serena/agents/memory). */
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
+  /** 端点额度查询（额度跟随端点；无额度面的端点返回 ok:false）. */
+  endpointQuota(endpointId: string): Promise<EndpointQuotaResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
   /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`), Mermaid document (`.md`), or HTML board (`.html`). */
   knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;

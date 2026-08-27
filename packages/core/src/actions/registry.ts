@@ -63,7 +63,7 @@ export interface RegistryHost {
   /**
    * Free-form backend LLM text completion (primary model) — injected by
    * SessionManager. Actions read it via {@link ActionContext.completeViaLlm}
-   * and must fail open when absent (e.g. wiki.translate's per-page work).
+   * and must fail open when absent.
    */
   readonly completeViaLlm?: (
     messages: Array<{ role: "system" | "user"; content: string }>,
