@@ -1304,6 +1304,8 @@ export const ko: Record<MessageKey, string> = {
   "deck.tree.snapshot": "스냅샷 복원(파일 {count}개)",
   "deck.tree.emptyBranch": "(고유 노드 없음)",
   "deck.sources.workspaces": "워크스페이스",
+  "deck.sources.symbolHint": "심볼 검색…",
+  "deck.sources.noResults": "일치 없음",
   "deck.sources.files": "파일",
   "deck.sources.pages": "지식 페이지",
   "deck.sources.ready": "{ready}/{total} 준비됨",

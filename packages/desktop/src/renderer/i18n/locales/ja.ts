@@ -1314,6 +1314,8 @@ export const ja: Record<MessageKey, string> = {
   "deck.tree.snapshot": "スナップショット復元（{count} ファイル）",
   "deck.tree.emptyBranch": "（固有ノードなし）",
   "deck.sources.workspaces": "ワークスペース",
+  "deck.sources.symbolHint": "シンボルを検索…",
+  "deck.sources.noResults": "一致なし",
   "deck.sources.files": "ファイル",
   "deck.sources.pages": "ナレッジページ",
   "deck.sources.ready": "{ready}/{total} 準備完了",

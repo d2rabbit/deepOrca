@@ -1284,6 +1284,8 @@ export const zhTW: Record<MessageKey, string> = {
   "deck.tree.snapshot": "還原快照（{count} 個檔案）",
   "deck.tree.emptyBranch": "（無獨有節點）",
   "deck.sources.workspaces": "工作區",
+  "deck.sources.symbolHint": "檢索符號…",
+  "deck.sources.noResults": "無匹配結果",
   "deck.sources.files": "檔案",
   "deck.sources.pages": "知識頁",
   "deck.sources.ready": "{ready}/{total} 就緒",

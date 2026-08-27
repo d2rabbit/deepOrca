@@ -43,6 +43,12 @@ export type DeckNotifications = {
   unread: number;
   markAllRead(): void;
   clear(): void;
+  /**
+   * Manual archive for loud operations (E18: export results and future
+   * onNotify relays) — keeps "missed ≠ lost" true for user-initiated actions
+   * too, not just engine events. The toast twin stays the caller's job.
+   */
+  archive(level: DeckNotificationLevel, text: string): void;
 };
 
 export function useDeckNotifications(onPush?: (notification: DeckNotification) => void): DeckNotifications {
@@ -95,5 +101,12 @@ export function useDeckNotifications(onPush?: (notification: DeckNotification) =
     unread,
     markAllRead,
     clear,
+    /**
+     * Manual archive for loud operations (E18: export results and future
+     * onNotify relays) — keeps "missed ≠ lost" true for user-initiated
+     * actions too, not just engine events. The toast twin stays the
+     * caller's job.
+     */
+    archive: useCallback((level: DeckNotificationLevel, text: string) => push("status", level, text), [push]),
   };
 }

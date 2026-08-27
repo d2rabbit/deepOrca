@@ -223,6 +223,16 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 **仍留白**：action 取消句柄（等 H 线 module-system）；history 会话内存落盘口径（E8.5/E9 同源议题）；doc-wiki D 线实施后的第七知识源卡复刻。
 
+## 12. E18 — 知识模块深度对齐（AGENTS 就地读 / 符号检索）+ 落档通路（2026-08-27）
+
+> 口径：合并后的经典知识模块（index-knowledge-rework R2）拥有 deck 未复刻的三块能力中可零通道复刻的两块——AGENTS.md 就地阅读与符号检索（第三块符号关系图依赖画布交互，留待知识源浮层宽窗化一并做）。
+
+- **E18.1 AGENTS.md 就地读**：agents 源详情页直接渲染 `knowledgeReadAgents` 文档全文（root 取首个已初始化工作区），失败诚实呈现；"agents 源即这份文档"的语义就此闭合。
+- **E18.2 符号检索**：codegraph 详情页新增检索行，250ms 防抖走 `knowledgeListSymbols(root, query)`，结果行 kind 标签 + 名称 + `file:line`；空查询不发起请求。
+- **E18.3 loud 操作落档**：`useDeckNotifications` 暴露 `archive(level, text)`——deck-app 的 onNotify 中继升级为双通道（瞬时 toast + 抽屉落档），"错过 ≠ 丢失"从此覆盖用户主动操作（导出结果等），不再仅限引擎事件。
+- **实现说明**：i18n 六语言 +2 键（symbolHint / noResults）；工作区清单渲染收窄回 codegraph 详情自身。
+- **验收**：deck-e18 3 用例（agents 读取载荷与文档渲染/符号检索防抖与 kind·file:line 行/archive 触发 toast 孪生并落入环形缓冲）；desktop 全量 350 用例绿；`npm run check` 全过。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。

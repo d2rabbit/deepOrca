@@ -54,6 +54,14 @@ export function SourcesDashboard(): JSX.Element {
   const [pages, setPages] = useState<WikiPageEntry[] | null>(null);
   const [workspaces, setWorkspaces] = useState<CodegraphIndexEntry[] | null>(null);
   const [archView, setArchView] = useState<{ path: string; content: KnowledgeArchmapContent } | null>(null);
+  const [agentsDoc, setAgentsDoc] = useState<{ ok: boolean; content?: string; error?: string } | null>(null);
+  const [symbolQuery, setSymbolQuery] = useState("");
+  const [symbols, setSymbols] = useState<Array<{
+    name: string;
+    kind: string;
+    filePath: string;
+    startLine: number;
+  }> | null>(null);
   const busyRef = useRef(false);
 
   const reload = useCallback(() => {
@@ -98,17 +106,66 @@ export function SourcesDashboard(): JSX.Element {
     setPages(null);
     setWorkspaces(null);
     setArchView(null);
+    setAgentsDoc(null);
+    setSymbolQuery("");
+    setSymbols(null);
     if (selected === "openwiki")
       void api
         .wikiListPages()
         .then(setPages)
         .catch(() => setPages([]));
-    if (selected === "codegraph")
+    // E18: agents detail needs a workspace root for knowledgeReadAgents, and
+    // symbol search needs one for knowledgeListSymbols — same listing as the
+    // codegraph rebuild context provides it.
+    if (selected === "codegraph" || selected === "agents")
       void api
         .codegraphList()
         .then(setWorkspaces)
         .catch(() => setWorkspaces([]));
   }, [selected]);
+
+  // E18: AGENTS.md inline read (root = first initialized workspace).
+  const activeRoot = workspaces?.find((ws) => ws.initialized)?.root ?? workspaces?.find((ws) => ws.root)?.root ?? null;
+
+  useEffect(() => {
+    if (selected !== "agents" || !activeRoot) {
+      setAgentsDoc(null);
+      return;
+    }
+    let cancelled = false;
+    void api.knowledgeReadAgents(activeRoot).then(
+      (doc) => {
+        if (!cancelled) setAgentsDoc(doc);
+      },
+      () => {}
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, activeRoot]);
+
+  // E18: debounced symbol search against the active workspace's index.
+  useEffect(() => {
+    if (selected !== "codegraph" || !activeRoot || !symbolQuery.trim()) {
+      setSymbols(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void api
+        .knowledgeListSymbols(activeRoot, symbolQuery.trim())
+        .then((rows) => {
+          if (!cancelled) setSymbols(rows.slice(0, 20));
+        })
+        .catch(() => {
+          if (!cancelled) setSymbols([]);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [symbolQuery, selected, activeRoot]);
 
   if (!status) return <div className="deck-empty">{t("deck.loading")}</div>;
 
@@ -220,7 +277,7 @@ export function SourcesDashboard(): JSX.Element {
           </>
         ) : null}
 
-        {workspaces ? (
+        {selected === "codegraph" && workspaces ? (
           <>
             <div className="deck-panel-group-title">{t("deck.sources.workspaces")}</div>
             {workspaces.map((ws) => (
@@ -231,6 +288,51 @@ export function SourcesDashboard(): JSX.Element {
               </div>
             ))}
           </>
+        ) : null}
+
+        {/* E18: symbol search against the active workspace's codegraph index. */}
+        {selected === "codegraph" && activeRoot ? (
+          <div className="deck-sym">
+            <input
+              className="deck-sym-input"
+              value={symbolQuery}
+              placeholder={t("deck.sources.symbolHint")}
+              onChange={(e) => setSymbolQuery(e.target.value)}
+            />
+            {symbols ? (
+              symbols.length > 0 ? (
+                symbols.map((sym) => (
+                  <div key={`${sym.filePath}:${sym.startLine}:${sym.name}`} className="deck-row static">
+                    <span className={`deck-wo-tag b`}>{sym.kind}</span>
+                    <span className="deck-row-main">{sym.name}</span>
+                    <span className="deck-row-meta">
+                      {sym.filePath}:{sym.startLine}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="deck-empty">{t("deck.sources.noResults")}</div>
+              )
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* E18: AGENTS.md inline read — the agents source IS this document. */}
+        {selected === "agents" ? (
+          agentsDoc ? (
+            agentsDoc.ok ? (
+              <>
+                <div className="deck-panel-group-title">AGENTS.md</div>
+                <pre className="deck-srcpage">{agentsDoc.content}</pre>
+              </>
+            ) : (
+              <div className="deck-empty">
+                {t("deck.opFailed", { error: agentsDoc.error ?? "knowledgeReadAgents" })}
+              </div>
+            )
+          ) : (
+            <div className="deck-empty">{t("deck.loading")}</div>
+          )
         ) : null}
 
         {selected === "archmaps" && status.archmaps.files && status.archmaps.files.length > 0 ? (

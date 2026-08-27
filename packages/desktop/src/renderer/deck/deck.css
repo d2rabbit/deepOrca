@@ -2763,6 +2763,26 @@ button.deck-row:hover {
   background: var(--paper2);
 }
 
+/* E18 符号检索：输入行 + kind 标签结果行 */
+.deck-sym {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.deck-sym-input {
+  width: 100%;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--paper2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 9px;
+  outline: none;
+}
+
+
 .deck-archview-md svg,
 .deck-archview-md pre {
   max-width: 100%;

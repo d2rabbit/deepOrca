@@ -345,7 +345,11 @@ export function DeckApp(): JSX.Element {
           <FloorPanel
             engine={engine}
             onClose={() => closeLayer("floor")}
-            onNotify={(text, kind) => toasts.push(text, kind)}
+            onNotify={(text, kind) => {
+              // 双通道（E18）：瞬时 toast + 通知抽屉落档——错过 ≠ 丢失。
+              notifications.archive(kind, text);
+              toasts.push(text, kind);
+            }}
           />
         );
       case "checkpoints":
