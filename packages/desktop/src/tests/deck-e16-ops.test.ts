@@ -59,6 +59,7 @@ function defaultFixture(): Record<string, unknown> {
     renameSession: async () => true,
     deleteSession: async () => true,
     archiveSession: async () => undefined,
+    exportSession: async () => ({ ok: true, path: "/tmp/exported.json" }),
     memoryRoutingStatus: async () => ({
       memory: { state: "indexed", count: 1 },
       routing: { state: "indexed" },
@@ -156,6 +157,83 @@ describe("deck E16 floor ops + archmap preview", () => {
       const call = stub.calls.filter((c) => c.method === "deleteSession").at(-1);
       assert.ok(call, "deleteSession not called");
       assert.deepEqual(call.args, ["sess-1"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  test("export routes through exportSession and reports the destination via notify", async () => {
+    const notifications: Array<{ text: string; kind: string }> = [];
+    const mounted = await mount(
+      createElement(FloorPanel, {
+        engine: fakeEngine(),
+        onClose: () => {},
+        onNotify: (text, kind) => notifications.push({ text, kind }),
+      })
+    );
+    try {
+      fixture.exportSession = async () => ({ ok: true, path: "/tmp/alpha-session.json" });
+
+      const exp = [...mounted.container.querySelectorAll<HTMLElement>(".deck-wo-op")].find(
+        (el) => el.getAttribute("title") === "Export"
+      );
+      assert.ok(exp, "export op missing");
+      await act(async () => {
+        fireEvent.click(exp);
+      });
+
+      const call = stub.calls.filter((c) => c.method === "exportSession").at(-1);
+      assert.ok(call, "exportSession not called");
+      assert.deepEqual(call.args, ["sess-1"]);
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      assert.ok(
+        notifications.some((n) => n.kind === "ok" && n.text.includes("/tmp/alpha-session.json")),
+        `ok toast with path missing: ${JSON.stringify(notifications)}`
+      );
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  test("failed export surfaces a bad toast, cancel stays quiet", async () => {
+    const notifications: Array<{ text: string; kind: string }> = [];
+    const mounted = await mount(
+      createElement(FloorPanel, {
+        engine: fakeEngine(),
+        onClose: () => {},
+        onNotify: (text, kind) => notifications.push({ text, kind }),
+      })
+    );
+    try {
+      fixture.exportSession = async () => ({ ok: false, error: "denied" });
+
+      const exp = [...mounted.container.querySelectorAll<HTMLElement>(".deck-wo-op")].find(
+        (el) => el.getAttribute("title") === "Export"
+      )!;
+      await act(async () => {
+        fireEvent.click(exp);
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      assert.ok(
+        notifications.some((n) => n.kind === "bad" && n.text.includes("denied")),
+        `bad toast missing: ${JSON.stringify(notifications)}`
+      );
+
+      // User cancels the save dialog: ok without a path is silence, not an error.
+      notifications.length = 0;
+      fixture.exportSession = async () => ({ ok: true });
+      await act(async () => {
+        fireEvent.click(exp);
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      assert.equal(notifications.length, 0, "cancel must not toast");
     } finally {
       mounted.unmount();
     }

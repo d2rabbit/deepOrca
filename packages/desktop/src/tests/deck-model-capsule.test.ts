@@ -221,4 +221,68 @@ describe("deck E15 model/thinking capsules + threshold override", () => {
       mounted.unmount();
     }
   });
+
+  test("CC context meter takes a water-level tone near the compaction threshold", async () => {
+    // 194k active vs 200k override = 97% → "bad" (≥95%); 180k = 90% → "warn".
+    fixture.getSettings = async () => ({ ...SETTINGS, compactTokenThreshold: 200000 }) as unknown as SettingsSummary;
+
+    const entryBase = {
+      id: "s1",
+      sessionId: "s1",
+      summary: "goal",
+      status: "completed",
+      createTime: new Date().toISOString(),
+      updateTime: new Date().toISOString(),
+      usagePerModel: { "deepseek-v4-pro": { total_tokens: 50 } },
+    };
+    let mounted!: { unmount(): void; container: HTMLElement };
+    await act(async () => {
+      mounted = render(
+        createElement(
+          I18nProvider,
+          null,
+          createElement(ControlCenter, {
+            entry: {
+              ...entryBase,
+              activeTokens: 194000,
+            } as never,
+            busy: false,
+            commandLog: [],
+            events: [],
+          })
+        )
+      );
+    });
+    try {
+      const meter = mounted.container.querySelector<HTMLElement>(".deck-meter.bad");
+      assert.ok(meter, `bad-tone context meter missing: ${mounted.container.innerHTML}`);
+      assert.ok(meter.querySelector(".v")?.textContent?.includes("194.0k"));
+    } finally {
+      mounted.unmount();
+    }
+
+    await act(async () => {
+      mounted = render(
+        createElement(
+          I18nProvider,
+          null,
+          createElement(ControlCenter, {
+            entry: {
+              ...entryBase,
+              activeTokens: 180000,
+            } as never,
+            busy: false,
+            commandLog: [],
+            events: [],
+          })
+        )
+      );
+    });
+    try {
+      assert.ok(mounted.container.querySelector(".deck-meter.warn"), "warn tone missing at 90%");
+      assert.equal(mounted.container.querySelector(".deck-meter.bad"), null, "no bad tone at 90%");
+    } finally {
+      mounted.unmount();
+    }
+  });
 });

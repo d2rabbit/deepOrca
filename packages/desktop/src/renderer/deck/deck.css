@@ -681,6 +681,15 @@
   color: var(--ink);
 }
 
+/* E17 水位色阶：上下文逼近压缩阈值时仪表值变色（≥85% warn，≥95% bad） */
+.deck-meter.warn .v {
+  color: var(--warn);
+}
+
+.deck-meter.bad .v {
+  color: var(--bad);
+}
+
 .deck-cc-sec {
   padding: 8px 6px;
   border-top: 1px solid var(--line);

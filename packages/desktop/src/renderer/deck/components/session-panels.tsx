@@ -51,7 +51,15 @@ function statusLabelKey(
 // E16: hover op cluster — rename (inline edit), archive, delete. Delete is
 // destructive and goes through a two-step in-place confirmation (mirrors the
 // classic layer's confirm-on-delete UX rule); refresh re-runs after every op.
-export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): JSX.Element {
+// E17: export joins the cluster — unlike the silent best-effort ops it
+// produces a result the user must see, so outcomes surface through the
+// app-owned toast relay (onNotify) instead of staying quiet.
+export function FloorPanel(props: {
+  engine: DeckEngine;
+  onClose: () => void;
+  /** App-owned toast push (E17) — export feedback and future loud ops. */
+  onNotify?: (text: string, kind: "info" | "ok" | "warn" | "bad") => void;
+}): JSX.Element {
   const { t } = useI18n();
   const [data, setData] = useState<WorkspaceSessions | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -102,6 +110,22 @@ export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): 
       .catch(() => {});
   };
 
+  const exportSession = (id: string, summary: string | null) => {
+    void api
+      .exportSession(id)
+      .then((result) => {
+        if (result.ok && result.path) {
+          props.onNotify?.(t("deck.floor.exported", { path: result.path }), "ok");
+        } else if (!result.ok) {
+          props.onNotify?.(t("deck.opFailed", { error: result.error ?? "export" }), "bad");
+        }
+        // Canceled save dialog (ok without path): nothing to say.
+      })
+      .catch(() => {
+        props.onNotify?.(t("deck.opFailed", { error: "exportSession" }), "bad");
+      });
+  };
+
   if (!data) return <div className="deck-empty">{t("deck.loading")}</div>;
 
   return (
@@ -145,6 +169,24 @@ export function FloorPanel(props: { engine: DeckEngine; onClose: () => void }): 
                       }}
                     >
                       <DeckIcon id="edit" />
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="deck-wo-op"
+                      title={t("deck.floor.export")}
+                      onClick={() => {
+                        setConfirmDeleteId(null);
+                        exportSession(session.id, session.summary);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          exportSession(session.id, session.summary);
+                        }
+                      }}
+                    >
+                      <DeckIcon id="export" />
                     </span>
                     <span
                       role="button"

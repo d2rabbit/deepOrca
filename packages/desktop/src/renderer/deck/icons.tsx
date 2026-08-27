@@ -33,7 +33,8 @@ export type DeckIconId =
   | "ruler"
   | "alert"
   | "pause"
-  | "trash";
+  | "trash"
+  | "export";
 
 const PATHS: Record<DeckIconId, JSX.Element> = {
   bell: (
@@ -179,6 +180,12 @@ const PATHS: Record<DeckIconId, JSX.Element> = {
     <>
       <path d="M4 7h16M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13" />
       <path d="M10 11v5M14 11v5" />
+    </>
+  ),
+  export: (
+    <>
+      <path d="M12 15V4M8.5 7.5L12 4l3.5 3.5" />
+      <path d="M5 13v6h14v-6" />
     </>
   ),
 };

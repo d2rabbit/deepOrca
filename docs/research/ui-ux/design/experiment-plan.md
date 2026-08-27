@@ -212,6 +212,17 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 
 **仍留白**：exportSession 车间墙入口（见口径）；action 取消句柄（等 H 线 module-system）；CC 上下文仪表加水位色带（低价值观察项）。
 
+## 11. E17 — 车间墙导出（toast 反馈通路）+ CC 水位色阶（2026-08-27）
+
+> 口径：上节两项留白落地。导出反馈沿用 deck 既有的 app 层 toast 回调模式（`useDeckToasts` 所有权在 deck-app，`useWorkOrder` 同款回调下发），不引入新反馈基建——"静默 best-effort 与 loud 操作分层"就此定型：改结果可见的操作走 `onNotify`，其余维持安静。
+
+- **E17.1 车间墙导出**：操作簇第四项（export SVG 图标），`exportSession` 结果三分支——成功 `ok` toast 带目标路径；失败 `bad` toast 带 error；用户取消保存对话框（ok 无 path）保持沉默。dcok-app 将 `toasts.push` 以 `onNotify` 注入 FloorPanel。
+- **E17.2 CC 上下文水位色阶**：仪表值相对压缩阈值 ≥85% 变 warn 色、≥95% 变 bad 色——阈值读取与焦点卡同源（用户 override 优先生效）。此前只有裸 token 数，逼近压缩时无任何视觉提示。
+- **实现说明**：icons 补 export 图标 id；i18n 六语言 +2 键（floor.export / floor.exported）。
+- **验收**：新增 3 用例（导出成功通知含路径/失败 bad + 取消静默/CC 色阶 warn·bad 两档）；desktop 全量 347 用例绿；`npm run check` 全过。
+
+**仍留白**：action 取消句柄（等 H 线 module-system）；history 会话内存落盘口径（E8.5/E9 同源议题）；doc-wiki D 线实施后的第七知识源卡复刻。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。

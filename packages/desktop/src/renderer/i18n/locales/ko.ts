@@ -1365,6 +1365,8 @@ export const ko: Record<MessageKey, string> = {
   "deck.floor.rename": "이름 바꾸기",
   "deck.floor.delete": "삭제",
   "deck.floor.deleteConfirm": "한 번 더 클릭하면 삭제",
+  "deck.floor.export": "내보내기",
+  "deck.floor.exported": "{path} 에 내보냈습니다",
   "deck.compacted": "컨텍스트 압축됨 · {freed} 확보",
   "deck.cc.planHint": "다음 전송은 Plan 모드——에이전트가 먼저 계획 제안",
   "deck.cc.enhanceHint": "전송 전 모델로 프롬프트 강화",

@@ -1375,6 +1375,8 @@ export const ja: Record<MessageKey, string> = {
   "deck.floor.rename": "名前を変更",
   "deck.floor.delete": "削除",
   "deck.floor.deleteConfirm": "もう一度クリックで削除",
+  "deck.floor.export": "エクスポート",
+  "deck.floor.exported": "{path} にエクスポートしました",
   "deck.compacted": "コンテキスト圧縮済み · {freed} 解放",
   "deck.cc.planHint": "次の送信で Plan モード——まず計画を提案",
   "deck.cc.enhanceHint": "送信前にモデルでプロンプトを強化",

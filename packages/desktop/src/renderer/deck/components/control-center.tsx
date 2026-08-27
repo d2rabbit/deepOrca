@@ -10,9 +10,10 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch, SerializableSessionEntry, SkillInfo } from "../../../shared/ipc";
 import { api } from "../../api";
-import { formatTokens } from "../../lib/token-usage";
+import { compactTokenThreshold, formatTokens } from "../../lib/token-usage";
 import { useI18n } from "../../i18n";
 import { ModelCapsule } from "./model-capsule";
+import { useDeckSettings } from "../hooks/use-deck-settings";
 import type { DeckEvent } from "../types";
 
 function formatDuration(ms: number): string {
@@ -26,17 +27,25 @@ function formatDuration(ms: number): string {
   return `${min}:${String(sec).padStart(2, "0")}`;
 }
 
-function Meter(props: { label: string; value: string; onClick?: () => void; title?: string }): JSX.Element {
+function Meter(props: {
+  label: string;
+  value: string;
+  onClick?: () => void;
+  title?: string;
+  /** Water-level tone (E17): context usage vs the compaction threshold. */
+  tone?: "warn" | "bad";
+}): JSX.Element {
+  const cls = `deck-meter${props.tone ? ` ${props.tone}` : ""}`;
   if (props.onClick) {
     return (
-      <button type="button" className="deck-meter linked" onClick={props.onClick} title={props.title}>
+      <button type="button" className={`${cls} linked`} onClick={props.onClick} title={props.title}>
         <div className="k">{props.label}</div>
         <div className="v">{props.value}</div>
       </button>
     );
   }
   return (
-    <div className="deck-meter">
+    <div className={cls}>
       <div className="k">{props.label}</div>
       <div className="v">{props.value}</div>
     </div>
@@ -353,6 +362,23 @@ export function ControlCenter(props: {
   const tokens = entry?.usage ? formatTokens(entry.usage.total_tokens) : "—";
   const context = entry ? formatTokens(entry.activeTokens) : "—";
 
+  // E17 water-level tone: context vs the compaction threshold (user override
+  // honored — same contract as the context focus card). ≥85% warns, ≥95%
+  // turns red; the count alone never told you how close compaction is.
+  const { settings } = useDeckSettings();
+  const tone = useMemo<"warn" | "bad" | undefined>(() => {
+    if (!entry || !entry.activeTokens) return undefined;
+    const heaviestModel = entry.usagePerModel
+      ? Object.entries(entry.usagePerModel).sort(
+          ([, a], [, b]) => (b?.total_tokens ?? 0) - (a?.total_tokens ?? 0)
+        )[0]?.[0]
+      : undefined;
+    const threshold = compactTokenThreshold(heaviestModel ?? "", settings?.compactTokenThreshold);
+    if (!threshold) return undefined;
+    const pct = entry.activeTokens / threshold;
+    return pct >= 0.95 ? "bad" : pct >= 0.85 ? "warn" : undefined;
+  }, [entry, settings]);
+
   const commands = [...props.commandLog].reverse().slice(0, 20);
   const events = [...props.events].reverse().slice(0, 30);
 
@@ -366,6 +392,7 @@ export function ControlCenter(props: {
           value={context}
           onClick={props.onShowContext}
           title={t("deck.context.title")}
+          tone={tone}
         />
         <Meter label={t("deck.cc.tokens")} value={tokens} />
       </div>

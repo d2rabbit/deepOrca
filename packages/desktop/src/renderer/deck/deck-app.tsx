@@ -341,7 +341,13 @@ export function DeckApp(): JSX.Element {
       case "notifications":
         return <NotificationsPanel notifications={notifications} />;
       case "floor":
-        return <FloorPanel engine={engine} onClose={() => closeLayer("floor")} />;
+        return (
+          <FloorPanel
+            engine={engine}
+            onClose={() => closeLayer("floor")}
+            onNotify={(text, kind) => toasts.push(text, kind)}
+          />
+        );
       case "checkpoints":
         return <CheckpointsPanel engine={engine} />;
       case "context":

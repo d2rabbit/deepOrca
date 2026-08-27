@@ -1345,6 +1345,8 @@ export const zhTW: Record<MessageKey, string> = {
   "deck.floor.rename": "重新命名",
   "deck.floor.delete": "刪除",
   "deck.floor.deleteConfirm": "再點一次確認刪除",
+  "deck.floor.export": "匯出",
+  "deck.floor.exported": "已匯出到 {path}",
   "deck.compacted": "上下文已壓縮 · 釋放 {freed}",
   "deck.cc.planHint": "下次傳送進入 Plan 模式——agent 先出方案再施工",
   "deck.cc.enhanceHint": "傳送前用模型增強提示詞",
