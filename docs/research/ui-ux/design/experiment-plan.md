@@ -267,6 +267,14 @@ v1 当初被否的原因是"双布局加重 `App.tsx` 状态复合、下线不�
 - i18n 六语言 +2 键（discardConfirm / abandonConfirm）；CSS `.deck-op.armed` 通用化。
 - **验收**：deck-e21 用例（首击 armed 且零调用 → 再击执行载荷正确）；desktop 全量 **352 用例绿**；`npm run check` 全过。
 
+## 16. E22 — 阅读体验对齐（wiki/AGENTS Streamdown 化 + 文件树图标，2026-08-27）
+
+> 口径：合并基座的经典层已把 wiki 页升级为文档站阅读体验，deck 的三处 markdown 阅读面（wiki 页内联、AGENTS.md 就地读）却还在裸 `<pre>` 展示源码——本批对齐到共享 Streamdown 管线，顺带把文件树的"·"占位升级为真实文件类型图标。
+
+- **wiki 页 / AGENTS.md**：`<pre>` → `StreamdownView`（`.deck-md-view` 滚动容器，XSS 边界与经典层同源）；E8 旧断言"含原始 `# 架构总览`"同步迁移为渲染后口径（标题元素 + 无井号残留）。
+- **编辑器/文件抽屉树**：文件行 "·" 占位替换为经典层同源 `FileIcon`（语言徽标），目录保留折叠箭头；caret 列固定宽对齐。
+- **验收**：deck-e18 +2 用例（agents 文档经 `.ui-streamdown` 渲染 / wiki 页强调语法实渲染）；E8 用例口径迁移；desktop 全量 **353 用例绿**；`npm run check` 全过。
+
 ## 6. 度量与退出
 
 - **度量基建已交付（2026-08-20）**：`renderer/lib/core-path-metrics.ts` 在共享 api 桥上透明代理采集（双布局单点，经典层组件零触碰，隔离红线不破）——核心路径漏斗（提问→批准→diff，含点击数/耗时/批准结果/未完走标记）、布局启动与切换记账（开启率/7 日留存原始数据），localStorage 环形缓冲、全程 fail-open；Deck 设置面板内置「实验度量」读数区。评审点 #1/#2 自此可执行：真机使用后在设置面板直接读数比对。

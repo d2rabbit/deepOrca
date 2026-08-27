@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../../api";
 import type { EditorFileEntry, GitStatus } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
+import { FileIcon } from "../../ui";
 import type { DeckEngine } from "../hooks/use-deck-engine";
 
 // ── 文件：工作区文件树（按层懒加载） ───────────────────────────────────────
@@ -39,7 +40,7 @@ export function FileNode(props: {
         style={{ paddingLeft: 10 + props.depth * 16 }}
         onClick={toggle}
       >
-        <span>{isDir ? (expanded ? "▾" : "▸") : "·"}</span>
+        <span className="deck-file-caret">{isDir ? expanded ? "▾" : "▸" : <FileIcon name={props.entry.name} />}</span>
         <span className="deck-row-main">{props.entry.name}</span>
         {!isDir ? <span className="deck-row-meta">{props.entry.size}B</span> : null}
       </button>

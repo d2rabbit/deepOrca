@@ -119,8 +119,9 @@ describe("deck E18 knowledge depth + notify archive", () => {
       assert.ok(readCall, "knowledgeReadAgents not called");
       assert.deepEqual(readCall.args, ["/tmp/demo"]);
 
-      const pre = mounted.container.querySelector("pre.deck-srcpage");
-      assert.ok(pre?.textContent?.includes("# workspace rules"), `doc missing: ${mounted.container.innerHTML}`);
+      // E22: markdown 文档经共享 Streamdown 管线渲染（不再是裸 <pre>）。
+      const mdView = mounted.container.querySelector(".deck-md-view .ui-streamdown");
+      assert.ok(mdView?.textContent?.includes("workspace rules"), `doc missing: ${mounted.container.innerHTML}`);
     } finally {
       mounted.unmount();
     }
@@ -199,6 +200,34 @@ describe("deck E18 knowledge depth + notify archive", () => {
       assert.ok(html.includes("readFile"), "callee node missing");
       assert.ok(html.includes("Result list truncated"), `truncation note missing`);
       assert.ok(mounted.container.querySelector(".deck-sub-back"), "back button missing");
+    } finally {
+      mounted.unmount();
+    }
+  });
+  test("wiki page reading renders through the Streamdown pipeline", async () => {
+    fixture.wikiListPages = async () => [{ title: "Overview", path: "arch.md", mtime: "" }];
+    fixture.wikiReadPage = async () => "**bold** heading text";
+
+    const mounted = await mountSources();
+    try {
+      await clickCard(mounted, "OpenWiki");
+      const row = [...mounted.container.querySelectorAll(".deck-row.linked")].find((r) =>
+        r.textContent?.includes("Overview")
+      );
+      assert.ok(row, "wiki page row missing");
+      await act(async () => {
+        fireEvent.click(row);
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      const md = mounted.container.querySelector(".deck-md-view .ui-streamdown");
+      assert.ok(md, "streamdown container missing");
+      assert.ok(
+        mounted.container.querySelector('.deck-md-view [data-streamdown="strong"]'),
+        "markdown emphasis not rendered"
+      );
     } finally {
       mounted.unmount();
     }

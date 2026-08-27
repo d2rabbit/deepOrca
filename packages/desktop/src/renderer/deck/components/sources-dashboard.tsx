@@ -16,6 +16,7 @@ import type {
   WikiPageEntry,
 } from "../../../shared/ipc";
 import { MermaidDiagram } from "../../components/MermaidDiagram";
+import { StreamdownView } from "../../components/StreamdownView";
 import { useI18n } from "../../i18n";
 
 const STATE_DOT: Record<string, string> = {
@@ -391,7 +392,9 @@ export function SourcesDashboard(): JSX.Element {
             agentsDoc.ok ? (
               <>
                 <div className="deck-panel-group-title">AGENTS.md</div>
-                <pre className="deck-srcpage">{agentsDoc.content}</pre>
+                <div className="deck-md-view">
+                  <StreamdownView markdown={agentsDoc.content ?? ""} />
+                </div>
               </>
             ) : (
               <div className="deck-empty">
@@ -457,7 +460,9 @@ export function SourcesDashboard(): JSX.Element {
                 </button>
                 <span className="deck-sub-title">{page.path}</span>
               </div>
-              <pre className="deck-srcpage">{page.content}</pre>
+              <div className="deck-md-view">
+                <StreamdownView markdown={page.content} />
+              </div>
             </>
           ) : (
             <>

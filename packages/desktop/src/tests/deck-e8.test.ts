@@ -376,7 +376,13 @@ describe("Deck E8 stage tabs + full-body modules", () => {
     await act(async () => {
       fireEvent.click(pageRow!);
     });
-    assert.ok(mounted.container.textContent?.includes("# 架构总览"), "wiki page content renders inline");
+    // E22: wiki 页经共享 Streamdown 管线渲染——"# 架构总览" 变为标题元素，
+    // 原始井号不再出现在 DOM 文本里。
+    assert.ok(mounted.container.textContent?.includes("架构总览"), "wiki page content renders inline");
+    assert.ok(
+      mounted.container.querySelector(".deck-md-view h1, .deck-md-view [data-streamdown]"),
+      "markdown heading pipeline missing"
+    );
   });
 
   test("review workbench: live action path, structured findings, intervention, history", async () => {

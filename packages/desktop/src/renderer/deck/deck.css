@@ -2768,6 +2768,27 @@ button.deck-row:hover {
   background: var(--paper2);
 }
 
+/* E22 markdown 阅读容器：wiki 页 / AGENTS.md 经共享 Streamdown 管线 */
+.deck-md-view {
+  max-height: clamp(360px, 60vh, 720px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper2);
+  padding: 12px 14px;
+  font-size: 12.5px;
+}
+
+/* 文件树 caret 列固定宽，图标对齐 */
+.deck-file-caret {
+  width: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* E18 符号检索：输入行 + kind 标签结果行 */
 .deck-sym {
   display: flex;
@@ -2786,7 +2807,6 @@ button.deck-row:hover {
   padding: 6px 9px;
   outline: none;
 }
-
 
 .deck-archview-md svg,
 .deck-archview-md pre {
