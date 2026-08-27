@@ -14,7 +14,7 @@ export function useDocumentTitle(busy: boolean, activeStatus: string | null): vo
     } else if (activeStatus === "ask_permission" || activeStatus === "waiting_for_user") {
       document.title = `[warn] ${base}`;
     } else if (activeStatus === "error") {
-      document.title = `[done] ${base}`;
+      document.title = `[error] ${base}`;
     } else {
       document.title = base;
     }

@@ -331,6 +331,9 @@ export const en = {
 
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "Request failed.",
+  "session.failed.title": "The last model call failed — check the endpoint/API key settings.",
+  "session.failed.retry": "Retry",
+  "session.failed.settings": "Open settings",
   "app.permissionDenied": "Permission denied. Add a reply below, then press Enter to continue.",
   "app.permissionDeniedToast": "Denied. Your decision will be included with your next message.",
   "app.taskComplete": "Task completed",
@@ -518,6 +521,10 @@ export const en = {
   "settings.memory.everyNHint":
     "How many conversation turns to buffer before extracting memories. Higher = cheaper; lower = fresher. Takes effect after restart.",
   "settings.memory.retention": "Memory retention (days)",
+  "settings.memory.clear": "Clear memory data",
+  "settings.memory.clearConfirm": "Delete all stored memory data (L0\u2013L3)? This cannot be undone.",
+  "settings.memory.clearedOk": "Memory data cleared.",
+  "settings.memory.clearedFail": "Failed to clear memory data.",
   "settings.memory.retentionHint":
     "L0 shards older than this are cleaned daily (L1 facts kept 3× longer). 0 keeps everything. Takes effect after restart.",
   "settings.appearance.theme": "Theme",
@@ -822,6 +829,7 @@ export const en = {
 
   "rail.prototype": "Prototype Design",
   "proto.title": "Prototype Design",
+  "proto.openWindow": "Open in standalone window",
   "proto.stepSpec": "Requirement → requirements document",
   "proto.requirementPrompt": "Describe your requirement — a single sentence is enough (it becomes a structured spec)…",
   "proto.specBtn": "Write spec",
@@ -1466,6 +1474,9 @@ export const zh: Record<MessageKey, string> = {
 
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "请求失败。",
+  "session.failed.title": "上一次模型调用失败，请检查端点与 API Key 设置。",
+  "session.failed.retry": "重试",
+  "session.failed.settings": "打开设置",
   "app.permissionDenied": "已拒绝授权。请在下方补充说明后按回车继续。",
   "app.permissionDeniedToast": "已拒绝。该决定将随你的下一条消息一并发送。",
   "app.taskComplete": "任务已完成",
@@ -1647,6 +1658,10 @@ export const zh: Record<MessageKey, string> = {
   "settings.memory.everyN": "记忆抽取频率（对话轮数）",
   "settings.memory.everyNHint": "每累积多少轮对话后抽取一次记忆。调高更省，调低更即时。重启后生效。",
   "settings.memory.retention": "记忆保留天数",
+  "settings.memory.clear": "清空记忆数据",
+  "settings.memory.clearConfirm": "删除全部已存记忆（L0–L3）？此操作不可撤销。",
+  "settings.memory.clearedOk": "记忆数据已清空。",
+  "settings.memory.clearedFail": "清空记忆数据失败。",
   "settings.memory.retentionHint": "每日清理早于该天数的 L0 分片（L1 记忆保留 3 倍时长）。0 表示永久保留。重启后生效。",
   "settings.appearance.theme": "主题",
   "settings.appearance.locale": "语言",
@@ -1939,6 +1954,7 @@ export const zh: Record<MessageKey, string> = {
 
   "rail.prototype": "原型设计",
   "proto.title": "原型设计",
+  "proto.openWindow": "在独立窗口打开",
   "proto.stepSpec": "需求 → 需求文档",
   "proto.requirementPrompt": "描述你的需求，一句话即可（将细化为结构化需求文档）…",
   "proto.specBtn": "生成需求文档",

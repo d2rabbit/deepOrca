@@ -124,6 +124,20 @@ export function PluginMcpPanel({
     [reload]
   );
 
+  // Manual recovery for a crashed/failed server (channel existed end-to-end
+  // but had no UI): restarts the server process and refreshes tool lists.
+  const reconnect = useCallback(
+    async (srv: PluginMcpServer) => {
+      try {
+        await api.mcpReconnect(srv.name);
+        await reload();
+      } catch (err) {
+        setListError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [reload]
+  );
+
   const applyPreset = useCallback((preset: McpPreset) => {
     setName(preset.name);
     setCommand(preset.command);
@@ -228,6 +242,14 @@ export function PluginMcpPanel({
                       </div>
                     </button>
                     <div className="ui-mcp-row-actions">
+                      <button
+                        type="button"
+                        className="ui-plugin-tag accent"
+                        onClick={() => void reconnect(srv)}
+                        title={t("mcp.reconnect")}
+                      >
+                        {t("mcp.reconnect")}
+                      </button>
                       <Switch checked={srv.enabled} onChange={() => void toggle(srv)} title={t("mcp.enableTitle")} />
                     </div>
                   </div>

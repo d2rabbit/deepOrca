@@ -274,9 +274,10 @@ body {
 /* 用户消息 — 平铺化后为 accent 左缘 + 淡主色底,不再做磁贴胶囊 */
 .ui-bubble.user {
   background: color-mix(in srgb, var(--fusion-primary) 10%, var(--ui-surface-sunken));
+  /* `border: none` 先写再补 border-left：简写在后面会把它重置掉，accent 左缘就消失了 */
+  border: none;
   border-left: 2px solid var(--fusion-primary);
   color: var(--ui-text);
-  border: none;
   border-radius: var(--ui-radius-md);
   box-shadow: none;
 }

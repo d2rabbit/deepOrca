@@ -315,6 +315,9 @@ export const zhHK: Record<MessageKey, string> = {
 
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "請求失敗。",
+  "session.failed.title": "上一次模型呼叫失敗，請檢查端點與 API Key 設定。",
+  "session.failed.retry": "重試",
+  "session.failed.settings": "開啟設定",
   "app.permissionDenied": "已拒絕授權。請在下方補充說明後按 Enter 繼續。",
   "app.permissionDeniedToast": "已拒絕。該決定將隨你的下一條訊息一併傳送。",
   "app.taskComplete": "任務已完成",
@@ -467,6 +470,10 @@ export const zhHK: Record<MessageKey, string> = {
   "settings.memory.everyN": "記憶抽取頻率（對話輪數）",
   "settings.memory.everyNHint": "每累積多少輪對話後抽取一次記憶。調高更省，調低更即時。重啟後生效。",
   "settings.memory.retention": "記憶保留天數",
+  "settings.memory.clear": "清除記憶資料",
+  "settings.memory.clearConfirm": "刪除所有已存記憶（L0–L3）？此操作無法還原。",
+  "settings.memory.clearedOk": "記憶資料已清除。",
+  "settings.memory.clearedFail": "清除記憶資料失敗。",
   "settings.memory.retentionHint": "每日清理早於該天數的 L0 分片（L1 記憶保留 3 倍時長）。0 表示永久保留。重啟後生效。",
   "settings.appearance.theme": "主題",
   "settings.appearance.locale": "語言",
@@ -803,6 +810,7 @@ export const zhHK: Record<MessageKey, string> = {
   "design.exportFailed": "匯出失敗：{error}",
   "rail.prototype": "原型設計",
   "proto.title": "原型設計",
+  "proto.openWindow": "在獨立視窗開啟",
   "proto.stepSpec": "需求 → 需求文件",
   "proto.requirementPrompt": "描述你的需求，一句話即可（將細化為結構化需求文件）…",
   "proto.specBtn": "生成需求文件",

@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
-import { Button } from "../ui/index";
+import { Button, IconUndo } from "../ui/index";
 import { useI18n } from "../i18n";
 import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import type { TaskTrajectory } from "../../shared/ipc";
@@ -50,13 +50,19 @@ function NodeTree({
   depth,
   artifactLabel,
   memoryBranchLabel,
+  canRestore,
+  onRestoreNode,
 }: {
   nodes: TaskNode[];
   parentId: string | null;
   depth: number;
   artifactLabel: (n: number) => string;
   memoryBranchLabel: (similarity: number) => string;
+  /** False while any tree op runs (restore itself, or merge/fork/etc.). */
+  canRestore: boolean;
+  onRestoreNode: (nodeId: string) => void;
 }): JSX.Element {
+  const { t } = useI18n();
   const children = nodes.filter((n) => n.parentId === parentId);
   if (children.length === 0) return <></>;
   return (
@@ -71,6 +77,17 @@ function NodeTree({
               {formatTime(node.createdAt)}
               {node.artifactRefs.length > 0 ? ` · ${artifactLabel(node.artifactRefs.length)}` : ""}
             </span>
+            {node.meta.snapshot && node.status === "done" ? (
+              <button
+                type="button"
+                className="ui-taskrec-restore"
+                disabled={!canRestore}
+                title={t("tasktree.restoreSnapshot", { count: node.meta.snapshot.files })}
+                onClick={() => onRestoreNode(node.id)}
+              >
+                <IconUndo />
+              </button>
+            ) : null}
           </div>
           {node.why ? (
             <div className="ui-taskrec-node-why" style={{ paddingLeft: 26 + depth * 18 }}>
@@ -88,6 +105,8 @@ function NodeTree({
             depth={depth + 1}
             artifactLabel={artifactLabel}
             memoryBranchLabel={memoryBranchLabel}
+            canRestore={canRestore}
+            onRestoreNode={onRestoreNode}
           />
         </div>
       ))}
@@ -109,6 +128,8 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
   const [acting, setActing] = useState<string | null>(null);
   // Two-step confirm for the irreversible branch ops (merge/abandon).
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  // Snapshot restore is its own in-flight op (confirm dialog + file rewrite).
+  const [restoring, setRestoring] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -187,6 +208,34 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
       confirmTimerRef.current = setTimeout(() => setConfirmKey(null), 3000);
     },
     [confirmKey, run]
+  );
+
+  /** Explicit snapshot restore (panel rewind): put the workspace's artifact
+   *  files back to a node's checkpoint. Confirmation first — it rewrites
+   *  working files. Notice plumbing mirrors run() without hijacking its
+   *  generic success text (restored count matters here). */
+  const handleRestoreSnapshot = useCallback(
+    async (nodeId: string) => {
+      if (restoring || acting !== null) return;
+      if (!window.confirm(t("tasktree.snapshotConfirm"))) return;
+      setRestoring(true);
+      try {
+        const result = await api.taskTreeSnapshotRestore(treeId, nodeId, workspaceRoot);
+        setNotice(
+          result.ok
+            ? t("tasktree.snapshotRestored", { count: result.restored ?? 0 })
+            : t("tasktree.snapshotFailed", { error: result.error ?? "" })
+        );
+        await reload();
+      } catch (err) {
+        setNotice(t("tasktree.snapshotFailed", { error: err instanceof Error ? err.message : String(err) }));
+      } finally {
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = setTimeout(() => setNotice(null), 5000);
+        setRestoring(false);
+      }
+    },
+    [acting, noticeTimerRef, reload, restoring, t, treeId, workspaceRoot]
   );
 
   if (error) return <div className="ui-side-panel-empty">{error}</div>;
@@ -309,6 +358,8 @@ export function TaskRecordPanel({ treeId, workspaceRoot }: Props): JSX.Element {
                   depth={0}
                   artifactLabel={(n) => t("taskrec.artifacts", { n })}
                   memoryBranchLabel={(similarity) => t("taskrec.memoryBranch", { pct: (similarity * 100).toFixed(0) })}
+                  canRestore={!restoring && !busy}
+                  onRestoreNode={(nodeId) => void handleRestoreSnapshot(nodeId)}
                 />
               ) : null}
             </div>

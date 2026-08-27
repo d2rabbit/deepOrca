@@ -63,4 +63,6 @@ export {
   IconBook,
   IconPencil,
   IconMenuBars,
+  IconClose,
+  IconExternal,
 } from "./icons";

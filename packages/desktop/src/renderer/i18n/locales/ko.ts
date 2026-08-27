@@ -323,6 +323,9 @@ export const ko: Record<MessageKey, string> = {
 
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "요청에 실패했습니다.",
+  "session.failed.title": "마지막 모델 호출이 실패했습니다. 엔드포인트와 API 키 설정을 확인하세요.",
+  "session.failed.retry": "재시도",
+  "session.failed.settings": "설정 열기",
   "app.permissionDenied": "권한이 거부되었습니다. 아래에 답변을 추가한 후 Enter를 눌러 계속하세요.",
   "app.permissionDeniedToast": "거부되었습니다. 이 결정은 다음 메시지와 함께 전송됩니다.",
   "app.taskComplete": "작업 완료",
@@ -479,6 +482,10 @@ export const ko: Record<MessageKey, string> = {
   "settings.memory.everyNHint":
     "기억을 추출하기 전에 버퍼링할 대화 턴 수. 높을수록 저렴, 낮을수록 신선. 재시작 후 적용.",
   "settings.memory.retention": "기억 보관 일수",
+  "settings.memory.clear": "기억 데이터 지우기",
+  "settings.memory.clearConfirm": "저장된 기억 데이터(L0\u2013L3)를 모두 삭제할까요? 되돌릴 수 없습니다.",
+  "settings.memory.clearedOk": "기억 데이터를 지웠습니다.",
+  "settings.memory.clearedFail": "기억 데이터 지우기에 실패했습니다.",
   "settings.memory.retentionHint":
     "이 일수보다 오래된 L0 샤드를 매일 정리(L1은 3배 보관). 0은 영구 보관. 재시작 후 적용.",
   "settings.appearance.theme": "테마",
@@ -821,6 +828,7 @@ export const ko: Record<MessageKey, string> = {
   "design.exportFailed": "내보내기 실패: {error}",
   "rail.prototype": "프로토타입 설계",
   "proto.title": "프로토타입 설계",
+  "proto.openWindow": "독립 창으로 열기",
   "proto.stepSpec": "요구사항 → 요구사항 문서",
   "proto.requirementPrompt": "요구사항을 입력 (한 문장이면 충분, 구조화된 문서로 확장됩니다)…",
   "proto.specBtn": "요구사항 문서 생성",

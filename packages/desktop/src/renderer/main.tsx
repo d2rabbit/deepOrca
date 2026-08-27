@@ -4,6 +4,17 @@ import { App } from "./App";
 import { I18nProvider } from "./i18n";
 import { api } from "./api";
 import { lazy, Suspense } from "react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
+// Window-level crash fence: uncaught errors and unhandled rejections outside
+// React's reach (effects, event callbacks) previously only surfaced in the
+// DevTools console — give them a loud, greppable prefix as well.
+window.addEventListener("error", (event) => {
+  console.error("[ui:error]", event.error ?? event.message);
+});
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("[ui:unhandledrejection]", event.reason);
+});
 
 // Check if this window was opened as a standalone prototype preview.
 const urlParams = new URLSearchParams(window.location.search);
@@ -76,7 +87,12 @@ async function bootstrap(): Promise<void> {
     createRoot(container!).render(
       <StrictMode>
         <I18nProvider>
-          <App />
+          {/* Root fence: an exception during App render/effects unmounted the
+              entire tree (black window + manual restart). Contain it to the
+              built-in error card with retry instead. */}
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
         </I18nProvider>
       </StrictMode>
     );

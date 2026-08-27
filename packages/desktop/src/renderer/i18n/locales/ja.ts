@@ -324,6 +324,9 @@ export const ja: Record<MessageKey, string> = {
 
   // ── App status / errors ───────────────────────────────────
   "app.requestFailed": "リクエストに失敗しました。",
+  "session.failed.title": "直前のモデル呼び出しに失敗しました。エンドポイントと API キー設定を確認してください。",
+  "session.failed.retry": "再試行",
+  "session.failed.settings": "設定を開く",
   "app.permissionDenied": "許可が拒否されました。下に返信を追加し、Enter を押して続行してください。",
   "app.permissionDeniedToast": "拒否しました。この決定は次のメッセージとともに送信されます。",
   "app.taskComplete": "タスク完了",
@@ -480,6 +483,10 @@ export const ja: Record<MessageKey, string> = {
   "settings.memory.everyN": "抽出頻度（会話数）",
   "settings.memory.everyNHint": "何会話ごとに記憶を抽出するか。大きいほど安く、小さいほど新鮮。再起動後に反映。",
   "settings.memory.retention": "記憶保持日数",
+  "settings.memory.clear": "記憶データを消去",
+  "settings.memory.clearConfirm": "保存された記憶データ（L0\u2013L3）をすべて削除しますか？元に戻せません。",
+  "settings.memory.clearedOk": "記憶データを消去しました。",
+  "settings.memory.clearedFail": "記憶データの消去に失敗しました。",
   "settings.memory.retentionHint":
     "この日数より古い L0 シャードを毎日整理（L1 は 3 倍保持）。0 で永久保持。再起動後に反映。",
   "settings.appearance.theme": "テーマ",
@@ -827,6 +834,7 @@ export const ja: Record<MessageKey, string> = {
   "design.exportFailed": "書き出しに失敗しました：{error}",
   "rail.prototype": "プロトタイプ設計",
   "proto.title": "プロトタイプ設計",
+  "proto.openWindow": "独立ウィンドウで開く",
   "proto.stepSpec": "要件 → 要件定義書",
   "proto.requirementPrompt": "要件を記述（一文でも可。構造化された要件定義書になります）…",
   "proto.specBtn": "要件定義書を生成",

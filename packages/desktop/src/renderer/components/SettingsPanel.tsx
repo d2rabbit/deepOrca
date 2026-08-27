@@ -1,11 +1,28 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
-import type { EditableSettings, PermissionDecision, PermissionScope, ReasoningEffort } from "../../shared/ipc";
+import type {
+  EditableSettings,
+  MemoryPipelineStats,
+  PermissionDecision,
+  PermissionScope,
+  ReasoningEffort,
+} from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
 import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey } from "../i18n";
-import { Button, Checkbox, Field, IconInfo, IconLock, IconSettings, Input, Modal, Select } from "../ui/index";
+import {
+  Button,
+  Checkbox,
+  Field,
+  IconCheck,
+  IconInfo,
+  IconLock,
+  IconSettings,
+  Input,
+  Modal,
+  Select,
+} from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
 import { ActionsPanel } from "./ActionsPanel";
 
@@ -325,6 +342,9 @@ export function SettingsPanel({
   const [showKeyByEndpoint, setShowKeyByEndpoint] = useState<Record<string, boolean>>({});
   /** Memory gateway availability probe result. */
   const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
+  // Observability for the L0-L3 pipeline (channels existed with no UI):
+  const [memoryStats, setMemoryStats] = useState<MemoryPipelineStats | null>(null);
+  const [memoryClearState, setMemoryClearState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
 
   // ── Add-model form (model pool tab) ──────────────────────────────────────
   const [addOpen, setAddOpen] = useState(false);
@@ -369,12 +389,20 @@ export function SettingsPanel({
     if (tab !== "memory") return;
     let cancelled = false;
     setMemoryAvailable(null);
+    setMemoryStats(null);
+    setMemoryClearState("idle");
     void (async () => {
       try {
         const result = await api.memoryCheckAvailable();
         if (!cancelled) setMemoryAvailable(result.available);
       } catch {
         if (!cancelled) setMemoryAvailable(false);
+      }
+      try {
+        const stats = await api.memoryStats();
+        if (!cancelled) setMemoryStats(stats);
+      } catch {
+        // stats are observability-only; absence renders nothing
       }
     })();
     return () => {
@@ -1012,6 +1040,44 @@ export function SettingsPanel({
                     : memoryAvailable
                       ? t("settings.memory.available")
                       : t("settings.memory.unavailable")}
+                </div>
+
+                {memoryStats ? (
+                  <div className="ui-memory-stats">
+                    <span>L0 {memoryStats.l0}</span>
+                    <span>·</span>
+                    <span>L1 {memoryStats.l1}</span>
+                    <span>·</span>
+                    <span>L2 {memoryStats.l2}</span>
+                    <span>·</span>
+                    <span>L3 {memoryStats.l3 ? <IconCheck /> : "—"}</span>
+                  </div>
+                ) : null}
+                <div className="ui-memory-clear-row">
+                  <button
+                    type="button"
+                    className="ui-memory-clear"
+                    disabled={memoryClearState === "busy"}
+                    onClick={async () => {
+                      if (!window.confirm(t("settings.memory.clearConfirm"))) return;
+                      setMemoryClearState("busy");
+                      try {
+                        const res = await api.memoryClear();
+                        setMemoryClearState(res.ok ? "ok" : "fail");
+                        setMemoryStats(await api.memoryStats());
+                      } catch {
+                        setMemoryClearState("fail");
+                      }
+                    }}
+                  >
+                    {t("settings.memory.clear")}
+                  </button>
+                  {memoryClearState === "ok" ? (
+                    <span className="ui-field-hint">{t("settings.memory.clearedOk")}</span>
+                  ) : null}
+                  {memoryClearState === "fail" ? (
+                    <span className="ui-field-hint">{t("settings.memory.clearedFail")}</span>
+                  ) : null}
                 </div>
               </section>
             ) : null}

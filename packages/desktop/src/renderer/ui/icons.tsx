@@ -730,3 +730,27 @@ export function IconMenuBars(): JSX.Element {
     </svg>
   );
 }
+
+/** Cross — dismiss (fault banner, panels) */
+export function IconClose(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** External window — popout preview */
+export function IconExternal(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3M12 4h4v4M16 4l-6 6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

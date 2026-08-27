@@ -14,6 +14,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { ActionEvent, OpenUIError } from "@openuidev/lang-core";
 import { api } from "../api";
+import { useI18n } from "../i18n";
+import { IconExternal } from "../ui/index";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import { processA2uiMessages, extractSurfaceId } from "../a2ui/processor";
 import { buildCorrectionPrompt, correctionFingerprint, shouldRetry } from "../openui/correction";
@@ -38,6 +40,7 @@ type Props = {
 };
 
 export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui", onIterate }: Props): JSX.Element {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [liveJson, setLiveJson] = useState(initialJson);
   const [liveOpenuiCode, setLiveOpenuiCode] = useState(openuiCode ?? "");
@@ -171,8 +174,29 @@ export function PrototypePanel({ a2uiJson: initialJson, openuiCode, mode = "a2ui
     [liveOpenuiCode, onIterate]
   );
 
+  // Standalone popout (channel existed end-to-end with no UI): the opened
+  // window replays the CURRENT live messages snapshot through the dedicated
+  // prototype preload — it does NOT follow further surface updates.
+  const openPopout = useCallback(() => {
+    if (!liveJson.trim()) return;
+    void api.a2uiOpenWindow(liveJson, t("proto.title")).catch(() => {});
+  }, [liveJson, t]);
+
   return (
     <div className="ui-prototype-panel">
+      {mode === "a2ui" && liveJson.trim() ? (
+        <div className="ui-prototype-panel-toolbar">
+          <button
+            type="button"
+            className="ui-prototype-panel-popout"
+            title={t("proto.openWindow")}
+            onClick={openPopout}
+          >
+            <IconExternal />
+            {t("proto.openWindow")}
+          </button>
+        </div>
+      ) : null}
       <div className="ui-prototype-panel-body">
         {mode === "openui" ? (
           <Suspense

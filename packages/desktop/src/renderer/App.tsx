@@ -63,7 +63,6 @@ import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
 import { ProcessOutputPanel } from "./components/ProcessOutputPanel";
-import { TaskProgressPanel } from "./components/TaskProgressPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
@@ -107,6 +106,7 @@ import {
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
 import { QuickDock } from "./components/QuickDock";
+import { FailureBanner } from "./components/FailureBanner";
 
 type PendingPermissionReply = {
   sessionId: string;
@@ -632,6 +632,12 @@ export function App(): JSX.Element {
     });
     const offRoot = api.onProjectRootChanged((root) => {
       setProjectRoot(root);
+      // We are now LIVE in this workspace: a stale frozen snapshot of it may
+      // still sit in the pip stack (parked earlier, returned to via the
+      // cross-workspace sidebar or a re-picked folder). Leaving it would layer
+      // the frozen preview over the real conversation and keep firing its
+      // "waiting for confirmation" alert.
+      setPipStack((prev) => prev.filter((p) => p.root !== root));
       void (async () => {
         try {
           await Promise.all([refreshSessions(), refreshSettings(), refreshSkills(), refreshMcp(), refreshGit()]);
@@ -1613,12 +1619,19 @@ export function App(): JSX.Element {
   const [toolActivityOpen, setToolActivityOpen] = useState(false);
   const toolEventCount = useMemo(() => messages.reduce((n, m) => (m.role === "tool" ? n + 1 : n), 0), [messages]);
   const prevToolCountRef = useRef(0);
+  const lastIdForToolsRef = useRef(activeId);
   useEffect(() => {
-    const grew = toolEventCount > prevToolCountRef.current;
+    // A session switch swaps the whole message array in one go, which can
+    // jump the count upward (or shrink it on compaction). Rebase instead of
+    // treating pre-existing history of the newly selected session as fresh
+    // tool activity — only genuine growth within a session pops the window.
+    const switched = lastIdForToolsRef.current !== activeId;
+    lastIdForToolsRef.current = activeId;
+    const grew = !switched && toolEventCount > prevToolCountRef.current;
     prevToolCountRef.current = toolEventCount;
     if (!busy || !grew) return;
     setToolActivityOpen(true);
-  }, [busy, toolEventCount]);
+  }, [busy, toolEventCount, activeId]);
 
   // Model-transport fault dialog (real-machine 2026-08-27): a background
   // build dying on the LLM plumbing used to surface only as console tail —
@@ -1680,6 +1693,13 @@ export function App(): JSX.Element {
   // Extracted so the tab strip (below) never has to duplicate it.
   const chatContent = (
     <>
+      <FailureBanner
+        messages={messages}
+        busy={busy}
+        sessionFailed={activeStatus === "failed"}
+        onRetry={(text) => void runPrompt({ text }, { showUser: false })}
+        onOpenSettings={() => setActiveTab({ kind: "settings" })}
+      />
       <MessageList
         messages={messages}
         hasActiveSession={activeId !== null || messages.length > 0}
@@ -1690,7 +1710,6 @@ export function App(): JSX.Element {
         onQuickAction={handleQuickAction}
         footer={footer}
       />
-      <TaskProgressPanel />
       {showProcessPanel ? (
         <ProcessOutputPanel
           processes={runningProcesses}
@@ -2376,7 +2395,12 @@ export function App(): JSX.Element {
         <div className={cx("ui-pip", isPipBlocked(pipTop) && "blocked")}>
           <div className="ui-pip-head">
             <span className={cx("ui-pip-dot", isPipBlocked(pipTop) && "urgent")} aria-hidden />
-            <button type="button" className="ui-pip-title" onClick={() => void 0} data-tip={pipTop.root}>
+            <button
+              type="button"
+              className="ui-pip-title"
+              onClick={() => restorePipEntry(pipTop)}
+              data-tip={pipTop.root}
+            >
               {(pipTop.title ?? pipTop.label).slice(0, 28) || t("pip.blocked")}
             </button>
             <span className="ui-pip-label">{pipTop.label}</span>

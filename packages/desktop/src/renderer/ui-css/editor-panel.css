@@ -1062,3 +1062,55 @@
   font-size: 12px;
   color: var(--ui-danger, #ef4444);
 }
+
+/* Snapshot restore rewind per node (task record panel). */
+.ui-taskrec-restore {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  margin-left: 8px;
+  border: none;
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+}
+
+.ui-taskrec-restore svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ui-taskrec-restore:hover:not(:disabled) {
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-text-dim) 14%, transparent);
+}
+
+/* Prototype panel toolbar — standalone-window popout. */
+.ui-prototype-panel-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px 0;
+}
+
+.ui-prototype-panel-popout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-text-dim) 28%, transparent);
+  background: transparent;
+  color: var(--ui-text);
+  cursor: pointer;
+}
+
+.ui-prototype-panel-popout svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ui-prototype-panel-popout:hover {
+  background: color-mix(in srgb, var(--ui-text-dim) 14%, transparent);
+}

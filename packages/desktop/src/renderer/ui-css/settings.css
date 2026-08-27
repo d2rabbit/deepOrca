@@ -649,3 +649,41 @@
 
 /* Highlight (session search) */
 
+
+/* Memory pipeline observability (L0–L3 counts + clear). */
+.ui-memory-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+
+.ui-memory-stats svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ui-memory-clear-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ui-memory-clear {
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--ui-radius-md);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 40%, transparent);
+  background: transparent;
+  color: var(--ui-text);
+}
+
+.ui-memory-clear:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ui-error) 12%, transparent);
+}
+
+.ui-memory-clear:disabled {
+  opacity: 0.55;
+}
