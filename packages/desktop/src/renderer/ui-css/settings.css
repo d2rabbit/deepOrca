@@ -265,6 +265,77 @@
   color: var(--ui-accent);
   white-space: nowrap;
 }
+/* ── Endpoint-first model configuration (conventional layout) ─────────────
+   One card per endpoint: name/baseURL header, API key, quota line (follows
+   the endpoint), then the endpoint's models with an inline add-model row. */
+.ui-endpoint-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ui-endpoint-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 26%, var(--ui-surface, transparent));
+}
+.ui-endpoint-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ui-endpoint-card-name {
+  font-size: 12.5px;
+}
+.ui-endpoint-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 80%, transparent);
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-endpoint-baseurl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-endpoint-quota {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-endpoint-quota-note {
+  opacity: 0.75;
+}
+.ui-endpoint-models {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 55%, transparent);
+}
+.ui-endpoint-add {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
 .ui-pool-add-form {
   display: flex;
   flex-direction: column;

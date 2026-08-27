@@ -5,12 +5,13 @@ import type {
   PermissionDecision,
   PermissionScope,
   ReasoningEffort,
+  EndpointQuotaResponse,
 } from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
-import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
+import { endpointQuotaKind, familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
 import { api } from "../api";
-import { useI18n, type Locale, type MessageKey } from "../i18n";
+import { useI18n, type Locale, type MessageKey, type Translate } from "../i18n";
 import {
   Button,
   Checkbox,
@@ -92,7 +93,9 @@ const LOCALE_OPTIONS: Locale[] = ["zh", "zh-TW", "zh-HK", "en", "ja", "ko"];
  */
 const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
-  // /v1 is REQUIRED by the opencode gateways (see core settings.ts comment).
+  // /v1 is REQUIRED by StepFun and the opencode gateways (see core settings.ts).
+  { id: "stepfun", name: "StepFun", baseURL: "https://api.stepfun.com/v1" },
+  { id: "stepfun-plan", name: "StepFun Plan", baseURL: "https://api.stepfun.com/step_plan/v1" },
   { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go/v1" },
   { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen/v1" },
 ];
@@ -325,6 +328,75 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
 ];
 
 /** Settings surface rendered inline in the main area (no modal shell). */
+/**
+ * Endpoint-card quota line — quota follows the ENDPOINT. StepFun endpoints
+ * show a live account balance (main probes /v1/accounts); OpenCode Go shows
+ * the subscription's rolling limits (the platform has no balance API —
+ * anomalyco/opencode#10448 — so static plan info is the honest surface).
+ * Endpoints without a quota probe render nothing.
+ */
+function EndpointQuotaLine({
+  baseURL,
+  apiKey,
+  quota,
+  onRefresh,
+  t,
+}: {
+  endpointId: string;
+  baseURL: string;
+  apiKey: string;
+  quota: EndpointQuotaResponse | "loading" | undefined;
+  onRefresh: () => void;
+  t: Translate;
+}): JSX.Element | null {
+  const kind = endpointQuotaKind(baseURL);
+  if (kind === "opencode-subscription") {
+    if (!quota || quota === "loading" || !quota.ok || quota.kind !== "opencode-subscription") {
+      return <div className="ui-field-hint">{t("settings.opencode.quotaLoading")}</div>;
+    }
+    const limits = quota.limits ?? { fiveHourUsd: 12, weeklyUsd: 30, monthlyUsd: 60 };
+    return (
+      <div className="ui-field-hint ui-endpoint-quota">
+        {t("settings.opencode.limitsLine", {
+          fiveHour: `$${limits.fiveHourUsd}`,
+          weekly: `$${limits.weeklyUsd}`,
+          monthly: `$${limits.monthlyUsd}`,
+        })}
+        <span className="ui-endpoint-quota-note">{t("settings.opencode.noBalanceApi")}</span>
+      </div>
+    );
+  }
+  if (kind !== "stepfun-account") return null;
+  if (!apiKey.trim()) {
+    return <div className="ui-field-hint">{t("settings.stepfun.quotaNeedsKey")}</div>;
+  }
+  if (quota === undefined || quota === "loading") {
+    return <div className="ui-field-hint">{t("settings.stepfun.quotaLoading")}</div>;
+  }
+  if (!quota.ok) {
+    return (
+      <div className="ui-field-hint warn">
+        {t("settings.stepfun.quotaError")}
+        {quota.error ? ` — ${quota.error}` : ""}
+      </div>
+    );
+  }
+  const time = quota.fetchedAt ? quota.fetchedAt.slice(11, 16) : "";
+  return (
+    <div className="ui-field-hint ui-endpoint-quota">
+      {t("settings.stepfun.quotaLine", {
+        balance: `¥${(quota.balance ?? 0).toFixed(2)}`,
+        cash: `¥${(quota.totalCashBalance ?? 0).toFixed(2)}`,
+        voucher: `¥${(quota.totalVoucherBalance ?? 0).toFixed(2)}`,
+        time,
+      })}
+      <Button variant="ghost" size="sm" onClick={onRefresh} title={t("settings.stepfun.quotaRefresh")}>
+        {t("settings.stepfun.quotaRefresh")}
+      </Button>
+    </div>
+  );
+}
+
 export function SettingsPanel({
   initial,
   initialTab,
@@ -340,20 +412,30 @@ export function SettingsPanel({
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "endpoints");
   /** Per-endpoint apiKey show/hide toggle (keyed by endpoint id). */
   const [showKeyByEndpoint, setShowKeyByEndpoint] = useState<Record<string, boolean>>({});
+  // Endpoint quota (subscription/prepaid providers — quota follows the
+  // ENDPOINT): refreshed whenever endpoints/keys change and every 60s while
+  // the panel is open; neither provider offers a push, so polling IS the
+  // "listen". StepFun probes need the endpoint's saved key; OpenCode's plan
+  // limits are static and fetched once per endpoint.
+  const [quotaByEndpoint, setQuotaByEndpoint] = useState<Record<string, EndpointQuotaResponse | "loading">>({});
   /** Memory gateway availability probe result. */
   const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
   // Observability for the L0-L3 pipeline (channels existed with no UI):
   const [memoryStats, setMemoryStats] = useState<MemoryPipelineStats | null>(null);
   const [memoryClearState, setMemoryClearState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
 
-  // ── Add-model form (model pool tab) ──────────────────────────────────────
-  const [addOpen, setAddOpen] = useState(false);
-  const [addEndpointId, setAddEndpointId] = useState<string>(ENDPOINT_PRESETS[0].id);
-  const [addModelId, setAddModelId] = useState("");
-  const [addApiKey, setAddApiKey] = useState("");
-  const [addThinking, setAddThinking] = useState(true);
-  const [addVision, setAddVision] = useState(false);
-  const [addError, setAddError] = useState("");
+  // ── Endpoint-first model config (conventional layout) ───────────────────
+  /** Per-endpoint add-model drafts: { modelId, thinking, vision }. */
+  const [addModelDrafts, setAddModelDrafts] = useState<
+    Record<string, { id: string; thinking: boolean; vision: boolean }>
+  >({});
+  /** Per-endpoint add-model validation errors (keyed by endpoint id). */
+  const [addModelErrors, setAddModelErrors] = useState<Record<string, string>>({});
+  // ── Add-endpoint row ──────────────────────────────────────────────────────
+  const [addEpChoice, setAddEpChoice] = useState<string>(ENDPOINT_PRESETS[0].id);
+  const [addEpName, setAddEpName] = useState("");
+  const [addEpBase, setAddEpBase] = useState("");
+  const [addEpError, setAddEpError] = useState("");
 
   // ── Save/close hardening ──────────────────────────────────────────────────
   // Close used to throw away half-edited settings silently, and a failed
@@ -450,49 +532,96 @@ export function SettingsPanel({
     });
   }
 
-  /**
-   * Submit the model-pool add form. The endpoint's saved key is reused — the
-   * key field only appears (and is only applied) when the endpoint has none.
-   */
-  function submitAddModel(): void {
-    const modelId = addModelId.trim();
+  /** Append a model registration to one endpoint (endpoint-first cards). */
+  function submitAddModelTo(endpointId: string): void {
+    const draft = addModelDrafts[endpointId] ?? { id: "", thinking: true, vision: false };
+    const modelId = draft.id.trim();
+    const fail = (message: string): void => setAddModelErrors((prev) => ({ ...prev, [endpointId]: message }));
     if (!modelId) {
-      setAddError(t("settings.pool.modelIdRequired"));
+      fail(t("settings.pool.modelIdRequired"));
       return;
     }
-    const existing = s.endpoints.find((ep) => ep.id === addEndpointId);
-    if (existing?.models?.some((m) => m.id === modelId)) {
-      setAddError(t("settings.pool.duplicateModel"));
+    if (s.endpoints.find((ep) => ep.id === endpointId)?.models?.some((m) => m.id === modelId)) {
+      fail(t("settings.pool.duplicateModel"));
       return;
     }
-    setS((prev) => {
-      const ep = prev.endpoints.find((e) => e.id === addEndpointId);
-      const registration: ModelRegistration = { id: modelId, thinking: addThinking, vision: addVision };
-      if (!ep) {
-        const preset = presetFor(addEndpointId);
-        if (!preset) return prev;
-        const materialized: EndpointConfig = { ...preset, apiKey: addApiKey.trim(), models: [registration] };
-        return { ...prev, endpoints: [...prev.endpoints, materialized] };
-      }
-      return {
-        ...prev,
-        endpoints: prev.endpoints.map((e) =>
-          e.id === addEndpointId
-            ? {
-                ...e,
-                apiKey: addApiKey.trim() ? addApiKey.trim() : e.apiKey,
-                models: [...(e.models ?? []), registration],
-              }
-            : e
-        ),
-      };
+    setS((prev) => ({
+      ...prev,
+      endpoints: prev.endpoints.map((ep) =>
+        ep.id === endpointId
+          ? { ...ep, models: [...(ep.models ?? []), { id: modelId, thinking: draft.thinking, vision: draft.vision }] }
+          : ep
+      ),
+    }));
+    setAddModelDrafts((prev) => ({ ...prev, [endpointId]: { id: "", thinking: true, vision: false } }));
+    setAddModelErrors((prev) => ({ ...prev, [endpointId]: "" }));
+  }
+
+  /** Drop an endpoint card entirely (its models go with it; presets can be
+   *  re-added from the add-endpoint row — updateEndpoint re-materializes). */
+  function removeEndpoint(endpointId: string): void {
+    setS((prev) => ({ ...prev, endpoints: prev.endpoints.filter((ep) => ep.id !== endpointId) }));
+    setAddModelDrafts((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
     });
-    setAddOpen(false);
-    setAddModelId("");
-    setAddApiKey("");
-    setAddThinking(true);
-    setAddVision(false);
-    setAddError("");
+    setAddModelErrors((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setShowKeyByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setQuotaByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+  }
+
+  /** Materialize an endpoint card from a preset or a custom name+baseURL. */
+  function submitAddEndpoint(): void {
+    const fail = (message: string): void => setAddEpError(message);
+    if (addEpChoice === "__custom") {
+      const name = addEpName.trim();
+      const baseURL = addEpBase.trim();
+      if (!name) {
+        fail(t("settings.endpoint.nameRequired"));
+        return;
+      }
+      if (!/^https?:\/\/.+/.test(baseURL)) {
+        fail(t("settings.endpoint.baseUrlInvalid"));
+        return;
+      }
+      const slug =
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "custom";
+      let id = `custom-${slug}`;
+      let suffix = 2;
+      const taken = new Set(s.endpoints.map((ep) => ep.id));
+      while (taken.has(id)) {
+        id = `custom-${slug}-${suffix++}`;
+      }
+      setS((prev) => ({ ...prev, endpoints: [...prev.endpoints, { id, name, baseURL, apiKey: "", models: [] }] }));
+      setAddEpName("");
+      setAddEpBase("");
+      setAddEpError("");
+      return;
+    }
+    if (s.endpoints.some((ep) => ep.id === addEpChoice)) {
+      fail(t("settings.endpoint.exists"));
+      return;
+    }
+    const preset = presetFor(addEpChoice);
+    if (!preset) return;
+    setS((prev) => ({ ...prev, endpoints: [...prev.endpoints, { ...preset, apiKey: "", models: [] }] }));
+    setAddEpError("");
   }
 
   /** Update a model registration by endpoint id + index. */
@@ -533,19 +662,6 @@ export function SettingsPanel({
 
   /** All model keys from endpoints that have registered models. */
   const allModelKeys = collectAllModelKeys(s.endpoints);
-
-  /** Flattened model-pool entries: every registered model + its source endpoint. */
-  const poolEntries = s.endpoints.flatMap((ep) =>
-    (ep.models ?? []).map((model, index) => ({
-      endpointId: ep.id,
-      endpointName: ep.name || ep.id,
-      model,
-      index,
-    }))
-  );
-
-  /** Whether the endpoint currently selected in the add form already has a key. */
-  const addEndpointHasKey = !!s.endpoints.find((ep) => ep.id === addEndpointId)?.apiKey?.trim();
 
   /** Resolve display label for a model key: "endpointName/modelId". */
   function modelLabel(key: string): string {
@@ -599,6 +715,32 @@ export function SettingsPanel({
     const ep = s.endpoints.find((e) => e.id === parsed.endpointId);
     return ep?.models?.some((m) => m.id === parsed.modelId && m.vision);
   });
+
+  const refreshQuota = (endpointIds: string[]): void => {
+    for (const id of endpointIds) {
+      setQuotaByEndpoint((prev) => (prev[id] ? prev : { ...prev, [id]: "loading" }));
+      void api
+        .endpointQuota(id)
+        .then((res) => setQuotaByEndpoint((prev) => ({ ...prev, [id]: res })))
+        .catch(() => setQuotaByEndpoint((prev) => ({ ...prev, [id]: { ok: false, error: "unreachable" } })));
+    }
+  };
+  useEffect(() => {
+    // Quota follows the endpoint: stepfun probes its account API (needs the
+    // endpoint's saved key); opencode's plan limits are static, so the 60s
+    // interval only re-probes stepfun entries.
+    const withKind = s.endpoints.filter((ep) => {
+      const kind = endpointQuotaKind(ep.baseURL);
+      return kind === "stepfun-account" ? ep.apiKey.trim() !== "" : kind === "opencode-subscription";
+    });
+    if (withKind.length === 0) return;
+    refreshQuota(withKind.map((ep) => ep.id));
+    const liveIds = withKind.filter((ep) => endpointQuotaKind(ep.baseURL) === "stepfun-account").map((ep) => ep.id);
+    const timer = setInterval(() => {
+      if (liveIds.length > 0) refreshQuota(liveIds);
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [s.endpoints]);
 
   return (
     <div className="ui-settings-panel">
@@ -655,172 +797,181 @@ export function SettingsPanel({
           </div>
 
           <div className="ui-settings-body">
-            {/* ── Section 1: Model Pool ─────────────────────────────────── */}
+            {/* ── Section 1: Endpoints & models (endpoint-first, conventional) ── */}
             {tab === "endpoints" ? (
-              <>
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.pool.title")}</div>
-                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
-                    {t("settings.pool.hint")}
-                  </div>
+              <section className="ui-settings-section">
+                <div className="ui-settings-section-title">{t("settings.pool.title")}</div>
+                <div className="ui-field-hint" style={{ marginBottom: 8 }}>
+                  {t("settings.pool.hint")}
+                </div>
 
-                  {poolEntries.length === 0 ? (
-                    <div className="ui-field-hint">{t("settings.pool.empty")}</div>
-                  ) : (
-                    <div className="ui-pool-table">
-                      {poolEntries.map(({ endpointId, endpointName, model, index }) => (
-                        <div className="ui-pool-row" key={`${endpointId}/${model.id}/${index}`}>
-                          <code className="ui-pool-model-id">{model.id}</code>
-                          <span className="ui-pool-endpoint">{endpointName}</span>
-                          <Checkbox
-                            checked={!!model.thinking}
-                            onChange={(e) => updateModel(endpointId, index, { thinking: e.target.checked })}
-                            label={t("settings.endpoint.thinkingCap")}
-                          />
-                          <Checkbox
-                            checked={!!model.vision}
-                            onChange={(e) => updateModel(endpointId, index, { vision: e.target.checked })}
-                            label={t("settings.endpoint.visionCap")}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeModel(endpointId, index)}
-                            title={t("settings.endpoint.delete")}
-                          >
-                            {t("settings.endpoint.delete")}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {addOpen ? (
-                    <div className="ui-pool-add-form">
-                      <Field label={t("settings.pool.endpoint")}>
-                        <Select value={addEndpointId} onChange={(e) => setAddEndpointId(e.target.value)}>
-                          {ENDPOINT_PRESETS.map((preset) => (
-                            <option key={preset.id} value={preset.id}>
-                              {preset.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
-
-                      {/* The endpoint's saved key is reused automatically; only
-                          ask for one when the endpoint has none yet. */}
-                      {!addEndpointHasKey ? (
-                        <Field label={t("settings.endpoint.apiKey")}>
-                          <Input
-                            type="password"
-                            value={addApiKey}
-                            placeholder={t("settings.endpoint.apiKey")}
-                            aria-label={t("settings.endpoint.apiKey")}
-                            autoComplete="off"
-                            onChange={(e) => setAddApiKey(e.target.value)}
-                          />
-                        </Field>
-                      ) : null}
-
-                      <Field label={t("settings.endpoint.modelId")} hint={t("settings.pool.modelIdHint")}>
-                        <Input
-                          type="text"
-                          value={addModelId}
-                          placeholder="deepseek-v4-pro"
-                          aria-label={t("settings.endpoint.modelId")}
-                          list="ui-pool-model-suggestions"
-                          onChange={(e) => setAddModelId(e.target.value)}
-                        />
-                        <datalist id="ui-pool-model-suggestions">
-                          <option value="deepseek-v4-pro" />
-                          <option value="deepseek-v4-flash" />
-                          <option value="deepseek-v4-flash-vision-exp" />
-                        </datalist>
-                      </Field>
-
-                      <div className="ui-row-inline">
-                        <Checkbox
-                          checked={addThinking}
-                          onChange={(e) => setAddThinking(e.target.checked)}
-                          label={t("settings.endpoint.thinkingCap")}
-                        />
-                        <Checkbox
-                          checked={addVision}
-                          onChange={(e) => setAddVision(e.target.checked)}
-                          label={t("settings.endpoint.visionCap")}
-                        />
-                      </div>
-
-                      {addError ? <div className="ui-field-hint warn">{addError}</div> : null}
-
-                      <div className="ui-row-inline">
-                        <Button variant="primary" size="sm" onClick={submitAddModel}>
-                          {t("settings.endpoint.addModel")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setAddOpen(false);
-                            setAddError("");
-                          }}
-                        >
-                          {t("common.cancel")}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button variant="ghost" size="sm" onClick={() => setAddOpen(true)}>
-                      {t("settings.endpoint.addModel")}
-                    </Button>
-                  )}
-                </section>
-
-                <section className="ui-settings-section">
-                  <div className="ui-settings-section-title">{t("settings.pool.keys")}</div>
-                  <div className="ui-field-hint" style={{ marginBottom: 8 }}>
-                    {t("settings.pool.keysHint")}
-                  </div>
-
-                  <div className="ui-endpoint-list">
-                    {ENDPOINT_PRESETS.map((preset) => {
-                      const ep = s.endpoints.find((e) => e.id === preset.id);
-                      const apiKey = ep?.apiKey ?? "";
-                      const visible = !!showKeyByEndpoint[preset.id];
+                {s.endpoints.length === 0 ? (
+                  <div className="ui-field-hint">{t("settings.pool.empty")}</div>
+                ) : (
+                  <div className="ui-endpoint-cards">
+                    {s.endpoints.map((ep) => {
+                      const preset = presetFor(ep.id);
+                      const keyVisible = !!showKeyByEndpoint[ep.id];
+                      const draft = addModelDrafts[ep.id] ?? { id: "", thinking: true, vision: false };
+                      const draftError = addModelErrors[ep.id] ?? "";
                       return (
-                        <div className="ui-endpoint-row" key={preset.id}>
-                          <div className="ui-endpoint-fields">
-                            <div className="ui-endpoint-preset-name">
-                              <strong>{preset.name}</strong>
-                            </div>
+                        <div className="ui-endpoint-card" key={ep.id}>
+                          <div className="ui-endpoint-card-head">
+                            <strong className="ui-endpoint-card-name">{ep.name || ep.id}</strong>
+                            {preset ? <span className="ui-endpoint-badge">{t("settings.endpoint.preset")}</span> : null}
+                            <code className="ui-endpoint-baseurl" title={ep.baseURL}>
+                              {ep.baseURL}
+                            </code>
+                            <Button variant="ghost" size="sm" onClick={() => removeEndpoint(ep.id)}>
+                              {t("settings.endpoint.deleteEndpoint")}
+                            </Button>
+                          </div>
+
+                          <div className="ui-row-inline">
+                            <Input
+                              type={keyVisible ? "text" : "password"}
+                              value={ep.apiKey ?? ""}
+                              placeholder={t("settings.endpoint.apiKey")}
+                              aria-label={`${ep.name || ep.id} ${t("settings.endpoint.apiKey")}`}
+                              autoComplete="off"
+                              onChange={(e) => updateEndpoint(ep.id, { apiKey: e.target.value })}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowKeyByEndpoint((prev) => ({ ...prev, [ep.id]: !prev[ep.id] }))}
+                            >
+                              {keyVisible ? t("common.hide") : t("common.show")}
+                            </Button>
+                          </div>
+
+                          <EndpointQuotaLine
+                            endpointId={ep.id}
+                            baseURL={ep.baseURL}
+                            apiKey={ep.apiKey ?? ""}
+                            quota={quotaByEndpoint[ep.id]}
+                            onRefresh={() => refreshQuota([ep.id])}
+                            t={t}
+                          />
+
+                          <div className="ui-endpoint-models">
+                            {(ep.models ?? []).map((model, index) => (
+                              <div className="ui-pool-row" key={model.id}>
+                                <code className="ui-pool-model-id">{model.id}</code>
+                                <Checkbox
+                                  checked={!!model.thinking}
+                                  onChange={(e) => updateModel(ep.id, index, { thinking: e.target.checked })}
+                                  label={t("settings.endpoint.thinkingCap")}
+                                />
+                                <Checkbox
+                                  checked={!!model.vision}
+                                  onChange={(e) => updateModel(ep.id, index, { vision: e.target.checked })}
+                                  label={t("settings.endpoint.visionCap")}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeModel(ep.id, index)}
+                                  title={t("settings.endpoint.delete")}
+                                >
+                                  {t("settings.endpoint.delete")}
+                                </Button>
+                              </div>
+                            ))}
+
                             <div className="ui-row-inline">
                               <Input
-                                type={visible ? "text" : "password"}
-                                value={apiKey}
-                                placeholder={t("settings.endpoint.apiKey")}
-                                aria-label={t("settings.endpoint.apiKey")}
-                                autoComplete="off"
-                                onChange={(e) => updateEndpoint(preset.id, { apiKey: e.target.value })}
-                              />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setShowKeyByEndpoint((prev) => ({
+                                type="text"
+                                value={draft.id}
+                                placeholder={t("settings.endpoint.modelId")}
+                                aria-label={`${ep.name || ep.id} ${t("settings.endpoint.modelId")}`}
+                                list="ui-pool-model-suggestions"
+                                onChange={(e) =>
+                                  setAddModelDrafts((prev) => ({
                                     ...prev,
-                                    [preset.id]: !prev[preset.id],
+                                    [ep.id]: { ...draft, id: e.target.value },
                                   }))
                                 }
-                              >
-                                {visible ? t("common.hide") : t("common.show")}
+                              />
+                              <Checkbox
+                                checked={draft.thinking}
+                                onChange={(e) =>
+                                  setAddModelDrafts((prev) => ({
+                                    ...prev,
+                                    [ep.id]: { ...draft, thinking: e.target.checked },
+                                  }))
+                                }
+                                label={t("settings.endpoint.thinkingCap")}
+                              />
+                              <Checkbox
+                                checked={draft.vision}
+                                onChange={(e) =>
+                                  setAddModelDrafts((prev) => ({
+                                    ...prev,
+                                    [ep.id]: { ...draft, vision: e.target.checked },
+                                  }))
+                                }
+                                label={t("settings.endpoint.visionCap")}
+                              />
+                              <Button variant="primary" size="sm" onClick={() => submitAddModelTo(ep.id)}>
+                                {t("settings.endpoint.addModel")}
                               </Button>
                             </div>
+                            {draftError ? <div className="ui-field-hint warn">{draftError}</div> : null}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                </section>
-              </>
+                )}
+
+                <datalist id="ui-pool-model-suggestions">
+                  <option value="deepseek-v4-pro" />
+                  <option value="deepseek-v4-flash" />
+                  <option value="deepseek-v4-flash-vision-exp" />
+                  <option value="step-3.7-flash" />
+                  <option value="step-router-v1" />
+                </datalist>
+
+                <div className="ui-endpoint-add">
+                  <Field label={t("settings.endpoint.addEndpoint")}>
+                    <Select value={addEpChoice} onChange={(e) => setAddEpChoice(e.target.value)}>
+                      {ENDPOINT_PRESETS.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </option>
+                      ))}
+                      <option value="__custom">{t("settings.endpoint.custom")}</option>
+                    </Select>
+                  </Field>
+                  {addEpChoice === "__custom" ? (
+                    <>
+                      <Field label={t("settings.endpoint.nameLabel")}>
+                        <Input
+                          type="text"
+                          value={addEpName}
+                          placeholder={t("settings.endpoint.nameLabel")}
+                          aria-label={t("settings.endpoint.nameLabel")}
+                          onChange={(e) => setAddEpName(e.target.value)}
+                        />
+                      </Field>
+                      <Field label={t("settings.endpoint.baseUrlLabel")}>
+                        <Input
+                          type="text"
+                          value={addEpBase}
+                          placeholder="https://api.example.com/v1"
+                          aria-label={t("settings.endpoint.baseUrlLabel")}
+                          onChange={(e) => setAddEpBase(e.target.value)}
+                        />
+                      </Field>
+                    </>
+                  ) : null}
+                  <Button variant="primary" size="sm" onClick={submitAddEndpoint}>
+                    {t("settings.endpoint.addEndpoint")}
+                  </Button>
+                  {addEpError ? <div className="ui-field-hint warn">{addEpError}</div> : null}
+                </div>
+              </section>
             ) : null}
 
             {/* ── Section 2: Model Capabilities ─────────────────────────── */}

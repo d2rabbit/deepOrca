@@ -43,15 +43,15 @@ import {
   configureGitmcpConfigBuilder,
   buildGitmcpMcpServerConfig,
   TaskTreeService,
-  detectWikiLanguage,
-  wikiVariantPath,
   isWikiVariantFile,
+  endpointQuotaKind,
 } from "@deeporca/core";
 import { extractTaskTrajectory } from "./task-trajectory";
 import { buildSymbolGraph } from "./symbol-graph-query";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
+import { fetchEndpointQuota } from "./endpoint-quota.js";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
@@ -60,6 +60,7 @@ import type {
   KnowledgeArchmapSurface,
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
+  EndpointQuotaResponse,
   MemoryRoutingStatus,
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
@@ -1230,6 +1231,39 @@ function resolveRegisteredRoot(rootArg?: string): string | null {
   return known.has(root) ? root : null;
 }
 
+function registerEndpointQuotaIpc({ handle }: IpcHelpers): void {
+  // Quota follows the ENDPOINT (subscription/prepaid providers): the probe is
+  // selected by the endpoint's own baseURL and keyed by its apiKey. Hosts
+  // without a quota surface short-circuit ok:false — a key must never travel
+  // to a host the platform doesn't own.
+  handle(IpcRequest.EndpointQuota, async (endpointId?: string): Promise<EndpointQuotaResponse> => {
+    if (!endpointId) return { ok: false, error: "missing endpoint id" };
+    try {
+      const settings = resolveCurrentSettings(getBridge().projectRoot);
+      const endpoint = settings.endpoints.find((ep) => ep.id === endpointId);
+      if (!endpoint) return { ok: false, error: "unknown endpoint" };
+      const kind = endpointQuotaKind(endpoint.baseURL);
+      if (!kind) return { ok: false, error: "endpoint has no quota probe" };
+      const result = await fetchEndpointQuota(kind, endpoint.apiKey);
+      if (!result.ok) return { ok: false, error: result.error };
+      if (result.kind === "opencode-subscription") {
+        return { ok: true, kind: result.kind, limits: result.limits };
+      }
+      return {
+        ok: true,
+        kind: result.kind,
+        type: result.account.type,
+        balance: result.account.balance,
+        totalCashBalance: result.account.totalCashBalance,
+        totalVoucherBalance: result.account.totalVoucherBalance,
+        fetchedAt: result.fetchedAt,
+      };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+}
+
 function registerKnowledgeIpc({ handle }: IpcHelpers): void {
   handle(IpcRequest.KnowledgeStatus, async (rootArg?: string): Promise<KnowledgeStatusResponse> => {
     const pinned = resolveRegisteredRoot(rootArg);
@@ -1296,17 +1330,20 @@ function registerKnowledgeIpc({ handle }: IpcHelpers): void {
         }
       : { state: "empty", detail: "未构建" };
 
+    // Base pages only: the removed bilingual stage's legacy `*.zh.md` /
+    // `*.en.md` siblings stay on disk but must not count as pages.
+    const isCountedWikiPage = (n: string): boolean => n.endsWith(".md") && !isWikiVariantFile(n);
+
     // OpenWiki — page count under openwiki/ (recursive for modules/ + workflows/).
     const wikiDir = join(root, "openwiki");
     let wikiPages = 0;
     if (existsSync(wikiDir)) {
-      wikiPages = countDirFiles(wikiDir, (n) => n.endsWith(".md"));
+      wikiPages = countDirFiles(wikiDir, isCountedWikiPage);
       for (const sub of ["modules", "workflows"]) {
-        wikiPages += countDirFiles(join(wikiDir, sub), (n) => n.endsWith(".md"));
+        wikiPages += countDirFiles(join(wikiDir, sub), isCountedWikiPage);
       }
     }
-    const wikiSync =
-      freshness.wikiSync ?? (existsSync(wikiDir) ? newestMtime(wikiDir, (n) => n.endsWith(".md")) : undefined);
+    const wikiSync = freshness.wikiSync ?? (existsSync(wikiDir) ? newestMtime(wikiDir, isCountedWikiPage) : undefined);
     const openwiki: KnowledgeSourceStatus = existsSync(wikiDir)
       ? {
           state: wikiPages === 0 ? "empty" : isStale(wikiSync) ? "stale" : "indexed",
@@ -2096,28 +2133,10 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
             } catch {
               // unreadable — leave undated
             }
-            // Bilingual translation sibling (wiki.translate build stage):
-            // detect the base page's language with the SAME heuristic core
-            // uses, then probe the other-language variant. Cheap existence
-            // check on a path we derived ourselves — no renderer input.
-            let translation: WikiPageEntry["translation"];
-            try {
-              const head = await readFile(absPath, "utf8");
-              const lang = detectWikiLanguage(head);
-              if (lang) {
-                const vLang: "zh" | "en" = lang === "zh" ? "en" : "zh";
-                const vRel = wikiVariantPath(rel, vLang);
-                const vStat = await stat(join(wikiDir, vRel));
-                translation = { lang: vLang, path: vRel, mtime: vStat.mtime.toISOString() };
-              }
-            } catch {
-              // No variant (or unreadable base) — no toggle.
-            }
             entries.push({
               path: rel,
               title: await wikiPageTitle(absPath, item.name),
               mtime,
-              ...(translation ? { translation } : {}),
             });
           }
         }
@@ -2245,6 +2264,7 @@ function registerIpc(): void {
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers);
+  registerEndpointQuotaIpc(helpers);
   registerTaskTreeIpc(helpers);
   registerDesignIpc(helpers);
   registerA2uiIpc(helpers);

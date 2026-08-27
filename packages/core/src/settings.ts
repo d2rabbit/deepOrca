@@ -1095,6 +1095,13 @@ export type EndpointConfig = {
 /** Built-in endpoint presets offered in the settings panel. */
 export const ENDPOINT_PRESETS: ReadonlyArray<Pick<EndpointConfig, "id" | "name" | "baseURL">> = [
   { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com" },
+  // StepFun (step-3.7-flash first-party vision/reasoning family). /v1 REQUIRED:
+  // the SDK appends /chat/completions verbatim and StepFun serves the
+  // OpenAI-compatible surface at /v1/chat/completions. Two channels, same
+  // models: pay-as-you-go /v1 and the Step Plan SUBSCRIPTION channel
+  // /step_plan/v1 (quota-billed; also serves step-router-v1).
+  { id: "stepfun", name: "StepFun", baseURL: "https://api.stepfun.com/v1" },
+  { id: "stepfun-plan", name: "StepFun Plan", baseURL: "https://api.stepfun.com/step_plan/v1" },
   // opencode Zen/Go are OpenAI-compatible gateways that REQUIRE the /v1
   // segment (the SDK appends /chat/completions verbatim; without /v1 the
   // request hits the website and comes back as an HTML 404 page).
