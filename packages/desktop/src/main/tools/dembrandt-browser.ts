@@ -43,7 +43,10 @@ export function primeDembrandtCommandLine(): void {
   app.commandLine.appendSwitch("remote-debugging-port", String(DEMBRANDT_CDP_PORT));
 }
 
-/** Probe the CDP http endpoint until Chromium reports /json/version (≤ ~8s). */
+/** Probe the CDP http endpoint until Chromium reports /json/version.
+ *  12s deadline: cold machines can take >8s to spin up the offscreen window +
+ *  debug server; the previous 8s cut real startups short (incident log
+ *  2026-08-27 alongside the port-collision fix upstream of this module). */
 function waitForCdpReady(endpoint: string, deadlineMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + deadlineMs;
@@ -107,7 +110,7 @@ export async function ensureDembrandtBrowserProvider(): Promise<string> {
     // but data: URLs keep remote-debugging-server startup deterministic in CI.
     await win.loadURL("about:blank");
     const endpoint = `http://127.0.0.1:${DEMBRANDT_CDP_PORT}`;
-    await waitForCdpReady(endpoint, 8000);
+    await waitForCdpReady(endpoint, 12000);
     providerUrl = endpoint;
     app.on("will-quit", () => {
       try {

@@ -303,6 +303,24 @@ configureGitmcpConfigBuilder(buildGitmcpMcpServerConfig);
   }
 }
 
+// Single-instance guard (incident 2026-08-27): the dembrandt CDP provider
+// listens on a FIXED loopback port, so two live app instances fight over it —
+// the second one logs a Chromium bind() error, its devtools HTTP server dies,
+// and the readiness probe times out ("did not become ready in time"). The lock
+// also protects userData-based stores (session index, sqlite libs). A duplicate
+// launch now refocuses the existing window and exits.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
+}
+
 // Point the CRG (code-review-graph) resolver at the vendored uv binary
 // (packages/desktop/vendor/uv). When absent, the core resolver falls back
 // to a system `uv`/`uvx` on PATH. CRG is a Python tool run via uv's
