@@ -427,6 +427,8 @@ export const en = {
   "build.modelFaultOk": "Got it",
   "activity.title": "Activity",
   "activity.none": "No tool calls yet",
+  "pip.back": "Back to this session",
+  "pip.blocked": "Waiting for your confirmation",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "Diagram render failed",
@@ -1560,6 +1562,8 @@ export const zh: Record<MessageKey, string> = {
   "build.modelFaultOk": "知道了",
   "activity.title": "活动轨迹",
   "activity.none": "暂无工具调用",
+  "pip.back": "切回此会话",
+  "pip.blocked": "正在等待你的确认",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "图表渲染失败",

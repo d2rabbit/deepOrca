@@ -115,6 +115,29 @@ type PendingPermissionReply = {
   alwaysAllowPaths: PermissionResult["alwaysAllowPaths"];
 };
 
+/**
+ * Picture-in-picture entry (real-machine ask 2026-08-27): a workspace whose
+ * conversation is parked because the user switched to ANOTHER workspace. The
+ * transcript is frozen at capture time (events for background roots are not
+ * streamed into the view); returning re-selects the root and history reloads
+ * fresh from disk, so freezing never loses anything.
+ */
+type PipEntry = {
+  root: string;
+  label: string;
+  sessionId: string | null;
+  title: string | null;
+  /** Last turns at capture time, oldest→newest, capped slice. */
+  frozen: SessionMessage[];
+  /**
+   * Gate status AT CAPTURE TIME (ask_permission / waiting_for_user). Live
+   * flips for background roots are not streamed to this renderer, so this
+   * is a snapshot signal by design — returning to the root gives the live,
+   * full-fidelity state.
+   */
+  blockedAtCapture: boolean;
+};
+
 /** Extract the markdown plan from the newest UpdatePlan tool message, if any. */
 function findLatestPlan(messages: SessionMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -348,6 +371,10 @@ export function App(): JSX.Element {
   const projectRootRef = useRef<string>("");
   projectRootRef.current = projectRoot;
   const pendingSelectRef = useRef<string | null>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
   const prevBusyRef = useRef(false);
   // Monotonic counter for loadSession race protection: only the latest call
   // should commit its fetched state. An older, slower request that resolves
@@ -870,14 +897,70 @@ export function App(): JSX.Element {
 
   // New workspace: pick a folder, switch root; the project-root-changed handler
   // resets to a fresh session slate (a session is created lazily on first prompt).
+  // ── Picture-in-picture (parked workspaces) ─────────────────────────────────
+  // Switching to another workspace parks the old conversation as a bottom-right
+  // mini-window: a frozen last-turns preview + the gate status captured at
+  // switch time. Background roots get no message/entry streams here, so the
+  // preview is a snapshot by design; returning re-selects the root and the
+  // full, up-to-date history reloads from disk — nothing is lost.
+  const [pipStack, setPipStack] = useState<PipEntry[]>([]);
+
+  /** Park the CURRENT conversation before switching roots (no-op if empty or
+   *  already parked). Must run BEFORE api.setProjectRoot mutates the world. */
+  const pushPipSnapshot = useCallback((targetRoot: string) => {
+    const root = projectRootRef.current;
+    if (!root || root === targetRoot) return;
+    const current = messagesRef.current;
+    if (current.length === 0) return; // fresh workspace — nothing worth parking
+    const sessionId = activeIdRef.current;
+    const entry = sessionsRef.current.find((s) => s.id === sessionId);
+    setPipStack((prev) =>
+      [
+        {
+          root,
+          label: root.split(/[\\/]/).filter(Boolean).pop() ?? root,
+          sessionId,
+          title: entry?.summary ?? null,
+          frozen: current.slice(-24),
+          blockedAtCapture:
+            entry?.status === "ask_permission" ||
+            entry?.status === "waiting_for_user" ||
+            Boolean(entry?.askPermissions && entry.askPermissions.length > 0),
+        },
+        ...prev.filter((p) => p.root !== root),
+      ].slice(0, 4)
+    );
+  }, []);
+
+  const restorePipEntry = useCallback(
+    (entry: PipEntry) => {
+      if (entry.root === projectRootRef.current) {
+        setPipStack((prev) => prev.filter((p) => p.root !== entry.root)); // already active — dismiss only
+        return;
+      }
+      pushPipSnapshot(entry.root); // park whatever is on stage first
+      setPipStack((prev) => prev.filter((p) => p.root !== entry.root));
+      pendingSelectRef.current = entry.sessionId; // root-changed handler re-selects it
+      setActiveTab({ kind: "chat" });
+      void api.setProjectRoot(entry.root);
+    },
+    [pushPipSnapshot]
+  );
+
+  /** Most-recent-first rotation so stacked parked sessions stay reachable. */
+  const cyclePip = useCallback(() => {
+    setPipStack((s) => (s.length > 1 ? [...s.slice(1), s[0]] : s));
+  }, []);
+
   const handleNewWorkspace = useCallback(async () => {
     const picked = await api.pickFolder();
     if (picked) {
+      pushPipSnapshot(picked);
       pendingSelectRef.current = null;
       setMainView("chat");
       await api.setProjectRoot(picked);
     }
-  }, [setMainView]);
+  }, [pushPipSnapshot, setMainView]);
 
   // New session within a workspace: switch root if needed (fresh slate follows),
   // else just reset the current workspace to a fresh session.
@@ -885,13 +968,14 @@ export function App(): JSX.Element {
     async (root: string) => {
       setMainView("chat");
       if (root && root !== projectRootRef.current) {
+        pushPipSnapshot(root);
         pendingSelectRef.current = null;
         await api.setProjectRoot(root);
         return;
       }
       await loadSession(null);
     },
-    [loadSession, setMainView]
+    [pushPipSnapshot, loadSession, setMainView]
   );
 
   const handleUndoRestored = useCallback(async () => {
@@ -955,6 +1039,7 @@ export function App(): JSX.Element {
       // active would hide the chat the user asked for.
       setActiveTab({ kind: "chat" });
       if (root && root !== projectRootRef.current) {
+        pushPipSnapshot(root);
         pendingSelectRef.current = id;
         await api.setProjectRoot(root);
         setMainView("chat");
@@ -963,7 +1048,7 @@ export function App(): JSX.Element {
       setMainView("chat");
       await loadSession(id);
     },
-    [loadSession, setMainView]
+    [pushPipSnapshot, loadSession, setMainView]
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
 
@@ -1534,6 +1619,7 @@ export function App(): JSX.Element {
     if (!busy || !grew) return;
     setToolActivityOpen(true);
   }, [busy, toolEventCount]);
+
   // Model-transport fault dialog (real-machine 2026-08-27): a background
   // build dying on the LLM plumbing used to surface only as console tail —
   // the user had no way to tell the endpoint broke, not the pipeline. Scan
@@ -1892,17 +1978,49 @@ export function App(): JSX.Element {
     handleCloseAuxTab,
   ]);
 
-  // Focusing a surface sheet auto-collapses the hub: the sheet is the new
-  // point of attention (and spans the stage, so a hub floating over it only
-  // occludes). Reopening the hub later still works — it layers above sheets.
-  useEffect(() => {
-    if (activeTab.kind !== "chat") setPanelOpen(false);
-  }, [activeTab.kind, setPanelOpen]);
-
-  // The conversation is the stage's base layer; every auxiliary surface
+  // The conversation is the stage's base layer; auxiliary surfaces
   // (settings / plugin detail / editor files / task records / knowledge)
-  // floats over it as a rounded sheet and stays reachable through the
-  // cockpit's surface chips.
+  // render as the stage's flat workspace pane — same plane as the chat view,
+  // and DOCKED beside the hub rail/flyout when those are open (shell.css
+  // docking rules), so the hub keeps serving until the user collapses it.
+
+  // ── Picture-in-picture derivations ────────────────────────────────────────
+  /** Live gate check: session entries are workspace-scoped, so this only sees
+   *  the CURRENT root; parked roots rely on the capture-time flag instead. */
+  const isPipBlocked = useCallback(
+    (entry: PipEntry): boolean =>
+      entry.root === projectRootRef.current &&
+      sessions.some(
+        (s) =>
+          (!entry.sessionId || s.id === entry.sessionId) &&
+          (s.status === "ask_permission" || s.status === "waiting_for_user")
+      ),
+    [sessions]
+  );
+  const pipTop = pipStack[0] ?? null;
+  const pipBlockedEntries = useMemo(
+    () => pipStack.filter((entry) => entry.blockedAtCapture || isPipBlocked(entry)),
+    [isPipBlocked, pipStack]
+  );
+  /** Flatten one frozen message into a one-line preview for the mini-window. */
+  const pipLineOf = useCallback((message: SessionMessage): { role: string; text: string } => {
+    if (message.role === "user") {
+      return { role: "user", text: truncateForPip(message.content ?? "") };
+    }
+    if (message.role === "assistant") {
+      const plain = (message.content ?? "")
+        .replace(/```[\s\S]*?(```|$)/g, " ")
+        .replace(/[#*`>[\]()]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return { role: "assistant", text: truncateForPip(plain) };
+    }
+    return { role: "tool", text: buildToolSummary(message).name || "" };
+  }, []);
+  function truncateForPip(value: string): string {
+    const flat = value.replace(/\s+/g, " ").trim();
+    return flat.length > 96 ? `${flat.slice(0, 96)}…` : flat;
+  }
 
   // Floating-island size vars — the hub sheet and the companion card each own
   // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
@@ -2240,6 +2358,51 @@ export function App(): JSX.Element {
       {/* Tool activity trace — right-side floating A2UI surface; auto-opens
           while the agent works, persists until manually dismissed. */}
       {toolActivityOpen ? <ToolActivityPanel messages={messages} onClose={() => setToolActivityOpen(false)} /> : null}
+
+      {/* Picture-in-picture — parked workspaces: mini card bottom-right +
+          top-right alerts for sessions blocked on a gate. Click restores. */}
+      {pipBlockedEntries.length > 0 ? (
+        <div className="ui-pip-alerts" role="status">
+          {pipBlockedEntries.map((entry) => (
+            <button key={entry.root} type="button" className="ui-pip-alert-row" onClick={() => restorePipEntry(entry)}>
+              <span className="ui-pip-alert-dot" aria-hidden />
+              <span className="ui-pip-alert-text">{(entry.title ?? entry.label) + " · " + t("pip.blocked")}</span>
+              <span className="ui-pip-alert-go">→</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {pipTop ? (
+        <div className={cx("ui-pip", isPipBlocked(pipTop) && "blocked")}>
+          <div className="ui-pip-head">
+            <span className={cx("ui-pip-dot", isPipBlocked(pipTop) && "urgent")} aria-hidden />
+            <button type="button" className="ui-pip-title" onClick={() => void 0} data-tip={pipTop.root}>
+              {(pipTop.title ?? pipTop.label).slice(0, 28) || t("pip.blocked")}
+            </button>
+            <span className="ui-pip-label">{pipTop.label}</span>
+            {pipStack.length > 1 ? (
+              <button type="button" className="ui-pip-cycle" onClick={cyclePip} title={`${pipStack.length}`}>
+                ⇅{pipStack.length}
+              </button>
+            ) : null}
+          </div>
+          <div className="ui-pip-body">
+            {pipTop.frozen.slice(-6).map((m, i) => {
+              const line = pipLineOf(m);
+              if (!line.text) return null;
+              return (
+                <div key={i} className={`ui-pip-line ${line.role}`}>
+                  <span className="ui-pip-line-role">{line.role === "user" ? "You" : "AI"}</span>
+                  <span className="ui-pip-line-text">{line.text}</span>
+                </div>
+              );
+            })}
+          </div>
+          <button type="button" className="ui-pip-back" onClick={() => restorePipEntry(pipTop)}>
+            ↩ {t("pip.back")}
+          </button>
+        </div>
+      ) : null}
 
       {/* Serena result mirror — floating right panel (R3-6) */}
       {serenaOpen && serenaEvents.length > 0 ? (

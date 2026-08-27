@@ -420,6 +420,8 @@ export const ja: Record<MessageKey, string> = {
   "build.modelFaultOk": "了解",
   "activity.title": "アクティビティ",
   "activity.none": "ツール呼び出しはまだありません",
+  "pip.back": "このセッションに戻る",
+  "pip.blocked": "確認待ちです",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "図のレンダリングに失敗しました",

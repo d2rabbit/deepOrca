@@ -411,6 +411,8 @@ export const zhHK: Record<MessageKey, string> = {
   "build.modelFaultOk": "知道了",
   "activity.title": "活動軌跡",
   "activity.none": "暫無工具調用",
+  "pip.back": "切回此會話",
+  "pip.blocked": "正在等待你的確認",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "圖表渲染失敗",

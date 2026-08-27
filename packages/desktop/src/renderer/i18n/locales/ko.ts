@@ -419,6 +419,8 @@ export const ko: Record<MessageKey, string> = {
   "build.modelFaultOk": "확인",
   "activity.title": "활동 기록",
   "activity.none": "아직 도구 호출 없음",
+  "pip.back": "이 세션으로 돌아가기",
+  "pip.blocked": "확인 대기 중",
 
   // ── Mermaid ───────────────────────────────────────────────
   "mermaid.renderFailed": "다이어그램 렌더링 실패",
