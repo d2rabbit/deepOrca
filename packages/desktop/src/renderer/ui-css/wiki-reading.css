@@ -7,7 +7,13 @@
 /* Standard wiki page shell: hero header (icon chip + frontmatter title +
    actions) over the document, on a raised reading surface — token-driven for
    light/dark. The header sticks to the top of the reading pane with a blur
-   backdrop and a gradient accent strip along its bottom edge. */
+   backdrop and a gradient accent strip along its bottom edge.
+   width:100% on this and the other two centered shells (columns/pager) is
+   LOAD-BEARING: .ui-wiki-page is a flex COLUMN, and a flex item with auto
+   cross-axis margins (margin:0 auto) never stretches — without the explicit
+   width each shell collapses to fit-content and the pager's max-width:46%
+   resolves against the shrunken row, wrapping "← 上一篇" one character per
+   line (real-machine 2026-08-27). */
 .ui-wiki-page {
   display: flex;
   flex-direction: column;
@@ -20,6 +26,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   max-width: 884px; /* 860 reading measure + doc padding */
   margin: 0 auto;
   padding: 16px 12px 12px;
@@ -116,6 +123,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
+  width: 100%;
 }
 /* On-this-page TOC rides beside the reading column on wide panes; below that
    it simply doesn't render (progressive disclosure, no hamburger). */
@@ -175,11 +183,13 @@
   color: var(--ui-accent, #0a84ff);
   border-left-color: var(--ui-accent, #0a84ff);
 }
-/* Tree-order pager (shares the sidebar's one root/order). */
+/* Tree-order pager (shares the sidebar's one root/order). width:100% for the
+   flex-item margin:auto stretch rule documented on .ui-wiki-page-head. */
 .ui-wiki-pager {
   display: flex;
   justify-content: space-between;
   gap: 14px;
+  width: 100%;
   max-width: 860px;
   margin: 0 auto;
   padding: 0 12px 26px;
@@ -197,7 +207,9 @@
   max-width: 46%;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 75%, transparent);
+  /* text-faint mix instead of border-soft: in dark themes border-soft lands
+     within ~2/255 of the page background — the pager read as naked text. */
+  border: 1px solid color-mix(in srgb, var(--ui-text-faint, #8590a0) 38%, transparent);
   background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 30%, var(--ui-surface, #fff));
   cursor: pointer;
   text-align: left;

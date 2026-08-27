@@ -279,13 +279,16 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
   }, [archFilePaths, preview]);
 
   // Reading order for prev/next paging (Oink shell idea: the sidebar tree and
-  // the pager share ONE root and order — directory-grouped depth-first).
+  // the pager share ONE root and order). Pages before dirs at EVERY level:
+  // root-level overview pages (index/quickstart) read first, then sections —
+  // the same order WikiTree renders (real-machine 2026-08-27: dirs-first sank
+  // Index/综合说明 to the bottom and made Index the pager's LAST page).
   const wikiOrder = useMemo(() => {
     const root = buildWikiTree(wikiPages);
     const order: string[] = [];
     const walk = (dir: { dirs: Map<string, ReturnType<typeof buildWikiTree>>; pages: WikiPage[] }): void => {
-      for (const d of [...dir.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) walk(d);
       for (const page of dir.pages) order.push(page.path);
+      for (const d of [...dir.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) walk(d);
     };
     walk(root);
     return order;
@@ -300,22 +303,19 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     return { prev: idx > 0 ? at(idx - 1) : null, next: idx >= 0 ? at(idx + 1) : null };
   }, [wikiOrder, wikiSel, wikiPages]);
 
-  // Inline wiki preview: auto-select the first page once, load on selection.
+  // Inline wiki preview: auto-select the landing page once, load on selection.
+  // Prefer the wiki's index page (the 前言/导航), else the first page in the
+  // tree's reading order — the raw list's first entry is a subdirectory page.
   useEffect(() => {
     if (!wikiSel && wikiPages.length > 0) {
-      setWikiSel(wikiPages[0].path);
+      // wikiOrder[0] (NOT wikiPages[0]): the raw list is path-sorted, so its
+      // first entry is a subdirectory page even when root pages exist.
+      const indexPage = wikiPages.find((pg) => /^index\.md$/i.test(pg.path));
+      const firstInOrder = wikiPages.find((pg) => pg.path === wikiOrder[0]);
+      setWikiSel((indexPage ?? firstInOrder ?? wikiPages[0]).path);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot default selection
   }, [wikiPages, wikiSel]);
-
-  // 原文/译文 toggle (backend bilingual translation): per-page preference,
-  // reset when the selection changes — landing on a new page should always
-  // show the original first, then honor a deliberate toggle.
-  const wikiEntry = wikiPages.find((pg) => pg.path === wikiSel) ?? null;
-  const [preferTranslation, setPreferTranslation] = useState(false);
-  useEffect(() => {
-    setPreferTranslation(false);
-  }, [wikiSel]);
-  const readPath = preferTranslation && wikiEntry?.translation ? wikiEntry.translation.path : wikiSel;
 
   useEffect(() => {
     if (!wikiSel) return;
@@ -324,7 +324,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     setWikiContent(null);
     (async () => {
       try {
-        const res = await api.editorReadFile(`${root}/openwiki/${readPath}`);
+        const res = await api.editorReadFile(`${root}/openwiki/${wikiSel}`);
         if (!alive) return;
         setWikiContent(res.ok && !res.binary ? (res.content ?? "") : null);
       } catch {
@@ -336,7 +336,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
     return () => {
       alive = false;
     };
-  }, [root, wikiSel, readPath]);
+  }, [root, wikiSel]);
 
   return (
     <div className="ui-knowledge-view">
@@ -405,9 +405,6 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                         next={wikiNeighbours.next}
                         onNavigate={(path) => setWikiSel(path)}
                         tocLabel={t("index.wikiToc")}
-                        translation={wikiEntry?.translation}
-                        preferTranslation={preferTranslation}
-                        onToggleTranslation={setPreferTranslation}
                       />
                     ) : (
                       <div className="ui-side-panel-empty">{t("index.wikiPreviewFailed")}</div>
@@ -628,9 +625,6 @@ function WikiPageView({
   next,
   onNavigate,
   tocLabel,
-  translation,
-  preferTranslation,
-  onToggleTranslation,
 }: {
   raw: string;
   onOpenFile: () => void;
@@ -646,10 +640,6 @@ function WikiPageView({
   next: WikiPage | null;
   onNavigate: (path: string) => void;
   tocLabel: string;
-  /** Backend bilingual sibling (wiki.translate stage) — enables 原文/译文. */
-  translation?: WikiPageEntry["translation"];
-  preferTranslation: boolean;
-  onToggleTranslation: (preferred: boolean) => void;
 }): JSX.Element {
   const { t } = useI18n();
   const { title, description, body } = useMemo(() => extractWikiPageMeta(raw), [raw]);
@@ -680,26 +670,6 @@ function WikiPageView({
               ▤
             </span>
             {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
-            {translation ? (
-              <div className="ui-wiki-lang-toggle" role="group">
-                <button
-                  type="button"
-                  className={`ui-wiki-lang-btn${!preferTranslation ? " active" : ""}`}
-                  aria-pressed={!preferTranslation}
-                  onClick={() => onToggleTranslation(false)}
-                >
-                  {t("index.wikiOriginal")}
-                </button>
-                <button
-                  type="button"
-                  className={`ui-wiki-lang-btn${preferTranslation ? " active" : ""}`}
-                  aria-pressed={preferTranslation}
-                  onClick={() => onToggleTranslation(true)}
-                >
-                  {t("index.wikiTranslation")} · {translation.lang.toUpperCase()}
-                </button>
-              </div>
-            ) : null}
             {onQuote ? (
               <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
                 {quoteLabel}
@@ -1159,17 +1129,6 @@ function WikiTreeDirView({
       </button>
       {open ? (
         <div className="ui-wiki-tree-children">
-          {[...dir.dirs.values()].map((child) => (
-            <WikiTreeDirView
-              key={child.name}
-              dir={child}
-              depth={depth + 1}
-              selected={selected}
-              onSelect={onSelect}
-              formatRelative={formatRelative}
-              defaultOpen={depth < 1}
-            />
-          ))}
           {dir.pages.map((page) => (
             <button
               key={page.path}
@@ -1183,6 +1142,17 @@ function WikiTreeDirView({
               <span className="ui-knowledge-item-name">{page.title}</span>
               <span className="ui-knowledge-item-meta">{formatRelative(page.mtime)}</span>
             </button>
+          ))}
+          {[...dir.dirs.values()].map((child) => (
+            <WikiTreeDirView
+              key={child.name}
+              dir={child}
+              depth={depth + 1}
+              selected={selected}
+              onSelect={onSelect}
+              formatRelative={formatRelative}
+              defaultOpen={depth < 1}
+            />
           ))}
         </div>
       ) : null}
@@ -1204,19 +1174,9 @@ function WikiTree({
   const root = useMemo(() => buildWikiTree(pages), [pages]);
   return (
     <div className="ui-wiki-tree">
-      {[...root.dirs.values()]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((dir) => (
-          <WikiTreeDirView
-            key={dir.name}
-            dir={dir}
-            depth={0}
-            selected={selected}
-            onSelect={onSelect}
-            formatRelative={formatRelative}
-            defaultOpen={true}
-          />
-        ))}
+      {/* Pages before dirs at every level — root-level overview pages (Index /
+          综合说明) pin to the TOP instead of sinking below the sections. The
+          order must mirror the wikiOrder walk (pager shares it). */}
       {root.pages.map((page) => (
         <button
           key={page.path}
@@ -1231,6 +1191,19 @@ function WikiTree({
           <span className="ui-knowledge-item-meta">{formatRelative(page.mtime)}</span>
         </button>
       ))}
+      {[...root.dirs.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((dir) => (
+          <WikiTreeDirView
+            key={dir.name}
+            dir={dir}
+            depth={0}
+            selected={selected}
+            onSelect={onSelect}
+            formatRelative={formatRelative}
+            defaultOpen={true}
+          />
+        ))}
     </div>
   );
 }
