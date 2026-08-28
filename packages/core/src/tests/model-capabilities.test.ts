@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   defaultsToThinkingMode,
+  endpointModelFamily,
+  FAMILY_MODEL_SUGGESTIONS,
   isStepfunBaseUrl,
   familyThinkLevels,
   findModelRegistration,
@@ -64,7 +66,7 @@ test("legacy deepseek-chat/reasoner keep their pre-registry capabilities", () =>
     assert.equal(spec.id, "deepseek");
     assert.equal(spec.defaultsToThinking, false, `${model} never defaulted to thinking`);
     assert.equal(spec.multimodal, false);
-    assert.equal(spec.contextWindowTokens, 128 * 1024);
+    assert.equal(spec.contextWindowTokens, 512 * 1024, "the whole DeepSeek series compacts at 512K");
   }
 });
 
@@ -108,6 +110,41 @@ test("isStepfunBaseUrl gates both StepFun channels (and only StepFun)", () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Endpoint family binding — the settings model pool binds each endpoint's
+// add-model suggestion list to the endpoint's family through these exports.
+// ---------------------------------------------------------------------------
+
+test("endpointModelFamily binds a gateway endpoint to one family's suggestions", () => {
+  // The first registered model whose family resolves wins — aggregator
+  // gateways (opencode.ai) serve DeepSeek models in practice.
+  assert.equal(
+    endpointModelFamily({ baseURL: "https://opencode.ai/zen/go/v1", registeredModelIds: ["deepseek-v4-flash"] }),
+    "deepseek"
+  );
+  // Host hint applies when nothing (or nothing resolvable) is registered.
+  assert.equal(
+    endpointModelFamily({ baseURL: "https://opencode.ai/zen/v1", registeredModelIds: ["mystery-model"] }),
+    "unknown"
+  );
+  assert.equal(endpointModelFamily({ baseURL: "https://api.stepfun.com/step_plan/v1" }), "stepfun");
+  assert.equal(endpointModelFamily({ baseURL: "https://api.deepseek.com" }), "deepseek");
+  // Unregistered host + no models → the caller's preset fallback, else unknown.
+  assert.equal(endpointModelFamily({ baseURL: "https://opencode.ai/zen/v1", fallback: "deepseek" }), "deepseek");
+  assert.equal(endpointModelFamily({ baseURL: "https://gateway.example.com" }), "unknown");
+  assert.equal(endpointModelFamily({}), "unknown");
+});
+
+test("FAMILY_MODEL_SUGGESTIONS covers every family id without legacy ids", () => {
+  for (const family of ["deepseek", "stepfun", "glm", "kimi", "minimax", "qwen", "unknown"] as const) {
+    assert.ok(Array.isArray(FAMILY_MODEL_SUGGESTIONS[family]), family);
+  }
+  // Curated: legacy/discontinued ids stay resolvable but are never suggested.
+  assert.ok(!FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-chat"));
+  assert.ok(FAMILY_MODEL_SUGGESTIONS.deepseek.includes("deepseek-v4-flash"));
+  assert.deepEqual(FAMILY_MODEL_SUGGESTIONS.stepfun, ["step-3.7-flash", "step-router-v1"]);
+});
+
 test("stepfun family resolves by api.stepfun.com baseURL hint when the model name is opaque", () => {
   const spec = resolveModelSpec({ model: "custom-tuned-alias", baseURL: "https://api.stepfun.com/v1" });
   assert.equal(spec.id, "stepfun");
@@ -148,7 +185,7 @@ test("unlisted deepseek-* models keep the conservative family defaults", () => {
   // Pre-registry semantics: models absent from NON_MULTIMODAL_MODELS were
   // treated as multimodal-capable. Lock that in.
   assert.equal(spec.multimodal, true);
-  assert.equal(spec.contextWindowTokens, 128 * 1024);
+  assert.equal(spec.contextWindowTokens, 512 * 1024, "the DeepSeek family default is the 512K series trigger");
 });
 
 test("unknown models fail open to the conservative UNKNOWN spec", () => {
@@ -157,7 +194,7 @@ test("unknown models fail open to the conservative UNKNOWN spec", () => {
   assert.equal(spec.familyResolved, false);
   assert.equal(spec.defaultsToThinking, false);
   assert.equal(spec.multimodal, true);
-  assert.equal(spec.contextWindowTokens, 128 * 1024);
+  assert.equal(spec.contextWindowTokens, 200 * 1024);
   assert.equal(spec.reasoningReplay, "empty-field");
   assert.deepEqual(spec.reasoningReadFields, ["reasoning_content", "reasoning"]);
   assert.equal(spec.lightweightModel, undefined);
@@ -171,7 +208,7 @@ test("not-yet-registered families (glm/kimi/…) behave exactly like unknown mod
     assert.equal(spec.id, "unknown", model);
     assert.equal(spec.defaultsToThinking, false);
     assert.equal(spec.multimodal, true);
-    assert.equal(spec.contextWindowTokens, 128 * 1024);
+    assert.equal(spec.contextWindowTokens, 200 * 1024);
   }
 });
 
@@ -212,11 +249,11 @@ test("supportsMultimodal matches the old NON_MULTIMODAL_MODELS set", () => {
   assert.equal(supportsMultimodal("  deepseek-chat  "), false, "trims like the old facade");
 });
 
-test("getCompactPromptTokenThreshold keeps the 512K/128K split", () => {
+test("getCompactPromptTokenThreshold keeps the 512K/200K split", () => {
   assert.equal(getCompactPromptTokenThreshold("deepseek-v4-flash"), 512 * 1024);
   assert.equal(getCompactPromptTokenThreshold("deepseek-v4-pro"), 512 * 1024);
-  assert.equal(getCompactPromptTokenThreshold("deepseek-chat"), 128 * 1024);
-  assert.equal(getCompactPromptTokenThreshold("anything-else"), 128 * 1024);
+  assert.equal(getCompactPromptTokenThreshold("deepseek-chat"), 512 * 1024);
+  assert.equal(getCompactPromptTokenThreshold("anything-else"), 200 * 1024);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { I18nProvider } from "./i18n";
+import { I18nProvider, useI18n } from "./i18n";
 import { api } from "./api";
 import { lazy, Suspense } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -60,6 +60,13 @@ function injectStylesheet(href: string, id?: string): Promise<void> {
   });
 }
 
+/** Prototype-window lazy fallback — rendered inside I18nProvider, so it can
+ *  localize; the theme stylesheet is injected before render, tokens resolve. */
+function PrototypeLoading() {
+  const { t } = useI18n();
+  return <div style={{ padding: 20, color: "var(--ui-text-faint)" }}>{t("common.loading")}</div>;
+}
+
 async function bootstrap(): Promise<void> {
   const { platform } = await api.ready();
   const theme = resolveTheme(platform);
@@ -77,7 +84,7 @@ async function bootstrap(): Promise<void> {
     createRoot(container!).render(
       <StrictMode>
         <I18nProvider>
-          <Suspense fallback={<div style={{ padding: 20, color: "#888" }}>Loading prototype…</div>}>
+          <Suspense fallback={<PrototypeLoading />}>
             <PrototypeWindow />
           </Suspense>
         </I18nProvider>

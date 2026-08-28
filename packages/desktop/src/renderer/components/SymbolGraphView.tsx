@@ -46,6 +46,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
   // One-hop popover: clicking an outer chip no longer navigates — it opens a
   // floating sub-graph preview with a "center here" action (deliberate drill).
   const [pop, setPop] = useState<{ name: string; kind: string; x: number; y: number } | null>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const [popGraph, setPopGraph] = useState<KnowledgeSymbolGraph | null>(null);
   const [popLoading, setPopLoading] = useState(false);
   const popSeqRef = useRef(0);
@@ -56,14 +57,28 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
     setPopGraph(null);
   }, [root, query]);
 
-  // Esc closes the popover.
+  // Esc / any scroll / outside press closes the popover — it is viewport-
+  // fixed, so without the scroll hook it detaches from its anchor chip and
+  // floats stranded over the board once the canvas scrolls.
   useEffect(() => {
     if (!pop) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") setPop(null);
     };
+    const onScroll = (): void => setPop(null);
+    const onPointerDown = (e: MouseEvent): void => {
+      if (!popRef.current?.contains(e.target as Node)) setPop(null);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase: the graph canvas is an inner scroller; window-level
+    // capture sees its scroll events without wiring each container.
+    window.addEventListener("scroll", onScroll, true);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
   }, [pop]);
 
   useEffect(() => {
@@ -256,7 +271,7 @@ export function SymbolGraphView({ root, query, onRecenter }: Props): JSX.Element
       <div className="ui-symbol-graph-scroll">{boardInner}</div>
       <div className="ui-symbol-graph-hint">{t("symbols.clickHint")}</div>
       {pop ? (
-        <div className="ui-sym-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
+        <div ref={popRef} className="ui-sym-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
           <div className="ui-sym-pop-head">
             <span className={`sym-dot kind-${pop.kind} ui-sym-pop-dot`} />
             <span className="ui-sym-pop-name">{pop.name}</span>

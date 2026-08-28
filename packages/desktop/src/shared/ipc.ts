@@ -150,6 +150,7 @@ export const IpcRequest = {
   // Knowledge dashboard — aggregated status of all knowledge sources
   KnowledgeStatus: "knowledge:status",
   EndpointQuota: "endpoint:quota",
+  EndpointTest: "endpoint:test",
   MemoryRoutingStatus: "memoryRouting:status",
   KnowledgeReadArchmap: "knowledge:readArchmap",
   KnowledgeBuild: "knowledge:build",
@@ -594,6 +595,26 @@ export type EndpointQuotaResponse = {
   limits?: { fiveHourUsd: number; weeklyUsd: number; monthlyUsd: number };
 };
 
+/** Endpoint connectivity probe (settings → model pool): reachability = the
+ *  server answered at all; API usability = GET {baseURL}/models accepted the
+ *  key (OpenAI-compatible surface). status=no-models-route means the host is
+ *  reachable but exposes no /models, so API usability stays unverified. */
+export type EndpointTestResponse = {
+  /** Any HTTP response proves the transport path works. */
+  reachable: boolean;
+  /** 200 from /models — the key works and the API surface responds. */
+  apiOk: boolean;
+  status: "ok" | "auth-failed" | "http-error" | "no-models-route" | "network-error";
+  /** HTTP status when the server answered. */
+  httpStatus?: number;
+  /** Round-trip milliseconds. */
+  latencyMs: number;
+  /** Models advertised by /models (OpenAI shape {data:[…]}), when parseable. */
+  modelsCount?: number;
+  /** Raw transport error for network-error (timeout / DNS / refused). */
+  error?: string;
+};
+
 export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
@@ -954,6 +975,8 @@ export type DesktopApi = {
   knowledgeStatus(root?: string): Promise<KnowledgeStatusResponse>;
   /** 端点额度查询（额度跟随端点；无额度面的端点返回 ok:false）. */
   endpointQuota(endpointId: string): Promise<EndpointQuotaResponse>;
+  /** 端点连通性探测：可达性（任何 HTTP 应答）+ API 可用性（/models 鉴权）。 */
+  endpointTest(baseURL: string, apiKey?: string): Promise<EndpointTestResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
   /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`), Mermaid document (`.md`), or HTML board (`.html`). */
   knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;

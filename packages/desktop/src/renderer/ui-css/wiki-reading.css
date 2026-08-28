@@ -385,11 +385,17 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border: 1px solid var(--ui-border-soft, #e3e6eb);
-  border-radius: 12px;
+  /* The board renders EDGE-TO-EDGE — the old border/radius/backdrop/soft-bg
+     wrapped it in a box-in-box layer (real-machine feedback: "不要多包一层"). */
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   overflow: hidden;
-  background: var(--ui-bg-soft, #fafbfc);
-  box-shadow: var(--ui-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+/* The HTML-board iframe variant: zero padding so the board fills the pane. */
+.ui-knowledge-preview-a2ui.ui-knowledge-preview-board {
+  padding: 0;
 }
 /* Arch map viewer: toolbar (chart switcher + zoom + open-source) over a
    scaleable stage. The stage scales via transform; the frame scrolls when a
@@ -453,20 +459,17 @@
 .ui-arch-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px 18px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 65%, transparent);
-  background: color-mix(in srgb, var(--ui-surface, #fff) 82%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: var(--ui-shadow-sm);
+  gap: 8px;
+  /* Charts render DIRECTLY on the reading face — the old glass-card chrome
+     (border + translucent fill + blur + shadow) wrapped every diagram in a
+     box-in-box layer and its fit-scaling shrank them to fit (real-machine
+     feedback: "直接展开，不要多包一层"). Only the corner zoom anchor stays. */
+  padding: 4px 2px 10px;
+  position: relative;
 }
 .ui-arch-card--hero {
-  border-color: color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 30%, var(--ui-border-soft, #e3e6eb));
-  box-shadow:
-    var(--ui-shadow-card),
-    0 0 24px color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 7%, transparent);
+  border: none;
+  box-shadow: none;
 }
 /* Module grid: responsive columns via CSS — the window size decides how many
    cards sit per row (no JS measurement involved at this level). */
@@ -514,6 +517,9 @@
   flex-direction: column;
   align-items: center;
   min-width: 0;
+  /* Charts render at natural size (never shrunk) — a chart wider than its
+     card scrolls horizontally instead of being scaled down to noise. */
+  overflow-x: auto;
 }
 .ui-arch-chart-box {
   margin: 0 auto;
@@ -788,4 +794,110 @@
   padding: 20px 28px;
   max-width: 860px;
   margin: 0 auto;
+}
+
+/* ── Arch chart enlarged viewing (点击架构图放大) ────────────────────────────
+   Every card carries a corner zoom button and its chart area is clickable;
+   the lightbox re-renders the chart at natural-or-larger scale in a
+   near-fullscreen dialog (editor-overlay tier z-index, image-viewer scrim). */
+.ui-arch-zoom-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text-dim);
+  font-size: 13px;
+  cursor: zoom-in;
+  transition:
+    color 0.14s var(--ui-ease),
+    border-color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-arch-zoom-btn:hover {
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+.ui-arch-chart-click {
+  cursor: zoom-in;
+  min-width: 0;
+}
+.ui-arch-chart-click:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-sm);
+}
+.ui-arch-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000; /* editor-overlay tier — a deliberate full takeover */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 4vw;
+  background: rgba(0, 0, 0, 0.55);
+  animation: ui-overlay-fade 0.15s var(--ui-ease) both;
+}
+.ui-arch-lightbox-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(1400px, 92vw);
+  max-height: 92vh;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-modal);
+  overflow: hidden;
+  animation: ui-bubble-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-arch-lightbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-arch-lightbox-title {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-arch-lightbox-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  transition:
+    color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-arch-lightbox-close:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+.ui-arch-lightbox-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
 }

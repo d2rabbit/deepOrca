@@ -109,7 +109,9 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.35);
-  padding: var(--ui-space-4);
+  /* Top padding clears the cockpit window bar so even a tall dialog on a
+     short window never rises level with the main window title. */
+  padding: calc(var(--ui-cockpit-h, 52px) + var(--ui-space-4, 16px)) var(--ui-space-4, 16px) var(--ui-space-4, 16px);
   animation: ui-overlay-fade 0.15s ease both;
 }
 
@@ -454,6 +456,11 @@
 }
 .ui-switch:hover .ui-switch-track {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 12%, transparent);
+}
+/* The native input is visually hidden, so surface keyboard focus on the
+   track — otherwise switch navigation has no visible indicator. */
+.ui-switch:focus-within .ui-switch-track {
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
 }
 .ui-switch:active .ui-switch-track::after {
   width: 20px;

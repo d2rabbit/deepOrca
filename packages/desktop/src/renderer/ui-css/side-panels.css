@@ -465,8 +465,10 @@
   z-index: 50;
   display: grid;
   place-items: center;
-  padding: var(--ui-space-6, 32px);
-  background: rgba(0, 0, 0, 0.42);
+  /* Top padding clears the cockpit window bar — the panel must not rise
+     level with the main window title on short windows. */
+  padding: calc(var(--ui-cockpit-h, 52px) + var(--ui-space-6, 32px)) var(--ui-space-6, 32px) var(--ui-space-6, 32px);
+  background: rgba(0, 0, 0, 0.35);
   -webkit-app-region: no-drag;
   animation: ui-overlay-fade 0.18s ease both;
 }
@@ -480,7 +482,7 @@
   flex-direction: column;
   width: min(1080px, 92vw);
   height: min(760px, 88vh);
-  max-height: calc(100vh - 64px);
+  max-height: calc(100vh - var(--ui-cockpit-h, 52px) - 64px);
   border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
@@ -625,8 +627,8 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--ui-accent) 45%, transparent);
   transition:
     width 0.35s cubic-bezier(0.22, 0.8, 0.2, 1),
-    background 0.3s ease,
-    box-shadow 0.3s ease;
+    background 0.3s var(--ui-ease),
+    box-shadow 0.3s var(--ui-ease);
 }
 .ui-context-progress-fill.near {
   background: linear-gradient(
@@ -877,7 +879,7 @@
   animation: ui-pulse 1.5s ease-in-out infinite;
 }
 .ui-task-progress-dot.done {
-  background: #3fb950;
+  background: var(--ui-success);
   animation: none;
 }
 .ui-task-progress-label {
@@ -896,20 +898,10 @@
   color: var(--ui-text-faint);
   font-variant-numeric: tabular-nums;
 }
-.ui-task-progress-bar {
-  height: 3px;
-  background: var(--ui-surface-sunken);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.ui-task-progress-fill {
-  height: 100%;
-  background: var(--ui-accent);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
+/* Bar geometry is owned by vscode.css (later in the import order); only the
+   done-state fill color is layered here. */
 .ui-task-progress-item.done .ui-task-progress-fill {
-  background: #3fb950;
+  background: var(--ui-success);
 }
 .ui-task-progress-line {
   font-size: 10px;
@@ -955,7 +947,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #3fb950;
+  background: var(--ui-success);
   flex-shrink: 0;
   animation: ui-pulse 1.5s ease-in-out infinite;
 }
@@ -1052,7 +1044,7 @@
   color: var(--ui-text-dim);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s var(--ui-ease);
 }
 .ui-process-btn:hover {
   background: var(--ui-surface-hover);
@@ -1217,33 +1209,6 @@
     opacity: 0;
     transform: translateY(4px);
   }
-}
-
-/* Composer busy state — subtle accent border pulse while streaming */
-.ui-composer-card.busy {
-  border-color: var(--ui-accent);
-  animation: ui-composer-busy-pulse 2s ease-in-out infinite;
-}
-@keyframes ui-composer-busy-pulse {
-  0%,
-  100% {
-    box-shadow:
-      var(--ui-shadow-card),
-      0 0 0 2px var(--ui-accent-soft);
-  }
-  50% {
-    box-shadow:
-      var(--ui-shadow-card),
-      0 0 0 4px var(--ui-accent-soft);
-  }
-}
-
-/* Composer ready state — gentle glow when text is ready to send */
-.ui-composer-card.ready:not(.busy) {
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border-soft));
-  box-shadow:
-    var(--ui-shadow-card),
-    0 0 0 1px var(--ui-accent-soft);
 }
 
 /* ── Composer breathing （呼吸感） ────────────────────────────────────────────

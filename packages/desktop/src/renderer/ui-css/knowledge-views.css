@@ -169,8 +169,8 @@
   flex-direction: column;
   background: var(--ui-surface, #1c1e24);
   border: 1px solid var(--ui-border, #33363d);
-  border-radius: 10px;
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.4);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-modal);
   z-index: 60;
   overflow: hidden;
 }
@@ -188,8 +188,8 @@
   flex-direction: column;
   background: var(--ui-surface, #1c1e24);
   border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border, #33363d));
-  border-radius: 10px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-modal);
   z-index: 58;
   overflow: hidden;
 }
@@ -226,8 +226,8 @@
   color: var(--ui-text-faint);
   cursor: pointer;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-tool-activity-close:hover {
   background: var(--ui-surface-hover);
@@ -253,10 +253,17 @@
   flex-direction: column;
   background: var(--ui-surface, #1c1e24);
   border: 1px solid var(--ui-border, #33363d);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-modal);
   z-index: 59;
   overflow: hidden;
+  transition: bottom 0.2s var(--ui-ease);
+}
+/* The build console shares this anchor (right:16/bottom:76, z:60) and would
+   cover the parked-session card entirely; while it is open the PiP lifts
+   above the console's max height instead of fighting the stacking order. */
+.ui-pip.console-open {
+  bottom: calc(76px + min(64vh, 560px) + 8px);
 }
 .ui-pip.blocked {
   border-color: color-mix(in srgb, var(--ui-warning) 55%, var(--ui-border));
@@ -315,8 +322,8 @@
   color: var(--ui-text-dim);
   cursor: pointer;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-pip-cycle:hover {
   background: var(--ui-surface-hover);
@@ -372,7 +379,7 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s var(--ui-ease);
 }
 .ui-pip-back:hover {
   background: var(--ui-surface-hover);
@@ -403,8 +410,8 @@
   box-shadow: var(--ui-shadow-card);
   animation: ui-bubble-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
   transition:
-    border-color 0.14s ease,
-    transform 0.14s ease;
+    border-color 0.14s var(--ui-ease),
+    transform 0.14s var(--ui-ease);
 }
 .ui-pip-alert-row:hover {
   border-color: var(--ui-warning);
@@ -441,7 +448,9 @@
   right: 16px;
   bottom: 16px;
   display: flex;
-  flex-direction: column;
+  /* Horizontal: two concurrent badges must not grow the stack upward into
+     the PiP window's 76px bottom clearance. */
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   z-index: 60;
@@ -456,24 +465,36 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: none;
+  /* Raised surface + hairline border: on light themes a plain white disc
+     melted into the composer card it floats over (sticker effect) — the
+     border keeps the island legible in both appearances. */
+  border: 1px solid var(--ui-border);
   padding: 0;
-  background: var(--ui-surface, #1c1e24);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  background: var(--ui-surface-raised, #1c1e24);
+  box-shadow: var(--ui-shadow-card);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s var(--ui-ease);
 }
 .ui-task-badge:hover {
   transform: scale(1.08);
 }
 .ui-task-badge-icon {
-  font-size: 17px;
-  line-height: 1;
+  /* Absolute, full-button wrapper: the icon centers on the exact ring axis
+     regardless of any inherited flow quirks — flex-item centering left the
+     icon riding the button's content box off-center (real-machine report). */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
+}
+.ui-task-badge-icon svg {
+  display: block;
 }
 .ui-task-badge.kind-knowledge .ui-task-badge-icon {
   color: var(--ui-accent, #3b82f6);
@@ -482,7 +503,18 @@
   color: var(--ui-success, #57c98b);
 }
 .ui-task-badge-track {
-  stroke: var(--ui-border-soft, #33363d);
+  /* Mixed from --ui-text, not --ui-border: at 3px on a white disc the 13%
+     border token all but vanishes, so the ring reads as a detached arc
+     instead of a gauge (light themes especially). */
+  stroke: color-mix(in srgb, var(--ui-text, #33363d) 20%, transparent);
+}
+/* Determinate progress starts at 12 o'clock (gauge convention) — the SVG
+   dash origin is 3 o'clock, which put low percentages at the bottom-right
+   and read as a broken ring. The indeterminate sweep spins anyway, and its
+   keyframes override this static transform while animating. */
+.ui-task-badge-arc {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
 }
 .ui-task-badge.kind-knowledge .ui-task-badge-arc {
   stroke: var(--ui-accent, #3b82f6);
@@ -684,8 +716,8 @@
   flex-direction: column;
   background: var(--ui-surface, #fff);
   border: 1px solid var(--ui-border, #d0d5dd);
-  border-radius: 10px;
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.25);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-modal);
   z-index: 55;
   overflow: hidden;
 }
@@ -718,6 +750,14 @@
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background 0.15s var(--ui-ease),
+    color 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease);
+}
+.ui-serena-tab:hover:not(.active) {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
 }
 .ui-serena-tab.active {
   background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
@@ -884,23 +924,42 @@
 }
 .ui-knowledge-symbol-viewtoggle {
   display: flex;
-  border: 1px solid var(--ui-border, #d0d5dd);
-  border-radius: 7px;
-  overflow: hidden;
+  gap: 4px;
   flex-shrink: 0;
 }
 .ui-knowledge-symbol-viewtoggle button {
+  /* Ghost style: BOTH options are the same clean button (no track, no box);
+     only the active one is marked, with the accent-soft pill. Flex ROW keeps
+     icon left / label right, vertically centered — a plain button with a
+     block-level SVG stacked the icon ABOVE the text. */
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: none;
   border: none;
-  padding: 4px 10px;
+  border-radius: var(--ui-radius-md);
+  padding: 4px 12px;
   font-size: 11px;
   color: var(--ui-text-dim, #55606d);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-knowledge-symbol-viewtoggle button:hover:not(.active) {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
 }
 .ui-knowledge-symbol-viewtoggle button.active {
-  background: var(--ui-accent-soft, rgba(10, 132, 255, 0.12));
-  color: var(--ui-accent, #0a84ff);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-weight: 600;
+}
+/* The symbol LIST shares the graph's board arrangement (same dotted scroll
+   canvas), so toggling views keeps one consistent presentation. */
+.ui-symbol-graph-scroll .ui-knowledge-wiki {
+  padding: var(--ui-space-4);
 }
 .ui-symbol-graph {
   display: flex;
@@ -1112,7 +1171,7 @@
   justify-content: safe center;
   align-content: start;
   border: 1px solid var(--ui-border-soft, #e3e6eb);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-lg);
   background-color: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
   background-image: radial-gradient(color-mix(in srgb, var(--ui-text, #1b2129) 9%, transparent) 1px, transparent 1.2px);
   background-size: 22px 22px;
@@ -1133,7 +1192,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px 14px;
-  border-radius: 13px;
+  border-radius: var(--ui-radius-md);
   border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 65%, transparent);
   background: color-mix(in srgb, var(--ui-surface, #fff) 62%, transparent);
 }
@@ -1175,7 +1234,7 @@
   align-items: flex-start;
   gap: 3px;
   padding: 7px 12px 8px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-md);
   border: 1px solid transparent;
   background: var(--ui-surface, #fff);
   cursor: pointer;
@@ -1547,6 +1606,12 @@
   font-size: 12px;
   color: var(--ui-text-dim, #55606d);
   cursor: pointer;
+  transition:
+    color 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease);
+}
+.ui-taskrec-section-tabs button:hover:not(.active) {
+  color: var(--ui-text);
 }
 .ui-taskrec-section-tabs button.active {
   color: var(--ui-accent, #0a84ff);
@@ -1622,10 +1687,10 @@
   background: var(--ui-text-faint, #8590a0);
 }
 .ui-taskrec-node-status.running {
-  background: #f0a04b;
+  background: var(--ui-warning);
 }
 .ui-taskrec-node-status.done {
-  background: #57c98b;
+  background: var(--ui-success);
 }
 .ui-taskrec-node-status.abandoned {
   background: var(--ui-danger, #e5484d);

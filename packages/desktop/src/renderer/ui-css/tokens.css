@@ -104,6 +104,17 @@
   --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* Native form controls (select popups, scrollbars, date pickers) follow the
+   OS rendering mode derived from `color-scheme`. Without these bindings
+   Chromium renders them light-mode in a dark app — select option lists came
+   up white while the app is dark, reading as "the dropdown is broken". */
+:root[data-appearance="light"] {
+  color-scheme: light;
+}
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+}
+
 /* Diagram hues — light appearance: darker strokes so node outlines stay
    legible on pastel color-mix fills over a light surface. */
 :root[data-appearance="light"] {
@@ -115,6 +126,17 @@
   --ui-diagram-hue-5: #0891b2;
   --ui-diagram-hue-6: #4f46e5;
   --ui-diagram-hue-7: #65a30d;
+
+  /* Tool/message accent hues — light appearance: same darker-strokes contract
+     as the diagram hues, so thinking headers, tool names, JSON tints and MCP
+     badges stay legible on light surfaces even when a theme (e.g. Aqua) ships
+     no light hue overrides of its own. */
+  --ui-tool-hue-think: #b45309;
+  --ui-tool-hue-amber: #a16207;
+  --ui-tool-hue-purple: #7c3aed;
+  --ui-tool-hue-indigo: #4f46e5;
+  --ui-tool-hue-sky: #0369a1;
+  --ui-tool-hue-teal: #0f766e;
 }
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */

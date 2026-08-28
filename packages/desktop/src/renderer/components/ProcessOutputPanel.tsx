@@ -130,6 +130,7 @@ export function ProcessOutputPanel({
               setTemporaryStatus(t("process.cleared"));
             }}
             title={t("process.clear")}
+            aria-label={t("process.clear")}
           >
             ⌫
           </button>
@@ -137,6 +138,7 @@ export function ProcessOutputPanel({
             className="ui-process-btn"
             onClick={() => void handleAdjustTimeout(BASH_TIMEOUT_INCREMENT_MS)}
             title="+5m"
+            aria-label="+5m"
           >
             +
           </button>
@@ -144,6 +146,7 @@ export function ProcessOutputPanel({
             className="ui-process-btn"
             onClick={() => void handleAdjustTimeout(-BASH_TIMEOUT_DECREMENT_MS)}
             title="-1m"
+            aria-label="-1m"
           >
             −
           </button>
@@ -154,13 +157,15 @@ export function ProcessOutputPanel({
             className="ui-process-btn ui-process-btn-stop"
             onClick={() => void api.interrupt()}
             title={t("process.stopAll")}
+            aria-label={t("process.stopAll")}
           >
             ■
           </button>
           <button
             className="ui-process-btn ui-process-btn-close"
             onClick={onDismiss}
-            title={`${platform === "darwin" ? "⌘" : "Ctrl"}J / Esc`}
+            title={`${platform === "darwin" ? "⌘" : "Ctrl"}J`}
+            aria-label={t("common.close")}
           >
             ✕
           </button>

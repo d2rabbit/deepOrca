@@ -284,7 +284,7 @@ export const TopBar = memo(function TopBar({
       <div className="ui-window-bar-spacer">
         {center}
         {streaming ? (
-          <span className="ui-topbar-streaming" aria-label="streaming">
+          <span className="ui-topbar-streaming" aria-label={t("topbar.streaming")}>
             <span className="ui-topbar-streaming-dot" />
             <span className="ui-topbar-streaming-dot" />
             <span className="ui-topbar-streaming-dot" />
@@ -366,7 +366,7 @@ export const TopBar = memo(function TopBar({
       <button
         className="ui-topbar-pill ui-topbar-tokens"
         onClick={onOpenTokens}
-        title={`${t("topbar.tokenPanelTitle")}${cacheRate != null && cacheRate > 0 ? ` · cache ${cacheRate}%` : ""}${totalReqs ? ` · ${totalReqs} reqs` : ""}`}
+        title={`${t("topbar.tokenPanelTitle")}${cacheRate != null && cacheRate > 0 ? ` · ${t("tokens.cacheHitRate", { n: cacheRate })}` : ""}${totalReqs ? ` · ${t("tokens.requests")} ${totalReqs}` : ""}`}
       >
         <span className="ui-topbar-token-part">
           <span className="ui-topbar-token-label">{t("topbar.contextTokens")}</span>

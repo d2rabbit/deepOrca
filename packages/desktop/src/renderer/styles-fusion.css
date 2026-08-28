@@ -354,7 +354,7 @@ body {
   transition:
     transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1),
     box-shadow 0.12s cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 0.12s ease;
+    filter 0.12s var(--ui-ease);
 }
 @media (prefers-reduced-motion: no-preference) {
   .ui-btn:hover:not(:disabled) {
@@ -414,7 +414,7 @@ body {
   transition:
     transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1),
     box-shadow 0.12s cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 0.12s ease;
+    filter 0.12s var(--ui-ease);
 }
 @media (prefers-reduced-motion: no-preference) {
   .ui-rail-btn:hover:not(:disabled),

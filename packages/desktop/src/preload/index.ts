@@ -140,6 +140,7 @@ const api: DesktopApi = {
   // ── Knowledge dashboard ──────────────────────────────────────────
   knowledgeStatus: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeStatus, root),
   endpointQuota: (endpointId) => ipcRenderer.invoke(IpcRequest.EndpointQuota, endpointId),
+  endpointTest: (baseURL, apiKey) => ipcRenderer.invoke(IpcRequest.EndpointTest, baseURL, apiKey),
   memoryRoutingStatus: () => ipcRenderer.invoke(IpcRequest.MemoryRoutingStatus),
   knowledgeReadArchmap: (path) => ipcRenderer.invoke(IpcRequest.KnowledgeReadArchmap, path),
   knowledgeBuild: (root) => ipcRenderer.invoke(IpcRequest.KnowledgeBuild, root),

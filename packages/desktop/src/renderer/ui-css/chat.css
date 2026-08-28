@@ -184,7 +184,7 @@
   color: var(--ui-text-dim);
   font-size: 12.5px;
   text-align: left;
-  transition: background 0.12s ease;
+  transition: background 0.12s var(--ui-ease);
 }
 .ui-thinking-toggle:hover {
   background: var(--ui-surface-hover);
@@ -262,8 +262,8 @@
   background: var(--ui-surface-raised);
   padding: var(--ui-space-2) var(--ui-space-3);
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    border-color 0.15s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
 }
 .ui-tool-card:hover {
   box-shadow: var(--ui-shadow-sm);
@@ -296,7 +296,7 @@
 button.ui-tool-head {
   cursor: pointer;
   border-radius: var(--ui-radius-sm);
-  transition: background 0.12s ease;
+  transition: background 0.12s var(--ui-ease);
 }
 button.ui-tool-head:hover {
   background: var(--ui-surface-hover);
@@ -355,7 +355,7 @@ button.ui-tool-head:hover {
   text-align: center;
   transition:
     transform 0.15s var(--ui-ease),
-    color 0.12s ease;
+    color 0.12s var(--ui-ease);
 }
 .ui-tool-card.open .ui-tool-chevron {
   color: var(--ui-accent);
@@ -380,9 +380,9 @@ button.ui-tool-head:hover {
   white-space: nowrap;
 }
 .ui-tool-badge.mcp {
-  background: color-mix(in srgb, #a855f7 12%, transparent);
-  color: #d8b4fe;
-  border: 1px solid color-mix(in srgb, #a855f7 25%, transparent);
+  background: color-mix(in srgb, var(--ui-tool-hue-purple) 12%, transparent);
+  color: var(--ui-tool-hue-purple);
+  border: 1px solid color-mix(in srgb, var(--ui-tool-hue-purple) 25%, transparent);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -631,8 +631,8 @@ button.ui-tool-head:hover {
   text-align: left;
   border-radius: var(--ui-radius-sm);
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
 }
 .ui-tool-result-toggle:hover {
   color: var(--ui-text);
@@ -696,7 +696,7 @@ button.ui-tool-head:hover {
 .ui-diff > div {
   padding: 1px var(--ui-space-2);
   white-space: pre-wrap;
-  transition: background 0.1s ease;
+  transition: background 0.1s var(--ui-ease);
 }
 .ui-diff .add {
   background: color-mix(in srgb, var(--ui-success) 14%, transparent);
@@ -765,8 +765,8 @@ button.ui-tool-head:hover {
   font-size: 12px;
   color: #94a3b8; /* slate-400 */
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
 }
 .ui-term-copy:hover {
   color: #fff;
@@ -862,8 +862,8 @@ button.ui-tool-head:hover {
   font-size: 10.5px;
   color: var(--ui-text-faint);
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-json-view-switch button:hover {
   color: var(--ui-text);
@@ -883,8 +883,8 @@ button.ui-tool-head:hover {
   font-size: 12px;
   color: var(--ui-text-faint);
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
 }
 .ui-json-copy:hover {
   color: var(--ui-text);
@@ -920,6 +920,10 @@ button.ui-tool-head:hover {
   background: none;
   border: 0;
   font: inherit;
+  transition: color 0.15s var(--ui-ease);
+}
+.ui-json-toggle:hover {
+  color: var(--ui-text);
 }
 .ui-json-caret {
   display: inline-block;
@@ -938,16 +942,16 @@ button.ui-tool-head:hover {
   padding-left: 12px;
 }
 .ui-json-key {
-  color: #7dd3fc; /* sky-300 */
+  color: var(--ui-tool-hue-sky);
 }
 .ui-json-str {
-  color: #6ee7b7; /* emerald-300 */
+  color: var(--ui-success);
 }
 .ui-json-num {
-  color: #fb923c; /* orange-400 */
+  color: var(--ui-warning);
 }
 .ui-json-bool {
-  color: #c084fc; /* purple-400 */
+  color: var(--ui-tool-hue-purple);
   font-weight: 600;
 }
 .ui-json-null {
@@ -982,8 +986,8 @@ button.ui-tool-head:hover {
   border-radius: var(--ui-radius-pill);
   display: inline-block;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-system-note:hover {
   background: var(--ui-surface-hover);
@@ -1120,6 +1124,17 @@ button.ui-tool-head:hover {
   background: var(--ui-surface-sunken);
   padding: 1px 5px;
   border-radius: 4px;
+}
+/* Streamdown emits inline code as `rounded bg-muted …` — a shadcn token our
+   Tailwind config doesn't define, so the utility may compile to nothing (or
+   an off-theme value) and the pill rendered wrong on light reading faces.
+   This attribute selector outranks single-class utilities and pins the
+   token-driven paint in both appearances. */
+.ui-md code[data-streamdown="inline-code"] {
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-soft);
+  padding: 0 5px;
 }
 .ui-md pre code {
   background: none;
@@ -1668,7 +1683,6 @@ button.ui-tool-head:hover {
   }
 }
 
-
 /* Failed-turn action banner (closure gap #7): retry + settings shortcut. */
 .ui-fault-banner {
   display: flex;
@@ -1716,4 +1730,157 @@ button.ui-tool-head:hover {
   border: none;
   background: transparent;
   color: var(--ui-text-dim);
+  transition: color 0.15s var(--ui-ease);
+}
+.ui-fault-banner-dismiss:hover {
+  color: var(--ui-text);
+}
+
+/* ── Task-style conversation (2026-08-28 redesign) ─────────────────────────
+   Each user submission is a COMMAND (right-aligned directive row). The
+   agent's whole response streams full-width beneath it as one execution
+   block; when the turn finishes the block auto-collapses into a one-line
+   result report. Thinking / text / tool sections stay distinct but flat —
+   the avatar rail and bubble chrome are removed inside the task body. */
+.ui-task-turn {
+  margin: 6px 0;
+}
+.ui-task-cmd-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 14px 0 10px;
+}
+.ui-task-cmd {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 85%;
+  padding: 7px 14px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-text);
+}
+.ui-task-cmd-icon {
+  color: var(--ui-accent);
+  font-size: 10px;
+  align-self: center;
+}
+.ui-task-cmd-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+  font-size: 13px;
+}
+.ui-task-cmd-time {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  align-self: center;
+}
+.ui-task-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+}
+/* The execution block: full-width under the command, held together by a
+   quiet left rule instead of nested bubbles. */
+.ui-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 12px;
+  padding-left: 14px;
+  border-left: 2px solid color-mix(in srgb, var(--ui-border-soft) 75%, transparent);
+}
+/* Flatten the per-message chrome inside the execution block: no avatar rail,
+   transparent bubbles, tighter rhythm. Tool/thinking cards keep their
+   function but lose the card-on-card nesting. */
+.ui-task-body .ui-bubble-row {
+  gap: 0;
+}
+.ui-task-body .ui-avatar {
+  display: none;
+}
+.ui-task-body .ui-bubble.assistant,
+.ui-task-body .ui-bubble.thinking {
+  background: transparent;
+  padding: var(--ui-space-1) 0;
+}
+.ui-task-body .ui-tool-card {
+  background: color-mix(in srgb, var(--ui-surface-sunken) 40%, transparent);
+  border-color: color-mix(in srgb, var(--ui-border-soft) 60%, transparent);
+}
+.ui-task-body .ui-tool-card .ui-tool-card {
+  background: transparent;
+}
+.ui-task-collapse {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: none;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color 0.14s var(--ui-ease),
+    background 0.14s var(--ui-ease);
+}
+.ui-task-collapse:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+/* The result report — one line that replaces the whole collapsed block. */
+.ui-task-report {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  margin: 6px 0 4px;
+  border: 1px solid var(--ui-border-soft);
+  border-left: 3px solid var(--ui-accent);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.14s var(--ui-ease);
+}
+.ui-task-report:hover {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-border-soft));
+}
+.ui-task-report-status {
+  flex: none;
+  color: var(--ui-success);
+  font-weight: 700;
+  font-size: 12px;
+}
+.ui-task-report-duration {
+  flex: none;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-task-report-tools {
+  flex: none;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-task-report-snippet {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+.ui-task-report-chevron {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 11px;
 }

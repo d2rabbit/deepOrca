@@ -136,7 +136,7 @@
   border-radius: var(--ui-radius-sm);
   background: var(--ui-accent-soft);
   opacity: 0.92;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s var(--ui-ease);
 }
 .ui-topbar-session-status:hover .ui-topbar-session-title {
   opacity: 1;
@@ -229,8 +229,8 @@
   background: transparent;
   border-radius: 0;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-win-ctrl:hover {
   background: var(--ui-surface-hover);
@@ -450,8 +450,8 @@ button.ui-surface-chip {
   cursor: pointer;
   z-index: 5;
   transition:
-    transform 0.12s ease,
-    background 0.12s ease;
+    transform 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
   animation: ui-jump-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes ui-jump-in {
@@ -880,8 +880,8 @@ button.ui-surface-chip {
   font-size: 10px;
   cursor: pointer;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background 0.12s var(--ui-ease),
+    color 0.12s var(--ui-ease);
 }
 .ui-search-clear:hover {
   background: var(--ui-danger);
@@ -1145,12 +1145,15 @@ button.ui-surface-chip {
   position: absolute;
   inset: 0;
   z-index: 98;
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(0, 0, 0, 0.35);
   animation: ui-overlay-fade 0.15s ease both;
 }
 .ui-settings-modal {
   position: absolute;
-  inset: 0;
+  /* The centering area starts BELOW the cockpit window bar (52px) plus a
+     breathing gap — the card's head must never sit level with the main
+     window title (the bar also paints at z 300, above this layer). */
+  inset: calc(var(--ui-cockpit-h, 52px) + 8px) 0 0;
   z-index: 99;
   display: grid;
   place-items: center;

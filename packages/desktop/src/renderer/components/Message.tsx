@@ -568,7 +568,7 @@ function BashTerminal({ command, resultMd }: { command: string; resultMd: string
         <span className="ui-term-dot red" aria-hidden="true" />
         <span className="ui-term-dot amber" aria-hidden="true" />
         <span className="ui-term-dot green" aria-hidden="true" />
-        <span className="ui-term-title">Bash Terminal</span>
+        <span className="ui-term-title">{t("msg.bashTerminal")}</span>
         <button
           type="button"
           className={`ui-term-copy${copied ? " copied" : ""}`}
@@ -644,13 +644,13 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const headerInner = (
     <>
       <span className="ui-tool-icon">{toolIcon(summary.name)}</span>
-      {!isMcp ? <span className="ui-tool-kind">Tool:</span> : null}
+      {!isMcp ? <span className="ui-tool-kind">{t("msg.toolLabel")}</span> : null}
       <span className="ui-tool-name">{displayName}</span>
       {/* Collapsible tools surface the file path / command inline so the
          user can identify the operation without expanding the card. For
          bash the terminal frame already shows the command when open. */}
       {isFileTool && params && !(isBash && bodyOpen) ? <span className="ui-tool-params-inline">{params}</span> : null}
-      {isMcp ? <span className="ui-tool-badge mcp">MCP Server</span> : null}
+      {isMcp ? <span className="ui-tool-badge mcp">{t("msg.mcpServer")}</span> : null}
       {/* Status badge — ✓ success / ✗ failure, per the rendering-engine spec. */}
       {summary.ok ? (
         <span className="ui-tool-badge ok">✓ {t("msg.toolOk")}</span>
@@ -676,7 +676,7 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
       className={`ui-tool-card ${toolClass}${summary.ok ? "" : " err"}${isFileTool ? " collapsible" : ""}${isFileTool && bodyOpen ? " open" : ""}`}
     >
       {isFileTool ? (
-        <button type="button" className="ui-tool-head" onClick={() => setBodyOpen((v) => !v)}>
+        <button type="button" className="ui-tool-head" onClick={() => setBodyOpen((v) => !v)} aria-expanded={bodyOpen}>
           {headerInner}
         </button>
       ) : (
@@ -735,7 +735,11 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
           {/* Collapsible result — bash output already lives in the terminal frame. */}
           {resultMd && !isBash ? (
             <div className="ui-tool-result-wrap">
-              <button className="ui-tool-result-toggle" onClick={() => setResultOpen((v) => !v)}>
+              <button
+                className="ui-tool-result-toggle"
+                onClick={() => setResultOpen((v) => !v)}
+                aria-expanded={resultOpen}
+              >
                 <span>{resultOpen ? "▾" : "▸"}</span>
                 <span>{t("msg.result")}</span>
                 {!resultOpen ? (
@@ -749,6 +753,7 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
                     className={`ui-tool-result-copy${resultCopied ? " copied" : ""}`}
                     onClick={handleCopyResult}
                     title={resultCopied ? t("msg.copied") : t("msg.copy")}
+                    aria-label={t("msg.copy")}
                   >
                     {resultCopied ? "✓" : "⧉"}
                   </button>

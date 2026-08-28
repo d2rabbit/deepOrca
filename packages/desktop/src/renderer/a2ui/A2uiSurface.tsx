@@ -18,6 +18,7 @@ import { A2uiSurface as OfficialA2uiSurface } from "@a2ui/react/v0_9";
 import { injectBasicCatalogStyles } from "@a2ui/web_core/v0_9";
 import { getSurfaceModels, onA2uiAction, processA2uiMessages, a2uiProcessor } from "./processor";
 import type { ReactSurfaceModel } from "./processor";
+import { useI18n } from "../i18n";
 
 // Official theme variables (CSS custom properties on :root). No-op outside
 // a document; guarded for jsdom test environments lacking CSSStyleSheet.
@@ -37,6 +38,7 @@ type Props = {
 };
 
 export function A2uiSurface({ messagesJson, surfaceId, onAction }: Props): JSX.Element {
+  const { t } = useI18n();
   // Feed the batch into the singleton processor whenever it changes.
   useEffect(() => {
     processA2uiMessages(messagesJson);
@@ -66,7 +68,7 @@ export function A2uiSurface({ messagesJson, surfaceId, onAction }: Props): JSX.E
   const visible = surfaceId ? surfaces.filter((s) => s.id === surfaceId) : surfaces;
 
   if (visible.length === 0) {
-    return <div className="ui-a2ui-empty">Loading Surface…</div>;
+    return <div className="ui-a2ui-empty">{t("common.loading")}</div>;
   }
   return (
     <div className="ui-a2ui-surfaces ui-a2ui-theme">

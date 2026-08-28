@@ -6,10 +6,18 @@ import type {
   PermissionScope,
   ReasoningEffort,
   EndpointQuotaResponse,
+  EndpointTestResponse,
 } from "../../shared/ipc";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import type { EndpointConfig, ModelRegistration } from "@deeporca/core";
-import { endpointQuotaKind, familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
+import {
+  endpointModelFamily,
+  endpointQuotaKind,
+  familyThinkLevels,
+  resolveModelSpec,
+  FAMILY_MODEL_SUGGESTIONS,
+} from "@deeporca/core/capabilities";
+import type { ModelFamilyId } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey, type Translate } from "../i18n";
 import {
@@ -38,6 +46,10 @@ type Props = {
   theme: Theme;
   /** Called when the user picks a theme in the Appearance tab. */
   onSelectTheme: (theme: Theme) => void;
+  /** Reports unsaved edits upward — the HOST owns the unsaved-changes
+   *  confirm so every close path (panel button, tab ✕, Esc, scrim) is
+   *  guarded by the same dialog instead of only the button. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "actions" | "about";
@@ -61,6 +73,26 @@ const TAB_ICONS: Record<Tab, JSX.Element> = {
   actions: <IconSettings />,
   about: <IconInfo />,
 };
+
+/** Human label for one endpoint probe result (model-pool 测试 button). */
+function endpointTestLabel(result: EndpointTestResponse, t: Translate): string {
+  switch (result.status) {
+    case "ok": {
+      const base = t("settings.endpoint.testOk", { ms: result.latencyMs });
+      return result.modelsCount === undefined
+        ? base
+        : base + t("settings.endpoint.testModels", { n: result.modelsCount });
+    }
+    case "auth-failed":
+      return t("settings.endpoint.testAuthFailed", { code: result.httpStatus ?? 0 });
+    case "http-error":
+      return t("settings.endpoint.testHttpError", { code: result.httpStatus ?? 0 });
+    case "no-models-route":
+      return t("settings.endpoint.testNoModels");
+    default:
+      return t("settings.endpoint.testUnreachable", { error: result.error ?? "" });
+  }
+}
 
 const PERMISSION_SCOPES: PermissionScope[] = [
   "read-in-cwd",
@@ -99,6 +131,36 @@ const ENDPOINT_PRESETS: Array<Pick<EndpointConfig, "id" | "name" | "baseURL">> =
   { id: "opencode-go", name: "OpenCodeGo", baseURL: "https://opencode.ai/zen/go/v1" },
   { id: "opencode-zen", name: "OpenCodeZen", baseURL: "https://opencode.ai/zen/v1" },
 ];
+
+/**
+ * Preset → family fallback for gateways whose baseURL host is not in core's
+ * registry (OpenCode's zen gateways serve DeepSeek models); consumed by
+ * endpointModelFamily when neither a registered model nor a host hint binds
+ * the endpoint. Presets on registry hosts (deepseek/stepfun) resolve without
+ * this map and are omitted.
+ */
+const ENDPOINT_PRESET_FAMILY: Partial<Record<string, ModelFamilyId>> = {
+  "opencode-go": "deepseek",
+  "opencode-zen": "deepseek",
+};
+
+/**
+ * The add-model suggestion list for one endpoint — bound to the endpoint's
+ * MODEL FAMILY (core's registry): StepFun endpoints suggest step-* ids,
+ * DeepSeek/zen-gateway endpoints suggest deepseek-* ids. A family that can't
+ * be determined (custom endpoint, no models, unknown host) falls back to the
+ * union so nothing is ever un-suggestable.
+ */
+function modelSuggestionsFor(ep: EndpointConfig): string[] {
+  const family = endpointModelFamily({
+    baseURL: ep.baseURL,
+    registeredModelIds: (ep.models ?? []).map((m) => m.id),
+    fallback: ENDPOINT_PRESET_FAMILY[ep.id],
+  });
+  const known = FAMILY_MODEL_SUGGESTIONS[family];
+  if (known.length > 0) return [...known];
+  return [...new Set(Object.values(FAMILY_MODEL_SUGGESTIONS).flat())];
+}
 
 /**
  * DeepOrca desktop changelog — bilingual, mirroring OPEN_SOURCE_CREDITS below:
@@ -327,7 +389,6 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
   },
 ];
 
-/** Settings surface rendered inline in the main area (no modal shell). */
 /**
  * Endpoint-card quota line — quota follows the ENDPOINT. StepFun endpoints
  * show a live account balance (main probes /v1/accounts); OpenCode Go shows
@@ -342,7 +403,6 @@ function EndpointQuotaLine({
   onRefresh,
   t,
 }: {
-  endpointId: string;
   baseURL: string;
   apiKey: string;
   quota: EndpointQuotaResponse | "loading" | undefined;
@@ -405,6 +465,7 @@ export function SettingsPanel({
   platform,
   theme,
   onSelectTheme,
+  onDirtyChange,
 }: Props): JSX.Element {
   const { t, locale, setLocale } = useI18n();
   const [s, setS] = useState<EditableSettings>(initial);
@@ -422,6 +483,15 @@ export function SettingsPanel({
   const [memoryAvailable, setMemoryAvailable] = useState<boolean | null>(null);
   // Observability for the L0-L3 pipeline (channels existed with no UI):
   const [memoryStats, setMemoryStats] = useState<MemoryPipelineStats | null>(null);
+  /** Pending destructive-op confirm (themed modal) — replaces the native
+   *  window.confirm dialogs that rendered OS-styled and broke the theme. */
+  const [confirmRemove, setConfirmRemove] = useState<{ kind: "endpoint"; id: string } | { kind: "memory" } | null>(
+    null
+  );
+  /** Model-pool 测试 probe results, keyed by endpoint id (busy in flight). */
+  const [endpointTests, setEndpointTests] = useState<
+    Record<string, { busy: true } | { busy: false; result: EndpointTestResponse }>
+  >({});
   const [memoryClearState, setMemoryClearState] = useState<"idle" | "busy" | "ok" | "fail">("idle");
 
   // ── Endpoint-first model config (conventional layout) ───────────────────
@@ -431,6 +501,12 @@ export function SettingsPanel({
   >({});
   /** Per-endpoint add-model validation errors (keyed by endpoint id). */
   const [addModelErrors, setAddModelErrors] = useState<Record<string, string>>({});
+  // ── Collapsible per-endpoint model list ───────────────────────────────────
+  /** Model list sections start COLLAPSED; the toggle row expands them. */
+  const [modelsOpenByEndpoint, setModelsOpenByEndpoint] = useState<Record<string, boolean>>({});
+  /** The empty add-model form is not rendered by default — only after the
+   *  header's 添加模型 button asks for it (no placeholder row otherwise). */
+  const [addingModelByEndpoint, setAddingModelByEndpoint] = useState<Record<string, boolean>>({});
   // ── Add-endpoint row ──────────────────────────────────────────────────────
   const [addEpChoice, setAddEpChoice] = useState<string>(ENDPOINT_PRESETS[0].id);
   const [addEpName, setAddEpName] = useState("");
@@ -438,12 +514,17 @@ export function SettingsPanel({
   const [addEpError, setAddEpError] = useState("");
 
   // ── Save/close hardening ──────────────────────────────────────────────────
-  // Close used to throw away half-edited settings silently, and a failed
-  // updateSettings rejected into an unhandled promise (no feedback at all).
+  // A failed updateSettings used to reject into an unhandled promise (no
+  // feedback at all). Unsaved-changes confirmation is owned by the HOST via
+  // onDirtyChange — see requestCloseSettings in App.
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [confirmClose, setConfirmClose] = useState(false);
   const dirty = JSON.stringify(s) !== JSON.stringify(initial);
+
+  // Report dirty-ness upward so every close path is guarded uniformly.
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const handleSave = useCallback(async () => {
     if (saving) return;
@@ -457,14 +538,6 @@ export function SettingsPanel({
       setSaving(false);
     }
   }, [onSave, s, saving]);
-
-  const handleClose = useCallback((): void => {
-    if (dirty) {
-      setConfirmClose(true);
-      return;
-    }
-    onClose();
-  }, [dirty, onClose]);
 
   // Probe the memory gateway whenever the memory tab is opened.
   useEffect(() => {
@@ -555,10 +628,51 @@ export function SettingsPanel({
     }));
     setAddModelDrafts((prev) => ({ ...prev, [endpointId]: { id: "", thinking: true, vision: false } }));
     setAddModelErrors((prev) => ({ ...prev, [endpointId]: "" }));
+    // Success dismisses the form — the fresh row in the list is the feedback.
+    setAddingModelByEndpoint((prev) => ({ ...prev, [endpointId]: false }));
+  }
+
+  /** Expand a card's model list (toggle row in the card body). */
+  function toggleModels(endpointId: string): void {
+    setModelsOpenByEndpoint((prev) => ({ ...prev, [endpointId]: !prev[endpointId] }));
+  }
+
+  /** Header 添加模型 button: expand the section and reveal the add-model form
+   *  (clicking again while the form is open acts as its cancel). */
+  function openAddModel(endpointId: string): void {
+    setModelsOpenByEndpoint((prev) => ({ ...prev, [endpointId]: true }));
+    setAddingModelByEndpoint((prev) => ({ ...prev, [endpointId]: !prev[endpointId] }));
+    setAddModelErrors((prev) => ({ ...prev, [endpointId]: "" }));
   }
 
   /** Drop an endpoint card entirely (its models go with it; presets can be
-   *  re-added from the add-endpoint row — updateEndpoint re-materializes). */
+   *  re-added from the add-endpoint row — updateEndpoint re-materializes).
+   *  Gated by the themed confirm modal: one click removes the saved apiKey
+   *  too, and unlike the sessions list there is no undo for settings edits. */
+  function askRemoveEndpoint(endpointId: string): void {
+    setConfirmRemove({ kind: "endpoint", id: endpointId });
+  }
+
+  /** Memory clear (L0–L3) body — also gated by the themed confirm modal. */
+  async function performMemoryClear(): Promise<void> {
+    setMemoryClearState("busy");
+    try {
+      const res = await api.memoryClear();
+      setMemoryClearState(res.ok ? "ok" : "fail");
+      setMemoryStats(await api.memoryStats());
+    } catch {
+      setMemoryClearState("fail");
+    }
+  }
+
+  /** Model-pool 测试 button: probe reachability + API usability. The probe
+   *  folds every failure into a typed envelope, so this never rejects. */
+  const runEndpointTest = useCallback(async (endpointId: string, baseURL: string, apiKey: string): Promise<void> => {
+    setEndpointTests((prev) => ({ ...prev, [endpointId]: { busy: true } }));
+    const result = await api.endpointTest(baseURL, apiKey);
+    setEndpointTests((prev) => ({ ...prev, [endpointId]: { busy: false, result } }));
+  }, []);
+
   function removeEndpoint(endpointId: string): void {
     setS((prev) => ({ ...prev, endpoints: prev.endpoints.filter((ep) => ep.id !== endpointId) }));
     setAddModelDrafts((prev) => {
@@ -567,6 +681,16 @@ export function SettingsPanel({
       return next;
     });
     setAddModelErrors((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setModelsOpenByEndpoint((prev) => {
+      const next = { ...prev };
+      delete next[endpointId];
+      return next;
+    });
+    setAddingModelByEndpoint((prev) => {
       const next = { ...prev };
       delete next[endpointId];
       return next;
@@ -608,7 +732,10 @@ export function SettingsPanel({
       while (taken.has(id)) {
         id = `custom-${slug}-${suffix++}`;
       }
-      setS((prev) => ({ ...prev, endpoints: [...prev.endpoints, { id, name, baseURL, apiKey: "", models: [] }] }));
+      // Prepend + auto-expand: the add row lives at the TOP of the section, so
+      // an appended, collapsed card at the list tail reads as "nothing happened".
+      setS((prev) => ({ ...prev, endpoints: [{ id, name, baseURL, apiKey: "", models: [] }, ...prev.endpoints] }));
+      setModelsOpenByEndpoint((prev) => ({ ...prev, [id]: true }));
       setAddEpName("");
       setAddEpBase("");
       setAddEpError("");
@@ -620,7 +747,8 @@ export function SettingsPanel({
     }
     const preset = presetFor(addEpChoice);
     if (!preset) return;
-    setS((prev) => ({ ...prev, endpoints: [...prev.endpoints, { ...preset, apiKey: "", models: [] }] }));
+    setS((prev) => ({ ...prev, endpoints: [{ ...preset, apiKey: "", models: [] }, ...prev.endpoints] }));
+    setModelsOpenByEndpoint((prev) => ({ ...prev, [addEpChoice]: true }));
     setAddEpError("");
   }
 
@@ -734,43 +862,91 @@ export function SettingsPanel({
       return kind === "stepfun-account" ? ep.apiKey.trim() !== "" : kind === "opencode-subscription";
     });
     if (withKind.length === 0) return;
-    refreshQuota(withKind.map((ep) => ep.id));
+    // Debounced initial probe: this effect re-runs on EVERY apiKey keystroke
+    // (s.endpoints identity changes), so an immediate probe fires a request
+    // per character with a partial key — surface "余额查询失败" noise while
+    // the user is still typing. Wait for typing to settle instead.
+    const probe = setTimeout(() => refreshQuota(withKind.map((ep) => ep.id)), 500);
     const liveIds = withKind.filter((ep) => endpointQuotaKind(ep.baseURL) === "stepfun-account").map((ep) => ep.id);
     const timer = setInterval(() => {
       if (liveIds.length > 0) refreshQuota(liveIds);
     }, 60_000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(probe);
+      clearInterval(timer);
+    };
   }, [s.endpoints]);
+
+  const confirmRemoveTarget =
+    confirmRemove?.kind === "endpoint" ? (s.endpoints.find((ep) => ep.id === confirmRemove.id) ?? null) : null;
 
   return (
     <div className="ui-settings-panel">
+      {/* Themed destructive-op confirms — the shared Modal overlay (z100)
+          layers correctly above this settings card; window.confirm rendered
+          OS-styled and ignored the app theme entirely. */}
+      {confirmRemoveTarget ? (
+        <Modal
+          onClose={() => setConfirmRemove(null)}
+          title={t("settings.endpoint.deleteEndpoint")}
+          subtitle={t("settings.endpoint.deleteEndpointConfirm", {
+            name: confirmRemoveTarget.name || confirmRemoveTarget.id,
+            count: confirmRemoveTarget.models?.length ?? 0,
+          })}
+          actions={
+            <>
+              <Button variant="subtle" size="sm" onClick={() => setConfirmRemove(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  removeEndpoint(confirmRemoveTarget.id);
+                  setConfirmRemove(null);
+                }}
+              >
+                {t("settings.endpoint.delete")}
+              </Button>
+            </>
+          }
+        />
+      ) : confirmRemove?.kind === "memory" ? (
+        <Modal
+          onClose={() => setConfirmRemove(null)}
+          title={t("settings.memory.clear")}
+          subtitle={t("settings.memory.clearConfirm")}
+          actions={
+            <>
+              <Button variant="subtle" size="sm" onClick={() => setConfirmRemove(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  setConfirmRemove(null);
+                  void performMemoryClear();
+                }}
+              >
+                {t("settings.memory.clear")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
       <div className="ui-settings-panel-head">
         <span className="ui-settings-panel-title">{t("settings.title")}</span>
         <div className="ui-settings-panel-actions">
           <Button variant="primary" size="sm" disabled={saving} onClick={() => void handleSave()}>
             {saving ? t("settings.saving") : t("common.save")}
           </Button>
-          <Button size="sm" onClick={handleClose}>
+          <Button size="sm" onClick={onClose}>
             {t("common.close")}
           </Button>
         </div>
       </div>
       {saveError ? <div className="ui-scm-error">{saveError}</div> : null}
-      {confirmClose ? (
-        <Modal
-          title={t("settings.unsavedTitle")}
-          subtitle={t("settings.unsavedBody")}
-          onClose={() => setConfirmClose(false)}
-          actions={
-            <>
-              <Button onClick={() => setConfirmClose(false)}>{t("common.cancel")}</Button>
-              <Button variant="primary" onClick={onClose}>
-                {t("settings.unsavedDiscard")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
 
       <div className="ui-settings-layout">
         <nav className="ui-settings-nav" aria-label={t("settings.title")}>
@@ -805,134 +981,7 @@ export function SettingsPanel({
                   {t("settings.pool.hint")}
                 </div>
 
-                {s.endpoints.length === 0 ? (
-                  <div className="ui-field-hint">{t("settings.pool.empty")}</div>
-                ) : (
-                  <div className="ui-endpoint-cards">
-                    {s.endpoints.map((ep) => {
-                      const preset = presetFor(ep.id);
-                      const keyVisible = !!showKeyByEndpoint[ep.id];
-                      const draft = addModelDrafts[ep.id] ?? { id: "", thinking: true, vision: false };
-                      const draftError = addModelErrors[ep.id] ?? "";
-                      return (
-                        <div className="ui-endpoint-card" key={ep.id}>
-                          <div className="ui-endpoint-card-head">
-                            <strong className="ui-endpoint-card-name">{ep.name || ep.id}</strong>
-                            {preset ? <span className="ui-endpoint-badge">{t("settings.endpoint.preset")}</span> : null}
-                            <code className="ui-endpoint-baseurl" title={ep.baseURL}>
-                              {ep.baseURL}
-                            </code>
-                            <Button variant="ghost" size="sm" onClick={() => removeEndpoint(ep.id)}>
-                              {t("settings.endpoint.deleteEndpoint")}
-                            </Button>
-                          </div>
-
-                          <div className="ui-row-inline">
-                            <Input
-                              type={keyVisible ? "text" : "password"}
-                              value={ep.apiKey ?? ""}
-                              placeholder={t("settings.endpoint.apiKey")}
-                              aria-label={`${ep.name || ep.id} ${t("settings.endpoint.apiKey")}`}
-                              autoComplete="off"
-                              onChange={(e) => updateEndpoint(ep.id, { apiKey: e.target.value })}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setShowKeyByEndpoint((prev) => ({ ...prev, [ep.id]: !prev[ep.id] }))}
-                            >
-                              {keyVisible ? t("common.hide") : t("common.show")}
-                            </Button>
-                          </div>
-
-                          <EndpointQuotaLine
-                            endpointId={ep.id}
-                            baseURL={ep.baseURL}
-                            apiKey={ep.apiKey ?? ""}
-                            quota={quotaByEndpoint[ep.id]}
-                            onRefresh={() => refreshQuota([ep.id])}
-                            t={t}
-                          />
-
-                          <div className="ui-endpoint-models">
-                            {(ep.models ?? []).map((model, index) => (
-                              <div className="ui-pool-row" key={model.id}>
-                                <code className="ui-pool-model-id">{model.id}</code>
-                                <Checkbox
-                                  checked={!!model.thinking}
-                                  onChange={(e) => updateModel(ep.id, index, { thinking: e.target.checked })}
-                                  label={t("settings.endpoint.thinkingCap")}
-                                />
-                                <Checkbox
-                                  checked={!!model.vision}
-                                  onChange={(e) => updateModel(ep.id, index, { vision: e.target.checked })}
-                                  label={t("settings.endpoint.visionCap")}
-                                />
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeModel(ep.id, index)}
-                                  title={t("settings.endpoint.delete")}
-                                >
-                                  {t("settings.endpoint.delete")}
-                                </Button>
-                              </div>
-                            ))}
-
-                            <div className="ui-row-inline">
-                              <Input
-                                type="text"
-                                value={draft.id}
-                                placeholder={t("settings.endpoint.modelId")}
-                                aria-label={`${ep.name || ep.id} ${t("settings.endpoint.modelId")}`}
-                                list="ui-pool-model-suggestions"
-                                onChange={(e) =>
-                                  setAddModelDrafts((prev) => ({
-                                    ...prev,
-                                    [ep.id]: { ...draft, id: e.target.value },
-                                  }))
-                                }
-                              />
-                              <Checkbox
-                                checked={draft.thinking}
-                                onChange={(e) =>
-                                  setAddModelDrafts((prev) => ({
-                                    ...prev,
-                                    [ep.id]: { ...draft, thinking: e.target.checked },
-                                  }))
-                                }
-                                label={t("settings.endpoint.thinkingCap")}
-                              />
-                              <Checkbox
-                                checked={draft.vision}
-                                onChange={(e) =>
-                                  setAddModelDrafts((prev) => ({
-                                    ...prev,
-                                    [ep.id]: { ...draft, vision: e.target.checked },
-                                  }))
-                                }
-                                label={t("settings.endpoint.visionCap")}
-                              />
-                              <Button variant="primary" size="sm" onClick={() => submitAddModelTo(ep.id)}>
-                                {t("settings.endpoint.addModel")}
-                              </Button>
-                            </div>
-                            {draftError ? <div className="ui-field-hint warn">{draftError}</div> : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <datalist id="ui-pool-model-suggestions">
-                  <option value="deepseek-v4-pro" />
-                  <option value="deepseek-v4-flash" />
-                  <option value="deepseek-v4-flash-vision-exp" />
-                  <option value="step-3.7-flash" />
-                  <option value="step-router-v1" />
-                </datalist>
-
+                {/* Add-endpoint row — pinned to the TOP of the section. */}
                 <div className="ui-endpoint-add">
                   <Field label={t("settings.endpoint.addEndpoint")}>
                     <Select value={addEpChoice} onChange={(e) => setAddEpChoice(e.target.value)}>
@@ -953,6 +1002,9 @@ export function SettingsPanel({
                           placeholder={t("settings.endpoint.nameLabel")}
                           aria-label={t("settings.endpoint.nameLabel")}
                           onChange={(e) => setAddEpName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") submitAddEndpoint();
+                          }}
                         />
                       </Field>
                       <Field label={t("settings.endpoint.baseUrlLabel")}>
@@ -962,6 +1014,9 @@ export function SettingsPanel({
                           placeholder="https://api.example.com/v1"
                           aria-label={t("settings.endpoint.baseUrlLabel")}
                           onChange={(e) => setAddEpBase(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") submitAddEndpoint();
+                          }}
                         />
                       </Field>
                     </>
@@ -971,6 +1026,192 @@ export function SettingsPanel({
                   </Button>
                   {addEpError ? <div className="ui-field-hint warn">{addEpError}</div> : null}
                 </div>
+
+                {s.endpoints.length === 0 ? (
+                  <div className="ui-field-hint">{t("settings.pool.empty")}</div>
+                ) : (
+                  <div className="ui-endpoint-cards">
+                    {s.endpoints.map((ep) => {
+                      const preset = presetFor(ep.id);
+                      const keyVisible = !!showKeyByEndpoint[ep.id];
+                      const models = ep.models ?? [];
+                      const modelsOpen = !!modelsOpenByEndpoint[ep.id];
+                      const addingModel = !!addingModelByEndpoint[ep.id];
+                      const draft = addModelDrafts[ep.id] ?? { id: "", thinking: true, vision: false };
+                      const draftError = addModelErrors[ep.id] ?? "";
+                      const suggestions = modelSuggestionsFor(ep);
+                      const endpointTest = endpointTests[ep.id];
+                      return (
+                        <div className="ui-endpoint-card" key={ep.id}>
+                          <div className="ui-endpoint-card-head">
+                            <strong className="ui-endpoint-card-name">{ep.name || ep.id}</strong>
+                            {preset ? <span className="ui-endpoint-badge">{t("settings.endpoint.preset")}</span> : null}
+                            <code className="ui-endpoint-baseurl" title={ep.baseURL}>
+                              {ep.baseURL}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={endpointTest?.busy}
+                              onClick={() => void runEndpointTest(ep.id, ep.baseURL, ep.apiKey ?? "")}
+                            >
+                              {endpointTest?.busy ? t("settings.endpoint.testing") : t("settings.endpoint.test")}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => openAddModel(ep.id)}>
+                              {t("settings.endpoint.addModel")}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => askRemoveEndpoint(ep.id)}>
+                              {t("settings.endpoint.deleteEndpoint")}
+                            </Button>
+                          </div>
+                          {endpointTest && !endpointTest.busy ? (
+                            <div
+                              className={`ui-endpoint-test ${
+                                endpointTest.result.status === "ok"
+                                  ? "ok"
+                                  : endpointTest.result.status === "network-error" ||
+                                      endpointTest.result.status === "auth-failed"
+                                    ? "error"
+                                    : "warn"
+                              }`}
+                            >
+                              {endpointTestLabel(endpointTest.result, t)}
+                            </div>
+                          ) : null}
+
+                          <div className="ui-row-inline">
+                            <Input
+                              type={keyVisible ? "text" : "password"}
+                              value={ep.apiKey ?? ""}
+                              placeholder={t("settings.endpoint.apiKey")}
+                              aria-label={`${ep.name || ep.id} ${t("settings.endpoint.apiKey")}`}
+                              autoComplete="off"
+                              onChange={(e) => updateEndpoint(ep.id, { apiKey: e.target.value })}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowKeyByEndpoint((prev) => ({ ...prev, [ep.id]: !prev[ep.id] }))}
+                            >
+                              {keyVisible ? t("common.hide") : t("common.show")}
+                            </Button>
+                          </div>
+
+                          {/* Quota follows the ENDPOINT card (outside the model
+                              collapse): balance/plan limits stay visible. */}
+                          <EndpointQuotaLine
+                            baseURL={ep.baseURL}
+                            apiKey={ep.apiKey ?? ""}
+                            quota={quotaByEndpoint[ep.id]}
+                            onRefresh={() => refreshQuota([ep.id])}
+                            t={t}
+                          />
+
+                          <button
+                            type="button"
+                            className="ui-endpoint-models-toggle"
+                            aria-expanded={modelsOpen}
+                            aria-controls={`ui-endpoint-models-${ep.id}`}
+                            onClick={() => toggleModels(ep.id)}
+                          >
+                            <span className="ui-endpoint-chevron" aria-hidden="true">
+                              {modelsOpen ? "▾" : "▸"}
+                            </span>
+                            {t("settings.endpoint.models")} ({models.length})
+                          </button>
+
+                          {modelsOpen ? (
+                            <div className="ui-endpoint-models" id={`ui-endpoint-models-${ep.id}`}>
+                              {models.map((model, index) => (
+                                <div className="ui-pool-row" key={model.id}>
+                                  <code className="ui-pool-model-id">{model.id}</code>
+                                  <Checkbox
+                                    checked={!!model.thinking}
+                                    onChange={(e) => updateModel(ep.id, index, { thinking: e.target.checked })}
+                                    label={t("settings.endpoint.thinkingCap")}
+                                  />
+                                  <Checkbox
+                                    checked={!!model.vision}
+                                    onChange={(e) => updateModel(ep.id, index, { vision: e.target.checked })}
+                                    label={t("settings.endpoint.visionCap")}
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeModel(ep.id, index)}
+                                    title={t("settings.endpoint.delete")}
+                                  >
+                                    {t("settings.endpoint.delete")}
+                                  </Button>
+                                </div>
+                              ))}
+
+                              {/* The empty form is on-demand only — never a
+                                  standing placeholder row. */}
+                              {addingModel ? (
+                                <>
+                                  <div className="ui-row-inline">
+                                    <Input
+                                      type="text"
+                                      value={draft.id}
+                                      placeholder={t("settings.endpoint.modelId")}
+                                      aria-label={`${ep.name || ep.id} ${t("settings.endpoint.modelId")}`}
+                                      list={`ui-pool-model-suggestions-${ep.id}`}
+                                      autoFocus
+                                      onChange={(e) =>
+                                        setAddModelDrafts((prev) => ({
+                                          ...prev,
+                                          [ep.id]: { ...draft, id: e.target.value },
+                                        }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") submitAddModelTo(ep.id);
+                                      }}
+                                    />
+                                    <Checkbox
+                                      checked={draft.thinking}
+                                      onChange={(e) =>
+                                        setAddModelDrafts((prev) => ({
+                                          ...prev,
+                                          [ep.id]: { ...draft, thinking: e.target.checked },
+                                        }))
+                                      }
+                                      label={t("settings.endpoint.thinkingCap")}
+                                    />
+                                    <Checkbox
+                                      checked={draft.vision}
+                                      onChange={(e) =>
+                                        setAddModelDrafts((prev) => ({
+                                          ...prev,
+                                          [ep.id]: { ...draft, vision: e.target.checked },
+                                        }))
+                                      }
+                                      label={t("settings.endpoint.visionCap")}
+                                    />
+                                    <Button variant="primary" size="sm" onClick={() => submitAddModelTo(ep.id)}>
+                                      {t("settings.endpoint.addModel")}
+                                    </Button>
+                                  </div>
+                                  {draftError ? <div className="ui-field-hint warn">{draftError}</div> : null}
+                                </>
+                              ) : models.length === 0 ? (
+                                <div className="ui-field-hint">{t("settings.endpoint.noModels")}</div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {/* Family-bound suggestions: this endpoint's family
+                              models only (modelSuggestionsFor). */}
+                          <datalist id={`ui-pool-model-suggestions-${ep.id}`}>
+                            {suggestions.map((modelId) => (
+                              <option key={modelId} value={modelId} />
+                            ))}
+                          </datalist>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             ) : null}
 
@@ -985,7 +1226,10 @@ export function SettingsPanel({
 
                   <Field label={t("settings.model")}>
                     <Select value={primaryModelKey} onChange={(e) => patch({ model: bareModelId(e.target.value) })}>
-                      <option value="">{t("settings.endpoint.noModels")}</option>
+                      {/* "none selected" — NOT settings.endpoint.noModels, which
+                          would falsely read "no models registered" while the
+                          pool has entries. */}
+                      <option value="">{t("settings.capabilities.none")}</option>
                       {allModelKeys.map((key) => (
                         <option key={key} value={key}>
                           {modelLabel(key)}
@@ -1028,9 +1272,23 @@ export function SettingsPanel({
                   <Field label={t("settings.compactThreshold")} hint={t("settings.compactThresholdHint")}>
                     <Input
                       type="text"
-                      value={s.compactTokenThreshold}
+                      /* Stored in tokens, edited in K: the field always renders
+                         a trailing "K" so no mental math is needed ("512K").
+                         Everything non-numeric is stripped on input. */
+                      value={
+                        s.compactTokenThreshold === "" || Number(s.compactTokenThreshold) <= 0
+                          ? ""
+                          : `${Math.round(Number(s.compactTokenThreshold) / 1000)}K`
+                      }
                       placeholder={t("settings.compactThresholdPlaceholder")}
-                      onChange={(e) => patch({ compactTokenThreshold: e.target.value })}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/[^0-9.]/g, "");
+                        const n = Number.parseFloat(digits);
+                        patch({
+                          compactTokenThreshold:
+                            digits === "" || !Number.isFinite(n) || n <= 0 ? "" : String(Math.round(n * 1000)),
+                        });
+                      }}
                     />
                   </Field>
 
@@ -1209,17 +1467,7 @@ export function SettingsPanel({
                     type="button"
                     className="ui-memory-clear"
                     disabled={memoryClearState === "busy"}
-                    onClick={async () => {
-                      if (!window.confirm(t("settings.memory.clearConfirm"))) return;
-                      setMemoryClearState("busy");
-                      try {
-                        const res = await api.memoryClear();
-                        setMemoryClearState(res.ok ? "ok" : "fail");
-                        setMemoryStats(await api.memoryStats());
-                      } catch {
-                        setMemoryClearState("fail");
-                      }
-                    }}
+                    onClick={() => setConfirmRemove({ kind: "memory" })}
                   >
                     {t("settings.memory.clear")}
                   </button>

@@ -271,6 +271,14 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    // ═══ IME composition guard (CJK input) ═══
+    // While an IME composition is active (pinyin/kana/hangul candidates on
+    // screen) the OS fires real keydowns for Enter/arrows/Escape — Enter
+    // COMMITS the candidate and must never send a half-composed prompt,
+    // Escape cancels the composition (not the running task), and the
+    // arrows walk candidates (not prompt history).
+    if (e.nativeEvent.isComposing) return;
+
     // ═══ File mention menu navigation ═══
     if (showFileMenu) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -534,8 +542,13 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
               <div className="ui-image-attachments">
                 {imageUrls.map((url, i) => (
                   <div key={i} className="ui-image-attachment">
-                    <img src={url} alt={`Attached ${i + 1}`} />
-                    <button className="remove-btn" onClick={() => onRemoveImage?.(i)} title={t("common.remove")}>
+                    <img src={url} alt={t("composer.imageAlt", { n: i + 1 })} />
+                    <button
+                      className="remove-btn"
+                      onClick={() => onRemoveImage?.(i)}
+                      title={t("common.remove")}
+                      aria-label={t("common.remove")}
+                    >
                       ×
                     </button>
                   </div>

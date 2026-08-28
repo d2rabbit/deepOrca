@@ -3,6 +3,7 @@ import type { SessionMessage } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { findExpandedThinkingId } from "../lib/messages";
 import { Message } from "./Message";
+import { TaskTurn, groupTurns } from "./TaskTurn";
 import { useI18n } from "../i18n";
 import {
   IconWelcomePlan,
@@ -90,6 +91,9 @@ export const MessageList = memo(function MessageList({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const expandedThinkingId = useMemo(() => findExpandedThinkingId(messages), [messages]);
+  // Task-style grouping: each user command opens a turn; everything the agent
+  // does in response streams inside the turn's execution block.
+  const { leading, turns } = useMemo(() => groupTurns(messages), [messages]);
   // Stickiness tracks whether the user is parked at the bottom of the
   // conversation. The auto-scroll effect only follows the stream when
   // they are; if they've scrolled up to read something, new content
@@ -253,24 +257,34 @@ export const MessageList = memo(function MessageList({
             {messages.length === 1 ? t("msg.countOne") : t("msg.countMany", { count: messages.length })}
           </div>
         ) : null}
-        {messages.map((message, idx) => {
-          // Insert a date separator when the day changes between messages.
-          const prevMsg = idx > 0 ? messages[idx - 1] : null;
-          const showSep = prevMsg && dateKey(prevMsg.createTime) !== dateKey(message.createTime);
+        {leading.map((message) => (
+          <div key={message.id} className="ui-msg-wrap">
+            <Message message={message} reasoningMode={reasoningMode} expandedThinkingId={expandedThinkingId} />
+          </div>
+        ))}
+        {turns.map((turn, ti) => {
+          // Date separator at turn boundaries (command-to-command day change,
+          // or the first turn after standalone preamble messages).
+          const prevBoundary =
+            ti > 0 ? turns[ti - 1]!.command : leading.length > 0 ? leading[leading.length - 1] : null;
+          const showSep = prevBoundary && dateKey(prevBoundary.createTime) !== dateKey(turn.command.createTime);
+          const isLive = streaming && ti === turns.length - 1;
           return (
-            <div key={message.id} className="ui-msg-wrap">
+            <div key={turn.command.id} className="ui-msg-wrap">
               {showSep ? (
                 <div className="ui-date-separator">
                   <span className="ui-date-separator-line" />
-                  <span className="ui-date-separator-label">{formatDateSeparator(message.createTime, t)}</span>
+                  <span className="ui-date-separator-label">{formatDateSeparator(turn.command.createTime, t)}</span>
                   <span className="ui-date-separator-line" />
                 </div>
               ) : null}
-              <Message
-                message={message}
+              <TaskTurn
+                command={turn.command}
+                body={turn.body}
+                isLive={isLive}
+                streaming={streaming}
                 reasoningMode={reasoningMode}
                 expandedThinkingId={expandedThinkingId}
-                streaming={streaming && idx === messages.length - 1}
               />
             </div>
           );

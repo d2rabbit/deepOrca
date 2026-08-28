@@ -10,6 +10,8 @@ type Props = {
   refreshKey: number;
   /** Active session id, used to list agent file changes (null when none). */
   sessionId: string | null;
+  /** Host platform ("darwin"/"win32"/"linux") — shortcut glyphs in tooltips. */
+  platform: string;
   /** Open the universal diff overlay for any target (git file / commit / agent). */
   onOpenDiff: (target: DiffTarget) => void;
   /** Open a file in the code editor overlay. */
@@ -45,7 +47,7 @@ function dirName(path: string): string {
  * (working tree + agent edits) and a lower half showing commit history. Every
  * row opens the universal DiffOverlay rather than an inline diff.
  */
-export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEditor }: Props): JSX.Element {
+export function SourceControlPanel({ refreshKey, sessionId, platform, onOpenDiff, onOpenEditor }: Props): JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS);
   const [log, setLog] = useState<GitLogEntry[]>([]);
@@ -232,7 +234,18 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
     <div
       key={`${isStaged ? "s" : "u"}:${file.path}`}
       className="ui-scm-file"
+      role="button"
+      tabIndex={0}
       onClick={() => onOpenDiff({ kind: "git", file: file.path, staged: isStaged })}
+      onKeyDown={(e) => {
+        // Row action buttons stop mouse clicks; key events still bubble, so
+        // only act when the row itself has focus.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenDiff({ kind: "git", file: file.path, staged: isStaged });
+        }
+      }}
     >
       <span className={`ui-scm-status ${statusCls(isStaged ? file.index : file.work)}`}>
         {(isStaged ? file.index : file.work) || "?"}
@@ -243,23 +256,39 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
       </span>
       <span className="ui-scm-file-actions" onClick={(e) => e.stopPropagation()}>
         {onOpenEditor ? (
-          <button className="ui-scm-act" onClick={() => onOpenEditor(file.path)} title={t("editor.openInEditor")}>
+          <button
+            className="ui-scm-act"
+            onClick={() => onOpenEditor(file.path)}
+            title={t("editor.openInEditor")}
+            aria-label={t("editor.openInEditor")}
+          >
             <IconPencil />
           </button>
         ) : null}
         {isStaged ? (
-          <button className="ui-scm-act" onClick={() => void unstage(file.path)} title={t("scm.unstage")}>
+          <button
+            className="ui-scm-act"
+            onClick={() => void unstage(file.path)}
+            title={t("scm.unstage")}
+            aria-label={t("scm.unstage")}
+          >
             −
           </button>
         ) : (
           <>
-            <button className="ui-scm-act" onClick={() => void stage(file.path)} title={t("scm.stage")}>
+            <button
+              className="ui-scm-act"
+              onClick={() => void stage(file.path)}
+              title={t("scm.stage")}
+              aria-label={t("scm.stage")}
+            >
               +
             </button>
             <button
               className={`ui-scm-act ui-scm-act--danger${confirmDiscard === file.path ? " armed" : ""}`}
               onClick={() => handleDiscardClick(file.path)}
               title={confirmDiscard === file.path ? t("scm.confirmDiscard") : t("scm.discard")}
+              aria-label={confirmDiscard === file.path ? t("scm.confirmDiscard") : t("scm.discard")}
             >
               {confirmDiscard === file.path ? "!" : "✕"}
             </button>
@@ -293,7 +322,13 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void commit();
           }}
         />
-        <Button variant="primary" size="sm" disabled={busy} onClick={() => void commit()} title="⌘↵">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={busy}
+          onClick={() => void commit()}
+          title={platform === "darwin" ? "⌘↵" : "Ctrl+↵"}
+        >
           {t("scm.commit")}
         </Button>
       </div>
@@ -311,7 +346,12 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
                 {t("scm.stagedChanges")}
                 <span className="ui-scm-count">{staged.length}</span>
               </span>
-              <button className="ui-scm-group-action" onClick={() => void unstageAll()} title={t("scm.unstageAll")}>
+              <button
+                className="ui-scm-group-action"
+                onClick={() => void unstageAll()}
+                title={t("scm.unstageAll")}
+                aria-label={t("scm.unstageAll")}
+              >
                 −
               </button>
             </div>
@@ -325,7 +365,12 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
                 {t("scm.changes")}
                 <span className="ui-scm-count">{unstaged.length}</span>
               </span>
-              <button className="ui-scm-group-action" onClick={() => void stageAll()} title={t("scm.stageAll")}>
+              <button
+                className="ui-scm-group-action"
+                onClick={() => void stageAll()}
+                title={t("scm.stageAll")}
+                aria-label={t("scm.stageAll")}
+              >
                 +
               </button>
             </div>
@@ -339,7 +384,16 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
               <div
                 key={`a:${f.path}`}
                 className="ui-scm-file"
+                role="button"
+                tabIndex={0}
                 onClick={() => sessionId && onOpenDiff({ kind: "agent", sessionId, file: f.path })}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    if (sessionId) onOpenDiff({ kind: "agent", sessionId, file: f.path });
+                  }
+                }}
               >
                 <span className="ui-scm-status">
                   <IconPencil />
@@ -367,8 +421,18 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
             <div key={entry.hash} className="ui-scm-commit-block">
               <div
                 className={`ui-scm-commit-row${expandedHash === entry.hash ? " expanded" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-expanded={expandedHash === entry.hash}
                 title={`${entry.shortHash} · ${entry.author} · ${entry.date}`}
                 onClick={() => void toggleCommit(entry.hash)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    void toggleCommit(entry.hash);
+                  }
+                }}
               >
                 <span className="ui-scm-commit-caret">{expandedHash === entry.hash ? "▾" : "▸"}</span>
                 <span className="ui-scm-commit-hash">{entry.shortHash}</span>
@@ -386,9 +450,18 @@ export function SourceControlPanel({ refreshKey, sessionId, onOpenDiff, onOpenEd
                       <div
                         key={`${entry.hash}:${f.path}`}
                         className="ui-scm-file ui-scm-commit-file"
+                        role="button"
+                        tabIndex={0}
                         onClick={() =>
                           onOpenDiff({ kind: "commit", hash: entry.hash, subject: entry.subject, file: f.path })
                         }
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onOpenDiff({ kind: "commit", hash: entry.hash, subject: entry.subject, file: f.path });
+                          }
+                        }}
                       >
                         <span className={`ui-scm-status ${statusCls(f.status)}`}>{f.status}</span>
                         <span className="ui-scm-pathwrap" title={f.path}>

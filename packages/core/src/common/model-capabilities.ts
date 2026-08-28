@@ -60,19 +60,21 @@ export type ModelCapabilityRegistration = {
 };
 
 /**
- * DeepSeek family. Registered values reproduce the pre-registry behavior
- * exactly: the family defaults describe an *unlisted* `deepseek-*` model
- * (128K window, thinking off, multimodal allowed), and the four known models
- * override via MODEL_OVERRIDES — matching the old DEEPSEEK_V4_MODELS /
- * NON_MULTIMODAL_MODELS sets key-for-key. `deepseek-chat` / `deepseek-reasoner`
- * stay registered even though DeepSeek discontinued them (2026-07-24) so
+ * DeepSeek family. The family default is the product's DeepSeek compaction
+ * trigger: 512K across the series (2026-08-28 product decision — the V4
+ * models' established trigger; discontinued deepseek-chat/reasoner keep
+ * resolving with the same value so existing settings stay consistent).
+ * The known V4 models still override via MODEL_OVERRIDES key-for-key
+ * (thinking defaults, multimodal) — matching the old DEEPSEEK_V4_MODELS /
+ * NON_MULTIMODAL_MODELS sets. `deepseek-chat` / `deepseek-reasoner` stay
+ * registered even though DeepSeek discontinued them (2026-07-24) so
  * existing settings keep resolving with their historical capabilities.
  */
 const DEEPSEEK_FAMILY: ModelFamilySpec = {
   id: "deepseek",
   modelPatterns: [/^deepseek-/i],
   baseURLHostHints: [/^(.+\.)?api\.deepseek\.com$/i],
-  contextWindowTokens: 128 * 1024,
+  contextWindowTokens: 512 * 1024,
   defaultsToThinking: false,
   multimodal: true,
   lightweightModel: "deepseek-v4-flash",
@@ -146,16 +148,17 @@ const STEPFUN_FAMILY: ModelFamilySpec = {
 };
 
 /**
- * First-class fallback for models that resolve to no family. Every value equals
- * the pre-registry behavior for unknown models: 128K threshold, thinking off by
- * default, multimodal permitted, today's thinking-request shape, dual reasoning
- * read fields. Being a registry entry (not an implicit else) keeps those
+ * First-class fallback for models that resolve to no family. Product default
+ * compaction trigger is 200K (2026-08-28; was 128K). Every other value equals
+ * the pre-registry behavior for unknown models: thinking off by default,
+ * multimodal permitted, today's thinking-request shape, dual reasoning read
+ * fields. Being a registry entry (not an implicit else) keeps those
  * semantics documented and test-locked.
  */
 const UNKNOWN_FAMILY: ModelFamilySpec = {
   id: "unknown",
   modelPatterns: [],
-  contextWindowTokens: 128 * 1024,
+  contextWindowTokens: 200 * 1024,
   defaultsToThinking: false,
   multimodal: true,
   thinkingProtocol: "unknown",
@@ -199,6 +202,47 @@ export type EndpointQuotaKind = "stepfun-account" | "opencode-subscription";
 export function endpointQuotaKind(baseURL: string | undefined): EndpointQuotaKind | null {
   if (isStepfunBaseUrl(baseURL)) return "stepfun-account";
   return hostnameOf(baseURL) === "opencode.ai" ? "opencode-subscription" : null;
+}
+
+/**
+ * Curated known model ids per family — the desktop settings pool binds each
+ * endpoint's add-model suggestion list to the endpoint's family through this
+ * table (family ↔ model-list binding). Curated rather than derived from
+ * MODEL_OVERRIDES so legacy/discontinued ids (deepseek-chat / deepseek-reasoner)
+ * stay resolvable without being suggested; not-yet-registered families serve an
+ * empty list. An endpoint whose family can't be determined falls back to the
+ * union of every family's list (see endpointModelFamily).
+ */
+export const FAMILY_MODEL_SUGGESTIONS: Readonly<Record<ModelFamilyId, readonly string[]>> = {
+  deepseek: ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
+  stepfun: ["step-3.7-flash", "step-router-v1"],
+  glm: [],
+  kimi: [],
+  minimax: [],
+  qwen: [],
+  unknown: [],
+};
+
+/**
+ * Which family an ENDPOINT's model suggestions should come from. Resolution
+ * mirrors resolveModelSpec, endpoint-flavored: the first registered model whose
+ * family resolves wins (aggregator gateways — e.g. OpenCode's zen gateways —
+ * serve one family's models in practice), then the baseURL host hints, then the
+ * caller's fallback (the renderer passes a preset-id hint for gateways whose
+ * host is not in the registry), else "unknown".
+ */
+export function endpointModelFamily(input: {
+  baseURL?: string;
+  registeredModelIds?: ReadonlyArray<string>;
+  fallback?: ModelFamilyId;
+}): ModelFamilyId {
+  for (const id of input.registeredModelIds ?? []) {
+    const spec = resolveModelSpec({ model: id });
+    if (spec.familyResolved) return spec.id;
+  }
+  const byHost = resolveModelSpec({ model: "", baseURL: input.baseURL });
+  if (byHost.familyResolved) return byHost.id;
+  return input.fallback ?? "unknown";
 }
 
 /**

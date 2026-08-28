@@ -147,8 +147,8 @@
   line-height: 22px;
   color: var(--ui-text);
   transition:
-    background 0.1s ease,
-    box-shadow 0.15s ease;
+    background 0.1s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
 }
 
 .ui-editor-file-entry:hover {
@@ -208,9 +208,9 @@
   border-radius: 6px;
   white-space: nowrap;
   transition:
-    color 0.15s ease,
-    border-color 0.15s ease,
-    background 0.15s ease;
+    color 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
 }
 
 .ui-diff-overlay-action:hover {
@@ -378,10 +378,10 @@
   flex-shrink: 0;
 }
 .ui-git-add {
-  color: #3fb950;
+  color: var(--ui-success);
 }
 .ui-git-del {
-  color: #f85149;
+  color: var(--ui-danger);
 }
 
 /* Risk analysis (#14) */
@@ -447,7 +447,7 @@
 .ui-risk-bar-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width 0.3s var(--ui-ease);
 }
 
 /* Wiki pages (#16) */
@@ -663,7 +663,7 @@
   gap: 12px;
   width: min(460px, calc(100vw - 48px));
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
   color: var(--ui-text);
   box-shadow: var(--ui-shadow-modal);
@@ -686,22 +686,28 @@
 }
 .ui-trust-btn {
   padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--ui-border-soft);
   background: transparent;
   color: inherit;
   font-size: 12.5px;
   cursor: pointer;
+  transition:
+    border-color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
+}
+.ui-trust-btn:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
 }
 .ui-trust-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .ui-trust-btn--trusted:hover:not(:disabled) {
-  border-color: rgba(80, 200, 120, 0.6);
+  border-color: color-mix(in srgb, var(--ui-success) 60%, transparent);
 }
 .ui-trust-btn--quarantine:hover:not(:disabled) {
-  border-color: rgba(230, 160, 60, 0.7);
+  border-color: color-mix(in srgb, var(--ui-warning) 70%, transparent);
 }
 
 /* ── Index & Knowledge (specs/index-knowledge-rework) ─────────────────────── */
@@ -1079,6 +1085,9 @@
   background: transparent;
   color: var(--ui-text-dim);
   cursor: pointer;
+  transition:
+    color 0.15s var(--ui-ease),
+    background 0.15s var(--ui-ease);
 }
 
 .ui-taskrec-restore svg {
@@ -1089,6 +1098,12 @@
 .ui-taskrec-restore:hover:not(:disabled) {
   color: var(--ui-text);
   background: color-mix(in srgb, var(--ui-text-dim) 14%, transparent);
+}
+
+/* Armed (first click): the next click rewrites working files. */
+.ui-taskrec-restore.armed {
+  color: var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
 }
 
 /* Prototype panel toolbar — standalone-window popout. */

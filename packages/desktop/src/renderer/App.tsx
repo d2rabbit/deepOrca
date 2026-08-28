@@ -167,7 +167,7 @@ function syntheticUserMessage(sessionId: string, content: string): SessionMessag
 
 export function App(): JSX.Element {
   const { t } = useI18n();
-  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts();
+  const { toasts, push: pushToast, dismiss: dismissToast, pause: pauseToast, resume: resumeToast } = useToasts();
   const [trustAskOpen, setTrustAskOpen] = useState(false);
   const [trustBusy, setTrustBusy] = useState(false);
   const [projectRoot, setProjectRoot] = useState("");
@@ -204,7 +204,9 @@ export function App(): JSX.Element {
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
 
-  const [modal, setModal] = useState<"undo" | "shortcuts" | null>(null);
+  const [modal, setModal] = useState<"undo" | "shortcuts" | "discard-settings" | null>(null);
+  /** Settings tab has unsaved edits — every settings close path asks first. */
+  const [settingsDirty, setSettingsDirty] = useState(false);
   // Branch the user tried to switch to while the working tree had blocking local changes.
 
   // ── Main-area tab model ─────────────────────────────────────────────────────
@@ -260,6 +262,16 @@ export function App(): JSX.Element {
       return currentKey === key ? { kind: "chat" } : current;
     });
   }, []);
+  /** The ONE guarded close for the settings tab: dirty edits raise the
+   *  discard-confirm no matter which path fired (panel button, tab-strip ✕,
+   *  Esc, scrim click) — previously only the button asked. */
+  const requestCloseSettings = useCallback(() => {
+    if (settingsDirty) {
+      setModal("discard-settings");
+      return;
+    }
+    handleCloseAuxTab("settings");
+  }, [settingsDirty, handleCloseAuxTab]);
   const {
     prototypeJson,
     prototypeMode,
@@ -1843,7 +1855,7 @@ export function App(): JSX.Element {
               <button
                 type="button"
                 className="ui-surface-chip-close"
-                onClick={() => handleCloseAuxTab(tab.key)}
+                onClick={() => (tab.kind === "settings" ? requestCloseSettings() : handleCloseAuxTab(tab.key))}
                 aria-label={t("tasktree.closeTab")}
               >
                 ✕
@@ -1907,6 +1919,7 @@ export function App(): JSX.Element {
     handleCloseTaskTab,
     hasAuxSurfaces,
     knowledgeTabs,
+    requestCloseSettings,
     t,
     taskTabs,
   ]);
@@ -1924,6 +1937,7 @@ export function App(): JSX.Element {
           className="ui-cockpit-icon-btn"
           onClick={() => setPaletteOpen(true)}
           data-tip={`${t("rail.commands")} (${modKey}K)`}
+          aria-label={t("rail.commands")}
         >
           <IconCommand />
         </button>
@@ -1933,6 +1947,7 @@ export function App(): JSX.Element {
           onClick={handleToggleAppearance}
           disabled={theme === "orca"}
           data-tip={appearanceTitle}
+          aria-label={appearanceTitle}
         >
           {appearance === "dark" ? <IconMoon /> : <IconSun />}
         </button>
@@ -1941,6 +1956,7 @@ export function App(): JSX.Element {
           className="ui-cockpit-icon-btn"
           onClick={() => setModal("undo")}
           data-tip={`${t("rail.undo")} (${modKey}Z)`}
+          aria-label={t("rail.undo")}
         >
           <IconUndo />
         </button>
@@ -1949,6 +1965,7 @@ export function App(): JSX.Element {
           className={cx("ui-cockpit-icon-btn", mainView === "settings" && "active")}
           onClick={() => void handleOpenSettings()}
           data-tip={`${t("rail.settings")} (${modKey},)`}
+          aria-label={t("rail.settings")}
         >
           <IconSettings />
         </button>
@@ -1980,7 +1997,7 @@ export function App(): JSX.Element {
         else handleCollapsePanel();
         return;
       }
-      if (activeTab.kind === "settings") handleCloseAuxTab("settings");
+      if (activeTab.kind === "settings") requestCloseSettings();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1994,7 +2011,7 @@ export function App(): JSX.Element {
     diffTarget,
     trustAskOpen,
     handleCollapsePanel,
-    handleCloseAuxTab,
+    requestCloseSettings,
   ]);
 
   // The conversation is the stage's base layer; auxiliary surfaces
@@ -2094,6 +2111,7 @@ export function App(): JSX.Element {
             <SourceControlPanel
               refreshKey={treeRefreshKey}
               sessionId={activeId}
+              platform={platform}
               onOpenDiff={handleOpenDiff}
               onOpenEditor={handleOpenEditor}
             />
@@ -2104,7 +2122,7 @@ export function App(): JSX.Element {
           ) : sidebarView === "index" ? (
             <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
           ) : sidebarView === "review" ? (
-            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
               <CodeReviewPanel
                 onShowGraph={handleShowGraph}
                 onOneClickFix={handleReviewOneClickFix}
@@ -2112,15 +2130,15 @@ export function App(): JSX.Element {
               />
             </Suspense>
           ) : sidebarView === "prototype" ? (
-            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
               <PrototypeDesignPanel onOpenArtifact={handleOpenDesignArtifact} />
             </Suspense>
           ) : sidebarView === "design" ? (
-            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
               <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
             </Suspense>
           ) : sidebarView === "tasktree" ? (
-            <Suspense fallback={<div className="ui-side-panel-empty">Loading…</div>}>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
               <TaskTreePanel onOpenTask={handleOpenTaskRecord} />
             </Suspense>
           ) : sidebarView === "gitmcp" ? (
@@ -2189,7 +2207,7 @@ export function App(): JSX.Element {
             <Suspense
               fallback={
                 <div className="ui-editor-empty">
-                  <span className="ui-spinner" /> Loading editor…
+                  <span className="ui-spinner" /> {t("editor.loading")}
                 </div>
               }
             >
@@ -2242,13 +2260,14 @@ export function App(): JSX.Element {
           .ui-modal-overlay (100) / palette (120) / toasts (200). */}
       {activeTab.kind === "settings" && editable ? (
         <>
-          <div className="ui-settings-scrim" onClick={() => handleCloseAuxTab("settings")} aria-hidden />
+          <div className="ui-settings-scrim" onClick={requestCloseSettings} aria-hidden />
           <div className="ui-settings-modal">
             <SettingsPanel
               initial={editable}
               initialTab={settingsInitialTab}
               onSave={handleSaveSettings}
-              onClose={() => handleCloseAuxTab("settings")}
+              onClose={requestCloseSettings}
+              onDirtyChange={setSettingsDirty}
               platform={platform}
               theme={theme}
               onSelectTheme={handleSelectTheme}
@@ -2289,7 +2308,7 @@ export function App(): JSX.Element {
             <Suspense
               fallback={
                 <div className="ui-editor-empty">
-                  <span className="ui-spinner" /> Loading…
+                  <span className="ui-spinner" /> {t("common.loading")}
                 </div>
               }
             >
@@ -2392,7 +2411,7 @@ export function App(): JSX.Element {
         </div>
       ) : null}
       {pipTop ? (
-        <div className={cx("ui-pip", isPipBlocked(pipTop) && "blocked")}>
+        <div className={cx("ui-pip", isPipBlocked(pipTop) && "blocked", buildConsoleOpen && "console-open")}>
           <div className="ui-pip-head">
             <span className={cx("ui-pip-dot", isPipBlocked(pipTop) && "urgent")} aria-hidden />
             <button
@@ -2401,11 +2420,17 @@ export function App(): JSX.Element {
               onClick={() => restorePipEntry(pipTop)}
               data-tip={pipTop.root}
             >
-              {(pipTop.title ?? pipTop.label).slice(0, 28) || t("pip.blocked")}
+              {(pipTop.title ?? pipTop.label).slice(0, 28) || t("sidebar.untitled")}
             </button>
             <span className="ui-pip-label">{pipTop.label}</span>
             {pipStack.length > 1 ? (
-              <button type="button" className="ui-pip-cycle" onClick={cyclePip} title={`${pipStack.length}`}>
+              <button
+                type="button"
+                className="ui-pip-cycle"
+                onClick={cyclePip}
+                title={`${t("pip.cycle")} (${pipStack.length})`}
+                aria-label={t("pip.cycle")}
+              >
                 ⇅{pipStack.length}
               </button>
             ) : null}
@@ -2416,7 +2441,7 @@ export function App(): JSX.Element {
               if (!line.text) return null;
               return (
                 <div key={i} className={`ui-pip-line ${line.role}`}>
-                  <span className="ui-pip-line-role">{line.role === "user" ? "You" : "AI"}</span>
+                  <span className="ui-pip-line-role">{line.role === "user" ? t("pip.you") : t("pip.ai")}</span>
                   <span className="ui-pip-line-text">{line.text}</span>
                 </div>
               );
@@ -2462,6 +2487,31 @@ export function App(): JSX.Element {
 
       {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}
 
+      {/* Settings close confirmed by Esc / scrim / tab ✕ while edits are
+          unsaved — same dialog the panel's old close button used to show. */}
+      {modal === "discard-settings" ? (
+        <Modal
+          title={t("settings.unsavedTitle")}
+          subtitle={t("settings.unsavedBody")}
+          onClose={() => setModal(null)}
+          actions={
+            <>
+              <Button onClick={() => setModal(null)}>{t("common.cancel")}</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setSettingsDirty(false);
+                  setModal(null);
+                  handleCloseAuxTab("settings");
+                }}
+              >
+                {t("settings.unsavedDiscard")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+
       {trustAskOpen ? (
         <WorkspaceTrustDialog busy={trustBusy} onSelect={(level) => void handleTrustSelect(level)} />
       ) : null}
@@ -2490,7 +2540,7 @@ export function App(): JSX.Element {
         onClose={() => setPaletteOpen(false)}
       />
 
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
     </div>
   );
 }

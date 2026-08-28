@@ -175,7 +175,19 @@ export function IndexLibraryPanel({ onOpenWorkspace }: Props): JSX.Element {
             const runningJob = jobByRoot.get(w.root);
             return (
               <div key={w.root} className="ui-ik-rowwrap">
-                <div className="ui-ik-row" onClick={() => onOpenWorkspace(w.root)}>
+                <div
+                  className="ui-ik-row"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenWorkspace(w.root)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenWorkspace(w.root);
+                    }
+                  }}
+                >
                   <span className={`ui-ik-dot ${stateDot(status)}`} aria-hidden />
                   <div className="ui-ik-row-main">
                     <div className="ui-ik-name">{w.label}</div>

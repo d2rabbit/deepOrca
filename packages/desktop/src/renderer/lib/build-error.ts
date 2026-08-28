@@ -14,7 +14,7 @@
 import type { Translate } from "../i18n";
 
 /** Hint kinds main is allowed to embed — extend here and in messages.ts together. */
-export type BuildHintKind = "wiki-network" | "wiki-timeout";
+export type BuildHintKind = "wiki-network" | "wiki-timeout" | "wiki-empty";
 
 export type BuildHint = {
   kind: BuildHintKind;
@@ -22,7 +22,7 @@ export type BuildHint = {
   model?: string;
 };
 
-const HINT_TOKEN = /\s*\[hint:(wiki-network|wiki-timeout)(?:\s+model=([^\]\s]+))?\]/g;
+const HINT_TOKEN = /\s*\[hint:(wiki-network|wiki-timeout|wiki-empty)(?:\s+model=([^\]\s]+))?\]/g;
 
 /** Split a raw build error into its verbatim text and any embedded hints. */
 export function splitBuildError(raw: string): { text: string; hints: BuildHint[] } {
@@ -59,5 +59,7 @@ function translateHint(hint: BuildHint, t: Translate): string {
     }
     case "wiki-timeout":
       return t("buildHint.wikiTimeout");
+    case "wiki-empty":
+      return t("buildHint.wikiEmpty");
   }
 }

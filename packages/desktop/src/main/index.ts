@@ -52,6 +52,7 @@ import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
 import { fetchEndpointQuota } from "./endpoint-quota.js";
+import { testEndpoint } from "./endpoint-test.js";
 import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
@@ -61,6 +62,7 @@ import type {
   KnowledgeSourceStatus,
   KnowledgeStatusResponse,
   EndpointQuotaResponse,
+  EndpointTestResponse,
   MemoryRoutingStatus,
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
@@ -272,14 +274,37 @@ configureWikiController(
       if (!root) return {};
       try {
         const s = resolveCurrentSettings(root);
-        // Audit 2026-08-26 ("openwiki exited 1: terminated"): the CLI used to
-        // get a HARDCODED model while chat used the configured one, so a
-        // custom endpoint that only accepts its own model name aborted the
-        // wiki's LLM request at the network layer. Feed the active settings
-        // model through (chat-verified), keeping a sane fallback.
-        return { apiKey: s.apiKey, baseURL: s.baseURL, model: s.model ?? "deepseek-v4-flash" };
+        // Model-pool era: credentials live on the ENDPOINT, not on the legacy
+        // top-level apiKey/baseURL — pool-era settings files carry empty
+        // strings there, and feeding them to the CLI made the OpenAI client
+        // fall back to api.openai.com (unreachable → "Request timed out.",
+        // real-machine 2026-08-28) while chat used the endpoint pool fine.
+        // Resolve the primary endpoint the same way the panel mirrors it for
+        // chat, keeping the bare s.model (already endpoint-consistent).
+        const primary = s.endpoints.find((ep) => ep.id === s.primaryEndpointId) ?? s.endpoints[0];
+        return {
+          apiKey: primary?.apiKey ?? s.apiKey,
+          baseURL: primary?.baseURL ?? s.baseURL,
+          model: s.model || primary?.models?.[0]?.id || "deepseek-v4-flash",
+        };
       } catch {
         return {};
+      }
+    },
+    getAuxLlmCreds: () => {
+      const root = getBridge().projectRoot;
+      if (!root) return null;
+      try {
+        const s = resolveCurrentSettings(root);
+        // The 辅助模型 select stores a bare model id + its endpoint; empty
+        // model = no auxiliary configured → wiki retries on the primary.
+        const modelId = s.secondaryModel?.trim();
+        if (!modelId) return null;
+        const endpoint = s.endpoints.find((ep) => ep.id === (s.secondaryEndpointId || s.primaryEndpointId));
+        if (!endpoint) return null;
+        return { apiKey: endpoint.apiKey, baseURL: endpoint.baseURL, model: modelId };
+      } catch {
+        return null;
       }
     },
     getLanguage: () => {
@@ -1261,6 +1286,19 @@ function registerEndpointQuotaIpc({ handle }: IpcHelpers): void {
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
+  });
+}
+
+function registerEndpointTestIpc({ handle }: IpcHelpers): void {
+  // Reachability + API probe for the model-pool settings surface. Takes raw
+  // baseURL/key rather than an endpoint id so UNSAVED drafts can be tested
+  // before committing; the values only travel renderer→main, exactly like
+  // the save payload, and the probe module never throws.
+  handle(IpcRequest.EndpointTest, async (baseURL?: string, apiKey?: string): Promise<EndpointTestResponse> => {
+    if (!baseURL || !baseURL.trim()) {
+      return { reachable: false, apiOk: false, status: "network-error", latencyMs: 0, error: "missing baseURL" };
+    }
+    return testEndpoint(baseURL, apiKey ?? "");
   });
 }
 
@@ -2265,6 +2303,7 @@ function registerIpc(): void {
   registerMemoryIpc(helpers);
   registerKnowledgeIpc(helpers);
   registerEndpointQuotaIpc(helpers);
+  registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);
   registerDesignIpc(helpers);
   registerA2uiIpc(helpers);

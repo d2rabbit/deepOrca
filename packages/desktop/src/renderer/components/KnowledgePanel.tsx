@@ -455,10 +455,11 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                 >
                   ⌂ {t("symbols.home")}
                 </button>
-                <div className="ui-knowledge-symbol-viewtoggle">
+                <div className="ui-knowledge-symbol-viewtoggle" role="group">
                   <button
                     type="button"
                     className={symbolView === "graph" ? "active" : ""}
+                    aria-pressed={symbolView === "graph"}
                     onClick={() => setSymbolView("graph")}
                   >
                     ◈ {t("index.symbolViewGraph")}
@@ -466,6 +467,7 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
                   <button
                     type="button"
                     className={symbolView === "list" ? "active" : ""}
+                    aria-pressed={symbolView === "list"}
                     onClick={() => setSymbolView("list")}
                   >
                     <IconMenuBars /> {t("index.symbolViewList")}
@@ -479,56 +481,58 @@ export function KnowledgePanel({ root, onOpenFile, onQuoteToChat }: Props): JSX.
               ) : symbols.length === 0 ? (
                 <div className="ui-side-panel-empty">{t("index.symbolsNoMatch")}</div>
               ) : (
-                <div className="ui-knowledge-wiki">
-                  <div className="ui-knowledge-wiki-list">
-                    {groupSymbols(symbols).map(([kind, group]) => (
-                      <div key={kind} className="ui-knowledge-wiki-group">
-                        <div className="ui-knowledge-wiki-group-label">
-                          {kind} <span className="ui-knowledge-wiki-group-count">{group.length}</span>
+                <div className="ui-symbol-graph-scroll">
+                  <div className="ui-knowledge-wiki">
+                    <div className="ui-knowledge-wiki-list">
+                      {groupSymbols(symbols).map(([kind, group]) => (
+                        <div key={kind} className="ui-knowledge-wiki-group">
+                          <div className="ui-knowledge-wiki-group-label">
+                            {kind} <span className="ui-knowledge-wiki-group-count">{group.length}</span>
+                          </div>
+                          {group.map((sym) => (
+                            <button
+                              key={`${sym.kind}:${sym.filePath}:${sym.startLine}:${sym.name}`}
+                              type="button"
+                              className={`ui-knowledge-item${symbolSel === sym ? " selected" : ""}`}
+                              onClick={() => setSymbolSel(sym)}
+                              title={`${sym.kind} · ${sym.filePath}:${sym.startLine}`}
+                            >
+                              <span className="ui-knowledge-item-name">{sym.name}</span>
+                              <span className="ui-knowledge-item-meta">
+                                {sym.filePath.split("/").pop()}:{sym.startLine}
+                              </span>
+                            </button>
+                          ))}
                         </div>
-                        {group.map((sym) => (
-                          <button
-                            key={`${sym.kind}:${sym.filePath}:${sym.startLine}:${sym.name}`}
-                            type="button"
-                            className={`ui-knowledge-item${symbolSel === sym ? " selected" : ""}`}
-                            onClick={() => setSymbolSel(sym)}
-                            title={`${sym.kind} · ${sym.filePath}:${sym.startLine}`}
-                          >
-                            <span className="ui-knowledge-item-name">{sym.name}</span>
-                            <span className="ui-knowledge-item-meta">
-                              {sym.filePath.split("/").pop()}:{sym.startLine}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="ui-knowledge-wiki-preview">
-                    {symbolSel ? (
-                      <div className="ui-knowledge-symbol-detail">
-                        <div className="ui-knowledge-symbol-detail-head">
-                          <span className="ui-knowledge-sym-kind">{symbolSel.kind}</span>
-                          <strong className="ui-knowledge-symbol-detail-name">{symbolSel.name}</strong>
+                      ))}
+                    </div>
+                    <div className="ui-knowledge-wiki-preview">
+                      {symbolSel ? (
+                        <div className="ui-knowledge-symbol-detail">
+                          <div className="ui-knowledge-symbol-detail-head">
+                            <span className="ui-knowledge-sym-kind">{symbolSel.kind}</span>
+                            <strong className="ui-knowledge-symbol-detail-name">{symbolSel.name}</strong>
+                          </div>
+                          {symbolSel.signature ? (
+                            <pre className="ui-knowledge-symbol-signature">{symbolSel.signature}</pre>
+                          ) : null}
+                          <div className="ui-knowledge-symbol-location">
+                            {symbolSel.filePath}:{symbolSel.startLine}
+                          </div>
+                          <div className="ui-knowledge-preview-actions">
+                            <Button
+                              size="sm"
+                              variant="subtle"
+                              onClick={() => onOpenFile(`${root}/${symbolSel.filePath}`)}
+                            >
+                              {t("index.openInEditor")}
+                            </Button>
+                          </div>
                         </div>
-                        {symbolSel.signature ? (
-                          <pre className="ui-knowledge-symbol-signature">{symbolSel.signature}</pre>
-                        ) : null}
-                        <div className="ui-knowledge-symbol-location">
-                          {symbolSel.filePath}:{symbolSel.startLine}
-                        </div>
-                        <div className="ui-knowledge-preview-actions">
-                          <Button
-                            size="sm"
-                            variant="subtle"
-                            onClick={() => onOpenFile(`${root}/${symbolSel.filePath}`)}
-                          >
-                            {t("index.openInEditor")}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="ui-side-panel-empty">{t("index.symbolPickHint")}</div>
-                    )}
+                      ) : (
+                        <div className="ui-side-panel-empty">{t("index.symbolPickHint")}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -873,6 +877,19 @@ function ArchDiagrams({
     boardRef.current?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  /** Enlarged viewing (点击架构图放大): the card fit freely shrinks big boards
+   *  to noise, so any chart re-opens in a near-fullscreen lightbox at
+   *  natural-or-larger scale. Esc / scrim click dismiss. */
+  const [zoomChart, setZoomChart] = useState<{ title: string; chart: string } | null>(null);
+  useEffect(() => {
+    if (!zoomChart) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setZoomChart(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomChart]);
+
   if (sections.length === 0) {
     return <StreamdownView className="ui-knowledge-agents-md ui-md ui-knowledge-arch-md" markdown={markdown} />;
   }
@@ -881,6 +898,15 @@ function ArchDiagrams({
     <div className="ui-arch-section-head">
       <span className="ui-arch-section-badge">{t("index.archChart", { n })}</span>
       <span className="ui-arch-section-title">{section.title || t("index.archChart", { n })}</span>
+      <button
+        type="button"
+        className="ui-arch-zoom-btn"
+        title={t("index.archZoomIn")}
+        aria-label={`${t("index.archZoomIn")} · ${section.title || t("index.archChart", { n })}`}
+        onClick={() => setZoomChart({ title: section.title || t("index.archChart", { n }), chart: section.chart })}
+      >
+        ⤢
+      </button>
     </div>
   );
 
@@ -901,7 +927,22 @@ function ArchDiagrams({
             data-toc={`${t("index.archChart", { n: 1 })} · ${hero.title || ""}`}
           >
             {head(hero, 1)}
-            <ArchChartFit chart={hero.chart} minScale={0.6} maxScale={1.8} />
+            <div
+              className="ui-arch-chart-click"
+              role="button"
+              tabIndex={0}
+              aria-label={t("index.archZoomIn")}
+              onClick={() => setZoomChart({ title: hero.title || t("index.archChart", { n: 1 }), chart: hero.chart })}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setZoomChart({ title: hero.title || t("index.archChart", { n: 1 }), chart: hero.chart });
+                }
+              }}
+            >
+              <ArchChartFit chart={hero.chart} minScale={1} maxScale={1.8} />
+            </div>
           </div>
           {modules.length > 0 ? (
             <>
@@ -918,7 +959,30 @@ function ArchDiagrams({
                     data-toc={`${t("index.archChart", { n: i + 2 })} · ${section.title || ""}`}
                   >
                     {head(section, i + 2)}
-                    <ArchChartFit chart={section.chart} minScale={0.55} maxScale={1.6} />
+                    <div
+                      className="ui-arch-chart-click"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={t("index.archZoomIn")}
+                      onClick={() =>
+                        setZoomChart({
+                          title: section.title || t("index.archChart", { n: i + 2 }),
+                          chart: section.chart,
+                        })
+                      }
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setZoomChart({
+                            title: section.title || t("index.archChart", { n: i + 2 }),
+                            chart: section.chart,
+                          });
+                        }
+                      }}
+                    >
+                      <ArchChartFit chart={section.chart} minScale={1} maxScale={1.6} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -927,8 +991,48 @@ function ArchDiagrams({
         </div>
         <TocNav entries={toc} activeId={activeId} label={tocLabel} onJump={jump} className="ui-arch-toc" />
       </div>
+      {zoomChart ? (
+        <div
+          className="ui-arch-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={zoomChart.title}
+          onClick={() => setZoomChart(null)}
+        >
+          <div className="ui-arch-lightbox-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="ui-arch-lightbox-head">
+              <span className="ui-arch-lightbox-title">{zoomChart.title}</span>
+              <button
+                type="button"
+                className="ui-arch-lightbox-close"
+                aria-label={t("common.close")}
+                onClick={() => setZoomChart(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="ui-arch-lightbox-body">
+              <ArchChartFit chart={zoomChart.chart} minScale={1} maxScale={2.5} />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * Make a generated HTML board fill its iframe edge-to-edge. The arch-scan
+ * generator wraps the board in `body{padding:28px 20px 40px}` + a centered
+ * `.wrap{max-width:960px}` — on a wide pane that reads as a small floating
+ * card inside the preview (real-machine feedback: "？？？"). External CSS
+ * cannot reach a sandboxed iframe, so the override is injected into the
+ * srcDoc string itself; modest padding stays for legibility.
+ */
+function boardFullBleed(html: string): string {
+  const override = `<style>body{padding:18px 22px 28px!important}.wrap{max-width:none!important;margin:0!important}</style>`;
+  if (html.includes("</head>")) return html.replace("</head>", `${override}</head>`);
+  return html + override;
 }
 
 function KnowledgeArchPreview({
@@ -1037,7 +1141,13 @@ function KnowledgeArchPreview({
         </div>
         <span className="ui-knowledge-archframe-meta">{meta}</span>
       </div>
-      <div className="ui-knowledge-preview-a2ui">
+      <div
+        className={
+          content?.kind === "html"
+            ? "ui-knowledge-preview-a2ui ui-knowledge-preview-board"
+            : "ui-knowledge-preview-a2ui"
+        }
+      >
         {content?.kind === "md" ? (
           <ArchDiagrams
             markdown={content.markdown}
@@ -1050,7 +1160,7 @@ function KnowledgeArchPreview({
            * no navigation — the board is pure CSS). Same srcDoc channel the CRG
            * architecture graph uses in the right dock. */
           <iframe
-            srcDoc={content.html}
+            srcDoc={boardFullBleed(content.html)}
             title={archTitle}
             sandbox=""
             /* Transparent, not white: the board's own prefers-color-scheme

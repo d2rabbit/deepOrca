@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DeepOrca · FPS HUD 座舱 — Agent UI 概念稿（design-lab）</title>
+<style>
+/* ============================================================================
+   DeepOrca FPS-HUD 座舱 · 概念稿（独立原型，不属于产品源码）
+   布局语法：第一人称游戏 HUD —— 中央视区 + 屏幕锚点浮层，全部覆盖在"世界"之上。
+   本文件零依赖、零构建：双击即可在浏览器打开。
+   ========================================================================== */
+
+:root {
+  /* ── 基底：座舱夜视 ── */
+  --hud-bg: #04070b;
+  --hud-bg-2: #071019;
+  --hud-panel: rgba(7, 17, 26, 0.78);
+
+  /* ── 信号色：战术薄荷 / 警告琥珀 / 危险红 / 链路蓝 ── */
+  --sig: #5df2c8;
+  --sig-dim: rgba(93, 242, 200, 0.5);
+  --sig-line: rgba(93, 242, 200, 0.24);
+  --sig-faint: rgba(93, 242, 200, 0.08);
+  --amber: #ffb454;
+  --amber-faint: rgba(255, 180, 84, 0.12);
+  --red: #ff4655;
+  --red-faint: rgba(255, 70, 85, 0.14);
+  --blue: #59a7ff;
+
+  --tx: #d9e8e4;
+  --tx-dim: #7f958f;
+  --tx-faint: #4c5f5a;
+
+  --f-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+  --f-disp: "Bahnschrift", "Arial Narrow", "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--hud-bg);
+  color: var(--tx);
+  font: 13px/1.65 var(--f-mono);
+  overflow: hidden;
+  user-select: none;
+}
+
+b { color: var(--sig); font-weight: 600; }
+.dim { color: var(--tx-dim); }
+.mono { font-family: var(--f-mono); }
+
+/* ── 氛围层：暗角 / 扫描线 / 蓝图网格 / 受击边缘 ─────────────────────── */
+.fx-vignette, .fx-scan, .fx-grid, .fx-edge {
+  position: fixed; inset: 0; pointer-events: none;
+}
+.fx-vignette {
+  z-index: 1;
+  background: radial-gradient(ellipse 120% 90% at 50% 42%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+.fx-scan {
+  z-index: 2; opacity: 0.05;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, #000 2px 4px);
+}
+.fx-grid {
+  z-index: 0; opacity: 0.5;
+  background:
+    linear-gradient(rgba(93, 242, 200, 0.045) 1px, transparent 1px) 0 0 / 100% 44px,
+    linear-gradient(90deg, rgba(93, 242, 200, 0.045) 1px, transparent 1px) 0 0 / 44px 100%,
+    radial-gradient(ellipse 90% 70% at 50% 40%, rgba(23, 44, 52, 0.7), transparent 75%);
+  mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, #000 30%, transparent 100%);
+}
+.fx-edge { z-index: 40; box-shadow: inset 0 0 0 rgba(255, 70, 85, 0); }
+.fx-edge.on { animation: edge-flash 0.9s ease-out; }
+@keyframes edge-flash {
+  0% { box-shadow: inset 0 0 0 rgba(255, 70, 85, 0); }
+  18% { box-shadow: inset 0 0 140px rgba(255, 70, 85, 0.4); }
+  100% { box-shadow: inset 0 0 0 rgba(255, 70, 85, 0); }
+}
+
+/* ── 标题栏（窗口条）────────────────────────────────────────────────── */
+.titlebar {
+  position: fixed; top: 0; left: 0; right: 0; height: 34px; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  background: linear-gradient(180deg, rgba(7, 16, 25, 0.95), rgba(7, 16, 25, 0.6));
+  border-bottom: 1px solid var(--sig-line);
+  font-family: var(--f-disp); font-size: 12px; letter-spacing: 0.16em;
+}
+.tb-left { display: flex; align-items: center; gap: 10px; }
+.tb-dot { width: 9px; height: 9px; border: 1px solid var(--sig-dim); display: inline-block; }
+.tb-dot:first-child { background: var(--sig-faint); }
+.tb-title { margin-left: 6px; color: var(--tx); }
+.tb-title em { font-style: normal; color: var(--tx-faint); letter-spacing: 0.2em; }
+.tb-right { display: flex; align-items: center; gap: 12px; font-family: var(--f-mono); letter-spacing: 0; }
+.tb-btn {
+  background: transparent; border: 1px solid var(--sig-line); color: var(--sig-dim);
+  font: 11px var(--f-mono); padding: 2px 8px; cursor: pointer; letter-spacing: 0.08em;
+}
+.tb-btn:hover { border-color: var(--sig); color: var(--sig); }
+
+/* ── HUD 通用卡片：细线框 + 角括号 ─────────────────────────────────── */
+.hud { position: fixed; z-index: 10; }
+/* 注意：不在此声明 position——卡片同时挂 .hud（fixed），
+   若这里写 relative 会在级联中覆盖掉 fixed，让卡片跌回文档流。 */
+.card {
+  background: var(--hud-panel);
+  border: 1px solid rgba(93, 242, 200, 0.14);
+  backdrop-filter: blur(5px);
+  padding: 10px 12px;
+}
+.card::before, .card::after {
+  content: ""; position: absolute; width: 13px; height: 13px; pointer-events: none;
+}
+.card::before { top: -1px; left: -1px; border-top: 1px solid var(--sig); border-left: 1px solid var(--sig); }
+.card::after { bottom: -1px; right: -1px; border-bottom: 1px solid var(--sig); border-right: 1px solid var(--sig); }
+
+.card h2 {
+  font: 600 11px var(--f-disp); letter-spacing: 0.3em; text-transform: uppercase;
+  color: var(--sig); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline;
+}
+.card h2 span { color: var(--tx-faint); letter-spacing: 0.18em; font-weight: 400; }
+
+/* ── 顶部罗盘：当前回合步进 ────────────────────────────────────────── */
+.compass {
+  top: 46px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px;
+  padding: 6px 16px; border: 1px solid rgba(93, 242, 200, 0.14);
+  background: var(--hud-panel); backdrop-filter: blur(5px);
+}
+.compass-label { font-size: 12px; letter-spacing: 0.22em; white-space: nowrap; }
+.compass-ticks { display: flex; gap: 6px; align-items: center; }
+.tick {
+  width: 26px; height: 5px; background: rgba(93, 242, 200, 0.12);
+  border: 1px solid rgba(93, 242, 200, 0.18); position: relative;
+}
+.tick.done { background: var(--sig-dim); border-color: var(--sig); }
+.tick.run { border-color: var(--amber); animation: tick-blink 0.9s steps(2) infinite; }
+@keyframes tick-blink { 50% { background: var(--amber-faint); } }
+
+/* ── 左上：任务目标 ───────────────────────────────────────────────── */
+.objectives { top: 64px; left: 20px; width: 264px; }
+.objectives ul { list-style: none; }
+.obj { padding: 3px 0 3px 22px; position: relative; color: var(--tx-dim); font-size: 12px; }
+.obj::before {
+  content: "□"; position: absolute; left: 0; top: 2px; color: var(--tx-faint); font-size: 13px;
+}
+.obj.done { color: var(--tx); }
+.obj.done::before { content: "■"; color: var(--sig); }
+.obj.run { color: var(--amber); }
+.obj.run::before { content: "▶"; color: var(--amber); animation: tick-blink 0.9s steps(2) infinite; }
+.obj .tag { color: var(--tx-faint); margin-right: 6px; }
+
+/* ── 右上：雷达 + 模块热键 ────────────────────────────────────────── */
+.radar-wrap { top: 64px; right: 20px; width: 200px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.radar {
+  width: 150px; height: 150px; border-radius: 50%;
+  border: 1px solid rgba(93, 242, 200, 0.22);
+  position: relative; overflow: hidden;
+  background: radial-gradient(circle at 50% 50%, rgba(93, 242, 200, 0.07), transparent 72%);
+}
+.radar::before, .radar::after {
+  content: ""; position: absolute; background: rgba(93, 242, 200, 0.14);
+}
+.radar::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+.radar::after { top: 50%; left: 0; right: 0; height: 1px; }
+.radar .sweep {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(93, 242, 200, 0.35), transparent 80deg);
+  animation: sweep 4s linear infinite;
+}
+@keyframes sweep { to { transform: rotate(360deg); } }
+.radar .ring2 { position: absolute; inset: 26px; border-radius: 50%; border: 1px solid rgba(93, 242, 200, 0.12); }
+.blip {
+  position: absolute; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sig); box-shadow: 0 0 8px var(--sig);
+  animation: ping 2.4s ease-out infinite;
+}
+.blip.old { background: var(--tx-faint); box-shadow: none; animation: none; }
+.blip.cur { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+@keyframes ping {
+  0% { outline: 0 solid rgba(93, 242, 200, 0.6); }
+  70%, 100% { outline: 12px solid rgba(93, 242, 200, 0); }
+}
+.radar-legend { font-size: 10px; letter-spacing: 0.14em; }
+.modules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; width: 100%; }
+.modules button {
+  background: var(--hud-panel); border: 1px solid rgba(93, 242, 200, 0.16);
+  color: var(--tx-dim); font: 10.5px var(--f-mono); padding: 3px 7px; cursor: pointer; letter-spacing: 0.06em;
+}
+.modules button b { color: var(--sig); margin-right: 3px; font-weight: 600; }
+.modules button:hover { color: var(--tx); border-color: var(--sig-dim); }
+
+/* ── 右中：作战信息流（自动淡出的工具事件）───────────────────────── */
+.feed { top: 348px; right: 20px; width: 312px; }
+.feed ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.feed li {
+  font-size: 11px; color: var(--tx-dim); padding: 2px 6px;
+  border-left: 2px solid rgba(93, 242, 200, 0.35);
+  background: rgba(93, 242, 200, 0.04);
+  animation: feed-in 0.28s ease-out;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.feed li .t { color: var(--tx-faint); margin-right: 6px; }
+.feed li.ok { border-left-color: var(--sig); }
+.feed li.warn { border-left-color: var(--amber); background: var(--amber-faint); color: var(--amber); }
+.feed li.err { border-left-color: var(--red); background: var(--red-faint); color: var(--red); }
+@keyframes feed-in { from { opacity: 0; transform: translateX(14px); } }
+
+/* ── 中央视区：通讯流 ─────────────────────────────────────────────── */
+.comm {
+  position: fixed; z-index: 5;
+  top: 84px; bottom: 158px; left: 50%; transform: translateX(-50%);
+  width: min(720px, calc(100vw - 700px));
+  min-width: 480px;
+  overflow-y: auto; overscroll-behavior: contain; user-select: text;
+  padding: 6px 10px 24px;
+  mask-image: linear-gradient(180deg, transparent 0, #000 22px, #000 calc(100% - 30px), transparent 100%);
+  scrollbar-width: thin; scrollbar-color: rgba(93, 242, 200, 0.25) transparent;
+}
+.comm::-webkit-scrollbar { width: 4px; }
+.comm::-webkit-scrollbar-thumb { background: rgba(93, 242, 200, 0.25); }
+
+.tx { margin: 14px 0; padding: 8px 12px; position: relative; font-size: 13px; }
+.tx .who {
+  display: block; font: 600 10px var(--f-disp); letter-spacing: 0.28em; text-transform: uppercase;
+  margin-bottom: 4px; color: var(--tx-faint);
+}
+.tx .who .t { float: right; font-family: var(--f-mono); letter-spacing: 0; }
+.tx.user { border-left: 2px solid var(--amber); background: linear-gradient(90deg, var(--amber-faint), transparent 70%); }
+.tx.user .who { color: var(--amber); }
+.tx.agent { border-left: 2px solid var(--sig); background: linear-gradient(90deg, var(--sig-faint), transparent 70%); }
+.tx.agent .who { color: var(--sig); }
+.tx .caret { display: inline-block; width: 7px; height: 14px; background: var(--sig); vertical-align: -2px; animation: caret 0.8s steps(2) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+
+/* 工具作战卡 */
+.op {
+  margin: 12px 0 12px 14px; width: calc(100% - 28px);
+  border: 1px solid rgba(93, 242, 200, 0.14);
+  border-left: 2px solid var(--sig-dim);
+  background: rgba(7, 17, 26, 0.66); backdrop-filter: blur(4px);
+  padding: 7px 10px; font-size: 12px;
+  display: flex; align-items: center; gap: 10px;
+}
+.op .tool {
+  flex: none; font: 600 10px var(--f-disp); letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--sig); border: 1px solid var(--sig-line); padding: 1px 6px;
+}
+.op .cmd { color: var(--tx-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op .cmd code { color: var(--tx); }
+.op .st {
+  margin-left: auto; flex: none; font-size: 10.5px; letter-spacing: 0.14em;
+  color: var(--sig); white-space: nowrap;
+}
+.op.run { border-left-color: var(--amber); }
+.op.run .tool { color: var(--amber); border-color: rgba(255, 180, 84, 0.4); }
+.op.run .st { color: var(--amber); animation: tick-blink 0.9s steps(2) infinite; }
+.op.ok .st { color: var(--sig); }
+.op.err { border-left-color: var(--red); }
+.op.err .st { color: var(--red); }
+.op .detail { margin-left: auto; color: var(--tx-faint); font-size: 11px; }
+
+/* ── 准星（agent 瞄准点，位于指令台上方）─────────────────────────── */
+.reticle {
+  position: fixed; z-index: 6; left: 50%; bottom: 172px; transform: translateX(-50%);
+  width: 58px; height: 58px; pointer-events: none; opacity: 0.75;
+}
+.reticle .r1 {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 1px dashed rgba(93, 242, 200, 0.4);
+  animation: sweep 7s linear infinite;
+}
+.reticle .r2 {
+  position: absolute; inset: 9px; border-radius: 50%;
+  background: conic-gradient(var(--sig-dim) 0 40deg, transparent 40deg 180deg, rgba(93, 242, 200, 0.35) 180deg 210deg, transparent 210deg);
+  animation: sweep 3.5s linear infinite reverse;
+  mask: radial-gradient(circle, transparent 55%, #000 56%);
+}
+.reticle .core {
+  position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px;
+  background: var(--sig); border-radius: 50%;
+}
+.reticle.working .core { animation: core-pulse 0.8s ease-in-out infinite; box-shadow: 0 0 10px var(--sig); }
+@keyframes core-pulse { 50% { transform: scale(1.9); opacity: 0.6; } }
+
+/* ── 中央弹窗：授权请求 ───────────────────────────────────────────── */
+.auth {
+  position: fixed; z-index: 30; left: 50%; bottom: 250px; transform: translateX(-50%);
+  width: min(520px, 44vw); min-width: 420px;
+  filter: drop-shadow(0 0 24px rgba(255, 70, 85, 0.25));
+}
+.auth[hidden] { display: none; }
+.auth .frame {
+  background: var(--red);
+  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+  padding: 1px;
+}
+.auth .inner {
+  background: rgba(10, 8, 10, 0.96);
+  clip-path: polygon(17.5px 0.5px, calc(100% - 0.5px) 0.5px, calc(100% - 0.5px) calc(100% - 17.5px), calc(100% - 17.5px) calc(100% - 0.5px), 17.5px calc(100% - 0.5px), 0.5px calc(100% - 0.5px), 0.5px 17.5px);
+  padding: 14px 18px;
+  animation: auth-in 0.3s ease-out;
+}
+@keyframes auth-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+.auth h3 {
+  font: 700 13px var(--f-disp); letter-spacing: 0.34em; text-transform: uppercase;
+  color: var(--red); display: flex; align-items: center; gap: 10px;
+}
+.auth h3::before { content: "⚠"; font-size: 15px; }
+.auth .lvl { margin-left: auto; font: 10px var(--f-mono); letter-spacing: 0.18em; color: var(--amber); border: 1px solid rgba(255, 180, 84, 0.5); padding: 1px 7px; }
+.auth .why { color: var(--tx-dim); font-size: 11.5px; margin: 8px 0 6px; }
+.auth .cmdbox {
+  border: 1px solid rgba(255, 70, 85, 0.35); background: rgba(255, 70, 85, 0.06);
+  font-size: 12.5px; color: var(--tx); padding: 8px 10px; margin: 6px 0 12px; user-select: text;
+  overflow-x: auto; white-space: nowrap;
+}
+.auth .cmdbox::before { content: "$ "; color: var(--tx-faint); }
+.auth .keys { display: flex; gap: 18px; align-items: center; }
+.keybtn {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  background: transparent; border: none; color: var(--tx-dim); font: 12px var(--f-mono);
+}
+.keybtn kbd {
+  min-width: 26px; text-align: center; padding: 3px 7px;
+  font: 700 12px var(--f-mono); letter-spacing: 0.1em;
+  border: 1px solid var(--sig); color: var(--sig); background: var(--sig-faint);
+  animation: key-glow 1.4s ease-in-out infinite;
+}
+.keybtn.danger kbd { border-color: var(--tx-faint); color: var(--tx-dim); background: transparent; animation: none; }
+.keybtn:hover kbd { background: rgba(93, 242, 200, 0.22); }
+@keyframes key-glow { 50% { box-shadow: 0 0 12px rgba(93, 242, 200, 0.45); } }
+.auth .hint { margin-left: auto; font-size: 10.5px; color: var(--tx-faint); letter-spacing: 0.08em; }
+
+/* ── 左下：载具状态（上下文 / 配额 / 成本）───────────────────────── */
+.vitals { left: 20px; bottom: 20px; width: 288px; }
+.gauge-row { margin: 10px 0 16px; }
+.gauge-head { display: flex; justify-content: space-between; font-size: 10.5px; letter-spacing: 0.14em; color: var(--tx-dim); }
+.gauge-head b { font-size: 12px; letter-spacing: 0.04em; }
+.gauge-head .warn { color: var(--amber); }
+.gauge {
+  margin-top: 3px; height: 9px; position: relative;
+  background: rgba(93, 242, 200, 0.07); border: 1px solid rgba(93, 242, 200, 0.16);
+}
+.gauge .fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, rgba(93, 242, 200, 0.4), var(--sig));
+  box-shadow: 0 0 8px rgba(93, 242, 200, 0.5);
+  transition: width 1.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.gauge.amber .fill { background: linear-gradient(90deg, rgba(255, 180, 84, 0.4), var(--amber)); box-shadow: 0 0 8px rgba(255, 180, 84, 0.5); }
+.gauge::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 7px, var(--hud-bg) 7px 9px);
+}
+.gauge .mark { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--amber); }
+.gauge .mark i {
+  position: absolute; top: 12px; left: -26px; font-style: normal;
+  font-size: 8.5px; color: var(--amber); letter-spacing: 0.06em; white-space: nowrap;
+}
+
+/* ── 右下：武器系统（模型 / 思考 / 模式保险）──────────────────────── */
+.weapon { right: 20px; bottom: 20px; width: 288px; }
+.wp-primary { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.wp-primary .name { font: 700 16px var(--f-disp); letter-spacing: 0.12em; color: var(--tx); white-space: nowrap; }
+.wp-primary .mag { margin-left: auto; font-size: 10.5px; color: var(--tx-dim); letter-spacing: 0.1em; }
+.wp-sub { font-size: 11px; color: var(--tx-dim); }
+.wp-sub b { color: var(--blue); }
+.wp-rows { margin-top: 8px; border-top: 1px dashed rgba(93, 242, 200, 0.16); padding-top: 8px; display: flex; gap: 8px; }
+.wp-chip {
+  flex: 1; text-align: center; font-size: 10px; letter-spacing: 0.16em;
+  border: 1px solid rgba(93, 242, 200, 0.16); color: var(--tx-dim); padding: 4px 0;
+}
+.wp-chip b { display: block; font-size: 11.5px; letter-spacing: 0.08em; color: var(--sig); }
+.wp-chip.off b { color: var(--tx-faint); }
+.wp-chip.safety b { color: var(--amber); }
+
+/* ── 底中：指令控制台（Composer）─────────────────────────────────── */
+.console {
+  position: fixed; z-index: 10; left: 50%; bottom: 20px; transform: translateX(-50%);
+  width: min(720px, calc(100vw - 700px)); min-width: 480px;
+}
+.mode-switch { display: flex; margin-bottom: 6px; gap: 0; width: max-content; border: 1px solid rgba(93, 242, 200, 0.2); }
+.mode-switch span {
+  font: 600 10.5px var(--f-disp); letter-spacing: 0.26em; padding: 3px 14px; color: var(--tx-faint);
+  cursor: pointer;
+}
+.mode-switch span.on { background: var(--sig-faint); color: var(--sig); box-shadow: inset 0 0 0 1px var(--sig-line); }
+.mode-switch span.plan.on { background: var(--amber-faint); color: var(--amber); box-shadow: inset 0 0 0 1px rgba(255, 180, 84, 0.4); }
+.mode-switch .guard { margin-left: 6px; align-self: center; font-size: 10px; color: var(--tx-faint); letter-spacing: 0.1em; }
+.cmdline {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(7, 17, 26, 0.85); backdrop-filter: blur(6px);
+  border: 1px solid rgba(93, 242, 200, 0.24);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 24px rgba(93, 242, 200, 0.08);
+  padding: 11px 14px;
+}
+.cmdline:focus-within { border-color: var(--sig); box-shadow: 0 0 0 1px var(--sig-line), 0 0 30px rgba(93, 242, 200, 0.16); }
+.cmdline .prompt { color: var(--sig); font-weight: 700; }
+.cmdline input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--tx); font: 13.5px var(--f-mono); caret-color: var(--sig);
+}
+.cmdline input::placeholder { color: var(--tx-faint); }
+.cmdline .send {
+  flex: none; width: 30px; height: 30px; cursor: pointer;
+  background: var(--sig-faint); border: 1px solid var(--sig-line); color: var(--sig);
+  font-size: 13px;
+}
+.cmdline .send:hover { background: rgba(93, 242, 200, 0.2); box-shadow: 0 0 14px rgba(93, 242, 200, 0.3); }
+.console .hints { display: flex; gap: 16px; margin-top: 5px; font-size: 10px; color: var(--tx-faint); letter-spacing: 0.1em; }
+.console .hints kbd { color: var(--tx-dim); border: 1px solid rgba(127, 149, 143, 0.35); padding: 0 4px; margin-right: 3px; font-family: var(--f-mono); }
+.console .hints .demo { margin-left: auto; cursor: pointer; color: var(--sig-dim); }
+.console .hints .demo:hover { color: var(--sig); }
+
+/* ── 开机自检 ─────────────────────────────────────────────────────── */
+.boot {
+  position: fixed; inset: 0; z-index: 50; background: #020407;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.5s ease;
+}
+.boot.off { opacity: 0; pointer-events: none; }
+.boot pre { font: 12.5px/2 var(--f-mono); color: var(--sig-dim); letter-spacing: 0.08em; }
+.boot pre b { color: var(--sig); }
+.boot pre .dim { color: var(--tx-faint); }
+
+/* ── 窄屏兜底（概念稿以桌面 ≥1280px 为主）────────────────────────── */
+@media (max-width: 1279px) {
+  .feed { display: none; }
+  .radar-wrap { transform: scale(0.85); transform-origin: top right; }
+  .objectives { transform: scale(0.85); transform-origin: top left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- 氛围层 -->
+<div class="fx-grid"></div>
+<div class="fx-vignette"></div>
+<div class="fx-scan"></div>
+<div class="fx-edge" id="edgeAlert"></div>
+
+<!-- 窗口标题栏 -->
+<header class="titlebar">
+  <div class="tb-left">
+    <span class="tb-dot"></span><span class="tb-dot"></span><span class="tb-dot"></span>
+    <span class="tb-title">DEEPORCA <em>// 战术座舱 · HUD 概念稿</em></span>
+  </div>
+  <div class="tb-right dim">SESSION S-07 · 语义路由缓存 <button class="tb-btn" id="rebootBtn">↻ REBOOT</button></div>
+</header>
+
+<!-- 顶部罗盘：回合步进 -->
+<div class="hud compass">
+  <div class="compass-label">TURN 07 <span class="dim">·</span> <b id="stepNow">3</b><span class="dim">/5</span></div>
+  <div class="compass-ticks" id="ticks"></div>
+</div>
+
+<!-- 左上：任务目标 -->
+<section class="hud card objectives">
+  <h2>目标 <span>OBJECTIVES</span></h2>
+  <ul>
+    <li class="obj" id="obj1"><span class="tag">主</span>路由缓存层落地（TTL 90s）</li>
+    <li class="obj" id="obj2"><span class="tag">主</span>core 测试回归通过</li>
+    <li class="obj"><span class="tag">次</span>更新 docs/architecture.md</li>
+  </ul>
+</section>
+
+<!-- 右上：雷达 + 模块热键 -->
+<section class="hud radar-wrap">
+  <div class="radar">
+    <div class="sweep"></div>
+    <div class="ring2"></div>
+    <span class="blip cur" style="left: 60%; top: 36%"></span>
+    <span class="blip" style="left: 27%; top: 62%"></span>
+    <span class="blip old" style="left: 72%; top: 70%"></span>
+  </div>
+  <div class="radar-legend dim">CONTACTS 3 · 当前 S-07</div>
+  <div class="modules">
+    <button><b>K</b>知识库</button>
+    <button><b>G</b>源控</button>
+    <button><b>D</b>设计</button>
+    <button><b>T</b>任务树</button>
+  </div>
+</section>
+
+<!-- 右中：作战信息流 -->
+<aside class="hud card feed">
+  <h2>作战流 <span>FEED</span></h2>
+  <ul id="feedList"></ul>
+</aside>
+
+<!-- 中央视区：通讯流 -->
+<main class="comm" id="comm">
+  <article class="tx user">
+    <span class="who">指挥官 · 指令 <span class="t">21:03:58</span></span>
+    给 SkillRouter 加一层带 TTL 的路由缓存，注意别破坏 fail-open 语义，然后跑通 core 的测试。
+  </article>
+  <article class="tx agent">
+    <span class="who">AGENT · DEEPSEEK-V4 <span class="t">21:04:02</span></span>
+    收到。先确认 shortlist 的现有调用点与失败路径，再插入缓存层——缓存只在召回成功时生效，任何异常都回落到全量候选集。
+  </article>
+  <div class="op" id="op1">
+    <span class="tool">read</span>
+    <span class="cmd"><code>src/routing/skill-router.ts</code> · shortlist / composeRoute 调用点扫描</span>
+    <span class="st">…</span>
+  </div>
+  <div class="op" id="op2">
+    <span class="tool">write</span>
+    <span class="cmd"><code>src/routing/skill-router-cache.ts</code> · 新增 · 带 TTL + 命中统计</span>
+    <span class="st">…</span>
+  </div>
+  <div class="op" id="op3">
+    <span class="tool">bash</span>
+    <span class="cmd"><code>npm test -w @deeporca/core</code></span>
+    <span class="st">…</span>
+  </div>
+  <article class="tx agent" id="streamTx">
+    <span class="who">AGENT · DEEPSEEK-V4 <span class="t">21:04:47</span></span>
+    <span id="stream"></span><span class="caret" id="caret" hidden></span>
+  </article>
+  <div class="op run" id="op4">
+    <span class="tool">bash</span>
+    <span class="cmd"><code>git push origin feat/routing-cache</code></span>
+    <span class="st">等待授权…</span>
+  </div>
+</main>
+
+<!-- 准星 -->
+<div class="reticle working" id="reticle">
+  <div class="r1"></div>
+  <div class="r2"></div>
+  <div class="core"></div>
+</div>
+
+<!-- 中央弹窗：授权请求 -->
+<div class="auth" id="auth" hidden>
+  <div class="frame"><div class="inner">
+    <h3>授权请求 <span class="lvl">网络 · 外发</span></h3>
+    <p class="why">以下命令将访问网络并修改远端仓库状态，超出当前会话的已授权范围：</p>
+    <div class="cmdbox">git push origin feat/routing-cache</div>
+    <div class="keys">
+      <button class="keybtn" id="authGrant"><kbd>F</kbd>授权并执行</button>
+      <button class="keybtn danger" id="authDeny"><kbd>ESC</kbd>拒绝</button>
+      <span class="hint">按 F 确认 · Esc 拒绝 · 本会话内记住选择</span>
+    </div>
+  </div></div>
+</div>
+
+<!-- 左下：载具状态 -->
+<section class="hud card vitals">
+  <h2>载具状态 <span>VITALS</span></h2>
+  <div class="gauge-row">
+    <div class="gauge-head"><span>上下文 CTX</span><b><span id="ctxNum">0.0</span>% <span class="dim">· 241K / 512K</span></b></div>
+    <div class="gauge">
+      <div class="fill" id="ctxBar"></div>
+      <span class="mark" style="left: 75%"><i>COMPACT 512K</i></span>
+    </div>
+  </div>
+  <div class="gauge-row">
+    <div class="gauge-head"><span>端点配额 QUOTA</span><b><span id="quotaNum">0</span>% <span class="dim">· 本月</span></b></div>
+    <div class="gauge amber">
+      <div class="fill" id="quotaBar"></div>
+    </div>
+  </div>
+  <div class="gauge-row">
+    <div class="gauge-head"><span>本回合 SPEND</span><b>$<span id="costNum">0.000</span> <span class="dim">· 4.2K tok/s</span></b></div>
+    <div class="gauge"><div class="fill" id="costBar" style="background: linear-gradient(90deg, rgba(89,167,255,.4), var(--blue)); box-shadow: 0 0 8px rgba(89,167,255,.5)"></div></div>
+  </div>
+</section>
+
+<!-- 右下：武器系统 -->
+<section class="hud card weapon">
+  <h2>武器系统 <span>WEAPON</span></h2>
+  <div class="wp-primary">
+    <span class="name">DEEPSEEK-V4</span>
+    <span class="mag">MAG 512K</span>
+  </div>
+  <div class="wp-sub">快速通道 <b>step-3.7-flash</b> · 满仓自动压缩换弹</div>
+  <div class="wp-rows">
+    <div class="wp-chip"><b>DEEP</b>思考深度</div>
+    <div class="wp-chip off"><b>OFF</b>联网检索</div>
+    <div class="wp-chip safety"><b>BUILD</b>模式保险</div>
+  </div>
+</section>
+
+<!-- 底中：指令控制台 -->
+<section class="console">
+  <div class="mode-switch">
+    <span class="plan" id="modePlan">PLAN</span>
+    <span class="on" id="modeBuild">BUILD</span>
+    <span class="guard">▲ 保险开启：写操作需逐条授权</span>
+  </div>
+  <div class="cmdline">
+    <span class="prompt">▸</span>
+    <input id="cmdInput" type="text" placeholder="向 agent 下达指令…（ PLAN 模式下首回合只读侦察 ）" autocomplete="off" />
+    <button class="send" id="sendBtn" title="发射（Enter）">▶</button>
+  </div>
+  <div class="hints">
+    <span><kbd>Tab</kbd>切换 PLAN / BUILD</span>
+    <span><kbd>Ctrl K</kbd>指令面板</span>
+    <span><kbd>Ctrl F</kbd>全屏视区</span>
+    <span class="demo" id="replayAuth">⚡ 重播授权演示</span>
+  </div>
+</section>
+
+<!-- 开机自检 -->
+<div class="boot" id="boot"><pre id="bootText"></pre></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep = (ms) => new Promise((r) => setTimeout(r, REDUCED ? 0 : ms));
+const now = () => {
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
+};
+
+/* ── 开机自检 ─────────────────────────────────────────────────────── */
+async function boot() {
+  const el = $("#boot"), pre = $("#bootText");
+  if (REDUCED) { el.remove(); return; }
+  const lines = [
+    'DEEPORCA TACTICAL SHELL <span class="dim">v0.9-concept</span>',
+    "LINK ESTABLISHED <span class=\"dim\">· core engine @deeporca/core</span>",
+    "MEMORY L0-L3 <b>ONLINE</b>   ROUTER <b>FAIL-OPEN</b>   VENDOR TOOLS <b>13/13</b>",
+    'AGENT <b>ONLINE</b> <span class="dim">— 座舱已就绪，等待指令</span>',
+  ];
+  for (const l of lines) {
+    pre.innerHTML += l + "\n";
+    await sleep(260);
+  }
+  await sleep(420);
+  el.classList.add("off");
+  setTimeout(() => el.remove(), 600);
+}
+
+/* ── 仪表数字滚动 ─────────────────────────────────────────────────── */
+function tween(el, to, dur, fmt) {
+  if (REDUCED) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  (function step(t) {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(to * e);
+    if (k < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function gauges() {
+  $("#ctxBar").style.width = "47%";
+  $("#quotaBar").style.width = "82%";
+  $("#costBar").style.width = "18%";
+  tween($("#ctxNum"), 47.1, 1400, (v) => v.toFixed(1));
+  tween($("#quotaNum"), 82, 1400, (v) => Math.round(v));
+  tween($("#costNum"), 0.041, 1400, (v) => v.toFixed(3));
+}
+
+/* ── 罗盘步进 ─────────────────────────────────────────────────────── */
+const tickBox = $("#ticks");
+function renderTicks(states) {
+  tickBox.innerHTML = "";
+  states.forEach((s) => {
+    const d = document.createElement("span");
+    d.className = "tick" + (s === 1 ? " done" : s === 2 ? " run" : "");
+    tickBox.appendChild(d);
+  });
+}
+
+/* ── 作战信息流 ───────────────────────────────────────────────────── */
+const feedList = $("#feedList");
+function feed(html, cls) {
+  const li = document.createElement("li");
+  if (cls) li.className = cls;
+  li.innerHTML = `<span class="t">${now()}</span>${html}`;
+  feedList.appendChild(li);
+  while (feedList.children.length > 6) feedList.firstChild.remove();
+}
+
+/* ── 作战卡状态 ───────────────────────────────────────────────────── */
+function op(id, cls, st) {
+  const el = $(id);
+  el.className = "op" + (cls ? " " + cls : "");
+  el.querySelector(".st").textContent = st;
+}
+
+/* ── 打字机 ───────────────────────────────────────────────────────── */
+async function type(el, text) {
+  if (REDUCED) { el.textContent = text; return; }
+  for (const ch of text) { el.textContent += ch; await sleep(16); }
+}
+
+/* ── 目标勾选 ─────────────────────────────────────────────────────── */
+const objDone = (id) => { $(id).className = "obj done"; };
+
+/* ── 授权弹窗 ─────────────────────────────────────────────────────── */
+const authBox = $("#auth");
+function showAuth() {
+  op("#op4", "run", "等待授权…");
+  authBox.hidden = false;
+  $("#reticle").classList.add("working");
+}
+function grant() {
+  if (authBox.hidden) return;
+  authBox.hidden = true;
+  op("#op4", "ok", "已放行 · 推送中…");
+  feed(`<b>AUTH</b> git push 已授权 · origin/feat/routing-cache`, "ok");
+  renderTicks([1, 1, 1, 1, 1]); $("#stepNow").textContent = "5";
+  feed(`bash ▸ git push → <b>OK</b> · up to date`, "ok");
+  $("#reticle").classList.remove("working");
+}
+function deny() {
+  if (authBox.hidden) return;
+  authBox.hidden = true;
+  op("#op4", "err", "已拒绝 · 已跳过");
+  feed(`<b>AUTH</b> git push 已拒绝 · 改动保留在本地`, "err");
+  const edge = $("#edgeAlert");
+  edge.classList.remove("on"); void edge.offsetWidth; edge.classList.add("on");
+  type($("#stream"), "收到，已跳过推送——所有改动都已提交在本地分支 feat/routing-cache，随时可以手动推送。");
+  $("#reticle").classList.remove("working");
+  $("#caret").hidden = true;
+}
+$("#authGrant").addEventListener("click", grant);
+$("#authDeny").addEventListener("click", deny);
+$("#replayAuth").addEventListener("click", showAuth);
+addEventListener("keydown", (e) => {
+  if (authBox.hidden) return;
+  if (e.key === "f" || e.key === "F") grant();
+  if (e.key === "Escape") deny();
+});
+
+/* ── 演示时间线 ───────────────────────────────────────────────────── */
+async function timeline() {
+  gauges();
+  renderTicks([1, 1, 1, 0, 0]);
+  await sleep(600);
+
+  op("#op1", "", "OK · 2.1k 行");
+  feed(`read ▸ src/routing/skill-router.ts · <b>2.1k</b> 行`, "ok");
+  await sleep(900);
+
+  op("#op2", "ok", "OK · +48 −6");
+  feed(`write ▸ skill-router-cache.ts · <b>+48 −6</b>`, "ok");
+  await sleep(900);
+
+  op("#op3", "run", "RUNNING…");
+  feed(`bash ▸ npm test -w @deeporca/core · 运行中`, "warn");
+  $("#op3").className = "op run";
+  await sleep(1400);
+  op("#op3", "ok", "OK · 46/46 · 12.8s");
+  feed(`bash ▸ npm test → <b>OK 46/46</b> · 12.8s`, "ok");
+  objDone("#obj1"); objDone("#obj2");
+  renderTicks([1, 1, 1, 1, 0]); $("#stepNow").textContent = "4";
+  await sleep(500);
+
+  const caret = $("#caret");
+  caret.hidden = false;
+  await type($("#stream"), "本地 46 项测试全部通过 ✔，已提交到 feat/routing-cache。最后一步需要推送到远端，这是网络操作——");
+  caret.hidden = true;
+  await sleep(300);
+
+  renderTicks([1, 1, 1, 1, 2]);
+  showAuth();
+}
+
+$("#rebootBtn").addEventListener("click", () => location.reload());
+$("#sendBtn").addEventListener("click", () => { $("#cmdInput").focus(); });
+$("#modePlan").addEventListener("click", () => {
+  $("#modePlan").classList.add("on"); $("#modeBuild").classList.remove("on");
+  $(".guard").textContent = "▲ 保险开启：首回合只读侦察，写操作需确认计划";
+});
+$("#modeBuild").addEventListener("click", () => {
+  $("#modeBuild").classList.add("on"); $("#modePlan").classList.remove("on");
+  $(".guard").textContent = "▲ 保险开启：写操作需逐条授权";
+});
+
+boot().then(timeline);
+</script>
+</body>
+</html>

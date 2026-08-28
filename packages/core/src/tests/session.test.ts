@@ -1032,7 +1032,9 @@ test("SessionManager resets active tokens to latest post-compaction response usa
       total_tokens: 7,
     }),
   ];
-  const manager = createMockedClientSessionManager(workspace, responses);
+  // Explicit threshold: the fixture's 140K prompt only crosses it because the
+  // product default rose to 200K — pin compaction to the flow under test.
+  const manager = createMockedClientSessionManager(workspace, responses, { compactTokenThreshold: 100_000 });
 
   const sessionId = await manager.createSession({ text: "" });
   assert.equal(manager.getSession(sessionId)?.activeTokens, 139_990);

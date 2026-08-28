@@ -167,7 +167,20 @@ export function PrototypeDesignPanel({ onOpenArtifact }: Props): JSX.Element {
   );
 
   const artifactRow = (a: DesignArtifactMeta, icon: JSX.Element, kindLabel: string): JSX.Element => (
-    <div key={a.id} className="ui-proto-artifact" onClick={() => onOpenArtifact(a)}>
+    <div
+      key={a.id}
+      className="ui-proto-artifact"
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenArtifact(a)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenArtifact(a);
+        }
+      }}
+    >
       <span className="ui-proto-artifact-icon" aria-hidden>
         {icon}
       </span>

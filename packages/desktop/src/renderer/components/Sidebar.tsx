@@ -211,7 +211,17 @@ export const Sidebar = memo(function Sidebar({
       <div
         key={entry.id}
         className={`ui-session-item ui-tree-session${isActive ? " active" : ""}`}
+        role="button"
+        tabIndex={0}
         onClick={() => onSelectSession(root, entry.id)}
+        onKeyDown={(e) => {
+          // Inner controls (rename input, hover actions) own their keys.
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelectSession(root, entry.id);
+          }
+        }}
       >
         {editingId === entry.id ? (
           <Input
@@ -326,7 +336,17 @@ export const Sidebar = memo(function Sidebar({
             <div key={w.root} className="ui-tree-workspace">
               <div
                 className={`ui-tree-ws-head${isCurrent ? " current" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
                 onClick={() => toggleCollapse(w.root)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    toggleCollapse(w.root);
+                  }
+                }}
                 title={w.root}
               >
                 <span className="ui-tree-caret">{isOpen ? "▾" : "▸"}</span>
@@ -360,7 +380,20 @@ export const Sidebar = memo(function Sidebar({
 
         {archived.length > 0 ? (
           <div className="ui-tree-workspace ui-tree-archived">
-            <div className="ui-tree-ws-head" onClick={() => setArchivedOpen((v) => !v)}>
+            <div
+              className="ui-tree-ws-head"
+              role="button"
+              tabIndex={0}
+              aria-expanded={Boolean(archivedOpen || q)}
+              onClick={() => setArchivedOpen((v) => !v)}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setArchivedOpen((v) => !v);
+                }
+              }}
+            >
               <span className="ui-tree-caret">{archivedOpen || q ? "▾" : "▸"}</span>
               <span className="ui-tree-icon ui-tree-icon-archive" />
               <span className="ui-tree-ws-label">{t("workspace.archivedGroup")}</span>

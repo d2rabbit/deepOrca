@@ -24,7 +24,7 @@
   background: var(--ui-accent-soft);
   padding: var(--ui-space-2) var(--ui-space-3);
   min-width: 180px;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s var(--ui-ease);
 }
 .ui-cmd-card:hover {
   box-shadow: var(--ui-shadow-sm);
@@ -146,8 +146,8 @@
   max-width: 560px;
   min-width: 0;
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    border-color 0.15s var(--ui-ease),
+    box-shadow 0.15s var(--ui-ease);
 }
 .ui-skill-card:hover {
   box-shadow: var(--ui-shadow-sm);
@@ -299,7 +299,7 @@
   width: 0%;
   border-radius: inherit;
   background: var(--ui-accent);
-  transition: width 0.25s ease;
+  transition: width 0.25s var(--ui-ease);
 }
 .ui-index-progress-fill.indeterminate {
   width: 40%;
@@ -568,9 +568,9 @@
     color-mix(in srgb, var(--ui-accent) 5%, var(--ui-surface-raised))
   );
   transition:
-    box-shadow 0.15s ease,
-    transform 0.15s ease,
-    border-color 0.15s ease;
+    box-shadow 0.15s var(--ui-ease),
+    transform 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease);
 }
 .ui-cmd-card:hover {
   transform: translateY(-1px);
@@ -588,9 +588,9 @@
 }
 .ui-msg-skill-card {
   transition:
-    box-shadow 0.15s ease,
-    transform 0.15s ease,
-    border-color 0.15s ease;
+    box-shadow 0.15s var(--ui-ease),
+    transform 0.15s var(--ui-ease),
+    border-color 0.15s var(--ui-ease);
 }
 .ui-msg-skill-card:hover {
   transform: translateY(-1px);

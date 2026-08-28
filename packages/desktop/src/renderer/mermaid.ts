@@ -348,6 +348,38 @@ export function decorateMermaidSvg(svg: string): string {
   }
 }
 
+/**
+ * Drop node declarations whose id equals an ENCLOSING subgraph's id. Mermaid
+ * refuses to render those ("Setting EX as parent of EX would create a cycle")
+ * — a real failure mode on LLM-authored arch maps, where the writer declares
+ * `subgraph EX["示例"]` and then a node `EX["examples"]` inside it. The
+ * subgraph itself already renders as the container and edges referencing the
+ * id keep pointing at it, so removing the inner duplicate is safe and keeps
+ * the graph's meaning intact.
+ */
+export function stripSubgraphSelfNodes(chart: string): string {
+  if (!chart.includes("subgraph")) return chart;
+  const stack: string[] = [];
+  return chart
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      const sub = trimmed.match(/^subgraph\s+([A-Za-z0-9_.-]+)/);
+      if (sub) {
+        stack.push(sub[1]);
+        return true;
+      }
+      if (/^end\b/.test(trimmed)) {
+        stack.pop();
+        return true;
+      }
+      if (stack.length === 0) return true;
+      const node = trimmed.match(/^([A-Za-z0-9_.-]+)(?=\s*[[(])/);
+      return !(node && stack.includes(node[1]));
+    })
+    .join("\n");
+}
+
 /** Render one chart definition to an SVG string. Serialized: never parallel. */
 export function renderMermaidSvg(chart: string): Promise<string> {
   const job = renderQueue.then(async () => {
@@ -357,7 +389,7 @@ export function renderMermaidSvg(chart: string): Promise<string> {
     // are var()-live; this refreshes the mermaid-native edges/labels/pie
     // fills that the decorate pass does not cover.
     if (configuredSkin !== currentSkin()) configureMermaid(mermaid);
-    const { svg } = await mermaid.render(`mermaid-diagram-${++diagramCounter}`, chart);
+    const { svg } = await mermaid.render(`mermaid-diagram-${++diagramCounter}`, stripSubgraphSelfNodes(chart));
     return decorateMermaidSvg(svg);
   });
   // Keep the queue alive across failures; the caller sees the rejection.

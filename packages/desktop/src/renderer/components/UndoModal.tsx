@@ -11,9 +11,9 @@ type Props = {
   onRestored: () => void;
 };
 
-function preview(target: UndoTarget): string {
+function preview(target: UndoTarget, emptyLabel: string): string {
   const raw = (target.message.content ?? "").replace(/\s+/g, " ").trim();
-  if (!raw) return "(empty)";
+  if (!raw) return emptyLabel;
   return raw.length > 96 ? `${raw.slice(0, 96)}…` : raw;
 }
 
@@ -81,14 +81,16 @@ export function UndoModal({ sessionId, onClose, onRestored }: Props): JSX.Elemen
         {!sessionId ? (
           <div className="ui-undo-empty">{t("undo.needSession")}</div>
         ) : loading ? (
-          <div className="ui-undo-empty">…</div>
+          <div className="ui-undo-empty">
+            <span className="ui-spinner" /> {t("common.loading")}
+          </div>
         ) : targets.length === 0 ? (
           <div className="ui-undo-empty">{t("undo.none")}</div>
         ) : (
           targets.map((target) => (
             <div className="ui-undo-item" key={target.message.id}>
               <div className="ui-undo-preview">
-                <span className="ui-undo-index">#{target.index + 1}</span> {preview(target)}
+                <span className="ui-undo-index">#{target.index + 1}</span> {preview(target, t("undo.empty"))}
               </div>
               {target.canRestoreCode ? <div className="ui-undo-label">{t("undo.codeAvailable")}</div> : null}
               <div className="ui-undo-mode">
