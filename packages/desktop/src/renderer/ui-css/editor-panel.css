@@ -975,6 +975,11 @@
   flex: 1;
   overflow-y: auto;
   padding: 10px 14px 14px;
+  /* Container query root: every reading surface below (wiki columns/pager,
+     arch TOC, tree split) adapts to THIS pane's width — the pane itself
+     follows the main window, so content tracks the window through the pane
+     instead of the viewport-wide @media breakpoints it replaced. */
+  container-type: inline-size;
 }
 .ui-knowledge-list {
   display: flex;

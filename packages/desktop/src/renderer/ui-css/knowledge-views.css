@@ -552,6 +552,16 @@
   padding: 8px 6px 12px;
   background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 38%, var(--ui-surface, transparent));
 }
+/* Narrow panes: the fixed 280px tree column would starve the reading pane —
+   it yields proportionally (never fully hides; navigation stays reachable). */
+@container (max-width: 720px) {
+  .ui-knowledge-wiki {
+    grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
+  }
+  .ui-knowledge-wiki-list {
+    padding: 8px 4px 10px;
+  }
+}
 .ui-knowledge-wiki-group-label {
   display: flex;
   align-items: center;

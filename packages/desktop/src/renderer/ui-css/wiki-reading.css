@@ -126,8 +126,10 @@
   width: 100%;
 }
 /* On-this-page TOC rides beside the reading column on wide panes; below that
-   it simply doesn't render (progressive disclosure, no hamburger). */
-@media (min-width: 1100px) {
+   it simply doesn't render (progressive disclosure, no hamburger). Container
+   query (not viewport @media): the reading pane can be far narrower than the
+   window, and the TOC must follow the PANE (real-machine 2026-08-28). */
+@container (min-width: 960px) {
   .ui-wiki-columns {
     grid-template-columns: minmax(0, 1fr) 208px;
     gap: 20px;
@@ -194,7 +196,7 @@
   margin: 0 auto;
   padding: 0 12px 26px;
 }
-@media (min-width: 1100px) {
+@container (min-width: 960px) {
   .ui-wiki-pager {
     max-width: 1100px;
   }
@@ -534,7 +536,7 @@
 .ui-arch-toc {
   display: none;
 }
-@media (min-width: 1100px) {
+@container (min-width: 960px) {
   .ui-arch-toc {
     display: block;
     position: sticky;
