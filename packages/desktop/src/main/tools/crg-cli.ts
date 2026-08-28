@@ -16,7 +16,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { spawnTracked, type CrgController, type ControllerProgress } from "@deeporca/core";
+import { spawnTracked, type ControllerProgress, type ControllerSyncResult, type CrgController } from "@deeporca/core";
 
 /** Hard cap on one graph build/update; override with DEEPORCA_CRG_TIMEOUT_MS. */
 const CRG_TIMEOUT_MS = Number(process.env.DEEPORCA_CRG_TIMEOUT_MS ?? "") || 20 * 60 * 1000;
@@ -44,9 +44,11 @@ export class CrgCliController implements CrgController {
     onProgress?.({ message: "CRG: build complete", percent: 100 });
   }
 
-  async sync(root: string): Promise<void> {
+  async sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void> {
     if (!this.hasProject(root)) return; // No graph → nothing to sync.
-    await this.spawnCrg(root, ["update"], undefined);
+    // CRG's CLI has no machine-readable change counts — stream stdout as
+    // progress lines and let the caller settle for "completed" semantics.
+    await this.spawnCrg(root, ["update"], onProgress);
   }
 
   private async spawnCrg(root: string, crgArgs: string[], onProgress?: (p: ControllerProgress) => void): Promise<void> {

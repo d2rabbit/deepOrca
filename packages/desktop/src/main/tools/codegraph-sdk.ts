@@ -17,7 +17,7 @@
 import * as codegraphModule from "@colbymchenry/codegraph";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { CodegraphController, ControllerProgress } from "@deeporca/core";
+import type { CodegraphController, ControllerProgress, ControllerSyncResult } from "@deeporca/core";
 
 type CodeGraphInstance = codegraphModule.CodeGraph;
 
@@ -85,9 +85,28 @@ export class SdkCodegraphController implements CodegraphController {
     onProgress?.({ message: "CodeGraph index complete", percent: 100 });
   }
 
-  async sync(root: string): Promise<void> {
+  async sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void> {
     const cg = await this.getOrOpen(root);
-    await cg.sync();
+    // A sync behind the build button streams the same scanning/resolving
+    // phases a re-index does (the SDK's ExtractionOrchestrator emits them),
+    // then returns the change-count summary for the build log line.
+    const result = await cg.sync({
+      onProgress: (p: { phase?: string; current?: number; total?: number }) => {
+        onProgress?.({
+          message: `sync ${p.phase ?? "scanning"}: ${p.current ?? 0}/${p.total ?? "?"}`,
+          percent: p.total ? Math.floor((100 * (p.current ?? 0)) / p.total) : undefined,
+        });
+      },
+    });
+    if (result) {
+      return {
+        filesChecked: result.filesChecked,
+        filesAdded: result.filesAdded,
+        filesModified: result.filesModified,
+        filesRemoved: result.filesRemoved,
+        durationMs: result.durationMs,
+      };
+    }
   }
 
   hasProject(root: string): boolean {
