@@ -100,3 +100,29 @@ export { ancestorsOf, headsOf, lwwHead } from "./ws/lineage.js";
 
 export { LedgerView, rebuildView } from "./view/view.js";
 export type { AssetRow, BlockRow, CommitRow, MemberRow, RecordRow, TaskRow } from "./view/view.js";
+
+// --- OC2: networking protocol core (transport-agnostic; desktop owns sockets) ---
+
+export {
+  ChannelError,
+  FrameCodec,
+  constantTimeEqual,
+  deriveSessionKeys,
+  generateEphemeralKeyPair,
+  x25519PrivateFromRaw,
+  x25519PublicFromRaw,
+} from "./net/channel-crypto.js";
+export type { ChannelRole, EphemeralKeyPair, SessionKeys } from "./net/channel-crypto.js";
+export { PROTOCOL_VERSION, HandshakeError, runHandshake } from "./net/handshake.js";
+export type { HandshakeLink, HandshakeOptions, HandshakeResult } from "./net/handshake.js";
+export {
+  MAX_MESSAGE_BYTES,
+  MessageError,
+  decodeMessage,
+  decodeMessageBytes,
+  encodeMessage,
+  encodeMessageBytes,
+} from "./net/messages.js";
+export type { SyncMessage } from "./net/messages.js";
+export { DEFAULT_QUOTA_BYTES, ObjectStore, ObjectStoreError } from "./objects/store.js";
+export type { ObjectStoreOptions } from "./objects/store.js";
