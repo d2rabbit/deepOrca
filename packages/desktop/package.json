@@ -28,6 +28,7 @@
     "@alibaba-group/open-code-review": "^1.8.0",
     "@colbymchenry/codegraph": "^1.5.0",
     "@deeporca/core": "file:../core",
+    "@deeporca/ledger": "file:../ledger",
     "@deeporca/memory": "file:../memory",
     "@monaco-editor/react": "^4.7.0",
     "@openuidev/lang-core": "^0.2.10",
@@ -35,19 +36,23 @@
     "highlight.js": "^11.11.1",
     "mermaid": "^11.16.0",
     "monaco-editor": "^0.56.0",
+    "multicast-dns": "^7.2.5",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "remark-breaks": "^4.0.0",
     "streamdown": "^2.5.0",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/jsdom": "^30.0.0",
     "@types/mdast": "^4.0.4",
+    "@types/multicast-dns": "^7.2.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.0",
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "jsdom": "^30.0.1"

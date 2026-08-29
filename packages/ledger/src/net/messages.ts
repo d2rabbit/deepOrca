@@ -8,6 +8,8 @@
 // signatures, chain links and chunk hashes before trusting any payload.
 
 import type { Approval, Block } from "../block/block.js";
+import type { Genesis } from "../chain/genesis.js";
+import type { BlobManifest } from "../cid/cid.js";
 import type { SignedRecord } from "../record/record.js";
 import { jcsStringify, type JsonValue } from "../encode/jcs.js";
 
@@ -17,6 +19,10 @@ export type SyncMessage =
   | { kind: "ping" }
   | { kind: "pong" }
   | { kind: "bye"; reason: string }
+  /** Post-handshake introduction: what chain and what height each side has. */
+  | { kind: "chainInfo"; chainId: string; height: number; headBlockHash: string; genesisHash: string }
+  /** New-member bootstrap: full genesis + block list from height 0 (R5). */
+  | { kind: "chainSnapshot"; genesis: Genesis; blocks: Block[] }
   /** New-member bootstrap: pull the full ledger from a height (R5). */
   | { kind: "getChain"; fromHeight: number }
   /** Ledger slice in height order (reply to getChain, or gossip catch-up). */
@@ -25,6 +31,10 @@ export type SyncMessage =
   | { kind: "record"; record: SignedRecord }
   | { kind: "blockProposal"; block: Block }
   | { kind: "approval"; height: number; blockHash: string; approval: Approval }
+  /** Asset fetch step 1: learn the chunk layout of a manifest (R11). */
+  | { kind: "getManifest"; manifestCid: string }
+  | { kind: "manifestData"; manifestCid: string; manifest: BlobManifest }
+  /** Asset fetch step 2: have/want chunk exchange (R12). */
   | { kind: "wantChunks"; manifestCid: string; chunkIds: string[] }
   | { kind: "haveChunks"; manifestCid: string; chunkIds: string[] }
   | { kind: "chunkData"; chunkId: string; dataB64: string };
@@ -67,6 +77,20 @@ export function decodeMessage(text: string): SyncMessage {
       return { kind: "bye", reason: requireString(message, "reason") };
     case "getChain":
       return { kind: "getChain", fromHeight: requireNonNegativeInt(message, "fromHeight") };
+    case "chainInfo":
+      return {
+        kind: "chainInfo",
+        chainId: requireString(message, "chainId"),
+        height: requireNonNegativeInt(message, "height"),
+        headBlockHash: requireString(message, "headBlockHash"),
+        genesisHash: requireString(message, "genesisHash"),
+      };
+    case "chainSnapshot":
+      return {
+        kind: "chainSnapshot",
+        genesis: requireObject(message, "genesis") as unknown as Genesis,
+        blocks: requireArray(message, "blocks") as unknown as Block[],
+      };
     case "blocks":
       return { kind: "blocks", blocks: requireArray(message, "blocks") as unknown as Block[] };
     case "record":
@@ -79,6 +103,14 @@ export function decodeMessage(text: string): SyncMessage {
         height: requireNonNegativeInt(message, "height"),
         blockHash: requireString(message, "blockHash"),
         approval: requireObject(message, "approval") as unknown as Approval,
+      };
+    case "getManifest":
+      return { kind: "getManifest", manifestCid: requireString(message, "manifestCid") };
+    case "manifestData":
+      return {
+        kind: "manifestData",
+        manifestCid: requireString(message, "manifestCid"),
+        manifest: requireObject(message, "manifest") as unknown as BlobManifest,
       };
     case "wantChunks":
     case "haveChunks":
