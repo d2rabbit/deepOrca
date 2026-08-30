@@ -5,12 +5,12 @@
  *  - Editor read/write/list (`editor-handlers.ts`) — containment root is the
  *    project root.
  *  - Wiki read/list (`main/index.ts`) — containment root is
- *    `<project>/openwiki`, and only `.md` files are readable.
+ *    `<project>/deepwiki`, and only `.md` files are readable.
  *
  * Why this exists separately from `editor-handlers.ts`:
  *  - Wiki previously used a string-only `normalize + regex strip ../` guard,
  *    which is defeated by absolute paths, Windows drive letters, UNC paths,
- *    mixed separators, and symlinks/junctions inside `openwiki/`. Editor had a
+ *    mixed separators, and symlinks/junctions inside `deepwiki/`. Editor had a
  *    proper lexical + realpath guard but it was module-private. Extracting the
  *    guard into a shared, tested module closes the gap without forcing one
  *    handler to import the other.
@@ -109,7 +109,7 @@ export type WikiPathCheck =
   | { ok: false; reason: "non-relative" | "non-markdown" | "escapes-root" };
 
 /**
- * Validate a Wiki page path against the `<project>/openwiki` root.
+ * Validate a Wiki page path against the `<project>/deepwiki` root.
  *
  * Wiki pages must be:
  *  - strictly relative (no `/`, drive letter, or UNC prefix);
@@ -136,19 +136,22 @@ export function safeWikiPath(wikiRoot: string, relPath: string): WikiPathCheck {
 }
 
 /**
- * Architecture-map read guard (audit 2026-08-25): KnowledgeReadArchmap used
+ * Architecture-map artifact guard (audit 2026-08-25 lineage; now guards the archify
  * to readFileSync() whatever path the renderer passed — unlike editor/wiki it
  * had NO containment, so a compromised renderer had an arbitrary-file-read
  * primitive (~/.ssh, .env). Same contract as safeWikiPath, but the renderer
  * legitimately sends ABSOLUTE paths (from the status file list), so instead
  * of strict-relativity we require: basename matches the archmap naming
- * (arch-*.md|json|html) AND the target stays contained under the prototypes
- * root (lexical + realpath, via safePathWithinRoot).
+ * (arch-*.md|json|html — .html is archify's delivered render, joined 2026-08-29) AND the
+ * target stays contained under the prototypes root (lexical + realpath, via
+ * safePathWithinRoot).
  */
 export type ArchmapPathCheck = { ok: true; absPath: string } | { ok: false; reason: "non-archmap" | "escapes-root" };
 
 export function safeArchmapPath(prototypesRoot: string, targetPath: string): ArchmapPathCheck {
   const base = path.basename(targetPath);
+  // `.html` joined when archify renders `arch-*.<type>.json` (2026-08-29);
+  // legacy `.md` accepted for reading pre-archify leftovers.
   if (!/^arch-.+\.(md|json|html)$/.test(base)) {
     return { ok: false, reason: "non-archmap" };
   }

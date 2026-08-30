@@ -1,12 +1,13 @@
 # format mirrors knowledge/evals/cases/*.yaml (Workstream A, skill-up CI)
 id: arch-scan-positive
-title: Architecture scan request produces a Mermaid map, not A2UI surfaces
+title: Architecture scan request authors an archify typed-IR map
 description: >
   User asks for an architecture scan of the current repository. arch-scan
-  should trigger and persist a Mermaid document via save_archmap
-  (.deeporca/prototypes/arch-<name>.md) — real nodes/edges diagrams rendered
-  in the Knowledge panel, no external CLI, no A2UI surface output (the legacy
-  shape rendered as a flat document).
+  should trigger and author an archify typed-IR artifact
+  (.deeporca/prototypes/arch-<slug>.<type>.json) with the write tool —
+  the deterministic host deliver gate renders it into a validated
+  self-contained HTML shown in the Knowledge panel. No Mermaid documents,
+  no A2UI surfaces (both retired 2026-08-29).
 input:
   prompt: |
     扫描一下当前这个仓库的整体架构，画一张架构图，重点标出核心模块
@@ -16,10 +17,11 @@ constraints:
   max_turns: 15
 expect:
   must_contain:
-    - "save_archmap"
-    - "mermaid"
-    - "架构分析"
+    - "arch-"
+    - ".architecture.json"
+    - "write"
   must_not_contain:
+    - "save_archmap"
     - "render_surface"
 judge:
   type: rule_based

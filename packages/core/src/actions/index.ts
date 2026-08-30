@@ -81,6 +81,15 @@ export { isWikiVariantFile } from "./wiki-variants";
 export { archScanRunDefinition, archScanRunRun } from "./arch-scan";
 export type { ArchScanInput, ArchScanOutput } from "./arch-scan";
 export {
+  configureArchifyPaths,
+  getArchifyPaths,
+  configureArchRenderer,
+  getArchRenderer,
+  configureArchifyLanguage,
+  getArchifyLanguage,
+} from "./archify-controller";
+export type { ArchifyPaths, ArchRenderer } from "./archify-controller";
+export {
   browserSessionStartDefinition,
   browserSessionStartRun,
   browserCommandDefinition,

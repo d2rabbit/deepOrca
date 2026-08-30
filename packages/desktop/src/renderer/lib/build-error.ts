@@ -6,15 +6,19 @@
 // hardcoded prose, because main has no i18n runtime and (for the most common
 // failure) the LLM itself is unreachable — an LLM translation pass would
 // compound the outage. The renderer parses the tokens here and re-renders the
-// hints at display time. Hint copy ships in exactly TWO languages (zh + en
-// canonical texts in messages.ts; product call to keep maintenance light) —
-// the other locale files reference the canonical text verbatim instead of
-// carrying their own translations.
+// hints at display time. Canonical copy lives in messages.ts (en + zh); ja/ko
+// reference the en text verbatim, zh-hk/zh-tw carry their own zh variants.
 
 import type { Translate } from "../i18n";
 
 /** Hint kinds main is allowed to embed — extend here and in messages.ts together. */
-export type BuildHintKind = "wiki-network" | "wiki-timeout" | "wiki-empty";
+export type BuildHintKind =
+  | "wiki-network"
+  | "wiki-timeout"
+  | "wiki-empty"
+  | "wiki-git"
+  | "wiki-balance"
+  | "model-censored";
 
 export type BuildHint = {
   kind: BuildHintKind;
@@ -22,7 +26,8 @@ export type BuildHint = {
   model?: string;
 };
 
-const HINT_TOKEN = /\s*\[hint:(wiki-network|wiki-timeout|wiki-empty)(?:\s+model=([^\]\s]+))?\]/g;
+const HINT_TOKEN =
+  /\s*\[hint:(wiki-network|wiki-timeout|wiki-empty|wiki-git|wiki-balance|model-censored)(?:\s+model=([^\]\s]+))?\]/g;
 
 /** Split a raw build error into its verbatim text and any embedded hints. */
 export function splitBuildError(raw: string): { text: string; hints: BuildHint[] } {
@@ -57,9 +62,21 @@ function translateHint(hint: BuildHint, t: Translate): string {
       if (hint.model) text += ` ${t("buildHint.modelUsed", { model: hint.model })}`;
       return text;
     }
+    case "model-censored": {
+      let text = t("buildHint.modelCensored");
+      if (hint.model) text += ` ${t("buildHint.modelUsed", { model: hint.model })}`;
+      return text;
+    }
     case "wiki-timeout":
       return t("buildHint.wikiTimeout");
     case "wiki-empty":
       return t("buildHint.wikiEmpty");
+    case "wiki-git":
+      return t("buildHint.wikiGit");
+    case "wiki-balance": {
+      let text = t("buildHint.wikiBalance");
+      if (hint.model) text += ` ${t("buildHint.modelUsed", { model: hint.model })}`;
+      return text;
+    }
   }
 }

@@ -26,7 +26,8 @@ function existsCodegraph(root: string): boolean {
 }
 
 function existsWiki(root: string): boolean {
-  return existsSync(join(root, "openwiki"));
+  // Canonical deepwiki/ store — the openwiki/ dir is a run-local stage.
+  return existsSync(join(root, "deepwiki"));
 }
 
 /** Console ring buffer cap — enough history for a long build's console view. */
@@ -144,7 +145,11 @@ export class BuildJobManager {
       const failed = report.filter((s) => !s.ok && !s.skipped);
       if (failed.length > 0) {
         job.stage = "failed";
-        job.error = failed.map((s) => `${s.stage}: ${s.error ?? "failed"}`.slice(0, 200)).join("; ");
+        // FULL text — the per-stage error carries the decodable diagnostics
+        // (prototypes listing, last validate path). UI render sites clip for
+        // display via formatBuildError; truncating here amputated exactly the
+        // evidence the message exists to carry (blue-team F1, 2026-08-30).
+        job.error = failed.map((s) => `${s.stage}: ${s.error ?? "failed"}`).join("; ");
         job.running = false;
         this.pushLog(job, `build FAILED — ${job.error}`);
         console.log(`[build:${job.root}] FAILED — ${job.error}`);
@@ -193,7 +198,10 @@ export class BuildJobManager {
       const rest = stageMatch[2] ?? "";
       const stage = job.stages[idx];
       if (stage) {
-        // Earlier stages implicitly finished once a later one starts talking.
+        // Earlier stages implicitly finished once a later one starts talking —
+        // but a stage that already announced a TERMINAL verdict keeps it
+        // (red-team B-2, 2026-08-30: "stage failed" then the next "[2/3]"
+        // header promoted the failed stage to a green done).
         for (let i = 0; i < idx; i++) {
           const prev = job.stages[i];
           if (prev && prev.status === "running") this.setStage(job, prev, "done");
@@ -201,6 +209,12 @@ export class BuildJobManager {
         }
         if (/done|complete/i.test(rest)) {
           this.setStage(job, stage, "done");
+        } else if (/\bstage failed\b/i.test(rest)) {
+          // Terminal failure verdict from the action itself — parseable so the
+          // stage never flashes green and the detail carries the verdict.
+          this.setStage(job, stage, "failed", rest);
+        } else if (/\bstage skipped\b/i.test(rest)) {
+          this.setStage(job, stage, "skipped", rest);
         } else if (stage.status !== "done") {
           this.setStage(job, stage, "running", rest);
         }

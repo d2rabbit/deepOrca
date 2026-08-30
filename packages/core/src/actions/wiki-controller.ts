@@ -14,6 +14,10 @@ export interface WikiResult {
   ok: boolean;
   model?: string;
   skipped?: boolean;
+  /** Non-fatal outcome note (e.g. the CLI marker recorded status
+   *  "interrupted" — pages exist but the landing page may be unfinalized;
+   *  the next incremental build completes it). Surfaced to the build log. */
+  warning?: string;
 }
 
 export interface WikiController {

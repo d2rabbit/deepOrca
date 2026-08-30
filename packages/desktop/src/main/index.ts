@@ -2,7 +2,7 @@
 // Boots a BrowserWindow, wires the SessionBridge to IPC, and forwards engine
 // events to the renderer.
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session as electronSession, shell } from "electron";
 import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -48,6 +48,7 @@ import {
 } from "@deeporca/core";
 import { extractTaskTrajectory } from "./task-trajectory";
 import { buildSymbolGraph } from "./symbol-graph-query";
+import { gitPreflight, gitBootstrap } from "./git-preflight";
 import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
@@ -57,10 +58,9 @@ import type {
   CodegraphIndexEntry,
   CrgIndexEntry,
   EditableSettings,
-  KnowledgeArchmapContent,
-  KnowledgeArchmapSurface,
   KnowledgeSourceStatus,
-  KnowledgeStatusResponse,
+  KnowledgeGitPreflight,
+  KnowledgeGitBootstrapResult,
   EndpointQuotaResponse,
   EndpointTestResponse,
   MemoryRoutingStatus,
@@ -108,7 +108,10 @@ import { a2uiServerBuilder } from "./tools/a2ui/index.js";
 import { buildActivityFramesServer } from "./tools/activity-frames/index.js";
 import { handleEditorReadFile, handleEditorWriteFile, handleEditorListFiles } from "./editor-handlers.js";
 import { createRendererPolicy, createElectronEventAdapter, type RendererPolicy } from "./ipc-security.js";
-import { safeArchmapPath, safeWikiPath } from "./safe-path.js";
+import { registerKnowledgeIpc, resolveRegisteredRoot, closeAllArchPreviewWindows } from "./knowledge-ipc.js";
+import { configureArchifyLanguage } from "@deeporca/core";
+import { safeWikiPath } from "./safe-path.js";
+import { orderWikiPagesIndexFirst } from "./wiki-page-order.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ESM-safe require (bare `require` breaks in the bundled ESM main).
@@ -139,12 +142,6 @@ process.on("unhandledRejection", (reason) => appendCrashLog("unhandledRejection"
 // of the renderer. Tracked so they are terminated when the app shuts down
 // instead of lingering after the window closes.
 const activeHelperProcesses = new Set<ChildProcess>();
-
-function trackHelperProcess(cp: ChildProcess): void {
-  activeHelperProcesses.add(cp);
-  cp.once("close", () => activeHelperProcesses.delete(cp));
-  cp.once("error", () => activeHelperProcesses.delete(cp));
-}
 
 function killHelperProcesses(): void {
   for (const cp of activeHelperProcesses) {
@@ -263,60 +260,61 @@ const APP_LOCALE_TO_BCP47: Record<string, string> = {
 };
 // Wiki: CLI controller (replaces configureWikiResolver — vendored openwiki CLI).
 const wikiNode = resolveModernNode(22) ?? process.execPath;
-configureWikiController(
-  new WikiCliController({
-    vendorEntry: OPENWIKI_VENDOR_ENTRY,
-    nodeRunner: wikiNode,
-    electronRunAsNode: wikiNode === process.execPath,
-    getProjectRoot: () => getBridge().projectRoot,
-    getLlmCreds: () => {
-      const root = getBridge().projectRoot;
-      if (!root) return {};
-      try {
-        const s = resolveCurrentSettings(root);
-        // Model-pool era: credentials live on the ENDPOINT, not on the legacy
-        // top-level apiKey/baseURL — pool-era settings files carry empty
-        // strings there, and feeding them to the CLI made the OpenAI client
-        // fall back to api.openai.com (unreachable → "Request timed out.",
-        // real-machine 2026-08-28) while chat used the endpoint pool fine.
-        // Resolve the primary endpoint the same way the panel mirrors it for
-        // chat, keeping the bare s.model (already endpoint-consistent).
-        const primary = s.endpoints.find((ep) => ep.id === s.primaryEndpointId) ?? s.endpoints[0];
-        return {
-          apiKey: primary?.apiKey ?? s.apiKey,
-          baseURL: primary?.baseURL ?? s.baseURL,
-          model: s.model || primary?.models?.[0]?.id || "deepseek-v4-flash",
-        };
-      } catch {
-        return {};
-      }
-    },
-    getAuxLlmCreds: () => {
-      const root = getBridge().projectRoot;
-      if (!root) return null;
-      try {
-        const s = resolveCurrentSettings(root);
-        // The 辅助模型 select stores a bare model id + its endpoint; empty
-        // model = no auxiliary configured → wiki retries on the primary.
-        const modelId = s.secondaryModel?.trim();
-        if (!modelId) return null;
-        const endpoint = s.endpoints.find((ep) => ep.id === (s.secondaryEndpointId || s.primaryEndpointId));
-        if (!endpoint) return null;
-        return { apiKey: endpoint.apiKey, baseURL: endpoint.baseURL, model: modelId };
-      } catch {
-        return null;
-      }
-    },
-    getLanguage: () => {
-      // The app's UI locale (synced from the renderer via SessionLocaleSet),
-      // NOT the OS locale — wiki pages must come out in the language the user
-      // actually reads the app in, or the wiki tab ends up mixed-language.
-      // Falls back to undefined (OpenWiki defaults to English).
-      if (!currentAppLocale) return undefined;
-      return APP_LOCALE_TO_BCP47[currentAppLocale];
-    },
-  })
-);
+const wikiController = new WikiCliController({
+  vendorEntry: OPENWIKI_VENDOR_ENTRY,
+  nodeRunner: wikiNode,
+  electronRunAsNode: wikiNode === process.execPath,
+  getProjectRoot: () => getBridge().projectRoot,
+  getLlmCreds: () => {
+    const root = getBridge().projectRoot;
+    if (!root) return {};
+    try {
+      const s = resolveCurrentSettings(root);
+      // Model-pool era: credentials live on the ENDPOINT, not on the legacy
+      // top-level apiKey/baseURL — pool-era settings files carry empty
+      // strings there, and feeding them to the CLI made the OpenAI client
+      // fall back to api.openai.com (unreachable → "Request timed out.",
+      // real-machine 2026-08-28) while chat used the endpoint pool fine.
+      // Resolve the primary endpoint the same way the panel mirrors it for
+      // chat, keeping the bare s.model (already endpoint-consistent).
+      const primary = s.endpoints.find((ep) => ep.id === s.primaryEndpointId) ?? s.endpoints[0];
+      return {
+        apiKey: primary?.apiKey ?? s.apiKey,
+        baseURL: primary?.baseURL ?? s.baseURL,
+        // 继承语义 (2026-08-30): s.model always resolves (DEFAULT_MODEL) — no
+        // hardcoded model fallback here either.
+        model: s.model || primary?.models?.[0]?.id || "",
+      };
+    } catch {
+      return {};
+    }
+  },
+  getAuxLlmCreds: () => {
+    const root = getBridge().projectRoot;
+    if (!root) return null;
+    try {
+      const s = resolveCurrentSettings(root);
+      // The 辅助模型 select stores a bare model id + its endpoint; empty
+      // model = no auxiliary configured → wiki retries on the primary.
+      const modelId = s.secondaryModel?.trim();
+      if (!modelId) return null;
+      const endpoint = s.endpoints.find((ep) => ep.id === (s.secondaryEndpointId || s.primaryEndpointId));
+      if (!endpoint) return null;
+      return { apiKey: endpoint.apiKey, baseURL: endpoint.baseURL, model: modelId };
+    } catch {
+      return null;
+    }
+  },
+  getLanguage: () => {
+    // The app's UI locale (synced from the renderer via SessionLocaleSet),
+    // NOT the OS locale — wiki pages must come out in the language the user
+    // actually reads the app in, or the wiki tab ends up mixed-language.
+    // Falls back to undefined (OpenWiki defaults to English).
+    if (!currentAppLocale) return undefined;
+    return APP_LOCALE_TO_BCP47[currentAppLocale];
+  },
+});
+configureWikiController(wikiController);
 
 // Vision MCP: built-in in-process MCP server that gives text-only LLMs (like
 // DeepSeek) the ability to understand images via a vision-capable proxy model.
@@ -436,6 +434,12 @@ configureSerenaController(
     vendorRoot: join(__dirname, "..", "vendor", "serena"),
   })
 );
+
+/**
+ * Aggregate the status of every knowledge source for the dashboard. Each probe
+ * is best-effort and independent — a failing source degrades to "empty" rather
+ * than failing the whole response.
+ */
 
 // SkillSpector (AI skill/MCP security scanner) shares the same vendored uv and reads
 // its pinned version from the vendored skillspector dir (written by
@@ -658,6 +662,9 @@ function createWindow(): void {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    // Arch preview windows track the main window's lifecycle (user ask
+    // 2026-08-30) — no orphan artifact windows after the app window goes.
+    closeAllArchPreviewWindows();
   });
 }
 
@@ -688,7 +695,9 @@ async function startMemory(): Promise<{ ok: boolean; error?: string }> {
     const mgr = new MemoryManager({
       baseUrl: settings.baseURL,
       apiKey: settings.apiKey,
-      model: settings.secondaryModel || "deepseek-v4-flash",
+      // 继承主模型 (2026-08-30): empty secondary = the primary model, never a
+      // hardcoded fallback.
+      model: settings.secondaryModel || settings.model,
       dataDir,
       workspaceDir: getBridge().projectRoot,
       // Embedding provider: "local-onnx" enables Granite vector recall (hybrid
@@ -950,6 +959,9 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
   handlePrivileged(IpcRequest.SessionLocaleSet, (locale: string) => {
     currentAppLocale = locale;
     configureSessionLocale(locale);
+    // Arch maps follow the SAME locale as wiki pages (user ask 2026-08-29:
+    // 架构图采用项目启动语言 — no post-generation translation).
+    configureArchifyLanguage(APP_LOCALE_TO_BCP47[locale]);
   });
   handlePrivileged(IpcRequest.ThinkingModeSet, (selection: ThinkingModeSelection) =>
     getBridge().setThinkingMode(selection)
@@ -1198,6 +1210,41 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // (startMemory/stopMemory/reconcileMemory are module-scoped so the startup,
   // settings-save, project-switch, and shutdown paths can reach them.)
 
+  handle(IpcRequest.MemoryRoutingStatus, async (): Promise<MemoryRoutingStatus> => {
+    const root = getBridge().projectRoot;
+    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
+      try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
+      } catch {
+        return 0;
+      }
+    };
+    // Serena — memory file count under .serena/memories/.
+    const serenaMemDir = join(root, ".serena", "memories");
+    const serenaCount = countDirFiles(serenaMemDir, (n) => n.endsWith(".md"));
+    const serena: KnowledgeSourceStatus = existsSync(join(root, ".serena"))
+      ? { state: serenaCount === 0 ? "empty" : "indexed", count: serenaCount, unit: "条", detail: ".serena/memories/" }
+      : { state: "empty", detail: "未初始化" };
+    const memStats = memoryManager ? await memoryManager.getStats() : null;
+    const memory: MemoryRoutingStatus["memory"] = memoryManager?.isAvailable()
+      ? {
+          state: memStats && memStats.l0 > 0 ? "indexed" : "empty",
+          count: memStats?.l1 ?? 0,
+          unit: "天",
+          detail: memStats?.l3 ? "L0-L3 全链路" : "L0-L2",
+          stats: memStats ?? undefined,
+        }
+      : { state: "disabled", detail: "未启用" };
+    const routingState = getBridge().getSessionManager().getRoutingStatus();
+    const routing: KnowledgeSourceStatus =
+      routingState.state === "ready"
+        ? { state: "indexed", detail: "技能/工具语义召回" }
+        : routingState.state === "error"
+          ? { state: "disabled", detail: `路由降级: ${routingState.error ?? "嵌入模型不可用"}` }
+          : { state: "empty", detail: "未激活（首次会话时加载）" };
+    return { memory, routing, serena };
+  });
   handle(IpcRequest.MemoryCheckAvailable, async (): Promise<{ available: boolean; healthy: boolean }> => {
     return { available: !!memoryManager, healthy: memoryManager?.isAvailable() ?? false };
   });
@@ -1229,31 +1276,6 @@ function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
-}
-
-/**
- * Aggregate the status of every knowledge source for the dashboard. Each probe
- * is best-effort and independent — a failing source degrades to "empty" rather
- * than failing the whole response.
- */
-/**
- * Pin renderer-supplied workspace roots to registered workspaces (P2
- * hardening, 2026-08-27): the renderer is semi-trusted, and a compromised one
- * previously could pass ANY absolute root to knowledge/taskTree channels —
- * directory enumeration, symbol-graph reads from arbitrary projects,
- * task-tree writes under ~/.ssh/<root>/. Same threat model as the archmap
- * pin; an omitted root always means the ACTIVE workspace. Returns null when
- * the supplied root is not a registered workspace.
- */
-function resolveRegisteredRoot(rootArg?: string): string | null {
-  const root = typeof rootArg === "string" && rootArg ? rootArg : getBridge().projectRoot;
-  const known = new Set<string>([getBridge().projectRoot]);
-  try {
-    for (const w of listWorkspaceSessions(getBridge().projectRoot).workspaces) known.add(w.root);
-  } catch {
-    // Registry unreadable: fall back to current-root-only pinning.
-  }
-  return known.has(root) ? root : null;
 }
 
 function registerEndpointQuotaIpc({ handle }: IpcHelpers): void {
@@ -1302,217 +1324,6 @@ function registerEndpointTestIpc({ handle }: IpcHelpers): void {
   });
 }
 
-function registerKnowledgeIpc({ handle }: IpcHelpers): void {
-  handle(IpcRequest.KnowledgeStatus, async (rootArg?: string): Promise<KnowledgeStatusResponse> => {
-    const pinned = resolveRegisteredRoot(rootArg);
-    // Unregistered root → degrade to disabled statuses (never enumerate it).
-    const emptySource = () => ({ state: "disabled" as const, detail: "unregistered workspace" });
-    if (!pinned) {
-      return { codegraph: emptySource(), openwiki: emptySource(), agents: emptySource(), archmaps: emptySource() };
-    }
-    const root = pinned;
-    const freshness = getBridge().getKnowledgeFreshness?.() ?? {};
-    const isStale = (syncTime?: string): boolean =>
-      !!(freshness.lastMutation && (!syncTime || freshness.lastMutation > syncTime));
-
-    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
-      try {
-        const entries = readdirSync(dir, { withFileTypes: true });
-        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
-      } catch {
-        return 0;
-      }
-    };
-
-    // Newest mtime under a directory (recursive walk of all subdirs) — ISO string.
-    const newestMtime = (dir: string, filter?: (name: string) => boolean): string | undefined => {
-      let best = 0;
-      const scan = (d: string): void => {
-        try {
-          for (const e of readdirSync(d, { withFileTypes: true })) {
-            const full = join(d, e.name);
-            if (e.isDirectory()) {
-              scan(full);
-            } else if (e.isFile() && (!filter || filter(e.name))) {
-              const m = statSync(full).mtimeMs;
-              if (m > best) best = m;
-            }
-          }
-        } catch {
-          // unreadable dir — skip
-        }
-      };
-      scan(dir);
-      return best > 0 ? new Date(best).toISOString() : undefined;
-    };
-
-    // CodeGraph — .codegraph/ presence + staleness. lastSync falls back to the
-    // database file's mtime: the in-memory freshness stamps only exist for the
-    // ACTIVE workspace's manager and vanish on restart, so without this every
-    // non-active (or freshly-relaunched) row read 未同步 forever even right
-    // after a successful build.
-    const cgDir = join(root, ".codegraph");
-    const cgDbMtime = (() => {
-      try {
-        return statSync(join(cgDir, "codegraph.db")).mtime.toISOString();
-      } catch {
-        return undefined;
-      }
-    })();
-    const cgSync = freshness.codegraphSync ?? cgDbMtime;
-    const codegraph: KnowledgeSourceStatus = existsSync(cgDir)
-      ? {
-          state: isStale(cgSync) ? "stale" : "indexed",
-          lastSync: cgSync,
-          detail: ".codegraph/",
-        }
-      : { state: "empty", detail: "未构建" };
-
-    // Base pages only: the removed bilingual stage's legacy `*.zh.md` /
-    // `*.en.md` siblings stay on disk but must not count as pages.
-    const isCountedWikiPage = (n: string): boolean => n.endsWith(".md") && !isWikiVariantFile(n);
-
-    // OpenWiki — page count under openwiki/ (recursive for modules/ + workflows/).
-    const wikiDir = join(root, "openwiki");
-    let wikiPages = 0;
-    if (existsSync(wikiDir)) {
-      wikiPages = countDirFiles(wikiDir, isCountedWikiPage);
-      for (const sub of ["modules", "workflows"]) {
-        wikiPages += countDirFiles(join(wikiDir, sub), isCountedWikiPage);
-      }
-    }
-    const wikiSync = freshness.wikiSync ?? (existsSync(wikiDir) ? newestMtime(wikiDir, isCountedWikiPage) : undefined);
-    const openwiki: KnowledgeSourceStatus = existsSync(wikiDir)
-      ? {
-          state: wikiPages === 0 ? "empty" : isStale(wikiSync) ? "stale" : "indexed",
-          count: wikiPages,
-          unit: "页",
-          lastSync: wikiSync,
-        }
-      : { state: "empty", detail: "未构建" };
-
-    // AGENTS.md — presence + line count.
-    const agentsPath = join(root, "AGENTS.md");
-    let agentLines = 0;
-    if (existsSync(agentsPath)) {
-      try {
-        agentLines = readFileSync(agentsPath, "utf8").split("\n").length;
-      } catch {
-        agentLines = 0;
-      }
-    }
-    const agents: KnowledgeSourceStatus = existsSync(agentsPath)
-      ? { state: "indexed", count: agentLines, unit: "行" }
-      : { state: "empty", detail: "无 AGENTS.md" };
-
-    // Architecture maps (T4) — artifacts persisted under
-    // .deeporca/prototypes/: current arch-scan writes Mermaid documents
-    // (`arch-*.md`, diagram-first) via the write tool; legacy A2UI surface
-    // JSON (`arch-*.json`) from the pre-Mermaid skill revision stays listed
-    // and renders through the A2UI preview path.
-    const protoDir = join(root, ".deeporca", "prototypes");
-    const archFiles: Array<{ name: string; path: string; mtime: string }> = [];
-    if (existsSync(protoDir)) {
-      try {
-        for (const f of readdirSync(protoDir)) {
-          if (!f.startsWith("arch-") || (!f.endsWith(".json") && !f.endsWith(".md") && !f.endsWith(".html"))) continue;
-          const full = join(protoDir, f);
-          try {
-            archFiles.push({
-              name: f.replace(/\.(json|md|html)$/, ""),
-              path: full,
-              mtime: statSync(full).mtime.toISOString(),
-            });
-          } catch {
-            // unreadable entry — skip
-          }
-        }
-      } catch {
-        // unreadable dir — leave empty
-      }
-    }
-    const archmaps: KnowledgeStatusResponse["archmaps"] =
-      archFiles.length > 0
-        ? { state: "indexed", count: archFiles.length, unit: "张", files: archFiles }
-        : { state: "empty", detail: "未生成", files: [] };
-
-    return { codegraph, openwiki, agents, archmaps };
-  });
-
-  handle(IpcRequest.MemoryRoutingStatus, async (): Promise<MemoryRoutingStatus> => {
-    const root = getBridge().projectRoot;
-    const countDirFiles = (dir: string, filter?: (name: string) => boolean): number => {
-      try {
-        const entries = readdirSync(dir, { withFileTypes: true });
-        return entries.filter((e) => e.isFile() && (!filter || filter(e.name))).length;
-      } catch {
-        return 0;
-      }
-    };
-    // Serena — memory file count under .serena/memories/.
-    const serenaMemDir = join(root, ".serena", "memories");
-    const serenaCount = countDirFiles(serenaMemDir, (n) => n.endsWith(".md"));
-    const serena: KnowledgeSourceStatus = existsSync(join(root, ".serena"))
-      ? { state: serenaCount === 0 ? "empty" : "indexed", count: serenaCount, unit: "条", detail: ".serena/memories/" }
-      : { state: "empty", detail: "未初始化" };
-    const memStats = memoryManager ? await memoryManager.getStats() : null;
-    const memory: MemoryRoutingStatus["memory"] = memoryManager?.isAvailable()
-      ? {
-          state: memStats && memStats.l0 > 0 ? "indexed" : "empty",
-          count: memStats?.l1 ?? 0,
-          unit: "天",
-          detail: memStats?.l3 ? "L0-L3 全链路" : "L0-L2",
-          stats: memStats ?? undefined,
-        }
-      : { state: "disabled", detail: "未启用" };
-    const routingState = getBridge().getSessionManager().getRoutingStatus();
-    const routing: KnowledgeSourceStatus =
-      routingState.state === "ready"
-        ? { state: "indexed", detail: "技能/工具语义召回" }
-        : routingState.state === "error"
-          ? { state: "disabled", detail: `路由降级: ${routingState.error ?? "嵌入模型不可用"}` }
-          : { state: "empty", detail: "未激活（首次会话时加载）" };
-    return { memory, routing, serena };
-  });
-
-  // Architecture-map preview: `.md` artifacts are Mermaid documents handed to
-  // the renderer as markdown (diagrams hydrate in the preview); legacy `.json`
-  // artifacts are the persisted A2UI surface drawn by the real A2UI renderer.
-  handle(IpcRequest.KnowledgeReadArchmap, (artPath: string): KnowledgeArchmapContent => {
-    try {
-      // Containment (audit 2026-08-25): this handler used to read whatever
-      // path the renderer passed — an arbitrary-file-read primitive for a
-      // compromised renderer. The knowledge panel serves MULTIPLE workspaces
-      // (knowledge tabs carry their own root), so the pin is: the target must
-      // sit under `<registeredWorkspace>/.deeporca/prototypes/` for a root the
-      // workspace registry knows (or the current project root), with an
-      // arch-*.{md,json,html} basename — then lexical+realpath containment.
-      const knownRoots = new Set<string>([getBridge().projectRoot]);
-      for (const w of listWorkspaceSessions(getBridge().projectRoot).workspaces) knownRoots.add(w.root);
-      const marker = join(".deeporca", "prototypes");
-      const idx = artPath.lastIndexOf(marker);
-      const candidateRoot = idx > 0 ? artPath.slice(0, idx - 1) : "";
-      if (!candidateRoot || !knownRoots.has(candidateRoot)) {
-        return { ok: false, error: "Invalid architecture-map path (unregistered workspace)." };
-      }
-      const check = safeArchmapPath(join(candidateRoot, marker), artPath);
-      if (!check.ok) {
-        return { ok: false, error: `Invalid architecture-map path (${check.reason}).` };
-      }
-      const raw = readFileSync(check.absPath, "utf-8");
-      if (check.absPath.endsWith(".md")) {
-        return { ok: true, markdown: raw };
-      }
-      if (check.absPath.endsWith(".html")) {
-        return { ok: true, html: raw };
-      }
-      return { ok: true, surface: JSON.parse(raw) as KnowledgeArchmapSurface };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
-}
-
 /**
  * Vendored Tailwind JIT script for the standalone HTML export — same layout
  * the renderer's generated module uses (vendor/tailwind/tailwind.js), read
@@ -1551,6 +1362,21 @@ function registerDesignIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return buildJobs.start(pinned, mode);
   });
   handlePrivileged(IpcRequest.KnowledgeBuildStatus, () => buildJobs.status());
+
+  // Git preflight & bootstrap (2026-08-28): the wiki generator leans on
+  // commit history — the panel checks BEFORE building and asks the user's
+  // decision; bootstrap (git init + first commit) runs only on that explicit
+  // confirmation, with an invocation-scoped commit identity.
+  handlePrivileged(IpcRequest.KnowledgeGitPreflight, async (root: string): Promise<KnowledgeGitPreflight> => {
+    const pinned = resolveRegisteredRoot(root);
+    if (!pinned) return { isRepo: false, hasCommits: false };
+    return gitPreflight(pinned);
+  });
+  handlePrivileged(IpcRequest.KnowledgeGitBootstrap, async (root: string): Promise<KnowledgeGitBootstrapResult> => {
+    const pinned = resolveRegisteredRoot(root);
+    if (!pinned) return { ok: false, error: "unregistered workspace" };
+    return gitBootstrap(pinned);
+  });
 
   handle(IpcRequest.KnowledgeListSymbols, (root: string, query?: string): Array<KnowledgeSymbol> => {
     const pinnedRoot = resolveRegisteredRoot(root);
@@ -1992,8 +1818,6 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // reported unavailable when the vendored build is missing — never reaching for
   // an external runtime.
   // Dedicated wiki agent model strategy: flash-first, pro-fallback.
-  const WIKI_MODEL_FLASH = "deepseek-v4-flash";
-  const WIKI_MODEL_PRO = "deepseek-v4-pro";
 
   /**
    * Resolve how to invoke openwiki. Internal plugins must stay self-contained:
@@ -2049,77 +1873,56 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
    * 2. If flash fails (model unavailable), fall back to pro
    * Passes the user's LLM credentials so openwiki uses the same endpoint.
    */
-  const runWikiAgent = (args: string[]): Promise<{ ok: boolean; error?: string }> => {
-    const settings = resolveCurrentSettings(getBridge().projectRoot);
-    // Capture the workspace root once so every progress event carries it —
-    // lets the panel filter out stale events from a previous workspace.
-    const root = getBridge().projectRoot;
-    const env: Record<string, string> = { ...(process.env as Record<string, string>) };
-    if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
-    if (settings.baseURL) env.OPENAI_BASE_URL = settings.baseURL;
-
-    const spawnWith = (model: string): Promise<{ ok: boolean; error?: string }> => {
-      return new Promise((resolve) => {
-        const resolved = resolveOpenwikiCommand();
-        if (!resolved) {
-          resolve({ ok: false, error: "OpenWiki is not bundled with this build." });
-          return;
-        }
-        try {
-          const { command, prefixArgs, env: exeEnv } = resolved;
-          const cp = spawn(command, [...prefixArgs, ...args, "--model", model], {
-            cwd: root,
-            env: { ...env, ...exeEnv, OPENWIKI_MODEL: model },
-          });
-          trackHelperProcess(cp);
-          cp.stdout?.on("data", (d: Buffer) => {
-            emit(IpcEvent.WikiProgress, { root, chunk: d.toString(), stream: "stdout", done: false });
-          });
-          cp.stderr?.on("data", (d: Buffer) => {
-            emit(IpcEvent.WikiProgress, { root, chunk: d.toString(), stream: "stderr", done: false });
-          });
-          cp.on("error", (err) => {
-            resolve({ ok: false, error: `Failed to start openwiki: ${err.message}` });
-          });
-          cp.on("close", (code) => {
-            resolve({ ok: code === 0, error: code !== 0 ? `exit code ${code}` : undefined });
-          });
-        } catch (err) {
-          resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
-        }
-      });
-    };
-
-    return (async () => {
-      // Phase 1: try flash model
+  // WikiInit/Update now route through the WikiCliController (review round 5):
+  // the old inline spawn wrote the raw openwiki/ stage with OPENAI_API_KEY/
+  // OPENWIKI_MODEL — the exact env route documented as the hollow-run bug —
+  // and bypassed the staging lifecycle every read surface now expects. The
+  // controller owns: openai-compatible provider routing, staging
+  // copy/promote, guards, retries, and language.
+  handlePrivileged(IpcRequest.WikiInit, async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await wikiController.init(getBridge().projectRoot, (p) =>
+        emit(IpcEvent.WikiProgress, {
+          root: getBridge().projectRoot,
+          chunk: `${p.message}\n`,
+          stream: "stdout",
+          done: false,
+        })
+      );
       emit(IpcEvent.WikiProgress, {
-        root,
-        chunk: `[wiki-agent] model: ${WIKI_MODEL_FLASH}\n`,
+        root: getBridge().projectRoot,
+        chunk: "",
         stream: "stdout",
-        done: false,
+        done: true,
+        exitCode: 0,
       });
-      const flashResult = await spawnWith(WIKI_MODEL_FLASH);
-      if (flashResult.ok) {
-        emit(IpcEvent.WikiProgress, { root, chunk: "", stream: "stdout", done: true, exitCode: 0 });
-        return flashResult;
-      }
-      // Phase 2: flash failed, fall back to pro
+      return { ok: res.ok, error: res.ok ? undefined : res.warning };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  handlePrivileged(IpcRequest.WikiUpdate, async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await wikiController.update(getBridge().projectRoot, (p) =>
+        emit(IpcEvent.WikiProgress, {
+          root: getBridge().projectRoot,
+          chunk: `${p.message}\n`,
+          stream: "stdout",
+          done: false,
+        })
+      );
       emit(IpcEvent.WikiProgress, {
-        root,
-        chunk: `[wiki-agent] flash unavailable, falling back to ${WIKI_MODEL_PRO}\n`,
-        stream: "stderr",
-        done: false,
+        root: getBridge().projectRoot,
+        chunk: "",
+        stream: "stdout",
+        done: true,
+        exitCode: 0,
       });
-      const proResult = await spawnWith(WIKI_MODEL_PRO);
-      emit(IpcEvent.WikiProgress, { root, chunk: "", stream: "stdout", done: true, exitCode: proResult.ok ? 0 : 1 });
-      return proResult;
-    })();
-  };
-
-  // WikiInit/Update spawn the openwiki agent against the current project and
-  // write to <project>/openwiki/.
-  handlePrivileged(IpcRequest.WikiInit, () => runWikiAgent(["--init"]));
-  handlePrivileged(IpcRequest.WikiUpdate, () => runWikiAgent(["--update"]));
+      return { ok: res.ok, error: res.ok ? undefined : res.warning };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
 
   /**
    * Tree label for a wiki page: the frontmatter `title` (localized at
@@ -2154,7 +1957,12 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
   }
 
   handle(IpcRequest.WikiListPages, async (rootArg?: string): Promise<WikiPageEntry[]> => {
-    const wikiDir = join(rootArg || getBridge().projectRoot, "openwiki");
+    // Root PINNED like every other knowledge channel (review round 6): the
+    // raw join let a semi-trusted renderer enumerate any path's deepwiki/
+    // tree. Unregistered root → [] (fail closed).
+    const pinned = resolveRegisteredRoot(rootArg);
+    if (!pinned) return [];
+    const wikiDir = join(pinned, "deepwiki");
     try {
       const entries: WikiPageEntry[] = [];
       const walk = async (dir: string, prefix: string): Promise<void> => {
@@ -2181,7 +1989,11 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
       };
       await walk(wikiDir, "");
       entries.sort((a, b) => a.path.localeCompare(b.path));
-      return entries;
+      // Index-first per section (user ask 2026-08-30): path slugs sort
+      // alphabetically, so a section's index.md lands mid-list. Pure rule in
+      // wiki-page-order.ts — the sidebar tree, reading order, and pager all
+      // derive from this ONE list.
+      return orderWikiPagesIndexFirst(entries);
     } catch {
       return [];
     }
@@ -2189,12 +2001,12 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
   handle(IpcRequest.WikiReadPage, async (pagePath: string): Promise<string> => {
     // Containment: page must be a strictly-relative .md file under
-    // <project>/openwiki, with no symlink/junction escape. The previous
+    // <project>/deepwiki, with no symlink/junction escape. The previous
     // string-only `normalize + regex strip ../` guard was defeated by absolute
-    // paths, drive letters, UNC paths, and symlinks inside openwiki/. The
+    // paths, drive letters, UNC paths, and symlinks inside deepwiki/. The
     // shared safeWikiPath uses the same lexical + realpath containment that
     // editor-handlers uses, and additionally restricts to .md files.
-    const wikiRoot = join(getBridge().projectRoot, "openwiki");
+    const wikiRoot = join(getBridge().projectRoot, "deepwiki");
     const check = safeWikiPath(wikiRoot, pagePath);
     if (!check.ok) {
       // Surface the rejection in the main log so an attack or a bug is
@@ -2301,7 +2113,7 @@ function registerIpc(): void {
   // registerCodeReviewIpc removed — actions replace legacy review IPC.
   registerCrgIpc(helpers);
   registerMemoryIpc(helpers);
-  registerKnowledgeIpc(helpers);
+  registerKnowledgeIpc(helpers, getBridge, () => mainWindow);
   registerEndpointQuotaIpc(helpers);
   registerEndpointTestIpc(helpers);
   registerTaskTreeIpc(helpers);
@@ -2331,6 +2143,15 @@ app.whenReady().then(() => {
     // Duplicate launch: quit is already in flight — boot nothing.
     return;
   }
+  // Deny-all permission requests on the DEFAULT session (review round 7 —
+  // MUST run after app ready: session access at module load throws
+  // "Session can only be received when app is ready"): the app's own
+  // renderer needs none of camera/mic/notifications/clipboard, and the arch
+  // board's embedded model-authored artifact must never obtain them.
+  electronSession.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(false);
+    console.log(`[security] denied default-session permission request: ${permission}`);
+  });
   // One-time purge of leaked subagent sessions (marker-gated, idempotent) —
   // before the renderer loads so the first session list is already clean.
   setImmediate(cleanupLeakedSubagentSessions);

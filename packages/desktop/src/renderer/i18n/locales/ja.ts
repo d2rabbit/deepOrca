@@ -106,7 +106,7 @@ export const ja: Record<MessageKey, string> = {
   "suggest.knowledgeTitle": "Wiki を更新しました · {n} ページ",
   "suggest.viewWiki": "表示",
   "suggest.askArch":
-    "@openwiki/ 配下の Wiki に基づいて、このプロジェクトの全体アーキテクチャを分析し、最も改善価値の高い 3 点を指摘してください：",
+    "@deepwiki/ 配下の Wiki に基づいて、このプロジェクトの全体アーキテクチャを分析し、最も改善価値の高い 3 点を指摘してください：",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "（内容なし）",
@@ -282,7 +282,7 @@ export const ja: Record<MessageKey, string> = {
   "builtin.book-distill.desc":
     "書籍・マニュアル・長文ドキュメントを再利用可能な Agent Skill（SKILL.md + references/）へ蒸留 — チェックリスト、ワークフロー、落とし穴をまとめて凝縮。",
   "builtin.openwiki.desc":
-    "openwiki CLI でプロジェクト単位の Wiki ナレッジグラフ（openwiki/）を生成・維持 — 構造化され相互参照されたドキュメント。",
+    "openwiki CLI でプロジェクト単位の Wiki ナレッジグラフ（deepwiki/）を生成・維持 — 構造化され相互参照されたドキュメント。",
   "builtin.wiki-qa.desc":
     "OpenWiki ナレッジベースにクエリして、プロジェクトのアーキテクチャ・モジュール・ワークフローに関する質問に回答。",
   "builtin.a2ui-annotation.desc":
@@ -683,13 +683,13 @@ export const ja: Record<MessageKey, string> = {
   "action.task.recall.desc":
     "意思決定ポイントで、現在の状況に似た過去のタスクツリーフォークを回想 — 各候補にはフォークの理由とそのブランチの結末が付く。",
   "action.wiki.init.desc":
-    "プロジェクト Wiki（openwiki/）を生成 — コードベースの構造化され相互参照されたナレッジグラフ。初回実行はフルスキャンで、ビルド出力をストリーミング。",
+    "プロジェクト Wiki（deepwiki/）を生成 — コードベースの構造化され相互参照されたナレッジグラフ。初回実行はフルスキャンで、ビルド出力をストリーミング。",
   "action.wiki.update.desc":
-    "プロジェクト Wiki（openwiki/）を差分更新 — git 変更の影響するページのみ再生成。頻繁に実行しても安全。",
+    "プロジェクト Wiki（deepwiki/）を差分更新 — git 変更の影響するページのみ再生成。頻繁に実行しても安全。",
   "action.wiki.list-pages.desc":
-    "プロジェクトの openwiki/ ディレクトリ内の Wiki ページを OKF frontmatter メタデータつきで一覧表示。Wiki が存在しない場合は [] を返す。",
+    "プロジェクトの deepwiki/ ディレクトリ内の Wiki ページを OKF frontmatter メタデータつきで一覧表示。Wiki が存在しない場合は [] を返す。",
   "action.wiki.read-page.desc":
-    "名前で Wiki ページを読み取る（例：'architecture'）。構造化された OKF frontmatter + 本文を返す。openwiki/ 内に限定。",
+    "名前で Wiki ページを読み取る（例：'architecture'）。構造化された OKF frontmatter + 本文を返す。deepwiki/ 内に限定。",
   "rail.undo": "元に戻す / 復元",
   "rail.commands": "コマンド",
   "rail.tokens": "トークン使用量",
@@ -921,7 +921,9 @@ export const ja: Record<MessageKey, string> = {
   "symbols.noRelations": "直接の関係なし",
   "symbols.global": "グローバル",
   "symbols.globalView": "グローバルハブビュー",
-  "symbols.truncated": "切り詰め — 接続度の高いノードのみ表示",
+  "symbols.showMore": "さらに {n} 件表示（残り {total} 件）",
+  "symbols.moreHidden": "他 {n} 件非表示",
+  "symbols.truncated": "エッジ上限に到達 — 一部の関係が欠落の可能性",
   "symbols.clickHint": "ノードをクリックするとそのシンボルを中心に再展開します",
 
   // ── タスク記録タブ（メインエリア） ───────────────────────────
@@ -1013,11 +1015,6 @@ export const ja: Record<MessageKey, string> = {
   "index.buildModeUpdate": "差分更新",
   "index.buildElapsed": "経過 {time}",
   "index.buildConsole": "コンソール出力",
-  "index.archChart": "図 {n}",
-  "index.archChartCount": "全図 · {n} 件",
-  "index.archZoomIn": "拡大",
-  "index.archZoomOut": "縮小",
-  "index.archFitWidth": "幅に合わせる",
   "index.quoteWiki": "チャットに引用",
   "index.quoteWikiPrompt": "Wiki ページ「{title}」の内容に基づいて回答してください：",
   "index.openInEditor": "エディタで開く",
@@ -1032,8 +1029,14 @@ export const ja: Record<MessageKey, string> = {
   "buildHint.modelUsed": "Model used: {model}.",
   "buildHint.wikiTimeout":
     "Wiki build timed out — set the DEEPORCA_WIKI_TIMEOUT_MS environment variable (milliseconds) to allow longer runs.",
+  "buildHint.modelCensored":
+    "ゲートウェイのコンテンツフィルターがビルドのリクエストをブロックしました。モデル/エンドポイントを変更して再ビルドしてください。",
   "buildHint.wikiEmpty":
     "The wiki agent wrote no pages — the model may not drive this agent's tool protocol. Try another model (e.g. the auxiliary model).",
+  "buildHint.wikiGit":
+    "This repository has no commits yet — the wiki generator leans on git history. Commit once, then build again.",
+  "buildHint.wikiBalance":
+    "LLM account has insufficient balance — top up the endpoint or switch models in Settings → Model, then build again.",
   "index.symbolPickHint": "シンボルを選んで詳細を見る",
   "index.symbolSearch": "シンボルを検索…",
   "index.symbolsEmpty": "シンボルインデックス未構築",
@@ -1041,8 +1044,17 @@ export const ja: Record<MessageKey, string> = {
   "index.openAgents": "AGENTS.md を開く",
   "index.agentsMissing": "このワークスペースに AGENTS.md がありません",
   "index.archmapsEmpty": "アーキテクチャ図はまだありません。先にビルドしてください",
+  "index.archOpenMap": "インタラクティブ図を開く",
+  "index.archOpenWindow": "別ウィンドウで開く",
   "index.build": "ビルド",
   "index.buildKnowledge": "インデックスとナレッジをビルド",
+  "index.gitNoRepoTitle": "git リポジトリではありません",
+  "index.gitNoRepoBody":
+    "Wiki 生成は git のコミット履歴に基づきます。このワークスペースはまだ git 管理下にありません。git を初期化して初回コミットを作成し、ビルドを続けますか？",
+  "index.gitNoCommitsTitle": "リポジトリにコミットがありません",
+  "index.gitNoCommitsBody":
+    "Wiki 生成は git のコミット履歴に基づきます。このリポジトリにはまだコミットがありません。初回コミットを作成してビルドを続けますか？",
+  "index.gitBootstrapConfirm": "コミットしてビルド",
   "index.wikiEmpty": "Wiki 未生成",
   "index.building": "ビルド中…",
 

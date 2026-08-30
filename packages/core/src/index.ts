@@ -409,8 +409,16 @@ export {
   isWikiVariantFile,
   archScanRunDefinition,
   archScanRunRun,
+  configureArchifyPaths,
+  getArchifyPaths,
+  configureArchRenderer,
+  getArchRenderer,
+  configureArchifyLanguage,
+  getArchifyLanguage,
 } from "./actions";
 export type {
+  ArchifyPaths,
+  ArchRenderer,
   RegistryHost,
   ExecuteOptions,
   RunHandle,

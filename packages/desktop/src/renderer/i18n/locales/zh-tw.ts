@@ -106,7 +106,7 @@ export const zhTW: Record<MessageKey, string> = {
   "welcome.hintShortcuts": "所有快捷鍵",
   "suggest.knowledgeTitle": "Wiki 已更新 · {n} 頁",
   "suggest.viewWiki": "檢視",
-  "suggest.askArch": "請基於 @openwiki/ 目錄下的 Wiki，分析這個專案的整體架構，並指出最值得改進的 3 個點：",
+  "suggest.askArch": "請基於 @deepwiki/ 目錄下的 Wiki，分析這個專案的整體架構，並指出最值得改進的 3 個點：",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "（無內容）",
@@ -275,7 +275,7 @@ export const zhTW: Record<MessageKey, string> = {
   "builtin.taste.desc": "前端設計紀律——版式、排印、間距、配色與動效的 anti-slop 規範。",
   "builtin.book-distill.desc":
     "把書籍、手冊或長文件蒸餾成可複用的 Agent Skill（SKILL.md + references/），沉澱清單、工作流與避坑要點。",
-  "builtin.openwiki.desc": "透過 openwiki CLI 產生並維護專案級 Wiki 知識圖譜（openwiki/）——結構化、交叉參照的文件。",
+  "builtin.openwiki.desc": "透過 openwiki CLI 產生並維護專案級 Wiki 知識圖譜（deepwiki/）——結構化、交叉參照的文件。",
   "builtin.wiki-qa.desc": "基於 OpenWiki 知識庫回答專案架構、模組與工作流問題。",
   "builtin.a2ui-annotation.desc":
     "agent 與使用者之間的結構化互動通道——主動追問與對產物的批註式回饋卡（render_surface）。",
@@ -660,12 +660,12 @@ export const zhTW: Record<MessageKey, string> = {
   "action.task.recall.desc":
     "在決策點召回與目前情形相似的歷史任務樹分叉——每個候選都帶分叉理由及該分支的結局（合併/放棄/進行中）。",
   "action.wiki.init.desc":
-    "產生專案 Wiki（openwiki/ 目錄）——結構化、交叉參照的程式碼庫知識圖譜（架構、模組、工作流）。首次執行為全量掃描，串流輸出建置過程。",
-  "action.wiki.update.desc": "增量更新專案 Wiki（openwiki/）——只重新產生受 git 變更影響的頁面。可頻繁執行。",
+    "產生專案 Wiki（deepwiki/ 目錄）——結構化、交叉參照的程式碼庫知識圖譜（架構、模組、工作流）。首次執行為全量掃描，串流輸出建置過程。",
+  "action.wiki.update.desc": "增量更新專案 Wiki（deepwiki/）——只重新產生受 git 變更影響的頁面。可頻繁執行。",
   "action.wiki.list-pages.desc":
-    "列出專案 openwiki/ 目錄中的 Wiki 頁面及 OKF frontmatter 中繼資料。未產生 Wiki 時回傳 []。",
+    "列出專案 deepwiki/ 目錄中的 Wiki 頁面及 OKF frontmatter 中繼資料。未產生 Wiki 時回傳 []。",
   "action.wiki.read-page.desc":
-    "按名稱讀取 Wiki 頁面（如 'architecture'）。回傳結構化 OKF frontmatter + 正文。限定在 openwiki/ 內。",
+    "按名稱讀取 Wiki 頁面（如 'architecture'）。回傳結構化 OKF frontmatter + 正文。限定在 deepwiki/ 內。",
   "rail.undo": "復原 / 還原",
   "rail.commands": "命令面板",
   "rail.tokens": "Token 用量",
@@ -896,7 +896,9 @@ export const zhTW: Record<MessageKey, string> = {
   "symbols.noRelations": "無直接關係",
   "symbols.global": "全域",
   "symbols.globalView": "全域樞紐檢視",
-  "symbols.truncated": "已截斷，僅顯示連接度最高的節點",
+  "symbols.showMore": "再多顯示 {n} 個（還有 {total} 個）",
+  "symbols.moreHidden": "另有 {n} 個未顯示",
+  "symbols.truncated": "關聯邊已達查詢上限，部分關聯可能缺失",
   "symbols.clickHint": "點擊節點以該符號為中心重新展開",
 
   // ── 任務記錄 tab（主區） ────────────────────────────────────
@@ -988,11 +990,6 @@ export const zhTW: Record<MessageKey, string> = {
   "index.buildModeUpdate": "增量更新",
   "index.buildElapsed": "已執行 {time}",
   "index.buildConsole": "主控台輸出",
-  "index.archChart": "圖 {n}",
-  "index.archChartCount": "共 {n} 圖",
-  "index.archZoomIn": "放大",
-  "index.archZoomOut": "縮小",
-  "index.archFitWidth": "適配寬度",
   "index.quoteWiki": "引用到對話",
   "index.quoteWikiPrompt": "請結合 Wiki 頁面《{title}》的內容：",
   "index.openInEditor": "在編輯器開啟",
@@ -1006,7 +1003,10 @@ export const zhTW: Record<MessageKey, string> = {
   "buildHint.wikiNetwork": "LLM 网络层被中断：请核对 设置→模型 / API Key / Base URL。",
   "buildHint.modelUsed": "本次使用模型：{model}。",
   "buildHint.wikiTimeout": "Wiki 构建超时：可设置环境变量 DEEPORCA_WIKI_TIMEOUT_MS（毫秒）延长时限。",
+  "buildHint.modelCensored": "網關內容審查攔截了本次構建的請求。請更換模型/端點（設定 → 模型池）後重新構建。",
   "buildHint.wikiEmpty": "wiki 代理未寫入任何頁面——當前模型可能不兼容其工具調用協議，請更換模型（如輔助模型）重試。",
+  "buildHint.wikiGit": "該倉庫還沒有任何 git 提交——wiki 生成依賴提交歷史，請先提交一次再重新建置。",
+  "buildHint.wikiBalance": "LLM 帳戶餘額不足：請給對應端點儲值，或在 設定→模型 中更換模型後重新建置。",
   "index.symbolPickHint": "選擇符號查看詳情",
   "index.symbolSearch": "搜尋符號…",
   "index.symbolsEmpty": "符號索引尚未構建",
@@ -1014,8 +1014,17 @@ export const zhTW: Record<MessageKey, string> = {
   "index.openAgents": "開啟 AGENTS.md",
   "index.agentsMissing": "此工作區暫無 AGENTS.md",
   "index.archmapsEmpty": "還沒有架構圖——請先構建",
+  "index.archOpenMap": "開啟互動架構圖",
+  "index.archOpenWindow": "在獨立視窗開啟",
   "index.build": "構建",
   "index.buildKnowledge": "構建索引與知識",
+  "index.gitNoRepoTitle": "不是 git 儲存庫",
+  "index.gitNoRepoBody":
+    "Wiki 生成建立在 git 提交歷史之上，該工作區還未納入 git。是否初始化 git 並建立首次提交，然後繼續建置？",
+  "index.gitNoCommitsTitle": "儲存庫還沒有提交",
+  "index.gitNoCommitsBody":
+    "Wiki 生成建立在 git 提交歷史之上，該儲存庫還沒有任何提交。是否建立首次提交，然後繼續建置？",
+  "index.gitBootstrapConfirm": "提交並建置",
   "index.wikiEmpty": "Wiki 未生成",
   "index.building": "建置中…",
 

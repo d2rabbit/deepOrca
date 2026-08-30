@@ -34,6 +34,7 @@ const LLM_ERROR_SIGNATURES: readonly string[] = [
   "incorrect api key",
   "unauthorized",
   "insufficient_quota",
+  "insufficient balance",
   "quota exceeded",
   "rate limit",
 ];

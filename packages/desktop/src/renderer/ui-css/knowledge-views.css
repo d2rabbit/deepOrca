@@ -522,9 +522,18 @@
 .ui-task-badge.kind-review .ui-task-badge-arc {
   stroke: var(--ui-success, #57c98b);
 }
-.ui-task-badge svg {
+/* Ring layer — DIRECT child svg only (2026-08-28 real-machine: the old
+   descendant selector also yanked the NESTED module icon out of its
+   flex-centered wrapper and pinned it to the button's corner — the "still
+   not centered" regression after the absolute-wrapper fix; same specificity,
+   later source order won). Sizing at 100% also keeps the ring on the disc's
+   true axis: a 44px svg in the 42px padding box overflowed 2px past the 1px
+   border. */
+.ui-task-badge > svg {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 .ui-task-badge.indeterminate .ui-task-badge-sweep {
@@ -647,8 +656,15 @@
 .ui-knowledge-symbol-signature {
   margin: 0;
   padding: 10px 12px;
-  background: var(--ui-surface-2, #22252c);
-  border: 1px solid var(--ui-border-soft, #2a2d34);
+  /* Theme-aware code well (fix 2026-08-28): the old value referenced
+     --ui-surface-2 — a token defined NOWHERE, so every theme silently ate
+     the hardcoded DARK fallback. In light themes the inherited dark ink then
+     sat on a near-black block (≈1.2:1, real-machine "看不清"). Sunken is
+     defined in both appearances of every theme; the color is pinned so the
+     block never depends on inheritance luck again. */
+  background: var(--ui-surface-sunken, #f6f8fa);
+  color: var(--ui-text, #1f2328);
+  border: 1px solid var(--ui-border-soft, #d0d7de);
   border-radius: 8px;
   font-family: ui-monospace, monospace;
   font-size: 12px;
@@ -956,10 +972,28 @@
   color: var(--ui-accent);
   font-weight: 600;
 }
-/* The symbol LIST shares the graph's board arrangement (same dotted scroll
-   canvas), so toggling views keeps one consistent presentation. */
+/* The symbol LIST shares the graph's board canvas (toggling views keeps one
+   backdrop), but the master–detail must read as ONE raised card on it —
+   real-machine 2026-08-28: sitting directly on the dotted canvas it split
+   into three mismatched luminance plates (detail card > list column >
+   canvas) and the list column's tint truncated mid-pane. Full-height card,
+   the sunken list column lives inside it. */
+.ui-symbol-graph-scroll:has(> .ui-knowledge-wiki) {
+  /* Plain scroll pane — the board's safe-center grid is for the graph; a
+     block layout with a definite height gives the card's 100% heights a
+     clean resolution basis. */
+  display: block;
+  padding: 10px;
+}
 .ui-symbol-graph-scroll .ui-knowledge-wiki {
-  padding: var(--ui-space-4);
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: var(--ui-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--ui-shadow-card);
 }
 .ui-symbol-graph {
   display: flex;
@@ -1128,6 +1162,20 @@
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--ui-diagram-hue-6, #818cf8);
+}
+/* Width-based ellipsis (replaces the old 26-char hard cut): the chip clips
+   at the popover's real width; the full name rides the title tooltip. */
+.ui-sym-pop-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-sym-pop-more {
+  align-self: center;
+  font-size: 10.5px;
+  color: var(--ui-text-faint, #8590a0);
+  white-space: nowrap;
 }
 .ui-sym-pop-center {
   margin-top: 2px;
@@ -1323,6 +1371,32 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+/* Band header "visible/total" suffix — the total only appears while the
+   band is collapsed below its full list. */
+.ui-sym-band-rest {
+  font-weight: 400;
+  color: var(--ui-text-faint, #8590a0);
+}
+/* Progressive disclosure pill closing each band: dashed ghost chip, same
+   sizing rhythm as the chips it follows. */
+.ui-sym-more {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: var(--ui-radius-md);
+  border: 1px dashed color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 90%, transparent);
+  background: transparent;
+  color: var(--ui-text-dim, #55606d);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    border-color 0.13s var(--ui-ease),
+    color 0.13s var(--ui-ease);
+}
+.ui-sym-more:hover {
+  border-color: var(--ui-accent, #0a84ff);
+  color: var(--ui-accent, #0a84ff);
 }
 /* Flow connector between bands: aggregate summary pills (real per-edge
    detail lives in the click popover). */
@@ -1798,4 +1872,337 @@
   border-radius: 6px;
   background: var(--ui-input-bg, #fff);
   color: var(--ui-text, #1b2129);
+}
+
+/* Archify launcher (2026-08-29): the arch tab's artifact pane — the typed-IR
+   map opens in the host's sandboxed preview window; this pane launches it. */
+.ui-knowledge-arch-launch {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+}
+.ui-knowledge-arch-open {
+  padding: 12px 26px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 55%, var(--ui-border, #9aa7b6));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 14%, var(--ui-surface, #fff)),
+    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 10%, var(--ui-surface, #fff))
+  );
+  color: var(--ui-text, #1b2129);
+  cursor: pointer;
+}
+.ui-knowledge-arch-open:hover {
+  filter: brightness(1.04);
+}
+.ui-knowledge-arch-open:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ui-knowledge-arch-source {
+  font-size: 12px;
+  color: var(--ui-text-faint, #8590a0);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+/* ── Architecture board (2026-08-29: 嵌入自家画板 — hero iframe 直出, 子级
+   rail + our dynamic minimap) ─────────────────────────────────────────── */
+.ui-arch-board {
+  /* Fill the tab body (review round 7): .ui-knowledge-body is display:block,
+     so flex:1 on this wrapper sized nothing — the pane sat at its 320px
+     min-height with dead space below. The wiki pane fills via height:100%;
+     same pattern here. */
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ui-arch-board-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.ui-arch-board-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+}
+.ui-arch-board-meta {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 45%, var(--ui-border, #9aa7b6));
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-arch-board-window {
+  margin-left: auto;
+  border: 1px solid var(--ui-border-soft, #c3cdd9);
+  background: var(--ui-surface, #fff);
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-arch-board-window:hover {
+  filter: brightness(0.96);
+}
+.ui-arch-board-window:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ui-arch-board-pane {
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ui-surface, #fff);
+}
+.ui-arch-board-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+.ui-arch-board-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ui-arch-rail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft, #c3cdd9);
+  background: var(--ui-surface, #fff);
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--ui-text, #1b2129);
+}
+.ui-arch-rail-chip.active {
+  border-color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 60%, var(--ui-border, #9aa7b6));
+  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 8%, var(--ui-surface, #fff));
+}
+.ui-arch-rail-type {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+
+/* Minimap (sub-level dynamic drawing, symbol-graph grammar) */
+.ui-arch-board-sub {
+  flex: 0 0 auto;
+  min-height: 200px;
+  max-height: 320px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  border-radius: 12px;
+  overflow: auto;
+  position: relative;
+  padding: 8px;
+  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 40%, var(--ui-surface, #fff));
+}
+.ui-arch-minimap {
+  position: relative;
+}
+/* Wide IRs (viewBox >= 1000px) must SCROLL at readable scale, not
+   shrink-to-fit (review round 7: a 1520-wide map in a 650px pane rendered
+   13px labels at ~5.5px). The svg carries an inline min-width of its
+   viewBox width. */
+.ui-arch-minimap-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.ui-arch-mm-node {
+  cursor: pointer;
+}
+.ui-arch-mm-node:hover .ui-arch-mm-box {
+  filter: brightness(1.04);
+  stroke-width: 2;
+}
+.ui-arch-mm-box {
+  fill: var(--ui-surface, #fff);
+  stroke-width: 1.5;
+}
+.ui-arch-mm-label {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ui-text, #1b2129);
+}
+.ui-arch-mm-sublabel {
+  font-size: 10px;
+  fill: var(--ui-text-dim, #55606d);
+}
+.ui-arch-mm-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ui-text, #1b2129) 38%, transparent);
+  stroke-width: 1.6;
+}
+.ui-arch-mm-arrow {
+  fill: color-mix(in srgb, var(--ui-text, #1b2129) 38%, transparent);
+}
+.ui-arch-mm-edge-label {
+  font-size: 10px;
+  fill: var(--ui-text-faint, #8590a0);
+}
+.ui-arch-mm-boundary {
+  fill: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 6%, transparent);
+  stroke: color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 35%, transparent);
+  stroke-dasharray: 5 4;
+}
+.ui-arch-mm-boundary.security {
+  fill: color-mix(in srgb, #f87171 6%, transparent);
+  stroke: color-mix(in srgb, #f87171 40%, transparent);
+}
+.ui-arch-mm-boundary-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--ui-text-dim, #55606d);
+}
+.ui-arch-mm-pop {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 10px));
+  max-width: 300px;
+}
+.ui-arch-mm-pop-type {
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+}
+.ui-arch-mm-rel {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ui-text-faint, #8590a0);
+  margin-left: 4px;
+}
+.ui-arch-mm-pop-sub {
+  font-size: 12px;
+  color: var(--ui-text-dim, #55606d);
+  margin: 2px 0 6px;
+}
+
+/* In-app fullscreen zoom overlay (user ask 2026-08-30: A2UI 动态弹窗 — NOT an
+   OS window; same embed URL expanded over the app, ESC/scrim to dismiss) */
+.ui-arch-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.ui-arch-zoom-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 24px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+}
+.ui-arch-zoom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--ui-border-soft, #e3e6eb);
+  flex-shrink: 0;
+}
+.ui-arch-zoom-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text, #1b2129);
+}
+.ui-arch-zoom-close {
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--ui-text-dim, #55606d);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.ui-arch-zoom-close:hover {
+  background: color-mix(in srgb, var(--ui-text, #1b2129) 8%, transparent);
+}
+.ui-arch-zoom-body {
+  flex: 1;
+  min-height: 0;
+}
+.ui-arch-zoom-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* ArchGraphView — SymbolGraphView grammar for architecture diagrams */
+.ui-arch-graph {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ui-arch-graph .ui-symbol-graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 6px 0;
+}
+.ui-arch-graph .ui-sym-legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--ui-text-dim, #55606d);
+}
+.ui-arch-graph .ui-sym-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ui-arch-graph .ui-symbol-graph-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+}
+.ui-arch-graph .ui-symbol-graph-hint {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ui-text-faint, #8590a0);
+  padding: 4px 0;
+}
+.ui-arch-chip-conn {
+  font-size: 10px;
+  color: var(--ui-diagram-hue-2, #2dd4bf);
+  font-style: italic;
+}
+.ui-arch-chip-bnd {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 40%, transparent);
+  color: var(--ui-text-faint, #8590a0);
 }

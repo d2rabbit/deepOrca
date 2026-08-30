@@ -16,8 +16,14 @@ import assert from "node:assert/strict";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as fs from "node:fs";
+import { execFileSync } from "node:child_process";
 
 import { ActionRegistry, NULL_SPAWNER } from "../actions";
+import { configureCodegraphController, getCodegraphController } from "../actions/codegraph-controller";
+import { configureWikiController, getWikiController } from "../actions/wiki-controller";
+import { configureArchRenderer } from "../actions/archify-controller";
+import type { CodegraphController } from "../actions/codegraph-controller";
+import type { WikiController } from "../actions/wiki-controller";
 
 import {
   pingDefinition,
@@ -111,10 +117,10 @@ describe("codegraph.list", () => {
 });
 
 describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
-  test("listPages returns markdown pages under openwiki/", async () => {
-    fs.mkdirSync(path.join(PROJECT_ROOT, "openwiki"), { recursive: true });
-    fs.writeFileSync(path.join(PROJECT_ROOT, "openwiki", "architecture.md"), "# Arch\n");
-    fs.writeFileSync(path.join(PROJECT_ROOT, "openwiki", "modules-auth.md"), "# Auth\n");
+  test("listPages returns markdown pages under deepwiki/", async () => {
+    fs.mkdirSync(path.join(PROJECT_ROOT, "deepwiki"), { recursive: true });
+    fs.writeFileSync(path.join(PROJECT_ROOT, "deepwiki", "architecture.md"), "# Arch\n");
+    fs.writeFileSync(path.join(PROJECT_ROOT, "deepwiki", "modules-auth.md"), "# Auth\n");
     const r = fullRegistry();
     const pages = (await r.execute("wiki.list-pages", {}).result) as { name: string }[];
     const names = pages.map((p) => p.name).sort();
@@ -142,11 +148,11 @@ describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
     assert.match(out.body, /# Arch/);
   });
 
-  test("readPage rejects a path that escapes openwiki/", async () => {
+  test("readPage rejects a path that escapes deepwiki/", async () => {
     const r = fullRegistry();
     await assert.rejects(
       () => r.execute("wiki.read-page", { name: "../../etc/passwd" }).result,
-      (err: unknown) => err instanceof Error && /escapes the openwiki/.test(err.message)
+      (err: unknown) => err instanceof Error && /escapes the deepwiki/.test(err.message)
     );
   });
 
@@ -158,7 +164,7 @@ describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
     );
   });
 
-  test("listPages returns [] when openwiki/ is absent", async () => {
+  test("listPages returns [] when deepwiki/ is absent", async () => {
     const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "phase-no-wiki-"));
     const r = fullRegistry(emptyRoot);
     const pages = (await r.execute("wiki.list-pages", {}).result) as unknown[];
@@ -266,5 +272,346 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
     const archStage = out.stages.find((s) => s.stage === "arch-scan");
     assert.ok(archStage, "update mode tracks the arch-scan stage");
     assert.equal(archStage?.skipped, true);
+  });
+
+  test("a failed codegraph stage skips the later stages (spec B1: 任一段失败即停)", async () => {
+    // Chain-stop regression (audit 2026-08-28): stage 2/3 used to keep
+    // running over stage 1's wreckage. Inject a controller whose reindex
+    // throws; wiki and arch must be skipped, not attempted.
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    let wikiCalled = false;
+    try {
+      configureCodegraphController({
+        hasProject: () => false,
+        reindex: async () => {
+          throw new Error("boom: grammar load failed");
+        },
+        sync: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => {
+          wikiCalled = true;
+          return { ok: true, model: "test" };
+        },
+        update: async () => {
+          wikiCalled = true;
+          return { ok: true, model: "test" };
+        },
+      } as unknown as WikiController);
+      const r = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        runBackgroundTask: async () => ({ content: "unused", iterations: 1 }),
+      });
+      r.register(indexBuildAllDefinition, indexBuildAllRun);
+      const out = (await r.execute("index.build-all", { mode: "init" }).result) as {
+        stages: { stage: string; ok: boolean; skipped?: boolean; error?: string }[];
+      };
+      const cg = out.stages.find((s) => s.stage === "codegraph");
+      assert.equal(cg?.ok, false);
+      assert.notEqual(cg?.skipped, true); // a REAL failure, not unavailability
+      const wiki = out.stages.find((s) => s.stage === "wiki");
+      assert.equal(wiki?.skipped, true, "wiki is skipped after codegraph failure");
+      assert.match(wiki?.error ?? "", /codegraph stage failed/);
+      const arch = out.stages.find((s) => s.stage === "arch-scan");
+      assert.equal(arch?.skipped, true, "arch-scan is skipped after codegraph failure");
+      assert.equal(wikiCalled, false, "the wiki controller never ran");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
+    }
+  });
+
+  test("update mode over a hollow wiki falls back to full init (corrupted-marker no-op)", async () => {
+    // Regression (real-machine 2026-08-29): mode:"update" used to force the
+    // update path even when no substantive wiki existed — over a skeleton
+    // index.md plus a marker whose gitHead field held git's ERROR TEXT
+    // (written by a pre-bootstrap no-commit init), update no-oped in seconds
+    // and tripped the empty-wiki guard. A REAL wiki must exist before the
+    // incremental path is chosen, whatever mode the caller asked for.
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    const wikiDir = path.join(PROJECT_ROOT, "deepwiki");
+    const calls: string[] = [];
+    const mkRegistry = (): ActionRegistry => {
+      const reg = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        runBackgroundTask: async () => ({ content: "unused", iterations: 1 }),
+      });
+      reg.register(indexBuildAllDefinition, indexBuildAllRun);
+      return reg;
+    };
+    try {
+      configureCodegraphController({
+        hasProject: () => true,
+        sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
+        reindex: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => {
+          calls.push("init");
+          return { ok: true, model: "test" };
+        },
+        update: async () => {
+          calls.push("update");
+          return { ok: true, model: "test" };
+        },
+      } as unknown as WikiController);
+
+      // Hollow wiki: 37-byte skeleton + error-text gitHead marker — exactly
+      // the corrupted state the failed no-git init left behind.
+      fs.rmSync(wikiDir, { recursive: true, force: true });
+      fs.mkdirSync(wikiDir, { recursive: true });
+      fs.writeFileSync(path.join(wikiDir, "index.md"), "---\ntitle: Index\n---\n# Index\n");
+      fs.writeFileSync(
+        path.join(wikiDir, ".last-update.json"),
+        JSON.stringify({ command: "init", gitHead: "HEAD\nfatal: ambiguous argument 'HEAD'", status: "complete" })
+      );
+      let out = (await mkRegistry().execute("index.build-all", { mode: "update" }).result) as {
+        stages: { stage: string; ok: boolean }[];
+      };
+      assert.equal(out.stages.find((s) => s.stage === "wiki")?.ok, true);
+      assert.deepEqual(calls, ["init"], "update mode MUST fall back to init when no real wiki exists");
+
+      // A substantial page present → update really is incremental.
+      calls.length = 0;
+      fs.writeFileSync(path.join(wikiDir, "architecture.md"), `# Architecture\n\n${"x".repeat(600)}`);
+      out = (await mkRegistry().execute("index.build-all", { mode: "update" }).result) as {
+        stages: { stage: string; ok: boolean }[];
+      };
+      assert.deepEqual(calls, ["update"], "a substantial wiki routes update mode to the incremental path");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
+      fs.rmSync(wikiDir, { recursive: true, force: true });
+    }
+  });
+
+  test("arch-scan stage verifies the artifacts: hollow run fails, substantial map passes", async () => {
+    // Post-run verification regression (audit 2026-08-28): a resolved
+    // background task used to count as success even when the model never
+    // called save_archmap — same class as wiki's exit-0-over-skeleton.
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    const protoDir = path.join(PROJECT_ROOT, ".deeporca", "prototypes");
+    const mkRegistry = (): ActionRegistry => {
+      const reg = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        // Resolves "successfully" while writing NOTHING — the lying success.
+        runBackgroundTask: async () => ({ content: "done (no artifacts though)", iterations: 3 }),
+      });
+      reg.register(indexBuildAllDefinition, indexBuildAllRun);
+      return reg;
+    };
+    try {
+      configureCodegraphController({
+        hasProject: () => true, // → sync path, no reindex node-count gate here
+        sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
+        reindex: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => ({ ok: true, model: "test" }),
+        update: async () => ({ ok: true, model: "test" }),
+      } as unknown as WikiController);
+
+      // Hollow workspace: the task resolves but no map lands → stage FAILS.
+      fs.rmSync(protoDir, { recursive: true, force: true });
+      let out = (await mkRegistry().execute("index.build-all", { mode: "init" }).result) as {
+        stages: { stage: string; ok: boolean; skipped?: boolean; error?: string }[];
+      };
+      let arch = out.stages.find((s) => s.stage === "arch-scan");
+      assert.equal(arch?.ok, false, "hollow run must fail the stage");
+      assert.match(arch?.error ?? "", /without any substantive architecture maps/);
+
+      // Substantial map present (satisfies an incremental no-change run too).
+      fs.mkdirSync(protoDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(protoDir, "arch-real.architecture.json"),
+        JSON.stringify({ meta: { title: "Real Map", quality_profile: "showcase" }, nodes: [], edges: [] }) +
+          "\n" +
+          "x".repeat(600)
+      );
+      out = (await mkRegistry().execute("index.build-all", { mode: "init" }).result) as {
+        stages: { stage: string; ok: boolean; skipped?: boolean; error?: string }[];
+      };
+      arch = out.stages.find((s) => s.stage === "arch-scan");
+      assert.equal(arch?.ok, true, "substantial artifact passes the gate");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
+      fs.rmSync(protoDir, { recursive: true, force: true });
+    }
+  });
+
+  test("arch no-change fastPath skips the LLM when maps are newer than HEAD", async () => {
+    // Real-machine 2026-08-30: the model misbehaves on EVERY no-change
+    // incremental run (rewrote the artifact twice; both rolled back). When
+    // only generated paths are dirty and the artifacts postdate the last
+    // commit, the model is not invited at all — the stage short-circuits.
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    const protoDir = path.join(PROJECT_ROOT, ".deeporca", "prototypes");
+    const git = (args: string[]): string =>
+      execFileSync("git", ["-C", PROJECT_ROOT, ...args], {
+        stdio: ["ignore", "pipe", "ignore"],
+      }).toString();
+    let llmRan = false;
+    try {
+      execFileSync("git", ["-C", PROJECT_ROOT, "init"], { stdio: "ignore" });
+      fs.writeFileSync(path.join(PROJECT_ROOT, "code.txt"), "x");
+      execFileSync("git", ["-C", PROJECT_ROOT, "add", "-A"], { stdio: "ignore" });
+      execFileSync("git", ["-C", PROJECT_ROOT, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "init"], {
+        stdio: "ignore",
+      });
+      // Artifact written AFTER the commit → fastPath eligible.
+      fs.mkdirSync(protoDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(protoDir, "arch-fresh.architecture.json"),
+        `{"meta":{"title":"F","quality_profile":"showcase"},"components":[],"connections":[]}\n${"y".repeat(300)}`
+      );
+      configureCodegraphController({
+        hasProject: () => true,
+        sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
+        reindex: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => ({ ok: true, model: "test" }),
+        update: async () => ({ ok: true, model: "test" }),
+      } as unknown as WikiController);
+      const reg = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        runBackgroundTask: async () => {
+          llmRan = true;
+          return { content: "should not run", iterations: 1 };
+        },
+      });
+      reg.register(indexBuildAllDefinition, indexBuildAllRun);
+      const out = (await reg.execute("index.build-all", { mode: "update" }).result) as {
+        stages: { stage: string; ok: boolean; skipped?: boolean }[];
+      };
+      assert.equal(llmRan, false, "LLM task must be SKIPPED on the no-change fastPath");
+      const arch = out.stages.find((st) => st.stage === "arch-scan");
+      assert.equal(arch?.ok, true, "stage passes without the LLM");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
+      fs.rmSync(protoDir, { recursive: true, force: true });
+      try {
+        fs.rmSync(path.join(PROJECT_ROOT, ".git"), { recursive: true, force: true });
+        fs.rmSync(path.join(PROJECT_ROOT, "code.txt"), { force: true });
+      } catch {
+        // best effort
+      }
+    }
+  });
+
+  test("arch checkpoint restores artifacts destroyed by a rogue task run", async () => {
+    // Real-machine 2026-08-29: an incremental "no changes" run clobbered the
+    // complete artifact with a components-only fragment (undefined.json) —
+    // prompt rules are advisory and bash bypasses the write grant. The stage
+    // now snapshots substantial artifacts before the LLM runs and restores
+    // them when the run ends with nothing substantial.
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    const protoDir = path.join(PROJECT_ROOT, ".deeporca", "prototypes");
+    const good =
+      JSON.stringify({
+        meta: { title: "Good map", quality_profile: "showcase" },
+        components: [{ id: "a", label: "A", sublabel: "component" }],
+        connections: [],
+      }) +
+      "\n" +
+      "x".repeat(400);
+    fs.mkdirSync(protoDir, { recursive: true });
+    fs.writeFileSync(path.join(protoDir, "arch-good.architecture.json"), good);
+    // The background task simulates the rogue run: delete the good file and
+    // write a degenerate fragment that does NOT match the artifact contract.
+    const rogue = async (): Promise<{ content: string; iterations: number }> => {
+      fs.rmSync(path.join(protoDir, "arch-good.architecture.json"));
+      fs.writeFileSync(path.join(protoDir, "undefined.json"), '{"components":[]}');
+      return { content: "无代码拓扑变更", iterations: 2 };
+    };
+    try {
+      configureCodegraphController({
+        hasProject: () => true,
+        sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
+        reindex: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => ({ ok: true, model: "test" }),
+        update: async () => ({ ok: true, model: "test" }),
+      } as unknown as WikiController);
+      const reg = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        runBackgroundTask: rogue,
+      });
+      reg.register(indexBuildAllDefinition, indexBuildAllRun);
+      const out = (await reg.execute("index.build-all", { mode: "update" }).result) as {
+        stages: { stage: string; ok: boolean; error?: string }[];
+      };
+      // The good artifact is BACK on disk (rolled back), and the stage
+      // passes on the restored substantial map.
+      const restored = fs.readFileSync(path.join(protoDir, "arch-good.architecture.json"), "utf-8");
+      assert.equal(restored, good, "checkpoint content restored verbatim");
+      const arch = out.stages.find((st) => st.stage === "arch-scan");
+      assert.equal(arch?.ok, true, "stage passes on the restored map");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
+      fs.rmSync(protoDir, { recursive: true, force: true });
+    }
+  });
+
+  test("arch stage runs the host-injected archify deliver gate after the LLM task", async () => {
+    // Seam regression (audit 2026-08-29): the background task only AUTHORS
+    // typed-IR files; rendering/validation is the host's deterministic gate.
+    // The stage must invoke it (and surface its diagnostics on failure).
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    let renderCalls = 0;
+    try {
+      configureCodegraphController({
+        hasProject: () => true,
+        sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
+        reindex: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => ({ ok: true, model: "test" }),
+        update: async () => ({ ok: true, model: "test" }),
+      } as unknown as WikiController);
+      configureArchRenderer(async () => {
+        renderCalls++;
+        return 1;
+      });
+      const reg = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        runBackgroundTask: async () => ({ content: "unused", iterations: 1 }),
+      });
+      reg.register(indexBuildAllDefinition, indexBuildAllRun);
+
+      // Hollow workspace → task resolves, gate runs, stage still FAILS on the
+      // empty-artifact rule (the gate alone is not a substitute for content).
+      const out = (await reg.execute("index.build-all", { mode: "init" }).result) as {
+        stages: { stage: string; ok: boolean; skipped?: boolean; error?: string }[];
+      };
+      assert.equal(renderCalls, 1, "deliver gate invoked exactly once after the LLM task");
+      assert.equal(out.stages.find((s) => s.stage === "arch-scan")?.ok, false, "hollow run fails");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
+      configureArchRenderer(null);
+    }
   });
 });

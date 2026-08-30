@@ -152,9 +152,13 @@ export const IpcRequest = {
   EndpointQuota: "endpoint:quota",
   EndpointTest: "endpoint:test",
   MemoryRoutingStatus: "memoryRouting:status",
-  KnowledgeReadArchmap: "knowledge:readArchmap",
+  KnowledgeArchRender: "knowledge:archRender",
+  KnowledgeArchReadJson: "knowledge:archReadJson",
+  KnowledgeOpenArchHtml: "knowledge:archOpenHtml",
   KnowledgeBuild: "knowledge:build",
   KnowledgeBuildStatus: "knowledge:buildStatus",
+  KnowledgeGitPreflight: "knowledge:gitPreflight",
+  KnowledgeGitBootstrap: "knowledge:gitBootstrap",
   KnowledgeReadAgents: "knowledge:readAgents",
   KnowledgeListSymbols: "knowledge:listSymbols",
   KnowledgeSymbolGraph: "knowledge:symbolGraph",
@@ -255,9 +259,9 @@ export type WikiProgressEvent = {
   exitCode?: number;
 };
 
-/** A single wiki page entry from the openwiki/ directory. */
+/** A single wiki page entry from the deepwiki/ store. */
 export type WikiPageEntry = {
-  /** Relative path within the openwiki/ directory. */
+  /** Relative path within the deepwiki/ store. */
   path: string;
   /** Display title derived from filename or first heading. */
   title: string;
@@ -553,20 +557,15 @@ export type KnowledgeBuildJobSnapshot = {
  * - Mermaid diagram documents (`arch-*.md`) — the current arch-scan output
  *   format (diagram-first; the A2UI variant rendered as a flat document).
  */
-export type KnowledgeArchmapSurface = {
-  surfaceId: string;
-  title: string;
-  dataModel?: Record<string, unknown>;
-  components?: unknown[];
-  messages?: unknown[];
-};
 
-/** KnowledgeReadArchmap response: exactly one of surface (JSON) / markdown (md) / html (board). */
-export type KnowledgeArchmapContent =
-  | { ok: true; surface: KnowledgeArchmapSurface; markdown?: undefined; html?: undefined }
-  | { ok: true; surface?: undefined; markdown: string; html?: undefined }
-  | { ok: true; surface?: undefined; markdown?: undefined; html: string }
-  | { ok: false; error: string };
+/** Git state of a workspace root, checked before a build: the wiki generator
+ *  leans on commit history (its update pass diffs gitHead..HEAD), so a
+ *  non-repo or an unborn HEAD needs the user's decision first — in practice
+ *  the generator writes only a bare skeleton there (real-machine 2026-08-28). */
+export type KnowledgeGitPreflight = { isRepo: boolean; hasCommits: boolean };
+
+/** knowledgeGitBootstrap result — `commit` is the created HEAD (short hash). */
+export type KnowledgeGitBootstrapResult = { ok: true; commit: string } | { ok: false; error: string };
 
 /**
  * Per-workspace knowledge assets (specs/index-knowledge-rework): UI-facing
@@ -619,7 +618,17 @@ export type KnowledgeStatusResponse = {
   codegraph: KnowledgeSourceStatus;
   openwiki: KnowledgeSourceStatus;
   agents: KnowledgeSourceStatus;
-  archmaps: KnowledgeSourceStatus & { files?: Array<{ name: string; path: string; mtime: string }> };
+  archmaps: KnowledgeSourceStatus & {
+    files?: Array<{
+      name: string;
+      path: string;
+      mtime: string;
+      /** archify diagram type parsed from the `.<type>.json` suffix. */
+      type?: string;
+      /** Sibling delivered HTML (archify's validated render), when present. */
+      htmlPath?: string;
+    }>;
+  };
 };
 
 /** Legacy shape kept for the memory/routing observability surfaces. */
@@ -978,12 +987,24 @@ export type DesktopApi = {
   /** 端点连通性探测：可达性（任何 HTTP 应答）+ API 可用性（/models 鉴权）。 */
   endpointTest(baseURL: string, apiKey?: string): Promise<EndpointTestResponse>;
   /** Enumerate a workspace's wiki pages (name/path/mtime). */
-  /** Read an architecture-map artifact: legacy A2UI surface JSON (`.json`), Mermaid document (`.md`), or HTML board (`.html`). */
-  knowledgeReadArchmap(path: string): Promise<KnowledgeArchmapContent>;
+  /** Deterministic archify render gate for one typed-IR artifact. */
+  knowledgeArchRender(jsonPath: string): Promise<{ ok: boolean; htmlPath?: string; error?: string }>;
+  /** Read a typed-IR artifact's JSON (for the in-pane dynamic map), under the
+   *  same registered-root + prototypes containment as the render/open channels. */
+  knowledgeArchReadJson(jsonPath: string): Promise<{ ok: boolean; json?: string; error?: string }>;
+  /** Open a delivered archify HTML in the sandboxed preview window. `theme`
+   *  syncs the viewer's color mode to the app appearance (2026-08-30). */
+  knowledgeOpenArchHtml(htmlPath: string, theme?: "light" | "dark"): Promise<{ ok: boolean; error?: string }>;
   /** Start (or return the in-flight) background build for a root — idempotent. */
   knowledgeBuild(root: string): Promise<KnowledgeBuildJobSnapshot>;
   /** Live snapshots of all build jobs (rows render from this). */
   knowledgeBuildStatus(): Promise<KnowledgeBuildJobSnapshot[]>;
+  /** Git preflight before a build: the wiki generator leans on commit history,
+   *  so the panel asks before building in a repo that can't supply it. */
+  knowledgeGitPreflight(root: string): Promise<KnowledgeGitPreflight>;
+  /** Make the root buildable: `git init` (when absent) + stage everything +
+   *  first commit. Runs ONLY on the user's explicit confirmation. */
+  knowledgeGitBootstrap(root: string): Promise<KnowledgeGitBootstrapResult>;
   /** Read a workspace's AGENTS.md (root-scoped) for in-place rendering. */
   knowledgeReadAgents(root: string): Promise<{ ok: true; content: string } | { ok: false; error: string }>;
   /** Search a workspace's symbol index (kind/name/file/line), query optional. */

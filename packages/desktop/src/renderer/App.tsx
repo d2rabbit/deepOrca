@@ -70,6 +70,7 @@ import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
+import { formatBuildError } from "./lib/build-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { ToolActivityPanel } from "./components/ToolActivityPanel";
 import { SerenaPanel } from "./components/SerenaPanel";
@@ -1159,7 +1160,7 @@ export function App(): JSX.Element {
       setActiveTab({ kind: "chat" });
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${root}/openwiki/${path}\n`;
+        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${root}/deepwiki/${path}\n`;
       });
     },
     [t]
@@ -2229,7 +2230,12 @@ export function App(): JSX.Element {
             >
               ✕ {t("sheet.backToChat")}
             </button>
-            <KnowledgePanel root={activeTab.root} onOpenFile={handleOpenEditor} onQuoteToChat={handleQuoteWikiToChat} />
+            <KnowledgePanel
+              root={activeTab.root}
+              appearance={appearance}
+              onOpenFile={handleOpenEditor}
+              onQuoteToChat={handleQuoteWikiToChat}
+            />
           </div>
         ) : activeTab.kind === "task" ? (
           <div className="ui-sheet">
@@ -2481,7 +2487,7 @@ export function App(): JSX.Element {
             </Button>
           }
         >
-          <div className="ui-model-fault-detail">{modelFault}</div>
+          <div className="ui-model-fault-detail">{formatBuildError(modelFault, t)}</div>
         </Modal>
       ) : null}
 

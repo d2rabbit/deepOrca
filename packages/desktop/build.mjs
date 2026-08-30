@@ -326,6 +326,8 @@ async function run() {
   // CodeGraph: installed as npm dependency (@colbymchenry/codegraph) — no vendor script needed.
   // The npm-shim.js auto-selects the platform binary from optionalDependencies.
   ensureVendored("openwiki", [".vendored-openwiki-version"], "npx openwiki");
+  // Archify: git-pinned skill package (typed JSON IR -> validated HTML diagrams).
+  ensureVendored("archify", [".vendored-archify-ref"], "no fallback (architecture maps unavailable)");
   // Tailwind JIT script: downloaded as a single JS file for offline DeepDesign.
   ensureVendored("tailwind", ["tailwind.js"], "cdn.tailwindcss.com (online fallback)");
   // Generate tailwind-script.ts from the vendored file so esbuild can bundle it.

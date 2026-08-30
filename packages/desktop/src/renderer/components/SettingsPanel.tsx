@@ -296,6 +296,24 @@ const CHANGELOG: { version: string; date: string; changes: string[]; en: string[
       "Startup white-screen fix: SkillSpector installs asynchronously in the background; workspace list filters stale/temp dirs; 5s watchdog on quit.",
     ],
   },
+  {
+    version: "v0.9.0",
+    date: "2026-08",
+    changes: [
+      "架构图模块全面切换到 Archify:五类图(架构/流程/时序/数据流/生命周期)经确定性校验门禁生成自包含交互式 HTML,支持语义护照跟随节点、章节叙事、结论卡与品牌图标;图板跟随应用明暗,演示态常驻。",
+      "索引构建可靠性:新项目首次构建崩溃修复;wiki 空跑自动重试且辅助模型正确继承主模型;402 余额不足弹窗提醒(不再静默失败)。",
+      "Wiki 目录:每个小节的 Index 页固定排在首位,阅读顺序与翻页同步。",
+      "模型故障弹窗:网络中断/鉴权失败/余额不足等传输类构建错误会主动弹出可操作的修复指引。",
+      "失败日志语义:阶段失败/跳过在构建控制台与进度行中如实标注,不再出现失败后仍打印完成字样的误导。",
+    ],
+    en: [
+      "Architecture-diagram module rebuilt on Archify: five diagram types (architecture/workflow/sequence/dataflow/lifecycle) rendered as validated, self-contained interactive HTML with a node-following semantic passport, chapter narratives, conclusion cards and brand marks; the board follows the app theme and stays in presentation mode.",
+      "Index-build reliability: fixed the first-build crash on brand-new workspaces; hollow wiki runs auto-retry with the auxiliary model now correctly INHERITING the primary; 402 insufficient-balance pops a dialog instead of failing silently.",
+      "Wiki tree: every section's Index page is pinned first — reading order and pager follow.",
+      "Model-fault dialog: transport-class build errors (network drops, auth, balance) surface an actionable fix dialog proactively.",
+      "Honest failure logs: stage failed/skipped verdicts are labeled as such in the build console and progress rows — no more success wording over failures.",
+    ],
+  },
 ];
 
 /**
@@ -386,6 +404,27 @@ const OPEN_SOURCE_CREDITS: Array<{ name: string; zh: string; en: string; license
     en: "Project documentation generation.",
     license: "MIT",
     url: "https://github.com/langchain-ai/openwiki",
+  },
+  {
+    name: "Archify",
+    zh: "架构图引擎 —— 类型化 IR 经确定性校验门禁生成自包含交互式图表(架构/流程/时序/数据流/生命周期)。",
+    en: "Diagram engine — typed-IR specs compiled through a deterministic validation gate into self-contained interactive charts (architecture/workflow/sequence/dataflow/lifecycle).",
+    license: "MIT",
+    url: "https://github.com/tt-a1i/archify",
+  },
+  {
+    name: "Granite Embedding",
+    zh: "IBM Granite 多语言嵌入模型(97M) —— 本地语义路由与向量召回。",
+    en: "IBM Granite multilingual embedding (97M) — local semantic routing and vector recall.",
+    license: "Apache-2.0",
+    url: "https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2",
+  },
+  {
+    name: "dembrandt",
+    zh: "品牌设计系统摄取(设计 token / 品牌规范提取)。",
+    en: "Brand design-system ingestion (design tokens / brand spec extraction).",
+    license: "MIT",
+    url: "https://www.npmjs.com/package/dembrandt",
   },
 ];
 

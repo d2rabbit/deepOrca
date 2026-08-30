@@ -254,14 +254,18 @@ test("safeArchmapPath: legitimate arch-*.md under prototypes root resolves (abso
   });
 });
 
-test("safeArchmapPath: arch-*.html and arch-*.json are accepted", async () => {
+test("safeArchmapPath: typed arch-*.json and its archify .html sibling are accepted", async () => {
   await withTempTree(async (dir) => {
     const protoRoot = path.join(dir, ".deeporca", "prototypes");
     await fs.mkdir(protoRoot, { recursive: true });
     await fs.writeFile(path.join(protoRoot, "arch-root.html"), "<p/>");
     await fs.writeFile(path.join(protoRoot, "arch-root.json"), "{}");
-    assert.equal(safeArchmapPath(protoRoot, path.join(protoRoot, "arch-root.html")).ok, true);
     assert.equal(safeArchmapPath(protoRoot, path.join(protoRoot, "arch-root.json")).ok, true);
+    // The layered HTML board form was retired (2026-08-28) — one map, one
+    // Archify era (2026-08-29): the delivered `.html` sibling IS the preview
+    // surface the arch-open handler loads — accepted under containment.
+    const html = safeArchmapPath(protoRoot, path.join(protoRoot, "arch-root.html"));
+    assert.equal(html.ok, true);
   });
 });
 

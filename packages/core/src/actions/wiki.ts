@@ -2,8 +2,11 @@
  * OpenWiki actions — wiki.init / wiki.update / wiki.list-pages / wiki.read-page.
  *
  * init/update delegate to the host-injected WikiController (desktop's
- * WikiCliController spawns the vendored openwiki CLI). list-pages/read-page
- * are pure filesystem reads of the project's openwiki/ directory.
+ * WikiCliController spawns the vendored openwiki CLI against a disposable
+ * openwiki/ STAGE and promotes validated output into the canonical deepwiki/
+ * store — see desktop main/tools/wiki-staging.ts). list-pages/read-page are
+ * pure filesystem reads of the project's deepwiki/ directory (the canonical
+ * store; openwiki/ only exists mid-run).
  *
  * All spawn logic has migrated to desktop — core has zero wiki-CLI code.
  */
@@ -17,7 +20,9 @@ export { configureWikiController, getWikiController } from "./wiki-controller";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const OPENWIKI_DIR = "openwiki";
+/** Canonical wiki store (desktop's staging promotes into it; the CLI's
+ *  hardcoded openwiki/ dir is a run-local stage, not the read surface). */
+const OPENWIKI_DIR = "deepwiki";
 
 export type WikiInitOutput = WikiResult;
 
@@ -26,7 +31,7 @@ export type WikiInitOutput = WikiResult;
 export const wikiInitDefinition: ActionDefinition = {
   id: "wiki.init",
   description:
-    "Generate the project wiki (openwiki/ directory) — a structured, cross-referenced knowledge graph of the codebase (architecture, modules, workflows). First run does a full scan. Streams build output. The wiki is version-controlled and dramatically reduces agent token usage.",
+    "Generate the project wiki (deepwiki/ store) — a structured, cross-referenced knowledge graph of the codebase (architecture, modules, workflows). First run does a full scan. Streams build output. The wiki is version-controlled and dramatically reduces agent token usage.",
   category: "index",
   parameters: { type: "object", properties: {}, additionalProperties: false },
   sideEffects: ["spawn-subprocess", "write-in-cwd", "network"],
@@ -43,7 +48,7 @@ export const wikiInitRun: ActionRun<unknown, WikiInitOutput> = async (_input, ct
 export const wikiUpdateDefinition: ActionDefinition = {
   id: "wiki.update",
   description:
-    "Incrementally update the project wiki (openwiki/) — regenerates only pages affected by git changes. Safe to run frequently.",
+    "Incrementally update the project wiki (deepwiki/) — regenerates only pages affected by git changes. Safe to run frequently.",
   category: "index",
   parameters: { type: "object", properties: {}, additionalProperties: false },
   sideEffects: ["spawn-subprocess", "write-in-cwd", "network"],
@@ -98,7 +103,7 @@ function parseFrontmatter(content: string): WikiFrontmatter | null {
 export const wikiListPagesDefinition: ActionDefinition = {
   id: "wiki.list-pages",
   description:
-    "List the wiki pages (markdown files) in the project's openwiki/ directory, with OKF frontmatter metadata (title, type). Returns [] if no wiki has been generated.",
+    "List the wiki pages (markdown files) in the project's deepwiki/ store, with OKF frontmatter metadata (title, type). Returns [] if no wiki has been generated.",
   category: "index",
   parameters: { type: "object", properties: {}, additionalProperties: false },
 };
@@ -141,11 +146,11 @@ export interface WikiPageDetail {
 export const wikiReadPageDefinition: ActionDefinition<{ name: string }> = {
   id: "wiki.read-page",
   description:
-    "Read a wiki page by name (e.g. 'architecture', 'modules/auth'). Returns structured OKF frontmatter (type/title/description/tags) + body + raw markdown. Confined to the project's openwiki/ directory.",
+    "Read a wiki page by name (e.g. 'architecture', 'modules/auth'). Returns structured OKF frontmatter (type/title/description/tags) + body + raw markdown. Confined to the project's deepwiki/ store.",
   category: "index",
   parameters: {
     type: "object",
-    properties: { name: { type: "string", description: "Page name (without .md) or relative path within openwiki/." } },
+    properties: { name: { type: "string", description: "Page name (without .md) or relative path within deepwiki/." } },
     required: ["name"],
     additionalProperties: false,
   },
@@ -157,7 +162,7 @@ export const wikiReadPageRun: ActionRun<{ name: string }, WikiPageDetail> = asyn
   const resolved = path.resolve(dir, raw);
   const rel = path.relative(dir, resolved);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`wiki.read-page: "${input.name}" escapes the openwiki/ directory`);
+    throw new Error(`wiki.read-page: "${input.name}" escapes the deepwiki/ store`);
   }
   if (!fs.existsSync(resolved)) {
     throw new Error(`wiki.read-page: no such page "${input.name}"`);

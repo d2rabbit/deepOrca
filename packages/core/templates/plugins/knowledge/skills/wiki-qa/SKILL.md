@@ -32,9 +32,10 @@ already been analyzed, summarized, and cross-referenced by an LLM.
 ### Step 1: Check if wiki exists
 
 Use the `wiki_list-pages` tool (or run `wiki.list-pages` action) to check if
-the project has an `openwiki/` directory with generated pages.
+the project has a `deepwiki/` store with generated pages.
 
 If no wiki exists (empty result), tell the user:
+
 > The project knowledge base hasn't been generated yet. Run "Build Index" in
 > the Index & Knowledge panel (or use the `index.build-all` action) to create it.
 
@@ -75,6 +76,7 @@ check the actual source code. The wiki may lag behind recent changes.
 
 Present the answer in clear, structured markdown. For architecture questions,
 include:
+
 - A high-level summary
 - Key components and their responsibilities
 - Data flow / call paths (if relevant)
@@ -87,5 +89,5 @@ include:
 - `wiki_read-page` returns `frontmatter`, `body`, and `raw` — use `body` for
   the markdown content without frontmatter noise.
 - For multi-part questions, query multiple pages in parallel.
-- The wiki is version-controlled in `openwiki/` — it follows the project
+- The wiki is version-controlled in `deepwiki/` — it follows the project
   through git. If it's stale, suggest running `wiki.update`.

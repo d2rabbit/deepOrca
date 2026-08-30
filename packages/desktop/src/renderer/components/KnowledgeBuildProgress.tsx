@@ -117,7 +117,7 @@ export function KnowledgeBuildProgress({
             const dur = formatBuildDuration(stage.startedAt, stage.endedAt, now);
             detail = `${t("index.stageDone")}${dur ? ` · ${dur}` : ""}`;
           } else if (stage.status === "failed") {
-            detail = `${t("index.stageFailed")}${stage.error ? ` — ${formatBuildError(stage.error, t, 120)}` : ""}`;
+            detail = `${t("index.stageFailed")}${stage.error ? ` — ${formatBuildError(stage.error, t, 400)}` : ""}`;
           } else if (stage.status === "skipped") {
             detail = t("index.stageSkipped");
           } else {

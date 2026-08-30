@@ -84,7 +84,11 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
               ],
             };
           }
-          // Second turn: final report, no tool calls — loop ends.
+          // Later turns: prose-only reports, no tool calls. For an
+          // ARTIFACT task (arch-scan) with nothing on disk, the loop now
+          // nudges twice before accepting prose completion (2026-08-29) —
+          // turn 2 prose → nudge 1, turn 3 prose → nudge 2, turn 4 prose →
+          // accepted.
           return { choices: [{ message: { content: "arch map emitted" } }] };
         },
       },
@@ -109,8 +113,10 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
 
   const result = await manager.runBackgroundLlmTask({ skill: "arch-scan" });
 
-  // The loop ran: read tool executed, final content returned.
-  assert.equal(llmCalls, 2);
+  // The loop ran: read tool executed, then the artifact-less prose answer
+  // was nudged twice (new contract: text-only ≠ completion for arch-scan
+  // until 2 nudges are spent) before the final content was accepted.
+  assert.equal(llmCalls, 4);
   assert.equal(result.content, "arch map emitted");
   assert.ok(result.iterations >= 1);
 

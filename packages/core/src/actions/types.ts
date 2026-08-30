@@ -177,7 +177,7 @@ export interface BackgroundLlmTaskOptions {
   /**
    * Cancellation signal (usually the owning action's `ctx.signal`). Aborting
    * stops the loop at the next iteration boundary and rejects the task with
-   * an AbortError; surfaces produced so far are still flushed.
+   * an AbortError; artifacts produced so far remain on disk.
    */
   readonly signal?: AbortSignal;
   /** Progress callback for the owning pipeline (iteration/tool milestones). */
@@ -185,10 +185,19 @@ export interface BackgroundLlmTaskOptions {
 }
 
 export interface BackgroundLlmTaskResult {
-  /** Final assistant text (null when the loop ended on tool calls / cap). */
+  /** Final assistant text (the ceiling path throws, so this is never null on return). */
   readonly content: string | null;
   /** LLM loop iterations consumed. */
   readonly iterations: number;
+  /** Tool calls the path grant / permission gates denied during the loop —
+   *  a non-zero count alongside a hollow result points at an authorization
+   *  misconfiguration rather than a lazy model (diagnostics, audit 2026-08-29). */
+  readonly toolDenials?: number;
+  /** arch-scan only: the LAST validate_archifact call's path + receipt verdict.
+   *  When the deliver gate then finds no artifact, this pair decodes the
+   *  mismatch (validated-where? passed?) from the build log alone
+   *  (real-machine 2026-08-30: a green validate + empty gate was undecodable). */
+  readonly lastValidate?: { readonly path: string; readonly ok: boolean };
 }
 
 /** The `run` function authors implement. */

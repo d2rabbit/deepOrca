@@ -37,7 +37,13 @@ export interface CodegraphController {
    *  resolved summary feeds the change-count log line. */
   sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void>;
 
-  /** True when `.codegraph/` exists (index has been initialized). */
+  /**
+   * True when the root holds a USABLE index — `.codegraph/` initialized AND
+   * at least one real symbol in the db (audit 2026-08-28: directory presence
+   * alone routed builds into sync over a hollow leftover). This is the
+   * sync-vs-rebuild routing input: false → reindex (full rebuild), true →
+   * incremental sync.
+   */
   hasProject(root: string): boolean;
 
   /**

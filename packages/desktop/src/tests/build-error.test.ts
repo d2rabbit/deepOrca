@@ -18,6 +18,8 @@ const t: Translate = (key, params) => {
     "buildHint.wikiNetwork": "NET_HINT",
     "buildHint.modelUsed": `MODEL(${params?.model ?? "?"})`,
     "buildHint.wikiTimeout": "TIMEOUT_HINT",
+    "buildHint.wikiEmpty": "EMPTY_HINT",
+    "buildHint.wikiGit": "GIT_HINT",
   };
   return dict[key] ?? key;
 };
@@ -58,4 +60,17 @@ test("formatBuildError: unmarked errors pass through, clipped when limited", () 
 test("formatBuildError: timeout hint from the wiki-cli timeout path", () => {
   const out = formatBuildError("wiki --init 超时（120s） [hint:wiki-timeout]", t);
   assert.equal(out, "wiki --init 超时（120s） — TIMEOUT_HINT");
+});
+
+test("splitBuildError: wiki-empty and wiki-git (zero-commit repo) hints parse", () => {
+  assert.deepEqual(splitBuildError("openwiki finished without any substantive wiki pages [hint:wiki-empty]").hints, [
+    { kind: "wiki-empty" },
+  ]);
+  assert.deepEqual(splitBuildError("openwiki finished without any substantive wiki pages [hint:wiki-git]").hints, [
+    { kind: "wiki-git" },
+  ]);
+  assert.equal(
+    formatBuildError("openwiki finished without any substantive wiki pages [hint:wiki-git]", t),
+    "openwiki finished without any substantive wiki pages — GIT_HINT"
+  );
 });

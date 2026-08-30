@@ -112,7 +112,7 @@ export const en = {
   "suggest.knowledgeTitle": "Wiki updated · {n} pages",
   "suggest.viewWiki": "View",
   "suggest.askArch":
-    "Based on the Wiki under @openwiki/ , analyze this project's overall architecture and call out the 3 improvements that would matter most:",
+    "Based on the Wiki under @deepwiki/ , analyze this project's overall architecture and call out the 3 improvements that would matter most:",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "(no content)",
@@ -295,7 +295,7 @@ export const en = {
   "builtin.book-distill.desc":
     "Distill a book, manual or long document into a reusable Agent Skill (SKILL.md + references/) with its checklists, workflows and pitfalls.",
   "builtin.openwiki.desc":
-    "Generate and maintain the project-level Wiki knowledge graph (openwiki/) via the openwiki CLI — structured, cross-referenced docs.",
+    "Generate and maintain the project-level Wiki knowledge graph (deepwiki/) via the openwiki CLI — structured, cross-referenced docs.",
   "builtin.wiki-qa.desc":
     "Answer questions about the project's architecture, modules and workflows by querying the OpenWiki knowledge base.",
   "builtin.a2ui-annotation.desc":
@@ -695,13 +695,13 @@ export const en = {
   "action.task.recall.desc":
     "At a decision point, recall historical task-tree forks similar to the current situation — each candidate carries the fork rationale and what happened to that branch.",
   "action.wiki.init.desc":
-    "Generate the project wiki (openwiki/) — a structured, cross-referenced knowledge graph of the codebase. First run does a full scan; streams build output.",
+    "Generate the project wiki (deepwiki/) — a structured, cross-referenced knowledge graph of the codebase. First run does a full scan; streams build output.",
   "action.wiki.update.desc":
-    "Incrementally update the project wiki (openwiki/) — regenerates only pages affected by git changes. Safe to run frequently.",
+    "Incrementally update the project wiki (deepwiki/) — regenerates only pages affected by git changes. Safe to run frequently.",
   "action.wiki.list-pages.desc":
-    "List the wiki pages in the project's openwiki/ directory with OKF frontmatter metadata. Returns [] when no wiki exists.",
+    "List the wiki pages in the project's deepwiki/ directory with OKF frontmatter metadata. Returns [] when no wiki exists.",
   "action.wiki.read-page.desc":
-    "Read a wiki page by name (e.g. 'architecture'). Returns structured OKF frontmatter + body. Confined to openwiki/.",
+    "Read a wiki page by name (e.g. 'architecture'). Returns structured OKF frontmatter + body. Confined to deepwiki/.",
   "rail.undo": "Undo / restore",
   "rail.commands": "Commands",
   "rail.tokens": "Token usage",
@@ -919,7 +919,9 @@ export const en = {
   "symbols.noRelations": "No direct relations",
   "symbols.global": "global",
   "symbols.globalView": "Global hub view",
-  "symbols.truncated": "Truncated to highest-connectivity nodes",
+  "symbols.showMore": "Show {n} more ({total} hidden)",
+  "symbols.moreHidden": "{n} more not shown",
+  "symbols.truncated": "Edge query cap reached — some relations may be missing",
   "symbols.clickHint": "Click a node to re-center the graph on that symbol",
 
   // ── Task record tab (content area) ────────────────────────
@@ -1025,11 +1027,6 @@ export const en = {
   "index.buildModeUpdate": "Incremental update",
   "index.buildElapsed": "elapsed {time}",
   "index.buildConsole": "Console output",
-  "index.archChart": "Chart {n}",
-  "index.archChartCount": "All charts · {n}",
-  "index.archZoomIn": "Zoom in",
-  "index.archZoomOut": "Zoom out",
-  "index.archFitWidth": "Fit width",
   "index.openInEditor": "Open in editor",
   "index.quoteWiki": "Quote in chat",
   "index.quoteWikiPrompt": 'Please answer based on the Wiki page "{title}":',
@@ -1042,8 +1039,14 @@ export const en = {
   "buildHint.modelUsed": "Model used: {model}.",
   "buildHint.wikiTimeout":
     "Wiki build timed out — set the DEEPORCA_WIKI_TIMEOUT_MS environment variable (milliseconds) to allow longer runs.",
+  "buildHint.modelCensored":
+    "The gateway content filter blocked this build's prompts. Switch the model/endpoint (settings → model pool) and rebuild.",
   "buildHint.wikiEmpty":
     "The wiki agent wrote no pages — the model may not drive this agent's tool protocol. Try another model (e.g. the auxiliary model).",
+  "buildHint.wikiGit":
+    "This repository has no commits yet — the wiki generator leans on git history. Commit once, then build again.",
+  "buildHint.wikiBalance":
+    "LLM account has insufficient balance — top up the endpoint or switch models in Settings → Model, then build again.",
   "index.symbolPickHint": "Select a symbol to inspect",
   "index.symbolSearch": "Search symbols — press Enter to center the graph",
   "index.symbolsEmpty": "Symbol index not built yet",
@@ -1051,9 +1054,18 @@ export const en = {
   "index.openAgents": "Open AGENTS.md",
   "index.agentsMissing": "No AGENTS.md in this workspace",
   "index.archmapsEmpty": "No architecture maps yet — build first",
+  "index.archOpenMap": "Open interactive map",
+  "index.archOpenWindow": "Open in standalone window",
   "index.wikiEmpty": "Wiki not generated",
   "index.build": "Build",
   "index.buildKnowledge": "Build Index & Knowledge",
+  "index.gitNoRepoTitle": "Not a git repository",
+  "index.gitNoRepoBody":
+    "The wiki generator builds on git commit history, and this workspace is not under git yet. Initialize git (first commit included) and continue building?",
+  "index.gitNoCommitsTitle": "Repository has no commits",
+  "index.gitNoCommitsBody":
+    "The wiki generator builds on git commit history, and this repository has no commits yet. Create the first commit and continue building?",
+  "index.gitBootstrapConfirm": "Commit & build",
   "index.building": "Building…",
 
   "task.reviewRunning": "Code review running",
@@ -1300,7 +1312,7 @@ export const zh: Record<MessageKey, string> = {
   "welcome.hintShortcuts": "所有快捷键",
   "suggest.knowledgeTitle": "Wiki 已更新 · {n} 页",
   "suggest.viewWiki": "查看",
-  "suggest.askArch": "请基于 @openwiki/ 目录下的 Wiki，分析这个项目的整体架构，并指出最值得改进的 3 个点：",
+  "suggest.askArch": "请基于 @deepwiki/ 目录下的 Wiki，分析这个项目的整体架构，并指出最值得改进的 3 个点：",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "（无内容）",
@@ -1477,7 +1489,7 @@ export const zh: Record<MessageKey, string> = {
   "builtin.taste.desc": "前端设计纪律——版式、排印、间距、配色与动效的 anti-slop 规范。",
   "builtin.book-distill.desc":
     "把书籍、手册或长文档蒸馏成可复用的 Agent Skill（SKILL.md + references/），沉淀清单、工作流与避坑要点。",
-  "builtin.openwiki.desc": "通过 openwiki CLI 生成并维护项目级 Wiki 知识图谱（openwiki/）——结构化、交叉引用的文档。",
+  "builtin.openwiki.desc": "通过 openwiki CLI 生成并维护项目级 Wiki 知识图谱（deepwiki/）——结构化、交叉引用的文档。",
   "builtin.wiki-qa.desc": "基于 OpenWiki 知识库回答项目架构、模块与工作流问题。",
   "builtin.a2ui-annotation.desc":
     "agent 与用户之间的结构化交互通道——主动追问与对产物的批注式反馈卡（render_surface）。",
@@ -1858,12 +1870,12 @@ export const zh: Record<MessageKey, string> = {
   "action.task.recall.desc":
     "在决策点召回与当前情形相似的历史任务树分叉——每个候选都带分叉理由及该分支的结局（合并/放弃/进行中）。",
   "action.wiki.init.desc":
-    "生成项目 Wiki（openwiki/ 目录）——结构化、交叉引用的代码库知识图谱（架构、模块、工作流）。首次运行为全量扫描，流式输出构建过程。",
-  "action.wiki.update.desc": "增量更新项目 Wiki（openwiki/）——只重新生成受 git 变更影响的页面。可频繁运行。",
+    "生成项目 Wiki（deepwiki/ 目录）——结构化、交叉引用的代码库知识图谱（架构、模块、工作流）。首次运行为全量扫描，流式输出构建过程。",
+  "action.wiki.update.desc": "增量更新项目 Wiki（deepwiki/）——只重新生成受 git 变更影响的页面。可频繁运行。",
   "action.wiki.list-pages.desc":
-    "列出项目 openwiki/ 目录中的 Wiki 页面及 OKF frontmatter 元数据。未生成 Wiki 时返回 []。",
+    "列出项目 deepwiki/ 目录中的 Wiki 页面及 OKF frontmatter 元数据。未生成 Wiki 时返回 []。",
   "action.wiki.read-page.desc":
-    "按名称读取 Wiki 页面（如 'architecture'）。返回结构化 OKF frontmatter + 正文。限定在 openwiki/ 内。",
+    "按名称读取 Wiki 页面（如 'architecture'）。返回结构化 OKF frontmatter + 正文。限定在 deepwiki/ 内。",
   "rail.undo": "撤销 / 恢复",
   "rail.commands": "命令面板",
   "rail.tokens": "Token 消耗",
@@ -2079,7 +2091,9 @@ export const zh: Record<MessageKey, string> = {
   "symbols.noRelations": "无直接关系",
   "symbols.global": "全局",
   "symbols.globalView": "全局枢纽视图",
-  "symbols.truncated": "已截断，仅显示连接度最高的节点",
+  "symbols.showMore": "再显示 {n} 个（还有 {total} 个）",
+  "symbols.moreHidden": "另有 {n} 个未展示",
+  "symbols.truncated": "关系边已达查询上限，部分关系可能缺失",
   "symbols.clickHint": "点击节点以该符号为中心重新展开",
 
   // ── 任务记录 tab（主区） ────────────────────────────────────
@@ -2184,11 +2198,6 @@ export const zh: Record<MessageKey, string> = {
   "index.buildModeUpdate": "增量更新",
   "index.buildElapsed": "已运行 {time}",
   "index.buildConsole": "控制台输出",
-  "index.archChart": "图 {n}",
-  "index.archChartCount": "共 {n} 图",
-  "index.archZoomIn": "放大",
-  "index.archZoomOut": "缩小",
-  "index.archFitWidth": "适配宽度",
   "index.openInEditor": "在编辑器打开",
   "index.quoteWiki": "引用到对话",
   "index.quoteWikiPrompt": "请结合 Wiki 页面《{title}》的内容：",
@@ -2200,7 +2209,10 @@ export const zh: Record<MessageKey, string> = {
   "buildHint.wikiNetwork": "LLM 网络层被中断：请核对 设置→模型 / API Key / Base URL。",
   "buildHint.modelUsed": "本次使用模型：{model}。",
   "buildHint.wikiTimeout": "Wiki 构建超时：可设置环境变量 DEEPORCA_WIKI_TIMEOUT_MS（毫秒）延长时限。",
+  "buildHint.modelCensored": "网关内容审查拦截了本次构建的请求。请更换模型/端点（设置 → 模型池）后重新构建。",
   "buildHint.wikiEmpty": "wiki 代理未写入任何页面——当前模型可能不兼容其工具调用协议，请更换模型（如辅助模型）重试。",
+  "buildHint.wikiGit": "该仓库还没有任何 git 提交——wiki 生成依赖提交历史，请先提交一次再重新构建。",
+  "buildHint.wikiBalance": "LLM 账户余额不足：请给对应端点充值，或在 设置→模型 中更换模型后重新构建。",
   "index.symbolPickHint": "选择符号查看详情",
   "index.symbolSearch": "搜索符号 — 定位关系图中心",
   "index.symbolsEmpty": "符号索引尚未构建",
@@ -2208,9 +2220,17 @@ export const zh: Record<MessageKey, string> = {
   "index.openAgents": "打开 AGENTS.md",
   "index.agentsMissing": "此工作区暂无 AGENTS.md",
   "index.archmapsEmpty": "还没有架构图——请先构建",
+  "index.archOpenMap": "打开交互架构图",
+  "index.archOpenWindow": "在独立窗口打开",
   "index.wikiEmpty": "Wiki 未生成",
   "index.build": "构建",
   "index.buildKnowledge": "构建索引与知识",
+  "index.gitNoRepoTitle": "不是 git 仓库",
+  "index.gitNoRepoBody":
+    "Wiki 生成建立在 git 提交历史之上，该工作区还没有纳入 git。是否初始化 git 并创建首次提交，然后继续构建？",
+  "index.gitNoCommitsTitle": "仓库还没有提交",
+  "index.gitNoCommitsBody": "Wiki 生成建立在 git 提交历史之上，该仓库还没有任何提交。是否创建首次提交，然后继续构建？",
+  "index.gitBootstrapConfirm": "提交并构建",
   "index.building": "构建中…",
 
   "task.reviewRunning": "代码审查进行中",

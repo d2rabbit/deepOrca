@@ -393,166 +393,21 @@
   box-shadow: none;
   overflow: hidden;
 }
-/* The HTML-board iframe variant: zero padding so the board fills the pane. */
-.ui-knowledge-preview-a2ui.ui-knowledge-preview-board {
-  padding: 0;
-}
 /* Arch map viewer: toolbar (chart switcher + zoom + open-source) over a
-   scaleable stage. The stage scales via transform; the frame scrolls when a
-   manual zoom exceeds the pane. */
-.ui-arch-viewer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-.ui-arch-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-  padding: 10px 14px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
-  background: color-mix(in srgb, var(--ui-surface, #fff) 55%, transparent);
-}
-/* Chart count chip — the board shows every chart at once; the chip states how
-   many cards the scan produced. */
-.ui-arch-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 35%, transparent);
-  background: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 9%, transparent);
-  color: color-mix(in srgb, var(--ui-diagram-hue-2, #2dd4bf) 85%, var(--ui-text, inherit));
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-/* The board: a scrollable dotted canvas holding the hero card + the module
-   card grid. Cards float as objects on the drafting surface — the page fills
-   BOTH window dimensions instead of one long column. */
-.ui-arch-board {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  padding: 22px;
-  gap: 20px;
-  background-color: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
-  background-image:
-    radial-gradient(color-mix(in srgb, var(--ui-text, #1b2129) 9%, transparent) 1px, transparent 1.2px),
-    radial-gradient(
-      ellipse at 50% 0%,
-      color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 6%, transparent),
-      transparent 65%
-    );
-  background-size:
-    22px 22px,
-    100% 420px;
-}
+   scaleable stage. The stage scales via transform;
+/* Chart count chip — the board shows every chart at once;
 /* One chart card: raised surface with a section head. The hero (overall
-   view) spans the full board width; module cards live in the grid below. */
-.ui-arch-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  /* Charts render DIRECTLY on the reading face — the old glass-card chrome
-     (border + translucent fill + blur + shadow) wrapped every diagram in a
-     box-in-box layer and its fit-scaling shrank them to fit (real-machine
-     feedback: "直接展开，不要多包一层"). Only the corner zoom anchor stays. */
-  padding: 4px 2px 10px;
-  position: relative;
-}
-.ui-arch-card--hero {
-  border: none;
-  box-shadow: none;
-}
-/* Module grid: responsive columns via CSS — the window size decides how many
-   cards sit per row (no JS measurement involved at this level). */
-.ui-arch-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
-  gap: 20px;
-}
-.ui-arch-section-head {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  max-width: 100%;
-  align-self: flex-start;
-  /* Top-left corner of the card body (audit: "图 1 放到正文左上角") —
-     negative offsets pull the pill onto the card's padding edge. */
-  margin: -6px 0 10px -8px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 55%, transparent);
-  background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, transparent);
-}
-.ui-arch-section-badge {
-  flex-shrink: 0;
-  padding: 1px 10px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
-}
-.ui-arch-section-title {
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--ui-text, inherit);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+   view) spans the full board width;
 /* Chart fitter: measures the card's content width and scales the chart to
    it. The box carries the explicit scaled size (scroll/clipping safety);
-   the inner stays natural-size and centered. */
-.ui-arch-chart-fit {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  /* Charts render at natural size (never shrunk) — a chart wider than its
-     card scrolls horizontally instead of being scaled down to noise. */
-  overflow-x: auto;
-}
-.ui-arch-chart-box {
-  margin: 0 auto;
-}
-.ui-arch-chart-inner {
-  width: max-content;
-}
-/* Board shell: the scrollable board + its on-this-page rail side by side on
-   wide panes (Oink adaptation); the rail hides below 1100px. */
-.ui-arch-shell {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  gap: 18px;
-}
-.ui-arch-shell .ui-arch-board {
-  flex: 1;
-  min-width: 0;
-}
-.ui-arch-toc {
-  display: none;
-}
-@container (min-width: 960px) {
-  .ui-arch-toc {
-    display: block;
-    position: sticky;
-    top: 8px;
-    align-self: flex-start;
-    flex: 0 0 190px;
-    max-height: calc(100vh - 140px);
-  }
-}
-/* Artifact pager (head-level prev/next across maps, mtime order). */
+   the inner stays natural-size and centered. Fit-to-width policy (2026-08-29
+   real-machine "小窗口看不到"): the card always shows the WHOLE chart;
+/* Natural-size rendering context (audit 2026-08-28, real-machine "架构图太
+   小看不清"): the wiki-reading-column rule `.ui-mermaid-container svg
+   { max-width: 100% }` used to shrink the SVG BEFORE ArchChartFit measured
+   it — the fit scale band then read the already-shrunk width as "natural",
+   never engaged, and 18px source text landed at ~8px effective. Here the
+   SVG carries explicit intrinsic pixels /* Artifact pager (head-level prev/next across maps, mtime order). */
 .ui-arch-pager {
   display: inline-flex;
   gap: 4px;
@@ -582,39 +437,6 @@
   background: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 38%, var(--ui-surface, #fff));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-}
-
-/* Drill rail: hero zone → module zone (the scan's top-down progression). */
-.ui-arch-flow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: -6px 0;
-}
-.ui-arch-flow-line {
-  width: 2px;
-  height: 16px;
-  border-radius: 2px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--ui-diagram-hue-0, #60a5fa) 45%, transparent),
-    color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 45%, transparent)
-  );
-}
-.ui-arch-flow-node {
-  font-size: 9px;
-  line-height: 1;
-  padding: 3px;
-  color: var(--ui-diagram-hue-1, #a78bfa);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-diagram-hue-1, #a78bfa) 55%, transparent);
-}
-/* Inside cards the diagram floats bare — the container card look is for
-   inline wiki markdown, not for the board. */
-.ui-arch-card .ui-mermaid-container {
-  background: transparent;
-  border: none;
-  margin: 0;
-  padding: 0;
 }
 .ui-knowledge-archframe-head {
   display: flex;
@@ -794,110 +616,4 @@
   padding: 20px 28px;
   max-width: 860px;
   margin: 0 auto;
-}
-
-/* ── Arch chart enlarged viewing (点击架构图放大) ────────────────────────────
-   Every card carries a corner zoom button and its chart area is clickable;
-   the lightbox re-renders the chart at natural-or-larger scale in a
-   near-fullscreen dialog (editor-overlay tier z-index, image-viewer scrim). */
-.ui-arch-zoom-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-surface);
-  color: var(--ui-text-dim);
-  font-size: 13px;
-  cursor: zoom-in;
-  transition:
-    color 0.14s var(--ui-ease),
-    border-color 0.14s var(--ui-ease),
-    background 0.14s var(--ui-ease);
-}
-.ui-arch-zoom-btn:hover {
-  color: var(--ui-accent);
-  border-color: var(--ui-accent);
-  background: var(--ui-accent-soft);
-}
-.ui-arch-chart-click {
-  cursor: zoom-in;
-  min-width: 0;
-}
-.ui-arch-chart-click:focus-visible {
-  outline: 2px solid var(--ui-focus-ring);
-  outline-offset: 2px;
-  border-radius: var(--ui-radius-sm);
-}
-.ui-arch-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 1000; /* editor-overlay tier — a deliberate full takeover */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4vh 4vw;
-  background: rgba(0, 0, 0, 0.55);
-  animation: ui-overlay-fade 0.15s var(--ui-ease) both;
-}
-.ui-arch-lightbox-panel {
-  display: flex;
-  flex-direction: column;
-  width: min(1400px, 92vw);
-  max-height: 92vh;
-  background: var(--ui-surface);
-  color: var(--ui-text);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-lg);
-  box-shadow: var(--ui-shadow-modal);
-  overflow: hidden;
-  animation: ui-bubble-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.ui-arch-lightbox-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--ui-border-soft);
-}
-.ui-arch-lightbox-title {
-  font-weight: 600;
-  font-size: 13px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ui-arch-lightbox-close {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: var(--ui-text-dim);
-  cursor: pointer;
-  transition:
-    color 0.14s var(--ui-ease),
-    background 0.14s var(--ui-ease);
-}
-.ui-arch-lightbox-close:hover {
-  color: var(--ui-text);
-  background: var(--ui-surface-hover);
-}
-.ui-arch-lightbox-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 16px;
 }

@@ -924,8 +924,13 @@ export function resolveSettingsSources(
   // primaryEndpointId was resolved above (before the thinkingEnabled fallback)
   // so the capability lookup can honour it.
 
-  const secondaryModel =
-    trimString(safeProject?.secondaryModel) || trimString(userSettings?.secondaryModel) || DEFAULT_SECONDARY_MODEL;
+  // "继承主模型" (the settings UI's inherit-primary option, stored as empty)
+  // is a FIRST-CLASS choice — no synthetic default here. A hardcoded fallback
+  // silently switched wiki retries and every secondary consumer to
+  // deepseek-v4-flash even when the user never picked it, and an unfunded
+  // v4-flash then failed those runs with 402 (real-machine 2026-08-30).
+  // Consumers inherit the primary model when this is empty.
+  const secondaryModel = trimString(safeProject?.secondaryModel) || trimString(userSettings?.secondaryModel) || "";
 
   const secondaryEndpointId =
     trimString(safeProject?.secondaryEndpointId) || trimString(userSettings?.secondaryEndpointId) || primaryEndpointId;
@@ -1058,6 +1063,9 @@ export function applyModelConfigSelection(
 
 export const DEFAULT_MODEL = "deepseek-v4-pro";
 export const DEFAULT_BASE_URL = "https://api.deepseek.com";
+/** @deprecated no longer applied by resolveCurrentSettings — empty
+ *  secondaryModel means INHERIT THE PRIMARY MODEL (2026-08-30). Kept only for
+ *  the exported API surface. */
 export const DEFAULT_SECONDARY_MODEL = "deepseek-v4-flash";
 /** Default LLM stream idle watchdog: 5 minutes of stream silence. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;

@@ -106,7 +106,7 @@ export const ko: Record<MessageKey, string> = {
   "suggest.knowledgeTitle": "Wiki 업데이트됨 · {n}개 문서",
   "suggest.viewWiki": "보기",
   "suggest.askArch":
-    "@openwiki/ 디렉터리의 Wiki를 바탕으로 이 프로젝트의 전체 아키텍처를 분석하고 가장 개선할 가치가 있는 3가지를 지적해 주세요:",
+    "@deepwiki/ 디렉터리의 Wiki를 바탕으로 이 프로젝트의 전체 아키텍처를 분석하고 가장 개선할 가치가 있는 3가지를 지적해 주세요:",
 
   // ── Message rendering ─────────────────────────────────────
   "msg.noContent": "(내용 없음)",
@@ -282,7 +282,7 @@ export const ko: Record<MessageKey, string> = {
   "builtin.book-distill.desc":
     "책, 매뉴얼 또는 긴 문서를 재사용 가능한 Agent Skill(SKILL.md + references/)로 증류합니다 — 체크리스트, 워크플로, 주의점을 포함합니다.",
   "builtin.openwiki.desc":
-    "openwiki CLI로 프로젝트 수준 Wiki 지식 그래프(openwiki/)를 생성하고 유지 관리합니다 — 구조화된 상호 참조 문서.",
+    "openwiki CLI로 프로젝트 수준 Wiki 지식 그래프(deepwiki/)를 생성하고 유지 관리합니다 — 구조화된 상호 참조 문서.",
   "builtin.wiki-qa.desc": "OpenWiki 지식 베이스를 쿼리하여 프로젝트의 아키텍처, 모듈, 워크플로에 대한 질문에 답합니다.",
   "builtin.a2ui-annotation.desc":
     "에이전트와 사용자 간의 구조화된 상호작용 채널 — render_surface를 통한 선제적 질문과 산출물에 대한 주석형 피드백 카드.",
@@ -678,13 +678,13 @@ export const ko: Record<MessageKey, string> = {
   "action.task.recall.desc":
     "결정 시점에 현재 상황과 유사한 과거 작업 트리 포크를 회상합니다 — 각 후보는 포크 사유와 해당 브랜치의 결말을 담고 있습니다.",
   "action.wiki.init.desc":
-    "프로젝트 Wiki(openwiki/)를 생성합니다 — 구조화되고 상호 참조되는 코드베이스 지식 그래프. 첫 실행은 전체 스캔을 수행하며 빌드 출력을 스트리밍합니다.",
+    "프로젝트 Wiki(deepwiki/)를 생성합니다 — 구조화되고 상호 참조되는 코드베이스 지식 그래프. 첫 실행은 전체 스캔을 수행하며 빌드 출력을 스트리밍합니다.",
   "action.wiki.update.desc":
-    "프로젝트 Wiki(openwiki/)를 증분 업데이트합니다 — git 변경의 영향을 받는 페이지만 재생성합니다. 자주 실행해도 안전합니다.",
+    "프로젝트 Wiki(deepwiki/)를 증분 업데이트합니다 — git 변경의 영향을 받는 페이지만 재생성합니다. 자주 실행해도 안전합니다.",
   "action.wiki.list-pages.desc":
-    "프로젝트 openwiki/ 디렉터리의 Wiki 페이지를 OKF frontmatter 메타데이터와 함께 나열합니다. Wiki가 없으면 []를 반환합니다.",
+    "프로젝트 deepwiki/ 디렉터리의 Wiki 페이지를 OKF frontmatter 메타데이터와 함께 나열합니다. Wiki가 없으면 []를 반환합니다.",
   "action.wiki.read-page.desc":
-    "이름으로 Wiki 페이지를 읽습니다(예: 'architecture'). 구조화된 OKF frontmatter + 본문을 반환하며 openwiki/로 제한됩니다.",
+    "이름으로 Wiki 페이지를 읽습니다(예: 'architecture'). 구조화된 OKF frontmatter + 본문을 반환하며 deepwiki/로 제한됩니다.",
   "rail.undo": "실행 취소 / 복원",
   "rail.commands": "명령",
   "rail.tokens": "토큰 사용량",
@@ -915,7 +915,9 @@ export const ko: Record<MessageKey, string> = {
   "symbols.noRelations": "직접 관계 없음",
   "symbols.global": "전역",
   "symbols.globalView": "전역 허브 보기",
-  "symbols.truncated": "잘림 — 연결도가 높은 노드만 표시",
+  "symbols.showMore": "{n}개 더 보기 ({total}개 남음)",
+  "symbols.moreHidden": "{n}개 더 숨겨짐",
+  "symbols.truncated": "엣지 조회 상한 도달 — 일부 관계 누락 가능",
   "symbols.clickHint": "노드를 클릭하면 해당 심볼을 중심으로 다시 펼쳐집니다",
 
   // ── 작업 기록 탭(메인 영역) ─────────────────────────────────
@@ -1007,11 +1009,6 @@ export const ko: Record<MessageKey, string> = {
   "index.buildModeUpdate": "증분 업데이트",
   "index.buildElapsed": "경과 {time}",
   "index.buildConsole": "콘솔 출력",
-  "index.archChart": "다이어그램 {n}",
-  "index.archChartCount": "전체 다이어그램 · {n}개",
-  "index.archZoomIn": "확대",
-  "index.archZoomOut": "축소",
-  "index.archFitWidth": "폭 맞춤",
   "index.quoteWiki": "채팅에 인용",
   "index.quoteWikiPrompt": 'Wiki 문서 "{title}"의 내용을 참고하여 답변해 주세요:',
   "index.openInEditor": "편집기에서 열기",
@@ -1026,8 +1023,14 @@ export const ko: Record<MessageKey, string> = {
   "buildHint.modelUsed": "Model used: {model}.",
   "buildHint.wikiTimeout":
     "Wiki build timed out — set the DEEPORCA_WIKI_TIMEOUT_MS environment variable (milliseconds) to allow longer runs.",
+  "buildHint.modelCensored":
+    "게이트웨이 콘텐츠 필터가 이 빌드 요청을 차단했습니다. 모델/엔드포인트를 변경한 후 다시 빌드하세요.",
   "buildHint.wikiEmpty":
     "The wiki agent wrote no pages — the model may not drive this agent's tool protocol. Try another model (e.g. the auxiliary model).",
+  "buildHint.wikiGit":
+    "This repository has no commits yet — the wiki generator leans on git history. Commit once, then build again.",
+  "buildHint.wikiBalance":
+    "LLM account has insufficient balance — top up the endpoint or switch models in Settings → Model, then build again.",
   "index.symbolPickHint": "심볼을 선택해 상세 보기",
   "index.symbolSearch": "심볼 검색…",
   "index.symbolsEmpty": "심볼 인덱스가 아직 없습니다",
@@ -1035,8 +1038,17 @@ export const ko: Record<MessageKey, string> = {
   "index.openAgents": "AGENTS.md 열기",
   "index.agentsMissing": "이 워크스페이스에 AGENTS.md가 없습니다",
   "index.archmapsEmpty": "아직 아키텍처 맵이 없습니다 — 먼저 빌드하세요",
+  "index.archOpenMap": "인터랙티브 맵 열기",
+  "index.archOpenWindow": "별도 창에서 열기",
   "index.build": "빌드",
   "index.buildKnowledge": "인덱스 및 지식 빌드",
+  "index.gitNoRepoTitle": "git 저장소가 아닙니다",
+  "index.gitNoRepoBody":
+    "Wiki 생성은 git 커밋 기록을 기반으로 합니다. 이 워크스페이스는 아직 git 관리 대상이 아닙니다. git을 초기화하고 첫 커밋을 만든 뒤 빌드를 계속할까요?",
+  "index.gitNoCommitsTitle": "저장소에 커밋이 없습니다",
+  "index.gitNoCommitsBody":
+    "Wiki 생성은 git 커밋 기록을 기반으로 합니다. 이 저장소에는 아직 커밋이 없습니다. 첫 커밋을 만들고 빌드를 계속할까요?",
+  "index.gitBootstrapConfirm": "커밋 후 빌드",
   "index.wikiEmpty": "Wiki 미생성",
   "index.building": "빌드 중…",
 
