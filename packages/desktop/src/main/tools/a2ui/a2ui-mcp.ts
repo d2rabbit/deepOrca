@@ -119,6 +119,25 @@ export function persistSurfaces(projectRoot: string, idPrefix?: string, sinceSta
       return knownSurfaceIds.has(fileId(f));
     });
     for (const f of existing) {
+      // TYPED-IR PROTECTION (root-cause fix 2026-08-31): the archify era
+      // writes typed-IR (carries `schema_version`/`diagram_type`) into this
+      // same directory with the WRITE TOOL — a prefix-only sweep deleted
+      // freshly authored, validated architecture maps right after their task
+      // ended, and the deliver gate then saw an empty dir (real machine:
+      // this repo twice + GVGL). Typed-IR is never ours to sweep; everything
+      // else (stale A2UI surfaces, junk placeholders, unparsable leftovers)
+      // keeps the original sweep semantics.
+      let isTypedIr = false;
+      try {
+        const parsed = JSON.parse(fs.readFileSync(nodePath.join(dir, f), "utf8")) as {
+          schema_version?: unknown;
+          diagram_type?: unknown;
+        };
+        isTypedIr = parsed.schema_version !== undefined || parsed.diagram_type !== undefined;
+      } catch {
+        // unparsable junk — sweep it (original behavior)
+      }
+      if (isTypedIr) continue;
       try {
         fs.unlinkSync(nodePath.join(dir, f));
       } catch {

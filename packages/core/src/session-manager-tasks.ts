@@ -404,6 +404,10 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     } else {
       opts.signal?.addEventListener("abort", adoptExternalAbort, { once: true });
     }
+    // Stamp for the task-end A2UI surface flush (only surfaces mutated by
+    // THIS run are written back — see the finally below).
+    const a2ui = this.currentA2uiLifecycle;
+    const archFlushStamp = a2ui?.surfaceStamp?.();
     this.backgroundTaskIds.add(taskId);
     try {
       // Force-load the skill document as the task's instruction set.
@@ -704,14 +708,17 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     } finally {
       this.backgroundTaskIds.delete(taskId);
       opts.signal?.removeEventListener("abort", adoptExternalAbort);
-      // A2UI flush REMOVED (real-machine root cause 2026-08-31): persistSurfaces
-      // UNLINKS every "arch-"-prefixed .json in prototypes/ as "stale" before
-      // writing back only the A2UI surfaces it tracks in memory. The archify
-      // task writes its typed-IR with the WRITE TOOL — invisible to that Map —
-      // so a freshly authored + validated map was deleted right after the task
-      // ended, and the deliver gate then reported "nothing to render". The
-      // archify era produces artifacts as files, not A2UI surfaces: there is
-      // genuinely nothing to flush here.
+      // A2UI surface flush (root-cause hardening 2026-08-31): persistSurfaces
+      // now sweeps ONLY A2UI-surface-shaped JSON (content-discriminated via
+      // `surfaceId`) — typed-IR authored with the write tool lives in the same
+      // directory and used to be swept as "stale", deleting freshly validated
+      // architecture maps after the task ended (real machine: this repo twice
+      // + GVGL). Flushing stays so a task that DID render surfaces keeps them.
+      try {
+        a2ui?.persistSurfaces(targetRoot, "arch-", archFlushStamp);
+      } catch {
+        // best-effort flush
+      }
     }
   }
 
