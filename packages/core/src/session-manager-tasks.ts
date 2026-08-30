@@ -404,11 +404,6 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     } else {
       opts.signal?.addEventListener("abort", adoptExternalAbort, { once: true });
     }
-    // Vestigial-but-harmless A2UI flush snapshot (archify era 2026-08-29: the
-    // arch task no longer produces A2UI surfaces — nothing to flush; kept only
-    // so the finally-block call stays a no-op instead of a code path to audit).
-    const a2ui = this.currentA2uiLifecycle;
-    const archFlushStamp = a2ui?.surfaceStamp?.();
     this.backgroundTaskIds.add(taskId);
     try {
       // Force-load the skill document as the task's instruction set.
@@ -709,13 +704,14 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     } finally {
       this.backgroundTaskIds.delete(taskId);
       opts.signal?.removeEventListener("abort", adoptExternalAbort);
-      // Vestigial A2UI flush (archify era: the task produces typed-IR files
-      // directly — nothing to flush; see the snapshot comment above).
-      try {
-        a2ui?.persistSurfaces(targetRoot, "arch-", archFlushStamp);
-      } catch {
-        // best-effort flush
-      }
+      // A2UI flush REMOVED (real-machine root cause 2026-08-31): persistSurfaces
+      // UNLINKS every "arch-"-prefixed .json in prototypes/ as "stale" before
+      // writing back only the A2UI surfaces it tracks in memory. The archify
+      // task writes its typed-IR with the WRITE TOOL — invisible to that Map —
+      // so a freshly authored + validated map was deleted right after the task
+      // ended, and the deliver gate then reported "nothing to render". The
+      // archify era produces artifacts as files, not A2UI surfaces: there is
+      // genuinely nothing to flush here.
     }
   }
 
