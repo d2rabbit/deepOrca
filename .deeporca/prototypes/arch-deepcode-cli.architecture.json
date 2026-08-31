@@ -4,7 +4,7 @@
   "meta": {
     "title": "DeepOrca CLI 整体架构",
     "quality_profile": "showcase",
-    "viewBox": [1320, 800],
+    "viewBox": [1700, 700],
     "repository": {
       "url": "https://github.com/d2rabbit/deepOrca.git",
       "revision": "ec9060f2134aa5a48c460fc41a684baa09f29ae0"
@@ -58,8 +58,14 @@
       "row": 0,
       "col": 2,
       "sources": [
-        { "path": "packages/desktop/src/renderer/App.tsx", "line": 1 },
-        { "path": "packages/desktop/src/renderer/api.ts", "line": 1 }
+        {
+          "path": "packages/desktop/src/renderer/App.tsx",
+          "line": 1
+        },
+        {
+          "path": "packages/desktop/src/renderer/api.ts",
+          "line": 1
+        }
       ]
     },
     {
@@ -70,7 +76,13 @@
       "tag": "Electron 43",
       "row": 1,
       "col": 2,
-      "sources": [{ "path": "packages/desktop/src/main/index.ts", "line": 1, "end_line": 120 }]
+      "sources": [
+        {
+          "path": "packages/desktop/src/main/index.ts",
+          "line": 1,
+          "end_line": 120
+        }
+      ]
     },
     {
       "id": "ipcSecurity",
@@ -79,7 +91,13 @@
       "sublabel": "渲染器来源校验与权限守卫",
       "row": 1,
       "col": 4,
-      "sources": [{ "path": "packages/desktop/src/main/ipc-security.ts", "line": 1, "end_line": 120 }]
+      "sources": [
+        {
+          "path": "packages/desktop/src/main/ipc-security.ts",
+          "line": 1,
+          "end_line": 120
+        }
+      ]
     },
     {
       "id": "pluginManager",
@@ -88,7 +106,13 @@
       "sublabel": "MCP/Skill 生命周期",
       "row": 1,
       "col": 6,
-      "sources": [{ "path": "packages/desktop/src/main/plugin-manager.ts", "line": 1, "end_line": 120 }]
+      "sources": [
+        {
+          "path": "packages/desktop/src/main/plugin-manager.ts",
+          "line": 1,
+          "end_line": 120
+        }
+      ]
     },
     {
       "id": "coreSession",
@@ -99,8 +123,14 @@
       "row": 2,
       "col": 2,
       "sources": [
-        { "path": "packages/core/src/session.ts", "line": 1 },
-        { "path": "packages/core/src/session-stream.ts", "line": 1 }
+        {
+          "path": "packages/core/src/session.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/core/src/session-stream.ts",
+          "line": 1
+        }
       ]
     },
     {
@@ -111,7 +141,12 @@
       "tag": "@deeporca/core",
       "row": 2,
       "col": 4,
-      "sources": [{ "path": "packages/core/src/tools/executor.ts", "line": 1 }]
+      "sources": [
+        {
+          "path": "packages/core/src/tools/executor.ts",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "mcpManager",
@@ -121,7 +156,13 @@
       "tag": "MCP SDK 1.22",
       "row": 2,
       "col": 6,
-      "sources": [{ "path": "packages/core/src/mcp/mcp-manager.ts", "line": 1, "end_line": 160 }]
+      "sources": [
+        {
+          "path": "packages/core/src/mcp/mcp-manager.ts",
+          "line": 1,
+          "end_line": 160
+        }
+      ]
     },
     {
       "id": "llmProvider",
@@ -133,8 +174,15 @@
       "row": 2,
       "col": 0,
       "sources": [
-        { "path": "packages/core/src/common/openai-client.ts", "line": 1 },
-        { "path": "packages/memory/src/adapter.ts", "line": 137, "end_line": 170 }
+        {
+          "path": "packages/core/src/common/openai-client.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/memory/src/adapter.ts",
+          "line": 137,
+          "end_line": 170
+        }
       ]
     },
     {
@@ -145,8 +193,14 @@
       "row": 3,
       "col": 1,
       "sources": [
-        { "path": "packages/core/src/gitmcp/resolve.ts", "line": 1 },
-        { "path": "packages/desktop/src/main/tools/gitmcp/tools.ts", "line": 1 }
+        {
+          "path": "packages/core/src/gitmcp/resolve.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/desktop/src/main/tools/gitmcp/tools.ts",
+          "line": 1
+        }
       ]
     },
     {
@@ -157,8 +211,14 @@
       "row": 3,
       "col": 3,
       "sources": [
-        { "path": "packages/core/src/actions/codegraph.ts", "line": 1 },
-        { "path": "packages/core/src/actions/index-build.ts", "line": 1 }
+        {
+          "path": "packages/core/src/actions/codegraph.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/core/src/actions/index-build.ts",
+          "line": 1
+        }
       ]
     },
     {
@@ -169,8 +229,14 @@
       "row": 3,
       "col": 5,
       "sources": [
-        { "path": "packages/core/src/actions/wiki.ts", "line": 1 },
-        { "path": "packages/desktop/src/main/tools/wiki-cli.ts", "line": 1 }
+        {
+          "path": "packages/core/src/actions/wiki.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/desktop/src/main/tools/wiki-cli.ts",
+          "line": 1
+        }
       ]
     },
     {
@@ -181,7 +247,12 @@
       "tag": "@deeporca/memory",
       "row": 4,
       "col": 3,
-      "sources": [{ "path": "packages/memory/src/memory-manager.ts", "line": 1 }]
+      "sources": [
+        {
+          "path": "packages/memory/src/memory-manager.ts",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "tdaiCore",
@@ -191,7 +262,13 @@
       "tag": "@deeporca/memory",
       "row": 4,
       "col": 5,
-      "sources": [{ "path": "packages/memory/src/tdai/core/tdai-core.ts", "line": 60, "end_line": 160 }]
+      "sources": [
+        {
+          "path": "packages/memory/src/tdai/core/tdai-core.ts",
+          "line": 60,
+          "end_line": 160
+        }
+      ]
     },
     {
       "id": "sqliteStore",
@@ -203,8 +280,14 @@
       "row": 5,
       "col": 4,
       "sources": [
-        { "path": "packages/memory/src/tdai/core/store/sqlite.ts", "line": 1 },
-        { "path": "packages/memory/src/tdai/core/store/bm25-local.ts", "line": 1 }
+        {
+          "path": "packages/memory/src/tdai/core/store/sqlite.ts",
+          "line": 1
+        },
+        {
+          "path": "packages/memory/src/tdai/core/store/bm25-local.ts",
+          "line": 1
+        }
       ]
     },
     {
@@ -215,7 +298,12 @@
       "tag": "@deeporca/embedding",
       "row": 5,
       "col": 6,
-      "sources": [{ "path": "packages/embedding/src/transformers-embedding.ts", "line": 1 }]
+      "sources": [
+        {
+          "path": "packages/embedding/src/transformers-embedding.ts",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "gitRepos",
@@ -224,7 +312,12 @@
       "sublabel": "GitMCP 拉取的远端仓库",
       "row": 3,
       "col": 0,
-      "sources": [{ "path": "packages/core/src/gitmcp/resolve.ts", "line": 1 }]
+      "sources": [
+        {
+          "path": "packages/core/src/gitmcp/resolve.ts",
+          "line": 1
+        }
+      ]
     },
     {
       "id": "mcpServers",
@@ -234,7 +327,13 @@
       "tag": "MCP stdio",
       "row": 2,
       "col": 8,
-      "sources": [{ "path": "packages/core/src/mcp/mcp-manager.ts", "line": 120, "end_line": 180 }]
+      "sources": [
+        {
+          "path": "packages/core/src/mcp/mcp-manager.ts",
+          "line": 120,
+          "end_line": 180
+        }
+      ]
     }
   ],
   "boundaries": [
@@ -258,18 +357,50 @@
     }
   ],
   "connections": [
-    { "id": "c-renderer-main", "from": "renderer", "to": "main", "label": "IPC", "variant": "emphasis" },
+    {
+      "id": "c-renderer-main",
+      "from": "renderer",
+      "to": "main",
+      "label": "IPC",
+      "variant": "emphasis"
+    },
     {
       "id": "c-renderer-core",
       "from": "renderer",
       "to": "coreSession",
       "label": "preload API",
-      "route": "orthogonal-h"
+      "route": "orthogonal-h",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [296, 116],
+        [296, 332]
+      ]
     },
-    { "id": "c-main-ipcsec", "from": "main", "to": "ipcSecurity", "label": "来源校验" },
-    { "id": "c-main-plugin", "from": "main", "to": "pluginManager", "label": "生命周期" },
-    { "id": "c-core-tools", "from": "coreSession", "to": "toolExecutor", "label": "工具执行" },
-    { "id": "c-tools-mcp", "from": "toolExecutor", "to": "mcpManager", "label": "MCP 工具调用" },
+    {
+      "id": "c-main-ipcsec",
+      "from": "main",
+      "to": "ipcSecurity",
+      "label": "来源校验"
+    },
+    {
+      "id": "c-main-plugin",
+      "from": "main",
+      "to": "pluginManager",
+      "label": "生命周期"
+    },
+    {
+      "id": "c-core-tools",
+      "from": "coreSession",
+      "to": "toolExecutor",
+      "label": "工具执行"
+    },
+    {
+      "id": "c-tools-mcp",
+      "from": "toolExecutor",
+      "to": "mcpManager",
+      "label": "MCP 工具调用"
+    },
     {
       "id": "c-core-mcp",
       "from": "coreSession",
@@ -287,12 +418,43 @@
       "fromSide": "left",
       "toSide": "right"
     },
-    { "id": "c-core-gitmcp", "from": "coreSession", "to": "gitmcp", "label": "仓库索引" },
-    { "id": "c-gitmcp-repos", "from": "gitmcp", "to": "gitRepos", "label": "Git HTTP" },
-    { "id": "c-core-codegraph", "from": "coreSession", "to": "codegraph", "label": "符号索引" },
-    { "id": "c-core-wiki", "from": "coreSession", "to": "wiki", "label": "Wiki 生成" },
-    { "id": "c-mem-tdai", "from": "memoryManager", "to": "tdaiCore", "label": "流水线调用", "variant": "emphasis" },
-    { "id": "c-tdai-sqlite", "from": "tdaiCore", "to": "sqliteStore", "label": "SQL" },
+    {
+      "id": "c-core-gitmcp",
+      "from": "coreSession",
+      "to": "gitmcp",
+      "label": "仓库索引"
+    },
+    {
+      "id": "c-gitmcp-repos",
+      "from": "gitmcp",
+      "to": "gitRepos",
+      "label": "Git HTTP"
+    },
+    {
+      "id": "c-core-codegraph",
+      "from": "coreSession",
+      "to": "codegraph",
+      "label": "符号索引"
+    },
+    {
+      "id": "c-core-wiki",
+      "from": "coreSession",
+      "to": "wiki",
+      "label": "Wiki 生成"
+    },
+    {
+      "id": "c-mem-tdai",
+      "from": "memoryManager",
+      "to": "tdaiCore",
+      "label": "流水线调用",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c-tdai-sqlite",
+      "from": "tdaiCore",
+      "to": "sqliteStore",
+      "label": "SQL"
+    },
     {
       "id": "c-tdai-embed",
       "from": "tdaiCore",
@@ -305,19 +467,27 @@
       "id": "c-mem-sqlite",
       "from": "memoryManager",
       "to": "sqliteStore",
-      "label": "读写数据目录",
-      "fromSide": "left",
-      "toSide": "right"
+      "label": "读写数据目录"
     },
     {
       "id": "c-tdai-llm",
       "from": "tdaiCore",
       "to": "llmProvider",
       "label": "LLM",
-      "fromSide": "top",
-      "toSide": "bottom"
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        [1700, 548],
+        [1700, 64],
+        [116, 64]
+      ]
     },
-    { "id": "c-plugin-mcp", "from": "pluginManager", "to": "mcpManager", "label": "MCP 状态/重连" }
+    {
+      "id": "c-plugin-mcp",
+      "from": "pluginManager",
+      "to": "mcpManager",
+      "label": "MCP 状态/重连"
+    }
   ],
   "cards": [
     {

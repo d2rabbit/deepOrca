@@ -124,16 +124,22 @@ function archNoChangeFastPath(root: string): boolean {
     if (!Number.isFinite(headTs) || headTs <= 0) return false;
     const dir = join(root, ".deeporca", "prototypes");
     let newest = 0;
+    let allDelivered = true;
     for (const f of readdirSync(dir)) {
       if (!/^arch-.+\.(architecture|workflow|sequence|dataflow|lifecycle)\.json$/.test(f)) continue;
       try {
         const st = statSync(join(dir, f));
         if (st.size > 256) newest = Math.max(newest, st.mtimeMs);
+        // A map whose deliver FAILED has no rendered HTML sibling — taking the
+        // fast path then would skip the LLM repair loop and re-fail the same
+        // deliver forever (real-machine 2026-08-31: repository-evidence map
+        // dead-locked every build). Maps must be DELIVERED, not just fresh.
+        if (!existsSync(join(dir, f).replace(/\.json$/, ".html"))) allDelivered = false;
       } catch {
         // raced — skip
       }
     }
-    return newest > headTs;
+    return newest > headTs && allDelivered;
   } catch {
     return false;
   }

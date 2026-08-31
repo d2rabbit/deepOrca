@@ -475,6 +475,10 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
         path.join(protoDir, "arch-fresh.architecture.json"),
         `{"meta":{"title":"F","quality_profile":"showcase"},"components":[],"connections":[]}\n${"y".repeat(300)}`
       );
+      // Delivered sibling (2026-08-31): the fast path requires maps whose
+      // deliver SUCCEEDED (rendered html present) — a fresh-but-undelivered
+      // map must loop back into the LLM repair path instead.
+      fs.writeFileSync(path.join(protoDir, "arch-fresh.architecture.html"), "<html><body>d</body></html>");
       configureCodegraphController({
         hasProject: () => true,
         sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),

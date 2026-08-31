@@ -438,7 +438,22 @@ export class ArchifyCli {
    */
   async deliver(type: ArchifyType, jsonPath: string, htmlPath: string): Promise<{ ok: boolean; error?: string }> {
     if (!this.isAvailable()) return { ok: false, error: "archify CLI is not vendored" };
-    const r = await this.run(["deliver", type, jsonPath, htmlPath, "--quality", "showcase", "--json"]);
+    // --repo-root: IRs declaring meta.repository carry source evidence that
+    // archify verifies against the local checkout — without the flag such an
+    // artifact can NEVER render (repository-evidence/root-required,
+    // real-machine 2026-08-31). The IR lives at <root>/.deeporca/prototypes/.
+    const repoRoot = path.resolve(path.join(jsonPath, "..", "..", ".."));
+    const r = await this.run([
+      "deliver",
+      type,
+      jsonPath,
+      htmlPath,
+      "--repo-root",
+      repoRoot,
+      "--quality",
+      "showcase",
+      "--json",
+    ]);
     const receipt = this.parseReceipt(r.stdout);
     if (r.code === 0 && receipt?.ok === true) {
       applyViewerPatches(htmlPath);
