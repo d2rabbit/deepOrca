@@ -17,7 +17,7 @@
 
 import type { ActionDefinition, ActionRun } from "./types";
 import type { BackendStatus } from "../common/analysis-status";
-import { getArchRenderer } from "./archify-controller";
+import { getArchRenderer, getArchifyPaths } from "./archify-controller";
 
 export interface ArchScanInput {
   /** Optional focus perspective (e.g. "data-flow", "dependency-map"). Omit = all. */
@@ -62,6 +62,26 @@ export const archScanRunRun: ActionRun<ArchScanInput, ArchScanOutput> = async (i
       pending: true,
       reason:
         "arch-scan.run requires the background-task runtime, which is not available. The skill can still be triggered manually via /arch-scan.",
+    };
+  }
+  // Fail FAST when the vendored archify toolkit is missing — parity with
+  // index.build-all's arch stage (real-machine 2026-08-31): without the
+  // toolkit the background task burns its full LLM budget, the render gate
+  // is skipped (the renderer seam is null by the same condition), and this
+  // action used to report ok:true over an empty prototypes dir.
+  if (!getArchifyPaths()) {
+    ctx.emit({
+      message:
+        "arch-scan skipped: archify 工具包未安装（vendor 缺失）— 重建桌面端后重试 / " +
+        "archify toolkit not vendored — rebuild the desktop app to install it",
+    });
+    return {
+      ok: false,
+      status: "unavailable",
+      reason:
+        "archify toolkit not vendored — architecture maps unavailable. " +
+        "重建桌面端（npm run desktop:build 会执行 scripts/vendor-archify.js）并重启 / " +
+        "rebuild the desktop app (desktop:build runs scripts/vendor-archify.js) and restart",
     };
   }
   ctx.emit({ message: `arch-scan${input?.perspective ? ` (${input.perspective})` : ""} started`, percent: 10 });

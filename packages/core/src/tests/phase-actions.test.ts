@@ -212,17 +212,24 @@ describe("arch-scan.run (Phase 3 — runSubagent gated)", () => {
       },
     });
     r.register(archScanRunDefinition, archScanRunRun);
-    const out = (await r.execute("arch-scan.run", { perspective: "data-flow" }).result) as {
-      ok: boolean;
-      pending?: boolean;
-      result?: { content: string | null; iterations: number };
-    };
-    assert.equal(out.ok, true);
-    assert.equal(out.pending, undefined);
-    assert.equal(subagentCalled, false);
-    assert.equal(bgCalls[0].skill, "arch-scan");
-    assert.equal((bgCalls[0].input as { perspective: string }).perspective, "data-flow");
-    assert.match(out.result?.content ?? "", /arch-scan surface/);
+    // The LLM path is only reachable with the archify toolkit vendored —
+    // configure the seam the way the desktop composition root does.
+    configureArchifyPaths(TEST_ARCHIFY_PATHS);
+    try {
+      const out = (await r.execute("arch-scan.run", { perspective: "data-flow" }).result) as {
+        ok: boolean;
+        pending?: boolean;
+        result?: { content: string | null; iterations: number };
+      };
+      assert.equal(out.ok, true);
+      assert.equal(out.pending, undefined);
+      assert.equal(subagentCalled, false);
+      assert.equal(bgCalls[0].skill, "arch-scan");
+      assert.equal((bgCalls[0].input as { perspective: string }).perspective, "data-flow");
+      assert.match(out.result?.content ?? "", /arch-scan surface/);
+    } finally {
+      configureArchifyPaths(null);
+    }
   });
 
   test("falls back to runSubagent when the background channel is absent", async () => {
@@ -236,17 +243,47 @@ describe("arch-scan.run (Phase 3 — runSubagent gated)", () => {
       },
     });
     r.register(archScanRunDefinition, archScanRunRun);
-    const out = (await r.execute("arch-scan.run", { perspective: "data-flow" }).result) as {
+    configureArchifyPaths(TEST_ARCHIFY_PATHS);
+    try {
+      const out = (await r.execute("arch-scan.run", { perspective: "data-flow" }).result) as {
+        ok: boolean;
+        pending?: boolean;
+        result?: { sessionId: string; content: string };
+      };
+      assert.equal(out.ok, true);
+      assert.equal(out.pending, undefined);
+      assert.equal(calls[0].skill, "arch-scan");
+      assert.equal((calls[0].input as { perspective: string }).perspective, "data-flow");
+      assert.equal(out.result?.sessionId, "sub-1");
+      assert.match(out.result?.content ?? "", /arch-scan surface/);
+    } finally {
+      configureArchifyPaths(null);
+    }
+  });
+
+  test("fail-fasts when the archify toolkit is not vendored (parity with index.build-all)", async () => {
+    // Real-machine 2026-08-31: with vendor/archify missing, the standalone
+    // action used to burn the full LLM budget and still report ok:true over
+    // an empty prototypes dir. The seam-null state must skip BEFORE the task.
+    let taskCalled = false;
+    const r = new ActionRegistry({
+      projectRoot: PROJECT_ROOT,
+      spawner: NULL_SPAWNER,
+      runBackgroundTask: async () => {
+        taskCalled = true;
+        return { content: "must not run", iterations: 1 };
+      },
+    });
+    r.register(archScanRunDefinition, archScanRunRun);
+    const out = (await r.execute("arch-scan.run", {}).result) as {
       ok: boolean;
-      pending?: boolean;
-      result?: { sessionId: string; content: string };
+      status?: string;
+      reason?: string;
     };
-    assert.equal(out.ok, true);
-    assert.equal(out.pending, undefined);
-    assert.equal(calls[0].skill, "arch-scan");
-    assert.equal((calls[0].input as { perspective: string }).perspective, "data-flow");
-    assert.equal(out.result?.sessionId, "sub-1");
-    assert.match(out.result?.content ?? "", /arch-scan surface/);
+    assert.equal(out.ok, false);
+    assert.equal(out.status, "unavailable");
+    assert.match(out.reason ?? "", /archify toolkit not vendored/);
+    assert.equal(taskCalled, false, "the LLM task must not run without the toolkit");
   });
 });
 
