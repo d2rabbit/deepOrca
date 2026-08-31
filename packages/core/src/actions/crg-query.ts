@@ -301,11 +301,13 @@ export function createCrgGraphQuery(): CrgGraphQuery {
   };
 }
 
-// ── Formatting helpers (for OCR --background injection) ─────────────────────
+// ── Formatting helpers (for OCR delegation background injection) ────────────
 
 /**
  * Format CRG structural analysis as a concise background string for OCR.
- * This is what gets passed as `--background` to `ocr review`, so the LLM
+ * Delegation mode (2026-08-31): the string rides in two places — as
+ * `--background` on `ocr delegate preview` (run metadata) and, verbatim, in
+ * the host reviewer's prompt ("Business background" section), so the LLM
  * reviewer knows which functions are high-risk before it starts.
  */
 export function formatCrgContextForOcr(
