@@ -1192,10 +1192,47 @@
   flex-direction: column;
   gap: 8px;
 }
+.ui-review-tab-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .ui-review-tab-tabs {
   display: flex;
   gap: 6px;
   flex: none;
+}
+.ui-review-tab-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-review-run-btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ui-accent, #3b82f6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.14s var(--ui-ease);
+}
+.ui-review-run-btn:hover {
+  filter: brightness(1.1);
+}
+.ui-review-run-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ui-review-run-progress {
+  flex: none;
+  padding: 0 12px 8px;
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #888);
 }
 .ui-review-tab-pill {
   padding: 5px 14px;
@@ -1279,62 +1316,6 @@
   .ui-review-frame {
     background: #17191f;
   }
-}
-
-/* Review workspace rows — collapsed history toggle + inline last-10 list. */
-.ui-review-history-toggle {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ui-text-faint, #888);
-  font-size: 11px;
-  cursor: pointer;
-  transition:
-    transform 0.15s var(--ui-ease),
-    background 0.12s var(--ui-ease);
-}
-.ui-review-history-toggle:hover {
-  background: var(--ui-surface-hover);
-}
-.ui-review-history-toggle.open {
-  transform: rotate(90deg);
-}
-.ui-review-inline-history {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 2px 8px 6px 26px;
-}
-.ui-review-inline-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.ui-review-inline-item:hover {
-  background: var(--ui-surface-hover);
-}
-.ui-review-inline-time {
-  font-size: 11.5px;
-  color: var(--ui-text, inherit);
-}
-.ui-review-inline-meta {
-  font-size: 10.5px;
-  color: var(--ui-text-faint, #888);
-}
-.ui-review-inline-empty {
-  padding: 4px 8px 6px;
-  font-size: 11.5px;
-  color: var(--ui-text-faint, #888);
 }
 
 /* Review scope selector — slim controls under the active workspace row. */

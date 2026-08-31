@@ -96,7 +96,9 @@ export function buildRiskGraphHtml(root: string, projectName: string, language: 
       // Labels for the top-risk nodes alternate outside/inside the ring along
       // the radial direction so adjacent names don't overlap.
       let label = "";
-      if (i < 15) {
+      // Label every OTHER of the top-10 — top-risk nodes sit adjacent on the
+      // ring, so consecutive labels would collide.
+      if (i < 10 && i % 2 === 0) {
         const angle = (i / nodes.length) * 2 * Math.PI - Math.PI / 2;
         const dx = Math.cos(angle);
         const dy = Math.sin(angle);

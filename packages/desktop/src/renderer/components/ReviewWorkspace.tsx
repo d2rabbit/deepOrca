@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
-import type { ReviewReportMeta } from "../../shared/ipc";
+import type { ActionProgressEvent, ActionRunResult, ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 
@@ -8,14 +8,16 @@ import { useI18n } from "../i18n";
  * module's counterpart of the knowledge tab; user ask 2026-08-31: the review
  * surface must follow the index-module pattern, never pop out).
  *
- * Two sub-views:
+ * Header carries the review CONTROLS for this workspace: scope selector
+ * (uncommitted / single commit / ref range / whole repository) + run button
+ * (active workspace only — the action registry is bound to it). Two views:
  *   审查报告 — persisted report history (left rail) rendered as a
  *             self-contained page inside a sandboxed iframe;
- *   风险图谱 — the simplified in-app risk map (crg-risk-graph.ts), same
- *             iframe, loaded on first open.
+ *   风险图谱 — the simplified in-app risk map, loaded on first open.
  */
 
 type SubView = "reports" | "graph";
+type Scope = "workspace" | "commit" | "range" | "all";
 
 const STATUS_LABELS: Record<string, Record<string, string>> = {
   zh: {
@@ -53,6 +55,7 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
             : "en-US",
       { hour12: false }
     );
+
   const [subView, setSubView] = useState<SubView>("reports");
   const [reports, setReports] = useState<ReviewReportMeta[]>([]);
   const [selected, setSelected] = useState<string | null>(initialReportId ?? null);
@@ -61,25 +64,63 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
   const [graphError, setGraphError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  // Review controls (this tab's own run channel).
+  const [activeRoot, setActiveRoot] = useState<string>("");
+  const [scope, setScope] = useState<Scope>("workspace");
+  const [commitRef, setCommitRef] = useState("HEAD");
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("HEAD");
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [runError, setRunError] = useState<string | null>(null);
+
+  const isActiveRoot = root === activeRoot;
+
+  const loadReports = useCallback(async (): Promise<ReviewReportMeta[]> => {
+    try {
+      const list = await api.reviewListReports(root);
+      setReports(list);
+      return list;
+    } catch {
+      setReports([]);
+      return [];
+    }
+  }, [root]);
+
   // Report history + initial selection.
   useEffect(() => {
     let alive = true;
     (async () => {
-      try {
-        const list = await api.reviewListReports(root);
-        if (!alive) return;
-        setReports(list);
-        const want =
-          initialReportId && list.some((r) => r.id === initialReportId) ? initialReportId : (list[0]?.id ?? null);
-        setSelected(want);
-      } finally {
-        if (alive) setLoaded(true);
-      }
+      const list = await loadReports();
+      if (!alive) return;
+      const want =
+        initialReportId && list.some((r) => r.id === initialReportId) ? initialReportId : (list[0]?.id ?? null);
+      setSelected(want);
+      setLoaded(true);
     })();
     return () => {
       alive = false;
     };
-  }, [root, initialReportId]);
+  }, [root, initialReportId, loadReports]);
+
+  // Active root (gates the run controls) + progress stream while running.
+  useEffect(() => {
+    void api.getProjectRoot().then(setActiveRoot);
+    return api.onProjectRootChanged(setActiveRoot);
+  }, []);
+
+  useEffect(() => {
+    if (!running) {
+      setProgress("");
+      return;
+    }
+    const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
+      if (evt.actionId === "review.full") {
+        setProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
+      }
+    });
+    return unsub;
+  }, [running]);
 
   // Read the selected report's HTML whenever the selection moves.
   useEffect(() => {
@@ -96,6 +137,30 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
       alive = false;
     };
   }, [root, selected]);
+
+  const runReview = useCallback(async () => {
+    if (!isActiveRoot || running) return;
+    setRunning(true);
+    setRunError(null);
+    try {
+      const params =
+        scope === "all"
+          ? { all: true }
+          : scope === "commit"
+            ? { commit: commitRef.trim() || "HEAD" }
+            : scope === "range" && rangeFrom.trim() && rangeTo.trim()
+              ? { from: rangeFrom.trim(), to: rangeTo.trim() }
+              : {};
+      const res: ActionRunResult = await api.actionRun("review.full", params);
+      if (!res.ok) setRunError(`${res.code}: ${res.error}`);
+      const list = await loadReports();
+      setSelected(list[0]?.id ?? null);
+    } catch (err: unknown) {
+      setRunError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
+  }, [isActiveRoot, running, scope, commitRef, rangeFrom, rangeTo, loadReports]);
 
   const openGraph = useCallback(async () => {
     if (graphHtml || graphError) return;
@@ -120,10 +185,64 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
 
   return (
     <div className="ui-review-tab">
-      <div className="ui-review-tab-tabs">
-        {pill("reports", t("review.reportsTitle"))}
-        {pill("graph", t("review.riskGraph"))}
+      <div className="ui-review-tab-head">
+        <div className="ui-review-tab-tabs">
+          {pill("reports", t("review.reportsTitle"))}
+          {pill("graph", t("review.riskGraph"))}
+        </div>
+        <div className="ui-review-tab-controls">
+          <select
+            className="ui-review-scope-select"
+            value={scope}
+            onChange={(e) => setScope(e.target.value as Scope)}
+            title={t("review.scope.title")}
+            disabled={running || !isActiveRoot}
+          >
+            <option value="workspace">{t("review.scope.workspace")}</option>
+            <option value="commit">{t("review.scope.commit")}</option>
+            <option value="range">{t("review.scope.range")}</option>
+            <option value="all">{t("review.scope.all")}</option>
+          </select>
+          {scope === "commit" ? (
+            <input
+              className="ui-review-scope-input"
+              value={commitRef}
+              onChange={(e) => setCommitRef(e.target.value)}
+              placeholder="HEAD"
+              spellCheck={false}
+            />
+          ) : null}
+          {scope === "range" ? (
+            <>
+              <input
+                className="ui-review-scope-input"
+                value={rangeFrom}
+                onChange={(e) => setRangeFrom(e.target.value)}
+                placeholder={t("review.scope.from")}
+                spellCheck={false}
+              />
+              <input
+                className="ui-review-scope-input"
+                value={rangeTo}
+                onChange={(e) => setRangeTo(e.target.value)}
+                placeholder={t("review.scope.to")}
+                spellCheck={false}
+              />
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="ui-review-run-btn"
+            disabled={running || !isActiveRoot}
+            title={isActiveRoot ? t("review.action.full.hint") : t("review.runActiveOnly")}
+            onClick={() => void runReview()}
+          >
+            {running ? "…" : t("review.startRun")}
+          </button>
+        </div>
       </div>
+      {running && progress ? <div className="ui-review-run-progress">{progress}</div> : null}
+      {runError ? <div className="ui-error" style={{ margin: "0 12px 8px" }}>{`✗ ${runError}`}</div> : null}
 
       {subView === "reports" ? (
         <div className="ui-review-tab-body">

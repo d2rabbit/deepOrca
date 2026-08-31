@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
-import type { ActionProgressEvent, ActionRunResult, ReviewReportMeta, WorkspaceGroup } from "../../shared/ipc";
+import type { ActionProgressEvent, ActionRunResult, WorkspaceGroup } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton, IconMagicWand, IconChat } from "../ui/index";
 import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
 
 /**
- * Code review panel — workspace-list interaction (user ask 2026-08-31:
- * "交互模式和索引库应当保持一致，只不过要保留审查历史").
+ * Code review panel — pure workspace list (user ask 2026-09-01: keep the
+ * index-library interaction, drop the inline folding).
  *
- * One row per workspace (status dot = risk graph built?, name, last review)
- * with an inline 审查 button — exactly the index library's row anatomy.
- * Clicking a row opens the workspace's REVIEW TAB in the main content area
- * (report history + simplified risk map render in-app; nothing pops out).
+ * One row per workspace: status dot (risk graph built?) + name + last review
+ * + an inline 审查 button (workspace scope with automatic HEAD fallback).
+ * Clicking a row opens the workspace's REVIEW TAB in the main content area —
+ * report history, risk map and the scope selector all live in that tab.
  *
  * A review only ever runs against the ACTIVE workspace (the action registry
  * is bound to it); other rows' buttons stay disabled with a hint.
@@ -51,30 +51,6 @@ export function CodeReviewPanel({
   const [progress, setProgress] = useState<string>("");
   const [lastRun, setLastRun] = useState<{ root: string; res: ActionRunResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [reports, setReports] = useState<Record<string, ReviewReportMeta[]>>({});
-  const [scope, setScope] = useState<"workspace" | "commit" | "range" | "all">("workspace");
-  const [commitRef, setCommitRef] = useState("HEAD");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("HEAD");
-
-  const loadReports = useCallback(async (root: string) => {
-    try {
-      const list = await api.reviewListReports(root);
-      setReports((prev) => ({ ...prev, [root]: list }));
-    } catch {
-      setReports((prev) => ({ ...prev, [root]: prev[root] ?? [] }));
-    }
-  }, []);
-
-  const toggleHistory = useCallback(
-    (root: string) => {
-      const next = expanded === root ? null : root;
-      setExpanded(next);
-      if (next) void loadReports(next);
-    },
-    [expanded, loadReports]
-  );
 
   const reload = useCallback(async () => {
     try {
@@ -85,7 +61,6 @@ export function CodeReviewPanel({
       for (const e of crg) graphState[e.root] = e.hasGraph;
       setHasGraph(graphState);
       setError(null);
-      if (expanded) void loadReports(expanded);
       // Last-review freshness per row (cheap meta reads, failures tolerated).
       await Promise.all(
         ws.workspaces.map(async (w) => {
@@ -100,7 +75,7 @@ export function CodeReviewPanel({
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [expanded, loadReports]);
+  }, []);
 
   useEffect(() => {
     void reload();
@@ -136,25 +111,16 @@ export function CodeReviewPanel({
       setLastRun(null);
       setError(null);
       try {
-        const params =
-          scope === "all"
-            ? { all: true }
-            : scope === "commit"
-              ? { commit: commitRef.trim() || "HEAD" }
-              : scope === "range" && rangeFrom.trim() && rangeTo.trim()
-                ? { from: rangeFrom.trim(), to: rangeTo.trim() }
-                : {};
-        const res = await api.actionRun("review.full", params);
+        const res = await api.actionRun("review.full", {});
         setLastRun({ root, res });
         void reload();
-        void loadReports(root);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setRunning(false);
       }
     },
-    [activeRoot, running, reload, loadReports, scope, commitRef, rangeFrom, rangeTo]
+    [activeRoot, running, reload]
   );
 
   const runFindings: ReviewFinding[] = lastRun && lastRun.res.ok ? extractReviewFindings(lastRun.res.output) : [];
@@ -200,18 +166,6 @@ export function CodeReviewPanel({
                         : formatRelative(lastReview[w.root], t("index.freshness.justNow"), t("review.lastReviewNever"))}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className={`ui-review-history-toggle${expanded === w.root ? " open" : ""}`}
-                    title={t("review.reportsTitle")}
-                    aria-label={t("review.reportsTitle")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleHistory(w.root);
-                    }}
-                  >
-                    ▸
-                  </button>
                   <Button
                     size="sm"
                     variant="subtle"
@@ -226,87 +180,6 @@ export function CodeReviewPanel({
                     {running && isActive ? "…" : t("review.action.full")}
                   </Button>
                 </div>
-
-                {expanded === w.root ? (
-                  <div className="ui-review-inline-history">
-                    {(reports[w.root] ?? []).length === 0 ? (
-                      <div className="ui-review-inline-empty">{t("review.noReports")}</div>
-                    ) : (
-                      (reports[w.root] ?? []).map((r) => (
-                        <div
-                          key={r.id}
-                          className="ui-review-inline-item"
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenReviewTab(w.root, r.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              onOpenReviewTab(w.root, r.id);
-                            }
-                          }}
-                        >
-                          <span className="ui-review-inline-time">
-                            {formatRelative(r.generatedAt, t("index.freshness.justNow"), r.generatedAt)}
-                          </span>
-                          <span className="ui-review-inline-meta">
-                            {r.filesReviewed} · {r.comments}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                ) : null}
-
-                {isActive ? (
-                  <div className="ui-review-scope">
-                    <select
-                      className="ui-review-scope-select"
-                      value={scope}
-                      onChange={(e) => setScope(e.target.value as typeof scope)}
-                      onClick={(e) => e.stopPropagation()}
-                      title={t("review.scope.title")}
-                    >
-                      <option value="workspace">{t("review.scope.workspace")}</option>
-                      <option value="commit">{t("review.scope.commit")}</option>
-                      <option value="range">{t("review.scope.range")}</option>
-                      <option value="all">{t("review.scope.all")}</option>
-                    </select>
-                    {scope === "commit" ? (
-                      <input
-                        className="ui-review-scope-input"
-                        value={commitRef}
-                        onChange={(e) => setCommitRef(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="HEAD"
-                        spellCheck={false}
-                      />
-                    ) : null}
-                    {scope === "range" ? (
-                      <>
-                        <input
-                          className="ui-review-scope-input"
-                          value={rangeFrom}
-                          onChange={(e) => setRangeFrom(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder={t("review.scope.from")}
-                          spellCheck={false}
-                        />
-                        <input
-                          className="ui-review-scope-input"
-                          value={rangeTo}
-                          onChange={(e) => setRangeTo(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder={t("review.scope.to")}
-                          spellCheck={false}
-                        />
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
 
                 {run && run.res.ok && runFindings.length > 0 ? (
                   <div
