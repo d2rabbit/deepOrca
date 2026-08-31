@@ -17,6 +17,7 @@
 import * as fs from "node:fs";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { getArchifyLanguage, spawnTracked } from "@deeporca/core";
 
 /**
  * Post-deliver patches for delivered archify HTML (desktop viewer tweaks the
@@ -50,6 +51,9 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
  *     re-applies the viewer theme, so the embedded board tracks the app
  *     appearance live instead of only at load time.
  *
+ *  5. Viewer-chrome i18n (user ask 2026-08-31: 界面文案中英双语). Injected
+ *     only for zh app locales; see viewerI18nPatch() for the mechanism.
+ *
  *  A fourth experiment (guided-rail restyle: compact row → side drawer →
  *  floating TOC) was REVERTED on user decision 2026-08-30 — the stock
  *  top-band rail wins. The rail-compact strip regex above stays so
@@ -65,10 +69,11 @@ function applyViewerPatches(htmlPath: string): boolean {
       .replace(/<style id="deeporca-passport-track[^"]*"[\s\S]*?<\/script>/g, "")
       .replace(/<style id="deeporca-present-lock[^"]*"[\s\S]*?<\/script>/g, "")
       .replace(/<style id="deeporca-theme-sync[^"]*"[\s\S]*?<\/script>/g, "")
+      .replace(/<style id="deeporca-viewer-i18n"[\s\S]*?<\/script>/g, "")
       .replace(/<style id="deeporca-rail-compact[^"]*"[\s\S]*?<\/script>/g, "");
     const idx = stripped.indexOf("</body>");
     if (idx < 0) return false;
-    const patched = `${stripped.slice(0, idx)}${passportPatch()}${presentLockPatch()}${themeSyncPatch()}${stripped.slice(idx)}`;
+    const patched = `${stripped.slice(0, idx)}${passportPatch()}${presentLockPatch()}${themeSyncPatch()}${viewerI18nPatch()}${stripped.slice(idx)}`;
     if (patched === html) return false;
     // Temp + rename: file:// readers (the embed iframe, preview windows) load
     // these HTMLs out-of-process — a truncated mid-write file renders broken
@@ -197,6 +202,92 @@ function themeSyncPatch(): string {
 }
 
 /**
+ * Viewer-chrome i18n (user ask 2026-08-31: 架构图界面文案中英双语). The vendored
+ * archify template ships English-only chrome (theme/preset/export toolbar,
+ * guided-views rail), and several labels are REWRITTEN at runtime by the
+ * viewer's own JS (Dark↔Light, Play story→Pause→Replay story, Copy
+ * moment→Copied/Copy failed, preset names) — static string replacement would
+ * revert on the first toggle. The patch therefore (a) sweeps the chrome
+ * containers (.toolbar incl. both menus, .guided-views) with an exact
+ * text-node dictionary — never the SVG/cards, which are model-authored
+ * content — and (b) installs MutationObservers on the runtime-rewritten
+ * labels so every future state maps through the same dictionary. The loop
+ * guard (mapped !== current) keeps the observer from re-triggering itself.
+ *
+ * Emitted only for zh locales (the requested bilingual pair); other locales
+ * keep the stock English chrome. Language is the host-synced app locale
+ * (getArchifyLanguage) re-read on every apply — a locale change converges on
+ * the next deliver or patch sweep because the strip drops the old block.
+ */
+function viewerI18nPatch(): string {
+  const lang = getArchifyLanguage() ?? "";
+  if (!/^zh/i.test(lang)) return "";
+  return `<style id="deeporca-viewer-i18n">/* viewer chrome i18n (${lang}) */</style>
+<script>
+(function(){
+  var DICT = {
+    "Dark":"深色","Light":"浅色",
+    "Style":"样式","Classic":"经典","Flow":"信号流","Signal Flow":"信号流",
+    "Blueprint":"蓝图","Editorial":"编辑风",
+    "Stable technical default":"稳定的技术默认","Motion-forward presentation":"动效优先的演示",
+    "Engineering review":"工程评审","Publication and launch notes":"发布与上线说明",
+    "Visual identity":"视觉风格","S cycles":"S 键切换",
+    "Live":"实时","Still":"静止",
+    "Present":"演示","Exit":"退出","Export":"导出",
+    "Export diagram":"导出图表","Portable, clean outputs":"便携、干净的输出",
+    "Share":"分享","Image":"图片","Vector & motion":"矢量与动效",
+    "Share Card":"分享卡片","Route Share Card":"路线分享卡片","Reach Share Card":"可达分享卡片",
+    "Copy Share Card":"复制分享卡片","Copy diagram":"复制图表",
+    "PNG to clipboard":"PNG 到剪贴板","Lossless image":"无损图片","Compact image":"紧凑图片",
+    "Modern image":"现代图片","Editable vector":"可编辑矢量","6s motion":"6 秒动效",
+    "Guided views":"引导视图","Play story":"播放故事","Pause":"暂停","Replay story":"重播故事",
+    "Replay":"重播","Journey":"旅程",
+    "Copy moment":"复制画面","Copied":"已复制","Copy failed":"复制失败",
+    "Show all":"显示全部",
+    "Explore this system":"探索这个系统",
+    "Step through curated paths without changing the source diagram.":"按精选路径浏览，不改动原图。",
+    "Beat":"节拍","Next":"下一个"
+  };
+  function mapText(value) {
+    var mapped = DICT[value.trim()];
+    return mapped === undefined || mapped === value ? null : mapped;
+  }
+  function sweep(root) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    var nodes = [];
+    var node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    nodes.forEach(function (n) {
+      var mapped = mapText(n.nodeValue || "");
+      if (mapped !== null) n.nodeValue = mapped;
+    });
+  }
+  // Static chrome: toolbar (with the preset + export menus) and the guided rail.
+  // Never the SVG diagram, cards, or notes — those are model-authored content.
+  document.querySelectorAll(".toolbar, .guided-views").forEach(sweep);
+  // Runtime-rewritten labels: re-map whenever the viewer's own JS changes them.
+  var watched = ["theme-label","preset-label","motion-label","present-label",
+                 "guided-view-play-label","guided-view-beat-link-label"];
+  var observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (m) {
+      var el = m.target;
+      if (!el || el.nodeType !== 1) return;
+      var mapped = mapText(el.textContent || "");
+      if (mapped !== null) el.textContent = mapped;
+    });
+  });
+  watched.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var mapped = mapText(el.textContent || "");
+    if (mapped !== null) el.textContent = mapped;
+    observer.observe(el, { childList: true, characterData: true, subtree: true });
+  });
+})();
+</script>`;
+}
+
+/**
  * In-place sweep for already-delivered artifacts (patch rollout): the
  * delivery gate skips files whose receipt still verifies, so maps rendered
  * before a patch change would otherwise keep the stale viewer behavior
@@ -221,7 +312,6 @@ function sha256File(path: string): string {
   return createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 }
 import * as path from "node:path";
-import { spawnTracked } from "@deeporca/core";
 
 const DELIVER_TIMEOUT_MS = 120_000;
 

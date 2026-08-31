@@ -18,6 +18,7 @@ import {
   writeReceipt,
   verifyReceipt,
 } from "../main/tools/archify-cli";
+import { configureArchifyLanguage } from "@deeporca/core";
 
 test("archifyTypeOf parses the five diagram suffixes", () => {
   assert.equal(archifyTypeOf("arch-checkout.architecture.json"), "architecture");
@@ -187,6 +188,47 @@ test("refreshViewerPatches: HTML without valid receipt is never touched", () => 
     assert.equal(fs.readFileSync(htmlPath, "utf-8"), "<html><body>model-authored</body></html>");
     assert.equal(verifyReceipt(htmlPath), false);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("viewer i18n patch: zh locale localizes the chrome, en converges back to stock", () => {
+  // User ask 2026-08-31 (架构图界面文案中英双语): the patch follows the
+  // host-synced app locale — injected for zh, stripped again when the locale
+  // is not Chinese (the next sweep converges already-delivered maps).
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "archify-i18n-"));
+  try {
+    const proto = path.join(root, ".deeporca", "prototypes");
+    fs.mkdirSync(proto, { recursive: true });
+    const jsonPath = path.join(proto, "arch-i18n.architecture.json");
+    const htmlPath = path.join(proto, "arch-i18n.architecture.html");
+    fs.writeFileSync(jsonPath, "j".repeat(400));
+    fs.writeFileSync(htmlPath, '<html><body><div class="toolbar"><span>Export</span></div></body></html>');
+    writeReceipt(htmlPath, jsonPath);
+
+    configureArchifyLanguage("zh-CN");
+    try {
+      assert.equal(refreshViewerPatches(root), 1, "zh locale injects the i18n patch");
+      const html = fs.readFileSync(htmlPath, "utf-8");
+      assert.equal(html.includes("deeporca-viewer-i18n"), true, "i18n block present");
+      assert.equal(html.includes("引导视图"), true, "guided-views label localized");
+      assert.equal(html.includes("guided-view-play-label"), true, "runtime play label observed");
+      assert.equal(html.includes("guided-view-beat-link-label"), true, "runtime beat label observed");
+      assert.equal(html.includes('"Copied":"已复制"'), true, "copy feedback states mapped");
+      assert.equal(html.indexOf("deeporca-viewer-i18n"), html.lastIndexOf("deeporca-viewer-i18n"), "single i18n block");
+      assert.equal(verifyReceipt(htmlPath), true, "receipt re-pinned");
+      assert.equal(refreshViewerPatches(root), 0, "second sweep is a no-op");
+    } finally {
+      configureArchifyLanguage("en");
+    }
+
+    assert.equal(refreshViewerPatches(root), 1, "non-zh locale strips the patch");
+    const stock = fs.readFileSync(htmlPath, "utf-8");
+    assert.equal(stock.includes("deeporca-viewer-i18n"), false, "i18n block removed for en");
+    assert.equal(stock.includes("引导视图"), false, "no zh chrome remains");
+    assert.equal(refreshViewerPatches(root), 0, "converged");
+  } finally {
+    configureArchifyLanguage(undefined);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
