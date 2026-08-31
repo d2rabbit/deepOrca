@@ -3,11 +3,11 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain, session as electronSession, shell } from "electron";
-import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
+import { dirname, basename, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -49,7 +49,13 @@ import {
 import { extractTaskTrajectory } from "./task-trajectory";
 import { buildSymbolGraph } from "./symbol-graph-query";
 import { gitPreflight, gitBootstrap } from "./git-preflight";
-import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
+import type {
+  ModelConfigSelection,
+  UserPromptContent,
+  ActionRegistry,
+  ExecuteOptions,
+  RunHandle,
+} from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
 import { fetchEndpointQuota } from "./endpoint-quota.js";
@@ -81,6 +87,7 @@ import { archiveSession, unarchiveSession, readArchivedIds } from "./archive-sto
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
+import { buildReviewReportHtml } from "./tools/review-report.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
@@ -275,6 +282,119 @@ configureReviewController(
     },
   })
 );
+
+// ── Review HTML report (user ask 2026-08-31: 审查结果渲染到专属工作区) ───────
+// The ActionIpc registry is wrapped so EVERY review.full completion (one-click
+// button, chat tool call) produces a self-contained HTML report under
+// <root>/.deeporca/reviews/ and opens it in a dedicated child window — the
+// dedicated window is the reading surface; the sidebar stays secondary.
+const reviewReportWindows = new Map<string, BrowserWindow>();
+let reviewReportWrapped: { source: ActionRegistry; wrapped: ActionRegistry } | null = null;
+
+function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistry | null {
+  if (!registry) return null;
+  if (reviewReportWrapped?.source === registry) return reviewReportWrapped.wrapped;
+  const wrapper = Object.create(registry) as ActionRegistry;
+  (wrapper as { execute: unknown }).execute = (
+    id: string,
+    input?: unknown,
+    execOpts?: ExecuteOptions
+  ): RunHandle<unknown> => {
+    const handle = registry.execute<unknown>(id, input, execOpts);
+    if (id !== "review.full") return handle;
+    return {
+      result: handle.result.then(async (output) => {
+        const reportPath = writeReviewReport(output);
+        if (reportPath) {
+          Object.assign(output as object, { reportPath });
+          openReviewReportWindow(reportPath);
+        }
+        return output;
+      }),
+      onProgress: (cb) => handle.onProgress(cb),
+      cancel: (reason) => handle.cancel(reason),
+    };
+  };
+  reviewReportWrapped = { source: registry, wrapped: wrapper };
+  return wrapper;
+}
+
+function writeReviewReport(output: unknown): string | null {
+  try {
+    const out = output as {
+      review?: { status?: string; summary?: { filesReviewed?: number; comments?: number }; comments?: unknown[] };
+      statusNote?: string;
+    };
+    if (!out?.review || !Array.isArray(out.review.comments)) return null;
+    const root = getBridge().projectRoot;
+    if (!root) return null;
+    const dir = join(root, ".deeporca", "reviews");
+    mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const htmlPath = join(dir, `review-${stamp}.html`);
+    const locale = APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en";
+    const zh = locale.toLowerCase().startsWith("zh");
+    writeFileSync(
+      htmlPath,
+      buildReviewReportHtml({
+        root,
+        projectName: basename(root),
+        status: String(out.review.status ?? "success"),
+        statusNote: String(out.statusNote ?? ""),
+        generatedAtIso: new Date().toISOString(),
+        language: locale,
+        modeLabel: zh ? "未提交的工作区变更（vs HEAD）" : "uncommitted workspace changes (vs HEAD)",
+        summary: out.review.summary,
+        comments: out.review.comments as Record<string, unknown>[],
+      }),
+      "utf-8"
+    );
+    return htmlPath;
+  } catch (err) {
+    console.warn("[review-report] generation failed:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+/** Dedicated reading window for one review report (mirrors the arch preview
+ *  child windows: sandboxed, isolated partition, parented to the main window). */
+function openReviewReportWindow(htmlPath: string): void {
+  const existing = reviewReportWindows.get(htmlPath);
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore();
+    existing.show();
+    existing.focus();
+    return;
+  }
+  const mainWin = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  let x: number | undefined;
+  let y: number | undefined;
+  if (mainWin) {
+    const mb = mainWin.getBounds();
+    x = Math.max(0, mb.x + Math.round((mb.width - 1180) / 2));
+    y = Math.max(0, mb.y + Math.round((mb.height - 840) / 2));
+  }
+  const win = new BrowserWindow({
+    width: 1180,
+    height: 840,
+    ...(x !== undefined && y !== undefined ? { x, y } : {}),
+    title: basename(htmlPath),
+    autoHideMenuBar: true,
+    ...(mainWin ? { parent: mainWin } : {}),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      partition: "review-report",
+    },
+  });
+  reviewReportWindows.set(htmlPath, win);
+  win.on("closed", () => {
+    if (reviewReportWindows.get(htmlPath) === win) reviewReportWindows.delete(htmlPath);
+  });
+  void win.loadFile(htmlPath);
+}
 // App UI locale as reported by the renderer (SessionLocaleSet) — drives the
 // wiki generation language. The renderer syncs it at boot and on change.
 let currentAppLocale: string | undefined;
@@ -1175,7 +1295,7 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
         return;
       }
       // Probe uv version first — if uv works, uvx can run CRG.
-      execFile(uvBin, ["--version"], { timeout: 10000 }, (err, stdout) => {
+      execFile(uvBin, ["--version"], { timeout: 10000, windowsHide: true }, (err, stdout) => {
         if (err) {
           resolve({ available: false });
           return;
@@ -1885,14 +2005,19 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
       }
       const { command, prefixArgs, env } = resolved;
       const execEnv = env ? { ...(process.env as Record<string, string>), ...env } : undefined;
-      execFile(command, [...prefixArgs, "--version"], { timeout: 10000, env: execEnv }, (err, stdout) => {
-        if (!err) {
-          resolve({ available: true, version: stdout.trim().split("\n")[0] });
-        } else {
-          // A vendored build counts as available even when --version probing fails.
-          resolve({ available: true });
+      execFile(
+        command,
+        [...prefixArgs, "--version"],
+        { timeout: 10000, env: execEnv, windowsHide: true },
+        (err, stdout) => {
+          if (!err) {
+            resolve({ available: true, version: stdout.trim().split("\n")[0] });
+          } else {
+            // A vendored build counts as available even when --version probing fails.
+            resolve({ available: true });
+          }
         }
-      });
+      );
     });
   });
 
@@ -2160,9 +2285,11 @@ function registerIpc(): void {
   // electron-free by receiving emit + getRegistry via deps.
   registerActionIpc(helpers, {
     emit,
+    // Wrapped so every review.full completion also produces the dedicated HTML
+    // report (see withReviewReportSurface above).
     getRegistry: () => {
       const bridge = getBridge();
-      return bridge?.getSessionManager().getActionRegistry() ?? null;
+      return withReviewReportSurface(bridge?.getSessionManager().getActionRegistry() ?? null);
     },
   });
 }

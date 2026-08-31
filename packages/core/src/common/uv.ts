@@ -60,11 +60,13 @@ export function resolveUvBinary(): string | null {
             encoding: "utf8",
             timeout: 3000,
             stdio: ["ignore", "pipe", "ignore"],
+            windowsHide: true,
           })
         : execFileSync("which", ["uv"], {
             encoding: "utf8",
             timeout: 3000,
             stdio: ["ignore", "pipe", "ignore"],
+            windowsHide: true,
           })
     ).trim();
     const first = found.split("\n")[0].trim();

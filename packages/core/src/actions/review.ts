@@ -12,6 +12,7 @@
 import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getReviewController, type ReviewResult, type ReviewOptions } from "./review-controller";
+import { getCrgController } from "./crg-controller";
 import { getCrgGraphQuery, formatCrgContextForOcr, mergeReviewWithCrgRisk } from "./crg-query";
 import type { BackendStatus, BackendStatusReport } from "../common/analysis-status";
 import { describeBackendStatus } from "../common/analysis-status";
@@ -98,6 +99,24 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
     throw new Error("review.full: no ReviewController configured");
   }
 
+  // ⓪ Ensure the CRG risk graph EXISTS before the review (user ask
+  // 2026-08-31: the order must be graph-first, and "风险图谱未构建" is not an
+  // acceptable steady state — a one-click review builds what it needs). A
+  // failed build degrades to the semantic-only path below.
+  const crgController = getCrgController();
+  if (crgController && !crgController.hasProject(ctx.projectRoot)) {
+    ctx.emit({ message: "CRG risk graph missing — building it first (crg.reindex)", percent: 3 });
+    try {
+      await crgController.reindex(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
+    } catch (err) {
+      ctx.emit({
+        message: `CRG build failed — continuing with semantic-only review: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      });
+    }
+  }
+
   // ① CRG structural analysis (Node.js direct SQLite read — no Python MCP).
   let crgBackground: string | undefined;
   let crgChanges: ReturnType<NonNullable<ReturnType<typeof getCrgGraphQuery>>["detectChanges"]> = [];
@@ -178,7 +197,9 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
   };
 };
 
-/** Get changed files from git diff HEAD (workspace mode). */
+/** Get changed files from git diff HEAD (workspace mode). Dot-files and
+ * dot-folders (.git, .deeporca, .env & friends) are hard-excluded — same
+ * policy as the delegate preview's --exclude (user rule 2026-08-31). */
 function getGitChangedFiles(root: string): string[] {
   try {
     const { execSync } = require("node:child_process");
@@ -186,18 +207,25 @@ function getGitChangedFiles(root: string): string[] {
       cwd: root,
       encoding: "utf8",
       timeout: 5000,
+      windowsHide: true,
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     const untracked = execSync("git ls-files --others --exclude-standard", {
       cwd: root,
       encoding: "utf8",
       timeout: 5000,
+      windowsHide: true,
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     const files = [...tracked.split("\n"), ...untracked.split("\n")]
       .map((f) => f.trim())
       .filter(Boolean)
-      .map((f) => (path.isAbsolute(f) ? f : path.resolve(root, f)));
+      .map((f) => (path.isAbsolute(f) ? f : path.resolve(root, f)))
+      // Drop anything under a dot-directory or a dot-file itself.
+      .filter((f) => {
+        const rel = path.relative(root, f).split(/[\\/]/);
+        return !rel.some((segment) => segment.startsWith("."));
+      });
     return files;
   } catch {
     return [];

@@ -121,7 +121,7 @@ function countSubstantialWikiPages(root: string): number {
  *  committing, so the failure hint must say THAT, not "change model". */
 function repoHasCommits(root: string): boolean {
   try {
-    execFileSync("git", ["-C", root, "rev-parse", "--verify", "HEAD"], { stdio: "ignore" });
+    execFileSync("git", ["-C", root, "rev-parse", "--verify", "HEAD"], { stdio: "ignore", windowsHide: true });
     return true;
   } catch {
     return false;
@@ -221,10 +221,12 @@ export class WikiCliController implements WikiController {
       if (typeof head !== "string" || !/^[0-9a-f]{40}$/i.test(head)) return false;
       const dirty = execFileSync("git", ["-C", root, "status", "--porcelain"], {
         stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
       }).toString();
       if (dirty.trim().length > 0) return false;
       const current = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], {
         stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
       })
         .toString()
         .trim();

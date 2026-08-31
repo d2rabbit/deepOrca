@@ -361,7 +361,7 @@ async function runArchifyValidate(targetRoot: string, artifactPath: string): Pro
     execFile(
       "node",
       [archify.bin, "validate", m[1], resolved, "--repo-root", targetRoot, "--quality", "showcase", "--json"],
-      { timeout: 90_000, cwd: targetRoot },
+      { timeout: 90_000, cwd: targetRoot, windowsHide: true },
       (err, stdout) => {
         if (err && !stdout) {
           resolve(JSON.stringify({ ok: false, error: err.message }));

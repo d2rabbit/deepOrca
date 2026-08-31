@@ -53,6 +53,15 @@ const OCR_PROBE_TIMEOUT_MS = 120_000;
 const OCR_TOTAL_TIMEOUT_MS = Number(process.env.DEEPORCA_OCR_TIMEOUT_MS ?? "") || 15 * 60 * 1000;
 /** Per-file diff cap — protects the reviewer context from generated-asset walls. */
 const MAX_DIFF_CHARS = 80_000;
+/**
+ * Hardcoded review exclusion (user rule 2026-08-31): every file/folder whose
+ * name starts with a dot is out of review scope — .git, .deeporca, .codegraph,
+ * .env & friends are tooling/secret territory, never review targets. Passed to
+ * `ocr delegate preview --exclude` (gitignore-style; a bare `.*` matches at
+ * any depth). A configurable rule schema is TBD — this constant is THE policy
+ * until that design lands; swap it there, single place.
+ */
+const OCR_DEFAULT_EXCLUDES = ".*";
 
 // --- Delegate request/response contracts (host ↔ controller) -----------------
 
@@ -339,8 +348,11 @@ export class OcrCliController implements ReviewController {
   private async diffFor(root: string, preview: OcrPreview, file: string): Promise<string> {
     const run = (args: string[]): Promise<string> =>
       new Promise((resolve, reject) => {
-        execFile("git", args, { cwd: root, maxBuffer: 32 * 1024 * 1024, timeout: 60_000 }, (err, stdout) =>
-          err ? reject(err) : resolve(stdout.toString())
+        execFile(
+          "git",
+          args,
+          { cwd: root, maxBuffer: 32 * 1024 * 1024, timeout: 60_000, windowsHide: true },
+          (err, stdout) => (err ? reject(err) : resolve(stdout.toString()))
         );
       });
 
@@ -389,6 +401,7 @@ export class OcrCliController implements ReviewController {
     if (opts.from && opts.to) previewArgs.push("--from", opts.from, "--to", opts.to);
     else if (opts.commit) previewArgs.push("--commit", opts.commit);
     if (opts.background) previewArgs.push("--background", opts.background);
+    previewArgs.push("--exclude", OCR_DEFAULT_EXCLUDES);
     const preview = parseOcrPreviewText(await this.delegate(resolved, previewArgs, root, "ocr delegate preview"));
 
     if (preview.files.length === 0) {

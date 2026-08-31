@@ -105,6 +105,7 @@ function archNoChangeFastPath(root: string): boolean {
   try {
     const raw = execFileSync("git", ["-C", root, "status", "--porcelain", "--untracked-files=no"], {
       stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
     }).toString();
     const generated = ["openwiki/", "deepwiki/", ".deeporca/", ".codegraph/", ".github/workflows/openwiki-update.yml"];
     const codeDirty = raw
@@ -116,6 +117,7 @@ function archNoChangeFastPath(root: string): boolean {
       parseInt(
         execFileSync("git", ["-C", root, "log", "-1", "--format=%ct"], {
           stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
         })
           .toString()
           .trim(),

@@ -1130,7 +1130,7 @@ export class SessionBridge {
       execFile(
         cmd.command,
         cmd.args ?? [],
-        { env: { ...process.env, ...cmd.env }, encoding: "utf8", timeout: 120_000 },
+        { env: { ...process.env, ...cmd.env }, encoding: "utf8", timeout: 120_000, windowsHide: true },
         (error, stdout) => {
           const lastLine = stdout.trim().split("\n").pop() ?? "";
           try {
