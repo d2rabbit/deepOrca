@@ -36,8 +36,6 @@ import {
   reviewFullRun,
   crgReindexDefinition,
   crgReindexRun,
-  crgVisualizeDefinition,
-  crgVisualizeRun,
   codegraphReindexDefinition,
   codegraphReindexRun,
   codegraphListDefinition,
@@ -75,7 +73,6 @@ function fullRegistry(root: string = PROJECT_ROOT): ActionRegistry {
   r.register(reviewCheckAvailableDefinition, reviewCheckAvailableRun);
   r.register(reviewFullDefinition, reviewFullRun);
   r.register(crgReindexDefinition, crgReindexRun);
-  r.register(crgVisualizeDefinition, crgVisualizeRun);
   r.register(codegraphReindexDefinition, codegraphReindexRun);
   r.register(codegraphListDefinition, codegraphListRun);
   r.register(wikiInitDefinition, wikiInitRun);
@@ -97,7 +94,6 @@ describe("Phase 0-3 actions: registration + surfacing", () => {
       "review_check-available",
       "review_full",
       "crg_reindex",
-      "crg_visualize",
       "codegraph_reindex",
       "codegraph_list",
       "wiki_init",
@@ -126,10 +122,11 @@ describe("codegraph.list", () => {
 });
 
 describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
-  test("listPages returns markdown pages under deepwiki/", async () => {
-    fs.mkdirSync(path.join(PROJECT_ROOT, "deepwiki"), { recursive: true });
-    fs.writeFileSync(path.join(PROJECT_ROOT, "deepwiki", "architecture.md"), "# Arch\n");
-    fs.writeFileSync(path.join(PROJECT_ROOT, "deepwiki", "modules-auth.md"), "# Auth\n");
+  test("listPages returns markdown pages under .deeporca/deepwiki/", async () => {
+    const wikiDir = path.join(PROJECT_ROOT, ".deeporca", "deepwiki");
+    fs.mkdirSync(wikiDir, { recursive: true });
+    fs.writeFileSync(path.join(wikiDir, "architecture.md"), "# Arch\n");
+    fs.writeFileSync(path.join(wikiDir, "modules-auth.md"), "# Auth\n");
     const r = fullRegistry();
     const pages = (await r.execute("wiki.list-pages", {}).result) as { name: string }[];
     const names = pages.map((p) => p.name).sort();
@@ -161,7 +158,7 @@ describe("wiki.list-pages / wiki.read-page (filesystem)", () => {
     const r = fullRegistry();
     await assert.rejects(
       () => r.execute("wiki.read-page", { name: "../../etc/passwd" }).result,
-      (err: unknown) => err instanceof Error && /escapes the deepwiki/.test(err.message)
+      (err: unknown) => err instanceof Error && /escapes the .*deepwiki/.test(err.message)
     );
   });
 
@@ -379,7 +376,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
     // incremental path is chosen, whatever mode the caller asked for.
     const prevCg = getCodegraphController();
     const prevWiki = getWikiController();
-    const wikiDir = path.join(PROJECT_ROOT, "deepwiki");
+    const wikiDir = path.join(PROJECT_ROOT, ".deeporca", "deepwiki");
     const calls: string[] = [];
     const mkRegistry = (): ActionRegistry => {
       const reg = new ActionRegistry({

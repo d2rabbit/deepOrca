@@ -116,7 +116,11 @@ export const IpcRequest = {
   CrgCheckAvailable: "crg:checkAvailable",
   CrgList: "crg:list",
   CrgReindex: "crg:reindex",
-  CrgVisualize: "crg:visualize",
+
+  // Code review — report history + simplified in-app risk map
+  ReviewListReports: "review:listReports",
+  ReviewReadReport: "review:readReport",
+  ReviewRiskGraph: "review:riskGraph",
 
   // Wiki knowledge graph (openwiki CLI)
   WikiCheckAvailable: "wiki:checkAvailable",
@@ -284,6 +288,15 @@ export type CrgProgressEvent = {
 };
 
 /** A workspace entry for the CRG index library panel. */
+export type ReviewReportMeta = {
+  id: string;
+  generatedAt: string;
+  status: string;
+  filesReviewed: number;
+  comments: number;
+  statusNote: string;
+};
+
 export type CrgIndexEntry = {
   /** Workspace root path. */
   root: string;
@@ -924,8 +937,12 @@ export type DesktopApi = {
   crgList(): Promise<CrgIndexEntry[]>;
   /** Build (or rebuild) the CRG graph for a workspace, streaming via onCrgProgress. */
   crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
-  /** Generate a D3.js interactive graph HTML via CRG visualize. Returns HTML or null. */
-  crgVisualize(): Promise<{ html: string | null; error?: string }>;
+  /** List a workspace's persisted review reports (newest first). */
+  reviewListReports(root: string): Promise<ReviewReportMeta[]>;
+  /** Read one persisted report's self-contained HTML (rendered in-app). */
+  reviewReadReport(root: string, id: string): Promise<{ ok: boolean; html?: string; error?: string }>;
+  /** Build the simplified in-app risk map (self-contained HTML) for a workspace. */
+  reviewRiskGraph(root: string): Promise<{ html: string | null; error?: string }>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 

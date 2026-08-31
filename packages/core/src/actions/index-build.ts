@@ -20,6 +20,7 @@ import { join } from "node:path";
 
 import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
+import { WIKI_STORE_DIR } from "../common/generated-dirs";
 import { getCodegraphController } from "./codegraph-controller";
 import { getWikiController } from "./wiki-controller";
 import { getArchRenderer, getArchifyPaths } from "./archify-controller";
@@ -54,13 +55,13 @@ export interface IndexBuildOutput {
  * Artifact-aware init/update detection (real-machine ask 2026-08-27): the
  * build action must behave like "make current" per stage — an already-built
  * stage refreshes instead of re-initializing, regardless of which button the
- * user pressed. wiki artifacts live in the canonical `<root>/deepwiki/` store
+ * user pressed. wiki artifacts live in the canonical `<root>/.deeporca/deepwiki/` store
  * (the CLI's hardcoded openwiki/ dir is a run-local stage, never the read
  * surface); arch-scan persists `arch-*.{md,json}` under `.deeporca/prototypes/`.
  */
 function hasExistingWikiArtifacts(root: string): boolean {
   if (!root) return false;
-  const dir = join(root, "deepwiki");
+  const dir = join(root, WIKI_STORE_DIR);
   try {
     // A REAL wiki has substantial pages (3KB+ healthy; probe 2026-08-28). A
     // failed init leaves only a bare index.md skeleton (frontmatter + heading,

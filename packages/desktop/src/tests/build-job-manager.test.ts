@@ -241,7 +241,7 @@ test("auto mode: init without indexes, update when both exist", async () => {
   const builtRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-bjm-"));
   fs.mkdirSync(path.join(builtRoot, ".codegraph"), { recursive: true });
   fs.writeFileSync(path.join(builtRoot, ".codegraph", "codegraph.db"), "x");
-  fs.mkdirSync(path.join(builtRoot, "deepwiki"), { recursive: true });
+  fs.mkdirSync(path.join(builtRoot, ".deeporca", "deepwiki"), { recursive: true });
   manager.start(builtRoot, "auto");
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(modes[1], "update", "both indexes → update");

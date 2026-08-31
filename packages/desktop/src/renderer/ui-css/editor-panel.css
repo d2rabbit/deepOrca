@@ -1134,3 +1134,228 @@
 .ui-prototype-panel-popout:hover {
   background: color-mix(in srgb, var(--ui-text-dim) 14%, transparent);
 }
+
+/* ── Code review: expanded workspace detail (report history + risk map) ─────
+   Attaches under the clicked workspace row — same "detail under the row"
+   pattern as the knowledge build checklist. */
+.ui-review-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-surface-hover, transparent) 45%, transparent);
+}
+.ui-review-reports {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ui-review-reports-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint, #888);
+}
+.ui-review-report {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-review-report:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-report-time {
+  font-size: 12px;
+  color: var(--ui-text, inherit);
+}
+.ui-review-report-meta {
+  font-size: 11px;
+  color: var(--ui-text-faint, #888);
+  white-space: nowrap;
+}
+
+/* ── Code review main-area tab (report history + risk map) ──────────────────
+   The review module's counterpart of the knowledge tab: sub-view pills on
+   top, history rail + rendered report below. */
+.ui-review-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ui-review-tab-tabs {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.ui-review-tab-pill {
+  padding: 5px 14px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-text-dim, #888);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-review-tab-pill:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-tab-pill.active {
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  color: var(--ui-text, inherit);
+  font-weight: 600;
+}
+.ui-review-tab-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+.ui-review-history {
+  width: 230px;
+  flex: none;
+  overflow-y: auto;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 10px;
+  padding: 6px;
+}
+.ui-review-history-item {
+  padding: 7px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.ui-review-history-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-history-item.active {
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+}
+.ui-review-history-time {
+  font-size: 12px;
+  color: var(--ui-text, inherit);
+}
+.ui-review-history-meta {
+  font-size: 11px;
+  color: var(--ui-text-faint, #888);
+  margin-top: 2px;
+}
+.ui-review-history-empty {
+  padding: 14px 10px;
+  font-size: 12px;
+  color: var(--ui-text-faint, #888);
+}
+.ui-review-tab-content {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+}
+.ui-review-tab-graph {
+  min-height: 0;
+}
+.ui-review-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  .ui-review-frame {
+    background: #17191f;
+  }
+}
+
+/* Review workspace rows — collapsed history toggle + inline last-10 list. */
+.ui-review-history-toggle {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text-faint, #888);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    transform 0.15s var(--ui-ease),
+    background 0.12s var(--ui-ease);
+}
+.ui-review-history-toggle:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-history-toggle.open {
+  transform: rotate(90deg);
+}
+.ui-review-inline-history {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 8px 6px 26px;
+}
+.ui-review-inline-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ui-review-inline-item:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-review-inline-time {
+  font-size: 11.5px;
+  color: var(--ui-text, inherit);
+}
+.ui-review-inline-meta {
+  font-size: 10.5px;
+  color: var(--ui-text-faint, #888);
+}
+.ui-review-inline-empty {
+  padding: 4px 8px 6px;
+  font-size: 11.5px;
+  color: var(--ui-text-faint, #888);
+}
+
+/* Review scope selector — slim controls under the active workspace row. */
+.ui-review-scope {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px 6px 26px;
+  flex-wrap: wrap;
+}
+.ui-review-scope-select,
+.ui-review-scope-input {
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 6px;
+  background: var(--ui-surface, transparent);
+  color: var(--ui-text, inherit);
+  min-width: 0;
+}
+.ui-review-scope-input {
+  width: 110px;
+  font-family: var(--ui-font-mono, monospace);
+}

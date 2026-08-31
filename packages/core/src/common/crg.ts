@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { resolveUvBinary } from "./uv";
 import { spawnTracked } from "./spawn-tracked";
+import { CRG_DATA_DIR, CRG_LEGACY_DIR } from "./generated-dirs";
 
 /**
  * code-review-graph (CRG) integration.
@@ -20,7 +21,7 @@ import { spawnTracked } from "./spawn-tracked";
  * invisible to the user and requiring no host Python.
  *
  * The integration is *project-scoped*: a project participates only when it
- * contains a `.code-review-graph/` directory (created via `code-review-graph build`).
+ * contains a CRG graph directory (`.deeporca/crg/`; created via `code-review-graph build`).
  * The MCP server exposes only analysis-layer tools (filtered via `--tools`),
  * avoiding overlap with CodeGraph's navigation tools.
  */
@@ -51,8 +52,33 @@ function readCrgPinnedVersion(): string | null {
 /** Name under which the CRG MCP server is registered. */
 export const CRG_MCP_SERVER_NAME = "code-review-graph";
 
-/** Project-local directory that holds the CRG graph (SQLite + FTS5). */
-export const CRG_DIR_NAME = ".code-review-graph";
+/**
+ * Project-local directory that holds the CRG graph (SQLite + FTS5).
+ * Generated-content centralization (user rule 2026-08-31): the canonical
+ * location is under `.deeporca/`, passed to the wheel via `--data-dir` on
+ * EVERY spawn. The wheel's old default (`.code-review-graph/`) is adopted —
+ * renamed into the canonical location — on the next touching operation, and
+ * remains readable in place until then.
+ */
+export const CRG_DIR_NAME = CRG_DATA_DIR;
+export const CRG_LEGACY_DIR_NAME = CRG_LEGACY_DIR;
+
+/** Rename the legacy graph dir into the canonical `.deeporca/` location when
+ *  the canonical one doesn't exist yet. Best-effort: on any failure (locked
+ *  db, cross-device move) both layouts keep working, so the caller proceeds. */
+export function migrateLegacyCrgDir(projectRoot: string): boolean {
+  const legacy = path.join(projectRoot, CRG_LEGACY_DIR_NAME);
+  const target = path.join(projectRoot, CRG_DIR_NAME);
+  try {
+    if (!fs.existsSync(path.join(legacy, "graph.db"))) return false;
+    if (fs.existsSync(target)) return false;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.renameSync(legacy, target);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * How to spawn CRG: the executable (uv binary) plus args that must precede the
@@ -114,15 +140,19 @@ export function isCrgDisabled(projectRoot: string): boolean {
 // ── Project detection ────────────────────────────────────────────────────────
 
 /**
- * True when the given project root has been initialized with CRG
- * (i.e. it contains a `.code-review-graph/` directory).
+ * True when the given project root has been initialized with CRG — either at
+ * the canonical `.deeporca/crg/` location or still at the legacy
+ * `.code-review-graph/` one (adopted on the next touching operation).
  */
 export function hasCrgProject(projectRoot: string): boolean {
-  try {
-    return fs.statSync(path.join(projectRoot, CRG_DIR_NAME)).isDirectory();
-  } catch {
-    return false;
+  for (const dir of [CRG_DIR_NAME, CRG_LEGACY_DIR_NAME]) {
+    try {
+      if (fs.statSync(path.join(projectRoot, dir)).isDirectory()) return true;
+    } catch {
+      // not at this location — try the next
+    }
   }
+  return false;
 }
 
 // ── MCP server config ────────────────────────────────────────────────────────
@@ -157,10 +187,13 @@ function runCrgBuildWithOutput(
       return 1;
     }
     try {
+      // Adopt a legacy graph location before spawning, so the wheel writes
+      // into the canonical `.deeporca/` tree (no-op when already canonical).
+      migrateLegacyCrgDir(projectRoot);
       const result = await spawnTracked({
         label: "CRG build",
         command: exe.command,
-        args: [...exe.prefixArgs, "build"],
+        args: [...exe.prefixArgs, "build", "--data-dir", path.join(projectRoot, CRG_DIR_NAME)],
         cwd: projectRoot,
         env: exe.env,
         timeoutMs: CRG_TIMEOUT_MS,
@@ -183,45 +216,20 @@ function runCrgBuildWithOutput(
 }
 
 /**
- * Reset the CRG graph: remove `.code-review-graph/`, then run a fresh build
- * with piped stdio. Resolves with the exit code.
+ * Reset the CRG graph: remove the graph (canonical AND legacy locations — a
+ * legacy dir must not survive as a resurrection source), then run a fresh
+ * build with piped stdio. Resolves with the exit code.
  */
 export async function runCrgResetWithOutput(
   projectRoot: string,
   onOutput: (chunk: string, stream: "stdout" | "stderr") => void
 ): Promise<number> {
-  const dir = path.join(projectRoot, CRG_DIR_NAME);
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-  } catch {
-    // Directory may not exist.
+  for (const dir of [CRG_DIR_NAME, CRG_LEGACY_DIR_NAME]) {
+    try {
+      fs.rmSync(path.join(projectRoot, dir), { recursive: true, force: true });
+    } catch {
+      // Directory may not exist.
+    }
   }
   return runCrgBuildWithOutput(projectRoot, onOutput);
-}
-
-/**
- * Run `code-review-graph visualize` to generate a D3.js interactive HTML graph.
- * Returns the HTML content as a string, or null on failure/timeout.
- *
- * The visualize command writes a self-contained HTML file (D3.js force-directed
- * graph with community detection, hub/bridge nodes, search). We capture its
- * stdout to get the HTML content directly.
- */
-export async function runCrgVisualize(projectRoot: string): Promise<string | null> {
-  const exe = resolveCrgExecutable();
-  if (!exe) return null;
-  try {
-    const result = await spawnTracked({
-      label: "CRG visualize",
-      command: exe.command,
-      args: [...exe.prefixArgs, "visualize"],
-      cwd: projectRoot,
-      env: exe.env,
-      timeoutMs: CRG_TIMEOUT_MS,
-    });
-    if ((result.forcedOk || result.code === 0) && result.stdout.trim()) return result.stdout;
-    return null;
-  } catch {
-    return null;
-  }
 }

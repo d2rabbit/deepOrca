@@ -10,11 +10,11 @@
 import type { ControllerProgress, ControllerSyncResult } from "./codegraph-controller";
 
 export interface CrgController {
-  /** Full rebuild: delete .code-review-graph/ + build from scratch. */
+  /** Full rebuild: delete the graph (.deeporca/crg/ or legacy) + rebuild. */
   reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void>;
   /** Incremental sync (only changed files); onProgress mirrors sync()'s flow. */
   sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void>;
-  /** True when .code-review-graph/ exists. */
+  /** True when a CRG graph exists (canonical or legacy location). */
   hasProject(root: string): boolean;
 }
 

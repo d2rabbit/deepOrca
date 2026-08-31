@@ -15,6 +15,8 @@ import * as path from "node:path";
 import {
   WIKI_STAGE_DIR,
   WIKI_STORE_DIR,
+  WIKI_LEGACY_STORE_DIR,
+  migrateLegacyWikiStore,
   countSubstantialPagesIn,
   hasWikiStore,
   discardStage,
@@ -44,7 +46,10 @@ function writePage(dir: string, rel: string, size = 1024): void {
 
 test("layout constants pin the contract", () => {
   assert.equal(WIKI_STAGE_DIR, "openwiki", "the stage must keep the CLI's hardcoded dir name");
-  assert.equal(WIKI_STORE_DIR, "deepwiki");
+  // Generated-content centralization (user rule 2026-08-31): the canonical
+  // store lives under .deeporca/.
+  assert.equal(WIKI_STORE_DIR, ".deeporca/deepwiki");
+  assert.equal(WIKI_LEGACY_STORE_DIR, "deepwiki");
 });
 
 test("copyStoreToStage + promoteStage round-trip content and the marker", () => {
@@ -112,5 +117,25 @@ test("countSubstantialPagesIn excludes index.md and thin files", () => {
     fs.writeFileSync(path.join(stage(root), "stub.md"), "x".repeat(100), "utf8");
     writePage(stage(root), "real.md", 600);
     assert.equal(countSubstantialPagesIn(stage(root)), 1);
+  });
+});
+
+test("migrateLegacyWikiStore adopts a pre-centralization top-level deepwiki/", () => {
+  withRoot((root) => {
+    // Generated-content centralization (user rule 2026-08-31): the old
+    // top-level canonical store moves under .deeporca/ on the first touch.
+    const legacy = path.join(root, WIKI_LEGACY_STORE_DIR);
+    fs.mkdirSync(legacy, { recursive: true });
+    writePage(legacy, "architecture.md");
+    assert.equal(hasWikiStore(root), true, "legacy content is found via adoption");
+    assert.equal(fs.existsSync(legacy), false, "legacy dir is gone (renamed)");
+    assert.equal(countSubstantialPagesIn(store(root)), 1);
+
+    // A live canonical store is never replaced by a legacy leftover.
+    const staleLegacy = path.join(root, WIKI_LEGACY_STORE_DIR);
+    fs.mkdirSync(staleLegacy, { recursive: true });
+    writePage(staleLegacy, "stale.md");
+    assert.equal(migrateLegacyWikiStore(root), false);
+    assert.equal(fs.existsSync(staleLegacy), true, "legacy leftover untouched");
   });
 });

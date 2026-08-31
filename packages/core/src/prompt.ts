@@ -398,12 +398,12 @@ DeepOrca 为你提供以下 6 个知识来源，按需利用：
 1. **\`<memory-context>\`（跨会话记忆）** — 系统自动注入的用户偏好、历史事实、场景记忆。你不需要主动查询——它在会话开始时已包含在上下文中。
 2. **CodeGraph 图谱工具** — 通过 MCP 工具查询符号调用关系（\`codegraph_search\` / \`codegraph_impact\` / \`codegraph_callers\`）
 3. **Serena 语义工具** — 通过 MCP 工具进行 LSP 级符号操作（\`find_symbol\` / \`rename_symbol\` / \`replace_symbol_body\`）
-4. **\`deepwiki/\` 目录** — 结构化项目文档（architecture.md、modules/*.md、workflows/*.md），用 \`read\` 工具查看
+4. **\`.deeporca/deepwiki/\` 目录** — 结构化项目文档（architecture.md、modules/*.md、workflows/*.md），用 \`read\` 工具查看
 5. **\`.serena/memories/\` 目录** — Serena 项目记忆（架构理解、模块依赖、构建方式），Markdown 格式，可提交 Git，用 \`read\` 工具查看
 6. **AGENTS.md** — 项目编码指南和架构约束（已自动加载到上下文）
 
 ### 查询路由
-- "这个项目的架构是怎样的？" → 读 \`deepwiki/architecture.md\`
+- "这个项目的架构是怎样的？" → 读 \`.deeporca/deepwiki/architecture.md\`
 - "这个函数被谁调用？" → 用 \`codegraph_callers\`
 - "这个符号在哪定义？" → 用 Serena \`find_symbol\`
 - "修改这个会影响什么？" → 用 \`codegraph_impact\`

@@ -8,6 +8,7 @@ import {
   type LinkSafetyConfig,
   type PluginConfig,
 } from "streamdown";
+import { code } from "@streamdown/code";
 import remarkBreaks from "remark-breaks";
 import { visit } from "unist-util-visit";
 import type { Root } from "mdast";
@@ -75,22 +76,28 @@ function MermaidBlock({ code, isIncomplete }: CustomRendererProps): JSX.Element 
 }
 
 const RENDERERS: CustomRenderer[] = [{ language: "mermaid", component: MermaidBlock }];
-const PLUGINS: PluginConfig = { renderers: RENDERERS };
 
-// Syntax palette is PINNED to github-light for BOTH shiki variants. In this
-// app streamdown's tailwind utilities never compile (there is no tailwind
-// runtime for streamdown surfaces — chat.css owns every code-well color), so
-// shiki token colors never render and code text follows --ui-text. The pin is
-// belt-and-braces: if utility compilation ever lands, the palette stays
-// github-light in both slots so the well can never regress to near-black
-// (hard product rule 2026-08-31: 严禁黑色 — wells are light gray in light
-// appearance and dark gray in dark, see --ui-code-well in tokens.css).
-const SHIKI_THEME: [string, string] = ["github-light", "github-light"];
+// Syntax highlighting rides the official @streamdown/code plugin (shiki).
+// Without a `code` plugin streamdown renders every fence through its plain
+// fallback (color:"inherit") and shiki never runs — that is exactly why
+// highlighting never worked before. Streamdown's own tailwind utilities still
+// never compile in this bundle, so the plugin's token colors reach the DOM as
+// INLINE CUSTOM PROPERTIES (each token span gets `--sdm-c` = light color and
+// `--shiki-dark` = dark color) and chat.css consumes them directly.
+//
+// Dual theme = github-light / github-dark. The dark half is selected purely in
+// CSS via `--shiki-dark`, so flipping the app appearance needs no re-render.
+// The code WELL background stays app-owned (chat.css `!important`, hard
+// product rule 2026-08-31: 严禁黑色 — light gray in light, dark gray in dark);
+// neither `--sdm-bg` nor `--shiki-dark-bg` is ever consumed here, so the well
+// cannot regress to a theme's near-black background.
+const SHIKI_THEME: ["github-light", "github-dark"] = ["github-light", "github-dark"];
 
 // Match the old chrome: code blocks get a copy button; download buttons,
 // table controls and mermaid controls stay off (mermaid has its own renderer).
 const CONTROLS: ControlsConfig = { table: false, code: { copy: true, download: false }, mermaid: false };
 const LINK_SAFETY: LinkSafetyConfig = { enabled: false };
+const PLUGINS: PluginConfig = { renderers: RENDERERS, code };
 
 type Props = {
   markdown: string;

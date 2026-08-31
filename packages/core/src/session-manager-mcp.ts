@@ -369,10 +369,11 @@ If the query is simple (single intent), respond with a single-element array.`;
   /**
    * Merge built-in MCP servers into the configured set. CodeGraph is registered
    * automatically — but only for projects that already contain a `.codegraph/`
-   * directory, so the index/knowledge base stays project-scoped and nothing is
-   * assumed to exist on the host. A user-provided `codegraph` entry always wins.
-   * Similarly, code-review-graph is auto-registered for projects with a
-   * `.code-review-graph/` directory, exposing only analysis-layer tools.
+   * directory (or its `.deeporca/codegraph/` store behind the symlink), so the
+   * index/knowledge base stays project-scoped and nothing is assumed to exist
+   * on the host. A user-provided `codegraph` entry always wins. (The
+   * code-review-graph MCP server was retired — queries read graph.db directly
+   * from `.deeporca/crg/` via CrgGraphQuery.)
    * GitMCP entries (`gitmcp:` prefix) that still hold the portable placeholder
    * config are rewritten here into a concrete spawn config for this machine.
    */

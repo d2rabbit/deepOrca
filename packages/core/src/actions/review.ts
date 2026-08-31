@@ -16,6 +16,7 @@ import { getCrgController } from "./crg-controller";
 import { getCrgGraphQuery, formatCrgContextForOcr, mergeReviewWithCrgRisk } from "./crg-query";
 import type { BackendStatus, BackendStatusReport } from "../common/analysis-status";
 import { describeBackendStatus } from "../common/analysis-status";
+import { execFileSync } from "node:child_process";
 import * as path from "node:path";
 
 export type ReviewInput = ReviewOptions;
@@ -71,6 +72,13 @@ export const reviewCheckAvailableRun: ActionRun<unknown, ReviewAvailability> = a
 
 export interface ReviewFullOutput {
   readonly review: ReviewResult;
+  /** The scope this run covered (echoed onto the HTML report). */
+  readonly scope: {
+    readonly mode: "workspace" | "commit" | "range" | "all";
+    readonly commit?: string;
+    readonly from?: string;
+    readonly to?: string;
+  };
   readonly risk?:
     | {
         readonly changedNodes?: unknown;
@@ -84,16 +92,39 @@ export interface ReviewFullOutput {
   readonly statusNote: string;
 }
 
+export interface ReviewFullInput {
+  /** Scope: uncommitted workspace changes (default), one commit, a range, or
+   *  the whole repository (`all`). */
+  readonly commit?: string;
+  readonly from?: string;
+  readonly to?: string;
+  readonly all?: boolean;
+  readonly background?: string;
+}
+
 export const reviewFullDefinition: ActionDefinition = {
   id: "review.full",
   description:
-    "Full code review of uncommitted changes — the Code Review module's one-click composite. Runs ocr AI semantic review AND, when the CRG risk graph is built, enriches each finding with structural impact (changed nodes + blast radius). Returns a unified {review, risk} report.",
+    "Full code review — the Code Review module's one-click composite. Scope: uncommitted workspace changes by default; pass `commit` to review one commit or `from`+`to` for a range. Runs ocr AI semantic review AND, when the CRG risk graph is built, enriches each finding with structural impact (changed nodes + blast radius). Returns a unified {review, risk} report.",
   category: "review",
-  parameters: { type: "object", properties: {}, additionalProperties: false },
+  parameters: {
+    type: "object",
+    properties: {
+      commit: { type: "string", description: "Commit mode: review the changes of this single commit (e.g. HEAD)." },
+      all: {
+        type: "boolean",
+        description: "Whole-repository scope: review every tracked file (全域审查). Slow on large repos.",
+      },
+      from: { type: "string", description: "Range mode: source ref (with `to`)." },
+      to: { type: "string", description: "Range mode: target ref (with `from`)." },
+      background: { type: "string", description: "Business context for better review quality." },
+    },
+    additionalProperties: false,
+  },
   sideEffects: ["spawn-subprocess", "read-in-cwd"],
 };
 
-export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input, ctx) => {
+export const reviewFullRun: ActionRun<ReviewFullInput, ReviewFullOutput> = async (input, ctx) => {
   const rc = getReviewController();
   if (!rc) {
     throw new Error("review.full: no ReviewController configured");
@@ -117,16 +148,29 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
     }
   }
 
+  // Scope resolution (workspace default; commit / range opt-in).
+  const scopeInput = input ?? {};
+  const scope: ReviewFullOutput["scope"] = scopeInput.all
+    ? { mode: "all" }
+    : scopeInput.commit
+      ? { mode: "commit", commit: scopeInput.commit }
+      : scopeInput.from && scopeInput.to
+        ? { mode: "range", from: scopeInput.from, to: scopeInput.to }
+        : { mode: "workspace" };
+
   // ① CRG structural analysis (Node.js direct SQLite read — no Python MCP).
   let crgBackground: string | undefined;
   let crgChanges: ReturnType<NonNullable<ReturnType<typeof getCrgGraphQuery>>["detectChanges"]> = [];
   let crgRisks: ReturnType<NonNullable<ReturnType<typeof getCrgGraphQuery>>["getRiskData"]> = [];
+  // Kept at the composite scope so the degradation note can tell "nothing
+  // changed outside generated dirs" apart from "the query layer failed".
+  let changedFiles: string[] = [];
   const crgQuery = getCrgGraphQuery();
   if (crgQuery?.hasGraph(ctx.projectRoot)) {
     ctx.emit({ message: "analyzing CRG structural risk", percent: 5 });
     try {
-      // Get changed files from git diff.
-      const changedFiles = getGitChangedFiles(ctx.projectRoot);
+      // Get changed files for the chosen scope.
+      changedFiles = getGitChangedFiles(ctx.projectRoot, scope);
       crgChanges = crgQuery.detectChanges(ctx.projectRoot, changedFiles);
       if (crgChanges.length > 0) {
         const qualifiedNames = crgChanges.map((c) => c.qualifiedName);
@@ -140,10 +184,39 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
     }
   }
 
-  // ② OCR review with CRG structural context (--background).
-  const review = await rc.runReview(ctx.projectRoot, { background: crgBackground }, (p: ControllerProgress) =>
-    ctx.emit(p)
+  // ② OCR review with CRG structural context (--background) — same scope.
+  const review = await rc.runReview(
+    ctx.projectRoot,
+    {
+      background: crgBackground,
+      ...(scope.mode === "commit" ? { commit: scope.commit } : {}),
+      ...(scope.mode === "range" ? { from: scope.from, to: scope.to } : {}),
+      ...(scope.mode === "all" ? { all: true } : {}),
+    },
+    (p: ControllerProgress) => ctx.emit(p)
   );
+
+  // ②′ HEAD fallback: when the controller re-scoped the run to the latest
+  // commit, re-run the CRG change detection for THAT scope so risk tagging
+  // matches what was actually reviewed (the workspace-scope detection above
+  // saw nothing or saw unrelated junk).
+  let effScope: ReviewFullOutput["scope"] = scope;
+  if (review.effectiveScope?.mode === "commit" && crgQuery?.hasGraph(ctx.projectRoot)) {
+    effScope = { mode: "commit", commit: review.effectiveScope.commit };
+    ctx.emit({ message: "re-analyzing CRG structural risk for HEAD", percent: 20 });
+    try {
+      changedFiles = getGitChangedFiles(ctx.projectRoot, { mode: "commit", commit: effScope.commit });
+      crgChanges = crgQuery.detectChanges(ctx.projectRoot, changedFiles);
+      if (crgChanges.length > 0) {
+        const qualifiedNames = crgChanges.map((c) => c.qualifiedName);
+        crgRisks = crgQuery.getRiskData(ctx.projectRoot, qualifiedNames);
+        const testGaps = crgQuery.getTestGaps(ctx.projectRoot, qualifiedNames);
+        crgBackground = formatCrgContextForOcr(crgChanges, crgRisks, testGaps);
+      }
+    } catch {
+      // best-effort enrichment — the semantic review stands without it
+    }
+  }
 
   // ③ Merge: tag each OCR comment with CRG risk level.
   // Status derives from whether enrichment ACTUALLY produced data — not from
@@ -165,7 +238,9 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
         status: "degraded",
         backend: "review.full",
         detail: graphPresent
-          ? "semantic review (ocr) only — CRG graph present but produced no structural data (analysis failed or no matched changes)"
+          ? changedFiles.length === 0
+            ? "semantic review (ocr) only — no changes outside generated/tooling directories (dot-paths excluded), nothing to structurally enrich"
+            : "semantic review (ocr) only — CRG graph present but produced no structural data for this scope (analysis failed or no matched changes)"
           : "semantic review (ocr) only — structural impact enrichment unavailable (no .code-review-graph/)",
         remedy: graphPresent ? undefined : "run crg.reindex for per-finding blast-radius data",
       };
@@ -181,6 +256,7 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
         impactRadius: crgRisks,
         graphBuilt: true as const,
       },
+      scope: effScope,
       status,
       statusNote,
     };
@@ -191,36 +267,66 @@ export const reviewFullRun: ActionRun<unknown, ReviewFullOutput> = async (_input
     review,
     risk: graphPresent
       ? { graphBuilt: true as const, changedNodes: crgChanges, impactRadius: crgRisks }
-      : { graphBuilt: false as const, reason: "no .code-review-graph/" },
+      : { graphBuilt: false as const, reason: "no CRG graph" },
+    scope: effScope,
     status,
     statusNote,
   };
 };
 
-/** Get changed files from git diff HEAD (workspace mode). Dot-files and
- * dot-folders (.git, .deeporca, .env & friends) are hard-excluded — same
- * policy as the delegate preview's --exclude (user rule 2026-08-31). */
-function getGitChangedFiles(root: string): string[] {
+/** List changed files for one scope. Workspace = diff HEAD + untracked;
+ *  commit = that commit's diff (vs its first parent); range = from..to.
+ *  Dot-files and
+ * dot-folders (.git, .deeporca, .code-review-graph, .env & friends) are
+ * hard-excluded — same policy as the delegate preview's --exclude (user rule
+ * 2026-08-31). Everything the toolchain generates (arch maps, wiki, graph DBs,
+ * review reports) lives under dot-directories, so this filter is also what
+ * keeps CRG change detection from "reviewing" generated artifacts.
+ * Exported for tests. */
+export function getGitChangedFiles(
+  root: string,
+  scope: {
+    mode: "workspace" | "commit" | "range" | "all";
+    commit?: string;
+    from?: string;
+    to?: string;
+  } = { mode: "workspace" }
+): string[] {
   try {
-    const { execSync } = require("node:child_process");
-    const tracked = execSync("git diff --name-only HEAD", {
+    // SECURITY (CWE-78, same discipline as sqlite-runtime): scope refs are
+    // external values — argv-array execFileSync, never a shell string.
+    const gitArgs =
+      scope.mode === "commit"
+        ? ["diff", "--name-only", `${scope.commit ?? "HEAD"}^`, scope.commit ?? "HEAD"]
+        : scope.mode === "range"
+          ? ["diff", "--name-only", `${scope.from ?? "HEAD"}...${scope.to ?? "HEAD"}`]
+          : scope.mode === "all"
+            ? ["ls-files"]
+            : ["diff", "--name-only", "HEAD"];
+    const tracked = execFileSync("git", gitArgs, {
       cwd: root,
       encoding: "utf8",
       timeout: 5000,
       windowsHide: true,
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    const untracked = execSync("git ls-files --others --exclude-standard", {
-      cwd: root,
-      encoding: "utf8",
-      timeout: 5000,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+    const untracked =
+      scope.mode === "workspace"
+        ? execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
+            cwd: root,
+            encoding: "utf8",
+            timeout: 5000,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "ignore"],
+          }).trim()
+        : "";
     const files = [...tracked.split("\n"), ...untracked.split("\n")]
       .map((f) => f.trim())
       .filter(Boolean)
       .map((f) => (path.isAbsolute(f) ? f : path.resolve(root, f)))
+      // "all" on a huge repo could exceed downstream SQL placeholder limits —
+      // cap the detection set (risk coverage is already top-N downstream).
+      .slice(0, 800)
       // Drop anything under a dot-directory or a dot-file itself.
       .filter((f) => {
         const rel = path.relative(root, f).split(/[\\/]/);

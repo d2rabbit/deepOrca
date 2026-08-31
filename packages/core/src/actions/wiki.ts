@@ -19,10 +19,12 @@ export type { WikiController, WikiResult } from "./wiki-controller";
 export { configureWikiController, getWikiController } from "./wiki-controller";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { WIKI_STORE_DIR } from "../common/generated-dirs";
 
 /** Canonical wiki store (desktop's staging promotes into it; the CLI's
- *  hardcoded openwiki/ dir is a run-local stage, not the read surface). */
-const OPENWIKI_DIR = "deepwiki";
+ *  hardcoded openwiki/ dir is a run-local stage, not the read surface).
+ *  Generated-content centralization (user rule 2026-08-31): under .deeporca/. */
+const OPENWIKI_DIR = WIKI_STORE_DIR;
 
 export type WikiInitOutput = WikiResult;
 
@@ -103,7 +105,7 @@ function parseFrontmatter(content: string): WikiFrontmatter | null {
 export const wikiListPagesDefinition: ActionDefinition = {
   id: "wiki.list-pages",
   description:
-    "List the wiki pages (markdown files) in the project's deepwiki/ store, with OKF frontmatter metadata (title, type). Returns [] if no wiki has been generated.",
+    "List the wiki pages (markdown files) in the project's .deeporca/deepwiki/ store, with OKF frontmatter metadata (title, type). Returns [] if no wiki has been generated.",
   category: "index",
   parameters: { type: "object", properties: {}, additionalProperties: false },
 };
@@ -146,11 +148,13 @@ export interface WikiPageDetail {
 export const wikiReadPageDefinition: ActionDefinition<{ name: string }> = {
   id: "wiki.read-page",
   description:
-    "Read a wiki page by name (e.g. 'architecture', 'modules/auth'). Returns structured OKF frontmatter (type/title/description/tags) + body + raw markdown. Confined to the project's deepwiki/ store.",
+    "Read a wiki page by name (e.g. 'architecture', 'modules/auth'). Returns structured OKF frontmatter (type/title/description/tags) + body + raw markdown. Confined to the project's .deeporca/deepwiki/ store.",
   category: "index",
   parameters: {
     type: "object",
-    properties: { name: { type: "string", description: "Page name (without .md) or relative path within deepwiki/." } },
+    properties: {
+      name: { type: "string", description: "Page name (without .md) or relative path within .deeporca/deepwiki/." },
+    },
     required: ["name"],
     additionalProperties: false,
   },
@@ -162,7 +166,7 @@ export const wikiReadPageRun: ActionRun<{ name: string }, WikiPageDetail> = asyn
   const resolved = path.resolve(dir, raw);
   const rel = path.relative(dir, resolved);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`wiki.read-page: "${input.name}" escapes the deepwiki/ store`);
+    throw new Error(`wiki.read-page: "${input.name}" escapes the .deeporca/deepwiki/ store`);
   }
   if (!fs.existsSync(resolved)) {
     throw new Error(`wiki.read-page: no such page "${input.name}"`);

@@ -55,6 +55,9 @@ const PrototypeDesignPanel = lazy(() =>
 );
 const DesignPanel = lazy(() => import("./components/DesignPanel").then((m) => ({ default: m.DesignPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })));
+const ReviewWorkspace = lazy(() =>
+  import("./components/ReviewWorkspace").then((m) => ({ default: m.ReviewWorkspace }))
+);
 const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
 const TaskRecordPanel = lazy(() =>
   import("./components/TaskRecordPanel").then((m) => ({ default: m.TaskRecordPanel }))
@@ -94,6 +97,7 @@ import {
   IconCommand,
   IconFile,
   IconIndex,
+  IconReview,
   IconPlugins,
   IconTaskTree,
   IconMoon,
@@ -224,6 +228,7 @@ export function App(): JSX.Element {
     | { kind: "plugins" }
     | { kind: "editor"; file: string }
     | { kind: "knowledge"; root: string }
+    | { kind: "review"; root: string }
     | { kind: "task"; treeId: string };
   const [activeTab, setActiveTab] = useState<MainTab>({ kind: "chat" });
   /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, one per editor file. */
@@ -278,8 +283,6 @@ export function App(): JSX.Element {
     prototypeMode,
     prototypeOpenuiCode,
     designContent,
-    graphHtml,
-    setGraphHtml,
     previewOpen,
     previewTab,
     setPreviewTab,
@@ -304,6 +307,7 @@ export function App(): JSX.Element {
   const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
   /** Knowledge tab (specs/index-knowledge-rework T3): one per workspace root. */
   const [knowledgeTabs, setKnowledgeTabs] = useState<Array<{ root: string; label: string }>>([]);
+  const [reviewTabs, setReviewTabs] = useState<Array<{ root: string; label: string; reportId?: string }>>([]);
   const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
   const taskTabsRef = useRef(taskTabs);
   taskTabsRef.current = taskTabs;
@@ -359,16 +363,23 @@ export function App(): JSX.Element {
     },
     [openEditorTab, setSidebarView]
   );
-  // CRG architecture graph (Code Review panel) shares the right dock with the
-  // design preview — opening one evicts the other (single-slot mutex; the
-  // reverse direction lives in use-preview's open paths).
-  const handleShowGraph = useCallback(
-    (html: string) => {
-      setGraphHtml(html);
-      closePreview();
-    },
-    [closePreview, setGraphHtml]
-  );
+  // Code review tab (index-module interaction: workspace row click opens the
+  // main-area tab; report history + risk map render in-app, never pop out).
+  const handleOpenReviewTab = useCallback((root: string, reportId?: string) => {
+    const label = root.split(/[\\/]/).pop() ?? root;
+    setReviewTabs((tabs) => {
+      const existing = tabs.find((tab) => tab.root === root);
+      if (!existing) return [...tabs, { root, label, reportId }];
+      return reportId && existing.reportId !== reportId
+        ? tabs.map((tab) => (tab.root === root ? { ...tab, reportId } : tab))
+        : tabs;
+    });
+    setActiveTab({ kind: "review", root });
+  }, []);
+  const handleCloseReviewTab = useCallback((root: string) => {
+    setReviewTabs((tabs) => tabs.filter((tab) => tab.root !== root));
+    setActiveTab((tab) => (tab.kind === "review" && tab.root === root ? { kind: "chat" } : tab));
+  }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
     showProcessPanel,
@@ -1811,7 +1822,7 @@ export function App(): JSX.Element {
   // least one auxiliary surface exists — a lone conversation keeps the
   // cockpit clean. Chip = container div + two SIBLING buttons (switch +
   // close) — nested interactive elements are an a11y/HTML anti-pattern.
-  const hasAuxSurfaces = auxTabs.length > 0 || taskTabs.length > 0 || knowledgeTabs.length > 0;
+  const hasAuxSurfaces = auxTabs.length > 0 || taskTabs.length > 0 || knowledgeTabs.length > 0 || reviewTabs.length > 0;
   const surfaceChips = useMemo(() => {
     if (!hasAuxSurfaces) return null;
     return (
@@ -1910,6 +1921,29 @@ export function App(): JSX.Element {
             </button>
           </div>
         ))}
+        {reviewTabs.map((tab) => (
+          <div
+            key={tab.root}
+            className={cx("ui-surface-chip", activeTab.kind === "review" && activeTab.root === tab.root && "active")}
+          >
+            <button
+              type="button"
+              className="ui-surface-chip-main"
+              onClick={() => setActiveTab({ kind: "review", root: tab.root })}
+              data-tip={tab.root}
+            >
+              <IconReview /> {tab.label}
+            </button>
+            <button
+              type="button"
+              className="ui-surface-chip-close"
+              onClick={() => handleCloseReviewTab(tab.root)}
+              aria-label={t("tasktree.closeTab")}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
       </div>
     );
   }, [
@@ -1917,10 +1951,12 @@ export function App(): JSX.Element {
     auxTabs,
     handleCloseAuxTab,
     handleCloseKnowledgeTab,
+    handleCloseReviewTab,
     handleCloseTaskTab,
     hasAuxSurfaces,
     knowledgeTabs,
     requestCloseSettings,
+    reviewTabs,
     t,
     taskTabs,
   ]);
@@ -2062,8 +2098,7 @@ export function App(): JSX.Element {
   // Floating-island size vars — the hub sheet and the companion card each own
   // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
   // reflow and card width in lock-step.
-  const companionOpen =
-    Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent)) || Boolean(graphHtml);
+  const companionOpen = Boolean(previewOpen && (prototypeJson || prototypeMode === "openui" || designContent));
   const shellVars = {
     ...(panelOpen ? { "--ui-panel-w": `${panelWidth}px` } : {}),
     ...(companionOpen ? { "--ui-right-w": `${companionWidth}px` } : {}),
@@ -2125,7 +2160,7 @@ export function App(): JSX.Element {
           ) : sidebarView === "review" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
               <CodeReviewPanel
-                onShowGraph={handleShowGraph}
+                onOpenReviewTab={handleOpenReviewTab}
                 onOneClickFix={handleReviewOneClickFix}
                 onAskInChat={handleReviewAskInChat}
               />
@@ -2237,6 +2272,23 @@ export function App(): JSX.Element {
               onQuoteToChat={handleQuoteWikiToChat}
             />
           </div>
+        ) : activeTab.kind === "review" ? (
+          <div className="ui-sheet">
+            <button
+              type="button"
+              className="ui-sheet-close"
+              onClick={() => handleCloseReviewTab(activeTab.root)}
+              aria-label={t("sheet.backToChat")}
+            >
+              ✕ {t("sheet.backToChat")}
+            </button>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+              <ReviewWorkspace
+                root={activeTab.root}
+                initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
+              />
+            </Suspense>
+          </div>
         ) : activeTab.kind === "task" ? (
           <div className="ui-sheet">
             <button
@@ -2333,33 +2385,6 @@ export function App(): JSX.Element {
                 />
               ) : null}
             </Suspense>
-          </div>
-        </div>
-      ) : null}
-
-      {graphHtml ? (
-        <div className="ui-preview-panel">
-          <div
-            className="ui-companion-resize"
-            onMouseDown={handleCompanionResizeStart}
-            role="separator"
-            aria-orientation="vertical"
-          />
-          <div className="ui-preview-panel-head">
-            <div className="ui-preview-tabs">
-              <span className="ui-preview-tab active"> ◈ Architecture Graph</span>
-            </div>
-            <button className="ui-preview-close" onClick={() => setGraphHtml(null)} title="Close graph">
-              ✕
-            </button>
-          </div>
-          <div className="ui-preview-panel-body">
-            <iframe
-              srcDoc={graphHtml}
-              title="Code Architecture Graph"
-              sandbox="allow-scripts"
-              style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
-            />
           </div>
         </div>
       ) : null}

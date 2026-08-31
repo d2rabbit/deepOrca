@@ -22,8 +22,6 @@ import {
   reviewFullRun,
   crgReindexDefinition,
   crgReindexRun,
-  crgVisualizeDefinition,
-  crgVisualizeRun,
   codegraphReindexDefinition,
   codegraphReindexRun,
   codegraphListDefinition,
@@ -393,7 +391,6 @@ export abstract class SessionManagerBase {
     // crg.reindex/visualize wrap the core crg.ts helpers (uv-resolved spawn);
     // Actions that need MCP tool routing use ctx.executeMcpTool.
     this.actionRegistry.register(crgReindexDefinition, crgReindexRun);
-    this.actionRegistry.register(crgVisualizeDefinition, crgVisualizeRun);
     // ── Phase 2: knowledge index actions ──────────────────────────────────
     this.actionRegistry.register(codegraphReindexDefinition, codegraphReindexRun);
     this.actionRegistry.register(codegraphListDefinition, codegraphListRun);

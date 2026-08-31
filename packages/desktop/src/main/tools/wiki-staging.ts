@@ -5,34 +5,39 @@
  * (OPEN_WIKI_DIR constant; the agent prompt, the write-confinement "runs may
  * only write under /openwiki" and the backend's virtual /openwiki root all
  * bake the name in — no env or flag can point it elsewhere). DeepOrca's
- * CANONICAL wiki store is `deepwiki/` instead; `openwiki/` exists only as
- * the CLI's stage:
+ * CANONICAL wiki store is `.deeporca/deepwiki/` instead (generated-content
+ * centralization, user rule 2026-08-31: everything under `.deeporca/`);
+ * `openwiki/` exists only as the CLI's stage:
  *
  *   init   : rm stage → CLI --init writes stage → validate → PROMOTE
- *   update : rm stage → copy deepwiki→stage → CLI --update mutates stage →
- *            validate → PROMOTE (bad run: DISCARD stage, deepwiki untouched)
+ *   update : rm stage → copy store→stage → CLI --update mutates stage →
+ *            validate → PROMOTE (bad run: DISCARD stage, store untouched)
  *
  * This is the answer to the recurring "wiki × LLM 配合" failures
  * (real-machine 2026-08-28..29): hollow exits, /responses dialect drops,
  * moderation-interrupted runs — a bad or half-dead run can never damage the
- * last-known-good wiki, because the CLI never touches deepwiki/ and only a
+ * last-known-good wiki, because the CLI never touches the store and only a
  * validated stage replaces it. The completion marker lives INSIDE the
  * directory (openwiki/.last-update.json), so the copy carries the git
  * baseline and the promote keeps the new one — no marker surgery needed.
  *
- * No production data predates this layout (user decision 2026-08-29:
- * "当前没有真正的生产数据，所以没有历史包袱") — legacy `openwiki/`
- * directories are recovered as the canonical store on the next build
- * rather than migrated in place.
+ * Pre-centralization layouts are adopted on the next wiki touch: a top-level
+ * `deepwiki/` store migrates into `.deeporca/deepwiki/`
+ * (migrateLegacyWikiStore); a pre-staging-era `openwiki/` directory is
+ * recovered as the canonical store by recoverOrphanedStage (user decision
+ * 2026-08-29: "当前没有真正的生产数据，所以没有历史包袱").
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { WIKI_STORE_DIR, WIKI_LEGACY_STORE_DIR } from "@deeporca/core";
+
+// Re-exported: every wiki reader in desktop builds paths from HERE, so a
+// future store move stays a one-file change.
+export { WIKI_STORE_DIR, WIKI_LEGACY_STORE_DIR };
 
 /** The CLI's hardcoded stage directory (vendored constant OPEN_WIKI_DIR). */
 export const WIKI_STAGE_DIR = "openwiki";
-/** DeepOrca's canonical, always-valid wiki store. */
-export const WIKI_STORE_DIR = "deepwiki";
 
 const stageDir = (root: string): string => path.join(root, WIKI_STAGE_DIR);
 const storeDir = (root: string): string => path.join(root, WIKI_STORE_DIR);
@@ -68,9 +73,35 @@ export function countSubstantialPagesIn(dir: string): number {
   return count;
 }
 
-/** True when the canonical deepwiki/ store exists and holds real content. */
+/** True when the canonical wiki store exists and holds real content. Adoption
+ *  of the pre-centralization `deepwiki/` location runs first (user rule
+ *  2026-08-31: all generated content lives under `.deeporca/`). */
 export function hasWikiStore(root: string): boolean {
+  migrateLegacyWikiStore(root);
   return countSubstantialPagesIn(storeDir(root)) > 0;
+}
+
+/**
+ * Adopt the pre-centralization canonical store: a top-level `deepwiki/`
+ * directory is renamed into `.deeporca/deepwiki/` when the new location has
+ * no substantial content yet. Best-effort — on failure both layouts keep
+ * working (readers fall through to an empty store and the next build
+ * repopulates the canonical one).
+ */
+export function migrateLegacyWikiStore(root: string): boolean {
+  const legacy = path.join(root, WIKI_LEGACY_STORE_DIR);
+  const target = storeDir(root);
+  try {
+    if (countSubstantialPagesIn(legacy) === 0) return false;
+    if (countSubstantialPagesIn(target) > 0) return false;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    // Clear a husk first (same crash-window rule as recoverOrphanedStage).
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.renameSync(legacy, target);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Remove a stale/poisoned stage. Never throws — staging is disposable. */

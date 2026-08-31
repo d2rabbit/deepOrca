@@ -7,7 +7,7 @@ import { dirname, basename, join, delimiter, resolve as pathResolve, sep as path
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -24,7 +24,6 @@ import {
   configureDembrandtVendorRoot,
   configureDembrandtCdpEndpointGetter,
   runCrgResetWithOutput,
-  runCrgVisualize,
   configureSerenaController,
   configureSkillSpectorController,
   configureCrgController,
@@ -73,6 +72,7 @@ import type {
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
   MemoryPipelineStats,
+  ReviewReportMeta,
   ThinkingModeSelection,
   UndoRestoreMode,
   WikiPageEntry,
@@ -88,7 +88,11 @@ import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
 import { buildReviewReportHtml } from "./tools/review-report.js";
+import { listReviewReports, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
+import { buildRiskGraphHtml } from "./tools/crg-risk-graph.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
+import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
+import { ensureGeneratedLayout } from "./tools/generated-layout.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
 import { cleanupLeakedSubagentSessions } from "./subagent-cleanup.js";
@@ -288,7 +292,11 @@ configureReviewController(
 // button, chat tool call) produces a self-contained HTML report under
 // <root>/.deeporca/reviews/ and opens it in a dedicated child window — the
 // dedicated window is the reading surface; the sidebar stays secondary.
-const reviewReportWindows = new Map<string, BrowserWindow>();
+// Reports live in structured history (review-store): <id>.html + <id>.json
+// pairs under .deeporca/reviews/, capped at REVIEW_HISTORY_KEEP. They render
+// IN-APP (review tab iframe) — the dedicated child window is gone (user
+// ask 2026-08-31: the review surface must follow the index-module pattern,
+// never pop out).
 let reviewReportWrapped: { source: ActionRegistry; wrapped: ActionRegistry } | null = null;
 
 function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistry | null {
@@ -304,10 +312,9 @@ function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistr
     if (id !== "review.full") return handle;
     return {
       result: handle.result.then(async (output) => {
-        const reportPath = writeReviewReport(output);
-        if (reportPath) {
-          Object.assign(output as object, { reportPath });
-          openReviewReportWindow(reportPath);
+        const report = writeReviewReport(output);
+        if (report) {
+          Object.assign(output as object, { reportPath: report.htmlPath, reportId: report.id });
         }
         return output;
       }),
@@ -319,7 +326,7 @@ function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistr
   return wrapper;
 }
 
-function writeReviewReport(output: unknown): string | null {
+function writeReviewReport(output: unknown): { root: string; htmlPath: string; id: string } | null {
   try {
     const out = output as {
       review?: { status?: string; summary?: { filesReviewed?: number; comments?: number }; comments?: unknown[] };
@@ -328,73 +335,53 @@ function writeReviewReport(output: unknown): string | null {
     if (!out?.review || !Array.isArray(out.review.comments)) return null;
     const root = getBridge().projectRoot;
     if (!root) return null;
-    const dir = join(root, ".deeporca", "reviews");
-    mkdirSync(dir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const htmlPath = join(dir, `review-${stamp}.html`);
     const locale = APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en";
     const zh = locale.toLowerCase().startsWith("zh");
-    writeFileSync(
-      htmlPath,
-      buildReviewReportHtml({
-        root,
-        projectName: basename(root),
-        status: String(out.review.status ?? "success"),
-        statusNote: String(out.statusNote ?? ""),
-        generatedAtIso: new Date().toISOString(),
-        language: locale,
-        modeLabel: zh ? "未提交的工作区变更（vs HEAD）" : "uncommitted workspace changes (vs HEAD)",
-        summary: out.review.summary,
-        comments: out.review.comments as Record<string, unknown>[],
-      }),
-      "utf-8"
-    );
-    return htmlPath;
+    const generatedAtIso = new Date().toISOString();
+    const scope = (out as { scope?: { mode: string; commit?: string; from?: string; to?: string } }).scope;
+    const modeLabel = zh
+      ? scope?.mode === "commit"
+        ? `提交 ${scope.commit ?? "HEAD"} 的变更`
+        : scope?.mode === "range"
+          ? `变更范围 ${scope.from}...${scope.to}`
+          : scope?.mode === "all"
+            ? "全仓库（全域审查）"
+            : "未提交的工作区变更（vs HEAD）"
+      : scope?.mode === "commit"
+        ? `changes of commit ${scope.commit ?? "HEAD"}`
+        : scope?.mode === "range"
+          ? `changes ${scope.from}...${scope.to}`
+          : scope?.mode === "all"
+            ? "entire repository"
+            : "uncommitted workspace changes (vs HEAD)";
+    const html = buildReviewReportHtml({
+      root,
+      projectName: basename(root),
+      status: String(out.review.status ?? "success"),
+      statusNote: String(out.statusNote ?? ""),
+      generatedAtIso,
+      language: locale,
+      modeLabel,
+      summary: out.review.summary,
+      comments: out.review.comments as Record<string, unknown>[],
+    });
+    const summary = out.review.summary ?? {};
+    const id = saveReviewReport(root, html, {
+      generatedAt: generatedAtIso,
+      status: String(out.review.status ?? "success"),
+      filesReviewed: Number(summary.filesReviewed ?? 0),
+      comments: Array.isArray(out.review.comments) ? out.review.comments.length : 0,
+      statusNote: String(out.statusNote ?? ""),
+    });
+    if (!id) return null;
+    const htmlPath = resolveReportFile(root, id);
+    return htmlPath ? { root, htmlPath, id } : null;
   } catch (err) {
     console.warn("[review-report] generation failed:", err instanceof Error ? err.message : String(err));
     return null;
   }
 }
 
-/** Dedicated reading window for one review report (mirrors the arch preview
- *  child windows: sandboxed, isolated partition, parented to the main window). */
-function openReviewReportWindow(htmlPath: string): void {
-  const existing = reviewReportWindows.get(htmlPath);
-  if (existing && !existing.isDestroyed()) {
-    if (existing.isMinimized()) existing.restore();
-    existing.show();
-    existing.focus();
-    return;
-  }
-  const mainWin = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-  let x: number | undefined;
-  let y: number | undefined;
-  if (mainWin) {
-    const mb = mainWin.getBounds();
-    x = Math.max(0, mb.x + Math.round((mb.width - 1180) / 2));
-    y = Math.max(0, mb.y + Math.round((mb.height - 840) / 2));
-  }
-  const win = new BrowserWindow({
-    width: 1180,
-    height: 840,
-    ...(x !== undefined && y !== undefined ? { x, y } : {}),
-    title: basename(htmlPath),
-    autoHideMenuBar: true,
-    ...(mainWin ? { parent: mainWin } : {}),
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      spellcheck: false,
-      partition: "review-report",
-    },
-  });
-  reviewReportWindows.set(htmlPath, win);
-  win.on("closed", () => {
-    if (reviewReportWindows.get(htmlPath) === win) reviewReportWindows.delete(htmlPath);
-  });
-  void win.loadFile(htmlPath);
-}
 // App UI locale as reported by the renderer (SessionLocaleSet) — drives the
 // wiki generation language. The renderer syncs it at boot and on change.
 let currentAppLocale: string | undefined;
@@ -1035,6 +1022,8 @@ function registerCoreIpc({ handle, handlePrivileged, handleShared }: IpcHelpers)
     // project when memory is enabled.
     await stopMemory();
     getBridge().setProjectRoot(root);
+    // New root → sweep its legacy layout before anything reads or generates.
+    ensureGeneratedLayout(root);
     emit(IpcEvent.ProjectRootChanged, getBridge().projectRoot);
     void reconcileMemory();
     return { projectRoot: getBridge().projectRoot };
@@ -1344,11 +1333,35 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
     };
   });
 
-  handle(IpcRequest.CrgVisualize, async (): Promise<{ html: string | null; error?: string }> => {
-    const root = getBridge().projectRoot;
-    if (!root) return { html: null, error: "No project open" };
-    const html = await runCrgVisualize(root);
-    return { html, error: html ? undefined : "Visualization failed — is the graph built?" };
+  // ── code review — report history + simplified risk map ────────────────────
+  // Known-root guard: reads/writes are per-root, and a renderer-supplied root
+  // must never probe outside the registered workspace set (same rule as the
+  // knowledge channel's resolveRegisteredRoot).
+  const isKnownRoot = (root: string): boolean => {
+    if (root && root === getBridge().projectRoot) return true;
+    try {
+      return listWorkspaceSessions(getBridge().projectRoot).workspaces.some((w) => w.root === root);
+    } catch {
+      return false;
+    }
+  };
+
+  handle(IpcRequest.ReviewListReports, (root: string): ReviewReportMeta[] => {
+    return isKnownRoot(root) ? listReviewReports(root) : [];
+  });
+
+  handle(IpcRequest.ReviewReadReport, (root: string, id: string): { ok: boolean; html?: string; error?: string } => {
+    if (!isKnownRoot(root)) return { ok: false, error: "Unknown workspace" };
+    const htmlPath = resolveReportFile(root, id);
+    if (!htmlPath) return { ok: false, error: "No such report" };
+    return { ok: true, html: readFileSync(htmlPath, "utf-8") };
+  });
+
+  handle(IpcRequest.ReviewRiskGraph, (root: string): { html: string | null; error?: string } => {
+    if (!isKnownRoot(root)) return { html: null, error: "Unknown workspace" };
+    if (!hasCrgProject(root)) return { html: null, error: "no CRG graph — run a review or crg.reindex first" };
+    const html = buildRiskGraphHtml(root, basename(root), APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en");
+    return html ? { html } : { html: null, error: "risk graph unavailable — no risk data in the graph" };
   });
 }
 
@@ -2116,7 +2129,8 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
     // tree. Unregistered root → [] (fail closed).
     const pinned = resolveRegisteredRoot(rootArg);
     if (!pinned) return [];
-    const wikiDir = join(pinned, "deepwiki");
+    ensureGeneratedLayout(pinned);
+    const wikiDir = join(pinned, WIKI_STORE_DIR);
     try {
       const entries: WikiPageEntry[] = [];
       const walk = async (dir: string, prefix: string): Promise<void> => {
@@ -2160,7 +2174,8 @@ function registerWikiIpc({ handle, handlePrivileged }: IpcHelpers): void {
     // paths, drive letters, UNC paths, and symlinks inside deepwiki/. The
     // shared safeWikiPath uses the same lexical + realpath containment that
     // editor-handlers uses, and additionally restricts to .md files.
-    const wikiRoot = join(getBridge().projectRoot, "deepwiki");
+    ensureGeneratedLayout(getBridge().projectRoot);
+    const wikiRoot = join(getBridge().projectRoot, WIKI_STORE_DIR);
     const check = safeWikiPath(wikiRoot, pagePath);
     if (!check.ok) {
       // Surface the rejection in the main log so an attack or a bug is
@@ -2315,6 +2330,10 @@ app.whenReady().then(() => {
   // window loads. createWindow follows immediately — the window appears
   // fast because the renderer HTML + JS start loading right away.
   registerIpc();
+  // Generated-content sweep (user rule 2026-08-31): adopt any pre-
+  // centralization layout for the active project BEFORE anything generates
+  // or reads, so every path in play is the canonical .deeporca/ one.
+  ensureGeneratedLayout(getBridge().projectRoot);
   createWindow();
   // Dembrandt CDP provider creates a hidden BrowserWindow — only legal after
   // app ready (boot-order fix, see startDembrandtProvider definition).

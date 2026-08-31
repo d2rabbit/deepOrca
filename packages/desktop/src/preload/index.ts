@@ -104,7 +104,9 @@ const api: DesktopApi = {
   crgCheckAvailable: () => ipcRenderer.invoke(IpcRequest.CrgCheckAvailable),
   crgList: () => ipcRenderer.invoke(IpcRequest.CrgList),
   crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
-  crgVisualize: () => ipcRenderer.invoke(IpcRequest.CrgVisualize),
+  reviewListReports: (root) => ipcRenderer.invoke(IpcRequest.ReviewListReports, root),
+  reviewReadReport: (root, id) => ipcRenderer.invoke(IpcRequest.ReviewReadReport, root, id),
+  reviewRiskGraph: (root) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────

@@ -26,7 +26,14 @@ import { execFileSync } from "node:child_process";
 import type { WikiController, WikiResult, ControllerProgress, SpawnTrackedResult } from "@deeporca/core";
 import { getSerenaController, spawnTracked } from "@deeporca/core";
 import { readWikiCompletionMarker } from "./wiki-marker";
-import { recoverOrphanedStage, hasWikiStore, discardStage, copyStoreToStage, promoteStage } from "./wiki-staging";
+import {
+  recoverOrphanedStage,
+  hasWikiStore,
+  discardStage,
+  copyStoreToStage,
+  promoteStage,
+  WIKI_STORE_DIR,
+} from "./wiki-staging";
 
 const CONNECTOR_CONFIG_DIR = path.join(os.homedir(), ".openwiki", "connectors", "custom-mcp");
 const CONNECTOR_CONFIG_FILE = path.join(CONNECTOR_CONFIG_DIR, "config.json");
@@ -214,7 +221,7 @@ export class WikiCliController implements WikiController {
    *  mutating turn; without this each call pays rm + full store copy + spawn). */
   private noChangeFastPath(root: string): boolean {
     try {
-      const markerRaw = JSON.parse(fs.readFileSync(path.join(root, "deepwiki", ".last-update.json"), "utf-8")) as {
+      const markerRaw = JSON.parse(fs.readFileSync(path.join(root, WIKI_STORE_DIR, ".last-update.json"), "utf-8")) as {
         gitHead?: unknown;
       };
       const head = markerRaw.gitHead;

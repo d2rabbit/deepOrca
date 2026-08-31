@@ -8,9 +8,21 @@
  * must track the actual text shapes, not invented ones.
  */
 
+import { execFile } from "node:child_process";
 import { strict as assert } from "node:assert";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { buildOcrDelegateReviewPrompt, parseHostReviewComments, parseOcrPreviewText } from "../main/tools/ocr-cli";
+import {
+  OcrCliController,
+  balancedJsonObjects,
+  buildOcrDelegateReviewPrompt,
+  filterDotPaths,
+  parseHostReviewComments,
+  parseOcrPreviewText,
+  safeSlice,
+} from "../main/tools/ocr-cli";
 
 const WORKSPACE_PREVIEW = `# Files (2 reviewable / 2 total)
 
@@ -96,6 +108,71 @@ test("parseOcrPreviewText: a multi-line background echo cannot poison refs or in
   );
 });
 
+test("parseOcrPreviewText: strikethrough exclusions are surfaced with reasons", () => {
+  // REAL GVGL output (probe 2026-08-31): OCR marks skipped changes with
+  // ~~strikethrough~~ bullets + an exclusion reason. Dot-path junk that OCR
+  // itself still lists as "reviewable" is dropped later by filterDotPaths —
+  // both paths must be visible so a 0-file run is EXPLAINABLE.
+  const raw = [
+    "# Files (6 reviewable / 9 total)",
+    "",
+    "- mode: workspace",
+    "- total_insertions: 14345",
+    "- total_deletions: 0",
+    "",
+    "~~- `.gitignore` [modified] +9/-0 (excluded: user_exclude)~~",
+    "  - `.deeporca/prototypes/arch-gvgl.architecture.html` [added] +13852/-0",
+    "  - `.deeporca/prototypes/arch-gvgl.architecture.html.receipt.json` [added] +1/-0",
+    "  - `.deeporca/prototypes/arch-gvgl.architecture.json` [added] +221/-0",
+    "  - `.deeporca/prototypes/undefined.json` [added] +72/-0",
+    "  - `.serena/.gitignore` [added] +2/-0",
+    "  - `.serena/project.yml` [added] +169/-0",
+    "~~- `AGENTS.md` [added] +12/-0 (excluded: unsupported_ext)~~",
+    "~~- `CLAUDE.md` [added] +7/-0 (excluded: unsupported_ext)~~",
+  ].join("\n");
+  const preview = parseOcrPreviewText(raw);
+  assert.equal(preview.files.length, 6, "unstruck bullets parse as reviewable");
+  assert.equal(preview.excluded.length, 3, "strikethrough bullets parse as excluded");
+  assert.deepEqual(
+    preview.excluded.map((e) => e.reason),
+    ["user_exclude", "unsupported_ext", "unsupported_ext"]
+  );
+  const kept = filterDotPaths(preview.files);
+  assert.equal(kept.length, 0, "dot-path junk is dropped host-side");
+  assert.equal(preview.excluded.filter((e) => e.reason.includes("unsupported")).length, 2);
+});
+
+test("parseOcrPreviewText: format drift throws instead of reading as 'no reviewable changes'", () => {
+  // Leftover round 2026-08-31 — the old parser returned a plausible
+  // `{mode:"workspace", files:[]}` for any drifted shape, which runReview
+  // reported as a clean success that reviewed nothing. Empty/short output,
+  // an unclosed metadata block, and a header/bullet count disagreement must
+  // all fail loudly.
+  assert.throws(() => parseOcrPreviewText(""), /unrecognizable output format/);
+  assert.throws(() => parseOcrPreviewText("ocr: something went wrong"), /unrecognizable output format/);
+  assert.throws(
+    () => parseOcrPreviewText("# Files (1 reviewable / 1 total)\n\n- mode: workspace\n- total_insertions: 1"),
+    /unrecognizable output format/,
+    "metadata block without the total_deletions terminator"
+  );
+  assert.throws(
+    () =>
+      parseOcrPreviewText(
+        [
+          "# Files (2 reviewable / 2 total)",
+          "",
+          "- mode: workspace",
+          "- total_insertions: 2",
+          "- total_deletions: 0",
+          "",
+          "  - `a.go` [modified] +1/-0",
+        ].join("\n")
+      ),
+    /file list incomplete/,
+    "header count disagreeing with the parsed bullets"
+  );
+});
+
 test("buildOcrDelegateReviewPrompt carries the full delegation contract", () => {
   const prompt = buildOcrDelegateReviewPrompt({
     root: "D:/proj",
@@ -142,4 +219,78 @@ test("parseHostReviewComments: optional fields survive, missing path falls back"
   assert.equal(c.end_line, 9);
   assert.equal(c.existing_code, "x.y");
   assert.equal(c.suggestion_code, "x?.y");
+});
+
+test("parseHostReviewComments: a `{` in the prose does not blind the JSON extraction", () => {
+  // Leftover round 2026-08-31 — extraction started at the FIRST `{`, so prose
+  // like "the map literal {…} is built here" swallowed the real JSON object
+  // and the whole file degraded to "unparseable output". Every opening brace
+  // is now a candidate until one parses.
+  const wrapped =
+    'Note: the map literal {k: v} is built below.\n{"comments": [{"path": "a.go", "start_line": 2, "content": "off-by-one"}]}';
+  const comments = parseHostReviewComments(wrapped, "fallback.go");
+  assert.equal(comments.length, 1);
+  assert.equal(comments[0].content, "off-by-one");
+  assert.deepEqual(balancedJsonObjects('{"a":1} tail {"b":2}'), ['{"a":1}', '{"b":2}']);
+  assert.deepEqual(balancedJsonObjects("no braces at all"), []);
+});
+
+test("safeSlice: never cuts a surrogate pair at the truncation boundary", () => {
+  // 😀 is one code point over two UTF-16 code units; slicing at 4 would leave
+  // a lone high surrogate in the excerpt (U+FFFD once JSON-encoded).
+  const s = "abc😀def";
+  assert.equal(safeSlice(s, 4), "abc");
+  assert.equal(safeSlice(s, 5), "abc😀");
+  assert.equal(safeSlice(s, 100), s);
+  assert.equal(safeSlice(s, 0), "");
+});
+
+test("diffFor: glob-magic filenames ride :(literal) pathspecs so git diffs the actual file", async () => {
+  // Leftover round 2026-08-31 — git pathspecs are globs, so a reviewed file
+  // literally named `a[1].txt` matched nothing and workspace mode silently
+  // "reviewed" an empty diff. Verified against a real throwaway repo.
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ocr-glob-"));
+  const git = (...args: string[]) =>
+    new Promise<void>((resolve, reject) =>
+      execFile("git", ["-C", root, ...args], { windowsHide: true }, (err) => (err ? reject(err) : resolve()))
+    );
+  try {
+    await git("init", "-q");
+    await git("config", "user.email", "test@example.com");
+    await git("config", "user.name", "test");
+    const file = "a[1].txt";
+    await fs.writeFile(path.join(root, file), "one\n");
+    await git("add", "--", `:(literal)${file}`);
+    await git("commit", "-qm", "init");
+    await fs.writeFile(path.join(root, file), "one\ntwo\n");
+
+    const controller = new OcrCliController({ runHostReview: async () => [] });
+    const diff = await (
+      controller as unknown as {
+        diffFor(root: string, scope: { mode: "workspace" }, file: string): Promise<string>;
+      }
+    ).diffFor(root, { mode: "workspace" }, file);
+    assert.match(diff, /\+two/, "the diff must be for the literal file, not a glob miss");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("filterDotPaths: generated content never becomes a review target", () => {
+  // User screenshot 2026-08-31: the review picked up .deeporca/prototypes
+  // artifacts — everything the toolchain generates lives under dot-dirs, so
+  // the host-side filter is the enforcement that survives OCR-side drift.
+  const files = [
+    { path: "src/auth.ts", status: "modified" },
+    { path: ".deeporca/prototypes/arch-gvgl.architecture.html.receipt.json", status: "added" },
+    { path: ".code-review-graph/graph.db", status: "modified" },
+    { path: ".env.local", status: "added" },
+    { path: "docs/notes/.hidden.md", status: "added" },
+  ];
+  assert.deepEqual(
+    filterDotPaths(files).map((f) => f.path),
+    ["src/auth.ts"],
+    "any dot segment (file or directory, at any depth) drops out"
+  );
+  assert.deepEqual(filterDotPaths([]), []);
 });

@@ -107,6 +107,12 @@ export async function gitBootstrap(root: string): Promise<KnowledgeGitBootstrapR
         ".env.*",
         ".deeporca/settings.json",
         "node_modules/",
+        // Generated content lives under .deeporca/ (user rule 2026-08-31);
+        // legacy top-level entries stay for pre-centralization projects.
+        ".deeporca/codegraph/",
+        ".deeporca/crg/",
+        ".deeporca/deepwiki/",
+        ".deeporca/reviews/",
         ".codegraph/",
         "openwiki/",
         "deepwiki/",

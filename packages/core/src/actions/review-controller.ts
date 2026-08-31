@@ -38,12 +38,18 @@ export interface ReviewResult {
   summary?: {
     filesReviewed?: number;
     comments?: number;
+    /** Changes the OCR pipeline dropped by policy (generated dot-paths). */
+    excludedByPolicy?: number;
+    /** Changes OCR cannot review (unsupported file type, e.g. docs). */
+    unsupportedFiles?: number;
     totalTokens?: number;
     inputTokens?: number;
     outputTokens?: number;
     elapsed?: string;
   };
   comments: ReviewComment[];
+  /** Set when the controller re-scoped a workspace run (e.g. HEAD fallback). */
+  effectiveScope?: { mode: "workspace" | "commit"; commit?: string };
   warnings?: unknown[];
   sessionId?: string;
 }
@@ -53,6 +59,8 @@ export interface ReviewOptions {
   from?: string;
   to?: string;
   commit?: string;
+  /** Whole-repository scope: every tracked file is a review target. */
+  all?: boolean;
 }
 
 export interface ReviewController {

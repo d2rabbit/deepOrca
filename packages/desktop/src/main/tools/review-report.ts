@@ -19,7 +19,12 @@ export interface ReviewReportInput {
   readonly language: string;
   /** Pre-localized scope label (caller owns localization). */
   readonly modeLabel: string;
-  readonly summary?: { filesReviewed?: number; comments?: number };
+  readonly summary?: {
+    filesReviewed?: number;
+    comments?: number;
+    excludedByPolicy?: number;
+    unsupportedFiles?: number;
+  };
   /** Merged findings (delegation comments; may carry a `crgRisk` annotation). */
   readonly comments: ReadonlyArray<Record<string, unknown>>;
 }
@@ -68,6 +73,8 @@ export function buildReviewReportHtml(input: ReviewReportInput): string {
         generated: "生成时间",
         files: "审查文件",
         findings: "审查意见",
+        excluded: "策略排除",
+        excludedNote: "以上变更全部按策略排除（生成物 / 点路径）或不支持审查该文件类型，因此本次没有可审查内容。",
         noFindings: "未发现需要报告的问题。",
         crgRisk: "CRG 风险",
         suggestion: "建议",
@@ -81,6 +88,9 @@ export function buildReviewReportHtml(input: ReviewReportInput): string {
         generated: "Generated",
         files: "Files reviewed",
         findings: "Findings",
+        excluded: "Excluded",
+        excludedNote:
+          "Every change was excluded by policy (generated / dot-paths) or has an unsupported type — nothing was reviewable this run.",
         noFindings: "No findings worth reporting.",
         crgRisk: "CRG risk",
         suggestion: "Suggestion",
@@ -138,6 +148,9 @@ export function buildReviewReportHtml(input: ReviewReportInput): string {
       }[statusKey] ?? input.status)
     : input.status;
 
+  const generatedLocal = new Date(input.generatedAtIso).toLocaleString(zh ? "zh-CN" : "en-US", { hour12: false });
+  const excludedCount = (input.summary?.excludedByPolicy ?? 0) + (input.summary?.unsupportedFiles ?? 0);
+
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(input.language)}">
 <head>
@@ -185,7 +198,14 @@ export function buildReviewReportHtml(input: ReviewReportInput): string {
   pre.existing { background: rgba(209,69,59,0.08); border: 1px solid rgba(209,69,59,0.25); }
   pre.suggestion { background: rgba(47,158,68,0.08); border: 1px solid rgba(47,158,68,0.25); }
   .suggestion-label { font-size: 12px; color: #2f9e44; margin-top: 8px; }
-  .empty { color: #55606d; background: #fff; border: 1px dashed #c3cdd9; border-radius: 12px; padding: 28px; text-align: center; }
+  .empty { color: #55606d; background: #fff; border: 1px dashed #c3cdd9; border-radius: 12px; padding: 20px; text-align: center; }
+  .empty-note { color: #b45309; background: rgba(217, 119, 6, 0.07); border: 1px solid rgba(217, 119, 6, 0.3);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px; }
+  .card.excluded { border-color: rgba(217, 119, 6, 0.45); }
+  @media (prefers-color-scheme: dark) {
+    .empty-note { color: #fbbf24 !important; background: rgba(217, 119, 6, 0.12) !important; border-color: rgba(217, 119, 6, 0.4) !important; }
+    .card.excluded { border-color: rgba(217, 119, 6, 0.5) !important; }
+  }
   .footer { margin-top: 34px; font-size: 12px; color: #8590a0; }
 </style>
 </head>
@@ -194,13 +214,19 @@ export function buildReviewReportHtml(input: ReviewReportInput): string {
 <div class="meta">
   ${escapeHtml(labels.project)}: <code>${escapeHtml(input.root)}</code> ·
   ${escapeHtml(labels.mode)}: ${escapeHtml(input.modeLabel)} ·
-  ${escapeHtml(labels.generated)}: ${escapeHtml(input.generatedAtIso)} ·
+  ${escapeHtml(labels.generated)}: ${escapeHtml(generatedLocal)} ·
   状态 / status: ${escapeHtml(statusText)}
 </div>
 <div class="cards">
   <div class="card"><div class="num">${input.summary?.filesReviewed ?? 0}</div><div class="label">${escapeHtml(labels.files)}</div></div>
   <div class="card"><div class="num">${input.comments.length}</div><div class="label">${escapeHtml(labels.findings)}</div></div>
+  ${
+    excludedCount > 0
+      ? `<div class="card excluded"><div class="num">${excludedCount}</div><div class="label">${escapeHtml(labels.excluded)}</div></div>`
+      : ""
+  }
 </div>
+${excludedCount > 0 && (input.summary?.filesReviewed ?? 0) === 0 ? `<p class="empty-note">${escapeHtml(labels.excludedNote)}</p>` : ""}
 ${findingsBody}
 <p class="footer">${escapeHtml(labels.generatedBy)} · ${escapeHtml(input.statusNote)}</p>
 </body>

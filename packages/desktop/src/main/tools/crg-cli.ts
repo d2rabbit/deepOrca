@@ -16,7 +16,15 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { spawnTracked, type ControllerProgress, type ControllerSyncResult, type CrgController } from "@deeporca/core";
+import {
+  spawnTracked,
+  migrateLegacyCrgDir,
+  CRG_DIR_NAME,
+  CRG_LEGACY_DIR_NAME,
+  type ControllerProgress,
+  type ControllerSyncResult,
+  type CrgController,
+} from "@deeporca/core";
 
 /** Hard cap on one graph build/update; override with DEEPORCA_CRG_TIMEOUT_MS. */
 const CRG_TIMEOUT_MS = Number(process.env.DEEPORCA_CRG_TIMEOUT_MS ?? "") || 20 * 60 * 1000;
@@ -30,14 +38,22 @@ export class CrgCliController implements CrgController {
   ) {}
 
   hasProject(root: string): boolean {
-    return fs.existsSync(path.join(root, ".code-review-graph"));
+    // Canonical `.deeporca/crg/` OR the pre-centralization location (still
+    // counted so sync adopts it on the next update instead of rebuilding).
+    for (const dir of [CRG_DIR_NAME, CRG_LEGACY_DIR_NAME]) {
+      if (fs.existsSync(path.join(root, dir))) return true;
+    }
+    return false;
   }
 
   async reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void> {
-    // Delete existing graph, then full build.
-    const graphDir = path.join(root, ".code-review-graph");
-    if (fs.existsSync(graphDir)) {
-      fs.rmSync(graphDir, { recursive: true, force: true });
+    // Delete existing graph (both locations — a legacy dir must not survive
+    // as a resurrection source), then full build into the canonical dir.
+    for (const dir of [CRG_DIR_NAME, CRG_LEGACY_DIR_NAME]) {
+      const graphDir = path.join(root, dir);
+      if (fs.existsSync(graphDir)) {
+        fs.rmSync(graphDir, { recursive: true, force: true });
+      }
     }
     onProgress?.({ message: "CRG: starting full build", percent: 5 });
     await this.spawnCrg(root, ["build"], onProgress);
@@ -46,6 +62,9 @@ export class CrgCliController implements CrgController {
 
   async sync(root: string, onProgress?: (p: ControllerProgress) => void): Promise<ControllerSyncResult | void> {
     if (!this.hasProject(root)) return; // No graph → nothing to sync.
+    // Adopt the legacy location first so the incremental update lands in the
+    // canonical `.deeporca/` tree instead of forking a second graph.
+    migrateLegacyCrgDir(root);
     // CRG's CLI has no machine-readable change counts — stream stdout as
     // progress lines and let the caller settle for "completed" semantics.
     await this.spawnCrg(root, ["update"], onProgress);
@@ -55,7 +74,18 @@ export class CrgCliController implements CrgController {
     const result = await spawnTracked({
       label: `CRG ${crgArgs[0] ?? ""}`.trim(),
       command: this.opts.uvBinary,
-      args: ["tool", "run", "--from", this.opts.crgWheel, "code-review-graph", ...crgArgs],
+      // --data-dir pins the graph into <root>/.deeporca/crg (generated-content
+      // centralization) — supported by the vendored 2.3.7/2.3.8 wheels.
+      args: [
+        "tool",
+        "run",
+        "--from",
+        this.opts.crgWheel,
+        "code-review-graph",
+        ...crgArgs,
+        "--data-dir",
+        path.join(root, CRG_DIR_NAME),
+      ],
       cwd: root,
       timeoutMs: CRG_TIMEOUT_MS,
       heartbeatMs: 20_000,

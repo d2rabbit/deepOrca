@@ -1154,11 +1154,32 @@ button.ui-tool-head:hover {
   background: none;
   padding: 0;
 }
-/* Code block language accent — the left border colour is the primary
-   visual cue since we don't ship a full syntax highlighter (bundle
-   weight). The colour for each language matches the tool-card family
-   that most often produces it (bash → green, json → amber, etc.) so the
-   eye builds a consistent mental model. */
+/* Syntax token colors — @streamdown/code (shiki) writes each token's colours
+   into the DOM as inline custom properties (`--sdm-c` = github-light color,
+   `--shiki-dark` = github-dark color; same pair for token backgrounds via
+   `--sdm-tbg` / `--shiki-dark-bg`). Streamdown's own `text-[…]` /
+   `dark:text-[…]` utilities never compile in this bundle, so these rules
+   consume the properties directly. Scoped WITHOUT `.ui-md` so every
+   Streamdown surface (chat, knowledge, tasks, plugins) gets colour. The well
+   background is deliberately NOT taken from shiki — chat.css keeps it
+   app-owned (hard rule 2026-08-31: 严禁黑色), so `--sdm-bg` and
+   `--shiki-dark-bg` at the <pre> level stay unconsumed. */
+[data-streamdown="code-block-body"] span[style*="--sdm-c"] {
+  color: var(--sdm-c, inherit);
+}
+[data-streamdown="code-block-body"] span[style*="--sdm-tbg"] {
+  background-color: var(--sdm-tbg, transparent);
+}
+:root[data-appearance="dark"] [data-streamdown="code-block-body"] span[style*="--sdm-c"] {
+  color: var(--shiki-dark, var(--sdm-c, inherit));
+}
+:root[data-appearance="dark"] [data-streamdown="code-block-body"] span[style*="--sdm-tbg"] {
+  background-color: var(--shiki-dark-bg, var(--sdm-tbg, transparent));
+}
+/* Code block language accent — the left border colour groups each fence with
+   the tool-card family that most often produces it (bash → green, json →
+   amber, etc.) so the eye builds a consistent mental model. Token colours on
+   top now come from the shiki plugin (rules above). */
 .ui-md [data-streamdown="code-block"][data-language="json"] pre,
 .ui-md [data-streamdown="code-block"][data-language="jsonc"] pre {
   border-left: 3px solid #f59e0b;

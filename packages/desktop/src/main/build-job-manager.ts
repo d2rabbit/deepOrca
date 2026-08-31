@@ -19,6 +19,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ActionRegistry } from "@deeporca/core";
 import { IpcEvent } from "../shared/ipc.js";
+import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
 import type { KnowledgeBuildJobSnapshot, KnowledgeBuildStageState } from "../shared/ipc.js";
 
 function existsCodegraph(root: string): boolean {
@@ -26,8 +27,8 @@ function existsCodegraph(root: string): boolean {
 }
 
 function existsWiki(root: string): boolean {
-  // Canonical deepwiki/ store — the openwiki/ dir is a run-local stage.
-  return existsSync(join(root, "deepwiki"));
+  // Canonical .deeporca/deepwiki/ store — the openwiki/ dir is a run-local stage.
+  return existsSync(join(root, WIKI_STORE_DIR));
 }
 
 /** Console ring buffer cap — enough history for a long build's console view. */

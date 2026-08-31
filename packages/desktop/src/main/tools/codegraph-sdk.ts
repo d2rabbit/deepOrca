@@ -19,9 +19,95 @@ import * as codegraphModule from "@colbymchenry/codegraph";
 import { createRequire as nodeCreateRequire } from "node:module";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { CodegraphController, ControllerProgress, ControllerSyncResult } from "@deeporca/core";
+import {
+  CODEGRAPH_STORE_DIR,
+  type CodegraphController,
+  type ControllerProgress,
+  type ControllerSyncResult,
+} from "@deeporca/core";
 
 type CodeGraphInstance = codegraphModule.CodeGraph;
+
+/**
+ * Generated-content centralization (user rule 2026-08-31): the index physically
+ * lives at `<root>/.deeporca/codegraph/`. The SDK resolves its data dir as
+ * `<root>/<dir>` with a SINGLE-SEGMENT `CODEGRAPH_DIR` override only — it
+ * cannot be pointed into a subdirectory — so `<root>/.codegraph` is kept as a
+ * SYMLINK to the store: every path built as `<root>/.codegraph/...` (SDK
+ * internals, MCP subprocess, all host readers) resolves through it unchanged.
+ *
+ * `ensureCodegraphStoreLayout` runs before every SDK touch and:
+ *   1. symlink already in place → no-op;
+ *   2. real legacy `.codegraph/` dir → moved into the store, then relinked;
+ *   3. absent → store created and linked.
+ * When symlink creation is unavailable (unprivileged Windows without developer
+ * mode) the store is moved back / left absent and the SDK uses a plain legacy
+ * directory — degraded but functional, and still dot-excluded from review.
+ */
+export function ensureCodegraphStoreLayout(root: string): void {
+  const link = path.join(root, ".codegraph");
+  const store = path.join(root, CODEGRAPH_STORE_DIR);
+  try {
+    if (fs.lstatSync(link).isSymbolicLink()) return;
+  } catch {
+    // link absent — continue with setup
+  }
+  const isDir = (p: string): boolean => {
+    try {
+      return fs.statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
+  if (isDir(link)) {
+    // Legacy real directory — adopt it unless a store already exists (never
+    // merge two indexes; a stray store wins nothing over the live legacy one).
+    if (isDir(store)) return;
+    try {
+      fs.mkdirSync(path.dirname(store), { recursive: true });
+      fs.renameSync(link, store);
+    } catch {
+      return; // locked db / cross-device — stay legacy
+    }
+    if (linkStore(store, link)) return;
+    try {
+      fs.renameSync(store, link); // relink failed — restore the legacy layout
+    } catch {
+      // worst case: index lives under .deeporca and the next index rebuilds
+    }
+    return;
+  }
+
+  // No link dir at all (or a stray file) — provision store + link.
+  try {
+    fs.mkdirSync(store, { recursive: true });
+  } catch {
+    return;
+  }
+  if (!linkStore(store, link)) {
+    try {
+      fs.rmSync(store, { recursive: true, force: true });
+    } catch {
+      // empty store left behind is harmless
+    }
+  }
+}
+
+/** Create `<link>` → `<store>`; relative symlink on POSIX, junction (no
+ *  privilege needed) on Windows. False when the platform refuses. */
+function linkStore(store: string, link: string): boolean {
+  try {
+    if (process.platform === "win32") {
+      fs.symlinkSync(store, link, "junction");
+    } else {
+      fs.symlinkSync(path.relative(path.dirname(link), store), link, "dir");
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The SDK surface this adapter needs (resolved robustly below). */
 interface CodegraphSdk {
@@ -111,6 +197,7 @@ export class SdkCodegraphController implements CodegraphController {
   private async getOrOpen(root: string): Promise<CodeGraphInstance> {
     // open() requires an initialized project — callers route here only via
     // hasProject (usable index), so the hollow-dir case never reaches this.
+    ensureCodegraphStoreLayout(root);
     const { CodeGraph } = resolveCodeGraphSdk();
     let cg = this.instances.get(root);
     if (!cg) {
@@ -122,6 +209,7 @@ export class SdkCodegraphController implements CodegraphController {
 
   async reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void> {
     const { CodeGraph, isInitialized } = resolveCodeGraphSdk();
+    ensureCodegraphStoreLayout(root);
     onProgress?.({ message: "clearing existing index", percent: 5 });
     // Release the in-memory instance's db handle first (close() — NOT
     // uninitialize(), which also DELETES the directory; recreate() owns the
@@ -204,6 +292,7 @@ export class SdkCodegraphController implements CodegraphController {
     // db; the node count on top routes a hollow/0-symbol leftover (failed
     // init, empty parse) to a FULL REBUILD instead of a sync-over-nothing
     // that would "succeed" while the symbols tab stays empty.
+    ensureCodegraphStoreLayout(root);
     try {
       const sdk = resolveCodeGraphSdk();
       if (typeof sdk.isInitialized === "function" && !sdk.isInitialized(root)) return false;

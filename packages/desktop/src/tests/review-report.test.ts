@@ -78,5 +78,25 @@ test("summary cards and meta line render", () => {
   const html = buildReviewReportHtml(baseInput);
   assert.match(html, /<div class="num">2<\/div>/);
   assert.match(html, /未提交的工作区变更（vs HEAD）/);
-  assert.match(html, /2026-08-31T08:00:00/);
+  // Generated time is locale-formatted — the raw ISO string never reaches the page.
+  assert.match(html, /生成时间/);
+  assert.equal(html.includes("2026-08-31T08:00:00.000Z"), false);
+});
+
+test("excluded changes surface as a card + explanation when everything was filtered", () => {
+  const html = buildReviewReportHtml({
+    ...baseInput,
+    comments: [],
+    summary: { filesReviewed: 0, comments: 0, excludedByPolicy: 6, unsupportedFiles: 3 },
+  });
+  assert.match(html, /class="card excluded"/);
+  assert.match(html, /策略排除/);
+  assert.match(html, /以上变更全部按策略排除/);
+  const en = buildReviewReportHtml({
+    ...baseInput,
+    language: "en",
+    comments: [],
+    summary: { filesReviewed: 0, comments: 0, excludedByPolicy: 6, unsupportedFiles: 3 },
+  });
+  assert.match(en, /Every change was excluded by policy/);
 });

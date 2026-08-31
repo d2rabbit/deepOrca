@@ -2,7 +2,8 @@
  * CRG Graph Query Layer — Node.js direct SQLite read.
  *
  * Replaces the Python MCP server (`code-review-graph serve --mcp`) for all
- * query operations. Reads `.code-review-graph/graph.db` directly with
+ * query operations. Reads `.deeporca/crg/graph.db` (legacy
+ * `.code-review-graph/` readable until migrated) directly with
  * `node:sqlite` (available in Electron 43 / Node 24.18+). Zero Python
  * processes, zero IPC, zero JSON-RPC overhead.
  *
@@ -15,6 +16,15 @@
 
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
+import { CRG_DATA_DIR, CRG_LEGACY_DIR as CRG_LEGACY_DATA_DIR } from "../common/generated-dirs";
+
+// ESM-safe lazy loader for `node:sqlite` (Node ≥22.5). A bare `require(...)`
+// in this ESM package is a guaranteed ReferenceError — every query then
+// silently returned "no data" through its catch, which is exactly the
+// "CRG graph present but produced no structural data" degradation
+// (user-reported 2026-08-31). Same pattern as common/sqlite-runtime.ts.
+const moduleRequire = createRequire(import.meta.url);
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +54,25 @@ export interface CrgRiskData {
   securityRelevant: boolean;
 }
 
+/** A risk-ranked node for the overview graph (simplified in-app risk map). */
+export interface CrgRiskNode {
+  qualifiedName: string;
+  name: string;
+  filePath: string;
+  kind: string;
+  lineStart: number;
+  riskScore: number;
+  callerCount: number;
+  testCoverage: string;
+  securityRelevant: boolean;
+}
+
+/** A CALLS edge between two overview nodes (both endpoints in the set). */
+export interface CrgRiskEdge {
+  source: string;
+  target: string;
+}
+
 export interface CrgCommunity {
   id: number;
   name: string;
@@ -60,11 +89,17 @@ export interface CrgGraphQuery {
   getImpactRadius(root: string, qualifiedNames: string[], maxDepth: number): CrgImpactNode[];
   /** Read risk_index for the given nodes. */
   getRiskData(root: string, qualifiedNames: string[]): CrgRiskData[];
+  /**
+   * Risk overview for the simplified in-app risk map: the top-N nodes by
+   * risk_score (with their risk attributes) plus the CALLS edges whose BOTH
+   * endpoints are in that set. Empty when the graph or risk_index is absent.
+   */
+  getRiskOverview(root: string, limit: number): { nodes: CrgRiskNode[]; edges: CrgRiskEdge[] };
   /** Find functions with no TESTED_BY edge. */
   getTestGaps(root: string, qualifiedNames: string[]): string[];
   /** Get community info for node IDs. */
   getCommunities(root: string, nodeIds: number[]): CrgCommunity[];
-  /** True when .code-review-graph/graph.db exists. */
+  /** True when the CRG graph.db exists (canonical or legacy location). */
   hasGraph(root: string): boolean;
 }
 
@@ -82,26 +117,44 @@ export function getCrgGraphQuery(): CrgGraphQuery | null {
 
 // ── Default implementation (reads graph.db with node:sqlite) ────────────────
 
-const CRG_DIR = ".code-review-graph";
+// Generated-content centralization (user rule 2026-08-31): the canonical
+// graph lives at <root>/.deeporca/crg/; a pre-centralization graph at the
+// wheel's old default <root>/.code-review-graph/ stays READABLE until the
+// next build/update migrates it — queries are read-only, so serving them
+// from the legacy location is safe and keeps review.full's enrichment alive
+// for unmigrated projects.
+const CRG_DIR = CRG_DATA_DIR;
+const CRG_LEGACY_DIR = CRG_LEGACY_DATA_DIR;
 const GRAPH_DB = "graph.db";
+
+/** Resolve the graph directory for a root: canonical when present, else the
+ *  legacy location while it still holds a graph, else canonical (where a
+ *  fresh build will create it). */
+function graphDir(root: string): string {
+  const canonical = path.join(root, CRG_DIR);
+  if (fs.existsSync(path.join(canonical, GRAPH_DB))) return canonical;
+  const legacy = path.join(root, CRG_LEGACY_DIR);
+  if (fs.existsSync(path.join(legacy, GRAPH_DB))) return legacy;
+  return canonical;
+}
 
 /**
  * Create a CrgGraphQuery that reads the graph.db directly.
- * Uses dynamic import of node:sqlite (experimental in some Node versions,
- * but stable in Electron 43's bundled Node 24.18).
+ * Loads `node:sqlite` lazily via createRequire (stable in Electron 43's
+ * bundled Node 24.18; unavailable runtimes degrade each query to empty).
  */
 export function createCrgGraphQuery(): CrgGraphQuery {
   return {
     hasGraph(root: string): boolean {
-      return fs.existsSync(path.join(root, CRG_DIR, GRAPH_DB));
+      return fs.existsSync(path.join(graphDir(root), GRAPH_DB));
     },
 
     detectChanges(root: string, changedFiles: string[]): CrgChangedFunction[] {
       if (changedFiles.length === 0) return [];
-      const dbPath = path.join(root, CRG_DIR, GRAPH_DB);
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
       if (!fs.existsSync(dbPath)) return [];
       try {
-        const { DatabaseSync } = require("node:sqlite");
+        const { DatabaseSync } = moduleRequire("node:sqlite");
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
           // Match nodes whose file_path is in the changed files list.
@@ -134,10 +187,10 @@ export function createCrgGraphQuery(): CrgGraphQuery {
 
     getImpactRadius(root: string, qualifiedNames: string[], maxDepth: number): CrgImpactNode[] {
       if (qualifiedNames.length === 0) return [];
-      const dbPath = path.join(root, CRG_DIR, GRAPH_DB);
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
       if (!fs.existsSync(dbPath)) return [];
       try {
-        const { DatabaseSync } = require("node:sqlite");
+        const { DatabaseSync } = moduleRequire("node:sqlite");
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
           // BFS through CALLS edges (source calls target → changing source affects target's callers).
@@ -191,10 +244,10 @@ export function createCrgGraphQuery(): CrgGraphQuery {
 
     getRiskData(root: string, qualifiedNames: string[]): CrgRiskData[] {
       if (qualifiedNames.length === 0) return [];
-      const dbPath = path.join(root, CRG_DIR, GRAPH_DB);
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
       if (!fs.existsSync(dbPath)) return [];
       try {
-        const { DatabaseSync } = require("node:sqlite");
+        const { DatabaseSync } = moduleRequire("node:sqlite");
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
           const placeholders = qualifiedNames.map(() => "?").join(",");
@@ -234,10 +287,10 @@ export function createCrgGraphQuery(): CrgGraphQuery {
 
     getTestGaps(root: string, qualifiedNames: string[]): string[] {
       if (qualifiedNames.length === 0) return [];
-      const dbPath = path.join(root, CRG_DIR, GRAPH_DB);
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
       if (!fs.existsSync(dbPath)) return [];
       try {
-        const { DatabaseSync } = require("node:sqlite");
+        const { DatabaseSync } = moduleRequire("node:sqlite");
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
           const placeholders = qualifiedNames.map(() => "?").join(",");
@@ -263,12 +316,85 @@ export function createCrgGraphQuery(): CrgGraphQuery {
       }
     },
 
+    getRiskOverview(root: string, limit: number): { nodes: CrgRiskNode[]; edges: CrgRiskEdge[] } {
+      const capped = Math.max(1, Math.min(200, Math.floor(limit)));
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
+      if (!fs.existsSync(dbPath)) return { nodes: [], edges: [] };
+      try {
+        const { DatabaseSync } = moduleRequire("node:sqlite");
+        const db = new DatabaseSync(dbPath, { readOnly: true });
+        try {
+          // Top-N by risk; the JOIN keeps only nodes that actually carry risk
+          // data (an absent risk_index degrades to an empty overview).
+          let nodeRows: Record<string, unknown>[];
+          try {
+            nodeRows = db
+              .prepare(
+                `SELECT n.qualified_name, n.name, n.file_path, n.kind, n.line_start,
+                        r.risk_score, r.caller_count, r.test_coverage, r.security_relevant
+                 FROM nodes n
+                 JOIN risk_index r ON r.qualified_name = n.qualified_name
+                 WHERE n.kind IN ('Function', 'Class')
+                 ORDER BY r.risk_score DESC, r.caller_count DESC
+                 LIMIT ${capped}`
+              )
+              .all() as Record<string, unknown>[];
+          } catch {
+            return { nodes: [], edges: [] };
+          }
+          const nodes: CrgRiskNode[] = nodeRows.map((r) => ({
+            qualifiedName: String(r.qualified_name),
+            name: String(r.name),
+            filePath: String(r.file_path),
+            kind: String(r.kind),
+            lineStart: Number(r.line_start ?? 0),
+            riskScore: Number(r.risk_score ?? 0),
+            callerCount: Number(r.caller_count ?? 0),
+            testCoverage: String(r.test_coverage ?? "unknown"),
+            securityRelevant: Boolean(r.security_relevant),
+          }));
+          if (nodes.length === 0) return { nodes: [], edges: [] };
+          // CALLS edges whose BOTH endpoints are in the overview set — the
+          // skeleton the simplified rendering draws; edges to the rest of the
+          // graph are deliberately dropped (that is the simplification).
+          const names = nodes.map((n) => n.qualifiedName);
+          const inSet = new Set(names);
+          const q = names.map(() => "?").join(",");
+          const edgeRows = db
+            .prepare(
+              `SELECT e.source_qualified, e.target_qualified
+               FROM edges e
+               WHERE e.kind = 'CALLS'
+               AND e.source_qualified IN (${q})
+               AND e.target_qualified IN (${q})`
+            )
+            .all(...names, ...names) as Record<string, unknown>[];
+          const edges: CrgRiskEdge[] = [];
+          const seen = new Set<string>();
+          for (const r of edgeRows) {
+            const source = String(r.source_qualified);
+            const target = String(r.target_qualified);
+            if (!inSet.has(source) || !inSet.has(target) || source === target) continue;
+            const key = `${source}\u0000${target}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            edges.push({ source, target });
+          }
+          return { nodes, edges };
+        } finally {
+          db.close();
+        }
+      } catch {
+        return { nodes: [], edges: [] };
+      }
+    },
+
     getCommunities(root: string, nodeIds: number[]): CrgCommunity[] {
       if (nodeIds.length === 0) return [];
-      const dbPath = path.join(root, CRG_DIR, GRAPH_DB);
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
       if (!fs.existsSync(dbPath)) return [];
       try {
-        const { DatabaseSync } = require("node:sqlite");
+        const { DatabaseSync } = moduleRequire("node:sqlite");
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
           const placeholders = nodeIds.map(() => "?").join(",");

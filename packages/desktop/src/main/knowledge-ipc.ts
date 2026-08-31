@@ -16,6 +16,8 @@ import { IpcRequest, type KnowledgeStatusResponse, type KnowledgeSourceStatus } 
 import { listWorkspaceSessions } from "./workspace-registry.js";
 import type { SessionBridge } from "./session-bridge.js";
 import { safeArchmapPath } from "./safe-path.js";
+import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
+import { ensureGeneratedLayout } from "./tools/generated-layout.js";
 import { isWikiVariantFile } from "@deeporca/core";
 import {
   ArchifyCli,
@@ -207,9 +209,11 @@ export function registerKnowledgeIpc(
     // `*.en.md` siblings stay on disk but must not count as pages.
     const isCountedWikiPage = (n: string): boolean => n.endsWith(".md") && !isWikiVariantFile(n);
 
-    // OpenWiki — page count under the canonical deepwiki/ store (the
-    // openwiki/ dir is the CLI's run-local stage, never the read surface).
-    const wikiDir = join(root, "deepwiki");
+    // OpenWiki — page count under the canonical `.deeporca/deepwiki/` store
+    // (the openwiki/ dir is the CLI's run-local stage, never the read
+    // surface; a pre-centralization top-level deepwiki/ is adopted here).
+    ensureGeneratedLayout(root);
+    const wikiDir = join(root, WIKI_STORE_DIR);
     let wikiPages = 0;
     if (existsSync(wikiDir)) {
       wikiPages = countDirFiles(wikiDir, isCountedWikiPage);

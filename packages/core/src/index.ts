@@ -210,13 +210,27 @@ export { resolveUvBinary, configureUvVendorRoot } from "./common/uv";
 
 export {
   CRG_MCP_SERVER_NAME,
+  CRG_DIR_NAME,
+  CRG_LEGACY_DIR_NAME,
   configureCrgVersionRoot,
   setCrgDisabled,
   isCrgDisabled,
   hasCrgProject,
+  migrateLegacyCrgDir,
   runCrgResetWithOutput,
-  runCrgVisualize,
 } from "./common/crg";
+
+// Generated-content layout — where the toolchain parks its output inside a
+// target project (user rule 2026-08-31: everything under .deeporca/).
+export {
+  DEEPORCA_PROJECT_DIR,
+  CRG_DATA_DIR,
+  CRG_LEGACY_DIR,
+  CODEGRAPH_STORE_DIR,
+  CODEGRAPH_LINK_DIR,
+  WIKI_STORE_DIR,
+  WIKI_LEGACY_STORE_DIR,
+} from "./common/generated-dirs";
 
 // Hardened child-process runner shared by the wiki/CRG/OCR CLI adapters.
 export { spawnTracked, configureSpawnTrackedLogger } from "./common/spawn-tracked";
@@ -379,8 +393,6 @@ export {
   getReviewController,
   crgReindexDefinition,
   crgReindexRun,
-  crgVisualizeDefinition,
-  crgVisualizeRun,
   configureCrgGraphQuery,
   getCrgGraphQuery,
   createCrgGraphQuery,
@@ -455,6 +467,8 @@ export type {
   CrgChangedFunction,
   CrgImpactNode,
   CrgRiskData,
+  CrgRiskNode,
+  CrgRiskEdge,
   CrgCommunity,
 } from "./actions";
 

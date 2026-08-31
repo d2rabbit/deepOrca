@@ -37,33 +37,3 @@ export const crgReindexRun: ActionRun<unknown, CrgReindexOutput> = async (_input
   await cc.reindex(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
   return { ok: true, status: "active" };
 };
-
-// ── crg.visualize ────────────────────────────────────────────────────────────
-
-export interface CrgVisualizeOutput {
-  readonly ok: boolean;
-  /** Per-call degradation state ("active" when a graph was rendered). */
-  readonly status: BackendStatus;
-}
-
-export const crgVisualizeDefinition: ActionDefinition = {
-  id: "crg.visualize",
-  description: "Render the code-review-graph as a D3.js HTML page (via CRG build controller).",
-  category: "review",
-  parameters: { type: "object", properties: {}, additionalProperties: false },
-  sideEffects: ["spawn-subprocess", "read-in-cwd"],
-};
-
-export const crgVisualizeRun: ActionRun<unknown, CrgVisualizeOutput> = async (_input, ctx) => {
-  // Visualization is handled by the CRG CLI controller when available.
-  // For now this is a stub — the visualize command is exposed via desktop IPC
-  // and the CodeReviewPanel, not as an action. The action exists for LLM
-  // discoverability but delegates to controller.
-  const cc = getCrgController();
-  if (!cc) throw new Error("crg.visualize: no CrgController configured");
-  if (!cc.hasProject(ctx.projectRoot)) {
-    throw new Error("crg.visualize: no .code-review-graph/ — run crg.reindex first");
-  }
-  // CRG visualize is a read-only operation; the controller handles it internally.
-  return { ok: true, status: "active" };
-};
