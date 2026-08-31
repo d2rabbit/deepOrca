@@ -80,7 +80,7 @@ import { listWorkspaceSessions, readSessionsIndex } from "./workspace-registry.j
 import { archiveSession, unarchiveSession, readArchivedIds } from "./archive-store.js";
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
-import { OcrCliController } from "./tools/ocr-cli.js";
+import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
@@ -243,9 +243,38 @@ configureActionSpawner(new ElectronNodeSpawner());
 // resolution). The controller manages per-project CodeGraph instances and
 // exposes an in-process MCPServer for connectInProcessServer.
 configureCodegraphController(new SdkCodegraphController());
-// OCR: CLI adapter (replaces configureOcrResolver + collectOcrReview spawn).
-// Uses correct flags (--audience agent --format json) + correct JSON schema.
-configureReviewController(new OcrCliController());
+// OCR: DELEGATE MODE adapter (open-codereview.ai/docs/delegate). OCR only
+// does the deterministic engineering — `delegate preview` (file selection) +
+// `delegate rule` (rules) — and the REVIEW itself runs on the app's own model
+// through the sessionless background LLM channel (the same driver arch-scan
+// uses), with the app locale for reader-facing findings. No OCR-side LLM
+// configuration or API key exists or is needed; nothing extra is installed.
+configureReviewController(
+  new OcrCliController({
+    language: () => APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
+    runHostReview: async (req) => {
+      const task = await getBridge()
+        .getSessionManager()
+        .runBackgroundLlmTask({
+          // "deepCodeReview" deliberately does NOT match "code-review" (the
+          // canonical example skill name in docs/agent-skills.md) so a user
+          // skill can never be force-loaded into review runs. No bundled
+          // skill ships under this name either — the delegate prompt below is
+          // the full instruction set. The review profile makes the channel
+          // read-only (no prototypes dir, no write tool, no arch steering).
+          skill: "deepCodeReview",
+          profile: "review",
+          prompt: buildOcrDelegateReviewPrompt(req),
+          root: req.root,
+          // Run-level deadline: aborting it interrupts the in-flight review
+          // task (the old single-spawn hard-cap guarantee, restored).
+          signal: req.signal,
+          onProgress: (message) => req.onProgress?.(message),
+        });
+      return parseHostReviewComments(task.content ?? "", req.path);
+    },
+  })
+);
 // App UI locale as reported by the renderer (SessionLocaleSet) — drives the
 // wiki generation language. The renderer syncs it at boot and on change.
 let currentAppLocale: string | undefined;
