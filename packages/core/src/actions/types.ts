@@ -169,6 +169,15 @@ export interface BackgroundLlmTaskOptions {
   readonly prompt?: string;
   readonly input?: Record<string, unknown>;
   /**
+   * Task profile. "default" (artifact-producing tasks like arch-scan) creates
+   * the target's prototypes dir, allows the write tool, injects the
+   * artifact-completion system framing and archify tool steering. "review"
+   * (delegated OCR file review) is read-only exploration: no artifact dir,
+   * no write tool, no steering, and a system preamble that enforces the task
+   * prompt's JSON contract. Defaults to "default".
+   */
+  readonly profile?: "default" | "review";
+  /**
    * Workspace root the task's artifacts belong to (defaults to the manager's
    * projectRoot). A2UI surfaces are flushed into this root's
    * `.deeporca/prototypes/` on completion.

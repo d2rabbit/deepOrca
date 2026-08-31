@@ -161,6 +161,11 @@ chosen type's schema supports — and NONE of what it doesn't:
   makes accidents impossible; a shell script makes them likely. bash is for
   READING and running `archify validate` / `archify brands` lookups — nothing
   else.
+- Component `sources` are the repository-evidence surface: author them ONLY
+  when the task prompt provides the meta.repository values (a github.com
+  origin + pinned revision). Otherwise keep source anchors in sublabel/tag
+  text — never author a sources array the gate cannot verify (a failed
+  deliver fails the whole build stage).
 - Durable artifacts go ONLY to `<targetRoot>/.deeporca/prototypes/arch-*.<type>.json`.
   Nothing else on disk is yours to write.
 - Do not modify, delete, or "clean up" other files in prototypes/.

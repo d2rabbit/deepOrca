@@ -8,6 +8,7 @@ import { SessionManagerLifecycle } from "./session-manager-lifecycle";
 import { type BackgroundLlmTaskOptions, type BackgroundLlmTaskResult, type RunSubagentOptions } from "./actions";
 import { getArchifyPaths } from "./actions/archify-controller";
 import { inferBashSideEffects, type AskPermissionScope } from "./common/permissions";
+import { execFileSync } from "node:child_process";
 import { lstatSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { basename, join, resolve as resolvePath } from "node:path";
 import { resolveGateRoot, type PathGrant } from "./common/path-boundary";
@@ -81,17 +82,59 @@ export function ensureBackgroundTaskArtifactDir(targetRoot: string): string {
 }
 
 /**
+ * Repository-evidence hint for the arch task prompt (2026-08-31 real-machine,
+ * excel-jvm): archify's repository-evidence gate requires meta.repository.url
+ * to be a public https://github.com owner/repo URL whose slug matches the
+ * checkout's origin, plus a full 40-char revision SHA — so a gitee/private/
+ * local-only repo can NEVER author component `sources`. The host therefore
+ * detects the origin itself and hands the prompt an exact {url, revision} pair
+ * when (and only when) the surface is satisfiable; null forbids it. Exported
+ * for tests.
+ */
+export function detectArchRepositoryHint(targetRoot: string): { url: string; revision: string } | null {
+  try {
+    const origin = execFileSync("git", ["-C", targetRoot, "remote", "get-url", "origin"], {
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
+    // Same slug family archify's githubSlug() accepts, but the authored url
+    // must additionally be the canonical https form — normalize here so the
+    // model never has to guess the spelling.
+    const m = origin.match(
+      /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i
+    );
+    if (!m) return null;
+    const revision = execFileSync("git", ["-C", targetRoot, "rev-parse", "HEAD"], {
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
+    if (!/^[0-9a-f]{40}$/i.test(revision)) return null;
+    return { url: `https://github.com/${m[1]}/${m[2]}`, revision: revision.toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * User prompt for the archify-driven arch-scan background task (pure —
  * extracted for testing). Contract invariants:
  *  - the TARGET ROOT line must match the path grant (opts.root || projectRoot)
  *    or every read/write the model attempts is denied fail-closed;
  *  - the ARCHIFY TOOLKIT paths always accompany the task (the skill contract
  *    reads them from the user message), on BOTH fresh and incremental runs —
- *    an incremental prompt without them used to bypass the contract entirely.
+ *    an incremental prompt without them used to bypass the contract entirely;
+ *  - the REPOSITORY EVIDENCE contract always rides along: sources[] only when
+ *    opts.repository proves a github.com origin, forbidden otherwise (a
+ *    non-GitHub checkout can never satisfy archify's gate, and a deliver that
+ *    fails on repository-required fails the whole build stage).
  */
 export function buildArchScanTaskPrompt(
   targetRoot: string,
-  opts?: { perspective?: string; incremental?: boolean }
+  opts?: {
+    perspective?: string;
+    incremental?: boolean;
+    repository?: { url: string; revision: string } | null;
+  }
 ): string {
   // Archify toolkit paths come from the host-injected seam (desktop knows
   // the vendored location; core must not derive vendor paths itself).
@@ -101,6 +144,16 @@ export function buildArchScanTaskPrompt(
       `- skillDoc: ${archify.skillDoc}\n- schemasDir: ${archify.schemasDir}\n` +
       `- examplesDir: ${archify.examplesDir}\n- bin: ${archify.bin}`
     : "Archify toolkit: NOT CONFIGURED — report this failure, do not improvise.";
+  const repositoryContract = opts?.repository
+    ? `Repository evidence (component sources[]), OPTIONAL: this checkout's origin is ` +
+      `${opts.repository.url} @ ${opts.repository.revision}. You MAY author component sources arrays ` +
+      `(repo-relative POSIX paths, optional line/end_line and label). If and only if you author sources, ` +
+      `set meta.repository to EXACTLY {"url": "${opts.repository.url}", "revision": "${opts.repository.revision}"} — ` +
+      `archify verifies every path against the local checkout at that revision. Author no sources → omit meta.repository.`
+    : `Repository evidence (component sources[]): NOT available for this repository. Do NOT author ` +
+      `component sources arrays and do NOT set meta.repository — archify's gate requires a pinned public ` +
+      `github.com URL, which this origin cannot satisfy. Keep path:line anchors in sublabel/tag text instead, ` +
+      `and on incremental updates REMOVE any sources arrays left by earlier runs.`;
   const lines = [
     `Target repository root: ${targetRoot}`,
     `Perspective: ${opts?.perspective ?? "overall"} (map to an archify diagram type per the skill contract).`,
@@ -113,6 +166,7 @@ export function buildArchScanTaskPrompt(
       ? `Language: write ALL reader-facing text (title, node labels, sublabels, edge labels, boundary labels) in ${getArchifyLanguage()}. Keep exact code identifiers, product names and API paths as-is.`
       : "Language: use the repository's dominant documentation language for reader-facing text.",
     toolkit,
+    repositoryContract,
   ];
   if (opts?.incremental) {
     lines.push(
@@ -342,7 +396,14 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
   protected buildSubagentPrompt(skill: string, input?: Record<string, unknown>, prompt?: string): string {
     if (prompt) return prompt;
     if (skill === "arch-scan") {
-      const typed = input as { perspective?: string; root?: string; incremental?: boolean } | undefined;
+      const typed = input as
+        | {
+            perspective?: string;
+            root?: string;
+            incremental?: boolean;
+            repository?: { url: string; revision: string } | null;
+          }
+        | undefined;
       // TARGET comes from input.root (threaded by runBackgroundLlmTask from
       // opts.root) — NOT this.projectRoot: cross-workspace builds run on the
       // active session's executor while the path grant scopes read/write to
@@ -351,6 +412,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       return buildArchScanTaskPrompt(typed?.root ?? this.projectRoot, {
         perspective: typed?.perspective,
         incremental: typed?.incremental === true,
+        repository: typed?.repository ?? null,
       });
     }
     return `Execute the ${skill} skill for this project.`;
@@ -365,10 +427,22 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
    * can never leak a "Scan the codebase…" session into the sidebar or hijack
    * the main tab.
    *
-   * Tool surface is deliberately narrow: built-in read/bash/write + the
-   * codegraph / serena MCP servers — everything the arch-scan skill consumes,
-   * nothing user-facing (no edit, no AskUserQuestion/UpdatePlan). `write` is
-   * path-grant-scoped to the target's prototypes dir only.
+   * Two profiles (opts.profile):
+   *  - "default" (artifact-producing: arch-scan) — creates the target's
+   *    prototypes dir, allows the write tool (path-grant-scoped to it),
+   *    injects the artifact-completion system framing and the archify tool
+   *    steering, and flushes A2UI surfaces at the end.
+   *  - "review" (delegated OCR file review, real-machine 2026-08-31) —
+   *    READ-ONLY exploration: no artifact dir is created in the reviewed
+   *    repo, no write tool, no archify steering, no A2UI flush, and a
+   *    system preamble that requires the task prompt's JSON contract
+   *    verbatim (the injected artifact framing used to fight it).
+   *
+   * Tool surface is deliberately narrow: built-in read/bash (+write on the
+   * default profile) + the codegraph / serena MCP servers — everything the
+   * arch-scan skill consumes, nothing user-facing (no edit, no
+   * AskUserQuestion/UpdatePlan). `write` is path-grant-scoped to the target's
+   * prototypes dir only.
    *
    * Permissions — deliberate design decision (2026-08-23, user-confirmed,
    * design-r2.md §三 R3-4; tool face re-scoped 2026-08-29): this loop does
@@ -389,7 +463,11 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       throw new Error("API key not found");
     }
     const targetRoot = opts.root || this.projectRoot;
-    ensureBackgroundTaskArtifactDir(targetRoot);
+    // The review profile is read-only exploration: it must NOT create the
+    // prototypes artifact dir inside the reviewed repo (real-machine
+    // 2026-08-31: a delegated review of an arbitrary checkout polluted it).
+    const reviewProfile = opts.profile === "review";
+    if (!reviewProfile) ensureBackgroundTaskArtifactDir(targetRoot);
     // Task-start timestamp: "authored THIS run" = artifact mtime after this
     // (the wiki side uses the same technique).
     const taskStartedAtMs = Date.now();
@@ -405,8 +483,9 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       opts.signal?.addEventListener("abort", adoptExternalAbort, { once: true });
     }
     // Stamp for the task-end A2UI surface flush (only surfaces mutated by
-    // THIS run are written back — see the finally below).
-    const a2ui = this.currentA2uiLifecycle;
+    // THIS run are written back — see the finally below). The review profile
+    // produces no surfaces, so it opts out of the stamp/flush entirely.
+    const a2ui = reviewProfile ? undefined : this.currentA2uiLifecycle;
     const archFlushStamp = a2ui?.surfaceStamp?.();
     this.backgroundTaskIds.add(taskId);
     try {
@@ -425,12 +504,18 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       const messages: Array<Record<string, unknown>> = [
         {
           role: "system",
-          content:
-            "You are a non-interactive background analysis task inside DeepOrca. " +
-            "Work autonomously to completion: never ask the user questions, never wait for input — " +
-            "make reasonable assumptions and finish the task described below. " +
-            "Your only lasting output is the tool-side artifacts you produce (e.g. the archify typed-IR map files under .deeporca/prototypes/); " +
-            "your final text is a brief completion report to the orchestrator, not to a human.",
+          content: reviewProfile
+            ? "You are a non-interactive code review task inside DeepOrca. " +
+              "Work autonomously to completion: never ask the user questions, never wait for input — " +
+              "make reasonable assumptions and finish the review described below. " +
+              "Explore the repository with the read tools where context requires it, but modify nothing. " +
+              "Your final text is consumed by a parser: respond with EXACTLY the JSON your task prompt specifies, " +
+              "with no prose and no markdown fences."
+            : "You are a non-interactive background analysis task inside DeepOrca. " +
+              "Work autonomously to completion: never ask the user questions, never wait for input — " +
+              "make reasonable assumptions and finish the task described below. " +
+              "Your only lasting output is the tool-side artifacts you produce (e.g. the archify typed-IR map files under .deeporca/prototypes/); " +
+              "your final text is a brief completion report to the orchestrator, not to a human.",
         },
         // Runtime context: a SLIM, target-rooted block — NOT the full
         // getStableRuntimeContext (real-machine 2026-08-29, live probe: the
@@ -446,24 +531,41 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       }
       messages.push({
         role: "user",
-        content: opts.prompt ?? this.buildSubagentPrompt(opts.skill, { ...opts.input, root: targetRoot }, undefined),
+        content:
+          opts.prompt ??
+          this.buildSubagentPrompt(
+            opts.skill,
+            {
+              ...opts.input,
+              root: targetRoot,
+              // arch-scan only: a github.com origin unlocks the sources[]
+              // evidence surface; any other origin forbids it (null).
+              repository: opts.skill === "arch-scan" ? detectArchRepositoryHint(targetRoot) : null,
+            },
+            undefined
+          ),
       });
 
-      // Narrow tool surface: read/bash/write built-ins + codegraph/serena MCP.
-      // "write" joined for archify typed-IR artifacts (2026-08-29) and is
-      // path-grant-scoped to the target's prototypes dir (see the grant below);
-      // a2ui LEFT the surface with save_archmap's retirement — nothing in the
-      // archify skill consumes A2UI surfaces anymore.
-      const ALLOWED_BUILTIN = new Set(["read", "bash", "write"]);
+      // Narrow tool surface: read/bash (+write on the default profile)
+      // built-ins + codegraph/serena MCP. "write" joined for archify typed-IR
+      // artifacts (2026-08-29) and is path-grant-scoped to the target's
+      // prototypes dir (see the grant below); the review profile drops it —
+      // a delegated review explores, it never authors. a2ui LEFT the surface
+      // with save_archmap's retirement — nothing in the archify skill
+      // consumes A2UI surfaces anymore.
+      const ALLOWED_BUILTIN = new Set(reviewProfile ? ["read", "bash"] : ["read", "bash", "write"]);
       const ALLOWED_MCP = /^mcp__(codegraph|serena)__/;
       const tools = getTools(this.getPromptToolOptions(), this.mcpToolDefinitions)
         .filter((t) => ALLOWED_BUILTIN.has(t.function.name) || ALLOWED_MCP.test(t.function.name))
-        .map((t) => steerToolDescription(t, targetRoot));
+        // archify tool steering is artifact-profile framing; a review task's
+        // tools keep their stock descriptions (its prompt forbids mutations).
+        .map((t) => (reviewProfile ? t : steerToolDescription(t, targetRoot)));
       // First-class validate tool (user directive 2026-08-30: 引导走 tools，
       // 不是一直拦截): the validate loop was the ONE thing bash was legitimately
       // used for — give it a real tool so the model never needs bash for it.
+      // Artifact-profile only: a review task never touches archify artifacts.
       const archify = getArchifyPaths();
-      if (archify) {
+      if (archify && !reviewProfile) {
         tools.push({
           type: "function",
           function: {
