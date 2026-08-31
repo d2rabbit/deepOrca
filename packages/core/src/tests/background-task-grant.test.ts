@@ -16,6 +16,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { backgroundTaskPathGrant, ensureBackgroundTaskArtifactDir } from "../session-manager-tasks";
 import { gateWrite, gateRead } from "../common/path-boundary";
+import { normalizeFilePath } from "../common/state";
 
 function withRoot(fn: (root: string) => void): void {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bg-grant-"));
@@ -60,11 +61,13 @@ test("reads allowed across the whole target repo, denied outside", () => {
 });
 
 test("unresolvable root falls back to the lexical path (fail-closed against reality)", () => {
-  const grant = backgroundTaskPathGrant("/nonexistent/should/not/exist");
-  assert.deepEqual(grant.readRoots, ["/nonexistent/should/not/exist"]);
-  assert.equal(
-    gateWrite(grant, "/nonexistent/should/not/exist/src/x.ts").ok,
-    false,
-    "writes still scoped to prototypes"
-  );
+  const root = "/nonexistent/should/not/exist";
+  const grant = backgroundTaskPathGrant(root);
+  // The fallback preserves the input's PLATFORM-NORMALIZED spelling, not the
+  // raw string: on Windows a POSIX-absolute input canonicalizes to the
+  // driveless form ("\nonexistent\…"), so the expectation must be computed
+  // via the same normalization primitive — a literal POSIX string failed
+  // every Windows run (real machine 2026-08-31).
+  assert.deepEqual(grant.readRoots, [normalizeFilePath(root)]);
+  assert.equal(gateWrite(grant, root + "/src/x.ts").ok, false, "writes still scoped to prototypes");
 });

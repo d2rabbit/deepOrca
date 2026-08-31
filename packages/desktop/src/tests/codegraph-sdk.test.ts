@@ -45,6 +45,12 @@ test("reindex: fresh root takes init(), initialized root takes recreate() (GVGL 
     // sync() opens the (now-initialized) project without throwing.
     await ctrl.sync(root);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    // Release the SDK's open db handle BEFORE deleting the root: the instance
+    // sync() handed back holds codegraph.db open, and Windows refuses to
+    // remove a directory with an open file inside (EPERM — real machine
+    // 2026-08-31; POSIX unlinks it silently, which is why CI never saw it).
+    // maxRetries covers any residual AV-scan lock after close.
+    ctrl.dispose(root);
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

@@ -213,6 +213,29 @@ export class SdkCodegraphController implements CodegraphController {
     return fs.existsSync(indexDbPath(root)) && countIndexedSymbols(root) > 0;
   }
 
+  /**
+   * Release the tracked SDK instance's OS handles (sqlite db + WAL) for one
+   * root — or every tracked root when omitted. The app keeps instances open
+   * for its lifetime, but any teardown that deletes the project directory
+   * (tests today; a future workspace-removal flow would need it too) needs
+   * the handle gone first: Windows refuses to remove a directory whose file
+   * is still open (EPERM), where POSIX unlinks it silently — the asymmetry
+   * that hid this from CI.
+   */
+  dispose(root?: string): void {
+    const targets = root === undefined ? [...this.instances.keys()] : [root];
+    for (const key of targets) {
+      const cg = this.instances.get(key);
+      if (!cg) continue;
+      try {
+        cg.close();
+      } catch {
+        // Best effort — may already be closed.
+      }
+      this.instances.delete(key);
+    }
+  }
+
   getMcpServer(): { connect(transport: unknown): Promise<void> } | null {
     // The CodeGraph SDK's MCPServer does NOT expose connect(transport) — it's
     // a standalone stdio server (start/startDirect). In-process MCP bridging
