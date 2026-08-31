@@ -62,6 +62,14 @@ const archifyPaths: ArchifyPaths = {
   bin: archifyBin,
 };
 configureArchifyPaths(existsSync(archifyBin) ? archifyPaths : null);
+if (!existsSync(archifyBin)) {
+  // Degrades to null seams BY DESIGN (below), but silently: every arch build
+  // would then burn its LLM run and fail as "try another model" (real-machine
+  // 2026-08-31). Say the install is incomplete the moment it is detected.
+  console.warn(
+    "[knowledge] archify vendor missing (vendor/archify/bin/archify.mjs) — architecture maps unavailable; rebuild via desktop:build"
+  );
+}
 const archifyCli = new ArchifyCli({
   bin: archifyBin,
   // Electron-as-Node: archify is pure ESM JavaScript (zero runtime deps), so

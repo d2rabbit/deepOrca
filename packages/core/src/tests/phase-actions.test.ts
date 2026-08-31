@@ -21,7 +21,7 @@ import { execFileSync } from "node:child_process";
 import { ActionRegistry, NULL_SPAWNER } from "../actions";
 import { configureCodegraphController, getCodegraphController } from "../actions/codegraph-controller";
 import { configureWikiController, getWikiController } from "../actions/wiki-controller";
-import { configureArchRenderer } from "../actions/archify-controller";
+import { configureArchRenderer, configureArchifyPaths, type ArchifyPaths } from "../actions/archify-controller";
 import type { CodegraphController } from "../actions/codegraph-controller";
 import type { WikiController } from "../actions/wiki-controller";
 
@@ -57,6 +57,15 @@ import {
 } from "../actions";
 
 const PROJECT_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "phase-actions-"));
+
+/** Fake host-injected archify seams (core only checks non-null; existence is
+ *  the desktop composition root's concern — knowledge-ipc checks the bin). */
+const TEST_ARCHIFY_PATHS: ArchifyPaths = {
+  skillDoc: path.join(PROJECT_ROOT, "SKILL.md"),
+  schemasDir: path.join(PROJECT_ROOT, "schemas"),
+  examplesDir: path.join(PROJECT_ROOT, "examples"),
+  bin: path.join(PROJECT_ROOT, "bin", "archify.mjs"),
+};
 
 /** Register every Phase 0-3 action (mirrors SessionManager's registration). */
 function fullRegistry(root: string = PROJECT_ROOT): ActionRegistry {
@@ -409,6 +418,10 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
       return reg;
     };
     try {
+      // The host configures the archify seams when the toolkit is vendored;
+      // the LLM path is only reachable with them present (missing toolkit
+      // fail-fasts before the task — see the dedicated test below).
+      configureArchifyPaths(TEST_ARCHIFY_PATHS);
       configureCodegraphController({
         hasProject: () => true, // → sync path, no reindex node-count gate here
         sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
@@ -445,6 +458,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
     } finally {
       configureCodegraphController(prevCg);
       configureWikiController(prevWiki);
+      configureArchifyPaths(null);
       fs.rmSync(protoDir, { recursive: true, force: true });
     }
   });
@@ -489,6 +503,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
         init: async () => ({ ok: true, model: "test" }),
         update: async () => ({ ok: true, model: "test" }),
       } as unknown as WikiController);
+      configureArchifyPaths(TEST_ARCHIFY_PATHS);
       const reg = new ActionRegistry({
         projectRoot: PROJECT_ROOT,
         spawner: NULL_SPAWNER,
@@ -507,6 +522,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
     } finally {
       configureCodegraphController(prevCg);
       configureWikiController(prevWiki);
+      configureArchifyPaths(null);
       fs.rmSync(protoDir, { recursive: true, force: true });
       try {
         fs.rmSync(path.join(PROJECT_ROOT, ".git"), { recursive: true, force: true });
@@ -554,6 +570,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
         init: async () => ({ ok: true, model: "test" }),
         update: async () => ({ ok: true, model: "test" }),
       } as unknown as WikiController);
+      configureArchifyPaths(TEST_ARCHIFY_PATHS);
       const reg = new ActionRegistry({
         projectRoot: PROJECT_ROOT,
         spawner: NULL_SPAWNER,
@@ -572,6 +589,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
     } finally {
       configureCodegraphController(prevCg);
       configureWikiController(prevWiki);
+      configureArchifyPaths(null);
       fs.rmSync(protoDir, { recursive: true, force: true });
     }
   });
@@ -598,6 +616,7 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
         renderCalls++;
         return 1;
       });
+      configureArchifyPaths(TEST_ARCHIFY_PATHS);
       const reg = new ActionRegistry({
         projectRoot: PROJECT_ROOT,
         spawner: NULL_SPAWNER,
@@ -616,6 +635,50 @@ describe("index.build-all (Phase 2 orchestrator)", () => {
       configureCodegraphController(prevCg);
       configureWikiController(prevWiki);
       configureArchRenderer(null);
+      configureArchifyPaths(null);
+    }
+  });
+
+  test("arch stage fail-fasts when the archify toolkit is not vendored", async () => {
+    // Real-machine 2026-08-31 (excel-jvm): with vendor/archify missing, the
+    // host degrades both archify seams to null — but the stage still ran the
+    // full 80-iteration LLM scan and then failed as "try another model". A
+    // missing toolkit is an INSTALL state: skip the stage with an actionable
+    // error BEFORE inviting the model.
+    const prevCg = getCodegraphController();
+    const prevWiki = getWikiController();
+    let llmRan = false;
+    try {
+      configureCodegraphController({
+        hasProject: () => true,
+        sync: async () => ({ filesChecked: 0, filesAdded: 0, filesModified: 0, filesRemoved: 0, durationMs: 1 }),
+        reindex: async () => undefined,
+        getMcpServer: () => null,
+      } as CodegraphController);
+      configureWikiController({
+        init: async () => ({ ok: true, model: "test" }),
+        update: async () => ({ ok: true, model: "test" }),
+      } as unknown as WikiController);
+      // No configureArchifyPaths — the seams stay null (toolkit not vendored).
+      const reg = new ActionRegistry({
+        projectRoot: PROJECT_ROOT,
+        spawner: NULL_SPAWNER,
+        runBackgroundTask: async () => {
+          llmRan = true;
+          return { content: "must not run", iterations: 1 };
+        },
+      });
+      reg.register(indexBuildAllDefinition, indexBuildAllRun);
+      const out = (await reg.execute("index.build-all", { mode: "init" }).result) as {
+        stages: { stage: string; ok: boolean; skipped?: boolean; error?: string }[];
+      };
+      const arch = out.stages.find((s) => s.stage === "arch-scan");
+      assert.equal(arch?.skipped, true, "missing toolkit skips the stage");
+      assert.match(arch?.error ?? "", /archify toolkit not vendored/);
+      assert.equal(llmRan, false, "the LLM task must not run without the toolkit");
+    } finally {
+      configureCodegraphController(prevCg);
+      configureWikiController(prevWiki);
     }
   });
 });

@@ -22,7 +22,7 @@ import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getCodegraphController } from "./codegraph-controller";
 import { getWikiController } from "./wiki-controller";
-import { getArchRenderer } from "./archify-controller";
+import { getArchRenderer, getArchifyPaths } from "./archify-controller";
 
 export interface IndexBuildInput {
   /** "init" and "update" now run the same three stages (each refreshes in
@@ -341,6 +341,27 @@ export const indexBuildAllRun: ActionRun<IndexBuildInput, IndexBuildOutput> = as
       ok: false,
       skipped: true,
       error: "runBackgroundTask not available — use /arch-scan to run manually",
+    });
+  } else if (!getArchifyPaths()) {
+    // Fail FAST, not after the LLM run (real-machine 2026-08-31 excel-jvm:
+    // with the vendored archify toolkit missing, the 80-iteration scan still
+    // burned its full LLM budget and the stage then failed as "try another
+    // model" — the exact misleading attribution this branch removes). The
+    // toolkit's absence is an INSTALL state, not a model problem: the host
+    // degrades both archify seams (paths + renderer) to null at boot.
+    stages.push({
+      stage: "arch-scan",
+      ok: false,
+      skipped: true,
+      error:
+        "archify toolkit not vendored — architecture maps unavailable. " +
+        "重建桌面端（npm run desktop:build 会执行 scripts/vendor-archify.js）并重启 / " +
+        "rebuild the desktop app (desktop:build runs scripts/vendor-archify.js) and restart",
+    });
+    ctx.emit({
+      message:
+        `[3/3] arch-scan stage skipped: archify 工具包未安装（vendor 缺失）— 重建桌面端后重试 / ` +
+        `archify toolkit not vendored — rebuild the desktop app to install it`,
     });
   } else {
     try {

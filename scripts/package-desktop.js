@@ -197,7 +197,15 @@ function main() {
   const vendorEntries = {
     // CodeGraph: installed via npm (@colbymchenry/codegraph) — no vendor dir needed.
     // Validated separately below by checking the npm package resolves.
-    openwiki: join("openwiki", "dist", "cli.js"),
+    // openwiki moved its entry between versions (0.2.x: dist/cli.js → 0.3.x:
+    // dist/cli/cli.js) — the runtime accepts both (main/index.ts), so the
+    // gate accepts both too; pinning the gate to one layout false-alarms the
+    // other (dev warning every package, release hard-fail on a healthy tree).
+    openwiki: [join("openwiki", "dist", "cli.js"), join("openwiki", "dist", "cli", "cli.js")],
+    // archify has NO runtime fallback (build.mjs: "no fallback (architecture
+    // maps unavailable)") — a missing vendored bin means the packaged app can
+    // never author/render architecture maps, so it belongs in this gate.
+    archify: join("archify", "bin", "archify.mjs"),
     uv: join("uv", hostUvTarget),
     skillspector: join("skillspector", ".vendored-skillspector-version"),
     "browser-skill": join("browser-skill", process.platform === "win32" ? "bsk.exe" : "bsk"),
@@ -212,7 +220,6 @@ function main() {
     bento: join(
       "..",
       "..",
-      "packages",
       "core",
       "templates",
       "plugins",
@@ -224,13 +231,20 @@ function main() {
     ),
   };
   for (const [name, rel] of Object.entries(vendorEntries)) {
-    const entry = join(desktopDir, "vendor", rel);
-    if (existsSync(entry)) continue;
-    const msg = `vendor/${name} entry missing (${rel}) — packaged app will fall back to ${
-      name === "uv" ? "system uv on PATH" : name === "skillspector" ? "uv tool install from git" : "npx"
-    } at runtime.`;
+    const candidates = Array.isArray(rel) ? rel : [rel];
+    if (candidates.some((c) => existsSync(join(desktopDir, "vendor", c)))) continue;
+    const relNote = candidates.join(" or ");
+    const fallback =
+      name === "uv"
+        ? "system uv on PATH"
+        : name === "skillspector"
+          ? "uv tool install from git"
+          : name === "archify"
+            ? "NOTHING — architecture maps unavailable (archify has no runtime fallback)"
+            : "npx";
+    const msg = `vendor/${name} entry missing (${relNote}) — packaged app will fall back to ${fallback} at runtime.`;
     if (isRelease) {
-      throw new Error(`[release] vendor/${name} incomplete: ${rel} missing. Run 'npm run desktop:build' first.`);
+      throw new Error(`[release] vendor/${name} incomplete: ${relNote} missing. Run 'npm run desktop:build' first.`);
     }
     log(msg);
   }
