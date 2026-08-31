@@ -77,14 +77,14 @@ function MermaidBlock({ code, isIncomplete }: CustomRendererProps): JSX.Element 
 const RENDERERS: CustomRenderer[] = [{ language: "mermaid", component: MermaidBlock }];
 const PLUGINS: PluginConfig = { renderers: RENDERERS };
 
-// Syntax palette is PINNED to github-light for BOTH shiki variants (hard
-// product rule 2026-08-31: code wells are always the fixed light gray
-// --ui-code-well, 严禁黑色). The default second theme (github-dark) paints
-// near-black token colors + well background whenever Tailwind's `dark:`
-// variant matches — and that variant keys off its own strategy, NOT the app's
-// appearance system, so it can fire while the app renders its light theme.
-// With both slots github-light, every `dark:` fallback resolves to the same
-// readable dark-on-gray palette.
+// Syntax palette is PINNED to github-light for BOTH shiki variants. In this
+// app streamdown's tailwind utilities never compile (there is no tailwind
+// runtime for streamdown surfaces — chat.css owns every code-well color), so
+// shiki token colors never render and code text follows --ui-text. The pin is
+// belt-and-braces: if utility compilation ever lands, the palette stays
+// github-light in both slots so the well can never regress to near-black
+// (hard product rule 2026-08-31: 严禁黑色 — wells are light gray in light
+// appearance and dark gray in dark, see --ui-code-well in tokens.css).
 const SHIKI_THEME: [string, string] = ["github-light", "github-light"];
 
 // Match the old chrome: code blocks get a copy button; download buttons,

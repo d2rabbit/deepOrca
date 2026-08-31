@@ -1118,6 +1118,9 @@ button.ui-tool-head:hover {
    appearances. */
 .ui-md pre {
   background: var(--ui-code-well, #f1f3f5) !important;
+  /* Text follows the appearance (--ui-text), always contrasting with the
+     well: dark-on-light-gray in light, light-on-dark-gray in dark. */
+  color: var(--ui-text);
   border: 1px solid var(--ui-code-well-border, #dde2e9);
   border-radius: var(--ui-radius-md);
   padding: var(--ui-space-3);

@@ -123,6 +123,14 @@
   color-scheme: dark;
 }
 
+/* Code wells flip with the app appearance (user rule 2026-08-31): light gray
+   in light, DARK GRAY (never black, and always contrasting with --ui-text) in
+   dark. Fixed pair — themes must not re-bind it. */
+:root[data-appearance="dark"] {
+  --ui-code-well: #2b2e34;
+  --ui-code-well-border: #3e434b;
+}
+
 /* Diagram hues — light appearance: darker strokes so node outlines stay
    legible on pastel color-mix fills over a light surface. */
 :root[data-appearance="light"] {
