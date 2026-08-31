@@ -1340,3 +1340,169 @@
   width: 110px;
   font-family: var(--ui-font-mono, monospace);
 }
+
+/* Review scope bar — above the workspace list (user ask 2026-09-01). */
+.ui-review-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.ui-review-scope-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint, #888);
+}
+
+/* Native report document inside the review tab. */
+.ui-report-doc {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 22px 26px;
+}
+.ui-report-doc h1 {
+  font-size: 19px;
+  margin: 0 0 4px;
+}
+.ui-report-meta {
+  color: var(--ui-text-dim, #888);
+  font-size: 12.5px;
+  margin-bottom: 14px;
+}
+.ui-report-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ui-report-card {
+  min-width: 110px;
+  padding: 10px 16px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 10px;
+  background: var(--ui-surface-raised, transparent);
+}
+.ui-report-card .num {
+  font-size: 22px;
+  font-weight: 650;
+}
+.ui-report-card .lbl {
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #888);
+}
+.ui-report-card.excluded {
+  border-color: color-mix(in srgb, #d97706 45%, transparent);
+}
+.ui-report-file {
+  margin-bottom: 14px;
+}
+.ui-report-file h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 0 0 6px;
+}
+.ui-report-file h2 code {
+  background: var(--ui-surface-sunken, transparent);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+}
+.ui-report-file .cnt {
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #888);
+}
+.ui-report-finding {
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 9px;
+  padding: 9px 12px;
+  margin: 8px 0;
+}
+.ui-report-finding .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.ui-report-finding .loc {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  color: var(--ui-text-dim, #888);
+}
+.chip {
+  font-size: 10.5px;
+  font-weight: 650;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+.chip.sev-critical {
+  background: #7f1d1d;
+}
+.chip.sev-high {
+  background: #c2410c;
+}
+.chip.sev-medium {
+  background: #b45309;
+}
+.chip.sev-low {
+  background: #64748b;
+}
+.chip.crg {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
+  color: var(--ui-accent, #3b82f6);
+}
+.ui-report-finding .body {
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.ui-report-finding .code {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  margin: 6px 0 0;
+}
+.ui-report-finding .code.existing {
+  background: color-mix(in srgb, #d14545 8%, transparent);
+  border: 1px solid color-mix(in srgb, #d14545 25%, transparent);
+}
+.ui-report-finding .code.suggestion {
+  background: color-mix(in srgb, #2f9e44 8%, transparent);
+  border: 1px solid color-mix(in srgb, #2f9e44 25%, transparent);
+}
+.ui-report-finding .sug-label {
+  font-size: 11px;
+  color: var(--ui-success, #2f9e44);
+  margin-top: 6px;
+}
+.ui-report-empty {
+  border: 1px dashed var(--ui-border-soft, #333);
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+  color: var(--ui-text-dim, #888);
+  font-size: 13px;
+}
+.ui-report-footer {
+  margin-top: 22px;
+  font-size: 11.5px;
+  color: var(--ui-text-faint, #888);
+}
+.ui-review-tab-active {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-success, #2f9e44) 14%, transparent);
+  color: var(--ui-success, #2f9e44);
+}

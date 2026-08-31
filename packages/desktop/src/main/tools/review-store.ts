@@ -25,6 +25,17 @@ export interface ReviewReportMeta {
   filesReviewed: number;
   comments: number;
   statusNote: string;
+  /** Pre-localized scope label for the report header (e.g. 提交 HEAD 的变更). */
+  scopeLabel?: string;
+  /** Exclusion accounting — explains 0-finding runs. */
+  excludedByPolicy?: number;
+  unsupportedFiles?: number;
+  /**
+   * Full findings of the run — the native report view renders these directly.
+   * Shape mirrors the delegation comments (content carries the
+   * `[SEVERITY] ` prefix; severity field is optional).
+   */
+  findings?: Array<Record<string, unknown>>;
 }
 
 const reviewsDir = (root: string): string => path.join(root, ".deeporca", "reviews");
@@ -88,6 +99,17 @@ export function resolveReportFile(root: string, id: string): string | null {
   const file = path.join(dir, `${id}.html`);
   if (path.dirname(file) !== dir) return null;
   return fs.existsSync(file) ? file : null;
+}
+
+/** Read one report's meta (with findings) — null for bad ids / unreadable. */
+export function readReviewReport(root: string, id: string): ReviewReportMeta | null {
+  if (!isSafeReportId(id)) return null;
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(reviewsDir(root), `${id}.json`), "utf-8")) as ReviewReportMeta;
+    return meta?.id === id ? meta : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Keep the newest REPORTS_KEEP pairs; delete the rest. Best-effort. */

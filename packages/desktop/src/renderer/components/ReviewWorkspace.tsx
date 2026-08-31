@@ -1,23 +1,17 @@
 import { useCallback, useEffect, useState, type JSX } from "react";
-import type { ActionProgressEvent, ActionRunResult, ReviewReportMeta } from "../../shared/ipc";
+import type { ActionProgressEvent, ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 
 /**
  * Review workspace surface — the main-area tab for ONE workspace (the review
- * module's counterpart of the knowledge tab; user ask 2026-08-31: the review
- * surface must follow the index-module pattern, never pop out).
- *
- * Header carries the review CONTROLS for this workspace: scope selector
- * (uncommitted / single commit / ref range / whole repository) + run button
- * (active workspace only — the action registry is bound to it). Two views:
- *   审查报告 — persisted report history (left rail) rendered as a
- *             self-contained page inside a sandboxed iframe;
- *   风险图谱 — the simplified in-app risk map, loaded on first open.
+ * module's counterpart of the knowledge tab). PURE reading surface: report
+ * history (left rail) + a structured native report view (right), and the
+ * simplified risk map. All run controls live on the panel's workspace list
+ * (scope selector above the list — user ask 2026-09-01).
  */
 
 type SubView = "reports" | "graph";
-type Scope = "workspace" | "commit" | "range" | "all";
 
 const STATUS_LABELS: Record<string, Record<string, string>> = {
   zh: {
@@ -40,8 +34,44 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
   },
 };
 
+interface Finding {
+  path: string;
+  startLine: number;
+  endLine?: number;
+  severity?: string;
+  content: string;
+  existingCode?: string;
+  suggestionCode?: string;
+  crgRisk?: string;
+}
+
+const SEV_CLASS: Record<string, string> = {
+  critical: "sev-critical",
+  high: "sev-high",
+  medium: "sev-medium",
+  low: "sev-low",
+};
+
+/** Split the delegation `[SEVERITY] rest` content prefix. */
+function parseFinding(f: Record<string, unknown>): Finding {
+  const content = String(f.content ?? "");
+  const m = content.match(/^\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s*([\s\S]*)$/);
+  const str = (k: string): string | undefined => (typeof f[k] === "string" ? (f[k] as string) : undefined);
+  return {
+    path: String(f.path ?? ""),
+    startLine: Number(f.startLine ?? f.start_line ?? 0) || 0,
+    endLine: f.endLine != null || f.end_line != null ? Number(f.endLine ?? f.end_line) : undefined,
+    severity: m ? m[1].toLowerCase() : (str("severity") ?? undefined),
+    content: m ? m[2] : content,
+    existingCode: str("existingCode") ?? str("existing_code"),
+    suggestionCode: str("suggestionCode") ?? str("suggestion_code"),
+    crgRisk: str("crgRisk"),
+  };
+}
+
 export function ReviewWorkspace({ root, initialReportId }: { root: string; initialReportId?: string }): JSX.Element {
   const { t, locale } = useI18n();
+  const label = root.split(/[\\/]/).pop() ?? root;
   const statusLabel = (status: string): string =>
     STATUS_LABELS[locale === "zh-TW" || locale === "zh-HK" ? "zh" : locale]?.[status] ?? status;
   const timeLabel = (iso: string): string =>
@@ -59,22 +89,9 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
   const [subView, setSubView] = useState<SubView>("reports");
   const [reports, setReports] = useState<ReviewReportMeta[]>([]);
   const [selected, setSelected] = useState<string | null>(initialReportId ?? null);
-  const [html, setHtml] = useState<string | null>(null);
   const [graphHtml, setGraphHtml] = useState<string | null>(null);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-
-  // Review controls (this tab's own run channel).
-  const [activeRoot, setActiveRoot] = useState<string>("");
-  const [scope, setScope] = useState<Scope>("workspace");
-  const [commitRef, setCommitRef] = useState("HEAD");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("HEAD");
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [runError, setRunError] = useState<string | null>(null);
-
-  const isActiveRoot = root === activeRoot;
 
   const loadReports = useCallback(async (): Promise<ReviewReportMeta[]> => {
     try {
@@ -103,64 +120,21 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
     };
   }, [root, initialReportId, loadReports]);
 
-  // Active root (gates the run controls) + progress stream while running.
+  // Keep the history rail fresh when a run settles (panel-initiated or ours).
+  useEffect(() => {
+    return api.onActionProgress((evt: ActionProgressEvent) => {
+      if (evt.actionId === "review.full" && evt.percent === 100) void loadReports();
+    });
+  }, [loadReports]);
+
+  // Active root (informational badge) — reviews run against it from the panel.
+  const [activeRoot, setActiveRoot] = useState<string>("");
   useEffect(() => {
     void api.getProjectRoot().then(setActiveRoot);
     return api.onProjectRootChanged(setActiveRoot);
   }, []);
 
-  useEffect(() => {
-    if (!running) {
-      setProgress("");
-      return;
-    }
-    const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
-      if (evt.actionId === "review.full") {
-        setProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
-      }
-    });
-    return unsub;
-  }, [running]);
-
-  // Read the selected report's HTML whenever the selection moves.
-  useEffect(() => {
-    if (!selected) {
-      setHtml(null);
-      return;
-    }
-    let alive = true;
-    (async () => {
-      const res = await api.reviewReadReport(root, selected);
-      if (alive && res.ok) setHtml(res.html ?? null);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [root, selected]);
-
-  const runReview = useCallback(async () => {
-    if (!isActiveRoot || running) return;
-    setRunning(true);
-    setRunError(null);
-    try {
-      const params =
-        scope === "all"
-          ? { all: true }
-          : scope === "commit"
-            ? { commit: commitRef.trim() || "HEAD" }
-            : scope === "range" && rangeFrom.trim() && rangeTo.trim()
-              ? { from: rangeFrom.trim(), to: rangeTo.trim() }
-              : {};
-      const res: ActionRunResult = await api.actionRun("review.full", params);
-      if (!res.ok) setRunError(`${res.code}: ${res.error}`);
-      const list = await loadReports();
-      setSelected(list[0]?.id ?? null);
-    } catch (err: unknown) {
-      setRunError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRunning(false);
-    }
-  }, [isActiveRoot, running, scope, commitRef, rangeFrom, rangeTo, loadReports]);
+  const selectedMeta = reports.find((r) => r.id === selected) ?? null;
 
   const openGraph = useCallback(async () => {
     if (graphHtml || graphError) return;
@@ -183,6 +157,15 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
     </button>
   );
 
+  // Group findings by path for the native report body.
+  const findings: Finding[] = (selectedMeta?.findings ?? []).map(parseFinding);
+  const byPath = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const list = byPath.get(f.path) ?? [];
+    list.push(f);
+    byPath.set(f.path, list);
+  }
+
   return (
     <div className="ui-review-tab">
       <div className="ui-review-tab-head">
@@ -190,59 +173,8 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
           {pill("reports", t("review.reportsTitle"))}
           {pill("graph", t("review.riskGraph"))}
         </div>
-        <div className="ui-review-tab-controls">
-          <select
-            className="ui-review-scope-select"
-            value={scope}
-            onChange={(e) => setScope(e.target.value as Scope)}
-            title={t("review.scope.title")}
-            disabled={running || !isActiveRoot}
-          >
-            <option value="workspace">{t("review.scope.workspace")}</option>
-            <option value="commit">{t("review.scope.commit")}</option>
-            <option value="range">{t("review.scope.range")}</option>
-            <option value="all">{t("review.scope.all")}</option>
-          </select>
-          {scope === "commit" ? (
-            <input
-              className="ui-review-scope-input"
-              value={commitRef}
-              onChange={(e) => setCommitRef(e.target.value)}
-              placeholder="HEAD"
-              spellCheck={false}
-            />
-          ) : null}
-          {scope === "range" ? (
-            <>
-              <input
-                className="ui-review-scope-input"
-                value={rangeFrom}
-                onChange={(e) => setRangeFrom(e.target.value)}
-                placeholder={t("review.scope.from")}
-                spellCheck={false}
-              />
-              <input
-                className="ui-review-scope-input"
-                value={rangeTo}
-                onChange={(e) => setRangeTo(e.target.value)}
-                placeholder={t("review.scope.to")}
-                spellCheck={false}
-              />
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="ui-review-run-btn"
-            disabled={running || !isActiveRoot}
-            title={isActiveRoot ? t("review.action.full.hint") : t("review.runActiveOnly")}
-            onClick={() => void runReview()}
-          >
-            {running ? "…" : t("review.startRun")}
-          </button>
-        </div>
+        {root === activeRoot ? <span className="ui-review-tab-active">{t("review.activeBadge")}</span> : null}
       </div>
-      {running && progress ? <div className="ui-review-run-progress">{progress}</div> : null}
-      {runError ? <div className="ui-error" style={{ margin: "0 12px 8px" }}>{`✗ ${runError}`}</div> : null}
 
       {subView === "reports" ? (
         <div className="ui-review-tab-body">
@@ -271,13 +203,61 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
             )}
           </div>
           <div className="ui-review-tab-content">
-            {html ? (
-              <iframe
-                className="ui-review-frame"
-                srcDoc={html}
-                sandbox="allow-scripts"
-                title={t("review.reportsTitle")}
-              />
+            {selectedMeta ? (
+              <div className="ui-report-doc">
+                <h1>
+                  {t("review.title")} — {label}
+                </h1>
+                <div className="ui-report-meta">
+                  {t("review.rpScope")}: {selectedMeta.scopeLabel} · {t("review.rpGenerated")}:{" "}
+                  {timeLabel(selectedMeta.generatedAt)} · {t("review.rpStatus")}: {statusLabel(selectedMeta.status)}
+                </div>
+                <div className="ui-report-cards">
+                  <div className="ui-report-card">
+                    <div className="num">{selectedMeta.filesReviewed}</div>
+                    <div className="lbl">{t("review.rpFiles")}</div>
+                  </div>
+                  <div className="ui-report-card">
+                    <div className="num">{selectedMeta.comments}</div>
+                    <div className="lbl">{t("review.rpFindings")}</div>
+                  </div>
+                </div>
+                {findings.length === 0 ? (
+                  <div className="ui-report-empty">{t("review.rpNoFindings")}</div>
+                ) : (
+                  [...byPath.entries()].map(([path, list]) => (
+                    <section key={path} className="ui-report-file">
+                      <h2>
+                        <code>{path}</code> <span className="cnt">{list.length}</span>
+                      </h2>
+                      {list.map((f, i) => (
+                        <div key={i} className="ui-report-finding">
+                          <div className="head">
+                            {f.severity ? (
+                              <span className={`chip ${SEV_CLASS[f.severity] ?? ""}`}>{f.severity.toUpperCase()}</span>
+                            ) : null}
+                            {f.crgRisk ? <span className="chip crg">CRG: {f.crgRisk}</span> : null}
+                            <span className="loc">
+                              {f.path}
+                              {f.startLine > 0 ? `:${f.startLine}` : ""}
+                              {f.endLine != null && f.endLine > f.startLine ? `-${f.endLine}` : ""}
+                            </span>
+                          </div>
+                          <div className="body">{f.content}</div>
+                          {f.existingCode ? <pre className="code existing">{f.existingCode}</pre> : null}
+                          {f.suggestionCode ? (
+                            <>
+                              <div className="sug-label">{t("review.rpSuggestion")}</div>
+                              <pre className="code suggestion">{f.suggestionCode}</pre>
+                            </>
+                          ) : null}
+                        </div>
+                      ))}
+                    </section>
+                  ))
+                )}
+                <p className="ui-report-footer">{selectedMeta.statusNote}</p>
+              </div>
             ) : (
               <div className="ui-review-history-empty">{selected ? t("actions.running") : t("review.noReports")}</div>
             )}

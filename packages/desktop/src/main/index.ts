@@ -88,7 +88,7 @@ import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
 import { buildReviewReportHtml } from "./tools/review-report.js";
-import { listReviewReports, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
+import { listReviewReports, readReviewReport, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
 import { buildRiskGraphHtml } from "./tools/crg-risk-graph.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
@@ -329,7 +329,11 @@ function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistr
 function writeReviewReport(output: unknown): { root: string; htmlPath: string; id: string } | null {
   try {
     const out = output as {
-      review?: { status?: string; summary?: { filesReviewed?: number; comments?: number }; comments?: unknown[] };
+      review?: {
+        status?: string;
+        summary?: { filesReviewed?: number; comments?: number; excludedByPolicy?: number; unsupportedFiles?: number };
+        comments?: unknown[];
+      };
       statusNote?: string;
     };
     if (!out?.review || !Array.isArray(out.review.comments)) return null;
@@ -372,6 +376,10 @@ function writeReviewReport(output: unknown): { root: string; htmlPath: string; i
       filesReviewed: Number(summary.filesReviewed ?? 0),
       comments: Array.isArray(out.review.comments) ? out.review.comments.length : 0,
       statusNote: String(out.statusNote ?? ""),
+      scopeLabel: modeLabel,
+      excludedByPolicy: Number(summary.excludedByPolicy ?? 0),
+      unsupportedFiles: Number(summary.unsupportedFiles ?? 0),
+      findings: out.review.comments as Array<Record<string, unknown>>,
     });
     if (!id) return null;
     const htmlPath = resolveReportFile(root, id);
@@ -1350,12 +1358,16 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return isKnownRoot(root) ? listReviewReports(root) : [];
   });
 
-  handle(IpcRequest.ReviewReadReport, (root: string, id: string): { ok: boolean; html?: string; error?: string } => {
-    if (!isKnownRoot(root)) return { ok: false, error: "Unknown workspace" };
-    const htmlPath = resolveReportFile(root, id);
-    if (!htmlPath) return { ok: false, error: "No such report" };
-    return { ok: true, html: readFileSync(htmlPath, "utf-8") };
-  });
+  handle(
+    IpcRequest.ReviewReadReport,
+    (root: string, id: string): { ok: boolean; meta?: ReviewReportMeta; html?: string; error?: string } => {
+      if (!isKnownRoot(root)) return { ok: false, error: "Unknown workspace" };
+      const meta = readReviewReport(root, id);
+      const htmlPath = resolveReportFile(root, id);
+      if (!meta || !htmlPath) return { ok: false, error: "No such report" };
+      return { ok: true, meta, html: readFileSync(htmlPath, "utf-8") };
+    }
+  );
 
   handle(IpcRequest.ReviewRiskGraph, (root: string): { html: string | null; error?: string } => {
     if (!isKnownRoot(root)) return { html: null, error: "Unknown workspace" };

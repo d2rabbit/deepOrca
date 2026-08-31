@@ -295,6 +295,11 @@ export type ReviewReportMeta = {
   filesReviewed: number;
   comments: number;
   statusNote: string;
+  scopeLabel?: string;
+  excludedByPolicy?: number;
+  unsupportedFiles?: number;
+  /** Full findings — the native report view renders these directly. */
+  findings?: Array<Record<string, unknown>>;
 };
 
 export type CrgIndexEntry = {
@@ -939,8 +944,11 @@ export type DesktopApi = {
   crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
   /** List a workspace's persisted review reports (newest first). */
   reviewListReports(root: string): Promise<ReviewReportMeta[]>;
-  /** Read one persisted report's self-contained HTML (rendered in-app). */
-  reviewReadReport(root: string, id: string): Promise<{ ok: boolean; html?: string; error?: string }>;
+  /** Read one persisted report: structured meta (with findings) + export HTML. */
+  reviewReadReport(
+    root: string,
+    id: string
+  ): Promise<{ ok: boolean; meta?: ReviewReportMeta; html?: string; error?: string }>;
   /** Build the simplified in-app risk map (self-contained HTML) for a workspace. */
   reviewRiskGraph(root: string): Promise<{ html: string | null; error?: string }>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */

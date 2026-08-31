@@ -51,6 +51,10 @@ export function CodeReviewPanel({
   const [progress, setProgress] = useState<string>("");
   const [lastRun, setLastRun] = useState<{ root: string; res: ActionRunResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<"workspace" | "commit" | "range" | "all">("workspace");
+  const [commitRef, setCommitRef] = useState("HEAD");
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("HEAD");
 
   const reload = useCallback(async () => {
     try {
@@ -111,7 +115,15 @@ export function CodeReviewPanel({
       setLastRun(null);
       setError(null);
       try {
-        const res = await api.actionRun("review.full", {});
+        const params =
+          scope === "all"
+            ? { all: true }
+            : scope === "commit"
+              ? { commit: commitRef.trim() || "HEAD" }
+              : scope === "range" && rangeFrom.trim() && rangeTo.trim()
+                ? { from: rangeFrom.trim(), to: rangeTo.trim() }
+                : {};
+        const res = await api.actionRun("review.full", params);
         setLastRun({ root, res });
         void reload();
       } catch (err: unknown) {
@@ -120,7 +132,7 @@ export function CodeReviewPanel({
         setRunning(false);
       }
     },
-    [activeRoot, running, reload]
+    [activeRoot, running, reload, scope, commitRef, rangeFrom, rangeTo]
   );
 
   const runFindings: ReviewFinding[] = lastRun && lastRun.res.ok ? extractReviewFindings(lastRun.res.output) : [];
@@ -134,6 +146,49 @@ export function CodeReviewPanel({
         </IconButton>
       </div>
       <div className="ui-side-panel-body">
+        {/* Scope selector sits ABOVE the workspace items — applies to the run
+           buttons; workspace scope self-heals via the HEAD fallback. */}
+        <div className="ui-review-scope-bar">
+          <span className="ui-review-scope-label">{t("review.scope.title")}</span>
+          <select
+            className="ui-review-scope-select"
+            value={scope}
+            onChange={(e) => setScope(e.target.value as typeof scope)}
+            title={t("review.scope.title")}
+          >
+            <option value="workspace">{t("review.scope.workspace")}</option>
+            <option value="commit">{t("review.scope.commit")}</option>
+            <option value="range">{t("review.scope.range")}</option>
+            <option value="all">{t("review.scope.all")}</option>
+          </select>
+          {scope === "commit" ? (
+            <input
+              className="ui-review-scope-input"
+              value={commitRef}
+              onChange={(e) => setCommitRef(e.target.value)}
+              placeholder="HEAD"
+              spellCheck={false}
+            />
+          ) : null}
+          {scope === "range" ? (
+            <>
+              <input
+                className="ui-review-scope-input"
+                value={rangeFrom}
+                onChange={(e) => setRangeFrom(e.target.value)}
+                placeholder={t("review.scope.from")}
+                spellCheck={false}
+              />
+              <input
+                className="ui-review-scope-input"
+                value={rangeTo}
+                onChange={(e) => setRangeTo(e.target.value)}
+                placeholder={t("review.scope.to")}
+                spellCheck={false}
+              />
+            </>
+          ) : null}
+        </div>
         {error ? <div className="ui-error">{error}</div> : null}
         {workspaces.length === 0 ? (
           <div className="ui-side-panel-empty">{t("review.noWorkspace")}</div>
