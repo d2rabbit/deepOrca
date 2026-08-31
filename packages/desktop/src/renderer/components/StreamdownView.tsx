@@ -77,6 +77,16 @@ function MermaidBlock({ code, isIncomplete }: CustomRendererProps): JSX.Element 
 const RENDERERS: CustomRenderer[] = [{ language: "mermaid", component: MermaidBlock }];
 const PLUGINS: PluginConfig = { renderers: RENDERERS };
 
+// Syntax palette is PINNED to github-light for BOTH shiki variants (hard
+// product rule 2026-08-31: code wells are always the fixed light gray
+// --ui-code-well, 严禁黑色). The default second theme (github-dark) paints
+// near-black token colors + well background whenever Tailwind's `dark:`
+// variant matches — and that variant keys off its own strategy, NOT the app's
+// appearance system, so it can fire while the app renders its light theme.
+// With both slots github-light, every `dark:` fallback resolves to the same
+// readable dark-on-gray palette.
+const SHIKI_THEME: [string, string] = ["github-light", "github-light"];
+
 // Match the old chrome: code blocks get a copy button; download buttons,
 // table controls and mermaid controls stay off (mermaid has its own renderer).
 const CONTROLS: ControlsConfig = { table: false, code: { copy: true, download: false }, mermaid: false };
@@ -107,6 +117,7 @@ export const StreamdownView = memo(function StreamdownView({
         remarkPlugins={REMARK_PLUGINS}
         plugins={PLUGINS}
         controls={CONTROLS}
+        shikiTheme={SHIKI_THEME}
         lineNumbers={false}
         linkSafety={LINK_SAFETY}
       >

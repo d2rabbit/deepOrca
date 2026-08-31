@@ -108,7 +108,9 @@
   color: var(--ui-text, inherit);
 }
 .ui-knowledge-agents-md pre {
-  background: var(--ui-surface-sunken, rgba(0, 0, 0, 0.25));
+  /* Fixed light-gray code well (product rule 2026-08-31: 严禁黑色) — the old
+     translucent-black fallback violated it in dark appearances. */
+  background: var(--ui-code-well, #f1f3f5);
   border-radius: 8px;
   padding: 10px;
   overflow-x: auto;

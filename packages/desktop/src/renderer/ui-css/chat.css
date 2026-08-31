@@ -1107,16 +1107,27 @@ button.ui-tool-head:hover {
 /* Base code-block style — NOT a legacy fallback. The streamdown wrappers
    above are deliberately transparent, so these rules supply the visible
    chrome (background, border, radius, padding, mono font) for every fenced
-   block. Deleting them unstyles all code blocks. */
+   block. Deleting them unstyles all code blocks.
+   Background is a hard product rule (2026-08-31: 严禁黑色，必须浅灰色):
+   `!important` + the code-block-body selector below are load-bearing — they
+   must outrank streamdown's own `bg-[var(--sdm-bg,…)]` utilities AND the
+   `dark:bg-[var(--shiki-dark-bg,…)]` variant (github-dark ≈ #24292e), which
+   keys off Tailwind's dark strategy and is decoupled from the app's own
+   appearance system. Token colors follow via the github-light pin in
+   StreamdownView, so text stays readable on the gray well in both
+   appearances. */
 .ui-md pre {
-  background: var(--ui-surface-sunken);
-  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-code-well, #f1f3f5) !important;
+  border: 1px solid var(--ui-code-well-border, #dde2e9);
   border-radius: var(--ui-radius-md);
   padding: var(--ui-space-3);
   overflow-x: auto;
   font-family: var(--ui-font-mono);
   font-size: 12.5px;
   position: relative;
+}
+.ui-md [data-streamdown="code-block-body"] pre {
+  background: var(--ui-code-well, #f1f3f5) !important;
 }
 .ui-md code {
   font-family: var(--ui-font-mono);

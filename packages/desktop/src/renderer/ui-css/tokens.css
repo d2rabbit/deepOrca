@@ -42,6 +42,14 @@
   --ui-radius-lg: 12px;
   --ui-radius-pill: 999px;
 
+  /* Markdown code wells (fenced blocks) are FIXED light gray in EVERY theme
+     and appearance — hard product rule 2026-08-31: 严禁黑色，必须浅灰色.
+     Unlike the surface tokens above this is deliberately NOT re-bound by any
+     theme; streamdown/shiki is likewise pinned to the github-light palette in
+     both variants (StreamdownView) so token colors stay readable on it. */
+  --ui-code-well: #f1f3f5;
+  --ui-code-well-border: #dde2e9;
+
   --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.16);
   --ui-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 20px rgba(20, 50, 100, 0.14);
   --ui-shadow-modal: 0 18px 60px rgba(0, 0, 0, 0.32);
@@ -179,4 +187,3 @@ select {
   outline: none;
   box-shadow: 0 0 0 3px var(--ui-focus-ring);
 }
-
