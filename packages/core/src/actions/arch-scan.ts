@@ -26,7 +26,9 @@ export interface ArchScanInput {
 
 export interface ArchScanOutput {
   readonly ok: boolean;
-  /** Per-call degradation state — "unavailable" while the Subagent runtime is missing. */
+  /** Per-call degradation state — "unavailable" while the Subagent runtime is
+   * missing OR the vendored archify toolkit is not installed (distinct
+   * remedies; see reason). */
   readonly status?: BackendStatus;
   readonly pending?: boolean;
   readonly reason?: string;
