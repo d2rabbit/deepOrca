@@ -9,6 +9,7 @@ import { StreamdownView } from "./StreamdownView";
 import { TocNav, useHeadingToc } from "./TocNav";
 import { buildStageVerb, formatBuildDuration } from "./KnowledgeBuildProgress";
 import { FRONTMATTER_RE } from "../lib/frontmatter";
+import { wikiStorePath } from "../lib/generated-paths";
 import { useBuildJobs } from "../hooks/useBuildJobs";
 
 /**
@@ -348,7 +349,7 @@ export function KnowledgePanel({ root, appearance, onOpenFile, onQuoteToChat }: 
     setWikiContent(null);
     (async () => {
       try {
-        const res = await api.editorReadFile(`${root}/deepwiki/${wikiSel}`);
+        const res = await api.editorReadFile(wikiStorePath(root, wikiSel));
         if (!alive) return;
         setWikiContent(res.ok && !res.binary ? (res.content ?? "") : null);
       } catch {
@@ -420,7 +421,7 @@ export function KnowledgePanel({ root, appearance, onOpenFile, onQuoteToChat }: 
                     ) : wikiContent != null ? (
                       <WikiPageView
                         raw={wikiContent}
-                        onOpenFile={() => onOpenFile(`${root}/deepwiki/${wikiSel}`)}
+                        onOpenFile={() => onOpenFile(wikiStorePath(root, wikiSel))}
                         openLabel={t("index.openInEditor")}
                         onQuote={onQuoteToChat ? (title) => onQuoteToChat(root, wikiSel, title) : undefined}
                         quoteLabel={t("index.quoteWiki")}

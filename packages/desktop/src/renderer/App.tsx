@@ -73,6 +73,7 @@ import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
+import { wikiStorePath } from "./lib/generated-paths";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
 import { formatBuildError } from "./lib/build-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
@@ -1174,7 +1175,7 @@ export function App(): JSX.Element {
       setActiveTab({ kind: "chat" });
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
-        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${root}/deepwiki/${path}\n`;
+        return `${prefix}${t("index.quoteWikiPrompt", { title })} @${wikiStorePath(root, path)}\n`;
       });
     },
     [t]
