@@ -13,7 +13,14 @@ import type { ActionDefinition, ActionRun } from "./types";
 import type { ControllerProgress } from "./codegraph-controller";
 import { getReviewController, type ReviewResult, type ReviewOptions } from "./review-controller";
 import { getCrgController } from "./crg-controller";
-import { getCrgGraphQuery, formatCrgContextForOcr, mergeReviewWithCrgRisk, type ChangedLineRange } from "./crg-query";
+import {
+  getCrgGraphQuery,
+  formatCrgContextForOcr,
+  mergeReviewWithCrgRisk,
+  type ChangedLineRange,
+  type CrgChangedFunction,
+  type CrgRiskData,
+} from "./crg-query";
 import { CRG_DATA_DIR } from "../common/generated-dirs";
 import type { BackendStatus, BackendStatusReport } from "../common/analysis-status";
 import { describeBackendStatus } from "../common/analysis-status";
@@ -84,8 +91,8 @@ export interface ReviewFullOutput {
   };
   readonly risk?:
     | {
-        readonly changedNodes?: unknown;
-        readonly impactRadius?: unknown;
+        readonly changedNodes?: CrgChangedFunction[];
+        readonly impactRadius?: CrgRiskData[];
         readonly graphBuilt: true;
       }
     | { readonly graphBuilt: false; readonly reason: string };
@@ -146,6 +153,31 @@ function serializeReviewFull<T>(root: string, body: () => Promise<T>): Promise<T
 }
 
 const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (input, ctx) => {
+  // Input validation FIRST — before the ⓪ graph build (a 20-minute crg
+  // build must not run for a request that can never be reviewed).
+  // SECURITY (CWE-88): refs are free-form strings from the LLM action
+  // surface — a value like "--output=…" would ride into git as an OPTION
+  // (arbitrary file write); argv arrays stop shell injection, not option
+  // injection. Fail LOUDLY here (the surface's own contract), and the two
+  // git readers below degrade defensively on top.
+  const scopeInputEarly = input ?? {};
+  for (const [name, ref] of Object.entries({
+    commit: scopeInputEarly.commit,
+    from: scopeInputEarly.from,
+    to: scopeInputEarly.to,
+  })) {
+    if (ref && ref.startsWith("-")) {
+      throw new Error(
+        `review.full: \`${name}\` looks like a git OPTION, not a revision (${JSON.stringify(ref)}) — pass a ref (SHA, branch, HEAD)`
+      );
+    }
+  }
+  if ((scopeInputEarly.from && !scopeInputEarly.to) || (!scopeInputEarly.from && scopeInputEarly.to)) {
+    throw new Error(
+      `review.full: range scope requires BOTH \`from\` and \`to\` (got ${scopeInputEarly.from ? "`from`" : "`to`"} only) — pass both refs or neither`
+    );
+  }
+
   const rc = getReviewController();
   if (!rc) {
     throw new Error("review.full: no ReviewController configured");
@@ -169,16 +201,10 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
     }
   }
 
-  // Scope resolution (workspace default; commit / range opt-in). A HALF-
-  // specified range (only `from` or only `to`) is an input error, not a
-  // silent workspace run — silently re-scoping would review the wrong diff
-  // and stamp the report with the wrong mode label (review round 2026-09-01).
+  // Scope resolution (workspace default; commit / range opt-in). The input
+  // validations (option-shaped refs, half-specified range) already ran at
+  // the top of the function — before any side effects.
   const scopeInput = input ?? {};
-  if ((scopeInput.from && !scopeInput.to) || (!scopeInput.from && scopeInput.to)) {
-    throw new Error(
-      `review.full: range scope requires BOTH \`from\` and \`to\` (got ${scopeInput.from ? "`from`" : "`to`"} only) — pass both refs or neither`
-    );
-  }
   const scope: ReviewFullOutput["scope"] = scopeInput.all
     ? { mode: "all" }
     : scopeInput.commit
@@ -334,7 +360,9 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
     // CRG tags can never attach (review round 2026-09-01).
     const merged = mergeReviewWithCrgRisk(review.comments, crgRisks, crgChanges, ctx.projectRoot);
     return {
-      review: { ...review, comments: merged as unknown as typeof review.comments },
+      // merged is ReviewComment-shaped plus the extra crgRisk tag — directly
+      // assignable, no cast needed.
+      review: { ...review, comments: merged },
       risk: {
         changedNodes: crgChanges,
         impactRadius: crgRisks,
@@ -363,6 +391,14 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
 export const reviewFullRun: ActionRun<ReviewFullInput, ReviewFullOutput> = (input, ctx) =>
   serializeReviewFull(ctx.projectRoot, () => reviewFullRunInner(input, ctx));
 
+/** SECURITY (CWE-88, defense in depth under the action-level ref check): a
+ *  ref beginning with "-" would ride into the git argv as an OPTION (e.g.
+ *  `--output=<path>` writes the diff to an arbitrary file) — clamp to the
+ *  fallback instead of executing it. */
+function safeGitRef(ref: string | undefined, fallback: string): string {
+  return ref && !ref.startsWith("-") ? ref : fallback;
+}
+
 /** List changed files for one scope. Workspace = diff HEAD + untracked;
  *  commit = that commit's diff (vs its first parent, empty tree for the root
  *  commit); range = from..to. Dot-files and
@@ -389,9 +425,9 @@ export function getGitChangedFiles(
     // root commit's files would never be structurally enriched.
     const gitArgs =
       scope.mode === "commit"
-        ? ["diff-tree", "--no-commit-id", "--name-only", "-r", "--root", scope.commit ?? "HEAD"]
+        ? ["diff-tree", "--no-commit-id", "--name-only", "-r", "--root", safeGitRef(scope.commit, "HEAD")]
         : scope.mode === "range"
-          ? ["diff", "--name-only", `${scope.from ?? "HEAD"}...${scope.to ?? "HEAD"}`]
+          ? ["diff", "--name-only", `${safeGitRef(scope.from, "HEAD")}...${safeGitRef(scope.to, "HEAD")}`]
           : scope.mode === "all"
             ? ["ls-files"]
             : ["diff", "--name-only", "HEAD"];
@@ -505,9 +541,15 @@ export function getGitChangedRanges(
   try {
     const gitArgs =
       scope.mode === "commit"
-        ? ["diff-tree", "--no-commit-id", "-r", "--root", "-p", "--unified=0", scope.commit ?? "HEAD", "--"]
+        ? ["diff-tree", "--no-commit-id", "-r", "--root", "-p", "--unified=0", safeGitRef(scope.commit, "HEAD"), "--"]
         : scope.mode === "range"
-          ? ["diff", "--no-ext-diff", "--unified=0", `${scope.from ?? "HEAD"}...${scope.to ?? "HEAD"}`, "--"]
+          ? [
+              "diff",
+              "--no-ext-diff",
+              "--unified=0",
+              `${safeGitRef(scope.from, "HEAD")}...${safeGitRef(scope.to, "HEAD")}`,
+              "--",
+            ]
           : ["diff", "--no-ext-diff", "--unified=0", "HEAD", "--"];
     const out = execFileSync("git", gitArgs, {
       cwd: root,

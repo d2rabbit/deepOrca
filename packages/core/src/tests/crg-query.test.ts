@@ -298,6 +298,32 @@ test("detectChanges narrows to line ranges when hunks are provided", async () =>
   }
 });
 
+test("detectChanges: a file with NO hunk intervals falls back to file-level when others have ranges", async () => {
+  // Review round 2026-09-01: the most common working state is "tracked files
+  // modified + a new file not yet `git add`ed" — untracked files never
+  // appear in the diff, so a non-empty ranges map used to drop their nodes
+  // entirely. Ranges must only NARROW files that have them.
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "crg-mixed-"));
+  try {
+    const tracked = path.join(root, "src", "tracked.ts");
+    const untracked = path.join(root, "src", "fresh.ts");
+    await fsp.mkdir(path.dirname(tracked), { recursive: true });
+    await fsp.writeFile(tracked, "export {};\n");
+    await fsp.writeFile(untracked, "export {};\n");
+    await makeGraphDb(root, [
+      { filePath: tracked, name: "trackedFn" },
+      { filePath: untracked, name: "freshFn" },
+    ]);
+
+    const q = createCrgGraphQuery();
+    const got = q.detectChanges(root, [tracked, untracked], { "src/tracked.ts": [[999, 1000]] });
+    const names = got.map((c) => c.name).sort();
+    assert.deepEqual(names, ["freshFn", "trackedFn"], "no-hunk file keeps file-level detection");
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("getFileHashes returns build-time hashes for File nodes (freshness probe)", async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "crg-hashes-"));
   try {

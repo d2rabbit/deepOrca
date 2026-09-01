@@ -19,6 +19,7 @@ import * as path from "node:path";
 import {
   spawnTracked,
   migrateLegacyCrgDir,
+  hasCrgProject,
   CRG_DIR_NAME,
   CRG_LEGACY_DIR_NAME,
   type ControllerProgress,
@@ -29,6 +30,24 @@ import {
 /** Hard cap on one graph build/update; override with DEEPORCA_CRG_TIMEOUT_MS. */
 const CRG_TIMEOUT_MS = Number(process.env.DEEPORCA_CRG_TIMEOUT_MS ?? "") || 20 * 60 * 1000;
 
+/**
+ * Fallback package index for the CRG wheel's DEPENDENCY resolution (user
+ * report 2026-09-01): the wheel itself is vendored, but `uv tool run` still
+ * installs its dependencies (watchdog, tree-sitter-language-pack, …) from
+ * the package index — and on some networks pypi.org is unreachable, so every
+ * build failed ("Request failed … pypi.org/simple/watchdog/") and the review
+ * tab degraded to "no CRG graph". When the first attempt fails on a
+ * network-ish error, retry once through the Aliyun mirror.
+ */
+const PYPI_FALLBACK_INDEX = "https://mirrors.aliyun.com/pypi/simple/";
+
+function looksLikeIndexFailure(result: { code: number | null; stderr: string; stdout: string }): boolean {
+  const combined = `${result.stderr}\n${result.stdout}`;
+  return /Request failed|Failed to fetch|timed out|getaddrinfo|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|error sending request/i.test(
+    combined
+  );
+}
+
 export class CrgCliController implements CrgController {
   constructor(
     private opts: {
@@ -38,12 +57,11 @@ export class CrgCliController implements CrgController {
   ) {}
 
   hasProject(root: string): boolean {
-    // Canonical `.deeporca/crg/` OR the pre-centralization location (still
-    // counted so sync adopts it on the next update instead of rebuilding).
-    for (const dir of [CRG_DIR_NAME, CRG_LEGACY_DIR_NAME]) {
-      if (fs.existsSync(path.join(root, dir))) return true;
-    }
-    return false;
+    // graph.db existence, NOT the directory (aligned with core's
+    // hasCrgProject): a build that failed midway leaves a bare directory, and
+    // a directory-only check would then SKIP every rebuild — the review tab
+    // would show "no CRG graph" forever (user report 2026-09-01).
+    return hasCrgProject(root);
   }
 
   async reindex(root: string, onProgress?: (p: ControllerProgress) => void): Promise<void> {
@@ -71,7 +89,34 @@ export class CrgCliController implements CrgController {
   }
 
   private async spawnCrg(root: string, crgArgs: string[], onProgress?: (p: ControllerProgress) => void): Promise<void> {
-    const result = await spawnTracked({
+    let result = await this.spawnOnce(root, crgArgs, onProgress, undefined);
+    if (!(result.forcedOk || result.code === 0) && looksLikeIndexFailure(result)) {
+      onProgress?.({ message: "CRG: package index unreachable — retrying via mirrors.aliyun.com" });
+      result = await this.spawnOnce(root, crgArgs, onProgress, PYPI_FALLBACK_INDEX);
+    }
+    if (result.forcedOk || result.code === 0) return;
+    throw new Error(`CRG exited ${result.code}${result.signal ?? ""}: ${result.stderr.slice(0, 500)}`);
+  }
+
+  /**
+   * The wheel spec WITH the `communities` extra — igraph-backed Leiden
+   * community detection. Without it the build logs "igraph not available,
+   * using file-based community detection" and the communities table stays
+   * EMPTY: the review tab's 按社区 grouping had no data at all (user report
+   * 2026-09-01). PEP 508 extras work on both local-wheel paths and PyPI specs.
+   */
+  private get wheelSpec(): string {
+    const base = this.opts.crgWheel;
+    return base.includes("[") ? base : `${base}[communities]`;
+  }
+
+  private async spawnOnce(
+    root: string,
+    crgArgs: string[],
+    onProgress?: (p: ControllerProgress) => void,
+    packageIndex?: string
+  ) {
+    return spawnTracked({
       label: `CRG ${crgArgs[0] ?? ""}`.trim(),
       command: this.opts.uvBinary,
       // --data-dir pins the graph into <root>/.deeporca/crg (generated-content
@@ -80,7 +125,7 @@ export class CrgCliController implements CrgController {
         "tool",
         "run",
         "--from",
-        this.opts.crgWheel,
+        this.wheelSpec,
         "code-review-graph",
         ...crgArgs,
         "--data-dir",
@@ -89,15 +134,12 @@ export class CrgCliController implements CrgController {
       cwd: root,
       timeoutMs: CRG_TIMEOUT_MS,
       heartbeatMs: 20_000,
+      ...(packageIndex ? { env: { UV_DEFAULT_INDEX: packageIndex, UV_INDEX_URL: packageIndex } } : {}),
       onHeartbeat: ({ elapsedSecs }) => {
         onProgress?.({ message: `CRG: still building ${elapsedSecs}s (no progress stream during graph build)` });
         return null;
       },
       onStdoutLine: (line) => onProgress?.({ message: `CRG: ${line.slice(0, 120)}` }),
     });
-    if (result.forcedOk || result.code === 0) return;
-    throw new Error(
-      `CRG exited ${result.code}${result.signal ?? ""}${result.stderr ? `: ${result.stderr.slice(0, 500)}` : ""}`
-    );
   }
 }

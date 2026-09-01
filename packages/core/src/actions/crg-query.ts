@@ -97,7 +97,12 @@ export interface CrgRiskData {
   qualifiedName: string;
   riskScore: number;
   callerCount: number;
-  testCoverage: string; // "unknown" | "covered" | "uncovered" | "partial"
+  /** TWO vocabularies by source (review round 2026-09-01): the risk_index
+   *  path emits "unknown"|"covered"|"uncovered"|"partial" (the wheel's own
+   *  values); the six-factor overview emits "tested"|"untested" (computed
+   *  from TESTED_BY edges). Display-only today — normalize before adding any
+   *  logic that branches on the value. */
+  testCoverage: string;
   securityRelevant: boolean;
 }
 
@@ -307,7 +312,14 @@ export function createCrgGraphQuery(): CrgGraphQuery {
             .filter((r) => {
               if (!rangesByKey) return true;
               const ranges = rangesByKey.get(toGraphPath(String(r.file_path)));
-              if (!ranges || ranges.length === 0) return false;
+              // Files WITHOUT hunk intervals (untracked workspace files, mode
+              // -only changes, deletions — none appear in `git diff`) fall
+              // back to FILE-level detection: membership in changedFiles was
+              // already established by the IN clause above, and dropping them
+              // here would silently strip the most common working state of
+              // its structural enrichment (review round 2026-09-01). Ranges
+              // only NARROW files that have them.
+              if (!ranges || ranges.length === 0) return true;
               const lineStart = Number(r.line_start ?? 0);
               const lineEnd = Number(r.line_end ?? 0);
               return ranges.some(([start, end]) => lineStart <= end && lineEnd >= start);
@@ -725,20 +737,29 @@ function overviewFromRiskIndex(db: OverviewDb, capped: number): CrgRiskNode[] {
  *   security keywords   0.20 (FULL 24-word list — risk_index only has 11)
  *   caller count        min(callers / 20, 0.10)
  * (churn is opt-in upstream — needs `git log`, stays off here)
- * Every factor query is individually safe: a missing table (older graph,
- * upstream migration lag) zeroes that factor instead of failing the run.
+ *
+ * Degradation: the base query only touches `nodes`/`edges` (core schema);
+ * the flow and caller-community factors each load through their OWN
+ * try/catch below, so a graph missing `flows`/`flow_memberships` or
+ * `community_id` zeroes just that factor instead of failing the run.
+ *
+ * Deliberate deviations from upstream (documented, review round 2026-09-01):
+ *   - cross-community counts DISTINCT caller COMMUNITIES, upstream counts
+ *     every cross-community caller (over-counts when callers cluster);
+ *   - transitive tests have no upstream frontier cap (upstream stops at 50);
+ *   - no `min(count × 0.05, 0.25)` fallback when a node has no criticality.
+ * All three shift scores only within the factor caps.
  */
 function overviewFromSixFactors(db: OverviewDb, capped: number): CrgRiskNode[] {
   let baseRows: Record<string, unknown>[];
   try {
     baseRows = db
       .prepare(
-        `SELECT qualified_name, name, file_path, line_start, line_end, kind, community_id,
+        `SELECT n.id AS node_id, n.qualified_name, n.name, n.file_path, n.line_start, n.line_end,
+                n.kind, n.community_id,
                 COALESCE(caller.cnt, 0) AS caller_count,
                 COALESCE(tested_direct.cnt, 0) AS direct_tests,
-                COALESCE(tested_trans.cnt, 0) AS transitive_tests,
-                COALESCE(flows.crit, 0.0) AS flow_criticality,
-                COALESCE(cross_calls.cnt, 0) AS cross_community_calls
+                COALESCE(tested_trans.cnt, 0) AS transitive_tests
          FROM nodes n
          LEFT JOIN (SELECT target_qualified, COUNT(*) AS cnt FROM edges WHERE kind = 'CALLS' GROUP BY target_qualified) caller
            ON caller.target_qualified = n.qualified_name
@@ -751,18 +772,6 @@ function overviewFromSixFactors(db: OverviewDb, capped: number): CrgRiskNode[] {
            WHERE e1.kind = 'CALLS'
            GROUP BY e1.source_qualified
          ) tested_trans ON tested_trans.source_qualified = n.qualified_name
-         LEFT JOIN (
-           SELECT fm.node_id, SUM(f.criticality) AS crit
-           FROM flow_memberships fm JOIN flows f ON f.id = fm.flow_id
-           GROUP BY fm.node_id
-         ) flows ON flows.node_id = n.id
-         LEFT JOIN (
-           SELECT e.target_qualified, COUNT(DISTINCT caller_by_cid.community_id) AS cnt
-           FROM edges e
-           JOIN nodes caller_by_cid ON caller_by_cid.qualified_name = e.source_qualified
-           WHERE e.kind = 'CALLS' AND caller_by_cid.community_id IS NOT NULL
-           GROUP BY e.target_qualified
-         ) cross_calls ON cross_calls.target_qualified = n.qualified_name
          WHERE n.kind IN ('Function', 'Class')`
       )
       .all() as Record<string, unknown>[];
@@ -770,6 +779,23 @@ function overviewFromSixFactors(db: OverviewDb, capped: number): CrgRiskNode[] {
     return [];
   }
   if (baseRows.length === 0) return [];
+
+  // Flow participation — its own query so a graph without the flow tables
+  // (older wheels) zeroes the factor instead of failing the whole overview.
+  const flowCrit = new Map<string, number>();
+  try {
+    for (const r of db
+      .prepare(
+        `SELECT fm.node_id, SUM(f.criticality) AS crit
+         FROM flow_memberships fm JOIN flows f ON f.id = fm.flow_id
+         GROUP BY fm.node_id`
+      )
+      .all() as Record<string, unknown>[]) {
+      flowCrit.set(String(r.node_id), Number(r.crit) || 0);
+    }
+  } catch {
+    // older graphs simply have no flow data (degrade to [] — factor stays 0)
+  }
 
   const callerComm = new Map<string, Set<number>>();
   const nodeComm = new Map<string, number | null>();
@@ -802,8 +828,7 @@ function overviewFromSixFactors(db: OverviewDb, capped: number): CrgRiskNode[] {
       const name = String(r.name);
       const qnLower = `${name} ${qn}`.toLowerCase();
 
-      const flowCrit = Math.min(Number(r.flow_criticality ?? 0) || 0, RISK_FLOW_CAP); // cap inside min per upstream
-      const flowScore = Math.min(flowCrit, RISK_FLOW_CAP);
+      const flowScore = Math.min(flowCrit.get(String(r.node_id)) ?? 0, RISK_FLOW_CAP);
 
       const myCid = nodeComm.get(qn) ?? null;
       let cross = 0;

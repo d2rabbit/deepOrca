@@ -96,6 +96,32 @@ test("commit mode lists the ROOT commit's files (diff-tree --root, not X^)", asy
   }
 });
 
+test("an option-shaped ref never reaches git argv (CWE-88 clamp)", async () => {
+  // A `commit` like "--output=<path>" would otherwise ride into git as an
+  // OPTION (argv arrays stop shell injection, not option injection) and
+  // write the diff to an arbitrary path. The guard clamps it to the HEAD
+  // fallback — the run must behave exactly like `commit: "HEAD"`.
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "review-refguard-"));
+  try {
+    await git(root, "init", "-q");
+    await git(root, "config", "user.email", "test@example.com");
+    await git(root, "config", "user.name", "test");
+    await fsp.writeFile(path.join(root, "keep.ts"), "export {};\n");
+    await git(root, "add", "-A");
+    await git(root, "commit", "-qm", "init");
+
+    const viaHead = getGitChangedFiles(root, { mode: "commit", commit: "HEAD" });
+    const viaInjection = getGitChangedFiles(root, { mode: "commit", commit: "--output=evil.diff" });
+    assert.deepEqual(
+      viaInjection.map((f) => path.basename(f)),
+      viaHead.map((f) => path.basename(f)),
+      "option-shaped commit degrades to the HEAD fallback"
+    );
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("toDetectionSet: dot-paths cannot starve real source out of the capped set", () => {
   // Review round 2026-09-01: the cap used to run BEFORE the dot filter, and
   // `git ls-files` emits byte order — where `.` sorts before every letter.

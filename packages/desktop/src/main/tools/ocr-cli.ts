@@ -404,15 +404,31 @@ export class OcrCliController implements ReviewController {
   ) {}
 
   /**
-   * Resolve the OCR binary: `@alibaba-group/open-code-review/bin/ocr.js`
-   * is a CommonJS launcher that resolves the platform binary. We run it
-   * through Electron's bundled Node (ELECTRON_RUN_AS_NODE).
+   * Resolve the OCR binary. Preferred: the NATIVE platform binary, spawned
+   * directly — the JS launcher (`open-code-review/bin/ocr.js`) only resolves
+   * the platform binary and forwards argv, but its `spawnSync(exe, { stdio:
+   * "inherit" })` broke the hidden-console chain on Windows: our
+   * windowsHide hid the launcher, the exe then allocated a FRESH VISIBLE
+   * console for every preview/rule probe (user report 2026-09-01). Spawning
+   * the exe through spawnTracked (windowsHide) keeps the whole chain
+   * console-free. Fallback: the JS launcher (non-Windows or platform
+   * package missing).
    */
   private resolveOcr(): {
     command: string;
     prefixArgs: string[];
     env?: Record<string, string>;
   } | null {
+    if (process.platform === "win32") {
+      try {
+        const exe = require.resolve("@alibaba-group/ocr-win32-x64/bin/opencodereview.exe");
+        if (fs.existsSync(exe)) {
+          return { command: exe, prefixArgs: [], env: { OCR_NO_UPDATE: "1" } };
+        }
+      } catch {
+        // platform package not installed — fall through to the JS launcher
+      }
+    }
     try {
       const entry = require.resolve("@alibaba-group/open-code-review/bin/ocr.js");
       return {

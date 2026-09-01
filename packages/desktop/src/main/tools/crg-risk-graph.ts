@@ -1,27 +1,67 @@
 /**
- * Simplified in-app risk map — replaces the CRG wheel's own `visualize` D3
- * page (user ask 2026-08-31: "对于我们而言太复杂了，需要简化同时保持效果";
- * layout rework 2026-09-01: 不是环形，是按文件分组的图谱，参考架构图/索引关系图
- * 的分组卡片风格).
+ * Risk map — Canvas force-directed renderer (user ask 2026-09-01: 性能好、
+ * 直观、细致、有适度美观与交互、不花哨；D3 不考虑). Replaces the file-card
+ * board: one <canvas>, a hand-rolled bounded physics layout (repulsion +
+ * edge springs + group cohesion, PRE-SETTLED synchronously so the first
+ * paint is already organized), communities as translucent halos, nodes as
+ * risk-colored discs sized by callers. Interactions: hover highlights the
+ * neighborhood, click selects into the side card, drag nodes, wheel zoom /
+ * drag pan, double-click resets. Communities are FIRST-CLASS: the 文件/社区
+ * toggle re-groups the halos (Leiden data comes from the graph build's
+ * `communities` extra).
  *
- * Reads graph.db DIRECTLY via CrgGraphQuery.getRiskOverview (top-N nodes by
- * risk + the CALLS edges among them) and emits a small self-contained page:
- * functions grouped into per-FILE cards on a grid, each function a row with a
- * risk-colored dot + score; CALLS edges drawn between rows; click a row → the
- * side card shows details + neighbors (server-rendered for the top node, so
- * the initial view is populated even without the interaction script).
- * No external libraries, no Python, no spawn.
+ * ZERO dependencies: no D3, no CDN, no external assets — the page is a
+ * self-contained document rendered inside the sandboxed iframe
+ * (`sandbox="allow-scripts"`), so every model/DB-authored string reaches the
+ * page through `safeJson` (JSON with `<` escaped) or `escapeHtml`.
+ *
+ * `theme` is passed EXPLICITLY by the caller (the app's resolved appearance)
+ * instead of keying off `prefers-color-scheme`: the page renders inside an
+ * iframe, which follows the OS setting rather than the app's appearance
+ * toggle (review round 2026-09-01 — same treatment as the arch preview).
  */
 
-import { createCrgGraphQuery, type CrgRiskEdge, type CrgRiskNode } from "@deeporca/core";
+import { existsSync, statSync } from "node:fs";
+import * as path from "node:path";
+import { createCrgGraphQuery, CRG_DATA_DIR, CRG_LEGACY_DIR, type CrgRiskEdge, type CrgRiskNode } from "@deeporca/core";
 import type { ReviewGraphFinding } from "../../shared/ipc";
 import { bindFindingsToNodes } from "./review-bind.js";
 
 /** How many top-risk nodes the simplified map shows. */
 export const OVERVIEW_LIMIT = 60;
-/** Grouping caps — a readable board, not a data dump. */
-const MAX_FILES = 8;
-const MAX_FUNCS_PER_FILE = 8;
+
+/** graph.db's on-disk path (canonical or legacy location), null when absent. */
+function graphDbPath(root: string): string | null {
+  for (const dir of [CRG_DATA_DIR, CRG_LEGACY_DIR]) {
+    const p = path.join(root, dir, "graph.db");
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * Overview cache (review round 2026-09-01): the six-factor ranking is the
+ * heaviest query in the module, and it used to re-run on EVERY report
+ * selection AND again for the map. Keyed by root, invalidated by graph.db
+ * mtime — a rebuild refreshes naturally, no TTL heuristics.
+ */
+const overviewCache = new Map<string, { mtimeMs: number; overview: { nodes: CrgRiskNode[]; edges: CrgRiskEdge[] } }>();
+
+export function getRiskOverviewCached(root: string, limit: number): { nodes: CrgRiskNode[]; edges: CrgRiskEdge[] } {
+  const dbPath = graphDbPath(root);
+  if (!dbPath) return { nodes: [], edges: [] };
+  let mtimeMs = 0;
+  try {
+    mtimeMs = statSync(dbPath).mtimeMs;
+  } catch {
+    // unreadable — skip the cache, query cold
+  }
+  const hit = overviewCache.get(root);
+  if (hit && mtimeMs > 0 && hit.mtimeMs === mtimeMs) return hit.overview;
+  const overview = createCrgGraphQuery().getRiskOverview(root, limit);
+  if (mtimeMs > 0) overviewCache.set(root, { mtimeMs, overview });
+  return overview;
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -32,101 +72,17 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Risk score → color: high = red, mid = amber, low = slate. */
-function riskColor(score: number): string {
-  if (score >= 0.66) return "#d64545";
-  if (score >= 0.33) return "#d97706";
-  return "#64748b";
+/** JSON for inline <script> — `<` escapes kill `</script>` and `<!--`. */
+function safeJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }
 
-const CARD_W = 430;
-const ROW_H = 30;
-const HEAD_H = 34;
-const GAP_X = 46;
-const GAP_Y = 34;
-const COLS = 2;
+/** Community hues — one ramp slot per community index (cycles past 8). */
+const COMMUNITY_HUES = ["#60a5fa", "#a78bfa", "#2dd4bf", "#fbbf24", "#fb7185", "#22d3ee", "#818cf8", "#a3e635"];
 
-/** One grouped card on the board. */
-type BoardGroup = { label: string; funcs: CrgRiskNode[] };
-
-type Board = { width: number; height: number; svg: string };
-
-/**
- * Lay one board out: groups → cards (COLS columns, deterministic order —
- * same graph, same board), functions as rows with risk dots + scores, CALLS
- * edges drawn between row centers. `isCross` marks edges whose endpoints
- * belong to DIFFERENT groups (the community board uses it to highlight
- * cross-community calls — design mining item ④).
- */
-function buildBoard(groups: BoardGroup[], edges: CrgRiskEdge[], isCross?: (s: string, t: string) => boolean): Board {
-  const positions = new Map<string, { x: number; y: number }>();
-  const cardRects: { x: number; y: number; w: number; h: number; label: string }[] = [];
-  groups.forEach((g, gi) => {
-    const col = gi % COLS;
-    const rowIdx = Math.floor(gi / COLS);
-    const x = 36 + col * (CARD_W + GAP_X);
-    const y = 96 + rowIdx * (HEAD_H + g.funcs.length * ROW_H + 26 + GAP_Y);
-    cardRects.push({ x, y, w: CARD_W, h: HEAD_H + g.funcs.length * ROW_H + 16, label: g.label });
-    g.funcs.forEach((n, fi) => {
-      positions.set(n.qualifiedName, { x: x + 96, y: y + HEAD_H + fi * ROW_H + ROW_H / 2 + 2 });
-    });
-  });
-  const width = 36 + COLS * (CARD_W + GAP_X) + 10;
-  const rowsOfCards = Math.ceil(groups.length / COLS);
-  const height = 96 + rowsOfCards * (HEAD_H + MAX_FUNCS_PER_FILE * ROW_H + 26 + GAP_Y) + 30;
-
-  const edgeLines = edges
-    .map((e) => {
-      const a = positions.get(e.source);
-      const b = positions.get(e.target);
-      if (!a || !b) return "";
-      const mid = (a.x + b.x) / 2;
-      const cross = isCross?.(e.source, e.target) ? " cross" : "";
-      return (
-        `<path class="edge${cross}" data-src="${escapeHtml(e.source)}" data-dst="${escapeHtml(e.target)}" ` +
-        `d="M ${a.x.toFixed(1)} ${a.y.toFixed(1)} C ${mid.toFixed(1)} ${a.y.toFixed(1)}, ${mid.toFixed(1)} ${b.y.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}"/>`
-      );
-    })
-    .join("\n");
-
-  const cards = cardRects
-    .map((c) => {
-      const short = c.label.length > 46 ? `…${c.label.slice(-45)}` : c.label;
-      const rows = (groups[cardRects.indexOf(c)]?.funcs ?? [])
-        .map((n) => {
-          const p = positions.get(n.qualifiedName);
-          if (!p) return "";
-          const r = 4 + n.riskScore * 7;
-          const name = n.name.length > 30 ? `${n.name.slice(0, 29)}…` : n.name;
-          return (
-            `<g class="fnode" data-id="${escapeHtml(n.qualifiedName)}">` +
-            `<rect class="hit" x="${c.x + 6}" y="${(p.y - ROW_H / 2 + 2).toFixed(1)}" width="${CARD_W - 12}" height="${ROW_H - 2}"/>` +
-            `<circle cx="${c.x + 20}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${riskColor(n.riskScore)}" ${n.securityRelevant ? 'class="sec"' : ""}/>` +
-            `<text class="fname" x="${c.x + 36}" y="${(p.y + 4).toFixed(1)}">${escapeHtml(name)}</text>` +
-            `<text class="fscore" x="${c.x + CARD_W - 12}" y="${(p.y + 4).toFixed(1)}">${n.riskScore.toFixed(2)}</text>` +
-            `</g>`
-          );
-        })
-        .join("\n");
-      return (
-        `<g class="file-card">` +
-        `<rect class="card-bg" x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" rx="10"/>` +
-        `<text class="card-file" x="${c.x + 14}" y="${c.y + 22}">${escapeHtml(short)}</text>` +
-        rows +
-        `</g>`
-      );
-    })
-    .join("\n");
-
-  return { width, height, svg: edgeLines + "\n" + cards };
-}
-
-/**
- * `theme` is passed EXPLICITLY by the caller (the app's resolved appearance)
- * instead of keying off `prefers-color-scheme`: the page renders inside an
- * iframe, which follows the OS setting rather than the app's appearance
- * toggle (review round 2026-09-01 — same treatment as the arch preview).
- */
 export function buildRiskGraphHtml(
   root: string,
   projectName: string,
@@ -134,15 +90,58 @@ export function buildRiskGraphHtml(
   theme: "light" | "dark",
   reportFindings?: ReviewGraphFinding[]
 ): string | null {
-  const query = createCrgGraphQuery();
-  if (!query.hasGraph(root)) return null;
-  const { nodes, edges } = query.getRiskOverview(root, OVERVIEW_LIMIT);
+  if (!createCrgGraphQuery().hasGraph(root)) return null;
+  const { nodes, edges } = getRiskOverviewCached(root, OVERVIEW_LIMIT);
   if (nodes.length === 0) return null;
+
+  const zh = language.toLowerCase().startsWith("zh");
+  const dark = theme === "dark";
+  const labels = zh
+    ? {
+        title: "审查风险图谱",
+        score: "风险分",
+        callers: "调用者数",
+        coverage: "测试覆盖",
+        security: "安全相关",
+        community: "所属社区",
+        neighbors: "邻居",
+        byFile: "按文件",
+        byCommunity: "按社区",
+        legendHigh: "高风险",
+        legendMid: "中风险",
+        legendLow: "低风险",
+        legendSecurity: "安全相关",
+        hint: "拖拽节点 · 滚轮缩放 · 双击空白复位 · 悬停看邻居",
+        noCommunity: "未归类",
+        related: "相关审查意见",
+        relatedNone: "该节点无对应审查意见",
+        jumpBack: "点击回跳报告",
+      }
+    : {
+        title: "Review Risk Map",
+        score: "Risk score",
+        callers: "Callers",
+        coverage: "Test coverage",
+        security: "Security-relevant",
+        community: "Community",
+        neighbors: "Neighbors",
+        byFile: "By file",
+        byCommunity: "By community",
+        legendHigh: "High risk",
+        legendMid: "Medium risk",
+        legendLow: "Low risk",
+        legendSecurity: "Security",
+        hint: "drag nodes · wheel zoom · dbl-click reset · hover for neighbors",
+        noCommunity: "unassigned",
+        related: "Related findings",
+        relatedNone: "No findings bound to this node",
+        jumpBack: "click to jump back to the report",
+      };
 
   // Bidirectional locate (design §4.3): the currently selected report's
   // findings bind to the top-N nodes by line-range overlap — the side card
-  // then shows each node's related opinions and each opinion can jump back
-  // to the report (parent.postMessage). Same bind routine reviewReadReport
+  // shows each node's related opinions and each opinion can jump back to
+  // the report (parent.postMessage). Same bind routine reviewReadReport
   // uses, so both surfaces agree.
   const bindings = bindFindingsToNodes(reportFindings ?? [], nodes, root);
   const sevOf = (content: string | undefined): "hi" | "md" | "lo" => {
@@ -165,136 +164,46 @@ export function buildRiskGraphHtml(
     list.push({ findex: b.index, sev: sevOf(f.content), label: summaryOf(f.content) });
     opinionsByQn.set(b.qn, list);
   }
-  // Server-rendered opinions for the pre-filled top node (script can be
-  // blocked by the sandbox — the initial side card still explains itself).
-  const topOpinions = (opinionsByQn.get(nodes[0].qualifiedName) ?? [])
-    .map(
-      (o) =>
-        `<div class="fi-item" data-fi="${o.findex}"><span class="fs ${o.sev}"></span>` +
-        `<span class="fj">${escapeHtml(o.label)}</span></div>`
-    )
-    .join("");
 
-  const zh = language.toLowerCase().startsWith("zh");
-  const labels = zh
-    ? {
-        title: "审查风险图谱",
-        subtitle: `Top ${nodes.length} 风险节点 · ${edges.length} 条调用边 · 简化视图（自研渲染）`,
-        score: "风险分",
-        callers: "调用者数",
-        coverage: "测试覆盖",
-        security: "安全相关",
-        startHint: "点击节点查看详情",
-        opinionsHead: "相关审查意见",
-        opinionsHint: "点击回跳报告",
-        opinionsEmpty: "该节点无对应审查意见",
-        modeFile: "按文件",
-        modeCommunity: "按社区",
-        cohesion: "凝聚力",
-        nodes: "节点",
-        uncategorized: "未归类",
-        legendHigh: "高风险",
-        legendMid: "中风险",
-        legendLow: "低风险",
-      }
-    : {
-        title: "Review Risk Map",
-        subtitle: `Top ${nodes.length} risk nodes · ${edges.length} call edges · simplified view`,
-        score: "Risk score",
-        callers: "Callers",
-        coverage: "Test coverage",
-        security: "Security-relevant",
-        startHint: "Click a node for details",
-        opinionsHead: "Related findings",
-        opinionsHint: "Click to jump back to the report",
-        opinionsEmpty: "no related findings for this node",
-        modeFile: "By file",
-        modeCommunity: "By community",
-        cohesion: "cohesion",
-        nodes: "nodes",
-        uncategorized: "uncategorized",
-        legendHigh: "High risk",
-        legendMid: "Medium risk",
-        legendLow: "Low risk",
-      };
-
-  // ── Two grouping axes (design mining item ④) ─────────────────────────
-  // file board:  one card per file (the original layout — default view);
-  // community board: one card per Leiden community (label shows name +
-  // cohesion + size), with cross-community CALLS edges highlighted. Both
-  // boards render the SAME nodes/edges — only the grouping differs — and
-  // the page switches between them without a re-request.
-  const sortGroup = (list: CrgRiskNode[]): CrgRiskNode[] =>
-    [...list].sort((a, b) => b.riskScore - a.riskScore || b.callerCount - a.callerCount).slice(0, MAX_FUNCS_PER_FILE);
-
-  const byFile = new Map<string, CrgRiskNode[]>();
-  for (const n of nodes) {
-    const list = byFile.get(n.filePath) ?? [];
-    list.push(n);
-    byFile.set(n.filePath, list);
-  }
-  const fileGroups: BoardGroup[] = [...byFile.entries()]
-    .map(([filePath, list]) => ({ label: filePath, funcs: sortGroup(list) }))
-    .sort((a, b) => b.funcs[0].riskScore - a.funcs[0].riskScore)
-    .slice(0, MAX_FILES);
-  const boardFile = buildBoard(fileGroups, edges);
-
-  // Community labels — name + cohesion + size from the communities table
-  // (absent/failed reads keep the view file-only: fail-open).
+  // Community metadata for halo labels (absent/failed reads keep the view
+  // risk-only: fail-open, same as before).
   const commIds = [...new Set(nodes.map((n) => n.communityId).filter((c): c is number => c != null))];
   let commMeta = new Map<number, { name: string; cohesion: number; size: number }>();
   if (commIds.length > 0) {
-    const comms = query.getCommunities(root, commIds);
+    const comms = createCrgGraphQuery().getCommunities(root, commIds);
     commMeta = new Map(comms.map((c) => [c.id, { name: c.name || `#${c.id}`, cohesion: c.cohesion, size: c.size }]));
   }
-  const hasCommunities = commIds.length > 0 && nodes.some((n) => n.communityId != null);
 
-  const commOf = (qn: string): number | null => nodes.find((n) => n.qualifiedName === qn)?.communityId ?? null;
-  let boardComm: Board | null = null;
-  if (hasCommunities) {
-    const byComm = new Map<string, CrgRiskNode[]>();
-    for (const n of nodes) {
-      const key = String(n.communityId ?? -1);
-      const list = byComm.get(key) ?? [];
-      list.push(n);
-      byComm.set(key, list);
-    }
-    const commGroups: BoardGroup[] = [...byComm.entries()]
-      .map(([key, list]) => {
-        const id = Number(key);
-        const meta = id >= 0 ? commMeta.get(id) : undefined;
-        const label = meta
-          ? `${meta.name} · ${labels.cohesion}: ${meta.cohesion.toFixed(2)} · ${meta.size || list.length} ${labels.nodes}`
-          : `${labels.uncategorized}`;
-        return { label, funcs: sortGroup(list) };
-      })
-      .sort((a, b) => b.funcs[0].riskScore - a.funcs[0].riskScore)
-      .slice(0, MAX_FILES);
-    boardComm = buildBoard(commGroups, edges, (src, tgt) => {
-      const a = commOf(src);
-      const b = commOf(tgt);
-      return a != null && b != null && a !== b;
-    });
-  }
-  const width = Math.max(boardFile.width, boardComm?.width ?? 0);
-  const height = Math.max(boardFile.height, boardComm?.height ?? 0);
+  const payload = {
+    dark,
+    topQn: nodes[0].qualifiedName,
+    labels,
+    communities: commIds.map((id, i) => ({
+      id,
+      name: commMeta.get(id)?.name ?? `#${id}`,
+      hue: COMMUNITY_HUES[i % COMMUNITY_HUES.length],
+    })),
+    nodes: nodes.map((n) => ({
+      qn: n.qualifiedName,
+      name: n.name,
+      file: n.filePath,
+      lineStart: n.lineStart,
+      risk: n.riskScore,
+      callers: n.callerCount,
+      security: n.securityRelevant,
+      comm: n.communityId,
+      coverage: n.testCoverage,
+    })),
+    edges,
+    opinions: [...opinionsByQn.entries()].map(([qn, list]) => ({ qn, list })),
+  };
 
-  const drawn = new Map<string, CrgRiskNode>();
-  for (const n of nodes) drawn.set(n.qualifiedName, n);
-
-  // Server-rendered side card for the top-risk node — initial view is
-  // populated even if the interaction script never runs.
-  const top = nodes[0];
-  const topNeighbors = edges
-    .filter((e) => e.source === top.qualifiedName || e.target === top.qualifiedName)
-    .map((e) => {
-      const other = drawn.get(e.source === top.qualifiedName ? e.target : e.source);
-      return other ? `${e.source === top.qualifiedName ? "→" : "←"} ${other.name}` : null;
-    })
-    .filter((v): v is string => v !== null);
+  const subtitle = zh
+    ? `Top ${nodes.length} 风险节点 · ${edges.length} 条调用边 · 社区 ${commIds.length} 组 · 拖拽/缩放探索`
+    : `Top ${nodes.length} risk nodes · ${edges.length} call edges · ${commIds.length} communities · drag/zoom to explore`;
 
   return `<!DOCTYPE html>
-<html lang="${escapeHtml(language)}" data-theme="${theme === "dark" ? "dark" : "light"}">
+<html lang="${escapeHtml(language)}" data-theme="${dark ? "dark" : "light"}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -302,220 +211,382 @@ export function buildRiskGraphHtml(
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; display: flex; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Microsoft YaHei", sans-serif; background: #f4f6fa; color: #1b2129; }
-  [data-theme="dark"] body { background: #17191f; color: #e6e9ef; }
-  [data-theme="dark"] .side { background: #1f2229 !important; border-color: #34383f !important; }
-  [data-theme="dark"] svg { background: #1b1e24 !important; }
-  [data-theme="dark"] .meta { color: #9aa5b3 !important; }
-  [data-theme="dark"] .file-card .card-bg { fill: #1f2229 !important; stroke: #34383f !important; }
-  [data-theme="dark"] .card-file, [data-theme="dark"] .fname { fill: #e6e9ef !important; }
-  [data-theme="dark"] .fscore { fill: #9aa5b3 !important; }
-  [data-theme="dark"] svg .edge { stroke: #4a5160 !important; }
-  .main { flex: 1; padding: 20px 8px 8px 20px; min-width: 0; position: relative; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .meta { color: #66707d; font-size: 12.5px; margin-bottom: 6px; }
-  svg { width: 100%; height: calc(100vh - 96px); background: #eef1f6; border-radius: 12px; }
-  .file-card .card-bg { fill: #ffffff; stroke: #d9dee6; stroke-width: 1; }
-  .card-file { font-size: 12px; font-weight: 650; fill: #3c4653; }
-  .fnode .hit { fill: transparent; cursor: pointer; }
-  .fnode .hit:hover { fill: rgba(59, 130, 246, 0.06); }
-  .fnode.dim { opacity: 0.22; }
-  .fname { font-size: 11.5px; fill: #1b2129; }
-  .fscore { font-size: 11px; fill: #66707d; text-anchor: end; font-family: ui-monospace, Consolas, monospace; }
-  svg .edge { fill: none; stroke: #b3bcc9; stroke-opacity: 0.35; stroke-width: 1; }
-  svg .edge.hot { stroke: #d64545; stroke-opacity: 0.9; stroke-width: 2; }
-  svg .fnode circle { cursor: pointer; }
-  svg .fnode circle.sec { stroke: #7c3aed; stroke-width: 2.5; }
-  .mode-seg { display: inline-flex; gap: 2px; margin-left: 12px; padding: 2px;
-    background: #ffffff; border: 1px solid #d9dee6; border-radius: 999px; vertical-align: -2px; }
-  [data-theme="dark"] .mode-seg { background: #1f2229; border-color: #34383f; }
-  .mode-seg .ms { font-size: 10.5px; padding: 2px 10px; border-radius: 999px;
-    color: #66707d; cursor: pointer; }
-  [data-theme="dark"] .mode-seg .ms { color: #9aa5b3; }
-  .mode-seg .ms.on { background: rgba(28, 111, 224, 0.14); color: #1c6fe0; font-weight: 600; }
-  [data-theme="dark"] .mode-seg .ms.on { background: rgba(90, 150, 240, 0.2); color: #5aa9ff; }
-  svg .edge.cross { stroke: #d64545; stroke-opacity: 0.6; stroke-dasharray: 4 3; }
-  .legend { position: absolute; left: 32px; bottom: 16px; font-size: 12px; color: #55606d;
-    display: flex; gap: 14px; }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
-  .side { width: 330px; flex: none; margin: 20px 20px 20px 0; border: 1px solid #d9dee6;
-    background: #fff; border-radius: 12px; padding: 16px; overflow: auto; max-height: calc(100vh - 40px); }
-  .side h2 { margin: 0 0 8px; font-size: 14px; word-break: break-all; }
-  .side .row { font-size: 12.5px; margin: 6px 0; color: #3c4653; word-break: break-all; }
-  .side .row b { color: inherit; }
-  .side .nb { margin-top: 10px; }
-  .side .nb div { font-size: 12px; padding: 3px 0; border-bottom: 1px dashed #e2e6ec;
-    word-break: break-all; color: #55606d; }
-  .side .fi { margin-top: 12px; }
-  .side .fi-head { font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
-    text-transform: uppercase; color: #66707d; margin-bottom: 6px; }
-  [data-theme="dark"] .side .fi-head { color: #9aa5b3; }
-  .side .fi-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px;
-    padding: 5px 8px; margin-bottom: 4px; border: 1px solid #e2e6ec; border-radius: 8px;
-    color: #3c4653; cursor: pointer; background: #fbfcfd; }
-  .side .fi-item:hover { border-color: #1c6fe0; color: #1b2129; }
-  [data-theme="dark"] .side .fi-item { background: #23262e; border-color: #34383f; color: #9aa5b3; }
-  [data-theme="dark"] .side .fi-item:hover { border-color: #5aa9ff; color: #e6e9ef; }
-  .side .fi-item .fs { flex: none; width: 8px; height: 8px; border-radius: 50%; }
-  .side .fi-item .fs.hi { background: #d64545; }
-  .side .fi-item .fs.md { background: #d97706; }
-  .side .fi-item .fs.lo { background: #64748b; }
-  .side .fi-item .fj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .side .fi-empty { font-size: 11.5px; color: #8590a0; padding: 4px 2px; }
-  [data-theme="dark"] .side .fi-empty { color: #6f7a89; }
+  body { margin: 0; display: flex; flex-direction: column; height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: ${dark ? "#17191f" : "#f6f8fb"}; color: ${dark ? "#e6e9ef" : "#1b2129"}; }
+  .top { display: flex; align-items: center; gap: 14px; padding: 10px 18px 8px; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; }
+  .meta { font-size: 12px; color: ${dark ? "#9aa5b3" : "#66707d"}; }
+  .seg { display: inline-flex; border: 1px solid ${dark ? "#34383f" : "#d9dee6"}; border-radius: 999px; overflow: hidden; }
+  .seg button { border: none; background: transparent; color: ${dark ? "#9aa5b3" : "#66707d"};
+    padding: 3px 12px; font-size: 12px; cursor: pointer; }
+  .seg button.on { background: color-mix(in srgb, #60a5fa 18%, transparent); color: ${dark ? "#e6e9ef" : "#1b2129"}; font-weight: 650; }
+  .main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 0 14px 10px; }
+  #rc-canvas { flex: 1; min-width: 0; border-radius: 12px; cursor: grab; touch-action: none; }
+  #rc-canvas.dragging { cursor: grabbing; }
+  .side { width: 264px; flex: none; border: 1px solid ${dark ? "#34383f" : "#d9dee6"};
+    border-radius: 12px; background: ${dark ? "#1f2229" : "#ffffff"}; padding: 14px; overflow-y: auto; }
+  .side .fname { font-size: 11px; color: ${dark ? "#9aa5b3" : "#66707d"}; word-break: break-all; }
+  .side h2 { font-size: 15px; margin: 2px 0 8px; word-break: break-all; }
+  .side .row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .side .row .k { color: ${dark ? "#9aa5b3" : "#66707d"}; }
+  .side .sec { margin-top: 12px; padding-top: 8px; border-top: 1px solid ${dark ? "#34383f" : "#e3e6eb"};
+    font-size: 12px; }
+  .side .sec .hd { font-size: 11px; font-weight: 650; color: ${dark ? "#9aa5b3" : "#66707d"};
+    text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+  .side .nb { padding: 1px 0; color: ${dark ? "#c6cdd8" : "#3c4653"}; cursor: pointer; }
+  .side .nb:hover { color: #60a5fa; }
+  .fi-item { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px;
+    cursor: pointer; font-size: 12px; }
+  .fi-item:hover { background: ${dark ? "#26292f" : "#eef1f6"}; }
+  .fi-item .fs { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .fs.hi { background: #ef4444; } .fs.md { background: #f59e0b; } .fs.lo { background: #94a3b8; }
+  .legend { display: flex; align-items: center; gap: 14px; padding: 0 18px 10px;
+    font-size: 11.5px; color: ${dark ? "#9aa5b3" : "#66707d"}; flex-wrap: wrap; }
+  .legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 </style>
 </head>
 <body>
-<div class="main">
-  <h1>${escapeHtml(labels.title)} — ${escapeHtml(projectName)}</h1>
-  <div class="meta">
-    ${escapeHtml(labels.subtitle)} · <code>${escapeHtml(root)}</code>
-    ${
-      hasCommunities
-        ? `
-    <span class="mode-seg" id="modeSeg">
-      <span class="ms on" data-board="file">${escapeHtml(labels.modeFile)}</span>
-      <span class="ms" data-board="comm">${escapeHtml(labels.modeCommunity)}</span>
-    </span>`
-        : ""
-    }
+  <div class="top">
+    <h1>${escapeHtml(labels.title)} — ${escapeHtml(projectName)}</h1>
+    <span class="meta">${escapeHtml(subtitle)}</span>
+    <span class="seg" id="modeSeg">
+      <button type="button" class="ms on" data-mode="community">${escapeHtml(labels.byCommunity)}</button>
+      <button type="button" class="ms" data-mode="file">${escapeHtml(labels.byFile)}</button>
+    </span>
   </div>
-  <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(labels.title)}">
-    <g id="board-file">${boardFile.svg}</g>
-    ${boardComm ? `<g id="board-comm" style="display:none">${boardComm.svg}</g>` : ""}
-  </svg>
+  <div class="main">
+    <canvas id="rc-canvas"></canvas>
+    <aside class="side" id="sideCard"></aside>
+  </div>
   <div class="legend">
-    <span><i style="background:#d64545"></i>${escapeHtml(labels.legendHigh)}</span>
-    <span><i style="background:#d97706"></i>${escapeHtml(labels.legendMid)}</span>
-    <span><i style="background:#64748b"></i>${escapeHtml(labels.legendLow)}</span>
-    <span><i style="background:none;border:2px solid #7c3aed"></i>${escapeHtml(labels.security)}</span>
+    <span><span class="dot" style="background:#ef4444"></span>${escapeHtml(labels.legendHigh)}</span>
+    <span><span class="dot" style="background:#f59e0b"></span>${escapeHtml(labels.legendMid)}</span>
+    <span><span class="dot" style="background:#94a3b8"></span>${escapeHtml(labels.legendLow)}</span>
+    <span><span class="dot" style="border:2px dashed ${dark ? "#fbbf24" : "#d97706"};width:6px;height:6px"></span>${escapeHtml(labels.legendSecurity)}</span>
+    <span style="opacity:.75">${escapeHtml(labels.hint)}</span>
   </div>
-</div>
-<aside class="side">
-  <h2>${escapeHtml(top.name)}</h2>
-  <div class="row">${escapeHtml(top.filePath + (top.lineStart > 0 ? ":" + top.lineStart : ""))}</div>
-  <div class="row"><b>${escapeHtml(labels.score)}:</b> ${top.riskScore.toFixed(2)}</div>
-  <div class="row"><b>${escapeHtml(labels.callers)}:</b> ${top.callerCount}</div>
-  <div class="row"><b>${escapeHtml(labels.coverage)}:</b> ${escapeHtml(top.testCoverage)}</div>
-  ${top.securityRelevant ? `<div class="row"><b>${escapeHtml(labels.security)}</b></div>` : ""}
-  ${topNeighbors.length > 0 ? `<div class="nb">${topNeighbors.map((t) => `<div>${escapeHtml(t)}</div>`).join("")}</div>` : ""}
-  <div class="fi">
-    <div class="fi-head">${escapeHtml(labels.opinionsHead)} · ${escapeHtml(labels.opinionsHint)}</div>
-    <div id="gaFindings">${topOpinions || `<div class="fi-empty">${escapeHtml(labels.opinionsEmpty)}</div>`}</div>
-  </div>
-</aside>
 <script>
-(function () {
-  try {
-  var esc = function (v) {
-    return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+"use strict";
+var D = ${safeJson(payload)};
+
+// ── palette ─────────────────────────────────────────────────────────────
+var C = D.dark
+  ? { bg: "#17191f", hullA: 0.07, hullS: 0.16, edge: "154,163,179", text: "#c6cdd8", dim: "#9aa5b3",
+      sel: "#60a5fa", riskHigh: "#ef6b6b", riskMid: "#f59e0b", riskLow: "#94a3b8" }
+  : { bg: "#f6f8fb", hullA: 0.05, hullS: 0.22, edge: "70,80,100", text: "#3c4653", dim: "#66707d",
+      sel: "#3b82f6", riskHigh: "#d64545", riskMid: "#d97706", riskLow: "#64748b" };
+function riskColor(r) { return r >= 0.66 ? C.riskHigh : r >= 0.33 ? C.riskMid : C.riskLow; }
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+// ── nodes ───────────────────────────────────────────────────────────────
+var info = {};   // qn -> node record (canvas + side card)
+var nodes = D.nodes.map(function (n, i) {
+  var rec = {
+    i: i, qn: n.qn, name: n.name, file: n.file, lineStart: n.lineStart, risk: n.risk,
+    callers: n.callers, security: n.security, comm: n.comm, coverage: n.coverage,
+    top: i < 8, x: 0, y: 0, vx: 0, vy: 0, pinned: false
   };
-  var labels = {
-    score: ${JSON.stringify(labels.score).replace(/</g, "\\u003c")},
-    callers: ${JSON.stringify(labels.callers).replace(/</g, "\\u003c")},
-    coverage: ${JSON.stringify(labels.coverage).replace(/</g, "\\u003c")},
-    security: ${JSON.stringify(labels.security).replace(/</g, "\\u003c")},
-    opinionsEmpty: ${JSON.stringify(labels.opinionsEmpty).replace(/</g, "\\u003c")},
-    opinionsHead: ${JSON.stringify(labels.opinionsHead).replace(/</g, "\\u003c")}
-  };
-  // finding-index → severity dot + snippet, grouped by node qualified name
-  var opinions = ${JSON.stringify(Object.fromEntries(opinionsByQn)).replace(/</g, "\\u003c")};
-  var info = ${JSON.stringify(
-    Object.fromEntries(
-      nodes.map((n) => [
-        n.qualifiedName,
-        {
-          name: n.name,
-          path: n.filePath + (n.lineStart > 0 ? ":" + n.lineStart : ""),
-          score: n.riskScore.toFixed(2),
-          callers: n.callerCount,
-          coverage: n.testCoverage,
-          sec: n.securityRelevant,
-        },
-      ])
-    )
-  ).replace(/</g, "\\u003c")};
-  var nodes = document.querySelectorAll("g.fnode");
-  var lines = document.querySelectorAll("svg .edge");
-  var aside = document.querySelector(".side");
-  function show(id) {
-    var d = info[id];
-    if (!d) return;
-    var neighbors = {};
-    lines.forEach(function (l) {
-      var s = l.getAttribute("data-src"), t = l.getAttribute("data-dst");
-      if (s === id) neighbors[t] = "→ " + (info[t] ? info[t].name : t);
-      if (t === id) neighbors[s] = "← " + (info[s] ? info[s].name : s);
-    });
-    aside.innerHTML =
-      "<h2>" + esc(d.name) + "</h2>" +
-      '<div class="row">' + esc(d.path) + "</div>" +
-      '<div class="row"><b>' + labels.score + ":</b> " + d.score + "</div>" +
-      '<div class="row"><b>' + labels.callers + ":</b> " + d.callers + "</div>" +
-      '<div class="row"><b>' + labels.coverage + ":</b> " + d.coverage + "</div>" +
-      (d.sec ? '<div class="row"><b>' + labels.security + "</b></div>" : "") +
-      '<div class="nb">' + Object.keys(neighbors).map(function (k) {
-        return "<div>" + esc(neighbors[k]) + "</div>";
-      }).join("") + "</div>" +
-      '<div class="fi">' +
-        '<div class="fi-head">' + labels.opinionsHead + '</div>' +
-        renderOpinions(id) +
-      "</div>";
-    nodes.forEach(function (g) { g.classList.toggle("dim", g.getAttribute("data-id") !== id); });
-    lines.forEach(function (l) {
-      var hit = l.getAttribute("data-src") === id || l.getAttribute("data-dst") === id;
-      l.classList.toggle("hot", hit);
-      l.style.opacity = hit ? "" : "0.08";
-    });
+  info[n.qn] = rec;
+  return rec;
+});
+var adj = {};     // qn -> [{other, weight}]
+for (var e of D.edges) {
+  if (!info[e.source] || !info[e.target] || e.source === e.target) continue;
+  (adj[e.source] = adj[e.source] || []).push({ other: e.target, weight: 1 });
+  (adj[e.target] = adj[e.target] || []).push({ other: e.source, weight: 1 });
+}
+var edges = D.edges.filter(function (e) { return info[e.source] && info[e.target] && e.source !== e.target; });
+
+// ── groups (communities first-class; files as the alternate grouping) ───
+var commById = {}; for (var c of D.communities) commById[c.id] = c;
+function groupKey(mode, n) { return mode === "community" ? (n.comm != null ? "c" + n.comm : "c-none") : "f" + n.file; }
+function groupMeta(mode, key) {
+  if (mode === "community" && key.indexOf("c") === 0 && key !== "c-none") {
+    var id = Number(key.slice(1)); var cm = commById[id];
+    return { hue: cm ? cm.hue : "#818cf8", label: cm ? cm.name : "#" + id };
   }
-  function renderOpinions(id) {
-    var list = opinions[id] || [];
-    if (list.length === 0) return '<div class="fi-empty">' + esc(labels.opinionsEmpty) + "</div>";
-    return list.map(function (o) {
-      return '<div class="fi-item" data-fi="' + o.findex + '">' +
-        '<span class="fs ' + o.sev + '"></span><span class="fj">' + esc(o.label) + "</span></div>";
-    }).join("");
-  }
-  document.getElementById("gaFindings").addEventListener("click", function (e) {
-    var item = e.target.closest(".fi-item");
-    if (!item) return;
-    // Jump back to the report and flash the finding (design §3.3).
-    try {
-      parent.postMessage({ type: "crg:locate-finding", findex: Number(item.getAttribute("data-fi")) }, "*");
-    } catch (err) { /* sandboxed or detached — side card only */ }
-  });
-  // External locate: the report's "定位 ◎" chip asks this page to select a node.
-  window.addEventListener("message", function (e) {
-    var d = e.data;
-    if (!d || d.type !== "crg:select-node" || typeof d.qn !== "string") return;
-    if (info[d.qn]) show(d.qn);
-  });
-  nodes.forEach(function (g) {
-    g.addEventListener("click", function () { show(g.getAttribute("data-id")); });
-    g.addEventListener("mouseenter", function () { show(g.getAttribute("data-id")); });
-  });
-  document.querySelector("svg").addEventListener("mouseleave", function () {
-    nodes.forEach(function (g) { g.classList.remove("dim"); });
-    lines.forEach(function (l) { l.classList.remove("hot"); l.style.opacity = ""; });
-  });
-  // Board group switcher (file ↔ community) — both boards ship in the page.
-  var modeSeg = document.getElementById("modeSeg");
-  if (modeSeg) {
-    modeSeg.addEventListener("click", function (e) {
-      var item = e.target.closest(".ms");
-      if (!item) return;
-      modeSeg.querySelectorAll(".ms").forEach(function (m) { m.classList.toggle("on", m === item); });
-      var fileBoard = document.getElementById("board-file");
-      var commBoard = document.getElementById("board-comm");
-      if (!fileBoard || !commBoard) return;
-      var comm = item.getAttribute("data-board") === "comm";
-      fileBoard.style.display = comm ? "none" : "";
-      commBoard.style.display = comm ? "" : "none";
+  return null; // file mode → neutral slate hulls
+}
+
+// ── layout: deterministic init + bounded force relaxation ───────────────
+var W = 900, H = 620;
+function initPositions() {
+  var groups = {};
+  nodes.forEach(function (n) { var k = groupKey(mode, n); (groups[k] = groups[k] || []).push(n); });
+  var keys = Object.keys(groups);
+  keys.forEach(function (k, gi) {
+    var cx = W / 2 + Math.cos((gi / keys.length) * 6.2832) * W * 0.3;
+    var cy = H / 2 + Math.sin((gi / keys.length) * 6.2832) * H * 0.3;
+    groups[k].forEach(function (n, j) {
+      var a = (j / Math.max(1, groups[k].length)) * 6.2832 + gi;
+      n.x = cx + Math.cos(a) * 46 + (j % 3) * 6;
+      n.y = cy + Math.sin(a) * 46 + (j % 2) * 6;
+      n.vx = 0; n.vy = 0;
     });
+  });
+}
+function tick(alpha) {
+  var i, j, a, b, dx, dy, d2, f;
+  for (i = 0; i < nodes.length; i++) for (j = i + 1; j < nodes.length; j++) {
+    a = nodes[i]; b = nodes[j];
+    dx = a.x - b.x; dy = a.y - b.y; d2 = dx * dx + dy * dy;
+    if (d2 < 1) d2 = 1;
+    if (d2 > 42000) continue;
+    f = Math.min(1400 / d2, 5) * alpha;
+    dx = (dx / Math.sqrt(d2)) * f; dy = (dy / Math.sqrt(d2)) * f;
+    a.vx += dx; a.vy += dy; b.vx -= dx; b.vy -= dy;
   }
-  if (nodes.length > 0) show(nodes[0].getAttribute("data-id"));
-  } catch (e) { /* side card ships server-rendered; interactions only */ }
+  for (var e of edges) {
+    a = info[e.source]; b = info[e.target];
+    dx = b.x - a.x; dy = b.y - a.y;
+    var d = Math.max(8, Math.hypot(dx, dy));
+    f = ((d - 120) / d) * 0.045 * alpha;
+    a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
+  }
+  var cx = 0, cy = 0;
+  nodes.forEach(function (n) { cx += n.x; cy += n.y; });
+  cx /= nodes.length || 1; cy /= nodes.length || 1;
+  nodes.forEach(function (n) {
+    n.vx += (W / 2 - n.x) * 0.012 * alpha + (cx - n.x) * 0.008 * alpha;
+    n.vy += (H / 2 - n.y) * 0.012 * alpha + (cy - n.y) * 0.008 * alpha;
+    if (n.pinned) { n.vx = 0; n.vy = 0; return; }
+    n.vx *= 0.82; n.vy *= 0.82;
+    n.x += Math.max(-14, Math.min(14, n.vx)); n.y += Math.max(-14, Math.min(14, n.vy));
+  });
+}
+var mode = "community";
+initPositions();
+for (var t = 0; t < 170; t++) tick(1);   // pre-settle: first paint is organized
+var relaxFrames = 45;                    // a short eased settle after load
+
+// ── canvas ──────────────────────────────────────────────────────────────
+var canvas = document.getElementById("rc-canvas");
+var ctx = canvas.getContext("2d");
+var view = { x: 0, y: 0, k: 1 };         // pan + zoom
+var hover = null, selected = null, dragNode = null, panning = false, panStart = null;
+
+function resize() {
+  var r = canvas.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(50, Math.floor(r.width * dpr));
+  canvas.height = Math.max(50, Math.floor(r.height * dpr));
+  draw();
+}
+window.addEventListener("resize", resize);
+
+function draw() {
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.width / dpr, h = canvas.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
+  ctx.translate(view.x, view.y); ctx.scale(view.k, view.k);
+
+  // group halos — communities (tinted) or files (neutral)
+  var groups = {};
+  nodes.forEach(function (n) { var k = groupKey(mode, n); (groups[k] = groups[k] || []).push(n); });
+  for (var key of Object.keys(groups)) {
+    var g = nodes.length ? groups[key] : [];
+    if (g.length < 2) continue;
+    var cx = 0, cy = 0;
+    g.forEach(function (n) { cx += n.x; cy += n.y; });
+    cx /= g.length; cy /= g.length;
+    var rad = 0;
+    g.forEach(function (n) { rad = Math.max(rad, Math.hypot(n.x - cx, n.y - cy)); });
+    rad += 34;
+    var meta = groupMeta(mode, key);
+    ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832);
+    ctx.fillStyle = meta ? hexA(meta.hue, C.hullA) : "rgba(" + C.edge + "," + C.hullA * 0.7 + ")";
+    ctx.fill();
+    ctx.setLineDash([4, 5]);
+    ctx.strokeStyle = meta ? hexA(meta.hue, C.hullS) : "rgba(" + C.edge + "," + C.hullS + ")";
+    ctx.stroke(); ctx.setLineDash([]);
+    if (mode === "community" && meta) {
+      ctx.fillStyle = hexA(meta.hue, 0.85); ctx.font = "10.5px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(meta.label.slice(0, 26), cx, cy - rad + 12);
+    }
+  }
+
+  // edges — brighter when either endpoint is hovered/selected; edges that
+  // CROSS a community boundary draw violet (the coupling the 社区 view exists
+  // to expose).
+  var focus = hover || selected;
+  for (var e of edges) {
+    var a = info[e.source], b = info[e.target];
+    var lit = focus && (e.source === focus.qn || e.target === focus.qn);
+    var cross =
+      mode === "community" && a.comm != null && b.comm != null && a.comm !== b.comm;
+    ctx.strokeStyle = lit
+      ? "rgba(96,165,250,0.9)"
+      : cross
+        ? "rgba(167,139,250," + (C.dark ? 0.55 : 0.45) + ")"
+        : "rgba(" + C.edge + ",0.22)";
+    ctx.lineWidth = lit ? 1.6 : cross ? 1.3 : 1;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+
+  // nodes
+  for (var n of nodes) {
+    var dimmed = focus && n !== focus && !(adj[focus.qn] || []).some(function (x) { return x.other === n.qn; });
+    var r = 5 + Math.min(n.callers, 20) * 0.45 + n.risk * 4;
+    ctx.globalAlpha = dimmed ? 0.18 : 1;
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.2832);
+    ctx.fillStyle = riskColor(n.risk); ctx.fill();
+    if (n.security) {
+      ctx.setLineDash([2.5, 2.5]);
+      ctx.strokeStyle = C.dark ? "#fbbf24" : "#d97706"; ctx.lineWidth = 1.4; ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (n === selected || n === hover) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 4, 0, 6.2832);
+      ctx.strokeStyle = C.sel; ctx.lineWidth = 2; ctx.stroke();
+    }
+    if (view.k >= 0.85 || n.top) {
+      ctx.fillStyle = C.text; ctx.font = "10.5px system-ui, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(n.name.length > 20 ? n.name.slice(0, 19) + "…" : n.name, n.x, n.y + r + 11);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+function hexA(hex, a) {
+  var v = hex.replace("#", "");
+  var r = parseInt(v.slice(0, 2), 16), g = parseInt(v.slice(2, 4), 16), b = parseInt(v.slice(4, 6), 16);
+  return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+}
+
+// ── interaction ─────────────────────────────────────────────────────────
+function toWorld(ev) {
+  var r = canvas.getBoundingClientRect();
+  return { x: (ev.clientX - r.left - view.x) / view.k, y: (ev.clientY - r.top - view.y) / view.k };
+}
+function pick(p) {
+  var best = null, bd = 1e9;
+  for (var n of nodes) {
+    var d = Math.hypot(n.x - p.x, n.y - p.y);
+    var r = 5 + Math.min(n.callers, 20) * 0.45 + n.risk * 4 + 5;
+    if (d <= r && d < bd) { best = n; bd = d; }
+  }
+  return best;
+}
+canvas.addEventListener("mousemove", function (ev) {
+  var p = toWorld(ev);
+  if (dragNode) { dragNode.x = p.x; dragNode.y = p.y; dragNode.pinned = true; tick(0.5); draw(); return; }
+  if (panning) { view.x = panStart.vx + (ev.clientX - panStart.mx); view.y = panStart.vy + (ev.clientY - panStart.my); draw(); return; }
+  var hit = pick(p);
+  if (hit !== hover) { hover = hit; if (hit) show(hit.qn); draw(); }
+});
+canvas.addEventListener("mouseleave", function () { if (hover) { hover = null; draw(); } });
+canvas.addEventListener("mousedown", function (ev) {
+  var p = toWorld(ev);
+  var hit = pick(p);
+  if (hit) { dragNode = hit; canvas.classList.add("dragging"); }
+  else { panning = true; panStart = { mx: ev.clientX, my: ev.clientY, vx: view.x, vy: view.y }; canvas.classList.add("dragging"); }
+});
+window.addEventListener("mouseup", function () {
+  if (dragNode) { dragNode.pinned = false; dragNode = null; }
+  panning = false; canvas.classList.remove("dragging");
+});
+canvas.addEventListener("click", function (ev) {
+  var hit = pick(toWorld(ev));
+  if (hit) { selected = hit; show(hit.qn); draw(); }
+});
+canvas.addEventListener("wheel", function (ev) {
+  ev.preventDefault();
+  var r = canvas.getBoundingClientRect();
+  var mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  var factor = Math.exp(-ev.deltaY * 0.0012);
+  var nk = Math.max(0.35, Math.min(3.2, view.k * factor));
+  view.x = mx - ((mx - view.x) / view.k) * nk;
+  view.y = my - ((my - view.y) / view.k) * nk;
+  view.k = nk; draw();
+}, { passive: false });
+canvas.addEventListener("dblclick", function (ev) {
+  if (!pick(toWorld(ev))) { fitView(); draw(); }
+});
+function fitView() {
+  var r = canvas.getBoundingClientRect();
+  var xs = nodes.map(function (n) { return n.x; }), ys = nodes.map(function (n) { return n.y; });
+  var minX = Math.min.apply(null, xs) - 60, maxX = Math.max.apply(null, xs) + 60;
+  var minY = Math.min.apply(null, ys) - 60, maxY = Math.max.apply(null, ys) + 60;
+  view.k = Math.max(0.35, Math.min(2.4, Math.min(r.width / (maxX - minX), r.height / (maxY - minY))));
+  view.x = (r.width - (minX + maxX) * view.k) / 2;
+  view.y = (r.height - (minY + maxY) * view.k) / 2;
+}
+
+// ── side card ───────────────────────────────────────────────────────────
+var L = D.labels;
+var opinions = {};
+for (var o of D.opinions) opinions[o.qn] = o.list;
+function show(qn) {
+  var n = info[qn]; if (!n) return;
+  var cm = n.comm != null ? commById[n.comm] : null;
+  var nb = (adj[qn] || []).slice(0, 8);
+  var ops = opinions[qn] || [];
+  var html = '<div class="fname">' + esc(n.file) + ":" + n.lineStart + "</div>" +
+    "<h2>" + esc(n.name) + "</h2>" +
+    '<div class="row"><span class="k">' + esc(L.score) + '</span><span>' + n.risk.toFixed(2) + "</span></div>" +
+    '<div class="row"><span class="k">' + esc(L.callers) + '</span><span>' + n.callers + "</span></div>" +
+    '<div class="row"><span class="k">' + esc(L.coverage) + '</span><span>' + esc(n.coverage) + "</span></div>" +
+    '<div class="row"><span class="k">' + esc(L.security) + '</span><span>' + (n.security ? "✓" : "—") + "</span></div>" +
+    '<div class="row"><span class="k">' + esc(L.community) + '</span><span>' + esc(cm ? cm.name : L.noCommunity) + "</span></div>" +
+    '<div class="sec"><div class="hd">' + esc(L.neighbors) + "</div>";
+  for (var x of nb) html += '<div class="nb" data-q="' + esc(x.other) + '">' + esc((info[x.other] || {}).name || x.other) + "</div>";
+  html += "</div>" + '<div class="sec"><div class="hd">' + esc(L.related) + "</div>";
+  if (ops.length === 0) html += '<div style="opacity:.6">' + esc(L.relatedNone) + "</div>";
+  for (var op of ops) {
+    html += '<div class="fi-item" data-fi="' + op.findex + '"><span class="fs ' + op.sev + '"></span><span>' + esc(op.label) + "</span></div>";
+  }
+  html += "</div>";
+  if (ops.length > 0) html += '<div style="margin-top:8px;font-size:11px;opacity:.6">' + esc(L.jumpBack) + "</div>";
+  document.getElementById("sideCard").innerHTML = html;
+  document.querySelectorAll(".side .nb").forEach(function (el) {
+    el.addEventListener("click", function () { show(el.getAttribute("data-q")); centerOn(el.getAttribute("data-q")); });
+  });
+  document.querySelectorAll(".fi-item").forEach(function (el) {
+    el.addEventListener("click", function () {
+      try { parent.postMessage({ type: "crg:locate-finding", findex: Number(el.getAttribute("data-fi")) }, "*"); }
+      catch (err) { /* sandboxed or detached — side card only */ }
+    });
+  });
+}
+function centerOn(qn) {
+  var n = info[qn]; if (!n) return;
+  var r = canvas.getBoundingClientRect();
+  view.x = r.width / 2 - n.x * view.k;
+  view.y = r.height / 2 - n.y * view.k;
+  draw();
+}
+
+// group toggle
+document.getElementById("modeSeg").addEventListener("click", function (ev) {
+  var item = ev.target.closest(".ms"); if (!item) return;
+  document.querySelectorAll("#modeSeg .ms").forEach(function (m) { m.classList.toggle("on", m === item); });
+  mode = item.getAttribute("data-mode");
+  initPositions();
+  for (var t = 0; t < 170; t++) tick(1);
+  relaxFrames = 45;
+  fitView(); draw();
+});
+
+// external locate: the report's chip asks this page to select a node
+window.addEventListener("message", function (e) {
+  if (e.source !== window.parent) return;   // only the embedding window
+  var d = e.data;
+  if (!d || d.type !== "crg:select-node" || typeof d.qn !== "string") return;
+  if (info[d.qn]) { selected = info[d.qn]; show(d.qn); centerOn(d.qn); draw(); }
+});
+
+// ── boot: resize → fit → short eased settle loop ────────────────────────
+resize();
+fitView();
+selected = info[D.topQn] || null; if (selected) show(selected.qn);
+(function frame() {
+  if (relaxFrames > 0) {
+    relaxFrames--; tick(1 - relaxFrames / 60);
+    draw();
+    requestAnimationFrame(frame);
+  }
 })();
 </script>
 </body>

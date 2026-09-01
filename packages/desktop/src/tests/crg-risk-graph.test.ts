@@ -62,13 +62,16 @@ test("risk map: renders nodes, escapes hostile names, ships no external scripts"
     const html = buildRiskGraphHtml(root, "GVGL", "zh-CN", "light")!;
     assert.notEqual(html, null);
     assert.match(html, /审查风险图谱/);
-    // The hostile name must appear ONLY escaped — no raw <script> survives.
+    // The hostile name reaches the page ONLY through the JSON payload with
+    // `<` escaped to \u003c — no raw <script> survives, in markup or JSON.
     assert.ok(!html.includes("<script>alert"), "raw script tag must not survive escaping");
-    assert.match(html, /&lt;script&gt;/);
-    // No external resources — the dock iframe sandbox allows scripts only.
+    assert.match(html, /\\u003cscript>/);
+    // No external resources — the iframe sandbox allows scripts only.
     assert.ok(!/src\s*=\s*"http/.test(html), "no external script/src references");
     assert.ok(!/href\s*=\s*"http/.test(html), "no external href references");
-    assert.match(html, /data-id=/, "interactive node hooks present");
+    // The canvas renderer ships its drawing surface + inline data payload.
+    assert.match(html, /id="rc-canvas"/);
+    assert.match(html, /var D = \{/);
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }
@@ -84,7 +87,8 @@ test("risk map: theme is EXPLICIT, not prefers-color-scheme (the iframe must fol
     const dark = buildRiskGraphHtml(root, "P", "en", "dark")!;
     assert.match(light, /data-theme="light"/);
     assert.match(dark, /data-theme="dark"/);
-    assert.match(dark, /\[data-theme="dark"\] body/);
+    assert.match(dark, /#17191f/, "dark canvas palette baked into the payload");
+    assert.match(light, /#f6f8fb/, "light canvas palette baked into the payload");
     assert.ok(!light.includes("prefers-color-scheme"), "OS media query must not drive the theme anymore");
     assert.ok(!dark.includes("prefers-color-scheme"), "OS media query must not drive the theme anymore");
   } finally {
@@ -113,7 +117,7 @@ test("risk map: renders the opinions side card and the bidirectional postMessage
   }
 });
 
-test("risk map: community board ships with the mode switcher and cross edges", async () => {
+test("risk map: community grouping ships as first-class data with the mode switcher", async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "riskmap-comm-"));
   try {
     const dir = path.join(root, CRG_DATA_DIR);
@@ -146,11 +150,13 @@ test("risk map: community board ships with the mode switcher and cross edges", a
     db.close();
 
     const html = buildRiskGraphHtml(root, "P", "zh-CN", "light")!;
-    // Mode switcher + both boards ship (community one hidden by default).
+    // Canvas renderer: the payload carries BOTH communities + the toggle, and
+    // the physics marks cross-community edges for the highlight pass.
     assert.match(html, /id="modeSeg"/, "community mode switcher present");
-    assert.match(html, /id="board-comm" style="display:none"/, "community board ships hidden");
-    assert.match(html, /认证域 · 凝聚力: 0.81/, "community card label carries name + cohesion");
-    assert.match(html, /edge cross/, "cross-community CALLS edge highlighted");
+    assert.match(html, /认证域/, "community A name embedded");
+    assert.match(html, /支付域/, "community B name embedded");
+    assert.match(html, /"comm":1/, "node→community binding embedded");
+    assert.match(html, /cross/i, "cross-community edge detection present");
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }

@@ -172,7 +172,7 @@ scopes: Map<root, { mode: "workspace"|"commit"|"range"|"all", commit?, from?, to
 | --- | --- | --- | --- |
 | ① 行级富化 + 路径归一 | `git diff --unified=0` 区间重叠；posix 归一 + 双形态兜底 | P0（与 G1 合并） | `crg-query.ts:detectChanges`、`review.ts:getGitChangedFiles` |
 | ② 六因子 SQL 评分器 | flow 参与 / 跨社区 / 传递测试（递归 CTE）/ 安全词（24 词表）/ 调用者 / churn(opt-in) | P1 | `crg-query.ts` 新增 `getRiskScores`，`getRiskOverview` 排序切换 |
-| ③ 受影响执行流 | `flow_snapshots.critical_path` join 变更文件 → 报告「受影响执行流」卡片 | P1 | 报告视图新增区块 + `getRiskOverview` 返回流信息 |
+| ③ 受影响执行流 | `flow_snapshots.critical_path` join 变更文件 → 报告「受影响执行流」卡片 | P1 | **实际落地（2026-09-01）**：flows 注入 OCR 审查背景（`review.ts` ① 段 + `formatCrgContextForOcr` 的 IMPACTED FLOWS 段），`getRiskOverview` 未扩展——稿中"报告视图新增区块"未实现 |
 | ④ 社区分组图谱 | 按文件 / 按社区 分组切换 + 跨社区连线高亮 | P2 | `crg-risk-graph.ts` 布局参数化 |
 | ⑤ 规则化审查指引注入 | 未测试/爆炸半径/继承/跨文件 四条规则译入 `--background` | P2 | `formatCrgContextForOcr` 扩展 |
 | ⑥ 图谱新鲜度 | `nodes.file_hash` vs 工作区文件探测 | P3 | review.full 前置提示 |
@@ -182,45 +182,50 @@ scopes: Map<root, { mode: "workspace"|"commit"|"range"|"all", commit?, from?, to
 
 ## §6 实现任务清单（分阶段，文件级）
 
+> 状态（2026-09-01 复核）：M0-M2 与 M3 的 ①②⑤⑥ 已随 97fcbbf / 7fc3908 落地（勾选项）；
+> 未勾选项为仍开放的工作。③ 的实际落点见 §5 表格修订。
+
 ### M0 前置修复（三提交审查的 P0/P1/P2 收敛）
 
-- [ ] G1：`crg-query.ts` — `detectChanges` 行级匹配 + 路径归一（posix 双形态）；
+- [x] G1：`crg-query.ts` — `detectChanges` 行级匹配 + 路径归一（posix 双形态）；
       修复 `mergeReviewWithCrgRisk` 的 fileRiskMap 键（相对↔绝对统一）；补 merge 单测
       （当前完全无测试）；crg-query 单测补相对路径与 Windows 分隔符用例
-- [ ] G2：`review.ts:getGitChangedFiles` — 先 filter 后 slice；review-changed-files 测试
+- [x] G2：`review.ts:getGitChangedFiles` — 先 filter 后 slice；review-changed-files 测试
       补 commit/range/all 三模式与 dot 文件占位用例
-- [ ] G3：`App.tsx` 给 ReviewWorkspace 加 `key={root}`（或 root 变化 effect 重置
+- [x] G3：`App.tsx` 给 ReviewWorkspace 加 `key={root}`（或 root 变化 effect 重置
       graphHtml/graphError/subView）
-- [ ] G5：`ocr-cli.ts` 排除计数去重（unsupported 从 excludedByPolicy 扣减或文案不求和）；
+- [x] G5：`ocr-cli.ts` 排除计数去重（unsupported 从 excludedByPolicy 扣减或文案不求和）；
       `review-report.ts` / 空审查文案同步
-- [ ] G6：报告 id 加随机后缀；review.full 按 root 串行化（复用 wiki 的 serialized 模式）
-- [ ] G7：半指定 range 前端阻止 + core 参数校验（抛错而非静默回退）
-- [ ] G8：STATUS_LABELS 补 en / zh-TW / zh-HK 组
-- [ ] G10：App.tsx 按特征模块拆分（不超 2500 行）
+- [x] G6：报告 id 加随机后缀；review.full 按 root 串行化（复用 wiki 的 serialized 模式）
+      （实现取毫秒碰撞前推，串行化取 Promise 链，等效）
+- [x] G7：半指定 range 前端阻止 + core 参数校验（抛错而非静默回退）
+- [x] G8：STATUS_LABELS 补 en / zh-TW / zh-HK 组
+- [x] G10：App.tsx 按特征模块拆分（不超 2500 行）
 
 ### M1 交互补齐（设计稿定稿项）
 
-- [ ] `CodeReviewPanel.tsx`：范围 per-root 记忆（4.4）+ 范围条「追随」渲染（行下 + owner 标签）
-- [ ] `ReviewWorkspace.tsx`：排除卡落地（`excludedByPolicy + unsupportedFiles > 0 &&
+- [x] `CodeReviewPanel.tsx`：范围 per-root 记忆（4.4）+ 范围条「追随」渲染（行下 + owner 标签）
+- [x] `ReviewWorkspace.tsx`：排除卡落地（`excludedByPolicy + unsupportedFiles > 0 &&
       findings.length === 0` 时渲染，复用 rpExcluded/rpExcludedNote 键）；图谱错误态可重试；
       完成后自动选中最新报告（G9）；列表接口 findings 剥离（G9）
-- [ ] 图谱门控细化：`hasCrgProject`（目录存在）与「有 risk 数据」区分，页签禁用/错误态一致
-- [ ] 工作区切换联动：图谱页签门控、surface chip 标签、当前范围提示（对应设计稿交互）
+- [x] 图谱门控细化：`hasCrgProject`（目录存在）与「有 risk 数据」区分，页签禁用/错误态一致
+      （收紧为 graph.db 存在性）
+- [x] 工作区切换联动：图谱页签门控、surface chip 标签、当前范围提示（对应设计稿交互）
 
 ### M2 图谱 ↔ 报告双向定位
 
-- [ ] 4.3 绑定纯函数 `bindFindingsToNodes` + 单测（新文件 `renderer/lib/review-bind.ts` 或 core 侧）
-- [ ] 报告：可定位芯片（`chip.crg.locate`）→ `switchView("graph")` + 选中节点
-- [ ] 图谱侧卡：「相关审查意见」区块 → 回报告 + 滚动 + `.flash` 高亮
-- [ ] 设计稿演示路径全量对齐（面板范围追随 / 双定位 / 门控 / 空态）
+- [x] 4.3 绑定纯函数 `bindFindingsToNodes` + 单测（落地于 `main/tools/review-bind.ts`）
+- [x] 报告：可定位芯片（`chip.crg.locate`）→ `switchView("graph")` + 选中节点
+- [x] 图谱侧卡：「相关审查意见」区块 → 回报告 + 滚动 + `.flash` 高亮
+- [x] 设计稿演示路径全量对齐（面板范围追随 / 双定位 / 门控 / 空态）
 
 ### M3 CRG 挖矿（§5 按优先级）
 
-- [ ] ① 行级富化（如与 G1 分开评估则在此收尾）+ 状态文案如实化（G4 一并）
-- [ ] ② 六因子评分器 + 排序切换 + 旧图回退
-- [ ] ③ 受影响执行流卡片（报告视图 + getRiskOverview 返回扩展）
-- [ ] ⑤ 规则化指引注入 `formatCrgContextForOcr`
-- [ ] ④ 社区分组图谱（可选） / ⑥ 新鲜度提示（可选）
+- [x] ① 行级富化（如与 G1 分开评估则在此收尾）+ 状态文案如实化（G4 一并）
+- [x] ② 六因子评分器 + 排序切换 + 旧图回退
+- [ ] ③ 受影响执行流卡片（报告视图卡片未做；当前经 OCR 背景注入生效，见 §5 修订）
+- [x] ⑤ 规则化指引注入 `formatCrgContextForOcr`
+- [x] ④ 社区分组图谱（可选） / ⑥ 新鲜度提示（可选）
 
 ---
 

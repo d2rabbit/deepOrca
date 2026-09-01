@@ -91,8 +91,7 @@ import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
 import { buildReviewReportHtml } from "./tools/review-report.js";
 import { listReviewReports, readReviewReport, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
-import { buildRiskGraphHtml, OVERVIEW_LIMIT } from "./tools/crg-risk-graph.js";
-import { createCrgGraphQuery } from "@deeporca/core";
+import { buildRiskGraphHtml, getRiskOverviewCached, OVERVIEW_LIMIT } from "./tools/crg-risk-graph.js";
 import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
@@ -1390,22 +1389,36 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
       const htmlPath = resolveReportFile(root, id);
       if (!meta || !htmlPath) return { ok: false, error: "No such report" };
       // Bidirectional locate (design §4.3): bind the report's findings to
-      // the risk graph's top-N nodes. One overview read — the same rows the
-      // map itself renders — so both surfaces agree on the same node set.
+      // the risk graph's top-N nodes. One overview read — the same CACHED
+      // rows the map itself renders — so both surfaces agree on the same
+      // node set.
+      // The FULL findings array goes to the binder (review round
+      // 2026-09-01): the binding contract is `index` == position in this
+      // array, and the renderer's report DOM / graph context use different
+      // filters — pre-filtering here renumbered every later binding. The
+      // binder skips malformed entries internally, keeping indices stable.
+      const rawFindings = meta.findings ?? [];
       let bindings: FindingBinding[] | undefined;
-      const findings = (meta.findings ?? []).filter(
-        (f): f is Record<string, unknown> & { path: string; startLine: number } =>
-          typeof f?.path === "string" && Number.isFinite(Number(f.startLine ?? f.start_line))
-      );
-      if (findings.length > 0) {
-        const overview = createCrgGraphQuery().getRiskOverview(root, OVERVIEW_LIMIT);
+      if (rawFindings.length > 0) {
+        const overview = getRiskOverviewCached(root, OVERVIEW_LIMIT);
         bindings = bindFindingsToNodes(
-          findings.map((f) => ({ path: String(f.path), startLine: Number(f.startLine ?? f.start_line) })),
+          rawFindings.map((f) => ({
+            path: typeof f?.path === "string" ? f.path : "",
+            startLine: Number(f?.startLine ?? f?.start_line ?? Number.NaN),
+          })),
           overview.nodes as BindableNode[],
           root
         );
       }
-      return { ok: true, meta, html: readFileSync(htmlPath, "utf-8"), bindings };
+      let html: string;
+      try {
+        html = readFileSync(htmlPath, "utf-8");
+      } catch {
+        // Deleted/locked between listing and read — don't leak the fs error
+        // (absolute paths) into the renderer.
+        return { ok: false, error: "report file unreadable" };
+      }
+      return { ok: true, meta, html, bindings };
     }
   );
 
