@@ -393,7 +393,10 @@ export function CodeReviewPanel({
                       which is bound to the ACTIVE root) appear once the row is
                       active — running a review on another row switches there
                       first, so they are never wrong. */}
-                  <div className="ui-review-row-scope" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className={`ui-review-row-scope${scope.mode === "workspace" ? "" : " has-refs"}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {scopeControls}
                   </div>
                   {/* SVG-icon run button (user ask 2026-09-01: 一键审查 → icon).
