@@ -38,7 +38,7 @@ async function makeGraph(root: string, evilName = false): Promise<void> {
 test("risk map: null without a graph and null without risk data", async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "riskmap-"));
   try {
-    assert.equal(buildRiskGraphHtml(root, "P", "zh-CN"), null, "no graph at all");
+    assert.equal(buildRiskGraphHtml(root, "P", "zh-CN", "light"), null, "no graph at all");
     await makeGraph(root);
     const dir = path.join(root, CRG_DATA_DIR, "graph.db");
     // Strip risk_index → overview empty → null.
@@ -46,7 +46,7 @@ test("risk map: null without a graph and null without risk data", async () => {
     const db = new DatabaseSync(dir);
     db.exec("DROP TABLE risk_index");
     db.close();
-    assert.equal(buildRiskGraphHtml(root, "P", "zh-CN"), null, "graph without risk data");
+    assert.equal(buildRiskGraphHtml(root, "P", "zh-CN", "light"), null, "graph without risk data");
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }
@@ -56,7 +56,7 @@ test("risk map: renders nodes, escapes hostile names, ships no external scripts"
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "riskmap2-"));
   try {
     await makeGraph(root, true);
-    const html = buildRiskGraphHtml(root, "GVGL", "zh-CN")!;
+    const html = buildRiskGraphHtml(root, "GVGL", "zh-CN", "light")!;
     assert.notEqual(html, null);
     assert.match(html, /审查风险图谱/);
     // The hostile name must appear ONLY escaped — no raw <script> survives.
@@ -66,6 +66,24 @@ test("risk map: renders nodes, escapes hostile names, ships no external scripts"
     assert.ok(!/src\s*=\s*"http/.test(html), "no external script/src references");
     assert.ok(!/href\s*=\s*"http/.test(html), "no external href references");
     assert.match(html, /data-id=/, "interactive node hooks present");
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("risk map: theme is EXPLICIT, not prefers-color-scheme (the iframe must follow the app)", async () => {
+  // Review round 2026-09-01: the page keyed its dark palette off the OS media
+  // query, so the in-app appearance toggle did nothing inside the iframe.
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "riskmap3-"));
+  try {
+    await makeGraph(root);
+    const light = buildRiskGraphHtml(root, "P", "en", "light")!;
+    const dark = buildRiskGraphHtml(root, "P", "en", "dark")!;
+    assert.match(light, /data-theme="light"/);
+    assert.match(dark, /data-theme="dark"/);
+    assert.match(dark, /\[data-theme="dark"\] body/);
+    assert.ok(!light.includes("prefers-color-scheme"), "OS media query must not drive the theme anymore");
+    assert.ok(!dark.includes("prefers-color-scheme"), "OS media query must not drive the theme anymore");
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }

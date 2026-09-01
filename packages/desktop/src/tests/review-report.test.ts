@@ -92,6 +92,10 @@ test("excluded changes surface as a card + explanation when everything was filte
   assert.match(html, /class="card excluded"/);
   assert.match(html, /策略排除/);
   assert.match(html, /以上变更全部按策略排除/);
+  // unsupportedFiles ⊆ excludedByPolicy — the card shows the TOTAL (6), not
+  // the old double-counted sum of 9 (review round 2026-09-01).
+  assert.match(html, /<div class="num">6<\/div>/);
+  assert.ok(!/>9<\/div>/.test(html), "unsupported files must not be double-counted");
   const en = buildReviewReportHtml({
     ...baseInput,
     language: "en",

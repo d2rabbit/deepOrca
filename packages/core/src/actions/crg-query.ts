@@ -127,6 +127,17 @@ const CRG_DIR = CRG_DATA_DIR;
 const CRG_LEGACY_DIR = CRG_LEGACY_DATA_DIR;
 const GRAPH_DB = "graph.db";
 
+/**
+ * CRG graph identity is POSIX (vendored wheel invariant #774):
+ * `nodes.file_path` — and the path component of qualified names — are stored
+ * as forward-slash ABSOLUTE paths on every OS (`normalize_file_path`). Host
+ * paths arrive in native form on Windows (`path.resolve` → backslashes), so
+ * every value compared against a db path goes through this.
+ */
+function toGraphPath(p: string): string {
+  return p.replace(/\\/g, "/");
+}
+
 /** Resolve the graph directory for a root: canonical when present, else the
  *  legacy location while it still holds a graph, else canonical (where a
  *  fresh build will create it). */
@@ -157,17 +168,21 @@ export function createCrgGraphQuery(): CrgGraphQuery {
         const { DatabaseSync } = moduleRequire("node:sqlite");
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
-          // Match nodes whose file_path is in the changed files list.
-          // Normalize paths: CRG stores absolute paths; changedFiles may be relative.
+          // Match nodes whose file_path is in the changed files list, in BOTH
+          // spellings: the wheel's identity is POSIX-absolute (#774, see
+          // toGraphPath) — native-separator paths never matched on Windows —
+          // while a pre-#774 graph row may still carry the native form, so the
+          // un-normalized absolute path rides along as a fallback key.
           const absFiles = changedFiles.map((f) => (path.isAbsolute(f) ? f : path.resolve(root, f)));
-          const placeholders = absFiles.map(() => "?").join(",");
+          const keys = [...new Set(absFiles.flatMap((f) => [toGraphPath(f), f]))];
+          const placeholders = keys.map(() => "?").join(",");
           const stmt = db.prepare(
             `SELECT qualified_name, name, file_path, language, line_start, line_end, kind
              FROM nodes
              WHERE file_path IN (${placeholders}) AND kind IN ('Function', 'Class', 'Test', 'Type')
              ORDER BY file_path, line_start`
           );
-          const rows = stmt.all(...absFiles) as Record<string, unknown>[];
+          const rows = stmt.all(...keys) as Record<string, unknown>[];
           return rows.map((r) => ({
             qualifiedName: String(r.qualified_name),
             name: String(r.name),
@@ -497,22 +512,32 @@ export function formatCrgContextForOcr(
 /**
  * Merge OCR review comments with CRG risk data.
  * Tags each comment with the risk level of the function it references.
+ *
+ * Path shapes (review round 2026-09-01): OCR comments carry git-style
+ * REPO-RELATIVE paths (the preview's bullets, echoed back by the host model),
+ * while `changes[].filePath` carries the graph's POSIX-ABSOLUTE identity.
+ * Comparing them verbatim never matches — pass `projectRoot` so comment paths
+ * are resolved into graph form before lookup.
  */
 export function mergeReviewWithCrgRisk(
   reviewComments: { path: string; startLine: number; content: string; suggestionCode?: string }[],
   risks: CrgRiskData[],
-  changes: CrgChangedFunction[]
+  changes: CrgChangedFunction[],
+  projectRoot?: string
 ): { path: string; startLine: number; content: string; suggestionCode?: string; crgRisk?: string }[] {
   const riskMap = new Map(risks.map((r) => [r.qualifiedName, r]));
-  // Build a filePath → risk lookup from changes.
+  // Build a filePath → risk lookup from changes (keys in graph form).
   const fileRiskMap = new Map<string, CrgRiskData>();
   for (const c of changes) {
     const r = riskMap.get(c.qualifiedName);
-    if (r) fileRiskMap.set(c.filePath, r);
+    if (r) fileRiskMap.set(toGraphPath(c.filePath), r);
   }
 
   return reviewComments.map((comment) => {
-    const risk = fileRiskMap.get(comment.path);
+    const inGraphForm = projectRoot
+      ? toGraphPath(path.isAbsolute(comment.path) ? comment.path : path.resolve(projectRoot, comment.path))
+      : comment.path;
+    const risk = fileRiskMap.get(inGraphForm) ?? fileRiskMap.get(comment.path);
     let crgRisk: string | undefined;
     if (risk) {
       if (risk.riskScore >= 0.7) crgRisk = `HIGH (${risk.callerCount} callers)`;

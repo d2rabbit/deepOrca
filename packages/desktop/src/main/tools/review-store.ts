@@ -56,9 +56,18 @@ export function saveReviewReport(root: string, html: string, meta: Omit<ReviewRe
     fs.mkdirSync(dir, { recursive: true });
     const d = new Date(meta.generatedAt);
     const pad = (n: number, w = 2): string => String(n).padStart(w, "0");
-    const id =
+    const makeId = (): string =>
       `review-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
       `T${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}-${pad(d.getMilliseconds(), 3)}`;
+    // Millisecond granularity collides when two runs settle in the same ms —
+    // review.full is serialized now, but a collision would silently overwrite
+    // the earlier report (review round 2026-09-01), so walk the clock forward
+    // until the id is free.
+    let id = makeId();
+    while (fs.existsSync(path.join(dir, `${id}.html`)) || fs.existsSync(path.join(dir, `${id}.json`))) {
+      d.setMilliseconds(d.getMilliseconds() + 1);
+      id = makeId();
+    }
     fs.writeFileSync(path.join(dir, `${id}.html`), html, "utf-8");
     fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ ...meta, id }, null, 2), "utf-8");
     pruneReviewReports(root);

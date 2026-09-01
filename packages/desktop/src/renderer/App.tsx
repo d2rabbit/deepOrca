@@ -12,6 +12,7 @@ import { useSkills } from "./hooks/use-skills";
 import { useProcessPanel } from "./hooks/use-process-panel";
 import { useGit } from "./hooks/use-git";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
+import { useCommandItems } from "./hooks/use-command-items";
 import { useSettingsData } from "./hooks/use-settings-data";
 import type {
   ActionProgressEvent,
@@ -106,7 +107,6 @@ import {
   IconSettings,
   Modal,
   Button,
-  type CommandItem,
 } from "./ui/index";
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
@@ -153,6 +153,17 @@ function findLatestPlan(messages: SessionMessage[]): string | null {
   }
   return null;
 }
+
+/** The main-area tab model — module-level so the extracted ⌘K palette hook
+ *  (use-command-items) can type its setActiveTab dep. */
+export type MainTab =
+  | { kind: "chat" }
+  | { kind: "settings" }
+  | { kind: "plugins" }
+  | { kind: "editor"; file: string }
+  | { kind: "knowledge"; root: string }
+  | { kind: "review"; root: string }
+  | { kind: "task"; treeId: string };
 
 function syntheticUserMessage(sessionId: string, content: string): SessionMessage {
   const now = new Date().toISOString();
@@ -222,14 +233,6 @@ export function App(): JSX.Element {
   // This replaced the old pre-empting `mainView` state, whose bug: while
   // settings/plugins filled the main area, opening another panel added a tab
   // underneath that could never be reached.
-  type MainTab =
-    | { kind: "chat" }
-    | { kind: "settings" }
-    | { kind: "plugins" }
-    | { kind: "editor"; file: string }
-    | { kind: "knowledge"; root: string }
-    | { kind: "review"; root: string }
-    | { kind: "task"; treeId: string };
   const [activeTab, setActiveTab] = useState<MainTab>({ kind: "chat" });
   /** Bar entries beyond task/knowledge: one settings tab, one plugins tab, one per editor file. */
   const [auxTabs, setAuxTabs] = useState<
@@ -1297,239 +1300,32 @@ export function App(): JSX.Element {
     blocked: () => trustAskOpen,
   });
 
-  const commandItems = useMemo<CommandItem[]>(
-    () => [
-      {
-        id: "new",
-        label: t("command.new.label"),
-        keywords: "new session",
-        shortcut: `${modKey}N`,
-        run: handleNewSession,
-      },
-      {
-        id: "plan",
-        label: t("command.plan.label"),
-        keywords: "plan",
-        shortcut: "⇧Tab",
-        run: () => setPlanMode((v) => !v),
-      },
-      {
-        id: "plugins",
-        label: t("command.plugins.label"),
-        keywords: "plugins mcp skills",
-        run: () => selectView("plugins"),
-      },
-      {
-        id: "settings",
-        label: t("command.settings.label"),
-        keywords: "settings config",
-        shortcut: `${modKey},`,
-        run: () => void handleOpenSettings(),
-      },
-      {
-        id: "undo",
-        label: t("command.undo.label"),
-        keywords: "undo restore",
-        shortcut: `${modKey}Z`,
-        run: () => setModal("undo"),
-      },
-      {
-        id: "export",
-        label: t("command.export.label"),
-        keywords: "export markdown save session",
-        run: () => {
-          const id = activeIdRef.current;
-          if (id) {
-            void api.exportSession(id).then((res) => {
-              if (res.ok && res.path)
-                pushToast("success", `${t("command.export.label")}: ${res.path.split(/[\\/]/).pop()}`);
-              else if (!res.ok) pushToast("error", res.error ?? t("app.requestFailed"));
-            });
-          }
-        },
-      },
-      {
-        id: "tokens",
-        label: t("command.tokens.label"),
-        keywords: "token usage cost consumption",
-        run: openTokensView,
-      },
-      {
-        id: "init",
-        label: t("command.init.label"),
-        keywords: "init agents",
-        run: () => void runPrompt({ text: "/init" }),
-      },
-      { id: "raw", label: t("command.raw.label"), keywords: "reasoning raw", run: handleCycleReasoning },
-      {
-        id: "sidebar",
-        label: t("shortcuts.toggleSidebar"),
-        keywords: "sidebar panel toggle",
-        shortcut: `${modKey}B`,
-        run: handleToggleHub,
-      },
-      {
-        id: "shortcuts",
-        label: t("shortcuts.title"),
-        keywords: "keyboard help hotkeys",
-        shortcut: `${modKey}?`,
-        run: () => setModal("shortcuts"),
-      },
-      // ── Sidebar views (audit P1-4: every rail-reachable view must be ⌘K-reachable) ──
-      {
-        id: "view.explorer",
-        label: t("rail.sessions"),
-        keywords: "sidebar view sessions explorer",
-        run: () => selectView("explorer"),
-      },
-      {
-        id: "view.scm",
-        label: t("rail.git"),
-        keywords: "sidebar view git scm source control",
-        run: () => selectView("scm"),
-      },
-      {
-        id: "view.tasks",
-        label: t("rail.tasks"),
-        keywords: "sidebar view tasks plan todo",
-        run: () => selectView("tasks"),
-      },
-      {
-        id: "view.index",
-        label: t("rail.index"),
-        keywords: "sidebar view index library knowledge",
-        run: () => selectView("index"),
-      },
-      {
-        id: "view.review",
-        label: t("rail.review"),
-        keywords: "sidebar view code review comments",
-        run: () => selectView("review"),
-      },
-      {
-        id: "view.prototype",
-        label: t("rail.prototype"),
-        keywords: "sidebar view prototype spec requirements 原型 需求文档",
-        run: () => selectView("prototype"),
-      },
-      {
-        id: "view.design",
-        label: t("rail.design"),
-        keywords: "sidebar view design ui ux",
-        run: () => selectView("design"),
-      },
-      {
-        id: "view.tasktree",
-        label: t("rail.tasktree"),
-        keywords: "sidebar view task tree history",
-        run: () => selectView("tasktree"),
-      },
-      {
-        id: "view.gitmcp",
-        label: t("rail.gitmcp"),
-        keywords: "sidebar view gitmcp remote",
-        run: () => selectView("gitmcp"),
-      },
-      {
-        id: "view.editor",
-        label: t("rail.editor"),
-        keywords: "sidebar view editor files",
-        run: () => selectView("editor"),
-      },
-      // ── Flow bridges: main-area surfaces ──
-      {
-        id: "knowledge.center",
-        label: t("command.knowledge.label"),
-        keywords: "knowledge center wiki archmap symbols 架构 图谱",
-        run: () => {
-          // Silent no-op would read as a broken command — say why instead.
-          if (projectRoot) setActiveTab({ kind: "knowledge", root: projectRoot });
-          else pushToast("info", t("topbar.pickFolderHint"));
-        },
-      },
-      // ── Themes (all 6, via the same handler the settings panel uses) ──
-      {
-        id: "theme.aqua",
-        label: t("theme.aqua"),
-        keywords: "theme appearance aqua native",
-        run: () => handleSelectTheme("aqua"),
-      },
-      {
-        id: "theme.metro",
-        label: t("theme.metro"),
-        keywords: "theme appearance metro native",
-        run: () => handleSelectTheme("metro"),
-      },
-      {
-        id: "theme.glass",
-        label: t("theme.glass"),
-        keywords: "theme appearance glass",
-        run: () => handleSelectTheme("glass"),
-      },
-      {
-        id: "theme.fusion",
-        label: t("theme.fusion"),
-        keywords: "theme appearance fusion tile",
-        run: () => handleSelectTheme("fusion"),
-      },
-      {
-        id: "theme.line",
-        label: t("theme.line"),
-        keywords: "theme appearance line stroke",
-        run: () => handleSelectTheme("line"),
-      },
-      {
-        id: "theme.orca",
-        label: t("theme.orca"),
-        keywords: "theme appearance orca cyber hud",
-        run: () => handleSelectTheme("orca"),
-      },
-      // ── Appearance / panel toggles ──
-      {
-        id: "appearance.toggle",
-        label: t("command.appearance.label"),
-        keywords: "appearance dark light mode",
-        run: handleToggleAppearance,
-      },
-      {
-        id: "line.variant",
-        label: t("command.lineVariant.label"),
-        keywords: "line variant punk style",
-        run: handleToggleLineVariant,
-      },
-      {
-        id: "processPanel",
-        label: t("shortcuts.processPanel"),
-        keywords: "process output panel terminal",
-        shortcut: `${modKey}J`,
-        run: () => setShowProcessPanel((v) => !v),
-      },
-      {
-        id: "stop",
-        label: t("shortcuts.stopGeneration"),
-        keywords: "stop interrupt cancel generation",
-        run: handleStop,
-      },
-    ],
-    [
-      handleCycleReasoning,
-      handleNewSession,
-      handleOpenSettings,
-      handleSelectTheme,
-      handleStop,
-      handleToggleAppearance,
-      handleToggleHub,
-      handleToggleLineVariant,
-      modKey,
-      openTokensView,
-      projectRoot,
-      pushToast,
-      runPrompt,
-      selectView,
-      setShowProcessPanel,
-      t,
-    ]
-  );
+  // Command-palette items extracted to hooks/use-command-items.ts
+  // (file-length hard limit: App() had grown past 2500 lines). Behavior
+  // is unchanged: every handler/setter keeps its App-side identity, so
+  // the palette memoization still holds.
+  const commandItems = useCommandItems({
+    t,
+    modKey,
+    projectRoot,
+    activeIdRef,
+    pushToast,
+    runPrompt,
+    selectView,
+    handleNewSession,
+    handleOpenSettings,
+    handleStop,
+    handleToggleHub,
+    handleCycleReasoning,
+    handleToggleAppearance,
+    handleToggleLineVariant,
+    handleSelectTheme,
+    openTokensView,
+    setPlanMode,
+    setModal,
+    setShowProcessPanel,
+    setActiveTab,
+  });
 
   // ── Derived UI ────────────────────────────────────────────────────────────────
   const pendingQuestion = useMemo(() => {
@@ -2283,8 +2079,15 @@ export function App(): JSX.Element {
               ✕ {t("sheet.backToChat")}
             </button>
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+              {/* key={root}: without it, switching between two review tabs
+                  REUSED the component instance — the risk map (and error state)
+                  from workspace A stayed visible under workspace B's tab, and
+                  openGraph's cache guard short-circuited the refetch
+                  (review round 2026-09-01). */}
               <ReviewWorkspace
+                key={activeTab.root}
                 root={activeTab.root}
+                appearance={appearance}
                 initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
               />
             </Suspense>

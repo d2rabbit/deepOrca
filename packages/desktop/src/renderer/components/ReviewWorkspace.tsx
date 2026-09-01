@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { ActionProgressEvent, ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
+import type { Appearance } from "../lib/appearance";
 
 /**
  * Review workspace surface — the main-area tab for ONE workspace (the review
@@ -9,11 +10,24 @@ import { useI18n } from "../i18n";
  * history (left rail) + a structured native report view (right), and the
  * simplified risk map. All run controls live on the panel's workspace list
  * (scope selector above the list — user ask 2026-09-01).
+ *
+ * Data flow (review round 2026-09-01): the history rail carries LIGHT metas
+ * (no findings — a KB-scale suggestion corpus per report made every refresh
+ * ship the whole archive over IPC); the selected report is read through
+ * review:readReport. A run's synthetic post-save progress event carries the
+ * new report's id, so the rail refreshes once and auto-selects the fresh
+ * report instead of only re-listing.
  */
 
 type SubView = "reports" | "graph";
 
 const STATUS_LABELS: Record<string, Record<string, string>> = {
+  en: {
+    success: "Success",
+    completed_with_warnings: "Completed (warnings)",
+    completed_with_errors: "Completed (errors)",
+    skipped: "Skipped",
+  },
   zh: {
     success: "成功",
     completed_with_warnings: "完成（有警告）",
@@ -69,7 +83,24 @@ function parseFinding(f: Record<string, unknown>): Finding {
   };
 }
 
-export function ReviewWorkspace({ root, initialReportId }: { root: string; initialReportId?: string }): JSX.Element {
+function hasReportId(data: unknown): string | undefined {
+  if (data == null || typeof data !== "object") return undefined;
+  const id = (data as { reportId?: unknown }).reportId;
+  return typeof id === "string" ? id : undefined;
+}
+
+export function ReviewWorkspace({
+  root,
+  appearance,
+  initialReportId,
+}: {
+  root: string;
+  /** The app's resolved appearance — the risk map renders with an EXPLICIT
+   *  theme instead of following the OS (`prefers-color-scheme`) so the
+   *  in-app toggle takes effect inside the iframe. */
+  appearance: Appearance;
+  initialReportId?: string;
+}): JSX.Element {
   const { t, locale } = useI18n();
   const label = root.split(/[\\/]/).pop() ?? root;
   const statusLabel = (status: string): string =>
@@ -89,9 +120,11 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
   const [subView, setSubView] = useState<SubView>("reports");
   const [reports, setReports] = useState<ReviewReportMeta[]>([]);
   const [selected, setSelected] = useState<string | null>(initialReportId ?? null);
+  const [selectedMeta, setSelectedMeta] = useState<ReviewReportMeta | null>(null);
   const [graphHtml, setGraphHtml] = useState<string | null>(null);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const lastRefreshAt = useRef(0);
 
   const loadReports = useCallback(async (): Promise<ReviewReportMeta[]> => {
     try {
@@ -120,10 +153,50 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
     };
   }, [root, initialReportId, loadReports]);
 
-  // Keep the history rail fresh when a run settles (panel-initiated or ours).
+  // The selected report's FULL meta (with findings) — read on demand, the
+  // rail list itself is light.
   useEffect(() => {
-    return api.onActionProgress((evt: ActionProgressEvent) => {
-      if (evt.actionId === "review.full" && evt.percent === 100) void loadReports();
+    let alive = true;
+    setSelectedMeta(null);
+    if (!selected) return;
+    (async () => {
+      try {
+        const res = await api.reviewReadReport(root, selected);
+        if (alive && res.ok && res.meta) {
+          setSelectedMeta(res.meta);
+          return;
+        }
+      } catch {
+        // fall through — pruned/racing read, re-select below
+      }
+      if (alive) {
+        // Selected report vanished (pruned/failed read) — fall back to the
+        // newest one so the pane never sticks empty.
+        const fallback = reports.find((r) => r.id === selected) ? null : (reports[0]?.id ?? null);
+        setSelected(fallback);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // `reports` deliberately excluded: only selection changes drive reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [root, selected]);
+
+  // Keep the history rail fresh when a run settles (panel-initiated or ours).
+  // The synthetic post-save event carries the fresh report's id — refresh AND
+  // select it (cb4486e's "select the newest report", actually delivered).
+  useEffect(() => {
+    return api.onActionProgress(async (evt: ActionProgressEvent) => {
+      if (evt.actionId !== "review.full" || evt.percent !== 100) return;
+      // action-ipc's generic terminal marker fires right after the wrapper's
+      // report event — don't refresh twice within the same settle.
+      const now = Date.now();
+      if (now - lastRefreshAt.current < 800) return;
+      lastRefreshAt.current = now;
+      const list = await loadReports();
+      const fresh = hasReportId(evt.data);
+      if (fresh && list.some((r) => r.id === fresh)) setSelected(fresh);
     });
   }, [loadReports]);
 
@@ -134,26 +207,31 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
     return api.onProjectRootChanged(setActiveRoot);
   }, []);
 
-  const selectedMeta = reports.find((r) => r.id === selected) ?? null;
-
   const openGraph = useCallback(async () => {
     if (graphHtml || graphError) return;
-    const res = await api.reviewRiskGraph(root);
+    const res = await api.reviewRiskGraph(root, appearance);
     if (res.html) setGraphHtml(res.html);
     else setGraphError(res.error ?? t("app.requestFailed"));
-  }, [root, graphHtml, graphError, t]);
+  }, [root, appearance, graphHtml, graphError, t]);
 
   useEffect(() => {
     if (subView === "graph") void openGraph();
   }, [subView, openGraph]);
 
-  const pill = (view: SubView, label: string): JSX.Element => (
+  // The graph HTML bakes the theme in — drop it when the appearance flips so
+  // it re-renders with the new one.
+  useEffect(() => {
+    setGraphHtml(null);
+    setGraphError(null);
+  }, [appearance]);
+
+  const pill = (view: SubView, pillLabel: string): JSX.Element => (
     <button
       type="button"
       className={`ui-review-tab-pill${subView === view ? " active" : ""}`}
       onClick={() => setSubView(view)}
     >
-      {label}
+      {pillLabel}
     </button>
   );
 
@@ -165,6 +243,10 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
     list.push(f);
     byPath.set(f.path, list);
   }
+  // Exclusion accounting (P2-5, review round 2026-09-01): a 0-finding run
+  // must say WHY when policy ate every change — unsupportedFiles is a subset
+  // of excludedByPolicy, so only the total is shown.
+  const excluded = selectedMeta?.excludedByPolicy ?? 0;
 
   return (
     <div className="ui-review-tab">
@@ -221,7 +303,16 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
                     <div className="num">{selectedMeta.comments}</div>
                     <div className="lbl">{t("review.rpFindings")}</div>
                   </div>
+                  {excluded > 0 ? (
+                    <div className="ui-report-card excluded">
+                      <div className="num">{excluded}</div>
+                      <div className="lbl">{t("review.rpExcluded")}</div>
+                    </div>
+                  ) : null}
                 </div>
+                {excluded > 0 && selectedMeta.filesReviewed === 0 ? (
+                  <div className="ui-report-note">{t("review.rpExcludedNote")}</div>
+                ) : null}
                 {findings.length === 0 ? (
                   <div className="ui-report-empty">{t("review.rpNoFindings")}</div>
                 ) : (
@@ -273,7 +364,15 @@ export function ReviewWorkspace({ root, initialReportId }: { root: string; initi
               title={t("review.riskGraph")}
             />
           ) : graphError ? (
-            <div className="ui-review-history-empty">{graphError}</div>
+            <div className="ui-review-history-empty">
+              {graphError}{" "}
+              {/* Retry: clearing the error flips openGraph's cache guard and
+                  re-requests the graph (the old error state short-circuited
+                  forever — review round 2026-09-01). */}
+              <button type="button" className="ui-review-retry" onClick={() => setGraphError(null)}>
+                {t("error.retry")}
+              </button>
+            </div>
           ) : (
             <div className="ui-review-history-empty">{t("actions.running")}</div>
           )}

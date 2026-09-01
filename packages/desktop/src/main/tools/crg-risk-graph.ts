@@ -44,7 +44,18 @@ const GAP_X = 46;
 const GAP_Y = 34;
 const COLS = 2;
 
-export function buildRiskGraphHtml(root: string, projectName: string, language: string): string | null {
+/**
+ * `theme` is passed EXPLICITLY by the caller (the app's resolved appearance)
+ * instead of keying off `prefers-color-scheme`: the page renders inside an
+ * iframe, which follows the OS setting rather than the app's appearance
+ * toggle (review round 2026-09-01 — same treatment as the arch preview).
+ */
+export function buildRiskGraphHtml(
+  root: string,
+  projectName: string,
+  language: string,
+  theme: "light" | "dark"
+): string | null {
   const query = createCrgGraphQuery();
   if (!query.hasGraph(root)) return null;
   const { nodes, edges } = query.getRiskOverview(root, OVERVIEW_LIMIT);
@@ -176,7 +187,7 @@ export function buildRiskGraphHtml(root: string, projectName: string, language: 
     .filter((v): v is string => v !== null);
 
   return `<!DOCTYPE html>
-<html lang="${escapeHtml(language)}">
+<html lang="${escapeHtml(language)}" data-theme="${theme === "dark" ? "dark" : "light"}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -186,16 +197,14 @@ export function buildRiskGraphHtml(root: string, projectName: string, language: 
   * { box-sizing: border-box; }
   body { margin: 0; display: flex; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Microsoft YaHei", sans-serif; background: #f4f6fa; color: #1b2129; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #17191f; color: #e6e9ef; }
-    .side { background: #1f2229 !important; border-color: #34383f !important; }
-    svg { background: #1b1e24 !important; }
-    .meta { color: #9aa5b3 !important; }
-    .file-card .card-bg { fill: #1f2229 !important; stroke: #34383f !important; }
-    .card-file, .fname { fill: #e6e9ef !important; }
-    .fscore { fill: #9aa5b3 !important; }
-    svg .edge { stroke: #4a5160 !important; }
-  }
+  [data-theme="dark"] body { background: #17191f; color: #e6e9ef; }
+  [data-theme="dark"] .side { background: #1f2229 !important; border-color: #34383f !important; }
+  [data-theme="dark"] svg { background: #1b1e24 !important; }
+  [data-theme="dark"] .meta { color: #9aa5b3 !important; }
+  [data-theme="dark"] .file-card .card-bg { fill: #1f2229 !important; stroke: #34383f !important; }
+  [data-theme="dark"] .card-file, [data-theme="dark"] .fname { fill: #e6e9ef !important; }
+  [data-theme="dark"] .fscore { fill: #9aa5b3 !important; }
+  [data-theme="dark"] svg .edge { stroke: #4a5160 !important; }
   .main { flex: 1; padding: 20px 8px 8px 20px; min-width: 0; position: relative; }
   h1 { font-size: 20px; margin: 0 0 2px; }
   .meta { color: #66707d; font-size: 12.5px; margin-bottom: 6px; }

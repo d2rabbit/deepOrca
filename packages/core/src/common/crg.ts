@@ -140,16 +140,20 @@ export function isCrgDisabled(projectRoot: string): boolean {
 // ── Project detection ────────────────────────────────────────────────────────
 
 /**
- * True when the given project root has been initialized with CRG — either at
- * the canonical `.deeporca/crg/` location or still at the legacy
+ * True when the given project root has a USABLE CRG graph — graph.db present
+ * at the canonical `.deeporca/crg/` location or still at the legacy
  * `.code-review-graph/` one (adopted on the next touching operation).
+ * Checks the DB, not the directory (review round 2026-09-01): a bare
+ * half-created directory read as "graph built" — the panel's status dot went
+ * green and review.full skipped the ⓪ build — while every query degraded to
+ * "no structural data".
  */
 export function hasCrgProject(projectRoot: string): boolean {
   for (const dir of [CRG_DIR_NAME, CRG_LEGACY_DIR_NAME]) {
     try {
-      if (fs.statSync(path.join(projectRoot, dir)).isDirectory()) return true;
+      if (fs.statSync(path.join(projectRoot, dir, "graph.db")).isFile()) return true;
     } catch {
-      // not at this location — try the next
+      // no graph at this location — try the next
     }
   }
   return false;
@@ -199,7 +203,12 @@ function runCrgBuildWithOutput(
         timeoutMs: CRG_TIMEOUT_MS,
         heartbeatMs: 20_000,
         onHeartbeat: ({ elapsedSecs }) => {
-          onOutput(`CRG: 运行中 ${elapsedSecs}s（图谱构建无进度流，请耐心等待）\n`, "stdout");
+          // English — core streams this straight to the UI; hardcoded Chinese
+          // bypassed the reader's locale (review round 2026-09-01).
+          onOutput(
+            `CRG: still building ${elapsedSecs}s (graph build emits no progress stream — hang tight)\n`,
+            "stdout"
+          );
           return null;
         },
         onStdoutLine: (line) => onOutput(`${line}\n`, "stdout"),

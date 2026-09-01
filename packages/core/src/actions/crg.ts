@@ -1,10 +1,12 @@
 /**
- * CRG actions — crg.reindex / crg.visualize.
+ * CRG actions — crg.reindex.
  *
  * Build operations delegate to CrgController (desktop's CrgCliController
  * spawns uv). Query operations (formerly crg.analyze via 10 MCP tools) are
  * now handled directly by CrgGraphQuery (Node.js SQLite read) — no Python
  * MCP server needed. review.full uses CrgGraphQuery for structural context.
+ * (crg.visualize was deregistered — the in-app risk map reads graph.db
+ * through crg-risk-graph.ts instead.)
  */
 
 import type { ActionDefinition, ActionRun } from "./types";

@@ -15,7 +15,7 @@ import path from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { CRG_DATA_DIR, CRG_LEGACY_DIR } from "../common/generated-dirs";
-import { createCrgGraphQuery } from "../actions/crg-query";
+import { createCrgGraphQuery, mergeReviewWithCrgRisk } from "../actions/crg-query";
 
 /** Minimal graph.db with the schema subset the query layer reads. */
 async function makeGraphDb(
@@ -173,4 +173,95 @@ test("getRiskOverview degrades to empty without a risk_index table", async () =>
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }
+});
+
+test("detectChanges matches the graph's POSIX file identity from native/relative inputs", async () => {
+  // Review round 2026-09-01: the wheel stores file_path POSIX-normalized
+  // (invariant #774) while `path.resolve` yields native separators on Windows
+  // — the verbatim `IN (...)` match silently returned nothing there.
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "crg-posix-"));
+  try {
+    const file = path.join(root, "src", "auth.ts");
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await fsp.writeFile(file, "export const login = () => 1;\n");
+    // Store the db row the way the wheel does: forward slashes, absolute.
+    await makeGraphDb(root, [{ filePath: file.replace(/\\/g, "/"), name: "login" }]);
+
+    const q = createCrgGraphQuery();
+    // Native-separator input (Windows resolve output).
+    assert.equal(q.detectChanges(root, [file]).length, 1, "native-separator absolute input must match");
+    // Repo-relative input (what git name-output produces).
+    assert.equal(q.detectChanges(root, ["src/auth.ts"]).length, 1, "relative input must resolve+match");
+    // Forward-slash absolute input.
+    assert.equal(q.detectChanges(root, [file.replace(/\\/g, "/")]).length, 1);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("mergeReviewWithCrgRisk attaches tags across the relative/absolute path shapes", () => {
+  // Review round 2026-09-01: OCR comments carry git-style repo-relative
+  // paths while the change set carries the graph's POSIX-absolute identity —
+  // the verbatim lookup never matched, so CRG chips never rendered.
+  const graphFile = "D:/repo/src/auth.ts";
+  const changes = [
+    {
+      qualifiedName: "D:/repo/src/auth.ts#login",
+      name: "login",
+      filePath: graphFile,
+      language: "ts",
+      lineStart: 1,
+      lineEnd: 9,
+      kind: "Function",
+    },
+  ];
+  const risks = [
+    {
+      qualifiedName: "D:/repo/src/auth.ts#login",
+      riskScore: 0.9,
+      callerCount: 7,
+      testCoverage: "uncovered",
+      securityRelevant: false,
+    },
+  ];
+  const comments = [
+    { path: "src/auth.ts", startLine: 2, content: "[HIGH] race" },
+    { path: "D:/repo/src/auth.ts", startLine: 4, content: "absolute spelling too" },
+    { path: "src/other.ts", startLine: 5, content: "unrelated file" },
+  ];
+
+  const withRoot = mergeReviewWithCrgRisk(comments, risks, changes, "D:\\repo");
+  assert.equal(withRoot[0].crgRisk, "HIGH (7 callers)", "relative comment path resolves through the root");
+  assert.equal(withRoot[1].crgRisk, "HIGH (7 callers)", "absolute comment path normalizes to graph form");
+  assert.equal(withRoot[2].crgRisk, undefined, "unmatched files stay untagged");
+
+  // Without a root, only verbatim matches can hit — documents WHY the caller
+  // must pass projectRoot (the pre-fix behavior).
+  const noRoot = mergeReviewWithCrgRisk(comments, risks, changes);
+  assert.equal(noRoot[0].crgRisk, undefined);
+});
+
+test("mergeReviewWithCrgRisk maps risk scores to LOW/MEDIUM/HIGH bands", () => {
+  const mk = (score: number, qn: string) => ({
+    qualifiedName: qn,
+    riskScore: score,
+    callerCount: 2,
+    testCoverage: "uncovered",
+    securityRelevant: false,
+  });
+  const changes = [
+    { qualifiedName: "h", name: "h", filePath: "h.ts", language: "ts", lineStart: 1, lineEnd: 2, kind: "Function" },
+    { qualifiedName: "m", name: "m", filePath: "m.ts", language: "ts", lineStart: 1, lineEnd: 2, kind: "Function" },
+    { qualifiedName: "l", name: "l", filePath: "l.ts", language: "ts", lineStart: 1, lineEnd: 2, kind: "Function" },
+  ];
+  const risks = [mk(0.9, "h"), mk(0.5, "m"), mk(0.1, "l")];
+  const comments = [
+    { path: "h.ts", startLine: 1, content: "a" },
+    { path: "m.ts", startLine: 1, content: "b" },
+    { path: "l.ts", startLine: 1, content: "c" },
+  ];
+  const got = mergeReviewWithCrgRisk(comments, risks, changes, "D:/repo");
+  assert.match(got[0].crgRisk ?? "", /^HIGH/);
+  assert.match(got[1].crgRisk ?? "", /^MEDIUM/);
+  assert.equal(got[2].crgRisk, "LOW");
 });

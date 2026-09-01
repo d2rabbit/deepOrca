@@ -310,15 +310,28 @@ function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistr
   ): RunHandle<unknown> => {
     const handle = registry.execute<unknown>(id, input, execOpts);
     if (id !== "review.full") return handle;
+    // Progress subscribers registered through this wrapper (action-ipc) also
+    // receive the synthetic post-save event below, so an open review tab can
+    // refresh AND select the fresh report instead of polling (cb4486e's
+    // "select the newest report" intent, actually delivered this time).
+    let onSaved: ((e: { message: string; percent?: number; data?: unknown }) => void) | null = null;
     return {
       result: handle.result.then(async (output) => {
         const report = writeReviewReport(output);
         if (report) {
           Object.assign(output as object, { reportPath: report.htmlPath, reportId: report.id });
+          onSaved?.({
+            message: "review report saved",
+            percent: 100,
+            data: { done: true, reportId: report.id },
+          });
         }
         return output;
       }),
-      onProgress: (cb) => handle.onProgress(cb),
+      onProgress: (cb) => {
+        onSaved = cb;
+        return handle.onProgress(cb);
+      },
       cancel: (reason) => handle.cancel(reason),
     };
   };
@@ -1355,7 +1368,11 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
   };
 
   handle(IpcRequest.ReviewListReports, (root: string): ReviewReportMeta[] => {
-    return isKnownRoot(root) ? listReviewReports(root) : [];
+    if (!isKnownRoot(root)) return [];
+    // Strip findings: KB-scale suggestion code per report made every history
+    // refresh ship the whole corpus over IPC (review round 2026-09-01). The
+    // native view reads the selected report through ReviewReadReport instead.
+    return listReviewReports(root).map(({ findings: _findings, ...meta }) => meta);
   });
 
   handle(
@@ -1369,12 +1386,20 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
     }
   );
 
-  handle(IpcRequest.ReviewRiskGraph, (root: string): { html: string | null; error?: string } => {
-    if (!isKnownRoot(root)) return { html: null, error: "Unknown workspace" };
-    if (!hasCrgProject(root)) return { html: null, error: "no CRG graph — run a review or crg.reindex first" };
-    const html = buildRiskGraphHtml(root, basename(root), APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en");
-    return html ? { html } : { html: null, error: "risk graph unavailable — no risk data in the graph" };
-  });
+  handle(
+    IpcRequest.ReviewRiskGraph,
+    (root: string, theme: "light" | "dark"): { html: string | null; error?: string } => {
+      if (!isKnownRoot(root)) return { html: null, error: "Unknown workspace" };
+      if (!hasCrgProject(root)) return { html: null, error: "no CRG graph — run a review or crg.reindex first" };
+      const html = buildRiskGraphHtml(
+        root,
+        basename(root),
+        APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
+        theme === "dark" ? "dark" : "light"
+      );
+      return html ? { html } : { html: null, error: "risk graph unavailable — no risk data in the graph" };
+    }
+  );
 }
 
 function registerMemoryIpc({ handle, handlePrivileged }: IpcHelpers): void {

@@ -1051,6 +1051,7 @@ export const zhHK: Record<MessageKey, string> = {
   "review.scope.all": "全域審查（整個倉庫）",
   "review.scope.from": "起始引用",
   "review.scope.to": "目標引用",
+  "review.scope.rangeIncomplete": "引用範圍需要同時填寫起止引用——請補全「起始/目標」，或改用其他範圍。",
   "review.rpScope": "範圍",
   "review.rpGenerated": "生成時間",
   "review.rpStatus": "狀態",

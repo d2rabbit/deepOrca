@@ -106,7 +106,7 @@ const api: DesktopApi = {
   crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
   reviewListReports: (root) => ipcRenderer.invoke(IpcRequest.ReviewListReports, root),
   reviewReadReport: (root, id) => ipcRenderer.invoke(IpcRequest.ReviewReadReport, root, id),
-  reviewRiskGraph: (root) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root),
+  reviewRiskGraph: (root, theme) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root, theme),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────

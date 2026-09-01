@@ -111,6 +111,13 @@ export function CodeReviewPanel({
   const runReview = useCallback(
     async (root: string) => {
       if (root !== activeRoot || running) return;
+      // A half-filled range previously fell through to `{}` — a silent
+      // WORKSPACE run wearing the user's range intent (review round
+      // 2026-09-01). Surface it instead of re-scoping behind their back.
+      if (scope === "range" && (!rangeFrom.trim() || !rangeTo.trim())) {
+        setError(t("review.scope.rangeIncomplete"));
+        return;
+      }
       setRunning(true);
       setLastRun(null);
       setError(null);
@@ -120,7 +127,7 @@ export function CodeReviewPanel({
             ? { all: true }
             : scope === "commit"
               ? { commit: commitRef.trim() || "HEAD" }
-              : scope === "range" && rangeFrom.trim() && rangeTo.trim()
+              : scope === "range"
                 ? { from: rangeFrom.trim(), to: rangeTo.trim() }
                 : {};
         const res = await api.actionRun("review.full", params);
@@ -132,7 +139,7 @@ export function CodeReviewPanel({
         setRunning(false);
       }
     },
-    [activeRoot, running, reload, scope, commitRef, rangeFrom, rangeTo]
+    [activeRoot, running, reload, scope, commitRef, rangeFrom, rangeTo, t]
   );
 
   const runFindings: ReviewFinding[] = lastRun && lastRun.res.ok ? extractReviewFindings(lastRun.res.output) : [];

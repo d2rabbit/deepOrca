@@ -950,7 +950,7 @@ export type DesktopApi = {
     id: string
   ): Promise<{ ok: boolean; meta?: ReviewReportMeta; html?: string; error?: string }>;
   /** Build the simplified in-app risk map (self-contained HTML) for a workspace. */
-  reviewRiskGraph(root: string): Promise<{ html: string | null; error?: string }>;
+  reviewRiskGraph(root: string, theme: "light" | "dark"): Promise<{ html: string | null; error?: string }>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 

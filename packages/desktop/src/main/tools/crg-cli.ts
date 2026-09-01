@@ -90,7 +90,7 @@ export class CrgCliController implements CrgController {
       timeoutMs: CRG_TIMEOUT_MS,
       heartbeatMs: 20_000,
       onHeartbeat: ({ elapsedSecs }) => {
-        onProgress?.({ message: `CRG: 运行中 ${elapsedSecs}s（图谱构建无进度流，请耐心等待）` });
+        onProgress?.({ message: `CRG: still building ${elapsedSecs}s (no progress stream during graph build)` });
         return null;
       },
       onStdoutLine: (line) => onProgress?.({ message: `CRG: ${line.slice(0, 120)}` }),

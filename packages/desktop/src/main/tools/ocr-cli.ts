@@ -574,13 +574,17 @@ export class OcrCliController implements ReviewController {
     // stamped per file so diffFor diffs it against the right base.
     let probe: { preview: OcrPreview; excludedByPolicy: number; unsupportedFiles: number } | null = null;
     let effectiveScope: { mode: "workspace" | "commit"; commit?: string } = { mode: "workspace" };
-    const FALLBACK_NOTE = "工作区无可审查代码变更 — 已自动改为审查最新提交（HEAD）";
+    // Main-process progress strings stay English (the rest of the pipeline's
+    // streamed messages are English; findings themselves carry the host-synced
+    // reader language) — hardcoded Chinese here bypassed the locale for every
+    // non-zh user (review round 2026-09-01).
+    const FALLBACK_NOTE = "No reviewable workspace changes — automatically re-scoped to the latest commit (HEAD)";
     let fellBack = false;
 
     if (opts.all) {
       const rootCommit = await this.firstRootCommit(root);
       if (!rootCommit) {
-        throw new Error("ocr delegate: 全域审查需要至少一个提交（当前仓库为空）");
+        throw new Error("ocr delegate: full-scope review needs at least one commit (repository is empty)");
       }
       const headArgs = ["delegate", "preview", "--from", rootCommit, "--to", "HEAD"];
       const rootArgs = ["delegate", "preview", "--commit", rootCommit];
@@ -630,7 +634,7 @@ export class OcrCliController implements ReviewController {
         (await this.hasHeadCommit(root))
       ) {
         onProgress?.({
-          message: "工作区无可审查代码变更 — 自动改为审查最新提交（HEAD）",
+          message: "No reviewable workspace changes — automatically re-scoping to the latest commit (HEAD)",
           percent: 12,
         });
         const headArgs = ["delegate", "preview", "--commit", "HEAD"];
@@ -647,10 +651,13 @@ export class OcrCliController implements ReviewController {
     const unsupportedFiles = probe.unsupportedFiles;
 
     if (preview.files.length === 0) {
+      // unsupportedFiles ⊆ excludedByPolicy (both come out of preview.excluded
+      // plus the dot-path filter) — summing them double-counted every
+      // unsupported file (review round 2026-09-01).
       const note =
-        excludedByPolicy > 0 || unsupportedFiles > 0
-          ? `all ${excludedByPolicy + unsupportedFiles} change(s) excluded by policy ` +
-            `(${excludedByPolicy} generated/dot-path, ${unsupportedFiles} unsupported type) — nothing reviewable`
+        excludedByPolicy > 0
+          ? `all ${excludedByPolicy} change(s) excluded by policy ` +
+            `(${unsupportedFiles} of them unsupported type, rest generated/dot-path) — nothing reviewable`
           : "ocr delegate: no reviewable changes";
       onProgress?.({ message: `ocr delegate: ${note}`, percent: 100 });
       return {
@@ -658,13 +665,15 @@ export class OcrCliController implements ReviewController {
         comments: [],
         summary: { filesReviewed: 0, comments: 0, excludedByPolicy, unsupportedFiles },
         effectiveScope,
-        warnings: [FALLBACK_NOTE, ...(excludedByPolicy > 0 || unsupportedFiles > 0 ? [note] : [])],
+        warnings: [...(fellBack ? [FALLBACK_NOTE] : []), ...(excludedByPolicy > 0 ? [note] : [])],
       };
     }
 
     if (opts.all && preview.files.length > 20) {
       onProgress?.({
-        message: `全域审查 ${preview.files.length} 个文件 — 依次审查，总预算 ${OCR_TOTAL_TIMEOUT_MS / 60000} 分钟（可用 DEEPORCA_OCR_TIMEOUT_MS 调整）`,
+        message: `Full-scope review: ${preview.files.length} files — reviewing sequentially, total budget ${
+          OCR_TOTAL_TIMEOUT_MS / 60000
+        } min (adjust via DEEPORCA_OCR_TIMEOUT_MS)`,
       });
     }
 
