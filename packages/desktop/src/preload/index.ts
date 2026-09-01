@@ -89,11 +89,11 @@ const api: DesktopApi = {
   gitDiscard: (file) => ipcRenderer.invoke(IpcRequest.GitDiscard, file),
   gitCommit: (message) => ipcRenderer.invoke(IpcRequest.GitCommit, message),
   gitCurrentBranch: () => ipcRenderer.invoke(IpcRequest.GitCurrentBranch),
-  gitListBranches: () => ipcRenderer.invoke(IpcRequest.GitListBranches),
+  gitListBranches: (root) => ipcRenderer.invoke(IpcRequest.GitListBranches, root),
   gitCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitCheckout, branch),
   gitStashCheckout: (branch) => ipcRenderer.invoke(IpcRequest.GitStashCheckout, branch),
   gitDiff: (file, staged) => ipcRenderer.invoke(IpcRequest.GitDiff, file, staged),
-  gitLog: (limit) => ipcRenderer.invoke(IpcRequest.GitLog, limit),
+  gitLog: (limit, root) => ipcRenderer.invoke(IpcRequest.GitLog, limit, root),
   gitCommitDiff: (hash, file) => ipcRenderer.invoke(IpcRequest.GitCommitDiff, hash, file),
   gitCommitFiles: (hash) => ipcRenderer.invoke(IpcRequest.GitCommitFiles, hash),
 
@@ -106,7 +106,10 @@ const api: DesktopApi = {
   crgReindex: (root) => ipcRenderer.invoke(IpcRequest.CrgReindex, root),
   reviewListReports: (root) => ipcRenderer.invoke(IpcRequest.ReviewListReports, root),
   reviewReadReport: (root, id) => ipcRenderer.invoke(IpcRequest.ReviewReadReport, root, id),
-  reviewRiskGraph: (root, theme, findings) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root, theme, findings),
+  reviewRiskGraph: (root, focusQns) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root, focusQns),
+  taskHubList: (root) => ipcRenderer.invoke(IpcRequest.TaskHubList, root),
+  taskHubTrace: (root, treeId) => ipcRenderer.invoke(IpcRequest.TaskHubTrace, root, treeId),
+  tokensSummary: (root) => ipcRenderer.invoke(IpcRequest.TokensSummary, root),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────

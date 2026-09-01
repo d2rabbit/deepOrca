@@ -186,6 +186,15 @@ export interface CrgGraphQuery {
    */
   getRiskOverview(root: string, limit: number): { nodes: CrgRiskNode[]; edges: CrgRiskEdge[] };
   /**
+   * FULL node rows (file path / line range / community) for exactly the given
+   * qualified names — the on-demand-review seam: findings whose CRG node sits
+   * OUTSIDE the top-N overview can still be located on the graph. Missing
+   * names are simply absent from the result. Never throws.
+   */
+  getRiskNodesByNames(root: string, qualifiedNames: string[]): CrgRiskNode[];
+  /** CALLS edges whose BOTH endpoints are in the given name set. */
+  getEdgesForNodes(root: string, qualifiedNames: string[]): CrgRiskEdge[];
+  /**
    * Stored execution flows whose member nodes live in changed files
    * (flows + flow_memberships; flow_snapshots for the critical path).
    * Empty on graphs without flow data (v2.0+ table) — never throws.
@@ -501,6 +510,78 @@ export function createCrgGraphQuery(): CrgGraphQuery {
         }
       } catch {
         return { nodes: [], edges: [] };
+      }
+    },
+
+    getRiskNodesByNames(root: string, qualifiedNames: string[]): CrgRiskNode[] {
+      if (qualifiedNames.length === 0) return [];
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
+      if (!fs.existsSync(dbPath)) return [];
+      try {
+        const { DatabaseSync } = moduleRequire("node:sqlite");
+        const db = new DatabaseSync(dbPath, { readOnly: true });
+        try {
+          const ph = qualifiedNames.map(() => "?").join(",");
+          const rows = db
+            .prepare(
+              `SELECT n.qualified_name, n.name, n.file_path, n.line_start, n.line_end, n.kind, n.community_id,
+                      COALESCE(ri.risk_score, 0) AS risk_score,
+                      COALESCE(ri.caller_count, 0) AS caller_count,
+                      COALESCE(ri.test_coverage, 'unknown') AS test_coverage,
+                      COALESCE(ri.security_relevant, 0) AS security_relevant
+               FROM nodes n
+               LEFT JOIN risk_index ri ON ri.qualified_name = n.qualified_name
+               WHERE n.qualified_name IN (${ph})`
+            )
+            .all(...qualifiedNames) as Record<string, unknown>[];
+          return rows.map((r) => ({
+            qualifiedName: String(r.qualified_name),
+            name: String(r.name ?? r.qualified_name),
+            filePath: String(r.file_path ?? ""),
+            kind: String(r.kind ?? "Function"),
+            lineStart: Number(r.line_start ?? 0),
+            lineEnd: Number(r.line_end ?? r.line_start ?? 0),
+            riskScore: Number(r.risk_score ?? 0),
+            callerCount: Number(r.caller_count ?? 0),
+            testCoverage: String(r.test_coverage ?? "unknown"),
+            securityRelevant: Boolean(r.security_relevant),
+            communityId: r.community_id == null ? null : Number(r.community_id),
+          }));
+        } finally {
+          db.close();
+        }
+      } catch {
+        return [];
+      }
+    },
+
+    getEdgesForNodes(root: string, qualifiedNames: string[]): CrgRiskEdge[] {
+      if (qualifiedNames.length < 2) return [];
+      const dbPath = path.join(graphDir(root), GRAPH_DB);
+      if (!fs.existsSync(dbPath)) return [];
+      try {
+        const { DatabaseSync } = moduleRequire("node:sqlite");
+        const db = new DatabaseSync(dbPath, { readOnly: true });
+        try {
+          const ph = qualifiedNames.map(() => "?").join(",");
+          const rows = db
+            .prepare(
+              `SELECT DISTINCT e.source_qualified, e.target_qualified
+               FROM edges e
+               WHERE e.kind = 'CALLS'
+               AND e.source_qualified IN (${ph})
+               AND e.target_qualified IN (${ph})`
+            )
+            .all(...qualifiedNames, ...qualifiedNames) as Record<string, unknown>[];
+          return rows.map((r) => ({
+            source: String(r.source_qualified),
+            target: String(r.target_qualified),
+          }));
+        } finally {
+          db.close();
+        }
+      } catch {
+        return [];
       }
     },
 

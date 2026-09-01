@@ -2,6 +2,9 @@
 
 > **状态**：**已挂起 — 并入 redesign 待办**（2026-08-31 拍板：原型模块整体 redesign，等当前
 > 这批模块修正（代码审查等）完成后再启动。本设计稿作为 redesign 的输入保留。）
+> **任务树更新（2026-09-01）**：挂起的「任务树精致化」已拍板并定稿 →
+> [工作区任务树](../task-tree-hub/design.md)（工作区统一任务树；本文 §5.2 的落树矩阵
+> 与 §9 P2 已按其回写）。
 > **日期**：2026-08-31
 > **需求来源**：[原型设计模块约束与问题记录](../../docs/research/2026-08-31-prototype-module-issues.md)（Issue 1–4）
 > **前置**：[PM-Design V2](../pm-design-v2/design.md)（design-store / 两步原型流已落地）· [任务树](../task-tree/design.md)（TaskTreeService / TaskTreePanel / TaskRecordPanel 已落地）
@@ -11,13 +14,13 @@
 
 ## §0.0 拍板与挂起记录（2026-08-31）
 
-| 项 | 结论 |
-| --- | --- |
-| §5.1 sessionless 动作落 workspace 树活动分支 | **采纳**（redesign 时按此实施，仅限原型域动作） |
-| §3.1 悬浮对话框 = 工作区内 DOM 浮层（非 BrowserWindow） | **采纳** |
-| §5.2 索引/审查后台 job 落树 | **否决原案并后置**——代码审查、索引与知识等是**具备独立工作区的模块**（行为对齐索引库），不是 workspace 树的 step 来源；它们的记录归属随任务树精致化一起重设计（见下） |
-| 任务树精致化 | 与 §5.2 一并**后置**：等本批模块修正与原型 redesign 都完成后，和 task 任务树一起精致化设计。**记录：当前任务历史模块的存在方式是错误的**（TaskTree/TaskRecord 以 workspace 维度挂侧栏的形态不成立，模块化后的记录归属需要重造） |
-| §6.4 侧栏滚动审计 | **先放着不动**——涉及"每个模块的独立任务"与规划中的综合任务模块的联动修正，随任务树精致化一并处理 |
+| 项                                                      | 结论                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §5.1 sessionless 动作落 workspace 树活动分支            | **采纳**（redesign 时按此实施，仅限原型域动作）                                                                                                                                                                                                                                                            |
+| §3.1 悬浮对话框 = 工作区内 DOM 浮层（非 BrowserWindow） | **采纳**                                                                                                                                                                                                                                                                                                   |
+| §5.2 索引/审查后台 job 落树                             | **否决原案并后置**——代码审查、索引与知识等是**具备独立工作区的模块**（行为对齐索引库），不是 workspace 树的 step 来源；它们的记录归属随任务树精致化一起重设计（见下）                                                                                                                                      |
+| 任务树精致化                                            | **已拍板并定稿（2026-09-01）→ [工作区任务树](../task-tree-hub/design.md)**：任务树 = 以工作区为根基的统一任务树（会话主任务/fork/索引构建/代码审查/原型 UI 全部并入），交互与索引库/审查同构（左工作区列表、右任务历史工作区）；TaskTree/TaskRecord 的侧栏挂载形态作废，TaskTreeService 保留为会话域数据源 |
+| §6.4 侧栏滚动审计                                       | **随任务树重设计关闭**——新任务树面（task-tree-hub §6.5）按滚动契约实现并加 DOM 断言；其余既有视图的滚动审计仍随 redesign 执行                                                                                                                                                                              |
 
 ---
 
@@ -34,12 +37,12 @@
 
 ## §1 现状与差距矩阵
 
-| Issue | 要求 | 现状 | 差距 |
-| --- | --- | --- | --- |
-| 1 追随工作区 + 悬浮对话框 | 操作行为以工作区内悬浮对话框承载 | 操作入口在左侧 Hub flyout 的 `PrototypeDesignPanel`；唯一"浮"的东西是独立 Electron 弹窗（`PrototypeWindow`，a2ui 预览 popout） | 缺少工作区内 DOM 级悬浮对话框作为操作载体 |
-| 2 不占主工作区、无对话记录 | 模块运行不遮挡主对话，不产生主会话记录 | `prototype.spec` / `prototype.materialize` 走 `ctx.runSubagent({ silent: true })` sessionless 通道，**已满足** | 只缺"不变量被固定下来"：无回归保护，未来改动可能悄悄破坏 |
-| 3 操作落地任务记录 | 全部 agent 操作（索引/审查/原型）记录进既有 task 树 | `design.materialize` 已接入（`actions/design.ts:120-140`，**依赖会话绑定分支**）；`prototype.*` 两动作**完全没有任务树写入**；索引/审查后台任务只进 BuildConsolePanel | prototype 动作是 sessionless 的——design.ts 的接入模式不适用，需要 workspace 级落点；索引/审查未接入 |
-| 4 侧栏分轨 + 滚动 | 原型/UI → design 面板；需求文档 → markdown 侧栏；全程可滚动 | prototype/design 两个面板已存在；需求文档（spec.md）目前打开在**右侧 companion**（`App.tsx:2322` StreamdownView），左侧没有 markdown 侧栏视图；12 个侧栏视图均声明了 `.ui-side-panel-body`（overflow-y:auto），但 Issue 记录"内容超出可视区无法滚动"未归档复现面 | 新增需求文档侧栏视图；滚动契约做一次全视图审计 |
+| Issue                      | 要求                                                        | 现状                                                                                                                                                                                                                                                             | 差距                                                                                                |
+| -------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1 追随工作区 + 悬浮对话框  | 操作行为以工作区内悬浮对话框承载                            | 操作入口在左侧 Hub flyout 的 `PrototypeDesignPanel`；唯一"浮"的东西是独立 Electron 弹窗（`PrototypeWindow`，a2ui 预览 popout）                                                                                                                                   | 缺少工作区内 DOM 级悬浮对话框作为操作载体                                                           |
+| 2 不占主工作区、无对话记录 | 模块运行不遮挡主对话，不产生主会话记录                      | `prototype.spec` / `prototype.materialize` 走 `ctx.runSubagent({ silent: true })` sessionless 通道，**已满足**                                                                                                                                                   | 只缺"不变量被固定下来"：无回归保护，未来改动可能悄悄破坏                                            |
+| 3 操作落地任务记录         | 全部 agent 操作（索引/审查/原型）记录进既有 task 树         | `design.materialize` 已接入（`actions/design.ts:120-140`，**依赖会话绑定分支**）；`prototype.*` 两动作**完全没有任务树写入**；索引/审查后台任务只进 BuildConsolePanel                                                                                            | prototype 动作是 sessionless 的——design.ts 的接入模式不适用，需要 workspace 级落点；索引/审查未接入 |
+| 4 侧栏分轨 + 滚动          | 原型/UI → design 面板；需求文档 → markdown 侧栏；全程可滚动 | prototype/design 两个面板已存在；需求文档（spec.md）目前打开在**右侧 companion**（`App.tsx:2322` StreamdownView），左侧没有 markdown 侧栏视图；12 个侧栏视图均声明了 `.ui-side-panel-body`（overflow-y:auto），但 Issue 记录"内容超出可视区无法滚动"未归档复现面 | 新增需求文档侧栏视图；滚动契约做一次全视图审计                                                      |
 
 ---
 
@@ -123,11 +126,11 @@ idle ──生成需求文档──▶ spec-running ──成功──▶ spec-d
 
 ### 3.4 入口
 
-| 入口 | 行为 |
-| --- | --- |
-| `PrototypeDesignPanel` 头部"发起需求"按钮 | 打开对话框，聚焦 ① 输入框 |
-| 面板列表项"迭代"（原型产物） | 打开对话框，② 预选该原型，① 预填其来源 spec 摘要 |
-| 快捷键 `⌘⇧P`（注册进现有快捷键表） | 切换对话框显隐 |
+| 入口                                      | 行为                                             |
+| ----------------------------------------- | ------------------------------------------------ |
+| `PrototypeDesignPanel` 头部"发起需求"按钮 | 打开对话框，聚焦 ① 输入框                        |
+| 面板列表项"迭代"（原型产物）              | 打开对话框，② 预选该原型，① 预填其来源 spec 摘要 |
+| 快捷键 `⌘⇧P`（注册进现有快捷键表）        | 切换对话框显隐                                   |
 
 侧栏面板**保留**：它继续承担产物列表、删除、导出等管理职责（Issue 4 的 design 面板）；
 对话框只承载"发起与跟进"这一段操作行为。两者共享 ActionProgress 订阅，同一动作
@@ -173,26 +176,27 @@ idle ──生成需求文档──▶ spec-running ──成功──▶ spec-d
 
 ### 5.2 接入矩阵（已按 2026-08-31 拍板修正）
 
-| 操作 | 现状 | 本期动作 | 落点 |
-| --- | --- | --- | --- |
-| `prototype.spec` | 无记录 | 成功后 `appendStep` | workspace 树活动分支 |
-| `prototype.materialize` | 无记录 | 成功后 `appendStep` | 同上 |
-| `design.materialize` | 仅会话绑定时记录 | **保留**既有会话绑定路径；无绑定时补 workspace 级落点（与 prototype 一致） | 绑定分支，否则活动分支 |
-| 索引与知识（index & knowledge） | 独立工作区模块（索引库形态） | **不落 workspace 树** —— 记录归属随任务树精致化重设计 | （redesign 待定） |
-| 代码审查（review） | 独立工作区模块（与索引库同构） | **不落 workspace 树** —— 同上；其后台 job 与产物（`.deeporca/reviews/`）的记录化在任务树精致化轮统一拍板 | （redesign 待定） |
+| 操作                            | 现状                           | 本期动作                                                                                          | 落点                                                 |
+| ------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `prototype.spec`                | 无记录                         | **零写入**（拍板 2026-09-01：appendStep 方案作废）                                                | design-store 即记录源 → task-tree-hub 聚合域自动呈现 |
+| `prototype.materialize`         | 无记录                         | 同上                                                                                              | 同上                                                 |
+| `design.materialize`            | 仅会话绑定时记录               | **保留**既有会话绑定路径；无绑定时补 workspace 级落点（与 prototype 一致）                        | 绑定分支，否则活动分支                               |
+| 索引与知识（index & knowledge） | 独立工作区模块（索引库形态）   | **不落 workspace 树** —— 记录归属已定稿：task-tree-hub 聚合域（含构建历史落盘 `.deeporca/jobs/`） | [task-tree-hub §4](../task-tree-hub/design.md)       |
+| 代码审查（review）              | 独立工作区模块（与索引库同构） | **不落 workspace 树** —— 产物（`.deeporca/reviews/`）即记录源，由 task-tree-hub 聚合呈现          | [task-tree-hub §4](../task-tree-hub/design.md)       |
 
 **模块边界原则（2026-08-31 拍板）**：代码审查、索引与知识等模块**具备独立的工作区**，
 行为逻辑与索引库同构——各自管理各自的产物与记录，不是 workspace 任务树的 step 来源。
 把它们塞进 workspace 活动分支的 P2 原案**作废**；"模块独立任务 ↔ 综合任务模块"的
-联动修正是任务树精致化轮的核心议题（含当前任务历史模块存在方式的推翻重造）。
+联动修正已定稿为[工作区任务树](../task-tree-hub/design.md)（聚合域方案，任务历史
+模块的推翻重造一并落地）。
 
 ### 5.3 appendStep 契约
 
 ```ts
 svc.appendStep(ref.treeId, {
-  title: `原型需求文档：${requirement.slice(0, 60)}`,       // 或 "原型图：<spec 标题>"
+  title: `原型需求文档：${requirement.slice(0, 60)}`, // 或 "原型图：<spec 标题>"
   why: "prototype.spec produced a requirements document (workspace-level).",
-  artifactRefs: [artifactId],                              // design-store 的 artifact id
+  artifactRefs: [artifactId], // design-store 的 artifact id
   // 透传进 node.meta（TaskNode.meta 已是自由字段）：
   //   { createdBy: "agent", source: "prototype-companion", action: "prototype.spec" }
 });
@@ -217,11 +221,11 @@ svc.appendStep(ref.treeId, {
 
 ### 6.1 视图映射（分轨规则）
 
-| 内容（artifact pipeline） | 侧栏呈现 | 说明 |
-| --- | --- | --- |
+| 内容（artifact pipeline）            | 侧栏呈现                                                                | 说明     |
+| ------------------------------------ | ----------------------------------------------------------------------- | -------- |
 | `openui` / `design`（原型图、UI 稿） | 既有 **prototype / design 面板**（管理）+ 右侧 companion / 弹窗（预览） | 保持现状 |
-| `spec`（需求文档 markdown） | **新增 `designdoc` 侧栏视图**：纯 markdown 渲染，无表单无操作按钮 | 本期新增 |
-| 无 artifact 的模块级入口 | prototype / design 面板 | 保持现状 |
+| `spec`（需求文档 markdown）          | **新增 `designdoc` 侧栏视图**：纯 markdown 渲染，无表单无操作按钮       | 本期新增 |
+| 无 artifact 的模块级入口             | prototype / design 面板                                                 | 保持现状 |
 
 ### 6.2 `DesignDocSidebar`（新组件，~120 行）
 
@@ -267,11 +271,11 @@ Issue 记录的"无法滚动"未归档复现面，本期做一次**审计 + 修�
 
 **零新增 IPC 通道。** 全部复用：
 
-| 复用 | 用途 |
-| --- | --- |
-| `action:run` / `event:actionProgress` | 对话框与面板的执行通道（现有） |
-| `design:list` / `design:read` / `event:designChanged` | 产物列表与读取（现有） |
-| `tasktree:list/get` | 记录阅读面（现有） |
+| 复用                                                  | 用途                           |
+| ----------------------------------------------------- | ------------------------------ |
+| `action:run` / `event:actionProgress`                 | 对话框与面板的执行通道（现有） |
+| `design:list` / `design:read` / `event:designChanged` | 产物列表与读取（现有）         |
+| `tasktree:list/get`                                   | 记录阅读面（现有）             |
 
 数据侧唯一扩展：`TaskNode.meta` 新增约定字段 `source` / `action`（自由字段，无 schema
 变更）；`DesignArtifactMeta.pipeline` 已有 `"spec"` 枚举，无需改动。
@@ -280,33 +284,36 @@ Issue 记录的"无法滚动"未归档复现面，本期做一次**审计 + 修�
 
 ## §8 边界情况
 
-| 场景 | 行为 |
-| --- | --- |
-| 工作区切换 | 对话框关闭；侧栏视图随 Hub 机制自然切到新 workspace 的数据（designList 按 projectRoot 天然隔离）；对话框位置/草稿按 workspace key 恢复 |
+| 场景                                      | 行为                                                                                                                                                              |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 工作区切换                                | 对话框关闭；侧栏视图随 Hub 机制自然切到新 workspace 的数据（designList 按 projectRoot 天然隔离）；对话框位置/草稿按 workspace key 恢复                            |
 | 同一动作双入口并发（对话框 + 面板同时点） | ActionProgress 按 actionId 广播，两处显示同一进度；按钮禁用条件用同一份 running 状态（App 层提升，或经 zustand store 共享——实现时按现有状态管理惯例定，倾向后者） |
-| 运行中删除产物（列表两段式删除） | 删除面板已有确认；若删除的是 ② 当前选中的 spec，对话框选择器回落到空并禁用 ② |
-| App 重启 | running 态全部回落 idle（§3.3）；产物与任务树记录持久在磁盘，无损 |
-| 任务树不存在 / TaskTreeService 为 null | `ctx.taskTrees?.()` 返回 null，跳过落树（与 design.ts 一致的 fail-open），动作本身照常成功 |
-| 主会话处于 Plan Mode | 原型动作不经主会话权限系统（sessionless），但 `write-in-cwd` 的 sideEffects 声明保持——ActionRun 通道自身的权限语义不变 |
+| 运行中删除产物（列表两段式删除）          | 删除面板已有确认；若删除的是 ② 当前选中的 spec，对话框选择器回落到空并禁用 ②                                                                                      |
+| App 重启                                  | running 态全部回落 idle（§3.3）；产物与任务树记录持久在磁盘，无损                                                                                                 |
+| 任务树不存在 / TaskTreeService 为 null    | `ctx.taskTrees?.()` 返回 null，跳过落树（与 design.ts 一致的 fail-open），动作本身照常成功                                                                        |
+| 主会话处于 Plan Mode                      | 原型动作不经主会话权限系统（sessionless），但 `write-in-cwd` 的 sideEffects 声明保持——ActionRun 通道自身的权限语义不变                                            |
 
 ---
 
 ## §9 分期实施与验收
 
 ### P0 — 悬浮对话框 + 隔离固化（Issue 1 + 2）
+
 - `PrototypeDialog` 组件 + App 挂载 + 快捷键 + 三个入口
 - §4.2 回归测试
 - **验收**：主对话零打扰（消息流/输入框/历史无痕）；对话框拖拽/收起/持久化；同一进度双处显示
 
 ### P1 — 任务记录接入 + 侧栏分轨（Issue 3 原型域 + Issue 4）
+
 - `prototype.spec` / `prototype.materialize` / `design.materialize`（无绑定时）落树
 - `DesignDocSidebar` + 列表点击分轨 + `TaskRecordPanel` 来源徽标与产物链接
 - **验收**：跑一轮两步原型流后，TaskTreePanel 出现两条 step，TaskRecordPanel 能从 step 打开产物；spec 默认进左侧 markdown 侧栏
 
-### P2 — 滚动审计 + 后台 job 落树（**已并入任务树精致化轮，本期不实施**）
-- §6.4 全视图滚动审计与修复 → 随模块独立任务 ↔ 综合任务模块联动修正一并做
-- index & knowledge / code review 的记录化 → 随任务树精致化重设计（独立工作区模块形态）
-- **验收**：随任务树精致化设计稿另行定义
+### P2 — 滚动审计 + 后台 job 落树（**已由 task-tree-hub 承接，本期不实施**）
+
+- §6.4 全视图滚动审计与修复 → 新任务树面按契约实现（task-tree-hub §6.5），其余视图随 redesign
+- index & knowledge / code review 的记录化 → **已定稿**：task-tree-hub 聚合域，无需本文任何写入
+- **验收**：见 [task-tree-hub §8](../task-tree-hub/design.md)
 
 ---
 

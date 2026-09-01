@@ -18,3 +18,15 @@ export const WIKI_STORE_POSIX = ".deeporca/deepwiki";
 export function wikiStorePath(root: string, pageRelPath: string): string {
   return `${root}/${WIKI_STORE_POSIX}/${pageRelPath}`;
 }
+
+/** Canonical review-report store (renderer mirror of core's review-store). */
+export const REVIEWS_STORE_POSIX = ".deeporca/reviews";
+
+/**
+ * Absolute mention path to one report's STRUCTURED JSON (`<id>.json` — the
+ * `.html` sibling is a self-contained reading page; the JSON is what an
+ * @-mention should feed the model).
+ */
+export function reviewStorePath(root: string, reportId: string): string {
+  return `${root}/${REVIEWS_STORE_POSIX}/${reportId}.json`;
+}

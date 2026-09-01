@@ -8,6 +8,7 @@ import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { statSync, existsSync, readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -73,8 +74,9 @@ import type {
   KnowledgeSymbolGraph,
   MemoryPipelineStats,
   FindingBinding,
-  ReviewGraphFinding,
   ReviewReportMeta,
+  RiskGraphData,
+  TaskTreeTrace,
   ThinkingModeSelection,
   UndoRestoreMode,
   WikiPageEntry,
@@ -91,7 +93,11 @@ import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
 import { buildReviewReportHtml } from "./tools/review-report.js";
 import { listReviewReports, readReviewReport, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
-import { buildRiskGraphHtml, getRiskOverviewCached, OVERVIEW_LIMIT } from "./tools/crg-risk-graph.js";
+import { BINDING_LIMIT, buildRiskGraphData, getRiskOverviewCached } from "./tools/crg-risk-graph.js";
+import { buildTaskHub } from "./tools/task-hub.js";
+import { normalizeSessionTrace } from "./tools/session-trace.js";
+import { buildTokenSummary, projectSessionsIndexPath } from "./tools/tokens-summary.js";
+import { listIndexJobs } from "./tools/jobs-store.js";
 import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
@@ -126,6 +132,7 @@ import { registerKnowledgeIpc, resolveRegisteredRoot, closeAllArchPreviewWindows
 import { configureArchifyLanguage } from "@deeporca/core";
 import { safeWikiPath } from "./safe-path.js";
 import { orderWikiPagesIndexFirst } from "./wiki-page-order.js";
+import * as gitService from "./git-service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ESM-safe require (bare `require` breaks in the bundled ESM main).
@@ -1257,11 +1264,15 @@ function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.GitDiscard, (file: string) => getBridge().gitDiscard(file));
   handlePrivileged(IpcRequest.GitCommit, (message: string) => getBridge().gitCommit(message));
   handle(IpcRequest.GitCurrentBranch, () => getBridge().gitCurrentBranch());
-  handle(IpcRequest.GitListBranches, () => getBridge().gitListBranches());
+  handle(IpcRequest.GitListBranches, (root?: string) =>
+    root ? gitService.listBranches(root) : getBridge().gitListBranches()
+  );
   handlePrivileged(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
   handlePrivileged(IpcRequest.GitStashCheckout, (branch: string) => getBridge().gitStashCheckout(branch));
   handle(IpcRequest.GitDiff, (file: string, staged: boolean) => getBridge().gitDiff(file, staged));
-  handle(IpcRequest.GitLog, (limit?: number) => getBridge().gitLog(limit));
+  handle(IpcRequest.GitLog, (limit?: number, root?: string) =>
+    root ? gitService.log(root, limit) : getBridge().gitLog(limit)
+  );
   handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
   handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
 }
@@ -1400,7 +1411,10 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
       const rawFindings = meta.findings ?? [];
       let bindings: FindingBinding[] | undefined;
       if (rawFindings.length > 0) {
-        const overview = getRiskOverviewCached(root, OVERVIEW_LIMIT);
+        // Deep binding set (BINDING_LIMIT, not the displayed top-60): a
+        // finding whose CRG node ranks 61..200 was enriched (its qn IS in the
+        // risk data) yet silently unbindable before.
+        const overview = getRiskOverviewCached(root, BINDING_LIMIT);
         bindings = bindFindingsToNodes(
           rawFindings.map((f) => ({
             path: typeof f?.path === "string" ? f.path : "",
@@ -1424,21 +1438,14 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
   handle(
     IpcRequest.ReviewRiskGraph,
-    (
-      root: string,
-      theme: "light" | "dark",
-      reportFindings?: ReviewGraphFinding[]
-    ): { html: string | null; error?: string } => {
-      if (!isKnownRoot(root)) return { html: null, error: "Unknown workspace" };
-      if (!hasCrgProject(root)) return { html: null, error: "no CRG graph — run a review or crg.reindex first" };
-      const html = buildRiskGraphHtml(
+    (root: string, focusQns?: string[]): { data: RiskGraphData | null; error?: string } => {
+      if (!isKnownRoot(root)) return { data: null, error: "Unknown workspace" };
+      if (!hasCrgProject(root)) return { data: null, error: "no CRG graph — run a review or crg.reindex first" };
+      const data = buildRiskGraphData(
         root,
-        basename(root),
-        APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
-        theme === "dark" ? "dark" : "light",
-        reportFindings
+        Array.isArray(focusQns) ? focusQns.filter((q): q is string => typeof q === "string").slice(0, 20) : undefined
       );
-      return html ? { html } : { html: null, error: "risk graph unavailable — no risk data in the graph" };
+      return data ? { data } : { data: null, error: "risk graph unavailable — no risk data in the graph" };
     }
   );
 }
@@ -1794,6 +1801,73 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   };
   handle(IpcRequest.TaskTreeList, async (workspaceRoot?: string) => {
     return rootService(workspaceRoot)?.listTrees() ?? [];
+  });
+
+  // Workspace task hub (task-tree-hub design): one aggregated task tree per
+  // workspace across the four record domains. Session trees resolve through
+  // the same pinned-root seam as TaskTreeList; reviews/designs/jobs read
+  // their canonical stores directly.
+  handle(IpcRequest.TaskHubList, async (workspaceRoot?: string) => {
+    const active = getBridge()?.projectRoot ?? "";
+    const root =
+      typeof workspaceRoot === "string" && workspaceRoot
+        ? (resolveRegisteredRoot(workspaceRoot) ?? workspaceRoot)
+        : active;
+    if (!root) return { root: workspaceRoot ?? "", generatedAt: new Date().toISOString(), groups: [] };
+    return buildTaskHub({
+      root,
+      listTrees: () => rootService(root)?.listTrees() ?? [],
+      listReviews: () => listReviewReports(root),
+      listDesigns: () => listDesignArtifacts(root),
+      listJobs: () => listIndexJobs(root),
+      // git binding badge: the tree's file-history repo HEAD (a git record
+      // exists only if the tree ever checkpointed artifacts).
+      treeGitHash: (treeId) => {
+        const svc = rootService(root);
+        if (!svc) return null;
+        try {
+          const dir = join(getUserConfigRoot(), "projects", getProjectCode(root), "task-trees", treeId, "file-history");
+          if (!existsSync(join(dir, ".git"))) return null;
+          const r = spawnSync("git", ["-C", dir, "rev-parse", "--short=7", "HEAD"], {
+            encoding: "utf-8",
+            timeout: 3000,
+          });
+          const hash = r.status === 0 ? r.stdout.trim() : "";
+          return hash || null;
+        } catch {
+          return null;
+        }
+      },
+    });
+  });
+
+  // Session trace (task-tree-hub §trace): the session task's bound sessions,
+  // each normalized into recent turns of user 指令 → agent behavior.
+  handle(IpcRequest.TaskHubTrace, async (workspaceRoot?: string, treeId?: string): Promise<TaskTreeTrace> => {
+    const out: TaskTreeTrace = { treeId: treeId ?? "", sessions: [] };
+    if (!treeId) return out;
+    const svc = rootService(workspaceRoot);
+    const full = svc?.getTree(treeId);
+    if (!svc || !full) return out;
+    const tree = full.index;
+    const ids = [...new Set(tree.sessionIds ?? [])];
+    for (const sessionId of ids.slice(0, 4)) {
+      try {
+        const messages = getBridge().listMessages(sessionId);
+        const entry = await getBridge().getSession(sessionId);
+        out.sessions.push(normalizeSessionTrace(sessionId, entry?.summary || sessionId.slice(0, 8), messages ?? []));
+      } catch {
+        // per-session fail-open
+      }
+    }
+    return out;
+  });
+
+  // Whole-workspace LLM token accounting (silent subagents included).
+  handle(IpcRequest.TokensSummary, (workspaceRoot?: string) => {
+    const active = getBridge()?.projectRoot ?? "";
+    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : active;
+    return buildTokenSummary(root, projectSessionsIndexPath(getUserConfigRoot(), root));
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
@@ -2378,6 +2452,7 @@ function registerIpc(): void {
   // electron-free by receiving emit + getRegistry via deps.
   registerActionIpc(helpers, {
     emit,
+    getRoot: () => getBridge()?.projectRoot ?? "",
     // Wrapped so every review.full completion also produces the dedicated HTML
     // report (see withReviewReportSurface above).
     getRegistry: () => {

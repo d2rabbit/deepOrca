@@ -110,6 +110,12 @@ export interface ReviewFullInput {
   readonly to?: string;
   readonly all?: boolean;
   readonly background?: string;
+  /** ON-DEMAND review target (desktop IPC surface only — deliberately NOT in
+   *  the LLM-facing parameters schema): review THIS workspace root instead of
+   *  the registry's bound one, so any workspace can be reviewed without being
+   *  the active one. Must be an absolute path; the desktop IPC layer resolves
+   *  it against its registered-workspace table. */
+  readonly root?: string;
 }
 
 export const reviewFullDefinition: ActionDefinition = {
@@ -153,6 +159,11 @@ function serializeReviewFull<T>(root: string, body: () => Promise<T>): Promise<T
 }
 
 const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (input, ctx) => {
+  // On-demand target (see ReviewFullInput.root): default = the registry's
+  // bound root. Everything below runs against THIS root — the per-root
+  // queue key included.
+  const projectRoot =
+    typeof input?.root === "string" && input.root && path.isAbsolute(input.root) ? input.root : ctx.projectRoot;
   // Input validation FIRST — before the ⓪ graph build (a 20-minute crg
   // build must not run for a request that can never be reviewed).
   // SECURITY (CWE-88): refs are free-form strings from the LLM action
@@ -188,10 +199,10 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
   // acceptable steady state — a one-click review builds what it needs). A
   // failed build degrades to the semantic-only path below.
   const crgController = getCrgController();
-  if (crgController && !crgController.hasProject(ctx.projectRoot)) {
+  if (crgController && !crgController.hasProject(projectRoot)) {
     ctx.emit({ message: "CRG risk graph missing — building it first (crg.reindex)", percent: 3 });
     try {
-      await crgController.reindex(ctx.projectRoot, (p: ControllerProgress) => ctx.emit(p));
+      await crgController.reindex(projectRoot, (p: ControllerProgress) => ctx.emit(p));
     } catch (err) {
       ctx.emit({
         message: `CRG build failed — continuing with semantic-only review: ${
@@ -226,29 +237,29 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
   // changed outside generated dirs" apart from "the query layer failed".
   let changedFiles: string[] = [];
   const crgQuery = getCrgGraphQuery();
-  if (crgQuery?.hasGraph(ctx.projectRoot)) {
+  if (crgQuery?.hasGraph(projectRoot)) {
     ctx.emit({ message: "analyzing CRG structural risk", percent: 5 });
     try {
       // Get changed files for the chosen scope — LINE-precise when the diff
       // hunks parse (mining item ①): the range map narrows detection to
       // functions whose definition actually overlaps a changed line, so a
       // 40-line file with a 2-line edit no longer flags every symbol.
-      changedFiles = getGitChangedFiles(ctx.projectRoot, scope);
-      const changedRanges = getGitChangedRanges(ctx.projectRoot, scope);
-      crgChanges = crgQuery.detectChanges(ctx.projectRoot, changedFiles, changedRanges);
+      changedFiles = getGitChangedFiles(projectRoot, scope);
+      const changedRanges = getGitChangedRanges(projectRoot, scope);
+      crgChanges = crgQuery.detectChanges(projectRoot, changedFiles, changedRanges);
       if (crgChanges.length > 0) {
         const qualifiedNames = crgChanges.map((c) => c.qualifiedName);
-        crgRisks = crgQuery.getRiskData(ctx.projectRoot, qualifiedNames);
-        const testGaps = crgQuery.getTestGaps(ctx.projectRoot, qualifiedNames);
+        crgRisks = crgQuery.getRiskData(projectRoot, qualifiedNames);
+        const testGaps = crgQuery.getTestGaps(projectRoot, qualifiedNames);
         // Mining items ③⑤: affected flows, true blast radius and
         // inheritance edges ride the background as review directives.
-        const flows = crgQuery.getAffectedFlows(ctx.projectRoot, changedFiles);
-        const impactedCount = crgQuery.getImpactRadius(ctx.projectRoot, qualifiedNames, 2).length;
-        const inheritanceCount = crgQuery.getInheritanceEdges(ctx.projectRoot, qualifiedNames);
-        const churnCounts = getChurnCounts(ctx.projectRoot);
+        const flows = crgQuery.getAffectedFlows(projectRoot, changedFiles);
+        const impactedCount = crgQuery.getImpactRadius(projectRoot, qualifiedNames, 2).length;
+        const inheritanceCount = crgQuery.getInheritanceEdges(projectRoot, qualifiedNames);
+        const churnCounts = getChurnCounts(projectRoot);
         const churnHotspots = changedFiles
           .map((f) => {
-            const key = toRepoPosix(ctx.projectRoot, f);
+            const key = toRepoPosix(projectRoot, f);
             const commits = churnCounts[key] ?? 0;
             return commits >= CHURN_HOTSPOT_MIN ? { file: key, commits } : null;
           })
@@ -278,11 +289,11 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
   // whose CONTENT differs from the graph's recorded file_hash would be
   // enriched against outdated line numbers. Compare (sampled) current
   // contents and say so in the status note; the review still runs.
-  const staleFiles = crgQuery?.hasGraph(ctx.projectRoot) ? detectStaleFiles(ctx.projectRoot, changedFiles) : [];
+  const staleFiles = crgQuery?.hasGraph(projectRoot) ? detectStaleFiles(projectRoot, changedFiles) : [];
 
   // ② OCR review with CRG structural context (--background) — same scope.
   const review = await rc.runReview(
-    ctx.projectRoot,
+    projectRoot,
     {
       background: crgBackground,
       ...(scope.mode === "commit" ? { commit: scope.commit } : {}),
@@ -299,15 +310,15 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
   // review already ran, so this only feeds the merge below — no background
   // is rebuilt here (it would be dead; the reviewer never sees it).
   let effScope: ReviewFullOutput["scope"] = scope;
-  if (review.effectiveScope?.mode === "commit" && crgQuery?.hasGraph(ctx.projectRoot)) {
+  if (review.effectiveScope?.mode === "commit" && crgQuery?.hasGraph(projectRoot)) {
     effScope = { mode: "commit", commit: review.effectiveScope.commit };
     ctx.emit({ message: "re-analyzing CRG structural risk for HEAD", percent: 20 });
     try {
-      changedFiles = getGitChangedFiles(ctx.projectRoot, { mode: "commit", commit: effScope.commit });
-      crgChanges = crgQuery.detectChanges(ctx.projectRoot, changedFiles);
+      changedFiles = getGitChangedFiles(projectRoot, { mode: "commit", commit: effScope.commit });
+      crgChanges = crgQuery.detectChanges(projectRoot, changedFiles);
       if (crgChanges.length > 0) {
         const qualifiedNames = crgChanges.map((c) => c.qualifiedName);
-        crgRisks = crgQuery.getRiskData(ctx.projectRoot, qualifiedNames);
+        crgRisks = crgQuery.getRiskData(projectRoot, qualifiedNames);
       }
     } catch {
       // best-effort enrichment — the semantic review stands without it
@@ -319,7 +330,7 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
   // graph presence: a present-but-failing/empty graph (query swallowed by the
   // catch above, or empty diff) still means "semantic only" (adversarial
   // review round 1 — the flag must not claim enrichment that never ran).
-  const graphPresent = crgQuery?.hasGraph(ctx.projectRoot) === true;
+  const graphPresent = crgQuery?.hasGraph(projectRoot) === true;
   // crgChanges > 0 alone proves enrichment RAN — but not that the reviewer
   // SAW the structural background: in the HEAD-fallback path ②′ re-detects
   // after the review, so the tags are real while the injection never happened
@@ -358,7 +369,7 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
     // projectRoot lets the merge resolve the comments' repo-relative paths
     // into the graph's POSIX-absolute identity — without it the per-finding
     // CRG tags can never attach (review round 2026-09-01).
-    const merged = mergeReviewWithCrgRisk(review.comments, crgRisks, crgChanges, ctx.projectRoot);
+    const merged = mergeReviewWithCrgRisk(review.comments, crgRisks, crgChanges, projectRoot);
     return {
       // merged is ReviewComment-shaped plus the extra crgRisk tag — directly
       // assignable, no cast needed.
@@ -389,7 +400,10 @@ const reviewFullRunInner: ActionRun<ReviewFullInput, ReviewFullOutput> = async (
 /** Serialized composite (see reviewFullQueues): concurrent invocations queue
  *  per root instead of racing duplicate OCR pipelines / graph builds. */
 export const reviewFullRun: ActionRun<ReviewFullInput, ReviewFullOutput> = (input, ctx) =>
-  serializeReviewFull(ctx.projectRoot, () => reviewFullRunInner(input, ctx));
+  serializeReviewFull(
+    typeof input?.root === "string" && input.root && path.isAbsolute(input.root) ? input.root : ctx.projectRoot,
+    () => reviewFullRunInner(input, ctx)
+  );
 
 /** SECURITY (CWE-88, defense in depth under the action-level ref check): a
  *  ref beginning with "-" would ride into the git argv as an OPTION (e.g.

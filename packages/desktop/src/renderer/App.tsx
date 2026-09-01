@@ -59,9 +59,12 @@ const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then((m)
 const ReviewWorkspace = lazy(() =>
   import("./components/ReviewWorkspace").then((m) => ({ default: m.ReviewWorkspace }))
 );
-const TaskTreePanel = lazy(() => import("./components/TaskTreePanel").then((m) => ({ default: m.TaskTreePanel })));
 const TaskRecordPanel = lazy(() =>
   import("./components/TaskRecordPanel").then((m) => ({ default: m.TaskRecordPanel }))
+);
+const TaskHubPanel = lazy(() => import("./components/TaskHubPanel").then((m) => ({ default: m.TaskHubPanel })));
+const TaskHubWorkspace = lazy(() =>
+  import("./components/TaskHubWorkspace").then((m) => ({ default: m.TaskHubWorkspace }))
 );
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
@@ -73,7 +76,7 @@ import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
-import { wikiStorePath } from "./lib/generated-paths";
+import { reviewStorePath, wikiStorePath } from "./lib/generated-paths";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
 import { formatBuildError } from "./lib/build-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
@@ -164,7 +167,8 @@ export type MainTab =
   | { kind: "editor"; file: string }
   | { kind: "knowledge"; root: string }
   | { kind: "review"; root: string }
-  | { kind: "task"; treeId: string };
+  | { kind: "task"; treeId: string }
+  | { kind: "taskhub"; root: string };
 
 function syntheticUserMessage(sessionId: string, content: string): SessionMessage {
   const now = new Date().toISOString();
@@ -312,6 +316,7 @@ export function App(): JSX.Element {
   /** Knowledge tab (specs/index-knowledge-rework T3): one per workspace root. */
   const [knowledgeTabs, setKnowledgeTabs] = useState<Array<{ root: string; label: string }>>([]);
   const [reviewTabs, setReviewTabs] = useState<Array<{ root: string; label: string; reportId?: string }>>([]);
+  const [taskhubTabs, setTaskhubTabs] = useState<Array<{ root: string; label: string }>>([]);
   const [treeTitles, setTreeTitles] = useState<Record<string, { title: string; archived: boolean }>>({});
   const taskTabsRef = useRef(taskTabs);
   taskTabsRef.current = taskTabs;
@@ -1104,6 +1109,21 @@ export function App(): JSX.Element {
   // Left-rail task history (R3-7): open a task RECORD tab for ANY workspace
   // without switching the active project root — the record panel reads the
   // tree through its own root-scoped IPC.
+  const handleOpenTaskHub = useCallback((root: string) => {
+    const label = root.split(/[\\/]/).pop() ?? root;
+    setTaskhubTabs((tabs) => (tabs.some((tab) => tab.root === root) ? tabs : [...tabs, { root, label }]));
+    setActiveTab({ kind: "taskhub", root });
+  }, []);
+  const taskhubTabsRef = useRef(taskhubTabs);
+  taskhubTabsRef.current = taskhubTabs;
+  const handleCloseTaskHubTab = useCallback((root: string) => {
+    setTaskhubTabs((tabs) => tabs.filter((tab) => tab.root !== root));
+    setActiveTab((current) => {
+      if (current.kind !== "taskhub" || current.root !== root) return current;
+      const remaining = taskhubTabsRef.current.filter((tab) => tab.root !== root);
+      return remaining.length > 0 ? { kind: "taskhub", root: remaining[remaining.length - 1].root } : { kind: "chat" };
+    });
+  }, []);
   const handleOpenTaskRecord = useCallback((treeId: string, title: string, root: string) => {
     setTaskTabs((tabs) => (tabs.some((tab) => tab.treeId === treeId) ? tabs : [...tabs, { treeId, title, root }]));
     setActiveTab({ kind: "task", treeId });
@@ -1176,6 +1196,21 @@ export function App(): JSX.Element {
       setDraft((current) => {
         const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
         return `${prefix}${t("index.quoteWikiPrompt", { title })} @${wikiStorePath(root, path)}\n`;
+      });
+    },
+    [t]
+  );
+
+  // Flow bridge (review → chat), wiki parity: quote a saved report into the
+  // composer as an @-mention of its structured JSON (full findings, scope,
+  // status — NOT the lossy 8-finding text copy of handleReviewAskInChat) so
+  // the agent reads the exact run and can act on it in the session.
+  const handleQuoteReviewToChat = useCallback(
+    (root: string, reportId: string) => {
+      setActiveTab({ kind: "chat" });
+      setDraft((current) => {
+        const prefix = current.trim().length > 0 ? `${current.trimEnd()}\n\n` : "";
+        return `${prefix}${t("review.quotePrompt")} @${reviewStorePath(root, reportId)}\n`;
       });
     },
     [t]
@@ -1619,7 +1654,12 @@ export function App(): JSX.Element {
   // least one auxiliary surface exists — a lone conversation keeps the
   // cockpit clean. Chip = container div + two SIBLING buttons (switch +
   // close) — nested interactive elements are an a11y/HTML anti-pattern.
-  const hasAuxSurfaces = auxTabs.length > 0 || taskTabs.length > 0 || knowledgeTabs.length > 0 || reviewTabs.length > 0;
+  const hasAuxSurfaces =
+    auxTabs.length > 0 ||
+    taskTabs.length > 0 ||
+    knowledgeTabs.length > 0 ||
+    reviewTabs.length > 0 ||
+    taskhubTabs.length > 0;
   const surfaceChips = useMemo(() => {
     if (!hasAuxSurfaces) return null;
     return (
@@ -1741,6 +1781,29 @@ export function App(): JSX.Element {
             </button>
           </div>
         ))}
+        {taskhubTabs.map((tab) => (
+          <div
+            key={tab.root}
+            className={cx("ui-surface-chip", activeTab.kind === "taskhub" && activeTab.root === tab.root && "active")}
+          >
+            <button
+              type="button"
+              className="ui-surface-chip-main"
+              onClick={() => setActiveTab({ kind: "taskhub", root: tab.root })}
+              data-tip={tab.label}
+            >
+              🌳 {tab.label}
+            </button>
+            <button
+              type="button"
+              className="ui-surface-chip-close"
+              onClick={() => handleCloseTaskHubTab(tab.root)}
+              aria-label={t("tasktree.closeTab")}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
       </div>
     );
   }, [
@@ -1750,12 +1813,14 @@ export function App(): JSX.Element {
     handleCloseKnowledgeTab,
     handleCloseReviewTab,
     handleCloseTaskTab,
+    handleCloseTaskHubTab,
     hasAuxSurfaces,
     knowledgeTabs,
     requestCloseSettings,
     reviewTabs,
     t,
     taskTabs,
+    taskhubTabs,
   ]);
 
   // Cockpit right cluster — the old rail's bottom icons (commands / undo /
@@ -1970,9 +2035,9 @@ export function App(): JSX.Element {
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
               <DesignPanel onOpenArtifact={handleOpenDesignArtifact} />
             </Suspense>
-          ) : sidebarView === "tasktree" ? (
+          ) : sidebarView === "taskhub" ? (
             <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <TaskTreePanel onOpenTask={handleOpenTaskRecord} />
+              <TaskHubPanel onOpenTaskHub={handleOpenTaskHub} />
             </Suspense>
           ) : sidebarView === "gitmcp" ? (
             <GitMcpPanel />
@@ -2088,8 +2153,37 @@ export function App(): JSX.Element {
               <ReviewWorkspace
                 key={activeTab.root}
                 root={activeTab.root}
-                appearance={appearance}
                 initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
+                onQuoteToChat={handleQuoteReviewToChat}
+              />
+            </Suspense>
+          </div>
+        ) : activeTab.kind === "taskhub" ? (
+          <div className="ui-sheet">
+            <button
+              type="button"
+              className="ui-sheet-close"
+              onClick={() => handleCloseTaskHubTab(activeTab.root)}
+              aria-label={t("sheet.backToChat")}
+            >
+              ✕ {t("sheet.backToChat")}
+            </button>
+            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+              <TaskHubWorkspace
+                key={activeTab.root}
+                root={activeTab.root}
+                onOpenReview={handleOpenReviewTab}
+                onOpenSessionTimeline={handleOpenTaskRecord}
+                onOpenKnowledge={handleOpenKnowledgeTab}
+                onOpenDesign={(artifactId) =>
+                  void handleOpenDesignArtifact({
+                    id: artifactId,
+                    title: artifactId,
+                    pipeline: "openui",
+                    createdAt: "",
+                    updatedAt: "",
+                  })
+                }
               />
             </Suspense>
           </div>

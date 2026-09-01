@@ -178,6 +178,9 @@ export const IpcRequest = {
   // Task trajectory (specs/task-tree) — panel surface (workspace-scoped)
   TaskTreeList: "tasktree:list",
   TaskTreeGet: "tasktree:get",
+  TaskHubList: "taskhub:list",
+  TaskHubTrace: "taskhub:trace",
+  TokensSummary: "tokens:summary",
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
@@ -319,6 +322,123 @@ export type FindingBinding = {
   filePath: string;
   lineStart: number;
   lineEnd: number;
+};
+
+// ── Risk board (native flat view, 2026-09-01 redesign) ─────────────────────
+/** One risk-ranked node of the board (see main `buildRiskGraphData`). */
+export type RiskGraphNode = {
+  /** Graph identity (`<abs posix path>#<name>`) — the binding key. */
+  qn: string;
+  name: string;
+  filePath: string;
+  lineStart: number;
+  /** Six-factor risk score, 0..1 — drives tier color + sort. */
+  risk: number;
+  callers: number;
+  security: boolean;
+  /** Leiden community id, null when the graph has no community data. */
+  community: number | null;
+  coverage: string;
+};
+
+/** A directed CALLS edge between two board nodes (source calls target). */
+export type RiskGraphEdge = { source: string; target: string };
+
+/** Community metadata for the 按社区 grouping's labels. */
+export type RiskCommunity = { id: number; name: string };
+
+export type RiskGraphData = {
+  nodes: RiskGraphNode[];
+  edges: RiskGraphEdge[];
+  communities: RiskCommunity[];
+};
+
+// ── Workspace task hub (task-tree-hub design, 2026-09-01) ──────────────────
+/** The four record domains aggregated into one workspace task tree. */
+export type TaskHubDomain = "session" | "index" | "review" | "prototype";
+
+/** One unified task node of the workspace task tree (meta-level only — the
+ *  payloads stay in their home stores; `source` locates them). */
+export type TaskHubNode = {
+  /** Domain-unique id; the global key is `${domain}:${id}`. */
+  id: string;
+  domain: TaskHubDomain;
+  title: string;
+  status: "running" | "done" | "warning" | "error" | "archived";
+  startedAt: string;
+  endedAt?: string;
+  /** Where the detail lives — drives the detail card's action buttons. */
+  source:
+    | { kind: "session-tree"; treeId: string; branchCount: number }
+    | { kind: "review-report"; reportId: string }
+    | { kind: "design-artifact"; artifactId: string; pipeline: string }
+    | { kind: "index-job"; jobId: string };
+  /** Domain extras (findings count, scope label, build stages…). */
+  meta?: Record<string, unknown>;
+};
+
+export type TaskHubGroup = { domain: TaskHubDomain; nodes: TaskHubNode[] };
+
+/** Aggregated task tree of ONE workspace (meta JSON only — KBs). */
+export type WorkspaceTaskHub = {
+  root: string;
+  generatedAt: string;
+  groups: TaskHubGroup[];
+};
+
+/** One normalized step of a session trace (DeepSeek-harness event-log shape). */
+export type TaskTraceStep = {
+  cls: string;
+  ic: string;
+  tool: string;
+  arg: string;
+  ok?: boolean;
+  fail?: boolean;
+  ms?: string;
+  mcp?: string;
+  nested?: TaskTraceStep[];
+};
+
+export type TaskTraceTurn = { user: string; at: string; steps: TaskTraceStep[] };
+
+/** One bound session's trace (recent turns kept; oldest dropped when long). */
+export type TaskSessionTrace = {
+  sessionId: string;
+  title: string;
+  turns: TaskTraceTurn[];
+  truncated?: boolean;
+};
+
+/** Trace payload for one session task (task tree) — recent turns per bound session. */
+export type TaskTreeTrace = {
+  treeId: string;
+  sessions: TaskSessionTrace[];
+};
+
+/** Whole-workspace LLM token accounting (silent subagents included). */
+export type WorkspaceTokenSummary = {
+  root: string;
+  sessions: number;
+  silentSessions: number;
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens: number;
+  requests: number;
+  perModel: Record<string, { prompt: number; completion: number; total: number; cacheRead: number; reqs: number }>;
+  lastAt: string | null;
+};
+
+/** Settled index/knowledge build job (`.deeporca/jobs/<id>.json`). */
+export type IndexJobRecord = {
+  id: string;
+  root: string;
+  mode: "init" | "update";
+  status: "done" | "error";
+  startedAt: string;
+  endedAt: string;
+  stages: Array<{ id: string; status: string; error?: string }>;
+  error?: string;
 };
 
 export type CrgIndexEntry = {
@@ -826,6 +946,11 @@ export type ActionProgressEvent = {
   message: string;
   percent?: number;
   data?: unknown;
+  /** The project root the action ran against — lets panels multiplex
+   *  concurrent per-workspace runs (two reviews must not cross-write each
+   *  other's progress). Absent on legacy emitters; consumers fall back to
+   *  the active root. */
+  root?: string;
 };
 
 /** The typed surface exposed on `window.deeporca` from the preload script. */
@@ -925,7 +1050,8 @@ export type DesktopApi = {
   gitDiscard(file: string): Promise<{ ok: boolean; error?: string }>;
   gitCommit(message: string): Promise<{ ok: boolean; error?: string }>;
   gitCurrentBranch(): Promise<string>;
-  gitListBranches(): Promise<string[]>;
+  /** Branch names of `root` (on-demand review refs) — defaults to the active workspace. */
+  gitListBranches(root?: string): Promise<string[]>;
   /** Switch branch. `conflict: true` means local changes block the checkout (commit/stash first). */
   gitCheckout(branch: string): Promise<{ ok: boolean; error?: string; conflict?: boolean }>;
   /**
@@ -936,7 +1062,8 @@ export type DesktopApi = {
   gitStashCheckout(branch: string): Promise<{ ok: boolean; error?: string; stashWarning?: string }>;
   gitDiff(file: string, staged: boolean): Promise<DiffPayload>;
   /** Recent commits (newest first), capped by `limit` (default 50). */
-  gitLog(limit?: number): Promise<GitLogEntry[]>;
+  /** Recent commits of `root` (on-demand review refs) — defaults to the active workspace. */
+  gitLog(limit?: number, root?: string): Promise<GitLogEntry[]>;
   /** Diff for a single commit (`git show`), optionally narrowed to one file. */
   gitCommitDiff(hash: string, file?: string): Promise<DiffPayload>;
   /** Files touched by a commit (second-level history expansion). */
@@ -969,15 +1096,18 @@ export type DesktopApi = {
     root: string,
     id: string
   ): Promise<{ ok: boolean; meta?: ReviewReportMeta; html?: string; bindings?: FindingBinding[]; error?: string }>;
-  /** Build the simplified in-app risk map (self-contained HTML) for a
-   *  workspace. `appearance` renders the page with an EXPLICIT theme (the
-   *  iframe must not follow the OS); `findings` (the currently selected
-   *  report's) lets the page render the node → opinions side card. */
-  reviewRiskGraph(
-    root: string,
-    appearance: "light" | "dark",
-    findings?: ReviewGraphFinding[]
-  ): Promise<{ html: string | null; error?: string }>;
+  /** Fetch the risk board's STRUCTURED dataset (nodes/edges/communities).
+   *  The native renderer view (RiskGraphView) owns layout + theme + i18n —
+   *  finding bindings are NOT included: they arrive per-report through
+   *  reviewReadReport, so the board never refetches on report switches. */
+  reviewRiskGraph(root: string, focusQns?: string[]): Promise<{ data: RiskGraphData | null; error?: string }>;
+  /** Aggregated task tree of ONE workspace (sessions/index/review/prototype
+   *  domains — task-tree-hub design). Read-only, meta JSON only. */
+  taskHubList(root: string): Promise<WorkspaceTaskHub>;
+  /** Recent-turn traces of a session task's bound sessions (inline drawer). */
+  taskHubTrace(root: string, treeId: string): Promise<TaskTreeTrace>;
+  /** Whole-workspace LLM token accounting (silent subagents included). */
+  tokensSummary(root: string): Promise<WorkspaceTokenSummary>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 

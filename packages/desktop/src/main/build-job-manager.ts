@@ -21,6 +21,7 @@ import type { ActionRegistry } from "@deeporca/core";
 import { IpcEvent } from "../shared/ipc.js";
 import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
 import type { KnowledgeBuildJobSnapshot, KnowledgeBuildStageState } from "../shared/ipc.js";
+import { saveIndexJobRecord } from "./tools/jobs-store.js";
 
 function existsCodegraph(root: string): boolean {
   return existsSync(join(root, ".codegraph", "codegraph.db"));
@@ -40,6 +41,10 @@ type IndexBuildResult = {
 };
 
 type Emit = (channel: string, payload: unknown) => void;
+
+// Settle-time history (task-tree-hub §4.4): a finished build used to leave NO
+// trace — the 索引与知识 domain of the task hub had nothing to list. Fail-open:
+// a stuck write never fails the build.
 
 type Job = KnowledgeBuildJobSnapshot;
 
@@ -155,7 +160,7 @@ export class BuildJobManager {
         this.pushLog(job, `build FAILED — ${job.error}`);
         console.log(`[build:${job.root}] FAILED — ${job.error}`);
         this.broadcast(job);
-        this.emitSettled(job.root);
+        this.emitSettled(job);
         return;
       }
       job.stage = "done";
@@ -167,7 +172,7 @@ export class BuildJobManager {
       // Post-build: tell the renderer to refresh the knowledge status for
       // this root — the build may have produced wiki pages / arch maps that
       // the left-rail row and knowledge tab need to re-read.
-      this.emitSettled(job.root);
+      this.emitSettled(job);
     } catch (err) {
       job.stage = "failed";
       job.error = err instanceof Error ? err.message : String(err);
@@ -179,7 +184,7 @@ export class BuildJobManager {
       this.pushLog(job, `build FAILED — ${job.error}`);
       console.log(`[build:${job.root}] FAILED — ${job.error}`);
       this.broadcast(job);
-      this.emitSettled(job.root);
+      this.emitSettled(job);
     }
   }
 
@@ -245,8 +250,23 @@ export class BuildJobManager {
     if (job.logs.length > MAX_LOG_LINES) job.logs.splice(0, job.logs.length - MAX_LOG_LINES);
   }
 
-  /** Build settled (success or failure): panels re-read statuses/artifacts. */
-  private emitSettled(root: string): void {
+  /** Build settled (success or failure): panels re-read statuses/artifacts,
+   *  and the run lands in the workspace's task-tree history (jobs store). */
+  private emitSettled(job: Job): void {
+    const root = job.root;
+    try {
+      saveIndexJobRecord(root, {
+        root,
+        mode: job.mode,
+        status: job.stage === "done" ? "done" : "error",
+        startedAt: job.startedAt,
+        endedAt: job.updatedAt,
+        stages: job.stages.map((s) => ({ id: s.id, status: s.status, error: s.error })),
+        error: job.error ?? undefined,
+      });
+    } catch {
+      // fail-open — the store already logs
+    }
     this.emit(IpcEvent.ActionProgress, {
       actionId: "knowledge.buildComplete",
       message: "build settled",

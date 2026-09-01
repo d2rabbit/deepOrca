@@ -1,0 +1,531 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Risk graph — the review tab's planar node-link diagram (RiskGraphView,
+   user ask 2026-09-01 round 3: 方向对，质感要上去). One SVG: groups become
+   vertical LANES, nodes stack by risk, edges draw as trimmed beziers with
+   direction arrows (cross-lane violet + slow flow). Same design tokens as
+   the rest of the app; tier palette mirrors the report's severity chips
+   (light/dark variants below).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Palette (report-chip aligned) — on :root because the popover is portaled
+   to <body>, outside .ui-risk-board. Dark overrides at the bottom. */
+:root {
+  --rb-tier-hi: #dc2626;
+  --rb-tier-md: #d97706;
+  --rb-tier-lo: #94a3b8;
+  --rb-tier-sec: #f59e0b;
+}
+.ui-risk-board {
+  --rb-edge-base: color-mix(in srgb, var(--ui-text-dim, #66707d) 58%, transparent);
+  --rb-edge-cross: color-mix(in srgb, #a78bfa 78%, transparent);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.ui-risk-board-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 18px 4px;
+  flex-wrap: wrap;
+}
+.ui-risk-board-meta {
+  font-size: 12px;
+  color: var(--ui-text-dim, #66707d);
+  font-variant-numeric: tabular-nums;
+}
+.ui-risk-seg {
+  display: inline-flex;
+  border: 1px solid var(--ui-border-soft, #d9dee6);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ui-surface, #fff);
+}
+.ui-risk-seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--ui-text-dim, #66707d);
+  padding: 3.5px 13px;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-risk-seg-btn.on {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 15%, transparent);
+  color: var(--ui-text, inherit);
+  font-weight: 650;
+}
+
+.ui-risk-board-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 18px 10px;
+  font-size: 11.5px;
+  color: var(--ui-text-dim, #66707d);
+  flex-wrap: wrap;
+}
+.ui-risk-board-legend > span:not(.ui-risk-board-hint) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 72%, transparent);
+}
+.ui-risk-board-hint {
+  margin-left: auto;
+  opacity: 0.72;
+}
+
+/* Risk tier dot — the ONE saturated signal on the board. Security-relevant
+   nodes add an amber dashed ring (the retired wheel's marker, kept). */
+.rb-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ui-diagram-hue-6, #818cf8);
+}
+.rb-dot.tier-hi {
+  background: var(--rb-tier-hi);
+}
+.rb-dot.tier-md {
+  background: var(--rb-tier-md);
+}
+.rb-dot.tier-lo {
+  background: var(--rb-tier-lo);
+}
+.rb-dot.sec {
+  border: 1.5px dashed var(--rb-tier-sec);
+}
+
+/* Scroll canvas — faint dot grid gives the diagram a plotting surface
+   without competing with the lanes. */
+.ui-risk-board-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 18px 18px;
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--ui-text-dim, #66707d) 16%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  background-position: 9px 9px;
+}
+.ui-risk-board-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 160px;
+  color: var(--ui-text-dim, #66707d);
+  font-size: 13px;
+}
+
+/* ── The planar diagram (one SVG) ────────────────────────────────────────── */
+.ui-risk-svg {
+  display: block;
+  /* 1:1 with the measured pane — the layout fills the observed size exactly
+     (no letterboxing, no clustering); scroll only when content exceeds it. */
+  min-width: 100%;
+}
+
+/* Tier bands — full-width risk layers; each tier carries a whisper of its
+   color so the stratification reads at a glance. */
+.rb-tier-bg {
+  fill: color-mix(in srgb, var(--rb-tier-bg-tint, var(--ui-text-dim, #8a94a3)) 5%, var(--ui-surface, #fff));
+  stroke: color-mix(
+    in srgb,
+    var(--rb-tier-bg-tint, var(--ui-border-soft, #e3e6eb)) 22%,
+    var(--ui-border-soft, #e3e6eb)
+  );
+  stroke-width: 1;
+}
+.rb-tier.tier-hi {
+  --rb-tier-bg-tint: var(--rb-tier-hi);
+}
+.rb-tier.tier-md {
+  --rb-tier-bg-tint: var(--rb-tier-md);
+}
+.rb-tier-dot {
+  fill: var(--rb-tier-bg-tint, var(--ui-text-dim, #8a94a3));
+}
+.rb-tier.tier-hi .rb-tier-dot {
+  fill: var(--rb-tier-hi);
+}
+.rb-tier.tier-md .rb-tier-dot {
+  fill: var(--rb-tier-md);
+}
+.rb-tier.tier-lo .rb-tier-dot {
+  fill: var(--rb-tier-lo);
+}
+.rb-tier-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  fill: var(--ui-text-dim, #66707d);
+}
+.rb-tier.tier-hi .rb-tier-label {
+  fill: color-mix(in srgb, var(--rb-tier-hi) 78%, var(--ui-text, #3c4653));
+}
+.rb-tier.tier-md .rb-tier-label {
+  fill: color-mix(in srgb, var(--rb-tier-md) 78%, var(--ui-text, #3c4653));
+}
+.rb-tier-count {
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ui-text-dim, #66707d);
+}
+
+/* Group blocks — hue-tinted community/file tiles inside a band. */
+.rb-block-bg {
+  fill: color-mix(in srgb, var(--lane-hue, var(--ui-surface-raised, #fff)) 8%, var(--ui-surface-raised, #fff));
+  stroke: color-mix(in srgb, var(--lane-hue, var(--ui-border-soft, #e3e6eb)) 32%, var(--ui-border-soft, #e3e6eb));
+  stroke-width: 1;
+}
+.rb-block-hue-dot {
+  fill: var(--lane-hue, var(--ui-text-dim, #8a94a3));
+}
+.rb-block-head {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--ui-text, #3c4653);
+}
+.rb-block-count {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ui-text-dim, #66707d);
+}
+
+/* Edges — trimmed beziers with direction arrows; cross-lane violet with a
+   slow flow cue; the focused node's edges light accent while the rest dims. */
+.rb-edge {
+  fill: none;
+  stroke: var(--rb-edge-base);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.55;
+  marker-end: url(#rb-arrow);
+  transition: opacity 0.15s var(--ui-ease);
+}
+.rb-edge.cross {
+  stroke: var(--rb-edge-cross);
+  stroke-width: 1.3;
+  opacity: 0.8;
+  marker-end: url(#rb-arrow-x);
+  stroke-dasharray: 7 5;
+  animation: rb-flow 1.15s linear infinite;
+}
+.rb-edge.lit {
+  stroke: var(--ui-accent, #3b82f6);
+  stroke-width: 1.9;
+  opacity: 1;
+  marker-end: url(#rb-arrow-lit);
+  animation: none;
+  stroke-dasharray: none;
+}
+.rb-edge.dim {
+  opacity: 0.12;
+  animation: none;
+}
+@keyframes rb-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* Nodes — risk-tier discs sized by score, lifted by a soft SVG shadow; the
+   score rides the label in dim tabular digits. */
+.rb-node {
+  cursor: pointer;
+}
+.rb-node-dot {
+  stroke: var(--ui-surface, #fff);
+  stroke-width: 1.6;
+}
+.rb-node-dot.tier-hi {
+  fill: var(--rb-tier-hi);
+}
+.rb-node-dot.tier-md {
+  fill: var(--rb-tier-md);
+}
+.rb-node-dot.tier-lo {
+  fill: var(--rb-tier-lo);
+}
+.rb-sec-ring {
+  fill: none;
+  stroke: var(--rb-tier-sec);
+  stroke-width: 1.2;
+  stroke-dasharray: 2.5 2.5;
+  opacity: 0.9;
+}
+.rb-sel-ring {
+  fill: none;
+  stroke: var(--ui-accent, #3b82f6);
+  stroke-width: 1.8;
+  opacity: 0.9;
+}
+.rb-node-label {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--ui-text, #3c4653);
+  transition: fill 0.13s var(--ui-ease);
+}
+.rb-node-score {
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ui-text-dim, #66707d);
+}
+.rb-node:hover .rb-node-label {
+  fill: var(--ui-accent, #3b82f6);
+}
+.rb-node.dim {
+  opacity: 0.2;
+}
+/* Report → graph locate flash (SVG g — animate the disc's stroke). */
+.rb-flash .rb-node-dot {
+  animation: rb-node-flash 1.6s var(--ui-ease) both;
+}
+@keyframes rb-node-flash {
+  0%,
+  60% {
+    stroke: var(--ui-accent, #3b82f6);
+    stroke-width: 3;
+  }
+  100% {
+    stroke: var(--ui-surface, #fff);
+    stroke-width: 1.6;
+  }
+}
+
+/* Floating dynamic window (SymbolGraphView's portal popover pattern). */
+.ui-risk-pop {
+  /* Tier accent — the top strip + value colors follow the node's risk. */
+  --pop-accent: var(--ui-accent, #3b82f6);
+  position: fixed;
+  z-index: 90;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 12px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--pop-accent) 38%, var(--ui-border-soft, #e3e6eb));
+  border-top: 3px solid var(--pop-accent);
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-modal, 0 18px 60px rgba(0, 0, 0, 0.32));
+}
+.ui-risk-pop.tier-hi {
+  --pop-accent: var(--rb-tier-hi);
+}
+.ui-risk-pop.tier-md {
+  --pop-accent: var(--rb-tier-md);
+}
+.ui-risk-pop.tier-lo {
+  --pop-accent: var(--rb-tier-lo);
+}
+/* Color-coded metric values (risk score / coverage / security). */
+.ui-risk-pop-rows .val {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.ui-risk-pop-rows .val.num {
+  font-weight: 600;
+}
+.ui-risk-pop-rows .val.tier-hi {
+  color: var(--rb-tier-hi);
+}
+.ui-risk-pop-rows .val.tier-md {
+  color: var(--rb-tier-md);
+}
+.ui-risk-pop-rows .val.tier-lo {
+  color: var(--ui-text, #3c4653);
+}
+.ui-risk-pop-rows .val.cov-no {
+  color: var(--rb-cov-no, #dc2626);
+}
+.ui-risk-pop-rows .val.cov-mid {
+  color: var(--rb-cov-mid, #d97706);
+}
+.ui-risk-pop-rows .val.cov-ok {
+  color: var(--rb-cov-ok, #16a34a);
+}
+.ui-risk-pop-rows .val.ok {
+  color: var(--rb-cov-ok, #16a34a);
+}
+.ui-risk-pop-rows .val.dim {
+  color: var(--ui-text-dim, #66707d);
+  font-weight: 500;
+}
+.ui-risk-pop-rows .val.comm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.comm-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ui-risk-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ui-risk-pop-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ui-risk-pop-close {
+  border: none;
+  background: transparent;
+  color: var(--ui-text-dim, #66707d);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+.ui-risk-pop-file {
+  font-size: 11px;
+  color: var(--ui-text-dim, #66707d);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-risk-pop-rows .row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 1.5px 0;
+}
+.ui-risk-pop-rows .row .k {
+  color: var(--ui-text-dim, #66707d);
+}
+.ui-risk-pop-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 70%, transparent);
+}
+.ui-risk-pop-sec-label {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-dim, #66707d);
+}
+.ui-risk-pop-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.ui-risk-pop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2.5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft, #e3e6eb);
+  background: var(--ui-surface, #fff);
+  cursor: pointer;
+  font-size: 11.5px;
+}
+.ui-risk-pop-chip:hover {
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, var(--ui-border-soft, #e3e6eb));
+}
+.ui-risk-pop-chip.tier-hi {
+  border-color: color-mix(in srgb, var(--rb-tier-hi) 38%, var(--ui-border-soft, #e3e6eb));
+}
+.ui-risk-pop-chip.tier-md {
+  border-color: color-mix(in srgb, var(--rb-tier-md) 42%, var(--ui-border-soft, #e3e6eb));
+}
+.ui-risk-pop-chip-score {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-dim, #66707d);
+}
+.ui-risk-pop-chip .rb-dot {
+  width: 6px;
+  height: 6px;
+}
+.ui-risk-pop-chip-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-risk-pop-more,
+.ui-risk-pop-none {
+  font-size: 11px;
+  color: var(--ui-text-dim, #66707d);
+}
+.ui-risk-pop-finding {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  color: var(--ui-text, inherit);
+}
+.ui-risk-pop-finding:hover {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 9%, transparent);
+}
+.ui-risk-pop-finding .rb-dot {
+  margin-top: 4px;
+  width: 7px;
+  height: 7px;
+}
+.ui-risk-pop-finding-label {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ui-risk-pop-jumphint {
+  font-size: 10.5px;
+  color: var(--ui-text-dim, #66707d);
+  opacity: 0.75;
+}
+
+/* ── Dark appearance — mirrors the report chips' dark variants ──────────── */
+:root[data-appearance="dark"] {
+  --rb-tier-hi: #f87171;
+  --rb-tier-md: #fbbf24;
+  --rb-tier-lo: #94a3b8;
+  --rb-tier-sec: #fbbf24;
+  --rb-cov-no: #f87171;
+  --rb-cov-mid: #fbbf24;
+  --rb-cov-ok: #4ade80;
+  --rb-edge-base: color-mix(in srgb, #9aa5b3 52%, transparent);
+  --rb-edge-cross: color-mix(in srgb, #a78bfa 66%, transparent);
+}
+
+/* Vestibular safety: the flow cue is decorative — kill it on request. */
+@media (prefers-reduced-motion: reduce) {
+  .rb-edge.cross {
+    animation: none;
+  }
+}

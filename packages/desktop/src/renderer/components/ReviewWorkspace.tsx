@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { ActionProgressEvent, FindingBinding, ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import type { Appearance } from "../lib/appearance";
+import { Button } from "../ui/index";
+import { RiskGraphView, type RiskFocusRequest } from "./RiskGraphView";
 
 /**
  * Review workspace surface — the main-area tab for ONE workspace (the review
@@ -139,15 +140,14 @@ function hasReportId(data: unknown): string | undefined {
 
 export function ReviewWorkspace({
   root,
-  appearance,
   initialReportId,
+  onQuoteToChat,
 }: {
   root: string;
-  /** The app's resolved appearance — the risk map renders with an EXPLICIT
-   *  theme instead of following the OS (`prefers-color-scheme`) so the
-   *  in-app toggle takes effect inside the iframe. */
-  appearance: Appearance;
   initialReportId?: string;
+  /** Quote one report into the chat composer as an @-mention of its stored
+   *  JSON (wiki parity — the agent reads the exact run in-session). */
+  onQuoteToChat?: (root: string, reportId: string) => void;
 }): JSX.Element {
   const { t, locale } = useI18n();
   const label = root.split(/[\\/]/).pop() ?? root;
@@ -169,34 +169,22 @@ export function ReviewWorkspace({
   const [reports, setReports] = useState<ReviewReportMeta[]>([]);
   const [selected, setSelected] = useState<string | null>(initialReportId ?? null);
   const [selectedMeta, setSelectedMeta] = useState<ReviewReportMeta | null>(null);
-  const [graphHtml, setGraphHtml] = useState<string | null>(null);
-  const [graphError, setGraphError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const lastRefreshAt = useRef(0);
-  // Bidirectional locate (design §3.3): finding → node bindings ride the
-  // selected report's read; a pending node selection is delivered to the
-  // sandboxed frame once its scripts are up (postMessage on iframe load).
+  // Finding → node bindings ride the selected report's read (design §3.3);
+  // the native board consumes them as popover opinions.
   const [bindingsByIndex, setBindingsByIndex] = useState<Record<number, FindingBinding>>({});
-  const pendingSelectRef = useRef<string | null>(null);
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
-  // Which report the loaded map was generated for — a "jump to finding"
-  // message from the frame targets THAT report.
-  const graphReportRef = useRef<string | null>(null);
-  // Mirror of the rail list for handlers registered once (the message
-  // listener): the `reports` state inside such a closure is the first
-  // render's empty array — reading it there silently disabled the
-  // pruned-report guard (review round 2026-09-01).
-  const reportsRef = useRef<ReviewReportMeta[]>([]);
+  // Report → board locate request (seq re-fires repeated targets).
+  const [focusReq, setFocusReq] = useState<RiskFocusRequest | null>(null);
+  const locateSeqRef = useRef(0);
 
   const loadReports = useCallback(async (): Promise<ReviewReportMeta[]> => {
     try {
       const list = await api.reviewListReports(root);
       setReports(list);
-      reportsRef.current = list;
       return list;
     } catch {
       setReports([]);
-      reportsRef.current = [];
       return [];
     }
   }, [root]);
@@ -268,90 +256,30 @@ export function ReviewWorkspace({
     });
   }, [loadReports]);
 
-  const openGraph = useCallback(async () => {
-    if (graphHtml || graphError) return;
-    // The map binds the SELECTED report's findings to its nodes (opinions
-    // side card, design §4.3). Only the path/line/head snippet is needed —
-    // full content ships per-finding on demand through readReport anyway.
-    const context = (selectedMeta?.findings ?? [])
-      .map((f) => ({
-        path: String(f?.path ?? ""),
-        startLine: Number(f?.startLine ?? f?.start_line ?? 0),
-        content: String(f?.content ?? "").slice(0, 120),
-      }))
-      .filter((f) => f.path && f.startLine > 0);
-    const res = await api.reviewRiskGraph(root, appearance, context);
-    if (res.html) {
-      graphReportRef.current = selectedMeta?.id ?? selected;
-      setGraphHtml(res.html);
-    } else setGraphError(res.error ?? t("app.requestFailed"));
-  }, [root, appearance, graphHtml, graphError, selectedMeta, selected, t]);
-
-  useEffect(() => {
-    if (subView === "graph") void openGraph();
-  }, [subView, openGraph]);
-
-  // The graph HTML bakes the theme in — drop it when the appearance flips so
-  // it re-renders with the new one.
-  useEffect(() => {
-    setGraphHtml(null);
-    setGraphError(null);
-  }, [appearance]);
-
-  // …and when the selected report changes: the opinions side card binds to
-  // that report's findings, so the cached page is stale until re-generated.
-  useEffect(() => {
-    setGraphHtml(null);
-    setGraphError(null);
-  }, [selected]);
-
-  // Deliver a pending node selection once the frame's scripts are up, and
-  // relay the frame's "jump back to finding" messages (design §3.3). The
-  // source check keeps other windows/toasts from spoofing locate jumps.
-  const sendPendingSelect = useCallback(() => {
-    const qn = pendingSelectRef.current;
-    const frame = frameRef.current;
-    if (!qn || !frame?.contentWindow) return;
-    frame.contentWindow.postMessage({ type: "crg:select-node", qn }, "*");
-    pendingSelectRef.current = null;
+  /** Report → board locate: switch to the board and select the node (the
+   *  board scrolls its chip into view and opens the popover at it). */
+  const locateNode = useCallback((qn: string) => {
+    locateSeqRef.current += 1;
+    setFocusReq({ qn, seq: locateSeqRef.current });
+    setSubView("graph");
   }, []);
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.source !== frameRef.current?.contentWindow) return;
-      const d = e.data as { type?: unknown; findex?: unknown } | null;
-      if (!d || d.type !== "crg:locate-finding" || typeof d.findex !== "number") return;
-      const reportId = graphReportRef.current;
-      if (reportId) {
-        // Read through the ref mirror — the closure's `reports` state is
-        // stale-by-construction in a register-once listener.
-        const exists = reportsRef.current.some((r) => r.id === reportId);
-        if (exists) setSelected(reportId);
-      }
-      setSubView("reports");
-      const el = document.querySelector(`[data-findex="${d.findex}"]`);
-      if (el instanceof HTMLElement) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.remove("flash");
-        void el.offsetWidth; /* restart the animation */
-        el.classList.add("flash");
-      }
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-    // `reports` deliberately excluded — the message targets the report the
-    // map was generated for; selecting plays through the same rail path.
-  }, [setSelected]);
 
-  /** Report → graph locate: mark the node, switch to the map, deliver the
-   *  selection (immediately when the frame is already up, else on load). */
-  const locateNode = useCallback(
-    (qn: string) => {
-      pendingSelectRef.current = qn;
-      setSubView("graph");
-      sendPendingSelect();
-    },
-    [sendPendingSelect]
-  );
+  /** Board popover → report: jump back to the exact finding in the report
+   *  view. Bindings belong to the currently selected report by construction,
+   *  so the jump target always exists. */
+  const jumpToFinding = useCallback((findex: number) => {
+    setSubView("reports");
+    // The reports view mounts on the state flip above — query inside a frame
+    // so the finding element exists before scrolling/flashing it.
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-findex="${findex}"]`);
+      if (!(el instanceof HTMLElement)) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.remove("flash");
+      void el.offsetWidth; /* restart the animation */
+      el.classList.add("flash");
+    });
+  }, []);
 
   // Sub-tab pills — the SAME classes as the knowledge sheet's bar
   // (ui-knowledge-subtab, per-tab --tab-hue dot): one visual language across
@@ -419,9 +347,22 @@ export function ReviewWorkspace({
           <div className="ui-review-tab-content">
             {selectedMeta ? (
               <div className="ui-report-doc">
-                <h1>
-                  {t("review.title")} — {label}
-                </h1>
+                <div className="ui-report-doc-head">
+                  <h1>
+                    {t("review.title")} — {label}
+                  </h1>
+                  {onQuoteToChat && selected ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      className="ui-report-quote"
+                      onClick={() => onQuoteToChat(root, selected)}
+                      title={t("review.quoteHint")}
+                    >
+                      {t("review.quote")}
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="ui-report-meta">
                   {t("review.rpScope")}: {selectedMeta.scopeLabel} · {t("review.rpGenerated")}:{" "}
                   {timeLabel(selectedMeta.generatedAt)} · {t("review.rpStatus")}: {statusLabel(selectedMeta.status)}
@@ -525,28 +466,13 @@ export function ReviewWorkspace({
         </div>
       ) : (
         <div className="ui-review-tab-content ui-review-tab-graph">
-          {graphHtml ? (
-            <iframe
-              ref={frameRef}
-              className="ui-review-frame"
-              srcDoc={graphHtml}
-              sandbox="allow-scripts"
-              title={t("review.riskGraph")}
-              onLoad={sendPendingSelect}
-            />
-          ) : graphError ? (
-            <div className="ui-review-history-empty">
-              {graphError}{" "}
-              {/* Retry: clearing the error flips openGraph's cache guard and
-                  re-requests the graph (the old error state short-circuited
-                  forever — review round 2026-09-01). */}
-              <button type="button" className="ui-review-retry" onClick={() => setGraphError(null)}>
-                {t("error.retry")}
-              </button>
-            </div>
-          ) : (
-            <div className="ui-review-history-empty">{t("actions.running")}</div>
-          )}
+          <RiskGraphView
+            root={root}
+            findings={findings}
+            bindingsByIndex={bindingsByIndex}
+            focusReq={focusReq}
+            onJumpToFinding={jumpToFinding}
+          />
         </div>
       )}
     </div>

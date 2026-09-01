@@ -43,3 +43,9 @@
 @import url("./ui-css/knowledge-views.css");
 /* Wiki reading shell & typography · arch maps · artifact pager · drill rail */
 @import url("./ui-css/wiki-reading.css");
+
+/* Risk board — the review tab's flat risk map (chips, groups, popover) */
+@import url("./ui-css/risk-board.css");
+
+/* Task hub — the workspace task tree (domain pills, tree column, detail card) */
+@import url("./ui-css/task-hub.css");

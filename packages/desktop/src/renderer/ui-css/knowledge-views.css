@@ -1214,12 +1214,13 @@
   min-height: 0;
   overflow: auto;
   /* Fill the pane AND stay centered: on a wide window the (now uncapped)
-     columns stretch to the full width; if the graph is still narrower than
-     the pane it centers instead of piling on the left edge; wider than the
-     pane → scroll from the start edge (`safe center`). */
+     columns stretch to the full width; `safe center` centers the flow on
+     BOTH axes when it fits the pane (maximized windows no longer leave a
+     dead bottom strip — user ask 2026-09-01) and falls back to top-start
+     scrolling when the content is taller than the pane. */
   display: grid;
   justify-content: safe center;
-  align-content: start;
+  align-content: safe center;
   border: 1px solid var(--ui-border-soft, #e3e6eb);
   border-radius: var(--ui-radius-lg);
   background-color: color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 45%, var(--ui-surface, #fff));
@@ -1236,6 +1237,11 @@
   padding: 20px 18px 26px;
   width: 100%;
   min-height: 200px;
+  /* Fill the pane's height when it's taller than the content (maximized
+     window), centering the three bands in the extra space; content taller
+     than the pane scrolls from the top (`safe center`). */
+  min-height: 100%;
+  justify-content: safe center;
 }
 .ui-sym-band {
   display: flex;

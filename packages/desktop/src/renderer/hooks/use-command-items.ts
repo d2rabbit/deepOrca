@@ -182,10 +182,10 @@ export function useCommandItems({
         run: () => selectView("design"),
       },
       {
-        id: "view.tasktree",
-        label: t("rail.tasktree"),
-        keywords: "sidebar view task tree history",
-        run: () => selectView("tasktree"),
+        id: "view.taskhub",
+        label: t("rail.taskhub"),
+        keywords: "sidebar view task tree hub history",
+        run: () => selectView("taskhub"),
       },
       {
         id: "view.gitmcp",

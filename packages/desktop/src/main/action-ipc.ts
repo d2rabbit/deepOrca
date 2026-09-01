@@ -39,6 +39,9 @@ export interface ActionIpcDeps {
   /** The project's ActionRegistry (owned by SessionManager), or null if no
    * engine/project is active. IPC and LLM surfaces share this one instance. */
   getRegistry: () => ActionRegistry | null;
+  /** The project root actions run against — stamped onto every progress
+   *  event so the renderer can multiplex concurrent per-workspace runs. */
+  getRoot: () => string;
 }
 
 /** Result of an ActionRun IPC call — success or structured failure. */
@@ -126,9 +129,10 @@ export function registerActionIpc(helpers: ActionIpcHelpers, deps: ActionIpcDeps
     if (!registry) {
       return { ok: false, error: "no project open", code: "NO_PROJECT" };
     }
+    const root = deps.getRoot();
     const runHandle = registry.execute(id, input);
     runHandle.onProgress((e: ActionProgress) => {
-      emit(IpcActionEvent.Progress, { actionId: id, ...e });
+      emit(IpcActionEvent.Progress, { actionId: id, root, ...e });
     });
     try {
       const output = await runHandle.result;
@@ -145,6 +149,7 @@ export function registerActionIpc(helpers: ActionIpcHelpers, deps: ActionIpcDeps
       // forever — the same stuck-state class as the index-module incident.
       emit(IpcActionEvent.Progress, {
         actionId: id,
+        root,
         message: "done",
         percent: 100,
         data: { done: true },

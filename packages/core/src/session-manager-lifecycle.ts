@@ -1,4 +1,5 @@
 // SessionManager layer — see session-manager-base.ts for the split rationale.
+import * as fs from "fs";
 import * as crypto from "crypto";
 import * as path from "path";
 import {
@@ -102,8 +103,19 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     const sessionId = crypto.randomUUID();
     this.ensureFileHistorySession(sessionId);
     const now = new Date().toISOString();
+    // Per-session scratch workspace (multi-session groundwork): every session
+    // — concurrent or resumed — owns an isolated directory under the
+    // project's .deeporca store. Created eagerly (mkdir recursive is cheap)
+    // so the dir exists even before the first artifact lands.
+    const workspaceDir = path.join(".deeporca", "sessions", sessionId);
+    try {
+      fs.mkdirSync(path.join(this.projectRoot, workspaceDir), { recursive: true });
+    } catch {
+      // fail-open — the field still records the intended location
+    }
     const index = this.loadSessionsIndex();
     const entry: SessionEntry = {
+      workspaceDir,
       id: sessionId,
       summary: userPrompt.text ? userPrompt.text.slice(0, 100) : "[Image Prompt]",
       assistantReply: null,

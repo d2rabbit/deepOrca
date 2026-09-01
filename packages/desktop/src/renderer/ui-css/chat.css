@@ -1919,3 +1919,50 @@ button.ui-tool-head:hover {
   color: var(--ui-text-faint);
   font-size: 11px;
 }
+
+/* ── Store reference chips (@…/.deeporca/deepwiki|reviews/… in user prompts) ── */
+.ui-ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 7px;
+  margin: 2px 2px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-raised, #fff) 72%, transparent);
+  vertical-align: middle;
+  max-width: 100%;
+}
+.ui-ref-chip .ui-ref-chip-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.ui-ref-chip .ui-ref-chip-body {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+.ui-ref-chip .ui-ref-chip-kind {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-accent, #3b82f6);
+  opacity: 0.85;
+}
+.ui-ref-chip .ui-ref-chip-label {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ui-text, inherit);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ref-chip.review {
+  border-color: color-mix(in srgb, var(--dot-review, #2f9e44) 35%, transparent);
+}
+.ui-ref-chip.review .ui-ref-chip-kind {
+  color: var(--dot-review, #2f9e44);
+}

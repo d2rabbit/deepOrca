@@ -10,7 +10,7 @@ export type SidebarView =
   | "review"
   | "prototype"
   | "design"
-  | "tasktree"
+  | "taskhub"
   | "gitmcp"
   | "plugins"
   | "editor";
@@ -24,7 +24,7 @@ const VIEW_KEYS: SidebarView[] = [
   "review",
   "prototype",
   "design",
-  "tasktree",
+  "taskhub",
   "gitmcp",
   "plugins",
   "editor",
