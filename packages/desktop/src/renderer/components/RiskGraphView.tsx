@@ -40,7 +40,6 @@ import {
 /** Neighbor chips cap per popover section (hidden count is disclosed). */
 const POP_LIMIT = 10;
 /** Node label cap in the diagram. */
-const NODE_LABEL_MAX = 17;
 /** i18n label per tier band (the lib stays UI-free — bands carry tiers). */
 const TIER_LABEL_KEY: Record<RiskTier, "review.rgLegendHigh" | "review.rgLegendMid" | "review.rgLegendLow"> = {
   hi: "review.rgLegendHigh",
@@ -224,8 +223,12 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
 
   const focus = hoverQn ?? pop?.qn ?? null;
   const focusNeighbors = focus ? (adjacency.get(focus) ?? null) : null;
-  const nodeLabel = (name: string): string =>
-    name.length > NODE_LABEL_MAX ? `${name.slice(0, NODE_LABEL_MAX - 1)}…` : name;
+  // Label budget = slot width in glyphs (~6.2px/char) minus the score suffix
+  // — labels must NEVER bleed into the neighboring slot (narrow-pane overlap).
+  const nodeLabel = (name: string): string => {
+    const max = Math.max(8, Math.floor(layout.slotW / 6.2) - 5);
+    return name.length > max ? `${name.slice(0, max - 1)}…` : name;
+  };
 
   const popNode = pop ? byQn.get(pop.qn) : null;
   const popNeighbors = pop && data ? neighborsOf(data.edges, pop.qn) : null;

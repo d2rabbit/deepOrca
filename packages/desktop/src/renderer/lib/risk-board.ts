@@ -232,15 +232,12 @@ export interface BoardLayout {
   tiers: LaidOutTier[];
   width: number;
   height: number;
+  /** The elastic slot width this layout used — the renderer derives the
+   *  per-node label character budget from it (labels must fit their slot). */
+  slotW: number;
 }
 
 const TIER_ORDER: RiskTier[] = ["hi", "md", "lo"];
-
-// Per-call scratch (single-threaded layout; reset in layoutBoard).
-let nodes: Map<string, LaidOutNode>;
-let blocks: LaidOutBlock[];
-let tiers: LaidOutTier[];
-let maxBandW = 0;
 
 /**
  * Place every node at a deterministic position. Risk tiers form full-width
@@ -260,10 +257,10 @@ export interface LayoutTarget {
 }
 
 export function layoutBoard(groups: RiskGroup[], target?: LayoutTarget): BoardLayout {
-  nodes = new Map();
-  blocks = [];
-  tiers = [];
-  maxBandW = 0;
+  const nodes = new Map<string, LaidOutNode>();
+  const blocks: LaidOutBlock[] = [];
+  const tiers: LaidOutTier[] = [];
+  let maxBandW = 0;
 
   // tier → groupKey → nodes (group iteration order preserved).
   const buckets = new Map<RiskTier, Map<string, RiskGraphNode[]>>();
@@ -277,11 +274,15 @@ export function layoutBoard(groups: RiskGroup[], target?: LayoutTarget): BoardLa
     }
   }
 
-  const paneW = Math.max(LAYER.width, Math.floor(target?.width ?? 0));
+  // Pane width is AUTHORITATIVE once measured (user report 2026-09-01: 图谱
+  // 必须自适应窗体) — a small window shrinks lanes/columns instead of
+  // clipping. LAYER.width is only the unmeasured default.
+  const paneW = target?.width != null && target.width >= 320 ? Math.floor(target.width) : LAYER.width;
   const paneH = Math.floor(target?.height ?? 0);
-  const bandInnerW = paneW - LAYER.padX * 2 - LAYER.bandPadX * 2;
-  // Elastic node slot: wider panes get roomier slots (labels breathe), clamped.
-  const slotW = Math.max(LAYER.nodeSlotW, Math.min(150, Math.floor(bandInnerW / 8)));
+  const bandInnerW = Math.max(300, paneW - LAYER.padX * 2 - LAYER.bandPadX * 2);
+  // Elastic node slot: wider panes get roomier slots (labels breathe), narrow
+  // panes compress to keep blocks inside the viewport.
+  const slotW = Math.max(96, Math.min(150, Math.floor(bandInnerW / 8)));
   let y = LAYER.padTop;
   for (const tier of TIER_ORDER) {
     const byGroup = buckets.get(tier)!;
@@ -381,8 +382,9 @@ export function layoutBoard(groups: RiskGroup[], target?: LayoutTarget): BoardLa
     nodes,
     blocks,
     tiers,
-    width: Math.max(paneW, LAYER.padX * 2 + maxBandW),
+    width: paneW,
     height: Math.max(paneH, Math.max(1, y - LAYER.bandGap + LAYER.padTop)),
+    slotW,
   };
 }
 
