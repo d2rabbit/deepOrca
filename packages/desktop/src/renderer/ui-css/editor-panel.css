@@ -830,6 +830,14 @@
 .ui-knowledge-subtab.subtab-symbols {
   --tab-hue: var(--ui-diagram-hue-3, #fbbf24);
 }
+/* Review sheet's reports/graph tabs ride the SAME pill row (user ask
+   2026-09-01) — two more hues from the diagram ramp. */
+.ui-knowledge-subtab.subtab-reports {
+  --tab-hue: var(--ui-diagram-hue-0, #60a5fa);
+}
+.ui-knowledge-subtab.subtab-graph {
+  --tab-hue: var(--ui-diagram-hue-4, #fb7185);
+}
 .ui-knowledge-subtab.active {
   background: color-mix(in srgb, var(--tab-hue, var(--ui-accent, #3b82f6)) 12%, transparent);
   border-color: color-mix(in srgb, var(--tab-hue, var(--ui-accent, #3b82f6)) 32%, transparent);
@@ -1195,14 +1203,22 @@
 .ui-review-tab-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  flex-wrap: wrap;
 }
 .ui-review-tab-tabs {
   display: flex;
   gap: 6px;
   flex: none;
+}
+/* The review sheet's sub-tab bar reuses the knowledge pills verbatim
+   (.ui-knowledge-subtabs + .ui-knowledge-subtab in the TSX). Trim the
+   knowledge bar's chrome for this head: the floating back-pill clearance
+   comes from the bar's own right padding. */
+.ui-review-tab-tabs.ui-knowledge-subtabs {
+  flex: 1 1 auto;
+  padding: 8px 10px 8px 2px;
+  border-bottom: 1px solid var(--ui-border-soft, #333);
+  margin-bottom: -1px;
 }
 .ui-review-tab-controls {
   display: flex;
@@ -1233,27 +1249,6 @@
   padding: 0 12px 8px;
   font-size: 11.5px;
   color: var(--ui-text-dim, #888);
-}
-.ui-review-tab-pill {
-  padding: 5px 14px;
-  border: 1px solid var(--ui-border-soft, #333);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ui-text-dim, #888);
-  font-size: 12px;
-  cursor: pointer;
-  transition:
-    background 0.14s var(--ui-ease),
-    color 0.14s var(--ui-ease);
-}
-.ui-review-tab-pill:hover {
-  background: var(--ui-surface-hover);
-}
-.ui-review-tab-pill.active {
-  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
-  color: var(--ui-text, inherit);
-  font-weight: 600;
 }
 .ui-review-tab-body {
   flex: 1;
@@ -1325,6 +1320,29 @@
   gap: 4px;
   padding: 2px 10px 6px 26px;
   flex-wrap: wrap;
+}
+/* Determinate review progress — a slim accent-gradient fill under the
+   ACTIVE row, driven by the action's percent (user ask 2026-09-01: show a
+   BAR, not just the step text). Step text stays in the row meta. */
+.ui-review-progress {
+  height: 3px;
+  margin: 3px 12px 2px 26px;
+  border-radius: 999px;
+  background: var(--ui-surface-sunken, transparent);
+  overflow: hidden;
+}
+.ui-review-progress .fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--ui-diagram-hue-0, #60a5fa), var(--ui-diagram-hue-1, #a78bfa));
+  transition: width 0.4s var(--ui-ease);
+}
+/* The running step text can be long ("[9/20] reviewing src/…") — clamp it
+   to the row instead of wrapping the workspace list. */
+.ui-review-tab .ui-ik-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ui-review-scope-select,
 .ui-review-scope-input {
@@ -1471,19 +1489,44 @@
   font-weight: 650;
   padding: 1px 8px;
   border-radius: 999px;
-  color: #fff;
 }
+/* Severity chips — tinted-badge grammar in BOTH appearances (user report
+   2026-09-01 撞色: the old SOLID dark chips read as heavy blobs on light and
+   sank into dark). Translucent hue + colored text reads on any surface. */
 .chip.sev-critical {
-  background: #7f1d1d;
+  background: color-mix(in srgb, #dc2626 13%, transparent);
+  color: #dc2626;
 }
 .chip.sev-high {
-  background: #c2410c;
+  background: color-mix(in srgb, #ea580c 14%, transparent);
+  color: #ea580c;
 }
 .chip.sev-medium {
-  background: #b45309;
+  background: color-mix(in srgb, #d97706 15%, transparent);
+  color: #b45309;
 }
 .chip.sev-low {
-  background: #64748b;
+  background: color-mix(in srgb, #64748b 14%, transparent);
+  color: #64748b;
+}
+/* Dark appearance: the fixed SOLID chips above were tuned for light surfaces
+   and sink into dark backgrounds (user report 2026-09-01 撞色) — switch to
+   the tinted-badge grammar (translucent hue + colored text). */
+:root[data-appearance="dark"] .chip.sev-critical {
+  background: color-mix(in srgb, #f87171 20%, transparent);
+  color: #fca5a5;
+}
+:root[data-appearance="dark"] .chip.sev-high {
+  background: color-mix(in srgb, #fb923c 20%, transparent);
+  color: #fdba74;
+}
+:root[data-appearance="dark"] .chip.sev-medium {
+  background: color-mix(in srgb, #fbbf24 18%, transparent);
+  color: #fcd34d;
+}
+:root[data-appearance="dark"] .chip.sev-low {
+  background: color-mix(in srgb, #94a3b8 20%, transparent);
+  color: #cbd5e1;
 }
 .chip.crg {
   background: color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
@@ -1535,18 +1578,66 @@
   white-space: pre-wrap;
   margin: 6px 0 0;
 }
-.ui-report-finding .code.existing {
-  background: color-mix(in srgb, #d14545 8%, transparent);
-  border: 1px solid color-mix(in srgb, #d14545 25%, transparent);
+.ui-report-finding .code.fenced {
+  background: var(--ui-surface-sunken, transparent);
+  border: 1px solid var(--ui-border-soft, #333);
 }
-.ui-report-finding .code.suggestion {
-  background: color-mix(in srgb, #2f9e44 8%, transparent);
-  border: 1px solid color-mix(in srgb, #2f9e44 25%, transparent);
+/* Inline `code` inside the finding text flow. */
+.ui-report-finding .body code.inline {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 11.5px;
+  background: var(--ui-surface-sunken, transparent);
+  border-radius: 4px;
+  padding: 0 4px;
 }
-.ui-report-finding .sug-label {
+/* Existing/suggestion CODE BLOCKS — a real block frame (header strip with
+   the kind label + themed code surface + a 3px hue accent) instead of the
+   old whole-block pastel wash that clashed on both appearances (user report
+   2026-09-01). */
+.ui-report-codeblock {
+  border: 1px solid var(--ui-border-soft, #333);
+  border-radius: 9px;
+  overflow: hidden;
+  margin: 8px 0 0;
+}
+.ui-report-codeblock .cb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--ui-surface-sunken, transparent);
+  border-bottom: 1px solid var(--ui-border-soft, #333);
   font-size: 11px;
-  color: var(--ui-success, #2f9e44);
-  margin-top: 6px;
+  color: var(--ui-text-dim, #888);
+  min-width: 0;
+}
+.ui-report-codeblock .cb-kind {
+  font-weight: 700;
+  flex: none;
+}
+.ui-report-codeblock .cb-file {
+  font-family: var(--ui-font-mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-report-codeblock pre.code {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ui-surface-sunken, transparent) 55%, transparent);
+}
+.ui-report-codeblock.kind-existing pre.code {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, #dc2626 60%, transparent);
+}
+.ui-report-codeblock.kind-existing .cb-kind {
+  color: #dc2626;
+}
+.ui-report-codeblock.kind-suggestion pre.code {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, #2f9e44 60%, transparent);
+}
+.ui-report-codeblock.kind-suggestion .cb-kind {
+  color: #2f9e44;
 }
 .ui-report-empty {
   border: 1px dashed var(--ui-border-soft, #333);
@@ -1560,11 +1651,4 @@
   margin-top: 22px;
   font-size: 11.5px;
   color: var(--ui-text-faint, #888);
-}
-.ui-review-tab-active {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ui-success, #2f9e44) 14%, transparent);
-  color: var(--ui-success, #2f9e44);
 }

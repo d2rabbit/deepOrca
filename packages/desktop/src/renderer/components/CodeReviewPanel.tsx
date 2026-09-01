@@ -4,6 +4,14 @@ import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, IconButton, IconMagicWand, IconChat } from "../ui/index";
 import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
+import {
+  isReviewRunning,
+  getReviewPercent,
+  getReviewProgress,
+  markReviewProgress,
+  markReviewRunning,
+  markReviewSettled,
+} from "../lib/review-run-state";
 
 /**
  * Code review panel — pure workspace list (user ask 2026-09-01: keep the
@@ -57,6 +65,9 @@ export function CodeReviewPanel({
   const [lastReview, setLastReview] = useState<Record<string, string | undefined>>({});
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<string>("");
+  /** Last known 0-100 percent — drives the row progress bar. Heartbeat-style
+   *  events carry no percent and keep the previous value (never backwards). */
+  const [percent, setPercent] = useState<number | null>(null);
   const [lastRun, setLastRun] = useState<{ root: string; res: ActionRunResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Scope follows the workspace: one remembered setting per root (design
@@ -104,6 +115,19 @@ export function CodeReviewPanel({
   // Active-workspace switches re-bind which row's review button is live.
   useEffect(() => api.onProjectRootChanged(() => void reload()), [reload]);
 
+  // Restore the RUNNING indicator after remounts (user report 2026-09-01):
+  // review.full is a global background action — switching sidebar items or
+  // workspaces remounts this panel and component-local `running` reset to
+  // false while the run kept going (the bottom-right badge kept spinning).
+  // The module-level store survives the mount cycle; the last progress line
+  // rides along, so the row shows its status IMMEDIATELY instead of waiting
+  // for the next heartbeat (CRG builds emit one only every 20s).
+  useEffect(() => {
+    setRunning(isReviewRunning(activeRoot));
+    setProgress(getReviewProgress(activeRoot));
+    setPercent(getReviewPercent(activeRoot));
+  }, [activeRoot]);
+
   // Graph-state dot refreshes after out-of-band CRG rebuilds too.
   useEffect(() => {
     return api.onCrgProgress((evt: { done?: boolean }) => {
@@ -118,11 +142,14 @@ export function CodeReviewPanel({
     }
     const unsub = api.onActionProgress((evt: ActionProgressEvent) => {
       if (evt.actionId === "review.full") {
-        setProgress(evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message);
+        if (evt.percent != null) setPercent(evt.percent);
+        const text = evt.percent != null ? `${evt.percent}% — ${evt.message}` : evt.message;
+        setProgress(text);
+        markReviewProgress(activeRoot, text, evt.percent);
       }
     });
     return unsub;
-  }, [running]);
+  }, [running, activeRoot]);
 
   const runReview = useCallback(
     async (root: string) => {
@@ -136,16 +163,17 @@ export function CodeReviewPanel({
         return;
       }
       setRunning(true);
+      markReviewRunning(root);
       setLastRun(null);
       setError(null);
       try {
         const params =
-          scope.mode === "all"
+          scope === "all"
             ? { all: true }
-            : scope.mode === "commit"
-              ? { commit: scope.commit.trim() || "HEAD" }
-              : scope.mode === "range"
-                ? { from: scope.from.trim(), to: scope.to.trim() }
+            : scope === "commit"
+              ? { commit: commitRef.trim() || "HEAD" }
+              : scope === "range"
+                ? { from: rangeFrom.trim(), to: rangeTo.trim() }
                 : {};
         const res = await api.actionRun("review.full", params);
         setLastRun({ root, res });
@@ -153,7 +181,11 @@ export function CodeReviewPanel({
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
+        // Settles even when the panel unmounted mid-run: this closure keeps
+        // executing, and the store outlives the component.
+        markReviewSettled(root);
         setRunning(false);
+        setPercent(null);
       }
     },
     [activeRoot, running, reload, scopes, t]
@@ -214,9 +246,24 @@ export function CodeReviewPanel({
                       void runReview(w.root);
                     }}
                   >
-                    {running && isActive ? "…" : t("review.action.full")}
+                    {running && isActive ? (percent != null ? `${percent}%` : "…") : t("review.action.full")}
                   </Button>
                 </div>
+
+                {/* Determinate progress bar (user ask 2026-09-01): the per-stage
+                    percent drives a slim fill; the step TEXT stays in the row
+                    meta. Bar mounts only while the ACTIVE row is running. */}
+                {running && isActive ? (
+                  <div
+                    className="ui-review-progress"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(percent ?? 0)}
+                  >
+                    <div className="fill" style={{ width: `${Math.min(100, Math.max(3, percent ?? 0))}%` }} />
+                  </div>
+                ) : null}
 
                 {/* Scope selector — UNDER the ACTIVE workspace row, following
                     the workspace and remembering each root's own setting

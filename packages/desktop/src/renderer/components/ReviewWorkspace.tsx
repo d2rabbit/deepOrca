@@ -83,6 +83,54 @@ function parseFinding(f: Record<string, unknown>): Finding {
   };
 }
 
+/** Inline `code` spans inside a text segment (theme-aware chip). */
+function BodyText({ text }: { text: string }): JSX.Element {
+  const pieces = text.split(/`([^`\n]+)`/g);
+  return (
+    <div className="body">
+      {pieces.map((piece, i) =>
+        i % 2 === 1 ? (
+          <code key={i} className="inline">
+            {piece}
+          </code>
+        ) : (
+          <span key={i}>{piece}</span>
+        )
+      )}
+    </div>
+  );
+}
+
+/**
+ * Finding body renderer (user ask 2026-09-01): the model writes markdown —
+ * fenced ``` blocks inside the finding text used to render as literal fence
+ * soup. Fenced blocks become real, theme-aware code blocks; everything else
+ * keeps its pre-wrap text flow with inline `code` spans. An unmatched fence
+ * (model truncation) still renders — the trailing block runs to the end of
+ * the content.
+ */
+function FindingBody({ content }: { content: string }): JSX.Element {
+  const parts: JSX.Element[] = [];
+  const fence = /```[ \t]*[A-Za-z0-9+#_-]*[ \t]*\r?\n?([\s\S]*?)(?:```|$)/g;
+  let last = 0;
+  let key = 0;
+  for (const m of content.matchAll(fence)) {
+    const start = m.index ?? 0;
+    if (start > last) parts.push(<BodyText key={key++} text={content.slice(last, start)} />);
+    const code = m[1].replace(/\n$/, "");
+    if (code.trim().length > 0) {
+      parts.push(
+        <pre key={key++} className="code fenced">
+          <code>{code}</code>
+        </pre>
+      );
+    }
+    last = start + m[0].length;
+  }
+  if (last < content.length) parts.push(<BodyText key={key++} text={content.slice(last)} />);
+  return <>{parts}</>;
+}
+
 function hasReportId(data: unknown): string | undefined {
   if (data == null || typeof data !== "object") return undefined;
   const id = (data as { reportId?: unknown }).reportId;
@@ -134,14 +182,21 @@ export function ReviewWorkspace({
   // Which report the loaded map was generated for — a "jump to finding"
   // message from the frame targets THAT report.
   const graphReportRef = useRef<string | null>(null);
+  // Mirror of the rail list for handlers registered once (the message
+  // listener): the `reports` state inside such a closure is the first
+  // render's empty array — reading it there silently disabled the
+  // pruned-report guard (review round 2026-09-01).
+  const reportsRef = useRef<ReviewReportMeta[]>([]);
 
   const loadReports = useCallback(async (): Promise<ReviewReportMeta[]> => {
     try {
       const list = await api.reviewListReports(root);
       setReports(list);
+      reportsRef.current = list;
       return list;
     } catch {
       setReports([]);
+      reportsRef.current = [];
       return [];
     }
   }, [root]);
@@ -213,13 +268,6 @@ export function ReviewWorkspace({
     });
   }, [loadReports]);
 
-  // Active root (informational badge) — reviews run against it from the panel.
-  const [activeRoot, setActiveRoot] = useState<string>("");
-  useEffect(() => {
-    void api.getProjectRoot().then(setActiveRoot);
-    return api.onProjectRootChanged(setActiveRoot);
-  }, []);
-
   const openGraph = useCallback(async () => {
     if (graphHtml || graphError) return;
     // The map binds the SELECTED report's findings to its nodes (opinions
@@ -274,7 +322,9 @@ export function ReviewWorkspace({
       if (!d || d.type !== "crg:locate-finding" || typeof d.findex !== "number") return;
       const reportId = graphReportRef.current;
       if (reportId) {
-        const exists = reports.some((r) => r.id === reportId);
+        // Read through the ref mirror — the closure's `reports` state is
+        // stale-by-construction in a register-once listener.
+        const exists = reportsRef.current.some((r) => r.id === reportId);
         if (exists) setSelected(reportId);
       }
       setSubView("reports");
@@ -290,7 +340,6 @@ export function ReviewWorkspace({
     return () => window.removeEventListener("message", onMessage);
     // `reports` deliberately excluded — the message targets the report the
     // map was generated for; selecting plays through the same rail path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setSelected]);
 
   /** Report → graph locate: mark the node, switch to the map, deliver the
@@ -304,10 +353,13 @@ export function ReviewWorkspace({
     [sendPendingSelect]
   );
 
+  // Sub-tab pills — the SAME classes as the knowledge sheet's bar
+  // (ui-knowledge-subtab, per-tab --tab-hue dot): one visual language across
+  // the two sheet surfaces (user ask 2026-09-01).
   const pill = (view: SubView, pillLabel: string): JSX.Element => (
     <button
       type="button"
-      className={`ui-review-tab-pill${subView === view ? " active" : ""}`}
+      className={`ui-knowledge-subtab subtab-${view}${subView === view ? " active" : ""}`}
       onClick={() => setSubView(view)}
     >
       {pillLabel}
@@ -332,11 +384,10 @@ export function ReviewWorkspace({
   return (
     <div className="ui-review-tab">
       <div className="ui-review-tab-head">
-        <div className="ui-review-tab-tabs">
+        <div className="ui-review-tab-tabs ui-knowledge-subtabs ui-review-subtabs">
           {pill("reports", t("review.reportsTitle"))}
           {pill("graph", t("review.riskGraph"))}
         </div>
-        {root === activeRoot ? <span className="ui-review-tab-active">{t("review.activeBadge")}</span> : null}
       </div>
 
       {subView === "reports" ? (
@@ -419,8 +470,14 @@ export function ReviewWorkspace({
                                   onClick={() => locateNode(binding.qn)}
                                   title={t("review.locateHint")}
                                 >
-                                  {f.crgRisk ? `CRG: ${f.crgRisk}` : t("review.locate")}
-                                  <span className="lnk"> · 定位 ◎</span>
+                                  {f.crgRisk ? (
+                                    <>
+                                      CRG: {f.crgRisk}
+                                      <span className="lnk"> · {t("review.locate")} ◎</span>
+                                    </>
+                                  ) : (
+                                    <>{t("review.locate")} ◎</>
+                                  )}
                                 </button>
                               ) : f.crgRisk ? (
                                 <span className="chip crg">CRG: {f.crgRisk}</span>
@@ -431,13 +488,27 @@ export function ReviewWorkspace({
                                 {f.endLine != null && f.endLine > f.startLine ? `-${f.endLine}` : ""}
                               </span>
                             </div>
-                            <div className="body">{f.content}</div>
-                            {f.existingCode ? <pre className="code existing">{f.existingCode}</pre> : null}
+                            <FindingBody content={f.content} />
+                            {f.existingCode ? (
+                              <div className="ui-report-codeblock kind-existing">
+                                <div className="cb-head">
+                                  <span className="cb-kind">{t("review.rpExisting")}</span>
+                                  <span className="cb-file">{f.path}</span>
+                                </div>
+                                <pre className="code">
+                                  <code>{f.existingCode}</code>
+                                </pre>
+                              </div>
+                            ) : null}
                             {f.suggestionCode ? (
-                              <>
-                                <div className="sug-label">{t("review.rpSuggestion")}</div>
-                                <pre className="code suggestion">{f.suggestionCode}</pre>
-                              </>
+                              <div className="ui-report-codeblock kind-suggestion">
+                                <div className="cb-head">
+                                  <span className="cb-kind">{t("review.rpSuggestion")}</span>
+                                </div>
+                                <pre className="code">
+                                  <code>{f.suggestionCode}</code>
+                                </pre>
+                              </div>
                             ) : null}
                           </div>
                         );

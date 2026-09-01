@@ -65,6 +65,10 @@ export function bindFindingsToNodes(
 
   const out: FindingBinding[] = [];
   findings.forEach((f, index) => {
+    // Tolerant skip (review round 2026-09-01): OCR output quality varies —
+    // a finding with a bad path/line is UNBOUND but must still occupy its
+    // index, so the caller's full-array positions stay stable.
+    if (typeof f.path !== "string" || f.path.length === 0 || !Number.isFinite(f.startLine)) return;
     const key = toGraphPath(projectRoot && !path.isAbsolute(f.path) ? path.resolve(projectRoot, f.path) : f.path);
     const list = byFile.get(key);
     if (!list || list.length === 0) return;
