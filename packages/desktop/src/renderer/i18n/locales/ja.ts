@@ -1094,6 +1094,8 @@ export const ja: Record<MessageKey, string> = {
     "すべての変更がポリシーにより除外されたか、未対応の種類のため、今回のレビュー対象はありませんでした。",
   "review.rpNoFindings": "報告すべき問題は見つかりませんでした。",
   "review.rpSuggestion": "提案",
+  "review.locate": "特定",
+  "review.locateHint": "リスクグラフでこの関数を特定",
   "review.activeBadge": "アクティブなワークスペース",
   "review.startRun": "レビュー開始",
   "review.metaFiles": "{n} 件",

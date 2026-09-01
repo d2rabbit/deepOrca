@@ -302,6 +302,25 @@ export type ReviewReportMeta = {
   findings?: Array<Record<string, unknown>>;
 };
 
+/** The minimal finding shape the risk map consumes (path + line + snippet
+ *  for the opinions side card). */
+export type ReviewGraphFinding = {
+  path: string;
+  startLine: number;
+  content?: string;
+};
+
+/** One finding→node link for the bidirectional locate (design §4.3).
+ *  `index` is the finding's position in the report's `findings` array. */
+export type FindingBinding = {
+  index: number;
+  qn: string;
+  name: string;
+  filePath: string;
+  lineStart: number;
+  lineEnd: number;
+};
+
 export type CrgIndexEntry = {
   /** Workspace root path. */
   root: string;
@@ -944,13 +963,21 @@ export type DesktopApi = {
   crgReindex(root: string): Promise<{ ok: boolean; action: "reset"; error?: string }>;
   /** List a workspace's persisted review reports (newest first). */
   reviewListReports(root: string): Promise<ReviewReportMeta[]>;
-  /** Read one persisted report: structured meta (with findings) + export HTML. */
+  /** Read one persisted report: structured meta (with findings) + export HTML
+   *  + finding→graph-node bindings (bidirectional locate, design §4.3). */
   reviewReadReport(
     root: string,
     id: string
-  ): Promise<{ ok: boolean; meta?: ReviewReportMeta; html?: string; error?: string }>;
-  /** Build the simplified in-app risk map (self-contained HTML) for a workspace. */
-  reviewRiskGraph(root: string, theme: "light" | "dark"): Promise<{ html: string | null; error?: string }>;
+  ): Promise<{ ok: boolean; meta?: ReviewReportMeta; html?: string; bindings?: FindingBinding[]; error?: string }>;
+  /** Build the simplified in-app risk map (self-contained HTML) for a
+   *  workspace. `appearance` renders the page with an EXPLICIT theme (the
+   *  iframe must not follow the OS); `findings` (the currently selected
+   *  report's) lets the page render the node → opinions side card. */
+  reviewRiskGraph(
+    root: string,
+    appearance: "light" | "dark",
+    findings?: ReviewGraphFinding[]
+  ): Promise<{ html: string | null; error?: string }>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 

@@ -12,11 +12,19 @@ import { extractReviewFindings, type ReviewFinding } from "../lib/review-fix";
  * One row per workspace: status dot (risk graph built?) + name + last review
  * + an inline 审查 button (workspace scope with automatic HEAD fallback).
  * Clicking a row opens the workspace's REVIEW TAB in the main content area —
- * report history, risk map and the scope selector all live in that tab.
+ * report history and risk map live in that tab.
  *
- * A review only ever runs against the ACTIVE workspace (the action registry
- * is bound to it); other rows' buttons stay disabled with a hint.
+ * The scope selector FOLLOWS the active workspace (user ask 2026-09-01 round
+ * 2: 审查范围追随工作区): it renders under the active row — the
+ * `ui-review-scope` "slim controls under the active workspace row" form —
+ * and every workspace remembers its own scope. A review only ever runs
+ * against the ACTIVE workspace (the action registry is bound to it); other
+ * rows' buttons stay disabled with a hint.
  */
+
+type ReviewScope = { mode: "workspace" | "commit" | "range" | "all"; commit: string; from: string; to: string };
+
+const DEFAULT_SCOPE: ReviewScope = { mode: "workspace", commit: "HEAD", from: "", to: "HEAD" };
 
 function formatRelative(iso: string | undefined, justNow: string, never: string): string {
   if (!iso) return never;
@@ -51,10 +59,18 @@ export function CodeReviewPanel({
   const [progress, setProgress] = useState<string>("");
   const [lastRun, setLastRun] = useState<{ root: string; res: ActionRunResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [scope, setScope] = useState<"workspace" | "commit" | "range" | "all">("workspace");
-  const [commitRef, setCommitRef] = useState("HEAD");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("HEAD");
+  // Scope follows the workspace: one remembered setting per root (design
+  // spec §4.4 — in-memory for now; persisted with the settings if it earns
+  // its keep). The selector renders under the ACTIVE row and loads whatever
+  // that workspace last used.
+  const [scopes, setScopes] = useState<Record<string, ReviewScope>>({});
+
+  const updateScope = useCallback(
+    (patch: Partial<ReviewScope>) => {
+      setScopes((prev) => ({ ...prev, [activeRoot]: { ...(prev[activeRoot] ?? DEFAULT_SCOPE), ...patch } }));
+    },
+    [activeRoot]
+  );
 
   const reload = useCallback(async () => {
     try {
@@ -111,10 +127,11 @@ export function CodeReviewPanel({
   const runReview = useCallback(
     async (root: string) => {
       if (root !== activeRoot || running) return;
+      const scope = scopes[root] ?? DEFAULT_SCOPE;
       // A half-filled range previously fell through to `{}` — a silent
       // WORKSPACE run wearing the user's range intent (review round
       // 2026-09-01). Surface it instead of re-scoping behind their back.
-      if (scope === "range" && (!rangeFrom.trim() || !rangeTo.trim())) {
+      if (scope.mode === "range" && (!scope.from.trim() || !scope.to.trim())) {
         setError(t("review.scope.rangeIncomplete"));
         return;
       }
@@ -123,12 +140,12 @@ export function CodeReviewPanel({
       setError(null);
       try {
         const params =
-          scope === "all"
+          scope.mode === "all"
             ? { all: true }
-            : scope === "commit"
-              ? { commit: commitRef.trim() || "HEAD" }
-              : scope === "range"
-                ? { from: rangeFrom.trim(), to: rangeTo.trim() }
+            : scope.mode === "commit"
+              ? { commit: scope.commit.trim() || "HEAD" }
+              : scope.mode === "range"
+                ? { from: scope.from.trim(), to: scope.to.trim() }
                 : {};
         const res = await api.actionRun("review.full", params);
         setLastRun({ root, res });
@@ -139,7 +156,7 @@ export function CodeReviewPanel({
         setRunning(false);
       }
     },
-    [activeRoot, running, reload, scope, commitRef, rangeFrom, rangeTo, t]
+    [activeRoot, running, reload, scopes, t]
   );
 
   const runFindings: ReviewFinding[] = lastRun && lastRun.res.ok ? extractReviewFindings(lastRun.res.output) : [];
@@ -153,49 +170,6 @@ export function CodeReviewPanel({
         </IconButton>
       </div>
       <div className="ui-side-panel-body">
-        {/* Scope selector sits ABOVE the workspace items — applies to the run
-           buttons; workspace scope self-heals via the HEAD fallback. */}
-        <div className="ui-review-scope-bar">
-          <span className="ui-review-scope-label">{t("review.scope.title")}</span>
-          <select
-            className="ui-review-scope-select"
-            value={scope}
-            onChange={(e) => setScope(e.target.value as typeof scope)}
-            title={t("review.scope.title")}
-          >
-            <option value="workspace">{t("review.scope.workspace")}</option>
-            <option value="commit">{t("review.scope.commit")}</option>
-            <option value="range">{t("review.scope.range")}</option>
-            <option value="all">{t("review.scope.all")}</option>
-          </select>
-          {scope === "commit" ? (
-            <input
-              className="ui-review-scope-input"
-              value={commitRef}
-              onChange={(e) => setCommitRef(e.target.value)}
-              placeholder="HEAD"
-              spellCheck={false}
-            />
-          ) : null}
-          {scope === "range" ? (
-            <>
-              <input
-                className="ui-review-scope-input"
-                value={rangeFrom}
-                onChange={(e) => setRangeFrom(e.target.value)}
-                placeholder={t("review.scope.from")}
-                spellCheck={false}
-              />
-              <input
-                className="ui-review-scope-input"
-                value={rangeTo}
-                onChange={(e) => setRangeTo(e.target.value)}
-                placeholder={t("review.scope.to")}
-                spellCheck={false}
-              />
-            </>
-          ) : null}
-        </div>
         {error ? <div className="ui-error">{error}</div> : null}
         {workspaces.length === 0 ? (
           <div className="ui-side-panel-empty">{t("review.noWorkspace")}</div>
@@ -204,6 +178,7 @@ export function CodeReviewPanel({
             const graph = hasGraph[w.root] ?? false;
             const isActive = w.root === activeRoot;
             const run = lastRun && lastRun.root === w.root ? lastRun : null;
+            const scope = scopes[w.root] ?? DEFAULT_SCOPE;
             return (
               <div key={w.root} className="ui-ik-rowwrap">
                 <div
@@ -242,6 +217,56 @@ export function CodeReviewPanel({
                     {running && isActive ? "…" : t("review.action.full")}
                   </Button>
                 </div>
+
+                {/* Scope selector — UNDER the ACTIVE workspace row, following
+                    the workspace and remembering each root's own setting
+                    (design spec §3.1 / §4.4). Non-active rows have no scope
+                    controls: they cannot run a review anyway. */}
+                {isActive ? (
+                  <div className="ui-review-scope" data-review-scope>
+                    <span className="ui-review-scope-label">
+                      {t("review.scope.title")} · <span className="owner">{w.label}</span>
+                    </span>
+                    <select
+                      className="ui-review-scope-select"
+                      value={scope.mode}
+                      onChange={(e) => updateScope({ mode: e.target.value as ReviewScope["mode"] })}
+                      title={t("review.scope.title")}
+                    >
+                      <option value="workspace">{t("review.scope.workspace")}</option>
+                      <option value="commit">{t("review.scope.commit")}</option>
+                      <option value="range">{t("review.scope.range")}</option>
+                      <option value="all">{t("review.scope.all")}</option>
+                    </select>
+                    {scope.mode === "commit" ? (
+                      <input
+                        className="ui-review-scope-input"
+                        value={scope.commit}
+                        onChange={(e) => updateScope({ commit: e.target.value })}
+                        placeholder="HEAD"
+                        spellCheck={false}
+                      />
+                    ) : null}
+                    {scope.mode === "range" ? (
+                      <>
+                        <input
+                          className="ui-review-scope-input"
+                          value={scope.from}
+                          onChange={(e) => updateScope({ from: e.target.value })}
+                          placeholder={t("review.scope.from")}
+                          spellCheck={false}
+                        />
+                        <input
+                          className="ui-review-scope-input"
+                          value={scope.to}
+                          onChange={(e) => updateScope({ to: e.target.value })}
+                          placeholder={t("review.scope.to")}
+                          spellCheck={false}
+                        />
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {run && run.res.ok && runFindings.length > 0 ? (
                   <div

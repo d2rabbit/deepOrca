@@ -1356,6 +1356,12 @@
   text-transform: uppercase;
   color: var(--ui-text-faint, #888);
 }
+/* Scope owner — the workspace this selector belongs to (scope follows the
+   active workspace; design spec §3.1). */
+.ui-review-scope-label .owner {
+  color: var(--ui-accent, #3b82f6);
+  letter-spacing: 0;
+}
 
 /* Native report document inside the review tab. */
 .ui-report-doc {
@@ -1482,6 +1488,38 @@
 .chip.crg {
   background: color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
   color: var(--ui-accent, #3b82f6);
+}
+/* Locatable CRG chip — has a graph binding; clicking jumps to the risk map
+   and selects the node (design §3.3 bidirectional locate). */
+.chip.crg.locate {
+  cursor: pointer;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, transparent);
+  transition:
+    background 0.14s var(--ui-ease),
+    box-shadow 0.14s var(--ui-ease);
+}
+.chip.crg.locate:hover {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent);
+}
+.chip.crg.locate .lnk {
+  font-weight: 800;
+  margin-left: 2px;
+}
+/* Locate flash — the report finding the map jumped back to (design §3.3). */
+.ui-report-finding.flash {
+  animation: ui-find-flash 1.8s var(--ui-ease);
+}
+@keyframes ui-find-flash {
+  0%,
+  55% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, transparent);
+    border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
 }
 .ui-report-finding .body {
   white-space: pre-wrap;

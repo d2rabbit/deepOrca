@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import type { ActionProgressEvent, ReviewReportMeta } from "../../shared/ipc";
+import type { ActionProgressEvent, FindingBinding, ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import type { Appearance } from "../lib/appearance";
@@ -125,6 +125,15 @@ export function ReviewWorkspace({
   const [graphError, setGraphError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const lastRefreshAt = useRef(0);
+  // Bidirectional locate (design §3.3): finding → node bindings ride the
+  // selected report's read; a pending node selection is delivered to the
+  // sandboxed frame once its scripts are up (postMessage on iframe load).
+  const [bindingsByIndex, setBindingsByIndex] = useState<Record<number, FindingBinding>>({});
+  const pendingSelectRef = useRef<string | null>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  // Which report the loaded map was generated for — a "jump to finding"
+  // message from the frame targets THAT report.
+  const graphReportRef = useRef<string | null>(null);
 
   const loadReports = useCallback(async (): Promise<ReviewReportMeta[]> => {
     try {
@@ -158,12 +167,16 @@ export function ReviewWorkspace({
   useEffect(() => {
     let alive = true;
     setSelectedMeta(null);
+    setBindingsByIndex({});
     if (!selected) return;
     (async () => {
       try {
         const res = await api.reviewReadReport(root, selected);
         if (alive && res.ok && res.meta) {
           setSelectedMeta(res.meta);
+          const bindings: Record<number, FindingBinding> = {};
+          for (const b of res.bindings ?? []) bindings[b.index] = b;
+          setBindingsByIndex(bindings);
           return;
         }
       } catch {
@@ -209,10 +222,22 @@ export function ReviewWorkspace({
 
   const openGraph = useCallback(async () => {
     if (graphHtml || graphError) return;
-    const res = await api.reviewRiskGraph(root, appearance);
-    if (res.html) setGraphHtml(res.html);
-    else setGraphError(res.error ?? t("app.requestFailed"));
-  }, [root, appearance, graphHtml, graphError, t]);
+    // The map binds the SELECTED report's findings to its nodes (opinions
+    // side card, design §4.3). Only the path/line/head snippet is needed —
+    // full content ships per-finding on demand through readReport anyway.
+    const context = (selectedMeta?.findings ?? [])
+      .map((f) => ({
+        path: String(f?.path ?? ""),
+        startLine: Number(f?.startLine ?? f?.start_line ?? 0),
+        content: String(f?.content ?? "").slice(0, 120),
+      }))
+      .filter((f) => f.path && f.startLine > 0);
+    const res = await api.reviewRiskGraph(root, appearance, context);
+    if (res.html) {
+      graphReportRef.current = selectedMeta?.id ?? selected;
+      setGraphHtml(res.html);
+    } else setGraphError(res.error ?? t("app.requestFailed"));
+  }, [root, appearance, graphHtml, graphError, selectedMeta, selected, t]);
 
   useEffect(() => {
     if (subView === "graph") void openGraph();
@@ -225,6 +250,60 @@ export function ReviewWorkspace({
     setGraphError(null);
   }, [appearance]);
 
+  // …and when the selected report changes: the opinions side card binds to
+  // that report's findings, so the cached page is stale until re-generated.
+  useEffect(() => {
+    setGraphHtml(null);
+    setGraphError(null);
+  }, [selected]);
+
+  // Deliver a pending node selection once the frame's scripts are up, and
+  // relay the frame's "jump back to finding" messages (design §3.3). The
+  // source check keeps other windows/toasts from spoofing locate jumps.
+  const sendPendingSelect = useCallback(() => {
+    const qn = pendingSelectRef.current;
+    const frame = frameRef.current;
+    if (!qn || !frame?.contentWindow) return;
+    frame.contentWindow.postMessage({ type: "crg:select-node", qn }, "*");
+    pendingSelectRef.current = null;
+  }, []);
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frameRef.current?.contentWindow) return;
+      const d = e.data as { type?: unknown; findex?: unknown } | null;
+      if (!d || d.type !== "crg:locate-finding" || typeof d.findex !== "number") return;
+      const reportId = graphReportRef.current;
+      if (reportId) {
+        const exists = reports.some((r) => r.id === reportId);
+        if (exists) setSelected(reportId);
+      }
+      setSubView("reports");
+      const el = document.querySelector(`[data-findex="${d.findex}"]`);
+      if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.remove("flash");
+        void el.offsetWidth; /* restart the animation */
+        el.classList.add("flash");
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+    // `reports` deliberately excluded — the message targets the report the
+    // map was generated for; selecting plays through the same rail path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setSelected]);
+
+  /** Report → graph locate: mark the node, switch to the map, deliver the
+   *  selection (immediately when the frame is already up, else on load). */
+  const locateNode = useCallback(
+    (qn: string) => {
+      pendingSelectRef.current = qn;
+      setSubView("graph");
+      sendPendingSelect();
+    },
+    [sendPendingSelect]
+  );
+
   const pill = (view: SubView, pillLabel: string): JSX.Element => (
     <button
       type="button"
@@ -235,14 +314,16 @@ export function ReviewWorkspace({
     </button>
   );
 
-  // Group findings by path for the native report body.
+  // Group findings by path for the native report body. The GLOBAL index is
+  // kept — it is the binding key for the graph locate (review-bind returns
+  // positions in the report's findings array; the DOM carries data-findex).
   const findings: Finding[] = (selectedMeta?.findings ?? []).map(parseFinding);
-  const byPath = new Map<string, Finding[]>();
-  for (const f of findings) {
+  const byPath = new Map<string, { f: Finding; index: number }[]>();
+  findings.forEach((f, index) => {
     const list = byPath.get(f.path) ?? [];
-    list.push(f);
+    list.push({ f, index });
     byPath.set(f.path, list);
-  }
+  });
   // Exclusion accounting (P2-5, review round 2026-09-01): a 0-finding run
   // must say WHY when policy ate every change — unsupportedFiles is a subset
   // of excludedByPolicy, so only the total is shown.
@@ -321,29 +402,46 @@ export function ReviewWorkspace({
                       <h2>
                         <code>{path}</code> <span className="cnt">{list.length}</span>
                       </h2>
-                      {list.map((f, i) => (
-                        <div key={i} className="ui-report-finding">
-                          <div className="head">
-                            {f.severity ? (
-                              <span className={`chip ${SEV_CLASS[f.severity] ?? ""}`}>{f.severity.toUpperCase()}</span>
+                      {list.map(({ f, index }) => {
+                        const binding = bindingsByIndex[index];
+                        return (
+                          <div key={index} className="ui-report-finding" data-findex={index}>
+                            <div className="head">
+                              {f.severity ? (
+                                <span className={`chip ${SEV_CLASS[f.severity] ?? ""}`}>
+                                  {f.severity.toUpperCase()}
+                                </span>
+                              ) : null}
+                              {binding ? (
+                                <button
+                                  type="button"
+                                  className="chip crg locate"
+                                  onClick={() => locateNode(binding.qn)}
+                                  title={t("review.locateHint")}
+                                >
+                                  {f.crgRisk ? `CRG: ${f.crgRisk}` : t("review.locate")}
+                                  <span className="lnk"> · 定位 ◎</span>
+                                </button>
+                              ) : f.crgRisk ? (
+                                <span className="chip crg">CRG: {f.crgRisk}</span>
+                              ) : null}
+                              <span className="loc">
+                                {f.path}
+                                {f.startLine > 0 ? `:${f.startLine}` : ""}
+                                {f.endLine != null && f.endLine > f.startLine ? `-${f.endLine}` : ""}
+                              </span>
+                            </div>
+                            <div className="body">{f.content}</div>
+                            {f.existingCode ? <pre className="code existing">{f.existingCode}</pre> : null}
+                            {f.suggestionCode ? (
+                              <>
+                                <div className="sug-label">{t("review.rpSuggestion")}</div>
+                                <pre className="code suggestion">{f.suggestionCode}</pre>
+                              </>
                             ) : null}
-                            {f.crgRisk ? <span className="chip crg">CRG: {f.crgRisk}</span> : null}
-                            <span className="loc">
-                              {f.path}
-                              {f.startLine > 0 ? `:${f.startLine}` : ""}
-                              {f.endLine != null && f.endLine > f.startLine ? `-${f.endLine}` : ""}
-                            </span>
                           </div>
-                          <div className="body">{f.content}</div>
-                          {f.existingCode ? <pre className="code existing">{f.existingCode}</pre> : null}
-                          {f.suggestionCode ? (
-                            <>
-                              <div className="sug-label">{t("review.rpSuggestion")}</div>
-                              <pre className="code suggestion">{f.suggestionCode}</pre>
-                            </>
-                          ) : null}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </section>
                   ))
                 )}
@@ -358,10 +456,12 @@ export function ReviewWorkspace({
         <div className="ui-review-tab-content ui-review-tab-graph">
           {graphHtml ? (
             <iframe
+              ref={frameRef}
               className="ui-review-frame"
               srcDoc={graphHtml}
               sandbox="allow-scripts"
               title={t("review.riskGraph")}
+              onLoad={sendPendingSelect}
             />
           ) : graphError ? (
             <div className="ui-review-history-empty">

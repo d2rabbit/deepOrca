@@ -72,6 +72,8 @@ import type {
   KnowledgeSymbol,
   KnowledgeSymbolGraph,
   MemoryPipelineStats,
+  FindingBinding,
+  ReviewGraphFinding,
   ReviewReportMeta,
   ThinkingModeSelection,
   UndoRestoreMode,
@@ -89,7 +91,9 @@ import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
 import { buildReviewReportHtml } from "./tools/review-report.js";
 import { listReviewReports, readReviewReport, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
-import { buildRiskGraphHtml } from "./tools/crg-risk-graph.js";
+import { buildRiskGraphHtml, OVERVIEW_LIMIT } from "./tools/crg-risk-graph.js";
+import { createCrgGraphQuery } from "@deeporca/core";
+import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
 import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
 import { ensureGeneratedLayout } from "./tools/generated-layout.js";
@@ -1377,25 +1381,49 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
 
   handle(
     IpcRequest.ReviewReadReport,
-    (root: string, id: string): { ok: boolean; meta?: ReviewReportMeta; html?: string; error?: string } => {
+    (
+      root: string,
+      id: string
+    ): { ok: boolean; meta?: ReviewReportMeta; html?: string; bindings?: FindingBinding[]; error?: string } => {
       if (!isKnownRoot(root)) return { ok: false, error: "Unknown workspace" };
       const meta = readReviewReport(root, id);
       const htmlPath = resolveReportFile(root, id);
       if (!meta || !htmlPath) return { ok: false, error: "No such report" };
-      return { ok: true, meta, html: readFileSync(htmlPath, "utf-8") };
+      // Bidirectional locate (design §4.3): bind the report's findings to
+      // the risk graph's top-N nodes. One overview read — the same rows the
+      // map itself renders — so both surfaces agree on the same node set.
+      let bindings: FindingBinding[] | undefined;
+      const findings = (meta.findings ?? []).filter(
+        (f): f is Record<string, unknown> & { path: string; startLine: number } =>
+          typeof f?.path === "string" && Number.isFinite(Number(f.startLine ?? f.start_line))
+      );
+      if (findings.length > 0) {
+        const overview = createCrgGraphQuery().getRiskOverview(root, OVERVIEW_LIMIT);
+        bindings = bindFindingsToNodes(
+          findings.map((f) => ({ path: String(f.path), startLine: Number(f.startLine ?? f.start_line) })),
+          overview.nodes as BindableNode[],
+          root
+        );
+      }
+      return { ok: true, meta, html: readFileSync(htmlPath, "utf-8"), bindings };
     }
   );
 
   handle(
     IpcRequest.ReviewRiskGraph,
-    (root: string, theme: "light" | "dark"): { html: string | null; error?: string } => {
+    (
+      root: string,
+      theme: "light" | "dark",
+      reportFindings?: ReviewGraphFinding[]
+    ): { html: string | null; error?: string } => {
       if (!isKnownRoot(root)) return { html: null, error: "Unknown workspace" };
       if (!hasCrgProject(root)) return { html: null, error: "no CRG graph — run a review or crg.reindex first" };
       const html = buildRiskGraphHtml(
         root,
         basename(root),
         APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
-        theme === "dark" ? "dark" : "light"
+        theme === "dark" ? "dark" : "light",
+        reportFindings
       );
       return html ? { html } : { html: null, error: "risk graph unavailable — no risk data in the graph" };
     }

@@ -1062,6 +1062,8 @@ export const zhTW: Record<MessageKey, string> = {
   "review.rpExcludedNote": "以上變更全部按策略排除（生成物 / 點路徑）或不支援審查該檔案類型，因此本次沒有可審查內容。",
   "review.rpNoFindings": "未發現需要報告的問題。",
   "review.rpSuggestion": "建議",
+  "review.locate": "定位",
+  "review.locateHint": "在風險圖譜中定位該函數",
   "review.activeBadge": "當前工作區",
   "review.startRun": "開始審查",
   "review.metaFiles": "{n} 個檔案",

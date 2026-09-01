@@ -1088,6 +1088,8 @@ export const ko: Record<MessageKey, string> = {
     "모둠 변경이 정책에 따라 제외되었거나 지원되지 않는 유형이라 이번 실행에서는 리뷰할 내용이 없습니다.",
   "review.rpNoFindings": "보고할 문제가 발견되지 않았습니다.",
   "review.rpSuggestion": "제안",
+  "review.locate": "위치 찾기",
+  "review.locateHint": "리스크 그래프에서 이 함수 위치 찾기",
   "review.activeBadge": "현재 워크스페이스",
   "review.startRun": "리뷰 시작",
   "review.metaFiles": "파일 {n}개",
