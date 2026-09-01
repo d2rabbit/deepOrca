@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { createPortal } from "react-dom";
 import type {
   TaskHubDomain,
   TaskHubNode,
@@ -48,7 +49,10 @@ export function TaskHubWorkspace({
   const [tokensOpen, setTokensOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [domainFilter, setDomainFilter] = useState<TaskHubDomain | "all">("all");
-  const [selected, setSelected] = useState<TaskHubNode | null>(null);
+  // Floating detail window (user ask 2026-09-01: 左侧任务详情也用悬浮窗):
+  // anchored at the click point, closed by Esc / outside press / scroll.
+  const [pop, setPop] = useState<{ node: TaskHubNode; x: number; y: number } | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
   const [traces, setTraces] = useState<Record<string, Awaited<ReturnType<typeof api.taskHubTrace>>>>({});
   // fork form state (session domain): which node id, name, why
   const [forkFor, setForkFor] = useState<string | null>(null);
@@ -73,7 +77,7 @@ export function TaskHubWorkspace({
   useEffect(() => {
     setHub(null);
     setTraces({});
-    setSelected(null);
+    setPop(null);
     void reload();
   }, [reload]);
 
@@ -117,6 +121,26 @@ export function TaskHubWorkspace({
     ];
     return () => unsubs.forEach((u) => u());
   }, [reload, root]);
+
+  // Popover dismissal — capture-phase scroll so inner scrollers close it too.
+  useEffect(() => {
+    if (!pop) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setPop(null);
+    };
+    const onScroll = (): void => setPop(null);
+    const onPointerDown = (e: MouseEvent): void => {
+      if (!popRef.current?.contains(e.target as Node)) setPop(null);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [pop]);
 
   const flat = useMemo(() => hub?.groups.flatMap((g) => g.nodes) ?? [], [hub]);
   const visible = useMemo(
@@ -206,9 +230,10 @@ export function TaskHubWorkspace({
     };
     const raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [rows, domainFilter, selected, traces]);
+  }, [rows, domainFilter, pop, traces]);
 
   const runFork = async (): Promise<void> => {
+    const selected = pop?.node;
     if (!selected || selected.source.kind !== "session-tree" || !forkWhy.trim()) return;
     setForkBusy(true);
     setForkError(null);
@@ -221,6 +246,7 @@ export function TaskHubWorkspace({
       setForkFor(null);
       setForkName("");
       setForkWhy("");
+      setPop(null);
       await reload();
     } catch (err) {
       setForkError(err instanceof Error ? err.message : String(err));
@@ -233,6 +259,7 @@ export function TaskHubWorkspace({
     if (node.source.kind !== "session-tree") return;
     try {
       await api.actionRun("task.switch", { treeId: node.source.treeId });
+      setPop(null);
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -334,7 +361,7 @@ export function TaskHubWorkspace({
             ) : (
               visible.map((node) => {
                 const tag = tagOf(node);
-                const sel = selected?.domain === node.domain && selected?.id === node.id;
+                const sel = pop?.node.domain === node.domain && pop?.node.id === node.id;
                 const trace = node.source.kind === "session-tree" ? traces[node.id] : undefined;
                 const gitHash = node.source.kind === "session-tree" ? (node.meta?.gitHash as string | null) : null;
                 const key = `${node.domain}:${node.id}`;
@@ -353,11 +380,22 @@ export function TaskHubWorkspace({
                         className={`ui-taskhub-card${sel ? " sel" : ""}`}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelected(node)}
+                        onClick={(e) =>
+                          setPop({
+                            node,
+                            x: Math.max(8, Math.min(e.clientX + 14, window.innerWidth - 346)),
+                            y: Math.max(8, Math.min(e.clientY + 10, window.innerHeight - 320)),
+                          })
+                        }
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            setSelected(node);
+                            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            setPop({
+                              node,
+                              x: Math.max(8, Math.min(r.right + 14, window.innerWidth - 346)),
+                              y: Math.max(8, Math.min(r.top + 10, window.innerHeight - 320)),
+                            });
                           }
                         }}
                       >
@@ -439,137 +477,151 @@ export function TaskHubWorkspace({
           </div>
         </div>
 
-        <div className="ui-taskhub-detail">
-          {selected ? (
-            <div className="ui-taskhub-detail-card">
-              <div className="ui-taskhub-detail-head">
-                <span className="glyph">{selected.source.kind === "session-tree" ? "●" : "◆"}</span>
-                <h2>{selected.title}</h2>
-              </div>
-              <div className="sub">{t(`taskhub.domain.${selected.domain}` as never)}</div>
-              <div className="rows">
-                <div className="row">
-                  <span className="k">{t("taskhub.detail.status")}</span>
-                  <span>{t(`taskhub.status.${selected.status}` as never)}</span>
-                </div>
-                <div className="row">
-                  <span className="k">{t("taskhub.detail.started")}</span>
-                  <span>{formatRelative(selected.startedAt, t("index.freshness.justNow"), "—")}</span>
-                </div>
-                {selected.source.kind === "session-tree" && selected.meta?.gitHash ? (
-                  <div className="row">
-                    <span className="k">{t("taskhub.gitBound")}</span>
-                    <span className="git-chip">
-                      ⎇ <span className="hash">{String(selected.meta.gitHash)}</span>
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-              {selected.source.kind === "session-tree" ? (
-                <div className="dsec">
-                  <div className="hd">{t("taskhub.forkSection")}</div>
-                  {forkFor === selected.id ? (
-                    <div className="ui-taskhub-forkform">
-                      <input
-                        className="ui-review-scope-select"
-                        value={forkName}
-                        onChange={(e) => setForkName(e.target.value)}
-                        placeholder={t("taskhub.forkName")}
-                      />
-                      <input
-                        className="ui-review-scope-select"
-                        value={forkWhy}
-                        onChange={(e) => setForkWhy(e.target.value)}
-                        placeholder={t("taskhub.forkWhy")}
-                      />
-                      {forkError ? <div className="ui-error">{forkError}</div> : null}
-                      <div className="forkform-actions">
+        {pop
+          ? createPortal(
+              <div ref={popRef} className="ui-taskhub-pop" style={{ left: pop.x, top: pop.y }} role="dialog">
+                {(() => {
+                  const node = pop.node;
+                  const src = node.source;
+                  return (
+                    <div className="ui-taskhub-detail-card">
+                      <div className="ui-taskhub-detail-head">
+                        <span className="glyph">{src.kind === "session-tree" ? "●" : "◆"}</span>
+                        <h2>{node.title}</h2>
                         <button
                           type="button"
-                          className="btn"
-                          disabled={forkBusy || !forkWhy.trim()}
-                          onClick={() => void runFork()}
+                          className="ui-risk-pop-close"
+                          aria-label="close"
+                          onClick={() => setPop(null)}
                         >
-                          ⑂ {t("taskhub.forkGo")}
-                        </button>
-                        <button type="button" className="btn subtle" onClick={() => setForkFor(null)}>
-                          {t("common.cancel")}
+                          ✕
                         </button>
                       </div>
+                      <div className="sub">{t(`taskhub.domain.${node.domain}` as never)}</div>
+                      <div className="rows">
+                        <div className="row">
+                          <span className="k">{t("taskhub.detail.status")}</span>
+                          <span>{t(`taskhub.status.${node.status}` as never)}</span>
+                        </div>
+                        <div className="row">
+                          <span className="k">{t("taskhub.detail.started")}</span>
+                          <span>{formatRelative(node.startedAt, t("index.freshness.justNow"), "—")}</span>
+                        </div>
+                        {src.kind === "session-tree" && node.meta?.gitHash ? (
+                          <div className="row">
+                            <span className="k">{t("taskhub.gitBound")}</span>
+                            <span className="git-chip">
+                              ⎇ <span className="hash">{String(node.meta.gitHash)}</span>
+                            </span>
+                          </div>
+                        ) : null}
+                        {src.kind === "review-report" && node.meta?.comments != null ? (
+                          <div className="row">
+                            <span className="k">{t("taskhub.findings", { n: node.meta.comments as number })}</span>
+                            <span />
+                          </div>
+                        ) : null}
+                      </div>
+                      {src.kind === "session-tree" ? (
+                        <div className="dsec">
+                          <div className="hd">{t("taskhub.forkSection")}</div>
+                          {forkFor === node.id ? (
+                            <div className="ui-taskhub-forkform">
+                              <input
+                                className="ui-review-scope-select"
+                                value={forkName}
+                                onChange={(e) => setForkName(e.target.value)}
+                                placeholder={t("taskhub.forkName")}
+                              />
+                              <input
+                                className="ui-review-scope-select"
+                                value={forkWhy}
+                                onChange={(e) => setForkWhy(e.target.value)}
+                                placeholder={t("taskhub.forkWhy")}
+                              />
+                              {forkError ? <div className="ui-error">{forkError}</div> : null}
+                              <div className="forkform-actions">
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  disabled={forkBusy || !forkWhy.trim()}
+                                  onClick={() => void runFork()}
+                                >
+                                  ⑂ {t("taskhub.forkGo")}
+                                </button>
+                                <button type="button" className="btn subtle" onClick={() => setForkFor(null)}>
+                                  {t("common.cancel")}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="actions">
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => onOpenSessionTimeline(src.treeId, node.title, root)}
+                              >
+                                {t("taskhub.openTimeline")}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => {
+                                  setForkFor(node.id);
+                                  setForkWhy("");
+                                  setForkName("");
+                                }}
+                              >
+                                ⑂ {t("taskhub.fork")}
+                              </button>
+                              <button type="button" className="btn subtle" onClick={() => void runSwitch(node)}>
+                                {t("taskhub.switchBranch")}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                      {src.kind === "review-report" ? (
+                        <div className="dsec">
+                          <div className="hd">{t("taskhub.detail.actions")}</div>
+                          <div className="actions">
+                            <button type="button" className="btn" onClick={() => onOpenReview(root, src.reportId)}>
+                              {t("taskhub.openReport")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {src.kind === "design-artifact" ? (
+                        <div className="dsec">
+                          <div className="hd">{t("taskhub.detail.actions")}</div>
+                          <div className="actions">
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => onOpenDesign(src.artifactId, src.pipeline)}
+                            >
+                              {t("taskhub.openDesign")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {src.kind === "index-job" ? (
+                        <div className="dsec">
+                          <div className="hd">{t("taskhub.detail.actions")}</div>
+                          <div className="actions">
+                            <button type="button" className="btn" onClick={() => onOpenKnowledge(root)}>
+                              {t("taskhub.openIndex")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  ) : (
-                    <div className="actions">
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => {
-                          if (selected.source.kind !== "session-tree") return;
-                          onOpenSessionTimeline(selected.source.treeId, selected.title, root);
-                        }}
-                      >
-                        {t("taskhub.openTimeline")}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => {
-                          setForkFor(selected.id);
-                          setForkWhy("");
-                          setForkName("");
-                        }}
-                      >
-                        ⑂ {t("taskhub.fork")}
-                      </button>
-                      <button type="button" className="btn subtle" onClick={() => void runSwitch(selected)}>
-                        {t("taskhub.switchBranch")}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : null}
-              {(() => {
-                if (selected.source.kind !== "review-report") return null;
-                const { reportId } = selected.source;
-                return (
-                  <div className="dsec">
-                    <div className="hd">{t("taskhub.detail.actions")}</div>
-                    <div className="actions">
-                      <button type="button" className="btn" onClick={() => onOpenReview(root, reportId)}>
-                        {t("taskhub.openReport")}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-              {(() => {
-                if (selected.source.kind !== "design-artifact") return null;
-                const { artifactId, pipeline } = selected.source;
-                return (
-                  <div className="dsec">
-                    <div className="hd">{t("taskhub.detail.actions")}</div>
-                    <div className="actions">
-                      <button type="button" className="btn" onClick={() => onOpenDesign(artifactId, pipeline)}>
-                        {t("taskhub.openDesign")}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-              {selected.source.kind === "index-job" ? (
-                <div className="dsec">
-                  <div className="hd">{t("taskhub.detail.actions")}</div>
-                  <div className="actions">
-                    <button type="button" className="btn" onClick={() => onOpenKnowledge(root)}>
-                      {t("taskhub.openIndex")}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="ui-taskhub-empty">{t("taskhub.pickNode")}</div>
-          )}
-        </div>
+                  );
+                })()}
+              </div>,
+              document.body
+            )
+          : null}
       </div>
     </div>
   );
