@@ -40,6 +40,10 @@ packages/desktop/src/renderer/dd/tailwind-script.ts
 # Granite embedding model, …
 packages/desktop/vendor/
 
+# Upstream source clones for research/inspection (e.g. the CRG repo checked
+# out for the 2026-09-01 deep dive) — never part of the product tree.
+vendor-src/
+
 # Pinned skill-up release binaries (scripts/get-skill-up.mjs) — CI-only tool,
 # never vendored into the desktop build.
 .cache/skill-up/
