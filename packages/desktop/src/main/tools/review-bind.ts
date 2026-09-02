@@ -18,7 +18,7 @@
  */
 
 import * as path from "node:path";
-import type { FindingBinding, ReviewGraphFinding } from "../../shared/ipc";
+import type { FindingBinding } from "../../shared/ipc";
 
 /** The subset of the graph node the binder needs (structural typing keeps
  *  the seam small: callers pass `CrgRiskNode`s from crg-query). */
@@ -35,23 +35,32 @@ export function toGraphPath(p: string): string {
   return p.replace(/\\/g, "/");
 }
 
+/** The finding subset the binder consumes. `crgQn` (enrichment-time exact
+ *  node) takes precedence over path+line re-derivation when present. */
+export interface BindableFinding {
+  path: string;
+  startLine: number;
+  crgQn?: string;
+}
+
 /**
- * Bind findings to risk-graph nodes. Findings whose startLine lands inside a
- * node's definition range bind to it; otherwise the nearest preceding node
- * is the fallback; nothing in the file → unbound. Returns bindings in
- * finding-index order (an unbound index is simply absent, so callers index
- * by `binding.index`).
- *
- * Comment paths are repo-relative (the preview's bullets); the graph stores
- * POSIX-absolute identities — pass `projectRoot` so relative paths resolve
- * into graph form before the lookup (same seam as mergeReviewWithCrgRisk).
+ * Bind findings to risk-graph nodes. Binding order per finding:
+ *   0. `crgQn` — the enrichment's exact node (deterministic; survives graph
+ *      rebuilds and OCR path/line drift);
+ *   1. path equal to the node's file (graph POSIX identity) + line-range
+ *      overlap (upstream's `map_changes_to_nodes` semantics);
+ *   2. fallback: the nearest PRECEDING node in the file;
+ *   3. no candidate → the finding is UNBOUND (the report renders no locate
+ *      affordance and the map side shows no opinions for it).
  */
 export function bindFindingsToNodes(
-  findings: ReviewGraphFinding[],
+  findings: BindableFinding[],
   nodes: BindableNode[],
   projectRoot?: string
 ): FindingBinding[] {
   if (findings.length === 0 || nodes.length === 0) return [];
+
+  const byQn = new Map(nodes.map((n) => [n.qualifiedName, n]));
 
   // One sorted (by lineStart) list per file, in graph identity.
   const byFile = new Map<string, BindableNode[]>();
@@ -65,6 +74,22 @@ export function bindFindingsToNodes(
 
   const out: FindingBinding[] = [];
   findings.forEach((f, index) => {
+    // 0. Enrichment-time exact node — pin it when it exists in the candidate set.
+    if (typeof f.crgQn === "string") {
+      const exact = byQn.get(f.crgQn);
+      if (exact) {
+        out.push({
+          index,
+          qn: exact.qualifiedName,
+          name: exact.name,
+          filePath: exact.filePath,
+          lineStart: exact.lineStart,
+          lineEnd: exact.lineEnd,
+        });
+        return;
+      }
+    }
+
     // Tolerant skip (review round 2026-09-01): OCR output quality varies —
     // a finding with a bad path/line is UNBOUND but must still occupy its
     // index, so the caller's full-array positions stay stable.
@@ -73,9 +98,10 @@ export function bindFindingsToNodes(
     const list = byFile.get(key);
     if (!list || list.length === 0) return;
 
-    // 2. line-range overlap (exact interval semantics).
-    const exact = list.find((n) => n.lineStart <= f.startLine && f.startLine <= n.lineEnd);
-    const hit = exact ?? nearestPreceding(list, f.startLine);
+    // 1. line-range overlap (exact interval semantics).
+    const overlap = list.find((n) => n.lineStart <= f.startLine && f.startLine <= n.lineEnd);
+    // 2. nearest preceding node in the same file.
+    const hit = overlap ?? nearestPreceding(list, f.startLine);
     if (!hit) return;
     out.push({
       index,

@@ -1345,7 +1345,10 @@
 /* Scope controls live INSIDE the workspace row (2026-09-01 integration).
    workspace 模式：单个模式下拉与按钮同行；commit/range 模式：引用下拉换行
    独占第二行——行内宽度优先保名称，绝不让范围把名称挤没（用户报告：
-   范围选择和名称覆盖在一起且超出长度）。 */
+   范围选择和名称覆盖在一起且超出长度）。
+   2026-09-02：has-refs 行改为 `width: calc(100% - 26px)` 的精确占位——
+   之前的 `flex-basis: 100%` + 26px margin 会把第二行推出行的右缘，
+   最后一个引用下拉在面板边缘被裁掉（用户截图报告）。 */
 .ui-ik-rowwrap .ui-ik-row {
   flex-wrap: wrap;
 }
@@ -1355,12 +1358,16 @@
   gap: 4px;
   flex-shrink: 0;
   margin-left: auto;
+  min-width: 0;
 }
 .ui-review-row-scope.has-refs {
-  flex: 1 1 100%;
+  flex: 0 0 auto;
+  width: calc(100% - 26px);
+  max-width: 100%;
   order: 5;
   margin-left: 26px;
   justify-content: flex-start;
+  flex-wrap: wrap;
 }
 /* the run icon button stays on the FIRST line, right of the name */
 .ui-ik-rowwrap .ui-ik-row .ui-ik-runbtn {
@@ -1371,8 +1378,13 @@
   flex: 0 1 auto;
   min-width: 0;
 }
+/* Ref pickers share the remaining width; the mode picker stays label-sized. */
 .ui-review-row-scope.has-refs .ui-review-scope-select {
-  flex: 1 1 150px;
+  flex: 1 1 140px;
+  min-width: 100px;
+}
+.ui-review-row-scope.has-refs .ui-review-scope-select:first-child {
+  flex: 0 0 auto;
 }
 /* Active workspace: subtle highlight + "当前" chip next to the name. */
 .ui-ik-row.active {

@@ -3,7 +3,7 @@
 // events to the renderer.
 
 import { app, BrowserWindow, dialog, ipcMain, session as electronSession, shell } from "electron";
-import { dirname, basename, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
+import { dirname, join, delimiter, resolve as pathResolve, sep as pathSep } from "node:path";
 import { createRequire as nodeCreateRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { open, readdir, readFile, writeFile, stat } from "node:fs/promises";
@@ -43,19 +43,15 @@ import {
   configureGitmcpConfigBuilder,
   buildGitmcpMcpServerConfig,
   TaskTreeService,
+  createCrgGraphQuery,
   isWikiVariantFile,
   endpointQuotaKind,
 } from "@deeporca/core";
 import { extractTaskTrajectory } from "./task-trajectory";
+import { withReviewReportSurface } from "./review-report-surface.js";
 import { buildSymbolGraph } from "./symbol-graph-query";
 import { gitPreflight, gitBootstrap } from "./git-preflight";
-import type {
-  ModelConfigSelection,
-  UserPromptContent,
-  ActionRegistry,
-  ExecuteOptions,
-  RunHandle,
-} from "@deeporca/core";
+import type { ModelConfigSelection, UserPromptContent } from "@deeporca/core";
 import { IpcEvent, IpcRequest } from "../shared/ipc.js";
 import { ensureDembrandtBrowserProvider, getDembrandtCdpEndpoint } from "./tools/dembrandt-browser";
 import { fetchEndpointQuota } from "./endpoint-quota.js";
@@ -91,12 +87,11 @@ import { archiveSession, unarchiveSession, readArchivedIds } from "./archive-sto
 import { ElectronNodeSpawner, registerActionIpc } from "./action-ipc.js";
 import { SdkCodegraphController } from "./tools/codegraph-sdk.js";
 import { OcrCliController, buildOcrDelegateReviewPrompt, parseHostReviewComments } from "./tools/ocr-cli.js";
-import { buildReviewReportHtml } from "./tools/review-report.js";
-import { listReviewReports, readReviewReport, resolveReportFile, saveReviewReport } from "./tools/review-store.js";
+import { listReviewReports, readReviewReport, resolveReportFile } from "./tools/review-store.js";
 import { BINDING_LIMIT, buildRiskGraphData, getRiskOverviewCached } from "./tools/crg-risk-graph.js";
 import { buildTaskHub } from "./tools/task-hub.js";
-import { normalizeSessionTrace } from "./tools/session-trace.js";
-import { buildTokenSummary, projectSessionsIndexPath } from "./tools/tokens-summary.js";
+import { normalizeSessionTrace, readSessionTraceSource } from "./tools/session-trace.js";
+import { buildTokenSummary, emptyTokenSummary, projectSessionsIndexPath } from "./tools/tokens-summary.js";
 import { listIndexJobs } from "./tools/jobs-store.js";
 import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
@@ -296,122 +291,6 @@ configureReviewController(
     },
   })
 );
-
-// ── Review HTML report (user ask 2026-08-31: 审查结果渲染到专属工作区) ───────
-// The ActionIpc registry is wrapped so EVERY review.full completion (one-click
-// button, chat tool call) produces a self-contained HTML report under
-// <root>/.deeporca/reviews/ and opens it in a dedicated child window — the
-// dedicated window is the reading surface; the sidebar stays secondary.
-// Reports live in structured history (review-store): <id>.html + <id>.json
-// pairs under .deeporca/reviews/, capped at REVIEW_HISTORY_KEEP. They render
-// IN-APP (review tab iframe) — the dedicated child window is gone (user
-// ask 2026-08-31: the review surface must follow the index-module pattern,
-// never pop out).
-let reviewReportWrapped: { source: ActionRegistry; wrapped: ActionRegistry } | null = null;
-
-function withReviewReportSurface(registry: ActionRegistry | null): ActionRegistry | null {
-  if (!registry) return null;
-  if (reviewReportWrapped?.source === registry) return reviewReportWrapped.wrapped;
-  const wrapper = Object.create(registry) as ActionRegistry;
-  (wrapper as { execute: unknown }).execute = (
-    id: string,
-    input?: unknown,
-    execOpts?: ExecuteOptions
-  ): RunHandle<unknown> => {
-    const handle = registry.execute<unknown>(id, input, execOpts);
-    if (id !== "review.full") return handle;
-    // Progress subscribers registered through this wrapper (action-ipc) also
-    // receive the synthetic post-save event below, so an open review tab can
-    // refresh AND select the fresh report instead of polling (cb4486e's
-    // "select the newest report" intent, actually delivered this time).
-    let onSaved: ((e: { message: string; percent?: number; data?: unknown }) => void) | null = null;
-    return {
-      result: handle.result.then(async (output) => {
-        const report = writeReviewReport(output);
-        if (report) {
-          Object.assign(output as object, { reportPath: report.htmlPath, reportId: report.id });
-          onSaved?.({
-            message: "review report saved",
-            percent: 100,
-            data: { done: true, reportId: report.id },
-          });
-        }
-        return output;
-      }),
-      onProgress: (cb) => {
-        onSaved = cb;
-        return handle.onProgress(cb);
-      },
-      cancel: (reason) => handle.cancel(reason),
-    };
-  };
-  reviewReportWrapped = { source: registry, wrapped: wrapper };
-  return wrapper;
-}
-
-function writeReviewReport(output: unknown): { root: string; htmlPath: string; id: string } | null {
-  try {
-    const out = output as {
-      review?: {
-        status?: string;
-        summary?: { filesReviewed?: number; comments?: number; excludedByPolicy?: number; unsupportedFiles?: number };
-        comments?: unknown[];
-      };
-      statusNote?: string;
-    };
-    if (!out?.review || !Array.isArray(out.review.comments)) return null;
-    const root = getBridge().projectRoot;
-    if (!root) return null;
-    const locale = APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en";
-    const zh = locale.toLowerCase().startsWith("zh");
-    const generatedAtIso = new Date().toISOString();
-    const scope = (out as { scope?: { mode: string; commit?: string; from?: string; to?: string } }).scope;
-    const modeLabel = zh
-      ? scope?.mode === "commit"
-        ? `提交 ${scope.commit ?? "HEAD"} 的变更`
-        : scope?.mode === "range"
-          ? `变更范围 ${scope.from}...${scope.to}`
-          : scope?.mode === "all"
-            ? "全仓库（全域审查）"
-            : "未提交的工作区变更（vs HEAD）"
-      : scope?.mode === "commit"
-        ? `changes of commit ${scope.commit ?? "HEAD"}`
-        : scope?.mode === "range"
-          ? `changes ${scope.from}...${scope.to}`
-          : scope?.mode === "all"
-            ? "entire repository"
-            : "uncommitted workspace changes (vs HEAD)";
-    const html = buildReviewReportHtml({
-      root,
-      projectName: basename(root),
-      status: String(out.review.status ?? "success"),
-      statusNote: String(out.statusNote ?? ""),
-      generatedAtIso,
-      language: locale,
-      modeLabel,
-      summary: out.review.summary,
-      comments: out.review.comments as Record<string, unknown>[],
-    });
-    const summary = out.review.summary ?? {};
-    const id = saveReviewReport(root, html, {
-      generatedAt: generatedAtIso,
-      status: String(out.review.status ?? "success"),
-      filesReviewed: Number(summary.filesReviewed ?? 0),
-      comments: Array.isArray(out.review.comments) ? out.review.comments.length : 0,
-      statusNote: String(out.statusNote ?? ""),
-      scopeLabel: modeLabel,
-      excludedByPolicy: Number(summary.excludedByPolicy ?? 0),
-      unsupportedFiles: Number(summary.unsupportedFiles ?? 0),
-      findings: out.review.comments as Array<Record<string, unknown>>,
-    });
-    if (!id) return null;
-    const htmlPath = resolveReportFile(root, id);
-    return htmlPath ? { root, htmlPath, id } : null;
-  } catch (err) {
-    console.warn("[review-report] generation failed:", err instanceof Error ? err.message : String(err));
-    return null;
-  }
-}
 
 // App UI locale as reported by the renderer (SessionLocaleSet) — drives the
 // wiki generation language. The renderer syncs it at boot and on change.
@@ -1264,15 +1143,21 @@ function registerGitIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handlePrivileged(IpcRequest.GitDiscard, (file: string) => getBridge().gitDiscard(file));
   handlePrivileged(IpcRequest.GitCommit, (message: string) => getBridge().gitCommit(message));
   handle(IpcRequest.GitCurrentBranch, () => getBridge().gitCurrentBranch());
-  handle(IpcRequest.GitListBranches, (root?: string) =>
-    root ? gitService.listBranches(root) : getBridge().gitListBranches()
-  );
+  handle(IpcRequest.GitListBranches, (root?: string) => {
+    // Registered-workspace pinning (see resolveRegisteredRoot): an unregistered
+    // root degrades to an empty list — never run git against an arbitrary
+    // renderer-supplied path.
+    const pinned = root ? resolveRegisteredRoot(root) : null;
+    return pinned ? gitService.listBranches(pinned) : root ? [] : getBridge().gitListBranches();
+  });
   handlePrivileged(IpcRequest.GitCheckout, (branch: string) => getBridge().gitCheckout(branch));
   handlePrivileged(IpcRequest.GitStashCheckout, (branch: string) => getBridge().gitStashCheckout(branch));
   handle(IpcRequest.GitDiff, (file: string, staged: boolean) => getBridge().gitDiff(file, staged));
-  handle(IpcRequest.GitLog, (limit?: number, root?: string) =>
-    root ? gitService.log(root, limit) : getBridge().gitLog(limit)
-  );
+  handle(IpcRequest.GitLog, (limit?: number, root?: string) => {
+    // Same pinning as GitListBranches above.
+    const pinned = root ? resolveRegisteredRoot(root) : null;
+    return pinned ? gitService.log(pinned, limit) : getBridge().gitLog(limit);
+  });
   handle(IpcRequest.GitCommitDiff, (hash: string, file?: string) => getBridge().gitCommitDiff(hash, file));
   handle(IpcRequest.GitCommitFiles, (hash: string) => getBridge().gitCommitFiles(hash));
 }
@@ -1415,12 +1300,32 @@ function registerCrgIpc({ handle, handlePrivileged }: IpcHelpers): void {
         // finding whose CRG node ranks 61..200 was enriched (its qn IS in the
         // risk data) yet silently unbindable before.
         const overview = getRiskOverviewCached(root, BINDING_LIMIT);
+        // Enrichment-time exact nodes: a finding carrying crgQn pins to THAT
+        // node even when it ranks outside the 200-set — pull it in by name.
+        const enrichedQns = [
+          ...new Set(
+            rawFindings
+              .map((f) =>
+                f && typeof f === "object" && typeof (f as { crgQn?: unknown }).crgQn === "string"
+                  ? (f as { crgQn: string }).crgQn
+                  : ""
+              )
+              .filter((qn) => qn.length > 0)
+          ),
+        ];
+        const extraNodes = enrichedQns.length > 0 ? createCrgGraphQuery().getRiskNodesByNames(root, enrichedQns) : [];
+        const known = new Set(overview.nodes.map((n) => n.qualifiedName));
+        const candidates: BindableNode[] = [
+          ...overview.nodes,
+          ...extraNodes.filter((n) => !known.has(n.qualifiedName)),
+        ];
         bindings = bindFindingsToNodes(
           rawFindings.map((f) => ({
             path: typeof f?.path === "string" ? f.path : "",
             startLine: Number(f?.startLine ?? f?.start_line ?? Number.NaN),
+            crgQn: typeof f?.crgQn === "string" ? f.crgQn : undefined,
           })),
-          overview.nodes as BindableNode[],
+          candidates,
           root
         );
       }
@@ -1809,24 +1714,33 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // their canonical stores directly.
   handle(IpcRequest.TaskHubList, async (workspaceRoot?: string) => {
     const active = getBridge()?.projectRoot ?? "";
-    const root =
-      typeof workspaceRoot === "string" && workspaceRoot
-        ? (resolveRegisteredRoot(workspaceRoot) ?? workspaceRoot)
-        : active;
-    if (!root) return { root: workspaceRoot ?? "", generatedAt: new Date().toISOString(), groups: [] };
+    // Registered-workspace pinning — the session domain below already degrades
+    // via rootService, but reviews/designs/jobs read their stores DIRECTLY, so
+    // an unregistered root must degrade to the EMPTY hub instead of falling
+    // back to the raw path (never enumerate `.deeporca` stores outside the
+    // registered set; see the rootService invariant below).
+    const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
+    if (!pinned) return { root: workspaceRoot ?? "", generatedAt: new Date().toISOString(), groups: [] };
     return buildTaskHub({
-      root,
-      listTrees: () => rootService(root)?.listTrees() ?? [],
-      listReviews: () => listReviewReports(root),
-      listDesigns: () => listDesignArtifacts(root),
-      listJobs: () => listIndexJobs(root),
+      root: pinned,
+      listTrees: () => rootService(pinned)?.listTrees() ?? [],
+      listReviews: () => listReviewReports(pinned),
+      listDesigns: () => listDesignArtifacts(pinned),
+      listJobs: () => listIndexJobs(pinned),
       // git binding badge: the tree's file-history repo HEAD (a git record
       // exists only if the tree ever checkpointed artifacts).
       treeGitHash: (treeId) => {
-        const svc = rootService(root);
+        const svc = rootService(pinned);
         if (!svc) return null;
         try {
-          const dir = join(getUserConfigRoot(), "projects", getProjectCode(root), "task-trees", treeId, "file-history");
+          const dir = join(
+            getUserConfigRoot(),
+            "projects",
+            getProjectCode(pinned),
+            "task-trees",
+            treeId,
+            "file-history"
+          );
           if (!existsSync(join(dir, ".git"))) return null;
           const r = spawnSync("git", ["-C", dir, "rev-parse", "--short=7", "HEAD"], {
             encoding: "utf-8",
@@ -1846,16 +1760,21 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   handle(IpcRequest.TaskHubTrace, async (workspaceRoot?: string, treeId?: string): Promise<TaskTreeTrace> => {
     const out: TaskTreeTrace = { treeId: treeId ?? "", sessions: [] };
     if (!treeId) return out;
-    const svc = rootService(workspaceRoot);
-    const full = svc?.getTree(treeId);
-    if (!svc || !full) return out;
+    // Cross-workspace safe (same seam as TaskTreeTrajectory): the session
+    // JSONLs are read from the RESOLVED project dir — the SessionBridge only
+    // knows the ACTIVE project's session store, so routing through it would
+    // render every non-active workspace's trace permanently empty.
+    const pinnedRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    const full = pinnedRoot ? new TaskTreeService(pinnedRoot).getTree(treeId) : null;
+    if (!pinnedRoot || !full) return out;
     const tree = full.index;
+    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinnedRoot));
     const ids = [...new Set(tree.sessionIds ?? [])];
     for (const sessionId of ids.slice(0, 4)) {
       try {
-        const messages = getBridge().listMessages(sessionId);
-        const entry = await getBridge().getSession(sessionId);
-        out.sessions.push(normalizeSessionTrace(sessionId, entry?.summary || sessionId.slice(0, 8), messages ?? []));
+        const { messages, summary } = readSessionTraceSource(projectDir, sessionId);
+        out.sessions.push(normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages));
       } catch {
         // per-session fail-open
       }
@@ -1866,8 +1785,12 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
   // Whole-workspace LLM token accounting (silent subagents included).
   handle(IpcRequest.TokensSummary, (workspaceRoot?: string) => {
     const active = getBridge()?.projectRoot ?? "";
-    const root = typeof workspaceRoot === "string" && workspaceRoot ? workspaceRoot : active;
-    return buildTokenSummary(root, projectSessionsIndexPath(getUserConfigRoot(), root));
+    // Registered-workspace pinning (see resolveRegisteredRoot): an unregistered
+    // root degrades to a zero summary — never read an arbitrary path's session
+    // store.
+    const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
+    if (!pinned) return emptyTokenSummary(workspaceRoot ?? "");
+    return buildTokenSummary(pinned, projectSessionsIndexPath(getUserConfigRoot(), pinned));
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
@@ -2452,12 +2375,23 @@ function registerIpc(): void {
   // electron-free by receiving emit + getRegistry via deps.
   registerActionIpc(helpers, {
     emit,
-    getRoot: () => getBridge()?.projectRoot ?? "",
+    // Stamp the action's TARGET root (review.full's on-demand `root`), falling
+    // back to the active workspace — the renderer multiplexes concurrent
+    // per-workspace runs by this stamp.
+    getRoot: (_id, input) => {
+      const inputRoot = (input as { root?: unknown } | undefined)?.root;
+      return typeof inputRoot === "string" && inputRoot ? inputRoot : (getBridge()?.projectRoot ?? "");
+    },
     // Wrapped so every review.full completion also produces the dedicated HTML
-    // report (see withReviewReportSurface above).
+    // report (see review-report-surface.ts), after registered-workspace
+    // validation of the on-demand input.root.
     getRegistry: () => {
       const bridge = getBridge();
-      return withReviewReportSurface(bridge?.getSessionManager().getActionRegistry() ?? null);
+      return withReviewReportSurface(bridge?.getSessionManager().getActionRegistry() ?? null, {
+        getActiveRoot: () => getBridge()?.projectRoot ?? "",
+        isKnownRoot: (root) => !!resolveRegisteredRoot(root),
+        getLocale: () => APP_LOCALE_TO_BCP47[currentAppLocale ?? ""] ?? "en",
+      });
     },
   });
 }

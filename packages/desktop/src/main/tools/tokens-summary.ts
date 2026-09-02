@@ -57,8 +57,9 @@ export function projectSessionsIndexPath(userConfigRoot: string, root: string): 
   return path.join(userConfigRoot, "projects", getProjectCode(root), "sessions-index.json");
 }
 
-export function buildTokenSummary(root: string, indexPath: string): WorkspaceTokenSummary {
-  const out: WorkspaceTokenSummary = {
+/** Zero summary — returned for an unregistered root (nothing read or enumerated). */
+export function emptyTokenSummary(root: string): WorkspaceTokenSummary {
+  return {
     root,
     sessions: 0,
     silentSessions: 0,
@@ -70,6 +71,10 @@ export function buildTokenSummary(root: string, indexPath: string): WorkspaceTok
     perModel: {},
     lastAt: null,
   };
+}
+
+export function buildTokenSummary(root: string, indexPath: string): WorkspaceTokenSummary {
+  const out: WorkspaceTokenSummary = emptyTokenSummary(root);
 
   let entries: IndexEntry[] = [];
   try {

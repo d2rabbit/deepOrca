@@ -13,7 +13,7 @@ import path from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { CRG_DATA_DIR } from "@deeporca/core";
-import { buildRiskGraphData } from "../main/tools/crg-risk-graph";
+import { buildRiskGraphData, getRiskOverviewCached, OVERVIEW_LIMIT } from "../main/tools/crg-risk-graph";
 
 async function makeGraph(root: string): Promise<void> {
   const dir = path.join(root, CRG_DATA_DIR);
@@ -84,6 +84,50 @@ test("risk data: ships nodes, communities and endpoint-filtered edges", async ()
     // target must have been dropped.
     assert.equal(data.edges.length, 1);
     assert.equal(data.edges[0].target, login.qn);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("risk data: a focused locate must NOT mutate the shared overview cache", async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "riskdata3-"));
+  try {
+    await makeGraph(root);
+    // Locate-jump pull path precondition: the focused node must rank OUTSIDE
+    // the top-OVERVIEW_LIMIT overview. 65 extra low-risk nodes push ranks 61+
+    // off the board; the lowest-ranked one is the focus target.
+    const db = new DatabaseSync(path.join(root, CRG_DATA_DIR, "graph.db"));
+    let focusQn = "";
+    let focusRisk = Number.MAX_SAFE_INTEGER;
+    for (let i = 1; i <= 65; i++) {
+      const f = path.join(root, "src", `gen${i}.ts`);
+      const qn = `${f}#fn${i}`;
+      const risk = 0.3 - i * 0.001;
+      db.prepare(`INSERT INTO nodes VALUES (?, 'Function', ?, ?, ?, 1, 2, 'ts', 1)`).run(5 + i, `fn${i}`, qn, f);
+      db.prepare(`INSERT INTO risk_index VALUES (?, ?, 0, 'uncovered', 0)`).run(qn, risk);
+      if (risk < focusRisk) {
+        focusRisk = risk;
+        focusQn = qn;
+      }
+    }
+    db.close();
+
+    const before = getRiskOverviewCached(root, OVERVIEW_LIMIT);
+    assert.equal(before.nodes.length, 60, "overview must cap at the display limit");
+
+    const focused = buildRiskGraphData(root, [focusQn])!;
+    assert.notEqual(focused, null);
+    assert.equal(focused.nodes.length, 61, "the focused node should be pulled into the board");
+
+    // The cache entry itself must be untouched: buildRiskGraphData receives
+    // the cached arrays by reference and once pushed into them in place, so
+    // every later PLAIN fetch of the same root rendered the focused node too.
+    const after = getRiskOverviewCached(root, OVERVIEW_LIMIT);
+    assert.equal(after.nodes.length, 60, "overview cache was polluted by the focus pull");
+    assert.equal(after, before, "cache entry identity changed");
+
+    const plain = buildRiskGraphData(root)!;
+    assert.equal(plain.nodes.length, 60, "a plain fetch rendered the previous report's focused node");
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }

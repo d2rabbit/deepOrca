@@ -1116,7 +1116,7 @@ export function mergeReviewWithCrgRisk(
   risks: CrgRiskData[],
   changes: CrgChangedFunction[],
   projectRoot?: string
-): { path: string; startLine: number; content: string; suggestionCode?: string; crgRisk?: string }[] {
+): { path: string; startLine: number; content: string; suggestionCode?: string; crgRisk?: string; crgQn?: string }[] {
   const riskMap = new Map(risks.map((r) => [r.qualifiedName, r]));
   // Build a filePath → risk lookup from changes (keys in graph form).
   const fileRiskMap = new Map<string, CrgRiskData>();
@@ -1131,11 +1131,16 @@ export function mergeReviewWithCrgRisk(
       : comment.path;
     const risk = fileRiskMap.get(inGraphForm) ?? fileRiskMap.get(comment.path);
     let crgRisk: string | undefined;
+    let crgQn: string | undefined;
     if (risk) {
+      // Persist the EXACT matched node: the desktop report↔graph binder uses
+      // this qn directly — re-deriving by path+line after a graph rebuild can
+      // drift and silently unbind an enriched finding (user report 2026-09-02).
+      crgQn = risk.qualifiedName;
       if (risk.riskScore >= 0.7) crgRisk = `HIGH (${risk.callerCount} callers)`;
       else if (risk.riskScore >= 0.3) crgRisk = `MEDIUM (${risk.callerCount} callers)`;
       else crgRisk = `LOW`;
     }
-    return { ...comment, crgRisk };
+    return { ...comment, crgRisk, crgQn };
   });
 }

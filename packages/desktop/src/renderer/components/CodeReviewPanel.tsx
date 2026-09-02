@@ -22,12 +22,10 @@ import {
  * Clicking a row opens the workspace's REVIEW TAB in the main content area —
  * report history and risk map live in that tab.
  *
- * The scope selector FOLLOWS the active workspace (user ask 2026-09-01 round
- * 2: 审查范围追随工作区): it renders under the active row — the
- * `ui-review-scope` "slim controls under the active workspace row" form —
- * and every workspace remembers its own scope. A review only ever runs
- * against the ACTIVE workspace (the action registry is bound to it); other
- * rows' buttons stay disabled with a hint.
+ * The scope selector renders IN every row (user ask 2026-09-01: 范围与 item
+ * 集成): each workspace remembers its own scope, and a review runs against
+ * the ROW's workspace on demand (review.full takes the target root directly
+ * — 审查与活动区无关, no workspace switch).
  */
 
 type ReviewScope = { mode: "workspace" | "commit" | "range" | "all"; commit: string; from: string; to: string };
@@ -35,8 +33,8 @@ type ReviewScope = { mode: "workspace" | "commit" | "range" | "all"; commit: str
 const DEFAULT_SCOPE: ReviewScope = { mode: "workspace", commit: "HEAD", from: "", to: "HEAD" };
 
 /** Refs the scope dropdowns offer (user ask 2026-09-01: 不能让用户自己填 —
- *  refs must be PICKED, not typed): branch names + the recent commits of the
- *  ACTIVE workspace (the git bridge is bound to it, same as the review). */
+ *  refs must be PICKED, not typed): each row fetches its OWN workspace's
+ *  branch names + recent commits (git reads take an explicit root). */
 interface ScopeRefs {
   branches: string[];
   commits: GitLogEntry[];
@@ -85,8 +83,9 @@ export function CodeReviewPanel({
   const [error, setError] = useState<string | null>(null);
   // Scope follows the workspace: one remembered setting per root (design
   // spec §4.4 — in-memory for now; persisted with the settings if it earns
-  // its keep). The selector renders under the ACTIVE row and loads whatever
-  // that workspace last used.
+  // its keep). Scope edits key by the ROW's root — the controls render on
+  // every row, so keying by the active root once corrupted A's scope when
+  // B's dropdown changed.
   const [scopes, setScopes] = useState<Record<string, ReviewScope>>({});
   // Pickable refs for the commit/range dropdowns — PER WORKSPACE (on-demand
   // review: git reads take an explicit root, so every row gets its OWN
@@ -117,12 +116,9 @@ export function CodeReviewPanel({
     };
   }, [workspaces]);
 
-  const updateScope = useCallback(
-    (patch: Partial<ReviewScope>) => {
-      setScopes((prev) => ({ ...prev, [activeRoot]: { ...(prev[activeRoot] ?? DEFAULT_SCOPE), ...patch } }));
-    },
-    [activeRoot]
-  );
+  const updateScope = useCallback((root: string, patch: Partial<ReviewScope>) => {
+    setScopes((prev) => ({ ...prev, [root]: { ...(prev[root] ?? DEFAULT_SCOPE), ...patch } }));
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -153,7 +149,7 @@ export function CodeReviewPanel({
     void reload();
   }, [reload]);
 
-  // Active-workspace switches re-bind which row's review button is live.
+  // Active-workspace switches refresh the active-row highlight + freshness.
   useEffect(() => api.onProjectRootChanged(() => void reload()), [reload]);
 
   // Restore per-root run state after remounts (user report 2026-09-01):
@@ -284,7 +280,7 @@ export function CodeReviewPanel({
                 <select
                   className="ui-review-scope-select"
                   value={scope.mode}
-                  onChange={(e) => updateScope({ mode: e.target.value as ReviewScope["mode"] })}
+                  onChange={(e) => updateScope(w.root, { mode: e.target.value as ReviewScope["mode"] })}
                   title={t("review.scope.title")}
                 >
                   <option value="workspace">{t("review.scope.workspace")}</option>
@@ -296,7 +292,7 @@ export function CodeReviewPanel({
                   <select
                     className="ui-review-scope-select"
                     value={scope.commit}
-                    onChange={(e) => updateScope({ commit: e.target.value })}
+                    onChange={(e) => updateScope(w.root, { commit: e.target.value })}
                     title={t("review.scope.commit")}
                   >
                     <option value="HEAD">HEAD</option>
@@ -312,7 +308,7 @@ export function CodeReviewPanel({
                     <select
                       className="ui-review-scope-select"
                       value={scope.from}
-                      onChange={(e) => updateScope({ from: e.target.value })}
+                      onChange={(e) => updateScope(w.root, { from: e.target.value })}
                       title={t("review.scope.from")}
                     >
                       <option value="">{t("review.scope.pickRef")}</option>
@@ -337,7 +333,7 @@ export function CodeReviewPanel({
                     <select
                       className="ui-review-scope-select"
                       value={scope.to}
-                      onChange={(e) => updateScope({ to: e.target.value })}
+                      onChange={(e) => updateScope(w.root, { to: e.target.value })}
                       title={t("review.scope.to")}
                     >
                       <option value="HEAD">HEAD</option>
@@ -389,10 +385,9 @@ export function CodeReviewPanel({
                   </div>
                   {/* Scope IN the row (user ask 2026-09-01: 范围与 item 集成) —
                       every row carries its own remembered scope; the ref
-                      dropdowns (branch/commit lists come from the git bridge,
-                      which is bound to the ACTIVE root) appear once the row is
-                      active — running a review on another row switches there
-                      first, so they are never wrong. */}
+                      dropdowns read that row's own git refs (fetched with an
+                      explicit root), so they are correct whichever row is
+                      active. */}
                   <div
                     className={`ui-review-row-scope${scope.mode === "workspace" ? "" : " has-refs"}`}
                     onClick={(e) => e.stopPropagation()}
@@ -400,9 +395,8 @@ export function CodeReviewPanel({
                     {scopeControls}
                   </div>
                   {/* SVG-icon run button (user ask 2026-09-01: 一键审查 → icon).
-                      Available on EVERY row: a non-active row switches the
-                      workspace first (action registry is root-bound), then
-                      runs. */}
+                      Available on EVERY row: review.full takes the row's root
+                      directly — no workspace switch (see runReview). */}
                   <IconButton
                     className={`ui-ik-runbtn${running ? " running" : ""}`}
                     disabled={running}

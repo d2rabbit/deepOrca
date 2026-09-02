@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type JSX } from "react";
 import type { SessionMessage, SkillInfo } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
+import { extractStoreReferences, splitStoreRefSegments, type StoreRefToken } from "../lib/store-refs";
 import { StreamdownView } from "./StreamdownView";
 
 // Lazy-load A2UI Surface renderer — only needed when agent produces A2UI output.
@@ -334,65 +335,28 @@ function CommandCard({ name, args, createTime }: { name: string; args: string; c
 // ── Store references (@…/.deeporca/deepwiki|reviews/…) in user prompts ──────
 // The wiki/report quote bridges insert absolute @-mention paths into the
 // prompt. Rendering those raw paths as plain text is noisy — recognize the
-// two canonical stores and render branded reference chips instead.
+// two canonical stores (shared parser: lib/store-refs.ts, also powering the
+// composer's reference highlighting) and render branded chips instead.
 
-type StoreRefKind = "wiki" | "review";
-
-interface StoreRef {
-  kind: StoreRefKind;
-  /** Full matched @path token. */
-  raw: string;
-  /** Page title (wiki) or report timestamp (review) for the chip label. */
-  label: string;
-  /** Trailing path tail shown dimmed under the label. */
-  pathTail: string;
-}
-
-const STORE_REF_RE = /@(\S*?\/\.deeporca\/(?:deepwiki|reviews)\/[^\s@]+(?:\.md|\.json)?)/g;
-
-function extractStoreReferences(text: string): { hasRefs: boolean; refs: StoreRef[] } {
-  const refs: StoreRef[] = [];
-  for (const m of text.matchAll(STORE_REF_RE)) {
-    const raw = m[1];
-    const kind: StoreRefKind = raw.includes("/.deeporca/deepwiki/") ? "wiki" : "review";
-    const file = raw.split("/").pop() ?? raw;
-    let label = file;
-    if (kind === "wiki") label = (file.replace(/\.md$/, "") || "wiki").split("/").pop() ?? file;
-    else {
-      const mm = file.match(/review-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
-      label = mm ? `${mm[1]}/${mm[2]}/${mm[3]} ${mm[4]}:${mm[5]}` : file;
-    }
-    const tail = raw.startsWith("@") ? raw.slice(1, Math.min(raw.length, 0) + 0) : "";
-    refs.push({ kind, raw, label, pathTail: tail });
-  }
-  return { hasRefs: refs.length > 0, refs };
-}
-
-function ReferenceSegments({ text, refs }: { text: string; refs: StoreRef[] }): JSX.Element {
+function ReferenceSegments({ text, refs }: { text: string; refs: StoreRefToken[] }): JSX.Element {
   const byRaw = new Map(refs.map((r) => [r.raw, r]));
   const parts: JSX.Element[] = [];
-  let last = 0;
-  const matches = [...text.matchAll(STORE_REF_RE)];
-  matches.forEach((m, i) => {
-    const start = m.index ?? 0;
-    if (start > last) parts.push(<span key={`t${i}`}>{text.slice(last, start)}</span>);
-    const ref = byRaw.get(m[1]);
-    if (ref) {
-      parts.push(
-        <span key={`r${i}`} className={`ui-ref-chip ${ref.kind}`} title={ref.raw.slice(1)}>
-          <span className="ui-ref-chip-icon">{ref.kind === "wiki" ? "📖" : "🛡"}</span>
-          <span className="ui-ref-chip-body">
-            <span className="ui-ref-chip-kind">{ref.kind === "wiki" ? "Wiki" : "审查报告"}</span>
-            <span className="ui-ref-chip-label">{ref.label}</span>
-          </span>
-        </span>
-      );
-    } else {
-      parts.push(<span key={`r${i}`}>{m[1]}</span>);
+  splitStoreRefSegments(text).forEach((seg, i) => {
+    if (seg.kind === "text") {
+      parts.push(<span key={`t${i}`}>{seg.text}</span>);
+      return;
     }
-    last = start + m[1].length;
+    const ref = byRaw.get(seg.ref.raw) ?? seg.ref;
+    parts.push(
+      <span key={`r${i}`} className={`ui-ref-chip ${ref.kind}`} title={ref.raw.slice(1)}>
+        <span className="ui-ref-chip-icon">{ref.kind === "wiki" ? "📖" : "🛡"}</span>
+        <span className="ui-ref-chip-body">
+          <span className="ui-ref-chip-kind">{ref.kind === "wiki" ? "Wiki" : "审查报告"}</span>
+          <span className="ui-ref-chip-label">{ref.label}</span>
+        </span>
+      </span>
+    );
   });
-  if (last < text.length) parts.push(<span key="tail">{text.slice(last)}</span>);
   return <>{parts}</>;
 }
 

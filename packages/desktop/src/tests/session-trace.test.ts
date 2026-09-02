@@ -11,7 +11,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSessionTrace } from "../main/tools/session-trace";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { normalizeSessionTrace, readSessionTraceSource } from "../main/tools/session-trace";
 
 type Raw = {
   id?: string;
@@ -121,4 +124,64 @@ test("session-trace: keeps only the newest 3 turns and flags truncation", () => 
   assert.equal(trace.truncated, true);
   assert.match(trace.turns[0].user, /turn 3/);
   assert.match(trace.turns[2].user, /turn 5/);
+});
+
+// ── readSessionTraceSource (cross-workspace JSONL fetch) ────────────────────
+
+test("readSessionTraceSource: reads JSONL messages + index summary from the project dir", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-trace-"));
+  try {
+    fs.writeFileSync(
+      path.join(dir, "s1.jsonl"),
+      [
+        JSON.stringify({ role: "user", content: "重构登录模块", createTime: "2026-09-01T10:00:00.000Z" }),
+        JSON.stringify({ role: "assistant", content: "ok", createTime: "2026-09-01T10:00:05.000Z" }),
+      ].join("\n")
+    );
+    fs.writeFileSync(
+      path.join(dir, "sessions-index.json"),
+      JSON.stringify({
+        version: 1,
+        entries: [
+          { id: "s1", summary: "登录模块重构" },
+          { id: "s2", summary: "其他" },
+        ],
+      })
+    );
+    const { messages, summary } = readSessionTraceSource(dir, "s1");
+    assert.equal(messages.length, 2);
+    assert.equal(messages[0].role, "user");
+    assert.equal(summary, "登录模块重构");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readSessionTraceSource: malformed lines are skipped, summary absent → undefined", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-trace-"));
+  try {
+    fs.writeFileSync(
+      path.join(dir, "s1.jsonl"),
+      ["not-json", "", JSON.stringify({ role: "user", content: "hi", createTime: "2026-09-01T10:00:00.000Z" })].join(
+        "\n"
+      )
+    );
+    fs.writeFileSync(path.join(dir, "sessions-index.json"), JSON.stringify({ version: 1, entries: [] }));
+    const { messages, summary } = readSessionTraceSource(dir, "s1");
+    assert.equal(messages.length, 1);
+    assert.equal(summary, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readSessionTraceSource: missing session file and missing index degrade to empty — no throw", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-trace-"));
+  try {
+    const { messages, summary } = readSessionTraceSource(dir, "ghost");
+    assert.deepEqual(messages, []);
+    assert.equal(summary, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

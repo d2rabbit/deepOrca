@@ -1460,6 +1460,9 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       askPermissions: normalizeAskPermissions(value.askPermissions),
       planMode: value.planMode === true,
       taskRef: this.normalizeTaskRef(value.taskRef),
+      // Whitelisted like every other field — an unlisted persisted field is
+      // silently dropped on the first post-restart updateSessionEntry flush.
+      workspaceDir: typeof value.workspaceDir === "string" ? value.workspaceDir : undefined,
     };
   }
 

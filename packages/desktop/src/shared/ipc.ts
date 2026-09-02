@@ -306,11 +306,14 @@ export type ReviewReportMeta = {
 };
 
 /** The minimal finding shape the risk map consumes (path + line + snippet
- *  for the opinions side card). */
+ *  for the opinions side card). `crgQn` is the enrichment-time EXACT node —
+ *  mergeReviewWithCrgRisk resolved file+line against the graph already, so
+ *  the binder pins to it instead of re-deriving (which drifts after rebuilds). */
 export type ReviewGraphFinding = {
   path: string;
   startLine: number;
   content?: string;
+  crgQn?: string;
 };
 
 /** One finding→node link for the bidirectional locate (design §4.3).

@@ -122,3 +122,29 @@ test("toGraphPath normalizes native separators only", () => {
   assert.equal(toGraphPath("/repo/src/a.ts"), "/repo/src/a.ts");
   assert.equal(toGraphPath("src/a.ts"), "src/a.ts");
 });
+
+test("enrichment crgQn pins the binding even when path/line would miss", () => {
+  // The exact node the review merge matched — its line range does NOT cover
+  // the finding's line and the file is otherwise empty, so the path+line
+  // derivation would bind nothing (the 2026-09-02 regression: enriched
+  // findings with a drifted line rendered no locate affordance).
+  const nodes = [node("src/auth.ts#login", f("src/auth.ts"), 10, 20)];
+  const got = bindFindingsToNodes([{ path: "src/auth.ts", startLine: 500, crgQn: "src/auth.ts#login" }], nodes, ROOT);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].qn, "src/auth.ts#login");
+  assert.equal(got[0].index, 0);
+});
+
+test("an unknown crgQn falls back to path+line derivation", () => {
+  const nodes = [node("src/auth.ts#login", f("src/auth.ts"), 10, 20)];
+  const got = bindFindingsToNodes([{ path: "src/auth.ts", startLine: 15, crgQn: "src/ghost.ts#gone" }], nodes, ROOT);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].qn, "src/auth.ts#login");
+});
+
+test("a malformed path with a valid crgQn still binds", () => {
+  const nodes = [node("src/auth.ts#login", f("src/auth.ts"), 10, 20)];
+  const got = bindFindingsToNodes([{ path: "", startLine: Number.NaN, crgQn: "src/auth.ts#login" }], nodes, ROOT);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].qn, "src/auth.ts#login");
+});

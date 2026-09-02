@@ -39,8 +39,11 @@ function graphDbPath(root: string): string | null {
 /**
  * Overview cache (review round 2026-09-01): the six-factor ranking is the
  * heaviest query in the module, and it used to re-run on EVERY report
- * selection AND again for the map. Keyed by root, invalidated by graph.db
- * mtime — a rebuild refreshes naturally, no TTL heuristics.
+ * selection AND again for the map. Keyed by `root#limit` (the binding path
+ * queries a different limit than the display board), invalidated by graph.db
+ * mtime — a rebuild refreshes naturally, no TTL heuristics. Callers get the
+ * cached arrays BY REFERENCE for reads; buildRiskGraphData must copy before
+ * extending (an in-place push once permanently polluted the cached top-N).
  */
 const overviewCache = new Map<string, { mtimeMs: number; overview: { nodes: CrgRiskNode[]; edges: CrgRiskEdge[] } }>();
 
@@ -68,7 +71,11 @@ export function getRiskOverviewCached(root: string, limit: number): { nodes: Crg
  */
 export function buildRiskGraphData(root: string, focusQns?: string[]): RiskGraphData | null {
   if (!createCrgGraphQuery().hasGraph(root)) return null;
-  const { nodes, edges } = getRiskOverviewCached(root, OVERVIEW_LIMIT);
+  // The cache returns its arrays BY REFERENCE — copy before extending, or the
+  // focus pull below would push into the cached top-N and every later plain
+  // fetch of this root would render the previous report's located nodes.
+  const { nodes: cachedNodes, edges } = getRiskOverviewCached(root, OVERVIEW_LIMIT);
+  const nodes = [...cachedNodes];
   if (nodes.length === 0) return null;
 
   // Report → graph locate (user report 2026-09-01: 有 CRG 节点却无法定位):

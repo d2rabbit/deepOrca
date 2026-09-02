@@ -113,8 +113,9 @@ export interface ReviewFullInput {
   /** ON-DEMAND review target (desktop IPC surface only — deliberately NOT in
    *  the LLM-facing parameters schema): review THIS workspace root instead of
    *  the registry's bound one, so any workspace can be reviewed without being
-   *  the active one. Must be an absolute path; the desktop IPC layer resolves
-   *  it against its registered-workspace table. */
+   *  the active one. Must be an absolute path; the desktop IPC layer VALIDATES
+   *  it against its registered-workspace table and rejects the run for a root
+   *  outside that set (it never silently rewrites or follows it). */
   readonly root?: string;
 }
 

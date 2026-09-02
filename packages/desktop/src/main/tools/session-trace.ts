@@ -5,9 +5,12 @@
  *   MCP / assistant), tool results matched back onto their call by id.
  *
  * Pure + UI-free — unit-tests cold. Tolerant by construction: any message
- * shape it does not understand is skipped, never thrown.
+ * shape it does not understand is skipped, never thrown. readSessionTraceSource
+ * is the one disk-reading companion (cross-workspace session JSONL fetch).
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { SessionMessage } from "@deeporca/core";
 
 export interface TraceStep {
@@ -103,6 +106,44 @@ function verdictOf(content: string | null): { ok?: boolean; fail?: boolean } {
     // non-JSON tool output — treat as ok (most fs/shell results)
   }
   return { ok: true };
+}
+
+/**
+ * Read one session's trace source straight from a project dir — the JSONL
+ * message log plus the index summary. Cross-workspace safe: unlike the
+ * SessionBridge (bound to the ACTIVE project's session manager), this reads
+ * whichever project dir the caller resolved. Missing files yield empty
+ * content, never a throw.
+ */
+export function readSessionTraceSource(
+  projectDir: string,
+  sessionId: string
+): { messages: SessionMessage[]; summary?: string } {
+  const messages: SessionMessage[] = [];
+  try {
+    const raw = readFileSync(join(projectDir, `${sessionId}.jsonl`), "utf-8");
+    for (const line of raw.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        messages.push(JSON.parse(line) as SessionMessage);
+      } catch {
+        // malformed line — skip
+      }
+    }
+  } catch {
+    // missing/unreadable session file — empty messages
+  }
+  let summary: string | undefined;
+  try {
+    const index = JSON.parse(readFileSync(join(projectDir, "sessions-index.json"), "utf-8")) as {
+      entries?: Array<{ id?: unknown; summary?: unknown }>;
+    };
+    const hit = (index.entries ?? []).find((e) => e.id === sessionId);
+    summary = typeof hit?.summary === "string" ? hit.summary : undefined;
+  } catch {
+    // no index yet — the caller falls back to the id slice as the title
+  }
+  return { messages, summary };
 }
 
 export function normalizeSessionTrace(sessionId: string, title: string, messages: SessionMessage[]): SessionTrace {
