@@ -19,12 +19,12 @@
 - [x] 4. MessageConverter：tool 结果 ↔ tool_call 按 id 配对（每个 tool 消息至多用一次；优先非中断结果）、中断回填（TS JSON.stringify(,null,2) 形状 + metadata.interrupted）、多模态 parts 过滤（注入 SupportsMultimodal）、compaction 过滤、turn tail（仅最后一条 user）、thinking reasoning 回放（empty-field 默认，DeepSeek 契约）、/init 渲染、trailing pending tool calls ✅
 - [x] 5. xUnit：SSE 解析（9）/ 消息配对（10）/ AnyJson+Settings（8）/ OpenAiClient（5）/ 骨架（1）+ 边界（2）共 41 全绿 ✅
 
-## M2 基建：权限 + MCP + 持久化 ⬜（前置：M1）
+## M2 基建：权限 + MCP + 持久化 ✅（2026-09-02，全套 69 单测绿）
 
-- [ ] 0. PermissionEngine：scope 评估（deny > ask > allow）+ BashSideEffectInference 直译（对拍 `permissions.ts`）
-- [ ] 1. MCPManager：官方 SDK `ModelContextProtocol`（stdio 传输）+ 工具发现缓存 + `tools/list changed` 刷新；不加透传包装层（design §6.6）；actor-style 单写者 + 并发单测
-- [ ] 2. SessionStore：JSONL 读写（sessions-index.json + messages.jsonl）；**debounce 读优先 pendingIndex 不变量**直译（AGENTS.md 会话索引不变量）；终端性变更 flush 语义；**邮箱 `enqueue → Task<T>` 为唯一公共入口，pendingIndex 无旁路读路径**（design §五 actor 行）
-- [ ] 3. 本地 MCP server 联调用例（filesystem/quickchart 类）跑通工具发现 + 执行
+- [x] 0. PermissionEngine：scope 评估（**deny > Plan force-ask > ask > allow > 路径授权 > 模式默认**）+ BashSideEffectInference 直译（七类副作用正则 + out-cwd 升级；Windows 盘符路径形态支持）✅ 16 用例
+- [x] 1. MCPManager：官方 SDK `ModelContextProtocol` 2.2.0（stdio 传输，D4 不 vendor；§6.6 不加透传包装）+ 工具发现缓存 + `RefreshAsync`（tools/list changed 重列）；SemaphoreSlim 单写者门；连接失败摘除不拖累其它 server ✅
+- [x] 2. SessionStore：JSONL 读写（sessions-index.json + messages.jsonl）；**单写者门为唯一公共入口（WithGateAsync 统一获取/释放），内存 index 永远权威——pendingIndex 读优先为结构性成立，无旁路读路径**；终端性变更（删除）强制 flush 绕过去抖；250ms 去抖定时器门外落盘；50 条上限淘汰；原子重写（M5 Compaction 备用）✅ 7 用例
+- [x] 3. 本地 MCP server 联调用例：`tests/DeepOrca.Core.Tests/Mcp/test-mcp-server.mjs`（newline-delimited JSON-RPC 桩）跑通 工具发现（schema 递归转换）/ 执行（文本渲染 + metadata）/ notFound 结构化错误 / 失败 server 隔离 / 配置移除断连 ✅ 5 用例
 
 ## M3 技能 + Prompt ⬜（前置：M2）
 

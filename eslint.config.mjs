@@ -77,8 +77,9 @@ export default tseslint.config(
       "./scripts/**/*.mjs",
       "packages/*/scripts/**/*.js",
       "packages/*/build.mjs",
-      // win-native 线的工具脚本（Core 红线守护等，见 deeporca-win/tools/）
+      // win-native 线的工具脚本（Core 红线守护等，见 deeporca-win/tools/）+ 测试桩
       "deeporca-win/tools/**/*.mjs",
+      "deeporca-win/tests/**/*.mjs",
     ],
     languageOptions: {
       globals: {

@@ -3,4 +3,8 @@
        红线：不引 WinUI/WebView2/任何 GUI 框架；不直接 console.*；logger 由宿主注入。
        外部依赖（ModelContextProtocol / OnnxRuntime / Tokenizers）按里程碑 M2/M8 到位
        时再引入 PackageReference——M0 骨架保持零外部依赖。版本基线见 ../README.md。 -->
+  <ItemGroup>
+    <!-- M2：官方 MCP C# SDK（design 决策点 D4：NuGet 可达即不 vendor） -->
+    <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
+  </ItemGroup>
 </Project>
