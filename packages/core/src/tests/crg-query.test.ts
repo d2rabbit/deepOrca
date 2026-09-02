@@ -316,7 +316,9 @@ test("detectChanges: a file with NO hunk intervals falls back to file-level when
     ]);
 
     const q = createCrgGraphQuery();
-    const got = q.detectChanges(root, [tracked, untracked], { "src/tracked.ts": [[999, 1000]] });
+    // hunk 落在 trackedFn 的跨度内（1–10 行）：有 hunk 的文件按行收窄后节点保留，
+    // 无 hunk 的 fresh.ts 走文件级回退 —— 这正是本用例要固定的混合语义。
+    const got = q.detectChanges(root, [tracked, untracked], { "src/tracked.ts": [[1, 5]] });
     const names = got.map((c) => c.name).sort();
     assert.deepEqual(names, ["freshFn", "trackedFn"], "no-hunk file keeps file-level detection");
   } finally {
