@@ -1,0 +1,12 @@
+<Project>
+  <!-- 全 solution 共享属性。Core 的 UI-free 红线（禁引 WinUI/WebView2、禁 console.*、
+       logger 宿主注入）由 CI 引用扫描守护（M1.0），不靠此处。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+</Project>

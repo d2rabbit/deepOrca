@@ -73,3 +73,6 @@ vendor-src/
 .deeporca/prototypes/
 .codegraph
 
+
+# feat/win-native 分支上忽略 apple 原生线的本地残留（与其 .gitignore 同目录，交叉并存时互不污染）
+deeporca-native/

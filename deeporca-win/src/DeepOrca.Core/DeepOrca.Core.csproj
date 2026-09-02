@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- DeepOrca.Core — UI-free 引擎（specs/win-native-migration design §四）。
+       红线：不引 WinUI/WebView2/任何 GUI 框架；不直接 console.*；logger 由宿主注入。
+       外部依赖（ModelContextProtocol / OnnxRuntime / Tokenizers）按里程碑 M2/M8 到位
+       时再引入 PackageReference——M0 骨架保持零外部依赖。版本基线见 ../README.md。 -->
+</Project>
