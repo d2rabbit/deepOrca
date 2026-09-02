@@ -65,4 +65,10 @@ export {
   IconMenuBars,
   IconClose,
   IconExternal,
+  IconTaskHub,
+  IconChatBubble,
+  IconBot,
+  IconShield,
+  IconSparkle,
+  IconRefresh,
 } from "./icons";

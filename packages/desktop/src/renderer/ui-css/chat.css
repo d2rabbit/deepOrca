@@ -57,6 +57,10 @@
   box-shadow: none;
   user-select: none;
 }
+.ui-avatar svg {
+  width: 11px;
+  height: 11px;
+}
 
 .ui-bubble-row > .ui-bubble,
 .ui-bubble-row > .ui-tool-card {
@@ -1936,6 +1940,12 @@ button.ui-tool-head:hover {
 .ui-ref-chip .ui-ref-chip-icon {
   font-size: 14px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.ui-ref-chip .ui-ref-chip-icon svg {
+  width: 14px;
+  height: 14px;
 }
 .ui-ref-chip .ui-ref-chip-body {
   display: inline-flex;

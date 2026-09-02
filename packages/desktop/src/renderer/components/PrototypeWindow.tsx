@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState, type JSX } from "react";
 import { A2uiSurface } from "../a2ui/A2uiSurface";
 import { api } from "../api";
 import { processA2uiMessages, extractSurfaceId } from "../a2ui/processor";
+import { IconSparkle } from "../ui/index";
 
 export function PrototypeWindow(): JSX.Element {
   const [a2uiJson, setA2uiJson] = useState<string | null>(null);
@@ -86,6 +87,9 @@ export function PrototypeWindow(): JSX.Element {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--ui-bg, #1a1a1a)" }}>
       <div
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
           padding: "8px 16px",
           borderBottom: "1px solid var(--ui-border-soft, #333)",
           fontSize: 13,
@@ -94,7 +98,7 @@ export function PrototypeWindow(): JSX.Element {
           background: "var(--ui-surface-alt, rgba(0,0,0,0.1))",
         }}
       >
-        ✦ {title}
+        <IconSparkle /> {title}
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
         {a2uiJson ? (

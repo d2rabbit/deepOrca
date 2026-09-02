@@ -754,3 +754,86 @@ export function IconExternal(): JSX.Element {
     </svg>
   );
 }
+
+/** Canopy tree over a ground line — workspace task hub tab */
+export function IconTaskHub(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="10" cy="6.3" r="3.4" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 9.7V17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7 17h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M10 6.3V4.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Speech bubble with ellipsis — user prompt in task traces */
+export function IconChatBubble(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H8.5L5 16.2v-2.7H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="7" cy="9" r="0.9" fill="currentColor" />
+      <circle cx="10" cy="9" r="0.9" fill="currentColor" />
+      <circle cx="13" cy="9" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Robot head — subagent block in task traces */
+export function IconBot(): JSX.Element {
+  return (
+    <svg {...S}>
+      <rect x="4" y="6.2" width="12" height="9" rx="3" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 6.2V3.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="10" cy="3" r="1" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M7 10.2h.01M13 10.2h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7 13.4h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Shield with check — review report reference chip */
+export function IconShield(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M10 2.8l5.5 2v5c0 3.4-2.4 5.7-5.5 7-3.1-1.3-5.5-3.6-5.5-7v-5l5.5-2Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M7.2 9.6l1.9 1.9 3.7-3.9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Four-point star — sparkle markers (PRD / prototype / model tabs) */
+export function IconSparkle(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M10 2.8l1.9 5.3 5.3 1.9-5.3 1.9L10 17.2l-1.9-5.3-5.3-1.9 5.3-1.9L10 2.8Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Two curved arrows — refresh (skill re-scan) */
+export function IconRefresh(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M16.9 7.6A7.4 7.4 0 0 0 3.6 6.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M17 3.4v3.6h-3.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.1 12.4A7.4 7.4 0 0 0 16.4 13.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3 16.6V13h3.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

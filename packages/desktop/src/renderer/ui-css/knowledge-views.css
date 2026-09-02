@@ -1758,6 +1758,14 @@
 .ui-taskrec-node-icon {
   font-size: 11px;
   color: var(--ui-text-dim, #55606d);
+  display: inline-flex;
+  align-items: center;
+}
+.ui-taskrec-node-icon svg,
+.ui-taskrec-node-why svg {
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
 }
 .ui-taskrec-node-status {
   width: 7px;

@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { api } from "../api";
-import { Button, IconUndo } from "../ui/index";
+import { Button, IconSparkle, IconUndo } from "../ui/index";
 import { useI18n } from "../i18n";
 import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "@deeporca/core";
 import type { TaskTrajectory } from "../../shared/ipc";
@@ -22,12 +22,12 @@ type Props = {
   workspaceRoot?: string;
 };
 
-const KIND_ICON: Record<TaskNode["kind"], string> = {
+const KIND_ICON: Record<TaskNode["kind"], string | JSX.Element> = {
   root: "◆",
   step: "•",
   fork: "⑂",
   merge: "⑃",
-  "memory-spawn": "✦",
+  "memory-spawn": <IconSparkle />,
 };
 
 const STATUS_CLASS: Record<TaskNode["status"], string> = {
@@ -108,7 +108,7 @@ function NodeTree({
           ) : null}
           {node.meta.memorySeed ? (
             <div className="ui-taskrec-node-why" style={{ paddingLeft: 26 + depth * 18 }}>
-              ✦ {memoryBranchLabel(node.meta.memorySeed.similarity)}
+              <IconSparkle /> {memoryBranchLabel(node.meta.memorySeed.similarity)}
             </div>
           ) : null}
           <NodeTree

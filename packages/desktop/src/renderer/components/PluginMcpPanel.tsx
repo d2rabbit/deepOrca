@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from "react";
 import type { BuiltinPluginGroup, PluginMcpServer, SkillInfo } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
-import { Button, Input, StatusDot, Switch } from "../ui/index";
+import { Button, IconRefresh, Input, StatusDot, Switch } from "../ui/index";
 import type { PluginSelection } from "./PluginDetail";
 
 /**
@@ -318,7 +318,7 @@ export function PluginMcpPanel({
                   <span className="ui-skill-toolbar-count">{userSkills.length}</span>
                   {onRefreshSkills ? (
                     <Button size="sm" variant="subtle" onClick={() => void refreshSkills()} disabled={refreshing}>
-                      ↻ {t("scm.refresh")}
+                      <IconRefresh /> {t("scm.refresh")}
                     </Button>
                   ) : null}
                 </div>

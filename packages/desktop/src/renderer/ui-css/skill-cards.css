@@ -99,6 +99,12 @@
   color: var(--ui-accent);
   font-size: 13px;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+.ui-msg-skill-card-icon svg {
+  width: 13px;
+  height: 13px;
 }
 .ui-msg-skill-card-main {
   min-width: 0;
@@ -164,6 +170,10 @@
   background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   color: var(--ui-accent);
   font-size: 13px;
+}
+.ui-skill-card-icon svg {
+  width: 14px;
+  height: 14px;
 }
 .ui-skill-card-main {
   min-width: 0;
@@ -233,6 +243,11 @@
   color: var(--ui-accent);
   font-size: 12px;
   flex: none;
+  display: inline-flex;
+}
+.ui-composer-skill-card-icon svg {
+  width: 13px;
+  height: 13px;
 }
 .ui-composer-skill-card-main {
   min-width: 0;

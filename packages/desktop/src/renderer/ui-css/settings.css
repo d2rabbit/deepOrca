@@ -122,6 +122,10 @@
   line-height: 1;
   width: 18px;
 }
+.ui-settings-nav-icon svg {
+  width: 15px;
+  height: 15px;
+}
 .ui-settings-main {
   display: flex;
   flex-direction: column;

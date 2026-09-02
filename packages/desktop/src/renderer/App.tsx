@@ -107,6 +107,8 @@ import {
   IconReview,
   IconPlugins,
   IconTaskTree,
+  IconTaskHub,
+  IconSparkle,
   IconMoon,
   IconSun,
   IconUndo,
@@ -1807,7 +1809,7 @@ export function App(): JSX.Element {
               onClick={() => setActiveTab({ kind: "taskhub", root: tab.root })}
               data-tip={tab.label}
             >
-              🌳 {tab.label}
+              <IconTaskHub /> {tab.label}
             </button>
             <button
               type="button"
@@ -2265,7 +2267,7 @@ export function App(): JSX.Element {
                   className={`ui-preview-tab ${previewTab === "prd" ? "active" : ""}`}
                   onClick={() => setPreviewTab("prd")}
                 >
-                  ✦ PRD
+                  <IconSparkle /> PRD
                 </button>
               ) : (
                 <>
@@ -2273,13 +2275,13 @@ export function App(): JSX.Element {
                     className={`ui-preview-tab ${previewTab === "prototype" ? "active" : ""}`}
                     onClick={() => setPreviewTab("prototype")}
                   >
-                    ✦ Prototype
+                    <IconSparkle /> Prototype
                   </button>
                   <button
                     className={`ui-preview-tab ${previewTab === "design" ? "active" : ""}`}
                     onClick={() => setPreviewTab("design")}
                   >
-                    ✦ Design
+                    <IconSparkle /> Design
                   </button>
                 </>
               )}

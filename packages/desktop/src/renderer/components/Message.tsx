@@ -30,6 +30,9 @@ import {
   IconToolSearch,
   IconToolMcp,
   IconToolGeneric,
+  IconBook,
+  IconShield,
+  IconSparkle,
 } from "../ui/index";
 
 function Md({
@@ -62,7 +65,7 @@ function Avatar({ role }: { role: "user" | "assistant" | "thinking" | "tool" | "
     ) : role === "assistant" ? (
       "AI"
     ) : role === "thinking" ? (
-      "✦"
+      <IconSparkle />
     ) : (
       <span className="ui-avatar-bolt">
         <IconBolt />
@@ -298,7 +301,7 @@ function SkillAttachmentCard({ skill }: { skill: SkillInfo }): JSX.Element {
   return (
     <div className="ui-msg-skill-card" title={skill.description || skill.name}>
       <span className="ui-msg-skill-card-icon" aria-hidden="true">
-        ✦
+        <IconSparkle />
       </span>
       <div className="ui-msg-skill-card-main">
         <div className="ui-msg-skill-card-head">
@@ -349,7 +352,7 @@ function ReferenceSegments({ text, refs }: { text: string; refs: StoreRefToken[]
     const ref = byRaw.get(seg.ref.raw) ?? seg.ref;
     parts.push(
       <span key={`r${i}`} className={`ui-ref-chip ${ref.kind}`} title={ref.raw.slice(1)}>
-        <span className="ui-ref-chip-icon">{ref.kind === "wiki" ? "📖" : "🛡"}</span>
+        <span className="ui-ref-chip-icon">{ref.kind === "wiki" ? <IconBook /> : <IconShield />}</span>
         <span className="ui-ref-chip-body">
           <span className="ui-ref-chip-kind">{ref.kind === "wiki" ? "Wiki" : "审查报告"}</span>
           <span className="ui-ref-chip-label">{ref.label}</span>
@@ -820,7 +823,7 @@ function SkillLoadedCard({ skill }: { skill: SkillInfo }): JSX.Element {
     <div className="ui-bubble-row system">
       <div className="ui-skill-card">
         <span className="ui-skill-card-icon" aria-hidden="true">
-          ✦
+          <IconSparkle />
         </span>
         <div className="ui-skill-card-main">
           <div className="ui-skill-card-head">
