@@ -222,7 +222,8 @@ If the query is simple (single intent), respond with a single-element array.`;
                 },
                 options?.signal ? { signal: options.signal } : undefined,
                 options?.sessionId,
-                { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL }
+                { enabled: false, location: "SessionManager.createSkillDecomposer", baseURL },
+                { source: "auxiliary" }
               );
               return response.choices?.[0]?.message?.content;
             },

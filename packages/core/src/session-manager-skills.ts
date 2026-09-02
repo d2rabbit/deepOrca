@@ -122,7 +122,8 @@ ${agentInstructions}
           location: "SessionManager.identifyMatchingSkillNames",
           baseURL,
           params: { purpose: "skill-matching", model, temperature: 0.1 },
-        }
+        },
+        { source: "auxiliary" }
       );
       this.throwIfAborted(options?.signal);
 
@@ -294,7 +295,8 @@ Rules:
         location: "SessionManager.enhancePrompt",
         baseURL,
         params: { purpose: "prompt-enhance", model, temperature: 0.3 },
-      }
+      },
+      { source: "auxiliary" }
     );
     this.throwIfAborted(options?.signal);
 

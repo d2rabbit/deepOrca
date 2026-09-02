@@ -755,6 +755,8 @@ export const en = {
   "tokens.tokensUnit": "{n} tokens",
   "tokens.sessionsCounted": "{n} sessions counted",
   "tokens.cacheHitRate": "{n}% prompt cache hit",
+  "tokens.costEstimate": "Estimated cost",
+  "tokens.cacheUnavailable": "prompt cache n/a",
   "tokens.perModel": "By model",
   "tokens.colModel": "Model",
   "tokens.colPrompt": "Prompt",

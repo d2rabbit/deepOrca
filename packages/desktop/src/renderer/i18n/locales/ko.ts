@@ -745,6 +745,8 @@ export const ko: Record<MessageKey, string> = {
   "tokens.tokensUnit": "{n} 토큰",
   "tokens.sessionsCounted": "{n}개 세션 집계됨",
   "tokens.cacheHitRate": "프롬프트 캐시 적중 {n}%",
+  "tokens.costEstimate": "예상 비용",
+  "tokens.cacheUnavailable": "프롬프트 캐시 알 수 없음",
   "tokens.perModel": "모델별",
   "tokens.colModel": "모델",
   "tokens.colPrompt": "프롬프트",

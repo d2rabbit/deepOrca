@@ -130,6 +130,9 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
   // Nothing persisted on disk: no sessions index and no message JSONL anywhere
   // under the config home's session stores. (An empty project dir may exist —
   // plain SessionManager construction creates it; that is not session residue.)
+  // usage-ledger.jsonl is the ONE deliberate exception (P1, 2026-09): the
+  // per-request usage ledger is how background-task consumption stops being
+  // invisible — it is accounting data, not session state.
   const projectsDir = path.join(process.env.HOME!, ".deeporca", "projects");
   const legacyProjectsDir = path.join(process.env.HOME!, ".deepcode", "projects");
   const residue: string[] = [];
@@ -139,7 +142,7 @@ test("runBackgroundLlmTask leaves zero session residue", async () => {
       const projDir = path.join(dir, proj);
       if (!fs.statSync(projDir).isDirectory()) continue;
       for (const f of fs.readdirSync(projDir)) {
-        if (f === "sessions-index.json" || f.endsWith(".jsonl")) {
+        if (f === "sessions-index.json" || (f.endsWith(".jsonl") && f !== "usage-ledger.jsonl")) {
           residue.push(path.join(projDir, f));
         }
       }

@@ -625,7 +625,8 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
                 location: "SessionManager.runBackgroundLlmTask",
                 baseURL,
                 params: { iteration: i, task: opts.skill },
-              }
+              },
+              { source: "background" }
             );
             break;
           } catch (err) {

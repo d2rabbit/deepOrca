@@ -191,24 +191,16 @@ test("compactSession stage A truncates oversized tool results and skips the LLM 
 test("settings.compactTokenThreshold override triggers compaction before the family default", async () => {
   setHomeDir(createTempDir("deepcode-compact-override-home-"));
   const workspace = createTempDir("deepcode-compact-override-workspace-");
-  // 110K active tokens sits BETWEEN the override (100K) and the model's family
-  // default (128K — "test-model" is not a registered V4 model): compaction
-  // fires only when the user override is honored. Skill-matching requests
-  // (response_format json_object) get a canned response without consuming the
-  // queue, mirroring session.test's mocked-client helper.
+  // The reply's filler counts ~110K local tokens (P1: compaction triggers on
+  // the locally counted pre-flight budget, not API-reported usage) — BETWEEN
+  // the user override (100K) and the unknown-family default (200K):
+  // compaction fires only when the user override is honored. Skill-matching
+  // requests (response_format json_object) get a canned response without
+  // consuming the queue, mirroring session.test's mocked-client helper.
   const responses = [
-    {
-      choices: [{ message: { content: "answer" } }],
-      usage: { prompt_tokens: 110_000, completion_tokens: 1, total_tokens: 110_001 },
-    },
-    {
-      choices: [{ message: { content: "summary" } }],
-      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-    },
-    {
-      choices: [{ message: { content: "after" } }],
-      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
-    },
+    { choices: [{ message: { content: "answer" } }] },
+    { choices: [{ message: { content: "summary" } }] },
+    { choices: [{ message: { content: "after" } }] },
   ];
   const client = {
     chat: {
@@ -238,7 +230,7 @@ test("settings.compactTokenThreshold override triggers compaction before the fam
   });
 
   const sessionId = await manager.createSession({ text: "" });
-  await manager.replySession(sessionId, { text: "" });
+  await manager.replySession(sessionId, { text: `filler ${"x".repeat(440_000)}` });
 
   const usagePerModel = manager.getSession(sessionId)?.usagePerModel as Record<string, unknown>;
   assert.ok(
@@ -250,16 +242,11 @@ test("settings.compactTokenThreshold override triggers compaction before the fam
 test("compaction respects the family default when no override is set", async () => {
   setHomeDir(createTempDir("deepcode-compact-nodefault-home-"));
   const workspace = createTempDir("deepcode-compact-nodefault-workspace-");
-  // Same 110K tokens, no override → below the 128K family default → no compaction.
+  // Same ~110K-token filler, no override → below the 200K unknown-family
+  // default → no compaction.
   const responses = [
-    {
-      choices: [{ message: { content: "answer" } }],
-      usage: { prompt_tokens: 110_000, completion_tokens: 1, total_tokens: 110_001 },
-    },
-    {
-      choices: [{ message: { content: "after" } }],
-      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
-    },
+    { choices: [{ message: { content: "answer" } }] },
+    { choices: [{ message: { content: "after" } }] },
   ];
   const client = {
     chat: {
@@ -289,7 +276,7 @@ test("compaction respects the family default when no override is set", async () 
   });
 
   const sessionId = await manager.createSession({ text: "" });
-  await manager.replySession(sessionId, { text: "" });
+  await manager.replySession(sessionId, { text: `filler ${"x".repeat(440_000)}` });
 
   const usagePerModel = manager.getSession(sessionId)?.usagePerModel as Record<string, unknown>;
   assert.equal(

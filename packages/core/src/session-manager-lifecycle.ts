@@ -8,13 +8,14 @@ import {
   PENDING_TOOL_RESUME_MODE_DEFAULT,
   shouldSynthesizePendingToolCalls,
 } from "./common/resume-synthesis";
+import { countConversationTokens, countRequestPayloadTokens } from "./common/token-counter";
 import {
-  estimateConversationTokens,
+  PRE_COMPACT_RATIO,
   STAGE_A_SKIP_HEADROOM,
   truncateToolResultForCompaction,
   validateCompactionPairing,
 } from "./common/compaction";
-import { accumulateUsage, accumulateUsagePerModel, getLastPromptTokens } from "./session-usage";
+import { accumulateUsage, accumulateUsagePerModel } from "./session-usage";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { getSnippet, rebuildSessionStateFromHistory } from "./common/state";
 import { describeLlmError, classifyLlmError } from "./common/llm-error";
@@ -443,28 +444,44 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           await this.compactSession(sessionId, sessionController.signal);
         }
 
-        const messages = this.messageConverter.buildMessages(
-          this.listSessionMessages(sessionId),
-          thinkingEnabled,
-          model
-        );
+        let messages = this.messageConverter.buildMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
+        const tools = getTools(this.getPromptToolOptions(), [
+          ...(await this.getRoutedMcpTools(sessionId)),
+          // defineAction LLM surface: registered actions appear as tools the
+          // agent can call (e.g. system_ping). Dispatched in ToolExecutor.
+          ...this.actionRegistry.toToolDefinitions(),
+          // Memory provider retrieval tools (Phase 4 / T4.1): read-only
+          // search over L1 memories / L0 conversations. Dispatched via the
+          // executor's memory bridge; no permission gate (pure reads).
+          ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
+        ]);
         const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort, model);
+        // Pre-flight budget (P1): count the exact payload about to hit the
+        // wire and compact BEFORE sending when it nears the threshold — the
+        // first oversized request no longer has to hit the wall and recover
+        // via CONTEXT_WINDOW_EXCEEDED.
+        let promptTokens = countRequestPayloadTokens(model, { messages, tools });
+        if (promptTokens >= compactPromptTokenThreshold * PRE_COMPACT_RATIO) {
+          const notice = this.buildAssistantMessage(sessionId, formatSessionPrompt("compacting"), null);
+          notice.meta = { asThinking: true };
+          this.onAssistantMessage(notice, false);
+          await this.compactSession(sessionId, sessionController.signal);
+          if (this.isInterrupted(sessionId)) {
+            return;
+          }
+          messages = this.messageConverter.buildMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
+          promptTokens = countRequestPayloadTokens(model, { messages, tools });
+        }
+        // Pre-send context-meter refresh: the UI badge and the loop-top
+        // compaction check read activeTokens before this request completes.
+        this.updateSessionEntry(sessionId, (entry) => ({ ...entry, activeTokens: promptTokens }));
         const response = await this.createChatCompletionStream(
           client,
           {
             model,
             ...(temperature !== undefined ? { temperature } : {}),
             messages,
-            tools: getTools(this.getPromptToolOptions(), [
-              ...(await this.getRoutedMcpTools(sessionId)),
-              // defineAction LLM surface: registered actions appear as tools the
-              // agent can call (e.g. system_ping). Dispatched in ToolExecutor.
-              ...this.actionRegistry.toToolDefinitions(),
-              // Memory provider retrieval tools (Phase 4 / T4.1): read-only
-              // search over L1 memories / L0 conversations. Dispatched via the
-              // executor's memory bridge; no permission gate (pure reads).
-              ...(this.memoryProvider?.isAvailable() ? (this.memoryProvider.getToolDefinitions?.() ?? []) : []),
-            ]),
+            tools,
             ...thinkingOptions,
           },
           { signal: sessionController.signal },
@@ -474,7 +491,8 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
             location: "SessionManager.activateSession",
             baseURL,
             params: { iteration, temperature, thinkingEnabled, reasoningEffort },
-          }
+          },
+          { source: "chat", promptTokens }
         );
 
         const message = response.choices?.[0]?.message;
@@ -529,9 +547,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
               assistantThinking: thinking,
               assistantRefusal: refusal,
               toolCalls,
-              usage: accumulateUsage(entry.usage, responseUsage),
-              usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
-              activeTokens: getLastPromptTokens(responseUsage),
+              usage: accumulateUsage(entry.usage, response.localUsage ?? responseUsage),
+              usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, response.localUsage ?? responseUsage),
+              activeTokens: promptTokens,
               status: "ask_permission",
               failReason: null,
               askPermissions: permissionPlan.askPermissions,
@@ -555,9 +573,9 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
           assistantThinking: thinking,
           assistantRefusal: refusal,
           toolCalls,
-          usage: accumulateUsage(entry.usage, responseUsage),
-          usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
-          activeTokens: getLastPromptTokens(responseUsage),
+          usage: accumulateUsage(entry.usage, response.localUsage ?? responseUsage),
+          usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, response.localUsage ?? responseUsage),
+          activeTokens: promptTokens,
           status: refusal ? "failed" : waitingForUser ? "waiting_for_user" : toolCalls ? "processing" : "completed",
           failReason: refusal ? refusal : entry.failReason,
           askPermissions: undefined,
@@ -737,7 +755,7 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
       this.saveSessionMessages(sessionId, sessionMessages);
       const threshold =
         this.getResolvedSettings().compactTokenThreshold ?? getCompactPromptTokenThreshold(sessionModel ?? model);
-      if (estimateConversationTokens(sessionMessages) < threshold * STAGE_A_SKIP_HEADROOM) {
+      if (countConversationTokens(sessionModel ?? model, sessionMessages) < threshold * STAGE_A_SKIP_HEADROOM) {
         // Stage A sufficed — skip the LLM summary. Reset the meter; the next
         // request re-measures (same contract as the post-summary path below).
         this.updateSessionEntry(sessionId, (entry) => ({ ...entry, activeTokens: 0, updateTime: now }));
@@ -762,7 +780,8 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
         location: "SessionManager.compactSession",
         baseURL,
         params: { temperature, thinkingEnabled, reasoningEffort },
-      }
+      },
+      { source: "compaction" }
     );
     this.throwIfAborted(signal);
     const rawLlmResponse = response.choices?.[0]?.message?.content;
@@ -772,8 +791,8 @@ export abstract class SessionManagerLifecycle extends SessionManagerPersistence 
     const responseUsage = response.usage ?? null;
     this.updateSessionEntry(sessionId, (entry) => ({
       ...entry,
-      usage: accumulateUsage(entry.usage, responseUsage),
-      usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, responseUsage),
+      usage: accumulateUsage(entry.usage, response.localUsage ?? responseUsage),
+      usagePerModel: accumulateUsagePerModel(entry.usagePerModel, model, response.localUsage ?? responseUsage),
       // The compaction request's prompt size says nothing about the session's
       // real context pressure — reset and let the next model request re-measure.
       activeTokens: 0,
