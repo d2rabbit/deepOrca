@@ -17,7 +17,7 @@ import {
   getPlanLines,
   getResultMd,
 } from "../lib/messages";
-import { useI18n } from "../i18n";
+import { useI18n, type MessageKey } from "../i18n";
 import { JsonView } from "./JsonView";
 import {
   IconCommand,
@@ -108,6 +108,19 @@ function toolIcon(name: string): JSX.Element {
   if (n.startsWith("mcp__")) return <IconToolMcp />;
   return <IconToolGeneric />;
 }
+
+/** 行为流动词（按工具类别；msg.flow.*）——会话流缩略行的第一个词。 */
+const FLOW_VERB_KEY: Record<string, MessageKey> = {
+  bash: "msg.flow.bash",
+  read: "msg.flow.read",
+  write: "msg.flow.write",
+  edit: "msg.flow.edit",
+  search: "msg.flow.grep",
+  mcp: "msg.flow.mcp",
+  plan: "msg.flow.plan",
+  ask: "msg.flow.ask",
+  generic: "msg.flow.other",
+};
 
 /** Inline-SVG terminal glyph: a window with a chevron prompt and a cursor. */
 function BashTerminalIcon(): JSX.Element {
@@ -683,12 +696,12 @@ function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const headerInner = (
     <>
       <span className="ui-tool-icon">{toolIcon(summary.name)}</span>
-      {!isMcp ? <span className="ui-tool-kind">{t("msg.toolLabel")}</span> : null}
-      <span className="ui-tool-name">{displayName}</span>
-      {/* Collapsible tools surface the file path / command inline so the
-         user can identify the operation without expanding the card. For
-         bash the terminal frame already shows the command when open. */}
-      {isFileTool && params && !(isBash && bodyOpen) ? <span className="ui-tool-params-inline">{params}</span> : null}
+      <span className="ui-tool-verb">{t(FLOW_VERB_KEY[toolClass] ?? "msg.flow.other")}</span>
+      {/* 目标内联：文件工具给路径，终端给命令；MCP 保留 server/tool 全名 */}
+      {(isFileTool || isBash) && params && !(isBash && bodyOpen) ? (
+        <span className="ui-tool-params-inline">{params}</span>
+      ) : null}
+      {!isMcp && !isFileTool && !isBash ? <span className="ui-tool-name">{displayName}</span> : null}
       {isMcp ? <span className="ui-tool-badge mcp">{t("msg.mcpServer")}</span> : null}
       {/* Status badge — ✓ success / ✗ failure, per the rendering-engine spec. */}
       {summary.ok ? (

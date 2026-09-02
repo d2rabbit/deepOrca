@@ -1976,3 +1976,26 @@ button.ui-tool-head:hover {
 .ui-ref-chip.review .ui-ref-chip-kind {
   color: var(--dot-review, #2f9e44);
 }
+
+
+  /* ── ① AI 去气泡：回复即页面（designs/chat-redesign V4）──
+     assistant 的 markdown 直接铺在会话底上，仅保留留白节奏；
+     用户消息保持唯一气泡。 */
+  .ui-bubble-row.assistant .ui-bubble {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  /* 行为流缩略行：动词 + 目标，类型色图标（与活动区同一色表） */
+  .ui-tool-card .ui-tool-icon { border-radius: 6px; }
+  .ui-tool-card.bash .ui-tool-icon { color: #e8590c; }
+  .ui-tool-card.read .ui-tool-icon { color: #1c6fe0; }
+  .ui-tool-card.write .ui-tool-icon { color: #d6386c; }
+  .ui-tool-card.edit .ui-tool-icon { color: #d6386c; }
+  .ui-tool-card.grep, .ui-tool-card.search { --kc: #0ca678; }
+  .ui-tool-card.search .ui-tool-icon, .ui-tool-card.grep .ui-tool-icon { color: #0ca678; }
+  .ui-tool-card.mcp .ui-tool-icon { color: #1098ad; }
+  .ui-tool-card.plan .ui-tool-icon, .ui-tool-card.ask .ui-tool-icon { color: #9a36b8; }
+  .ui-tool-verb { font-weight: 650; flex: none; color: var(--ui-text); }
