@@ -408,6 +408,15 @@
   .sendb:disabled { opacity: 0.55; cursor: default; }
   .sendb svg { width: 12px; height: 12px; }
 
+  /* 无感滚动：滚动层不渲染滚动条，滚轮/触控板/键盘照常滚动 */
+  .scroll, .pipwin .pb, .toc-list, .sub-drop, .plan-panel, .subwin .sbody {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scroll::-webkit-scrollbar, .pipwin .pb::-webkit-scrollbar, .toc-list::-webkit-scrollbar,
+  .sub-drop::-webkit-scrollbar, .plan-panel::-webkit-scrollbar, .subwin .sbody::-webkit-scrollbar {
+    display: none;
+  }
   body.has-live .scroll { padding-right: 348px; }
   body.narrow.has-live .scroll { padding-right: 26px; }
   /* ── 右侧浮动 Tab（项目内既有形态，如审查报告快速视图）──

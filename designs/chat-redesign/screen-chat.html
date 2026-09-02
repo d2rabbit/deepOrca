@@ -92,6 +92,10 @@
   /* 自适应安全区：宽窗时内容流让出右侧车道给活动堆叠，永不互相遮挡；
      窄窗时堆叠折叠为计数胶囊，车道收回 */
   .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 28px 26px 16px; display: flex; flex-direction: column; gap: 30px; }
+  /* 无感滚动：滚动层不渲染滚动条 */
+  .scroll, .pipwin .pb, .toc-list, .sub-drop, .plan-panel, .subwin .sbody { scrollbar-width: none; -ms-overflow-style: none; }
+  .scroll::-webkit-scrollbar, .pipwin .pb::-webkit-scrollbar, .toc-list::-webkit-scrollbar,
+  .sub-drop::-webkit-scrollbar, .plan-panel::-webkit-scrollbar, .subwin .sbody::-webkit-scrollbar { display: none; }
   body.has-live .scroll { padding-right: 344px; }
   body.narrow.has-live .scroll { padding-right: 26px; }
 
