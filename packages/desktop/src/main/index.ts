@@ -91,7 +91,12 @@ import { listReviewReports, readReviewReport, resolveReportFile } from "./tools/
 import { BINDING_LIMIT, buildRiskGraphData, getRiskOverviewCached } from "./tools/crg-risk-graph.js";
 import { buildTaskHub } from "./tools/task-hub.js";
 import { normalizeSessionTrace, readSessionTraceSource } from "./tools/session-trace.js";
-import { buildTokenSummary, emptyTokenSummary, projectSessionsIndexPath } from "./tools/tokens-summary.js";
+import {
+  buildTokenSummary,
+  emptyTokenSummary,
+  migrateLegacyUsageIntoLedger,
+  projectSessionsIndexPath,
+} from "./tools/tokens-summary.js";
 import { listIndexJobs } from "./tools/jobs-store.js";
 import { bindFindingsToNodes, type BindableNode } from "./tools/review-bind.js";
 import { WikiCliController } from "./tools/wiki-cli.js";
@@ -1790,7 +1795,11 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     // store.
     const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
     if (!pinned) return emptyTokenSummary(workspaceRoot ?? "");
-    return buildTokenSummary(pinned, projectSessionsIndexPath(getUserConfigRoot(), pinned));
+    const indexPath = projectSessionsIndexPath(getUserConfigRoot(), pinned);
+    // One-time backfill of pre-ledger session totals (idempotent — see
+    // migrateLegacyUsageIntoLedger) so exact time windows cover old data too.
+    migrateLegacyUsageIntoLedger(indexPath);
+    return buildTokenSummary(pinned, indexPath);
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;

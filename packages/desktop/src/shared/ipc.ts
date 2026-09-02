@@ -418,6 +418,14 @@ export type TaskTreeTrace = {
   sessions: TaskSessionTrace[];
 };
 
+/** One time-window bucket (P2: exact, from the per-request usage ledger). */
+export type WorkspaceUsageWindow = {
+  prompt: number;
+  completion: number;
+  total: number;
+  reqs: number;
+};
+
 /** Whole-workspace LLM token accounting (silent subagents included). */
 export type WorkspaceTokenSummary = {
   root: string;
@@ -430,6 +438,12 @@ export type WorkspaceTokenSummary = {
   requests: number;
   perModel: Record<string, { prompt: number; completion: number; total: number; cacheRead: number; reqs: number }>;
   lastAt: string | null;
+  /** Exact time windows from the per-request ledger (P2). */
+  windows: { last5h: WorkspaceUsageWindow; today: WorkspaceUsageWindow; thisWeek: WorkspaceUsageWindow };
+  /** True when windows fell back to the legacy per-session approximation. */
+  windowsApproximate: boolean;
+  /** Estimated USD spend (built-in price table); null when nothing priced. */
+  costUsd: number | null;
 };
 
 /** Settled index/knowledge build job (`.deeporca/jobs/<id>.json`). */

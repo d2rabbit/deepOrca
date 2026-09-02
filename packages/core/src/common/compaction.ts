@@ -10,6 +10,8 @@
  * results and the summary would lose the call context.
  */
 
+import { countConversationTokens } from "./token-counter";
+
 export type CompactionMessage = {
   role: string;
   content: string | null;
@@ -26,6 +28,14 @@ export const TOOL_RESULT_TRUNCATION_KEEP_CHARS = 1024;
  * keep a wide margin (never skip a summary the real context still needs).
  */
 export const STAGE_A_SKIP_HEADROOM = 0.7;
+
+/**
+ * Pre-flight budget ratio (P1): the main loop counts the exact payload it is
+ * about to send and compacts BEFORE the request when that count reaches this
+ * fraction of the threshold — the first oversized request no longer has to
+ * hit the wall and recover via CONTEXT_WINDOW_EXCEEDED.
+ */
+export const PRE_COMPACT_RATIO = 0.9;
 
 /**
  * Deterministically shrink an oversized tool result to a head+tail excerpt
@@ -47,32 +57,13 @@ export function truncateToolResultForCompaction(content: string | null): string 
 }
 
 /**
- * Rough token projection used ONLY to decide whether stage A alone brought
- * the context back under the compaction threshold — never for billing. CJK
- * code points are counted as ~1 token each (they tokenize at 1–2 chars per
- * token, far denser than the 4-chars-per-token ASCII approximation).
+ * Rough token projection over persisted conversation messages. Kept as an
+ * export for the stage-A tests and any legacy caller; live call sites use
+ * countConversationTokens (family-routed, tool-call aware) directly.
+ * Delegates to the unified heuristic — see common/token-counter.ts.
  */
 export function estimateConversationTokens(messages: CompactionMessage[]): number {
-  let tokens = 0;
-  for (const message of messages) {
-    let cjk = 0;
-    let other = 0;
-    for (const ch of message.content ?? "") {
-      const code = ch.codePointAt(0) ?? 0;
-      const isCjk =
-        (code >= 0x4e00 && code <= 0x9fff) ||
-        (code >= 0x3000 && code <= 0x30ff) ||
-        (code >= 0xff00 && code <= 0xffef) ||
-        (code >= 0xac00 && code <= 0xd7af);
-      if (isCjk) {
-        cjk += 1;
-      } else {
-        other += 1;
-      }
-    }
-    tokens += cjk + Math.ceil(other / 4) + 12;
-  }
-  return tokens;
+  return countConversationTokens("", messages);
 }
 
 /**

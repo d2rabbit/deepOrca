@@ -726,6 +726,8 @@ export const zhHK: Record<MessageKey, string> = {
   "tokens.tokensUnit": "{n} tokens",
   "tokens.sessionsCounted": "已統計 {n} 個工作階段",
   "tokens.cacheHitRate": "輸入快取命中 {n}%",
+  "tokens.costEstimate": "預估成本",
+  "tokens.cacheUnavailable": "提示詞快取不可知",
   "tokens.perModel": "依模型",
   "tokens.colModel": "模型",
   "tokens.colPrompt": "輸入",

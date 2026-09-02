@@ -25,6 +25,15 @@ files:
   - "**/*"
   - "!**/*.tsbuildinfo"
   - "!**/*.map"
+  # Token-statistics tokenizer (P2, 2026-09): runtime only needs the ESM entry
+  # the engine's dynamic import resolves (dist/main.mjs via the package
+  # "exports" map). The package also ships a CJS build, an IIFE global build,
+  # a duplicated tokenizer.json payload and TS sources (~20MB extra).
+  - "!node_modules/@tlibnx/tokenizer-deepseek_v4/dist/main.js"
+  - "!node_modules/@tlibnx/tokenizer-deepseek_v4/dist/main.global.js"
+  - "!node_modules/@tlibnx/tokenizer-deepseek_v4/models/**"
+  - "!node_modules/@tlibnx/tokenizer-deepseek_v4/src/**"
+  - "!node_modules/@lenml/tokenizers/dist/main.global.js"
 
 # Vendored CodeGraph/OpenWiki runtimes are copied verbatim (incl. their own
 # node_modules, which the app-files copier would otherwise strip) into

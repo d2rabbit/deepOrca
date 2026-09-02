@@ -88,6 +88,13 @@ export function formatExact(value: number): string {
   return num(value).toLocaleString();
 }
 
+/** USD for the cost estimate line: 0.0042 → "$0.004", 12.5 → "$12.50". */
+export function formatUsd(value: number): string {
+  const n = num(value);
+  if (n < 0.01) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(2)}`;
+}
+
 // Compaction threshold now comes from the model family registry via the
 // dependency-free `@deeporca/core/capabilities` subpath — the active-context
 // size at which the engine summarizes the middle of the conversation.

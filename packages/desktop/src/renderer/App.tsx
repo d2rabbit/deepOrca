@@ -2031,7 +2031,7 @@ export function App(): JSX.Element {
           ) : sidebarView === "tasks" ? (
             <TaskPanel messages={messages} />
           ) : sidebarView === "tokens" ? (
-            <TokenStatsPanel sessions={sessions} />
+            <TokenStatsPanel root={projectRoot} refreshKey={sessions.length} />
           ) : sidebarView === "index" ? (
             <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
           ) : sidebarView === "review" ? (

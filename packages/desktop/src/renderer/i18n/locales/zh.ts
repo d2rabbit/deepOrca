@@ -730,6 +730,8 @@ export const zh: Record<MessageKey, string> = {
   "tokens.tokensUnit": "{n} tokens",
   "tokens.sessionsCounted": "已统计 {n} 个会话",
   "tokens.cacheHitRate": "输入缓存命中 {n}%",
+  "tokens.costEstimate": "预估成本",
+  "tokens.cacheUnavailable": "提示词缓存不可知",
   "tokens.perModel": "按模型",
   "tokens.colModel": "模型",
   "tokens.colPrompt": "输入",

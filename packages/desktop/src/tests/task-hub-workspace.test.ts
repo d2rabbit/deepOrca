@@ -90,6 +90,13 @@ const TOKENS: WorkspaceTokenSummary = {
   requests: 2,
   perModel: {},
   lastAt: null,
+  windows: {
+    last5h: { prompt: 0, completion: 0, total: 0, reqs: 0 },
+    today: { prompt: 0, completion: 0, total: 0, reqs: 0 },
+    thisWeek: { prompt: 0, completion: 0, total: 0, reqs: 0 },
+  },
+  windowsApproximate: false,
+  costUsd: null,
 };
 
 const overrides: Record<string, unknown> = {};

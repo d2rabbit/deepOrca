@@ -750,6 +750,8 @@ export const ja: Record<MessageKey, string> = {
   "tokens.tokensUnit": "{n} トークン",
   "tokens.sessionsCounted": "{n} 件のセッションを集計",
   "tokens.cacheHitRate": "プロンプトキャッシュヒット {n}%",
+  "tokens.costEstimate": "推定コスト",
+  "tokens.cacheUnavailable": "プロンプトキャッシュ不明",
   "tokens.perModel": "モデル別",
   "tokens.colModel": "モデル",
   "tokens.colPrompt": "プロンプト",

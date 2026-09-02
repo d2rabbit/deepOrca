@@ -193,6 +193,24 @@ Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `style:`, `test:`,
    Note `pendingIndex` holds the _in-memory_ shape (`processes` is a `Map`), so it
    must **not** be passed through `normalizeSessionEntry` — that expects the on-disk
    shape and its `Object.entries()` would silently drop every tracked process.
+7. **Usage ledger + local token accounting (2026-09 rework).** Per-request
+   token accounting lives in `~/.deeporca/projects/<code>/usage-ledger.jsonl`
+   (`core/src/common/usage-ledger.ts`) — append-only JSONL, best-effort, and
+   deliberately independent of the sessions-index debounce above. The single
+   accounting chokepoint is `createChatCompletionStream`
+   (`session-manager-base.ts`): EVERY LLM request (chat loop / compaction /
+   background tasks / auxiliary helper calls) is counted there by the
+   family-routed counter (`common/token-counter.ts` — deepseek family gets
+   exact BPE via `@tlibnx/tokenizer-deepseek_v4`, loaded fail-open; every
+   other family uses the unified CJK heuristic) and appended with a request
+   timestamp. Local counting is the ONLY statistics source: API-returned
+   usage is passively retained in each record's `apiUsage` field but never
+   read for stats. Session entries still mirror local counts into
+   `usage`/`usagePerModel` for UI compatibility, and `activeTokens` is the
+   pre-flight count of the request payload (the main loop compacts BEFORE
+   sending at `PRE_COMPACT_RATIO` × threshold). Desktop reads the ledger
+   read-only beside the index (`main/tools/tokens-summary.ts`, incl. the
+   one-time legacy migration) under the same registered-root rules.
 
 ### Tool routing (`packages/core/src/tools/executor.ts`)
 
