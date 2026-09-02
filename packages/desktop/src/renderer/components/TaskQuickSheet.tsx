@@ -16,8 +16,25 @@ import { useCallback, useEffect, useState, type JSX, type ReactNode } from "reac
 import type { ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
+import { IconShield, IconSparkle, IconWarn } from "../ui/index";
 import { FindingBody, parseFinding, SEV_CLASS, type ReportFinding } from "../lib/report-view";
 import { formatAbsolute } from "./task-hub-format";
+
+/** Localized status line for a report's tri-state backend status — the raw
+ *  `statusNote` is model-speak (English diagnostics for the agent) and must
+ *  never leak into the UI (user report 2026-09-02). */
+function LocalizedStatusLine({ status }: { status?: string }): JSX.Element | null {
+  const { t } = useI18n();
+  if (status === "degraded" || status === "unavailable") {
+    return (
+      <p className="ui-report-footer degraded">
+        <IconWarn />
+        {status === "degraded" ? t("review.statusDegraded") : t("review.statusUnavailable")}
+      </p>
+    );
+  }
+  return null;
+}
 
 export function TaskQuickSheet({
   title,
@@ -34,7 +51,7 @@ export function TaskQuickSheet({
       <div className="ui-preview-panel-head">
         <div className="ui-preview-tabs">
           <button type="button" className="ui-preview-tab active">
-            ✦ {title}
+            <IconSparkle /> {title}
           </button>
         </div>
         <button type="button" className="ui-preview-close" onClick={onClose} title={t("common.close")}>
@@ -99,7 +116,13 @@ export function ReportQuickContent({ root, reportId }: { root: string; reportId:
             <span className="ui-quick-report-time">{formatAbsolute(meta?.generatedAt)}</span>
           </div>
           {findings.length === 0 ? (
-            <div className="ui-quick-report-empty">{t("review.rpNoFindings")}</div>
+            <div className="ui-quick-report-empty">
+              <span className="empty-glyph">
+                <IconShield />
+              </span>
+              <span className="empty-title">{t("review.rpEmptyTitle")}</span>
+              <span className="empty-hint">{t("review.rpEmptyHint", { n: meta?.filesReviewed ?? 0 })}</span>
+            </div>
           ) : (
             [...byPath.entries()].map(([path, list]) => (
               <section key={path} className="ui-report-file">
@@ -145,7 +168,7 @@ export function ReportQuickContent({ root, reportId }: { root: string; reportId:
               </section>
             ))
           )}
-          {meta?.statusNote ? <p className="ui-report-footer">{meta.statusNote}</p> : null}
+          <LocalizedStatusLine status={meta?.status} />
         </>
       )}
     </div>

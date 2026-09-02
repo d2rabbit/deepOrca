@@ -2,8 +2,24 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { ActionProgressEvent, FindingBinding, ReviewReportMeta } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { Button } from "../ui/index";
+import { Button, IconWarn } from "../ui/index";
 import { RiskGraphView, type RiskFocusRequest } from "./RiskGraphView";
+
+/** Localized status line for a report's tri-state backend status — the raw
+ *  `statusNote` is model-speak (English diagnostics for the agent) and must
+ *  never leak into the UI (user report 2026-09-02). */
+function LocalizedStatusLine({ status }: { status?: string }): JSX.Element | null {
+  const { t } = useI18n();
+  if (status === "degraded" || status === "unavailable") {
+    return (
+      <p className="ui-report-footer degraded">
+        <IconWarn />
+        {status === "degraded" ? t("review.statusDegraded") : t("review.statusUnavailable")}
+      </p>
+    );
+  }
+  return null;
+}
 
 /**
  * Review workspace surface — the main-area tab for ONE workspace (the review
@@ -457,7 +473,7 @@ export function ReviewWorkspace({
                     </section>
                   ))
                 )}
-                <p className="ui-report-footer">{selectedMeta.statusNote}</p>
+                <LocalizedStatusLine status={selectedMeta.status} />
               </div>
             ) : (
               <div className="ui-review-history-empty">{selected ? t("actions.running") : t("review.noReports")}</div>

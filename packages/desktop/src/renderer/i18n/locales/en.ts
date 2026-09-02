@@ -1170,6 +1170,11 @@ export const en = {
   "review.rpExcludedNote":
     "Every change was excluded by policy (generated / dot-paths) or has an unsupported type — nothing was reviewable this run.",
   "review.rpNoFindings": "No findings worth reporting.",
+  "review.rpEmptyTitle": "Review complete — nothing to report",
+  "review.rpEmptyHint": "Scanned {n} changed files in scope.",
+  "review.statusDegraded":
+    "Completed in degraded mode: semantic review only — structural impact analysis was unavailable for this run.",
+  "review.statusUnavailable": "Structural analysis backend unavailable — basic semantic review only.",
   "review.rpSuggestion": "Suggestion",
   "review.rpExisting": "Original code",
   "review.locate": "Locate",

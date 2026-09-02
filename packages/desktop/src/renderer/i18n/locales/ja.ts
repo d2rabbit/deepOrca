@@ -1166,6 +1166,11 @@ export const ja: Record<MessageKey, string> = {
   "review.rpExcludedNote":
     "すべての変更がポリシーにより除外されたか、未対応の種類のため、今回のレビュー対象はありませんでした。",
   "review.rpNoFindings": "報告すべき問題は見つかりませんでした。",
+  "review.rpEmptyTitle": "レビュー完了 — 報告すべき問題は見つかりませんでした",
+  "review.rpEmptyHint": "スコープ内の {n} 件の変更ファイルを走査しました。",
+  "review.statusDegraded":
+    "今回のレビューは縮退モードで完了しました：セマンティックレビューのみで、構造影響分析は利用できません。",
+  "review.statusUnavailable": "構造分析バックエンドが利用できないため、基本のセマンティックレビューのみ実行しました。",
   "review.rpSuggestion": "提案",
   "review.rpExisting": "元のコード",
   "review.locate": "特定",

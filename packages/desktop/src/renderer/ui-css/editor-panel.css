@@ -571,9 +571,16 @@
   color: var(--ui-text-faint);
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   transition:
     color 0.15s,
     border-color 0.15s;
+}
+.ui-preview-tab svg {
+  width: 13px;
+  height: 13px;
 }
 .ui-preview-tab:hover {
   color: var(--ui-text-secondary);
@@ -601,6 +608,32 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Task quick sheet — the body IS the unique scroll layer (scroll contract
+   §6.5): long reports scroll inside the island instead of clipping under
+   the window edge. */
+.ui-task-quick .ui-preview-panel-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-faint, #8590a0) 38%, transparent) transparent;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar {
+  width: 8px;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 32%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.ui-task-quick .ui-preview-panel-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent);
+  background-clip: padding-box;
 }
 
 /* ── Prototype panel (now embedded in preview panel, no own header) ───────── */
@@ -1731,4 +1764,24 @@
   margin-top: 22px;
   font-size: 11.5px;
   color: var(--ui-text-faint, #888);
+}
+/* Degraded/unavailable status — a calm localized warning strip; the raw
+   model-facing statusNote never renders in the UI. */
+.ui-report-footer.degraded {
+  margin-top: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: color-mix(in srgb, #f08c00 12%, transparent);
+  color: color-mix(in srgb, #e67700 75%, var(--ui-text, #333));
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.ui-report-footer.degraded svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
 }

@@ -1160,6 +1160,11 @@ export const ko: Record<MessageKey, string> = {
   "review.rpExcludedNote":
     "모둠 변경이 정책에 따라 제외되었거나 지원되지 않는 유형이라 이번 실행에서는 리뷰할 내용이 없습니다.",
   "review.rpNoFindings": "보고할 문제가 발견되지 않았습니다.",
+  "review.rpEmptyTitle": "검토 완료 — 보고할 문제가 없습니다",
+  "review.rpEmptyHint": "범위 내 {n}개의 변경 파일을 검사했습니다.",
+  "review.statusDegraded":
+    "이번 검토는 축소 모드로 완료되었습니다: 시맨틱 검토만 수행되었으며 구조 영향 분석을 사용할 수 없습니다.",
+  "review.statusUnavailable": "구조 분석 백엔드를 사용할 수 없어 기본 시맨틱 검토만 완료했습니다.",
   "review.rpSuggestion": "제안",
   "review.rpExisting": "원본 코드",
   "review.locate": "위치 찾기",
