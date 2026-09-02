@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-appearance="light">
+<head>
+<meta charset="UTF-8">
+<title>DeepOrca — 主会话完整流程动态演示 V4（指令目录 · 画中画堆叠 · 计划进度）</title>
+<!--
+  主会话完整流程 DYNAMIC DEMO V4（2026-09-02，用户反馈收敛版）
+
+  相对 V3 的变化：
+  · ④ 左侧「指令目录」：以每条用户指令为题构建，点击快速定位到对应回合，
+    当前查看的指令高亮
+  · 画中画堆叠：最新活动永远在最前最上（z + 位置双保证），旧窗向右下退
+  · ② 子代理独立分组移到【右下角】：自己的迷你窗堆叠，点击窗体下拉展开
+    它的活动清单；窄屏折叠为胶囊下拉
+  · 钉住计划条可点击展开：面板完整展示每段计划内容与实时状态
+    （进行中段高亮、步骤打勾）—— 随时能看到每段计划具体是什么
+  · 计划执行为多行为工程：读取/编辑/执行/MCP/权限确认（lint 失败重试）/
+    子代理走查，3 段 11 步
+  · ③ "窗按时间堆叠…"提示语已移除（规则收进胶囊 tooltip 与 +N 清单）
+  · 全 SVG 图标；活动类型着色（框体顶缘+标题栏）；明/暗；自动演示
+
+  播放：点「发送」开始。中途可点任意画中画小窗提到最前、点左侧目录定位、
+  点钉住条展开计划详情。权限确认卡会真的等待点击（自动演示除外）。
+-->
+<style>
+  :root {
+    --ui-bg: #eef2f7; --ui-surface: #f7f9fc; --ui-surface-raised: #ffffff; --ui-surface-sunken: #eef1f6;
+    --ui-text: #1b2129; --ui-text-secondary: #3d4756; --ui-text-dim: #55606d; --ui-text-faint: #8590a0;
+    --ui-accent: #1c6fe0; --ui-accent-tint: rgba(28, 111, 224, 0.09);
+    --ui-border: #c3cdd9; --ui-border-soft: #dde3ec;
+    --shadow-card: 0 8px 28px rgba(20, 40, 80, 0.08);
+    --code-bg: #f0f3f8;
+    --ok: #2f9e44; --err: #e03131; --warn: #e67700; --warn-soft: rgba(240, 140, 0, 0.11);
+    --mcp: #1098ad; --skill: #9a36b8; --file: #5f6b7a; --cmd: #e8590c; --sub: #7048e8;
+  }
+  :root[data-appearance="dark"] {
+    --ui-bg: #14171c; --ui-surface: #1b1f26; --ui-surface-raised: #22262e; --ui-surface-sunken: #171a20;
+    --ui-text: #e6e9ef; --ui-text-secondary: #c3cad6; --ui-text-dim: #9aa5b3; --ui-text-faint: #6b7686;
+    --ui-accent: #4d9aff; --ui-accent-tint: rgba(77, 154, 255, 0.13);
+    --ui-border: #3a414d; --ui-border-soft: #2b313b;
+    --code-bg: #171a20; --warn-soft: rgba(240, 140, 0, 0.14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--ui-bg); color: var(--ui-text); font: 14px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  .stage { height: 100vh; display: flex; flex-direction: column; }
+
+  .mockbar {
+    flex: none; display: flex; align-items: center; gap: 10px; padding: 9px 16px;
+    background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+    border-bottom: 1px solid var(--ui-border-soft);
+  }
+  .mockbar .t { font-size: 12px; font-weight: 700; color: var(--ui-text-dim); }
+  .mockbar .sp { flex: 1; }
+  .mockbar button { border: 1px solid var(--ui-border-soft); background: var(--ui-surface-raised); color: var(--ui-text-dim); border-radius: 8px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+  .mockbar button:hover { color: var(--ui-accent); border-color: var(--ui-accent); }
+  .mockbar button.on { color: #fff; background: var(--ui-accent); border-color: var(--ui-accent); }
+
+  .cols { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px 12px 0; }
+  /* 中列：会话 + 输入框（宽度恒一致） */
+  .chatcol { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+  /* 右列：常驻活动区（思考弹窗 + 实时活动流 + 子代理流）；浮动 Tab 出现时整体收缩 */
+  .actcol {
+    flex: none; width: 316px; margin-right: 12px;
+    padding: 12px 14px 12px 0;
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 0; overflow: hidden;
+    transition: width 0.24s cubic-bezier(0.16,1,0.3,1), padding 0.24s, opacity 0.2s;
+  }
+  body.tab-open .actcol { width: 40px; padding: 12px 0 12px 10px; align-items: center; border-right: 1px solid var(--ui-border-soft); }
+  body.tab-open .actcol > *:not(.col-label) { display: none !important; }
+  .col-label {
+    display: none; writing-mode: vertical-rl; letter-spacing: 0.2em;
+    font-size: 10.5px; font-weight: 800; color: var(--ui-text-faint);
+    align-items: center; gap: 8px; margin: auto;
+  }
+  body.tab-open .col-label { display: flex; }
+
+  /* ── 指令目录（左） ── */
+  .toc {
+    flex: none; width: 208px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  body.narrow .toc { display: none; }
+  .toc-head { flex: none; padding: 9px 13px 7px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; color: var(--ui-text-faint); display: flex; align-items: center; gap: 6px; }
+  .toc-head svg { width: 11px; height: 11px; }
+  .toc-list { flex: 1; overflow-y: auto; padding: 0 7px 9px; display: flex; flex-direction: column; gap: 3px; }
+  .toc-item {
+    display: flex; align-items: flex-start; gap: 7px;
+    padding: 6px 9px; border-radius: 9px; cursor: pointer;
+    font-size: 11.5px; line-height: 1.45; color: var(--ui-text-dim); border: 1px solid transparent;
+  }
+  .toc-item:hover { background: var(--ui-accent-tint); color: var(--ui-text); border-radius: 9px; }
+  .toc-item.active { background: var(--ui-accent-tint); border-radius: 9px; color: var(--ui-text); font-weight: 600; }
+  .toc-item .n { flex: none; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; background: var(--ui-surface-sunken); color: var(--ui-text-faint); font-size: 9px; font-weight: 800; }
+  .toc-item.active .n { background: var(--ui-accent); color: #fff; }
+  .toc-item .tt { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* ── 会话工作区（中） ── */
+  .workarea { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 14px; display: flex; flex-direction: column; gap: 28px; }
+
+  .user-row { display: flex; justify-content: flex-end; scroll-margin-top: 60px; }
+  .user-card {
+    max-width: 78%; background: var(--ui-accent-tint);
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent);
+    border-radius: 16px 16px 5px 16px; padding: 10px 15px 9px;
+    display: flex; flex-direction: column; gap: 8px;
+    animation: rise 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .user-card .txt { font-size: 14px; line-height: 1.65; }
+  .user-card .meta { display: flex; justify-content: flex-end; font-size: 10.5px; color: var(--ui-text-faint); }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+  .ref-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 1.28em; vertical-align: -0.17em; margin: 0 1px;
+    padding: 0 7px; border-radius: 5px;
+    font-size: 0.9em; font-weight: 550; line-height: 1; white-space: nowrap;
+    color: var(--rc, var(--file));
+    background: color-mix(in srgb, var(--rc, var(--file)) 10%, var(--ui-surface-raised));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc, var(--file)) 32%, transparent);
+  }
+  .ref-chip svg { width: 12px; height: 12px; flex: none; }
+  .ref-chip.file { --rc: var(--file); } .ref-chip.wiki { --rc: var(--ui-accent); }
+  .ref-chip.skill { --rc: var(--skill); } .ref-chip.cmd { --rc: var(--cmd); }
+  .ref-chip.review { --rc: var(--ok); }
+
+  .ai-row { display: flex; flex-direction: column; gap: 10px; animation: rise 0.3s ease both; scroll-margin-top: 60px; }
+  .ai-id { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ui-text-faint); min-height: 20px; }
+  .ai-mark { width: 20px; height: 20px; border-radius: 7px; display: grid; place-items: center; background: linear-gradient(135deg, var(--ui-accent), #7048e8); color: #fff; font-size: 10px; font-weight: 800; }
+  .ai-id .who { font-weight: 700; color: var(--ui-text-secondary); }
+  .ai-id .st { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-accent); }
+  .spinner { width: 11px; height: 11px; border-radius: 50%; border: 1.6px solid color-mix(in srgb, var(--ui-accent) 25%, transparent); border-top-color: var(--ui-accent); animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .md { font-size: 15px; line-height: 1.75; animation: rise 0.3s ease both; scroll-margin-top: 60px; }
+  .md p { margin: 0 0 10px; }
+  .md code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--ui-border-soft); border-radius: 5px; padding: 1px 5px; }
+  .caret { display: inline-block; width: 7px; height: 15px; background: var(--ui-accent); border-radius: 2px; vertical-align: -2px; margin-left: 2px; animation: breathe 1s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: 0.25; } }
+
+  .flow { display: flex; flex-direction: column; }
+  .ev {
+    display: flex; align-items: center; gap: 9px;
+    padding: 5px 8px; border-radius: 9px; font-size: 12.5px;
+    position: relative; color: var(--ui-text); animation: rise 0.25s ease both;
+  }
+  .ev::before { content: ""; position: absolute; left: 17px; top: 0; bottom: -2px; width: 1.5px; background: var(--ui-border-soft); }
+  .ev:first-child::before { top: 50%; }
+  .ev:last-child::before { display: none; }
+  .ev .ic { width: 20px; height: 20px; border-radius: 6px; z-index: 1; display: grid; place-items: center; flex: none; background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft); }
+  .ev .ic svg { width: 11px; height: 11px; color: var(--kc, var(--ui-text-dim)); }
+  .ev.k-bash { --kc: #e8590c; } .ev.k-read { --kc: #1c6fe0; } .ev.k-edit { --kc: #d6386c; }
+  .ev.k-grep { --kc: #0ca678; } .ev.k-mcp { --kc: #1098ad; } .ev.k-skill { --kc: #9a36b8; }
+  .ev.k-doc { --kc: #5f6b7a; } .ev.k-think { --kc: #7048e8; }
+  .ev .verb { font-weight: 650; flex: none; }
+  .ev .badge { flex: none; padding: 0 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700; background: color-mix(in srgb, var(--mcp) 14%, transparent); color: var(--mcp); }
+  .ev .arg { color: var(--ui-text-dim); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev .ms { margin-left: auto; flex: none; font-size: 10.5px; color: var(--ui-text-faint); font-variant-numeric: tabular-nums; }
+  .ev .ok { flex: none; display: inline-flex; }
+  .ev .ok svg { width: 12px; height: 12px; color: var(--ok); }
+  .ev .ok.run { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1.6px solid color-mix(in srgb, var(--ui-accent) 25%, transparent); border-top-color: var(--ui-accent); animation: spin 0.9s linear infinite; }
+  .ev.err { background: color-mix(in srgb, var(--err) 7%, transparent); }
+  .ev.err .ok svg { color: var(--err); }
+
+  .think-pop {
+    flex: none; width: 100%;
+    border-radius: 13px; border: 1.5px dashed color-mix(in srgb, var(--ui-accent) 38%, transparent);
+    background: color-mix(in srgb, var(--ui-surface-raised) 88%, transparent);
+    backdrop-filter: blur(12px); box-shadow: var(--shadow-card);
+    padding: 9px 12px; font-size: 11.5px; line-height: 1.6; color: var(--ui-text-secondary);
+  }
+  .think-pop .h { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 11px; color: var(--ui-accent); margin-bottom: 3px; }
+  .think-pop .h svg { width: 11px; height: 11px; }
+  .think-pop .h .cnt { margin-left: auto; color: var(--ui-text-faint); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .think-pop.gone { animation: fade-out 0.3s ease both; }
+  @keyframes fade-out { to { opacity: 0; transform: translateY(-6px); } }
+
+  .perm {
+    border: 1px solid var(--ui-border-soft); border-left: 3px solid var(--warn);
+    background: var(--warn-soft); border-radius: 12px; padding: 12px 15px;
+    display: flex; flex-direction: column; gap: 9px; animation: rise 0.3s ease both;
+  }
+  .perm .q { font-size: 13px; font-weight: 650; display: flex; align-items: center; gap: 7px; }
+  .perm .q svg { width: 14px; height: 14px; color: var(--warn); }
+  .perm .cmd { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft); border-radius: 8px; padding: 8px 12px; overflow-x: auto; white-space: pre; }
+  .perm .acts { display: flex; gap: 8px; }
+  .perm .acts button { border-radius: 8px; padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--ui-border-soft); background: var(--ui-surface-raised); color: var(--ui-text-secondary); }
+  .perm .acts .primary { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
+  .perm .acts .danger { margin-left: auto; }
+  .perm.resolved { opacity: 0.55; }
+  .perm.resolved .acts { display: none; }
+  .perm .verdict { font-size: 11px; color: var(--ok); font-weight: 700; }
+
+  /* ── 右上车道：画中画堆叠（最新恒在最前最上） ── */
+  .rail { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 200px; overflow: hidden; }
+  .cap {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 11px; border-radius: 999px;
+    background: color-mix(in srgb, var(--ui-surface-raised) 82%, transparent);
+    border: 1px solid var(--ui-border-soft);
+    font-size: 10.5px; font-weight: 700; color: var(--ui-text-dim); box-shadow: var(--shadow-card);
+  }
+  .cap svg { width: 11px; height: 11px; color: var(--ok); }
+  .deck { position: relative; width: 100%; flex: 1; min-height: 260px; }
+  .pipwin {
+    position: absolute; width: 240px;
+    display: flex; flex-direction: column;
+    border-radius: 12px; border: 1px solid var(--ui-border-soft);
+    border-top: 3px solid var(--kc, var(--ui-border-soft));
+    background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    overflow: hidden; cursor: pointer;
+    transition: top 0.26s cubic-bezier(0.16,1,0.3,1), left 0.26s cubic-bezier(0.16,1,0.3,1), opacity 0.2s;
+    animation: pip-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes pip-in { from { transform: translateY(-14px) scale(0.96); opacity: 0; } }
+  .pipwin.p0 { top: 0; left: 0; z-index: 15; }
+  .pipwin.p1 { top: 34px; left: 20px; z-index: 14; opacity: 0.9; }
+  .pipwin.p2 { top: 68px; left: 40px; z-index: 13; opacity: 0.72; }
+  .pipwin.p3 { top: 102px; left: 60px; z-index: 12; opacity: 0.5; }
+  .pipwin:hover { opacity: 1; z-index: 20; }
+  .pipwin .ph {
+    flex: none; display: flex; align-items: center; gap: 7px; padding: 6px 10px;
+    font-size: 11px; font-weight: 700; color: var(--ui-text-secondary);
+    border-bottom: 1px solid var(--ui-border-soft);
+    background: color-mix(in srgb, var(--kc, var(--ui-text-dim)) 8%, var(--ui-surface-sunken));
+    white-space: nowrap; overflow: hidden;
+  }
+  .pipwin .ph .ic { width: 17px; height: 17px; border-radius: 5px; display: grid; place-items: center; background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft); flex: none; }
+  .pipwin .ph .ic svg { width: 10px; height: 10px; color: var(--kc, var(--ui-text-dim)); }
+  .pipwin .ph .tt { overflow: hidden; text-overflow: ellipsis; }
+  .pipwin .ph .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); animation: breathe 1.2s infinite; margin-left: auto; flex: none; }
+  .pipwin .ph .done-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ui-border); margin-left: auto; flex: none; }
+  .pipwin .ph .err-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--err); margin-left: auto; flex: none; }
+  .pipwin .pb { height: 252px; padding: 8px 10px; font-size: 11px; line-height: 1.55; color: var(--ui-text-dim); overflow-y: auto; }
+  .pipwin .pb .prog { height: 3px; border-radius: 2px; background: var(--ui-surface-sunken); margin: 6px 0; overflow: hidden; }
+  .pipwin .pb .prog i { display: block; height: 100%; width: 40%; border-radius: 2px; background: var(--ui-accent); animation: slide 1.6s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-70%); } 100% { transform: translateX(220%); } }
+  .pipwin .pb pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; line-height: 1.5; background: var(--code-bg); border: 1px solid var(--ui-border-soft); border-radius: 6px; padding: 6px 8px; margin-top: 6px; overflow-x: hidden; white-space: pre-wrap; }
+  .pipwin .pb pre .add { color: var(--ok); }
+  .pipwin .pb pre .del { color: var(--err); }
+  .pipwin .pb .fin { margin-top: 7px; font-weight: 650; color: var(--ui-text-secondary); }
+  .pipwin .pb .done { display: inline-flex; align-items: center; gap: 5px; }
+  .pipwin .pb .done svg { width: 11px; height: 11px; color: var(--ok); }
+  .pipwin.k-bash { --kc: #e8590c; } .pipwin.k-read { --kc: #1c6fe0; } .pipwin.k-edit { --kc: #d6386c; }
+  .pipwin.k-grep { --kc: #0ca678; } .pipwin.k-mcp { --kc: #1098ad; } .pipwin.k-doc { --kc: #5f6b7a; }
+  .more-badge { position: absolute; z-index: 16; right: 0; bottom: -4px; padding: 3px 12px; border-radius: 999px; border: none; background: color-mix(in srgb, var(--ui-text) 58%, transparent); color: #fff; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+  .more-badge:hover { background: var(--ui-accent); }
+
+  /* ── 子代理：右下角独立分组 ── */
+  .sub-rail { margin-top: auto; width: 100%; display: none; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .sub-rail.on { display: flex; }
+  .sub-cap {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 11px; border-radius: 999px;
+    background: color-mix(in srgb, var(--sub) 13%, var(--ui-surface-raised));
+    border: 1px solid color-mix(in srgb, var(--sub) 35%, transparent);
+    font-size: 10.5px; font-weight: 700; color: var(--sub); cursor: pointer;
+  }
+  .sub-cap svg { width: 11px; height: 11px; }
+  .sub-cap .chev { display: inline-flex; transition: transform 0.18s; }
+  .sub-cap .chev svg { width: 10px; height: 10px; color: inherit; }
+  .sub-rail.open .sub-cap .chev { transform: rotate(180deg); }
+  .subdeck { position: relative; width: 100%; height: 108px; }
+  .subwin {
+    position: absolute; top: 0; right: 0; width: 262px;
+    border-radius: 11px; border: 1px solid color-mix(in srgb, var(--sub) 30%, var(--ui-border-soft));
+    border-left: 3px solid var(--sub);
+    background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+    backdrop-filter: blur(12px); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.15);
+    overflow: hidden; cursor: pointer;
+  }
+  .subwin .sph {
+    display: flex; align-items: center; gap: 6px; padding: 5px 9px;
+    font-size: 10.5px; font-weight: 700; color: var(--ui-text-secondary);
+    background: color-mix(in srgb, var(--sub) 8%, var(--ui-surface-sunken));
+    white-space: nowrap; overflow: hidden;
+  }
+  .subwin .sph svg { width: 10px; height: 10px; color: var(--sub); flex: none; }
+  .subwin .sph .tt { overflow: hidden; text-overflow: ellipsis; }
+  .subwin .sph .live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); animation: breathe 1.2s infinite; margin-left: auto; flex: none; }
+  .subwin .sbody {
+    padding: 5px 10px 7px; font-size: 10.5px; line-height: 1.5; color: var(--ui-text-dim);
+    display: none; flex-direction: column; gap: 3px; max-height: 170px; overflow-y: auto;
+  }
+  .subwin.open .sbody { display: flex; }
+  .subwin .sbody .sa { display: flex; gap: 6px; align-items: baseline; }
+  .subwin .sbody .sa .a-verb { font-weight: 650; color: var(--ui-text-secondary); flex: none; }
+  .subwin .sbody .sa .a-arg { font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .subwin .sbody .sa .a-ms { margin-left: auto; color: var(--ui-text-faint); font-size: 9px; flex: none; }
+  .sub-drop {
+    display: none; flex-direction: column; width: 100%;
+    border-radius: 11px; border: 1px solid var(--ui-border-soft);
+    background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+    box-shadow: var(--shadow-card); overflow: hidden;
+  }
+  .sub-rail.open .sub-drop { display: flex; }
+  .sub-drop .lr { display: flex; gap: 7px; align-items: center; padding: 5px 10px; font-size: 10.5px; border-bottom: 1px solid var(--ui-border-soft); }
+  .sub-drop .lr:last-child { border-bottom: none; }
+  .sub-drop .lr svg { width: 10px; height: 10px; color: var(--sub); flex: none; }
+  .sub-drop .lr .tt { color: var(--ui-text-secondary); }
+
+  /* ── 计划卡 ── */
+  .plancard { border: 1px solid var(--ui-border-soft); border-radius: 14px; background: var(--ui-surface-raised); overflow: hidden; animation: rise 0.3s ease both; }
+  .plancard.live { border-color: color-mix(in srgb, var(--ui-accent) 32%, var(--ui-border-soft)); }
+  .plancard-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--ui-border-soft); background: var(--ui-surface-sunken); font-size: 12px; font-weight: 700; color: var(--ui-text-secondary); }
+  .plancard-head .ic { width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; background: var(--ui-accent-tint); color: var(--ui-accent); flex: none; }
+  .plancard-head .ic svg { width: 11px; height: 11px; }
+  .plancard-head .stat { flex: none; padding: 1px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+  .plancard-head .stat.review { background: var(--warn-soft); color: var(--warn); }
+  .plancard-head .stat.running { background: var(--ui-accent-tint); color: var(--ui-accent); }
+  .plancard-head .stat.done { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+  .plancard-head .meta { font-weight: 500; color: var(--ui-text-faint); font-size: 11px; }
+  .plancard-head .prog { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ui-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .plancard-head .prog .bar { width: 64px; height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--ui-text) 12%, transparent); overflow: hidden; }
+  .plancard-head .prog .bar i { display: block; height: 100%; width: 0%; background: var(--ui-accent); transition: width 0.4s; }
+  .seg { border-top: 1px solid var(--ui-border-soft); animation: rise 0.3s ease both; }
+  .seg:first-of-type { border-top: none; }
+  .seg-head { display: flex; align-items: center; gap: 9px; padding: 9px 14px; cursor: pointer; user-select: none; font-size: 13px; }
+  .seg-head .idx { flex: none; min-width: 34px; text-align: center; padding: 1px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 800; background: var(--ui-surface-sunken); color: var(--ui-text-dim); }
+  .seg-head .ttl { font-weight: 650; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-head .st { flex: none; font-size: 10.5px; font-weight: 700; color: var(--ui-text-faint); }
+  .seg-head .st.run { color: var(--ui-accent); }
+  .seg-head .st.ok { color: var(--ok); }
+  .seg.running { box-shadow: inset 3px 0 0 var(--ui-accent); background: var(--ui-accent-tint); }
+  .seg.running .seg-head .idx { background: var(--ui-accent); color: #fff; }
+  .seg-steps { padding: 2px 14px 12px 22px; display: flex; flex-direction: column; gap: 8px; }
+  .step { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.55; color: var(--ui-text-secondary); }
+  .step .box { flex: none; width: 13px; height: 13px; margin-top: 3px; border-radius: 4px; border: 1.5px solid var(--ui-border); display: grid; place-items: center; }
+  .step .box svg { width: 9px; height: 9px; color: #fff; opacity: 0; }
+  .step.now { color: var(--ui-text); font-weight: 550; }
+  .step.now .box { border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-tint); }
+  .step.done { color: var(--ui-text-faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ui-text-faint) 55%, transparent); }
+  .step.done .box { background: var(--ok); border-color: var(--ok); }
+  .step.done .box svg { opacity: 1; }
+  .plancard-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--ui-border-soft); background: var(--ui-surface-sunken); }
+  .plancard-foot .hint { font-size: 11px; color: var(--ui-text-faint); margin-right: auto; }
+  .plancard-foot button { border-radius: 8px; padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--ui-border-soft); background: var(--ui-surface-raised); color: var(--ui-text-secondary); }
+  .plancard-foot .primary { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
+  .plancard-foot .primary.pulse { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--ui-accent-tint); } }
+
+  /* ── 钉住计划条 + 展开面板（每段计划具体内容） ── */
+  .pinned-wrap { position: sticky; top: 0; z-index: 30; }
+  .pinned-plan {
+    display: flex; align-items: center; gap: 9px; padding: 7px 14px;
+    border-radius: 11px; border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, var(--ui-border-soft));
+    background: color-mix(in srgb, var(--ui-surface-raised) 92%, transparent);
+    backdrop-filter: blur(12px); font-size: 12px; color: var(--ui-text-secondary);
+    cursor: pointer; animation: rise 0.3s ease both;
+  }
+  .pinned-plan svg { width: 12px; height: 12px; color: var(--ui-accent); flex: none; }
+  .pinned-plan .segs { display: inline-flex; gap: 4px; flex: none; }
+  .pinned-plan .segs i { width: 14px; height: 4px; border-radius: 2px; background: var(--ui-border); transition: background 0.3s; }
+  .pinned-plan .segs i.done { background: var(--ok); }
+  .pinned-plan .segs i.run { background: var(--ui-accent); animation: breathe 1.2s infinite; }
+  .pinned-plan .pbar { flex: 1; height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--ui-text) 12%, transparent); overflow: hidden; }
+  .pinned-plan .pbar i { display: block; height: 100%; width: 0%; background: var(--ui-accent); transition: width 0.4s; }
+  .pinned-plan .pct { font-weight: 700; color: var(--ui-accent); font-variant-numeric: tabular-nums; font-size: 11px; flex: none; }
+  .pinned-plan .chev { flex: none; display: inline-flex; color: var(--ui-text-faint); transition: transform 0.18s; }
+  .pinned-plan .chev svg { width: 11px; height: 11px; color: var(--ui-text-faint); }
+  .pinned-wrap.open .chev { transform: rotate(180deg); }
+  .plan-panel {
+    display: none; margin-top: 6px; padding: 4px 0;
+    border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, var(--ui-border-soft));
+    background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+    box-shadow: var(--shadow-card); overflow: hidden;
+  }
+  .pinned-wrap.open .plan-panel { display: block; animation: rise 0.2s ease both; }
+  .pp-seg { padding: 8px 13px; border-top: 1px solid var(--ui-border-soft); }
+  .pp-seg:first-child { border-top: none; }
+  .pp-seg .pp-h { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; }
+  .pp-seg .pp-h .idx { flex: none; padding: 0 7px; border-radius: 5px; font-size: 10px; font-weight: 800; background: var(--ui-surface-sunken); color: var(--ui-text-dim); }
+  .pp-seg .pp-h .st { margin-left: auto; font-size: 10px; font-weight: 700; color: var(--ui-text-faint); }
+  .pp-seg.run { box-shadow: inset 3px 0 0 var(--ui-accent); background: var(--ui-accent-tint); }
+  .pp-seg.run .pp-h .st { color: var(--ui-accent); }
+  .pp-seg.done .pp-h .st { color: var(--ok); }
+  .pp-seg .pp-steps { padding: 4px 0 2px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .pp-seg .pp-step { display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; color: var(--ui-text-dim); }
+  .pp-seg .pp-step .box { flex: none; width: 12px; height: 12px; margin-top: 2px; border-radius: 4px; border: 1.5px solid var(--ui-border); display: grid; place-items: center; }
+  .pp-seg .pp-step .box svg { width: 8px; height: 8px; color: #fff; opacity: 0; }
+  .pp-seg .pp-step.done { color: var(--ui-text-faint); text-decoration: line-through; }
+  .pp-seg .pp-step.done .box { background: var(--ok); border-color: var(--ok); }
+  .pp-seg .pp-step.done .box svg { opacity: 1; }
+  .pp-seg .pp-step.now { color: var(--ui-text); font-weight: 550; }
+  .pp-seg .pp-step.now .box { border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-tint); }
+
+  /* ── 系统行 / 输入框 ── */
+  .sysnote { display: flex; align-items: center; gap: 10px; color: var(--ui-text-faint); font-size: 11.5px; }
+  .sysnote::before, .sysnote::after { content: ""; flex: 1; height: 0; border-top: 1px solid var(--ui-border-soft); }
+  .composer {
+    flex: none; margin: 0 26px 16px;
+    background: var(--ui-surface-raised); border: 1px solid var(--ui-border-soft);
+    border-radius: 14px; padding: 12px 16px 9px;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .composer .line { font-size: 13px; line-height: 1.7; min-height: 24px; color: var(--ui-text-faint); }
+  .composer .bar { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--ui-text-dim); }
+  .composer .bar .sp { flex: 1; }
+  .plan { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+  .switch { width: 30px; height: 17px; border-radius: 999px; background: var(--ui-border); position: relative; cursor: pointer; transition: background 0.2s; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: left 0.2s; }
+  .switch.on { background: var(--ui-accent); }
+  .switch.on::after { left: 15px; }
+  .sendb { height: 26px; padding: 0 16px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; border: 1px solid var(--ui-accent); background: var(--ui-accent); color: #fff; font-weight: 650; font-size: 12.5px; }
+  .sendb:disabled { opacity: 0.55; cursor: default; }
+  .sendb svg { width: 12px; height: 12px; }
+
+  body.has-live .scroll { padding-right: 348px; }
+  body.narrow.has-live .scroll { padding-right: 26px; }
+  /* ── 右侧浮动 Tab（项目内既有形态，如审查报告快速视图）──
+     出现时活动区整体收缩为细条；关闭后恢复 */
+  .float-tab {
+    position: absolute; top: 10px; right: 10px; bottom: 10px;
+    width: min(440px, 62%); z-index: 45;
+    display: none; flex-direction: column;
+    border-radius: 14px; border: 1px solid var(--ui-border-soft);
+    background: color-mix(in srgb, var(--ui-surface-raised) 97%, transparent);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    animation: rise 0.25s ease both;
+  }
+  .float-tab.on { display: flex; }
+  .float-tab .fh {
+    flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--ui-border-soft); background: var(--ui-surface-sunken);
+  }
+  .float-tab .fh .tt { font-size: 11px; font-weight: 700; color: var(--ui-text-secondary); display: flex; align-items: center; gap: 6px; }
+  .float-tab .fh .tt svg { width: 12px; height: 12px; color: var(--ui-accent); }
+  .float-tab .fh .sp { flex: 1; }
+  .float-tab .fh button {
+    width: 22px; height: 22px; border: none; border-radius: 50%; background: none;
+    color: var(--ui-text-faint); cursor: pointer; display: grid; place-items: center;
+  }
+  .float-tab .fh button:hover { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+  .float-tab .fh button svg { width: 11px; height: 11px; }
+  .float-tab .fb { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; font-size: 12px; line-height: 1.65; color: var(--ui-text-dim); }
+  body.narrow .deck, body.narrow .rail .cap { display: none; }
+  body.narrow .rail.on { display: flex; }
+  body.narrow .subdeck { display: none; }
+  body.narrow .actcol { width: 40px; padding: 12px 0 12px 10px; align-items: center; border-right: 1px solid var(--ui-border-soft); }
+  body.narrow .actcol > *:not(.col-label) { display: none !important; }
+  body.narrow .col-label { display: flex; }
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-doc" viewBox="0 0 20 20"><path d="M5 3h6.5L16 7.5V17H5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M11.5 3v4.5H16" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-search" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 20 20"><path d="M13.5 3.5a2.12 2.12 0 0 1 3 3L7 16l-4 1 1-4 9.5-9.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 20 20"><path d="M4 5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M11 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 20 20"><path d="M7 3v4M13 3v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 7h10v3a5 5 0 0 1-10 0V7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M10 15v2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 20 20"><path d="M10 2.8l1.9 5.3 5.3 1.9-5.3 1.9L10 17.2l-1.9-5.3-5.3-1.9 5.3-1.9L10 2.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-check" viewBox="0 0 20 20"><path d="M4.5 10.5l4 4 7-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-x" viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-send" viewBox="0 0 20 20"><path d="M17 3 3 9l6 2 2 6 6-14Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M9 11l8-8" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 20 20"><path d="M10 2.8l5.5 2v5c0 3.4-2.4 5.7-5.5 7-3.1-1.3-5.5-3.6-5.5-7v-5l5.5-2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M7.2 9.6l1.9 1.9 3.7-3.9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-book" viewBox="0 0 20 20"><path d="M10 5.2C8.8 4 7 3.5 4.9 3.5c-.8 0-1.4.06-1.9.16v11.2c.5-.1 1.1-.16 1.9-.16 2.1 0 3.9.5 5.1 1.7 1.2-1.2 3-1.7 5.1-1.7.8 0 1.4.06 1.9.16V3.66c-.5-.1-1.1-.16-1.9-.16-2.1 0-3.9.5-5.1 1.7ZM10 5.2v11" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 20 20"><path d="M10 3L2.5 16h15L10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M10 8.5v3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="14" r="0.9" fill="currentColor"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="2.6 2.2"/><circle cx="10" cy="10" r="2.2" stroke="currentColor" stroke-width="1.4" fill="none"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 20 20"><path d="M2.5 10h4l2-5 3.5 10 2-5h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 20 20"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7.5 4.5V3h5v1.5" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 9h5M7.5 12h3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 20 20"><rect x="4" y="6.2" width="12" height="9" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 6.2V3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="3" r="1" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M7 10.2h.01M13 10.2h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 13.4h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-list" viewBox="0 0 20 20"><path d="M7 5.5h10M7 10h10M7 14.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="3.8" cy="5.5" r="1.1" fill="currentColor"/><circle cx="3.8" cy="10" r="1.1" fill="currentColor"/><circle cx="3.8" cy="14.5" r="1.1" fill="currentColor"/></symbol>
+</svg>
+
+<div class="stage">
+  <div class="mockbar">
+    <span class="t">DeepOrca — 主会话完整流程动态演示 V4</span>
+    <span class="sp"></span>
+    <button id="tabBtn">浮动 Tab：审查报告</button>
+    <button id="narrowBtn">窄窗自适应</button>
+    <button id="replayBtn">↻ 重放</button>
+    <button id="autoBtn">自动演示：关</button>
+    <button onclick="const r=document.documentElement; r.dataset.appearance = r.dataset.appearance==='light'?'dark':'light'">明 / 暗</button>
+  </div>
+
+  <div class="cols">
+
+    <aside class="toc">
+      <div class="toc-head"><svg><use href="#i-list"/></svg>指令目录</div>
+      <div class="toc-list" id="tocList"></div>
+    </aside>
+
+    <div class="chatcol">
+      <div class="workarea">
+        <div class="scroll" id="scroll"></div>
+
+        <!-- 右侧浮动 Tab（项目内既有形态）：出现时活动区整体收缩 -->
+        <div class="float-tab" id="floatTab">
+          <div class="fh">
+            <span class="tt"><svg><use href="#i-shield"/></svg><span id="ftTitle">审查报告</span></span>
+            <span class="sp"></span>
+            <button id="ftClose"><svg><use href="#i-x"/></svg></button>
+          </div>
+          <div class="fb" id="ftBody"></div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="line" id="composerLine">点击「发送」开始播放完整数据流…</div>
+        <div class="bar">
+          <span class="plan"><span class="switch" id="planSwitch"></span>计划模式</span>
+          <span class="sp"></span>
+          <span>0</span><span>回车发送 · Shift+回车换行</span>
+          <button class="sendb" id="sendBtn"><svg><use href="#i-send"/></svg>发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右列：常驻活动区（思考弹窗 + 实时活动流 + 子代理流） -->
+    <aside class="actcol" id="actcol">
+      <div class="col-label">实时活动</div>
+      <div id="thinkSlot"></div>
+      <div class="cap" title="窗按时间堆叠 · 最新在最前 · 最多保留 15 个，更早的挤出"><svg><use href="#i-pulse"/></svg>实时活动 · <span id="capN">0</span> / 15</div>
+      <div class="deck" id="deck"></div>
+      <div class="sub-rail" id="subRail">
+        <div class="sub-cap" id="subCap"><svg><use href="#i-bot"/></svg>子代理 · <span id="subN">0</span><span class="chev"><svg><use href="#i-chev"/></svg></span></div>
+        <div class="subdeck" id="subdeck"></div>
+        <div class="sub-drop" id="subDrop"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (s, el) => (el || document).querySelector(s);
+const scroll = $("#scroll");
+const rail = $("#actcol");
+const deck = $("#deck");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+let auto = false, playing = false;
+let activityCount = 0, doneSteps = 0, turnN = 0;
+let TOTAL_STEPS = 0;
+let currentFlow = null;
+let pinned = null;
+let subCount = 0;
+
+function scrollEnd() { scroll.scrollTop = scroll.scrollHeight; }
+
+// ── ④ 指令目录：以用户指令为题，点击定位 ────────────────────
+function addTocEntry(turnId, text) {
+  const item = document.createElement("div");
+  item.className = "toc-item";
+  item.dataset.turn = turnId;
+  item.innerHTML = `<span class="n">${turnN}</span><span class="tt">${esc(text.slice(0, 34))}</span>`;
+  item.addEventListener("click", () => {
+    document.querySelectorAll(".toc-item").forEach((t) => t.classList.remove("active"));
+    item.classList.add("active");
+    document.getElementById(turnId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("#tocList").appendChild(item);
+}
+
+// ── 流内容元件 ──────────────────────────────────────────────
+function addUser(text, chipsHTML) {
+  turnN++;
+  const turnId = `turn-${turnN}`;
+  const el = document.createElement("div");
+  el.className = "user-row";
+  el.id = turnId;
+  el.innerHTML = `<div class="user-card"><div class="txt">${chipsHTML || ""}${esc(text)}</div><div class="meta">刚刚</div></div>`;
+  scroll.appendChild(el);
+  addTocEntry(turnId, text);
+  scrollEnd();
+}
+function addAIHead(extra) {
+  const el = document.createElement("div");
+  el.className = "ai-row";
+  el.innerHTML = `<div class="ai-id"><span class="ai-mark">Orca</span><span class="who">DeepOrca</span><span>·</span>${extra || ""}</div><div class="flow"></div>`;
+  scroll.appendChild(el); scrollEnd();
+  currentFlow = el.querySelector(".flow");
+  return el;
+}
+function addRow(kind, verb, arg, running) {
+  if (!currentFlow || !currentFlow.isConnected) addAIHead("");
+  const row = document.createElement("div");
+  row.className = "ev k-" + (kind === "err" ? "bash" : kind) + (kind === "err" ? " err" : "");
+  const ICONS = { bash: "i-terminal", read: "i-doc", edit: "i-pencil", grep: "i-search", mcp: "i-plug", skill: "i-spark", doc: "i-doc", think: "i-brain" };
+  row.innerHTML = `
+    <span class="ic"><svg><use href="#${ICONS[kind] || "i-doc"}"/></svg></span>
+    <span class="verb">${verb}</span><span class="arg">${esc(arg)}</span>
+    <span class="ms"></span>
+    <span class="ok ${running ? "run" : ""}">${running ? "" : '<svg><use href="#i-check"/></svg>'}</span>`;
+  currentFlow.appendChild(row); scrollEnd();
+  return row;
+}
+function doneRow(row, ms, result) {
+  row.querySelector(".ok").classList.remove("run");
+  row.querySelector(".ok").innerHTML = '<svg><use href="#i-check"/></svg>';
+  row.querySelector(".ms").textContent = (result ? result + " · " : "") + ms;
+}
+function failRow(row, ms, result) {
+  row.querySelector(".ok").classList.remove("run");
+  row.querySelector(".ok").innerHTML = '<svg><use href="#i-x"/></svg>';
+  row.querySelector(".ms").textContent = result + " · " + ms;
+}
+function addMD(html) {
+  const el = document.createElement("div");
+  el.className = "md";
+  el.innerHTML = `<p>${html}</p>`;
+  scroll.appendChild(el); scrollEnd();
+}
+function addSysNote(text) {
+  const el = document.createElement("div");
+  el.className = "sysnote";
+  el.innerHTML = `<span>${text}</span>`;
+  scroll.appendChild(el);
+}
+
+// ── 思考瞬态卡 ──────────────────────────────────────────────
+async function think(seconds, summary) {
+  const pop = document.createElement("div");
+  pop.className = "think-pop";
+  pop.innerHTML = `<div class="h"><svg><use href="#i-brain"/></svg>思考中<span class="cnt">0 字 · 0.0s</span></div><div>${summary}…</div>`;
+  $("#thinkSlot").appendChild(pop);
+  const cnt = pop.querySelector(".cnt");
+  const chars = 40 + Math.floor(Math.random() * 60);
+  for (let i = 0; i < seconds * 10; i++) {
+    await sleep(100);
+    cnt.textContent = `${Math.round(chars * (i / (seconds * 10)) * 3)} 字 · ${(i / 10).toFixed(1)}s`;
+  }
+  await sleep(350);
+  pop.classList.add("gone");
+  await sleep(300);
+  pop.remove();
+  const row = addRow("think", "思考", summary, false);
+  row.querySelector(".ms").textContent = `${seconds.toFixed(1)}s`;
+}
+
+// ── 画中画小窗（最新恒在最前最上） ──────────────────────────
+function spawnWin(kind, title, bodyHTML, running) {
+  const win = document.createElement("div");
+  win.className = "pipwin k-" + kind;
+  win.innerHTML = `
+    <div class="ph"><span class="ic"><svg><use href="#${kind === "bash" ? "i-terminal" : kind === "edit" ? "i-pencil" : kind === "grep" ? "i-search" : kind === "mcp" ? "i-plug" : "i-doc"}"/></svg></span><span class="tt">${esc(title)}</span><span class="${running ? "live-dot" : "done-dot"}"></span></div>
+    <div class="pb">${bodyHTML}</div>`;
+  deck.insertBefore(win, deck.firstChild);   // 最新永远插到最前
+  restack();
+  activityCount++;
+  $("#capN").textContent = Math.min(activityCount, 15);
+  return win;
+}
+function restack() {
+  const SLOTS = ["p0", "p1", "p2", "p3"];
+  [...deck.querySelectorAll(".pipwin")].forEach((w, i) => {
+    w.classList.remove(...SLOTS);
+    w.classList.add(SLOTS[Math.min(i, SLOTS.length - 1)]);
+  });
+  [...deck.querySelectorAll(".pipwin")].slice(SLOTS.length).forEach((w) => w.remove());
+}
+deck.addEventListener("click", (e) => {
+  const win = e.target.closest(".pipwin");
+  if (win) { deck.insertBefore(win, deck.firstChild); restack(); }
+});
+function winProgress(win, label) { win.querySelector(".pb").innerHTML = `${label}<div class="prog"><i></i></div>`; }
+function winDone(win, html) {
+  const dot = win.querySelector(".ph .live-dot, .ph .done-dot, .ph .err-dot");
+  if (dot) dot.className = "done-dot";
+  win.querySelector(".pb").insertAdjacentHTML("beforeend", `<div class="fin"><span class="done"><svg><use href="#i-check"/></svg>已完成</span> ${html}</div>`);
+}
+function winFail(win, html) {
+  const dot = win.querySelector(".ph .live-dot, .ph .done-dot, .ph .err-dot");
+  if (dot) dot.className = "err-dot";
+  win.querySelector(".pb").insertAdjacentHTML("beforeend", `<div class="fin" style="color:var(--err)">✕ ${html}</div>`);
+}
+
+// ── ② 子代理：右下角独立分组 ────────────────────────────────
+function spawnSub(name, actions) {
+  const sec = $("#subRail");
+  sec.classList.add("on");
+  subCount++;
+  $("#subN").textContent = subCount;
+  const win = document.createElement("div");
+  win.className = "subwin";
+  win.innerHTML = `<div class="sph"><svg><use href="#i-bot"/></svg><span class="tt">${esc(name)}</span><span class="live-dot"></span></div><div class="sbody"></div>`;
+  win.addEventListener("click", () => win.classList.toggle("open"));
+  $("#subdeck").appendChild(win);
+  const lr = document.createElement("div");
+  lr.className = "lr";
+  lr.innerHTML = `<svg><use href="#i-bot"/></svg><span class="tt">${esc(name)} — 运行中</span>`;
+  $("#subDrop").appendChild(lr);
+  const bd = win.querySelector(".sbody");
+  return {
+    async step(verb, arg, ms) {
+      const a = document.createElement("div");
+      a.className = "sa";
+      a.innerHTML = `<span class="a-verb">${verb}</span><span class="a-arg">${esc(arg)}</span><span class="a-ms">${ms}</span>`;
+      bd.appendChild(a); bd.scrollTop = bd.scrollHeight;
+      await sleep(ms || 600);
+    },
+    done(summary) {
+      const d = win.querySelector(".live-dot");
+      if (d) d.remove();
+      bd.insertAdjacentHTML("beforeend", `<div class="sa"><span class="a-verb" style="color:var(--ok)">✓ ${summary}</span></div>`);
+      lr.querySelector(".tt").textContent = `${name} — ${summary}`;
+    },
+  };
+}
+$("#subCap").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("#subRail").classList.toggle("open");
+});
+
+// ── 权限确认 ────────────────────────────────────────────────
+async function askPermission(cmd) {
+  const el = document.createElement("div");
+  el.className = "perm";
+  el.innerHTML = `<div class="q"><svg><use href="#i-warn"/></svg>执行命令需要你的确认</div><div class="cmd">${esc(cmd)}</div>
+    <div class="acts"><button class="primary">允许本次</button><button>本轮总是允许</button><button class="danger">拒绝</button></div>`;
+  scroll.appendChild(el); scrollEnd();
+  const ok = await new Promise((res) => {
+    el.querySelector(".primary").onclick = () => res(true);
+    el.querySelector(".danger").onclick = () => res(false);
+    if (auto) setTimeout(() => res(true), 1500);
+  });
+  el.classList.add("resolved");
+  el.querySelector(".acts").remove();
+  el.insertAdjacentHTML("beforeend", `<span class="verdict">${ok ? "✓ 已允许（本次）" : "✕ 已拒绝"}</span>`);
+  return ok;
+}
+
+// ── ⑨ 计划卡 ────────────────────────────────────────────────
+const PLAN = [
+  { title: "修复 selStart 键盘路径", steps: [
+    { t: "读取 src/merge.js 现状实现", act: { kind: "read", verb: "读取", arg: "src/merge.js", result: "86 行", ms: "320ms", dur: 400, lineMs: 110, stream: [
+        "src/merge.js · 86 行",
+        "116  function mergeSelected() {",
+        "117    if (!state.selectedCell) return;",
+        "118    const { selStart, selEnd } = state.selectedCell;",
+        "119    // TODO: 范围合并",
+        "…（共 86 行）" ] } },
+    { t: "keydown 分支补齐 selStart 初始化（锚点回填）", act: { kind: "edit", verb: "编辑", arg: "src/merge.js +4 −2", result: "+4 −2", ms: "1.1s", dur: 300, lineMs: 120, stream: [
+        "  if (e.shiftKey && state.selectedCell) {",
+        "-   state.selectedCell.selEnd = { r, c };",
+        "+   if (state.selStart == null) state.selStart = { ...state.anchor };",
+        "+   state.selEnd = { r, c };" ] } },
+    { t: "mergeSelected() 范围合并逻辑接入真实 selStart", act: { kind: "edit", verb: "编辑", arg: "src/merge.js +2 −1", result: "+2 −1", ms: "0.8s", dur: 300, lineMs: 120, stream: [
+        "  const span = { r: selEnd.r - selStart.r, c: selEnd.c - selStart.c };",
+        "+  span.cells = collect(span);",
+        "  applyMerge(span);" ] } },
+  ] },
+  { title: "修复审查报告的 CSS 注入项并加固", steps: [
+    { t: "载入 frontend-review 技能的审查清单", act: { kind: "skill", verb: "技能", arg: "frontend-review", result: "已注入", ms: "12ms", dur: 300, lineMs: 130, stream: [
+        "~/.deeporca/skills/frontend-review/SKILL.md",
+        "· 审查所有 DOM 写入路径，禁止拼接 style 属性",
+        "· 颜色值仅允许 #RGB / #RRGGBB 白名单",
+        "· 事件监听必须成对解绑" ] } },
+    { t: "style 拼接收敛到 hex 白名单校验函数", act: { kind: "edit", verb: "编辑", arg: "src/color.js +18", result: "+18", ms: "1.3s", dur: 300, lineMs: 120, stream: [
+        "+ function isHexColor(v) { return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v); }",
+        "+ cell.style.backgroundColor = isHexColor(cell.bg) ? cell.bg : FALLBACK;" ] } },
+    { t: "补 XSS 回归用例（恶意 style 值）", act: { kind: "edit", verb: "编辑", arg: "test/color.test.js +22", result: "+22", ms: "1.2s", dur: 300, lineMs: 120, stream: [
+        "+ it('拒绝 javascript: 与 expression() 注入', () => {",
+        "+   expect(sanitize('javascript:alert(1)')).toBe(FALLBACK);" ] } },
+    { t: "首跑 lint 验证加固效果", act: { kind: "bash", verb: "执行", arg: "npm run lint", result: "2 errors", ms: "3.8s", dur: 400, lineMs: 160, fail: true, perm: "npm run lint", stream: [
+        "$ npm run lint",
+        "  src/render.js",
+        "    241:32  error  Unsafe assignment of style   no-unsanitized",
+        "    243:10  error  Unescaped style value        no-unsanitized",
+        "  ✖ 2 problems (2 errors, 0 warnings)" ] } },
+    { t: "查询前端样式规范（MCP）", act: { kind: "mcp", verb: "调用", arg: 'context7 · get-style-rules', result: "1 rule", ms: "860ms", dur: 300, lineMs: 150, stream: [
+        '→ { "library": "xlsx", "topic": "inline-style" }',
+        '← { "rules": ["no-inline-style-concat", "hex-color-only"],',
+        '    "trustScore": 9 }' ] } },
+    { t: "修复后全量 lint + test", act: { kind: "bash", verb: "执行", arg: "npm run lint && npm test", result: "all passed", ms: "6.4s", dur: 400, lineMs: 160, stream: [
+        "$ npm run lint && npm test",
+        "  ✓ 0 problems",
+        "  96 passed (14 suites)",
+        "  All checks passed!" ] } },
+  ] },
+  { title: "子代理走查与大表回归", steps: [
+    { t: "子代理 frontend-review 走查 demo/index.html", sub: { name: "frontend-review 子代理", actions: [
+      ["读取", "demo/index.html", "41ms"],
+      ["搜索", "style= 拼接点 · 6 处", "180ms"],
+      ["走查", "3 处风险已标记", "—"] ] } },
+    { t: "1,000 行大表 Shift+范围合并回归", act: { kind: "bash", verb: "执行", arg: "npm test -- big-table", result: "31 passed", ms: "5.6s", dur: 400, lineMs: 160, stream: [
+        "$ npm test -- big-table",
+        "  big-table shift-merge  ✓  (1.2s)",
+        "  big-table keyboard     ✓  (0.9s)",
+        "  31 passed (5.6s)" ] } },
+    { t: "汇总走查结论并输出总结报告", act: { kind: "read", verb: "读取", arg: "reports/summary.md", result: "已生成", ms: "210ms", dur: 300, lineMs: 120, stream: [
+        "reports/summary.md",
+        "# 回归总结",
+        "- 范围合并：selStart 键盘路径已修复",
+        "- CSS 注入：hex 白名单已生效" ] } },
+  ] },
+];
+TOTAL_STEPS = PLAN.reduce((n, x) => n + x.steps.length, 0);
+
+function planCardHTML(live) {
+  const segs = PLAN.map((s, i) => `
+    <div class="seg" data-seg="${i}">
+      <div class="seg-head"><span class="idx">段 ${i + 1}</span><span class="ttl">${s.title}</span><span class="st">待开始</span></div>
+      <div class="seg-steps">${s.steps.map((t) => `<div class="step"><span class="box"><svg><use href="#i-check"/></svg></span>${t.t}</div>`).join("")}</div>
+    </div>`).join("");
+  return `
+    <div class="plancard-head">
+      <span class="ic"><svg><use href="#i-clip"/></svg></span>实施计划
+      <span class="stat ${live ? "running" : "review"}">${live ? "执行中 · 段 1" : "待审批"}</span>
+      <span class="meta">${PLAN.length} 段 · ${TOTAL_STEPS} 步</span>
+      <span class="prog">${live ? '<span class="bar"><i></i></span><span class="pct">0/' + TOTAL_STEPS + ' 步</span>' : ""}</span>
+    </div>${segs}
+    ${live ? "" : `<div class="plancard-foot"><span class="hint">实施过程将按段追踪进度</span><button class="stay">继续打磨</button><button class="primary pulse">开始实施</button></div>`}`;
+}
+function showPinned() {
+  pinned = document.createElement("div");
+  pinned.className = "pinned-wrap";
+  pinned.innerHTML = `<div class="pinned-plan" id="pinnedBar">
+      <svg><use href="#i-clip"/></svg>实施计划
+      <span class="segs">${PLAN.map(() => "<i></i>").join("")}</span>
+      <span class="pbar"><i></i></span><span class="pct">0/${TOTAL_STEPS} 步</span>
+      <span class="chev"><svg><use href="#i-chev"/></svg></span>
+    </div>
+    <div class="plan-panel" id="planPanel">
+      ${PLAN.map((s, i) => `
+        <div class="pp-seg" data-seg="${i}">
+          <div class="pp-h"><span class="idx">段 ${i + 1}</span>${s.title}<span class="st">待开始</span></div>
+          <div class="pp-steps">${s.steps.map((t) => `<div class="pp-step"><span class="box"><svg><use href="#i-check"/></svg></span>${t.t}</div>`).join("")}</div>
+        </div>`).join("")}
+    </div>`;
+  scroll.appendChild(pinned);
+  pinned.querySelector(".pinned-plan").addEventListener("click", () => pinned.classList.toggle("open"));
+}
+function setPinned(segIdx, segState, doneCount) {
+  if (!pinned) return;
+  pinned.querySelectorAll(".segs i").forEach((d, i) => {
+    d.className = i < segIdx ? "done" : i === segIdx && segState !== "done" ? "run" : segState === "done" && i <= segIdx ? "done" : "";
+  });
+  pinned.querySelector(".pbar i").style.width = `${(doneCount / TOTAL_STEPS) * 100}%`;
+  pinned.querySelector(".pct").textContent = `${doneCount}/${TOTAL_STEPS} 步`;
+  if (doneCount >= TOTAL_STEPS) {
+    pinned.classList.add("done");
+    pinned.querySelector(".pinned-plan").classList.add("done");
+  }
+  pinned.querySelectorAll(".pp-seg").forEach((ps, i) => {
+    ps.classList.toggle("run", i === segIdx && segState !== "done");
+    ps.classList.toggle("done", i < segIdx || (segState === "done" && i <= segIdx));
+    const st = ps.querySelector(".st");
+    if (i < segIdx || (segState === "done" && i <= segIdx)) st.textContent = "已完成";
+    else if (i === segIdx) st.textContent = "进行中";
+  });
+}
+function updateHeadProgress(card, doneCount) {
+  const bar = card.querySelector(".prog .bar i");
+  const pct = card.querySelector(".prog .pct");
+  if (bar) bar.style.width = `${(doneCount / TOTAL_STEPS) * 100}%`;
+  if (pct) pct.textContent = `${doneCount}/${TOTAL_STEPS} 步`;
+}
+
+// ── 主脚本 ──────────────────────────────────────────────────
+async function play() {
+  if (playing) return;
+  playing = true;
+  doneSteps = 0; activityCount = 0; subCount = 0; turnN = 0;
+  scroll.innerHTML = ""; deck.innerHTML = ""; rail.classList.remove("on");
+  $("#subRail").classList.remove("on");
+  $("#subdeck").innerHTML = ""; $("#subDrop").innerHTML = ""; $("#tocList").innerHTML = "";
+  if (pinned) { pinned.remove(); pinned = null; }
+  $("#sendBtn").disabled = true;
+  $("#composerLine").textContent = "演示播放中…";
+
+  // ① 用户指令 1
+  await sleep(500);
+  addUser(`先跑 npm test 确认现状，再结合 deepwiki 的约定修复 src/merge.js 里 Shift+点击范围合并失效的问题`,
+    `<span class="ref-chip cmd"><svg><use href="#i-terminal"/></svg>npm test</span>
+     <span class="ref-chip wiki"><svg><use href="#i-book"/></svg>deepwiki · index</span>
+     <span class="ref-chip file"><svg><use href="#i-doc"/></svg>src/merge.js</span>
+     `);
+  await sleep(700);
+
+  // ② 思考
+  addAIHead("");
+  await think(3.2, "先看现状实现和 wiki 约定，再定位 selStart 未维护的分支");
+
+  // ③ 首轮活动流
+  let row = addRow("bash", "执行", "npm test -- merge", true);
+  let win = spawnWin("bash", "执行 · npm test -- merge", "", true);
+  await streamInto(win, ["$ npm test -- merge", "  merge basic     ✓  (0.3s)", "  merge shift     ✗  selEnd 覆盖", "  12 passed 2 failed"], 260);
+  await sleep(1200);
+  winDone(win, "14 passed · 4.2s"); doneRow(row, "4.2s", "14 passed");
+
+  row = addRow("read", "读取", "src/merge.js", true);
+  win = spawnWin("read", "读取 · src/merge.js", "", true);
+  await streamInto(win, ["src/merge.js · 86 行", "116  function mergeSelected() {", "117    if (!state.selectedCell) return;", "…"], 130);
+  await sleep(500);
+  winDone(win, "86 行 · 320ms"); doneRow(row, "320ms", "86 行");
+
+  row = addRow("edit", "编辑", "src/merge.js +4 −2", true);
+  win = spawnWin("edit", "编辑 · src/merge.js", "", true);
+  await streamInto(win, ["-   state.selectedCell.selEnd = { r, c };", "+   if (state.selStart == null) …", "+   state.selEnd = { r, c };"], 220);
+  await sleep(600);
+  winDone(win, `+4 −2 · 1.1s<pre>+ if (state.selStart == null)
++   state.selStart = { ...state.anchor };</pre>`);
+  doneRow(row, "1.1s", "+4 −2");
+
+  addMD("已修复。<code>mergeSelected()</code> 失效的根因是 <code>selStart</code> 只在 mousedown 里赋值，纯键盘路径从未维护它。14 个 merge 相关用例全部通过。");
+  await sleep(1200);
+
+  // ④ 计划模式
+  $("#planSwitch").classList.add("on");
+  addUser(`这份审查也一起处理，先别动手 —— 把整件事拆成阶段，我确认后再实施`,
+    `<span class="ref-chip review"><svg><use href="#i-shield"/></svg>审查 · 09/01 16:00</span>
+     <span class="ref-chip skill"><svg><use href="#i-spark"/></svg>frontend-review</span>`);
+  await sleep(700);
+  addAIHead("");
+  await think(2.4, "拆成三段：键盘修复 / CSS 注入加固 / 子代理走查与大表回归");
+
+  const card = document.createElement("div");
+  card.className = "plancard";
+  card.innerHTML = planCardHTML(false);
+  scroll.appendChild(card); scrollEnd();
+  for (const seg of card.querySelectorAll(".seg")) { await sleep(450); seg.scrollIntoView({ block: "nearest" }); }
+  await sleep(200); scrollEnd();
+
+  const choice = await new Promise((resolve) => {
+    card.querySelector(".primary").addEventListener("click", () => resolve("implement"));
+    card.querySelector(".stay").addEventListener("click", () => resolve("stay"));
+    if (auto) setTimeout(() => resolve("implement"), 2800);
+  });
+  if (choice === "stay") {
+    card.querySelector(".hint").textContent = "已留在计划模式 —— 可再次点击「开始实施」";
+    playing = false; $("#sendBtn").disabled = false;
+    return;
+  }
+
+  // ⑤ 计划执行
+  $("#planSwitch").classList.remove("on");
+  card.querySelector(".plancard-foot").remove();
+  card.querySelector(".stat").className = "stat running";
+  card.querySelector(".stat").textContent = "执行中 · 段 1";
+  card.classList.add("live");
+  showPinned();
+  addAIHead('<span class="st"><span class="spinner"></span>按计划执行</span>');
+  await sleep(500);
+
+  const segEls = [...card.querySelectorAll(".seg")];
+  for (let si = 0; si < PLAN.length; si++) {
+    const seg = segEls[si];
+    const steps = [...seg.querySelectorAll(".step")];
+    const st = seg.querySelector(".st");
+    seg.classList.add("running");
+    st.textContent = "进行中"; st.className = "st run";
+    card.querySelector(".stat").textContent = `执行中 · 段 ${si + 1}`;
+    for (let pi = 0; pi < steps.length; pi++) {
+      const step = steps[pi];
+      const spec = PLAN[si].steps[pi];
+      step.classList.add("now");
+      if (spec.perm) {
+        await sleep(600);
+        const ok = await askPermission(spec.perm);
+        if (!ok) {
+          st.textContent = "已拒绝"; st.className = "st";
+          card.querySelector(".stat").textContent = "等待中";
+          playing = false; $("#sendBtn").disabled = false;
+          $("#composerLine").textContent = "权限被拒绝 —— 演示停止；重放可再看一遍";
+          return;
+        }
+      }
+      if (spec.sub) {
+        const sub = spawnSub(spec.sub.name);
+        for (const [verb, arg, ms] of spec.sub.actions) await sub.step(verb, arg, 700 + Math.random() * 500);
+        sub.done("3 处风险已标记");
+      }
+      await runStepActivity(spec);
+      step.classList.remove("now");
+      step.classList.add("done");
+      doneSteps++;
+      setPinned(si, steps[pi + 1] ? "running" : "done", doneSteps);
+      updateHeadProgress(card, doneSteps);
+      await sleep(350);
+    }
+    seg.classList.remove("running");
+    st.textContent = "已完成"; st.className = "st ok";
+    setPinned(si + 1, "done", doneSteps);
+    await sleep(400);
+  }
+
+  // ⑥ 完成
+  card.querySelector(".stat").className = "stat done";
+  card.querySelector(".stat").textContent = "全部完成";
+  addMD("三段全部完成：<code>selStart</code> 键盘路径已修复、CSS 注入已收敛并通过 XSS 回归、1,000 行大表回归通过。共 " + TOTAL_STEPS + "/" + TOTAL_STEPS + " 步。");
+  scrollEnd();
+  $("#composerLine").textContent = "演示结束 —— 点「↻ 重放」再看一遍";
+  $("#sendBtn").disabled = false;
+  playing = false;
+}
+
+async function streamInto(win, lines, lineMs) {
+  const pb = win.querySelector(".pb");
+  const pre = document.createElement("pre");
+  pb.appendChild(pre);
+  for (const line of lines) {
+    const div = document.createElement("div");
+    const t = esc(line);
+    div.innerHTML = line.startsWith("+") ? `<span class="add">${t}</span>`
+      : line.startsWith("-") ? `<span class="del">${t}</span>` : t;
+    pre.appendChild(div);
+    pb.scrollTop = pb.scrollHeight;
+    await sleep(lineMs || 150);
+  }
+}
+
+async function runStepActivity(step) {
+  if (!step.act) return;
+  const a = step.act;
+  const r = addRow(a.kind, a.verb, a.arg, true);
+  const w = spawnWin(a.kind, `${a.verb} · ${a.arg.split(" ")[0]}`, "", true);
+  await streamInto(w, a.stream || [], a.lineMs || 150);
+  await sleep(a.dur || 300);
+  if (a.fail) { failRow(r, a.ms, a.result); winFail(w, `${a.result} · 退出码 1 · ${a.ms}`); }
+  else { winDone(w, `${a.result} · ${a.ms}`); doneRow(r, a.ms, a.result); }
+}
+
+// ── 控件 ────────────────────────────────────────────────────
+$("#sendBtn").addEventListener("click", play);
+$("#replayBtn").addEventListener("click", () => { if (!playing) play(); });
+$("#narrowBtn").addEventListener("click", () => document.body.classList.toggle("narrow"));
+$("#autoBtn").addEventListener("click", () => {
+  auto = !auto;
+  $("#autoBtn").textContent = `自动演示：${auto ? "开" : "关"}`;
+  $("#autoBtn").classList.toggle("on", auto);
+});
+// 浮动 Tab：出现 → 活动区收缩；关闭 → 恢复
+$("#tabBtn").addEventListener("click", () => {
+  const open = document.body.classList.toggle("tab-open");
+  $("#tabBtn").textContent = open ? "关闭浮动 Tab" : "浮动 Tab：审查报告";
+  if (open) {
+    $("#ftTitle").textContent = "审查报告 · 09/01 16:00";
+    $("#ftBody").innerHTML = `
+      <div style="font-weight:650;color:var(--ui-text);margin-bottom:6px">全仓库（全域审查） · 12 findings</div>
+      <pre style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.6;background:var(--code-bg);border:1px solid var(--ui-border-soft);border-radius:8px;padding:8px 10px">demo/index.html:241  medium  CSS 注入风险
+demo/index.html:320  medium  合并范围数组拼接错误
+demo/index.html:118  low     事件监听未解绑</pre>
+      <div style="margin-top:8px">打开浮动 Tab 时，右侧活动区自动收缩为细条；关闭后恢复。</div>`;
+  }
+});
+$("#ftClose").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.body.classList.remove("tab-open");
+  $("#tabBtn").textContent = "浮动 Tab：审查报告";
+});
+$("#planSwitch").addEventListener("click", () => $("#planSwitch").classList.toggle("on"));
+</script>
+</body>
+</html>
