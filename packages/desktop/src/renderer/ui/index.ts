@@ -71,6 +71,7 @@ export {
   IconShield,
   IconSparkle,
   IconChevronDown,
+  IconTerminal,
   IconRefresh,
   IconList,
 } from "./icons";

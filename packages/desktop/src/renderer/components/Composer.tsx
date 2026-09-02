@@ -3,7 +3,7 @@ import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n, type MessageKey } from "../i18n";
 import { isCompleteStoreRef, splitStoreRefSegments } from "../lib/store-refs";
 import { FileMentionMenu } from "./FileMentionMenu";
-import { Button, IconBook, IconMagicWand, IconShield, IconSparkle, Switch } from "../ui/index";
+import { Button, IconBook, IconMagicWand, IconPencil, IconShield, IconSparkle, IconTerminal, Switch } from "../ui/index";
 
 type Props = {
   value: string;
@@ -670,7 +670,17 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
                 return (
                   <span key={i} className={`ui-prompt-ref-cover ${seg.ref.kind}${editing ? " editing" : ""}`}>
                     <span className={`ui-prompt-ref-chip ${seg.ref.kind}${editing ? " editing" : ""}`}>
-                      {seg.ref.kind === "wiki" ? <IconBook /> : <IconShield />}
+                      {seg.ref.kind === "wiki" ? (
+                        <IconBook />
+                      ) : seg.ref.kind === "review" ? (
+                        <IconShield />
+                      ) : seg.ref.kind === "cmd" ? (
+                        <IconTerminal />
+                      ) : seg.ref.kind === "skill" ? (
+                        <IconSparkle />
+                      ) : (
+                        <IconPencil />
+                      )}
                       {seg.ref.label}
                     </span>
                     {seg.ref.raw}

@@ -1976,6 +1976,25 @@ button.ui-tool-head:hover {
 .ui-ref-chip.review .ui-ref-chip-kind {
   color: var(--dot-review, #2f9e44);
 }
+/* 五类独立标识（designs/chat-redesign V4）：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫 */
+.ui-ref-chip.file {
+  border-color: color-mix(in srgb, #5f6b7a 35%, transparent);
+}
+.ui-ref-chip.file .ui-ref-chip-kind {
+  color: #5f6b7a;
+}
+.ui-ref-chip.cmd {
+  border-color: color-mix(in srgb, #e8590c 35%, transparent);
+}
+.ui-ref-chip.cmd .ui-ref-chip-kind {
+  color: #e8590c;
+}
+.ui-ref-chip.skill {
+  border-color: color-mix(in srgb, #9a36b8 35%, transparent);
+}
+.ui-ref-chip.skill .ui-ref-chip-kind {
+  color: #9a36b8;
+}
 
 
   /* ── ① AI 去气泡：回复即页面（designs/chat-redesign V4）──

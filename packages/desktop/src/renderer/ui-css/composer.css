@@ -605,6 +605,19 @@
   width: 13px;
   height: 13px;
 }
+/* 五类独立标识：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫 */
+.ui-prompt-mirror .ui-prompt-ref-chip.file {
+  background: color-mix(in srgb, #5f6b7a 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #5f6b7a 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.cmd {
+  background: color-mix(in srgb, #e8590c 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e8590c 35%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.skill {
+  background: color-mix(in srgb, #9a36b8 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #9a36b8 35%, transparent);
+}
 .ui-prompt-mirror .ui-prompt-ref-chip.wiki {
   background: color-mix(in srgb, var(--ui-accent, #3b82f6) 10%, var(--ui-surface-raised, #fff));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 35%, transparent);

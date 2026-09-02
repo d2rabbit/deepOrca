@@ -838,6 +838,16 @@ export function IconList(): JSX.Element {
   );
 }
 
+/** Terminal prompt — shell / script execution */
+export function IconTerminal(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M4 5l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+      <path d="M11 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    </svg>
+  );
+}
+
 /** Chevron down — expandable affordances (pinned plan, dropdowns) */
 export function IconChevronDown(): JSX.Element {
   return (
