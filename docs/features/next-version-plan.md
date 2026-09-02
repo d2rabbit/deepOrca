@@ -1,9 +1,9 @@
-# 下一版本规划：自进化引擎 · Studio 基座 · 远程访问 · 知识编译
+# 下一版本规划：自进化引擎 · Studio 基座 · 远程访问 · 知识编译 · 工作区语义检索
 
 > 日期：2026-08-18（2026-08-19 增补主线 D）· 状态：**规划中（冻结期后的 `next/*` 版本路线，本文不排当前版本期）**
-> 来源：会话 sess_2233bbaf 的方向确立（自进化引擎 / action→Studio 超大版本 / 远程访问），经 2026-08-18 全项目终判（`docs/pre-production-spec-final-audit.md`）与本日收尾批事实校正；2026-08-19 基于 llm_wiki 预研（`docs/research/2026-08-19-llm-wiki-prestudy.md`）增补主线 D 知识编译。
+> 来源：会话 sess_2233bbaf 的方向确立（自进化引擎 / action→Studio 超大版本 / 远程访问），经 2026-08-18 全项目终判（`docs/pre-production-spec-final-audit.md`）与本日收尾批事实校正；2026-08-19 基于 llm_wiki 预研（`docs/research/2026-08-19-llm-wiki-prestudy.md`）增补主线 D 知识编译；2026-09-02 基于 zvec-grep 调研增补主线 E 工作区语义检索（spec [`specs/zg-semantic-search/`](../../specs/zg-semantic-search/design.md)）。
 > 依据口径：路线与现状以 `docs/features/feature-roadmap.md` §0 为准；实现以 `specs/` 为准；调研仅参考。
-> **⚠️ 优先级让位（2026-08-27）**：新立王牌路线 [OC · AI 协调工作链](./coord-chain-plan.md)（联盟链 + 资产共享 + 任务谱系接续开发）优先级高于本文 A–D 主线——资源冲突时 OC 优先，本文各主线启动顺序整体后移一位，内容与分期不变。
+> **⚠️ 优先级让位（2026-08-27）**：新立王牌路线 [OC · AI 协调工作链](./coord-chain-plan.md)（联盟链 + 资产共享 + 任务谱系接续开发）优先级高于本文 A–D 主线——资源冲突时 OC 优先，本文各主线启动顺序整体后移一位，内容与分期不变。**（2026-09-02 注：主线 E 同样让位于 OC。）**
 
 ## 0. 版本定位与入口（前置阻塞）
 
@@ -15,6 +15,7 @@
 | B action → Studio 基座（超大版本） | B1 冷插拔（P0）+ B2 热激活/隔离（P1） | B3 管理 + B4 发行版 MVP + B5 信任富 UI |
 | C 远程访问 | M1 地基 + M2 隧道 + M3 配对 UX（含 MCP HTTP transport） | M4（WebRTC 打洞/E2E，可选） |
 | D 知识编译 | D0 零基建 + D1 doc-wiki 编译层 MVP + D2 检索/图谱/研究闭环 | D3 生态（反向 MCP 暴露、多格式/剪藏扩面） |
+| E 工作区语义检索（zvec-grep） | M0 P0 验证 + M1 core + M2 desktop adapter + M3 产品面（体量小：3–5 天） | M4 观察项（远程 embedding 授权 / full toolset / routing 联动） |
 
 ## 主线 A：自进化引擎（坐实路线图 §十一 三层）
 
@@ -74,6 +75,24 @@
 - **复用地基**（本仓做同类事情的边际成本显著低于从零）：`WikiController` 注入惯例、gitmcp 的 node:sqlite FTS5 `SearchBackend` 先例、routing embedding 进程级单例（零新增模型实例）、`event:actionProgress` 进度通道、知识面板源卡协议、内置 WebSearch/WebFetch。
 - spec：[`specs/doc-wiki/`](../../specs/doc-wiki/design.md)（design + tasks，2026-08-19 立）。
 
+## 主线 E：工作区语义检索（zvec-grep/zg，2026-09-02 新立）
+
+**现状缺口**：检索栈四层中「模糊意图 → 定位」为空白——rg 只认字面，codegraph 管结构不管内容语义，serena 需要精确符号名，Granite routing 只做 skill/tool 召回（不碰工作区内容），memory 的 BM25 只管会话记忆。"恢复主题偏好"→`hydratePreferences` 这类查询目前只能靠 LLM 多轮 rg 猜关键词 + read 拼上下文；中文文档/非代码内容检索同为空白。
+
+**方案**：以内置 MCP server 形态接入阿里开源 zvec-grep（`zg` v0.2.1，Apache-2.0，Node ≥22）——`zg server --stdio` 桥接现有 `StdioClientTransport`（零新协议代码），本地 potion-code-16m-v2 embedding（Model2Vec 静态查表约 30MB，CPU 即可），`.zvec-grep/` 项目标记门槛（未索引项目完全无感）。上游自报 SWE-QA-Bench 配对实验：输入 token -47%、工具调用 -59%、评审分 +1.5。**红线：仅本地 embedding，不配置任何远程 provider，零数据出域。**
+
+| 分期 | 内容 | 体量 |
+| --- | --- | --- |
+| **M0 验证门槛** | Windows 全链路 spike：索引/stdio 桥/daemon 稳定性/原生依赖（zvec/tree-sitter/ripgrep）/模糊查询召回对比；**不通过则整个 spec 归档** | 1 天（不写仓库代码） |
+| **M1 core** | `zg.ts` 薄壳（server 名/标记探测/disable flag）+ `ZgController` seam（仿 serena-controller）+ `augmentMcpServersWithBuiltins` 注入 + G2 hint + 单测 | ~150 行 |
+| **M2 desktop** | `ZgCliController`（spawn 三级兜底 npm→系统 Node 22→npx；`ZVEC_GREP_HOME`/`ZVEC_GREP_MODEL_CACHE` env 隔离；索引生命周期；app quit `zg server off` 防 daemon 泄漏）+ vendor 预置 potion 模型 + IPC 四方法 | ~300 行 |
+| **M3 产品面** | MCP 页签开关 + 知识库状态卡（`zg status` 解析）+ i18n + license + 回归验收 | 小 |
+
+- **四层分工**：bash+rg（已知词穷尽）→ codegraph（结构/调用链）→ serena（LSP 符号）→ **zg（模糊意图语义发现）**；zg 不做结构关系与符号编辑，是纯内容检索层。
+- **与其他主线关系**：与主线 D 不重叠——D2 检索作用于"编译后的 doc-wiki 知识"，zg 作用于"工作区原始内容"；纯 MCP 注入，不依赖 B1 action 总线动态化；与 A/C 零耦合。
+- **风险**：上游 0.2.x 太新（2026-08 底开源）→ 版本钉死 + adapter 单文件隔离 CLI 面；Windows 原生模块/daemon 表现未知 → M0 一票否决。
+- spec：[`specs/zg-semantic-search/`](../../specs/zg-semantic-search/design.md)（design + tasks，2026-09-02 立）。
+
 ## 强化清单（本版本遗留，进下一版窗口逐项核对）
 
 2026-08-18 评估与终判口径，进入下一版时按本节对齐：
@@ -95,5 +114,5 @@
 ## 启动顺序建议
 
 1. **先收本版本尾**：F4 交互清单 + 双开回归 + GitMCP-12 人工走查 → H 预生产切换（版本定格/dev 合并/tag/冻结生效）；
-2. 冻结生效后开 `next/*`：A-E1 设计与 B-B1 可并行启动（E1 埋点与 registry 动态化同 spec 合写；前者改 core、后者改 desktop main + core/modules，无冲突）；C-M1 的 dispatch 抽取与 action 第四表面同源，建议与 B1 同批设计；D-D0 两项零基建完全独立、任意时点可插入（D1 待 D0 的 purpose 约定验证后启动）；
+2. 冻结生效后开 `next/*`：A-E1 设计与 B-B1 可并行启动（E1 埋点与 registry 动态化同 spec 合写；前者改 core、后者改 desktop main + core/modules，无冲突）；C-M1 的 dispatch 抽取与 action 第四表面同源，建议与 B1 同批设计；D-D0 两项零基建完全独立、任意时点可插入（D1 待 D0 的 purpose 约定验证后启动）；E-M0 P0 spike 纯调研不写仓库代码、冻结期内即可跑，M1–M3 待冻结生效后按 P0 结论启动；
 3. 体量锚点：B1 的 wasm runtime（DMABI + Tier-0）是全版本唯一从零大块，优先立 `specs/module-system/` 任务拆分启动。

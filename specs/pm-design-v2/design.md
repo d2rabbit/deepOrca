@@ -2,7 +2,7 @@
 
 > **状态**：**部分实现（2026-08-18 终判回写；同日拍板更新）**——已实现：design-store 持久化（两管线 + 版本快照 FIFO 20 版）+ design.materialize Action + DesignPanel（一键具现化）+ P3 预览迭代闭环（PrototypePanel/DesignPreview composer → update_openui/update_design/update_surface + 预览联动 + 渲染错误纠正回路）。未做：版本切换 UI（快照在磁盘，已拍不做）、React 代码导出（已拍不做）；**P4 独立导出已实现（2026-08-18 收尾批 + 同日格式拍板）：`.ddp`（pm-design 原型）/`.ddu`（ui-design 文档）特殊 ZIP 压缩包**——DesignPanel ⬇ 按钮 → `design:exportPackage` 特权通道 → 零依赖 zip 写入器（`main/tools/dd-package.ts`）→ manifest+源文件+index.html（.ddu 含可独立打开的编译渲染）→ 原生保存对话框；明确偏差：管线集合为 2（A2UI 交互层按三层定位排除）、pm-analyst/analysis.json 显式缓期。任务明细见 tasks.md（已回写）。
 > **日期**：2026-08-11
-> **前置**：[A2UI 集成](../a2ui-integration/design.md) · [DeepDesign .dd 格式](../deep-design/design.md)
+> **前置**：[A2UI 集成](../archive/a2ui-integration/design.md) · [DeepDesign .dd 格式](../archive/deep-design/design.md)
 > **受众**：产品经理（PM）—— 不需要懂代码，用自然语言驱动从需求到原型的全流程
 
 ---

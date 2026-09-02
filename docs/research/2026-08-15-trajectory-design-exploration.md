@@ -1,7 +1,7 @@
 # 轨迹设计探索：行为记忆（agent 视角）× 任务轨迹（人类视角）
 
 > 日期：2026-08-15 · 性质：设计探索与现状对账（非实施方案）
-> 对象：`specs/activity-frames/design.md`（已实现，~3000 行）× `specs/task-tree/design.md`（纯设计，零实现）
+> 对象：`specs/archive/activity-frames/design.md`（已实现，~3000 行）× `specs/archive/task-tree/design.md`（纯设计，零实现）
 > 核心定位（本探索的坐标系，先于一切技术细节）：
 
 |            | activity-frames                                                          | task-tree                                                            |
@@ -110,7 +110,7 @@ spec（8-02）只描绘了管线 A；实现演化出了管线 B：
 
 - **任务树 P1 全量**：merge（cherry-pick + 冲突报告）、session 绑定（taskRef + sessionRef 单次绑定）、branch 级 resume、Plan Mode 单向物化（幂等去重）——11 用例测试。
 - **行为记忆 boot 注入**：`settings.behaviorContext`（默认关）+ host 注入 provider seam（desktop collectors → core 隐藏系统消息），fail-open。
-- **memory 谱系 L2 增量规格**：`specs/task-tree/memory-lineage.md`（单向馈赠 tree→memory，实现列 P2）。
+- **memory 谱系 L2 增量规格**：`specs/archive/task-tree/memory-lineage.md`（单向馈赠 tree→memory，实现列 P2）。
 
 ### P2 收官（2026-08-15）
 
@@ -124,6 +124,6 @@ spec（8-02）只描绘了管线 A；实现演化出了管线 B：
 | P1     | activity-frames spec 回写（双管线/desktop 位置/工具清单/nocta 状态）                                                      | 行为记忆 |
 | P2     | nocta-recorder vendor 或显式降级声明                                                                                      | 行为记忆 |
 | P2     | BehavioralProfile 可选 boot 注入评估（配置开关）                                                                          | 行为记忆 |
-| P2     | task-tree 拆 specs/task-tree/tasks.md，启动 P0（TaskTreeService + 存储 + task.fork/list Action + 最小面板含"为什么"字段） | 任务轨迹 |
+| P2     | task-tree 拆 specs/archive/task-tree/tasks.md，启动 P0（TaskTreeService + 存储 + task.fork/list Action + 最小面板含"为什么"字段） | 任务轨迹 |
 | P3     | task-tree 单向 plan→tree 物化规则写入 spec（消除双写歧义）                                                                | 任务轨迹 |
 | P3     | 谱系回收 → L2 增量 spec（memory 侧）                                                                                      | 桥接     |

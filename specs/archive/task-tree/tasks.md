@@ -24,7 +24,7 @@
 - [x] session 绑定：SessionEntry 扩展 `taskRef: {treeId, branch, nodeId}` + normalize；task.create/fork 自动绑定；分支头 sessionRef 单次绑定防抢占
 - [x] `/resume` branch 级：activateSession 恢复绑定分支为 active（fail-open）
 - [x] Plan Mode 步骤物化（单向只读，§十一 规则；标题去重、计划内重复行折叠、幂等）
-- [x] memory 谱系：L2 增量 spec 先行 → `specs/task-tree/memory-lineage.md`（实现列 P2）
+- [x] memory 谱系：L2 增量 spec 先行 → `specs/archive/task-tree/memory-lineage.md`（实现列 P2）
 
 ## P2（2026-08-15 完成，快照切换除外）
 

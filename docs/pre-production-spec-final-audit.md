@@ -32,7 +32,7 @@
 
 ## 需要跟进的文档债（终判发现）
 
-1. **specs/text-embedding/design.md 状态行**仍写"方案（未实施）"——陈旧，应回写"已实现（构建期 vendor 偏离运行时下载，属正向）"。
+1. **specs/archive/text-embedding/design.md 状态行**仍写"方案（未实施）"——陈旧，应回写"已实现（构建期 vendor 偏离运行时下载，属正向）"。
 2. **specs/skill-eval/tasks.md** T1.1-T2.3 复选框全未勾——与 pre-production A1-A6 已勾不一致，应按实况回写（pin 定版 ✅、双引擎对拍/CI 首跑仍待）。
 3. **docs/builtin-inventory.md** 仍列 harmonyos-mcp/harmonyos-deveco-cli——陈旧残留（代码已整体下线）。
 4. **specs/pm-design-v2/tasks.md** 行 8 状态行"待开发"陈旧（行 3 对账行已较新）——可顺手清理。

@@ -20,7 +20,7 @@
 
 覆盖全部 agent 操作模块：索引与知识（index & knowledge）、代码审查（code review）、
 原型设计（prototype design）。操作记录统一落到**已存在的 task 与历史记录模块**
-（`specs/task-tree/` 任务树 + 会话历史），不新建第二套记录系统。
+（`specs/archive/task-tree/` 任务树 + 会话历史），不新建第二套记录系统。
 
 ## Issue 4 — 主对话区左侧侧栏的展示分工：design 面板 vs 需求文档
 

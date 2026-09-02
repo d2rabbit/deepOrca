@@ -1,6 +1,6 @@
 # deepOrca 设计系统进阶方案 — 产品原型设计模块 × UI 视觉稿设计模块
 
-> **状态**：方案稿（只出方案，不改代码）· **日期**：2026-09-01
+> **状态**：方案稿（只出方案，不改代码）· **日期**：2026-09-01 · **2026-09-02 合并定稿**：prototype-companion（原型伴随交互 redesign 挂起稿）正式并入本稿成为唯一方案；其中任务树相关议题（动作落树 appendStep / 侧栏滚动审计）**已由 [task-tree-hub](../task-tree-hub/design.md) 实现关闭**（落树 = design-store 记录聚合呈现，无需 appendStep；滚动契约 = task-tree-hub §6.5），§5.6 / §9 已同步改写，本稿不再承担该两项。
 > **性质**：对既有 `prototype.*`（产品原型设计）与 `design.*`（UI 视觉稿）两大模块的**强化 / 优化 / 进阶**设计。
 > **输入**：① 本仓库设计域全部既有规格与实现（deep-design / pm-design-v2 / prototype-companion / a2ui-integration / ui-domain-regroup / design-audit 等）；② 四个开源设计项目的一手仓库研究（open-design / open-pencil / open-codesign / penpot，详见 `docs/research/2026-09-01-design-systems-comparative-study.md`）。
 > **交付**：本文档为唯一方案；不含任务分解（tasks.md）与代码改动。
@@ -89,7 +89,7 @@ deepOrca 的设计域在 2026-08 完成了一次重要的真机驱动的模块�
 
 ### 1.5 已挂起 / 已拍板不做（方案边界内的既有决策）
 
-- **prototype-companion 挂起**（2026-08-31 拍板，并入本 redesign）：PrototypeDialog 工作区悬浮对话框、sessionless 动作落任务树、需求文档左侧分轨、侧栏滚动审计。
+- **prototype-companion 已合并**（2026-08-31 拍板并入本 redesign；2026-09-02 合并定稿）：PrototypeDialog 工作区悬浮对话框、需求文档左侧分轨由本稿承接（§5.6）；动作落任务树与侧栏滚动审计两项已由 task-tree-hub 实现关闭，不再作为本方案范围。
 - **已拍板不做**：版本切换 UI（快照在磁盘）、React/代码导出、tweaks manifest（观察清单）、A2UI 交互层介入 designer（三层定位）、OpenDesign daemon 级集成（deep-design 明确"去掉 daemon 复用内核"）。
 - **既有进化建议**（2026-08-17 研究）：内置设计系统扩充（已部分落地 3→9 套）、taste 五维自评（已落地）、anti-slop 多样性（已落地为三轴）、大页面两段式生成（已落地 Step 2b）、tweaks 观察。
 
@@ -239,15 +239,15 @@ deepOrca 的设计域在 2026-08 完成了一次重要的真机驱动的模块�
 - **DESIGN.md → 原型视觉**：新增 token 映射层——`.deeporca/DESIGN.md`（或设计系统包 tokens）→ OpenUI 渲染器 `--ui-*` CSS 变量（library.tsx 已同源桌面主题，扩为"品牌 token 优先"）。原型的色彩/字体/间距从第一步就受品牌契约约束，**原型 → 视觉稿的视觉连续性**由此成立（视觉稿模块的 .dd 用同一份 token 契约，§6）。
 - **方向选择（轻量版）**：原型走查前可选「原型方向」2-3 个预设（密度/语气两轴，如 compact-utility / airy-friendly），确定性映射到间距与字号 token——借鉴 open-design direction picker 的"禁模型即兴"思想，但不引入完整视觉方向体系（那是视觉稿模块的事）。
 
-### 5.6 留存与工作区（P2，承接 prototype-companion 挂起项）
+### 5.6 留存与工作区（P2，承接 prototype-companion 合并项）
 
-prototype-companion（2026-08-31 挂起、并入 redesign）的四个 Issue 在本方案中**全部承接**：
+prototype-companion（2026-08-31 挂起；2026-09-02 正式并入本稿）的四个 Issue 处置：
 
-| Issue | 内容 | 本方案落点 |
-|-------|------|-----------|
-| 1+2 | 悬浮对话框 + 不占主对话 | PrototypeDialog 作为原型模块伴随操作面（悬浮、非模态、silent 通道零会话记录）——交互回路的人工走查模式正好复用同一悬浮面 |
-| 3 | 操作落任务树 | `prototype.spec/materialize` + 新增 `prototype.verify` 成功后 appendStep（workspace 树活动分支，sessionless 落点） |
-| 4 | 侧栏分轨 + 滚动 | spec 文档进左侧 markdown 侧栏；原型/视觉稿进 design 面板；滚动契约随任务树精致化联动（保持原挂起口径） |
+| Issue | 内容 | 处置 |
+|-------|------|------|
+| 1+2 | 悬浮对话框 + 不占主对话 | **本方案承接**：PrototypeDialog 作为原型模块伴随操作面（悬浮、非模态、silent 通道零会话记录）——交互回路的人工走查模式正好复用同一悬浮面 |
+| 3 | 操作落任务树 | **已实现关闭**（task-tree-hub，2026-09-02 落地）：原 appendStep 方案作废——design-store 本身就是原型/UI 任务的记录源，工作区任务树按域聚合自动呈现，`prototype.*` 与 `prototype.verify` 无需再向树写入 step |
+| 4 | 侧栏分轨 + 滚动 | 分轨（spec → 左侧 markdown 侧栏；原型/视觉稿 → design 面板）由本方案承接；滚动契约已由 task-tree-hub §6.5 实现关闭 |
 
 **版本切换 UI（重估 2026-08-18"拍板不做"）**：design-store 已有 versions FIFO 20 与血缘 id——提供最小化「版本列表 + 各版预览 + 回退/另存为新版本」UI（不引入复杂 diff）。这是 G4 在设计域的最小闭环，与 file-history（undo）互补：版本 = 设计意图的里程碑，file-history = 编辑回溯。
 
@@ -447,7 +447,7 @@ prototype-companion（2026-08-31 挂起、并入 redesign）的四个 Issue 在�
 - ⑧ `design.review`（opt-in 加权门 + ≤3 轮 + ship_best + 12 项布尔前门）。
 - ⑨ 设计记忆（preferences.json + 语境注入 + 拒绝记录）。
 - ⑩ evals 扩充（负例 + 工具调用断言 + 机检断言 + 回归门禁）。
-- ⑪ prototype-companion 挂起项落地（PrototypeDialog + 任务树落点 + 侧栏分轨）。
+- ⑪ prototype-companion 合并项落地（PrototypeDialog 悬浮对话框 + spec 左侧分轨；任务树落点与滚动契约已由 task-tree-hub 实现，不在本期）。
 - ⑫ update_openui delta 补丁研究（token 经济，roadmap 方向；若 SDK 支持则实现）。
 - **验收**：评审门在开启时拦截低于门槛的产物并给修复建议；记忆使第二次生成默认沿用用户品牌；eval 含负例且 CI 门禁生效。
 
@@ -497,10 +497,10 @@ prototype-companion（2026-08-31 挂起、并入 redesign）的四个 Issue 在�
 
 | 既有规格 | 关系 |
 |----------|------|
-| `specs/deep-design/design.md` | 本方案的系统前身：四层文件系统（DESIGN.md/模板/SKILL/浏览器展示）与"零 daemon"原则**全部继承**；.dd 格式按 §6.2 升级 |
+| `specs/archive/deep-design/design.md` | 本方案的系统前身：四层文件系统（DESIGN.md/模板/SKILL/浏览器展示）与"零 daemon"原则**全部继承**；.dd 格式按 §6.2 升级 |
 | `specs/pm-design-v2/design.md` | 本方案承接其统一工作台方向；design.materialize 管线路由（flash 判定）保留；管线集合"openui|design|spec"三成员口径修正 |
-| `specs/prototype-companion/design.md` | 挂起项由本方案 §5.6 承接（对话框/任务树/侧栏分轨/滚动随任务树精致化）；其"主工作区隔离不变量"被 §5.2 交互回路继续遵守 |
-| `specs/a2ui-integration/design.md + design-r2.md` | 三层定位与 v0.9.1 协议不变；本方案只在原型模块新增 `design:action` 自有交互面（不触碰 A2UI surface 面）；boundary guard 更新 |
+| `specs/prototype-companion/design.md` | **已并入本稿（2026-09-02 合并定稿，本条为其终态）**：对话框/侧栏分轨由 §5.6 承接，任务树落点与滚动审计由 task-tree-hub 实现关闭；其"主工作区隔离不变量"被 §5.2 交互回路继续遵守 |
+| `specs/archive/a2ui-integration/design.md + design-r2.md` | 三层定位与 v0.9.1 协议不变；本方案只在原型模块新增 `design:action` 自有交互面（不触碰 A2UI surface 面）；boundary guard 更新 |
 | `specs/ui-domain-regroup/design.md` | drift 闸门在设计面板（现状保持）；本方案把 drift 扩为 token 生命周期一环（§6.7） |
 | `specs/skill-eval/design.md` | 评估体系按 §7.4 扩充（负例/工具调用断言/机检断言/回归门禁） |
 | `docs/research/2026-08-17-opendesign-openpencli-vs-designer.md` | 其"建议动作"（系统库扩充/五维自评/anti-slop/两段式生成）已全部落地；本方案进入机制级阶段 |
@@ -508,7 +508,7 @@ prototype-companion（2026-08-31 挂起、并入 redesign）的四个 Issue 在�
 
 ## 附录 C .ddp / .ddu 交付格式：现状规范与进阶设计
 
-> 现状核实：2026-09-01 直读 `packages/desktop/src/main/tools/dd-package.ts`（226 行）+ `specs/deep-design/design.md` §0 + `specs/pm-design-v2/design.md` 头部（格式拍板 2026-08-18，P4-1 已实现）。
+> 现状核实：2026-09-01 直读 `packages/desktop/src/main/tools/dd-package.ts`（226 行）+ `specs/archive/deep-design/design.md` §0 + `specs/pm-design-v2/design.md` 头部（格式拍板 2026-08-18，P4-1 已实现）。
 
 ### C.1 现状格式规范（已实现）
 

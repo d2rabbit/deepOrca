@@ -3,7 +3,7 @@
 > 日期：2026-08-04
 > 研究员：AI 记忆系统预研
 > 资源：论文 [arXiv:2507.03724](https://arxiv.org/abs/2507.03724)（注：用户提供的 `2607.16621` 链接失效，实际论文为 2507.03724，另有短版 2505.22101）· 仓库 [MemTensor/MemOS](https://github.com/MemTensor/MemOS)（Apache 2.0）
-> 关联模块：deepOrca `activity-frames`（行为记忆，`specs/activity-frames/design.md`）
+> 关联模块：deepOrca `activity-frames`（行为记忆，`specs/archive/activity-frames/design.md`）
 
 ---
 
@@ -275,7 +275,7 @@ MemOS 把记忆的生命周期拆成**可编排的异步任务**，由 MemSchedu
 
 ### 6.1 当前 activity-frames 的局限
 
-参照 `specs/activity-frames/design.md`，当前设计是：
+参照 `specs/archive/activity-frames/design.md`，当前设计是：
 
 > 多源采集（nocta-recorder → SQLite：屏幕帧 + UI 事件 + 无障碍元素）→ sessionize 分段 → 实体识别 → 编译为 ActivityDocument/Frame → 6 个只读 MCP 工具（get_context / get_activity / get_steps / get_day_summary / get_patterns / get_communications）。
 

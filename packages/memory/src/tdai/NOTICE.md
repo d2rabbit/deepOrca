@@ -55,4 +55,4 @@ repository history for this path.
   fork time** — the original exclusion list omitted it and no decision record
   exists. Decision 2026-08-21: do **not** port it; the capability will be
   built natively against DeepOrca's own skills system instead (constraints in
-  `specs/memory-remediation/design.md` §五).
+  `specs/archive/memory-remediation/design.md` §五).

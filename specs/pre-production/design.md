@@ -102,7 +102,7 @@
 ### G. 旧文档清理（原则：归档不删除、状态必回写、决策留痕）
 
 1. 归档 `docs/research/archive/`：作废 3 份（zread、memos、pi-sdk）+ 被整合取代的 dsh 原文 3 份（deep-dive/adoption-plan/takeaways，台账已取代）+ `STATUS-2026-08-07.md`；archive 内放一行 README 指回主索引；
-2. 状态行回写：`2026-08-11-knowledge-memory-materialization-design.md`（"待实施"→已实施+提交号）、`specs/activity-frames/design.md` boot context（"待评估"→已实现默认关）、其余以 `docs/research/README.md` 台账为准逐条核对；
+2. 状态行回写：`2026-08-11-knowledge-memory-materialization-design.md`（"待实施"→已实施+提交号）、`specs/archive/activity-frames/design.md` boot context（"待评估"→已实现默认关）、其余以 `docs/research/README.md` 台账为准逐条核对；
 3. 仓库垃圾：`.playwright-mcp/*.yml`（26 个会话快照）移出 git 追踪 + 入 .gitignore；根目录 `v7-strike.png` 处置（移 docs 或删，执行时定）；过时代码注释（App.tsx:41 / build.mjs:85 的 Monaco+Mermaid 残留）顺手清；
 4. 终版对齐：`docs/features/feature-roadmap.md` 冻结版快照（标注预生产基线）、CHANGELOG 汇总本版本全部工作流、`docs/research/README.md` 索引同步；
 5. 文档对（`*_en.md` 孪生）一致性抽查——只修事实性漂移，不做全文重译。

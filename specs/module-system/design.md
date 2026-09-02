@@ -5,8 +5,8 @@
 >
 > 灵感来源：VSCode 扩展平台（manifest + contribution points + activation + extension host）
 > × 浏览器/发行版生态（同一内核，不同产品：Chromium→Chrome/Edge/Opera；Debian→Ubuntu）
-> × 本仓已落地三大资产：**ActionRegistry**（`specs/define-action/design.md`，~30 action）、
-> **A2UI 自研声明式 UI**（`specs/a2ui-integration/design.md`，renderer `a2ui/` 已落地）、
+> × 本仓已落地三大资产：**ActionRegistry**（`specs/archive/define-action/design.md`，~30 action）、
+> **A2UI 自研声明式 UI**（`specs/archive/a2ui-integration/design.md`，renderer `a2ui/` 已落地）、
 > **官方 MCP SDK**（core deps）。
 >
 > 一句话定位：

@@ -1,12 +1,12 @@
 # 工作区任务树（Task Tree Hub）— 详细设计
 
 > **日期**：2026-09-01
-> **状态**：设计定稿，待实施
+> **状态**：**主体已落地（2026-09-02 任务树 V2 提交：git graph + 常开轨迹 + git 绑定 + fork + 按需审查 + 全局 token 统计）；收尾与真机走查进行中**
 > **拍板来源**：用户拍板（2026-09-01）——现有任务历史模块（TaskTreePanel / TaskRecordPanel 以
 > workspace 树维度挂侧栏）的形态**全部推翻**；任务树的本质重新定义为：**以同一个工作区（项目）
 > 为根基的、该工作区所有任务的统一树**。本文即该重设计的设计稿，并关闭
 > [prototype-companion](../prototype-companion/design.md) §0.0 中挂起的「任务树精致化」议题。
-> **前置**：[任务树](../task-tree/design.md)（TaskTreeService 已落地，本设计**复用不重写**）·
+> **前置**：[任务树](../archive/task-tree/design.md)（TaskTreeService 已落地，本设计**复用不重写**）·
 > [代码审查](../review-module/design.md)（review tab 交互范式）· 索引与知识（index-knowledge-rework）
 > **受众**：desktop 维护者；实现者需要熟悉 review tab 的双栏结构、review-store / design-store /
 > TaskTreeService 三套既有记录源。

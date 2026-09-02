@@ -1,13 +1,16 @@
 # 原型设计伴随模块（Prototype Companion）— 详细设计
 
-> **状态**：**已挂起 — 并入 redesign 待办**（2026-08-31 拍板：原型模块整体 redesign，等当前
-> 这批模块修正（代码审查等）完成后再启动。本设计稿作为 redesign 的输入保留。）
+> **状态**：**已合并 — 并入 [design-systems-advance](../design-systems-advance/design.md)（2026-09-02 合并定稿）**。
+> 2026-08-31 拍板挂起并入 redesign；2026-09-02 redesign 方案（design-systems-advance）成为唯一方案——
+> 本文的悬浮对话框 / 侧栏分轨由其 §5.6 承接；任务树落点与滚动审计两项**已由
+> [task-tree-hub](../task-tree-hub/design.md) 实现关闭**（design-store 聚合呈现，无需 appendStep）。
+> 本稿降级为历史输入归档保留，不再维护。
 > **任务树更新（2026-09-01）**：挂起的「任务树精致化」已拍板并定稿 →
 > [工作区任务树](../task-tree-hub/design.md)（工作区统一任务树；本文 §5.2 的落树矩阵
 > 与 §9 P2 已按其回写）。
 > **日期**：2026-08-31
 > **需求来源**：[原型设计模块约束与问题记录](../../docs/research/2026-08-31-prototype-module-issues.md)（Issue 1–4）
-> **前置**：[PM-Design V2](../pm-design-v2/design.md)（design-store / 两步原型流已落地）· [任务树](../task-tree/design.md)（TaskTreeService / TaskTreePanel / TaskRecordPanel 已落地）
+> **前置**：[PM-Design V2](../pm-design-v2/design.md)（design-store / 两步原型流已落地）· [任务树](../archive/task-tree/design.md)（TaskTreeService / TaskTreePanel / TaskRecordPanel 已落地）
 > **受众**：deepcodeUI 维护者；实现者需要熟悉 HubSheet 侧栏、ActionRun 通道、design-store 与 TaskTreeService。
 
 ---
@@ -51,7 +54,7 @@
 三条原则，分别对应 Issue 1/2、3、4：
 
 1. **伴随不占用**——原型模块的一切交互载体都悬浮或侧挂于工作区之上，永不成为主对话的模态或独占层；主会话的消息流、输入框、历史记录零写入。
-2. **记录只走一套**——所有操作记录进既有 TaskTreeService（`specs/task-tree/`），TaskTreePanel / TaskRecordPanel 是唯一阅读面；不新增第二套记录存储。
+2. **记录只走一套**——所有操作记录进既有 TaskTreeService（`specs/archive/task-tree/`），TaskTreePanel / TaskRecordPanel 是唯一阅读面；不新增第二套记录存储。
 3. **呈现分轨**——产物类型决定呈现轨道：`spec`（需求文档）→ 左侧 markdown 侧栏；`openui`/`design`（原型与 UI 稿）→ design 面板 + 右侧 companion / 弹窗预览。
 
 ### 组件拓扑（新增 ▲，既有 ○）

@@ -103,10 +103,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **branch 级 resume**：绑定会话激活时恢复其分支为 active（fail-open）
   - **Plan Mode 单向物化**：UpdatePlan 的 checklist 行 → 绑定分支的 step 节点（标题去重、计划内重复折叠、幂等重放零新增；树永不回写 plan——§十一 规则）
   - **行为记忆 boot 注入**：`settings.behaviorContext`（默认关）开启后新会话前置隐藏 `<behavior-context>` 系统消息（BehavioralProfile 紧凑摘要，desktop collectors → core provider seam，fail-open）
-  - **memory 谱系规格**：`specs/task-tree/memory-lineage.md`（L2 taskLineage 块、终态写回触发、同源异枝召回过滤——单向馈赠，实现列 P2）
+  - **memory 谱系规格**：`specs/archive/task-tree/memory-lineage.md`（L2 taskLineage 块、终态写回触发、同源异枝召回过滤——单向馈赠，实现列 P2）
   - 测试 +5：merge 冲突/绑定防抢占/物化幂等/branch resume/boot 注入门控
 
-- **任务轨迹 P0（task-tree，给人类看的 agent 工作视图）**（方案：`specs/task-tree/`，定位：`docs/research/2026-08-15-trajectory-design-exploration.md`）
+- **任务轨迹 P0（task-tree，给人类看的 agent 工作视图）**（方案：`specs/archive/task-tree/`，定位：`docs/research/2026-08-15-trajectory-design-exploration.md`）
   - core `TaskTreeService`：git 语义的任务树（create/append/fork/switch/abandon/list + reflog 操作流水）；单写者 + pendingIndex→flush 纪律（吸收 sessions-index 丢数教训）；节点内容寻址 id + 路径防穿越；损坏树 fail-open 降级不阻塞会话
   - **每个节点携带 `why` 叙事字段（fork 强制非空）**——人类视角的产品本体：岔路口永远有故事
   - 6 个 Action：task.create / task.step / task.fork / task.switch / task.abandon / task.list——agent 会话内可直接分叉（"这个方案我先开条分支试"）
