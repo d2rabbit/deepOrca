@@ -10,14 +10,14 @@
 - [ ] 1. .NET 10 SDK + Windows App SDK 2.x + WebView2 运行时环境验证（含 CI windows runner 可用性确认）——本机 macOS 无 dotnet 已确认并记录到 deeporca-win/README.md 环境表，Windows 侧验证待做
 - [x] 2. 依赖基线锁定：`ModelContextProtocol` 2.2.0、`Microsoft.ML.OnnxRuntime` 1.29.0、`CommunityToolkit.Mvvm` 8.4.2、`Microsoft.ML.Tokenizers` 2.0.0（+ WinAppSDK 2.4.0 / WebView2 1.0.4191.47 / 测试栈，2026-09-02 经 nuget.org 核实，钉死于 deeporca-win/README.md）✅ 2026-09-02
 
-## M1 骨架：Core + LLM ⬜
+## M1 骨架：Core + LLM ✅（2026-09-02，41 单测全绿 + 边界检查通过）
 
-- [ ] 0. `DeepOrca.Core` 类库（net10.0）+ UI-free lint 守护（引用扫描 WinUI/WebView2/console.* 即 fail）
-- [ ] 1. Types：record + STJ source-gen；AnyJson（`JsonNode` 封装）；settings 反序列化（TS endpoints 数组兼容，对拍 apple 分支 `SettingsTypes.swift`）
-- [ ] 2. StreamParser 直译：SSE 逐事件（token / tool_call / reasoning / done）+ 对拍上游 `StreamParser.swift` 用例
-- [ ] 3. OpenAiClient：HttpClient + `IAsyncEnumerable<T>`；超时/重试/错误体语义对拍
-- [ ] 4. MessageConverter：tool 结果 ↔ tool_call 按 id 配对、中断恢复、多模态占位（对拍上游 `openai-message-converter.ts` 语义）
-- [ ] 5. xUnit：SSE 解析 / 消息配对 / AnyJson 三组全绿
+- [x] 0. `DeepOrca.Core` 类库（net10.0）+ UI-free lint 守护（`tools/check-core-boundaries.mjs`：引用扫描 WinUI/WebView2/MAUI/Avalonia/Console.* 即 fail）✅
+- [x] 1. Types：record + STJ source-gen（`CoreJsonContext` camelCase）；AnyJson（`JsonNode` 封装 + 深比较）；settings 反序列化（TS endpoints 数组兼容，对拍 apple `SettingsTypes.swift` fromTSJSON：六块同构）✅
+- [x] 2. StreamParser 直译：SSE 逐事件（token / tool_call 按 index 装配 / reasoning / role/refusal / [DONE] / 畸形 JSON 打捞 / Flush）+ 对拍 apple `StreamParser.swift` 用例 ✅
+- [x] 3. OpenAiClient：HttpClient + `IAsyncEnumerable<LlmStreamEvent>`（handler 注入可测）；超时/错误体（HTTP code + body prefix 200）/ include_usage 尾包真实 usage；wire snake_case 手拼（tools 递归编码）✅
+- [x] 4. MessageConverter：tool 结果 ↔ tool_call 按 id 配对（每个 tool 消息至多用一次；优先非中断结果）、中断回填（TS JSON.stringify(,null,2) 形状 + metadata.interrupted）、多模态 parts 过滤（注入 SupportsMultimodal）、compaction 过滤、turn tail（仅最后一条 user）、thinking reasoning 回放（empty-field 默认，DeepSeek 契约）、/init 渲染、trailing pending tool calls ✅
+- [x] 5. xUnit：SSE 解析（9）/ 消息配对（10）/ AnyJson+Settings（8）/ OpenAiClient（5）/ 骨架（1）+ 边界（2）共 41 全绿 ✅
 
 ## M2 基建：权限 + MCP + 持久化 ⬜（前置：M1）
 
