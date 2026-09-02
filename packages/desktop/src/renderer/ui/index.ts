@@ -70,5 +70,7 @@ export {
   IconBot,
   IconShield,
   IconSparkle,
+  IconChevronDown,
   IconRefresh,
+  IconList,
 } from "./icons";

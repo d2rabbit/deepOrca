@@ -258,7 +258,7 @@ export const MessageList = memo(function MessageList({
           </div>
         ) : null}
         {leading.map((message) => (
-          <div key={message.id} className="ui-msg-wrap">
+          <div key={message.id} data-mid={message.id} className="ui-msg-wrap">
             <Message message={message} reasoningMode={reasoningMode} expandedThinkingId={expandedThinkingId} />
           </div>
         ))}
@@ -270,7 +270,7 @@ export const MessageList = memo(function MessageList({
           const showSep = prevBoundary && dateKey(prevBoundary.createTime) !== dateKey(turn.command.createTime);
           const isLive = streaming && ti === turns.length - 1;
           return (
-            <div key={turn.command.id} className="ui-msg-wrap">
+            <div key={turn.command.id} data-mid={turn.command.id} className="ui-msg-wrap">
               {showSep ? (
                 <div className="ui-date-separator">
                   <span className="ui-date-separator-line" />

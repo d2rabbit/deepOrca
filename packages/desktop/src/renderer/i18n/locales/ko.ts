@@ -1161,6 +1161,13 @@ export const ko: Record<MessageKey, string> = {
   "review.rpExcluded": "정책 제외",
   "review.rpExcludedNote":
     "모둠 변경이 정책에 따라 제외되었거나 지원되지 않는 유형이라 이번 실행에서는 리뷰할 내용이 없습니다.",
+  "toc.title": "지시 디렉터리",
+  "toc.empty": "아직 지시가 없습니다",
+  "activity.subagents": "하위 에이전트",
+  "activity.thinking": "思考 중",
+  "activity.chars": "자",
+  "activity.cap": "최신이 맨 앞 · 최대 15개까지 유지, 오래된 항목은 제외",
+  "plan.pinnedTitle": "실행 계획",
   "review.rpNoFindings": "보고할 문제가 발견되지 않았습니다.",
   "review.rpEmptyTitle": "검토 완료 — 보고할 문제가 없습니다",
   "review.rpEmptyHint": "범위 내 {n}개의 변경 파일을 검사했습니다.",

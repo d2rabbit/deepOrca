@@ -1167,6 +1167,13 @@ export const ja: Record<MessageKey, string> = {
   "review.rpExcluded": "除外",
   "review.rpExcludedNote":
     "すべての変更がポリシーにより除外されたか、未対応の種類のため、今回のレビュー対象はありませんでした。",
+  "toc.title": "指示ディレクトリ",
+  "toc.empty": "まだ指示はありません",
+  "activity.subagents": "サブエージェント",
+  "activity.thinking": "思考中",
+  "activity.chars": "文字",
+  "activity.cap": "最新が最前面 · 最大 15 件を保持し、古いものは除外",
+  "plan.pinnedTitle": "実行計画",
   "review.rpNoFindings": "報告すべき問題は見つかりませんでした。",
   "review.rpEmptyTitle": "レビュー完了 — 報告すべき問題は見つかりませんでした",
   "review.rpEmptyHint": "スコープ内の {n} 件の変更ファイルを走査しました。",

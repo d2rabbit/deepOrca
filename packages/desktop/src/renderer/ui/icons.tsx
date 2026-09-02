@@ -826,6 +826,27 @@ export function IconSparkle(): JSX.Element {
   );
 }
 
+/** Bulleted list — instruction TOC head */
+export function IconList(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M7 5.5h10M7 10h10M7 14.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      <circle cx="3.8" cy="5.5" r="1.1" fill="currentColor" />
+      <circle cx="3.8" cy="10" r="1.1" fill="currentColor" />
+      <circle cx="3.8" cy="14.5" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Chevron down — expandable affordances (pinned plan, dropdowns) */
+export function IconChevronDown(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    </svg>
+  );
+}
+
 /** Two curved arrows — refresh (skill re-scan) */
 export function IconRefresh(): JSX.Element {
   return (

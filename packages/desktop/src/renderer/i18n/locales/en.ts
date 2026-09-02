@@ -1171,6 +1171,13 @@ export const en = {
   "review.rpExcluded": "Excluded by policy",
   "review.rpExcludedNote":
     "Every change was excluded by policy (generated / dot-paths) or has an unsupported type — nothing was reviewable this run.",
+  "toc.title": "Instructions",
+  "toc.empty": "No instructions yet",
+  "activity.subagents": "Subagents",
+  "activity.thinking": "Thinking",
+  "activity.chars": "chars",
+  "activity.cap": "Newest on top · keep at most 15, older ones drop off",
+  "plan.pinnedTitle": "Implementation plan",
   "review.rpNoFindings": "No findings worth reporting.",
   "review.rpEmptyTitle": "Review complete — nothing to report",
   "review.rpEmptyHint": "Scanned {n} changed files in scope.",

@@ -39,6 +39,9 @@ import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
 import { BuildQuickContent, ReportQuickContent, TaskQuickSheet } from "./components/TaskQuickSheet";
+import { InstructionToc } from "./components/InstructionToc";
+import { ActivityRail } from "./components/ActivityRail";
+import { PinnedPlan } from "./components/PinnedPlan";
 import type { TaskHubQuickView } from "./components/TaskHubWorkspace";
 import { lazy, Suspense } from "react";
 
@@ -1459,6 +1462,21 @@ export function App(): JSX.Element {
 
   const composerDisabled = showQuestion || showPermission || showPlan;
 
+  // 钉住计划条：最近一次 UpdatePlan 的清单状态（进行中才显示）。
+  const planProgress = useMemo(() => {
+    if (!busy) return null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role !== "tool") continue;
+      const lines = getPlanLines(buildToolSummary(m));
+      if (lines.length > 0) {
+        const done = lines.filter((l) => /^\s*[-*]\s*\[x\]/i.test(l)).length;
+        return { lines, done, total: lines.length };
+      }
+    }
+    return null;
+  }, [messages, busy]);
+
   // (The right-side preview surfaces render as floating companion cards over
   // the stage — no shell grid track to enable anymore.)
 
@@ -1485,27 +1503,6 @@ export function App(): JSX.Element {
   // 460px over the chat view); it opens on demand from the badge.
   const buildJobs = useBuildJobs();
   const [buildConsoleOpen, setBuildConsoleOpen] = useState(false);
-  // Tool-activity float (real-machine ask 2026-08-27): pops the right-side
-  // A2UI trace window when the FIRST tool call of a run lands, and re-pops it
-  // if a later call arrives after a manual close (only while busy — an idle
-  // session never surprises the user with floating windows).
-  const [toolActivityOpen, setToolActivityOpen] = useState(false);
-  const toolEventCount = useMemo(() => messages.reduce((n, m) => (m.role === "tool" ? n + 1 : n), 0), [messages]);
-  const prevToolCountRef = useRef(0);
-  const lastIdForToolsRef = useRef(activeId);
-  useEffect(() => {
-    // A session switch swaps the whole message array in one go, which can
-    // jump the count upward (or shrink it on compaction). Rebase instead of
-    // treating pre-existing history of the newly selected session as fresh
-    // tool activity — only genuine growth within a session pops the window.
-    const switched = lastIdForToolsRef.current !== activeId;
-    lastIdForToolsRef.current = activeId;
-    const grew = !switched && toolEventCount > prevToolCountRef.current;
-    prevToolCountRef.current = toolEventCount;
-    if (!busy || !grew) return;
-    setToolActivityOpen(true);
-  }, [busy, toolEventCount, activeId]);
-
   // Model-transport fault dialog (real-machine 2026-08-27): a background
   // build dying on the LLM plumbing used to surface only as console tail —
   // the user had no way to tell the endpoint broke, not the pipeline. Scan
@@ -2221,7 +2218,16 @@ export function App(): JSX.Element {
             </Suspense>
           </div>
         ) : (
-          chatContent
+          <div className="ui-chat-stage">
+            <InstructionToc messages={messages} />
+            <div className="ui-chat-main">
+              {planProgress ? (
+                <PinnedPlan lines={planProgress.lines} done={planProgress.done} total={planProgress.total} />
+              ) : null}
+              {chatContent}
+            </div>
+            <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} />
+          </div>
         )}
       </div>
 
@@ -2365,10 +2371,6 @@ export function App(): JSX.Element {
 
       {/* Build console — temporary floating A2UI surface (R3-5), on demand */}
       {buildConsoleOpen && hasBuildJobs ? <BuildConsolePanel onClose={() => setBuildConsoleOpen(false)} /> : null}
-
-      {/* Tool activity trace — right-side floating A2UI surface; auto-opens
-          while the agent works, persists until manually dismissed. */}
-      {toolActivityOpen ? <ToolActivityPanel messages={messages} onClose={() => setToolActivityOpen(false)} /> : null}
 
       {/* Picture-in-picture — parked workspaces: mini card bottom-right +
           top-right alerts for sessions blocked on a gate. Click restores. */}
