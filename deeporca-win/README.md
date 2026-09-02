@@ -86,7 +86,7 @@ dotnet run --project src/DeepOrca.Cli -- version
 
 | 能力 | 上游参考 | Windows 实现（规划） | 状态 |
 |------|---------|---------------------|------|
-| LLM SSE 对话 + 工具循环 | `session.ts` activateSession | `Llm/` StreamParser + `Session/` 激活循环 | ⬜ M1/M4 |
+| LLM SSE 对话 + 工具循环 | `session.ts` activateSession | `Llm/` StreamParser + `Session/` 激活循环 | ✅ M1/M4（fake-SSE E2E 全绿） |
 | 消息转换（tool 配对/中断恢复/多模态） | `common/openai-message-converter.ts` | `Llm/MessageConverter` | ⬜ M1 |
 | Any JSON 兼容层 | — | `Types/AnyJson`（`JsonNode`） | ⬜ M1 |
 | 权限引擎（scope + bash 副作用推断） | `common/permissions.ts` | `Permissions/` | ⬜ M2 |
@@ -94,9 +94,9 @@ dotnet run --project src/DeepOrca.Cli -- version
 | 会话持久化（JSONL + index 不变量） | `session-manager-index.ts` | `Session/SessionStore`（**邮箱唯一入口 + pendingIndex 读优先 + 终端 flush**） | ⬜ M2 |
 | 技能扫描（目录优先级 + frontmatter） | `session.ts` skills | `Prompt/SkillScanner` | ⬜ M3 |
 | PromptBuilder（cache-stable） | `prompt.ts` + EJS 模板 | `Prompt/PromptBuilder`（手拼） | ⬜ M3 |
-| 8 内建工具（read/edit snippet 契约） | `tools/` | `Tools/`（snippet_id 契约保持） | ⬜ M4 |
-| CLI（chat/parallel/tokens/version） | — | `DeepOrca.Cli` | ⬜ M4 |
-| 多会话并发 | apple: 1.7s 双会话验收 | actor-style 单写者并发单测 + 双会话验证 | ⬜ M4 |
+| 8 内建工具（read/edit snippet 契约） | `tools/` | `Tools/`（snippet_id 契约保持） | ✅ M4（片段限定搜索 + 修改守卫 + 候选清单） |
+| CLI（chat/parallel/tokens/version） | — | `DeepOrca.Cli` | ✅ M4（tokens 自 M5 全量） |
+| 多会话并发 | apple: 1.7s 双会话验收 | 每会话独立控制器 Task（无共享状态旁路） | ✅ M4 双会话 E2E |
 | Compaction 两段式 | `common/compaction.ts` | `Session/Compaction`（Stage A/B + pairing guard） | ⬜ M5 |
 | Plan Mode 强制权限 | `permissions.ts` forceAskScopes | `Permissions/` + 模式切换消息流 | ⬜ M5 |
 | 全局 token 统计 | `tokens-summary.ts` | `Session/TokenSummary` + CLI `tokens` | ⬜ M5 |
@@ -127,7 +127,7 @@ dotnet run --project src/DeepOrca.Cli -- version
 
 ## 回写义务（自 tasks.md）
 
-- [ ] M4 完成 → 本表引擎行回写 ✅
+- [x] M4 完成 → 本表引擎行回写 ✅（2026-09-02）
 - [ ] M7 完成 → §六.1 冒烟矩阵结果回写 design.md
 - [ ] M8 完成 → tokenizer 对拍余弦读数回写 D5
 - [ ] M9 完成 → 与 `feat/apple-native` README 对齐表并排核对

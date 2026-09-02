@@ -41,13 +41,6 @@ public sealed record McpServerConfig
     public bool Enabled { get; init; } = true;
 }
 
-public sealed record PathGrant
-{
-    public List<string>? Read { get; init; }
-    public List<string>? Write { get; init; }
-    public List<string>? Delete { get; init; }
-}
-
 public sealed record DebugOptions
 {
     public bool Enabled { get; init; }
@@ -61,6 +54,8 @@ public sealed record DeepOrcaSettings
     public string Model { get; init; } = "deepseek-chat";
     public string? ApiKey { get; init; }
     public string? BaseUrl { get; init; } = "https://api.deepseek.com/v1";
+    /// <summary>Thinking 模式开关（reasoning_content 回放语义，M1 转换器消费）。</summary>
+    public bool ThinkingEnabled { get; init; }
     public List<EndpointConfig>? Endpoints { get; init; }
     public string? PrimaryEndpointId { get; init; }
     public PermissionSettings Permissions { get; init; } = new();
@@ -87,6 +82,7 @@ public sealed record DeepOrcaSettings
             Model = AnyJson.GetString(json["model"]) ?? "deepseek-chat",
             BaseUrl = AnyJson.GetString(json["baseURL"]) ?? "https://api.deepseek.com/v1",
             ApiKey = AnyJson.GetString(json["apiKey"]),
+            ThinkingEnabled = AnyJson.GetBool(json["thinkingEnabled"]) ?? false,
         };
 
         // endpoints[]：TS 形态，第一条是主端点

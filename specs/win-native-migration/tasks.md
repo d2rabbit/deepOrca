@@ -32,14 +32,14 @@
 - [ ] 1. PromptBuilder：cache-stable 顺序直译（base prompt / runtime context / skills XML 块 / memory / plan / compaction）；runtime context 文案换 Windows（OS/shell/arch）
 - [ ] 2. 技能注入快照测试（与 apple 分支 SkillScanner 语义对拍）
 
-## M4 E2E + CLI ⬜（前置：M3）
+## M4 E2E + CLI ✅（2026-09-02，全套 107 单测绿）
 
-- [ ] 0. SessionManager 激活循环：LLM → tool_calls → 权限检查 → Process 执行 → 结果回传 → 循环；waiting_for_user / ask_permission 语义
-- [ ] 1. 8 内建 tool handler 直译（bash=read/write/edit/AskUserQuestion/UpdatePlan/WebSearch/WebFetch 占位）；bash 走 Git Bash 探测（缺失给安装指引，R7）
-- [ ] 2. ToolExecutor + snippet_id 读写契约保持（AGENTS.md 片段编辑契约）
-- [ ] 3. 多会话并发：actor-style 单写者下双会话并行验证（对齐 apple 分支 1.7s 双会话验收）
-- [ ] 4. CLI：`chat`（交互/单发）、`parallel`、`version`；配置读取优先级 env → 项目 settings → 全局 settings
-- [ ] 5. 端到端：真实 DeepSeek 端点中文对话 + 工具调用闭环录屏/日志留档
+- [x] 0. SessionManager 激活循环：LLM → tool_calls → 整批权限预检（deny > ask > allow，permit 后构造 PathGrant）→ 工具执行 → 结果回传 → 循环；failed / completed / permission_denied / processing 状态机 + usage 每轮累计（含 per-model）；激活故障诊断钩子（OnActivationFault）✅
+- [x] 1. 8 内建 tool handler 直译：bash（marker 包装 / 确定性管道排空 / 树杀超时 / 会话 cwd 跟踪 / run_in_background / Git Bash 探测 R7 指引）/ read（行号 6 位制表 / offset-limit / gitignore 感知后缀匹配 / notebook/pdf/image）/ write（原子写）/ edit（片段契约全量，见 2）/ AskUserQuestion（宿主注入 presenter）/ UpdatePlan / WebSearch / WebFetch（provider M7 接入，当前结构化占位）✅
+- [x] 2. ToolExecutor + **snippet_id 读写契约保持**（read 返回 metadata.snippet；edit 必带 snippet_id、只在片段范围内搜索、mtime 修改守卫、tab 剥离修正、replace_all、非唯一候选清单、outdated 提示、diff_preview）✅
+- [x] 3. 多会话并发：每会话独立控制器 Task 并行（双会话 E2E 用例通过，对齐 apple 验收）✅
+- [x] 4. CLI：`chat`（交互/单发）、`parallel`（双会话并发）、`tokens`（M5 前从索引汇总）、`version`；配置读取 env → 项目 .deeporca/settings.json → 全局（TS endpoints 兼容，CliSettings）✅
+- [ ] 5. 端到端真实 DeepSeek 端点：**待补**（fake SSE 驱动的循环 E2E 单测全绿；真实端点中文对话 + 录屏留档需要可用 API key 的 Windows/Linux 环境执行，见 deeporca-win/README.md 环境表）
 
 ## M5 上游能力移植 ⬜（前置：M4）
 

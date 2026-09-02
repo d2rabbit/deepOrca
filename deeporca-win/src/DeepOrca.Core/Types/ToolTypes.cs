@@ -52,13 +52,17 @@ public sealed record ToolExecutionContext
     public Func<bool>? IsCancelled { get; init; }
 }
 
-/// <summary>{ ok, name, output?, error?, metadata? } 序列化契约（上游 tool 结果形状）。</summary>
+/// <summary>{ ok, name, output?, error?, errorType?, retryable?, metadata? } 序列化契约（上游 tool 结果形状）。</summary>
 public sealed record ToolExecutionResult
 {
     public required bool Ok { get; init; }
     public required string Name { get; init; }
     public string? Output { get; init; }
     public string? Error { get; init; }
+    /// <summary>错误分类（inputParse / execution / permissionDenied / timeout / notFound / network）。</summary>
+    public string? ErrorType { get; init; }
+    /// <summary>重试可行性（权限拒绝类为 false）。</summary>
+    public bool? Retryable { get; init; }
     public JsonObject? Metadata { get; init; }
     public bool? AwaitUserResponse { get; init; }
     public List<FollowUpMessage>? FollowUpMessages { get; init; }
@@ -66,8 +70,9 @@ public sealed record ToolExecutionResult
     public static ToolExecutionResult OkResult(string name, string output, JsonObject? metadata = null) =>
         new() { Ok = true, Name = name, Output = output, Metadata = metadata };
 
-    public static ToolExecutionResult Fail(string name, string error, JsonObject? metadata = null) =>
-        new() { Ok = false, Name = name, Error = error, Metadata = metadata };
+    public static ToolExecutionResult Fail(
+        string name, string error, string? errorType = null, JsonObject? metadata = null, bool? retryable = null) =>
+        new() { Ok = false, Name = name, Error = error, ErrorType = errorType, Metadata = metadata, Retryable = retryable };
 }
 
 public sealed record FollowUpMessage(string Content, string Role = "system")
