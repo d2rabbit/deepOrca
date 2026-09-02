@@ -779,6 +779,8 @@ export const ja: Record<MessageKey, string> = {
   "taskhub.forkName": "ブランチ名（任意）",
   "taskhub.forkWhy": "ここで fork する理由 — 必須",
   "taskhub.switchBranch": "ブランチ切替",
+  "taskhub.quickBuild": "ビルド詳細",
+  "taskhub.switchNone": "切り替えられる他のブランチがありません",
   "taskhub.tokens.sessions": "{n} セッション（バックグラウンド {s}）",
   "taskhub.tokens.split": "入力 {p} · 出力 {c} · キャッシュ {h}",
   "taskhub.detail.actions": "操作",

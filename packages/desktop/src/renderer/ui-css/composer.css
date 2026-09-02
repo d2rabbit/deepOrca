@@ -543,3 +543,48 @@
   letter-spacing: 0.03em;
   flex: none;
 }
+
+/* ── Store-reference highlighting in the composer (2026-09-02) ──────────────
+   A plain textarea cannot draw inline chips, so a transparent MIRROR layer
+   stacks above it with identical text metrics (copied at runtime in
+   Composer.tsx) and paints pill markers over @…/.deeporca/… tokens. The
+   pills are semi-transparent: the textarea text below stays readable and
+   fully editable — IME, undo and the send path are untouched. */
+.ui-prompt-wrap {
+  position: relative;
+}
+.ui-composer-card .ui-prompt {
+  position: relative;
+}
+.ui-prompt-mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+.ui-prompt-mirror .ui-prompt-ref-chip {
+  border-radius: 6px;
+  color: var(--ui-text);
+  /* OPAQUE condensed pill: hides the raw absolute path under it; the 3px
+     ring in the card color swallows glyph fringes at the token edges. */
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 10%, var(--ui-surface-raised, #fff));
+  box-shadow: 0 0 0 3px var(--ui-surface-raised, #fff);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.wiki {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 10%, var(--ui-surface-raised, #fff));
+}
+/* Caret inside the token: reveal the raw path for editing (translucent tint
+   instead of the opaque cover). */
+.ui-prompt-mirror .ui-prompt-ref-chip.editing {
+  color: transparent;
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dot-review, #2f9e44) 45%, transparent);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip.wiki.editing {
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, transparent);
+}

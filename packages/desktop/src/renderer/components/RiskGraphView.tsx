@@ -87,6 +87,11 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
   const [hoverQn, setHoverQn] = useState<string | null>(null);
   // A locate that raced the fetch — delivered once nodes render.
   const pendingFocusRef = useRef<string | null>(null);
+  // Severity filters (user report 2026-09-02: 图例长得像筛选但点了没反应 —
+  // make them REAL toggles): hi/md/lo show/hide their tier; secOnly narrows
+  // to security-relevant nodes. All-on + secOnly-off = unfiltered.
+  const [tierFilter, setTierFilter] = useState({ hi: true, md: true, lo: true, secOnly: false });
+  const filterActive = !tierFilter.hi || !tierFilter.md || !tierFilter.lo || tierFilter.secOnly;
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -152,27 +157,49 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
   }, []);
 
   const byQn = useMemo(() => new Map((data?.nodes ?? []).map((n) => [n.qn, n])), [data]);
+  const visibleNodes = useMemo(() => {
+    const nodes = data?.nodes ?? [];
+    if (!filterActive) return nodes;
+    return nodes.filter((n) => {
+      const tier = tierOf(n.risk);
+      if (tier === "hi" && !tierFilter.hi) return false;
+      if (tier === "md" && !tierFilter.md) return false;
+      if (tier === "lo" && !tierFilter.lo) return false;
+      if (tierFilter.secOnly && !n.security) return false;
+      return true;
+    });
+  }, [data, tierFilter, filterActive]);
+  const visibleQns = useMemo(() => new Set(visibleNodes.map((n) => n.qn)), [visibleNodes]);
+  const visibleEdges = useMemo(
+    () => (data?.edges ?? []).filter((e) => visibleQns.has(e.source) && visibleQns.has(e.target)),
+    [data, visibleQns]
+  );
   const opinions = useMemo(() => buildOpinions(findings, bindingsByIndex), [findings, bindingsByIndex]);
-  const groups = useMemo(() => (data && data.nodes.length > 0 ? buildRiskGroups(data, mode) : []), [data, mode]);
+  const groups = useMemo(
+    () => (data && visibleNodes.length > 0 ? buildRiskGroups({ ...data, nodes: visibleNodes }, mode) : []),
+    [data, visibleNodes, mode]
+  );
   const layout = useMemo(
     () => layoutBoard(groups, pane.w > 300 ? { width: pane.w, height: pane.h } : undefined),
     [groups, pane]
   );
-  // Undirected adjacency for the hover/selection dimming pass.
+  // Undirected adjacency for the hover/selection dimming pass — within the
+  // FILTERED board, so hover never lights nodes the user filtered away.
   const adjacency = useMemo(() => {
     const m = new Map<string, Set<string>>();
-    for (const e of data?.edges ?? []) {
+    for (const e of visibleEdges) {
       if (!m.has(e.source)) m.set(e.source, new Set());
       if (!m.has(e.target)) m.set(e.target, new Set());
       m.get(e.source)!.add(e.target);
       m.get(e.target)!.add(e.source);
     }
     return m;
-  }, [data]);
+  }, [visibleEdges]);
 
   /** Select a node: scroll it into view, open the popover at it. When the
    *  node ranks outside the displayed top-N (a bound finding on the deep
-   *  binding set) refetch WITH that qn so the graph pulls it in. */
+   *  binding set) refetch WITH that qn so the graph pulls it in; when it is
+   *  merely hidden by the severity filter, reveal it and retry. */
   const focusNode = useCallback(
     (qn: string, coords?: { x: number; y: number }): void => {
       const el = document.querySelector(`[data-qn="${CSS.escape(qn)}"]`);
@@ -190,6 +217,9 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
             .finally(() => setLoading(false));
           return;
         }
+        // In the graph but hidden by the severity filter — reveal, then the
+        // pending-focus effect re-selects once the diagram re-renders.
+        if (byQn.has(qn)) setTierFilter({ hi: true, md: true, lo: true, secOnly: false });
         pendingFocusRef.current = qn;
         return;
       }
@@ -238,7 +268,7 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
     <div className="ui-risk-board">
       <div className="ui-risk-board-top">
         <div className="ui-risk-board-meta">
-          {data ? t("review.rgMeta", { n: data.nodes.length, m: data.edges.length, g: groups.length }) : ""}
+          {data ? t("review.rgMeta", { n: visibleNodes.length, m: visibleEdges.length, g: groups.length }) : ""}
         </div>
         <span className="ui-risk-seg">
           <button
@@ -258,18 +288,38 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
         </span>
       </div>
       <div className="ui-risk-board-legend">
-        <span>
+        <button
+          type="button"
+          className={`ui-risk-legend-chip${tierFilter.hi ? " on" : ""}`}
+          aria-pressed={tierFilter.hi}
+          onClick={() => setTierFilter((f) => ({ ...f, hi: !f.hi }))}
+        >
           <i className="rb-dot tier-hi" /> {t("review.rgLegendHigh")}
-        </span>
-        <span>
+        </button>
+        <button
+          type="button"
+          className={`ui-risk-legend-chip${tierFilter.md ? " on" : ""}`}
+          aria-pressed={tierFilter.md}
+          onClick={() => setTierFilter((f) => ({ ...f, md: !f.md }))}
+        >
           <i className="rb-dot tier-md" /> {t("review.rgLegendMid")}
-        </span>
-        <span>
+        </button>
+        <button
+          type="button"
+          className={`ui-risk-legend-chip${tierFilter.lo ? " on" : ""}`}
+          aria-pressed={tierFilter.lo}
+          onClick={() => setTierFilter((f) => ({ ...f, lo: !f.lo }))}
+        >
           <i className="rb-dot tier-lo" /> {t("review.rgLegendLow")}
-        </span>
-        <span>
+        </button>
+        <button
+          type="button"
+          className={`ui-risk-legend-chip${tierFilter.secOnly ? " on" : ""}`}
+          aria-pressed={tierFilter.secOnly}
+          onClick={() => setTierFilter((f) => ({ ...f, secOnly: !f.secOnly }))}
+        >
           <i className="rb-dot tier-lo sec" /> {t("review.rgLegendSecurity")}
-        </span>
+        </button>
         <span className="ui-risk-board-hint">{t("review.rgHint")}</span>
       </div>
 
@@ -384,8 +434,9 @@ export function RiskGraphView({ root, findings, bindingsByIndex, focusReq, onJum
                 </g>
               );
             })}
-            {/* Edges — under the nodes; cross-block violet, neighborhood lit. */}
-            {(data?.edges ?? []).map((e, i) => {
+            {/* Edges — under the nodes; cross-block violet, neighborhood lit.
+                Only edges whose BOTH endpoints survive the severity filter. */}
+            {visibleEdges.map((e, i) => {
               const a = layout.nodes.get(e.source);
               const b = layout.nodes.get(e.target);
               if (!a || !b) return null;

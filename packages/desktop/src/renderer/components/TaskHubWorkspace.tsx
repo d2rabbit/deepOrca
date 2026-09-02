@@ -9,7 +9,7 @@ import type {
 } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { formatRelative } from "./task-hub-format";
+import { formatAbsolute, formatRelative } from "./task-hub-format";
 
 /**
  * Task hub workspace V2 (designs/task-tree-hub/screen-task-tree.html, user
@@ -28,21 +28,31 @@ const DOMAINS: TaskHubDomain[] = ["session", "index", "review", "prototype"];
 const RAIL_W = 90;
 const TRUNK_X = 28;
 
+/** A task-hub artifact opened in the RIGHT-SIDE floating quick sheet (user ask
+ *  2026-09-02: 任务树产物一律走右侧悬浮窗 — quick read-only views; the full
+ *  workbenches stay reachable from the sidebar rail). */
+export type TaskHubQuickView =
+  | { kind: "report"; root: string; reportId: string; title: string }
+  | { kind: "timeline"; root: string; treeId: string; title: string }
+  | {
+      kind: "build";
+      root: string;
+      jobId: string;
+      title: string;
+      stages: Array<{ id: string; status: string; error?: string }>;
+      error?: string;
+    };
+
 type Props = {
   root: string;
-  onOpenReview: (root: string, reportId: string) => void;
+  /** Open an artifact's quick view in the right-side floating sheet. */
+  onOpenQuick: (quick: TaskHubQuickView) => void;
   onOpenDesign: (artifactId: string, pipeline: string) => void;
-  onOpenSessionTimeline: (treeId: string, title: string, root: string) => void;
+  /** Index-job nodes keep a jump to the FULL knowledge workbench (main tab). */
   onOpenKnowledge: (root: string) => void;
 };
 
-export function TaskHubWorkspace({
-  root,
-  onOpenReview,
-  onOpenDesign,
-  onOpenSessionTimeline,
-  onOpenKnowledge,
-}: Props): JSX.Element {
+export function TaskHubWorkspace({ root, onOpenQuick, onOpenDesign, onOpenKnowledge }: Props): JSX.Element {
   const { t } = useI18n();
   const [hub, setHub] = useState<WorkspaceTaskHub | null>(null);
   const [tokens, setTokens] = useState<WorkspaceTokenSummary | null>(null);
@@ -60,6 +70,14 @@ export function TaskHubWorkspace({
   const [forkWhy, setForkWhy] = useState("");
   const [forkBusy, setForkBusy] = useState(false);
   const [forkError, setForkError] = useState<string | null>(null);
+  // switch form state (session domain): the hub node only knows the tree's
+  // ACTIVE branch, so 切换分支 fetches the tree's branches first and offers
+  // the other live ones through the cross-workspace switch channel.
+  const [switchFor, setSwitchFor] = useState<string | null>(null);
+  const [switchOptions, setSwitchOptions] = useState<string[]>([]);
+  const [switchSel, setSwitchSel] = useState("");
+  const [switchBusy, setSwitchBusy] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -140,6 +158,14 @@ export function TaskHubWorkspace({
       window.removeEventListener("scroll", onScroll, true);
       document.removeEventListener("mousedown", onPointerDown);
     };
+  }, [pop]);
+
+  // Closing the popover also retires its inline forms (a stale switch picker
+  // must not resurface on the next open of the same node).
+  useEffect(() => {
+    if (pop) return;
+    setForkFor(null);
+    setSwitchFor(null);
   }, [pop]);
 
   const flat = useMemo(() => hub?.groups.flatMap((g) => g.nodes) ?? [], [hub]);
@@ -238,11 +264,19 @@ export function TaskHubWorkspace({
     setForkBusy(true);
     setForkError(null);
     try {
-      await api.actionRun("task.fork", {
-        treeId: selected.source.treeId,
-        why: forkWhy.trim(),
-        ...(forkName.trim() ? { name: forkName.trim() } : {}),
-      });
+      // Cross-workspace safe: the dedicated channel builds the tree service
+      // over THIS tab's root — actionRun would dispatch through the ACTIVE
+      // workspace's registry and reject a foreign treeId as "tree missing".
+      const res = await api.taskTreeFork(
+        selected.source.treeId,
+        forkWhy.trim(),
+        { name: forkName.trim() || undefined },
+        root
+      );
+      if ("error" in res) {
+        setForkError(res.error);
+        return;
+      }
       setForkFor(null);
       setForkName("");
       setForkWhy("");
@@ -255,14 +289,51 @@ export function TaskHubWorkspace({
     }
   };
 
-  const runSwitch = async (node: TaskHubNode): Promise<void> => {
+  // Open the switch picker: list the tree's OTHER live branches (abandoned
+  // and currently-active ones are not switch targets — same rule as the
+  // task record panel). Fail-open with the error shown inside the popover.
+  const beginSwitch = async (node: TaskHubNode): Promise<void> => {
     if (node.source.kind !== "session-tree") return;
+    setSwitchFor(node.id);
+    setSwitchOptions([]);
+    setSwitchSel("");
+    setSwitchError(null);
     try {
-      await api.actionRun("task.switch", { treeId: node.source.treeId });
+      const detail = await api.taskTreeGet(node.source.treeId, root);
+      const names = detail
+        ? Object.values(detail.index.branches ?? {})
+            .filter((b) => !b.abandoned && b.name !== detail.index.activeBranch)
+            .map((b) => b.name)
+        : [];
+      if (names.length === 0) {
+        setSwitchError(t("taskhub.switchNone"));
+        return;
+      }
+      setSwitchOptions(names);
+      setSwitchSel(names[0] ?? "");
+    } catch (err) {
+      setSwitchError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const runSwitch = async (): Promise<void> => {
+    const node = pop?.node;
+    if (!node || node.source.kind !== "session-tree" || !switchSel) return;
+    setSwitchBusy(true);
+    setSwitchError(null);
+    try {
+      const res = await api.taskTreeSwitch(node.source.treeId, switchSel, root);
+      if (!res.ok) {
+        setSwitchError(res.error ?? "switch failed");
+        return;
+      }
+      setSwitchFor(null);
       setPop(null);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setSwitchError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSwitchBusy(false);
     }
   };
 
@@ -418,7 +489,13 @@ export function TaskHubWorkspace({
                           {node.meta?.activeBranch ? (
                             <span className="meta-branch">⑂ {String(node.meta.activeBranch)}</span>
                           ) : null}
-                          <span>{formatRelative(node.startedAt, t("index.freshness.justNow"), "—")}</span>
+                          {/* Relative for glanceability + absolute to the
+                              second (user ask 2026-09-02: "13m" alone cannot
+                              disambiguate yesterday's runs). */}
+                          <span>
+                            {formatRelative(node.startedAt, t("index.freshness.justNow"), "—")}
+                            {node.startedAt ? ` · ${formatAbsolute(node.startedAt)}` : ""}
+                          </span>
                           {node.meta?.comments != null ? (
                             <span>{t("taskhub.findings", { n: node.meta.comments as number })}</span>
                           ) : null}
@@ -505,7 +582,7 @@ export function TaskHubWorkspace({
                         </div>
                         <div className="row">
                           <span className="k">{t("taskhub.detail.started")}</span>
-                          <span>{formatRelative(node.startedAt, t("index.freshness.justNow"), "—")}</span>
+                          <span>{formatAbsolute(node.startedAt)}</span>
                         </div>
                         {src.kind === "session-tree" && node.meta?.gitHash ? (
                           <div className="row">
@@ -554,12 +631,42 @@ export function TaskHubWorkspace({
                                 </button>
                               </div>
                             </div>
+                          ) : switchFor === node.id ? (
+                            <div className="ui-taskhub-forkform">
+                              <select
+                                className="ui-review-scope-select"
+                                value={switchSel}
+                                onChange={(e) => setSwitchSel(e.target.value)}
+                              >
+                                {switchOptions.map((b) => (
+                                  <option key={b} value={b}>
+                                    {b}
+                                  </option>
+                                ))}
+                              </select>
+                              {switchError ? <div className="ui-error">{switchError}</div> : null}
+                              <div className="forkform-actions">
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  disabled={switchBusy || !switchSel}
+                                  onClick={() => void runSwitch()}
+                                >
+                                  {t("taskrec.switch")}
+                                </button>
+                                <button type="button" className="btn subtle" onClick={() => setSwitchFor(null)}>
+                                  {t("common.cancel")}
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <div className="actions">
                               <button
                                 type="button"
                                 className="btn"
-                                onClick={() => onOpenSessionTimeline(src.treeId, node.title, root)}
+                                onClick={() =>
+                                  onOpenQuick({ kind: "timeline", root, treeId: src.treeId, title: node.title })
+                                }
                               >
                                 {t("taskhub.openTimeline")}
                               </button>
@@ -574,7 +681,7 @@ export function TaskHubWorkspace({
                               >
                                 ⑂ {t("taskhub.fork")}
                               </button>
-                              <button type="button" className="btn subtle" onClick={() => void runSwitch(node)}>
+                              <button type="button" className="btn subtle" onClick={() => void beginSwitch(node)}>
                                 {t("taskhub.switchBranch")}
                               </button>
                             </div>
@@ -585,7 +692,13 @@ export function TaskHubWorkspace({
                         <div className="dsec">
                           <div className="hd">{t("taskhub.detail.actions")}</div>
                           <div className="actions">
-                            <button type="button" className="btn" onClick={() => onOpenReview(root, src.reportId)}>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() =>
+                                onOpenQuick({ kind: "report", root, reportId: src.reportId, title: node.title })
+                              }
+                            >
                               {t("taskhub.openReport")}
                             </button>
                           </div>
@@ -609,7 +722,24 @@ export function TaskHubWorkspace({
                         <div className="dsec">
                           <div className="hd">{t("taskhub.detail.actions")}</div>
                           <div className="actions">
-                            <button type="button" className="btn" onClick={() => onOpenKnowledge(root)}>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() =>
+                                onOpenQuick({
+                                  kind: "build",
+                                  root,
+                                  jobId: src.jobId,
+                                  title: node.title,
+                                  stages:
+                                    (node.meta?.stages as Array<{ id: string; status: string; error?: string }>) ?? [],
+                                  error: typeof node.meta?.error === "string" ? node.meta.error : undefined,
+                                })
+                              }
+                            >
+                              {t("taskhub.quickBuild")}
+                            </button>
+                            <button type="button" className="btn subtle" onClick={() => onOpenKnowledge(root)}>
                               {t("taskhub.openIndex")}
                             </button>
                           </div>

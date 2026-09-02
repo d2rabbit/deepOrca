@@ -774,6 +774,8 @@ export const ko: Record<MessageKey, string> = {
   "taskhub.forkName": "브랜치 이름 (선택)",
   "taskhub.forkWhy": "여기서 fork하는 이유 — 필수",
   "taskhub.switchBranch": "브랜치 전환",
+  "taskhub.quickBuild": "빌드 상세",
+  "taskhub.switchNone": "전환할 수 있는 다른 브랜치가 없습니다",
   "taskhub.tokens.sessions": "{n}개 세션 (백그라운드 {s})",
   "taskhub.tokens.split": "입력 {p} · 출력 {c} · 캐시 {h}",
   "taskhub.detail.actions": "작업",

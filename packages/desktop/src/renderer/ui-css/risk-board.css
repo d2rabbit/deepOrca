@@ -70,13 +70,30 @@
   color: var(--ui-text-dim, #66707d);
   flex-wrap: wrap;
 }
-.ui-risk-board-legend > span:not(.ui-risk-board-hint) {
+.ui-risk-board-legend > span:not(.ui-risk-board-hint),
+.ui-risk-board-legend .ui-risk-legend-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 2px 9px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--ui-border-soft, #e3e6eb) 72%, transparent);
+}
+/* Legend chips are REAL severity filters (2026-09-02): toggle a tier off and
+   the board re-lays-out without it. Off = dimmed + struck; on = full ink. */
+.ui-risk-board-legend .ui-risk-legend-chip {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  background: none;
+  transition: opacity 0.12s var(--ui-ease, ease);
+}
+.ui-risk-board-legend .ui-risk-legend-chip:not(.on) {
+  opacity: 0.38;
+  text-decoration: line-through;
+}
+.ui-risk-board-legend .ui-risk-legend-chip:hover {
+  border-color: color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, transparent);
 }
 .ui-risk-board-hint {
   margin-left: auto;

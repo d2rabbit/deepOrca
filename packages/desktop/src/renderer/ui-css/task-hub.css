@@ -640,3 +640,66 @@
   color: var(--ui-text-dim, #66707d);
   font-size: 12.5px;
 }
+
+/* ── Task quick sheet content (report / build quick views, 2026-09-02) ──── */
+.ui-quick-report {
+  padding: 4px 2px;
+}
+.ui-quick-report-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.ui-quick-report-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.ui-quick-report-time {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-quick-report-empty {
+  padding: 18px 0;
+  text-align: center;
+  color: var(--ui-text-faint);
+}
+.ui-quick-report-error {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #e5484d 40%, transparent);
+  color: #e5484d;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.ui-quick-build-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ui-quick-build-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.ui-quick-build-stage .name {
+  font-weight: 600;
+}
+.ui-quick-build-stage .status {
+  margin-left: auto;
+  color: var(--ui-text-faint);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.ui-quick-build-stage .err {
+  color: #e5484d;
+  font-size: 11px;
+}

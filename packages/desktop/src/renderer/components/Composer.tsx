@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n, type MessageKey } from "../i18n";
+import { isCompleteStoreRef, splitStoreRefSegments } from "../lib/store-refs";
 import { FileMentionMenu } from "./FileMentionMenu";
 import { Button, Switch, IconMagicWand } from "../ui/index";
 
@@ -123,6 +124,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
   } = props;
   const { t } = useI18n();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
   const composerInnerRef = useRef<HTMLDivElement>(null);
   const [cursorPos, setCursorPos] = useState(0);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -170,6 +172,10 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     () => (currentToken?.token.startsWith("@") ? { token: currentToken.token, start: currentToken.start } : null),
     [currentToken]
   );
+  // A COMPLETED store reference (a quoted wiki page / review report) is not a
+  // file-mention query — keep the @ menu closed over it ("没有匹配的文件" over
+  // a finished reference was pure noise, user report 2026-09-02).
+  const atMentionToken = useMemo(() => (atToken && !isCompleteStoreRef(atToken.token) ? atToken : null), [atToken]);
 
   // Slash matches
   const slashMatches = useMemo(() => {
@@ -191,18 +197,19 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     }
   }, [slashMatches, commandToken, showFileMenu]);
 
-  // Auto-show/hide file mention menu on "@"
+  // Auto-show/hide file mention menu on "@" — except over a completed store
+  // reference, which is a finished citation, not a query.
   useEffect(() => {
-    if (atToken && !showSlashMenu) {
+    if (atMentionToken && !showSlashMenu) {
       setShowFileMenu(true);
-      setFileQuery(atToken.token.slice(1));
-      setFileTokenStart(atToken.start);
-    } else if (!atToken) {
+      setFileQuery(atMentionToken.token.slice(1));
+      setFileTokenStart(atMentionToken.start);
+    } else if (!atMentionToken) {
       setShowFileMenu(false);
       setFileQuery("");
       setFileTokenStart(-1);
     }
-  }, [atToken, showSlashMenu]);
+  }, [atMentionToken, showSlashMenu]);
 
   // Auto-grow the textarea
   useEffect(() => {
@@ -211,6 +218,64 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [value]);
+
+  // ── Store-reference highlighting (user ask 2026-09-02: 输入框内的引用渲染
+  // 要有专属标记) ─────────────────────────────────────────────────────────────
+  // A plain textarea cannot render inline chips, so a transparent MIRROR layer
+  // stacks above it (pointer-events: none) with identical text metrics and
+  // draws pill markers over @…/.deeporca/… tokens. The textarea text stays
+  // fully editable underneath — the pills are pure presentation, so IME
+  // composition, undo and the send path are untouched.
+  const refSegments = useMemo(() => (value ? splitStoreRefSegments(value) : []), [value]);
+  const hasRefChip = useMemo(() => refSegments.some((s) => s.kind === "ref"), [refSegments]);
+
+  // Copy the textarea's computed text metrics onto the mirror so the pills
+  // land exactly under the raw tokens — themes may override padding/fonts on
+  // .ui-prompt, so the values are read at runtime, not hardcoded.
+  useLayoutEffect(() => {
+    const ta = textareaRef.current;
+    const mirror = mirrorRef.current;
+    if (!ta || !mirror) return;
+    const sync = (): void => {
+      const cs = window.getComputedStyle(ta);
+      for (const prop of [
+        "fontFamily",
+        "fontSize",
+        "fontWeight",
+        "fontStyle",
+        "lineHeight",
+        "letterSpacing",
+        "paddingTop",
+        "paddingRight",
+        "paddingBottom",
+        "paddingLeft",
+        "borderTopWidth",
+        "borderRightWidth",
+        "borderBottomWidth",
+        "borderLeftWidth",
+        "boxSizing",
+        "textIndent",
+      ] as const) {
+        mirror.style[prop] = cs[prop];
+      }
+      mirror.style.width = `${ta.clientWidth}px`;
+      mirror.scrollTop = ta.scrollTop;
+      mirror.scrollLeft = ta.scrollLeft;
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(ta);
+    return () => ro.disconnect();
+  }, [hasRefChip]);
+
+  const syncMirrorScroll = useCallback((): void => {
+    const ta = textareaRef.current;
+    const mirror = mirrorRef.current;
+    if (ta && mirror) {
+      mirror.scrollTop = ta.scrollTop;
+      mirror.scrollLeft = ta.scrollLeft;
+    }
+  }, []);
 
   // Auto-focus the textarea when the composer becomes enabled (e.g. session switch)
   const prevDisabledRef = useRef(disabled);
@@ -587,26 +652,50 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
           </div>
         ) : null}
 
-        {/* Input */}
-        <textarea
-          ref={textareaRef}
-          className="ui-prompt"
-          rows={1}
-          placeholder={
-            disabled
-              ? t("composer.respondAbove")
-              : planMode
-                ? t("composer.planPlaceholder") || "Describe the plan..."
-                : t("composer.askPlaceholder")
-          }
-          value={value}
-          disabled={disabled}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onSelect={handleSelect}
-          onClick={handleSelect}
-          onPaste={handlePaste}
-        />
+        {/* Input (+ reference-highlight mirror layer) */}
+        <div className="ui-prompt-wrap">
+          {hasRefChip ? (
+            <div ref={mirrorRef} className="ui-prompt-mirror" aria-hidden>
+              {refSegments.map((seg, i) =>
+                seg.kind === "text" ? (
+                  <span key={i}>{seg.text}</span>
+                ) : (
+                  <span
+                    key={i}
+                    className={`ui-prompt-ref-chip ${seg.ref.kind}${
+                      cursorPos >= seg.ref.start && cursorPos <= seg.ref.end ? " editing" : ""
+                    }`}
+                  >
+                    {/* Condensed label — the full absolute path stays in the
+                        textarea underneath (send payload unchanged). */}
+                    {seg.ref.kind === "wiki" ? `📖 ${seg.ref.label}` : `🛡 ${seg.ref.label}`}
+                  </span>
+                )
+              )}
+              {value.endsWith("\n") ? <span>{"\u200b"}</span> : null}
+            </div>
+          ) : null}
+          <textarea
+            ref={textareaRef}
+            className="ui-prompt"
+            rows={1}
+            placeholder={
+              disabled
+                ? t("composer.respondAbove")
+                : planMode
+                  ? t("composer.planPlaceholder") || "Describe the plan..."
+                  : t("composer.askPlaceholder")
+            }
+            value={value}
+            disabled={disabled}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onSelect={handleSelect}
+            onClick={handleSelect}
+            onScroll={syncMirrorScroll}
+            onPaste={handlePaste}
+          />
+        </div>
 
         {/* Bottom toolbar: plan toggle + status · hint + send/stop */}
         <div className="ui-composer-toolbar">

@@ -38,6 +38,8 @@ import { PluginDetail, type PluginSelection } from "./components/PluginDetail";
 import { ContextProgress } from "./components/ContextProgress";
 import { TokenStatsPanel } from "./components/TokenStatsPanel";
 import { IndexLibraryPanel } from "./components/IndexLibraryPanel";
+import { BuildQuickContent, ReportQuickContent, TaskQuickSheet } from "./components/TaskQuickSheet";
+import type { TaskHubQuickView } from "./components/TaskHubWorkspace";
 import { lazy, Suspense } from "react";
 
 // Lazy-load heavy components that are only shown when the user navigates to
@@ -308,8 +310,25 @@ export function App(): JSX.Element {
     },
     [openDesignArtifact]
   );
+  /** Task-hub artifact → right-side quick sheet (single slot: evicts the
+   *  design preview; the preview's open path evicts this one in turn). */
+  const handleOpenTaskQuick = useCallback(
+    (quick: TaskHubQuickView) => {
+      closePreview();
+      setTaskQuick(quick);
+    },
+    [closePreview]
+  );
   const [selectedPlugin, setSelectedPlugin] = useState<PluginSelection | null>(null);
   const [diffTarget, setDiffTarget] = useState<DiffTarget | null>(null);
+  // Task-hub quick sheet (user ask 2026-09-02: 任务树产物一律走右侧悬浮窗) —
+  // ONE right slot shared with the design preview: opening either closes the
+  // other. Content is read-only; full workbenches stay in the main area.
+  const [taskQuick, setTaskQuick] = useState<TaskHubQuickView | null>(null);
+  const handleCloseTaskQuick = useCallback(() => setTaskQuick(null), []);
+  useEffect(() => {
+    if (previewOpen) setTaskQuick(null);
+  }, [previewOpen]);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
   // opened from session badges, one tree per tab in the main area.
   const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
@@ -1123,10 +1142,6 @@ export function App(): JSX.Element {
       const remaining = taskhubTabsRef.current.filter((tab) => tab.root !== root);
       return remaining.length > 0 ? { kind: "taskhub", root: remaining[remaining.length - 1].root } : { kind: "chat" };
     });
-  }, []);
-  const handleOpenTaskRecord = useCallback((treeId: string, title: string, root: string) => {
-    setTaskTabs((tabs) => (tabs.some((tab) => tab.treeId === treeId) ? tabs : [...tabs, { treeId, title, root }]));
-    setActiveTab({ kind: "task", treeId });
   }, []);
   const knowledgeTabsRef = useRef(knowledgeTabs);
   knowledgeTabsRef.current = knowledgeTabs;
@@ -2172,14 +2187,13 @@ export function App(): JSX.Element {
               <TaskHubWorkspace
                 key={activeTab.root}
                 root={activeTab.root}
-                onOpenReview={handleOpenReviewTab}
-                onOpenSessionTimeline={handleOpenTaskRecord}
+                onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
                 onOpenKnowledge={handleOpenKnowledgeTab}
-                onOpenDesign={(artifactId) =>
+                onOpenDesign={(artifactId, pipeline) =>
                   void handleOpenDesignArtifact({
                     id: artifactId,
                     title: artifactId,
-                    pipeline: "openui",
+                    pipeline: pipeline === "spec" ? "spec" : "openui",
                     createdAt: "",
                     updatedAt: "",
                   })
@@ -2243,18 +2257,32 @@ export function App(): JSX.Element {
           />
           <div className="ui-preview-panel-head">
             <div className="ui-preview-tabs">
-              <button
-                className={`ui-preview-tab ${previewTab === "prototype" ? "active" : ""}`}
-                onClick={() => setPreviewTab("prototype")}
-              >
-                ✦ Prototype
-              </button>
-              <button
-                className={`ui-preview-tab ${previewTab === "design" ? "active" : ""}`}
-                onClick={() => setPreviewTab("design")}
-              >
-                ✦ Design
-              </button>
+              {/* PRD artifacts get their OWN marker — the Design tab is for UI
+                  visual drafts only (user report 2026-09-02: a PM spec opened
+                  under "Design" read as a UI design). */}
+              {prototypeMode === "spec" ? (
+                <button
+                  className={`ui-preview-tab ${previewTab === "prd" ? "active" : ""}`}
+                  onClick={() => setPreviewTab("prd")}
+                >
+                  ✦ PRD
+                </button>
+              ) : (
+                <>
+                  <button
+                    className={`ui-preview-tab ${previewTab === "prototype" ? "active" : ""}`}
+                    onClick={() => setPreviewTab("prototype")}
+                  >
+                    ✦ Prototype
+                  </button>
+                  <button
+                    className={`ui-preview-tab ${previewTab === "design" ? "active" : ""}`}
+                    onClick={() => setPreviewTab("design")}
+                  >
+                    ✦ Design
+                  </button>
+                </>
+              )}
             </div>
             <button className="ui-preview-close" onClick={closePreview} title="Close preview">
               ✕
@@ -2268,12 +2296,10 @@ export function App(): JSX.Element {
                 </div>
               }
             >
-              {previewTab === "design" && designContent ? (
-                prototypeMode === "spec" ? (
-                  <StreamdownView className="ui-md ui-proto-spec-doc" markdown={designContent} />
-                ) : (
-                  <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
-                )
+              {previewTab === "prd" && designContent && prototypeMode === "spec" ? (
+                <StreamdownView className="ui-md ui-proto-spec-doc" markdown={designContent} />
+              ) : previewTab === "design" && designContent ? (
+                <DesignPreview ddContent={designContent} onIterate={(text) => void runPrompt({ text })} />
               ) : prototypeMode !== "design" && prototypeMode !== "spec" ? (
                 <PrototypePanel
                   a2uiJson={prototypeJson ?? ""}
@@ -2285,6 +2311,22 @@ export function App(): JSX.Element {
             </Suspense>
           </div>
         </div>
+      ) : null}
+
+      {/* Task-hub quick sheet (same right slot as the preview — mutually
+          exclusive): read-only report / timeline / build-details views. */}
+      {taskQuick ? (
+        <Suspense fallback={null}>
+          <TaskQuickSheet title={taskQuick.title} onClose={handleCloseTaskQuick}>
+            {taskQuick.kind === "report" ? (
+              <ReportQuickContent root={taskQuick.root} reportId={taskQuick.reportId} />
+            ) : taskQuick.kind === "timeline" ? (
+              <TaskRecordPanel treeId={taskQuick.treeId} workspaceRoot={taskQuick.root} />
+            ) : (
+              <BuildQuickContent stages={taskQuick.stages} error={taskQuick.error} />
+            )}
+          </TaskQuickSheet>
+        </Suspense>
       ) : null}
 
       {/* Quick dock — the everyday trio (sessions / new / workspace) pulled

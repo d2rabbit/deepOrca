@@ -755,6 +755,8 @@ export const zhTW: Record<MessageKey, string> = {
   "taskhub.forkName": "分支名（可選）",
   "taskhub.forkWhy": "為何在此分叉 — 必填",
   "taskhub.switchBranch": "切換分支",
+  "taskhub.quickBuild": "建置詳情",
+  "taskhub.switchNone": "沒有其他分支可切換",
   "taskhub.tokens.sessions": "{n} 個會話（含 {s} 個後台）",
   "taskhub.tokens.split": "輸入 {p} · 輸出 {c} · 快取命中 {h}",
   "taskhub.detail.actions": "操作",
