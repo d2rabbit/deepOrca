@@ -3,7 +3,7 @@ import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n, type MessageKey } from "../i18n";
 import { isCompleteStoreRef, splitStoreRefSegments } from "../lib/store-refs";
 import { FileMentionMenu } from "./FileMentionMenu";
-import { Button, Switch, IconMagicWand } from "../ui/index";
+import { Button, IconBook, IconMagicWand, IconShield, IconSparkle, Switch } from "../ui/index";
 
 type Props = {
   value: string;
@@ -627,7 +627,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
                   return (
                     <div key={name} className="ui-composer-skill-card" title={info?.description || name}>
                       <span className="ui-composer-skill-card-icon" aria-hidden="true">
-                        ✦
+                        <IconSparkle />
                       </span>
                       <div className="ui-composer-skill-card-main">
                         <span className="ui-composer-skill-card-name">{name}</span>
@@ -656,22 +656,27 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
         <div className="ui-prompt-wrap">
           {hasRefChip ? (
             <div ref={mirrorRef} className="ui-prompt-mirror" aria-hidden>
-              {refSegments.map((seg, i) =>
-                seg.kind === "text" ? (
-                  <span key={i}>{seg.text}</span>
-                ) : (
-                  <span
-                    key={i}
-                    className={`ui-prompt-ref-chip ${seg.ref.kind}${
-                      cursorPos >= seg.ref.start && cursorPos <= seg.ref.end ? " editing" : ""
-                    }`}
-                  >
-                    {/* Condensed label — the full absolute path stays in the
-                        textarea underneath (send payload unchanged). */}
-                    {seg.ref.kind === "wiki" ? `📖 ${seg.ref.label}` : `🛡 ${seg.ref.label}`}
+              {refSegments.map((seg, i) => {
+                if (seg.kind === "text") return <span key={i}>{seg.text}</span>;
+                // The cover span repeats the RAW token (transparent ink) so the
+                // mirror's metrics match the textarea character-for-character,
+                // and its opaque card-colored fill hides the raw path the
+                // textarea paints underneath (user report 2026-09-02: the old
+                // label-only pill leaked the rest of the absolute path). The
+                // chip is ATOMIC — a caret inside the token only lights the
+                // chip's accent ring, the raw path never shows; deleting the
+                // token drops the chip back to plain text naturally.
+                const editing = cursorPos >= seg.ref.start && cursorPos <= seg.ref.end;
+                return (
+                  <span key={i} className={`ui-prompt-ref-cover ${seg.ref.kind}${editing ? " editing" : ""}`}>
+                    <span className={`ui-prompt-ref-chip ${seg.ref.kind}${editing ? " editing" : ""}`}>
+                      {seg.ref.kind === "wiki" ? <IconBook /> : <IconShield />}
+                      {seg.ref.label}
+                    </span>
+                    {seg.ref.raw}
                   </span>
-                )
-              )}
+                );
+              })}
               {value.endsWith("\n") ? <span>{"\u200b"}</span> : null}
             </div>
           ) : null}

@@ -3,9 +3,13 @@
  * 报告引用要有专属渲染标记). A plain textarea cannot draw chips, so the
  * composer stacks a transparent mirror layer above it; these tests pin the
  * DOM contract the CSS keys on:
- *   - a draft containing @…/.deeporca/reviews/… renders a review pill in the
- *     mirror with the FULL raw token as its text,
- *   - surrounding plain text is preserved segment-for-segment,
+ *   - a draft containing @…/.deeporca/reviews/… renders a COVER span in the
+ *     mirror whose text is the FULL raw token (character-exact metrics with
+ *     the textarea; its opaque fill hides the path the textarea paints),
+ *   - the condensed chip label (icon + parsed timestamp/title) floats inside
+ *     the cover and never contains the absolute path,
+ *   - surrounding plain text is preserved segment-for-segment (the mirror's
+ *     full text equals the draft),
  *   - the textarea keeps the complete raw value (the send path is untouched),
  *   - drafts without references render NO mirror at all.
  *
@@ -112,18 +116,25 @@ afterEach(() => {
   rtl.cleanup();
 });
 
-test("a review @reference renders a CONDENSED review pill in the mirror", () => {
+test("a review @reference renders a cover + CONDENSED review chip in the mirror", () => {
   const { container } = renderComposer(`请结合这份代码审查报告的内容： ${REVIEW_REF}`);
   const mirror = container.querySelector(".ui-prompt-mirror");
   assert.ok(mirror, `mirror layer missing: ${container.innerHTML}`);
-  const chip = mirror.querySelector(".ui-prompt-ref-chip.review");
-  assert.ok(chip, "review pill missing in the mirror");
+  const cover = mirror.querySelector(".ui-prompt-ref-cover.review");
+  assert.ok(cover, "review cover missing in the mirror");
+  // The cover repeats the RAW token — character-exact metrics with the
+  // textarea, and the surface its opaque fill hides the path under.
+  assert.match(cover.textContent ?? "", /D:\\others\\excel-jvm\\.deeporca\\reviews\\/);
+  const chip = cover.querySelector(".ui-prompt-ref-chip.review");
+  assert.ok(chip, "review chip missing in the mirror");
   // Condensed label (user ask 2026-09-02: 缩略内容，不展示整个文件路径) —
-  // the kind glyph + the parsed report timestamp, NOT the absolute path.
-  assert.equal(chip.textContent, "🛡 2026/09/01 16:00");
+  // the parsed report timestamp, NOT the absolute path (the icon is an SVG,
+  // contributing no text).
+  assert.equal(chip.textContent, "2026/09/01 16:00");
   assert.doesNotMatch(chip.textContent ?? "", /\.json|D:/);
 
-  // The plain prefix is preserved as its own segment.
+  // The plain prefix is preserved as its own segment (the chip's condensed
+  // label sits between prefix and raw token in text order).
   assert.match(mirror.textContent ?? "", /^请结合这份代码审查报告的内容： /);
 });
 
@@ -134,22 +145,22 @@ test("the textarea keeps the complete raw value — highlighting is presentation
   assert.equal((textarea as HTMLTextAreaElement).value, `请结合这份代码审查报告的内容： ${REVIEW_REF}`);
 });
 
-test("a wiki @reference renders the wiki pill; drafts without refs render no mirror", () => {
+test("a wiki @reference renders the wiki chip; drafts without refs render no mirror", () => {
   const wikiRef = "@D:\\others\\excel-jvm\\.deeporca\\deepwiki\\架构总览.md";
   const { container } = renderComposer(`参考 ${wikiRef} 再动手`);
   const chip = container.querySelector(".ui-prompt-ref-chip.wiki");
-  assert.ok(chip, "wiki pill missing");
-  assert.equal(chip.textContent, "📖 架构总览");
+  assert.ok(chip, "wiki chip missing");
+  assert.equal(chip.textContent, "架构总览");
   assert.equal(container.querySelector(".ui-prompt-ref-chip.review"), null);
 
   const plain = renderComposer("普通提问，没有任何引用");
   assert.equal(plain.container.querySelector(".ui-prompt-mirror"), null, "mirror must not render without refs");
 });
 
-test("caret inside a token flips the pill into editing (raw text revealed)", () => {
+test("caret inside a token flips the chip into its editing highlight (stays whole)", () => {
   const { container } = renderComposer(`请结合这份代码审查报告的内容： ${REVIEW_REF}`);
   const chip = () => container.querySelector(".ui-prompt-ref-chip.review");
-  assert.ok(!chip()?.classList.contains("editing"), "pill must start condensed (caret outside)");
+  assert.ok(!chip()?.classList.contains("editing"), "chip must start condensed (caret outside)");
 
   const ta = container.querySelector("textarea") as HTMLTextAreaElement;
   ta.focus();
@@ -157,6 +168,10 @@ test("caret inside a token flips the pill into editing (raw text revealed)", () 
   ta.setSelectionRange(mid, mid);
   rtl.fireEvent.select(ta);
   assert.ok(chip()?.classList.contains("editing"), "caret inside the token must flip to editing");
+  // Atomic chip (user report 2026-09-02: 点击后要还是一个整体) — the editing
+  // state only adds the highlight class; the chip keeps rendering its label
+  // and the cover keeps hiding the raw path.
+  assert.match(chip()?.textContent ?? "", /2026\/09\/01 16:00/);
 });
 
 test("the screenshot's MIXED-separator wiki path still gets its pill", () => {
@@ -166,8 +181,8 @@ test("the screenshot's MIXED-separator wiki path still gets its pill", () => {
   const mixed = "@D:\\others\\excel-jvm/.deeporca/deepwiki/index.md";
   const { container } = renderComposer(`请结合 Wiki 页面《index.md》的内容： ${mixed}`);
   const chip = container.querySelector(".ui-prompt-mirror .ui-prompt-ref-chip.wiki");
-  assert.ok(chip, `wiki pill missing for the mixed path: ${container.innerHTML}`);
-  assert.equal(chip.textContent, "📖 index");
+  assert.ok(chip, `wiki chip missing for the mixed path: ${container.innerHTML}`);
+  assert.equal(chip.textContent, "index");
 });
 
 test("a completed store reference does NOT open the file-mention menu", () => {

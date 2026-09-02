@@ -566,25 +566,59 @@
   pointer-events: none;
   z-index: 1;
 }
+/* ── Store-reference cover + condensed chip ──────────────────────────────
+   The cover span repeats the RAW token (transparent ink) so the mirror's
+   metrics match the textarea character-for-character, and its opaque
+   card-colored fill hides the raw path the textarea paints underneath.
+   The condensed chip label floats over the token start. The chip is an
+   ATOMIC unit (user report 2026-09-02: 点击后要还是一个整体): a caret
+   inside the token only lights an accent ring on the chip — the raw path
+   never shows; breaking or deleting the token text drops the chip back to
+   plain text naturally (the regex stops matching). */
+.ui-prompt-mirror .ui-prompt-ref-cover {
+  position: relative;
+  color: transparent;
+  border-radius: 6px;
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: 0 0 0 3px var(--ui-surface-raised, #fff);
+}
 .ui-prompt-mirror .ui-prompt-ref-chip {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  max-width: 100%;
+  padding: 0 6px;
   border-radius: 6px;
   color: var(--ui-text);
-  /* OPAQUE condensed pill: hides the raw absolute path under it; the 3px
-     ring in the card color swallows glyph fringes at the token edges. */
   background: color-mix(in srgb, var(--dot-review, #2f9e44) 10%, var(--ui-surface-raised, #fff));
-  box-shadow: 0 0 0 3px var(--ui-surface-raised, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dot-review, #2f9e44) 35%, transparent);
+  transition:
+    box-shadow 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
+}
+.ui-prompt-mirror .ui-prompt-ref-chip svg {
+  width: 13px;
+  height: 13px;
 }
 .ui-prompt-mirror .ui-prompt-ref-chip.wiki {
   background: color-mix(in srgb, var(--ui-accent, #3b82f6) 10%, var(--ui-surface-raised, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 35%, transparent);
 }
-/* Caret inside the token: reveal the raw path for editing (translucent tint
-   instead of the opaque cover). */
+/* Caret inside the token: keep the chip whole, light it up instead. */
 .ui-prompt-mirror .ui-prompt-ref-chip.editing {
-  color: transparent;
-  background: color-mix(in srgb, var(--dot-review, #2f9e44) 14%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dot-review, #2f9e44) 45%, transparent);
+  background: color-mix(in srgb, var(--dot-review, #2f9e44) 16%, var(--ui-surface-raised, #fff));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--dot-review, #2f9e44) 60%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--dot-review, #2f9e44) 14%, transparent);
 }
 .ui-prompt-mirror .ui-prompt-ref-chip.wiki.editing {
-  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 15%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent, #3b82f6) 45%, transparent);
+  background: color-mix(in srgb, var(--ui-accent, #3b82f6) 16%, var(--ui-surface-raised, #fff));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--ui-accent, #3b82f6) 60%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--ui-accent, #3b82f6) 14%, transparent);
 }
