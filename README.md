@@ -30,7 +30,7 @@
 | ---------------- | -------------------------------------------------------------------------------------- | ---------------------------------- |
 | **🎯 原型设计**  | 用自然语言描述需求，AI 生成可交互原型（表单/看板/多页面导航），双向交互验证用户流程    | A2UI 协议 + OpenUI Lang + 7 个模板 |
 | **🎨 UI 设计稿** | 生成自包含 HTML 设计稿，3 种设计系统、14 种 UI 风格、Tailwind 内置，可脱离宿主独立交付 | DeepDesign `.dd` 格式              |
-| **💻 智能编码**  | DeepSeek 驱动的会话式编码：7 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成     | Core Engine + MCP + Monaco         |
+| **💻 智能编码**  | DeepSeek 驱动的会话式编码：8 个内置工具、MCP 协议无限扩展、Monaco 编辑器、Git 集成     | Core Engine + MCP + Monaco         |
 
 三大能力各自独立，从任意一个切入即可。也可以组合使用——从原型验证到设计稿再到代码实现，按需流转。
 
@@ -38,7 +38,7 @@
 
 | 包                    | 说明                                                                  |
 | --------------------- | --------------------------------------------------------------------- |
-| `@deeporca/core`      | 核心引擎：LLM 会话循环、7 个内置工具、Skills/MCP、Actions、会话持久化 |
+| `@deeporca/core`      | 核心引擎：LLM 会话循环、8 个内置工具、Skills/MCP、Actions、会话持久化 |
 | `@deeporca/desktop`   | Electron 桌面客户端：main/preload/renderer、Monaco、多面板、多主题    |
 | `@deeporca/embedding` | 本地 IBM Granite 嵌入运行时，用于语义路由和召回                       |
 | `@deeporca/memory`    | 进程内 L0–L3 记忆流水线与向量检索                                     |
@@ -105,7 +105,7 @@ run.onProgress(console.log);
 const output = await run.result;
 ```
 
-> **当前边界：** Actions 已接入 LLM 工具和桌面 IPC/UI；外部 MCP Action Server、HTTP/CLI、自动参数表单、桌面取消和细粒度 Action 权限仍在规划中。参数 schema 的运行时校验目前是浅层的，Action 实现应自行校验具体约束。设计与限制见 [defineAction 设计说明](specs/define-action/design.md)。
+> **当前边界：** Actions 已接入 LLM 工具和桌面 IPC/UI；外部 MCP Action Server、HTTP/CLI、自动参数表单、桌面取消和细粒度 Action 权限仍在规划中。参数 schema 的运行时校验目前是浅层的，Action 实现应自行校验具体约束。设计与限制见 [defineAction 设计说明](specs/archive/define-action/design.md)。
 
 ### 🎨 桌面客户端亮点
 
@@ -115,8 +115,11 @@ const output = await run.result;
 - **Monaco Editor 集成** — 专业代码编辑器，支持语法高亮、智能提示
 - **Actions 面板** — 浏览已注册能力、运行无参数 Action、查看统一进度和结构化结果
 - **GitMCP 面板** — 管理 GitHub 仓库索引，语义搜索文档和代码
-- **代码审查面板** — 一键审查未提交的工作区变更；OCR 生成结构化意见，CRG 图谱可用时补充结构风险
-- **代码索引面板** — 编排 CodeGraph、OpenWiki 与 arch-scan，并展示阶段进度
+- **代码审查面板** — 按需审查任意工作区（与活动区无关）：范围支持工作区 / 提交 / 区间 / 全库，每行记住自己的分支与提交，运行中显示确定进度；OCR 结构化意见，CRG 图谱可用时补充结构风险
+- **风险图谱** — 审查发现映射到 CRG 结构风险图：按面板尺寸弹性布局，报告 ↔ 图谱双向定位（排名靠后的节点按需补入）
+- **任务中心** — 工作区级任务树：会话 / 审查 / 索引 / 设计四域并入 Git-Graph 式历史（主干会话 + 域色伴随任务）；会话任务常开展开「用户指令 → agent 行为」轨迹，支持 fork / 切换分支与 file-history git 绑定徽章
+- **全局 Token 统计** — 工作区级 LLM 用量聚合（静默 subagent 会话计入），按模型分解提示 / 输出 / 缓存命中
+- **知识库面板** — 编排 CodeGraph、OpenWiki 与 arch-scan，并展示阶段进度
 - **源码管理面板** — Git 操作（stage/commit/diff/branch）
 - **6 语言国际化** — en / zh / ja / ko / zh-HK / zh-TW
 
@@ -155,7 +158,7 @@ const output = await run.result;
 
 | 能力域        | 功能                                              | 状态 |
 | ------------- | ------------------------------------------------- | ---- |
-| 核心引擎      | LLM 会话循环、7 个内置工具、上下文压缩            | ✅   |
+| 核心引擎      | LLM 会话循环、8 个内置工具、上下文压缩            | ✅   |
 | **原型设计**  | **A2UI 交互原型 + OpenUI Lang + 7 个模板**        | ✅   |
 | **UI 设计稿** | **DeepDesign `.dd` 格式 + 3 设计系统 + 14 风格**  | ✅   |
 | **智能编码**  | **DeepSeek 驱动的会话式编码 + Monaco + Git**      | ✅   |
@@ -165,7 +168,9 @@ const output = await run.result;
 | 本地智能层    | Granite 嵌入、L0–L3 记忆、语义路由                | ✅   |
 | 代码编辑器    | Monaco Editor 集成                                | ✅   |
 | 工作区索引    | CodeGraph、OpenWiki、arch-scan                    | ✅   |
-| 代码审查      | Open Code Review + CRG 风险补充                   | ✅   |
+| 代码审查      | 按需审查（任意工作区）+ 风险图谱 + 审查历史       | ✅   |
+| 任务中心      | 四域任务树（Git-Graph 历史 + 常开轨迹 + fork）    | ✅   |
+| 用量统计      | 工作区级 LLM Token 聚合（静默 subagent 计入）     | ✅   |
 | GitMCP        | 本地 GitMCP 模块 + 仓库索引面板                   | ✅   |
 | 浏览器自动化  | browser-skill 内置扩展                            | ✅   |
 | 源码管理      | Git 面板（stage/commit/diff/branch）              | ✅   |
@@ -260,7 +265,7 @@ npm run desktop:start
 | [docs/permission.md](docs/permission.md)                             | 权限控制说明                        |
 | [docs/session-persistence.md](docs/session-persistence.md)           | 会话持久化                          |
 | [docs/builtin-inventory.md](docs/builtin-inventory.md)               | 内置 Skills、MCP 与工具清单         |
-| [specs/define-action/design.md](specs/define-action/design.md)       | Actions/defineAction 设计与迁移说明 |
+| [specs/archive/define-action/design.md](specs/archive/define-action/design.md)       | Actions/defineAction 设计与迁移说明 |
 | [docs/features/feature-roadmap.md](docs/features/feature-roadmap.md) | Feature 集成路线图                  |
 | [docs/research/](docs/research/)                                     | 技术调研报告                        |
 

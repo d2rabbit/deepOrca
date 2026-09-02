@@ -66,6 +66,15 @@ on disk from them; `master` does not track it, don't edit or commit it.
   `ipcRenderer` calls in the renderer.
 - **bash tool needs a POSIX shell.** On Windows, `setShellIfWindows()` (core) points
   it at Git Bash. Keep this working — don't assume `cmd`/PowerShell will do.
+- **IPC workspace-root pinning (security invariant).** The renderer is treated as
+  semi-trusted: every root-parameterized IPC handler must resolve a renderer-supplied
+  `workspaceRoot` through `resolveRegisteredRoot()` (`main/knowledge-ipc.ts`) or the
+  `isKnownRoot` guard — an **unregistered root degrades to an empty result and is
+  never enumerated**. Do not list `.deeporca` stores (reviews/designs/jobs/sessions),
+  spawn git/CRG/OCR, or materialize task-tree stores under arbitrary absolute paths.
+  `main/action-ipc.ts` stamps progress events with the action's TARGET root
+  (`getRoot(id, input)`), not the active one, so the renderer can multiplex
+  concurrent per-workspace runs.
 
 ## Commands (run from repo root)
 
@@ -84,6 +93,31 @@ on disk from them; `master` does not track it, don't edit or commit it.
 
 Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/src/tests/<file>.test.ts`
 (tests use Node's native runner `node:test` + `node:assert/strict`, executed via `tsx`).
+
+Renderer component tests exist: jsdom + `@testing-library/react` via
+`packages/desktop/src/tests/dom-harness.ts` (`installDom()` + `createApiStub()`).
+`renderer/api.ts` binds `window.deeporca` at module load, so install the DOM and the
+api stub BEFORE dynamically importing the component under test (see
+`tests/background-task-badge.test.ts`). When you add a regression test, mutation-check
+it once: temporarily break the fixed code, confirm the test fails, restore.
+
+Known pre-existing test failures on Windows clean trees (verify with `git stash`
+before chasing them — do not "fix" blindly):
+`desktop/src/tests/tokens-summary.test.ts` (POSIX-only path assumption in its fixture)
+and `core/src/tests/crg-query.test.ts` (detectChanges no-hunk fallback case).
+
+## Windows agent environment (repo is developed on Windows; shell is CMD)
+
+- CMD has no Unix pipes: `| head`, `| grep`, `| tail` fail. Use `findstr`, `git grep`,
+  or redirect command output to a temp file with `>` and Read it. `findstr` is
+  unreliable with CJK/emoji patterns — prefer `git grep` or the Read tool.
+- **Never edit/splice source files with PowerShell** (`Get-Content` /
+  `Set-Content`, `$_`, line slicing): it decodes UTF-8 as the ANSI codepage and
+  silently mangles every non-ASCII character (Chinese comments and zh/ja/ko
+  strings exist throughout), and the loss is irreversible. For any scripted file
+  surgery use a Node script (`fs.readFileSync`/`writeFileSync`, UTF-8, no BOM),
+  or use the file Edit tool.
+- ESM one-shot scripts: write a temp `.mjs` and run `node script.mjs`, then delete it.
 
 ## Toolchain & conventions
 
@@ -105,8 +139,14 @@ Single test file: `node packages/<pkg>/src/tests/run-tests.mjs packages/<pkg>/sr
   limit, split it by cohesive feature into sibling modules and keep the original
   file as a thin top-level composition root that only imports/re-exports/wires
   the modules (see `packages/desktop/src/renderer/ui.css` + `ui-css/` for CSS,
-  `packages/core/src/session.ts` + `session-manager-*.ts` for a large class).
+  `packages/core/src/session.ts` + `session-manager-*.ts` for a large class,
+  `i18n/messages.ts` + `i18n/locales/` for catalogs,
+  `main/index.ts` + `review-report-surface.ts` for IPC wiring).
   Never grow a file past the limit "just this once" — split first.
+- **i18n: every new `MessageKey` must land in ALL 6 locale catalogs**
+  (`renderer/i18n/locales/en.ts` is the source of truth; `zh.ts`, `zh-tw.ts`,
+  `zh-hk.ts`, `ja.ts`, `ko.ts`), and no hardcoded user-facing strings in
+  components — completeness is typecheck-enforced via `Record<MessageKey, string>`.
 - **Pre-commit:** Husky runs `lint-staged` (eslint --fix + prettier --write on
   staged `*.{ts,tsx,js,mjs,cjs,jsx}` and `*.json`). Format before building to avoid
   surprises.
