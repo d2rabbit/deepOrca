@@ -52,7 +52,10 @@ const V_KEY = "deeporca.hub.view";
 
 function loadWidth(): number {
   const raw = Number(readStorage(W_KEY));
-  return Number.isFinite(raw) && raw >= 200 && raw <= 480 ? raw : 320;
+  // Clamp legacy stored widths (old max 480 stretched the flyout over the
+  // workspace) down to the current 300 ceiling — 280 is the design default.
+  if (!Number.isFinite(raw) || raw < 200) return 280;
+  return Math.min(raw, 300);
 }
 function loadView(): SidebarView {
   const raw = readStorage(V_KEY);
@@ -112,7 +115,7 @@ export function usePanelLayout(): PanelLayout {
       const onMove = (ev: MouseEvent) => {
         if (!resizingRef.current) return;
         const delta = ev.clientX - startX;
-        setPanelWidth(Math.max(200, Math.min(480, startWidth + delta)));
+        setPanelWidth(Math.max(200, Math.min(300, startWidth + delta)));
       };
       const onUp = () => {
         resizingRef.current = false;

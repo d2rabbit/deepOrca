@@ -1260,7 +1260,7 @@ button.ui-surface-chip {
 
 /* ── 车道模型（screen-chat）：有实时活动时输入框让出右侧车道 ── */
 .ui-chat-stage.has-live .ui-composer-dock {
-  right: 344px;
+  right: min(344px, 34%);
 }
 @media (max-width: 900px) {
   .ui-chat-stage.has-live .ui-composer-dock {

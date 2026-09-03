@@ -420,7 +420,8 @@
 /* ── 车道模型（screen-chat）：has-live 时滚动内容让出右侧车道；窄窗收成
    计数胶囊。空闲（无 has-live）时活动区不渲染，内容占满全宽。 ── */
 .ui-chat-stage.has-live .ui-chat-main {
-  padding-right: 344px;
+  /* 车道让位自适应：窄窗/目录占位时按比例收缩，绝不吃掉正文列 */
+  padding-right: min(344px, 34%);
 }
 @media (max-width: 900px) {
   /* 窄窗：指令目录隐藏；车道收回，堆叠折叠为计数胶囊（screen-chat narrow） */
