@@ -2047,6 +2047,38 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       ? { ok: true, mergeNodeId: result.mergeNodeId, conflicts: result.conflicts }
       : { ok: false, error: "merge rejected" };
   });
+
+  // Editor digital entity (specs/editor-agent S2): run the editor-agent
+  // background entity on the ACTIVE workspace's manager — sessionless, zero
+  // residue; the final text returns for the editor panel to render.
+  handlePrivileged(
+    IpcRequest.EditorAgentRun,
+    async (input?: {
+      filePath?: string;
+      startLine?: number;
+      endLine?: number;
+      selection?: string;
+      instruction?: string;
+      lang?: string;
+    }) => {
+      if (!input?.filePath || !input.instruction?.trim() || !input.selection?.trim()) {
+        return { ok: false as const, error: "filePath, selection and instruction are required" };
+      }
+      try {
+        const result = await getBridge().runEditorAgent({
+          filePath: input.filePath,
+          startLine: Number(input.startLine) || 1,
+          endLine: Number(input.endLine) || Number(input.startLine) || 1,
+          selection: input.selection,
+          instruction: input.instruction.trim(),
+          lang: typeof input.lang === "string" ? input.lang : undefined,
+        });
+        return { ok: true as const, content: result.content ?? "", iterations: result.iterations };
+      } catch (error) {
+        return { ok: false as const, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
 }
 
 function registerA2uiIpc({ handleShared }: IpcHelpers): void {

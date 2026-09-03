@@ -197,6 +197,9 @@ export const IpcRequest = {
   TaskTreeSwitch: "tasktree:switch",
   TaskTreeAbandon: "tasktree:abandon",
   TaskTreeMerge: "tasktree:merge",
+  /** Editor digital entity (specs/editor-agent S2): run the editor-agent
+   *  background entity on a selection — sessionless, zero residue. */
+  EditorAgentRun: "editor:agentRun",
 
   // A2UI (Surface user interaction → agent)
   A2uiAction: "a2ui:action",
@@ -1308,6 +1311,17 @@ export type DesktopApi = {
     | { ok: true; mergeNodeId: string; conflicts: Array<{ artifactRef: string; targetTitle: string }> }
     | { ok: false; error: string }
   >;
+  /** Editor digital entity run (specs/editor-agent S2): sessionless
+   *  background entity over a selection; final text comes back for the
+   *  editor panel to render (replacement-code fence + short rationale). */
+  editorAgentRun(input: {
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    selection: string;
+    instruction: string;
+    lang?: string;
+  }): Promise<{ ok: true; content: string; iterations: number } | { ok: false; error: string }>;
 
   // ── A2UI (Surface interaction) ─────────────────────────────────────────
   /** Send a user interaction from an AUI Surface back to the agent.

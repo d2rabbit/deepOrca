@@ -187,6 +187,7 @@ const api: DesktopApi = {
   taskTreeAbandon: (treeId, branch, workspaceRoot) =>
     ipcRenderer.invoke(IpcRequest.TaskTreeAbandon, treeId, branch, workspaceRoot),
   taskTreeMerge: (treeId, srcBranch) => ipcRenderer.invoke(IpcRequest.TaskTreeMerge, treeId, srcBranch),
+  editorAgentRun: (input) => ipcRenderer.invoke(IpcRequest.EditorAgentRun, input),
 
   // ── A2UI (Surface interaction → agent) ──────────────────────────
   a2uiAction: (surfaceId, actionName, context) =>

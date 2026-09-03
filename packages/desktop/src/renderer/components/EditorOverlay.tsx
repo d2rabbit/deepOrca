@@ -35,7 +35,7 @@ async function ensureMonacoLoaded(): Promise<void> {
     import("@monaco-editor/react"),
     import("monaco-editor"),
   ]);
-  const monaco = (monacoEditor.default ?? monacoEditor) as typeof import("monaco-editor");
+  const monaco = monacoEditor.default ?? monacoEditor;
   // Use the locally bundled monaco-editor package instead of CDN.
   monacoLoader.config({ monaco });
 
@@ -305,13 +305,19 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
     setDirty(next !== originalContentRef.current);
   }, []);
 
-  // ── 选区 agent 交互（B3c-3 第一切片）─────────────────────────────────────
-  // 有非空选区时浮出「问数字体」按钮；点开迷你指令窗，提交的 prompt 携带
-  // 文件:行范围与选区代码，注入主会话流式执行（onAskAgent 由 App 注入）。
+  // ── 选区数字体（B3c S2，specs/editor-agent）───────────────────────────────
+  // 有非空选区时浮出「问数字体」；主路径走专职 editor-agent 后台实体
+  // （sessionless 零残留），结果就地渲染：带替换代码块时「应用到选区」
+  // 经 Monaco executeEdits 落回（⌘S 才写盘）；onAskAgent 保留为「到会话」
+  // 旁路（注入主会话流式执行）。
   const [selection, setSelection] = useState<{ text: string; startLine: number; endLine: number } | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [agentInput, setAgentInput] = useState("");
+  const [agentBusy, setAgentBusy] = useState(false);
+  const [agentError, setAgentError] = useState<string | null>(null);
+  const [agentResult, setAgentResult] = useState<{ content: string; code: string | null } | null>(null);
   const [agentSent, setAgentSent] = useState(false);
+  const appliedRangeRef = useRef<{ startLine: number; endLine: number } | null>(null);
   useEffect(() => {
     const ed = editorRef.current;
     if (!ed) return;
@@ -331,27 +337,66 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
     return () => disposable.dispose();
   }, [monacoReady]);
 
-  const submitAgent = useCallback((): void => {
+  /** 第一个 fenced 代码块 = 数字体给出的选区替换内容。 */
+  const extractCode = useCallback((text: string): string | null => {
+    const m = text.match(/```[a-zA-Z0-9]*\n([\s\S]*?)```/);
+    return m ? (m[1] ?? "").replace(/\n$/, "") : null;
+  }, []);
+
+  const submitAgent = useCallback(async (): Promise<void> => {
     const instruction = agentInput.trim();
-    if (!instruction || !selection || !onAskAgent) return;
-    const lines =
-      selection.startLine === selection.endLine
-        ? `L${selection.startLine}`
-        : `L${selection.startLine}-L${selection.endLine}`;
-    const prompt =
-      `【编辑器选区指令】${filePath} ${lines}\n` +
-      "```" +
-      "\n" +
-      selection.text.slice(0, 4000) +
-      "\n" +
-      "```\n" +
-      instruction;
-    onAskAgent(prompt);
+    if (!instruction || !selection || agentBusy) return;
+    setAgentBusy(true);
+    setAgentError(null);
+    setAgentResult(null);
+    // 记录提交时的范围：结果返回前用户若移动了光标/选区，应用仍落在
+    // 当初请求的位置。
+    appliedRangeRef.current = { startLine: selection.startLine, endLine: selection.endLine };
+    try {
+      const res = await api.editorAgentRun({
+        filePath,
+        startLine: selection.startLine,
+        endLine: selection.endLine,
+        selection: selection.text,
+        instruction,
+        lang: languageForFile(filePath),
+      });
+      if (!res.ok) {
+        setAgentError(res.error);
+        return;
+      }
+      setAgentResult({ content: res.content, code: extractCode(res.content) });
+    } catch (err) {
+      setAgentError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAgentBusy(false);
+    }
+  }, [agentInput, selection, agentBusy, filePath, extractCode]);
+
+  /** 把数字体返回的替换代码经 executeEdits 落回原选区（undo 可撤销，
+   *  落回后走正常 onChange → dirty → ⌘S 保存）。 */
+  const applyAgentCode = useCallback((): void => {
+    const ed = editorRef.current;
+    if (!ed || !agentResult?.code || !selection) return;
+    const model = ed.getModel();
+    if (!model) return;
+    const start = appliedRangeRef.current?.startLine ?? selection.startLine;
+    const end = appliedRangeRef.current?.endLine ?? selection.endLine;
+    ed.executeEdits("editor-agent", [
+      {
+        range: {
+          startLineNumber: start,
+          startColumn: 1,
+          endLineNumber: end,
+          endColumn: model.getLineMaxColumn(end),
+        },
+        text: agentResult.code,
+      },
+    ]);
+    ed.focus();
     setAgentOpen(false);
-    setAgentInput("");
-    setAgentSent(true);
-    window.setTimeout(() => setAgentSent(false), 2000);
-  }, [agentInput, selection, filePath, onAskAgent]);
+    setAgentResult(null);
+  }, [agentResult, selection]);
 
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -510,14 +555,55 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
-                    submitAgent();
+                    void submitAgent();
                   }
                 }}
                 autoFocus
               />
+              {agentBusy ? (
+                <div className="ui-edagent-running">
+                  <span className="ui-spinner" /> {t("editor.agent.running")}
+                </div>
+              ) : null}
+              {agentError ? <div className="ui-error">{agentError}</div> : null}
+              {agentResult ? (
+                <div className="ui-edagent-result">
+                  <pre>{agentResult.content}</pre>
+                  {agentResult.code ? (
+                    <button type="button" className="btn" onClick={applyAgentCode}>
+                      {t("editor.agent.apply")}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="ui-edagent-actions">
                 <span className="ui-edagent-hint">{t("editor.agent.hint")}</span>
-                <button type="button" className="btn" disabled={!agentInput.trim()} onClick={submitAgent}>
+                {onAskAgent ? (
+                  <button
+                    type="button"
+                    className="ui-edagent-tochat"
+                    onClick={() => {
+                      const instruction = agentInput.trim();
+                      if (!instruction || !selection) return;
+                      onAskAgent(
+                        `【编辑器选区指令】${filePath} L${selection.startLine}${
+                          selection.endLine !== selection.startLine ? `-L${selection.endLine}` : ""
+                        }\n\`\`\`\n${selection.text.slice(0, 4000)}\n\`\`\`\n${instruction}`
+                      );
+                      setAgentSent(true);
+                      setAgentOpen(false);
+                      window.setTimeout(() => setAgentSent(false), 2000);
+                    }}
+                  >
+                    {t("editor.agent.toChat")}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={agentBusy || !agentInput.trim()}
+                  onClick={() => void submitAgent()}
+                >
                   {t("editor.agent.send")}
                 </button>
               </div>
