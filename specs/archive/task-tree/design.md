@@ -3,7 +3,7 @@
 > 日期：2026-08-14 · 状态：P0 已实现（2026-08-15，见文末"P0 落地记录"）；P1+ 设计中
 >
 > 灵感来源：git 对象模型（commit / branch / fork / merge / reflog）× DeepOrca L0–L3 记忆管道的"记忆驱动分支"
-> 关联路线：feature-roadmap §十 引擎演进（Subagent）、§二 知识中心（记忆）、§十六 能力编排（defineAction）、PM-Design V2 工作台（`specs/pm-design-v2/design.md`）、会话持久化（`docs/session-persistence.md`）
+> 关联路线：feature-roadmap §十 引擎演进（Subagent）、§二 知识中心（记忆）、§十六 能力编排（defineAction）、PM-Design V2 工作台（`specs/design-systems-advance/pm-design-v2-design.md`）、会话持久化（`docs/session-persistence.md`）
 > 前序调研：`docs/research/2026-08-14-openui-deep-dive.md`（PM-Design 工作台是任务树的第一消费方）
 >
 > 设计约束：

@@ -4,7 +4,7 @@
 >
 > 灵感来源：[earthtojake/text-to-cad](https://github.com/earthtojake/text-to-cad)（MIT，⭐13.4k）、[img2threejs/img2threejs](https://github.com/img2threejs/img2threejs)（Apache-2.0，⭐11.5k）
 > 前序调研：`docs/research/2026-08-13-text-to-cad-img2threejs.md`（含 kkFileView 评估附录）
-> 关联路线：feature-roadmap §十八 3D 与制造（新增）、§六 设计生成、§十六 能力编排（defineAction）、§十二 插件中心（SkillSpector 闸门）、PM-Design V2 管线路由（`specs/pm-design-v2/design.md`）
+> 关联路线：feature-roadmap §十八 3D 与制造（新增）、§六 设计生成、§十六 能力编排（defineAction）、§十二 插件中心（SkillSpector 闸门）、PM-Design V2 管线路由（`specs/design-systems-advance/pm-design-v2-design.md`）
 >
 > 设计约束：
 >
@@ -161,7 +161,7 @@ cad/<name>/
 
 ## 五、与 PM-Design V2 的管线路由整合
 
-PM-Design V2 的统一路由（`specs/pm-design-v2/design.md`）新增第 4 条管线：
+PM-Design V2 的统一路由（`specs/design-systems-advance/pm-design-v2-design.md`）新增第 4 条管线：
 
 | 管线 | 触发信号 | 产出 |
 | --- | --- | --- |
