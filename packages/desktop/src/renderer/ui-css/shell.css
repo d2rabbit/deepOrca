@@ -1094,13 +1094,9 @@ button.ui-surface-chip {
 }
 /* Dock beside level-1 (rail); when the flyout is extended, clear it too and
    join the same content row the conversation occupies. */
-.panel-open .ui-sheet {
-  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap));
-}
-.panel-open.hub-expanded .ui-sheet {
-  left: calc(
-    var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap) + var(--ui-panel-w, 320px) + var(--ui-hub-gap)
-  );
+/* 底部 dock 打开时 sheet 只让出底部带区；左右满幅（工作区不留大空白） */
+.ui-shell.panel-open .ui-sheet {
+  bottom: calc(16px + 52px + 8px);
 }
 .ui-sheet > :last-child {
   flex: 1;

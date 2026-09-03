@@ -93,7 +93,7 @@ export type PanelLayout = {
 
 export function usePanelLayout(): PanelLayout {
   const [sidebarView, setSidebarView] = useState<SidebarView>(loadView);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false); // 默认收起——小圆点放开，⟨ 收回
   const [viewExtended, setViewExtended] = useState(false);
   // 320 default matches the flyout card's resizable width range.
   const [panelWidth, setPanelWidth] = useState<number>(loadWidth);
