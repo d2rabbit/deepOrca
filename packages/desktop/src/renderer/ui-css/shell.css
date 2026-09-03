@@ -419,8 +419,8 @@ button.ui-surface-chip {
   flex: 1;
   overflow-y: auto;
   position: relative;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-border-soft) transparent;
+  scrollbar-width: none;
+  scrollbar-color: transparent;
   /* Bottom padding is set dynamically to the composer-dock height (plus a
      small breathing gap) by App.tsx via a ResizeObserver, so the last
      message never sits underneath the floating composer. The 360px
@@ -551,7 +551,7 @@ button.ui-surface-chip {
    into the ambient background below the reading column. */
 .ui-composer-dock {
   position: absolute;
-  left: var(--ui-stage-pad-l, 0px);
+  left: 0;
   right: 0;
   bottom: 0;
   padding: 0 var(--ui-space-4) var(--ui-space-4);
