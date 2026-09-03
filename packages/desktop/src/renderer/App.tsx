@@ -1568,6 +1568,8 @@ export function App(): JSX.Element {
       (busy && messages.some((m) => m.role === "assistant" && m.meta?.asThinking)),
     [messages, busy]
   );
+  // 欢迎态：还没有会话/消息 —— 舞台切换为居中轻松布局（问候语 + 居中输入框）。
+  const welcomeMode = !(activeId !== null || messages.length > 0);
   const chatContent = (
     <>
       <FailureBanner
@@ -1579,9 +1581,8 @@ export function App(): JSX.Element {
       />
       <MessageList
         messages={messages}
-        hasActiveSession={activeId !== null || messages.length > 0}
+        hasActiveSession={!welcomeMode}
         reasoningMode={reasoningMode}
-        modKey={modKey}
         compacting={activeStatus === "compacting"}
         streaming={busy}
         onQuickAction={handleQuickAction}
@@ -2231,7 +2232,7 @@ export function App(): JSX.Element {
             </Suspense>
           </div>
         ) : (
-          <div className={`ui-chat-stage${hasLive ? " has-live" : ""}`}>
+          <div className={`ui-chat-stage${hasLive ? " has-live" : ""}${welcomeMode ? " welcome-mode" : ""}`}>
             <InstructionToc messages={messages} />
             <div className="ui-chat-main">
               {planProgress ? (

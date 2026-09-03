@@ -2263,3 +2263,55 @@ button.ui-tool-head:hover {
   height: 0;
   border-top: 1px solid var(--ui-border-soft);
 }
+
+/* ── 欢迎页（参考 ZCode 式布局）：居中、轻松、不表格化 ── */
+.ui-welcome.ui-welcome-center {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 24px;
+}
+.ui-welcome-center .ui-welcome-greeting {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ui-text);
+}
+.ui-welcome-center .ui-welcome-subtitle {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.ui-welcome-composer-slot {
+  height: 172px;
+}
+.ui-welcome-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.ui-welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s;
+}
+.ui-welcome-chip:hover {
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+.ui-welcome-chip svg {
+  width: 14px;
+  height: 14px;
+}

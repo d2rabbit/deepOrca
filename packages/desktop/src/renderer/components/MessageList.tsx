@@ -61,8 +61,6 @@ type Props = {
   hasActiveSession: boolean;
   /** Whether assistant reasoning/thinking blocks are displayed. */
   reasoningMode: ReasoningMode;
-  /** Modifier glyph for shortcut hints (⌘ on macOS, Ctrl elsewhere). */
-  modKey?: string;
   /** Quick-start actions surfaced on the welcome screen. */
   onQuickAction?: (action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review") => void;
   /** Interactive prompt cards (permission / question / plan) shown after the messages. */
@@ -74,6 +72,20 @@ type Props = {
   streaming?: boolean;
 };
 
+/** 时间问候语（欢迎页标题；参考 ZCode 欢迎式的轻松开场）。 */
+function greetingKey():
+  | "welcome.greetMorning"
+  | "welcome.greetNoon"
+  | "welcome.greetAfternoon"
+  | "welcome.greetEvening" {
+  const h = new Date().getHours();
+  if (h < 5) return "welcome.greetEvening";
+  if (h < 11) return "welcome.greetMorning";
+  if (h < 14) return "welcome.greetNoon";
+  if (h < 18) return "welcome.greetAfternoon";
+  return "welcome.greetEvening";
+}
+
 // Memoized: every prop is a stable reference from App (messages array identity
 // only changes on real updates, callbacks are useCallback'd, footer is a
 // memoized ReactNode), so busy/stream ticks in App skip this whole subtree.
@@ -81,7 +93,6 @@ export const MessageList = memo(function MessageList({
   messages,
   hasActiveSession,
   reasoningMode,
-  modKey = "Ctrl",
   onQuickAction,
   footer,
   compacting = false,
@@ -199,46 +210,34 @@ export const MessageList = memo(function MessageList({
       action: "plan" | "init" | "skills" | "undo" | "knowledge" | "review";
       icon: JSX.Element;
       title: string;
-      desc: string;
     }[] = [
-      { action: "plan", icon: <IconWelcomePlan />, title: t("welcome.planTitle"), desc: t("welcome.planDesc") },
-      { action: "init", icon: <IconWelcomeInit />, title: t("welcome.initTitle"), desc: t("welcome.initDesc") },
-      {
-        action: "knowledge",
-        icon: <IconWelcomeKnowledge />,
-        title: t("welcome.knowledgeTitle"),
-        desc: t("welcome.knowledgeDesc"),
-      },
-      { action: "review", icon: <IconWelcomeReview />, title: t("welcome.reviewTitle"), desc: t("welcome.reviewDesc") },
-      { action: "skills", icon: <IconWelcomeSkills />, title: t("welcome.skillsTitle"), desc: t("welcome.skillsDesc") },
-      { action: "undo", icon: <IconWelcomeUndo />, title: t("welcome.undoTitle"), desc: t("welcome.undoDesc") },
+      { action: "plan", icon: <IconWelcomePlan />, title: t("welcome.planTitle") },
+      { action: "init", icon: <IconWelcomeInit />, title: t("welcome.initTitle") },
+      { action: "knowledge", icon: <IconWelcomeKnowledge />, title: t("welcome.knowledgeTitle") },
+      { action: "review", icon: <IconWelcomeReview />, title: t("welcome.reviewTitle") },
+      { action: "skills", icon: <IconWelcomeSkills />, title: t("welcome.skillsTitle") },
+      { action: "undo", icon: <IconWelcomeUndo />, title: t("welcome.undoTitle") },
     ];
     return (
       <div className="ui-conversation">
-        <div className="ui-welcome">
-          <h1>{t("app.name")}</h1>
+        {/* 欢迎页（参考 ZCode 式布局）：时间问候语 + 预留输入框位置 + 轻胶囊，
+            整体垂直居中；composer 由 dock 层居中叠放在预留位。 */}
+        <div className="ui-welcome ui-welcome-center">
+          <h1 className="ui-welcome-greeting">{t(greetingKey())}</h1>
           <div className="ui-welcome-subtitle">{t("empty.subtitle")}</div>
-          <div className="ui-welcome-tips">{t("empty.tips")}</div>
-          <div className="ui-welcome-quickstart">
-            <div className="ui-welcome-quickstart-label">{t("welcome.quickStart")}</div>
-            <div className="ui-welcome-cards">
-              {cards.map((card) => (
-                <button
-                  key={card.action}
-                  type="button"
-                  className="ui-welcome-card"
-                  onClick={() => onQuickAction?.(card.action)}
-                >
-                  <span className="ui-welcome-card-icon">{card.icon}</span>
-                  <span className="ui-welcome-card-title">{card.title}</span>
-                  <span className="ui-welcome-card-desc">{card.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="ui-welcome-hints">
-            <kbd>{modKey}N</kbd> {t("welcome.hintNew")} · <kbd>{modKey}K</kbd> {t("welcome.hintPalette")} ·{" "}
-            <kbd>{modKey}?</kbd> {t("welcome.hintShortcuts")}
+          <div className="ui-welcome-composer-slot" aria-hidden="true" />
+          <div className="ui-welcome-chips">
+            {cards.map((card) => (
+              <button
+                key={card.action}
+                type="button"
+                className="ui-welcome-chip"
+                onClick={() => onQuickAction?.(card.action)}
+              >
+                {card.icon}
+                <span>{card.title}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>

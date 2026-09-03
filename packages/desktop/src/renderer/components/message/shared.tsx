@@ -7,7 +7,6 @@
 import type { JSX } from "react";
 import type { MessageKey } from "../../i18n";
 import { StreamdownView } from "../StreamdownView";
-import { useI18n } from "../../i18n";
 import {
   IconBashTerminal,
   IconBolt,
