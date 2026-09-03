@@ -64,6 +64,26 @@ export function TaskHubWorkspace({ root, onOpenQuick, onOpenDesign, onOpenKnowle
   // anchored at the click point, closed by Esc / outside press / scroll.
   const [pop, setPop] = useState<{ node: TaskHubNode; x: number; y: number } | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
+  // 点击任务卡直接展开右侧对应 tab（user ask 2026-09-03: 去掉点击点弹窗）；
+  // setPop/pop 通路已停用，仅供遗留 portal 兜底编译。
+  const openNodeQuickView = (node: TaskHubNode): void => {
+    const src = node.source;
+    if (src.kind === "session-tree") {
+      onOpenQuick({ kind: "timeline", root, treeId: src.treeId, title: node.title });
+    } else if (src.kind === "review-report") {
+      onOpenQuick({ kind: "report", root, reportId: src.reportId, title: node.title });
+    } else if (src.kind === "index-job") {
+      onOpenQuick({
+        kind: "build",
+        root,
+        jobId: src.jobId,
+        title: node.title,
+        stages: (node.meta?.stages as Array<{ id: string; status: string; error?: string }>) ?? [],
+      });
+    } else if (src.kind === "design-artifact") {
+      onOpenDesign(src.artifactId, src.pipeline);
+    }
+  };
   const [traces, setTraces] = useState<Record<string, Awaited<ReturnType<typeof api.taskHubTrace>>>>({});
   // fork form state (session domain): which node id, name, why
   const [forkFor, setForkFor] = useState<string | null>(null);
@@ -452,23 +472,32 @@ export function TaskHubWorkspace({ root, onOpenQuick, onOpenDesign, onOpenKnowle
                         className={`ui-taskhub-card${sel ? " sel" : ""}`}
                         role="button"
                         tabIndex={0}
-                        onClick={(e) =>
-                          setPop({
-                            node,
-                            x: Math.max(8, Math.min(e.clientX + 14, window.innerWidth - 346)),
-                            y: Math.max(8, Math.min(e.clientY + 10, window.innerHeight - 320)),
-                          })
-                        }
+                        onClick={(e) => {
+                          // 会话任务保留点击点弹窗（fork/切换分支的操作面板在其中）；
+                          // 其余类型直接展开右侧 tab（user ask 2026-09-03: 去掉原型任务的弹窗）。
+                          if (node.source.kind === "session-tree") {
+                            setPop({
+                              node,
+                              x: Math.max(8, Math.min(e.clientX + 14, window.innerWidth - 346)),
+                              y: Math.max(8, Math.min(e.clientY + 10, window.innerHeight - 320)),
+                            });
+                            return;
+                          }
+                          openNodeQuickView(node);
+                        }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          if (e.key !== "Enter" && e.key !== " ") return;
+                          e.preventDefault();
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          if (node.source.kind === "session-tree") {
                             setPop({
                               node,
                               x: Math.max(8, Math.min(r.right + 14, window.innerWidth - 346)),
                               y: Math.max(8, Math.min(r.top + 10, window.innerHeight - 320)),
                             });
+                            return;
                           }
+                          openNodeQuickView(node);
                         }}
                       >
                         <div className="t">

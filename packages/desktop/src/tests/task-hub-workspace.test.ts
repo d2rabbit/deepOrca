@@ -299,14 +299,8 @@ test("review report opens the RIGHT-SIDE quick sheet payload, not the main tab",
     rtl.fireEvent.click(reviewCard);
     await Promise.resolve();
   });
-  const pop = document.querySelector(".ui-taskhub-pop");
-  assert.ok(pop, "popover did not open on the review card");
-  const openBtn = pop.querySelector(".actions button");
-  assert.ok(openBtn, "open-report action missing");
-  await rtl.act(async () => {
-    rtl.fireEvent.click(openBtn);
-    await Promise.resolve();
-  });
+  // 直接展开（user ask 2026-09-03）：卡片点击立即打开右侧 quick sheet，
+  // 不再经过点击点弹窗的中转按钮。
   assert.equal(quicks.length, 1, "onOpenQuick must fire exactly once");
   assert.deepEqual(quicks[0], {
     kind: "report",
