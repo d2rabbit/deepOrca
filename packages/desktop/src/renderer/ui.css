@@ -49,3 +49,4 @@
 
 /* Task hub — the workspace task tree (domain pills, tree column, detail card) */
 @import url("./ui-css/task-hub.css");
+@import url("./ui-css/activity-rail.css");

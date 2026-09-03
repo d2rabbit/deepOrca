@@ -85,7 +85,6 @@ import { reviewStorePath, wikiStorePath } from "./lib/generated-paths";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
 import { formatBuildError } from "./lib/build-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
-import { ToolActivityPanel } from "./components/ToolActivityPanel";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
 import { useBuildJobs } from "./hooks/useBuildJobs";
