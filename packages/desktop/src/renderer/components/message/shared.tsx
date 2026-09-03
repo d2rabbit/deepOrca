@@ -7,6 +7,7 @@ import type { MessageKey } from "../../i18n";
 import { StreamdownView } from "../StreamdownView";
 import { useI18n } from "../../i18n";
 import { JsonView } from "../JsonView";
+import { firstNonEmptyLine } from "../../lib/messages";
 import {
   IconBashTerminal,
   IconBolt,
@@ -64,7 +65,9 @@ export function Avatar({ role }: { role: "user" | "assistant" | "thinking" | "to
   );
 }
 
-/** Map tool name → CSS modifier for visual differentiation. */
+/** CANONICAL tool-family classifier — single source for the conversation-flow
+ *  CSS modifiers (toolIcon) and the ActivityRail's display-kind projection.
+ *  New tool-family checks go HERE, not in per-component matchers. */
 export function toolCls(name: string): string {
   const n = name.toLowerCase();
   if (n === "bash" || n === "cli") return "bash";
@@ -161,19 +164,11 @@ export function ResultHint({
   return <span className="ui-tool-result-hint"> ({truncate(preview, 60)})</span>;
 }
 
-export function stripCodeFence(text: string): string {
+function stripCodeFence(text: string): string {
   return text
     .replace(/^```[a-zA-Z0-9]*\n/, "")
     .replace(/\n```\s*$/, "")
     .trim();
-}
-
-export function firstNonEmptyLine(text: string): string {
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim().replace(/\s+/g, " ");
-    if (trimmed) return trimmed;
-  }
-  return "";
 }
 
 /**
@@ -181,7 +176,7 @@ export function firstNonEmptyLine(text: string): string {
  * bare JSON) and parse it. Only composites qualify — a bare string/number
  * is better served by the plain markdown path.
  */
-export function tryParseJsonResult(resultMd: string): unknown | undefined {
+function tryParseJsonResult(resultMd: string): unknown | undefined {
   const trimmed = resultMd.trim();
   const fenced = trimmed.match(/^```json\s*\n([\s\S]*?)\n?```$/);
   const body = (fenced ? fenced[1]! : trimmed).trim();
@@ -228,7 +223,7 @@ export function ToolResult({
   return <Md text={resultMd} streaming={false} />;
 }
 
-export function fileExtensionFromParams(toolName: string, params: string): string {
+function fileExtensionFromParams(toolName: string, params: string): string {
   if (!["read", "write", "edit"].includes(toolName.toLowerCase())) return "";
   // The params string starts with the file path (e.g. `"./AGENTS.md"` or
   // `D:\path\to\file.ts`). Strip surrounding quotes/whitespace, then
@@ -244,20 +239,12 @@ export function fileExtensionFromParams(toolName: string, params: string): strin
  * don't match the prefix are returned as-is so non-numbered text
  * (e.g. a "WARNING: File is empty." notice) survives intact.
  */
-export function stripReadLineNumbers(text: string): string {
+function stripReadLineNumbers(text: string): string {
   return text
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*\d+\t/, ""))
     .join("\n");
 }
-
-// ── Slash command detection ───────────────────────────────────────────────────
-/**
- * Detect a user message that is a slash command invocation ("/init", "/continue
- * extra args"…). The first whitespace-separated token must be exactly "/<word>"
- * — a leading absolute path like "/Volumes/data" contains a second slash and is
- * therefore not treated as a command.
- */
 
 export function formatTime(iso: string): string {
   try {

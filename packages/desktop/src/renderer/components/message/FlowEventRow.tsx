@@ -4,17 +4,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { SessionMessage } from "../../../shared/ipc";
-import { buildToolSummary } from "../../lib/messages";
-import { formatToolParams } from "../../lib/messages";
-import { getDiffLines } from "../../lib/messages";
-import { getPlanLines } from "../../lib/messages";
-import { getResultMd } from "../../lib/messages";
+import { buildToolSummary, formatToolParams, getDiffLines, getPlanLines, getResultMd } from "../../lib/messages";
 import { useI18n } from "../../i18n";
 import { IconToolPlan } from "../../ui/index";
 import { BashTerminal, FLOW_VERB_KEY, ResultHint, ToolResult, formatElapsed, toolCls, toolIcon } from "./shared";
 
-export const COLLAPSIBLE_TOOLS = new Set(["read", "write", "edit", "bash", "cli"]);
-export const SHOW_RESULT_HINT_IN_HEADER = new Set(["bash", "cli"]);
+const COLLAPSIBLE_TOOLS = new Set(["read", "write", "edit", "bash", "cli"]);
+const SHOW_RESULT_HINT_IN_HEADER = new Set(["bash", "cli"]);
 
 export function ToolCard({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();

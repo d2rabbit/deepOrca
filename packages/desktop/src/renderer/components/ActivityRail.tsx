@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { buildToolSummary, formatToolParams, getResultMd } from "../lib/messages";
 import { useI18n } from "../i18n";
+import { toolCls } from "./message/shared";
 import {
   IconBolt,
   IconBot,
@@ -44,15 +45,30 @@ function KindIcon({ kind }: { kind: ActivityKind }): JSX.Element {
   }
 }
 
+/**
+ * Display-kind projection of the CANONICAL tool classifier (toolCls in
+ * message/shared) — one classification source, one icon language across the
+ * conversation flow and this rail. The two fuzzy pre-checks are deliberate:
+ * skill invocations keep their sparkle, and terminal-flavored names read as
+ * bash even when the exact name is unknown to the classifier.
+ */
 function kindOf(name: string): ActivityKind {
   const n = name.toLowerCase();
-  if (n === "bash" || n.includes("terminal")) return "bash";
-  if (n.includes("read")) return "read";
-  if (n.includes("write") || n.includes("edit")) return "edit";
-  if (n.includes("grep") || n.includes("search")) return "grep";
-  if (n.startsWith("mcp") || n.includes("mcp")) return "mcp";
   if (n.includes("skill")) return "skill";
-  return "doc";
+  if (n === "bash" || n.includes("terminal")) return "bash";
+  switch (toolCls(name)) {
+    case "read":
+      return "read";
+    case "write":
+    case "edit":
+      return "edit";
+    case "search":
+      return "grep";
+    case "mcp":
+      return "mcp";
+    default:
+      return "doc";
+  }
 }
 
 type ActivityWindow = {

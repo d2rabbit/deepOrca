@@ -115,5 +115,3 @@ export const Message = memo(function Message({
 
   return null;
 });
-
-// ── A2UI payload extraction helpers ─────────────────────────────────────────
