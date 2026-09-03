@@ -35,10 +35,51 @@ async function ensureMonacoLoaded(): Promise<void> {
     import("@monaco-editor/react"),
     import("monaco-editor"),
   ]);
+  const monaco = (monacoEditor.default ?? monacoEditor) as typeof import("monaco-editor");
   // Use the locally bundled monaco-editor package instead of CDN.
-  monacoLoader.config({ monaco: monacoEditor.default ?? monacoEditor });
+  monacoLoader.config({ monaco });
 
-  // Configure web workers for language features (TS IntelliSense, JSON, etc.).
+  // TS/JSX language service (user ask 2026-09-03 十三轮 B3c-2): without
+  // compiler options the ts.worker treats tsx as plain ts and flags JSX —
+  // configure the project the way this repo actually compiles + eager model
+  // sync so diagnostics/completions cover every open file. The monaco type
+  // stub marks languages.typescript deprecated (narrowed to {deprecated}),
+  // so the runtime object goes through a structural cast.
+  type TsLang = {
+    typescriptDefaults: {
+      setCompilerOptions(o: Record<string, unknown>): void;
+      setEagerModelSync(v: boolean): void;
+    };
+    javascriptDefaults: { setCompilerOptions(o: Record<string, unknown>): void };
+    ScriptTarget: Record<string, number>;
+    ModuleKind: Record<string, number>;
+    ModuleResolutionKind: Record<string, number>;
+    JsxEmit: Record<string, number>;
+  };
+  const ts = (monaco.languages as unknown as { typescript: TsLang }).typescript;
+  const tsDefaults = ts.typescriptDefaults;
+  tsDefaults.setCompilerOptions({
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+    jsx: ts.JsxEmit.React,
+    allowNonTsExtensions: true,
+    allowJs: true,
+    checkJs: false,
+    esModuleInterop: true,
+    skipLibCheck: true,
+  });
+  tsDefaults.setEagerModelSync(true);
+  ts.javascriptDefaults.setCompilerOptions({
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    allowNonTsExtensions: true,
+    allowJs: true,
+    checkJs: false,
+    esModuleInterop: true,
+  });
+
+  // Web Workers for language features (TS IntelliSense, JSON, etc.).
   // Workers are loaded from the bundled monaco-editor package via import.meta.url.
   self.MonacoEnvironment = {
     getWorker(_workerId: string, label: string): Worker {
@@ -139,6 +180,10 @@ type Props = {
   appearance: "light" | "dark";
   /** When true, render inline (workspace mode) instead of modal overlay. */
   inline?: boolean;
+  /** 选区 agent 交互（user ask 2026-09-03 十三轮 B3c-3 第一切片）：选中代码
+   *  后浮出指令窗，发布的问题/指令带上文件:行号与选区代码注入主会话流式
+   *  执行。专职 editor-agent 子代理见 specs/editor-agent/design.md。 */
+  onAskAgent?: (prompt: string) => void;
 };
 
 /**
@@ -146,7 +191,7 @@ type Props = {
  * and saves back via IPC. Tracks dirty state and warns on unsaved changes.
  * Can render as a modal overlay or inline workspace panel.
  */
-export function EditorOverlay({ filePath, onClose, appearance, inline }: Props): JSX.Element {
+export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgent }: Props): JSX.Element {
   const { t } = useI18n();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -259,6 +304,54 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
     setContent(next);
     setDirty(next !== originalContentRef.current);
   }, []);
+
+  // ── 选区 agent 交互（B3c-3 第一切片）─────────────────────────────────────
+  // 有非空选区时浮出「问数字体」按钮；点开迷你指令窗，提交的 prompt 携带
+  // 文件:行范围与选区代码，注入主会话流式执行（onAskAgent 由 App 注入）。
+  const [selection, setSelection] = useState<{ text: string; startLine: number; endLine: number } | null>(null);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [agentInput, setAgentInput] = useState("");
+  const [agentSent, setAgentSent] = useState(false);
+  useEffect(() => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    const disposable = ed.onDidChangeCursorSelection(() => {
+      const sel = ed.getSelection();
+      const model = ed.getModel();
+      if (!sel || !model || sel.isEmpty()) {
+        setSelection(null);
+        return;
+      }
+      setSelection({
+        text: model.getValueInRange(sel),
+        startLine: sel.startLineNumber,
+        endLine: sel.endLineNumber,
+      });
+    });
+    return () => disposable.dispose();
+  }, [monacoReady]);
+
+  const submitAgent = useCallback((): void => {
+    const instruction = agentInput.trim();
+    if (!instruction || !selection || !onAskAgent) return;
+    const lines =
+      selection.startLine === selection.endLine
+        ? `L${selection.startLine}`
+        : `L${selection.startLine}-L${selection.endLine}`;
+    const prompt =
+      `【编辑器选区指令】${filePath} ${lines}\n` +
+      "```" +
+      "\n" +
+      selection.text.slice(0, 4000) +
+      "\n" +
+      "```\n" +
+      instruction;
+    onAskAgent(prompt);
+    setAgentOpen(false);
+    setAgentInput("");
+    setAgentSent(true);
+    window.setTimeout(() => setAgentSent(false), 2000);
+  }, [agentInput, selection, filePath, onAskAgent]);
 
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -388,6 +481,60 @@ export function EditorOverlay({ filePath, onClose, appearance, inline }: Props):
           })()
         )}
       </div>
+      {/* 选区浮窗（B3c-3 第一切片）：选区存在 → 右下浮出按钮 → 迷你指令窗 */}
+      {selection && !loading && !error && !binary ? (
+        <div className="ui-edagent">
+          {agentOpen ? (
+            <div className="ui-edagent-panel">
+              <div className="ui-edagent-head">
+                <span>
+                  {t("editor.agent.title")} · {selection.startLine}
+                  {selection.endLine !== selection.startLine ? `–${selection.endLine}` : ""}
+                </span>
+                <button
+                  type="button"
+                  className="ui-edagent-close"
+                  onClick={() => setAgentOpen(false)}
+                  aria-label={t("common.close")}
+                >
+                  ✕
+                </button>
+              </div>
+              <pre className="ui-edagent-sel">{selection.text.slice(0, 400)}</pre>
+              <textarea
+                className="ui-edagent-input"
+                value={agentInput}
+                onChange={(e) => setAgentInput(e.target.value)}
+                placeholder={t("editor.agent.placeholder")}
+                rows={3}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    submitAgent();
+                  }
+                }}
+                autoFocus
+              />
+              <div className="ui-edagent-actions">
+                <span className="ui-edagent-hint">{t("editor.agent.hint")}</span>
+                <button type="button" className="btn" disabled={!agentInput.trim()} onClick={submitAgent}>
+                  {t("editor.agent.send")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="ui-edagent-fab"
+              onClick={() => setAgentOpen(true)}
+              title={t("editor.agent.ask")}
+            >
+              ◈ {t("editor.agent.ask")}
+            </button>
+          )}
+          {agentSent ? <div className="ui-edagent-sent">{t("editor.agent.sent")}</div> : null}
+        </div>
+      ) : null}
       {confirmClose ? (
         <Modal
           title={t("editor.closeDirtyTitle")}
