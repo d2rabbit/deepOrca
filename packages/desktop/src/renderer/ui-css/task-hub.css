@@ -513,7 +513,7 @@
 .ui-taskhub-pop {
   position: fixed;
   z-index: 90;
-  width: 320px;
+  width: min(420px, calc(100vw - 24px));
   max-width: calc(100vw - 16px);
   max-height: min(70vh, 560px);
   overflow-y: auto;
@@ -770,4 +770,10 @@
 .ui-taskhub-detail::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--ui-text-faint, #8590a0) 55%, transparent);
   background-clip: padding-box;
+}
+
+/* pop 内的详情卡跟随自适应宽度（外层定宽已废除） */
+.ui-taskhub-pop .ui-taskhub-detail {
+  width: 100%;
+  flex: 1 1 auto;
 }

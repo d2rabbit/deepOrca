@@ -164,7 +164,7 @@
   position: fixed;
   right: 16px;
   bottom: 16px;
-  width: 460px;
+  width: min(460px, calc(100vw - 32px));
   max-width: calc(100vw - 32px);
   max-height: 64vh;
   display: flex;
@@ -728,7 +728,7 @@
   top: 52px;
   right: 16px;
   bottom: 16px;
-  width: 440px;
+  width: min(440px, calc(100vw - 32px));
   max-width: calc(100vw - 32px);
   display: flex;
   flex-direction: column;
@@ -1044,7 +1044,7 @@
 .ui-sym-pop {
   position: fixed;
   z-index: 90;
-  width: 300px;
+  width: min(300px, calc(100vw - 32px));
   max-width: calc(100vw - 16px);
   display: flex;
   flex-direction: column;

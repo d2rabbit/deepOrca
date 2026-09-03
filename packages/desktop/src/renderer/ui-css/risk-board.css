@@ -331,7 +331,7 @@
   --pop-accent: var(--ui-accent, #3b82f6);
   position: fixed;
   z-index: 90;
-  width: 320px;
+  width: min(320px, calc(100vw - 24px));
   max-width: calc(100vw - 16px);
   display: flex;
   flex-direction: column;
