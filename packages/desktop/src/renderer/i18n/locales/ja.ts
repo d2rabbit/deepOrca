@@ -428,7 +428,7 @@ export const ja: Record<MessageKey, string> = {
   "build.modelFaultBody":
     "バックグラウンド構築がモデルサービスへのアクセスに失敗しました（タイムアウト / ネットワーク / 認証）。設定でエンドポイントと API キーを確認してから再試行してください。raw エラー:",
   "build.modelFaultOk": "了解",
-  "activity.title": "アクティビティ",
+  "activity.title": "ライブアクティビティ",
   "activity.none": "ツール呼び出しはまだありません",
   "pip.back": "このセッションに戻る",
   "pip.blocked": "確認待ちです",

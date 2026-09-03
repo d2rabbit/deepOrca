@@ -1,12 +1,15 @@
 /**
- * think — 拆分自 Message.tsx（落地实施方案 §八）。
+ * think — 思考缩略行（designs/chat-redesign demo-flow .ev.k-think）：
+ * 一行式（摘要 + 时长 + 字数），点击展开完整思考内容；运行中的实时
+ * 思考瞬态卡在右侧活动区（ActivityRail 的 ui-think-card）。
  */
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { ReasoningMode } from "../../lib/appearance";
 import { buildThinkingSummary } from "../../lib/messages";
 import { useI18n } from "../../i18n";
-import { Md, Avatar, truncate, formatCharCount } from "./shared";
+import { IconBrain } from "../../ui/index";
+import { Md, truncate, formatCharCount } from "./shared";
 
 export function ThinkingBlock({
   content,
@@ -26,24 +29,16 @@ export function ThinkingBlock({
   const { t } = useI18n();
   const summary = buildThinkingSummary(content, messageParams);
   const charCount = content.length;
-  // Reasoning is shown expanded by default — the user wants to see the
-  // model's working, not just a one-line summary. reasoningMode === "hidden"
-  // suppresses the block entirely; otherwise the block is visible and the
-  // user can collapse it manually if they want a quieter view.
-  const [expanded, setExpanded] = useState(reasoningMode !== "hidden");
+  // demo 形态：默认一行缩略；reasoningMode "expanded" 强制展开，"hidden"
+  // 整块隐藏（/raw 循环切换 normal → expanded → hidden）。
+  const [expanded, setExpanded] = useState(reasoningMode === "expanded");
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Respect the global reasoningMode toggle (e.g. /raw cycles between
-  // normal → expanded → hidden) without dragging the local collapse state
-  // around when the latest message changes.
   useEffect(() => {
-    setExpanded(reasoningMode !== "hidden");
+    setExpanded(reasoningMode === "expanded");
   }, [reasoningMode]);
 
-  // When the user expands an older thinking block, scroll the top of the
-  // body into view. block: "nearest" avoids hijacking scroll position
-  // when the body is already fully on screen, so this is a non-intrusive
-  // nudge rather than a forced jump.
+  // 展开旧思考块时把顶部滚入视野。block: "nearest" 不劫持滚动位置。
   useEffect(() => {
     if (expanded && bodyRef.current && !isLatest) {
       bodyRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -53,19 +48,27 @@ export function ThinkingBlock({
   if (reasoningMode === "hidden") return null;
 
   return (
-    <div className="ui-bubble-row assistant">
-      <Avatar role="thinking" />
-      <div className="ui-bubble thinking">
-        <button className="ui-thinking-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
-          <span className="ui-thinking-icon">{expanded ? "◉" : "◎"}</span>
-          <span className="ui-thinking-label">{t("msg.thinking")}</span>
-          <span className="ui-thinking-summary">{truncate(summary || t("msg.reasoning"), 80)}</span>
-          {elapsed ? <span className="ui-thinking-elapsed">{elapsed}</span> : null}
-          {charCount > 0 ? <span className="ui-thinking-chars">{formatCharCount(charCount)}</span> : null}
-          <span className="ui-thinking-chevron">{expanded ? "▾" : "▸"}</span>
+    <div className="ui-flow">
+      <div className={`ui-ev k-think${expanded ? " think-open" : ""}`}>
+        <button
+          type="button"
+          className="ui-ev-think-toggle"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+        >
+          <span className="ic" aria-hidden="true">
+            <IconBrain />
+          </span>
+          <span className="verb">{t("msg.thinking")}</span>
+          {summary ? <span className="arg">{truncate(summary, 80)}</span> : null}
+          {elapsed ? <span className="ms">{elapsed}</span> : null}
+          {charCount > 0 ? <span className="think-chars">{formatCharCount(charCount)}</span> : null}
+          <span className="think-chev" aria-hidden="true">
+            {expanded ? "▾" : "▸"}
+          </span>
         </button>
         {expanded && content ? (
-          <div className="ui-thinking-body" ref={bodyRef}>
+          <div className="think-body" ref={bodyRef}>
             <Md text={content} isAnimating={streaming} />
           </div>
         ) : null}
@@ -73,6 +76,3 @@ export function ThinkingBlock({
     </div>
   );
 }
-
-// ── Assistant bubble ──────────────────────────────────────────────────────────
-/** Format a timestamp as a short time string (HH:MM). */

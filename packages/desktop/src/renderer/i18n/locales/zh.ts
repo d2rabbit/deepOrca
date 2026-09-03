@@ -420,7 +420,7 @@ export const zh: Record<MessageKey, string> = {
   "build.modelFaultBody":
     "后台构建在访问模型服务时失败（超时 / 网络 / 鉴权）。请检查设置中的端点与 API Key 后重试。原始错误：",
   "build.modelFaultOk": "知道了",
-  "activity.title": "活动轨迹",
+  "activity.title": "实时活动",
   "activity.none": "暂无工具调用",
   "pip.back": "切回此会话",
   "pip.blocked": "正在等待你的确认",

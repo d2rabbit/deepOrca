@@ -460,3 +460,28 @@ export function IconRefresh(): JSX.Element {
     </svg>
   );
 }
+
+/** Pulse line — live activity meter (activity-rail cap, demo i-pulse) */
+export function IconPulse(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path
+        d="M2.5 10h4l2-5 3.5 10 2-5h3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Dashed-circle brain — thinking rows (demo i-brain) */
+export function IconBrain(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeDasharray="2.6 2.2" />
+      <circle cx="10" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+    </svg>
+  );
+}

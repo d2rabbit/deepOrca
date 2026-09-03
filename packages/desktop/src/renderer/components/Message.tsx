@@ -5,14 +5,13 @@
 import { memo, Suspense, lazy, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { useI18n } from "../i18n";
-import { getRichToolType, RichToolResult } from "./RichToolResult";
 import { buildToolSummary } from "../lib/messages";
 import type { ReasoningMode } from "../lib/appearance";
 import { Avatar, formatElapsed } from "./message/shared";
-import { UserBubble } from "./message/UserMessage";
+import { UserMessage } from "./message/UserMessage";
 import { ThinkingBlock } from "./message/ThinkingRow";
-import { AssistantBubble } from "./message/AssistantMessage";
-import { ToolCard } from "./message/FlowEventRow";
+import { AssistantMessage } from "./message/AssistantMessage";
+import { FlowEventRow } from "./message/FlowEventRow";
 import { SystemNote, SkillLoadedCard } from "./message/SystemNote";
 import { extractA2uiPayload, extractA2uiSummary } from "./message/a2ui";
 
@@ -37,7 +36,7 @@ export const Message = memo(function Message({
   if (!message.visible) return null;
 
   if (message.role === "user") {
-    return <UserBubble message={message} />;
+    return <UserMessage message={message} />;
   }
 
   if (message.role === "assistant") {
@@ -57,13 +56,12 @@ export const Message = memo(function Message({
         />
       );
     }
-    return <AssistantBubble message={message} streaming={streaming} />;
+    return <AssistantMessage message={message} streaming={streaming} />;
   }
 
   if (message.role === "tool") {
+    // A2UI tool results — render as interactive Surface instead of a flow row.
     const toolName = buildToolSummary(message).name.toLowerCase();
-
-    // A2UI tool results — render as interactive Surface instead of plain ToolCard.
     if (toolName.includes("a2ui") || toolName.includes("render_surface") || toolName.includes("update_surface")) {
       const a2uiJson = extractA2uiPayload(message);
       if (a2uiJson) {
@@ -79,25 +77,9 @@ export const Message = memo(function Message({
       }
     }
 
-    // Rich tool results — structured rendering for known tool types.
-    const richType = getRichToolType(message);
-    if (richType) {
-      const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
-      return (
-        <div className="ui-bubble-row tool">
-          <Avatar role={avatarRole} />
-          <RichToolResult message={message} />
-        </div>
-      );
-    }
-
-    const avatarRole: "tool" | "mcp" = toolName.startsWith("mcp") || toolName.startsWith("mcp__") ? "mcp" : "tool";
-    return (
-      <div className="ui-bubble-row tool">
-        <Avatar role={avatarRole} />
-        <ToolCard message={message} />
-      </div>
-    );
+    // demo-flow: EVERY tool call is a one-line flow row — the full internal
+    // content lives only in the activity-rail pip window (same message).
+    return <FlowEventRow message={message} />;
   }
 
   if (message.role === "system") {

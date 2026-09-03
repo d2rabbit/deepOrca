@@ -96,6 +96,8 @@ export {
   IconTerminal,
   IconChevronDown,
   IconRefresh,
+  IconPulse,
+  IconBrain,
 } from "./common";
 
 // Window caption controls.

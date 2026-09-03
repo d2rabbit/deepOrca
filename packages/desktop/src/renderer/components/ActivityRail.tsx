@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, type JSX } from "react";
+import { useMemo, useState, useEffect, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { buildToolSummary, formatToolParams, getResultMd } from "../lib/messages";
 import { useI18n } from "../i18n";
 import { toolCls } from "./message/shared";
 import {
-  IconBolt,
   IconBot,
+  IconPulse,
   IconSparkle,
   IconToolGeneric,
   IconToolMcp,
@@ -145,7 +145,8 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
     <aside className={`ui-actcol${collapsed ? " collapsed" : ""}`} aria-label={t("activity.title")}>
       {collapsed ? (
         <div className="ui-actcol-label">
-          <IconBolt />
+          <IconPulse />
+          <span>{t("activity.title")}</span>
           <span>{total}</span>
         </div>
       ) : (
@@ -164,19 +165,19 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
           ) : null}
 
           <div className="cap" title={t("activity.cap")}>
-            <IconBolt />
+            <IconPulse />
             {t("activity.title")} · {Math.min(total, MAX_WINDOWS)} / {MAX_WINDOWS}
           </div>
 
           <div className="deck">
-            {visible.map((w) => (
-              <article key={w.id} className={`ui-pip k-${w.kind}${w.ok ? "" : " err"}`}>
+            {visible.map((w, i) => (
+              <article key={w.id} className={`pipwin p${i} k-${w.kind}${w.ok ? "" : " err"}`}>
                 <div className="ph">
                   <span className="ic">
                     <KindIcon kind={w.kind} />
                   </span>
                   <span className="tt">{w.name}</span>
-                  <span className={`dot ${w.ok ? "ok" : "err"}`} />
+                  <span className="done-dot" aria-hidden="true" />
                 </div>
                 <div className="pb">
                   <div className="arg">{w.arg}</div>
@@ -185,7 +186,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
               </article>
             ))}
             {hidden > 0 ? (
-              <button type="button" className="more">
+              <button type="button" className="more-badge">
                 +{hidden}
               </button>
             ) : null}

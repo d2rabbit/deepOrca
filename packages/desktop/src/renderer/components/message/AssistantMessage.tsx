@@ -4,9 +4,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, type JSX } from "react";
 import type { SessionMessage } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
-import { Md, Avatar, formatTime } from "./shared";
+import { Md, formatTime } from "./shared";
 
-export function AssistantBubble({
+export function AssistantMessage({
   message,
   streaming = false,
 }: {
@@ -55,17 +55,18 @@ export function AssistantBubble({
   }, [content]);
 
   return (
-    <div className="ui-bubble-row assistant">
-      <Avatar role="assistant" />
-      <div className="ui-bubble assistant">
-        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} isAnimating={streaming} /> : null}
-        {comparisonBlocks.length > 0
-          ? comparisonBlocks.map((block, i) => (
-              <Suspense key={`cmp-${i}`} fallback={<div>{t("msg.loadingComparison")}</div>}>
-                <ComparisonMatrix content={block} />
-              </Suspense>
-            ))
-          : null}
+    <div className="ui-ai-row">
+      <div className="ui-ai-id">
+        <span className="ui-ai-mark" aria-hidden="true">
+          orc
+        </span>
+        <span className="who">{t("app.name")}</span>
+        {message.createTime ? <span className="tm">{formatTime(message.createTime)}</span> : null}
+        {streaming ? (
+          <span className="st">
+            <span className="ui-spinner" />
+          </span>
+        ) : null}
         {content ? (
           <button
             type="button"
@@ -77,7 +78,16 @@ export function AssistantBubble({
             {copied ? "✓" : "⧉"}
           </button>
         ) : null}
-        {message.createTime ? <span className="ui-msg-time">{formatTime(message.createTime)}</span> : null}
+      </div>
+      <div className="ui-md">
+        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} isAnimating={streaming} /> : null}
+        {comparisonBlocks.length > 0
+          ? comparisonBlocks.map((block, i) => (
+              <Suspense key={`cmp-${i}`} fallback={<div>{t("msg.loadingComparison")}</div>}>
+                <ComparisonMatrix content={block} />
+              </Suspense>
+            ))
+          : null}
       </div>
     </div>
   );

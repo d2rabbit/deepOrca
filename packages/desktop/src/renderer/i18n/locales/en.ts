@@ -428,7 +428,7 @@ export const en = {
   "build.modelFaultBody":
     "A background build failed while calling the model service (timeout / network / auth). Check the endpoint and API key in Settings, then retry. Raw error:",
   "build.modelFaultOk": "Got it",
-  "activity.title": "Activity",
+  "activity.title": "Live activity",
   "activity.none": "No tool calls yet",
   "pip.back": "Back to this session",
   "pip.blocked": "Waiting for your confirmation",

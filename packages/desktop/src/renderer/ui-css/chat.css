@@ -2018,3 +2018,248 @@ button.ui-tool-head:hover {
   .ui-tool-card.mcp .ui-tool-icon { color: #1098ad; }
   .ui-tool-card.plan .ui-tool-icon, .ui-tool-card.ask .ui-tool-icon { color: #9a36b8; }
   .ui-tool-verb { font-weight: 650; flex: none; color: var(--ui-text); }
+
+/* ===========================================================================
+   会话流（designs/chat-redesign demo-flow 一比一）：用户卡 / AI 名牌行 /
+   行为流时间线（.ui-flow + .ui-ev）/ 思考缩略行 / 系统行
+   =========================================================================== */
+.ui-user-row {
+  display: flex;
+  justify-content: flex-end;
+  scroll-margin-top: 60px;
+}
+.ui-user-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 78%;
+  min-width: 0;
+}
+.ui-user-card {
+  width: 100%;
+  background: var(--ui-accent-tint);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent);
+  border-radius: 16px 16px 5px 16px;
+  padding: 10px 15px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: rise 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-user-card .txt {
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.ui-user-card .meta {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+}
+
+.ui-ai-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: rise 0.3s ease both;
+  scroll-margin-top: 60px;
+}
+.ui-ai-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ui-text-faint);
+  min-height: 20px;
+}
+.ui-ai-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--ui-accent), #7048e8);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+.ui-ai-id .who {
+  font-weight: 700;
+  color: var(--ui-text-secondary);
+}
+.ui-ai-id .tm {
+  font-variant-numeric: tabular-nums;
+}
+.ui-ai-id .st {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ui-accent);
+}
+.ui-ai-id .ui-msg-copy {
+  margin-left: auto;
+}
+.ui-ai-row .ui-md {
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+/* 行为流时间线：连续工具调用各自一行，左缘连接线 */
+.ui-flow {
+  display: flex;
+  flex-direction: column;
+}
+.ui-ev {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  position: relative;
+  color: var(--ui-text);
+  animation: rise 0.25s ease both;
+}
+.ui-ev::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 0;
+  bottom: -2px;
+  width: 1.5px;
+  background: var(--ui-border-soft);
+}
+.ui-ev:first-child::before {
+  top: 50%;
+}
+.ui-ev:last-child::before {
+  display: none;
+}
+.ui-ev .ic {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border-soft);
+}
+.ui-ev .ic svg {
+  width: 11px;
+  height: 11px;
+  color: var(--kc, var(--ui-text-dim));
+}
+.ui-ev.k-bash { --kc: #e8590c; }
+.ui-ev.k-read { --kc: #1c6fe0; }
+.ui-ev.k-edit { --kc: #d6386c; }
+.ui-ev.k-grep { --kc: #0ca678; }
+.ui-ev.k-mcp { --kc: #1098ad; }
+.ui-ev.k-doc { --kc: #5f6b7a; }
+.ui-ev.k-think { --kc: #7048e8; }
+.ui-ev .verb {
+  font-weight: 650;
+  flex: none;
+}
+.ui-ev .badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--mcp, #1098ad) 14%, transparent);
+  color: var(--mcp, #1098ad);
+}
+.ui-ev .arg {
+  color: var(--ui-text-dim);
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-ev .ms {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-ev .ok {
+  flex: none;
+  display: inline-flex;
+}
+.ui-ev .ok svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ok, #2f9e44);
+}
+.ui-ev.err {
+  background: color-mix(in srgb, var(--err, #e03131) 7%, transparent);
+}
+.ui-ev.err .ok svg {
+  color: var(--err, #e03131);
+}
+
+/* 思考缩略行：一行摘要 + 可展开完整内容 */
+.ui-ev.k-think {
+  flex-wrap: wrap;
+  padding: 5px 8px;
+}
+.ui-ev .ui-ev-think-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.ui-ev .think-chars {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ui-ev .think-chev {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-ev .think-body {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-top: 1px dashed var(--ui-border-soft);
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+
+/* 系统行：两侧发丝线（demo .sysnote） */
+.ui-bubble-row.system {
+  display: flex;
+}
+.ui-bubble-row.system .ui-system-note {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+}
+.ui-system-note::before,
+.ui-system-note::after {
+  content: "";
+  flex: 1;
+  height: 0;
+  border-top: 1px solid var(--ui-border-soft);
+}

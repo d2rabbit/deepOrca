@@ -419,7 +419,7 @@ export const zhTW: Record<MessageKey, string> = {
   "build.modelFaultBody":
     "後台構建在存取模型服務時失敗（逾時 / 網路 / 鑑權）。請檢查設定中的端點與 API Key 後重試。原始錯誤：",
   "build.modelFaultOk": "知道了",
-  "activity.title": "活動軌跡",
+  "activity.title": "即時活動",
   "activity.none": "暫無工具呼叫",
   "pip.back": "切回此會話",
   "pip.blocked": "正在等待你的確認",

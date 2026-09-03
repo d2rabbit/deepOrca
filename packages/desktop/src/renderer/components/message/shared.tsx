@@ -1,13 +1,13 @@
 /**
  * shared — 拆分自 Message.tsx（落地实施方案 §八）。
+ * 会话流共用的小件：Markdown 体、头像、规范工具分类器与图标、动词表、
+ * 文本格式化工具。demo-flow 对齐后，工具调用的完整内容只渲染在右侧
+ * 活动小窗 —— 这里不再承载内联大卡。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { MessageKey } from "../../i18n";
 import { StreamdownView } from "../StreamdownView";
 import { useI18n } from "../../i18n";
-import { JsonView } from "../JsonView";
-import { firstNonEmptyLine } from "../../lib/messages";
 import {
   IconBashTerminal,
   IconBolt,
@@ -134,179 +134,11 @@ export function formatElapsed(startIso: string, endIso: string): string {
   return `${mins}m${remainSecs}s`;
 }
 
-/**
- * Smart preview text for the collapsed result toggle. For bash we surface
- * the exit code + a one-liner of stdout (much more informative than a
- * truncated JSON blob), and for everything else we fall back to the first
- * non-empty line of the result. Strips markdown code fences that the
- * `wrapPlainStructured` pass in messages.ts may have added, so the user
- * sees "exit 0" instead of "```json\n{...".
- */
-export function ResultHint({
-  toolName,
-  metadata,
-  resultMd,
-}: {
-  toolName: string;
-  metadata: Record<string, unknown> | null;
-  resultMd: string;
-}): JSX.Element {
-  const cleaned = stripCodeFence(resultMd).trim();
-  if (toolName.toLowerCase() === "bash") {
-    const exitCode = typeof metadata?.["exitCode"] === "number" ? (metadata["exitCode"] as number) : null;
-    const signal = typeof metadata?.["signal"] === "string" ? (metadata["signal"] as string) : null;
-    const firstLine = firstNonEmptyLine(cleaned);
-    const summary = signal != null ? `signal ${signal}` : exitCode != null ? `exit ${exitCode}` : firstLine || "ok";
-    return <span className="ui-tool-result-hint"> ({summary})</span>;
-  }
-  const preview = firstNonEmptyLine(cleaned);
-  if (!preview) return <></>;
-  return <span className="ui-tool-result-hint"> ({truncate(preview, 60)})</span>;
-}
-
-function stripCodeFence(text: string): string {
-  return text
-    .replace(/^```[a-zA-Z0-9]*\n/, "")
-    .replace(/\n```\s*$/, "")
-    .trim();
-}
-
-/**
- * Detect a result that is one pure JSON payload (a single ```json fence or
- * bare JSON) and parse it. Only composites qualify — a bare string/number
- * is better served by the plain markdown path.
- */
-function tryParseJsonResult(resultMd: string): unknown | undefined {
-  const trimmed = resultMd.trim();
-  const fenced = trimmed.match(/^```json\s*\n([\s\S]*?)\n?```$/);
-  const body = (fenced ? fenced[1]! : trimmed).trim();
-  if (!body.startsWith("{") && !body.startsWith("[")) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(body);
-    return parsed !== null && typeof parsed === "object" ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Result renderer for tool cards. The Read tool's output arrives with
- * line-number prefixes (e.g. "     1\t# AGENTS.md") so the agent can
- * cite lines. For .md / .html we strip those prefixes and render the
- * file as it was meant to be read; for code files we keep the
- * line-numbered view because the prefixes are the whole point.
- * Pure-JSON payloads get the interactive tree/raw JsonView card instead
- * of a flat fenced block (rendering-engine spec, card #7).
- */
-export function ToolResult({
-  toolName,
-  params,
-  resultMd,
-}: {
-  toolName: string;
-  params: string;
-  resultMd: string;
-}): JSX.Element {
-  const ext = fileExtensionFromParams(toolName, params);
-  if (toolName.toLowerCase() === "read" && (ext === "md" || ext === "markdown")) {
-    return <Md text={stripReadLineNumbers(resultMd)} streaming={false} />;
-  }
-  if (toolName.toLowerCase() === "read" && (ext === "html" || ext === "htm")) {
-    // HTML is rendered as HTML (CSP blocks inline scripts); the line
-    // numbers in the output would otherwise leak into the markup.
-    return <Md text={stripReadLineNumbers(resultMd)} streaming={false} />;
-  }
-  const json = tryParseJsonResult(resultMd);
-  if (json !== undefined) {
-    return <JsonView data={json} />;
-  }
-  return <Md text={resultMd} streaming={false} />;
-}
-
-function fileExtensionFromParams(toolName: string, params: string): string {
-  if (!["read", "write", "edit"].includes(toolName.toLowerCase())) return "";
-  // The params string starts with the file path (e.g. `"./AGENTS.md"` or
-  // `D:\path\to\file.ts`). Strip surrounding quotes/whitespace, then
-  // take the part after the last dot.
-  const cleaned = params.replace(/^['"`\s]+|['"`\s]+$/g, "").split(/\s+/)[0] ?? "";
-  const match = cleaned.match(/\.([a-zA-Z0-9]+)$/);
-  return match ? match[1]!.toLowerCase() : "";
-}
-
-/**
- * Strip the "     N\t" prefix that the core Read handler prepends to
- * every line (see formatWithLineNumbers in read-handler.ts). Lines that
- * don't match the prefix are returned as-is so non-numbered text
- * (e.g. a "WARNING: File is empty." notice) survives intact.
- */
-function stripReadLineNumbers(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*\d+\t/, ""))
-    .join("\n");
-}
-
+/** Format a timestamp as a short local time string (HH:MM). */
 export function formatTime(iso: string): string {
   try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   } catch {
     return "";
   }
-}
-
-export function BashTerminal({ command, resultMd }: { command: string; resultMd: string }): JSX.Element {
-  const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clear the pending copy-feedback reset when the frame unmounts.
-  useEffect(
-    () => () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    },
-    []
-  );
-
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard
-      .writeText(command)
-      .then(() => {
-        setCopied(true);
-        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
-      })
-      .catch(() => {});
-  }, [command]);
-
-  const output = stripCodeFence(resultMd).trim();
-  return (
-    <div className="ui-term">
-      <div className="ui-term-head">
-        <span className="ui-term-dot red" aria-hidden="true" />
-        <span className="ui-term-dot amber" aria-hidden="true" />
-        <span className="ui-term-dot green" aria-hidden="true" />
-        <span className="ui-term-title">{t("msg.bashTerminal")}</span>
-        <button
-          type="button"
-          className={`ui-term-copy${copied ? " copied" : ""}`}
-          onClick={handleCopy}
-          title={copied ? t("msg.copied") : t("msg.copy")}
-          aria-label={t("msg.copy")}
-        >
-          {copied ? "✓" : "⧉"}
-        </button>
-      </div>
-      <div className="ui-term-body">
-        <div className="ui-term-cmd">
-          <span className="ui-term-user">agent@deeporca</span>
-          <span className="ui-term-punc">:</span>
-          <span className="ui-term-path">~</span>
-          <span className="ui-term-punc">$ </span>
-          <span className="ui-term-input">{command}</span>
-        </div>
-        {output ? <div className="ui-term-out">{output}</div> : null}
-      </div>
-    </div>
-  );
 }

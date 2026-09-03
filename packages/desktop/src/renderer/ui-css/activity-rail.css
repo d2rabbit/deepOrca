@@ -98,15 +98,21 @@
   min-height: 0;
 }
 
-/* ── 活动区（右列，常驻） ── */
+/* ── 活动区（右列，常驻；demo .actcol） ── */
 .ui-actcol {
   flex: none;
   width: 316px;
+  margin-right: 12px;
+  padding: 12px 14px 12px 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 0;
   overflow: hidden;
+  transition:
+    width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    padding 0.24s,
+    opacity 0.2s;
 }
 .ui-actcol-label {
   display: none;
@@ -188,12 +194,13 @@
   height: 11px;
   color: var(--ok, #2f9e44);
 }
-.ui-deck {
+.ui-actcol .deck {
   position: relative;
+  width: 100%;
   flex: 1;
-  min-height: 280px;
+  min-height: 260px;
 }
-.ui-pip {
+.pipwin {
   position: absolute;
   width: 240px;
   display: flex;
@@ -206,6 +213,10 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
   overflow: hidden;
   cursor: pointer;
+  transition:
+    top 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+    left 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s;
   animation: ui-pip-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes ui-pip-in {
@@ -215,12 +226,12 @@
   }
 }
 /* 最新恒在最前最上；旧窗向右下退让 */
-.ui-pip.p0 { top: 0; left: 0; z-index: 15; }
-.ui-pip.p1 { top: 34px; left: 20px; z-index: 14; opacity: 0.9; }
-.ui-pip.p2 { top: 68px; left: 40px; z-index: 13; opacity: 0.72; }
-.ui-pip.p3 { top: 102px; left: 60px; z-index: 12; opacity: 0.5; }
-.ui-pip:hover { opacity: 1; z-index: 20; }
-.ui-pip .ph {
+.pipwin.p0 { top: 0; left: 0; z-index: 15; }
+.pipwin.p1 { top: 34px; left: 20px; z-index: 14; opacity: 0.9; }
+.pipwin.p2 { top: 68px; left: 40px; z-index: 13; opacity: 0.72; }
+.pipwin.p3 { top: 102px; left: 60px; z-index: 12; opacity: 0.5; }
+.pipwin:hover { opacity: 1; z-index: 20; }
+.pipwin .ph {
   flex: none;
   display: flex;
   align-items: center;
@@ -234,7 +245,7 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.ui-pip .ph .ic {
+.pipwin .ph .ic {
   width: 17px;
   height: 17px;
   border-radius: 5px;
@@ -244,14 +255,15 @@
   border: 1px solid var(--ui-border-soft);
   flex: none;
 }
-.ui-pip .ph .ic svg { width: 10px; height: 10px; color: var(--kc, var(--ui-text-dim)); }
-.ui-pip .ph .tt { overflow: hidden; text-overflow: ellipsis; }
-.ui-pip .ph .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok, #2f9e44); margin-left: auto; flex: none; }
-.ui-pip .ph .dot.err { background: var(--err, #e03131); }
-.ui-pip .pb { height: 252px; padding: 8px 10px; font-size: 11px; line-height: 1.55; color: var(--ui-text-dim); overflow-y: auto; scrollbar-width: none; }
-.ui-pip .pb::-webkit-scrollbar { display: none; }
-.ui-pip .pb .arg { font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace); font-size: 10.5px; color: var(--ui-text-dim); margin-bottom: 4px; }
-.ui-pip .pb pre {
+.pipwin .ph .ic svg { width: 10px; height: 10px; color: var(--kc, var(--ui-text-dim)); }
+.pipwin .ph .tt { overflow: hidden; text-overflow: ellipsis; }
+.pipwin .ph .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok, #2f9e44); animation: breathe 1.2s infinite; margin-left: auto; flex: none; }
+.pipwin .ph .done-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ui-border); margin-left: auto; flex: none; }
+.pipwin .ph .err-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--err, #e03131); margin-left: auto; flex: none; }
+.pipwin .pb { height: 252px; padding: 8px 10px; font-size: 11px; line-height: 1.55; color: var(--ui-text-dim); overflow-y: auto; scrollbar-width: none; }
+.pipwin .pb::-webkit-scrollbar { display: none; }
+.pipwin .pb .arg { font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace); font-size: 10.5px; color: var(--ui-text-dim); margin-bottom: 4px; }
+.pipwin .pb pre {
   font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
   font-size: 10px;
   line-height: 1.5;
@@ -263,10 +275,10 @@
   overflow-x: hidden;
   white-space: pre-wrap;
 }
-.ui-pip .pb pre .add { color: var(--ok, #2f9e44); }
-.ui-pip .pb pre .del { color: var(--err, #e03131); }
-.ui-pip.err { border-color: color-mix(in srgb, var(--err, #e03131) 30%, var(--ui-border-soft)); }
-.ui-actcol .more {
+.pipwin .pb pre .add { color: var(--ok, #2f9e44); }
+.pipwin .pb pre .del { color: var(--err, #e03131); }
+.pipwin.err { border-color: color-mix(in srgb, var(--err, #e03131) 30%, var(--ui-border-soft)); }
+.ui-actcol .more-badge {
   position: absolute;
   z-index: 16;
   right: 0;
@@ -280,16 +292,16 @@
   font-weight: 700;
   cursor: pointer;
 }
-.ui-actcol .more:hover { background: var(--ui-accent); }
+.ui-actcol .more-badge:hover { background: var(--ui-accent); }
 
 /* 类型色（与 demo/活动区色表一致） */
-.ui-pip.k-bash { --kc: #e8590c; }
-.ui-pip.k-read { --kc: #1c6fe0; }
-.ui-pip.k-edit { --kc: #d6386c; }
-.ui-pip.k-grep { --kc: #0ca678; }
-.ui-pip.k-mcp { --kc: #1098ad; }
-.ui-pip.k-skill { --kc: #9a36b8; }
-.ui-pip.k-doc { --kc: #5f6b7a; }
+.pipwin.k-bash { --kc: #e8590c; }
+.pipwin.k-read { --kc: #1c6fe0; }
+.pipwin.k-edit { --kc: #d6386c; }
+.pipwin.k-grep { --kc: #0ca678; }
+.pipwin.k-mcp { --kc: #1098ad; }
+.pipwin.k-skill { --kc: #9a36b8; }
+.pipwin.k-doc { --kc: #5f6b7a; }
 
 /* ── 子代理组（活动区底部） ── */
 .ui-sub-rail {

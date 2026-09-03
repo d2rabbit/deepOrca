@@ -1,23 +1,13 @@
 /**
- * user — 拆分自 Message.tsx（落地实施方案 §八）。
+ * user — 拆分自 Message.tsx（落地实施方案 §八）；渲染对齐 demo-flow .user-card。
  */
 import type { JSX } from "react";
-import type { SessionMessage } from "../../../shared/ipc";
-import type { SkillInfo } from "../../../shared/ipc";
+import type { SessionMessage, SkillInfo } from "../../../shared/ipc";
 import { extractStoreReferences } from "../../lib/store-refs";
 import { useI18n } from "../../i18n";
-import { IconCommand } from "../../ui/index";
 import { IconSparkle } from "../../ui/index";
-import { Avatar, truncate, formatTime } from "./shared";
+import { formatTime, truncate } from "./shared";
 import { ReferenceSegments } from "./ReferenceSegments";
-
-export function parseSlashCommand(content: string): { name: string; args: string } | null {
-  const trimmed = content.trim();
-  if (!trimmed.startsWith("/")) return null;
-  const firstToken = trimmed.split(/\s+/, 1)[0] ?? "";
-  if (!/^\/[a-zA-Z][\w-]*$/.test(firstToken)) return null;
-  return { name: firstToken.slice(1), args: trimmed.slice(firstToken.length).trim() };
-}
 
 /** Source badge for a skill card: bundled skills ship with the product. */
 
@@ -39,67 +29,19 @@ export function SkillAttachmentCard({ skill }: { skill: SkillInfo }): JSX.Elemen
   );
 }
 
-/** Card rendering for a user-triggered slash command ("/init" …). */
-export function CommandCard({
-  name,
-  args,
-  createTime,
-}: {
-  name: string;
-  args: string;
-  createTime?: string;
-}): JSX.Element {
-  const { t } = useI18n();
-  return (
-    <div className="ui-cmd-card">
-      <span className="ui-cmd-card-icon" aria-hidden="true">
-        <IconCommand />
-      </span>
-      <div className="ui-cmd-card-main">
-        <div className="ui-cmd-card-head">
-          <span className="ui-cmd-card-kind">{t("msg.commandBadge")}</span>
-          <span className="ui-cmd-card-name">{name}</span>
-        </div>
-        {args ? <div className="ui-cmd-card-args">{args}</div> : null}
-      </div>
-      {createTime ? <span className="ui-msg-time user">{formatTime(createTime)}</span> : null}
-    </div>
-  );
-}
+// ── 用户消息（demo .user-card：右对齐 accent 淡染卡，引用芯片行内） ──────────
+// wiki/审查报告引用桥会往 prompt 里插入绝对 @ 路径——原文直出噪音很大，
+// 识别两类规范存储（shared 解析器 lib/store-refs.ts，与输入框高亮同源）
+// 渲染成品牌芯片；其余文本照常。
 
-// ── User bubble (QQ-style: right-aligned) ─────────────────────────────────────
-// ── Store references (@…/.deeporca/deepwiki|reviews/…) in user prompts ──────
-// The wiki/report quote bridges insert absolute @-mention paths into the
-// prompt. Rendering those raw paths as plain text is noisy — recognize the
-// two canonical stores (shared parser: lib/store-refs.ts, also powering the
-// composer's reference highlighting) and render branded chips instead.
-
-export function UserBubble({ message }: { message: SessionMessage }): JSX.Element {
+export function UserMessage({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();
   const attachments = Array.isArray(message.contentParams) ? message.contentParams.length : 0;
   const skills = message.meta?.userPrompt?.skills ?? [];
-  const command = parseSlashCommand(message.content || "");
-
-  // Command invocations render as a dedicated card instead of a text bubble.
   const refs = message.content ? extractStoreReferences(message.content) : { hasRefs: false, refs: [] };
-  const body = command ? (
-    <CommandCard name={command.name} args={command.args} createTime={message.createTime} />
-  ) : message.content || attachments > 0 || skills.length === 0 ? (
-    <div className="ui-bubble user">
-      {refs.hasRefs ? (
-        <span style={{ whiteSpace: "pre-wrap" }}>
-          <ReferenceSegments text={message.content ?? ""} refs={refs.refs} />
-        </span>
-      ) : (
-        <span style={{ whiteSpace: "pre-wrap" }}>{message.content || t("msg.noContent")}</span>
-      )}
-      {attachments > 0 ? <span className="ui-bubble-attach">{t("msg.images", { n: attachments })}</span> : null}
-      {message.createTime ? <span className="ui-msg-time user">{formatTime(message.createTime)}</span> : null}
-    </div>
-  ) : null;
 
   return (
-    <div className="ui-bubble-row user">
+    <div className="ui-user-row">
       <div className="ui-user-stack">
         {skills.length > 0 ? (
           <div className="ui-msg-skills">
@@ -108,9 +50,20 @@ export function UserBubble({ message }: { message: SessionMessage }): JSX.Elemen
             ))}
           </div>
         ) : null}
-        {body}
+        <div className="ui-user-card">
+          <div className="txt">
+            {refs.hasRefs ? (
+              <span style={{ whiteSpace: "pre-wrap" }}>
+                <ReferenceSegments text={message.content ?? ""} refs={refs.refs} />
+              </span>
+            ) : (
+              <span style={{ whiteSpace: "pre-wrap" }}>{message.content || t("msg.noContent")}</span>
+            )}
+            {attachments > 0 ? <span className="ui-bubble-attach">{t("msg.images", { n: attachments })}</span> : null}
+          </div>
+          <div className="meta">{message.createTime ? formatTime(message.createTime) : null}</div>
+        </div>
       </div>
-      <Avatar role="user" />
     </div>
   );
 }

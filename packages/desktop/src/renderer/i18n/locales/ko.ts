@@ -427,7 +427,7 @@ export const ko: Record<MessageKey, string> = {
   "build.modelFaultBody":
     "백그라운드 빌드가 모델 서비스 호출에 실패했습니다(시간 초과 / 네트워크 / 인증). 설정에서 엔드포인트와 API 키를 확인한 뒤 재시도하세요. 원본 오류:",
   "build.modelFaultOk": "확인",
-  "activity.title": "활동 기록",
+  "activity.title": "실시간 활동",
   "activity.none": "아직 도구 호출 없음",
   "pip.back": "이 세션으로 돌아가기",
   "pip.blocked": "확인 대기 중",
