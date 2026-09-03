@@ -1256,3 +1256,13 @@ button.ui-surface-chip {
   border: 2px solid var(--ui-surface);
   animation: ui-dot-pulse 1.8s ease-in-out infinite;
 }
+
+/* ── 车道模型（screen-chat）：有实时活动时输入框让出右侧车道 ── */
+.ui-chat-stage.has-live .ui-composer-dock {
+  right: 344px;
+}
+@media (max-width: 900px) {
+  .ui-chat-stage.has-live .ui-composer-dock {
+    right: 26px;
+  }
+}

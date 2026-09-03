@@ -1560,6 +1560,14 @@ export function App(): JSX.Element {
   // The main session conversation — rendered inside the first tab when
   // workspace tabs exist, or as the whole content area when they don't.
   // Extracted so the tab strip (below) never has to duplicate it.
+  // 活动区车道（screen-chat 模型）：只有真实活动（工具调用 / 运行中思考）
+  // 时右侧车道才存在；空闲时会话内容占满全宽，不留空列。
+  const hasLive = useMemo(
+    () =>
+      messages.some((m) => m.role === "tool" && Boolean(buildToolSummary(m).name)) ||
+      (busy && messages.some((m) => m.role === "assistant" && m.meta?.asThinking)),
+    [messages, busy]
+  );
   const chatContent = (
     <>
       <FailureBanner
@@ -2223,7 +2231,7 @@ export function App(): JSX.Element {
             </Suspense>
           </div>
         ) : (
-          <div className="ui-chat-stage">
+          <div className={`ui-chat-stage${hasLive ? " has-live" : ""}`}>
             <InstructionToc messages={messages} />
             <div className="ui-chat-main">
               {planProgress ? (
@@ -2231,7 +2239,7 @@ export function App(): JSX.Element {
               ) : null}
               {chatContent}
             </div>
-            <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} />
+            {hasLive ? <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} /> : null}
           </div>
         )}
       </div>

@@ -9,6 +9,7 @@
 
 /* ── 舞台三栏 ── */
 .ui-chat-stage {
+  position: relative;
   display: flex;
   gap: 12px;
   flex: 1;
@@ -98,12 +99,17 @@
   min-height: 0;
 }
 
-/* ── 活动区（右列，常驻；demo .actcol） ── */
+/* ── 活动区（右上车道覆盖层，screen-chat .live-rail 模型）──
+   只在有真实活动时渲染（App 里 has-live 控制）：绝对定位锚右上，
+   不占 flex 位 —— 空闲时会话内容占满全宽，不留空列。 */
 .ui-actcol {
-  flex: none;
-  width: 316px;
-  margin-right: 12px;
-  padding: 12px 14px 12px 0;
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  bottom: auto;
+  z-index: 40;
+  width: 300px;
+  max-height: calc(100% - 20px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -111,7 +117,6 @@
   overflow: hidden;
   transition:
     width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
-    padding 0.24s,
     opacity 0.2s;
 }
 .ui-actcol-label {
@@ -196,13 +201,14 @@
 }
 .ui-actcol .deck {
   position: relative;
-  width: 100%;
-  flex: 1;
-  min-height: 260px;
+  width: 284px;
+  height: 356px;
+  flex: none;
 }
 .pipwin {
   position: absolute;
   width: 240px;
+  height: 292px;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -429,3 +435,26 @@
 .ui-pinned-plan .pp-step.done .box svg { opacity: 1; }
 .ui-pinned-plan .pp-step.now { color: var(--ui-text); font-weight: 550; }
 .ui-pinned-plan .pp-step.now .box { border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-tint); }
+
+/* ── 车道模型（screen-chat）：has-live 时滚动内容让出右侧车道；窄窗收成
+   计数胶囊。空闲（无 has-live）时活动区不渲染，内容占满全宽。 ── */
+.ui-chat-stage.has-live .ui-chat-main {
+  padding-right: 344px;
+}
+@media (max-width: 900px) {
+  /* 窄窗：指令目录隐藏；车道收回，堆叠折叠为计数胶囊（screen-chat narrow） */
+  .ui-toc {
+    display: none;
+  }
+  .ui-chat-stage.has-live .ui-chat-main {
+    padding-right: 26px;
+  }
+  .ui-actcol {
+    width: auto;
+    align-items: flex-end;
+  }
+  .ui-actcol .deck,
+  .ui-actcol .ui-think-card {
+    display: none;
+  }
+}

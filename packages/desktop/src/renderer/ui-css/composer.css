@@ -23,7 +23,7 @@
    ========================================================================= */
 .ui-composer {
   position: relative;
-  max-width: clamp(320px, 88%, 900px);
+  max-width: clamp(320px, 82%, 760px);
   margin: 0 auto;
 }
 /* ── Chat suggestion bar (flow closure: knowledge build → conversation) ────
