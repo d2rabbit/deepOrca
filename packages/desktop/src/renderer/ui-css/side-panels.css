@@ -916,9 +916,11 @@
 .ui-process-panel {
   display: flex;
   flex-direction: column;
-  max-height: 260px;
+  max-height: 200px;
   min-height: 80px;
-  border-top: 1px solid var(--ui-border-soft);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 12px;
+  overflow: hidden;
   background: var(--ui-surface-sunken);
   animation: ui-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

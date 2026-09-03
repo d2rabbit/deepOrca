@@ -76,8 +76,9 @@ type ActivityWindow = {
 
 /** Maximum live windows kept in the cascade store. */
 const MAX_WINDOWS = 15;
-/** Windows rendered in the cascade — the rest stay reachable via the log. */
-const VISIBLE = 4;
+/** Windows rendered in the rail — collapsed display (user ask 2026-09-03:
+ *  窗体小/活动多时不再摊开，只显示最前一扇，其余在下拉清单按需调出). */
+const VISIBLE = 1;
 
 /**
  * ActivityRail — the resident right column of the chat stage

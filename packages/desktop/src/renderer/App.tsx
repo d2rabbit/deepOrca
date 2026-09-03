@@ -1588,15 +1588,15 @@ export function App(): JSX.Element {
         onQuickAction={handleQuickAction}
         footer={footer}
       />
-      {showProcessPanel ? (
-        <ProcessOutputPanel
-          processes={runningProcesses}
-          stdoutRef={processStdoutRef}
-          onDismiss={() => setShowProcessPanel(false)}
-          platform={platform}
-        />
-      ) : null}
       <div className="ui-composer-dock" ref={composerDockRef}>
+        {showProcessPanel ? (
+          <ProcessOutputPanel
+            processes={runningProcesses}
+            stdoutRef={processStdoutRef}
+            onDismiss={() => setShowProcessPanel(false)}
+            platform={platform}
+          />
+        ) : null}
         {kbSuggest ? (
           <div className="ui-chat-suggest" role="status">
             <span className="ui-chat-suggest-icon" aria-hidden>
