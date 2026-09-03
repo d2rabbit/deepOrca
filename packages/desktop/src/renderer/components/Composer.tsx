@@ -3,7 +3,16 @@ import type { FileMatch, SkillInfo } from "../../shared/ipc";
 import { useI18n, type MessageKey } from "../i18n";
 import { isCompleteStoreRef, splitStoreRefSegments } from "../lib/store-refs";
 import { FileMentionMenu } from "./FileMentionMenu";
-import { Button, IconBook, IconMagicWand, IconPencil, IconShield, IconSparkle, IconTerminal, Switch } from "../ui/index";
+import {
+  Button,
+  IconBook,
+  IconMagicWand,
+  IconPencil,
+  IconShield,
+  IconSparkle,
+  IconTerminal,
+  Switch,
+} from "../ui/index";
 
 type Props = {
   value: string;

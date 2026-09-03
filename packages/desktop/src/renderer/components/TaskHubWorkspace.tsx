@@ -528,7 +528,9 @@ export function TaskHubWorkspace({ root, onOpenQuick, onOpenDesign, onOpenKnowle
                                         <span className="ln" />
                                       </div>
                                       <div className="user-msg">
-                                        <span className="ic"><IconChatBubble /></span>
+                                        <span className="ic">
+                                          <IconChatBubble />
+                                        </span>
                                         <div>
                                           <div className="who">{t("taskhub.userPrompt")}</div>
                                           <div className="txt">{turn.user}</div>
@@ -776,7 +778,9 @@ function TraceStepRow({ step }: { step: TaskTraceStep }): JSX.Element {
       </div>
       {step.nested?.length ? (
         <div className="subagent-block">
-          <div className="sa-head"><IconBot /> subagent</div>
+          <div className="sa-head">
+            <IconBot /> subagent
+          </div>
           <div className="steps">
             {step.nested.map((n, i) => (
               <TraceStepRow key={i} step={n} />

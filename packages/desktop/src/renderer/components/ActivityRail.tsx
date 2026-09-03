@@ -91,7 +91,9 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
         kind: kindOf(summary.name),
         name: summary.name,
         arg: formatToolParams(summary),
-        result: getResultMd(m).replace(/```\w*\n?/g, "").trimEnd(),
+        result: getResultMd(m)
+          .replace(/```\w*\n?/g, "")
+          .trimEnd(),
         ok: summary.ok,
       });
     }
@@ -154,7 +156,9 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
             {visible.map((w) => (
               <article key={w.id} className={`ui-pip k-${w.kind}${w.ok ? "" : " err"}`}>
                 <div className="ph">
-                  <span className="ic"><KindIcon kind={w.kind} /></span>
+                  <span className="ic">
+                    <KindIcon kind={w.kind} />
+                  </span>
                   <span className="tt">{w.name}</span>
                   <span className={`dot ${w.ok ? "ok" : "err"}`} />
                 </div>

@@ -40,7 +40,15 @@ export function SkillAttachmentCard({ skill }: { skill: SkillInfo }): JSX.Elemen
 }
 
 /** Card rendering for a user-triggered slash command ("/init" …). */
-export function CommandCard({ name, args, createTime }: { name: string; args: string; createTime?: string }): JSX.Element {
+export function CommandCard({
+  name,
+  args,
+  createTime,
+}: {
+  name: string;
+  args: string;
+  createTime?: string;
+}): JSX.Element {
   const { t } = useI18n();
   return (
     <div className="ui-cmd-card">
@@ -65,7 +73,6 @@ export function CommandCard({ name, args, createTime }: { name: string; args: st
 // prompt. Rendering those raw paths as plain text is noisy — recognize the
 // two canonical stores (shared parser: lib/store-refs.ts, also powering the
 // composer's reference highlighting) and render branded chips instead.
-
 
 export function UserBubble({ message }: { message: SessionMessage }): JSX.Element {
   const { t } = useI18n();

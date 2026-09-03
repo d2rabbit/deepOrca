@@ -8,7 +8,6 @@
  * Pure + UI-free — 供会话流芯片、输入框镜像层与 @-菜单抑制共用。
  */
 
-
 const CHIP_SOURCE = [
   // ① deeporca 结构化引用（wiki 页 / 审查报告 JSON）—— 引用桥写入，优先级最高
   String.raw`@(?<deep>\S*?[\\/]\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
@@ -68,7 +67,7 @@ export function splitStoreRefSegments(text: string): StoreRefSegment[] {
     const start = m.index ?? 0;
     const end = start + m[0].length;
     if (start > last) segments.push({ kind: "text", text: text.slice(last, start) });
-    const group = m.groups ? Object.keys(m.groups).find((k) => m.groups?.[k] !== undefined) ?? "deep" : "deep";
+    const group = m.groups ? (Object.keys(m.groups).find((k) => m.groups?.[k] !== undefined) ?? "deep") : "deep";
     const kind = chipKind(group, m.groups?.[group] ?? "");
     segments.push({ kind: "ref", ref: { kind, raw: m[0], start, end, label: chipLabel(kind, m[0]) } });
     last = end;
