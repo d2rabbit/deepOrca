@@ -12,7 +12,7 @@
 
 ## 总览
 
-45 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 2 份）：**✅ 21 · 🟡 10 · ⬜ 11 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+47 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 3 份 + 09-04 新增 1 份）：**✅ 21 · 🟡 11 · ⬜ 12 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -128,6 +128,15 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-09-03-motion-react-animation-prestudy.md](./2026-09-03-motion-react-animation-prestudy.md) | Motion for React（`motion` 13.2.0，MIT，Framer Motion 更名延续）对本仓动画增强的预研：能力清单 × 渲染层纯 CSS 现状（68 keyframes/170 transition/零动画库/零退出动画）逐表面对位，P0-P3 分阶段采用方案 + View Transitions API 等备选对比 | 规划落点（未启动）：`renderer/ui/motion.tsx`（LazyMotion strict + MotionConfig reducedMotion）、`components/WorkspaceSheet.tsx`（自 App.tsx 抽出，减行）、Toast/QuickDock/modal 退出动画、hub/PiP 布局动画 | ⬜ | 纯调研留档，无代码变更。结论：**值得引入但定位"编排层"**——进出场/布局/级联归 Motion（首渲染 +<6KB gz，domMax 走动态 chunk），循环装饰动画（呼吸/脉冲/rb-flow）保留 CSS；App.tsx 已 2536 行超 2500 标准，封装必须全落新文件。无依赖可先行项：7 个 ui-css 文件补 prefers-reduced-motion 块 |
+| [2026-09-03-smart-gateway-dual-lane-adaptation.md](./2026-09-03-smart-gateway-dual-lane-adaptation.md) | 「智能网关 × 复杂度双轨（复杂度仲裁 → 轻轨/重轨）」用户提案与本仓的适配方案：网关并入既有 skill 匹配 flash 调用（单调用双 verdict，轻轨零增量调用）；重轨 5 阶段全由原生机制组装（Plan Mode / runSubagent / runBackgroundLlmTask / review 动作 / multi-driver spec），仅新增 `core/routing/gate/` + `session-manager-depth.ts` 编排层；四红线（core UI-free / 前缀缓存瞬态尾部 / fail-open / i18n 6 目录）与 P0-P2 分期，P0 为纯观察、数据决策门 | 规划落点（未启动）：`core/routing/gate/`（新）、`core/session-manager-depth.ts`（新层）、`core/session-manager-skills.ts`（flash 返回扩展）、`core/session-types.ts`（`SessionEntry.lane`）、`core/settings.ts`（`complexityGate` 节）、`core/templates/prompts/depth-lane.md`、desktop lane 徽标 | ⬜ 未消费 → 🟡 | 纯方案留档，零代码变更。**关键发现**：`identifyMatchingSkillNames`（skills.ts:24-153）即提案"轻量预检 Agent"的既有同构先例（轻量模型/低温/JSON/缓存/fail-open），复杂度评分可并入同一 flash 调用实现"零增量成本轻轨"；重轨不引入 LangGraph。**2026-09-03 已按总口径落 spec**：`specs/next-version/depth-lane/`（design+tasks，P0 纯观察先行、数据决策门定 P1） |
+
+---
+
+## 2026-09-04 · backpass 记忆审计伴生工具
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-04-backpass-integration-feasibility.md](./2026-09-04-backpass-integration-feasibility.md) | kunchenguid/backpass（MIT，0.1.16/0.1.17，Node≥22.5，CLI 本地记忆优化：扫描 Claude/Codex/Pi/OpenCode/Grok/Cursor CLI/Hermes 会话→证据聚合→proposal→审核写回）对本仓的集成可行性：不必须集成；推荐 P0 只读 status/scan → P1 显式 analyze/propose → P2 受控 apply 的 L1/L2 受控 CLI sidecar 姿态，全程不碰 core、不新增内置 MCP、不自动 apply、注册 root 界定运行目录 | 规划落点（未启动）：`desktop/main/tools/`（受控 spawn backpass）、桌面 proposal/预算展示（仅 L1/L2 时） | ⬜ | 纯调研留档，无代码变更。**关键结论**：DeepOrca 自有 sessions 不在 backpass 支持列表（要学习需上游贡献正式 transcript adapter）；`apply` 不是 DeepOrca 原生权限流程；npm latest(0.1.16) 与 GitHub tag(0.1.17) 不同步；transcript 脱敏非安全保证，会经 `acpx` 发外部 harness。调研仅供参考，实现以 specs/ 为准 |
 
 ---
 
