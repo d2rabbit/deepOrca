@@ -572,15 +572,17 @@ button.ui-surface-chip {
    whichever surface is outermost. */
 .ui-hub-rail {
   position: absolute;
-  top: calc(var(--ui-cockpit-h) + 8px);
-  bottom: 14px;
   left: var(--ui-hub-inset);
-  width: var(--ui-hub-rail-w);
+  right: var(--ui-hub-inset);
+  bottom: 14px;
+  top: auto;
+  height: 52px;
+  width: auto;
   z-index: 31;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  padding: 10px 6px 8px;
+  padding: 5px 10px;
   border-radius: 16px;
   background: color-mix(in srgb, var(--ui-surface, #fff) 86%, transparent);
   backdrop-filter: blur(20px) saturate(1.25);
@@ -602,20 +604,22 @@ button.ui-surface-chip {
   flex: none;
   font-size: 17px;
   line-height: 1;
-  margin-bottom: 8px;
+  margin: 0 10px 0 2px;
   color: var(--ui-accent);
 }
 
 /* Vertical module list — the single glowing column. */
 .ui-hub-rail-items {
   flex: 1;
-  min-height: 0;
+  min-width: 0;
   width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: center;
   gap: 2px;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 .ui-hub-rail-items::-webkit-scrollbar {
@@ -623,14 +627,14 @@ button.ui-surface-chip {
 }
 .ui-hub-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 46px;
-  padding: 7px 2px 6px;
+  gap: 7px;
+  min-height: 34px;
+  padding: 5px 12px;
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: 9px;
   background: transparent;
   color: var(--ui-text-dim);
   font-size: 10px;
@@ -680,7 +684,7 @@ button.ui-surface-chip {
 /* Rail bottom ⟨ — collapses the whole hub back to just the orb. */
 .ui-hub-collapse {
   flex: none;
-  margin-top: 6px;
+  margin: 0 0 0 8px;
 }
 
 /* Level 2 — the content card extending out beside the rail. Anchored to the
@@ -689,9 +693,10 @@ button.ui-surface-chip {
 .ui-hub-flyout {
   position: absolute;
   top: calc(var(--ui-cockpit-h) + 8px);
-  bottom: 14px;
-  left: calc(var(--ui-hub-inset) + var(--ui-hub-rail-w) + var(--ui-hub-gap));
-  width: var(--ui-panel-w, 320px);
+  bottom: calc(14px + 52px + 10px);
+  left: var(--ui-hub-inset);
+  width: var(--ui-panel-w, 280px);
+  border-radius: 14px;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -1279,4 +1284,9 @@ button.ui-surface-chip {
 }
 .ui-chat-stage.welcome-mode .ui-conversation {
   padding-bottom: 24px !important;
+}
+
+/* ── 底部 hub dock：会话态输入框上移让位（欢迎态居中布局自理）── */
+.ui-shell.panel-open .ui-chat-stage:not(.welcome-mode) .ui-composer-dock {
+  bottom: calc(14px + 52px + 10px);
 }
