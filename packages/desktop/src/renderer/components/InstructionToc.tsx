@@ -1,7 +1,5 @@
 import { useMemo, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
-import { useI18n } from "../i18n";
-import { IconList } from "../ui/index";
 
 type Props = {
   /** Full transcript of the active session — entries derive from user turns. */
@@ -18,11 +16,10 @@ function entryText(message: SessionMessage): string {
   return (line ?? "").slice(0, 48);
 }
 
-/** 指令目录 — left column of the chat stage: one entry per user instruction,
- *  click scrolls the conversation to that turn (designs/chat-redesign V4).
- *  Borderless resident column — only its entries carry surfaces. */
-export function InstructionToc({ messages }: Props): JSX.Element {
-  const { t } = useI18n();
+/** 指令目录 — 会话区左列：每条用户指令一个条目，点击定位对应回合
+ *  （designs/chat-redesign V4）。无边框隐形容器，仅条目有表面；
+ *  没有指令时整列不渲染（默认隐藏，开始对话后才出现），也不带标题。 */
+export function InstructionToc({ messages }: Props): JSX.Element | null {
   const entries = useMemo(
     () =>
       messages
@@ -32,36 +29,30 @@ export function InstructionToc({ messages }: Props): JSX.Element {
     [messages]
   );
 
+  if (entries.length === 0) return null;
+
   const jump = (id: string): void => {
     document.querySelector(`[data-mid="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <aside className="ui-toc" aria-label={t("toc.title")}>
-      <div className="ui-toc-head">
-        <IconList />
-        <span>{t("toc.title")}</span>
-      </div>
+    <aside className="ui-toc" aria-label="toc">
       <div className="ui-toc-list">
-        {entries.length === 0 ? (
-          <div className="ui-toc-empty">{t("toc.empty")}</div>
-        ) : (
-          entries.map((e, i) => (
-            <div
-              key={e.id}
-              className="ui-toc-item"
-              onClick={() => jump(e.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(ev) => {
-                if (ev.key === "Enter" || ev.key === " ") jump(e.id);
-              }}
-            >
-              <span className="n">{i + 1}</span>
-              <span className="tt">{e.text}</span>
-            </div>
-          ))
-        )}
+        {entries.map((e, i) => (
+          <div
+            key={e.id}
+            className="ui-toc-item"
+            onClick={() => jump(e.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter" || ev.key === " ") jump(e.id);
+            }}
+          >
+            <span className="n">{i + 1}</span>
+            <span className="tt">{e.text}</span>
+          </div>
+        ))}
       </div>
     </aside>
   );

@@ -26,32 +26,13 @@
   min-height: 0;
   overflow: hidden;
 }
-.ui-toc-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 13px 7px;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: var(--ui-text-faint);
-}
-.ui-toc-head svg {
-  width: 11px;
-  height: 11px;
-}
 .ui-toc-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 7px 9px;
+  padding: 9px 7px 9px;
   display: flex;
   flex-direction: column;
   gap: 3px;
-}
-.ui-toc-empty {
-  padding: 10px 9px;
-  font-size: 11.5px;
-  color: var(--ui-text-faint);
 }
 .ui-toc-item {
   display: flex;
