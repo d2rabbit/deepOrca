@@ -12,7 +12,7 @@ import { UserMessage } from "./message/UserMessage";
 import { ThinkingBlock } from "./message/ThinkingRow";
 import { AssistantMessage } from "./message/AssistantMessage";
 import { FlowEventRow } from "./message/FlowEventRow";
-import { SystemNote, SkillLoadedCard } from "./message/SystemNote";
+import { SystemNote, SkillLoadedCard, CommandEchoNote } from "./message/SystemNote";
 import { extractA2uiPayload, extractA2uiSummary } from "./message/a2ui";
 
 // Lazy-load A2UI Surface renderer — only needed when agent produces A2UI output.
@@ -77,14 +77,16 @@ export const Message = memo(function Message({
       }
     }
 
-    // demo-flow: EVERY tool call is a one-line flow row — the full internal
-    // content lives only in the activity-rail pip window (same message).
+    // demo-flow: EVERY tool call is a one-line flow row. The row itself is
+    // clickable and expands the params + full result inline (user ask
+    // 2026-09-03); the activity-rail pip window stays the live projection
+    // of the same message while the run is streaming.
     return <FlowEventRow message={message} />;
   }
 
   if (message.role === "system") {
     if (message.meta?.isModelChange) {
-      return <SystemNote>{message.content || ""}</SystemNote>;
+      return <CommandEchoNote content={message.content || ""} />;
     }
     if (message.meta?.skill) {
       return <SkillLoadedCard skill={message.meta.skill} />;

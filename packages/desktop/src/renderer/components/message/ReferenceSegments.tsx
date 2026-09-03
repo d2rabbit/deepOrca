@@ -5,14 +5,15 @@
 import type { CSSProperties, JSX, ReactNode } from "react";
 import type { StoreRefKind, StoreRefToken } from "../../lib/store-refs";
 import { splitStoreRefSegments } from "../../lib/store-refs";
-import { IconBook, IconPencil, IconShield, IconSparkle, IconToolGeneric } from "../../ui/index";
+import { IconBook, IconFile, IconShield, IconSlashCommand, IconSparkle } from "../../ui/index";
 
-/** kind → 图标/种类名/着色。五类：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫。 */
+/** kind → 图标/种类名/着色。五类：wiki 蓝 · 审查 绿 · 文件 石墨 · 命令 橙 · 技能 紫。
+ *  每类一个专属轮廓 icon（user ask 2026-09-03：文件/命令不再借用工具/铅笔 glyph）。 */
 const KIND_META: Record<StoreRefKind, { icon: ReactNode; kindText: string; color: string }> = {
   wiki: { icon: <IconBook />, kindText: "Wiki", color: "var(--ui-accent, #3b82f6)" },
   review: { icon: <IconShield />, kindText: "审查报告", color: "var(--dot-review, #2f9e44)" },
-  file: { icon: <IconToolGeneric />, kindText: "文件", color: "#5f6b7a" },
-  cmd: { icon: <IconPencil />, kindText: "命令", color: "#e8590c" },
+  file: { icon: <IconFile />, kindText: "文件", color: "#5f6b7a" },
+  cmd: { icon: <IconSlashCommand />, kindText: "命令", color: "#e8590c" },
   skill: { icon: <IconSparkle />, kindText: "技能", color: "#9a36b8" },
 };
 

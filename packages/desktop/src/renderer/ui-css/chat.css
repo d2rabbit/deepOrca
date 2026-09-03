@@ -1835,6 +1835,92 @@ button.ui-tool-head:hover {
   padding-left: 14px;
   border-left: 2px solid color-mix(in srgb, var(--ui-border-soft) 75%, transparent);
 }
+/* 回合底部 fork 操作行（user ask 2026-09-03 十一轮）：安静的图标级行，
+   只在回合完成后出现；点开变紧凑表单（why + 双模式 + 执行）。 */
+.ui-turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-left: 0;
+  min-height: 24px;
+}
+.ui-turn-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease);
+}
+.ui-turn-action-btn:hover {
+  color: var(--ui-accent);
+  background: var(--ui-surface-hover);
+  border-color: color-mix(in srgb, var(--ui-accent) 25%, transparent);
+}
+.ui-turn-action-btn.go {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+}
+.ui-turn-action-btn.go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* 收缩态图标按钮（user ask 2026-09-03 十二轮）：更小更安静。 */
+.ui-turn-action-btn.icon {
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.ui-turn-fork-why {
+  min-width: 180px;
+  max-width: 320px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--ui-text-primary);
+  background: var(--ui-input-bg, var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-turn-fork-why:focus {
+  border-color: var(--ui-accent);
+}
+.ui-turn-mode-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease),
+    border-color 0.13s var(--ui-ease);
+}
+.ui-turn-mode-pill.on {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 9%, transparent);
+}
+.ui-turn-fork-error {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: var(--ui-danger);
+}
 /* Flatten the per-message chrome inside the execution block: no avatar rail,
    transparent bubbles, tighter rhythm. Tool/thinking cards keep their
    function but lose the card-on-card nesting. */
@@ -1924,16 +2010,20 @@ button.ui-tool-head:hover {
   font-size: 11px;
 }
 
-/* ── Store reference chips (@…/.deeporca/deepwiki|reviews/… in user prompts) ── */
+/* ── Store reference chips (@…/.deeporca/deepwiki|reviews/… in user prompts) ──
+   单行水平芯片（user ask 2026-09-03 五轮）：kind + 标签同行，整枚高度
+   ≈20px，落在正文行高（14px×1.65≈23px）之内——旧的双行堆叠比行高还高，
+   会垂直压到相邻行文字；旧背景还是 72% 半透明（输入框镜像层的取值），
+   重叠时后面的文字会透出来。 */
 .ui-ref-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   padding: 3px 10px 3px 7px;
   margin: 2px 2px;
   border-radius: 9px;
   border: 1px solid color-mix(in srgb, var(--ui-accent, #3b82f6) 32%, transparent);
-  background: color-mix(in srgb, var(--ui-surface-raised, #fff) 72%, transparent);
+  background: var(--ui-surface-raised, #fff); /* 实心——不透底 */
   vertical-align: middle;
   max-width: 100%;
 }
@@ -1949,17 +2039,27 @@ button.ui-tool-head:hover {
 }
 .ui-ref-chip .ui-ref-chip-body {
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 5px;
   line-height: 1.25;
   min-width: 0;
 }
 .ui-ref-chip .ui-ref-chip-kind {
+  flex: none;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ui-accent, #3b82f6);
   opacity: 0.85;
+}
+/* kind 与名称之间的轻分隔点（“审查报告 · 2026/09/02 01:03”） */
+.ui-ref-chip .ui-ref-chip-kind::after {
+  content: "·";
+  margin-left: 5px;
+  font-weight: 400;
+  color: var(--ui-text-faint);
 }
 .ui-ref-chip .ui-ref-chip-label {
   font-size: 11.5px;
@@ -1996,67 +2096,116 @@ button.ui-tool-head:hover {
   color: #9a36b8;
 }
 
-
-  /* ── ① AI 去气泡：回复即页面（designs/chat-redesign V4）──
+/* ── ① AI 去气泡：回复即页面（designs/chat-redesign V4）──
      assistant 的 markdown 直接铺在会话底上，仅保留留白节奏；
      用户消息保持唯一气泡。 */
-  .ui-bubble-row.assistant .ui-bubble {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  /* 行为流缩略行：动词 + 目标，类型色图标（与活动区同一色表） */
-  .ui-tool-card .ui-tool-icon { border-radius: 6px; }
-  .ui-tool-card.bash .ui-tool-icon { color: #e8590c; }
-  .ui-tool-card.read .ui-tool-icon { color: #1c6fe0; }
-  .ui-tool-card.write .ui-tool-icon { color: #d6386c; }
-  .ui-tool-card.edit .ui-tool-icon { color: #d6386c; }
-  .ui-tool-card.grep, .ui-tool-card.search { --kc: #0ca678; }
-  .ui-tool-card.search .ui-tool-icon, .ui-tool-card.grep .ui-tool-icon { color: #0ca678; }
-  .ui-tool-card.mcp .ui-tool-icon { color: #1098ad; }
-  .ui-tool-card.plan .ui-tool-icon, .ui-tool-card.ask .ui-tool-icon { color: #9a36b8; }
-  .ui-tool-verb { font-weight: 650; flex: none; color: var(--ui-text); }
+.ui-bubble-row.assistant .ui-bubble {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* 行为流缩略行：动词 + 目标，类型色图标（与活动区同一色表） */
+.ui-tool-card .ui-tool-icon {
+  border-radius: 6px;
+}
+.ui-tool-card.bash .ui-tool-icon {
+  color: #e8590c;
+}
+.ui-tool-card.read .ui-tool-icon {
+  color: #1c6fe0;
+}
+.ui-tool-card.write .ui-tool-icon {
+  color: #d6386c;
+}
+.ui-tool-card.edit .ui-tool-icon {
+  color: #d6386c;
+}
+.ui-tool-card.grep,
+.ui-tool-card.search {
+  --kc: #0ca678;
+}
+.ui-tool-card.search .ui-tool-icon,
+.ui-tool-card.grep .ui-tool-icon {
+  color: #0ca678;
+}
+.ui-tool-card.mcp .ui-tool-icon {
+  color: #1098ad;
+}
+.ui-tool-card.plan .ui-tool-icon,
+.ui-tool-card.ask .ui-tool-icon {
+  color: #9a36b8;
+}
+.ui-tool-verb {
+  font-weight: 650;
+  flex: none;
+  color: var(--ui-text);
+}
 
 /* ===========================================================================
-   会话流（designs/chat-redesign demo-flow 一比一）：用户卡 / AI 名牌行 /
+   会话流（designs/chat-redesign demo-flow）：人类指令条 / AI 名牌行 /
    行为流时间线（.ui-flow + .ui-ev）/ 思考缩略行 / 系统行
    =========================================================================== */
-.ui-user-row {
+/* 人类指令条（user ask 2026-09-03 七轮：弱化聊天感）—— 不再是右侧气泡，
+   整幅左起的指令头：accent 竖条 + 指令名（mono）/ 正文 + 右端时间。
+   它开启一个回合，读起来像指令而不是聊天消息。 */
+.ui-directive {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 14px 0 4px;
   scroll-margin-top: 60px;
 }
-.ui-user-stack {
+.ui-directive .ui-msg-skills {
+  justify-content: flex-start;
+}
+.ui-directive-main {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  max-width: 78%;
+  align-items: baseline;
+  gap: 12px;
   min-width: 0;
+  padding: 6px 14px 6px 12px;
+  border-left: 3px solid var(--ui-accent);
+  /* 指令行为区块（user ask 2026-09-03 十轮）：accent 淡染的独立底色 ——
+     与 AI 正文（裸舞台）明确分层，读作"指令块"而不是聊天气泡；
+     主题自适应（--ui-accent 随主题走）。 */
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border-radius: 0 9px 9px 0;
 }
-.ui-user-card {
-  width: 100%;
-  background: var(--ui-accent-tint);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent);
-  border-radius: 16px 16px 5px 16px;
-  padding: 10px 15px 9px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  animation: rise 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+.ui-directive-cmd {
+  flex: none;
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ui-accent);
 }
-.ui-user-card .txt {
+.ui-directive-args {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ui-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-directive-text {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   line-height: 1.65;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  color: var(--ui-text);
 }
-.ui-user-card .meta {
-  display: flex;
-  justify-content: flex-end;
-  font-size: 10.5px;
+.ui-directive-time {
+  flex: none;
+  margin-left: auto;
+  font-size: 11px;
   color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .ui-ai-row {
@@ -2074,17 +2223,8 @@ button.ui-tool-head:hover {
   color: var(--ui-text-faint);
   min-height: 20px;
 }
-.ui-ai-mark {
-  width: 20px;
-  height: 20px;
-  border-radius: 7px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--ui-accent), #7048e8);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-}
+/* AI 名牌头像（.ui-ai-mark）已随去拟人化移除（user ask 2026-09-03 十轮）——
+   名牌行只留名字/时间/状态。 */
 .ui-ai-id .who {
   font-weight: 700;
   color: var(--ui-text-secondary);
@@ -2152,13 +2292,27 @@ button.ui-tool-head:hover {
   height: 11px;
   color: var(--kc, var(--ui-text-dim));
 }
-.ui-ev.k-bash { --kc: #e8590c; }
-.ui-ev.k-read { --kc: #1c6fe0; }
-.ui-ev.k-edit { --kc: #d6386c; }
-.ui-ev.k-grep { --kc: #0ca678; }
-.ui-ev.k-mcp { --kc: #1098ad; }
-.ui-ev.k-doc { --kc: #5f6b7a; }
-.ui-ev.k-think { --kc: #7048e8; }
+.ui-ev.k-bash {
+  --kc: #e8590c;
+}
+.ui-ev.k-read {
+  --kc: #1c6fe0;
+}
+.ui-ev.k-edit {
+  --kc: #d6386c;
+}
+.ui-ev.k-grep {
+  --kc: #0ca678;
+}
+.ui-ev.k-mcp {
+  --kc: #1098ad;
+}
+.ui-ev.k-doc {
+  --kc: #5f6b7a;
+}
+.ui-ev.k-think {
+  --kc: #7048e8;
+}
 .ui-ev .verb {
   font-weight: 650;
   flex: none;
@@ -2244,6 +2398,96 @@ button.ui-tool-head:hover {
   color: var(--ui-text-dim);
 }
 
+/* 行为行点开（user ask 2026-09-03）：整行可点，展开完整参数与结果 */
+.ui-ev.ev-open {
+  flex-wrap: wrap;
+}
+.ui-ev .ui-ev-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.ui-ev .ui-ev-toggle:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-ev .ev-chev {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-ev .ev-body {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-top: 1px dashed var(--ui-border-soft);
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+  max-height: 46vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.ui-ev .ev-body .ev-params {
+  margin: 0 0 6px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* write/edit 展开体里 diff 之上的结果短注（"Updated file." 等） */
+.ui-ev .ev-body .ev-result-note,
+.pipwin .pb .ev-result-note {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+/* 行为行内的文件芯片（user ask 2026-09-03 五轮）：紧凑一档，
+   不带外边距——行距由 .ui-ev 自身控制。 */
+.ui-ev .ui-ref-chip.ev-file {
+  margin: 0;
+  padding: 1px 8px 1px 6px;
+  gap: 5px;
+  min-width: 0;
+}
+.ui-ev .ui-ref-chip.ev-file .ui-ref-chip-icon svg {
+  width: 12px;
+  height: 12px;
+}
+.ui-ev .ui-ref-chip.ev-file .ui-ref-chip-label {
+  font-size: 11px;
+  max-width: 280px;
+}
+/* 思考行可点性强化：hover 底色 + 箭头放大着色（user ask 2026-09-03 五轮） */
+.ui-ev .ui-ev-think-toggle {
+  border-radius: 9px;
+  transition: background 0.12s ease;
+}
+.ui-ev .ui-ev-think-toggle:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-ev .ui-ev-think-toggle:hover .think-chev,
+.ui-ev.k-think.think-open .think-chev {
+  color: var(--ui-accent);
+}
+.ui-ev .think-chev {
+  font-size: 11px;
+}
+
 /* 系统行：两侧发丝线（demo .sysnote） */
 .ui-bubble-row.system {
   display: flex;
@@ -2262,6 +2506,19 @@ button.ui-tool-head:hover {
   flex: 1;
   height: 0;
   border-top: 1px solid var(--ui-border-soft);
+}
+/* 指令回显便签中的命令词徽章（/model 等 system 回显，CommandEchoNote） */
+.ui-system-note .ui-note-cmd {
+  flex: none;
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-pill, 999px);
+  padding: 0 7px;
+  line-height: 16px;
 }
 
 /* ── 欢迎页（参考 ZCode 式布局）：居中、轻松、不表格化 ── */
@@ -2305,7 +2562,9 @@ button.ui-tool-head:hover {
   color: var(--ui-text-dim);
   font-size: 12.5px;
   cursor: pointer;
-  transition: color 0.18s, border-color 0.18s;
+  transition:
+    color 0.18s,
+    border-color 0.18s;
 }
 .ui-welcome-chip:hover {
   color: var(--ui-accent);

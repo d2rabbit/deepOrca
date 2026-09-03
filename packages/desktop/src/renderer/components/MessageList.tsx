@@ -3,7 +3,7 @@ import type { SessionMessage } from "../../shared/ipc";
 import type { ReasoningMode } from "../lib/appearance";
 import { findExpandedThinkingId } from "../lib/messages";
 import { Message } from "./Message";
-import { TaskTurn, groupTurns } from "./TaskTurn";
+import { TaskTurn, groupTurns, type TurnForkMode } from "./TaskTurn";
 import { useI18n } from "../i18n";
 import {
   IconWelcomePlan,
@@ -70,6 +70,8 @@ type Props = {
   /** True while the session is busy (tokens, tools, compaction) — forwarded
    *  to the last message so its markdown can show the streaming caret. */
   streaming?: boolean;
+  /** 回合完成后的 fork 入口（user ask 2026-09-03 十一轮）。 */
+  onTurnFork?: (commandText: string, why: string, mode: TurnForkMode) => Promise<string | null>;
 };
 
 /** 时间问候语（欢迎页标题；参考 ZCode 欢迎式的轻松开场）。 */
@@ -97,6 +99,7 @@ export const MessageList = memo(function MessageList({
   footer,
   compacting = false,
   streaming = false,
+  onTurnFork,
 }: Props): JSX.Element {
   const { t } = useI18n();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -284,6 +287,7 @@ export const MessageList = memo(function MessageList({
                 streaming={streaming}
                 reasoningMode={reasoningMode}
                 expandedThinkingId={expandedThinkingId}
+                onFork={onTurnFork}
               />
             </div>
           );

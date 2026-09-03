@@ -1,8 +1,8 @@
 /**
  * shared — 拆分自 Message.tsx（落地实施方案 §八）。
  * 会话流共用的小件：Markdown 体、头像、规范工具分类器与图标、动词表、
- * 文本格式化工具。demo-flow 对齐后，工具调用的完整内容只渲染在右侧
- * 活动小窗 —— 这里不再承载内联大卡。
+ * 文本格式化工具。工具调用的完整内容在行为行展开体（FlowEventRow
+ * ev-body）与右侧活动小窗各渲染一份 —— 缩略行之外不再有内联大卡。
  */
 import type { JSX } from "react";
 import type { MessageKey } from "../../i18n";

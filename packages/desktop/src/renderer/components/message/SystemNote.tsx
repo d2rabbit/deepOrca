@@ -27,6 +27,23 @@ export function SystemNote({ children }: { children: React.ReactNode }): JSX.Ele
   );
 }
 
+// ── 指令回显便签（user ask 2026-09-03 强化）──────────────────────────────────
+// setModel 等指令回写 "/model\n└ <本地化消息>" 形态的 system 消息；拆出
+// 命令词渲染成 mono 徽章、剥掉 └ 前缀，避免裸 "/model └" 技术串直出。
+export function CommandEchoNote({ content }: { content: string }): JSX.Element {
+  const m = content.match(/^\/([a-zA-Z][\w-]*)\s*(?:\n+\u2514?\s*)?([\s\S]*)$/);
+  if (!m || !m[2]) return <SystemNote>{content}</SystemNote>;
+  return (
+    <SystemNote>
+      {/* 只展示指令名，不带 "/"（user ask 2026-09-03 四轮） */}
+      <span className="ui-note-cmd" aria-hidden="true">
+        {m[1]}
+      </span>
+      {m[2]}
+    </SystemNote>
+  );
+}
+
 // ── Skill loaded card (system message with meta.skill) ───────────────────────
 export function SkillLoadedCard({ skill }: { skill: SkillInfo }): JSX.Element {
   const { t } = useI18n();

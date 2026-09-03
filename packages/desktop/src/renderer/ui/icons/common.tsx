@@ -440,6 +440,17 @@ export function IconTerminal(): JSX.Element {
   );
 }
 
+/** Slash prompt "/_" — slash-command references & command capsules. Distinct
+ *  from IconTerminal's ">_" so 指令 reads differently from shell 执行. */
+export function IconSlashCommand(): JSX.Element {
+  return (
+    <svg {...S}>
+      <path d="M12.8 3.6 7.2 16.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M4.8 16.5h6.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** Chevron down — expandable affordances (pinned plan, dropdowns) */
 export function IconChevronDown(): JSX.Element {
   return (

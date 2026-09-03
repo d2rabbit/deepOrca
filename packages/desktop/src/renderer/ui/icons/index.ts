@@ -94,6 +94,7 @@ export {
   IconSparkle,
   IconList,
   IconTerminal,
+  IconSlashCommand,
   IconChevronDown,
   IconRefresh,
   IconPulse,

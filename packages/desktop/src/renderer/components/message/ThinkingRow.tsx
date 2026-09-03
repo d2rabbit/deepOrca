@@ -27,8 +27,16 @@ export function ThinkingBlock({
   streaming?: boolean;
 }): JSX.Element | null {
   const { t } = useI18n();
+  // Effective reasoning text: some model families (e.g. StepFun) deliver the
+  // trace via messageParams.reasoning_content while message.content stays
+  // EMPTY — summary already falls back there, but the body/char-count used
+  // raw content, so those rows showed a summary yet could never expand
+  // (user report 2026-09-03 五轮). One effective text feeds all three.
+  const params = messageParams as { reasoning_content?: unknown } | null | undefined;
+  const reasoningParam = typeof params?.reasoning_content === "string" ? params.reasoning_content : "";
+  const text = content || reasoningParam;
   const summary = buildThinkingSummary(content, messageParams);
-  const charCount = content.length;
+  const charCount = text.length;
   // demo 形态：默认一行缩略；reasoningMode "expanded" 强制展开，"hidden"
   // 整块隐藏（/raw 循环切换 normal → expanded → hidden）。
   const [expanded, setExpanded] = useState(reasoningMode === "expanded");
@@ -39,9 +47,11 @@ export function ThinkingBlock({
   }, [reasoningMode]);
 
   // 展开旧思考块时把顶部滚入视野。block: "nearest" 不劫持滚动位置。
+  // scrollIntoView optional-call：非浏览器宿主（测试/jsdom）缺该方法时
+  // 不能让展开效果抛错——effect 抛错会把整棵子树打回重挂、视觉上弹回复折。
   useEffect(() => {
     if (expanded && bodyRef.current && !isLatest) {
-      bodyRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      bodyRef.current.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
     }
   }, [expanded, isLatest]);
 
@@ -67,9 +77,9 @@ export function ThinkingBlock({
             {expanded ? "▾" : "▸"}
           </span>
         </button>
-        {expanded && content ? (
+        {expanded && text ? (
           <div className="think-body" ref={bodyRef}>
-            <Md text={content} isAnimating={streaming} />
+            <Md text={text} isAnimating={streaming} />
           </div>
         ) : null}
       </div>

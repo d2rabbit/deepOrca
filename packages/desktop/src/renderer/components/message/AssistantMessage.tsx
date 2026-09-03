@@ -57,9 +57,8 @@ export function AssistantMessage({
   return (
     <div className="ui-ai-row">
       <div className="ui-ai-id">
-        <span className="ui-ai-mark" aria-hidden="true">
-          orc
-        </span>
+        {/* 头像已去除（user ask 2026-09-03 十轮）—— 名牌行只留名字/时间/
+            状态，回答即页面，不做拟人标识。 */}
         <span className="who">{t("app.name")}</span>
         {message.createTime ? <span className="tm">{formatTime(message.createTime)}</span> : null}
         {streaming ? (
