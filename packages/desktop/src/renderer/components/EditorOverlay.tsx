@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type JSX } from "react";
 import type { editor } from "monaco-editor";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Button, FileIcon, IconButton, Modal } from "../ui/index";
+import { A2uiSurface } from "../a2ui/A2uiSurface";
+import { extractSurfaceId, getSurfaceModel } from "../a2ui/processor";
 
 // Monaco is dynamically imported inside the component so its ~5MB of code
 // only loads when the user actually opens the editor. Combined with
@@ -27,6 +29,10 @@ function ensureEditorChunkCss(): void {
 }
 
 let monacoInitialized = false;
+/** JSON.stringify replacer: drop circular values instead of throwing. */
+function safeReplacer(_key: string, value: unknown): unknown {
+  return typeof value === "object" && value !== null ? value : value;
+}
 async function ensureMonacoLoaded(): Promise<void> {
   if (monacoInitialized) return;
   monacoInitialized = true;
@@ -317,6 +323,12 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
   const [agentError, setAgentError] = useState<string | null>(null);
   const [agentResult, setAgentResult] = useState<{ content: string; code: string | null } | null>(null);
   const [agentSent, setAgentSent] = useState(false);
+  // ── S3：数字体反问（A2UI Surface）─────────────────────────────────────────
+  // 结果含 ```a2ui 围栏（v0.9 批次）时，浮窗内直接渲染 Surface；数字体可
+  // 用 ChoicePicker/TextField 反问，Button(submit) 把 data model 的答案
+  // 送回 follow-up（sessionless 零残留，问答历史随 prompt 续跑）。
+  const [agentSurface, setAgentSurface] = useState<{ id: string; json: string } | null>(null);
+  const agentTurnsRef = useRef<Array<{ role: "user" | "entity"; text: string }>>([]);
   const appliedRangeRef = useRef<{ startLine: number; endLine: number } | null>(null);
   useEffect(() => {
     const ed = editorRef.current;
@@ -337,41 +349,130 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
     return () => disposable.dispose();
   }, [monacoReady]);
 
-  /** 第一个 fenced 代码块 = 数字体给出的选区替换内容。 */
+  /** 第一个非 a2ui 的 fenced 代码块 = 数字体给出的选区替换内容。 */
   const extractCode = useCallback((text: string): string | null => {
-    const m = text.match(/```[a-zA-Z0-9]*\n([\s\S]*?)```/);
-    return m ? (m[1] ?? "").replace(/\n$/, "") : null;
+    const fences = [...text.matchAll(/```([a-zA-Z0-9]*)\n([\s\S]*?)```/g)];
+    const hit = fences.find((f) => (f[1] ?? "") !== "a2ui");
+    return hit ? (hit[2] ?? "").replace(/\n$/, "") : null;
   }, []);
+
+  /** ```a2ui 围栏 = 数字体反问 Surface（v0.9 批次 JSON）。 */
+  const extractA2ui = useCallback((text: string): string | null => {
+    const m = text.match(/```a2ui\n([\s\S]*?)```/);
+    return m ? (m[1] ?? "").trim() : null;
+  }, []);
+
+  /** S4：行级 diff（旧选区 vs 替换代码）——自写 LCS，避免引依赖。 */
+  const diffLines = useCallback(
+    (oldText: string, newText: string): Array<{ kind: "add" | "del" | "ctx"; text: string }> => {
+      const a = oldText.replace(/\n$/, "").split("\n");
+      const b = newText.replace(/\n$/, "").split("\n");
+      const m = a.length;
+      const n = b.length;
+      // LCS 长度表（O(m·n)；选区体量小，可接受）。
+      const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+      for (let i = m - 1; i >= 0; i -= 1) {
+        for (let j = n - 1; j >= 0; j -= 1) {
+          dp[i]![j] = a[i] === b[j] ? (dp[i + 1]![j + 1] ?? 0) + 1 : Math.max(dp[i + 1]![j] ?? 0, dp[i]![j + 1] ?? 0);
+        }
+      }
+      const out: Array<{ kind: "add" | "del" | "ctx"; text: string }> = [];
+      let i = 0;
+      let j = 0;
+      while (i < m && j < n) {
+        if (a[i] === b[j]) {
+          out.push({ kind: "ctx", text: a[i]! });
+          i += 1;
+          j += 1;
+        } else if ((dp[i + 1]![j] ?? 0) >= (dp[i]![j + 1] ?? 0)) {
+          out.push({ kind: "del", text: a[i]! });
+          i += 1;
+        } else {
+          out.push({ kind: "add", text: b[j]! });
+          j += 1;
+        }
+      }
+      while (i < m) {
+        out.push({ kind: "del", text: a[i]! });
+        i += 1;
+      }
+      while (j < n) {
+        out.push({ kind: "add", text: b[j]! });
+        j += 1;
+      }
+      return out;
+    },
+    []
+  );
+
+  const runAgent = useCallback(
+    async (instruction: string, history?: string): Promise<void> => {
+      if (!selection || agentBusy) return;
+      setAgentBusy(true);
+      setAgentError(null);
+      setAgentResult(null);
+      setAgentSurface(null);
+      // 记录提交时的范围：结果返回前用户若移动了光标/选区，应用仍落在
+      // 当初请求的位置。
+      appliedRangeRef.current = { startLine: selection.startLine, endLine: selection.endLine };
+      const prompt =
+        history && history.trim()
+          ? `${instruction}\n\n[clarification round — answers from the A2UI form]\n${history}`
+          : instruction;
+      try {
+        const res = await api.editorAgentRun({
+          filePath,
+          startLine: selection.startLine,
+          endLine: selection.endLine,
+          selection: selection.text,
+          instruction: prompt,
+          lang: languageForFile(filePath),
+        });
+        if (!res.ok) {
+          setAgentError(res.error);
+          return;
+        }
+        const content = res.content ?? "";
+        const a2uiJson = extractA2ui(content);
+        setAgentResult({ content, code: extractCode(content) });
+        if (a2uiJson) {
+          setAgentSurface({ id: extractSurfaceId(a2uiJson) ?? "", json: a2uiJson });
+        }
+        agentTurnsRef.current.push({ role: "entity", text: content.slice(0, 1200) });
+      } catch (err) {
+        setAgentError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setAgentBusy(false);
+      }
+    },
+    [selection, agentBusy, filePath, extractA2ui, extractCode]
+  );
 
   const submitAgent = useCallback(async (): Promise<void> => {
     const instruction = agentInput.trim();
-    if (!instruction || !selection || agentBusy) return;
-    setAgentBusy(true);
-    setAgentError(null);
-    setAgentResult(null);
-    // 记录提交时的范围：结果返回前用户若移动了光标/选区，应用仍落在
-    // 当初请求的位置。
-    appliedRangeRef.current = { startLine: selection.startLine, endLine: selection.endLine };
-    try {
-      const res = await api.editorAgentRun({
-        filePath,
-        startLine: selection.startLine,
-        endLine: selection.endLine,
-        selection: selection.text,
-        instruction,
-        lang: languageForFile(filePath),
-      });
-      if (!res.ok) {
-        setAgentError(res.error);
-        return;
+    if (!instruction) return;
+    agentTurnsRef.current.push({ role: "user", text: instruction });
+    setAgentInput("");
+    await runAgent(instruction);
+  }, [agentInput, runAgent]);
+
+  /** S3 follow-up：A2UI 表单 submit → 读回 data model 答案 → 续跑。 */
+  const handleSurfaceAction = useCallback(
+    (surfaceId: string, actionName: string, _context: Record<string, unknown>): void => {
+      if (actionName !== "submit") return;
+      const model = getSurfaceModel(surfaceId);
+      if (!model) return;
+      const answers: Record<string, unknown> = {};
+      for (const key of ["answer", "choice", "value", "text", "input"]) {
+        const v = model.dataModel.get(key);
+        if (v !== undefined && v !== "") answers[key] = v;
       }
-      setAgentResult({ content: res.content, code: extractCode(res.content) });
-    } catch (err) {
-      setAgentError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAgentBusy(false);
-    }
-  }, [agentInput, selection, agentBusy, filePath, extractCode]);
+      const history = JSON.stringify({ answers, model: model.dataModel }, safeReplacer, 2);
+      agentTurnsRef.current.push({ role: "user", text: `[form answers] ${history}` });
+      void runAgent("Continue with the clarified answers from the A2UI form.", history);
+    },
+    [runAgent]
+  );
 
   /** 把数字体返回的替换代码经 executeEdits 落回原选区（undo 可撤销，
    *  落回后走正常 onChange → dirty → ⌘S 保存）。 */
@@ -397,6 +498,50 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
     setAgentOpen(false);
     setAgentResult(null);
   }, [agentResult, selection]);
+
+  // ── S4：diff 内联（user ask 2026-09-03 十四轮）────────────────────────────
+  // 有替换代码时：① 行级 diff（选区 vs 替换）+ ±N 统计直接在浮窗渲染；
+  // ② 提交范围在 Monaco 里挂 pending 装饰（淡底 + 左缘标记），应用或关闭
+  // 浮窗即清除 —— 不用切回会话视图，也不只靠按钮文字判断。
+  const agentDiff = useMemo(() => {
+    if (!agentResult?.code || !selection) return null;
+    const lines = diffLines(selection.text, agentResult.code);
+    const added = lines.filter((l) => l.kind === "add").length;
+    const removed = lines.filter((l) => l.kind === "del").length;
+    return { lines, added, removed };
+  }, [agentResult, selection, diffLines]);
+
+  const previewDecorationsRef = useRef<ReturnType<editor.IStandaloneCodeEditor["createDecorationsCollection"]> | null>(
+    null
+  );
+  useEffect(() => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    if (!agentResult?.code || !appliedRangeRef.current) {
+      previewDecorationsRef.current?.clear();
+      previewDecorationsRef.current = null;
+      return;
+    }
+    const start = appliedRangeRef.current.startLine;
+    const end = appliedRangeRef.current.endLine;
+    previewDecorationsRef.current?.clear();
+    previewDecorationsRef.current = ed.createDecorationsCollection([
+      {
+        range: { startLineNumber: start, startColumn: 1, endLineNumber: end, endColumn: 1 },
+        options: {
+          isWholeLine: true,
+          className: "edagent-pending-line",
+          linesDecorationsClassName: "edagent-pending-mark",
+        },
+      },
+    ]);
+  }, [agentResult]);
+  useEffect(
+    () => () => {
+      previewDecorationsRef.current?.clear();
+    },
+    []
+  );
 
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -566,14 +711,39 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
                 </div>
               ) : null}
               {agentError ? <div className="ui-error">{agentError}</div> : null}
-              {agentResult ? (
+              {/* S4：有替换代码时渲染行级 diff（±N 统计）而非裸文本 */}
+              {agentResult && agentDiff ? (
+                <div className="ui-edagent-result">
+                  <div className="ui-edagent-diffstat">
+                    <span className="add">+{agentDiff.added}</span>
+                    <span className="del">−{agentDiff.removed}</span>
+                  </div>
+                  <div className="ui-edagent-diff">
+                    {agentDiff.lines.map((l, i) => (
+                      <div key={i} className={`dl ${l.kind}`}>
+                        <span className="sign">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}</span>
+                        <span className="txt">{l.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="btn" onClick={applyAgentCode}>
+                    {t("editor.agent.apply")}
+                  </button>
+                </div>
+              ) : agentResult ? (
                 <div className="ui-edagent-result">
                   <pre>{agentResult.content}</pre>
-                  {agentResult.code ? (
-                    <button type="button" className="btn" onClick={applyAgentCode}>
-                      {t("editor.agent.apply")}
-                    </button>
-                  ) : null}
+                </div>
+              ) : null}
+              {/* S3：数字体反问 Surface（A2UI v0.9 批次，ChoicePicker/TextField
+                  + submit 按钮）；submit 读回 data model 作 follow-up。 */}
+              {agentSurface ? (
+                <div className="ui-edagent-surface">
+                  <A2uiSurface
+                    messagesJson={agentSurface.json}
+                    surfaceId={agentSurface.id || undefined}
+                    onAction={handleSurfaceAction}
+                  />
                 </div>
               ) : null}
               <div className="ui-edagent-actions">

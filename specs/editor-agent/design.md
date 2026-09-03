@@ -16,31 +16,35 @@
 - 提交的 prompt 携带 `文件路径 + 行范围 + 选区代码` 注入主会话，复用
   主会话的流式管线实时输出。
 
-## 后续切片
+## 切片（S2/S3/S4 已落地 2026-09-04，实现与设计的偏差见各节注记）
 
-### S2 · 专职子代理（core）
+### S2 · 专职子代理 ✅（提交 a3cf182c + 9d22b761）
 
-- 新 skill `editor-agent`（SKILL.md：编辑器上下文契约——只处理选区相关
-  文件、输出 diff 优先、禁止越权写其他路径）；
-- `SessionManager.runSubagent({ skill: "editor-agent", silent: false })`
-  通路（已有），产物以 unified diff 回传；
-- IPC：`editor:agentRun`（filePath + selection + instruction）→
-  子代理执行 → 流事件回流编辑器浮窗（进度 + 结果）。
+- 内置 skill `editor-agent`（templates/skills/bundled/，三形态分发验证）；
+- 通路改为 **`runBackgroundLlmTask`（sessionless 零残留）而非 runSubagent**：
+  不建会话/不写 JSONL/不进列表，比设计的 silent-subagent 更干净；core 增
+  `"editor"` profile（review 的只读机制 + 面向用户的 system 前导）；
+- IPC：`editor:agentRun`（privileged）→ `SessionBridge.runEditorAgent`。
 
-### S3 · A2UI 交互窗升级
+### S3 · A2UI 交互窗升级 ✅
 
-- 浮窗从静态表单升级为 A2UI Surface（a2ui 基建已有）：数字体可用
-  Surface 表单追问（多选项确认 / 参数补充）；
-- 结果以 diff 预览卡渲染，用户「应用 / 放弃」；应用走 editorWriteFile。
+- 数字体反问协议：结果含 ```a2ui 围栏（v0.9 批次：CreateSurface + Column
+  [Text 问题, ChoicePicker 选项, TextField 补充, Button(submit)]）——SKILL.md
+  给了逐字模板；
+- 浮窗检测围栏后直接渲染 **A2uiSurface**（官方 v0.9 引擎 + basicCatalog）；
+  submit 动作从 `getSurfaceModel(sid).dataModel` 读回答案 JSON，作为
+  follow-up 续跑（agentTurnsRef 保留问答历史）。
 
-### S4 · 编辑器内联渲染
+### S4 · 编辑器内联渲染 ✅
 
-- 结果 diff 直接内联到 Monaco（collapse ranges / decoration 高亮），
-  不再切回会话视图查看。
+- 替换代码与选区做**行级 LCS diff**，浮窗内渲染 ±N 统计 + 红绿行 diff；
+- 提交范围在 Monaco 挂 **pending decoration**（淡黄整行底 + 右缘琥珀
+  标记，`edagent-pending-*`），应用/关闭浮窗即清除；
+- 应用走 `executeEdits` 落回提交时范围（undo 可撤，⌘S 写盘）——比设计
+  的 editorWriteFile 更安全（改动先经过用户保存动作）。
 
 ## 约束
 
-- core 无 UI 铁律：子代理与 skill 落 core，浮窗/渲染落 desktop renderer；
-- 沙盒：子代理写文件走 editorWriteFile 同一通路，享受既有的路径校验；
-- 记忆：editor-agent 的执行走静默标记（isSilentSubagent）以外的可见会话，
-  保留 trajectory 可追溯。
+- core 无 UI 铁律：skill 与 profile 落 core，浮窗/渲染落 desktop renderer；
+- 写路径：数字体只产文本，落盘经用户「应用 → 保存」两步确认；
+- 后续可选：diff 内联升级为 ghost-text 双栏预览、Surface 历史多轮持久化。

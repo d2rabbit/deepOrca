@@ -2014,3 +2014,70 @@
 .ui-edagent-tochat:hover {
   color: var(--ui-text-dim);
 }
+
+/* ── S4：diff 视图 + Monaco pending 装饰 ─────────────────────────────── */
+.ui-edagent-diffstat {
+  display: flex;
+  gap: 8px;
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ui-edagent-diffstat .add {
+  color: var(--ui-success, #2f9e44);
+}
+.ui-edagent-diffstat .del {
+  color: var(--ui-danger, #e03131);
+}
+.ui-edagent-diff {
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface-sunken);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.ui-edagent-diff .dl {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ui-edagent-diff .dl .sign {
+  flex: none;
+  width: 10px;
+  text-align: center;
+  user-select: none;
+  opacity: 0.7;
+}
+.ui-edagent-diff .dl.add {
+  background: color-mix(in srgb, var(--ui-success, #2f9e44) 14%, transparent);
+  color: var(--ui-text);
+}
+.ui-edagent-diff .dl.add .sign {
+  color: var(--ui-success, #2f9e44);
+}
+.ui-edagent-diff .dl.del {
+  background: color-mix(in srgb, var(--ui-danger, #e03131) 13%, transparent);
+  color: var(--ui-text);
+}
+.ui-edagent-diff .dl.del .sign {
+  color: var(--ui-danger, #e03131);
+}
+.ui-edagent-diff .dl.ctx {
+  color: var(--ui-text-faint);
+}
+
+/* Monaco 内的 pending 装饰：数字体有替换代码待应用时的可视提示 */
+.monaco-editor .edagent-pending-line {
+  background: color-mix(in srgb, var(--ui-warning, #f59e0b) 14%, transparent);
+}
+.monaco-editor .edagent-pending-mark {
+  background: var(--ui-warning, #f59e0b);
+  width: 3px !important;
+  margin-left: 4px;
+  border-radius: 2px;
+}
