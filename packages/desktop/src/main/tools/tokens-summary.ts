@@ -145,7 +145,12 @@ function ledgerWindows(
   const startOfTodayMs = startOfToday.getTime();
   // Week starts on Monday (ISO): shift Sunday(0) to 6.
   const weekday = (startOfToday.getDay() + 6) % 7;
-  const startOfWeekMs = startOfTodayMs - weekday * 24 * 60 * 60 * 1000;
+  // Calendar-day rollback (setDate), NOT today-minus-N×24h arithmetic: DST
+  // shifts make the millisecond form land an hour off true local Monday
+  // midnight, mis-bucketing records near the week edge.
+  const startOfThisWeek = new Date(startOfToday);
+  startOfThisWeek.setDate(startOfThisWeek.getDate() - weekday);
+  const startOfWeekMs = startOfThisWeek.getTime();
 
   const add = (window: SummaryTimeWindow, prompt: number, completion: number) => {
     window.prompt += prompt;

@@ -108,7 +108,11 @@ test("tokens-summary: exact time windows from the usage ledger", async () => {
     startOfToday.setHours(0, 0, 0, 0);
     const todayMs = startOfToday.getTime();
     const weekday = (startOfToday.getDay() + 6) % 7;
-    const weekMs = todayMs - weekday * 86_400_000;
+    // Same calendar-day rollback the implementation uses (DST-safe) —
+    // mirroring a different derivation would disagree by an hour in DST zones.
+    const startOfThisWeek = new Date(startOfToday);
+    startOfThisWeek.setDate(startOfThisWeek.getDate() - weekday);
+    const weekMs = startOfThisWeek.getTime();
     // One record inside every bucket, one inside today but OUTSIDE the 5h
     // window, one inside the week but OUTSIDE today, one ancient.
     const tsAll = now - 60_000;

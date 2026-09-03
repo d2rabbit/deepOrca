@@ -2029,7 +2029,13 @@ export function App(): JSX.Element {
           ) : sidebarView === "tasks" ? (
             <TaskPanel messages={messages} />
           ) : sidebarView === "tokens" ? (
-            <TokenStatsPanel root={projectRoot} refreshKey={sessions.length} />
+            <TokenStatsPanel
+              root={projectRoot}
+              // Count alone freezes while the ACTIVE session grows — folding
+              // usage totals into the key makes the panel refetch as the
+              // numbers it displays actually move.
+              refreshKey={sessions.reduce((sum, s) => sum + (s.usage?.total_tokens ?? 0), 0) + sessions.length}
+            />
           ) : sidebarView === "index" ? (
             <IndexLibraryPanel onOpenWorkspace={handleOpenKnowledgeTab} />
           ) : sidebarView === "review" ? (
