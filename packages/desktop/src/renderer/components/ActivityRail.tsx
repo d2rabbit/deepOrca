@@ -1,10 +1,11 @@
-import { useMemo, useState, useEffect, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
 import { buildToolSummary, formatToolParams, getResultMd } from "../lib/messages";
 import { useI18n } from "../i18n";
 import { toolCls } from "./message/shared";
 import {
   IconBot,
+  IconChevronDown,
   IconPulse,
   IconSparkle,
   IconToolGeneric,
@@ -45,13 +46,6 @@ function KindIcon({ kind }: { kind: ActivityKind }): JSX.Element {
   }
 }
 
-/**
- * Display-kind projection of the CANONICAL tool classifier (toolCls in
- * message/shared) — one classification source, one icon language across the
- * conversation flow and this rail. The two fuzzy pre-checks are deliberate:
- * skill invocations keep their sparkle, and terminal-flavored names read as
- * bash even when the exact name is unknown to the classifier.
- */
 function kindOf(name: string): ActivityKind {
   const n = name.toLowerCase();
   if (n.includes("skill")) return "skill";
@@ -82,15 +76,17 @@ type ActivityWindow = {
 
 /** Maximum live windows kept in the cascade store. */
 const MAX_WINDOWS = 15;
-/** Windows rendered on screen — older ones live behind the +N badge. */
+/** Windows rendered in the cascade — the rest stay reachable via the log. */
 const VISIBLE = 4;
 
 /**
  * ActivityRail — the resident right column of the chat stage
- * (designs/chat-redesign V4): think transient card on top, the live activity
- * stream as a cascade of square windows (newest front-top, 4 on screen,
- * 15-cap), the subagent group pinned to the bottom. Collapses to a 40px
- * sliver while a right-side float tab owns the edge.
+ * (designs/chat-redesign screen-chat §实时活动): the live-activity cap pill
+ * toggles a DROPDOWN log (`.log`) listing every activity — clicking a row
+ * brings that pip to the front of the cascade. The pips themselves are
+ * display-only (user ask 2026-09-03: 切换一律走下拉，不走小窗直操作).
+ * Think transient card on top; collapses to a 40px sliver while a right-side
+ * float tab owns the edge.
  */
 export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element {
   const { t } = useI18n();
@@ -116,9 +112,26 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
     return out.slice(-MAX_WINDOWS).reverse(); // newest first
   }, [messages]);
 
-  const total = windows.length;
-  const visible = windows.slice(0, VISIBLE);
-  const hidden = Math.max(0, total - VISIBLE);
+  // 下拉置顶（screen-chat 交互）：frontId 的活动提到 p0，其余按时间序跟随；
+  // 小窗本身不再响应鼠标直操作（去 cursor/hover 抬升）。
+  const [frontId, setFrontId] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const logRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!logOpen) return;
+    const onDown = (ev: MouseEvent): void => {
+      if (!logRef.current?.contains(ev.target as Node)) setLogOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [logOpen]);
+
+  const ordered = useMemo(() => {
+    if (!frontId) return windows;
+    const front = windows.find((w) => w.id === frontId);
+    return front ? [front, ...windows.filter((w) => w.id !== frontId)] : windows;
+  }, [windows, frontId]);
+  const visible = ordered.slice(0, VISIBLE);
 
   // Live think transient card state — chars grow while the run streams.
   const lastThinking = useMemo(() => {
@@ -147,7 +160,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
         <div className="ui-actcol-label">
           <IconPulse />
           <span>{t("activity.title")}</span>
-          <span>{total}</span>
+          <span>{windows.length}</span>
         </div>
       ) : (
         <>
@@ -164,9 +177,42 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
             </div>
           ) : null}
 
-          <div className="cap" title={t("activity.cap")}>
-            <IconPulse />
-            {t("activity.title")} · {Math.min(total, MAX_WINDOWS)} / {MAX_WINDOWS}
+          {/* 实时活动 cap + 下拉清单（screen-chat .live 同款交互） */}
+          <div className="cap-row" ref={logRef}>
+            <button
+              type="button"
+              className="cap"
+              onClick={() => setLogOpen((v) => !v)}
+              aria-expanded={logOpen}
+              title={t("activity.cap")}
+            >
+              <IconPulse />
+              {t("activity.title")} · {Math.min(windows.length, MAX_WINDOWS)} / {MAX_WINDOWS}
+              <span className="chev" aria-hidden>
+                ▾
+              </span>
+            </button>
+            {logOpen ? (
+              <div className="log" role="listbox">
+                {ordered.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    className={`lr${w.ok ? "" : " err"}`}
+                    onClick={() => {
+                      setFrontId(w.id);
+                      setLogOpen(false);
+                    }}
+                  >
+                    <span className="ic" aria-hidden>
+                      <KindIcon kind={w.kind} />
+                    </span>
+                    <span className="tt">{w.name}</span>
+                    <span className={`dot ${w.ok ? "ok" : "err"}`} aria-hidden />
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="deck">
@@ -177,7 +223,7 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                     <KindIcon kind={w.kind} />
                   </span>
                   <span className="tt">{w.name}</span>
-                  <span className="done-dot" aria-hidden="true" />
+                  <span className="done-dot" aria-hidden />
                 </div>
                 <div className="pb">
                   <div className="arg">{w.arg}</div>
@@ -185,11 +231,6 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                 </div>
               </article>
             ))}
-            {hidden > 0 ? (
-              <button type="button" className="more-badge">
-                +{hidden}
-              </button>
-            ) : null}
           </div>
         </>
       )}

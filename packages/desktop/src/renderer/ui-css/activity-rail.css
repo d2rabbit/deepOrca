@@ -19,20 +19,55 @@
 
 /* ── 指令目录（左列） ── */
 .ui-toc {
-  flex: none;
-  width: 200px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 22;
+  width: min(300px, 60vw);
+}
+.ui-toc-pill {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 82%, transparent);
+  backdrop-filter: blur(10px);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-dim);
+  box-shadow: var(--shadow-card);
+}
+.ui-toc-pill svg {
+  width: 11px;
+  height: 11px;
+}
+.ui-toc-pill .chev {
+  transition: transform 0.18s;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-toc.open .ui-toc-pill .chev {
+  transform: rotate(180deg);
 }
 .ui-toc-list {
-  flex: 1;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 340px;
   overflow-y: auto;
-  padding: 9px 7px 9px;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 96%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--ui-shadow-modal);
 }
 .ui-toc-item {
   display: flex;
@@ -95,7 +130,7 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   transition:
     width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
     opacity 0.2s;
@@ -161,7 +196,13 @@
 }
 
 /* ── 实时活动流：胶囊 + 画中画堆叠 ── */
+.ui-actcol .cap-row {
+  position: relative;
+  flex: none;
+  align-self: flex-start;
+}
 .ui-actcol .cap {
+  cursor: pointer;
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -179,6 +220,83 @@
   width: 11px;
   height: 11px;
   color: var(--ok, #2f9e44);
+}
+.ui-actcol .cap .chev {
+  margin-left: 2px;
+  transition: transform 0.18s;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+}
+.ui-actcol.open .cap .chev {
+  transform: rotate(180deg);
+}
+/* 全部活动清单：堆叠只露 4 扇，其余从这里查看（点击行置前） */
+.ui-actcol .log {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 45;
+  width: 100%;
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border-soft);
+  background: color-mix(in srgb, var(--ui-surface-raised) 96%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-actcol .log .lr {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: none;
+  color: var(--ui-text-dim);
+  text-align: left;
+}
+.ui-actcol .log .lr:last-child {
+  border-bottom: none;
+}
+.ui-actcol .log .lr:hover {
+  background: var(--ui-accent-tint);
+  color: var(--ui-text);
+}
+.ui-actcol .log .lr .ic {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: var(--ui-surface-sunken);
+  flex: none;
+}
+.ui-actcol .log .lr .ic svg {
+  width: 9px;
+  height: 9px;
+  color: var(--ui-text-dim);
+}
+.ui-actcol .log .lr .tt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-secondary);
+}
+.ui-actcol .log .lr .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-border);
+  flex: none;
+}
+.ui-actcol .log .lr .dot.err {
+  background: var(--err, #e03131);
 }
 .ui-actcol .deck {
   position: relative;
@@ -199,7 +317,6 @@
   backdrop-filter: blur(16px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
   overflow: hidden;
-  cursor: pointer;
   transition:
     top 0.26s cubic-bezier(0.16, 1, 0.3, 1),
     left 0.26s cubic-bezier(0.16, 1, 0.3, 1),
@@ -217,7 +334,6 @@
 .pipwin.p1 { top: 34px; left: 20px; z-index: 14; opacity: 0.9; }
 .pipwin.p2 { top: 68px; left: 40px; z-index: 13; opacity: 0.72; }
 .pipwin.p3 { top: 102px; left: 60px; z-index: 12; opacity: 0.5; }
-.pipwin:hover { opacity: 1; z-index: 20; }
 .pipwin .ph {
   flex: none;
   display: flex;
@@ -265,21 +381,6 @@
 .pipwin .pb pre .add { color: var(--ok, #2f9e44); }
 .pipwin .pb pre .del { color: var(--err, #e03131); }
 .pipwin.err { border-color: color-mix(in srgb, var(--err, #e03131) 30%, var(--ui-border-soft)); }
-.ui-actcol .more-badge {
-  position: absolute;
-  z-index: 16;
-  right: 0;
-  bottom: -4px;
-  padding: 3px 12px;
-  border-radius: 999px;
-  border: none;
-  background: color-mix(in srgb, var(--ui-text) 58%, transparent);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.ui-actcol .more-badge:hover { background: var(--ui-accent); }
 
 /* 类型色（与 demo/活动区色表一致） */
 .pipwin.k-bash { --kc: #e8590c; }
@@ -424,10 +525,7 @@
   padding-right: min(344px, max(180px, calc(100% - 560px)));
 }
 @media (max-width: 900px) {
-  /* 窄窗：指令目录隐藏；车道收回，堆叠折叠为计数胶囊（screen-chat narrow） */
-  .ui-toc {
-    display: none;
-  }
+  /* 窄窗：车道收回，堆叠折叠为胶囊（screen-chat narrow）；目录胶囊保留 */
   .ui-chat-stage.has-live .ui-chat-main {
     padding-right: 26px;
   }
