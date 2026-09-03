@@ -74,7 +74,6 @@ const TaskHubWorkspace = lazy(() =>
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
 import { UndoModal } from "./components/UndoModal";
-import { ProcessOutputPanel } from "./components/ProcessOutputPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
 import { ToastContainer, useToasts } from "./components/Toast";
@@ -414,13 +413,10 @@ export function App(): JSX.Element {
   }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const {
-    showProcessPanel,
-    setShowProcessPanel,
     runningProcesses,
-    stdoutRef: processStdoutRef,
     syncFromEntry: syncProcessesFromEntry,
     appendStdout: appendProcessStdout,
-  } = useProcessPanel(busy);
+  } = useProcessPanel();
 
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
@@ -968,7 +964,10 @@ export function App(): JSX.Element {
   const [pipStack, setPipStack] = useState<PipEntry[]>([]);
 
   /** Park the CURRENT conversation before switching roots (no-op if empty or
-   *  already parked). Must run BEFORE api.setProjectRoot mutates the world. */
+   *  already parked). Must run BEFORE api.setProjectRoot mutates the world.
+   *  user ask 2026-09-03: 只有活动中的任务才停车 —— 会话仍在跑（processing/
+   *  pending）或正卡在闸口等人（ask_permission/waiting_for_user）才值得
+   *  缩成角落播放器；已完结/中断/暂停的会话在会话列表里找回来即可。 */
   const pushPipSnapshot = useCallback((targetRoot: string) => {
     const root = projectRootRef.current;
     if (!root || root === targetRoot) return;
@@ -976,6 +975,13 @@ export function App(): JSX.Element {
     if (current.length === 0) return; // fresh workspace — nothing worth parking
     const sessionId = activeIdRef.current;
     const entry = sessionsRef.current.find((s) => s.id === sessionId);
+    const status = entry?.status;
+    const blocked =
+      status === "ask_permission" ||
+      status === "waiting_for_user" ||
+      Boolean(entry?.askPermissions && entry.askPermissions.length > 0);
+    const running = status === "processing" || status === "pending";
+    if (!running && !blocked) return;
     setPipStack((prev) =>
       [
         {
@@ -984,10 +990,7 @@ export function App(): JSX.Element {
           sessionId,
           title: entry?.summary ?? null,
           frozen: current.slice(-24),
-          blockedAtCapture:
-            entry?.status === "ask_permission" ||
-            entry?.status === "waiting_for_user" ||
-            Boolean(entry?.askPermissions && entry.askPermissions.length > 0),
+          blockedAtCapture: blocked,
         },
         ...prev.filter((p) => p.root !== root),
       ].slice(0, 4)
@@ -1113,6 +1116,37 @@ export function App(): JSX.Element {
     [pushPipSnapshot, loadSession, setMainView]
   );
   const handleOpenDiff = useCallback((target: DiffTarget) => setDiffTarget(target), []);
+
+  // 回合底部 fork（user ask 2026-09-03 十一轮）：绑了任务树的会话直接 fork
+  // 该树；未绑树的先以本回合指令为根落地一棵树（spec：树由会话创建），
+  // 再走双模式 fork —— 分支独立模式成功后直接切进临时工作区。
+  const handleTurnFork = useCallback(
+    async (commandText: string, why: string, mode: "worktree" | "branch"): Promise<string | null> => {
+      try {
+        const root = projectRootRef.current || undefined;
+        const bound = sessionsRef.current.find((s) => s.id === activeIdRef.current)?.taskRef?.treeId ?? null;
+        let treeId = bound;
+        if (!treeId) {
+          const created = await api.taskTreeCreate((commandText || "session fork").slice(0, 80), why, undefined);
+          if ("error" in created) return created.error;
+          treeId = created.treeId;
+        }
+        const res = await api.taskTreeForkWorkspace(treeId, why, { mode }, root);
+        if (!res.ok) return res.error;
+        if (res.mode === "branch" && res.workspaceRoot) {
+          pushPipSnapshot(res.workspaceRoot);
+          pendingSelectRef.current = null;
+          setActiveTab({ kind: "chat" });
+          setMainView("chat");
+          void api.setProjectRoot(res.workspaceRoot);
+        }
+        return null;
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+    },
+    [pushPipSnapshot, setMainView]
+  );
 
   // Session export with visible outcome — the sidebar's ⤓ used to fire the
   // IPC and leave the user with no idea where the file went (or that it failed).
@@ -1346,7 +1380,6 @@ export function App(): JSX.Element {
   // ── ⌘K command palette + global keyboard shortcuts ─────────────────────────
   useGlobalShortcuts({
     togglePalette: () => setPaletteOpen((v) => !v),
-    toggleProcessPanel: () => setShowProcessPanel((v) => !v),
     togglePanel: handleToggleHub,
     newSession: handleNewSession,
     openSettings: handleOpenSettings,
@@ -1378,7 +1411,6 @@ export function App(): JSX.Element {
     openTokensView,
     setPlanMode,
     setModal,
-    setShowProcessPanel,
     setActiveTab,
   });
 
@@ -1560,8 +1592,11 @@ export function App(): JSX.Element {
   // The main session conversation — rendered inside the first tab when
   // workspace tabs exist, or as the whole content area when they don't.
   // Extracted so the tab strip (below) never has to duplicate it.
-  // 活动区车道（screen-chat 模型）：只有真实活动（工具调用 / 运行中思考）
-  // 时右侧车道才存在；空闲时会话内容占满全宽，不留空列。
+  // 活动区（screen-chat 模型）：只要会话里存在工具/脚本/skill/MCP/文件
+  // 操作等非对话、非思考的行为记录，右侧「实时活动」目录胶囊就常驻
+  // （与左侧指令目录胶囊对称；user ask 2026-09-03 三轮——目录不随运行
+  // 结束消失）。瞬态部分（悬浮小窗 / 思考卡）由 ActivityRail 内部按
+  // busy 自行收放；悬浮不占布局位，空闲时会话内容照常全宽。
   const hasLive = useMemo(
     () =>
       messages.some((m) => m.role === "tool" && Boolean(buildToolSummary(m).name)) ||
@@ -1586,17 +1621,10 @@ export function App(): JSX.Element {
         compacting={activeStatus === "compacting"}
         streaming={busy}
         onQuickAction={handleQuickAction}
+        onTurnFork={handleTurnFork}
         footer={footer}
       />
       <div className="ui-composer-dock" ref={composerDockRef}>
-        {showProcessPanel ? (
-          <ProcessOutputPanel
-            processes={runningProcesses}
-            stdoutRef={processStdoutRef}
-            onDismiss={() => setShowProcessPanel(false)}
-            platform={platform}
-          />
-        ) : null}
         {kbSuggest ? (
           <div className="ui-chat-suggest" role="status">
             <span className="ui-chat-suggest-icon" aria-hidden>
@@ -1676,174 +1704,238 @@ export function App(): JSX.Element {
   // least one auxiliary surface exists — a lone conversation keeps the
   // cockpit clean. Chip = container div + two SIBLING buttons (switch +
   // close) — nested interactive elements are an a11y/HTML anti-pattern.
+  // user ask 2026-09-03 十轮：标签过多不再横向堆叠 —— 主会话与活动标签
+  // 常驻可见，其余按可用宽度收进「+N ▾」下拉快速切换（隐藏量按真实
+  // chip 宽度测量，ResizeObserver 自适应窗口伸缩）。
   const hasAuxSurfaces =
     auxTabs.length > 0 ||
     taskTabs.length > 0 ||
     knowledgeTabs.length > 0 ||
     reviewTabs.length > 0 ||
     taskhubTabs.length > 0;
-  const surfaceChips = useMemo(() => {
-    if (!hasAuxSurfaces) return null;
-    return (
-      <div className="ui-surface-chips">
-        <button
-          type="button"
-          className={cx("ui-surface-chip", activeTab.kind === "chat" && "active")}
-          onClick={() => setActiveTab({ kind: "chat" })}
-          data-tip={t("surface.chat")}
-        >
-          <IconChat />
-        </button>
-        {auxTabs.map((tab) => {
-          const active =
-            tab.kind === "editor"
-              ? activeTab.kind === "editor" && activeTab.file === tab.file
-              : activeTab.kind === tab.kind;
-          const title =
-            tab.kind === "settings"
-              ? t("settings.title")
-              : tab.kind === "plugins"
-                ? t("plugins.title")
-                : ((tab.file ?? "").split(/[\\/]/).pop() ?? "");
-          const label = (
-            <>
-              {tab.kind === "settings" ? <IconSettings /> : tab.kind === "plugins" ? <IconPlugins /> : <IconFile />}
-              {title}
-            </>
-          );
-          return (
-            <div key={tab.key} className={cx("ui-surface-chip", active && "active")}>
-              <button
-                type="button"
-                className="ui-surface-chip-main"
-                onClick={() =>
-                  setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind })
-                }
-                data-tip={tab.kind === "editor" ? tab.file : title}
-              >
-                {label}
-              </button>
-              <button
-                type="button"
-                className="ui-surface-chip-close"
-                onClick={() => (tab.kind === "settings" ? requestCloseSettings() : handleCloseAuxTab(tab.key))}
-                aria-label={t("tasktree.closeTab")}
-              >
-                ✕
-              </button>
-            </div>
-          );
-        })}
-        {taskTabs.map((tab) => (
-          <div
-            key={tab.treeId}
-            className={cx("ui-surface-chip", activeTab.kind === "task" && activeTab.treeId === tab.treeId && "active")}
-          >
-            <button
-              type="button"
-              className="ui-surface-chip-main"
-              onClick={() => setActiveTab({ kind: "task", treeId: tab.treeId })}
-              data-tip={tab.title}
-            >
-              <IconTaskTree /> {tab.title}
-            </button>
-            <button
-              type="button"
-              className="ui-surface-chip-close"
-              onClick={() => handleCloseTaskTab(tab.treeId)}
-              aria-label={t("tasktree.closeTab")}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        {knowledgeTabs.map((tab) => (
-          <div
-            key={tab.root}
-            className={cx("ui-surface-chip", activeTab.kind === "knowledge" && activeTab.root === tab.root && "active")}
-          >
-            <button
-              type="button"
-              className="ui-surface-chip-main"
-              onClick={() => setActiveTab({ kind: "knowledge", root: tab.root })}
-              data-tip={tab.root}
-            >
-              <IconIndex /> {tab.label}
-            </button>
-            <button
-              type="button"
-              className="ui-surface-chip-close"
-              onClick={() => handleCloseKnowledgeTab(tab.root)}
-              aria-label={t("tasktree.closeTab")}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        {reviewTabs.map((tab) => (
-          <div
-            key={tab.root}
-            className={cx("ui-surface-chip", activeTab.kind === "review" && activeTab.root === tab.root && "active")}
-          >
-            <button
-              type="button"
-              className="ui-surface-chip-main"
-              onClick={() => setActiveTab({ kind: "review", root: tab.root })}
-              data-tip={tab.root}
-            >
-              <IconReview /> {tab.label}
-            </button>
-            <button
-              type="button"
-              className="ui-surface-chip-close"
-              onClick={() => handleCloseReviewTab(tab.root)}
-              aria-label={t("tasktree.closeTab")}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        {taskhubTabs.map((tab) => (
-          <div
-            key={tab.root}
-            className={cx("ui-surface-chip", activeTab.kind === "taskhub" && activeTab.root === tab.root && "active")}
-          >
-            <button
-              type="button"
-              className="ui-surface-chip-main"
-              onClick={() => setActiveTab({ kind: "taskhub", root: tab.root })}
-              data-tip={tab.label}
-            >
-              <IconTaskHub /> {tab.label}
-            </button>
-            <button
-              type="button"
-              className="ui-surface-chip-close"
-              onClick={() => handleCloseTaskHubTab(tab.root)}
-              aria-label={t("tasktree.closeTab")}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-      </div>
-    );
+
+  type SurfaceChipItem = {
+    key: string;
+    icon: JSX.Element;
+    title: string;
+    tip?: string;
+    active: boolean;
+    onSelect: () => void;
+    onClose?: () => void;
+  };
+
+  const chipItems = useMemo<SurfaceChipItem[]>(() => {
+    const items: SurfaceChipItem[] = [];
+    for (const tab of auxTabs) {
+      const active =
+        tab.kind === "editor"
+          ? activeTab.kind === "editor" && activeTab.file === tab.file
+          : activeTab.kind === tab.kind;
+      const title =
+        tab.kind === "settings"
+          ? t("settings.title")
+          : tab.kind === "plugins"
+            ? t("plugins.title")
+            : ((tab.file ?? "").split(/[\\/]/).pop() ?? "");
+      items.push({
+        key: tab.key,
+        icon: tab.kind === "settings" ? <IconSettings /> : tab.kind === "plugins" ? <IconPlugins /> : <IconFile />,
+        title,
+        tip: tab.kind === "editor" ? tab.file : title,
+        active,
+        onSelect: () =>
+          setActiveTab(tab.kind === "editor" ? { kind: "editor", file: tab.file ?? "" } : { kind: tab.kind }),
+        onClose: tab.kind === "settings" ? requestCloseSettings : () => handleCloseAuxTab(tab.key),
+      });
+    }
+    for (const tab of taskTabs) {
+      items.push({
+        key: `task:${tab.treeId}`,
+        icon: <IconTaskTree />,
+        title: tab.title,
+        tip: tab.title,
+        active: activeTab.kind === "task" && activeTab.treeId === tab.treeId,
+        onSelect: () => setActiveTab({ kind: "task", treeId: tab.treeId }),
+        onClose: () => handleCloseTaskTab(tab.treeId),
+      });
+    }
+    for (const tab of knowledgeTabs) {
+      items.push({
+        key: `kb:${tab.root}`,
+        icon: <IconIndex />,
+        title: tab.label,
+        tip: tab.root,
+        active: activeTab.kind === "knowledge" && activeTab.root === tab.root,
+        onSelect: () => setActiveTab({ kind: "knowledge", root: tab.root }),
+        onClose: () => handleCloseKnowledgeTab(tab.root),
+      });
+    }
+    for (const tab of reviewTabs) {
+      items.push({
+        key: `review:${tab.root}`,
+        icon: <IconReview />,
+        title: tab.label,
+        tip: tab.root,
+        active: activeTab.kind === "review" && activeTab.root === tab.root,
+        onSelect: () => setActiveTab({ kind: "review", root: tab.root }),
+        onClose: () => handleCloseReviewTab(tab.root),
+      });
+    }
+    for (const tab of taskhubTabs) {
+      items.push({
+        key: `hub:${tab.root}`,
+        icon: <IconTaskHub />,
+        title: tab.label,
+        tip: tab.label,
+        active: activeTab.kind === "taskhub" && activeTab.root === tab.root,
+        onSelect: () => setActiveTab({ kind: "taskhub", root: tab.root }),
+        onClose: () => handleCloseTaskHubTab(tab.root),
+      });
+    }
+    return items;
   }, [
     activeTab,
     auxTabs,
+    t,
     handleCloseAuxTab,
     handleCloseKnowledgeTab,
     handleCloseReviewTab,
     handleCloseTaskTab,
     handleCloseTaskHubTab,
-    hasAuxSurfaces,
     knowledgeTabs,
     requestCloseSettings,
     reviewTabs,
-    t,
     taskTabs,
     taskhubTabs,
   ]);
+
+  // 溢出收敛：隐藏测量行取真实 chip 宽度，贪心装填可见区（预留 +N 位）。
+  const chipStripRef = useRef<HTMLDivElement | null>(null);
+  const chipMeasureRef = useRef<HTMLDivElement | null>(null);
+  const [chipVisible, setChipVisible] = useState(999);
+  const [chipMenu, setChipMenu] = useState<{ x: number; y: number } | null>(null);
+  const chipItemsKey = `${chipItems.length}:${activeTab.kind}`;
+  useEffect(() => {
+    const strip = chipStripRef.current;
+    const measurer = chipMeasureRef.current;
+    if (!strip || !measurer) return;
+    const OVERFLOW_W = 56;
+    const compute = () => {
+      const avail = strip.clientWidth - OVERFLOW_W;
+      let w = 0;
+      let n = 0;
+      const kids = Array.from(measurer.children).slice(1); // [0] = 主会话，恒显示
+      for (const kid of kids) {
+        const kw = (kid as HTMLElement).offsetWidth;
+        if (n > 0 && w + kw > avail) break;
+        w += kw;
+        n += 1;
+      }
+      setChipVisible(n);
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(strip);
+    return () => ro.disconnect();
+  }, [chipItemsKey]);
+  useEffect(() => {
+    if (!chipMenu) return;
+    const onDown = (ev: MouseEvent): void => {
+      const target = ev.target as HTMLElement;
+      if (target.closest(".ui-surface-chips-menu") || target.closest(".ui-surface-chip-overflow")) return;
+      setChipMenu(null);
+    };
+    const onKey = (ev: KeyboardEvent): void => {
+      if (ev.key === "Escape") setChipMenu(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [chipMenu]);
+
+  const renderSurfaceChip = (item: SurfaceChipItem, hidden = false): JSX.Element => (
+    <div key={item.key} className={cx("ui-surface-chip", item.active && "active")}>
+      <button
+        type="button"
+        className="ui-surface-chip-main"
+        onClick={() => {
+          item.onSelect();
+          if (chipMenu) setChipMenu(null);
+        }}
+        data-tip={item.tip}
+      >
+        {item.icon}
+        {item.title}
+      </button>
+      {item.onClose ? (
+        <button
+          type="button"
+          className="ui-surface-chip-close"
+          onClick={() => {
+            item.onClose?.();
+            if (hidden) setChipMenu(null);
+          }}
+          aria-label={t("tasktree.closeTab")}
+        >
+          ✕
+        </button>
+      ) : null}
+    </div>
+  );
+
+  const surfaceChips = useMemo(() => {
+    if (!hasAuxSurfaces) return null;
+    const hiddenItems = chipItems.slice(chipVisible);
+    // 活动标签即使在溢出区也常驻可见（尾部钉一枚）。
+    const hiddenActive = hiddenItems.find((i) => i.active);
+    const shown = chipItems.slice(0, chipVisible);
+    if (hiddenActive) shown.push(hiddenActive);
+    return (
+      <>
+        <div className="ui-surface-chips" ref={chipStripRef}>
+          <button
+            type="button"
+            className={cx("ui-surface-chip", activeTab.kind === "chat" && "active")}
+            onClick={() => setActiveTab({ kind: "chat" })}
+            data-tip={t("surface.chat")}
+          >
+            <IconChat />
+          </button>
+          {shown.map((item) => renderSurfaceChip(item))}
+          {hiddenItems.length > 0 ? (
+            <button
+              type="button"
+              className="ui-surface-chip-overflow"
+              onClick={(e) => {
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setChipMenu({ x: Math.min(r.left, window.innerWidth - 260), y: r.bottom + 6 });
+              }}
+              aria-haspopup="menu"
+              aria-expanded={chipMenu !== null}
+            >
+              +{hiddenItems.length} ▾
+            </button>
+          ) : null}
+        </div>
+        {/* 隐藏测量行：取每个 chip 的真实宽度供贪心装填计算。 */}
+        <div className="ui-surface-chips ui-surface-chips-measure" aria-hidden ref={chipMeasureRef}>
+          <button type="button" className="ui-surface-chip">
+            <IconChat />
+          </button>
+          {chipItems.map((item) => renderSurfaceChip(item))}
+        </div>
+        {chipMenu ? (
+          <div className="ui-surface-chips-menu" role="menu" style={{ left: chipMenu.x, top: chipMenu.y }}>
+            {hiddenItems.map((item) => renderSurfaceChip(item, true))}
+          </div>
+        ) : null}
+      </>
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- renderSurfaceChip closes over transient menu state
+  }, [chipItems, chipVisible, chipMenu, activeTab.kind, hasAuxSurfaces, t]);
 
   // Cockpit right cluster — the old rail's bottom icons (commands / undo /
   // appearance / settings) live here now, floating with the other cockpit
@@ -1960,25 +2052,6 @@ export function App(): JSX.Element {
     [isPipBlocked, pipStack]
   );
   /** Flatten one frozen message into a one-line preview for the mini-window. */
-  const pipLineOf = useCallback((message: SessionMessage): { role: string; text: string } => {
-    if (message.role === "user") {
-      return { role: "user", text: truncateForPip(message.content ?? "") };
-    }
-    if (message.role === "assistant") {
-      const plain = (message.content ?? "")
-        .replace(/```[\s\S]*?(```|$)/g, " ")
-        .replace(/[#*`>[\]()]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-      return { role: "assistant", text: truncateForPip(plain) };
-    }
-    return { role: "tool", text: buildToolSummary(message).name || "" };
-  }, []);
-  function truncateForPip(value: string): string {
-    const flat = value.replace(/\s+/g, " ").trim();
-    return flat.length > 96 ? `${flat.slice(0, 96)}…` : flat;
-  }
-
   // Floating-island size vars — the hub sheet and the companion card each own
   // a drag-resizable width (persisted); the CSS vars keep orb offset, stage
   // reflow and card width in lock-step.
@@ -2070,7 +2143,7 @@ export function App(): JSX.Element {
           ) : sidebarView === "gitmcp" ? (
             <GitMcpPanel />
           ) : sidebarView === "editor" ? (
-            <EditorPanel onOpenFile={handleOpenEditor} />
+            <EditorPanel onOpenFile={handleOpenEditor} root={projectRoot} />
           ) : (
             <PluginMcpPanel
               skills={skills}
@@ -2142,6 +2215,13 @@ export function App(): JSX.Element {
                 onClose={() => handleCloseAuxTab(`editor:${activeTab.file}`)}
                 appearance={appearance}
                 inline
+                onAskAgent={(prompt) => {
+                  // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
+                  // 切回会话主视图让用户看到实时输出。
+                  setActiveTab({ kind: "chat" });
+                  setMainView("chat");
+                  void runPrompt({ text: prompt });
+                }}
               />
             </Suspense>
           </div>
@@ -2202,6 +2282,17 @@ export function App(): JSX.Element {
                 root={activeTab.root}
                 onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
                 onOpenKnowledge={handleOpenKnowledgeTab}
+                onOpenSession={handleSelectSession}
+                onOpenWorkspace={(wtRoot) => {
+                  // 分支独立 fork（九轮）：切进 git worktree 临时工作区 ——
+                  // 停泊当前会话 → 切 root → 会话主视图（结构性隔离）。
+                  if (!wtRoot || wtRoot === projectRootRef.current) return;
+                  pushPipSnapshot(wtRoot);
+                  pendingSelectRef.current = null;
+                  setActiveTab({ kind: "chat" });
+                  setMainView("chat");
+                  void api.setProjectRoot(wtRoot);
+                }}
                 onOpenDesign={(artifactId, pipeline) =>
                   void handleOpenDesignArtifact({
                     id: artifactId,
@@ -2373,7 +2464,9 @@ export function App(): JSX.Element {
         <HubOrb
           badge={activeStatus === "ask_permission" || activeStatus === "waiting_for_user"}
           modKey={modKey}
-          onClick={handleToggleHub}
+          /* user ask 2026-09-03 十一轮（图2）：小圆点直通 hub2 会话列表 ——
+             快速打开会话，不再先落一级图标栏。⌘B 仍是纯一级开合。 */
+          onClick={() => selectView("explorer")}
         />
       ) : null}
 
@@ -2386,8 +2479,10 @@ export function App(): JSX.Element {
       {/* Build console — temporary floating A2UI surface (R3-5), on demand */}
       {buildConsoleOpen && hasBuildJobs ? <BuildConsolePanel onClose={() => setBuildConsoleOpen(false)} /> : null}
 
-      {/* Picture-in-picture — parked workspaces: mini card bottom-right +
-          top-right alerts for sessions blocked on a gate. Click restores. */}
+      {/* Picture-in-picture — parked workspaces: MINI PLAYER bottom-right
+          (user ask 2026-09-03: 只停活动中的会话、只在非会话主视图露出、
+          缩成单行播放器而非带冻结预览的大卡 —— 整个胶囊点击切回),
+          top-right alerts for sessions blocked on a gate. */}
       {pipBlockedEntries.length > 0 ? (
         <div className="ui-pip-alerts" role="status">
           {pipBlockedEntries.map((entry) => (
@@ -2399,46 +2494,35 @@ export function App(): JSX.Element {
           ))}
         </div>
       ) : null}
-      {pipTop ? (
+      {pipTop && activeTab.kind !== "chat" ? (
         <div className={cx("ui-pip", isPipBlocked(pipTop) && "blocked", buildConsoleOpen && "console-open")}>
-          <div className="ui-pip-head">
+          <button
+            type="button"
+            className="ui-pip-player"
+            onClick={() => restorePipEntry(pipTop)}
+            title={pipTop.root}
+            aria-label={`${pipTop.title ?? pipTop.label} · ${t("pip.back")}`}
+          >
             <span className={cx("ui-pip-dot", isPipBlocked(pipTop) && "urgent")} aria-hidden />
+            <span className="ui-pip-player-title">
+              {(pipTop.title ?? pipTop.label).slice(0, 20) || t("sidebar.untitled")}
+            </span>
+            <span className="ui-pip-player-label">{pipTop.label}</span>
+            <span className="ui-pip-player-back" aria-hidden>
+              ↩ {t("pip.back")}
+            </span>
+          </button>
+          {pipStack.length > 1 ? (
             <button
               type="button"
-              className="ui-pip-title"
-              onClick={() => restorePipEntry(pipTop)}
-              data-tip={pipTop.root}
+              className="ui-pip-cycle"
+              onClick={cyclePip}
+              title={`${t("pip.cycle")} (${pipStack.length})`}
+              aria-label={t("pip.cycle")}
             >
-              {(pipTop.title ?? pipTop.label).slice(0, 28) || t("sidebar.untitled")}
+              ⇅{pipStack.length}
             </button>
-            <span className="ui-pip-label">{pipTop.label}</span>
-            {pipStack.length > 1 ? (
-              <button
-                type="button"
-                className="ui-pip-cycle"
-                onClick={cyclePip}
-                title={`${t("pip.cycle")} (${pipStack.length})`}
-                aria-label={t("pip.cycle")}
-              >
-                ⇅{pipStack.length}
-              </button>
-            ) : null}
-          </div>
-          <div className="ui-pip-body">
-            {pipTop.frozen.slice(-6).map((m, i) => {
-              const line = pipLineOf(m);
-              if (!line.text) return null;
-              return (
-                <div key={i} className={`ui-pip-line ${line.role}`}>
-                  <span className="ui-pip-line-role">{line.role === "user" ? t("pip.you") : t("pip.ai")}</span>
-                  <span className="ui-pip-line-text">{line.text}</span>
-                </div>
-              );
-            })}
-          </div>
-          <button type="button" className="ui-pip-back" onClick={() => restorePipEntry(pipTop)}>
-            ↩ {t("pip.back")}
-          </button>
+          ) : null}
         </div>
       ) : null}
 
