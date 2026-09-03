@@ -45,7 +45,7 @@
   flex-shrink: 0;
 }
 
-/* File-type badge icon spacing (ui/file-icon.tsx). */
+/* File-type badge icon spacing (ui/icons/file-type.tsx). */
 .ui-editor-overlay-title .ui-file-icon {
   margin-right: 6px;
   flex-shrink: 0;

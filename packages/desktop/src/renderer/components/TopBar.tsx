@@ -3,6 +3,7 @@ import type { ModelConfigSelection, ReasoningEffort, SettingsSummary } from "../
 import { api } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
 import { DropdownSelect, Pill, Select, type DropdownOption } from "../ui/index";
+import { IconWindowClose, IconWindowMaxRestore, IconWindowMin } from "../ui/icons";
 import { formatTokens, compactTokenThreshold } from "../lib/token-usage";
 import { collectAllModelKeys, parseModelKey, resolveModelCapability, thinkingLabelKey } from "../lib/model-utils";
 import { familyThinkLevels, resolveModelSpec } from "@deeporca/core/capabilities";
@@ -93,26 +94,10 @@ function currentThinkingKey(s: SettingsSummary, options: ThinkingOption[]): stri
   return options.find((o) => o.key === "high")?.key ?? options.find((o) => o.thinkingEnabled)?.key ?? "off";
 }
 
-// Window caption glyphs as inline SVG (Windows 11 Fluent style). 1.5px stroke
-// at 12px render size gives a crisp 1.5px line; `currentColor` lets the
-// theme dictate the foreground via the existing --ui-text-dim / --ui-text /
-// --ui-danger palette.
-const ICON_MIN = (
-  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-    <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-const ICON_MAX_RESTORE = (
-  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-    <rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
-const ICON_CLOSE = (
-  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-    <line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="9" y1="3" x2="3" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
+// Window caption glyphs come from the central icon library (ui/icons/window).
+// 1.5px stroke at 12px render size gives a crisp 1.5px line; `currentColor`
+// lets the theme dictate the foreground via the existing --ui-text-dim /
+// --ui-text / --ui-danger palette.
 
 /** Slim draggable window bar: window controls + project/branch + dual model selectors + token mini. */
 // Memoized: all props are primitives or stable references from App.
@@ -176,7 +161,7 @@ export const TopBar = memo(function TopBar({
         title={t("window.minimize")}
         onClick={() => void api.minimizeWindow()}
       >
-        {ICON_MIN}
+        <IconWindowMin />
       </button>
       <button
         className="ui-win-ctrl max"
@@ -184,7 +169,7 @@ export const TopBar = memo(function TopBar({
         title={t("window.zoom")}
         onClick={() => void api.toggleMaximizeWindow()}
       >
-        {ICON_MAX_RESTORE}
+        <IconWindowMaxRestore />
       </button>
       <button
         className="ui-win-ctrl close"
@@ -192,7 +177,7 @@ export const TopBar = memo(function TopBar({
         title={t("window.close")}
         onClick={() => void api.closeWindow()}
       >
-        {ICON_CLOSE}
+        <IconWindowClose />
       </button>
     </div>
   );

@@ -7,16 +7,19 @@ import type { MessageKey } from "../../i18n";
 import { StreamdownView } from "../StreamdownView";
 import { useI18n } from "../../i18n";
 import { JsonView } from "../JsonView";
-import { IconBolt } from "../../ui/index";
-import { IconToolRead } from "../../ui/index";
-import { IconToolWrite } from "../../ui/index";
-import { IconToolEdit } from "../../ui/index";
-import { IconToolAsk } from "../../ui/index";
-import { IconToolPlan } from "../../ui/index";
-import { IconToolSearch } from "../../ui/index";
-import { IconToolMcp } from "../../ui/index";
-import { IconToolGeneric } from "../../ui/index";
-import { IconSparkle } from "../../ui/index";
+import {
+  IconBashTerminal,
+  IconBolt,
+  IconSparkle,
+  IconToolAsk,
+  IconToolEdit,
+  IconToolGeneric,
+  IconToolMcp,
+  IconToolPlan,
+  IconToolRead,
+  IconToolSearch,
+  IconToolWrite,
+} from "../../ui/icons";
 
 export function Md({
   text,
@@ -81,7 +84,7 @@ export function toolCls(name: string): string {
  */
 export function toolIcon(name: string): JSX.Element {
   const n = name.toLowerCase();
-  if (n === "bash" || n === "cli") return <BashTerminalIcon />;
+  if (n === "bash" || n === "cli") return <IconBashTerminal />;
   if (n === "read") return <IconToolRead />;
   if (n === "write") return <IconToolWrite />;
   if (n === "edit") return <IconToolEdit />;
@@ -105,24 +108,7 @@ export const FLOW_VERB_KEY: Record<string, MessageKey> = {
   generic: "msg.flow.other",
 };
 
-/** Inline-SVG terminal glyph: a window with a chevron prompt and a cursor. */
-export function BashTerminalIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
-      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
-      <path
-        d="M4 6.5 L6 8 L4 9.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <line x1="7" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
+/** Truncate with an ellipsis: "abcdefgh", 4 → "abcd…". */
 export function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…`;
 }
@@ -282,7 +268,6 @@ export function formatTime(iso: string): string {
   }
 }
 
-
 export function BashTerminal({ command, resultMd }: { command: string; resultMd: string }): JSX.Element {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -338,4 +323,3 @@ export function BashTerminal({ command, resultMd }: { command: string; resultMd:
     </div>
   );
 }
-

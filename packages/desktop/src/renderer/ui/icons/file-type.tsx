@@ -1,5 +1,3 @@
-import type { JSX } from "react";
-
 /**
  * File-type icons — tiny colored language badges (label + accent color per
  * type, palette loosely following the linguist/Seti hues VSCode shows),
@@ -8,6 +6,7 @@ import type { JSX } from "react";
  * (.git branch, node_modules, build outputs…). Everything renders on a
  * 16×16 canvas; unknown names fall back to the caller's generic icon.
  */
+import type { JSX, ReactNode } from "react";
 
 type GlyphShape = "book" | "copyright" | "robot" | "starburst" | "branch";
 
@@ -194,7 +193,7 @@ const SHAPES: Record<GlyphShape, (props: { color: string }) => JSX.Element> = {
   branch: BranchGlyph,
 };
 
-function GlyphSvg({ children }: { children: React.ReactNode }): JSX.Element {
+function GlyphSvg({ children }: { children: ReactNode }): JSX.Element {
   return (
     <svg
       className="ui-file-icon"
