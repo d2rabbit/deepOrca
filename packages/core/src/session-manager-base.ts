@@ -667,7 +667,9 @@ export abstract class SessionManagerBase {
           location: "SessionManager.judgeViaLlm",
           baseURL,
           params: { purpose: "action-judgment", model, temperature: 0 },
-        }
+        },
+        // Auxiliary helper call — never bill it as chat traffic in the ledger.
+        { source: "auxiliary" }
       );
       const rawContent = response.choices?.[0]?.message?.content;
       const parsed = typeof rawContent === "string" ? (JSON.parse(rawContent) as { choice?: unknown }) : null;
@@ -707,7 +709,9 @@ export abstract class SessionManagerBase {
           location: "SessionManager.completeTextViaLlm",
           baseURL,
           params: { purpose: "backend-completion", model },
-        }
+        },
+        // Auxiliary helper call — never bill it as chat traffic in the ledger.
+        { source: "auxiliary" }
       );
       const content = response.choices?.[0]?.message?.content;
       return typeof content === "string" && content.trim() ? content : null;
@@ -837,6 +841,30 @@ export abstract class SessionManagerBase {
       completion_tokens: completion,
       total_tokens: promptTokens + completion,
     });
+    // Cache telemetry is provider-side knowledge the local counter cannot
+    // reproduce — merge the API-reported cache fields into the locally
+    // counted usage. Without this, accumulateUsage (which prefers localUsage)
+    // would freeze cumulative cache tallies at their last pre-rework value
+    // and the reported cache-hit rate would decay toward 0% forever.
+    const localUsageWithApiCache = (
+      completion: number,
+      apiUsage: ModelUsage | Record<string, unknown> | null | undefined
+    ): ModelUsage => {
+      const local = localUsageOf(completion);
+      if (!isUsageRecord(apiUsage)) return local;
+      const merged: Record<string, unknown> = { ...local };
+      if (typeof apiUsage.prompt_cache_hit_tokens === "number") {
+        merged.prompt_cache_hit_tokens = apiUsage.prompt_cache_hit_tokens;
+      }
+      if (typeof apiUsage.prompt_cache_miss_tokens === "number") {
+        merged.prompt_cache_miss_tokens = apiUsage.prompt_cache_miss_tokens;
+      }
+      const details = isUsageRecord(apiUsage.prompt_tokens_details) ? apiUsage.prompt_tokens_details : null;
+      if (details && typeof details.cached_tokens === "number") {
+        merged.prompt_tokens_details = { cached_tokens: details.cached_tokens };
+      }
+      return merged as ModelUsage;
+    };
     const appendAccounting = (
       completionTokens: number,
       apiUsage: ModelUsage | Record<string, unknown> | null | undefined
@@ -913,14 +941,19 @@ export abstract class SessionManagerBase {
       const fallbackMessage = fallback.choices?.[0]?.message;
       const fallbackCompletion = countCompletionTokens(requestModel, {
         content: typeof fallbackMessage?.content === "string" ? fallbackMessage.content : "",
-        reasoning: "",
+        reasoning:
+          typeof fallbackMessage?.reasoning_content === "string"
+            ? fallbackMessage.reasoning_content
+            : typeof fallbackMessage?.reasoning === "string"
+              ? fallbackMessage.reasoning
+              : "",
         refusal: typeof fallbackMessage?.refusal === "string" ? fallbackMessage.refusal : null,
         toolCalls: (Array.isArray(fallbackMessage?.tool_calls)
           ? (fallbackMessage.tool_calls as unknown[])
           : []) as Array<{ function?: { name?: string; arguments?: string } }>,
       });
       appendAccounting(fallbackCompletion, fallback.usage);
-      return { ...fallback, localUsage: localUsageOf(fallbackCompletion) };
+      return { ...fallback, localUsage: localUsageWithApiCache(fallbackCompletion, fallback.usage) };
     }
 
     let content = "";
@@ -1112,7 +1145,7 @@ export abstract class SessionManagerBase {
     const finalResponse = {
       choices: [{ message }],
       usage,
-      localUsage: localUsageOf(completionTokens),
+      localUsage: localUsageWithApiCache(completionTokens, usage),
     };
     this.logChatCompletionDebug(debug, {
       timestamp: new Date().toISOString(),

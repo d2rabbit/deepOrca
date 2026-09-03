@@ -101,10 +101,15 @@ api stub BEFORE dynamically importing the component under test (see
 `tests/background-task-badge.test.ts`). When you add a regression test, mutation-check
 it once: temporarily break the fixed code, confirm the test fails, restore.
 
-Known pre-existing test failures on Windows clean trees (verify with `git stash`
-before chasing them — do not "fix" blindly):
-`desktop/src/tests/tokens-summary.test.ts` (POSIX-only path assumption in its fixture)
-and `core/src/tests/crg-query.test.ts` (detectChanges no-hunk fallback case).
+**Cross-platform path policy.** This repo is developed AND tested on multiple
+platforms, so path-shape differences (drive letters like `C:`, `\` vs `/`
+separators) are an expected, recurring phenomenon — not a core defect. When a
+test or fixture breaks on one platform only: fix it adaptively by reusing the
+production path helpers (e.g. `getProjectCode()` from core) instead of
+hand-rolled separator replacement, and move on — don't escalate it as a
+product bug and don't leave the suite red. (This adaptive-fixture approach is
+how the former "known Windows failures" — tokens-summary fixture, crg-query
+hunk fallback — were resolved.)
 
 ## Windows agent environment (repo is developed on Windows; shell is CMD)
 
@@ -133,16 +138,30 @@ and `core/src/tests/crg-query.test.ts` (detectChanges no-hunk fallback case).
   adds them) — match existing core files.
 - **Lint:** `no-console` is off. Unused vars/params may be `_`-prefixed.
   `@typescript-eslint/consistent-type-imports` is on (warn) — reinforces `import type`.
-- **File length hard limit: 2500 lines** (any hand-written source file — `.ts`,
-  `.tsx`, `.css`, `.mjs`, `.js`). Vendored code (`memory/src/tdai/`), generated
-  files, and `dist/`/`out/` artifacts are exempt. When a file approaches the
-  limit, split it by cohesive feature into sibling modules and keep the original
-  file as a thin top-level composition root that only imports/re-exports/wires
-  the modules (see `packages/desktop/src/renderer/ui.css` + `ui-css/` for CSS,
+- **Exact-pin dependencies that execute inside the Electron main process** —
+  no `^`/`~` ranges in `package.json` (a supply-chain rule: such packages run
+  with full Node privileges; see `@tlibnx/tokenizer-deepseek_v4`). Re-tighten
+  and re-audit deliberately on upgrade.
+- **File length standard: 2500 lines** (any hand-written source file — `.ts`,
+  `.tsx`, `.css`, `.mjs`, `.js`), with a tolerated float of **±10%**
+  (≈2250–2750) — mechanical drift inside that band is normal, no action
+  needed. Vendored code (`memory/src/tdai/`), generated files, and
+  `dist/`/`out/` artifacts are exempt. Past the +10% ceiling splitting is
+  mandatory: split by cohesive feature into sibling modules and keep the
+  original file as a thin top-level composition root that only
+  imports/re-exports/wires the modules (see
+  `packages/desktop/src/renderer/ui.css` + `ui-css/` for CSS,
   `packages/core/src/session.ts` + `session-manager-*.ts` for a large class,
   `i18n/messages.ts` + `i18n/locales/` for catalogs,
   `main/index.ts` + `review-report-surface.ts` for IPC wiring).
-  Never grow a file past the limit "just this once" — split first.
+  Never grow a file past the ceiling "just this once" — split first.
+- **All SVG code icons live in `packages/desktop/src/renderer/ui/icons/`** —
+  one module per category (`rail`, `welcome`, `tools`, `common`, `window`,
+  `file-type`, shared `presets`), re-exported by the `icons/index.ts` barrel.
+  Do not inline new `<svg>` glyphs in components; add them to the matching
+  category module and import from `ui/icons` (or the `ui` barrel).
+  Data-driven SVG canvases (graph boards, progress rings, diagram previews)
+  are not icons and stay next to their owning component.
 - **i18n: every new `MessageKey` must land in ALL 6 locale catalogs**
   (`renderer/i18n/locales/en.ts` is the source of truth; `zh.ts`, `zh-tw.ts`,
   `zh-hk.ts`, `ja.ts`, `ko.ts`), and no hardcoded user-facing strings in

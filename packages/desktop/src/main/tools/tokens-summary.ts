@@ -20,7 +20,8 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { appendUsageRecord, getProjectCode, readUsageLedger } from "@deeporca/core";
+import { appendUsageRecord, getProjectCode, listUsageLedgerShards, readUsageLedger } from "@deeporca/core";
+import type { UsageSource } from "@deeporca/core";
 import { estimateCostUsd } from "./token-pricing";
 
 export interface TokenModelUsage {
@@ -71,6 +72,11 @@ type IndexEntry = {
 };
 
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+/** thisWeek reaches ≤7 days back — bound the ledger parse to ~8 days so
+ *  long-lived workspaces don't re-parse their whole (possibly multi-shard)
+ *  history on every panel open. */
+const LEDGER_READ_BOUND_MS = 8 * 24 * 60 * 60 * 1000;
 
 function emptyModel(): TokenModelUsage {
   return { prompt: 0, completion: 0, total: 0, cacheRead: 0, reqs: 0 };
@@ -123,9 +129,10 @@ function readIndexEntries(indexPath: string): IndexEntry[] {
   }
 }
 
-/** Exact windows: one bucket per request, keyed off the record timestamp. */
+/** Exact windows: one bucket per request, keyed off the record timestamp.
+ *  `backfill` marker records are bookkeeping, not requests — skipped. */
 function ledgerWindows(
-  records: ReadonlyArray<{ ts: string; prompt: number; completion: number }>,
+  records: ReadonlyArray<{ ts: string; prompt: number; completion: number; source?: UsageSource }>,
   now: number
 ): { last5h: SummaryTimeWindow; today: SummaryTimeWindow; thisWeek: SummaryTimeWindow } {
   const last5h = emptyWindow();
@@ -147,6 +154,7 @@ function ledgerWindows(
     window.reqs += 1;
   };
   for (const record of records) {
+    if (record.source === "backfill") continue;
     const ts = Date.parse(record.ts);
     if (!Number.isFinite(ts)) continue;
     if (ts >= fiveHoursAgo) add(last5h, record.prompt, record.completion);
@@ -190,7 +198,6 @@ export function buildTokenSummary(
       out.completionTokens += num(usage.completion_tokens);
       out.totalTokens += num(usage.total_tokens);
       out.cacheReadTokens += num(usage.prompt_cache_hit_tokens);
-      out.requests += num(usage.total_reqs);
     }
     for (const [model, u] of Object.entries(e.usagePerModel ?? {})) {
       const m = (out.perModel[model] ??= emptyModel());
@@ -201,10 +208,30 @@ export function buildTokenSummary(
       m.reqs += num(u.total_reqs);
     }
   }
+  // requests: Σ per-model request counters. Entry-level usage never carries
+  // total_reqs in production (the writer stamps usagePerModel only), so the
+  // per-model layer is the only truthful source — and each request counts
+  // toward exactly one model, so the sum never double-counts.
+  for (const model of Object.values(out.perModel)) {
+    out.requests += model.reqs;
+  }
 
-  const ledger = readUsageLedger(usageLedgerPathForIndex(indexPath));
+  // "Any ledger at all?" is a file-size probe: the recency-bounded read below
+  // legitimately returns empty for a stale workspace, and that must not be
+  // misread as a pre-rework workspace (the approximation fallback).
+  let hasLedgerRecords = false;
+  try {
+    hasLedgerRecords = fs.statSync(usageLedgerPathForIndex(indexPath)).size > 0;
+  } catch {
+    // no ledger file yet
+  }
+  const ledger = readUsageLedger(usageLedgerPathForIndex(indexPath), now - LEDGER_READ_BOUND_MS);
   if (ledger.length > 0) {
     out.windows = ledgerWindows(ledger, now);
+    out.windowsApproximate = false;
+  } else if (hasLedgerRecords) {
+    // Records exist but none within the read bound — windows are exact zeros.
+    out.windows = { last5h: emptyWindow(), today: emptyWindow(), thisWeek: emptyWindow() };
     out.windowsApproximate = false;
   } else {
     out.windows = approximateWindows(entries, now);
@@ -217,19 +244,32 @@ export function buildTokenSummary(
 /**
  * One-time backfill (P2): sessions that predate the per-request ledger carry
  * only per-session totals. Import each as ONE aggregated ledger record so the
- * exact time windows cover old data too. Idempotent by marker: any existing
- * ledger file (even one torn line) means the workspace is already on the new
- * regime — post-rework requests land there natively. Fully synchronous, so
- * concurrent IPC calls cannot interleave into a double import.
+ * exact time windows cover old data too.
+ *
+ * "Already migrated" is a MARKER RECORD in the ledger, not file existence:
+ * post-rework requests create the ledger natively (an upgrade where the user
+ * chats before ever opening the panel — the exact race file-existence lost
+ * legacy data to), and long-lived workspaces may have rotated the active file
+ * into shards already. Migration therefore scans active file + shards, skips
+ * session ids that already have ledger records (id-dedupe), imports the rest,
+ * and finally appends the marker — which also makes a crash mid-import resume
+ * (already-imported ids are skipped on the next pass) instead of duplicating.
+ * Fully synchronous, so concurrent IPC calls cannot interleave.
  *
  * Returns the number of sessions imported.
  */
 export function migrateLegacyUsageIntoLedger(indexPath: string): number {
   const ledgerPath = usageLedgerPathForIndex(indexPath);
-  if (fs.existsSync(ledgerPath)) {
+  const existing = listUsageLedgerShards(path.dirname(ledgerPath)).flatMap((shard) => readUsageLedger(shard));
+  if (existing.some((record) => record.source === "backfill")) {
     return 0;
   }
-  const entries = readIndexEntries(indexPath).filter((entry) => entry.usage);
+  const ledgeredSessionIds = new Set(
+    existing.map((record) => record.sessionId).filter((id): id is string => typeof id === "string" && id.length > 0)
+  );
+  const entries = readIndexEntries(indexPath).filter(
+    (entry) => entry.usage && !(entry.id && ledgeredSessionIds.has(entry.id))
+  );
   if (entries.length === 0) {
     return 0;
   }
@@ -252,5 +292,13 @@ export function migrateLegacyUsageIntoLedger(indexPath: string): number {
       apiUsage: entry.usage!,
     });
   }
+  appendUsageRecord(ledgerPath, {
+    ts: new Date().toISOString(),
+    model: "legacy-backfill",
+    prompt: 0,
+    completion: 0,
+    source: "backfill",
+    estimated: true,
+  });
   return entries.length;
 }

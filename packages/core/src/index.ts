@@ -54,7 +54,7 @@ export type {
 export { SessionManager, getProjectCode, getCompactPromptTokenThreshold } from "./session";
 // Per-request local usage ledger (token-statistics rework P1) — desktop main
 // reads it (tokens summary / time windows), the engine appends to it.
-export { appendUsageRecord, readUsageLedger, usageLedgerPath } from "./common/usage-ledger";
+export { appendUsageRecord, readUsageLedger, usageLedgerPath, listUsageLedgerShards } from "./common/usage-ledger";
 export type { UsageRecord, UsageSource } from "./common/usage-ledger";
 export type {
   SessionMessage,

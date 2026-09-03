@@ -1529,7 +1529,11 @@ test("activateSession tracks context pressure as prompt-side tokens, not total t
   assert.equal(session?.activeTokens, session?.usage?.prompt_tokens);
   assert.ok((session?.activeTokens ?? 0) > 0);
   assert.ok((session?.usage?.total_tokens ?? 0) > (session?.activeTokens ?? 0), "completion side not metered");
-  assert.equal(getFreshInputTokens(session?.usage ?? null), session?.usage?.prompt_tokens);
+  // Cache telemetry rides along from the API usage (localUsage merges the
+  // API-reported cache fields so cumulative cache stats keep accumulating
+  // instead of freezing), so "fresh" is the locally counted prompt minus
+  // the API-reported cache hits.
+  assert.equal(getFreshInputTokens(session?.usage ?? null), (session?.usage?.prompt_tokens ?? 0) - 8500);
   assert.equal(responses.length, 0);
 });
 
