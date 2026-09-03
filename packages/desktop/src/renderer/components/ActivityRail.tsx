@@ -5,7 +5,6 @@ import { useI18n } from "../i18n";
 import { toolCls } from "./message/shared";
 import {
   IconBot,
-  IconChevronDown,
   IconPulse,
   IconSparkle,
   IconToolGeneric,
