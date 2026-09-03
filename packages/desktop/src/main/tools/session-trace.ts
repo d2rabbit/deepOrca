@@ -46,7 +46,9 @@ export interface SessionTrace {
 
 const ARG_MAX = 110;
 const TEXT_MAX = 150;
-const KEEP_TURNS = 3;
+// user ask 2026-09-03 九轮：任务树轨迹就是为了看完整内容 —— 不再截断
+// turn 数（旧值 3 只留最近三个 turn）。参数/文本的行内裁剪保留（显示层
+// 降噪，完整原文在会话 JSONL 里）。
 
 function clip(s: string, max = ARG_MAX): string {
   const one = s.replace(/\s+/g, " ").trim();
@@ -230,7 +232,5 @@ export function normalizeSessionTrace(sessionId: string, title: string, messages
     }
   }
 
-  const truncated = turns.length > KEEP_TURNS;
-  const kept = truncated ? turns.slice(-KEEP_TURNS) : turns;
-  return { sessionId, title, turns: kept, truncated: truncated || undefined };
+  return { sessionId, title, turns };
 }

@@ -180,6 +180,12 @@ export const IpcRequest = {
   TaskTreeGet: "tasktree:get",
   TaskHubList: "taskhub:list",
   TaskHubTrace: "taskhub:trace",
+  /** Plain-session behavior trace (user ask 2026-09-03 八轮: chat 节点也要
+   *  内部行为轨迹 —— 复用 session-trace 的读取与归一化)。 */
+  TaskHubChatTrace: "taskhub:chatTrace",
+  /** Two-mode fork (user ask 2026-09-03 九轮): worktree sandbox under
+   *  .deeporca, or a git-linked independent branch + temp worktree. */
+  TaskTreeForkWorkspace: "tasktree:forkWorkspace",
   TokensSummary: "tokens:summary",
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeTrajectory: "tasktree:trajectory",
@@ -373,6 +379,9 @@ export type TaskHubNode = {
   /** Where the detail lives — drives the detail card's action buttons. */
   source:
     | { kind: "session-tree"; treeId: string; branchCount: number }
+    /** Plain conversation without an explicit task tree (user ask 2026-09-03:
+     *  历史任务树也收录普通会话任务) — click switches to that session. */
+    | { kind: "session-chat"; sessionId: string }
     | { kind: "review-report"; reportId: string }
     | { kind: "design-artifact"; artifactId: string; pipeline: string }
     | { kind: "index-job"; jobId: string };
@@ -1123,6 +1132,24 @@ export type DesktopApi = {
   taskHubList(root: string): Promise<WorkspaceTaskHub>;
   /** Recent-turn traces of a session task's bound sessions (inline drawer). */
   taskHubTrace(root: string, treeId: string): Promise<TaskTreeTrace>;
+  /** Behavior trace of ONE plain conversation (chat hub nodes) — same
+   *  normalized shape as a tree trace's per-session entry. */
+  taskHubChatTrace(root: string, sessionId: string): Promise<TaskSessionTrace | null>;
+  /** Two-mode fork (user ask 2026-09-03 九轮). "worktree" = branch + sandbox
+   *  dir under <root>/.deeporca/task-trees/<id>/worktrees/<branch> (isolation
+   *  inside the workspace store). "branch" = git-linked independent branch +
+   *  `git worktree add` temp checkout OUTSIDE the repo — file edits there can
+   *  never touch the upstream workspace; returns the worktree root so the
+   *  renderer can switch into it. */
+  taskTreeForkWorkspace(
+    treeId: string,
+    why: string,
+    opts: { name?: string; fromBranch?: string; mode: "worktree" | "branch" },
+    workspaceRoot?: string
+  ): Promise<
+    | { ok: true; branch: string; mode: "worktree" | "branch"; sandboxDir?: string; workspaceRoot?: string }
+    | { ok: false; error: string }
+  >;
   /** Whole-workspace LLM token accounting (silent subagents included). */
   tokensSummary(root: string): Promise<WorkspaceTokenSummary>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */

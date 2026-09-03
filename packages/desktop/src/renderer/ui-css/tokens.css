@@ -112,6 +112,31 @@
   --ui-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* ── Task-hub track & domain tokens（user ask 2026-09-03 十一轮）─────────
+   这些 token 此前从未定义：trunk 描边无 fallback 直接不可见；节点/域
+   chips 在暗色主题解析失败沉底。取值来自 screen-task-tree 设计稿明色
+   板；暗色板整体提亮一档，保证在加深的点阵图底上可辨。 */
+:root {
+  --taskhub-trunk: #9fb3cc;
+  --line-trunk: #9fb3cc;
+  --line-fork: #7048e8;
+  --dot-session: #1c6fe0;
+  --dot-review: #2f9e44;
+  --dot-index: #e8590c;
+  --dot-prototype: #be4bdb;
+  --dot-abandon: #adb5bd;
+}
+:root[data-appearance="dark"] {
+  --taskhub-trunk: #64798f;
+  --line-trunk: #64798f;
+  --line-fork: #9775fa;
+  --dot-session: #4d9aff;
+  --dot-review: #51cf66;
+  --dot-index: #ff922b;
+  --dot-prototype: #da77f2;
+  --dot-abandon: #8a94a3;
+}
+
 /* Native form controls (select popups, scrollbars, date pickers) follow the
    OS rendering mode derived from `color-scheme`. Without these bindings
    Chromium renders them light-mode in a dark app — select option lists came

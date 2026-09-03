@@ -109,6 +109,9 @@ const api: DesktopApi = {
   reviewRiskGraph: (root, focusQns) => ipcRenderer.invoke(IpcRequest.ReviewRiskGraph, root, focusQns),
   taskHubList: (root) => ipcRenderer.invoke(IpcRequest.TaskHubList, root),
   taskHubTrace: (root, treeId) => ipcRenderer.invoke(IpcRequest.TaskHubTrace, root, treeId),
+  taskHubChatTrace: (root, sessionId) => ipcRenderer.invoke(IpcRequest.TaskHubChatTrace, root, sessionId),
+  taskTreeForkWorkspace: (treeId, why, opts, root) =>
+    ipcRenderer.invoke(IpcRequest.TaskTreeForkWorkspace, treeId, why, opts, root),
   tokensSummary: (root) => ipcRenderer.invoke(IpcRequest.TokensSummary, root),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 

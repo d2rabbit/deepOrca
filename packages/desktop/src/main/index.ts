@@ -1729,6 +1729,28 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     return buildTaskHub({
       root: pinned,
       listTrees: () => rootService(pinned)?.listTrees() ?? [],
+      // 普通会话收录（user ask 2026-09-03，GVGL 案例）：读该 root 的
+      // sessions-index，剔除静默子代理与已绑任务树的会话（后者由树节点
+      // 呈现），按最近活动倒序、截 60 条防止超长工作区拖垮列表。
+      listChats: () => {
+        try {
+          const indexPath = join(getUserConfigRoot(), "projects", getProjectCode(pinned), "sessions-index.json");
+          const index = readSessionsIndex(indexPath);
+          if (!index) return [];
+          return index.entries
+            .filter((e) => !e.isSilentSubagent && !e.taskRef)
+            .sort((a, b) => b.updateTime.localeCompare(a.updateTime))
+            .slice(0, 60)
+            .map((e) => ({
+              id: e.id,
+              title: e.summary || e.createTime || e.id.slice(0, 8),
+              status: e.status,
+              updatedAt: e.updateTime,
+            }));
+        } catch {
+          return [];
+        }
+      },
       listReviews: () => listReviewReports(pinned),
       listDesigns: () => listDesignArtifacts(pinned),
       listJobs: () => listIndexJobs(pinned),
@@ -1785,6 +1807,22 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       }
     }
     return out;
+  });
+
+  // Plain-conversation behavior trace (user ask 2026-09-03 八轮: chat 节点
+  // 也要内部行为轨迹 —— 同一读取/归一化管线，单会话直出)。
+  handle(IpcRequest.TaskHubChatTrace, async (workspaceRoot?: string, sessionId?: string) => {
+    if (!sessionId) return null;
+    const pinnedRoot =
+      typeof workspaceRoot === "string" && workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : serviceRoot();
+    if (!pinnedRoot) return null;
+    const projectDir = join(getUserConfigRoot(), "projects", getProjectCode(pinnedRoot));
+    try {
+      const { messages, summary } = readSessionTraceSource(projectDir, sessionId);
+      return normalizeSessionTrace(sessionId, summary || sessionId.slice(0, 8), messages);
+    } catch {
+      return null;
+    }
   });
 
   // Whole-workspace LLM token accounting (silent subagents included).
@@ -1885,6 +1923,81 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
       if (!nodeId) return { error: "fork rejected (tree missing, duplicate name, or empty why)" };
       const tree = svc.getTree(treeId);
       return { nodeId, branch: tree?.index.activeBranch ?? "" };
+    }
+  );
+
+  // Two-mode fork (user ask 2026-09-03 九轮).
+  // ① worktree 沙盒：树分支 + <root>/.deeporca/task-trees/<id>/worktrees/<branch>
+  //    独立沙盒目录 —— 隔离落在工作区存储内，与上游共用 git。
+  // ② 分支独立：git 真分支 + `git worktree add` 临时检出（仓库外、config
+  //    root 下）—— fork 的文件工作发生在独立工作区，结构性隔离，不可能
+  //    影响上游工作区；渲染端拿到 worktree root 后切换进去干活。
+  handlePrivileged(
+    IpcRequest.TaskTreeForkWorkspace,
+    async (
+      treeId: string,
+      why: string,
+      opts?: { name?: string; fromBranch?: string; mode?: "worktree" | "branch" },
+      workspaceRoot?: string
+    ) => {
+      const svc = workspaceRoot ? rootService(workspaceRoot) : service();
+      if (!svc) return { ok: false, error: "task tree service unavailable" };
+      if (!validTreeId(treeId)) return { ok: false, error: "invalid treeId" };
+      const w = typeof why === "string" ? why.trim() : "";
+      if (!w) return { ok: false, error: "why is required (the branch's story)" };
+      const mode = opts?.mode === "branch" ? "branch" : "worktree";
+      const root = workspaceRoot ? (resolveRegisteredRoot(workspaceRoot) ?? "") : serviceRoot();
+
+      const nodeId = svc.fork(treeId, {
+        why: w,
+        ...(opts?.name ? { name: opts.name } : {}),
+        ...(opts?.fromBranch ? { fromBranch: opts.fromBranch } : {}),
+      });
+      if (!nodeId) return { ok: false, error: "fork rejected (duplicate name or empty why)" };
+      const tree = svc.getTree(treeId);
+      const branch = tree?.index.activeBranch ?? "";
+      if (!branch) return { ok: false, error: "fork succeeded but branch missing" };
+
+      if (mode === "worktree") {
+        if (!root) return { ok: false, error: "workspace root unresolved" };
+        const sandboxDir = join(root, ".deeporca", "task-trees", treeId, "worktrees", branch);
+        try {
+          mkdirSync(sandboxDir, { recursive: true });
+        } catch {
+          return { ok: false, error: `sandbox dir unavailable: ${sandboxDir}` };
+        }
+        return { ok: true, mode, branch, sandboxDir };
+      }
+
+      if (!root) return { ok: false, error: "workspace root unresolved" };
+      const insideRepo = spawnSync("git", ["-C", root, "rev-parse", "--is-inside-work-tree"], {
+        encoding: "utf8",
+        timeout: 5000,
+      });
+      if (insideRepo.status !== 0) {
+        return { ok: false, error: "not a git repository（分支独立模式需要 git 联动）" };
+      }
+      const nameHint = (opts?.name?.trim() || w).toLowerCase();
+      const slug =
+        nameHint
+          .replace(/[^a-z0-9._-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 32) || "fork";
+      const gitBranch = `deeporca/${slug}/${branch}`.slice(0, 60);
+      const worktreeRoot = join(getUserConfigRoot(), "worktrees", `${slug}-${branch}`.slice(0, 48));
+      const branchR = spawnSync("git", ["-C", root, "branch", gitBranch], { encoding: "utf8", timeout: 15000 });
+      if (branchR.status !== 0) {
+        return { ok: false, error: `git branch failed: ${(branchR.stderr || "").trim().slice(0, 200)}` };
+      }
+      const addR = spawnSync("git", ["-C", root, "worktree", "add", worktreeRoot, gitBranch], {
+        encoding: "utf8",
+        timeout: 60000,
+      });
+      if (addR.status !== 0) {
+        // 分支已建但 worktree 失败：保留树分支（行仍有用），报告 git 错误。
+        return { ok: false, error: `git worktree add failed: ${(addR.stderr || "").trim().slice(0, 200)}` };
+      }
+      return { ok: true, mode, branch, workspaceRoot: worktreeRoot };
     }
   );
 

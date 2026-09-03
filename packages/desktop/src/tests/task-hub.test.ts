@@ -125,3 +125,40 @@ test("task-hub: per-domain fail-open — a broken reader costs only its domain",
   assert.equal(hub.groups.find((g) => g.domain === "review")!.nodes.length, 2);
   assert.equal(hub.groups.find((g) => g.domain === "index")!.nodes.length, 1);
 });
+
+// ── plain conversation capture (user ask 2026-09-03, GVGL case) ──────────────
+test("task-hub: unbound sessions list as chat nodes interleaved by recency", () => {
+  const hub = buildTaskHub(
+    deps({
+      listChats: () => [
+        { id: "chat-new", title: "帮我修登录 bug", status: "completed", updatedAt: "2026-09-02T10:00:00.000Z" },
+        { id: "chat-mid", title: "解释一下 GVGL 渲染", status: "processing", updatedAt: "2026-08-15T10:00:00.000Z" },
+        { id: "chat-old", title: "PONG", status: "failed", updatedAt: "2026-07-01T10:00:00.000Z" },
+      ],
+    })
+  );
+  const session = hub.groups.find((g) => g.domain === "session")!.nodes;
+  assert.equal(session.length, 5, "2 trees + 3 chats");
+  // Recency interleave: tree-1 (09-01) sits between chat-new (09-02) and chat-mid (08-15);
+  // the archived tree-old (08-01) lands above only chat-old (07-01).
+  assert.deepEqual(
+    session.map((n) => n.id),
+    ["chat-new", "tree-1", "chat-mid", "tree-old", "chat-old"]
+  );
+  const chat = session.find((n) => n.id === "chat-mid")!;
+  assert.equal(chat.source.kind, "session-chat");
+  assert.equal(chat.status, "running", "processing maps to running");
+  assert.equal(session.find((n) => n.id === "chat-old")!.status, "error", "failed maps to error");
+});
+
+test("task-hub: chat reader failure is fail-open (trees still list)", () => {
+  const hub = buildTaskHub(
+    deps({
+      listChats: () => {
+        throw new Error("sessions-index unreadable");
+      },
+    })
+  );
+  const session = hub.groups.find((g) => g.domain === "session")!.nodes;
+  assert.equal(session.length, 2, "only the trees list");
+});

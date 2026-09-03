@@ -29,7 +29,26 @@ export interface TaskHubDeps {
   listJobs(): IndexJobRecord[];
   /** file-history HEAD hash per tree (git binding badge); empty → 无 git 记录. */
   treeGitHash?(treeId: string): string | null;
+  /** Plain conversations WITHOUT a task tree (user ask 2026-09-03: 历史任务树
+   *  要收录普通会话任务，GVGL 案例)。Caller pre-filters: silent subagents and
+   *  taskRef-bound sessions (those surface as their tree) are excluded, sorted
+   *  newest-first. `status` is the raw core SessionStatus string. */
+  listChats?(): Array<{ id: string; title: string; status: string; updatedAt: string }>;
 }
+
+/** Core SessionStatus → hub node status. Everything still alive reads as
+ *  running/warning so the rail dot reflects "not finished yet". */
+const CHAT_STATUS: Record<string, TaskHubNode["status"]> = {
+  processing: "running",
+  pending: "running",
+  completed: "done",
+  failed: "error",
+  interrupted: "warning",
+  paused: "warning",
+  permission_denied: "warning",
+  ask_permission: "warning",
+  waiting_for_user: "warning",
+};
 
 const DOMAIN_ORDER: TaskHubDomain[] = ["session", "index", "review", "prototype"];
 
@@ -71,6 +90,26 @@ export function buildTaskHub(deps: TaskHubDeps): WorkspaceTaskHub {
     }
   } catch {
     // fail-open — session domain lists empty
+  }
+
+  // ── plain conversations (user ask 2026-09-03) — sessions that never called
+  //    task.create are still 会话任务: appended as chat nodes so the hub
+  //    collects the workspace's whole session history. No local sort needed —
+  //    the tail pass below sorts every group by startedAt desc, interleaving
+  //    trees and chats on one timeline.
+  try {
+    for (const s of deps.listChats?.() ?? []) {
+      group("session").push({
+        id: s.id,
+        domain: "session",
+        title: s.title || "session",
+        status: CHAT_STATUS[s.status] ?? "done",
+        startedAt: s.updatedAt,
+        source: { kind: "session-chat", sessionId: s.id },
+      });
+    }
+  } catch {
+    // fail-open — chats simply don't list
   }
 
   // ── index domain — settled build jobs (`.deeporca/jobs/`) ───────────────

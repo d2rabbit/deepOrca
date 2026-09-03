@@ -121,8 +121,11 @@
   display: flex;
   border: 1px solid var(--ui-border-soft, #e3e6eb);
   border-radius: 14px;
+  /* 底色比主题表面深一档（user ask 2026-09-03 十轮）：sunken 混入 raised，
+     明暗两系主题都成立（sunken 在两种主题里都比 raised 深），与外围底色
+     拉开可辨识的对比，点阵轨道更清楚。 */
   background: radial-gradient(color-mix(in srgb, var(--ui-text-dim, #66707d) 18%, transparent) 1px, transparent 1.2px)
-    var(--ui-surface-raised, #fff);
+    color-mix(in srgb, var(--ui-surface-sunken, #eef1f6) 55%, var(--ui-surface-raised, #fff));
   background-size: 22px 22px;
 }
 /* 84px rail — tracks' EXCLUSIVE territory. */
@@ -297,7 +300,9 @@
   margin: 2px 0 12px;
   border: 1px solid var(--ui-border-soft, #e3e6eb);
   border-radius: 12px;
-  background: var(--ui-surface, #f7f9fc);
+  /* 轨迹区在加深的点阵底上用 raised 卡面（user ask 2026-09-03 十轮）——
+     与图底色拉开层次，不再只靠线框分辨；主题自适应。 */
+  background: var(--ui-surface-raised, #fff);
   overflow: hidden;
 }
 .ui-taskhub-trace .tr-head {
@@ -776,4 +781,155 @@
 .ui-taskhub-pop .ui-taskhub-detail {
   width: 100%;
   flex: 1 1 auto;
+}
+
+/* ── 设计稿 V2.1 对齐补齐（user ask 2026-09-03 八轮：渲染太简单）──
+   工作区胶囊 · 图例条 · 域 pill 色点 · 域淡化过滤 · fork 环/叉边。 */
+
+/* 工作区胶囊（设计稿 .ws）*/
+.ui-taskhub-ws {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-weight: 650;
+  font-size: 12px;
+  flex: none;
+}
+.ui-taskhub-ws .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+}
+
+/* 域 pill 色点 */
+.ui-taskhub-pill .sw {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.ui-taskhub-pill .sw-session {
+  background: var(--dot-session);
+}
+.ui-taskhub-pill .sw-index {
+  background: var(--dot-index);
+}
+.ui-taskhub-pill .sw-review {
+  background: var(--dot-review);
+}
+.ui-taskhub-pill .sw-prototype {
+  background: var(--dot-prototype);
+}
+
+/* 图例条（设计稿 .legend）*/
+.ui-taskhub-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-left: auto;
+}
+.ui-taskhub-legend .it {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-taskhub-legend .sw {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  display: inline-block;
+}
+.ui-taskhub-legend .sw.round {
+  border-radius: 50%;
+  background: var(--dot-session);
+}
+.ui-taskhub-legend .sw.ring {
+  border-radius: 50%;
+  background: var(--ui-surface-raised);
+  border: 2px solid var(--line-fork, #7048e8);
+}
+.ui-taskhub-legend .sw.diamond {
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: var(--dot-review);
+}
+.ui-taskhub-legend .ln {
+  width: 18px;
+  height: 0;
+  border-top: 2px solid var(--line-fork, #7048e8);
+  display: inline-block;
+}
+.ui-taskhub-legend .ln.dash {
+  border-top-style: dashed;
+  opacity: 0.5;
+}
+
+/* 域过滤 = 淡化非选中域（图结构保持完整，设计稿行为）*/
+.ui-taskhub-graph .ui-taskhub-row,
+.ui-taskhub-graph .ui-taskhub-trace {
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+.ui-taskhub-graph[data-dim="session"] .ui-taskhub-row:not([data-domain="session"]),
+.ui-taskhub-graph[data-dim="index"] .ui-taskhub-row:not([data-domain="index"]),
+.ui-taskhub-graph[data-dim="review"] .ui-taskhub-row:not([data-domain="review"]),
+.ui-taskhub-graph[data-dim="prototype"] .ui-taskhub-row:not([data-domain="prototype"]) {
+  opacity: 0.22;
+  filter: saturate(0.2);
+}
+
+/* fork 叉边（紫）与 abandoned 虚线渐隐 */
+.ui-taskhub-tracks .edge.fork {
+  stroke: var(--line-fork, #7048e8);
+  fill: none;
+}
+.ui-taskhub-tracks .edge.fork-abandoned {
+  stroke: var(--line-fork, #7048e8);
+  fill: none;
+  stroke-dasharray: 3 5;
+  opacity: 0.45;
+}
+
+/* fork 节点行卡： quieter、窄一档，hover 提示可切分支 */
+.ui-taskhub-row.fork-row .ui-taskhub-card {
+  min-height: 0;
+  padding: 5px 12px;
+  border-left: 2.5px solid color-mix(in srgb, var(--line-fork, #7048e8) 55%, transparent);
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 4%, transparent);
+}
+.ui-taskhub-row.fork-row .ui-taskhub-card:hover {
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 10%, transparent);
+}
+.ui-taskhub-row.fork-row .ui-taskhub-card .name {
+  font-size: 12.5px;
+  color: var(--ui-text-dim);
+}
+.chip.tag-fork {
+  color: var(--line-fork, #7048e8);
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 12%, transparent);
+}
+
+/* fork 双模式选择（九轮）+ 已合并徽章 */
+.ui-taskhub-forkmode {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ui-taskhub-forkmode-note {
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  line-height: 1.5;
+}
+.chip.st-merged {
+  color: var(--line-fork, #7048e8);
+  background: color-mix(in srgb, var(--line-fork, #7048e8) 12%, transparent);
 }

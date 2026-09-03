@@ -103,8 +103,9 @@ const overrides: Record<string, unknown> = {};
 /** Mutable per-test tree fixture — branches the switch picker should offer. */
 let treeBranches: Record<string, { name: string; headId: string; createdAt: string; abandoned?: boolean }>;
 
-function renderHub(): { container: HTMLElement; quicks: TaskHubQuickView[] } {
+function renderHub(): { container: HTMLElement; quicks: TaskHubQuickView[]; openedSessions: Array<[string, string]> } {
   const quicks: TaskHubQuickView[] = [];
+  const openedSessions: Array<[string, string]> = [];
   const utils = rtl.render(
     ReactPkg.createElement(
       I18nProvider,
@@ -114,10 +115,12 @@ function renderHub(): { container: HTMLElement; quicks: TaskHubQuickView[] } {
         onOpenQuick: (q) => quicks.push(q),
         onOpenDesign: () => {},
         onOpenKnowledge: () => {},
+        onOpenSession: (root, sessionId) => openedSessions.push([root, sessionId]),
+        onOpenWorkspace: () => {},
       })
     )
   );
-  return { container: utils.container, quicks };
+  return { container: utils.container, quicks, openedSessions };
 }
 
 async function settle(): Promise<void> {
@@ -169,7 +172,12 @@ before(async () => {
     },
     nodes: [],
   });
-  overrides.taskTreeFork = async () => ({ nodeId: "n9", branch: "fork-1" });
+  overrides.taskTreeForkWorkspace = async () => ({
+    ok: true,
+    mode: "worktree" as const,
+    branch: "fork-1",
+    sandboxDir: "/r/.deeporca/task-trees/t/worktrees/fork-1",
+  });
   overrides.taskTreeSwitch = async () => ({ ok: true });
   stub = createApiStub(overrides);
   (globalThis as unknown as { window: { deeporca: unknown } }).window.deeporca = stub.api;
@@ -203,9 +211,9 @@ test("fork goes through the cross-workspace channel with this tab's root, errors
   rtl.fireEvent.click(go);
   await settle();
 
-  const fork = stub.calls.find((c) => c.method === "taskTreeFork");
-  assert.ok(fork, "taskTreeFork was not dispatched");
-  assert.deepEqual(fork.args, [TREE_ID, "需要实验方向", { name: undefined }, ROOT]);
+  const fork = stub.calls.find((c) => c.method === "taskTreeForkWorkspace");
+  assert.ok(fork, "taskTreeForkWorkspace was not dispatched");
+  assert.deepEqual(fork.args, [TREE_ID, "需要实验方向", { name: undefined, mode: "worktree" }, ROOT]);
   assert.ok(!stub.calls.some((c) => c.method === "actionRun"), "fork must not dispatch through actionRun");
   // Success closes the popover and reloads the hub.
   assert.equal(document.querySelector(".ui-taskhub-pop"), null, "popover survived a successful fork");
@@ -213,7 +221,7 @@ test("fork goes through the cross-workspace channel with this tab's root, errors
 });
 
 test("fork failure {error} surfaces inline and keeps the popover open", async () => {
-  overrides.taskTreeFork = async () => ({ error: "fork rejected (tree missing)" });
+  overrides.taskTreeForkWorkspace = async () => ({ ok: false, error: "fork rejected (tree missing)" });
   const { container: out } = renderHub();
   await settle();
   await rtl.act(async () => {
