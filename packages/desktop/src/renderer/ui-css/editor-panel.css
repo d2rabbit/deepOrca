@@ -175,6 +175,23 @@
   color: var(--ui-text-dim);
 }
 
+/* ── 树形目录（user ask 2026-09-03 十二轮 B3a）────────────────────────
+   VSCode/IDEA 展开逻辑：目录原地展开、深度缩进、箭头指示展开态（› 旋转
+   为 ˅）。首次展开懒加载并缓存；收起不清缓存。 */
+.ui-tree-chev {
+  flex: none;
+  width: 12px;
+  margin-right: 1px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  transition: transform 0.14s var(--ui-ease);
+}
+.ui-tree-chev.open {
+  transform: rotate(90deg);
+}
+
 .ui-editor-file-name {
   flex: 1;
   overflow: hidden;
@@ -1844,4 +1861,113 @@
 .ui-ik-rowops .ui-ik-runbtn {
   margin-left: auto;
   flex: none;
+}
+
+/* ── 选区 agent 交互浮窗（user ask 2026-09-03 十三轮 B3c-3 第一切片）── */
+.ui-edagent {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ui-edagent-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-surface-raised, #fff) 92%, transparent);
+  backdrop-filter: blur(10px);
+  color: var(--ui-accent);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: var(--ui-shadow-card);
+  transition:
+    transform 0.13s var(--ui-ease),
+    background 0.13s var(--ui-ease);
+}
+.ui-edagent-fab:hover {
+  transform: translateY(-1px);
+  background: var(--ui-accent-soft);
+}
+.ui-edagent-panel {
+  width: min(380px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border-soft));
+  background: var(--ui-surface-raised, #fff);
+  box-shadow: var(--ui-shadow-modal);
+}
+.ui-edagent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ui-accent);
+}
+.ui-edagent-close {
+  border: none;
+  background: none;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+  font-size: 10px;
+}
+.ui-edagent-sel {
+  margin: 0;
+  max-height: 110px;
+  overflow: auto;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--ui-surface-sunken);
+  border: 1px solid var(--ui-border-soft);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ui-text-dim);
+  white-space: pre-wrap;
+}
+.ui-edagent-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 54px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-input-bg, var(--ui-surface));
+  color: var(--ui-text-primary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ui-edagent-input:focus {
+  border-color: var(--ui-accent);
+}
+.ui-edagent-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-edagent-hint {
+  flex: 1;
+  font-size: 10.5px;
+  color: var(--ui-text-faint);
+}
+.ui-edagent-sent {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-success, #2f9e44) 12%, transparent);
+  color: var(--ui-success, #2f9e44);
+  font-size: 11.5px;
+  font-weight: 600;
 }

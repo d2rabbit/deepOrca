@@ -13,7 +13,7 @@ import {
   IconReview,
   IconSessions,
   IconTaskTree,
-  IconTasks,
+  // IconTasks 随 tasks 视图隐藏（B1）不再使用；视图恢复时一并恢复 import。
   IconTokens,
 } from "../ui/index";
 
@@ -72,18 +72,21 @@ export function HubSheet({
   children,
 }: HubSheetProps): JSX.Element {
   const { t } = useI18n();
+  // Dock 顺序 = 实用性排序（user ask 2026-09-03 十二轮 B2）：会话 → 源代码
+  // 管理 → 知识库 → 代码审查 → 编辑器 → Token → 原型 → UI 设计 → 任务树 →
+  // GitMCP → 插件。「任务」(tasks) 视图暂时隐藏（B1）—— dock 不再渲染，
+  // 视图本身保留注册，程序内通路不受影响。
   const views: HubViewDef[] = [
     { id: "explorer", labelKey: VIEW_LABEL_KEYS.explorer, icon: <IconSessions /> },
     { id: "scm", labelKey: VIEW_LABEL_KEYS.scm, icon: <IconGit /> },
-    { id: "tasks", labelKey: VIEW_LABEL_KEYS.tasks, icon: <IconTasks /> },
-    { id: "tokens", labelKey: VIEW_LABEL_KEYS.tokens, icon: <IconTokens /> },
     { id: "index", labelKey: VIEW_LABEL_KEYS.index, icon: <IconIndex /> },
     { id: "review", labelKey: VIEW_LABEL_KEYS.review, icon: <IconReview /> },
+    { id: "editor", labelKey: VIEW_LABEL_KEYS.editor, icon: <IconEditor /> },
+    { id: "tokens", labelKey: VIEW_LABEL_KEYS.tokens, icon: <IconTokens /> },
     { id: "prototype", labelKey: VIEW_LABEL_KEYS.prototype, icon: <IconPrototype /> },
     { id: "design", labelKey: VIEW_LABEL_KEYS.design, icon: <IconDesign /> },
     { id: "taskhub", labelKey: VIEW_LABEL_KEYS.taskhub, icon: <IconTaskTree /> },
     { id: "gitmcp", labelKey: VIEW_LABEL_KEYS.gitmcp, icon: <IconGitmcp /> },
-    { id: "editor", labelKey: VIEW_LABEL_KEYS.editor, icon: <IconEditor /> },
     { id: "plugins", labelKey: VIEW_LABEL_KEYS.plugins, icon: <IconPlugins /> },
   ];
   return (

@@ -26,12 +26,16 @@ import {
   Field,
   IconBolt,
   IconBook,
+  IconBot,
   IconCheck,
+  IconExternal,
   IconInfo,
   IconLock,
   IconPalette,
   IconSettings,
+  IconShield,
   IconSparkle,
+  IconWarn,
   Input,
   Modal,
   Select,
@@ -56,11 +60,12 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void;
 };
 
-type Tab = "endpoints" | "model" | "appearance" | "memory" | "permissions" | "actions" | "about";
+type Tab = "endpoints" | "model" | "entities" | "appearance" | "memory" | "permissions" | "actions" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "endpoints", labelKey: "settings.tab.endpoints" },
   { id: "model", labelKey: "settings.tab.model" },
+  { id: "entities", labelKey: "settings.tab.entities" },
   { id: "appearance", labelKey: "settings.tab.appearance" },
   { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
@@ -71,6 +76,7 @@ const TABS: { id: Tab; labelKey: MessageKey }[] = [
 const TAB_ICONS: Record<Tab, JSX.Element> = {
   endpoints: <IconBolt />,
   model: <IconSparkle />,
+  entities: <IconBot />,
   appearance: <IconPalette />,
   memory: <IconBook />,
   permissions: <IconLock />,
@@ -1580,6 +1586,49 @@ export function SettingsPanel({
               <section className="ui-settings-section" style={{ maxWidth: "none", padding: 0 }}>
                 <ActionsPanel />
               </section>
+            ) : null}
+            {/* ── 数字体（user ask 2026-09-03 十二轮 B4）────────────────────
+                数字体 = 产品内的智能体（刻意不用「智能体」这个词）。这里只读
+                展示已存在的内置数字体 —— 对应真实的静默子代理管线与 define-
+                action 控制器；自定义能力暂不开放。 */}
+            {tab === "entities" ? (
+              <>
+                <section className="ui-settings-section">
+                  <div className="ui-settings-section-title">{t("settings.entities.title")}</div>
+                  <p className="ui-about-desc">{t("settings.entities.intro")}</p>
+                </section>
+                <section className="ui-settings-section">
+                  <div className="ui-opt-row">
+                    {(
+                      [
+                        { icon: <IconBot />, key: "arch" },
+                        { icon: <IconShield />, key: "review" },
+                        { icon: <IconBook />, key: "wiki" },
+                        { icon: <IconWarn />, key: "risk" },
+                        { icon: <IconExternal />, key: "web" },
+                      ] as const
+                    ).map((agent) => (
+                      <div key={agent.key} className="ui-opt entities-agent">
+                        <span className="ui-settings-nav-icon" aria-hidden="true">
+                          {agent.icon}
+                        </span>
+                        <div className="ui-settings-entity-main">
+                          <div className="ui-settings-entity-head">
+                            <span className="ui-settings-entity-name">
+                              {t(`settings.entities.${agent.key}.name` as never)}
+                            </span>
+                            <span className="ui-skill-card-badge bundled">{t("settings.entities.builtin")}</span>
+                          </div>
+                          <div className="ui-settings-entity-desc">
+                            {t(`settings.entities.${agent.key}.desc` as never)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="ui-about-desc">{t("settings.entities.customSoon")}</p>
+                </section>
+              </>
             ) : null}
             {tab === "about" ? (
               <>
