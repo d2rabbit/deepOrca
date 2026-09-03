@@ -1072,6 +1072,7 @@ button.ui-surface-chip {
   left: 16px;
   right: 16px;
   bottom: 16px;
+  border-radius: 10px;
   z-index: 28;
   display: flex;
   flex-direction: column;
