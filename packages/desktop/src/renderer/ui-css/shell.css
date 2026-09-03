@@ -1269,6 +1269,8 @@ button.ui-surface-chip {
 
 /* ── 欢迎态：输入框 dock 从底部泊定改为垂直居中叠放（ZCode 式布局）── */
 .ui-chat-stage.welcome-mode .ui-composer-dock {
+  left: 0;
+  right: 0;
   bottom: auto;
   top: 50%;
   transform: translateY(-42%);
