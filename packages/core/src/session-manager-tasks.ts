@@ -467,7 +467,11 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     // prototypes artifact dir inside the reviewed repo (real-machine
     // 2026-08-31: a delegated review of an arbitrary checkout polluted it).
     const reviewProfile = opts.profile === "review";
-    if (!reviewProfile) ensureBackgroundTaskArtifactDir(targetRoot);
+    // editor profile (specs/editor-agent): review's read-only mechanics, but
+    // the final text is HUMAN-facing (shown verbatim in the user's editor).
+    const editorProfile = opts.profile === "editor";
+    const readonlyProfile = reviewProfile || editorProfile;
+    if (!readonlyProfile) ensureBackgroundTaskArtifactDir(targetRoot);
     // Task-start timestamp: "authored THIS run" = artifact mtime after this
     // (the wiki side uses the same technique).
     const taskStartedAtMs = Date.now();
@@ -485,7 +489,7 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
     // Stamp for the task-end A2UI surface flush (only surfaces mutated by
     // THIS run are written back — see the finally below). The review profile
     // produces no surfaces, so it opts out of the stamp/flush entirely.
-    const a2ui = reviewProfile ? undefined : this.currentA2uiLifecycle;
+    const a2ui = readonlyProfile ? undefined : this.currentA2uiLifecycle;
     const archFlushStamp = a2ui?.surfaceStamp?.();
     this.backgroundTaskIds.add(taskId);
     try {
@@ -504,18 +508,27 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       const messages: Array<Record<string, unknown>> = [
         {
           role: "system",
-          content: reviewProfile
-            ? "You are a non-interactive code review task inside DeepOrca. " +
-              "Work autonomously to completion: never ask the user questions, never wait for input — " +
-              "make reasonable assumptions and finish the review described below. " +
-              "Explore the repository with the read tools where context requires it, but modify nothing. " +
-              "Your final text is consumed by a parser: respond with EXACTLY the JSON your task prompt specifies, " +
-              "with no prose and no markdown fences."
-            : "You are a non-interactive background analysis task inside DeepOrca. " +
-              "Work autonomously to completion: never ask the user questions, never wait for input — " +
-              "make reasonable assumptions and finish the task described below. " +
-              "Your only lasting output is the tool-side artifacts you produce (e.g. the archify typed-IR map files under .deeporca/prototypes/); " +
-              "your final text is a brief completion report to the orchestrator, not to a human.",
+          content: editorProfile
+            ? "You are the editor-resident digital entity inside DeepOrca. " +
+              "The user selected code in their editor and issued an instruction about it. " +
+              "Work autonomously to completion: never ask questions, never wait for input. " +
+              "Use the read tools only when the immediate context is genuinely insufficient — modify nothing on disk. " +
+              "Your final text is shown VERBATIM in the user's editor: when the instruction asks for changes, " +
+              "output the replacement code for the selection as ONE fenced code block (drop-in compatible, " +
+              "surrounding indentation preserved) followed by at most 3 lines of rationale; " +
+              "for pure questions, answer in at most 6 lines."
+            : reviewProfile
+              ? "You are a non-interactive code review task inside DeepOrca. " +
+                "Work autonomously to completion: never ask the user questions, never wait for input — " +
+                "make reasonable assumptions and finish the review described below. " +
+                "Explore the repository with the read tools where context requires it, but modify nothing. " +
+                "Your final text is consumed by a parser: respond with EXACTLY the JSON your task prompt specifies, " +
+                "with no prose and no markdown fences."
+              : "You are a non-interactive background analysis task inside DeepOrca. " +
+                "Work autonomously to completion: never ask the user questions, never wait for input — " +
+                "make reasonable assumptions and finish the task described below. " +
+                "Your only lasting output is the tool-side artifacts you produce (e.g. the archify typed-IR map files under .deeporca/prototypes/); " +
+                "your final text is a brief completion report to the orchestrator, not to a human.",
         },
         // Runtime context: a SLIM, target-rooted block — NOT the full
         // getStableRuntimeContext (real-machine 2026-08-29, live probe: the
@@ -553,19 +566,19 @@ export abstract class SessionManagerTasks extends SessionManagerLifecycle {
       // a delegated review explores, it never authors. a2ui LEFT the surface
       // with save_archmap's retirement — nothing in the archify skill
       // consumes A2UI surfaces anymore.
-      const ALLOWED_BUILTIN = new Set(reviewProfile ? ["read", "bash"] : ["read", "bash", "write"]);
+      const ALLOWED_BUILTIN = new Set(readonlyProfile ? ["read", "bash"] : ["read", "bash", "write"]);
       const ALLOWED_MCP = /^mcp__(codegraph|serena)__/;
       const tools = getTools(this.getPromptToolOptions(), this.mcpToolDefinitions)
         .filter((t) => ALLOWED_BUILTIN.has(t.function.name) || ALLOWED_MCP.test(t.function.name))
-        // archify tool steering is artifact-profile framing; a review task's
-        // tools keep their stock descriptions (its prompt forbids mutations).
-        .map((t) => (reviewProfile ? t : steerToolDescription(t, targetRoot)));
+        // archify tool steering is artifact-profile framing; read-only tasks'
+        // tools keep their stock descriptions (their prompts forbid mutations).
+        .map((t) => (readonlyProfile ? t : steerToolDescription(t, targetRoot)));
       // First-class validate tool (user directive 2026-08-30: 引导走 tools，
       // 不是一直拦截): the validate loop was the ONE thing bash was legitimately
       // used for — give it a real tool so the model never needs bash for it.
       // Artifact-profile only: a review task never touches archify artifacts.
       const archify = getArchifyPaths();
-      if (archify && !reviewProfile) {
+      if (archify && !readonlyProfile) {
         tools.push({
           type: "function",
           function: {

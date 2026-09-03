@@ -174,9 +174,13 @@ export interface BackgroundLlmTaskOptions {
    * artifact-completion system framing and archify tool steering. "review"
    * (delegated OCR file review) is read-only exploration: no artifact dir,
    * no write tool, no steering, and a system preamble that enforces the task
-   * prompt's JSON contract. Defaults to "default".
+   * prompt's JSON contract. Defaults to "default". "editor" (the editor-
+   * resident digital entity, specs/editor-agent) shares review's read-only
+   * mechanics — no artifact dir, no write tool, no steering — but its system
+   * preamble is human-facing: the final text is shown verbatim in the user's
+   * editor (replacement code in one fence + short rationale).
    */
-  readonly profile?: "default" | "review";
+  readonly profile?: "default" | "review" | "editor";
   /**
    * Workspace root the task's artifacts belong to (defaults to the manager's
    * projectRoot). A2UI surfaces are flushed into this root's
