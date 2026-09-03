@@ -1785,3 +1785,47 @@
   flex-shrink: 0;
   margin-top: 1px;
 }
+
+/* ── 两行工作区卡（user ask 2026-09-03）：上行身份、下行范围+运行 ──
+   用 :has 限定，知识库等单行卡片保持原状不受影响。 */
+.ui-ik-rowwrap:has(> .ui-ik-rowops) .ui-ik-row {
+  flex-wrap: nowrap;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+}
+.ui-ik-rowops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px 9px 26px;
+  border: 1px solid var(--ui-border-soft, #333);
+  border-top: 1px dashed var(--ui-border-soft, #333);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 4px;
+}
+.ui-ik-rowops .ui-review-row-scope {
+  margin-left: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+.ui-ik-rowops .ui-review-row-scope.has-refs {
+  width: auto;
+  order: 0;
+  margin-left: 0;
+}
+.ui-ik-rowops .ui-review-row-scope .ui-review-scope-select {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: none;
+}
+.ui-ik-rowops .ui-review-row-scope .ui-review-scope-select:first-child {
+  flex: 0 0 auto;
+}
+.ui-ik-rowops .ui-ik-runbtn {
+  margin-left: auto;
+  flex: none;
+}

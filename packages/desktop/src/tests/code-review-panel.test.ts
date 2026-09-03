@@ -97,7 +97,9 @@ test("scope edit on row B keys by B's root — B updates, active row A stays unt
   const out = renderPanel();
   await settle();
 
-  const rows = out.querySelectorAll(".ui-ik-row");
+  // Two-row card (2026-09-03): row 1 = workspace identity, row 2 = ops strip
+  // (scope + run). The wrap is the query unit — selects live in the ops strip.
+  const rows = out.querySelectorAll(".ui-ik-rowwrap");
   assert.equal(rows.length, 2, `expected two workspace rows: ${out.innerHTML}`);
   const modeOf = (row: Element): string => (row.querySelector("select") as HTMLSelectElement).value;
   assert.equal(modeOf(rows[0]), "workspace");
@@ -130,7 +132,7 @@ test("run button on row B dispatches review.full with B's root — no workspace 
   const out = renderPanel();
   await settle();
 
-  const rows = out.querySelectorAll(".ui-ik-row");
+  const rows = out.querySelectorAll(".ui-ik-rowwrap");
   const runB = rows[1].querySelector(".ui-ik-runbtn");
   assert.ok(runB, "run button missing on row B");
   assert.equal((runB as HTMLButtonElement).disabled, false, "row B's run button should be enabled");

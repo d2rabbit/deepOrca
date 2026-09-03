@@ -383,20 +383,16 @@ export function CodeReviewPanel({
                         : formatRelative(lastReview[w.root], t("index.freshness.justNow"), t("review.lastReviewNever"))}
                     </div>
                   </div>
-                  {/* Scope IN the row (user ask 2026-09-01: 范围与 item 集成) —
-                      every row carries its own remembered scope; the ref
-                      dropdowns read that row's own git refs (fetched with an
-                      explicit root), so they are correct whichever row is
-                      active. */}
-                  <div
-                    className={`ui-review-row-scope${scope.mode === "workspace" ? "" : " has-refs"}`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                </div>
+
+                {/* Two-row card (user ask 2026-09-03): 第一行 = 工作区身份；
+                    第二行 = 范围选择 + 运行，整条操作带独占一行，不再与
+                    名称抢宽度。每行仍记忆自己的 scope；引用下拉按行根目录
+                    拉取，与激活行无关。 */}
+                <div className="ui-ik-rowops" onClick={(e) => e.stopPropagation()}>
+                  <div className={`ui-review-row-scope${scope.mode === "workspace" ? "" : " has-refs"}`}>
                     {scopeControls}
                   </div>
-                  {/* SVG-icon run button (user ask 2026-09-01: 一键审查 → icon).
-                      Available on EVERY row: review.full takes the row's root
-                      directly — no workspace switch (see runReview). */}
                   <IconButton
                     className={`ui-ik-runbtn${running ? " running" : ""}`}
                     disabled={running}
