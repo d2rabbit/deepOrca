@@ -241,42 +241,36 @@
   scrollbar-width: thin;
 }
 
-/* ── Picture-in-picture — parked workspace mini-card (bottom-right) ──────── */
-/* A conversation parked by switching workspaces. Frozen transcript preview;
-   the dot pulses amber when the parked session sits on a permission/question
-   gate, and the same condition raises a top-right alert card with a jump-in
-   button. Returning re-selects the root — nothing frozen is ever lost. */
+/* ── Picture-in-picture — parked workspace MINI PLAYER (bottom-right) ────── */
+/* user ask 2026-09-03: 只停活动中的会话、只在非会话主视图露出。整卡缩成
+   单行播放器胶囊：状态点 + 标题 + 工作区名 + 切回按钮，点击任意处切回；
+   不再渲染冻结预览正文（回到工作区会从磁盘加载完整历史）。
+   The dot pulses amber when the parked session sits on a permission/question
+   gate — the same condition raises the top-right alert card. */
 .ui-pip {
   position: fixed;
   right: 16px;
   bottom: 76px; /* clears the background-task badge stack */
-  width: min(320px, 40vw);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: min(360px, 46vw);
+  padding: 4px;
   background: var(--ui-surface, #1c1e24);
   border: 1px solid var(--ui-border, #33363d);
-  border-radius: var(--ui-radius-lg);
-  box-shadow: var(--ui-shadow-modal);
+  border-radius: var(--ui-radius-pill);
+  box-shadow: var(--ui-shadow-card);
   z-index: 59;
-  overflow: hidden;
   transition: bottom 0.2s var(--ui-ease);
 }
 /* The build console shares this anchor (right:16/bottom:76, z:60) and would
-   cover the parked-session card entirely; while it is open the PiP lifts
-   above the console's max height instead of fighting the stacking order. */
+   cover the mini player entirely; while it is open the PiP lifts above the
+   console's max height instead of fighting the stacking order. */
 .ui-pip.console-open {
   bottom: calc(76px + min(64vh, 560px) + 8px);
 }
 .ui-pip.blocked {
   border-color: color-mix(in srgb, var(--ui-warning) 55%, var(--ui-border));
-}
-.ui-pip-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px 7px 12px;
-  background: var(--ui-surface-raised);
-  border-bottom: 1px solid var(--ui-border-soft);
 }
 .ui-pip-dot {
   flex: none;
@@ -284,34 +278,63 @@
   height: 7px;
   border-radius: 50%;
   background: var(--ui-accent);
+  /* Running session parked in the corner: a quiet living pulse says "still
+     working" without demanding attention (blocked gates escalate to amber). */
+  animation: ui-dot-pulse 2.4s ease-in-out infinite;
 }
 .ui-pip-dot.urgent {
   background: var(--ui-warning);
   animation: ui-dot-pulse 1.6s ease-in-out infinite;
 }
-.ui-pip-title {
+.ui-pip-player {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  border-radius: var(--ui-radius-pill);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s var(--ui-ease);
+}
+.ui-pip-player:hover {
+  background: var(--ui-surface-hover);
+}
+.ui-pip-player-title {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--ui-text);
-  cursor: default;
 }
-.ui-pip-label {
+.ui-pip-player-label {
   flex: none;
-  margin-left: auto;
   font-size: 10.5px;
   color: var(--ui-text-faint);
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ui-pip-player-back {
+  flex: none;
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ui-accent);
+  opacity: 0.75;
+  transition: opacity 0.12s var(--ui-ease);
+}
+.ui-pip-player:hover .ui-pip-player-back {
+  opacity: 1;
 }
 .ui-pip-cycle {
   flex: none;
@@ -330,61 +353,6 @@
 .ui-pip-cycle:hover {
   background: var(--ui-surface-hover);
   color: var(--ui-text);
-}
-.ui-pip-body {
-  padding: var(--ui-space-2) var(--ui-space-3);
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-height: 180px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-.ui-pip-line {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 11.5px;
-  line-height: 1.45;
-  min-width: 0;
-}
-.ui-pip-line-role {
-  flex: none;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  opacity: 0.65;
-}
-.ui-pip-line.assistant .ui-pip-line-role {
-  color: var(--ui-accent);
-}
-.ui-pip-line.user .ui-pip-line-role {
-  color: var(--ui-warning);
-}
-.ui-pip-line.tool .ui-pip-line-role {
-  color: var(--ui-tool-hue-purple, #c084fc);
-}
-.ui-pip-line-text {
-  flex: 1;
-  min-width: 0;
-  color: var(--ui-text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ui-pip-back {
-  border: none;
-  border-top: 1px solid var(--ui-border-soft);
-  padding: 8px 10px;
-  background: var(--ui-surface-raised);
-  color: var(--ui-accent);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s var(--ui-ease);
-}
-.ui-pip-back:hover {
-  background: var(--ui-surface-hover);
 }
 
 /* ── PiP blocked alerts — sticky top-right cards for gated parked sessions ── */

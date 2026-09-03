@@ -34,7 +34,6 @@ export interface CommandItemsDeps {
   openTokensView: () => void;
   setPlanMode: (updater: (prev: boolean) => boolean) => void;
   setModal: (modal: "undo" | "shortcuts") => void;
-  setShowProcessPanel: (updater: (prev: boolean) => boolean) => void;
   setActiveTab: (tab: MainTab) => void;
 }
 
@@ -57,7 +56,6 @@ export function useCommandItems({
   openTokensView,
   setPlanMode,
   setModal,
-  setShowProcessPanel,
   setActiveTab,
 }: CommandItemsDeps): CommandItem[] {
   return useMemo<CommandItem[]>(
@@ -261,13 +259,6 @@ export function useCommandItems({
         run: handleToggleLineVariant,
       },
       {
-        id: "processPanel",
-        label: t("shortcuts.processPanel"),
-        keywords: "process output panel terminal",
-        shortcut: `${modKey}J`,
-        run: () => setShowProcessPanel((v) => !v),
-      },
-      {
         id: "stop",
         label: t("shortcuts.stopGeneration"),
         keywords: "stop interrupt cancel generation",
@@ -292,7 +283,6 @@ export function useCommandItems({
       selectView,
       setModal,
       setPlanMode,
-      setShowProcessPanel,
       setActiveTab,
       t,
     ]

@@ -842,9 +842,7 @@
      a see-through sticky header still intercepts pointer events — controls
      scrolled under it (the add-endpoint select) LOOK clickable but clicks
      land on the invisible header. */
-  background:
-    linear-gradient(var(--ui-surface), var(--ui-surface)),
-    linear-gradient(var(--ui-bg), var(--ui-bg));
+  background: linear-gradient(var(--ui-surface), var(--ui-surface)), linear-gradient(var(--ui-bg), var(--ui-bg));
   z-index: 1;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }

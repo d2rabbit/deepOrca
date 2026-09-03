@@ -1,18 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import type { SessionMessage } from "../../shared/ipc";
-import { buildToolSummary, formatToolParams, getResultMd } from "../lib/messages";
+import { buildToolSummary, getResultMd } from "../lib/messages";
 import { useI18n } from "../i18n";
-import { toolCls } from "./message/shared";
-import {
-  IconBot,
-  IconPulse,
-  IconSparkle,
-  IconToolGeneric,
-  IconToolMcp,
-  IconToolRead,
-  IconToolSearch,
-  IconToolWrite,
-} from "../ui/index";
+import { toolCls, toolIcon } from "./message/shared";
+import { ToolResultView } from "./message/ToolResultView";
+import { IconBot, IconPulse } from "../ui/index";
 
 type Props = {
   /** Transcript of the ACTIVE session/streaming buffer (same source the
@@ -25,25 +17,6 @@ type Props = {
 };
 
 type ActivityKind = "bash" | "read" | "edit" | "grep" | "mcp" | "skill" | "doc";
-
-function KindIcon({ kind }: { kind: ActivityKind }): JSX.Element {
-  switch (kind) {
-    case "bash":
-      return <IconToolGeneric />;
-    case "read":
-      return <IconToolRead />;
-    case "edit":
-      return <IconToolWrite />;
-    case "grep":
-      return <IconToolSearch />;
-    case "mcp":
-      return <IconToolMcp />;
-    case "skill":
-      return <IconSparkle />;
-    default:
-      return <IconToolGeneric />;
-  }
-}
 
 function kindOf(name: string): ActivityKind {
   const n = name.toLowerCase();
@@ -68,8 +41,9 @@ type ActivityWindow = {
   id: string;
   kind: ActivityKind;
   name: string;
-  arg: string;
-  result: string;
+  /** Full tool summary — feeds ToolResultView (diff metadata, params). */
+  summary: ReturnType<typeof buildToolSummary>;
+  resultMd: string;
   ok: boolean;
 };
 
@@ -80,13 +54,16 @@ const MAX_WINDOWS = 15;
 const VISIBLE = 1;
 
 /**
- * ActivityRail — the resident right column of the chat stage
- * (designs/chat-redesign screen-chat §实时活动): the live-activity cap pill
- * toggles a DROPDOWN log (`.log`) listing every activity — clicking a row
- * brings that pip to the front of the cascade. The pips themselves are
- * display-only (user ask 2026-09-03: 切换一律走下拉，不走小窗直操作).
- * Think transient card on top; collapses to a 40px sliver while a right-side
- * float tab owns the edge.
+ * ActivityRail — the RESIDENT right float of the chat stage
+ * (designs/chat-redesign screen-chat §实时活动): mounted whenever the session
+ * has any behavior record (App gates on hasLive = tool/script/skill/mcp/file
+ * activity) — the cap pill + dropdown DIRECTORY persists like the left
+ * instruction-TOC capsule (user ask 2026-09-03 三轮). Only the pip window and
+ * the think transient card are LIVE-ONLY: the pip shows while busy (or after
+ * a manual dropdown pick), hides when the run ends, and its ✕ dismisses the
+ * current window; picking a log row brings that pip back. Pure overlay — the
+ * conversation and composer keep full width at all times. Collapses to a 40px
+ * sliver while a right-side float tab owns the edge.
  */
 export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element {
   const { t } = useI18n();
@@ -102,10 +79,8 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
         id: m.id,
         kind: kindOf(summary.name),
         name: summary.name,
-        arg: formatToolParams(summary),
-        result: getResultMd(m)
-          .replace(/```\w*\n?/g, "")
-          .trimEnd(),
+        summary,
+        resultMd: getResultMd(m),
         ok: summary.ok,
       });
     }
@@ -115,6 +90,9 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
   // 下拉置顶（screen-chat 交互）：frontId 的活动提到 p0，其余按时间序跟随；
   // 小窗本身不再响应鼠标直操作（去 cursor/hover 抬升）。
   const [frontId, setFrontId] = useState<string | null>(null);
+  // 手动关闭（×）：只隐藏当前这扇小窗，胶囊目录保留；下一扇活动到来
+  // 或下拉重新点名时再出现（user ask 2026-09-03 二轮）。
+  const [dismissedId, setDismissedId] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -133,16 +111,39 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
   }, [windows, frontId]);
   const visible = ordered.slice(0, VISIBLE);
 
+  // 新活动到来时解除下拉置顶 —— 小窗回到跟随最新（"有活动就出现"），
+  // 同时被 × 的那扇自然让位（deckId 变了，不再等于 dismissedId）。
+  const newestId = windows[0]?.id ?? null;
+  const prevNewestRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevNewestRef.current !== null && newestId !== prevNewestRef.current) {
+      setFrontId(null);
+    }
+    prevNewestRef.current = newestId;
+  }, [newestId]);
+
+  // 悬浮小窗是瞬态（user ask 2026-09-03 三轮）：运行中（busy）随最新活动
+  // 亮出，空闲时只有手动从下拉点名（frontId）才亮；✕ 收起当前这扇。
+  // 目录胶囊本身常驻 —— 由 App 的 hasLive（有行为记录即挂载）保证。
+  const deckId = visible[0]?.id ?? null;
+  const deckShown = (busy || frontId !== null) && deckId !== null && deckId !== dismissedId;
+
   // Live think transient card state — chars grow while the run streams.
+  // Effective text 兜底 messageParams.reasoning_content（StepFun 等模型把
+  // 思考放 params、content 为空——直接取 content 会得到 "0 字" 空气泡，
+  // user ask 2026-09-03 六轮）。无有效文本的思考消息不亮卡。
   const lastThinking = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i];
-      // thinking = assistant 消息 + asThinking 标记（core 无独立 thinking 角色）
-      if (m.role === "assistant" && m.meta?.asThinking && typeof m.content === "string") return m;
+      if (m.role !== "assistant" || !m.meta?.asThinking) continue;
+      const params = m.messageParams as { reasoning_content?: unknown } | null | undefined;
+      const viaParams = typeof params?.reasoning_content === "string" ? params.reasoning_content : "";
+      const text = typeof m.content === "string" && m.content ? m.content : viaParams;
+      if (text) return { message: m, text };
     }
     return null;
   }, [messages]);
-  const thinkText = lastThinking?.content ?? "";
+  const thinkText = lastThinking?.text ?? "";
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!busy) {
@@ -173,7 +174,9 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                   {thinkChars} {t("activity.chars")} · {elapsed.toFixed(1)}s
                 </span>
               </div>
-              <div className="bd">{thinkText.slice(-160)}</div>
+              {/* 思考尾巴放长 + 内滚（user ask 2026-09-03 六轮：这里就是
+                  展示思考内容的地方，160 字太抠） */}
+              <div className="bd">{thinkText.slice(-480)}</div>
             </div>
           ) : null}
 
@@ -201,11 +204,12 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
                     className={`lr${w.ok ? "" : " err"}`}
                     onClick={() => {
                       setFrontId(w.id);
+                      setDismissedId(null);
                       setLogOpen(false);
                     }}
                   >
-                    <span className="ic" aria-hidden>
-                      <KindIcon kind={w.kind} />
+                    <span className={`ic k-${w.kind}`} aria-hidden>
+                      {toolIcon(w.name)}
                     </span>
                     <span className="tt">{w.name}</span>
                     <span className={`dot ${w.ok ? "ok" : "err"}`} aria-hidden />
@@ -215,23 +219,34 @@ export function ActivityRail({ messages, busy, collapsed }: Props): JSX.Element 
             ) : null}
           </div>
 
-          <div className="deck">
-            {visible.map((w, i) => (
-              <article key={w.id} className={`pipwin p${i} k-${w.kind}${w.ok ? "" : " err"}`}>
-                <div className="ph">
-                  <span className="ic">
-                    <KindIcon kind={w.kind} />
-                  </span>
-                  <span className="tt">{w.name}</span>
-                  <span className="done-dot" aria-hidden />
-                </div>
-                <div className="pb">
-                  <div className="arg">{w.arg}</div>
-                  {w.result ? <pre>{w.result}</pre> : null}
-                </div>
-              </article>
-            ))}
-          </div>
+          {deckShown ? (
+            <div className="deck">
+              {visible.map((w, i) => (
+                <article key={w.id} className={`pipwin p${i} k-${w.kind}${w.ok ? "" : " err"}`}>
+                  <div className="ph">
+                    <span className="ic">{toolIcon(w.name)}</span>
+                    <span className="tt">{w.name}</span>
+                    <span className="done-dot" aria-hidden />
+                    <button
+                      type="button"
+                      className="pip-close"
+                      onClick={() => setDismissedId(w.id)}
+                      aria-label={t("common.close")}
+                      title={t("common.close")}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* 小窗与展开体同一富渲染（user ask 2026-09-03 四轮）：
+                      bash 终端帧 / write-edit diff / JSON 树 / markdown ——
+                      文件操作看到具体内容，不是一句 Updated file。 */}
+                  <div className="pb">
+                    <ToolResultView summary={w.summary} resultMd={w.resultMd} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </>
       )}
     </aside>

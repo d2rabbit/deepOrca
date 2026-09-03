@@ -1,10 +1,12 @@
 /* ===========================================================================
-   Activity rail + instruction TOC + pinned plan — 主会话三栏落地
+   Activity rail + instruction TOC + pinned plan — 主会话舞台件
    (designs/chat-redesign V4 · 落地实施方案 P1/P3/P4)
 
-   会话舞台 = 三栏：指令目录(左) · 会话列(中，唯一滚动层) · 活动区(右，常驻)。
-   目录与活动区为隐形容器（无边框底色），只有内部元素拥有表面。
-   活动小窗按类型着色（--kc 顶缘 + 标题栏淡染），最新恒在最前最上。
+   会话舞台 = 指令目录(左) · 会话列(唯一滚动层) · 活动区(右缘悬浮，与
+   左侧目录对称：有行为记录即常驻，user ask 2026-09-03 三轮)。目录与
+   活动区为隐形容器（无边框底色），只有内部元素拥有表面。活动小窗按
+   类型着色（--kc 顶缘 + 标题栏淡染），瞬态：运行中亮、结束隐，
+   ✕ 可临时收起、下拉点名再亮。
    =========================================================================== */
 
 /* ── 舞台三栏 ── */
@@ -17,7 +19,16 @@
   padding: 12px 12px 0;
 }
 
-/* ── 指令目录（左列） ── */
+/* ── 指令目录（左列） ──
+   hub 关闭态（QuickDock 占左上角，user ask 2026-09-03 十二轮 图4）：
+   QuickDock 在舞台坐标 0–48px（top:10 + 高 38），指令目录下移到其下方
+   留 10px 间距；会话列同步给左侧留出呼吸距，不与左上角堆叠。 */
+.ui-shell:not(.panel-open) .ui-toc {
+  top: 58px;
+}
+.ui-shell:not(.panel-open) .ui-conversation {
+  padding-left: clamp(16px, 2.5vw, 28px);
+}
 .ui-toc {
   position: absolute;
   top: 10px;
@@ -115,13 +126,15 @@
   min-height: 0;
 }
 
-/* ── 活动区（右上车道覆盖层，screen-chat .live-rail 模型）──
-   只在有真实活动时渲染（App 里 has-live 控制）：绝对定位锚右上，
-   不占 flex 位 —— 空闲时会话内容占满全宽，不留空列。 */
+/* ── 活动区（右上覆盖层，screen-chat .live-rail 模型）──
+   只要会话有行为记录（App 里 has-live）就常驻：目录胶囊 + 下拉清单与
+   左侧指令目录对称（user ask 2026-09-03 三轮）；胶囊贴右缘（四轮），
+   会话滚动区右侧留胶囊大小固定位（见文件底部）。悬浮小窗/思考卡是
+   瞬态（运行中亮、结束隐，见 ActivityRail）。绝对定位不占 flex 位。 */
 .ui-actcol {
   position: absolute;
-  top: 10px;
-  right: 14px;
+  top: 12px;
+  right: 4px; /* 贴右缘（user ask 2026-09-03 四轮）*/
   bottom: auto;
   z-index: 40;
   width: 300px;
@@ -130,6 +143,7 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  align-items: flex-end;
   overflow: visible;
   transition:
     width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
@@ -194,16 +208,28 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
+/* 思考正文（user ask 2026-09-03 六轮）：限高内滚的思考尾巴，
+   有内容可读但不吞掉下方活动胶囊区。 */
+.ui-think-card .bd {
+  max-height: 168px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
-/* ── 实时活动流：胶囊 + 画中画堆叠 ── */
+/* ── 实时活动流：胶囊 + 画中画堆叠 ──
+   flex-end：胶囊贴 actcol 右缘（user ask 2026-09-03 五轮——actcol 本身
+   right:4px 贴窗口右缘，旧的 flex-start 把胶囊顶到 300px 列左端，
+   留出 ~120px 空隙）。 */
 .ui-actcol .cap-row {
   position: relative;
   flex: none;
-  align-self: flex-start;
+  align-self: flex-end;
 }
 .ui-actcol .cap {
   cursor: pointer;
-  align-self: flex-start;
+  align-self: flex-end;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -230,13 +256,15 @@
 .ui-actcol.open .cap .chev {
   transform: rotate(180deg);
 }
-/* 全部活动清单：堆叠只露 4 扇，其余从这里查看（点击行置前） */
+/* 全部活动清单：堆叠只露 4 扇，其余从这里查看（点击行置前）。
+   cap-row 右贴边后收缩为胶囊宽，清单给最小宽防缩窄（十二轮图3 收窄
+   280 → 232，宽了反而挡内容）。 */
 .ui-actcol .log {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
   z-index: 45;
-  width: 100%;
+  width: max(100%, 232px);
   max-height: 380px;
   overflow-y: auto;
   display: flex;
@@ -275,10 +303,34 @@
   background: var(--ui-surface-sunken);
   flex: none;
 }
+/* 清单行图标类型色（user ask 2026-09-03 十二轮 图3）：与轨迹 .ui-ev.k-*
+   同一色表（bash 橙 · read 蓝 · edit 粉 · grep 绿 · mcp 青 · skill 紫 ·
+   doc 石墨），三处配色不再分叉。 */
+.ui-actcol .ic.k-bash {
+  --kc: #e8590c;
+}
+.ui-actcol .ic.k-read {
+  --kc: #1c6fe0;
+}
+.ui-actcol .ic.k-edit {
+  --kc: #d6386c;
+}
+.ui-actcol .ic.k-grep {
+  --kc: #0ca678;
+}
+.ui-actcol .ic.k-mcp {
+  --kc: #1098ad;
+}
+.ui-actcol .ic.k-skill {
+  --kc: #9a36b8;
+}
+.ui-actcol .ic.k-doc {
+  --kc: #5f6b7a;
+}
 .ui-actcol .log .lr .ic svg {
   width: 9px;
   height: 9px;
-  color: var(--ui-text-dim);
+  color: var(--kc, var(--ui-text-dim));
 }
 .ui-actcol .log .lr .tt {
   flex: 1;
@@ -330,10 +382,29 @@
   }
 }
 /* 最新恒在最前最上；旧窗向右下退让 */
-.pipwin.p0 { top: 0; left: 0; z-index: 15; }
-.pipwin.p1 { top: 34px; left: 20px; z-index: 14; opacity: 0.9; }
-.pipwin.p2 { top: 68px; left: 40px; z-index: 13; opacity: 0.72; }
-.pipwin.p3 { top: 102px; left: 60px; z-index: 12; opacity: 0.5; }
+.pipwin.p0 {
+  top: 0;
+  left: 0;
+  z-index: 15;
+}
+.pipwin.p1 {
+  top: 34px;
+  left: 20px;
+  z-index: 14;
+  opacity: 0.9;
+}
+.pipwin.p2 {
+  top: 68px;
+  left: 40px;
+  z-index: 13;
+  opacity: 0.72;
+}
+.pipwin.p3 {
+  top: 102px;
+  left: 60px;
+  z-index: 12;
+  opacity: 0.5;
+}
 .pipwin .ph {
   flex: none;
   display: flex;
@@ -358,38 +429,110 @@
   border: 1px solid var(--ui-border-soft);
   flex: none;
 }
-.pipwin .ph .ic svg { width: 10px; height: 10px; color: var(--kc, var(--ui-text-dim)); }
-.pipwin .ph .tt { overflow: hidden; text-overflow: ellipsis; }
-.pipwin .ph .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok, #2f9e44); animation: breathe 1.2s infinite; margin-left: auto; flex: none; }
-.pipwin .ph .done-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ui-border); margin-left: auto; flex: none; }
-.pipwin .ph .err-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--err, #e03131); margin-left: auto; flex: none; }
-.pipwin .pb { height: 252px; padding: 8px 10px; font-size: 11px; line-height: 1.55; color: var(--ui-text-dim); overflow-y: auto; scrollbar-width: none; }
-.pipwin .pb::-webkit-scrollbar { display: none; }
-.pipwin .pb .arg { font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace); font-size: 10.5px; color: var(--ui-text-dim); margin-bottom: 4px; }
-.pipwin .pb pre {
-  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
-  font-size: 10px;
-  line-height: 1.5;
-  background: var(--code-bg, #f0f3f8);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: 6px;
-  padding: 6px 8px;
-  margin: 6px 0;
-  overflow-x: hidden;
-  white-space: pre-wrap;
+.pipwin .ph .ic svg {
+  width: 10px;
+  height: 10px;
+  color: var(--kc, var(--ui-text-dim));
 }
-.pipwin .pb pre .add { color: var(--ok, #2f9e44); }
-.pipwin .pb pre .del { color: var(--err, #e03131); }
-.pipwin.err { border-color: color-mix(in srgb, var(--err, #e03131) 30%, var(--ui-border-soft)); }
+.pipwin .ph .tt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pipwin .ph .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok, #2f9e44);
+  animation: breathe 1.2s infinite;
+  margin-left: auto;
+  flex: none;
+}
+.pipwin .ph .done-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-border);
+  margin-left: auto;
+  flex: none;
+}
+.pipwin .ph .err-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--err, #e03131);
+  margin-left: auto;
+  flex: none;
+}
+/* 小窗关闭（user ask 2026-09-03 二轮）：× 只隐藏当前这扇，胶囊目录保留；
+   新活动到来或下拉点名时再出现。 */
+.pipwin .ph .pip-close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.pipwin .ph .pip-close:hover {
+  background: color-mix(in srgb, var(--err, #e03131) 14%, transparent);
+  color: var(--err, #e03131);
+}
+.pipwin .pb {
+  height: 252px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.pipwin .pb::-webkit-scrollbar {
+  display: none;
+}
+/* 小窗正文 = ToolResultView（终端帧/diff/JSON 树/markdown，与展开体同一
+   渲染）；窄体小窗里代码井与 diff 收紧一档字号。 */
+.pipwin .pb .ui-md pre,
+.pipwin .pb .ui-diff {
+  font-size: 10px;
+}
+.pipwin .pb .ui-diff {
+  max-height: 170px;
+}
+.pipwin.err {
+  border-color: color-mix(in srgb, var(--err, #e03131) 30%, var(--ui-border-soft));
+}
 
 /* 类型色（与 demo/活动区色表一致） */
-.pipwin.k-bash { --kc: #e8590c; }
-.pipwin.k-read { --kc: #1c6fe0; }
-.pipwin.k-edit { --kc: #d6386c; }
-.pipwin.k-grep { --kc: #0ca678; }
-.pipwin.k-mcp { --kc: #1098ad; }
-.pipwin.k-skill { --kc: #9a36b8; }
-.pipwin.k-doc { --kc: #5f6b7a; }
+.pipwin.k-bash {
+  --kc: #e8590c;
+}
+.pipwin.k-read {
+  --kc: #1c6fe0;
+}
+.pipwin.k-edit {
+  --kc: #d6386c;
+}
+.pipwin.k-grep {
+  --kc: #0ca678;
+}
+.pipwin.k-mcp {
+  --kc: #1098ad;
+}
+.pipwin.k-skill {
+  --kc: #9a36b8;
+}
+.pipwin.k-doc {
+  --kc: #5f6b7a;
+}
 
 /* ── 子代理组（活动区底部） ── */
 .ui-sub-rail {
@@ -399,7 +542,9 @@
   align-items: flex-end;
   gap: 8px;
 }
-.ui-sub-rail.on { display: flex; }
+.ui-sub-rail.on {
+  display: flex;
+}
 .ui-sub-cap {
   display: inline-flex;
   align-items: center;
@@ -413,11 +558,27 @@
   color: var(--sub, #7048e8);
   cursor: pointer;
 }
-.ui-sub-cap svg { width: 11px; height: 11px; }
-.ui-sub-cap .chev { display: inline-flex; transition: transform 0.18s; }
-.ui-sub-cap .chev svg { width: 10px; height: 10px; color: inherit; }
-.ui-sub-rail.open .sub-cap .chev { transform: rotate(180deg); }
-.ui-subdeck { position: relative; width: 100%; height: 108px; }
+.ui-sub-cap svg {
+  width: 11px;
+  height: 11px;
+}
+.ui-sub-cap .chev {
+  display: inline-flex;
+  transition: transform 0.18s;
+}
+.ui-sub-cap .chev svg {
+  width: 10px;
+  height: 10px;
+  color: inherit;
+}
+.ui-sub-rail.open .sub-cap .chev {
+  transform: rotate(180deg);
+}
+.ui-subdeck {
+  position: relative;
+  width: 100%;
+  height: 108px;
+}
 .ui-subwin {
   position: absolute;
   top: 0;
@@ -443,9 +604,25 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.ui-subwin .sph svg { width: 10px; height: 10px; color: var(--sub, #7048e8); flex: none; }
-.ui-subwin .sph .tt { overflow: hidden; text-overflow: ellipsis; }
-.ui-subwin .sph .live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok, #2f9e44); animation: breathe 1.2s infinite; margin-left: auto; flex: none; }
+.ui-subwin .sph svg {
+  width: 10px;
+  height: 10px;
+  color: var(--sub, #7048e8);
+  flex: none;
+}
+.ui-subwin .sph .tt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-subwin .sph .live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok, #2f9e44);
+  animation: breathe 1.2s infinite;
+  margin-left: auto;
+  flex: none;
+}
 .ui-subwin .sbody {
   padding: 5px 10px 7px;
   font-size: 10.5px;
@@ -457,11 +634,32 @@
   max-height: 170px;
   overflow-y: auto;
 }
-.ui-subwin.open .sbody { display: flex; }
-.ui-subwin .sbody .sa { display: flex; gap: 6px; align-items: baseline; }
-.ui-subwin .sbody .sa .a-verb { font-weight: 650; color: var(--ui-text-secondary); flex: none; }
-.ui-subwin .sbody .sa .a-arg { font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace); font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ui-subwin .sbody .sa .a-ms { margin-left: auto; color: var(--ui-text-faint); font-size: 9px; flex: none; }
+.ui-subwin.open .sbody {
+  display: flex;
+}
+.ui-subwin .sbody .sa {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.ui-subwin .sbody .sa .a-verb {
+  font-weight: 650;
+  color: var(--ui-text-secondary);
+  flex: none;
+}
+.ui-subwin .sbody .sa .a-arg {
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 9.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-subwin .sbody .sa .a-ms {
+  margin-left: auto;
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  flex: none;
+}
 
 /* ── 钉住计划条 ── */
 .ui-pinned-plan {
@@ -488,47 +686,167 @@
   font-size: 12px;
   text-align: left;
 }
-.ui-pinned-plan .bar .ic svg { width: 12px; height: 12px; color: var(--ui-accent); flex: none; }
-.ui-pinned-plan .bar .segs { display: inline-flex; gap: 4px; flex: none; }
-.ui-pinned-plan .bar .segs i { width: 14px; height: 4px; border-radius: 2px; background: var(--ui-border); transition: background 0.3s; }
-.ui-pinned-plan .bar .segs i.done { background: var(--ok, #2f9e44); }
-.ui-pinned-plan .bar .segs i.run { background: var(--ui-accent); animation: breathe 1.2s infinite; }
-.ui-pinned-plan .bar .pbar { flex: 1; height: 4px; border-radius: 3px; background: color-mix(in srgb, var(--ui-text) 12%, transparent); overflow: hidden; }
-.ui-pinned-plan .bar .pbar i { display: block; height: 100%; width: 0%; background: var(--ui-accent); transition: width 0.4s; }
-.ui-pinned-plan .bar .pct { font-weight: 700; color: var(--ui-accent); font-variant-numeric: tabular-nums; font-size: 11px; flex: none; }
-.ui-pinned-plan .bar .chev { flex: none; display: inline-flex; color: var(--ui-text-faint); transition: transform 0.18s; }
-.ui-pinned-plan .bar .chev svg { width: 11px; height: 11px; color: var(--ui-text-faint); }
-.ui-pinned-plan.open .bar .chev { transform: rotate(180deg); }
-.ui-pinned-plan .panel { padding: 4px 0; border-top: 1px solid var(--ui-border-soft); }
-.ui-pinned-plan .pp-seg { padding: 8px 13px; border-top: 1px solid var(--ui-border-soft); }
-.ui-pinned-plan .pp-seg:first-child { border-top: none; }
-.ui-pinned-plan .pp-seg .pp-h { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; }
-.ui-pinned-plan .pp-seg .pp-h .idx { flex: none; padding: 0 7px; border-radius: 5px; font-size: 10px; font-weight: 800; background: var(--ui-surface-sunken); color: var(--ui-text-dim); }
-.ui-pinned-plan .pp-seg .pp-h .st { margin-left: auto; font-size: 10px; font-weight: 700; color: var(--ui-text-faint); }
-.ui-pinned-plan .pp-seg.run { box-shadow: inset 3px 0 0 var(--ui-accent); background: var(--ui-accent-tint); }
-.ui-pinned-plan .pp-seg.run .pp-h .st { color: var(--ui-accent); }
-.ui-pinned-plan .pp-seg.done .pp-h .st { color: var(--ok, #2f9e44); }
-.ui-pinned-plan .pp-steps { padding: 4px 0 2px 8px; display: flex; flex-direction: column; gap: 4px; }
-.ui-pinned-plan .pp-step { display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; color: var(--ui-text-dim); }
-.ui-pinned-plan .pp-step .box { flex: none; width: 12px; height: 12px; margin-top: 2px; border-radius: 4px; border: 1.5px solid var(--ui-border); display: grid; place-items: center; }
-.ui-pinned-plan .pp-step .box svg { width: 8px; height: 8px; color: #fff; opacity: 0; }
-.ui-pinned-plan .pp-step.done { color: var(--ui-text-faint); text-decoration: line-through; }
-.ui-pinned-plan .pp-step.done .box { background: var(--ok, #2f9e44); border-color: var(--ok, #2f9e44); }
-.ui-pinned-plan .pp-step.done .box svg { opacity: 1; }
-.ui-pinned-plan .pp-step.now { color: var(--ui-text); font-weight: 550; }
-.ui-pinned-plan .pp-step.now .box { border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-tint); }
+.ui-pinned-plan .bar .ic svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ui-accent);
+  flex: none;
+}
+.ui-pinned-plan .bar .segs {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+.ui-pinned-plan .bar .segs i {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-border);
+  transition: background 0.3s;
+}
+.ui-pinned-plan .bar .segs i.done {
+  background: var(--ok, #2f9e44);
+}
+.ui-pinned-plan .bar .segs i.run {
+  background: var(--ui-accent);
+  animation: breathe 1.2s infinite;
+}
+.ui-pinned-plan .bar .pbar {
+  flex: 1;
+  height: 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ui-text) 12%, transparent);
+  overflow: hidden;
+}
+.ui-pinned-plan .bar .pbar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ui-accent);
+  transition: width 0.4s;
+}
+.ui-pinned-plan .bar .pct {
+  font-weight: 700;
+  color: var(--ui-accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  flex: none;
+}
+.ui-pinned-plan .bar .chev {
+  flex: none;
+  display: inline-flex;
+  color: var(--ui-text-faint);
+  transition: transform 0.18s;
+}
+.ui-pinned-plan .bar .chev svg {
+  width: 11px;
+  height: 11px;
+  color: var(--ui-text-faint);
+}
+.ui-pinned-plan.open .bar .chev {
+  transform: rotate(180deg);
+}
+.ui-pinned-plan .panel {
+  padding: 4px 0;
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-pinned-plan .pp-seg {
+  padding: 8px 13px;
+  border-top: 1px solid var(--ui-border-soft);
+}
+.ui-pinned-plan .pp-seg:first-child {
+  border-top: none;
+}
+.ui-pinned-plan .pp-seg .pp-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.ui-pinned-plan .pp-seg .pp-h .idx {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--ui-surface-sunken);
+  color: var(--ui-text-dim);
+}
+.ui-pinned-plan .pp-seg .pp-h .st {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ui-text-faint);
+}
+.ui-pinned-plan .pp-seg.run {
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  background: var(--ui-accent-tint);
+}
+.ui-pinned-plan .pp-seg.run .pp-h .st {
+  color: var(--ui-accent);
+}
+.ui-pinned-plan .pp-seg.done .pp-h .st {
+  color: var(--ok, #2f9e44);
+}
+.ui-pinned-plan .pp-steps {
+  padding: 4px 0 2px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-pinned-plan .pp-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ui-text-dim);
+}
+.ui-pinned-plan .pp-step .box {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border-radius: 4px;
+  border: 1.5px solid var(--ui-border);
+  display: grid;
+  place-items: center;
+}
+.ui-pinned-plan .pp-step .box svg {
+  width: 8px;
+  height: 8px;
+  color: #fff;
+  opacity: 0;
+}
+.ui-pinned-plan .pp-step.done {
+  color: var(--ui-text-faint);
+  text-decoration: line-through;
+}
+.ui-pinned-plan .pp-step.done .box {
+  background: var(--ok, #2f9e44);
+  border-color: var(--ok, #2f9e44);
+}
+.ui-pinned-plan .pp-step.done .box svg {
+  opacity: 1;
+}
+.ui-pinned-plan .pp-step.now {
+  color: var(--ui-text);
+  font-weight: 550;
+}
+.ui-pinned-plan .pp-step.now .box {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-accent-tint);
+}
 
-/* ── 车道模型（screen-chat）：has-live 时滚动内容让出右侧车道；窄窗收成
-   计数胶囊。空闲（无 has-live）时活动区不渲染，内容占满全宽。 ── */
-.ui-chat-stage.has-live .ui-chat-main {
-  /* 车道让位自适应：窄窗/目录占位时按比例收缩，绝不吃掉正文列 */
-  padding-right: min(344px, max(180px, calc(100% - 560px)));
+/* ── 悬浮定位（user ask 2026-09-03 四轮）：活动胶囊贴右缘；会话滚动区
+   右侧永久留出一个胶囊大小的固定位（人类指令与活动流保持距离），
+   悬浮小窗/思考卡仍直接浮在内容上（瞬态，仅运行期间）。运行结束
+   （has-live 摘除，见 App.tsx）胶囊与预留位一并消失。 ── */
+.ui-chat-stage.has-live .ui-conversation {
+  /* 胶囊 ≈140px（图标 + “实时活动 · N/15” + chevron）+ 28px 呼吸距 */
+  padding-right: 168px;
 }
 @media (max-width: 900px) {
-  /* 窄窗：车道收回，堆叠折叠为胶囊（screen-chat narrow）；目录胶囊保留 */
-  .ui-chat-stage.has-live .ui-chat-main {
-    padding-right: 26px;
-  }
   .ui-actcol {
     width: auto;
     align-items: flex-end;

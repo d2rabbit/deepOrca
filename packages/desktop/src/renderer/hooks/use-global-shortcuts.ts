@@ -13,7 +13,6 @@ import { useEffect, useRef } from "react";
  */
 export type ShortcutHandlers = {
   togglePalette: () => void;
-  toggleProcessPanel: () => void;
   togglePanel: () => void;
   newSession: () => void;
   openSettings: () => void | Promise<void>;
@@ -42,19 +41,10 @@ export function useGlobalShortcuts(handlers: ShortcutHandlers): void {
         e.preventDefault();
         h.togglePalette();
       }
-      if (e.key === "o" || e.key === "O") {
-        e.preventDefault();
-        h.toggleProcessPanel();
-      }
       // ⌘B / Ctrl+B — toggle sidebar panel
       if (e.key === "b" || e.key === "B") {
         e.preventDefault();
         h.togglePanel();
-      }
-      // ⌘J / Ctrl+J — toggle bottom process panel
-      if (e.key === "j" || e.key === "J") {
-        e.preventDefault();
-        h.toggleProcessPanel();
       }
       // ⌘N / Ctrl+N — new session
       if (e.key === "n" || e.key === "N") {

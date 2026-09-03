@@ -51,6 +51,16 @@
   --ui-stage-pad-l: calc(var(--ui-panel-w, 280px) + 8px);
 }
 
+/* Bottom dock band: while the hub rail is up (panel-open), the stage's
+   in-flow composer must clear the 52px module strip exactly like
+   .ui-sheet/.ui-hub-flyout do — without this the rail (z 31) covers the
+   composer's bottom toolbar row (user report 2026-09-03: 输入框下沿被
+   底部模块条压住). Absolute children (sheets) anchor to the padding box
+   and are unaffected. */
+.ui-shell.panel-open .ui-main {
+  padding-bottom: calc(14px + 52px + 8px);
+}
+
 /* Ambient tide glow — two soft radial washes anchored to opposite corners.
    Purely decorative; theme tokens drive the hues so every theme tints its
    own stage. */
@@ -400,6 +410,70 @@ button.ui-surface-chip {
   color: var(--ui-danger);
 }
 
+/* ── 溢出收敛（user ask 2026-09-03 十轮）：主会话/活动标签常驻，其余
+   收进「+N ▾」下拉 —— 隐藏测量行供真实宽度贪心装填。 ── */
+.ui-surface-chip-overflow {
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius-pill);
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-surface-chip-overflow:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-accent);
+}
+/* 隐藏测量行：不可见、不占布局、不捕获指针；max-width 解除否则 chip 会换行。 */
+.ui-surface-chips-measure {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  max-width: none;
+  overflow: visible;
+}
+/* 下拉切换菜单：fixed 定位（不随 chips 行的 overflow 裁剪），玻璃面板。 */
+.ui-surface-chips-menu {
+  position: fixed;
+  z-index: 350; /* cockpit 300 之上，浮层之下 */
+  min-width: 230px;
+  max-width: 340px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 65%, transparent);
+  background: color-mix(in srgb, var(--ui-surface, #fff) 96%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--ui-shadow-modal);
+  animation: ui-sheet-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ui-surface-chips-menu .ui-surface-chip {
+  max-width: 100%;
+  justify-content: flex-start;
+}
+.ui-surface-chips-menu .ui-surface-chip-main {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ── Stage (conversation) ──────────────────────────────────────────────────── */
 .ui-main {
   flex: 1;
@@ -410,7 +484,9 @@ button.ui-surface-chip {
   min-width: 0;
   padding: 0 0 14px var(--ui-stage-pad-l);
   overflow: hidden;
-  transition: padding-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  /* padding-left reflows Arc-style while the hub is open; padding-bottom
+     joins it so the composer lifts clear of the bottom dock smoothly. */
+  transition: padding 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 /* Glass theme paints a readability scrim here; other themes keep the
    ambient stage showing through. */
@@ -1201,6 +1277,7 @@ button.ui-surface-chip {
 .ui-orb {
   position: absolute;
   left: 16px;
+  /* 左下角原位（user ask 2026-09-03 十二轮 图1：放回 bottom:16）。 */
   bottom: 16px;
   z-index: 40;
   width: 46px;
@@ -1259,15 +1336,10 @@ button.ui-surface-chip {
   animation: ui-dot-pulse 1.8s ease-in-out infinite;
 }
 
-/* ── 车道模型（screen-chat）：有实时活动时输入框让出右侧车道 ── */
-.ui-chat-stage.has-live .ui-composer-dock {
-  right: min(344px, 34%);
-}
-@media (max-width: 900px) {
-  .ui-chat-stage.has-live .ui-composer-dock {
-    right: 26px;
-  }
-}
+/* ── 活动区定位模型（user ask 2026-09-03 四轮）──
+   活动胶囊贴右缘悬浮（不占布局位）；会话滚动区右侧留一个胶囊大小的
+   固定距（168px，见 activity-rail.css），人类指令与活动流保持距离。
+   输入框 dock 不让位（全宽居中）；悬浮小窗直接叠在内容右缘（瞬态）。 */
 
 /* ── 欢迎态：输入框 dock 从底部泊定改为垂直居中叠放（ZCode 式布局）── */
 .ui-chat-stage.welcome-mode .ui-composer-dock {
@@ -1282,4 +1354,3 @@ button.ui-surface-chip {
 .ui-chat-stage.welcome-mode .ui-conversation {
   padding-bottom: 24px !important;
 }
-

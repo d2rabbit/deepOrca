@@ -31,8 +31,6 @@ export function ShortcutsModal({ platform, onClose }: Props): JSX.Element {
     { keys: `${mod}+K`, desc: t("shortcuts.commandPalette") },
     { keys: `${mod}+N`, desc: t("shortcuts.newSession") },
     { keys: `${mod}+B`, desc: t("shortcuts.toggleSidebar") },
-    { keys: `${mod}+J`, desc: t("shortcuts.togglePanel") },
-    { keys: `${mod}+O`, desc: t("shortcuts.processPanel") },
     { keys: `${mod}+,`, desc: t("shortcuts.settings") },
     { keys: `${mod}+?`, desc: t("shortcuts.shortcuts") },
     { keys: "Esc", desc: t("shortcuts.closeOverlay") },
