@@ -425,7 +425,7 @@ button.ui-surface-chip {
      small breathing gap) by App.tsx via a ResizeObserver, so the last
      message never sits underneath the floating composer. The 360px
      fallback covers the worst-case composer before the observer ran. */
-  padding: var(--ui-space-5) clamp(var(--ui-space-2), 3vw, var(--ui-space-5)) var(--ui-composer-reserved, 360px);
+  padding: var(--ui-space-5) clamp(var(--ui-space-2), 3vw, var(--ui-space-5)) 12px;
   scroll-padding-bottom: 80px;
 }
 
@@ -434,7 +434,7 @@ button.ui-surface-chip {
 .ui-jump-to-latest {
   position: absolute;
   right: var(--ui-space-4);
-  bottom: calc(var(--ui-composer-reserved, 220px) - 56px);
+  bottom: calc(var(--ui-composer-reserved, 180px) - 56px);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -550,14 +550,10 @@ button.ui-surface-chip {
 /* Floating composer capsule — anchored to the stage (not a card), fading
    into the ambient background below the reading column. */
 .ui-composer-dock {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 0 var(--ui-space-4) var(--ui-space-4);
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ui-bg) 78%) 34%, var(--ui-bg));
+  position: relative;
+  flex: none;
+  margin: 0 26px 16px;
   pointer-events: none;
-  transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ui-composer-dock > * {
@@ -1287,7 +1283,3 @@ button.ui-surface-chip {
   padding-bottom: 24px !important;
 }
 
-/* ── 底部 hub dock：会话态输入框上移让位（欢迎态居中布局自理）── */
-.ui-shell.panel-open .ui-chat-stage:not(.welcome-mode) .ui-composer-dock {
-  bottom: calc(14px + 52px + 10px);
-}
