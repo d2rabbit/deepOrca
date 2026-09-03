@@ -914,6 +914,11 @@ export abstract class SessionManagerBase {
         error: getLlmErrorDetails(error),
         request: streamRequest,
       });
+      // Count the prompt even though the create phase threw: mid-stream
+      // failures already count it in full ("bytes were sent"), and a timeout
+      // after the send is indistinguishable from a refused connection here —
+      // accounting biases toward what the provider may have billed.
+      appendAccounting(0, null);
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
       throw error;
     }

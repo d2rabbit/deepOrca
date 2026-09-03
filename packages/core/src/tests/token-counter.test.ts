@@ -92,3 +92,20 @@ test("deepseek family counts exactly via the local tokenizer once warmed", async
   // Memoized second call stays consistent.
   assert.equal(countTextTokens("deepseek-chat", sample), expected);
 });
+
+test("exact and heuristic counts live in separate cache slots", async () => {
+  const sample = "0123456789abcdef0123456789abcdef";
+  // Heuristic first — an unknown-family request before any deepseek warmup.
+  const heuristic = countTextTokens("test-model", sample);
+  assert.equal(heuristic, estimateTextTokensHeuristic(sample));
+  // After warmup the deepseek family must be served the EXACT count for the
+  // same text, never the heuristic value cached earlier (pre-fix: one shared
+  // text-keyed cache let the stale heuristic estimate masquerade as exact —
+  // warmup is fire-and-forget, so half the cache starts life as heuristic).
+  await warmTokenCounter("deepseek-chat");
+  const { fromPreTrained } = await import("@tlibnx/tokenizer-deepseek_v4");
+  const tokenizer = await fromPreTrained();
+  const expected = (tokenizer(sample, { add_special_tokens: false }).input_ids as number[]).length;
+  assert.notEqual(expected, heuristic, "sample must diverge across counting modes for this test to bite");
+  assert.equal(countTextTokens("deepseek-chat", sample), expected);
+});

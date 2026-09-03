@@ -101,27 +101,42 @@ export function warmTokenCounter(model: string): Promise<void> {
 
 // Value-keyed memo: conversation strings are stable across loop iterations
 // (they come from the session message cache), so only fresh content pays the
-// counting cost. Holds string references — no copies.
+// counting cost. Holds string references — no copies. Keys are (mode, text)
+// pairs: exact and heuristic numbers for the same text are DIFFERENT facts,
+// and a heuristic value cached before the tokenizer warmed up must never be
+// served as an "exact" result afterwards.
 const countCache = new Map<string, number>();
 const COUNT_CACHE_MAX = 2048;
 
-function cacheStore(text: string, value: number): void {
+/** Sentinel stored in the exact slot when the tokenizer threw for this text.
+ *  The tokenizer is a process-wide singleton warmed once — there is no "next
+ *  warmup" to retry after, so remember the failure instead of re-paying the
+ *  exception on every loop iteration (callers fall back to the heuristic). */
+const EXACT_FAILED = -1;
+
+function cacheKey(mode: "exact" | "heuristic", text: string): string {
+  // \u0000 cannot appear inside a JSON-derived string, so mode and text never
+  // bleed into each other.
+  return `${mode}\u0000${text}`;
+}
+
+function cacheStore(mode: "exact" | "heuristic", text: string, value: number): void {
   if (countCache.size >= COUNT_CACHE_MAX) {
     const oldest = countCache.keys().next().value;
     if (oldest !== undefined) {
       countCache.delete(oldest);
     }
   }
-  countCache.set(text, value);
+  countCache.set(cacheKey(mode, text), value);
 }
 
 function exactCountIfWarm(text: string): number | null {
   if (!warmTokenizer) {
     return null;
   }
-  const cached = countCache.get(text);
+  const cached = countCache.get(cacheKey("exact", text));
   if (cached !== undefined) {
-    return cached;
+    return cached === EXACT_FAILED ? null : cached;
   }
   let value: number | null = null;
   try {
@@ -130,22 +145,24 @@ function exactCountIfWarm(text: string): number | null {
       value = ids.length;
     }
   } catch {
-    value = null; // not cached — retried after the next warmup
+    value = null; // remembered as EXACT_FAILED — see the sentinel note above
   }
   if (value === null) {
+    cacheStore("exact", text, EXACT_FAILED);
     return null;
   }
-  cacheStore(text, value);
+  cacheStore("exact", text, value);
   return value;
 }
 
 function heuristicCountCached(text: string): number {
-  const cached = countCache.get(text);
+  const key = cacheKey("heuristic", text);
+  const cached = countCache.get(key);
   if (cached !== undefined) {
     return cached;
   }
   const value = estimateTextTokensHeuristic(text);
-  cacheStore(text, value);
+  cacheStore("heuristic", text, value);
   return value;
 }
 

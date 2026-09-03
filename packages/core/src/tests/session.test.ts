@@ -1635,3 +1635,25 @@ test("activateSession retries once after a stalled stream times out", async () =
   assert.ok((session?.activeTokens ?? 0) > 0, "meter set by the retried request");
   assert.equal(responses.length, 0);
 });
+
+test("create-phase failures still land a prompt-side ledger record", async () => {
+  const workspace = createTempDir("deepcode-create-fail-ledger-workspace-");
+  const home = createTempDir("deepcode-create-fail-ledger-home-");
+  setHomeDir(home);
+
+  const responses: unknown[] = [
+    createChatResponse("first answer", { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }),
+    new Error("getaddrinfo EAI_AGAIN api.example.com"),
+  ];
+  const manager = createMockedClientSessionManagerWithClient(workspace, createQueuedChatClient(responses));
+  const sessionId = await manager.createSession({ text: "hello" });
+  await manager.replySession(sessionId, { text: "tell me more" });
+
+  const ledger = readUsageLedger(usageLedgerPath(getUserConfigRoot(), workspace));
+  const failed = ledger.filter((record) => record.completion === 0);
+  assert.ok(failed.length >= 1, "the create-phase failure is accounted, not silently dropped");
+  assert.ok(
+    failed.every((record) => record.prompt > 0),
+    "prompt side counted in full — same bias as the mid-stream failure path"
+  );
+});
