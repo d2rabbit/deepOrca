@@ -30,6 +30,7 @@
      (rail only) shifts just past the slim icon column; extending level 2
      pushes further to clear the content card as well. */
   --ui-stage-pad-l: 0px;
+  --ui-panel-w: 280px;
   /* Workspace sheets (knowledge / task / editor / plugin detail) clear the
      persistent quick-dock capsule: the dock row occupies cockpit+10 …
      cockpit+48, so sheets start below it and the two never overlap. */
