@@ -12,7 +12,7 @@
 
 ## 总览
 
-47 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 3 份 + 09-04 新增 1 份）：**✅ 21 · 🟡 11 · ⬜ 12 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+48 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 3 份 + 09-04 新增 2 份）：**✅ 21 · 🟡 11 · ⬜ 13 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -137,6 +137,7 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-09-04-backpass-integration-feasibility.md](./2026-09-04-backpass-integration-feasibility.md) | kunchenguid/backpass（MIT，0.1.16/0.1.17，Node≥22.5，CLI 本地记忆优化：扫描 Claude/Codex/Pi/OpenCode/Grok/Cursor CLI/Hermes 会话→证据聚合→proposal→审核写回）对本仓的集成可行性：不必须集成；推荐 P0 只读 status/scan → P1 显式 analyze/propose → P2 受控 apply 的 L1/L2 受控 CLI sidecar 姿态，全程不碰 core、不新增内置 MCP、不自动 apply、注册 root 界定运行目录 | 规划落点（未启动）：`desktop/main/tools/`（受控 spawn backpass）、桌面 proposal/预算展示（仅 L1/L2 时） | ⬜ | 纯调研留档，无代码变更。**关键结论**：DeepOrca 自有 sessions 不在 backpass 支持列表（要学习需上游贡献正式 transcript adapter）；`apply` 不是 DeepOrca 原生权限流程；npm latest(0.1.16) 与 GitHub tag(0.1.17) 不同步；transcript 脱敏非安全保证，会经 `acpx` 发外部 harness。调研仅供参考，实现以 specs/ 为准 |
+| [2026-09-04-memory-audit-subagent-proposal.md](./2026-09-04-memory-audit-subagent-proposal.md) | **承接 backpass 调研的「怎么抄」方案**：不引 external CLI，用 DeepOrca 自有 session/记忆/子智能体通道重实现「跨会话证据→记忆规则迭代」。方案：`memory.audit` action（defineAction 三端自动承接）+ `runBackgroundLlmTask(profile:"review")` 只读审计 + 「确定性证据扫描(含 audit 哈希链 path_gate)→gap 聚合→LLM proposal 合成」三段式 + `AskUserQuestion` 逐项审核 + 自包含双语 HTML 报告 + 用户批准后主会话 `edit` 写回 AGENTS.md/SKILL.md；P0 纯观察、数据决策门定 P1 | 规划落点（未启动）：`core/actions/memory-audit.ts`（新）、`session-manager-base.ts` 注册两行、`desktop/main/tools/audit-*.ts`（报告/store）、核心记忆审计 skill（`templates/plugins/`） | ⬜ | 纯方案留档，无代码变更。**关键对位**：本仓已具备全部地基（自有 sessions 证据含 audit 哈希链、L0-L3 记忆、`profile:"review"` 只读后台循环、AskUserQuestion+双语 HTML 审核面），增量只有「证据扫描→gap 聚合→proposal 合成」一条语义管线；`specs/archive/memory-remediation/design.md` §五 2 早已把「session→SOP/规则自萃取」拍板为后续自研空白区，本方案是其第一个具体形态。P0-P1 零新增 IPC/i18n。_建议 next-version 储备_ |
 
 ---
 
