@@ -682,36 +682,37 @@ function WikiPageView({
 
   return (
     <div className="ui-wiki-page">
+      {/* 横幅只保留动作（user ask 2026-09-03）：标题/简介/面包屑全部
+          下沉到正文头部，跟随正文滚动 —— 元数据来自 front matter，
+          纯渲染组装，不影响文档生成物。 */}
       <div className="ui-wiki-page-head">
-        <div className="ui-wiki-page-head-main">
-          {crumb.length > 1 ? (
-            <div className="ui-wiki-breadcrumb" aria-hidden>
-              {crumb.slice(0, -1).map((part, i) => (
-                <span key={i} className="ui-wiki-breadcrumb-part">
-                  {part}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <div className="ui-wiki-page-head-row">
-            <span className="ui-wiki-page-icon" aria-hidden>
-              ▤
-            </span>
-            {title ? <h1 className="ui-wiki-page-title">{title}</h1> : <span className="ui-wiki-page-title" />}
-            {onQuote ? (
-              <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
-                {quoteLabel}
-              </Button>
-            ) : null}
-            <Button size="sm" variant="subtle" onClick={onOpenFile}>
-              {openLabel}
-            </Button>
-          </div>
-          {description ? <div className="ui-wiki-page-desc">{description}</div> : null}
-        </div>
+        <span className="ui-wiki-page-icon" aria-hidden>
+          ▤
+        </span>
+        {onQuote ? (
+          <Button size="sm" variant="primary" className="ui-wiki-page-quote" onClick={() => onQuote(quoteTitle)}>
+            {quoteLabel}
+          </Button>
+        ) : null}
+        <Button size="sm" variant="subtle" onClick={onOpenFile}>
+          {openLabel}
+        </Button>
       </div>
       <div className="ui-wiki-columns">
         <div ref={docRef} className="ui-wiki-doc-wrap">
+          <div className="ui-wiki-doc-head">
+            {crumb.length > 1 ? (
+              <div className="ui-wiki-breadcrumb" aria-hidden>
+                {crumb.slice(0, -1).map((part, i) => (
+                  <span key={i} className="ui-wiki-breadcrumb-part">
+                    {part}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {title ? <h1 className="ui-wiki-page-title">{title}</h1> : null}
+            {description ? <div className="ui-wiki-page-desc">{description}</div> : null}
+          </div>
           <StreamdownView className="ui-knowledge-agents-md ui-md ui-wiki-doc" markdown={body} />
         </div>
         <TocNav entries={toc} activeId={activeId} label={tocLabel} onJump={jump} />
