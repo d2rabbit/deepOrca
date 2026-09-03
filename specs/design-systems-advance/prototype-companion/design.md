@@ -1,16 +1,16 @@
 # 原型设计伴随模块（Prototype Companion）— 详细设计
 
-> **状态**：**已合并 — 并入 [design-systems-advance](../design-systems-advance/design.md)（2026-09-02 合并定稿）**。
+> **状态**：**已合并 — 并入 [design-systems-advance](../design.md)（2026-09-02 合并定稿）**。
 > 2026-08-31 拍板挂起并入 redesign；2026-09-02 redesign 方案（design-systems-advance）成为唯一方案——
 > 本文的悬浮对话框 / 侧栏分轨由其 §5.6 承接；任务树落点与滚动审计两项**已由
-> [task-tree-hub](../archive/review/task-tree-hub/design.md) 实现关闭**（design-store 聚合呈现，无需 appendStep）。
+> [task-tree-hub](../../review-ing/task-tree-hub/design.md) 实现关闭**（design-store 聚合呈现，无需 appendStep）。
 > 本稿降级为历史输入归档保留，不再维护。
 > **任务树更新（2026-09-01）**：挂起的「任务树精致化」已拍板并定稿 →
-> [工作区任务树](../archive/review/task-tree-hub/design.md)（工作区统一任务树；本文 §5.2 的落树矩阵
+> [工作区任务树](../../review-ing/task-tree-hub/design.md)（工作区统一任务树；本文 §5.2 的落树矩阵
 > 与 §9 P2 已按其回写）。
 > **日期**：2026-08-31
-> **需求来源**：[原型设计模块约束与问题记录](../../docs/research/2026-08-31-prototype-module-issues.md)（Issue 1–4）
-> **前置**：[PM-Design V2](../design-systems-advance/pm-design-v2-design.md)（design-store / 两步原型流已落地）· [任务树](../archive/task-tree/design.md)（TaskTreeService / TaskTreePanel / TaskRecordPanel 已落地）
+> **需求来源**：[原型设计模块约束与问题记录](../../../docs/research/2026-08-31-prototype-module-issues.md)（Issue 1–4）
+> **前置**：[PM-Design V2](../pm-design-v2-design.md)（design-store / 两步原型流已落地）· [任务树](../../archive/task-tree/design.md)（TaskTreeService / TaskTreePanel / TaskRecordPanel 已落地）
 > **受众**：deepcodeUI 维护者；实现者需要熟悉 HubSheet 侧栏、ActionRun 通道、design-store 与 TaskTreeService。
 
 ---
@@ -22,7 +22,7 @@
 | §5.1 sessionless 动作落 workspace 树活动分支            | **采纳**（redesign 时按此实施，仅限原型域动作）                                                                                                                                                                                                                                                            |
 | §3.1 悬浮对话框 = 工作区内 DOM 浮层（非 BrowserWindow） | **采纳**                                                                                                                                                                                                                                                                                                   |
 | §5.2 索引/审查后台 job 落树                             | **否决原案并后置**——代码审查、索引与知识等是**具备独立工作区的模块**（行为对齐索引库），不是 workspace 树的 step 来源；它们的记录归属随任务树精致化一起重设计（见下）                                                                                                                                      |
-| 任务树精致化                                            | **已拍板并定稿（2026-09-01）→ [工作区任务树](../archive/review/task-tree-hub/design.md)**：任务树 = 以工作区为根基的统一任务树（会话主任务/fork/索引构建/代码审查/原型 UI 全部并入），交互与索引库/审查同构（左工作区列表、右任务历史工作区）；TaskTree/TaskRecord 的侧栏挂载形态作废，TaskTreeService 保留为会话域数据源 |
+| 任务树精致化                                            | **已拍板并定稿（2026-09-01）→ [工作区任务树](../../review-ing/task-tree-hub/design.md)**：任务树 = 以工作区为根基的统一任务树（会话主任务/fork/索引构建/代码审查/原型 UI 全部并入），交互与索引库/审查同构（左工作区列表、右任务历史工作区）；TaskTree/TaskRecord 的侧栏挂载形态作废，TaskTreeService 保留为会话域数据源 |
 | §6.4 侧栏滚动审计                                       | **随任务树重设计关闭**——新任务树面（task-tree-hub §6.5）按滚动契约实现并加 DOM 断言；其余既有视图的滚动审计仍随 redesign 执行                                                                                                                                                                              |
 
 ---
@@ -184,13 +184,13 @@ idle ──生成需求文档──▶ spec-running ──成功──▶ spec-d
 | `prototype.spec`                | 无记录                         | **零写入**（拍板 2026-09-01：appendStep 方案作废）                                                | design-store 即记录源 → task-tree-hub 聚合域自动呈现 |
 | `prototype.materialize`         | 无记录                         | 同上                                                                                              | 同上                                                 |
 | `design.materialize`            | 仅会话绑定时记录               | **保留**既有会话绑定路径；无绑定时补 workspace 级落点（与 prototype 一致）                        | 绑定分支，否则活动分支                               |
-| 索引与知识（index & knowledge） | 独立工作区模块（索引库形态）   | **不落 workspace 树** —— 记录归属已定稿：task-tree-hub 聚合域（含构建历史落盘 `.deeporca/jobs/`） | [task-tree-hub §4](../archive/review/task-tree-hub/design.md)       |
-| 代码审查（review）              | 独立工作区模块（与索引库同构） | **不落 workspace 树** —— 产物（`.deeporca/reviews/`）即记录源，由 task-tree-hub 聚合呈现          | [task-tree-hub §4](../archive/review/task-tree-hub/design.md)       |
+| 索引与知识（index & knowledge） | 独立工作区模块（索引库形态）   | **不落 workspace 树** —— 记录归属已定稿：task-tree-hub 聚合域（含构建历史落盘 `.deeporca/jobs/`） | [task-tree-hub §4](../../review-ing/task-tree-hub/design.md)       |
+| 代码审查（review）              | 独立工作区模块（与索引库同构） | **不落 workspace 树** —— 产物（`.deeporca/reviews/`）即记录源，由 task-tree-hub 聚合呈现          | [task-tree-hub §4](../../review-ing/task-tree-hub/design.md)       |
 
 **模块边界原则（2026-08-31 拍板）**：代码审查、索引与知识等模块**具备独立的工作区**，
 行为逻辑与索引库同构——各自管理各自的产物与记录，不是 workspace 任务树的 step 来源。
 把它们塞进 workspace 活动分支的 P2 原案**作废**；"模块独立任务 ↔ 综合任务模块"的
-联动修正已定稿为[工作区任务树](../archive/review/task-tree-hub/design.md)（聚合域方案，任务历史
+联动修正已定稿为[工作区任务树](../../review-ing/task-tree-hub/design.md)（聚合域方案，任务历史
 模块的推翻重造一并落地）。
 
 ### 5.3 appendStep 契约
@@ -316,7 +316,7 @@ Issue 记录的"无法滚动"未归档复现面，本期做一次**审计 + 修�
 
 - §6.4 全视图滚动审计与修复 → 新任务树面按契约实现（task-tree-hub §6.5），其余视图随 redesign
 - index & knowledge / code review 的记录化 → **已定稿**：task-tree-hub 聚合域，无需本文任何写入
-- **验收**：见 [task-tree-hub §8](../archive/review/task-tree-hub/design.md)
+- **验收**：见 [task-tree-hub §8](../../review-ing/task-tree-hub/design.md)
 
 ---
 

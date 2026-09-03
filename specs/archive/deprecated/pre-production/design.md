@@ -45,7 +45,7 @@
 
 ### A. skill-up CI（技能质量可回归）
 
-依据：`specs/archive/review/skill-eval/design.md` + 已排期的 `specs/archive/review/skill-eval/tasks.md`（S1 CI 集成 → S2 自定义引擎；S3 不排期）。
+依据：`specs/review-ing/skill-eval/design.md` + 已排期的 `specs/review-ing/skill-eval/tasks.md`（S1 CI 集成 → S2 自定义引擎；S3 不排期）。
 要点重申：skill-up 二进制固定版本（不走 go install latest）；PR report-only + nightly 全量含 slow；rule_based/script 裁判为主、离线可重放；8 个内置插件包 evals 骨架（design.md 原文写 7，实为 8：vision 为后增）；S2 适配器用 @deeporca/core 直建 SessionManager、mkdtemp 隔离、120s 上限。
 
 ### B. book-distill（skillweaver P2）

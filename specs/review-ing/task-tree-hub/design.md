@@ -2,13 +2,14 @@
 
 > **日期**：2026-09-01
 > **状态**：**主体已落地（2026-09-02 任务树 V2 提交：git graph + 常开轨迹 + git 绑定 + fork + 按需审查 + 全局 token 统计）；收尾与真机走查进行中**
-> **审查归档（2026-09-03 用户拍板）**——移入 `specs/archive/review/` 待复核区；复核（收尾清单 + 真机走查）通过后转正式归档。
+> **审查归档（2026-09-03 用户拍板）**——移入 `specs/review-ing/` 待复核区；复核（收尾清单 + 真机走查）通过后转正式归档。
+> **视觉稿**：[screen-task-tree.html](./screen-task-tree.html)（HTML 设计稿 V2.1，用户验收通过；自 `designs/task-tree-hub/` 随迁归档）
 > **拍板来源**：用户拍板（2026-09-01）——现有任务历史模块（TaskTreePanel / TaskRecordPanel 以
 > workspace 树维度挂侧栏）的形态**全部推翻**；任务树的本质重新定义为：**以同一个工作区（项目）
 > 为根基的、该工作区所有任务的统一树**。本文即该重设计的设计稿，并关闭
-> [prototype-companion](../../../prototype-companion/design.md) §0.0 中挂起的「任务树精致化」议题。
-> **前置**：[任务树](../../../archive/task-tree/design.md)（TaskTreeService 已落地，本设计**复用不重写**）·
-> [代码审查](../../review-module/design.md)（review tab 交互范式）· 索引与知识（index-knowledge-rework）
+> [prototype-companion](../../design-systems-advance/prototype-companion/design.md) §0.0 中挂起的「任务树精致化」议题。
+> **前置**：[任务树](../../archive/task-tree/design.md)（TaskTreeService 已落地，本设计**复用不重写**）·
+> [代码审查](../../archive/review-module/design.md)（review tab 交互范式）· 索引与知识（index-knowledge-rework）
 > **受众**：desktop 维护者；实现者需要熟悉 review tab 的双栏结构、review-store / design-store /
 > TaskTreeService 三套既有记录源。
 
@@ -273,7 +274,7 @@ interface UnifiedTaskNode {
 
 ## §10 与 prototype-companion 设计的回写
 
-本文定稿后，[prototype-companion/design.md](../../../prototype-companion/design.md) 做以下
+本文定稿后，[prototype-companion/design.md](../../design-systems-advance/prototype-companion/design.md) 做以下
 同步（已随本稿一并更新）：
 
 1. §0.0 表格：`任务树精致化` 行由「挂起」改为「已拍板 → 见 task-tree-hub」。

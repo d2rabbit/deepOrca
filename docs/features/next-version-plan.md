@@ -1,13 +1,13 @@
 # 下一版本规划：自进化引擎 · Studio 基座 · 远程访问 · 知识编译 · 工作区语义检索
 
 > 日期：2026-08-18（2026-08-19 增补主线 D）· 状态：**规划中（冻结期后的 `next/*` 版本路线，本文不排当前版本期）**
-> 来源：会话 sess_2233bbaf 的方向确立（自进化引擎 / action→Studio 超大版本 / 远程访问），经 2026-08-18 全项目终判（`docs/pre-production-spec-final-audit.md`）与本日收尾批事实校正；2026-08-19 基于 llm_wiki 预研（`docs/research/2026-08-19-llm-wiki-prestudy.md`）增补主线 D 知识编译；2026-09-02 基于 zvec-grep 调研增补主线 E 工作区语义检索（spec [`specs/zg-semantic-search/`](../../specs/zg-semantic-search/design.md)）。
+> 来源：会话 sess_2233bbaf 的方向确立（自进化引擎 / action→Studio 超大版本 / 远程访问），经 2026-08-18 全项目终判（`docs/pre-production-spec-final-audit.md`）与本日收尾批事实校正；2026-08-19 基于 llm_wiki 预研（`docs/research/2026-08-19-llm-wiki-prestudy.md`）增补主线 D 知识编译；2026-09-02 基于 zvec-grep 调研增补主线 E 工作区语义检索（spec [`specs/next-version/zg-semantic-search/`](../../specs/next-version/zg-semantic-search/design.md)）。**2026-09-03 对齐**：主线 spec 路径随 specs 目录重组更新至 `specs/next-version/`；文末新增储备 spec 章节（非主线项，不裁撤）；原预生产出口门槛已拍板毙掉（见 §0 入口前置更新）。
 > 依据口径：路线与现状以 `docs/features/feature-roadmap.md` §0 为准；实现以 `specs/` 为准；调研仅参考。
 > **⚠️ 优先级让位（2026-08-27）**：新立王牌路线 [OC · AI 协调工作链](./coord-chain-plan.md)（联盟链 + 资产共享 + 任务谱系接续开发）优先级高于本文 A–D 主线——资源冲突时 OC 优先，本文各主线启动顺序整体后移一位，内容与分期不变。**（2026-09-02 注：主线 E 同样让位于 OC。）**
 
 ## 0. 版本定位与入口（前置阻塞）
 
-**三主线共享同一地基（action registry/dispatch 单点），同期做返工最少**——这是把 B1+B2 提升进下一版（而非原建议的"再下一版"）的核心理由。入口前置（预生产收尾，见 `specs/pre-production/tasks.md`）：F4 真机烟雾交互清单走查 → H 预生产切换（版本定格 → dev 合并 → tag → 冻结生效）完成后，本规划的全部主线进入 `next/*` 分支启动。
+**三主线共享同一地基（action registry/dispatch 单点），同期做返工最少**——这是把 B1+B2 提升进下一版（而非原建议的"再下一版"）的核心理念。入口前置（**2026-09-03 更新**）：原预生产出口门槛（F4 真机烟雾交互清单走查 → H 预生产切换，spec 已废弃归档至 `specs/archive/deprecated/pre-production/`）**已拍板毙掉、不再作为启动闸**——冻结期结束后，本规划的全部主线即可进入 `next/*` 分支启动。
 
 | 主线 | 下一版纳入 | 紧随其后一版 |
 | --- | --- | --- |
@@ -34,7 +34,7 @@
 
 ## 主线 B：action → Studio 基座（超大版本迭代）
 
-**核心认知**（`specs/module-system/design.md` v2，当前全 0 代码）：defineAction 已完成（28 action 静态注册）是地基，终点是「DeepOrca = AI Studio 内核」——第三方不 fork 代码，用 dist.json 发行版清单组装垂直 AI Studio，DeepOrca 桌面版降级为参考发行版。五件套基座：action 总线 + A2UI + wasm 沙箱（唯一全缺）+ MCP + Skill。架构承诺：action 是唯一能力总线，一切 UI 事件汇入 `registry.execute`；L0 内核冻结，对外只承诺七张平台 API 契约表。
+**核心认知**（`specs/next-version/module-system/design.md` v2，当前全 0 代码）：defineAction 已完成（28 action 静态注册）是地基，终点是「DeepOrca = AI Studio 内核」——第三方不 fork 代码，用 dist.json 发行版清单组装垂直 AI Studio，DeepOrca 桌面版降级为参考发行版。五件套基座：action 总线 + A2UI + wasm 沙箱（唯一全缺）+ MCP + Skill。架构承诺：action 是唯一能力总线，一切 UI 事件汇入 `registry.execute`；L0 内核冻结，对外只承诺七张平台 API 契约表。
 
 | 下一版分期 | 内容 | 体量 |
 | --- | --- | --- |
@@ -73,7 +73,7 @@
 - **许可红线**：llm_wiki 为 **GPL-3.0**（LICENSE 本体核证）——零代码继承、不 vendor、不拷贝提示词文本，全部净室自研；方法论与算法思想（两步摄入、关联度信号、预算装配）不受版权保护可借鉴。技术栈（Tauri/Rust）本也不可复用，无实际损失。
 - **与 A/B/C 线关系**：D0 完全独立可先行；D1 的 `docwiki.*` actions 按静态 defineAction 注册起步，B1 action 总线动态化后免费获益（同 E1 埋点逻辑，无需提前缴纳动态化成本）；Deep Research 闭环复用内置联网工具，不依赖 C 线。
 - **复用地基**（本仓做同类事情的边际成本显著低于从零）：`WikiController` 注入惯例、gitmcp 的 node:sqlite FTS5 `SearchBackend` 先例、routing embedding 进程级单例（零新增模型实例）、`event:actionProgress` 进度通道、知识面板源卡协议、内置 WebSearch/WebFetch。
-- spec：[`specs/doc-wiki/`](../../specs/doc-wiki/design.md)（design + tasks，2026-08-19 立）。
+- spec：[`specs/next-version/doc-wiki/`](../../specs/next-version/doc-wiki/design.md)（design + tasks，2026-08-19 立）。
 
 ## 主线 E：工作区语义检索（zvec-grep/zg，2026-09-02 新立）
 
@@ -91,7 +91,7 @@
 - **四层分工**：bash+rg（已知词穷尽）→ codegraph（结构/调用链）→ serena（LSP 符号）→ **zg（模糊意图语义发现）**；zg 不做结构关系与符号编辑，是纯内容检索层。
 - **与其他主线关系**：与主线 D 不重叠——D2 检索作用于"编译后的 doc-wiki 知识"，zg 作用于"工作区原始内容"；纯 MCP 注入，不依赖 B1 action 总线动态化；与 A/C 零耦合。
 - **风险**：上游 0.2.x 太新（2026-08 底开源）→ 版本钉死 + adapter 单文件隔离 CLI 面；Windows 原生模块/daemon 表现未知 → M0 一票否决。
-- spec：[`specs/zg-semantic-search/`](../../specs/zg-semantic-search/design.md)（design + tasks，2026-09-02 立）。
+- spec：[`specs/next-version/zg-semantic-search/`](../../specs/next-version/zg-semantic-search/design.md)（design + tasks，2026-09-02 立）。
 
 ## 强化清单（本版本遗留，进下一版窗口逐项核对）
 
@@ -113,6 +113,21 @@
 
 ## 启动顺序建议
 
-1. **先收本版本尾**：F4 交互清单 + 双开回归 + GitMCP-12 人工走查 → H 预生产切换（版本定格/dev 合并/tag/冻结生效）；
+1. **先收本版本尾**：F4 交互清单 + 双开回归 + GitMCP-12 人工走查照常走查（已移交预生产测试批，2026-09-03）；原 H 预生产切换作为启动闸已随出口门槛毙掉——冻结期结束即视作放行；
 2. 冻结生效后开 `next/*`：A-E1 设计与 B-B1 可并行启动（E1 埋点与 registry 动态化同 spec 合写；前者改 core、后者改 desktop main + core/modules，无冲突）；C-M1 的 dispatch 抽取与 action 第四表面同源，建议与 B1 同批设计；D-D0 两项零基建完全独立、任意时点可插入（D1 待 D0 的 purpose 约定验证后启动）；E-M0 P0 spike 纯调研不写仓库代码、冻结期内即可跑，M1–M3 待冻结生效后按 P0 结论启动；
-3. 体量锚点：B1 的 wasm runtime（DMABI + Tier-0）是全版本唯一从零大块，优先立 `specs/module-system/` 任务拆分启动。
+3. 体量锚点：B1 的 wasm runtime（DMABI + Tier-0）是全版本唯一从零大块，优先立 `specs/next-version/module-system/` 任务拆分启动。
+
+## 储备 spec（specs/next-version/ 内的非主线项，2026-09-03 对齐增补）
+
+> 以下 8 个 spec 与 A–E 主线同存于 `specs/next-version/`（第二阶段规划区），但**不属于本计划 A–E 主线**——按既定口径不裁撤，保留于储备区，立项时点随各自功能域规划（移动域重启统一走 `next/*`）。目录总览见 [`specs/README.md`](../../specs/README.md) 与 [`specs/next-version/README.md`](../../specs/next-version/README.md)。
+
+| spec | 一句话 | 当前状态 |
+| --- | --- | --- |
+| [android-dev-kit](../../specs/next-version/android-dev-kit/design.md) | 内核驱动的安卓开发套件（A1–A5） | ⬜ 设计稿（移动域重启向） |
+| [cad-3d-generation](../../specs/next-version/cad-3d-generation/design.md) | 3D 与制造：text-to-cad / img2threejs 三阶段 | ⬜ 规划中 |
+| [content-translation](../../specs/next-version/content-translation/design.md) | 第三方内容翻译引擎（Apple 系统引擎优先 + Argos 兜底） | ⬜ 设计定稿待实现 |
+| [desktop-pet](../../specs/next-version/desktop-pet/design.md) | 桌宠小助手 P1–P10 | ⬜ 调研定稿（P1 悬浮窗按 spec 另立项） |
+| [harmonyos-dev-kit](../../specs/next-version/harmonyos-dev-kit/design.md) | 鸿蒙开发套件 | ❌ 曾落地后整体下线；重启属 `next/*` |
+| [in-process-multi-driver](../../specs/next-version/in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay 编排） | ⬜ 立稿未实施（S0 质量验证 + 锁版起步） |
+| [model-fleet-adaptation](../../specs/next-version/model-fleet-adaptation/design.md) | GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8 收官适配 | 🟡 G0+S0 落地（16/34），S1–S4 系列核填待做 |
+| [sandbox-next](../../specs/next-version/sandbox-next/design.md) | 沙箱延伸：bwrap / WSL2 / 能力矩阵对账 / WASI 预研 | ⬜ 独立任务规划（自 sandbox 收官延伸，2026-09-03） |

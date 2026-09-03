@@ -1,8 +1,8 @@
 # 任务树 V2 + 按需审查 + 全局 Token 统计 — 变更说明
 
 > 提交：`c95aa729`（feat/modern-ui-redesign）· 日期：2026-09-01 → 2026-09-02
-> 设计依据：[specs/task-tree-hub/design.md](../specs/task-tree-hub/design.md)（已拍板定稿）·
-> [designs/task-tree-hub/screen-task-tree.html](../designs/task-tree-hub/screen-task-tree.html)（HTML 设计稿 V2.1，用户验收通过）
+> 设计依据：[specs/review-ing/task-tree-hub/design.md](../../specs/review-ing/task-tree-hub/design.md)（已拍板定稿）·
+> [specs/review-ing/task-tree-hub/screen-task-tree.html](../../specs/review-ing/task-tree-hub/screen-task-tree.html)（HTML 设计稿 V2.1，用户验收通过）
 > 参考：deepseek-ai/deepseek-harness 的 Session Event Log（事件溯源轨迹模型）
 > 验证：typecheck 零错误 · 测试 377/377 · eslint/prettier 干净
 
@@ -153,7 +153,7 @@ review.full 的 ctx 依赖只有 `ctx.projectRoot` + emit（语义审查走外�
 `renderer/components/task-hub-format.ts` · `renderer/lib/risk-board.ts`（弹性布局）·
 `renderer/ui-css/task-hub.css` · `renderer/ui-css/risk-board.css` ·
 `renderer/lib/generated-paths.ts` 的 `reviewStorePath` · specs/task-tree-hub/design.md ·
-designs/task-tree-hub/screen-task-tree.html · 测试 ×5
+specs/review-ing/task-tree-hub/screen-task-tree.html · 测试 ×5
 （task-hub / jobs-store / session-trace / tokens-summary / generated-paths）。
 
 **删除**：`renderer/components/TaskTreePanel.tsx`（rail 形态退役）。

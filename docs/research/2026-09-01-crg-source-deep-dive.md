@@ -160,6 +160,6 @@ VS Code 扩展、graphml/cypher/obsidian 导出面。
 
 ## §8 关联文档
 
-- 审查模块设计文档：[specs/review-module/design.md](../specs/review-module/design.md)
-- 审查 Tab 视觉设计稿：`designs/review-module/screen-review.html`
+- 审查模块设计文档：[specs/archive/review-module/design.md](../../specs/archive/review-module/design.md)
+- 审查 Tab 视觉设计稿：`specs/archive/review-module/screen-review.html`
 - 上游 schema：[vendor-src/code-review-graph/docs/schema.md](../../vendor-src/code-review-graph/docs/schema.md)

@@ -2,7 +2,7 @@
 
 > 日期：2026-08-27 · 状态：调研定稿（未实现）· 归属：**王牌路线 OC**（优先级高于 next-version，见 `docs/features/coord-chain-plan.md`）
 > **分支实现归档（2026-09-03 用户拍板）**——已在 `next/coord-chain` 分支实施至 OC2（Ed25519/X25519+AES-GCM 协议核心、ws 加密传输、ChainNode 建链/重放、mDNS 发现+邀请码、SQLite 视图接线、双节点 e2e），**未合并回主线**；分支合并后转正式归档。
-> 配套：[requirements.md](./requirements.md)（R1–R23）· [tasks.md](./tasks.md)（OC1–OC4）· 调研 [2026-08-27-coord-chain-technology-survey.md](../../../../docs/research/2026-08-27-coord-chain-technology-survey.md)
+> 配套：[requirements.md](./requirements.md)（R1–R23）· [tasks.md](./tasks.md)（OC1–OC4）· 调研 [2026-08-27-coord-chain-technology-survey.md](../../../docs/research/2026-08-27-coord-chain-technology-survey.md)
 
 ## 1. 定位与总原则
 

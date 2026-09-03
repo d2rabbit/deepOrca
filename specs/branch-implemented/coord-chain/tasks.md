@@ -1,6 +1,6 @@
 # AI 协调工作链（Coord Chain）— 实施计划
 
-> 日期：2026-08-27 · 状态：规划中（未启动）· 分期代号 OC1–OC4 与 [`docs/features/coord-chain-plan.md`](../../../../docs/features/coord-chain-plan.md) 对齐 · 追溯目标：[requirements.md](./requirements.md) R1–R23
+> 日期：2026-08-27 · 状态：规划中（未启动）· 分期代号 OC1–OC4 与 [`docs/features/coord-chain-plan.md`](../../../docs/features/coord-chain-plan.md) 对齐 · 追溯目标：[requirements.md](./requirements.md) R1–R23
 > **2026-09-03 注**：OC1–OC2 已在 `next/coord-chain` 分支实现（协议核心 + 组网同步 + 双节点 e2e，未合并主线）；本清单勾选状态未随分支同步，合并时以分支实况回写。
 
 ## OC1 协议库 `@deeporca/ledger`（纯离线，零网络）

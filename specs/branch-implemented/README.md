@@ -1,7 +1,7 @@
-# specs/archive/branch-implemented — 分支实现归档（未合并）
+# specs/branch-implemented — 分支实现归档（未合并）
 
 > **口径（2026-09-03 立）**：实现已发生在**未合并的 `next/*` 分支**上的 spec 入本区——spec 文档（requirements/design/tasks）归档留痕，实现进度以分支为准；tasks 勾选状态不要求与分支同步，合并时以分支实况回写。分支合并回主线后 `git mv` 至 `specs/archive/<name>/` 转正式归档。
-> 本区引用归档根用 `../<name>/`，引用活 spec 用 `../../../<name>/`。
+> 本区引用归档根用 `../archive/<name>/`，引用活 spec 用 `../../<name>/`。
 
 | spec | 入区日期 | 分支 | 已实现范围 | 转正条件 |
 | --- | --- | --- | --- | --- |

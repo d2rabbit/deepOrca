@@ -1,6 +1,6 @@
 # Sandbox 延伸规划 — 任务清单
 
-> 对应 [design.md](./design.md)；延伸自 [sandbox](../archive/sandbox/design.md)（2026-09-03 收官归档时移交的 5 项未决项）。
+> 对应 [design.md](./design.md)；延伸自 [sandbox](../../archive/sandbox/design.md)（2026-09-03 收官归档时移交的 5 项未决项）。
 
 ## 后端扩展（启动前先复核 2026-08-18"建议不做"评审理由是否仍成立）
 

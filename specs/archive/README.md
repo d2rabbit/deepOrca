@@ -1,8 +1,8 @@
 # specs/archive — 已收官 spec 归档
 
-> **归档原则（2026-09-02 立，2026-09-03 扩展）**：终判 ✅ 且**无未决项**（无待人工 / 待实施 / 待验证）的 spec 目录整体 `git mv` 移入此处，内容原样保留——它们仍是已交付能力的实现依据与历史记录，只是不再活跃。2026-09-03 起：人工走查项统一移交预生产测试清单后即可归档；主体落地但有待复核项的入 [`review/`](./review/README.md)；已在未合并 `next/*` 分支实现的入 [`branch-implemented/`](./branch-implemented/README.md)；拍板废弃的入 [`deprecated/`](./deprecated/README.md)。部分实现（🟡）且待复核项未清的 spec 留在 `specs/` 原位。
+> **归档原则（2026-09-02 立，2026-09-03 扩展）**：终判 ✅ 且**无未决项**（无待人工 / 待实施 / 待验证）的 spec 目录整体 `git mv` 移入此处，内容原样保留——它们仍是已交付能力的实现依据与历史记录，只是不再活跃。2026-09-03 起：人工走查项统一移交预生产测试清单后即可归档；主体落地但有待复核项的入 [`specs/review-ing/`](../review-ing/README.md)；已在未合并 `next/*` 分支实现的入 [`specs/branch-implemented/`](../branch-implemented/README.md)；拍板废弃的入 [`deprecated/`](./deprecated/README.md)。部分实现（🟡）且待复核项未清的 spec 留在 `specs/` 原位。
 >
-> **引用约定**：全仓引用已随归档改写为 `specs/archive/<name>/`；活 spec 引用归档件用 `../archive/<name>/`；归档件引用活 spec 按层级用 `../../`（本目录）或 `../../../`（review / branch-implemented / deprecated 子目录）。
+> **引用约定**：全仓引用已随归档改写为 `specs/archive/<name>/`；活 spec 引用归档件用 `../archive/<name>/`（review-ing / branch-implemented 等根级区同理 `../<区名>/<name>/`）；归档件引用活 spec 按层级回溯。
 >
 > **回归**：若归档 spec 重新开工（如 redesign 唤醒），`git mv` 移回 `specs/<name>/` 并同步改写引用。
 
@@ -23,16 +23,16 @@
 | [gitmcp-local-module](./gitmcp-local-module/design.md) | ✅ | 2026-09-03 | 任务 1-11 全勾；任务 12 手测移交预生产走查批 |
 | [ui-domain-regroup](./ui-domain-regroup/design.md) | ✅ | 2026-09-03 | tasks 10/10；真机 UI 实测移交预生产走查批 |
 | [review-module](./review-module/design.md) | ✅ | 2026-09-03 | 审查模块主体 + G1-G10 修复落地，理论完备收官（用户拍板） |
-| [sandbox](./sandbox/design.md) | ✅ | 2026-09-03 | P0–P2 主体 40/45 收官；5 项未决项延伸为 [specs/sandbox-next/](../sandbox-next/design.md) |
+| [sandbox](./sandbox/design.md) | ✅ | 2026-09-03 | P0–P2 主体 40/45 收官；5 项未决项延伸为 [specs/sandbox-next/](../next-version/sandbox-next/design.md) |
 | [index-knowledge-rework](./index-knowledge-rework/design.md) | ✅ | 2026-09-03 | R2 全部任务落地标记结束（用户拍板），tasks 全量勾选 |
 
 ## 🔍 审查归档（复核通过后转正）
 
-见 [review/README.md](./review/README.md)——task-tree-hub（收尾清单+真机走查待复核）· skill-eval（T2.3 对拍待真实 LLM）。
+见 [../review-ing/README.md](../review-ing/README.md)——task-tree-hub（收尾清单+真机走查待复核）· skill-eval（T2.3 对拍待真实 LLM）。
 
 ## 🌿 分支实现归档（分支合并后转正）
 
-见 [branch-implemented/README.md](./branch-implemented/README.md)——coord-chain（OC1–OC2 已在 `next/coord-chain` 实现，未合并主线）。
+见 [../branch-implemented/README.md](../branch-implemented/README.md)——coord-chain（OC1–OC2 已在 `next/coord-chain` 实现，未合并主线）。
 
 ## ❌ 废弃归档（保留供溯源）
 

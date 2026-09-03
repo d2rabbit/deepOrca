@@ -1,11 +1,11 @@
-# 主会话对话渲染重设计 — 落地实施方案
+# 主会话对话渲染重设计（chat-redesign）— 设计与实施方案
 
-> **日期**：2026-09-02 视觉稿与动态演示定稿；2026-09-03 文档标准化（术语统一 / 结构对齐 specs 行文规范）
-> **状态**：待评审（本阶段不含项目编码，编码待本方案评审通过后按 §九 分期实施）
-> **视觉基线**：[screen-chat.html](./screen-chat.html)（静态定稿稿，与动态演示同一组件语言）
-> **动态基线**：[demo-flow.html](./demo-flow.html)（完整数据流可播放演示，即本方案的交互即视版）
-> **关联**：[task-tree-hub](../../specs/task-tree-hub/design.md) §6.5（滚动契约）·
-> [prototype-companion](../../specs/prototype-companion/design.md) §6.3（产物分轨打开规则）
+> **日期**：2026-09-02 视觉稿与动态演示定稿 · **2026-09-03 标准化入 specs**（原 `designs/chat-redesign/落地实施方案.md`，视觉稿资产随迁至 [designs/](./designs/)，原目录撤销）
+> **状态**：**实施中（feat/modern-ui-redesign 分支）**——P1/P3/P4 主体已落地（三栏骨架 / InstructionToc / ActivityRail / 浮动 Tab 联动 / PinnedPlan / 引用芯片 / 会话流对齐 demo-flow），余项见 [tasks.md](./tasks.md)
+> **视觉基线**：[designs/screen-chat.html](./designs/screen-chat.html)（静态定稿稿，与动态演示同一组件语言）
+> **动态基线**：[designs/demo-flow.html](./designs/demo-flow.html)（完整数据流可播放演示，即本方案的交互即视版）
+> **关联**：[task-tree-hub](../review-ing/task-tree-hub/design.md) §6.5（滚动契约）·
+> [prototype-companion](../design-systems-advance/prototype-companion/design.md) §6.3（产物分轨打开规则）
 > **受众**：desktop 前端实现者
 
 ---
@@ -268,9 +268,9 @@ electron-builder 打包配置。
 | Message.tsx 六文件拆分 | ⏳ P2 待做（当前仅完成引用芯片渲染迁出计划）|
 | 滚动条无感化（全局滚动层）| ✅ 已落地 |
 
-## 十二、本阶段交付物
+## 十二、交付物与归档说明
 
-- [x] 视觉稿：`screen-chat.html`（静态定稿语言）
-- [x] 动态稿：`demo-flow.html`（完整数据流可播放，即本方案的交互即视版）
-- [x] 本实施方案（组件/文件落点/数据流/测试/分期）
-- [ ] 项目编码 —— 待本方案评审通过后按 §十 P1→P5 实施
+- [x] 视觉稿：[designs/screen-chat.html](./designs/screen-chat.html)（静态定稿语言）
+- [x] 动态稿：[designs/demo-flow.html](./designs/demo-flow.html)（完整数据流可播放，即本方案的交互即视版）
+- [x] 设计与实施方案（本文档，2026-09-03 自 `designs/chat-redesign/` 标准化入 specs）
+- [x] 项目编码 —— 2026-09-03 起按 §十 分期在 `feat/modern-ui-redesign` 分支实施（进度见 [tasks.md](./tasks.md)）

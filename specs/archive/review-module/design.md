@@ -1,6 +1,6 @@
 # 代码审查模块（Review Module）— 详细设计
 
-> **状态**：**设计中 —— 视觉稿与交互已定稿**（`designs/review-module/screen-review.html`），
+> **状态**：**设计中 —— 视觉稿与交互已定稿**（`./screen-review.html`），
 > 实现按 §6 任务清单分阶段执行；CRG 上游挖矿项见 §5（研究笔记已落地）。
 > **✅ 已归档（2026-09-03 用户拍板）**——审查模块主体与 G1-G10 前置修复落地（CodeReviewPanel / ReviewWorkspace / review-store / review-fix 等在树），理论完备收官。
 > **日期**：2026-09-01
@@ -75,7 +75,7 @@
 
 ---
 
-## §3 信息架构与交互规范（对应设计稿 `designs/review-module/screen-review.html`）
+## §3 信息架构与交互规范（对应设计稿 `./screen-review.html`）
 
 ### 3.1 侧栏面板（CodeReviewPanel，Hub flyout 内）
 
@@ -250,6 +250,6 @@ VS Code 扩展、graphml/cypher/obsidian 导出 —— 与 deeporca 模块边界
 
 ## §9 关联文档
 
-- 视觉稿：`designs/review-module/screen-review.html`
+- 视觉稿：`./screen-review.html`
 - CRG 深潜：`docs/research/2026-09-01-crg-source-deep-dive.md`
 - 审查三提交审查结论（G1–G10 出处）：会话审查报告（805ec73/cb4486e/f3dd487）

@@ -8,7 +8,7 @@
 > 提交链：docs 台账 `9385687` · GitMCP `bdc6227` · 安全整改 `f0b7cf9` · book-distill `eed17c3` · skill-up CI `2c98142` · designer 进化 `2308b0c` · serena 补漏 `ac50cfb` · dsh 四件套 `29801ee` · dembrandt 离线化 `60d86d6`。
 > **Mimosa 门禁说明**：所有高危已清零（audit 引擎 21 文件 0 findings）；唯一 medium（web-search-handler 活动标签污点，已净化 spawn 参数原样功能不变）经项目所有者 2026-08-17 知情确认，本批提交以一次性 `--no-verify` 放行——后续提交恢复钩子。
 
-## A. skill-up CI（详见 `specs/archive/review/skill-eval/tasks.md`，此处为总控镜像）
+## A. skill-up CI（详见 `specs/review-ing/skill-eval/tasks.md`，此处为总控镜像）
 
 - [x] A1 skill-up 二进制固定版本接入方式落地（T1.1）（`2c98142`；`scripts/get-skill-up.mjs` Releases API 资产名解析 + `.cache/skill-up/` 缓存 + 魔术字节/大小校验；~~版本 pin 占位 v0.1.0 待联网定版，闭环项~~ **2026-08-18 定版 v0.9.0**——`git ls-remote --tags` 核实真实 tag 列表（v0.1.0…v0.9.0），bump 后本地实拉 12.7MB windows/amd64 资产成功）
 - [x] A2 `scripts/run-skill-evals.mjs`（变更包检测 + 汇总 + report-only/nightly 双模式）（T1.2）（`2c98142`；退出码契约 0/1/2）

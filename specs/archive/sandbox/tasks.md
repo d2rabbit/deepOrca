@@ -1,7 +1,7 @@
 # 沙箱与副作用收口 — 落地任务清单
 
 > 对应 `specs/archive/sandbox/design.md`（2026-08-16 定稿：P0.5 已落地，P0 已细化为 §4.1-R 可施工方案）。
-> **✅ 2026-09-03 收官归档**：本清单 40/45 完成；5 项未决项（bwrap / WSL2 / 能力矩阵对账 / 任务 20 / 任务 21）延伸为独立任务规划 [`specs/sandbox-next/`](../../sandbox-next/tasks.md)，本清单不再勾选推进。
+> **✅ 2026-09-03 收官归档**：本清单 40/45 完成；5 项未决项（bwrap / WSL2 / 能力矩阵对账 / 任务 20 / 任务 21）延伸为独立任务规划 [`specs/sandbox-next/`](../../next-version/sandbox-next/tasks.md)，本清单不再勾选推进。
 > 施工分支：`feat/sandbox-p0-path-gate`（自 `fix/stabilize-data-loss-and-test-suite` 切出，含 P0.5 全部改动）。
 > 每项完成即打勾并注明验收证据（测试文件 / 运行输出）。
 
