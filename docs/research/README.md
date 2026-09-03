@@ -12,7 +12,7 @@
 
 ## 总览
 
-43 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份）：**✅ 21 · 🟡 10 · ⬜ 9 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+45 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 2 份）：**✅ 21 · 🟡 10 · ⬜ 11 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -112,6 +112,22 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-08-27-coord-chain-technology-survey.md](./2026-08-27-coord-chain-technology-survey.md) | **王牌路线 OC 技术调研**：联盟式许可链选型（否决 PoW/Hypercore/OrbitDB/CRDT）、node:crypto 零依赖原语清单、mDNS/ws/blob 分发方案、prior art（Keybase sigchain/SSB/Hypercore） | 产物：[`specs/coord-chain/`](../../specs/coord-chain/design.md) 三件套 + [`docs/features/coord-chain-plan.md`](../features/coord-chain-plan.md)；规划落点 `packages/ledger/`、`desktop/main/coord-chain/` | ⬜ | 三个判定：许可链而非公链；链上只有元数据、资产走内容寻址层；差异化核心是任务谱系接续开发。Hypercore 与 CRDT 库列为观察项不引入。**优先级高于 next-version**（资源冲突时 OC 优先）。同日需求收紧（补记 §6）：UX 对标腾讯文档/飞书共享文档空间，**共享只认工作区主题**（git remote 归一/显式主题名 → themeId，跨主题发现层隔离；projectCode 为机器本地路径派生不可用作主题，`packages/core/src/common/app-dirs.ts:51` 取证） |
+
+---
+
+## 2026-09-03 · 外部 Coding Agent 全景预研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-03-hkuds-deepcode-prestudy.md](./2026-09-03-hkuds-deepcode-prestudy.md) | HKUDS/DeepCode（16.5k★，MIT，v2.1.0）全景：Paper2Code 论文原型 → v2.x 通用 coding agent harness（Python 内核 + CLI TUI + Tauri 桌面 + JSON-RPC App Server），逐维对位本仓 | 规划落点（未启动）：`core/common/*`（compaction 两段式/每回合冻结安全 profile）、`core/mcp`（HTTP transport + OAuth，遗留待办 #9 参照）、`core/skills`（依赖展开/渐进读取）、`desktop`（会话投影分离/schema 生成契约） | ⬜ | 纯调研留档，无代码变更。**最有价值单条**：其 compaction 两段式（大工具结果中段修剪 → 前缀重放摘要 → 拒绝不收缩摘要）与本仓 dsh-consolidated 候选池 P1-2/前缀收尾包独立同向——继 dsh 之后第二个实现者，建议回写台账作论据；MCP HTTP+OAuth 印证遗留待办 #9。**同名澄清**：HKUDS DeepCode ≠ 本仓遗留 `.deepcode` 前身，但两者共享 SKILL.md 方言且 `~/.deepcode` 路径可能交叠（文内 §2.5） |
+
+---
+
+## 2026-09-03 · Motion 动画库调研
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-03-motion-react-animation-prestudy.md](./2026-09-03-motion-react-animation-prestudy.md) | Motion for React（`motion` 13.2.0，MIT，Framer Motion 更名延续）对本仓动画增强的预研：能力清单 × 渲染层纯 CSS 现状（68 keyframes/170 transition/零动画库/零退出动画）逐表面对位，P0-P3 分阶段采用方案 + View Transitions API 等备选对比 | 规划落点（未启动）：`renderer/ui/motion.tsx`（LazyMotion strict + MotionConfig reducedMotion）、`components/WorkspaceSheet.tsx`（自 App.tsx 抽出，减行）、Toast/QuickDock/modal 退出动画、hub/PiP 布局动画 | ⬜ | 纯调研留档，无代码变更。结论：**值得引入但定位"编排层"**——进出场/布局/级联归 Motion（首渲染 +<6KB gz，domMax 走动态 chunk），循环装饰动画（呼吸/脉冲/rb-flow）保留 CSS；App.tsx 已 2536 行超 2500 标准，封装必须全落新文件。无依赖可先行项：7 个 ui-css 文件补 prefers-reduced-motion 块 |
 
 ---
 
