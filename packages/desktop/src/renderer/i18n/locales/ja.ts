@@ -42,7 +42,7 @@ export const ja: Record<MessageKey, string> = {
   "sidebar.untitled": "無題のセッション",
   "sidebar.search": "セッションを検索…",
   "sidebar.noResults": "一致するセッションがありません。",
-  "sidebar.laneExpress": "高速",
+  "sidebar.laneExpress": "クイック",
 
   "sidebar.laneDeep": "深度",
 
@@ -70,7 +70,7 @@ export const ja: Record<MessageKey, string> = {
 
   "depth.report.taskError": "タスク作成に失敗",
 
-  "depth.stripTitle": "深度レーン",
+  "depth.stripTitle": "深度モード",
 
   "depth.stageS1": "S1 コンテキスト編譯",
 
@@ -86,22 +86,23 @@ export const ja: Record<MessageKey, string> = {
 
   "depth.stageDone": "完了",
 
-  "settings.lane.title": "レーン観察（読み取り専用）",
+  "settings.lane.title": "回答モード統計（読み取り専用）",
 
   "settings.lane.loading": "読み込み中…",
 
   "settings.lane.empty":
-    "レーンデータなし——complexityGate を有効化して利用すると自動蓄積されます（過去セッションは L1 プロキシで遡及）",
+    "モードデータなし——complexityGate を有効化して利用すると自動蓄積されます（過去セッションはヒューリスティックで分類）",
 
   "settings.lane.followUp": "追問率",
 
   "settings.lane.negative": "ネガティブフィードバック率",
 
-  "settings.lane.note": "観察のみ——autoTune はオフのまま。比率は閾値決定に使用（遡及セッションは L1 プロキシ）",
+  "settings.lane.note":
+    "観察のみ——自動チューニングはオフ。比率は閾値決定に使用（過去セッションはヒューリスティック分類）",
 
-  "sidebar.laneExpressTip": "高速レーン：直接回答パス",
+  "sidebar.laneExpressTip": "クイックモード：コンテキストから直接回答",
 
-  "sidebar.laneDeepTip": "深度レーン：複数経路の検討レポート",
+  "sidebar.laneDeepTip": "深度モード：多経路の検討後にレポートを作成",
 
   "sidebar.rename": "名前を変更",
   "sidebar.export": "エクスポート",
@@ -969,7 +970,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.entities.editor.name": "エディタエージェント",
   "settings.entities.editor.desc":
     "エディターの選択範囲で働く専用デジタルエンティティ——diff優先・確認質問・セッション残留ゼロ。",
-  "settings.tab.lane": "レーン",
+  "settings.tab.lane": "回答モード",
 
   "settings.tab.about": "について",
   "settings.tab.actions": "Actions",

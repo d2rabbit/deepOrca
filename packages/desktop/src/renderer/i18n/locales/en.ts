@@ -41,7 +41,7 @@ export const en = {
   "sidebar.untitled": "Untitled session",
   "sidebar.search": "Search sessions…",
   "sidebar.noResults": "No matching sessions.",
-  "sidebar.laneExpress": "Express",
+  "sidebar.laneExpress": "Quick",
 
   "sidebar.laneDeep": "Deep",
 
@@ -70,7 +70,7 @@ export const en = {
 
   "depth.report.taskError": "task creation failed",
 
-  "depth.stripTitle": "Deep lane",
+  "depth.stripTitle": "Deep mode",
 
   "depth.stageS1": "S1 context compile",
 
@@ -86,23 +86,23 @@ export const en = {
 
   "depth.stageDone": "done",
 
-  "settings.lane.title": "Lane observation (read-only)",
+  "settings.lane.title": "Answer mode stats (read-only)",
 
   "settings.lane.loading": "Loading…",
 
   "settings.lane.empty":
-    "No lane data yet — enable complexityGate and use the app; rates accumulate from real sessions.",
+    "No mode data yet — enable complexityGate and use the app; stats accumulate from real sessions (historical sessions classified by heuristic rules).",
 
   "settings.lane.followUp": "follow-up rate",
 
   "settings.lane.negative": "negative-feedback rate",
 
   "settings.lane.note":
-    "Observation only — autoTune stays off; rates feed the threshold decision (retro sessions use the L1 proxy).",
+    "Observation only — auto-tune stays off; rates feed the threshold decision (historical sessions classified by heuristic rules).",
 
-  "sidebar.laneExpressTip": "Express lane — direct answer path",
+  "sidebar.laneExpressTip": "Quick mode: answer directly from context",
 
-  "sidebar.laneDeepTip": "Depth lane — multi-path deliberation report",
+  "sidebar.laneDeepTip": "Deep mode: multi-path deliberation report",
 
   "sidebar.rename": "Rename",
   "sidebar.export": "Export",
@@ -542,7 +542,7 @@ export const en = {
   "settings.entities.editor.name": "Editor Agent",
   "settings.entities.editor.desc":
     "Selection-scoped digital entity living in the editor — diff-first rewrites, clarifying questions, zero session residue.",
-  "settings.tab.lane": "Lane",
+  "settings.tab.lane": "Answer modes",
 
   "settings.tab.about": "About",
   "settings.tab.actions": "Actions",

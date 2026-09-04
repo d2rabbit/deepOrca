@@ -42,9 +42,9 @@ export const ko: Record<MessageKey, string> = {
   "sidebar.untitled": "제목 없는 세션",
   "sidebar.search": "세션 검색…",
   "sidebar.noResults": "일치하는 세션이 없습니다.",
-  "sidebar.laneExpress": "익스프레스",
+  "sidebar.laneExpress": "빠른",
 
-  "sidebar.laneDeep": "딥",
+  "sidebar.laneDeep": "깊이",
 
   "depth.report.title": "딥 결정 리포트",
 
@@ -70,7 +70,7 @@ export const ko: Record<MessageKey, string> = {
 
   "depth.report.taskError": "작업 생성 실패",
 
-  "depth.stripTitle": "딥 레인",
+  "depth.stripTitle": "깊이 모드",
 
   "depth.stageS1": "S1 컨텍스트 컴파일",
 
@@ -86,22 +86,22 @@ export const ko: Record<MessageKey, string> = {
 
   "depth.stageDone": "완료",
 
-  "settings.lane.title": "레인 관찰(읽기 전용)",
+  "settings.lane.title": "응답 모드 통계(읽기 전용)",
 
   "settings.lane.loading": "불러오는 중…",
 
   "settings.lane.empty":
-    "레인 데이터 없음 — complexityGate 를 켜고 사용하면 자동 축적됩니다(과거 세션은 L1 프록시로 소급)",
+    "모드 데이터 없음 — complexityGate 를 켜고 사용하면 자동 축적됩니다(과거 세션은 휴리스틱으로 분류)",
 
   "settings.lane.followUp": "후속 질문률",
 
   "settings.lane.negative": "부정 피드백률",
 
-  "settings.lane.note": "관찰 전용 — autoTune 은 꺼진 상태 유지. 비율은 임계값 결정에 사용(소급 세션은 L1 프록시)",
+  "settings.lane.note": "관찰 전용 — 자동 튜닝은 꺼진 상태 유지. 비율은 임계값 결정에 사용(소급 세션은 휴리스틱 분류)",
 
-  "sidebar.laneExpressTip": "익스프레스 레인: 직접 응답 경로",
+  "sidebar.laneExpressTip": "빠른 모드: 컨텍스트 기반 직접 응답",
 
-  "sidebar.laneDeepTip": "딥 레인: 다중 경로 검토 리포트",
+  "sidebar.laneDeepTip": "깊이 모드: 다중 경로 검토 후 결정 리포트",
 
   "sidebar.rename": "이름 바꾸기",
   "sidebar.export": "내보내기",
@@ -964,7 +964,7 @@ export const ko: Record<MessageKey, string> = {
   "settings.entities.editor.name": "에디터 에이전트",
   "settings.entities.editor.desc":
     "편집기 선택 영역에서 작업하는 전용 디지털 엔티티——diff 우선, 확인 질문, 세션 잔여 제로.",
-  "settings.tab.lane": "레인",
+  "settings.tab.lane": "응답 모드",
 
   "settings.tab.about": "정보",
   "settings.tab.actions": "Actions",

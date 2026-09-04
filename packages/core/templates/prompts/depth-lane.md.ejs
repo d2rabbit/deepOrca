@@ -5,7 +5,7 @@
   fallbacks in session-manager-depth.ts when this file is unreadable.
 %>
 <%_ if (kind === "express") { _%>
-本回合为轻轨（express）：基于当前上下文直接作答，无需多路径推演、无需模拟多方博弈；信息不足时照实说明并建议切换深度模式。
+本回合为快速模式：基于当前上下文直接作答，无需多路径推演、无需模拟多方博弈；信息不足时照实说明并建议切换深度模式。
 <%_ if (riskNote) { _%>
 注意：本任务的风险维度得分不为零。若涉及金钱/安全/声誉，请提示用户可切换深度模式以获得多路径推演。
 <%_ } _%>
@@ -71,7 +71,7 @@ Fuse the candidates with the adversarial findings into ONE calibrated judgment. 
 <%_ } _%>
 <%_ if (kind === "report") { _%>
 <proposed_plan>
-# 深度决策报告（deep-lane）
+# 深度决策报告
 
 ## 结论（先读这里）
 <%= conclusion %>

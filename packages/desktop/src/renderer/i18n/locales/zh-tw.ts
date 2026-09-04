@@ -43,9 +43,9 @@ export const zhTW: Record<MessageKey, string> = {
   "sidebar.untitled": "未命名工作階段",
   "sidebar.search": "搜尋工作階段…",
   "sidebar.noResults": "無相符的工作階段。",
-  "sidebar.laneExpress": "輕軌",
+  "sidebar.laneExpress": "快速",
 
-  "sidebar.laneDeep": "重軌",
+  "sidebar.laneDeep": "深度",
 
   "depth.report.title": "深度決策報告",
 
@@ -71,7 +71,7 @@ export const zhTW: Record<MessageKey, string> = {
 
   "depth.report.taskError": "任務建立失敗",
 
-  "depth.stripTitle": "重軌",
+  "depth.stripTitle": "深度模式",
 
   "depth.stageS1": "S1 情境編譯",
 
@@ -87,21 +87,21 @@ export const zhTW: Record<MessageKey, string> = {
 
   "depth.stageDone": "完成",
 
-  "settings.lane.title": "車道觀察（唯讀）",
+  "settings.lane.title": "回答模式統計（唯讀）",
 
   "settings.lane.loading": "載入中…",
 
-  "settings.lane.empty": "暫無車道資料——開啟 complexityGate 後正常使用即自動累積（歷史會話按 L1 代理回溯）",
+  "settings.lane.empty": "暫無模式資料——開啟 complexityGate 後正常使用即自動累積（歷史會話按啟發式規則回溯分類）",
 
   "settings.lane.followUp": "追問率",
 
   "settings.lane.negative": "負回饋率",
 
-  "settings.lane.note": "僅觀察——autoTune 保持關閉；比率用於閾值決策（回溯會話採 L1 代理標記）",
+  "settings.lane.note": "僅觀察——自動調參保持關閉；比率用於閾值決策（回溯會話採啟發式規則標記）",
 
-  "sidebar.laneExpressTip": "輕軌：直接作答路徑",
+  "sidebar.laneExpressTip": "快速模式：基於當前上下文直接作答",
 
-  "sidebar.laneDeepTip": "重軌：多路徑推演決策報告",
+  "sidebar.laneDeepTip": "深度模式：多路徑推演後給出決策報告",
 
   "sidebar.rename": "重新命名",
   "sidebar.export": "匯出",
@@ -943,7 +943,7 @@ export const zhTW: Record<MessageKey, string> = {
   "settings.entities.web.desc": "驅動 WebSearch / WebFetch 的網頁檢索與渲染頁研究。",
   "settings.entities.editor.name": "編輯數字體",
   "settings.entities.editor.desc": "常駐編輯器的選區專職數字體——diff 優先、追問確認、零會話殘留。",
-  "settings.tab.lane": "車道",
+  "settings.tab.lane": "回答模式",
 
   "settings.tab.about": "關於",
   "settings.tab.actions": "Actions",

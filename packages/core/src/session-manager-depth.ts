@@ -125,8 +125,8 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
         { kind: "express", riskNote },
         // Inline fail-open (template unreadable): semantics preserved verbatim.
         riskNote
-          ? "本回合为轻轨（express）：基于当前上下文直接作答，无需多路径推演；若涉及金钱/安全/声誉，请提示用户可切换深度模式。"
-          : "本回合为轻轨（express）：基于当前上下文直接作答，无需多路径推演、无需模拟多方博弈；信息不足时照实说明并建议切换深度模式。"
+          ? "本回合为快速模式：基于当前上下文直接作答，无需多路径推演；若涉及金钱/安全/声誉，请提示用户可切换深度模式。"
+          : "本回合为快速模式：基于当前上下文直接作答，无需多路径推演、无需模拟多方博弈；信息不足时照实说明并建议切换深度模式。"
       );
     }
     if (session.lane === "deep") {
@@ -240,7 +240,7 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
         // The loop paused for the user (ask_permission / waiting_for_user).
         // v1 does not persist mid-flight staging state — degrade gracefully:
         // keep the S1 answer, note that staging ended early.
-        this.addSessionSystemMessage(sessionId, "深度车轨：首轮交互需要用户输入，推演阶段（S2–S5）本轮跳过。");
+        this.addSessionSystemMessage(sessionId, "深度模式：首轮交互需要用户输入，推演阶段（S2–S5）本轮跳过。");
         return;
       }
 
@@ -302,7 +302,7 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
       // Orchestration failure fails open to the S1 answer — never lose the turn.
       this.addSessionSystemMessage(
         sessionId,
-        `深度车轨编排失败，已回退到首轮单循环结果（${error instanceof Error ? error.message : String(error)}）。`
+        `深度模式编排失败，已回退到首轮单循环结果（${error instanceof Error ? error.message : String(error)}）。`
       );
       this.updateSessionEntry(sessionId, (entry) => ({
         ...entry,
