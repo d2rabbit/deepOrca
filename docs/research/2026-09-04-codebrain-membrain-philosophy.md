@@ -28,7 +28,7 @@
 | C3 | 能力与使用纪律同步出厂（工具 + SOP + 钩子三件套） | bootstrap.py 生成 CLAUDE.md SOP + PostToolUse hook | 决策矩阵已有一半；**缺 edit 后单文件即时校验提示** | 真差距（中） |
 | C4 | 编辑-验证闭环的粒度即产品（单文件即时 ≠ 全量 build） | SOP1 Step4「fix before next file」 | 回合末诊断桥已落地，粒度差一档 | 部分差距 |
 | C5 | 环境就绪前置：缺依赖的语言服务器产出假阳性诊断 | bootstrap「Without these steps, validate() may report false-positive…」 | **桥的 `isAvailable()` 只查自身二进制，不查 node_modules/.venv** | **真差距（小）** |
-| C6 | 榜单收益主要来自修循环级失败模式，不是换模型 | README 七项自述（agent-loop 未开源但分类学公开） | compaction 已有；premature stop / stuck 检测 / 分阶段推理强度无 | 并入 dsh 台账对账 |
+| C6 | 榜单收益主要来自修循环级失败模式，不是换模型 | README 七项自述（agent-loop 未开源但分类学公开） | compaction 已有；premature stop / stuck 检测 / 分阶段推理强度无 | 独立对账（CMB-6） |
 | M1 | 预定义结构管重复性组织，agent 只管语义判断 | tech_blog 核心句 | 确定性优先已有先例（bucket-sample / design-audit 零 LLM / 事件向变体） | 已同源，宜固化为规则 |
 | M2 | 事实不可变 + 实体可演进，更新发生在渲染期（晚绑定） | tech_blog「renderable template」 | L1 原子事实同构；晚绑定渲染未做 | 观念种子（P3） |
 | M3 | 结构是持续偿还的债：债调度 + 预算化审计 + 纯代码兜底 | tree_ops/audit（公式全文） | 无对应物（任务树/技能库/人格只长不剪） | 蓝本存档（P3） |
@@ -88,9 +88,9 @@ CodeBrain README 的 Benchmark 一节逐条自述了它的收益来源：prematu
 
 **重要限定**：这七项的实现（agent-loop）**不在仓库里**（第一轮证据链闭合：无 LLM SDK、grep 零命中），72.3%/63.9% 数字在复现前只作方向性证据。但**失败模式的分类学本身是公开的、免费的、可对账的**。
 
-**本仓对照**：compaction（中间 2/3 摘要）与 per-family reasoning 契约（读字段注册表）已有；premature stop 检测、stuck/重复调用检测、分阶段推理强度**未检索到**（`consecutive/identical` 在 session-manager-base.ts 仅命中无关注释）。且本仓已有同方向的台账——dsh-consolidated 候选池（P1-1 崩溃合成收尾 → P1-2 两段式 compaction → P1-4 beforeToolExecution 钩子 → 前缀守恒收尾包）。
+**本仓对照**：compaction（中间 2/3 摘要）与 per-family reasoning 契约（读字段注册表）已有；premature stop 检测、stuck/重复调用检测、分阶段推理强度**未检索到**（`consecutive/identical` 在 session-manager-base.ts 仅命中无关注释）。
 
-**建议（P2，对账不新立）**：把 C6 七项作为一份**外来失败模式清单**逐条并入 dsh-consolidated 候选池对账：stuck 检测与 P1-4 钩子同域可合并考虑；premature stop 与 `waiting_for_user`/`ask_permission` 显式状态的边界要辨析（我们的"停止"常是有意设计，不能见消息无工具就续推——CodeBrain 判的是"任务未验证却停下"，判据是"是否有未验证的声明"而非"是否停"）；per-phase reasoning effort 与 per-family reasoning 契约不冲突，可作 settings 项。**每条过 P0 观察数据门再定**，与 depth-lane 的决策纪律一致。
+**建议（P2，独立对账不新立）**：把 C6 七项作为一份**外来失败模式清单**直接对照本仓 session 循环逐条判定（对账表落 CMB 台账 CMB-6，不锚任何外部台账）：premature stop 与 `waiting_for_user`/`ask_permission` 显式状态的边界要辨析（我们的"停止"常是有意设计，不能见消息无工具就续推——CodeBrain 判的是"任务未验证却停下"，判据是"是否有未验证的声明"而非"是否停"）；per-phase reasoning effort 与 per-family reasoning 契约不冲突，可作 settings 项。**每条过 P0 观察数据门再定**，与 depth-lane 的决策纪律一致。
 
 ---
 
@@ -232,7 +232,7 @@ MemBrain 对"辅助 LLM 调用"的形态学：
 | 3 | edit/write 后单文件即时校验提示 | `tools/edit-handler.ts` / `write-handler.ts` 结果 metadata | 1 天 | C3/C4 | 第一轮 §1.3-3 漏项补上 |
 | 4 | 辅助调用契约：schema 校验参数 + 重试预算常量 + 技能匹配示范模板化 | `session-manager-base.ts` 两原语 + `session-manager-skills.ts:105` | 1-2 天 | M8 | 为 depth-lane 的 flash 扩展铺路；llm-error.ts 既有分类复用 |
 | 5 | LSP 桥环境就绪探测（deps-missing → 降级原因入带） | `desktop/main/tools/lsp-bridge/` | 半天 | C5 | 与 #1 同批做，共享入带通道 |
-| 6 | C6 失败模式七项并入 dsh-consolidated 候选池逐条对账 | 文档级（dsh 台账） | 半天 | C6 | **不新立 spec**；premature stop 需先与 `waiting_for_user` 边界辨析 |
+| 6 | C6 失败模式七项独立对账（直接对照 session 循环） | 文档级（CMB 台账 CMB-6） | 半天 | C6 | **不新立 spec**；premature stop 需先与 `waiting_for_user` 边界辨析 |
 | 7 | 记忆注入相对时间预解析 + 事件/获知时间分离 | memory 行渲染 | 半天-1 天 | M5 | 与 #2 同批 |
 | 8 | agentic recall 充分性检查（二轮 follow-up） | `auto-recall.ts` | 待数据 | M4 | **等 depth-lane P0 观察数据**；先回写 depth-lane design 补 MemBrain 论据 |
 | 9 | 结构债调度（debt 公式 + top-K 审计 + 纯代码溶解）作任务树/技能库/L3 自组织蓝本 | 仅存档 | — | M3 | P3 观念种子 |
