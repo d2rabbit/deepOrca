@@ -14,6 +14,7 @@ import {
   type Approval,
   type Block,
   type BlobManifest,
+  type Genesis,
 } from "@deeporca/ledger";
 import { chainPaths, ensureChainDirs, type ChainPaths } from "./paths.js";
 
@@ -56,6 +57,23 @@ export class ChainStore {
     }
     stored.sort((a, b) => a.block.height - b.block.height);
     return stored;
+  }
+
+  /** The genesis is chain identity — persist it so a restart can resume. */
+  saveGenesis(genesis: Genesis): void {
+    writeFileSync(join(this.paths.dir, "genesis.json"), JSON.stringify(genesis, null, 2));
+  }
+
+  loadGenesis(): Genesis | null {
+    const path = join(this.paths.dir, "genesis.json");
+    if (!existsSync(path)) {
+      return null;
+    }
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as Genesis;
+    } catch {
+      return null;
+    }
   }
 
   appendBlock(stored: StoredBlock): void {

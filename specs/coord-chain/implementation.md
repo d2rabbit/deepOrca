@@ -158,12 +158,15 @@ A 提交 task.share
 
 ```
 ~/.deeporca/coordchain/
-  device-key.json                      设备身份（0600）
+  device-key.json                      设备私钥库（0600；轮换时随之更新）
+  identity-anchor.json                 硬件封印锚点（anchorId/轮换链/机器指纹 seal）
+  <chainId>/genesis.json               链身份（主题+链参数+盐）——重启恢复的根
   <chainId>/ledger/blocks/<h>-<hash16>.json   账本（唯一事实源，逐块追加）
   <chainId>/objects/chunks/<hex2>/…   内容寻址分块（可丢弃，LRU）
   <chainId>/objects/manifests/*.json   发布过的 manifest（供 getManifest 回执）
   <chainId>/view.db                    SQLite 物化视图（可删重建，R10）
 ```
+节点重启（`tryResumeChain`）：扫描 dataRoot 下 theme 匹配的 genesis.json → 加载区块全量重放 → 恢复同一链；轮换后的密钥经 device-key.json + 锚点 keys 一致性校验后继续签名。
 任何时间 `rebuildView(blocks)` 都能从账本全量重建视图（已实现 + 等价性单测）。
 
 ## 8. 与经典区块链对照

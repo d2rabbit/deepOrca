@@ -55,6 +55,7 @@ import {
 import { startTransport, type PeerConnection, type Transport } from "./transport.js";
 import type { ChainTaskNode } from "./task-tree-bridge.js";
 import { ChainStore, type StoredBlock } from "./chain-store.js";
+import { existsSync, readdirSync } from "node:fs";
 import { coordChainRoot } from "./paths.js";
 
 export type ChainNodeMode = "create" | "join";
@@ -203,6 +204,16 @@ export class ChainNode {
     if (this.transport) {
       throw new Error("chain node already started");
     }
+    if (this.tryResumeChain()) {
+      // Chain restored from disk — the mode below is irrelevant.
+      this.transport = await startTransport({
+        identity: this.identity,
+        themeShort: this.themeId.slice(0, 8),
+      });
+      this.transport.onPeer((peer) => void this.onPeer(peer));
+      this.timer = setInterval(() => this.maybePropose(), this.blockIntervalMs);
+      return;
+    }
     if (this.options.anchor) {
       const binding = checkAnchorBinding(this.options.anchor, this.options.machineFingerprint);
       if (!binding.bound) {
@@ -286,6 +297,36 @@ export class ChainNode {
 
   // --------------------------------------------------------------- chain data
 
+  private tryResumeChain(): boolean {
+    if (!existsSync(this.dataRoot)) {
+      return false;
+    }
+    let found: { genesis: Genesis; store: ChainStore } | null = null;
+    for (const dir of readdirSync(this.dataRoot)) {
+      const store = new ChainStore(dir, this.dataRoot); // chainPaths helper resolves
+      const genesis = store.loadGenesis();
+      if (genesis) {
+        const anchor = verifyThemeAnchor(genesis, this.theme, this.themeId);
+        if (anchor.ok) {
+          found = { genesis, store };
+          break;
+        }
+      }
+    }
+    if (!found) {
+      return false;
+    }
+    const { genesis, store } = found;
+    const blocks = store.loadBlocks().map((stored) => this.withApprovals(stored));
+    try {
+      this.adoptChain(genesis, blocks, { persist: false, store });
+      return true;
+    } catch {
+      // Corrupt on-disk chain — fall through to fresh create/join.
+      return false;
+    }
+  }
+
   private createChain(): void {
     const genesis = buildGenesis({ theme: this.theme, creator: this.identity.keyId });
     this.adoptChain(genesis, [], { persist: true });
@@ -296,7 +337,7 @@ export class ChainNode {
   }
 
   /** Adopt a verified genesis + block list (fresh create or joined snapshot). */
-  private adoptChain(genesis: Genesis, blocks: Block[], options: { persist: boolean }): void {
+  private adoptChain(genesis: Genesis, blocks: Block[], options: { persist: boolean; store?: ChainStore }): void {
     const anchor = verifyThemeAnchor(genesis, this.theme, this.themeId);
     if (!anchor.ok) {
       throw new Error(`theme anchor failed: ${anchor.reason}`);
@@ -315,11 +356,16 @@ export class ChainNode {
     for (const stored of this.storedBlocks) {
       this.seenRecords.addAll(stored.block.records.map((record) => record.recordId));
     }
-    if (options.persist) {
+    if (options.store) {
+      this.store = options.store;
+    } else if (options.persist) {
       this.store = new ChainStore(this.chainId, this.dataRoot);
       for (const stored of this.storedBlocks) {
         this.store.appendBlock(stored);
       }
+    }
+    if (this.store) {
+      this.store.saveGenesis(genesis);
       this.view = this.store.rebuildView(this.storedBlocks.map((stored) => stored.block));
     }
     // Pending gossip that is already sealed elsewhere must not be re-proposed.

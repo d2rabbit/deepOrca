@@ -18,11 +18,13 @@ import {
   createIdentityAnchor,
   generateDeviceIdentity,
   genesisHash,
+  keyIdFromPublicKeyBase64,
   loadIdentityAnchor,
   merkleRoot,
   parseIoRegistryUuid,
   parseMachineGuid,
   proposerKeyForHeight,
+  rebuildView,
   replayChain,
   rotateAnchorKey,
   saveIdentityAnchor,
@@ -124,6 +126,10 @@ test("anchor: rotation keeps the anchor id and forms a verifiable signature chai
     rotations: [{ ...r2.anchor.rotations[0], to: "did:deadbeefdeadbee" }, r2.anchor.rotations[1]],
   };
   assert.equal(verifyRotationChain(broken).ok, false);
+
+  // Rotation must NOT invalidate the hardware binding (seal is genesis-keyed).
+  assert.deepEqual(checkAnchorBinding(r2.anchor, FP_THIS_MACHINE), { bound: true }, "binding survives rotation");
+  assert.deepEqual(checkAnchorBinding(r2.anchor, FP_OTHER_MACHINE), { bound: false, reason: "clone" });
 
   // Rotating with a stale identity is refused.
   assert.throws(() => rotateAnchorKey(r1.anchor, seedIdentity), AnchorError);
@@ -262,4 +268,34 @@ test("replay: member.rotate negatives — same key, stale key after rotation", (
     assert.equal(result.height, 2);
     assert.match(result.reason, /not an active member/);
   }
+});
+
+test("view: rebuild from a ledger containing member.rotate reproduces the migrated member table", () => {
+  const identity = generateDeviceIdentity();
+  const nextIdentity = generateDeviceIdentity();
+  const genesis = buildGenesis({ theme: "git:example/y", creator: identity.keyId, saltHex: "12".repeat(32) });
+  const joinRecord = buildSignedRecord(identity, {
+    type: "member.join",
+    ts: 1,
+    author: identity.keyId,
+    body: { deviceName: "mbp", pubKey: identity.publicKeyBase64 },
+  });
+  const rotate = buildSignedRecord(identity, {
+    type: "member.rotate",
+    ts: 2,
+    author: identity.keyId,
+    body: { oldKeyId: identity.keyId, newPubKey: nextIdentity.publicKeyBase64 },
+  });
+  const b0 = blockWithApproval(0, genesisHash(genesis), 1000, identity.keyId, [joinRecord], identity);
+  const b1 = blockWithApproval(1, blockHash(b0), 2000, proposerKeyForHeight(1, [identity.keyId]), [rotate], identity);
+
+  const dbPath = join(mkdtempSync(join(tmpdir(), "ledger-view-rotate-")), "view.db");
+  const view = rebuildView(dbPath, [b0, b1]);
+  const rows = view.listMembers();
+  assert.equal(rows.length, 1, "one continuous device entry");
+  assert.equal(rows[0].key_id, keyIdFromPublicKeyBase64(nextIdentity.publicKeyBase64));
+  assert.equal(rows[0].pub_key, nextIdentity.publicKeyBase64);
+  assert.equal(rows[0].joined_height, 0, "entry continuity survives a full rebuild");
+  assert.equal(rows[0].left_height, null);
+  view.close();
 });

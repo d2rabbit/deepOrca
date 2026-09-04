@@ -113,9 +113,15 @@ export function createIdentityAnchor(options: CreateAnchorOptions): IdentityAnch
 }
 
 /** Rotate the active key in place; the outgoing key signs the rotation. */
+export interface RotateAnchorOptions {
+  /** Reuse an already-generated incoming key (chain member.rotate) instead of minting a fresh one. */
+  next?: DeviceIdentity;
+}
+
 export function rotateAnchorKey(
   anchor: IdentityAnchor,
-  currentIdentity: DeviceIdentity
+  currentIdentity: DeviceIdentity,
+  options: RotateAnchorOptions = {}
 ): { anchor: IdentityAnchor; identity: DeviceIdentity } {
   if (currentIdentity.keyId !== anchor.currentKeyId) {
     throw new AnchorError(`rotation identity mismatch: ${currentIdentity.keyId} != ${anchor.currentKeyId}`);
@@ -123,7 +129,7 @@ export function rotateAnchorKey(
   if (currentIdentity.publicKeyBase64 !== anchor.keys[currentIdentity.keyId]?.pubKey) {
     throw new AnchorError("rotation identity public key does not match the anchor entry");
   }
-  const next = generateDeviceIdentity();
+  const next = options.next ?? generateDeviceIdentity();
   const at = new Date().toISOString();
   const rotation: AnchorRotation = {
     at,
@@ -163,9 +169,11 @@ export function checkAnchorBinding(anchor: IdentityAnchor, fingerprint?: string)
   if (!seal) {
     return { bound: false, reason: "no-seal" };
   }
-  const entry = anchor.keys[anchor.currentKeyId];
+  // The seal is signed by the GENESIS key (anchorId) — key rotation must not
+  // invalidate the device's binding to its hardware.
+  const sealKey = anchor.keys[anchor.anchorId];
   const digest = sealPayload({ anchorId: anchor.anchorId, fingerprintHash: seal.fingerprintHash, at: seal.at });
-  if (!entry || !verifyBytes(entry.pubKey, digest, new Uint8Array(Buffer.from(seal.sigByKey, "base64")))) {
+  if (!sealKey || !verifyBytes(sealKey.pubKey, digest, new Uint8Array(Buffer.from(seal.sigByKey, "base64")))) {
     return { bound: false, reason: "tampered-seal" };
   }
   const currentHash = fingerprint !== undefined ? hashFingerprint(fingerprint) : machineFingerprintHash();

@@ -162,7 +162,7 @@ export class CoordChainService {
         return { ok: false, error: "chain not running" };
       }
       const { newIdentity } = this.node.rotateDeviceKey();
-      const rotated = rotateAnchorKey(this.anchor, this.identity);
+      const rotated = rotateAnchorKey(this.anchor, this.identity, { next: newIdentity });
       saveIdentityAnchor(rotated.anchor, this.identityAnchorPath());
       // The private key vault follows the rotation — the OLD key is retired.
       saveDeviceIdentity(newIdentity, deviceKeyPath());
