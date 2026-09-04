@@ -1,5 +1,7 @@
 # Redesign 重构方案 v3 — Deck 内置于 desktop
 
+> ⏸ **分支状态（2026-09-04）：搁置 ON HOLD** —— 主干策略转向 Swift / .NET 原生系统实现，Deck 实验暂缓。E0–E22 交付完整保留；恢复时先并入最新冻结线基座（见 `README.deck.md` 状态栏）。
+
 > 2026-08-20 · **v3 架构决策**：Deck 交互层**直接写在 `packages/desktop` 内**，不拆独立包。
 > 演进：v1（desktop 内加布局开关）→ v2（独立包 `packages/deck`，基座 copy）→ **v3（回到 desktop 内）**。v2 废弃原因：基座镜像带来同步漂移成本（需 CI diff 门禁）、双份构建链与 release 复杂度、vendor 树复用别扭——"避免问题"。v3 = v1 的落点 + 全程讨论收敛出的全部硬约束（设计稿六主题 / 兜底可回退 / 目录级隔离 / 分期门禁）。
 >
