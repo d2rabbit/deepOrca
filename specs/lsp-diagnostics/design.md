@@ -1,6 +1,6 @@
 # LSP 诊断桥（lsp-diagnostics）· 语言服务器类型级诊断 — 技术设计
 
-> **状态**：**设计定稿（本阶段内容，未启动）**——2026-09-04 调研定稿（上游：[`docs/research/2026-09-04-lsp-idea-feasibility.md`](../../docs/research/2026-09-04-lsp-idea-feasibility.md)）。拍板项见 §7。
+> **状态**：**P0 + P1 已落地（2026-09-04，`feat/modern-ui-redesign`）**——调研/设计定稿 2026-09-04（上游：[`docs/research/2026-09-04-lsp-idea-feasibility.md`](../../docs/research/2026-09-04-lsp-idea-feasibility.md)）。拍板项见 §7，V0 验证记录见 §8。语言面已按用户裁决扩至十族（TS/JS、Python、Rust、Go、C/C++、C#、Java、Kotlin、Swift、Dart）；剩余 P2：hover/definition 只读工具、设置 UI、`DEEPORCA_LSP_*_BIN` 环境覆盖（暂缓，见 §8）。
 > **上游提案**：用户「引入 LSP；IDEA 系实现是否可用？更干净备选亦接受」——适配判定：IDEA 系全部绑 IntelliJ Platform/JVM 不可移植；真正增量 = **类型级诊断**；形态 = **LSP→MCP 桥**，复用既有 Post-Edit 诊断环接线。
 > **对应实现域**：`core/`（桥 seam + MCP 注册 + 诊断回灌扩展）与 `desktop/`（main 侧桥 tool + language server 生命周期）；**活跃 spec（本阶段内容），不属 `next-version` 规划区**。
 

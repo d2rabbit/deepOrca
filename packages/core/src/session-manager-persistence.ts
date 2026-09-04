@@ -19,7 +19,6 @@ import {
 } from "./session-constants";
 import { clearSessionState } from "./common/state";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
-import { extractErrorDiagnostics } from "./session-mcp-hints";
 import { getCodegraphController } from "./actions/codegraph-controller";
 import { getCrgController } from "./actions/crg-controller";
 import { getExtensionRoot, getPlanModePrompt } from "./prompt";
@@ -30,7 +29,6 @@ import { isUsageRecord } from "./session-usage";
 import { killProcessTree } from "./common/process-tree";
 import { normalizeAskPermissions } from "./common/permissions";
 import { readTextFileWithMetadata } from "./common/file-utils";
-import { SERENA_MCP_SERVER_NAME } from "./common/serena-mcp";
 import { SessionManagerBase } from "./session-manager-base";
 import { SessionManagerSkills } from "./session-manager-skills";
 import { TaskTreeService } from "./tasks/task-tree-service";
@@ -564,52 +562,6 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
     crgSync?: string;
   } {
     return { ...this.knowledgeFreshness };
-  }
-
-  /**
-   * After a task turn ends, check diagnostics for mutated files via Serena's
-   * `get_diagnostics_for_file` MCP tool. Fire-and-forget; if error-level
-   * diagnostics are found, a system message is appended so the agent can
-   * self-correct in the next turn. Silently skips when Serena is not connected.
-   */
-  protected maybeRunDiagnosticsCheck(sessionId: string): void {
-    const dirtyFiles = this.diagnosticsDirtyFiles.get(sessionId);
-    if (!dirtyFiles || dirtyFiles.size === 0) return;
-    this.diagnosticsDirtyFiles.delete(sessionId);
-
-    // Check if Serena MCP is connected.
-    const serenaConnected = this.mcpManager.getStatus().some((s) => s.name === SERENA_MCP_SERVER_NAME && s.connected);
-    if (!serenaConnected) return;
-
-    // Fire-and-forget diagnostics check for each mutated file.
-    void (async () => {
-      for (const filePath of dirtyFiles) {
-        try {
-          const result = await this.executeMcpTool(SERENA_MCP_SERVER_NAME, "get_diagnostics_for_file", {
-            file_path: filePath,
-          });
-          const diagnostics = extractErrorDiagnostics(result);
-          if (diagnostics.length > 0) {
-            const message = `⚠️ 编辑后诊断检查发现 ${diagnostics.length} 个错误（${filePath}）：\n${diagnostics.map((d) => `- ${d}`).join("\n")}`;
-            const now = new Date().toISOString();
-            this.appendSessionMessage(sessionId, {
-              id: `diag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              sessionId,
-              role: "system",
-              content: message,
-              contentParams: null,
-              messageParams: null,
-              compacted: false,
-              visible: true,
-              createTime: now,
-              updateTime: now,
-            });
-          }
-        } catch {
-          // Diagnostics check is best-effort; ignore failures.
-        }
-      }
-    })();
   }
 
   /**

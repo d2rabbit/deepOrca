@@ -1,13 +1,16 @@
 /**
- * Minimal stdio LSP client (specs/lsp-diagnostics P0-2/P0-3): spawn-on-demand
+ * Minimal stdio LSP client (specs/lsp-diagnostics P0-2/P1): spawn-on-demand
  * language server, initialize handshake, didOpen, collect publishDiagnostics,
  * idle recycle via killProcessTree-style teardown. Deliberately NOT resident —
- * the memory discipline (design §2.4) forbids keeping tsserver alive.
+ * the memory discipline (design §2.4) forbids keeping language servers alive.
+ * P1: spawn candidates come from the server-specs table (env override → PATH
+ * probe → npm fallback); a candidate "works" iff its initialize handshake
+ * completes, so a missing binary degrades to the next candidate.
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createFrameParser, encodeFrame } from "./frames";
-import { TYPESCRIPT_LANGUAGE_SERVER_PIN, type LspServerKind } from "./routing";
+import { candidatesForSpec, type LspServerSpec, type LspSpawnCandidate } from "./server-specs";
 
 export type LspDiagnostic = {
   severity: number;
@@ -18,10 +21,34 @@ export type LspDiagnostic = {
   };
 };
 
+const INITIALIZE_TIMEOUT_MS = 15000;
 const REQUEST_TIMEOUT_MS = 8000;
 
+/** Sanitized env for the language server — no credentials, no app secrets
+ *  (design §2.7: the LS is untrusted computation). */
+function sanitizedEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of [
+    "PATH",
+    "PATHEXT",
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "SYSTEMROOT",
+    "COMSPEC",
+    "TEMP",
+    "TMP",
+    "LANG",
+  ]) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
 export class LspClient {
-  private child: ChildProcess;
+  private child: ChildProcess | null = null;
   private nextId = 1;
   private pending = new Map<
     number,
@@ -31,42 +58,41 @@ export class LspClient {
   private writeQueue: string[] = [];
 
   private constructor(
-    public readonly kind: LspServerKind,
+    public readonly specId: string,
     private readonly root: string,
     private readonly onExit: (client: LspClient) => void
-  ) {
-    // Minimal env for the language server — no credentials, no app secrets
-    // (design §2.7: the LS is untrusted computation).
-    const env: Record<string, string> = {};
-    for (const key of [
-      "PATH",
-      "PATHEXT",
-      "HOME",
-      "USERPROFILE",
-      "APPDATA",
-      "LOCALAPPDATA",
-      "SYSTEMROOT",
-      "COMSPEC",
-      "TEMP",
-      "TMP",
-      "LANG",
-    ]) {
-      const value = process.env[key];
-      if (value !== undefined) env[key] = value;
+  ) {}
+
+  /**
+   * Try candidates in order; a candidate counts as working iff its initialize
+   * handshake completes inside the timeout. Throws when none resolves — the
+   * error message carries the per-spec install hint (design: probe, never
+   * auto-install; the npm fallback is the only auto-fetch, via pinned npx).
+   */
+  static async start(spec: LspServerSpec, root: string, onExit: (client: LspClient) => void): Promise<LspClient> {
+    const client = new LspClient(spec.id, root, onExit);
+    const failures: string[] = [];
+    for (const candidate of candidatesForSpec(spec)) {
+      try {
+        await client.bootCandidate(candidate);
+        return client;
+      } catch (err) {
+        failures.push(`${candidate.command}: ${err instanceof Error ? err.message : String(err)}`);
+        client.killCurrent();
+      }
     }
-    this.child = spawn("npx", ["-y", TYPESCRIPT_LANGUAGE_SERVER_PIN, "--stdio"], {
-      cwd: root,
-      env,
-      shell: process.platform === "win32",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    throw new Error(`no language server resolved for ${spec.id}; tried ${failures.join("; ")} — ${spec.installHint}`);
+  }
+
+  private attach(child: ChildProcess): void {
+    this.child = child;
     const parser = createFrameParser((body) => this.handleMessage(body));
-    this.child.stdout?.setEncoding("utf8");
-    this.child.stdout?.on("data", (chunk: string) => {
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
       for (const message of parser.push(chunk)) void message;
     });
-    this.child.stderr?.on("data", () => {});
-    this.child.on("exit", () => {
+    child.stderr?.on("data", () => {});
+    child.on("exit", () => {
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
         p.reject(new Error("language server exited"));
@@ -76,17 +102,59 @@ export class LspClient {
     });
   }
 
-  static spawn(kind: LspServerKind, root: string, onExit: (client: LspClient) => void): LspClient {
-    return new LspClient(kind, root, onExit);
+  /** Swap in a fresh child for `candidate` and run the initialize handshake. */
+  private bootCandidate(candidate: LspSpawnCandidate): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const fail = (err: Error): void => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+        }
+      };
+      let child: ChildProcess;
+      try {
+        // The launch thunk carries the LITERAL command + argv from the spec
+        // table — no runtime input ever reaches the command line.
+        child = candidate.launch({
+          cwd: this.root,
+          env: sanitizedEnv(),
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+      } catch (err) {
+        fail(err instanceof Error ? err : new Error(String(err)));
+        return;
+      }
+      child.on("error", (err) => fail(err));
+      child.on("exit", () => fail(new Error(`${candidate.command} exited during initialize`)));
+      this.attach(child);
+      // initialize doubles as the liveness probe — a server that answers is
+      // good to use; anything else falls through to the next candidate.
+      this.request("initialize", {
+        processId: process.pid,
+        rootUri: `file://${this.root.replace(/\\/g, "/")}`,
+        capabilities: {},
+        initializationOptions: {},
+      })
+        .then(() => {
+          if (settled) return;
+          settled = true;
+          this.notify("initialized", {});
+          resolve();
+        })
+        .catch((err: Error) => fail(err));
+      const timer = setTimeout(() => fail(new Error(`${candidate.command} initialize timeout`)), INITIALIZE_TIMEOUT_MS);
+      timer.unref();
+    });
   }
 
   private write(message: object | string): void {
     const frame = encodeFrame(message);
     this.writeQueue.push(frame);
-    // The child's stdin drains fast; queue only guards backpressure.
+    // The child's stdin drains fast; the queue only guards backpressure.
     while (this.writeQueue.length > 0) {
       const next = this.writeQueue.shift();
-      if (next !== undefined && this.child.stdin?.writable) {
+      if (next !== undefined && this.child?.stdin?.writable) {
         this.child.stdin.write(next);
       }
     }
@@ -136,24 +204,12 @@ export class LspClient {
     this.write({ jsonrpc: "2.0", method, params });
   }
 
-  async initialize(): Promise<void> {
-    await this.request("initialize", {
-      processId: process.pid,
-      rootUri: `file://${this.root.replace(/\\/g, "/")}`,
-      capabilities: {},
-      initializationOptions: {},
-    });
-    this.notify("initialized", {});
-  }
-
   async openAndWaitDiagnostics(
     uri: string,
     languageId: string,
     text: string,
     waitMs: number
   ): Promise<LspDiagnostic[]> {
-    const generation = this.diagnostics.get(uri);
-    void generation;
     this.notify("textDocument/didOpen", {
       textDocument: { uri, languageId, version: 1, text },
     });
@@ -174,9 +230,8 @@ export class LspClient {
     this.notify("textDocument/didClose", { textDocument: { uri } });
   }
 
-  /** Teardown: Windows kills the whole tree; POSIX kills the process group. */
-  kill(): void {
-    const pid = this.child.pid;
+  private killCurrent(): void {
+    const pid = this.child?.pid;
     if (!pid) return;
     if (process.platform === "win32") {
       // Mirror of core/common/process-tree.ts (taskkill /T /F) — the bridge
@@ -186,8 +241,13 @@ export class LspClient {
       try {
         process.kill(-pid, "SIGKILL");
       } catch {
-        this.child.kill("SIGKILL");
+        this.child?.kill("SIGKILL");
       }
     }
+  }
+
+  /** Teardown: Windows kills the whole tree; POSIX kills the process group. */
+  kill(): void {
+    this.killCurrent();
   }
 }

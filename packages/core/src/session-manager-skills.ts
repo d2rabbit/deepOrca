@@ -8,7 +8,7 @@ import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { formatSessionPrompt } from "./common/session-prompts";
 import { isChineseLocale } from "./session-helpers";
 import { isSkillForCurrentPlatform } from "./session-mcp-hints";
-import { SessionManagerMcp } from "./session-manager-mcp";
+import { SessionManagerDiagnostics } from "./session-manager-diagnostics";
 import { SkillMatchCache } from "./common/skill-match-cache";
 import { timedRoutingEvent } from "./routing";
 import { type RouterBundle, renderShardedContent, shardSkillDocument } from "./routing";
@@ -20,7 +20,7 @@ import type {
   BuiltinPluginGroupManifest,
 } from "./session-types";
 
-export abstract class SessionManagerSkills extends SessionManagerMcp {
+export abstract class SessionManagerSkills extends SessionManagerDiagnostics {
   async identifyMatchingSkillNames(
     skills: SkillInfo[],
     userPrompt: string,

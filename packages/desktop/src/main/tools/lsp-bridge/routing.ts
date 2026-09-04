@@ -1,30 +1,11 @@
 /**
- * LSP bridge language routing (specs/lsp-diagnostics P0-2) — pure functions,
- * unit-tested in src/tests/lsp-bridge.test.ts. First phase: the TypeScript
- * family only; unknown extensions yield EMPTY diagnostics (ok, no error) per
- * design §2.3 — never a failure.
+ * LSP bridge routing helpers (specs/lsp-diagnostics P0-2/P1) — language →
+ * server mapping lives in server-specs.ts; this module keeps the workspace
+ * path/URI helpers shared by the bridge. Pure functions, unit-tested in
+ * src/tests/lsp-bridge.test.ts.
  */
 
-export type LspServerKind = "typescript-language-server";
-
 import { resolve } from "node:path";
-
-/** Exact pin — supply-chain policy for anything that executes (AGENTS.md). */
-export const TYPESCRIPT_LANGUAGE_SERVER_PIN = "typescript-language-server@6.0.0";
-
-const TS_FAMILY = new Set(["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"]);
-
-export function resolveServerKindForFile(filePath: string): LspServerKind | null {
-  const ext = (filePath.split(".").pop() ?? "").toLowerCase();
-  if (TS_FAMILY.has(ext)) return "typescript-language-server";
-  return null;
-}
-
-export function resolveLanguageIdForFile(filePath: string): string {
-  const ext = (filePath.split(".").pop() ?? "").toLowerCase();
-  if (ext === "tsx" || ext === "jsx") return "typescriptreact";
-  return "typescript";
-}
 
 /** Absolute workspace path → file:// URI (LSP wants forward slashes). */
 export function pathToUri(absPath: string): string {
@@ -33,13 +14,12 @@ export function pathToUri(absPath: string): string {
   return forward.startsWith("/") ? `file://${encoded}` : `file:///${encoded}`;
 }
 
-/** file:// URI → absolute workspace path (inverse of pathToUri). */
+/** file:// URI → absolute workspace path (native separators). */
 export function uriToPath(uri: string): string {
   let rest = uri.startsWith("file://") ? uri.slice("file://".length) : uri;
-  if (rest.startsWith("/")) {
-    // file:///C:/... keeps the leading slash — strip one only for unix-style
-    rest = rest.slice(1) === ":" ? rest : rest;
-    if (/^\/[A-Za-z]:/.test(uri.slice("file://".length))) rest = rest.slice(1);
+  if (/^\/[A-Za-z]:/.test(rest)) {
+    // file:///C:/... — drop the leading slash of the drive form.
+    rest = rest.slice(1);
   }
   return decodeURI(rest).replace(/\//g, "\\");
 }

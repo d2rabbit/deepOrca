@@ -384,7 +384,8 @@ DeepOrca 提供多层代码工具（内置工具、Serena 语义工具、CodeGra
 - **全文搜索**（非符号级）→ 用内置 \`bash\` + \`rg\`（正则全文搜索）
 
 ## 编辑后验证
-- 每次代码修改后，建议用 Serena \`get_diagnostics_for_file\` 检查类型/语法错误
+- 每次代码修改后，建议用 Serena \`get_diagnostics_for_file\` 检查语法/符号错误
+- 类型级检查用 lsp-bridge \`get_diagnostics\`（TS/JS、Python、Go、Rust、C/C++、C#、Java、Kotlin、Swift、Dart；需项目启用 LSP 桥）
 
 ## 心智模型
 - **Serena = 手术刀**：实时、精准、单符号级操作（LSP 驱动，40+ 语言）

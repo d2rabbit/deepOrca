@@ -1,31 +1,61 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { pathToUri, resolveWithinRoot, uriToPath } from "../main/tools/lsp-bridge/routing";
 import {
-  pathToUri,
-  resolveLanguageIdForFile,
-  resolveServerKindForFile,
-  resolveWithinRoot,
-  uriToPath,
-} from "../main/tools/lsp-bridge/routing";
+  LSP_SERVER_SPECS,
+  candidatesForSpec,
+  languageIdForFile,
+  resolveSpecForFile,
+} from "../main/tools/lsp-bridge/server-specs";
 import { createFrameParser, encodeFrame } from "../main/tools/lsp-bridge/frames";
 
 const ROOT = "D:\\work\\demo";
 
-test("lsp-bridge routing: TS family maps to the typescript server", () => {
-  assert.equal(resolveServerKindForFile("src/app.ts"), "typescript-language-server");
-  assert.equal(resolveServerKindForFile("src/App.tsx"), "typescript-language-server");
-  assert.equal(resolveServerKindForFile("src/util.mjs"), "typescript-language-server");
+test("lsp-bridge routing: user-required language families all resolve", () => {
+  // C 系列 / java / kotlin / dart / swift / c# / go / python / rust
+  const expectations: Array<[string, string]> = [
+    ["main.ts", "typescript"],
+    ["app.tsx", "typescript"],
+    ["util.mjs", "typescript"],
+    ["svc.py", "python"],
+    ["lib.rs", "rust"],
+    ["main.go", "go"],
+    ["kernel.c", "cpp"],
+    ["widget.cpp", "cpp"],
+    ["header.h", "cpp"],
+    ["Program.cs", "csharp"],
+    ["App.java", "java"],
+    ["Repo.kt", "kotlin"],
+    ["page.dart", "dart"],
+    ["View.swift", "swift"],
+  ];
+  for (const [file, expected] of expectations) {
+    assert.equal(resolveSpecForFile(file)?.id, expected, `${file} → ${expected}`);
+  }
 });
 
-test("lsp-bridge routing: unknown extensions yield empty (no server), never throw", () => {
-  assert.equal(resolveServerKindForFile("readme.md"), null);
-  assert.equal(resolveServerKindForFile("main.py"), null);
-  assert.equal(resolveServerKindForFile("noext"), null);
+test("lsp-bridge routing: unknown extensions yield no spec, never throw", () => {
+  assert.equal(resolveSpecForFile("readme.md"), null);
+  assert.equal(resolveSpecForFile("noext"), null);
 });
 
-test("lsp-bridge routing: language id distinguishes react", () => {
-  assert.equal(resolveLanguageIdForFile("a.tsx"), "typescriptreact");
-  assert.equal(resolveLanguageIdForFile("a.ts"), "typescript");
+test("lsp-bridge routing: language id distinguishes react and c headers", () => {
+  assert.equal(languageIdForFile(LSP_SERVER_SPECS[0]!, "a.tsx"), "typescriptreact");
+  assert.equal(languageIdForFile(LSP_SERVER_SPECS[0]!, "a.ts"), "typescript");
+  const cpp = LSP_SERVER_SPECS.find((s) => s.id === "cpp")!;
+  assert.equal(languageIdForFile(cpp, "a.h"), "c");
+  assert.equal(languageIdForFile(cpp, "a.cpp"), "cpp");
+});
+
+test("lsp-bridge specs: npm fallback only for npm-distributed servers", () => {
+  const ts = LSP_SERVER_SPECS.find((s) => s.id === "typescript")!;
+  const tsCandidates = candidatesForSpec(ts);
+  assert.equal(tsCandidates.at(-1)!.command, "npx");
+  // Non-npm servers (rust/go/...) have no npx fallback — probe-only.
+  const rust = LSP_SERVER_SPECS.find((s) => s.id === "rust")!;
+  const rustCandidates = candidatesForSpec(rust);
+  assert.ok(rustCandidates.every((c) => c.command !== "npx"));
+  assert.equal(rustCandidates[0]!.command, "rust-analyzer");
 });
 
 test("lsp-bridge routing: uri roundtrip on windows paths", () => {

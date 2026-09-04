@@ -1,32 +1,41 @@
 /**
- * LSP diagnostics bridge — stdio MCP server (specs/lsp-diagnostics P0-2/P0-3).
+ * LSP diagnostics bridge — stdio MCP server (specs/lsp-diagnostics P0-2/P0-3,
+ * P1 language expansion).
  *
  * Spawned by the Electron main process (one per trusted, opted-in root) via
  * the LspBridgeController seam. Speaks newline-delimited MCP JSON-RPC on
- * stdin/stdout; on `get_diagnostics` it lazily spawns the pinned language
- * server, opens the file, collects publishDiagnostics, caps + returns them.
+ * stdin/stdout; on `get_diagnostics` it lazily spawns the language server
+ * for the file's language (see server-specs.ts), opens the file, collects
+ * publishDiagnostics, caps + returns them.
  *
- * Lifecycle discipline (design §2.4): the language server is NEVER resident —
- * idle recycle (default 30s) and a per-process request budget (default 20)
- * stop memory bleed; teardown kills the whole process tree (Windows taskkill
- * /T /F, mirror of core/common/process-tree.ts — this bundle is standalone).
+ * Lifecycle discipline (design §2.4): language servers are NEVER resident —
+ * one pool slot per language, each with its own idle recycle (default 30s)
+ * and request budget (default 20); teardown kills the whole process tree
+ * (Windows taskkill /T /F, mirror of core/common/process-tree.ts — this
+ * bundle is standalone).
  *
- * Diagnostics result shape aligns with Serena's so core's
- * `extractErrorDiagnostics` consumes it unchanged (severity "1" = error).
+ * Diagnostics severity is emitted as a STRING ("1" = error) so core's
+ * `extractErrorDiagnostics` consumes the payload unchanged (Serena shape).
  */
 
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { LspClient, type LspDiagnostic } from "./lsp-client";
-import {
-  TYPESCRIPT_LANGUAGE_SERVER_PIN,
-  pathToUri,
-  resolveLanguageIdForFile,
-  resolveServerKindForFile,
-  resolveWithinRoot,
-} from "./routing";
+import { pathToUri, resolveWithinRoot } from "./routing";
+import { LSP_SERVER_SPECS, languageIdForFile, resolveSpecForFile } from "./server-specs";
 
 type BridgeConfig = { root: string; maxDiagnostics: number; idleTimeoutMs: number; requestBudget: number };
+
+/** Wire shape of a returned diagnostic — severity is a STRING ("1" = error)
+ *  so core's `extractErrorDiagnostics` parses it unchanged (Serena shape). */
+type WireDiagnostic = {
+  severity: string;
+  message: string;
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+};
 
 function readConfig(): BridgeConfig {
   const root = process.argv[2] ?? process.cwd();
@@ -45,21 +54,31 @@ function readConfig(): BridgeConfig {
 
 const config = readConfig();
 
-/** One language server per kind, spawn-on-demand, idle-recycled. */
-class ServerPool {
-  private client: LspClient | null = null;
-  private requestsServed = 0;
-  private idleTimer: NodeJS.Timeout | null = null;
+type PoolSlot = { client: LspClient | null; idleTimer: NodeJS.Timeout | null; requestsServed: number };
 
+/** One pool slot per language; slots are independent (a python spawn never
+ *  disturbs the warm typescript server and vice versa). */
+class ServerPool {
+  private slots = new Map<string, PoolSlot>();
   constructor(private readonly onLog: (line: string) => void) {}
 
-  private resetIdleTimer(): void {
-    if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.idleTimer = setTimeout(
+  private slot(specId: string): PoolSlot {
+    let slot = this.slots.get(specId);
+    if (!slot) {
+      slot = { client: null, idleTimer: null, requestsServed: 0 };
+      this.slots.set(specId, slot);
+    }
+    return slot;
+  }
+
+  private resetIdleTimer(specId: string): void {
+    const slot = this.slot(specId);
+    if (slot.idleTimer) clearTimeout(slot.idleTimer);
+    slot.idleTimer = setTimeout(
       () => {
-        this.onLog(`idle recycle after ${config.idleTimeoutMs}ms`);
-        this.client?.kill();
-        this.client = null;
+        this.onLog(`${specId} idle recycle after ${config.idleTimeoutMs}ms`);
+        slot.client?.kill();
+        slot.client = null;
       },
       Math.max(1000, config.idleTimeoutMs)
     );
@@ -68,12 +87,14 @@ class ServerPool {
   async getDiagnostics(
     filePath: string,
     waitMs = 8000
-  ): Promise<{ ok: boolean; diagnostics?: LspDiagnostic[]; error?: string }> {
-    if (resolveServerKindForFile(filePath) === null) {
-      return { ok: true, diagnostics: [] }; // no language server for this kind — empty, not an error
+  ): Promise<{ ok: boolean; diagnostics?: WireDiagnostic[]; error?: string }> {
+    const spec = resolveSpecForFile(filePath);
+    if (!spec) {
+      return { ok: true, diagnostics: [] }; // unsupported language — empty, not an error
     }
-    if (this.requestsServed >= config.requestBudget) {
-      return { ok: false, error: `request budget exhausted (${config.requestBudget})` };
+    const slot = this.slot(spec.id);
+    if (slot.requestsServed >= config.requestBudget) {
+      return { ok: false, error: `request budget exhausted for ${spec.id} (${config.requestBudget})` };
     }
     const abs = resolveWithinRoot(config.root, filePath);
     if (!abs) {
@@ -89,29 +110,37 @@ class ServerPool {
     if (text.includes("\u0000")) {
       return { ok: true, diagnostics: [] }; // binary — skip
     }
-    if (!this.client) {
-      this.client = LspClient.spawn("typescript-language-server", config.root, (dead) => {
-        if (this.client === dead) this.client = null;
-      });
-      this.onLog(`spawning ${TYPESCRIPT_LANGUAGE_SERVER_PIN}`);
-      await this.client.initialize();
+    if (!slot.client) {
+      this.onLog(`spawning language server for ${spec.id}`);
+      try {
+        slot.client = await LspClient.start(spec, config.root, (dead) => {
+          if (slot.client === dead) slot.client = null;
+        });
+      } catch (err) {
+        // Probe-only policy: a missing language server degrades to a soft
+        // error carrying the install hint — never blocks the turn.
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
     }
-    this.requestsServed += 1;
-    this.resetIdleTimer();
+    slot.requestsServed += 1;
+    this.resetIdleTimer(spec.id);
     const uri = pathToUri(abs);
-    const languageId = resolveLanguageIdForFile(abs);
-    const diagnostics = await this.client.openAndWaitDiagnostics(uri, languageId, text, waitMs);
-    this.client.close(uri);
-    const capped = [...diagnostics]
+    const languageId = languageIdForFile(spec, abs);
+    const diagnostics = await slot.client.openAndWaitDiagnostics(uri, languageId, text, waitMs);
+    slot.client.close(uri);
+    const capped: WireDiagnostic[] = [...diagnostics]
       .sort((a, b) => a.severity - b.severity || a.range.start.line - b.range.start.line)
-      .slice(0, config.maxDiagnostics);
+      .slice(0, config.maxDiagnostics)
+      .map((d: LspDiagnostic) => ({ ...d, severity: String(d.severity) }));
     return { ok: true, diagnostics: capped };
   }
 
   shutdown(): void {
-    if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.client?.kill();
-    this.client = null;
+    for (const [, slot] of this.slots) {
+      if (slot.idleTimer) clearTimeout(slot.idleTimer);
+      slot.client?.kill();
+      slot.client = null;
+    }
   }
 }
 
@@ -121,11 +150,12 @@ function send(message: Record<string, unknown>): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+const LANGUAGES = LSP_SERVER_SPECS.map((s) => s.id).join(", ");
+
 const TOOLS = [
   {
     name: "get_diagnostics",
-    description:
-      "类型级诊断：tsserver，需受信项目 + LSP 开启。Returns type-level diagnostics (tsserver) for one file inside the workspace.",
+    description: `类型级诊断（真实语言服务器）。Supported languages: ${LANGUAGES}. Returns diagnostics for one file inside the workspace; unsupported languages return empty results.`,
     inputSchema: {
       type: "object",
       properties: { filePath: { type: "string", description: "Workspace-relative or absolute file path" } },
@@ -168,7 +198,7 @@ readline.on("line", (line) => {
       result: {
         protocolVersion: (params.protocolVersion as string) ?? "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "lsp-bridge", version: "0.1.0" },
+        serverInfo: { name: "lsp-bridge", version: "0.2.0" },
       },
     });
     return;
