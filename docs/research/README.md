@@ -12,7 +12,7 @@
 
 ## 总览
 
-50 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 3 份）：**✅ 21 · 🟡 12 · ⬜ 14 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+51 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 4 份）：**✅ 21 · 🟡 12 · ⬜ 15 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -147,6 +147,14 @@
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-09-04-lsp-idea-feasibility.md](./2026-09-04-lsp-idea-feasibility.md) | 引入 LSP 的可行性：IDEA 系（lsp4ij/lsp4intellij/intellij-lsp-server/Kotlin LSP，全绑 IntelliJ Platform/JVM）**直接使用不可行**；干净备选 = **LSP→MCP 桥**（协议层窄客户端包成 MCP server，进既有 `core/src/mcp/` 运行时），首期 TS（typescript-language-server，MIT）+ Python（pyright-langserver，MIT） | 规划落点（未启动）：desktop main 新建 LSP-MCP 桥 tool（照 gitmcp/a2ui 模式）、`core/src/mcp/` 注册一枚 server、session-mcp-hints 增补诊断工具词典；诊断环复用 `session-manager-persistence.ts:570` 既有接线 | ⬜ 未消费 → 🟡 | 纯调研留档，无代码变更。**关键对位**：本仓诊断闭环已存在（Serena/SolidLSP MCP → `extractErrorDiagnostics` → 系统消息回灌），真实缺口仅是**类型级诊断**；"IDEA 的 LSP 最完整"系误读（完整性属 PSI 引擎/lsp4j），价值仅在 lsp4ij 的 server 管理 UX 形态参考。推进前需过文内 V1-V5 验证点（含 SolidLSP 覆盖实测、冷启动内存、诊断噪声预算）。**2026-09-04 已按总口径落 spec**：`specs/lsp-diagnostics/`（design+tasks，**本阶段活跃 spec**——用户拍板不属 next-version；P0 原型 + V0 五验证点硬前置、默认全关） |
+
+---
+
+## 2026-09-04 · CodeBrain / MemBrain 哲学层借鉴（第二轮）
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-04-codebrain-membrain-philosophy.md](./2026-09-04-codebrain-membrain-philosophy.md) | **承接 08-17 预研的理念层第二轮**（该轮 P0-P2 已全部落地，本文不重复）：zread 一手取证两仓哲学载体（MemBrain tech_blog/layered-architecture/实体树三件/budget_pack/retry/manifest/fact-generator 提示词全文；CodeBrain README 七项失败模式自述/claude-md SOP/bootstrap 全文），提炼 CodeBrain 哲学六条（C1 意图导向工具面…C6 harness 失败模式分类学）+ MemBrain 哲学十条（M1 责任切分主哲学…M10 抽取提示词写法），联合元哲学定为"供给侧工程"，逐条判本仓已采纳/部分/真差距 | 规划落点（未启动）：`session-manager-diagnostics.ts`（leg 状态入带，P1）、`memory/tdai/core/prompts/l1-extraction.ts`（分界线/final sweep/逐字保留，P1）、`tools/edit-handler.ts`+`write-handler.ts`（编辑即校验提示，P1）、`session-manager-base.ts` 两辅助原语 + `session-manager-skills.ts:105`（schema 校验+重试预算+模板化示范，P1）、`desktop/main/tools/lsp-bridge/`（deps 就绪探测，P2）、dsh 台账对账（C6 七项，文档级） | ⬜ | 纯调研留档，无代码变更。**四个真发现**：①诊断桥两腿 catch 静默致 clean 与 unavailable 带内不可区分（复刻了第一轮批过 CodeBrain 的缺陷）；②lsp-bridge `isAvailable()` 只查自身二进制不查 node_modules/.venv——依赖缺失时假阳性诊断会回灌；③辅助 LLM 调用缺逐调用 schema 校验与重试预算约定（judgeViaLlm/completeTextViaLlm 原语已立，8 调用点清单在文内）；④MemBrain"agent 参与度随查询复杂度升降"与 depth-lane spec 哲学同构（第二实现者，建议回写 design 作论据）。P3 观念种子：结构债调度（debt 公式+top-K 审计+纯代码溶解）作任务树/技能库/L3 自组织蓝本、检索即维护遥测、L3 晚绑定渲染。P1×4/P2×4/P3×3 落地建议表在文内 Part V，均零新依赖 |
 
 ---
 
