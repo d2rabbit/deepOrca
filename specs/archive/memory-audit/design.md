@@ -1,6 +1,6 @@
 # 记忆审计子智能体（memory-audit）· 自有证据 → 记忆规则迭代 — 技术设计
 
-> **状态**：**P0+P1+P2 全部落地（2026-09-04，用户拍板跳过数据门直接干完）：扫描 19b3bcf9 + 合成/审核/写回（本轮收尾提交）——synthesis 走 completeViaLlm+schema 契约（P1.1 通道适配见 tasks），决策持久化任何已决项不再重现，接受项回 controlled write-back 指令（原生 edit 工具）；P3 泛化另行立项**——上游调研已定稿：可行性轮 [`docs/research/2026-09-04-backpass-integration-feasibility.md`](../../docs/research/2026-09-04-backpass-integration-feasibility.md)（结论：backpass 不集成，只借方法论）+ 方案轮 [`docs/research/2026-09-04-memory-audit-subagent-proposal.md`](../../docs/research/2026-09-04-memory-audit-subagent-proposal.md)（本 spec 的直接依据，全部 file:line 取证在案）。归档于 [research-adoption-plan](../../docs/features/research-adoption-plan.md) 三线之一。
+> **状态**：**P0+P1+P2 全部落地（2026-09-04，用户拍板跳过数据门直接干完）：扫描 19b3bcf9 + 合成/审核/写回（本轮收尾提交）——synthesis 走 completeViaLlm+schema 契约（P1.1 通道适配见 tasks），决策持久化任何已决项不再重现，接受项回 controlled write-back 指令（原生 edit 工具）；P3 泛化另行立项**——上游调研已定稿：可行性轮 [`docs/research/2026-09-04-backpass-integration-feasibility.md`](../../../docs/research/2026-09-04-backpass-integration-feasibility.md)（结论：backpass 不集成，只借方法论）+ 方案轮 [`docs/research/2026-09-04-memory-audit-subagent-proposal.md`](../../../docs/research/2026-09-04-memory-audit-subagent-proposal.md)（本 spec 的直接依据，全部 file:line 取证在案）。归档于 [research-adoption-plan](../../docs/features/research-adoption-plan.md) 三线之一。
 > **上游提案**：把 backpass 的「跨会话证据 → 记忆规则迭代」自研进 DeepOrca——用自有 session 证据 + 自有记忆管线 + 自有子智能体通道，不引 external CLI。
 > **对应实现域**：`core/`（`memory.audit` action + 证据扫描 + proposal 管线）与 `desktop/`（报告/store，P1 起）。**活跃 spec（本阶段实施，不属 `next-version` 规划区）**。
 > **硬约束**：零新依赖、不引 backpass 代码/CLI/`acpx`；会话与 store 全程只读；写回只经主会话权限面；默认关闭、fail-open；不向 L0–L3 运行时记忆写入任何合成规则。
@@ -116,7 +116,7 @@ type MemoryAuditProposal = {
 
 ## 5. 回写规则
 
-落地任一期：调研方案轮 README 行推进消费状态；本 spec 状态行更新；按 [`specs/README.md`](../README.md) 流转口径收官归档。
+落地任一期：调研方案轮 README 行推进消费状态；本 spec 状态行更新；按 [`specs/README.md`](../../README.md) 流转口径收官归档。
 
 ## 6. 拍板项（默认值已定，开工时逐项确认）
 

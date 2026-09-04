@@ -27,9 +27,9 @@
 | CMB-6 | C6 失败模式七项独立对账（session 循环，不锚外部台账） | 纯文档（对账表） | P2（文档级） | 半天 | ✅ | CodeBrain C6 |
 | CMB-7 | 记忆注入相对时间预解析 + 事件/获知时间分离 | 增强（记忆渲染） | P2 | 半天-1 天 | ✅ | MemBrain M5 |
 | CMB-8 | agentic recall 充分性检查（二轮 follow-up） | 增强（待数据门） | P2 | 待数据 | ⬜ | MemBrain M4 |
-| CMB-9 | 结构债调度蓝本（任务树/技能库/L3 自组织） | 观念种子（纯存档） | P3 | 仅存档 | ⬜ | MemBrain M3 |
-| CMB-10 | 检索即维护遥测（lane 命中 + recall 命中记录） | 观念种子（纯存档） | P3 | 待排期 | ⬜ | MemBrain M7 |
-| CMB-11 | L3 晚绑定渲染（人格在注入时叠加） | 观念种子（纯存档） | P3 | 观念种子 | ⬜ | MemBrain M2 |
+| CMB-9 | 结构债调度蓝本（任务树/技能库/L3 自组织） | 观念种子（纯存档） | P3 | 仅存档 | ❌ | MemBrain M3 |
+| CMB-10 | 检索即维护遥测（lane 命中 + recall 命中记录） | 观念种子（纯存档） | P3 | 待排期 | ✅ | MemBrain M7 |
+| CMB-11 | L3 晚绑定渲染（人格在注入时叠加） | 观念种子（纯存档） | P3 | 观念种子 | ❌ | MemBrain M2 |
 
 **开工顺序**：CMB-1 + CMB-5 同批（同一入带通道）→ CMB-2 + CMB-7 同批（同一文件族）→ CMB-3 → CMB-4 → CMB-6（对账）→ CMB-8/9/10 等观察期。
 
@@ -122,29 +122,33 @@
 - **来源**：调研文档 M5；与 08-17 #3 源精度规则同族。
 - **落地回写（2026-09-04）**：✅ `584440aa` —— relative-time.test.ts 中英换算真值表（各≥5 例）+ 无锚（源未锚定）+ 词表外不动 + 幂等 + formatMemoryLine 回归。
 
-## CMB-8. agentic recall 充分性检查（二轮 follow-up）⬜
+## CMB-8. agentic recall 充分性检查（二轮 follow-up）✅
 
 - **优先级/成本**：P2 · **待数据**（等 `specs/next-version/depth-lane/` P0 观察数据）
 - **内容**：MemBrain"agent 参与度随查询复杂度升降"的升档——标准检索零 agent（本仓已有：确定性事件向改写，08-17 #1 落地）；**首轮结果过低/空 → 充分性检查 → 少量 follow-up 查询二轮**。前置动作：把 MemBrain 作为 depth-lane 的**第二实现者论据**回写其 design（与 HKUDS DeepCode compaction 两段式之于 dsh P1-2 同款关系）。
 - **验收标准**：depth-lane design 补论据一行；升档实现待 P0 数据门。
 - **来源**：调研文档 M4（与 depth-lane 哲学同构）。
+- **落地回写（2026-09-04）**：✅ 用户拍板「不留」跳过数据门直接落地——`memory/src/tdai/core/hooks/recall-sufficiency.ts`（首轮 < 阈值触发一轮有界二轮检索，确定性变体、零 LLM、≤2 查询、fail-open）+ config 双开关；测试 5/5。前置论据回写（B-7）已在 specs/depth-lane/design.md §0.2。
 
 ---
 
 # P3 · 观念种子（只存档不排期）
 
-## CMB-9. 结构债调度蓝本（任务树/技能库/L3 自组织）⬜
+## CMB-9. 结构债调度蓝本（任务树/技能库/L3 自组织）❌
 
 - **内容**：MemBrain 实体树维护调度器作算法蓝本存档：`debt = uncertainty + W_WIDTH·超宽 + W_DEPTH·(深度 − D_max(support))`，`D_max(n) = round(2 + 1.3·ln n)`；全树按债排序**只审 top-K**、审后复位；LLM 动作收窄三动词（GROUP/PROMOTE/RELOCATE）+ MERGE/WRAPPER 两模式；纯代码兜底（force_split 等分 + auto_dissolve ≤1 子溶解）。**适用对象**：任务树（嵌套失衡）、技能库（只增不减）、L3 人格（事实堆积）——都是只长不剪的结构。哲学一句话：**结构不是一次性设计出来的，是按债偿还出来的；LLM 参与"怎么还"，代码保证"总还得动"**。
 - **边界**：理念级借鉴；若真做实体级实现，从 Graphiti 取并署名（08-17 许可红线）。**触发条件**：任一结构出现可观测的失衡/堆积再启动。
+- **决策（2026-09-04，用户拍板「不留」全量清账）**：❌ 现阶段正式否决——三个载体结构（任务树/技能库/L3）均无可观测失衡，按自设触发条件不满足即不做；算法蓝本（debt 公式 + top-K 预算审计 + 纯代码溶解）已完整留档于本条与调研 M3 节，失衡出现时按台账重启（从 Graphiti 取实现并署名）。
 
-## CMB-10. 检索即维护遥测 ⬜
+## CMB-10. 检索即维护遥测 ✅
 
 - **内容**：tech_blog Future Work："use retrieval as an opportunity to lightly reorganize memory along the accessed paths… each query is not just reading memory, but also helping maintain it." 检索路径暴露组织方式与查询分布的错配，是免费结构反馈。**落点**：depth-lane P0 观察面顺手扩展（记录 routing 决策 + recall 命中），未来喂给重组。**触发条件**：CMB-8 的观察期启动后顺手设计。
+- **落地回写（2026-09-04）**：✅ 观察面落地——auto-recall 每次召回输出结构化遥测行（rounds/hits/strategy/fts/vec，CMB-8 二轮计数含其中）+ depth-lane G0 遥测（lane 分布/成本进 routing 事件面与 usage-ledger source=depth-lane）。「按访问路径重组」消费侧仍留观察（数据积累后另行设计）。
 
-## CMB-11. L3 晚绑定渲染 ⬜
+## CMB-11. L3 晚绑定渲染 ❌
 
 - **内容**：tech_blog："Each fact effectively acts as a renderable template: the fact itself remains stable, but the associated entity information is always up to date." 事实记录"什么发生了"，人格层记录"现在怎么看"，拼接发生在注入时（而非把结论写进历史事实）。**触发条件**：L3 人格继续演进的结构化讨论（与 CMB-9 同场）。
+- **决策（2026-09-04，用户拍板「不留」全量清账）**：❌ 现阶段正式否决——L3 人格层无继续演进的排期诉求，晚绑定渲染失去载体；CMB-7 已落地的时间锚定（记录于/事件时间分离）覆盖了同一哲学在当前数据形态下的可行部分。L3 结构化讨论重启时按台账复活本条。
 
 ---
 

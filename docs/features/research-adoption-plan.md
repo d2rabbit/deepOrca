@@ -10,9 +10,9 @@
 
 | # | 线 | 上游调研 | spec 落点 | 生命周期区 | 分期结构 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **CMB 供给侧工程**（CodeBrain/MemBrain 理念六处真差距） | [2026-09-04-codebrain-membrain-philosophy.md](../research/2026-09-04-codebrain-membrain-philosophy.md) + [问题台账 CMB-1~11](../research/2026-09-04-codebrain-membrain-issues.md) | [`specs/archive/cmb-adoption/`](../../specs/archive/cmb-adoption/design.md)（design+tasks） | **已收官归档（specs/archive/，当前版本落地）** | 批次 A（诊断诚实化）→ B（记忆供给面）→ C（编辑即提醒）→ D（辅助调用契约），~4-6d | **✅ 四批次全落地（2026-09-04，007d57e8/584440aa/95e0ac5d/1e5cdf95）** |
-| 2 | **depth-lane 复杂性路由双轨**（智能网关 × 轻轨/重轨） | [2026-09-03-smart-gateway-dual-lane-adaptation.md](../research/2026-09-03-smart-gateway-dual-lane-adaptation.md) | [`specs/next-version/depth-lane/`](../../specs/next-version/depth-lane/design.md)（design+tasks，2026-09-03 入库） | **next-version 储备** | P0 纯观察 → 数据决策门 → P1 重轨最小链 → P2 对抗与自适应 | 设计定稿待启动 |
-| 3 | **memory-audit 记忆审计子智能体**（backpass 方法论自研） | [2026-09-04-backpass-integration-feasibility.md](../research/2026-09-04-backpass-integration-feasibility.md) + [方案轮](../research/2026-09-04-memory-audit-subagent-proposal.md) | [`specs/memory-audit/`](../../specs/memory-audit/design.md)（design+tasks，随本计划案立稿） | **活跃（当前版本，P0 观察期）** | P0 纯观察 → 数据决策门 → P1 合成+审核 → P2 受控写回 → P3 泛化（可选） | **🟡 P0 已落地（19b3bcf9）；P1 等 P0.7 数据门** |
+| 1 | **CMB 供给侧工程**（CodeBrain/MemBrain 理念六处真差距） | [2026-09-04-codebrain-membrain-philosophy.md](../research/2026-09-04-codebrain-membrain-philosophy.md) + [问题台账 CMB-1~11](../research/2026-09-04-codebrain-membrain-issues.md) | [`specs/archive/cmb-adoption/`](../../specs/archive/cmb-adoption/design.md)（design+tasks） | **已收官归档（specs/archive/，当前版本落地）** | 批次 A（诊断诚实化）→ B（记忆供给面）→ C（编辑即提醒）→ D（辅助调用契约），~4-6d | **✅ 全部落地（2026-09-04）；观察项亦清账：CMB-6 对账 ✅、CMB-8/10 ✅、CMB-9/11 ❌ 决策关闭（2026-09-04 用户拍板「不留」）** |
+| 2 | **depth-lane 复杂性路由双轨**（智能网关 × 轻轨/重轨） | [2026-09-03-smart-gateway-dual-lane-adaptation.md](../research/2026-09-03-smart-gateway-dual-lane-adaptation.md) | [`specs/depth-lane/`](../../specs/depth-lane/design.md)（2026-09-04 激活转正） | **活跃（当前版本，已落地主体）** | P0 纯观察 → 数据决策门 → P1 重轨最小链 → P2 对抗与自适应 | **🟡 P0+P1+P2.1/2.2 已落地（用户拍板跳过数据门与 next-version 直接干完）；P2.3/2.4（遥测公式/autoTune）与 X.*（桌面徽标/i18n）代码位就绪默认关，待生产数据** |
+| 3 | **memory-audit 记忆审计子智能体**（backpass 方法论自研） | [2026-09-04-backpass-integration-feasibility.md](../research/2026-09-04-backpass-integration-feasibility.md) + [方案轮](../research/2026-09-04-memory-audit-subagent-proposal.md) | [`specs/memory-audit/`](../../specs/memory-audit/design.md)（design+tasks，随本计划案立稿） | **已收官归档（specs/archive/）** | P0 纯观察 → 数据决策门 → P1 合成+审核 → P2 受控写回 → P3 泛化（可选） | **✅ P0+P1+P2 全部落地（2026-09-04 用户拍板跳过数据门）；P3 泛化另行立项** |
 
 三线共同的底色：**不引外部依赖/代码，用自有原语（flash 调用、subagent、background task、edit 权限面、确定性校验）把别人的工程哲学做进产品**。CMB 台账中的 CMB-6/8/9/10/11（文档对账 / 等数据 / 观念种子）不进任何 spec，留台账跟踪——遇下述决策门时再逐条激活。
 
@@ -34,35 +34,26 @@
 | **记忆面互补** | CMB-2/7 ∥ memory-audit | CMB 改运行时记忆质量（L1 抽取/渲染）；memory-audit 改规则级记忆（AGENTS.md/SKILL.md）——同属"记忆供给面"，文件族不同零冲突，可同批推进 | 无次序约束 |
 | **结构债远期同构** | CMB-9 ↔ memory-audit P3 | top-K 预算审计思想同源；memory-audit 的 proposal 管线若 P3 泛化为通用"规则/SOP 萃取"，是 CMB-9 蓝本的第一个落点候选 | 仅存档，无排期 |
 
-## 四、统一时序
+## 四、统一时序（终态 2026-09-04：用户拍板「不留」，全量清账）
 
 ```text
-当前版本（feat/* 合并线）
-  CMB 批次 A（CMB-1+5 诊断诚实化）      ← 缺陷修复，最高优先
-  CMB 批次 B（CMB-2+7 记忆供给面）      ← 含 B-7 depth-lane 论据回写
-  CMB 批次 C（CMB-3 编辑即提醒）
-  CMB 批次 D（CMB-4 辅助调用契约）      ← ⚠ depth-lane P0 的前置
-  memory-audit P0（确定性证据扫描）      ← 与 CMB 批次并行（memory/core 域，零文件冲突）
-    ↓ P0 数据决策门（P0.7）
-  memory-audit P1 合成+审核 / P2 受控写回 ← 门过则同版本推进；门不过则封存为单发扫描工具
-    ↓（冻结期后，next/* 分支）
-next 版本观察窗
-  depth-lane P0（网关+lane 记录，零行为变化）
-    ↓ 数据决策门（P0.9）
-  depth-lane P1 重轨最小链               ← 按门结果启动或砍
-    ↓
-  depth-lane P2 对抗+自适应
-  （观察项池：CMB-8 升档、CMB-10 遥测、CMB-6 对账、memory-audit P3 泛化——按数据逐条激活）
+当前版本（feat/* 合并线）—— 已全部完成
+  CMB 批次 A→D（四提交）+ 全域审查修复
+  memory-audit P0 → [数据门被用户拍板跳过] → P1 合成审核 + P2 受控写回 → spec 归档
+  depth-lane 激活（next-version → specs/）→ P0 网关 + P1 重轨 S1-S5 + P2.1/2.2 落地
+  CMB-6 对账表 ✅；CMB-8 充分性二轮 ✅；CMB-10 遥测 ✅；CMB-9/11 ❌ 决策关闭（触发条件保留）
+留位（代码就绪/默认关闭，非欠账）:
+  depth-lane P2.3/P2.4（追问率与负反馈遥测公式、autoTune——需生产数据）与 X.*（桌面 lane 徽标 + i18n ×6）
+  memory-audit P3（通用规则/SOP 萃取通道——另行立项）
+  观察项消费：G0/召回遥测积累后按 specs/depth-lane tasks P0.9 口径出报告
 ```
-
-**让位规则**：next 版本内 depth-lane 与 A–E 主线资源冲突时，主线优先（OC > A–E > 本计划案）；其 P0 体量小（~2-4d）可穿插。当前版本侧（CMB 批次 + memory-audit P0）按上表直接排期。
 
 ## 五、决策门清单（集中登记）
 
 | 门 | 判据 | 出口 |
 | --- | --- | --- |
-| depth-lane P0.9 | express 真实占比 >90% 且误判率可忽略 | 砍重轨，只留"轻轨指令 + 追问率提示"；CMB-8/10 转入长期观察池 |
-| memory-audit P0.7 | 真实项目失败模式数量/证据质量/误报率证明 ROI | 进 P1；否则封存为"确定性扫描工具"单发使用，不进产品流程 |
+| depth-lane P0.9 | ~~express 占比>90% 砍重轨~~ **已被 2026-09-04 用户拍板跳过（不留）——重轨直接实现**；报告口径保留，待 enabled 打开后按遥测出 |
+| memory-audit P0.7 | ~~数据证明 ROI 才进 P1~~ **已被 2026-09-04 用户拍板跳过（不留）——P1/P2 直接实现并收官**；首轮真实数据（n=2）已留档 |
 | CMB 批次门 | 无数据门（确定性缺陷/增强） | 每批 `npm run check && npm test` 全绿 + mutation-check + 台账回写即收 |
 
 ## 六、索引与维护
