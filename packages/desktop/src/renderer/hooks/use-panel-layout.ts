@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type SidebarView =
   | "explorer"
   | "scm"
+  | "chain"
   | "tasks"
   | "tokens"
   | "index"
@@ -28,6 +29,7 @@ const VIEW_KEYS: SidebarView[] = [
   "gitmcp",
   "plugins",
   "editor",
+  "chain",
 ];
 
 /** localStorage may be absent (tests, hardened contexts) — never let chrome

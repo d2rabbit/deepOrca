@@ -33,6 +33,20 @@ export interface AdvertisedChain {
   version: number;
 }
 
+/**
+ * Discovery-level isolation (R25): only chains advertising the SAME theme
+ * prefix and the CURRENT protocol version are connectable peers.
+ */
+export function filterMatchingChains(chains: Iterable<AdvertisedChain>, themeShort: string): AdvertisedChain[] {
+  const matches: AdvertisedChain[] = [];
+  for (const chain of chains) {
+    if (chain.themeShort === themeShort && chain.version === DISCOVERY_VERSION) {
+      matches.push(chain);
+    }
+  }
+  return matches;
+}
+
 export class Discovery {
   private mdns: MulticastDNS | null = null;
   private advertisement: { instance: string; themeShort: string; chainShort: string; port: number } | null = null;
@@ -59,13 +73,7 @@ export class Discovery {
     const mdns = this.mdns as MulticastDNS;
     mdns.query({ questions: [{ name: SERVICE_NAME, type: "PTR" }] });
     await new Promise((resolve) => setTimeout(resolve, timeoutMs));
-    const matches: AdvertisedChain[] = [];
-    for (const chain of this.seen.values()) {
-      if (chain.themeShort === themeShort && chain.version === DISCOVERY_VERSION) {
-        matches.push(chain);
-      }
-    }
-    return matches;
+    return filterMatchingChains([...this.seen.values()], themeShort);
   }
 
   destroy(): void {
@@ -138,7 +146,7 @@ export class Discovery {
   }
 }
 
-function parseTxtRecords(entries: string[]): Record<string, string> {
+export function parseTxtRecords(entries: string[]): Record<string, string> {
   const fields: Record<string, string> = {};
   for (const entry of entries) {
     const eq = entry.indexOf("=");

@@ -1367,4 +1367,23 @@ export const ja: Record<MessageKey, string> = {
   "trust.applied.quarantine":
     "隔離モードを有効にしました。実行中のプロジェクト MCP サーバーはアプリ再起動後に停止します。",
   "sandbox.degradedToast": "Bash サンドボックス利用不可（{backend}）：{detail}",
+
+  // ── Coord Chain ──────────────────────────────────────────
+  "rail.chain": "チェーンワークスペース",
+  "chain.pane.title": "分散型ワークスペース",
+  "chain.pane.notRunning": "共有はオフです——テーマチェーンに参加/作成するには開始してください。",
+  "chain.pane.start": "共有を開始",
+  "chain.pane.stop": "停止",
+  "chain.pane.rotateKey": "デバイス鍵をローテーション",
+  "chain.pane.chainId": "チェーン",
+  "chain.pane.anchorId": "デバイスアンカー",
+  "chain.pane.anchorBound": "このマシンにバインド済み",
+  "chain.pane.anchorUnbound": "このマシンに未バインド（クローン）",
+  "chain.pane.height": "高さ",
+  "chain.pane.membersLabel": "メンバー",
+  "chain.pane.blocksLabel": "ブロック",
+  "chain.pane.genealogyLabel": "タスク系譜",
+  "chain.pane.noData": "（なし）",
+  "chain.pane.error": "チェーン操作に失敗：",
+  "chain.pane.device": "デバイス",
 };

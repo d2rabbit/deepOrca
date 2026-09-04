@@ -33,6 +33,7 @@ export {
   IconPrototype,
   IconTaskTree,
   IconGitmcp,
+  IconChain,
   IconMoon,
   IconSun,
   IconUndo,

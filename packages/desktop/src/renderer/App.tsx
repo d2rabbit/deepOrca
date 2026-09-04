@@ -119,6 +119,7 @@ import {
 } from "./ui/index";
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
+import { CoordChainPane } from "./components/CoordChainPane";
 import { QuickDock } from "./components/QuickDock";
 import { FailureBanner } from "./components/FailureBanner";
 
@@ -2142,6 +2143,8 @@ export function App(): JSX.Element {
             </Suspense>
           ) : sidebarView === "gitmcp" ? (
             <GitMcpPanel />
+          ) : sidebarView === "chain" ? (
+            <CoordChainPane />
           ) : sidebarView === "editor" ? (
             <EditorPanel onOpenFile={handleOpenEditor} root={projectRoot} />
           ) : (

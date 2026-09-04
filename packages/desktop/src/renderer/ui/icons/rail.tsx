@@ -142,6 +142,22 @@ export function IconPrototype(): JSX.Element {
 }
 
 /** Rooted node tree — task tree panel */
+export function IconChain(): JSX.Element {
+  return (
+    <svg {...S}>
+      <circle cx="6" cy="6" r="2.4" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="6" cy="18" r="2.4" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="18" cy="12" r="2.4" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M6 8.4v7.2M8.2 6h4.4M8.2 18h4.4M12.6 6h.8a4 4 0 0 1 3 1.4l1 1.2M12.6 18h.8a4 4 0 0 0 3-1.4l1-1.2M16.4 12H20M16.4 12h1.4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function IconTaskTree(): JSX.Element {
   return (
     <svg {...S}>

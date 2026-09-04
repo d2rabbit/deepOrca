@@ -3,6 +3,7 @@ import { useI18n, type MessageKey } from "../i18n";
 import type { SidebarView } from "../hooks/use-panel-layout";
 import { cx } from "../ui/class-names";
 import {
+  IconChain,
   IconDesign,
   IconEditor,
   IconGit,
@@ -21,6 +22,7 @@ import {
 const VIEW_LABEL_KEYS: Record<SidebarView, MessageKey> = {
   explorer: "rail.sessions",
   scm: "rail.git",
+  chain: "rail.chain",
   tasks: "rail.tasks",
   tokens: "rail.tokens",
   index: "rail.index",
@@ -78,6 +80,7 @@ export function HubSheet({
   // 视图本身保留注册，程序内通路不受影响。
   const views: HubViewDef[] = [
     { id: "explorer", labelKey: VIEW_LABEL_KEYS.explorer, icon: <IconSessions /> },
+    { id: "chain", labelKey: VIEW_LABEL_KEYS.chain, icon: <IconChain /> },
     { id: "scm", labelKey: VIEW_LABEL_KEYS.scm, icon: <IconGit /> },
     { id: "index", labelKey: VIEW_LABEL_KEYS.index, icon: <IconIndex /> },
     { id: "review", labelKey: VIEW_LABEL_KEYS.review, icon: <IconReview /> },

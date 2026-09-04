@@ -113,17 +113,17 @@ test("session-trace: skill system message → skill step; assistant text → ass
   assert.equal(trace.turns[0].steps[1].tool, "assistant");
 });
 
-test("session-trace: keeps only the newest 3 turns and flags truncation", () => {
+test("session-trace: keeps ALL turns (truncation removed per 2026-09-03 九轮) and never flags", () => {
   const raws: Raw[] = [];
   for (let i = 1; i <= 5; i++) {
     raws.push({ role: "user", content: `turn ${i}`, createTime: `2026-09-01T10:0${i}:00.000Z` });
     raws.push({ role: "assistant", content: `ok ${i}`, createTime: `2026-09-01T10:0${i}:30.000Z` });
   }
   const trace = normalizeSessionTrace("s1", "demo", raws.map((r, i) => msg(r, i)) as never);
-  assert.equal(trace.turns.length, 3);
-  assert.equal(trace.truncated, true);
-  assert.match(trace.turns[0].user, /turn 3/);
-  assert.match(trace.turns[2].user, /turn 5/);
+  assert.equal(trace.turns.length, 5, "all turns kept — the product decided to show the full trajectory");
+  assert.ok(!trace.truncated, "truncation removed — field absent or false");
+  assert.match(trace.turns[0].user, /turn 1/);
+  assert.match(trace.turns[4].user, /turn 5/);
 });
 
 // ── readSessionTraceSource (cross-workspace JSONL fetch) ────────────────────

@@ -1327,4 +1327,23 @@ export const zh: Record<MessageKey, string> = {
   "trust.quarantine": "隔离 — 不可信仓库",
   "trust.applied.quarantine": "已启用隔离模式。已运行的项目级 MCP 服务器将在重启应用后停用。",
   "sandbox.degradedToast": "Bash 沙箱不可用（{backend}）：{detail}",
+
+  // ── Coord Chain ──────────────────────────────────────────
+  "rail.chain": "工作链",
+  "chain.pane.title": "去中心化工作区",
+  "chain.pane.notRunning": "共享未开启——启动以加入/创建主题链。",
+  "chain.pane.start": "开启共享",
+  "chain.pane.stop": "停止",
+  "chain.pane.rotateKey": "轮换设备密钥",
+  "chain.pane.chainId": "链",
+  "chain.pane.anchorId": "设备锚点",
+  "chain.pane.anchorBound": "已绑定本机",
+  "chain.pane.anchorUnbound": "未绑定本机（克隆）",
+  "chain.pane.height": "高度",
+  "chain.pane.membersLabel": "成员",
+  "chain.pane.blocksLabel": "区块",
+  "chain.pane.genealogyLabel": "任务谱系",
+  "chain.pane.noData": "（无）",
+  "chain.pane.error": "链操作失败：",
+  "chain.pane.device": "设备",
 };

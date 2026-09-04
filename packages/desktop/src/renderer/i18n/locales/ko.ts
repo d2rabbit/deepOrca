@@ -1358,4 +1358,23 @@ export const ko: Record<MessageKey, string> = {
   "trust.quarantine": "격리 — 신뢰할 수 없는 저장소",
   "trust.applied.quarantine": "격리 모드가 활성화되었습니다. 실행 중인 프로젝트 MCP 서버는 앱 재시작 후 중지됩니다.",
   "sandbox.degradedToast": "Bash 샌드박스 사용 불가({backend}): {detail}",
+
+  // ── Coord Chain ──────────────────────────────────────────
+  "rail.chain": "체인 워크스페이스",
+  "chain.pane.title": "탈중앙화 작업 공간",
+  "chain.pane.notRunning": "공유가 꺼져 있습니다 — 테마 체인에 참여/생성하려면 시작하세요.",
+  "chain.pane.start": "공유 시작",
+  "chain.pane.stop": "중지",
+  "chain.pane.rotateKey": "기기 키 회전",
+  "chain.pane.chainId": "체인",
+  "chain.pane.anchorId": "기기 앵커",
+  "chain.pane.anchorBound": "이 기기에 바인딩됨",
+  "chain.pane.anchorUnbound": "이 기기에 바인딩되지 않음(클론)",
+  "chain.pane.height": "높이",
+  "chain.pane.membersLabel": "구성원",
+  "chain.pane.blocksLabel": "블록",
+  "chain.pane.genealogyLabel": "작업 계보",
+  "chain.pane.noData": "(없음)",
+  "chain.pane.error": "체인 작업 실패:",
+  "chain.pane.device": "기기",
 };
