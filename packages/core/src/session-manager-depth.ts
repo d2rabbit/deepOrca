@@ -30,6 +30,7 @@
 // TODO(specs/depth-lane P2.4): autoTune 公式（新阈值 = 旧阈值 + 追问率*0.5 −
 // 负反馈率*0.5，±5 步进、钳制 [30,70]、审计日志）——默认关闭，未实现。
 
+import { setMaxListeners } from "node:events";
 import { renderDepthLanePrompt, type DepthLanePromptVars } from "./prompt";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { SessionManagerTasks } from "./session-manager-tasks";
@@ -173,6 +174,10 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
     if (!session || session.lane !== "deep" || session.isSilentSubagent) return false;
     if (this.depthRuns.has(sessionId)) return false; // re-entry guard
     this.depthRuns.add(sessionId);
+    // The staged flow chains ~11 abort listeners onto one signal (stages +
+    // subagents + top-up) — lift Node's default-10 leak warning (real-run
+    // finding, 2026-09-04 GVGL verification).
+    if (controller?.signal) setMaxListeners(20, controller.signal);
     try {
       await this.runDepthLane(sessionId, controller);
       return true;

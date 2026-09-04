@@ -14,7 +14,7 @@
 - [x] P0.6 轻轨瞬态指令（`getCurrentTurnTail` 同款：转换时注入、不入 JSONL/缓存前缀）；`R=20` 且总分 <50 时追加安全提示 — `session-manager-base.ts` buildCurrentTurnTail 钩子 + `session-manager-depth.ts` buildLaneTurnTail（express 指令/riskNote、deep 的 Gate Directive 仅非零维度），走 OpenAIMessageConverter.applyTurnTail 瞬态尾部
 - [x] P0.7 遥测：lane 分布、express 平均成本 vs 现状基线、重轨误判率（usage-ledger source） — `routing/gate/gate.ts` summarizeLaneTelemetry（lane 分布+按 source 均值）+ `routing/telemetry.ts` G0 事件 + `common/usage-ledger.ts` 新 source `"depth-lane"`（staged 流程所有编排调用经此记账）
 - [x] P0.8 测试：`complexity-gate.test.ts`（L1 逐条 / 解析确定性 / 缓存 / 阈值边界 / fail-open 四路径）；回归：`enabled: false` 字节级等价、`skillNames/multiIntent` 行为不回归 — 30 tests 全绿；skill-matching 模板禁用态与 pre-feature 渲染字节级相等（测试锁定）；session-skills-mcp 18 tests 零改动全绿；变异测试（>= 改 > 阈值边界测试变红后还原）
-- [ ] P0.9 数据决策门报告（express 占比、误判率；>90% 阈值下砍重轨，只留轻轨指令 + 追问率提示）— 未启动；**观察期自 `complexityGate.enabled` 翻开即开始采集**（lane 落 sessions-index、G0 事件与 depth-lane 记账落 usage-ledger），无需再等任何代码
+- [ ] P0.9 数据决策门报告 — **首轮真机观察（2026-09-04 GVGL 批）**：网关五路径全命中（l1-keyword/l2-flash/fail-open/G0 遥测）；该端点 L2 空评分率 2/4（fail-open 全部正确兜底——观察日志项）；重轨全链真机 102s/37msg/六段报告齐全。正式占比报告待 enabled 生产开启后积累（express 占比、误判率；>90% 阈值下砍重轨，只留轻轨指令 + 追问率提示）— 未启动；**观察期自 `complexityGate.enabled` 翻开即开始采集**（lane 落 sessions-index、G0 事件与 depth-lane 记账落 usage-ledger），无需再等任何代码
 
 ## P1 重轨最小链（S1 → S2 → S4 → S5）
 
@@ -31,8 +31,8 @@
 
 - [x] P2.1 S3 red-team 子代理（击穿测试：反例/被忽略约束/不可逆风险） — runRedTeam 单个 silent 子代理，输出 {brokenPaths/ignoredConstraints/irreversibleRisks/verdict}；不可逆风险在 S5 报告「风险与红线」顶部标记需用户拍板（v1 以报告内仲裁替代阻塞式 AskUserQuestion，见交付说明的偏差记录）
 - [x] P2.2 S2 回边：不收敛 → 带对抗反馈重生成（轮次上限硬性） — 收敛判据失败时 red-team 发现注入下一轮 divergence prompt（"Previous-round red-team findings"），轮次 > maxRounds 硬停并输出「未收敛 + 已给证据」；回边恰好一次 + 反馈携带验证有测试
-- [ ] P2.3 阈值遥测口径实现：轻轨追问率（10 分钟内新消息 + embedding 余弦相似）、重轨负反馈率（6 语言正则 + 1 星反馈）；报告进设置面板只读展示 — 未实现（TODO 见 `routing/gate/gate.ts` summarizeLaneTelemetry 与 `session-manager-depth.ts` 头注）
-- [ ] P2.4 `autoTune`：提案公式 `新阈值 = 旧阈值 + 追问率*0.5 − 负反馈率*0.5`，±5 步进、钳制 [30, 70]、每次变更写审计日志、默认关闭 — 未实现（settings.ts autoTune 字段已留，TODO 注释引用本条）
+- [x] P2.3 阈值遥测口径实现 — `routing/gate/lane-rates.ts`：追问率（10 分钟窗口 + 确定性 bigram 重叠首版，embedding 余弦经 `similarity` 插槽即插即用）+ 负反馈率（6 语言词表含繁体）；lane-rates.test.ts 7/7。**真实历史首跑（2026-09-04，GVGL+本仓 3 会话）**：追问率 0.33（GVGL 重复提问真实命中）、deep 率 null（无 deep 会话，诚实未定义）。设置面板只读展示留 X 面随徽标一并
+- [x] P2.4 `autoTune` 公式 — `lane-rates.ts autoTuneThreshold`（±5 步进、钳制 [30,70]、null 率=无信号不动、formula 串即审计行）；**真实输入校准**：50 + 0.33*0.5 − 0 → 50.17（行为正常）。默认关闭不变（自动调参开闸仍需生产数据量）
 
 ## X 桌面最小面
 
