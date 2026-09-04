@@ -34,7 +34,6 @@ import type {
   WorkspaceTrustLevel,
 } from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
-import { EditorTabBar } from "./components/editor/EditorTabBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
 import { Composer } from "./components/Composer";
@@ -64,7 +63,9 @@ const CodeReviewPanel = lazy(() =>
 );
 const DiffOverlay = lazy(() => import("./components/DiffOverlay").then((m) => ({ default: m.DiffOverlay })));
 import type { DiffTarget } from "./components/DiffOverlay";
-const EditorOverlay = lazy(() => import("./components/EditorOverlay").then((m) => ({ default: m.EditorOverlay })));
+const EditorWorkspaceLazy = lazy(() =>
+  import("./components/editor/EditorWorkspace").then((m) => ({ default: m.EditorWorkspace }))
+);
 const PrototypePanel = lazy(() => import("./components/PrototypePanel").then((m) => ({ default: m.PrototypePanel })));
 const DesignPreview = lazy(() => import("./components/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 const PrototypeDesignPanel = lazy(() =>
@@ -277,7 +278,6 @@ export function App(): JSX.Element {
     dirtyFiles: editorDirtyFiles,
     anyDirty: editorDirty,
   } = editorWorkspace;
-  const editorDirtySet = useMemo(() => new Set(editorDirtyFiles), [editorDirtyFiles]);
   // Back-compat view for consumers keyed on the old tri-state (composer dock,
   // rail active state) and the settings hook's dispatcher.
   const mainView: "chat" | "settings" | "plugins" =
@@ -2315,45 +2315,29 @@ export function App(): JSX.Element {
             />
           </div>
         ) : activeTab.kind === "editor" && editorOpenFiles.length > 0 ? (
-          <div className="ui-sheet ui-editor-workspace">
-            <EditorTabBar
-              files={editorOpenFiles}
-              activeFile={editorWorkspace.activeFile}
-              dirtyFiles={editorDirtySet}
-              onSelect={editorWorkspace.setActiveFile}
-              onCloseRequest={requestCloseEditorFile}
-            />
-            {editorWorkspace.activeFile ? (
-              <Suspense
-                fallback={
-                  <div className="ui-editor-empty">
-                    <span className="ui-spinner" /> {t("editor.loading")}
-                  </div>
-                }
-              >
-                <EditorOverlay
-                  filePath={editorWorkspace.activeFile}
-                  onClose={() => {
-                    // The overlay's own dirty-confirm ran before this — close
-                    // the file directly. Closing the last file drops the chip.
-                    const file = editorWorkspace.activeFile;
-                    if (file) workspaceCloseFile(file);
-                    if (editorOpenFiles.length <= 1) handleCloseAuxTab("editor");
-                  }}
-                  appearance={appearance}
-                  inline
-                  onContentChange={workspaceSetDraft}
-                  onSaved={workspaceMarkSaved}
-                  onAskAgent={(prompt) => {
-                    // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
-                    // 切回会话主视图让用户看到实时输出。
-                    setActiveTab({ kind: "chat" });
-                    setMainView("chat");
-                    void runPrompt({ text: prompt });
-                  }}
-                />
-              </Suspense>
-            ) : null}
+          <div className="ui-sheet">
+            <Suspense
+              fallback={
+                <div className="ui-editor-empty">
+                  <span className="ui-spinner" /> {t("editor.loading")}
+                </div>
+              }
+            >
+              <EditorWorkspaceLazy
+                store={editorWorkspace}
+                appearance={appearance}
+                onRequestCloseFile={requestCloseEditorFile}
+                onContentChange={workspaceSetDraft}
+                onSaved={workspaceMarkSaved}
+                onAskAgent={(prompt) => {
+                  // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
+                  // 切回会话主视图让用户看到实时输出。
+                  setActiveTab({ kind: "chat" });
+                  setMainView("chat");
+                  void runPrompt({ text: prompt });
+                }}
+              />
+            </Suspense>
           </div>
         ) : activeTab.kind === "knowledge" ? (
           <div className="ui-sheet">

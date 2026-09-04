@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 
 /** Per-file load/dirty bookkeeping for the editor workspace. */
@@ -19,6 +19,7 @@ export type EditorWorkspaceStore = {
   drafts: Map<string, string>;
   fileStates: Map<string, EditorFileState>;
   dirtyFiles: string[];
+  dirtyFilesSet: ReadonlySet<string>;
   anyDirty: boolean;
   /** Open a file (deduped) and make it active; first open reads it from disk. */
   openFile: (file: string) => void;
@@ -154,10 +155,15 @@ export function useEditorWorkspace(): EditorWorkspaceStore {
     setFileStates(new Map());
   }, []);
 
-  const dirtyFiles = openFiles.filter((file) => {
-    const state = fileStates.get(file);
-    return Boolean(state?.loaded) && drafts.get(file) !== state?.saved;
-  });
+  const dirtyFilesSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const file of openFiles) {
+      const state = fileStates.get(file);
+      if (state?.loaded && drafts.get(file) !== state.saved) set.add(file);
+    }
+    return set;
+  }, [openFiles, fileStates, drafts]);
+  const dirtyFiles = useMemo(() => Array.from(dirtyFilesSet), [dirtyFilesSet]);
 
   return {
     openFiles,
@@ -165,7 +171,8 @@ export function useEditorWorkspace(): EditorWorkspaceStore {
     drafts,
     fileStates,
     dirtyFiles,
-    anyDirty: dirtyFiles.length > 0,
+    dirtyFilesSet,
+    anyDirty: dirtyFilesSet.size > 0,
     openFile,
     closeFile,
     setActiveFile,
