@@ -307,3 +307,98 @@ export function migrateLegacyUsageIntoLedger(indexPath: string): number {
   });
   return entries.length;
 }
+
+// ── 模型详情（specs/token-model-charts）：热力图 + 速度窗口 ────────────────
+
+export interface ModelHeatCell {
+  /** Local calendar day key, yyyy-MM-dd ascending. */
+  day: string;
+  /** Local hour 0–23. */
+  hour: number;
+  model: string;
+  tokens: number;
+  reqs: number;
+}
+
+export interface ModelSpeed {
+  model: string;
+  /** Median completion tok/s over the model's recent samples. */
+  tokS: number;
+  /** Speed samples counted (records carrying elapsedMs). */
+  samples: number;
+}
+
+export interface WorkspaceModelDetail {
+  /** Local day keys covering the window, ascending (last `days` entries). */
+  days: string[];
+  heat: ModelHeatCell[];
+  /** Per-model median tok/s, fastest first. */
+  speeds: ModelSpeed[];
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function localDayKey(ms: number): string {
+  const d = new Date(ms);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** Median of a numeric array (standard: mean of the two middle values for even lengths). */
+export function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor((sorted.length - 1) / 2);
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid]! + sorted[mid + 1]!) / 2;
+}
+
+/**
+ * Aggregate the model-detail popup (specs/token-model-charts): a 7-day × 24h
+ * per-model token heatmap from the ledger timestamps, plus per-model speed
+ * medians from records carrying `elapsedMs`. Pure over its inputs — `now` is
+ * a clock seam for tests. Unsupported: pre-elapsedMs records simply don't
+ * appear in speeds; the heatmap covers them all.
+ */
+export function buildModelDetail(indexPath: string, days = 7, now: number = Date.now()): WorkspaceModelDetail {
+  const dayKeys: string[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    dayKeys.push(localDayKey(now - i * DAY_MS));
+  }
+  const daySet = new Set(dayKeys);
+
+  const heat = new Map<string, ModelHeatCell>();
+  const speedSamples = new Map<string, number[]>();
+  const ledger = readUsageLedger(usageLedgerPathForIndex(indexPath), now - LEDGER_READ_BOUND_MS);
+  for (const record of ledger) {
+    if (record.source === "backfill") continue;
+    const ts = Date.parse(record.ts);
+    if (!Number.isFinite(ts) || ts > now) continue;
+    const day = localDayKey(ts);
+    if (!daySet.has(day)) continue;
+    const hour = new Date(ts).getHours();
+    const key = `${day}|${hour}|${record.model}`;
+    const cell = heat.get(key) ?? { day, hour, model: record.model, tokens: 0, reqs: 0 };
+    cell.tokens += record.prompt + record.completion;
+    cell.reqs += 1;
+    heat.set(key, cell);
+    const elapsed = record.elapsedMs;
+    if (typeof elapsed === "number" && elapsed > 0 && record.completion > 0) {
+      const samples = speedSamples.get(record.model) ?? [];
+      samples.push(record.completion / (elapsed / 1000));
+      speedSamples.set(record.model, samples);
+    }
+  }
+
+  const speeds: ModelSpeed[] = [...speedSamples.entries()]
+    .map(([model, samples]) => ({ model, tokS: Math.round(median(samples) * 10) / 10, samples: samples.length }))
+    .sort((a, b) => b.tokS - a.tokS);
+
+  return {
+    days: dayKeys,
+    heat: [...heat.values()].sort(
+      (a, b) => a.day.localeCompare(b.day) || a.hour - b.hour || a.model.localeCompare(b.model)
+    ),
+    speeds,
+  };
+}

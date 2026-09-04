@@ -876,6 +876,9 @@ export abstract class SessionManagerBase {
         model: requestModel || "unknown",
         prompt: promptTokens,
         completion: completionTokens,
+        // Request start → accounting moment: feeds the model speed chart
+        // (specs/token-model-charts). Records without it are excluded there.
+        elapsedMs: Date.now() - startedAtMs,
         source,
         ...(sessionId ? { sessionId } : {}),
         estimated: true,

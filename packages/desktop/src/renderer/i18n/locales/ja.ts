@@ -764,6 +764,17 @@ export const ja: Record<MessageKey, string> = {
   "tokens.colReqs": "リクエスト",
   "tokens.emptyTitle": "トークン使用量はまだありません",
   "tokens.emptyHint": "プロンプトを実行すると、使用量がここに表示されます。",
+  "tokens.heatmap": "モデルヒートマップ",
+  "tokens.heatTitle": "呼び出しヒートマップ · 直近 7 日 × 24 時間（トークン量）",
+  "tokens.heatEmpty": "直近 7 日間の呼び出し記録はありません。",
+  "tokens.speedTitle": "モデル速度 · tok/s（直近 20 件の中央値）",
+  "tokens.speedEmpty": "速度サンプルはまだありません——本機能リリース後のリクエストが対象です。",
+  "tokens.speedOthers": "他 {n} モデル",
+  "tokens.collapse": "折りたたむ",
+  "tokens.reqCount": "{n} リクエスト",
+  "tokens.low": "低",
+  "tokens.high": "高",
+  "tokens.last7d": "直近 7 日",
 
   // ── Activity bar / main views ─────────────────────────────
   "rail.tasks": "タスク",

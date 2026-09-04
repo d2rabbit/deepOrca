@@ -740,6 +740,17 @@ export const zhHK: Record<MessageKey, string> = {
   "tokens.colReqs": "請求",
   "tokens.emptyTitle": "尚無 Token 用量",
   "tokens.emptyHint": "發起一次對話後，用量資料將顯示在這裡。",
+  "tokens.heatmap": "模型熱力圖",
+  "tokens.heatTitle": "呼叫熱力圖 · 近 7 天 × 24 小時（token 量）",
+  "tokens.heatEmpty": "近 7 天暫無呼叫資料。",
+  "tokens.speedTitle": "模型速度 · tok/s（最近 20 次中位數）",
+  "tokens.speedEmpty": "尚無速度樣本——本功能上線後的請求才會計入。",
+  "tokens.speedOthers": "其他 {n} 個模型",
+  "tokens.collapse": "收合",
+  "tokens.reqCount": "{n} 次請求",
+  "tokens.low": "低",
+  "tokens.high": "高",
+  "tokens.last7d": "近 7 天",
 
   // ── Activity bar / main views ─────────────────────────────
   "rail.tasks": "任務",

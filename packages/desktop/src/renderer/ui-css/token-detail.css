@@ -1,0 +1,250 @@
+/* ── Token 面板「模型热力图」弹窗（specs/token-model-charts）────────────────
+   覆盖层实现：开关不影响面板本身（互不打扰）。热力图为纯 div 像素网格。 */
+
+.ui-token-heat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  color: var(--ui-accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ui-ease),
+    color 0.14s var(--ui-ease);
+}
+.ui-token-heat-btn:hover {
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
+}
+
+.ui-token-heat-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(3px);
+}
+.ui-token-heat-modal {
+  width: min(600px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 14px;
+  box-shadow: var(--ui-shadow-modal);
+  padding: 16px 18px;
+  color: var(--ui-text);
+}
+.ui-token-heat-modal .m-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ui-token-heat-modal .m-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.ui-token-heat-modal .m-badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  color: var(--ui-accent);
+  font-weight: 600;
+}
+.ui-token-heat-modal .m-close {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint);
+  cursor: pointer;
+}
+.ui-token-heat-modal .m-close:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-token-heat-modal .blk-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-dim);
+  letter-spacing: 0.04em;
+  margin: 14px 0 8px;
+}
+
+/* chips：单模型切换（v2——无「全部」混合模式） */
+.ui-token-heat-modal .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.ui-token-heat-modal .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border-soft);
+  background: transparent;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+}
+.ui-token-heat-modal .chip:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-hover);
+}
+.ui-token-heat-modal .chip.on {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  font-weight: 600;
+}
+.ui-token-heat-modal .chip .swatch,
+.ui-token-heat-modal .spd .swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* 热力图：24 列 × 7 行像素网格 */
+.ui-token-heat-modal .hm {
+  display: grid;
+  grid-template-columns: 40px repeat(24, 1fr);
+  gap: 3px;
+  align-items: center;
+}
+.ui-token-heat-modal .hm .day-label {
+  font-size: 10px;
+  color: var(--ui-text-faint);
+  text-align: right;
+  padding-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.ui-token-heat-modal .hm .hour-row {
+  font-size: 9px;
+  color: var(--ui-text-faint);
+  text-align: center;
+}
+.ui-token-heat-modal .hm-cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--ui-surface-sunken);
+  cursor: default;
+}
+.ui-token-heat-modal .hm-cell:hover {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+.ui-token-heat-modal .hm-cell.now {
+  animation: ui-token-breathe 1.4s infinite;
+}
+@keyframes ui-token-breathe {
+  50% {
+    opacity: 0.4;
+  }
+}
+.ui-token-heat-modal .hm-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--ui-text-faint);
+}
+.ui-token-heat-modal .hm-legend i {
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.heat-empty {
+  padding: 10px 0;
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+}
+
+/* 速度对比：横向条形（Top5 + 其余收缩） */
+.ui-token-heat-modal .speeds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ui-token-heat-modal .spd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ui-token-heat-modal .spd .name {
+  flex: none;
+  width: 132px;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-token-heat-modal .spd .track {
+  flex: 1;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--ui-surface-sunken);
+  overflow: hidden;
+}
+.ui-token-heat-modal .spd .fill {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}
+.ui-token-heat-modal .spd .toks {
+  flex: none;
+  width: 104px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ui-token-heat-modal .spd .toks b {
+  color: var(--ui-text);
+  font-size: 12px;
+}
+.ui-token-heat-modal .collapsed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ui-text-dim);
+  background: var(--ui-surface-sunken);
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.ui-token-heat-modal .collapsed:hover {
+  color: var(--ui-accent);
+}
+.ui-token-heat-modal .collapsed .mini {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+}
+.ui-token-heat-modal .collapsed .mini i {
+  height: 8px;
+  border-radius: 4px;
+  display: inline-block;
+  opacity: 0.55;
+}

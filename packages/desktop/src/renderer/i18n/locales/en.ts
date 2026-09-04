@@ -789,6 +789,17 @@ export const en = {
   "tokens.colReqs": "Reqs",
   "tokens.emptyTitle": "No token usage yet",
   "tokens.emptyHint": "Run a prompt and usage will appear here.",
+  "tokens.heatmap": "Model heatmap",
+  "tokens.heatTitle": "Call heatmap · last 7 days × 24 hours (tokens)",
+  "tokens.heatEmpty": "No calls recorded in the last 7 days.",
+  "tokens.speedTitle": "Model speed · tok/s (median of last 20 requests)",
+  "tokens.speedEmpty": "No speed samples yet — speed needs at least one request since this feature landed.",
+  "tokens.speedOthers": "{n} more models",
+  "tokens.collapse": "Collapse",
+  "tokens.reqCount": "{n} reqs",
+  "tokens.low": "Low",
+  "tokens.high": "High",
+  "tokens.last7d": "last 7 days",
 
   // ── Activity bar / main views (VSCode-style) ──────────────
   "rail.tasks": "Tasks",

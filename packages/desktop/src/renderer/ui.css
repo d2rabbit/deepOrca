@@ -50,3 +50,6 @@
 /* Task hub — the workspace task tree (domain pills, tree column, detail card) */
 @import url("./ui-css/task-hub.css");
 @import url("./ui-css/activity-rail.css");
+
+/* Token model-detail popup — pixel heatmap + live speed bars (token-model-charts) */
+@import url("./ui-css/token-detail.css");

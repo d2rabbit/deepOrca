@@ -759,6 +759,17 @@ export const ko: Record<MessageKey, string> = {
   "tokens.colReqs": "요청",
   "tokens.emptyTitle": "아직 토큰 사용량이 없습니다",
   "tokens.emptyHint": "프롬프트를 실행하면 사용량이 여기에 표시됩니다.",
+  "tokens.heatmap": "모델 히트맵",
+  "tokens.heatTitle": "호출 히트맵 · 최근 7일 × 24시간 (토큰량)",
+  "tokens.heatEmpty": "최근 7일간 호출 기록이 없습니다.",
+  "tokens.speedTitle": "모델 속도 · tok/s (최근 20회 중앙값)",
+  "tokens.speedEmpty": "속도 샘플이 아직 없습니다——이 기능 출시 이후의 요청부터 집계됩니다.",
+  "tokens.speedOthers": "다른 {n}개 모델",
+  "tokens.collapse": "접기",
+  "tokens.reqCount": "{n}회 요청",
+  "tokens.low": "낮음",
+  "tokens.high": "높음",
+  "tokens.last7d": "최근 7일",
 
   // ── Activity bar / main views ─────────────────────────────
   "rail.tasks": "작업",

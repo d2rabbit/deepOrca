@@ -26,6 +26,12 @@ export type UsageRecord = {
   prompt: number;
   /** Locally counted completion side (content + reasoning + tool calls). */
   completion: number;
+  /**
+   * Wall-clock elapsed for the request (request start → accounting moment,
+   * milliseconds). Optional: records predating the speed chart (specs/
+   * token-model-charts P1) don't carry it and are excluded from tok/s stats.
+   */
+  elapsedMs?: number;
   source: UsageSource;
   sessionId?: string;
   /** Local counts are estimates by construction — UI surfaces a "≈". */

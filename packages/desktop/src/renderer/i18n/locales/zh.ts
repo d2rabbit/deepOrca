@@ -762,6 +762,17 @@ export const zh: Record<MessageKey, string> = {
   "tokens.colReqs": "请求",
   "tokens.emptyTitle": "暂无 Token 消耗",
   "tokens.emptyHint": "发起一次对话后，消耗数据将显示在这里。",
+  "tokens.heatmap": "模型热力图",
+  "tokens.heatTitle": "调用热力图 · 近 7 天 × 24 小时（token 量）",
+  "tokens.heatEmpty": "近 7 天暂无调用数据。",
+  "tokens.speedTitle": "模型速度 · tok/s（最近 20 次中位数）",
+  "tokens.speedEmpty": "暂无速度样本——本功能上线后的请求才会计入。",
+  "tokens.speedOthers": "其他 {n} 个模型",
+  "tokens.collapse": "收起",
+  "tokens.reqCount": "{n} 次请求",
+  "tokens.low": "低",
+  "tokens.high": "高",
+  "tokens.last7d": "近 7 天",
 
   // ── Activity bar / main views (VSCode-style) ──────────────
   "rail.tasks": "任务",

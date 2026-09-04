@@ -187,6 +187,8 @@ export const IpcRequest = {
    *  .deeporca, or a git-linked independent branch + temp worktree. */
   TaskTreeForkWorkspace: "tasktree:forkWorkspace",
   TokensSummary: "tokens:summary",
+  /** Model-detail popup (specs/token-model-charts): heatmap + speed window. */
+  TokensModelDetail: "tokens:modelDetail",
   TaskTreeReflog: "tasktree:reflog",
   TaskTreeTrajectory: "tasktree:trajectory",
   TaskTreeArchive: "tasktree:archive",
@@ -456,6 +458,29 @@ export type WorkspaceTokenSummary = {
   windowsApproximate: boolean;
   /** Estimated USD spend (built-in price table); null when nothing priced. */
   costUsd: number | null;
+};
+
+/** One heatmap cell of the model-detail popup (specs/token-model-charts). */
+export type ModelHeatCell = {
+  /** Local calendar day key, yyyy-MM-dd ascending. */
+  day: string;
+  /** Local hour 0–23. */
+  hour: number;
+  model: string;
+  tokens: number;
+  reqs: number;
+};
+
+/** Per-model median completion speed over the model's recent samples. */
+export type ModelSpeed = { model: string; tokS: number; samples: number };
+
+/** Payload of `tokens:modelDetail` — 7-day × 24h heatmap + speed medians. */
+export type WorkspaceModelDetail = {
+  /** Local day keys covering the window, ascending. */
+  days: string[];
+  heat: ModelHeatCell[];
+  /** Per-model median tok/s, fastest first. */
+  speeds: ModelSpeed[];
 };
 
 /** Settled index/knowledge build job (`.deeporca/jobs/<id>.json`). */
@@ -1155,6 +1180,8 @@ export type DesktopApi = {
   >;
   /** Whole-workspace LLM token accounting (silent subagents included). */
   tokensSummary(root: string): Promise<WorkspaceTokenSummary>;
+  /** Model-detail popup payload (specs/token-model-charts): heatmap + speeds. */
+  tokensModelDetail(root: string, days?: number): Promise<WorkspaceModelDetail>;
   /** Subscribe to streaming CRG build output. Returns unsubscribe fn. */
   onCrgProgress(cb: (event: CrgProgressEvent) => void): () => void;
 

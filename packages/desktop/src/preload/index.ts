@@ -113,6 +113,7 @@ const api: DesktopApi = {
   taskTreeForkWorkspace: (treeId, why, opts, root) =>
     ipcRenderer.invoke(IpcRequest.TaskTreeForkWorkspace, treeId, why, opts, root),
   tokensSummary: (root) => ipcRenderer.invoke(IpcRequest.TokensSummary, root),
+  tokensModelDetail: (root, days) => ipcRenderer.invoke(IpcRequest.TokensModelDetail, root, days),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────

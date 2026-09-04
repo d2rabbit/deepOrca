@@ -93,6 +93,7 @@ import { BINDING_LIMIT, buildRiskGraphData, getRiskOverviewCached } from "./tool
 import { buildTaskHub } from "./tools/task-hub.js";
 import { normalizeSessionTrace, readSessionTraceSource } from "./tools/session-trace.js";
 import {
+  buildModelDetail,
   buildTokenSummary,
   emptyTokenSummary,
   migrateLegacyUsageIntoLedger,
@@ -1845,6 +1846,16 @@ function registerTaskTreeIpc({ handle, handlePrivileged }: IpcHelpers): void {
     // migrateLegacyUsageIntoLedger) so exact time windows cover old data too.
     migrateLegacyUsageIntoLedger(indexPath);
     return buildTokenSummary(pinned, indexPath);
+  });
+  // Model-detail popup (specs/token-model-charts): heatmap + speed medians.
+  // Same registered-root pinning as TokensSummary — unregistered → empty.
+  handle(IpcRequest.TokensModelDetail, (workspaceRoot?: string, days?: number) => {
+    const active = getBridge()?.projectRoot ?? "";
+    const pinned = workspaceRoot ? resolveRegisteredRoot(workspaceRoot) : active;
+    if (!pinned) return { days: [], heat: [], speeds: [] };
+    const indexPath = projectSessionsIndexPath(getUserConfigRoot(), pinned);
+    migrateLegacyUsageIntoLedger(indexPath);
+    return buildModelDetail(indexPath, typeof days === "number" && days > 0 ? Math.min(14, Math.floor(days)) : 7);
   });
   handle(IpcRequest.TaskTreeGet, async (treeId: string, workspaceRoot?: string) => {
     if (!validTreeId(treeId)) return null;
