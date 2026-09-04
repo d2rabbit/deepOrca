@@ -42,10 +42,19 @@
   memory-audit P0 → [数据门被用户拍板跳过] → P1 合成审核 + P2 受控写回 → spec 归档
   depth-lane 激活（next-version → specs/）→ P0 网关 + P1 重轨 S1-S5 + P2.1/2.2 落地
   CMB-6 对账表 ✅；CMB-8 充分性二轮 ✅；CMB-10 遥测 ✅；CMB-9/11 ❌ 决策关闭（触发条件保留）
-留位（代码就绪/默认关闭，非欠账）:
-  depth-lane P2.3/P2.4（追问率与负反馈遥测公式、autoTune——需生产数据）与 X.*（桌面 lane 徽标 + i18n ×6）
-  memory-audit P3（通用规则/SOP 萃取通道——另行立项）
-  观察项消费：G0/召回遥测积累后按 specs/depth-lane tasks P0.9 口径出报告
+2026-09-04 GVGL 真机验证批（用户授权，workspace=GVGL，真模型/真数据）:
+  Tier1 网关: 真实 prompt 五路径全命中(l1-keyword/l2-flash/fail-open), G0 遥测五事件落地;
+    该端点 L2 空评分率 2/4 → fail-open 全部正确兜底(观察日志项)
+  Tier2 P2.3/2.4: lane-rates.ts 落地 + 真实历史首跑(3 会话: 追问率 0.33, deep 率 null,
+    autoTune 50→50.17) —— 原「留位」转「已落地+真实校准」
+  Tier3 重轨: 真机全链 102s/37msg/S5 六段报告齐全; 顺带修复 AbortSignal 监听器告警
+  Tier4 desktop 全量打包 exit=0
+  P3 延伸: specs/sop-extraction 立项并落地(memory.distill; memory-audit P3 闭环)
+留位（更新后）:
+  X.*（桌面 lane 徽标 + i18n×6 + 设置面板率只读展示）——待 enabled 生产开启后有物可显
+  P2.3 embedding 余弦精确阈值标定与 autoTune 开闸——需生产数据量（公式与插槽已就绪并经真实首跑）
+  sop-extraction P2 行为侧/召回侧连接器——待 ActionContext 宿主 seam
+  观察项消费：G0/召回遥测积累后按 specs/depth-lane tasks P0.9 口径出正式占比报告
 ```
 
 ## 五、决策门清单（集中登记）

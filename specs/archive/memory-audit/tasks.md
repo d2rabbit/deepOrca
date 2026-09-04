@@ -33,4 +33,4 @@
 
 ## P3（可选）泛化 —— 另行立项，不阻塞收官（流转口径 1）
 
-- [ ] proposal 管线抽成通用"规则/SOP 萃取"通道（对齐 `specs/archive/memory-remediation/` §五 2 空白区与 `core/skill/`）；行为侧（activity-frames）+ 召回侧（L0–L3）证据纳入——**另行立项，不在本 spec 排期**
+- [x] proposal 管线抽成通用"规则/SOP 萃取"通道 —— **已延伸立项并落地（2026-09-04）：[specs/sop-extraction/](../../sop-extraction/design.md)**（memory.distill action；行为侧/召回侧连接器留其 P2 待宿主 seam）

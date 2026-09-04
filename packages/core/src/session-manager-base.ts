@@ -56,6 +56,8 @@ import {
   designAuditRun,
   memoryAuditDefinition,
   memoryAuditRun,
+  memoryDistillDefinition,
+  memoryDistillRun,
   prototypeSpecDefinition,
   prototypeSpecRun,
   prototypeMaterializeDefinition,
@@ -432,6 +434,9 @@ export abstract class SessionManagerBase {
     // ── Memory audit P0 (specs/memory-audit): deterministic evidence scan over
     // own session history — read-only, no LLM, gates whether P1 gets built ──
     this.actionRegistry.register(memoryAuditDefinition, memoryAuditRun);
+    // ── SOP extraction (specs/sop-extraction): the success-driven twin —
+    // distills reusable SOPs from what sessions did; shared review store ────
+    this.actionRegistry.register(memoryDistillDefinition, memoryDistillRun);
     // ── Prototype module (design-module split): 需求 → 需求文档 → 原型图 —
     // two explicit steps, no auto-routing (real-machine feedback) ──────────
     this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);

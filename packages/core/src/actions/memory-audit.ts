@@ -174,11 +174,11 @@ const SNAPSHOT_KEEP = 10;
 
 /** Index entries are semi-trusted storage — a corrupt/hand-edited id must
  *  never turn into a path traversal out of the project store. */
-function isSafeSessionId(id: string): boolean {
+export function isSafeSessionId(id: string): boolean {
   return /^[A-Za-z0-9._-]+$/.test(id) && !id.includes("..");
 }
 
-function clip(text: string): string {
+export function clip(text: string): string {
   return text.length > MESSAGE_CLIP ? `${text.slice(0, MESSAGE_CLIP)}…` : text;
 }
 
@@ -362,10 +362,15 @@ function aggregate(
 
 // ── Snapshot write (dryRun=false only) ──────────────────────────────────────
 
+/** Audits store dir (legacy `.deepcode` root honored) — shared with memory.distill. */
+export function getProjectConfigRootAuditRoot(projectRoot: string): string {
+  return path.join(getProjectConfigRoot(projectRoot), "audits");
+}
+
 function writeSnapshot(projectRoot: string, output: Omit<MemoryAuditOutput, "snapshotPath">): string {
   // getProjectConfigRoot honors a legacy `.deepcode` root when present — the
   // same dual-root discipline as the reviews store.
-  const dir = path.join(getProjectConfigRoot(projectRoot), "audits");
+  const dir = getProjectConfigRootAuditRoot(projectRoot);
   fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = path.join(dir, `memory-audit-${stamp}.json`);
@@ -390,11 +395,11 @@ function writeSnapshot(projectRoot: string, output: Omit<MemoryAuditOutput, "sna
 /** Max proposals per run (backpass's 5-edit budget; overflow shrinks, never grows). */
 const MAX_PROPOSALS = 5;
 
-function sha8(text: string): string {
+export function sha8(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 8);
 }
 
-function proposalKeyOf(p: {
+export function proposalKeyOf(p: {
   action: string;
   target: string;
   ruleText?: string;
@@ -404,13 +409,13 @@ function proposalKeyOf(p: {
   return `${p.action}:${p.target}:${sha8(p.ruleText ?? p.diffHint ?? p.rationale ?? "")}`;
 }
 
-type RejectionStore = Record<string, { verdict: "accept" | "reject" | "skip"; note?: string; at: string }>;
+export type RejectionStore = Record<string, { verdict: "accept" | "reject" | "skip"; note?: string; at: string }>;
 
 function rejectionsPath(projectRoot: string): string {
   return path.join(getProjectConfigRoot(projectRoot), "audits", "rejections.json");
 }
 
-function loadRejections(projectRoot: string): RejectionStore {
+export function loadRejections(projectRoot: string): RejectionStore {
   try {
     const parsed = JSON.parse(fs.readFileSync(rejectionsPath(projectRoot), "utf8")) as RejectionStore;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -419,7 +424,7 @@ function loadRejections(projectRoot: string): RejectionStore {
   }
 }
 
-function saveRejections(projectRoot: string, store: RejectionStore): void {
+export function saveRejections(projectRoot: string, store: RejectionStore): void {
   const file = rejectionsPath(projectRoot);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(store, null, 2), "utf8");

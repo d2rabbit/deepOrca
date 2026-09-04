@@ -133,6 +133,14 @@ export type {
   DesignAuditAxes,
 } from "./design-audit";
 export { memoryAuditDefinition, memoryAuditRun } from "./memory-audit";
+export { memoryDistillDefinition, memoryDistillRun } from "./memory-distill";
+export type {
+  MemoryDistillInput,
+  MemoryDistillOutput,
+  DistillProposal,
+  DistillAction,
+  SessionDigest,
+} from "./memory-distill";
 export type {
   MemoryAuditInput,
   MemoryAuditOutput,
