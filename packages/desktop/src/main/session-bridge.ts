@@ -330,6 +330,9 @@ export class SessionBridge {
         }
         this.emit(IpcEvent.SessionEntryUpdated, toSerializableEntry(entry));
       },
+      onDepthLaneProgress: (event) => {
+        this.emit(IpcEvent.DepthLaneProgress, { root: this.projectRoot, ...event });
+      },
       onLlmStreamProgress: (progress) => {
         this.emit(IpcEvent.LlmStreamProgress, progress);
       },

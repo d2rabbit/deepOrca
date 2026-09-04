@@ -304,6 +304,12 @@ export {
   configureRoutingLogger,
   closeEmbeddingService,
   getEmbeddingLoadError,
+  computeLaneRates,
+  autoTuneThreshold,
+  collectLaneRateSessions,
+  evaluateL1Rules,
+  type LaneRateSession,
+  type LaneRatesReport,
 } from "./routing";
 
 // A2UI MCP seam — desktop injects the server builder + lifecycle at boot.

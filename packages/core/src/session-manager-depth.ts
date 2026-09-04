@@ -187,6 +187,19 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
   }
 
   /** The 5-stage state machine. Every stage boundary checks the abort signal. */
+  /** X.3: relay a stage transition to the host seam — best-effort only. */
+  private emitStage(
+    sessionId: string,
+    stage: "s1" | "s1.5" | "s2" | "s3" | "s4" | "s5" | "done",
+    extra?: { round?: number; totalRounds?: number; detail?: string; done?: boolean }
+  ): void {
+    try {
+      this.onDepthLaneProgress?.({ sessionId, stage, ...extra });
+    } catch {
+      // Observability must never break the lane.
+    }
+  }
+
   private async runDepthLane(sessionId: string, controller?: AbortController): Promise<void> {
     const gate = this.getComplexityGate();
     const userTask = this.getDepthLaneUserTask(sessionId);
@@ -215,6 +228,7 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
       // ── S1 情境编译：the existing chain + main ReAct loop (Gate Directive
       // rides the turn tail via buildLaneTurnTail). Evidence IS the loop's
       // tool activity.
+      this.emitStage(sessionId, "s1");
       await this.activateSession(sessionId, controller);
       this.throwIfAborted(stageController.signal);
       // NOTE: the controller-map-based isInterrupted() is unusable here — S1
@@ -232,6 +246,7 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
 
       // ── S1.5 证据闸：deterministic first, flash fallback, one bounded top-up.
       const evidenceCount = this.countSessionEvidence(sessionId);
+      this.emitStage(sessionId, "s1.5", { detail: `evidence=${evidenceCount}` });
       let sufficient = evidenceCount >= DEPTH_LANE_EVIDENCE_MIN_RESULTS;
       if (!sufficient) {
         const flashVerdict = await this.judgeEvidenceSufficiency(userTask, stageController.signal);
@@ -253,10 +268,17 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
       // ── S2 → S3 → S4 with the convergence back-edge (P2.2).
       while (state.round < maxRounds) {
         state.round += 1;
+        this.emitStage(sessionId, "s2", { round: state.round, totalRounds: maxRounds, detail: `paths=${k}` });
         state.paths = await this.runDivergence(sessionId, userTask, k, state, stageController.signal);
         this.throwIfAborted(stageController.signal);
-        state.redTeam = k > 1 ? await this.runRedTeam(userTask, state.paths, stageController.signal) : null;
+        if (k > 1) {
+          this.emitStage(sessionId, "s3", { round: state.round, totalRounds: maxRounds });
+          state.redTeam = await this.runRedTeam(userTask, state.paths, stageController.signal);
+        } else {
+          state.redTeam = null;
+        }
         this.throwIfAborted(stageController.signal);
+        this.emitStage(sessionId, "s4", { round: state.round, totalRounds: maxRounds });
         state.fusion = await this.runFusion(userTask, state, stageController.signal);
         this.throwIfAborted(stageController.signal);
         state.converged = isConverged(state.paths);
@@ -265,7 +287,13 @@ export abstract class SessionManagerDepth extends SessionManagerTasks {
       }
 
       // ── S5 判定输出.
+      this.emitStage(sessionId, "s5", {
+        round: state.round,
+        totalRounds: maxRounds,
+        detail: state.converged ? "converged" : "round-cap",
+      });
       this.emitDepthReport(sessionId, userTask, state);
+      this.emitStage(sessionId, "done", { done: true });
     } catch (error) {
       if (this.isAbortLikeError(error) || stageController.signal.aborted) {
         // Clean stop: the interrupt path has already stamped status.

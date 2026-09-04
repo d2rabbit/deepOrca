@@ -45,6 +45,36 @@ export const en = {
 
   "sidebar.laneDeep": "Deep",
 
+  "depth.stripTitle": "Deep lane",
+
+  "depth.stageS1": "S1 context compile",
+
+  "depth.stageS15": "S1.5 evidence gate",
+
+  "depth.stageS2": "S2 divergence",
+
+  "depth.stageS3": "S3 red-team",
+
+  "depth.stageS4": "S4 fusion",
+
+  "depth.stageS5": "S5 verdict report",
+
+  "depth.stageDone": "done",
+
+  "settings.lane.title": "Lane observation (read-only)",
+
+  "settings.lane.loading": "Loading…",
+
+  "settings.lane.empty":
+    "No lane data yet — enable complexityGate and use the app; rates accumulate from real sessions.",
+
+  "settings.lane.followUp": "follow-up rate",
+
+  "settings.lane.negative": "negative-feedback rate",
+
+  "settings.lane.note":
+    "Observation only — autoTune stays off; rates feed the threshold decision (retro sessions use the L1 proxy).",
+
   "sidebar.laneExpressTip": "Express lane — direct answer path",
 
   "sidebar.laneDeepTip": "Depth lane — multi-path deliberation report",

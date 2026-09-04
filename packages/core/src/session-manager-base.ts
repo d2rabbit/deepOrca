@@ -123,7 +123,7 @@ import { type ToolDefinition, getCurrentTurnTail, getTools } from "./prompt";
 import { withStreamIdleTimeout } from "./session-stream";
 import type { BackgroundLlmTaskOptions, BackgroundLlmTaskResult, RunSubagentOptions } from "./actions";
 import type { McpServerConfig, PermissionSettings } from "./settings";
-import type { MessageMeta, SkillInfo, UserPromptContent } from "./session-types";
+import type { DepthLaneProgressPayload, MessageMeta, SkillInfo, UserPromptContent } from "./session-types";
 import type { BashSandboxSpawner, WebPageFetcher } from "./common/tool-types";
 import type { SandboxBackend, SandboxBackendStatus, SandboxProbeResult } from "./sandbox/backend/interface";
 import type {
@@ -192,6 +192,8 @@ export abstract class SessionManagerBase {
   protected readonly getResolvedSettings: () => SessionResolvedSettings;
 
   protected readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
+  /** Depth-lane stage progress seam (specs/depth-lane X.3) — best-effort. */
+  protected readonly onDepthLaneProgress?: (event: DepthLaneProgressPayload) => void;
 
   protected readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
 
@@ -359,6 +361,7 @@ export abstract class SessionManagerBase {
     this.toolExecutionGate.register("permissions", this.permissionGateListener);
     this.getResolvedSettings = options.getResolvedSettings;
     this.onAssistantMessage = options.onAssistantMessage;
+    this.onDepthLaneProgress = options.onDepthLaneProgress;
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;

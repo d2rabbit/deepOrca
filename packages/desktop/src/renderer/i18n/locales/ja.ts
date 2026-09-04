@@ -46,6 +46,35 @@ export const ja: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "深度",
 
+  "depth.stripTitle": "深度レーン",
+
+  "depth.stageS1": "S1 コンテキスト編譯",
+
+  "depth.stageS15": "S1.5 証拠ゲート",
+
+  "depth.stageS2": "S2 分岐生成",
+
+  "depth.stageS3": "S3 レッドチーム",
+
+  "depth.stageS4": "S4 融合キャリブレーション",
+
+  "depth.stageS5": "S5 判定レポート",
+
+  "depth.stageDone": "完了",
+
+  "settings.lane.title": "レーン観察（読み取り専用）",
+
+  "settings.lane.loading": "読み込み中…",
+
+  "settings.lane.empty":
+    "レーンデータなし——complexityGate を有効化して利用すると自動蓄積されます（過去セッションは L1 プロキシで遡及）",
+
+  "settings.lane.followUp": "追問率",
+
+  "settings.lane.negative": "ネガティブフィードバック率",
+
+  "settings.lane.note": "観察のみ——autoTune はオフのまま。比率は閾値決定に使用（遡及セッションは L1 プロキシ）",
+
   "sidebar.laneExpressTip": "高速レーン：直接回答パス",
 
   "sidebar.laneDeepTip": "深度レーン：複数経路の検討レポート",

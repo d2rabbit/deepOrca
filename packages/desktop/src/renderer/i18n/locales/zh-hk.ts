@@ -47,6 +47,34 @@ export const zhHK: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "重軌",
 
+  "depth.stripTitle": "重軌",
+
+  "depth.stageS1": "S1 情境編譯",
+
+  "depth.stageS15": "S1.5 證據閘",
+
+  "depth.stageS2": "S2 分歧生成",
+
+  "depth.stageS3": "S3 對抗測試",
+
+  "depth.stageS4": "S4 融合校準",
+
+  "depth.stageS5": "S5 判定輸出",
+
+  "depth.stageDone": "完成",
+
+  "settings.lane.title": "車道觀察（唯讀）",
+
+  "settings.lane.loading": "載入中…",
+
+  "settings.lane.empty": "暫無車道資料——開啟 complexityGate 後正常使用即自動累積（歷史會話按 L1 代理回溯）",
+
+  "settings.lane.followUp": "追問率",
+
+  "settings.lane.negative": "負回饋率",
+
+  "settings.lane.note": "僅觀察——autoTune 保持關閉；比率用於閾值決策（回溯會話採 L1 代理標記）",
+
   "sidebar.laneExpressTip": "輕軌：直接作答路徑",
 
   "sidebar.laneDeepTip": "重軌：多路徑推演決策報告",

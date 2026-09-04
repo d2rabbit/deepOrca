@@ -47,6 +47,34 @@ export const zh: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "重轨",
 
+  "depth.stripTitle": "重轨",
+
+  "depth.stageS1": "S1 情境编译",
+
+  "depth.stageS15": "S1.5 证据闸",
+
+  "depth.stageS2": "S2 分歧生成",
+
+  "depth.stageS3": "S3 对抗测试",
+
+  "depth.stageS4": "S4 融合校准",
+
+  "depth.stageS5": "S5 判定输出",
+
+  "depth.stageDone": "完成",
+
+  "settings.lane.title": "车道观察（只读）",
+
+  "settings.lane.loading": "加载中…",
+
+  "settings.lane.empty": "暂无车道数据——开启 complexityGate 后正常使用即自动积累（历史会话按 L1 代理回溯）",
+
+  "settings.lane.followUp": "追问率",
+
+  "settings.lane.negative": "负反馈率",
+
+  "settings.lane.note": "仅观察——autoTune 保持关闭；比率用于阈值决策（回溯会话采用 L1 代理标记）",
+
   "sidebar.laneExpressTip": "轻轨：直接作答路径",
 
   "sidebar.laneDeepTip": "重轨：多路径推演决策报告",

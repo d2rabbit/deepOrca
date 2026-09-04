@@ -56,6 +56,7 @@ function createDepthHarness(complexityGate: Record<string, unknown>): DepthHarne
   const depthLlmCalls: DepthLlmCall[] = [];
   const backgroundCalls: Array<Record<string, unknown>> = [];
   const harness: DepthHarness = {
+    stageEvents: [] as string[],
     manager: null as unknown as SessionManager,
     activations,
     subagentCalls,
@@ -96,6 +97,10 @@ function createDepthHarness(complexityGate: Record<string, unknown>): DepthHarne
     }),
     renderMarkdown: (text: string) => text,
     onAssistantMessage: () => {},
+    // X.3: capture the stage-progress relay for sequence assertions.
+    onDepthLaneProgress: (event) => {
+      harness.stageEvents.push(`${event.stage}${event.round ? `#${event.round}` : ""}`);
+    },
   });
   harness.manager = manager;
   const stub = manager as unknown as Record<string, unknown>;
@@ -242,8 +247,10 @@ describe("depth lane staged flow", () => {
     assert.ok(report.includes("Adopt the incremental refactor"), "fused judgment surfaced");
     assert.ok(!report.includes("未收敛"), "converged round reports no warning");
     assert.equal(h.manager.getSession(sessionId)?.status, "completed");
-  });
 
+    // X.3: the stage relay fires the full sequence with round stamps on S2-S4.
+    assert.deepEqual(h.stageEvents, ["s1", "s1.5", "s2#1", "s3#1", "s4#1", "s5#1", "done"]);
+  });
   test("convergence loop respects the round cap and reports 未收敛 + 已给证据", async () => {
     const h = createDepthHarness({ enabled: true, depthLaneEnabled: true, maxRounds: 3 });
     // Main 90 vs conservative 20 → spread 70 every round → never converges.

@@ -1080,6 +1080,50 @@ button.ui-surface-chip {
   color: #e8a848;
 }
 
+/* Deep-lane stage strip (X.3) — slim, amber-accented, above the message list. */
+.ui-depth-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #9a9aa2);
+  background: color-mix(in srgb, #e8a848 7%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, #e8a848 16%, transparent);
+}
+.ui-depth-progress-stage {
+  font-family: var(--ui-font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* Lane observation section (P2.3 settings panel, read-only). */
+.ui-lane-obs-grid {
+  display: grid;
+  gap: 10px;
+  padding: 6px 0;
+}
+.ui-lane-obs-value {
+  font-family: var(--ui-font-mono);
+  font-size: 16px;
+  margin-left: 8px;
+}
+.ui-lane-obs-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--ui-text-dim, #9a9aa2);
+  margin-top: 2px;
+}
+.ui-lane-obs-note {
+  font-size: 11px;
+  color: var(--ui-text-dim, #9a9aa2);
+}
+.ui-lane-obs-empty,
+.ui-lane-obs-loading {
+  font-size: 12px;
+  color: var(--ui-text-dim, #9a9aa2);
+  padding: 4px 0;
+}
+
 .ui-session-time {
   margin-left: auto;
   font-size: 10.5px;

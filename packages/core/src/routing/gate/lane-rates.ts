@@ -127,6 +127,38 @@ export function computeLaneRates(
   };
 }
 
+// ── Session collector (host-facing; used by the desktop laneRates IPC) ──────
+
+/**
+ * Collect LaneRateSessions from a project's own storage (read-only): index
+ * entries + transcripts, L1-proxy lane for pre-gate sessions (undefined lane
+ * → deterministic L1 on the first prompt; L1 null maps to express, the same
+ * side fail-open lands on).
+ */
+export function collectLaneRateSessions(input: {
+  readIndex(): Array<{ id: string; isSilentSubagent?: boolean; lane?: "express" | "deep" }>;
+  readTranscript(
+    sessionId: string
+  ): Array<{ role?: string; content?: unknown; createTime?: string; meta?: { userPrompt?: { text?: string } } | null }>;
+  evaluateL1?: (text: string) => { lane: "express" | "deep" } | null;
+}): LaneRateSession[] {
+  const out: LaneRateSession[] = [];
+  for (const entry of input.readIndex()) {
+    if (entry.isSilentSubagent) continue;
+    const userMessages: Array<{ text: string; ts?: string }> = [];
+    for (const m of input.readTranscript(entry.id)) {
+      if (m.role !== "user") continue;
+      const text = m.meta?.userPrompt?.text ?? (typeof m.content === "string" ? m.content : "");
+      if (text && text.trim()) userMessages.push({ text, ts: m.createTime });
+    }
+    if (userMessages.length === 0) continue;
+    const l1 = input.evaluateL1?.(userMessages[0]!.text);
+    const lane: "express" | "deep" = entry.lane ?? (l1 ? l1.lane : "express");
+    out.push({ lane, userMessages });
+  }
+  return out;
+}
+
 /**
  * P2.4 autoTune: 新阈值 = 旧阈值 + 追问率*0.5 − 负反馈率*0.5, ±step clamp
  * (default 5) and hard-clamped to [30, 70]. null rates act as 0 (no signal →

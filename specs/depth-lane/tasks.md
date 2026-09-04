@@ -31,15 +31,15 @@
 
 - [x] P2.1 S3 red-team 子代理（击穿测试：反例/被忽略约束/不可逆风险） — runRedTeam 单个 silent 子代理，输出 {brokenPaths/ignoredConstraints/irreversibleRisks/verdict}；不可逆风险在 S5 报告「风险与红线」顶部标记需用户拍板（v1 以报告内仲裁替代阻塞式 AskUserQuestion，见交付说明的偏差记录）
 - [x] P2.2 S2 回边：不收敛 → 带对抗反馈重生成（轮次上限硬性） — 收敛判据失败时 red-team 发现注入下一轮 divergence prompt（"Previous-round red-team findings"），轮次 > maxRounds 硬停并输出「未收敛 + 已给证据」；回边恰好一次 + 反馈携带验证有测试
-- [x] P2.3 阈值遥测口径实现 — `routing/gate/lane-rates.ts`：追问率（10 分钟窗口 + 确定性 bigram 重叠首版，embedding 余弦经 `similarity` 插槽即插即用）+ 负反馈率（6 语言词表含繁体）；lane-rates.test.ts 7/7。**真实历史首跑（2026-09-04，GVGL+本仓 3 会话）**：追问率 0.33（GVGL 重复提问真实命中）、deep 率 null（无 deep 会话，诚实未定义）。设置面板只读展示留 X 面随徽标一并
+- [x] P2.3 阈值遥测口径实现 — `routing/gate/lane-rates.ts`：追问率（10 分钟窗口 + 确定性 bigram 重叠首版，embedding 余弦经 `similarity` 插槽即插即用）+ 负反馈率（6 语言词表含繁体）；lane-rates.test.ts 7/7。**真实历史首跑（2026-09-04，GVGL+本仓 3 会话）**：追问率 0.33（GVGL 重复提问真实命中）、deep 率 null（无 deep 会话，诚实未定义）。设置面板只读展示已随 X 面落地（`laneRates:get` root-pin IPC + 设置面板"车道观察"区块，i18n×6）
 - [x] P2.4 `autoTune` 公式 — `lane-rates.ts autoTuneThreshold`（±5 步进、钳制 [30,70]、null 率=无信号不动、formula 串即审计行）；**真实输入校准**：50 + 0.33*0.5 − 0 → 50.17（行为正常）。默认关闭不变（自动调参开闸仍需生产数据量）
 
 ## X 桌面最小面
 
 - [x] X.1 lane 徽标（会话卡，只读展示，不参与路由决策）— `LaneBadge.tsx`（express ⚡青/deep ▤琥珀双胶囊；设计链 mmx 生成参考 + VLM 14px 修正：纯色去渐变/去外框/粗杆短尾/粗条分层，参考图 `designs/lane-badge-reference.jpg`）；lane 经 SerializableSessionEntry spread 自动到 renderer，零 IPC 改动；dom-harness 测试 4/4
 - [x] X.2 i18n 新键 ×6 locale — sidebar.laneExpress/laneDeep/laneExpressTip/laneDeepTip 四键 ×6 目录（Record 完整性类型强制通过）；消息气泡位未做（会话卡已覆盖可见性，气泡位等真机反馈再定）
-- [ ] X.3 可选：重轨阶段进度事件（先在 `shared/ipc.ts` 定义通道常量再双边接线；禁止 renderer ad-hoc `ipcRenderer`）
-- [ ] X.4 真机冒烟：徽标展示、重轨阶段进度流、`interruptSession(sessionId)` 中断/暂停语义、权限/沙箱路径不受影响
+- [x] X.3 重轨阶段进度事件 — core `onDepthLaneProgress` seam（S1→done 全转移发射，best-effort 不入 lane）→ `IpcEvent.DepthLaneProgress`（root 戳）→ preload → `DepthLaneProgressStrip`（消息区上方阶段条，完成 4s 自隐；depth-lane.test 阶段序列断言 s1/s1.5/s2#1/s3#1/s4#1/s5#1/done）
+- [ ] X.4 真机冒烟 — **移交功能测试清单**（[docs/functional-test-checklist-2026-09-04.md](../../docs/functional-test-checklist-2026-09-04.md) C1-C5/G 节，用户执行）
 
 ## 收尾
 

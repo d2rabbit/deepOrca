@@ -36,6 +36,7 @@ import type {
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
+import { DepthLaneProgressStrip } from "./components/DepthLaneProgressStrip";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 import { QuestionCard } from "./components/QuestionCard";
@@ -85,16 +86,13 @@ const TaskHubWorkspace = lazy(() =>
 );
 import { GitMcpPanel } from "./components/GitMcpPanel";
 import { EditorPanel } from "./components/EditorPanel";
-import { UndoModal } from "./components/UndoModal";
-import { ShortcutsModal } from "./components/ShortcutsModal";
-import { WorkspaceTrustDialog } from "./components/WorkspaceTrustDialog";
+import { AppModals } from "./components/AppModals";
 import { ToastContainer, useToasts } from "./components/Toast";
 import { BuildConsolePanel } from "./components/BuildConsolePanel";
 import { StreamdownView } from "./components/StreamdownView";
 import { buildReviewFixPrompt, type ReviewFinding } from "./lib/review-fix";
 import { reviewStorePath, wikiStorePath } from "./lib/generated-paths";
 import { looksLikeLlmTransportError } from "./lib/llm-error";
-import { formatBuildError } from "./lib/build-error";
 import { BackgroundTaskBadge } from "./components/BackgroundTaskBadge";
 import { SerenaPanel } from "./components/SerenaPanel";
 import { scanSerenaEvents } from "./lib/serena-extract";
@@ -127,82 +125,18 @@ import {
   IconSun,
   IconUndo,
   IconSettings,
-  Modal,
-  Button,
 } from "./ui/index";
 import { cx } from "./ui/class-names";
 import { HubOrb, HubSheet } from "./components/HubSheet";
 import { QuickDock } from "./components/QuickDock";
 import { FailureBanner } from "./components/FailureBanner";
-
-type PendingPermissionReply = {
-  sessionId: string;
-  permissions: PermissionResult["permissions"];
-  alwaysAllows: PermissionResult["alwaysAllows"];
-  alwaysAllowPaths: PermissionResult["alwaysAllowPaths"];
-};
-
-/**
- * Picture-in-picture entry (real-machine ask 2026-08-27): a workspace whose
- * conversation is parked because the user switched to ANOTHER workspace. The
- * transcript is frozen at capture time (events for background roots are not
- * streamed into the view); returning re-selects the root and history reloads
- * fresh from disk, so freezing never loses anything.
- */
-type PipEntry = {
-  root: string;
-  label: string;
-  sessionId: string | null;
-  title: string | null;
-  /** Last turns at capture time, oldest→newest, capped slice. */
-  frozen: SessionMessage[];
-  /**
-   * Gate status AT CAPTURE TIME (ask_permission / waiting_for_user). Live
-   * flips for background roots are not streamed to this renderer, so this
-   * is a snapshot signal by design — returning to the root gives the live,
-   * full-fidelity state.
-   */
-  blockedAtCapture: boolean;
-};
-
-/** Extract the markdown plan from the newest UpdatePlan tool message, if any. */
-function findLatestPlan(messages: SessionMessage[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (!message || message.role !== "tool") continue;
-    const lines = getPlanLines(buildToolSummary(message));
-    if (lines.length > 0) return lines.join("\n");
-  }
-  return null;
-}
-
-/** The main-area tab model — module-level so the extracted ⌘K palette hook
- *  (use-command-items) can type its setActiveTab dep. */
-export type MainTab =
-  | { kind: "chat" }
-  | { kind: "settings" }
-  | { kind: "plugins" }
-  | { kind: "editor" }
-  | { kind: "knowledge"; root: string }
-  | { kind: "review"; root: string }
-  | { kind: "task"; treeId: string }
-  | { kind: "taskhub"; root: string };
-
-function syntheticUserMessage(sessionId: string, content: string): SessionMessage {
-  const now = new Date().toISOString();
-  return {
-    id: `synthetic-${Date.now()}`,
-    sessionId,
-    role: "user",
-    content,
-    contentParams: null,
-    messageParams: null,
-    compacted: false,
-    visible: true,
-    createTime: now,
-    updateTime: now,
-  };
-}
+import {
+  findLatestPlan,
+  syntheticUserMessage,
+  type MainTab,
+  type PendingPermissionReply,
+  type PipEntry,
+} from "./lib/app-models";
 
 export function App(): JSX.Element {
   const { t } = useI18n();
@@ -1681,6 +1615,7 @@ export function App(): JSX.Element {
         onRetry={(text) => void runPrompt({ text }, { showUser: false })}
         onOpenSettings={() => setActiveTab({ kind: "settings" })}
       />
+      <DepthLaneProgressStrip sessionId={activeId} />
       <MessageList
         messages={messages}
         hasActiveSession={!welcomeMode}
@@ -2460,6 +2395,7 @@ export function App(): JSX.Element {
           <div className="ui-settings-scrim" onClick={requestCloseSettings} aria-hidden />
           <div className="ui-settings-modal">
             <SettingsPanel
+              root={projectRoot}
               initial={editable}
               initialTab={settingsInitialTab}
               onSave={handleSaveSettings}
@@ -2651,123 +2587,40 @@ export function App(): JSX.Element {
         </Suspense>
       ) : null}
 
-      {modal === "undo" ? (
-        <UndoModal sessionId={activeId} onClose={() => setModal(null)} onRestored={() => void handleUndoRestored()} />
-      ) : null}
-
-      {/* Model-transport fault dialog — the build console keeps the full
-          detail; this exists so a broken endpoint is impossible to miss. */}
-      {modelFault ? (
-        <Modal
-          title={t("build.modelFaultTitle")}
-          subtitle={t("build.modelFaultBody")}
-          onClose={() => setModelFault(null)}
-          actions={
-            <Button variant="primary" onClick={() => setModelFault(null)}>
-              {t("build.modelFaultOk")}
-            </Button>
-          }
-        >
-          <div className="ui-model-fault-detail">{formatBuildError(modelFault, t)}</div>
-        </Modal>
-      ) : null}
-
-      {modal === "shortcuts" ? <ShortcutsModal platform={platform} onClose={() => setModal(null)} /> : null}
-
-      {/* Settings close confirmed by Esc / scrim / tab ✕ while edits are
-          unsaved — same dialog the panel's old close button used to show. */}
-      {modal === "discard-settings" ? (
-        <Modal
-          title={t("settings.unsavedTitle")}
-          subtitle={t("settings.unsavedBody")}
-          onClose={() => setModal(null)}
-          actions={
-            <>
-              <Button onClick={() => setModal(null)}>{t("common.cancel")}</Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setSettingsDirty(false);
-                  setModal(null);
-                  handleCloseAuxTab("settings");
-                }}
-              >
-                {t("settings.unsavedDiscard")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
-
-      {/* Editor workspace close while any sub-tab has unsaved edits — the
-          workspace-level guard (chip ✕ / Esc); per-file close guards live in
-          the workspace itself. */}
-      {modal === "discard-editor" ? (
-        <Modal
-          title={t("editor.workspace.closeDirtyTitle")}
-          subtitle={t("editor.workspace.closeDirtyBody")}
-          onClose={() => setModal(null)}
-          actions={
-            <>
-              <Button onClick={() => setModal(null)}>{t("common.cancel")}</Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setModal(null);
-                  closeEditorWorkspace();
-                }}
-              >
-                {t("editor.discardAndClose")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
-
-      {/* Per-file close confirm (sub-tab ✕ on a dirty file) — same dialog the
-          in-editor ✕ shows, so both close paths ask identically. */}
-      {editorFileClose ? (
-        <Modal
-          title={t("editor.closeDirtyTitle")}
-          subtitle={t("editor.closeDirtyBody")}
-          onClose={() => setEditorFileClose(null)}
-          actions={
-            <>
-              <Button onClick={() => setEditorFileClose(null)}>{t("common.cancel")}</Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  const file = editorFileClose;
-                  setEditorFileClose(null);
-                  if (file) closeEditorFile(file);
-                }}
-              >
-                {t("editor.discardAndClose")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
-
-      {trustAskOpen ? (
-        <WorkspaceTrustDialog busy={trustBusy} onSelect={(level) => void handleTrustSelect(level)} />
-      ) : null}
-
-      {branchConflict ? (
-        <Modal
-          title={t("scm.dirtySwitchTitle")}
-          subtitle={t("scm.dirtySwitchBody", { branch: branchConflict })}
-          onClose={() => setBranchConflict(null)}
-          actions={
-            <>
-              <Button onClick={() => setBranchConflict(null)}>{t("common.cancel")}</Button>
-              <Button variant="primary" disabled={stashSwitching} onClick={() => void handleStashAndSwitch()}>
-                {stashSwitching ? t("scm.stashSwitchBusy") : t("scm.stashAndSwitch")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
+      {/* Fault / discard / trust / branch-conflict dialogs — extracted so the
+          shell stays under the file-length ceiling (AppModals holds the
+          markup; state + confirm handlers stay here). */}
+      <AppModals
+        modal={modal}
+        onCloseModal={() => setModal(null)}
+        activeId={activeId}
+        onUndoRestored={() => void handleUndoRestored()}
+        platform={platform}
+        modelFault={modelFault}
+        onDismissModelFault={() => setModelFault(null)}
+        onDiscardSettings={() => {
+          setSettingsDirty(false);
+          setModal(null);
+          handleCloseAuxTab("settings");
+        }}
+        onDiscardEditorWorkspace={() => {
+          setModal(null);
+          closeEditorWorkspace();
+        }}
+        editorFileClose={editorFileClose}
+        onDismissFileClose={() => setEditorFileClose(null)}
+        onConfirmCloseFile={(file) => {
+          setEditorFileClose(null);
+          closeEditorFile(file);
+        }}
+        trustAskOpen={trustAskOpen}
+        trustBusy={trustBusy}
+        onTrustSelect={(level) => void handleTrustSelect(level)}
+        branchConflict={branchConflict}
+        onDismissBranchConflict={() => setBranchConflict(null)}
+        stashSwitching={stashSwitching}
+        onStashAndSwitch={() => void handleStashAndSwitch()}
+      />
 
       <CommandPalette
         open={paletteOpen}

@@ -337,6 +337,25 @@ export type SessionManagerOptions = {
   /** Sandbox backend selection outcome per session (active or degraded). */
   onSandboxStatusChanged?: (status: SandboxBackendStatus) => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
+  /**
+   * Depth-lane stage progress (specs/depth-lane X.3): fired at every staged
+   * transition (S1 compile → S1.5 evidence gate → S2 rounds → S3 red-team →
+   * S4 fusion → S5 report done). Host relays it over IPC; core stays
+   * transport-free. Never throws into the lane (observability is best-effort).
+   */
+  onDepthLaneProgress?: (event: DepthLaneProgressPayload) => void;
+};
+
+/** Stage progress payload for the depth lane (X.3). */
+export type DepthLaneProgressPayload = {
+  sessionId: string;
+  stage: "s1" | "s1.5" | "s2" | "s3" | "s4" | "s5" | "done";
+  /** 1-based divergence/fusion round when the stage loops (S2/S4). */
+  round?: number;
+  totalRounds?: number;
+  /** Short human detail (already localized-neutral English/Chinese mix ok). */
+  detail?: string;
+  done?: boolean;
 };
 
 export type LlmStreamProgress = {

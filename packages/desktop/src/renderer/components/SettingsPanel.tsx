@@ -20,6 +20,7 @@ import {
 import type { ModelFamilyId } from "@deeporca/core/capabilities";
 import { api } from "../api";
 import { useI18n, type Locale, type MessageKey, type Translate } from "../i18n";
+import { LaneObservationSection } from "./LaneObservationSection";
 import {
   Button,
   Checkbox,
@@ -46,6 +47,8 @@ import { ActionsPanel } from "./ActionsPanel";
 
 type Props = {
   initial: EditableSettings;
+  /** Workspace root for the read-only lane-observation section (P2.3). */
+  root: string;
   initialTab?: string;
   onSave: (next: EditableSettings) => void | Promise<void>;
   onClose: () => void;
@@ -518,6 +521,7 @@ function EndpointQuotaLine({
 }
 
 export function SettingsPanel({
+  root,
   initial,
   initialTab,
   onSave,
@@ -1634,6 +1638,7 @@ export function SettingsPanel({
             ) : null}
             {tab === "about" ? (
               <>
+                <LaneObservationSection root={root} />
                 <section className="ui-settings-section">
                   <div className="ui-settings-section-title">{t("about.title")}</div>
                   <p className="ui-about-desc">{t("about.intro")}</p>

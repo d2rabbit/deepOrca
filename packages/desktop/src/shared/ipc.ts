@@ -127,6 +127,7 @@ export const IpcRequest = {
   WikiInit: "wiki:init",
   WikiUpdate: "wiki:update",
   WikiListPages: "wiki:listPages",
+  LaneRatesGet: "laneRates:get",
   WikiReadPage: "wiki:readPage",
 
   // MCP management (moved out of settings into the plugin module)
@@ -228,6 +229,7 @@ export const IpcEvent = {
   PluginEvent: "event:pluginEvent",
   CrgProgress: "event:crgProgress",
   WikiProgress: "event:wikiProgress",
+  DepthLaneProgress: "event:depthLaneProgress",
   A2uiSurfaceUpdate: "event:a2uiSurfaceUpdate",
   A2uiWindowPayload: "event:a2uiWindowPayload",
   /** defineAction progress stream (unified; payload carries actionId). */
@@ -521,6 +523,27 @@ export type SerializableSessionEntry = Omit<SessionEntry, "processes"> & {
   archived?: boolean;
   /** Desktop-only: the workspace root this session belongs to. */
   workspaceRoot?: string;
+};
+
+/** Depth-lane stage progress (specs/depth-lane X.3) — core payload + root. */
+export type DepthLaneProgressEvent = {
+  root: string;
+  sessionId: string;
+  stage: "s1" | "s1.5" | "s2" | "s3" | "s4" | "s5" | "done";
+  round?: number;
+  totalRounds?: number;
+  detail?: string;
+  done?: boolean;
+};
+
+/** Lane observation rates for the settings panel (P2.3, read-only). */
+export type LaneRatesReport = {
+  expressSessions: number;
+  deepSessions: number;
+  retroProxied: number;
+  expressFollowUpRate: number | null;
+  deepNegativeFeedbackRate: number | null;
+  samples: { followUps: number; negatives: number };
 };
 
 /** A workspace directory node grouping its (non-archived) sessions. */
@@ -1078,6 +1101,9 @@ export type DesktopApi = {
   onAssistantMessage(cb: (message: SessionMessage) => void): () => void;
   onSessionEntryUpdated(cb: (entry: SerializableSessionEntry) => void): () => void;
   onLlmStreamProgress(cb: (progress: unknown) => void): () => void;
+  onDepthLaneProgress(cb: (progress: DepthLaneProgressEvent) => void): () => void;
+  /** Read-only lane observation rates for the settings panel (P2.3). */
+  laneRates(root: string): Promise<LaneRatesReport | null>;
   onMcpStatusChanged(cb: () => void): () => void;
   onProcessStdout(cb: (event: ProcessStdoutEvent) => void): () => void;
   onProjectRootChanged(cb: (root: string) => void): () => void;

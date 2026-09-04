@@ -46,6 +46,35 @@ export const ko: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "딥",
 
+  "depth.stripTitle": "딥 레인",
+
+  "depth.stageS1": "S1 컨텍스트 컴파일",
+
+  "depth.stageS15": "S1.5 증거 게이트",
+
+  "depth.stageS2": "S2 분기 생성",
+
+  "depth.stageS3": "S3 레드팀",
+
+  "depth.stageS4": "S4 융합 캘리브레이션",
+
+  "depth.stageS5": "S5 판정 리포트",
+
+  "depth.stageDone": "완료",
+
+  "settings.lane.title": "레인 관찰(읽기 전용)",
+
+  "settings.lane.loading": "불러오는 중…",
+
+  "settings.lane.empty":
+    "레인 데이터 없음 — complexityGate 를 켜고 사용하면 자동 축적됩니다(과거 세션은 L1 프록시로 소급)",
+
+  "settings.lane.followUp": "후속 질문률",
+
+  "settings.lane.negative": "부정 피드백률",
+
+  "settings.lane.note": "관찰 전용 — autoTune 은 꺼진 상태 유지. 비율은 임계값 결정에 사용(소급 세션은 L1 프록시)",
+
   "sidebar.laneExpressTip": "익스프레스 레인: 직접 응답 경로",
 
   "sidebar.laneDeepTip": "딥 레인: 다중 경로 검토 리포트",

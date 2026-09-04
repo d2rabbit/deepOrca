@@ -38,6 +38,14 @@ export {
   type TpcrScores,
 } from "./gate/gate";
 export { COMPLEXITY_SCORING_DIRECTIVE, TPCR_FULL_SCORES } from "./gate/gate-prompt";
+export {
+  computeLaneRates,
+  autoTuneThreshold,
+  collectLaneRateSessions,
+  NEGATIVE_FEEDBACK_RE,
+  type LaneRateSession,
+  type LaneRatesReport,
+} from "./gate/lane-rates";
 export { SkillRouterImpl } from "./skill-router";
 export { ToolRouterImpl } from "./tool-router";
 export { RoutingFacade, type ToolRouteDecision, type ToolRouteRequest } from "./routing-facade";

@@ -115,6 +115,8 @@ const api: DesktopApi = {
   tokensSummary: (root) => ipcRenderer.invoke(IpcRequest.TokensSummary, root),
   tokensModelDetail: (root, days) => ipcRenderer.invoke(IpcRequest.TokensModelDetail, root, days),
   onCrgProgress: (cb) => subscribe(IpcEvent.CrgProgress, cb as (p: never) => void),
+  onDepthLaneProgress: (cb) => subscribe(IpcEvent.DepthLaneProgress, cb as (p: never) => void),
+  laneRates: (root) => ipcRenderer.invoke(IpcRequest.LaneRatesGet, root),
 
   // ── Wiki knowledge graph (openwiki) ─────────────────────────────
   wikiCheckAvailable: () => ipcRenderer.invoke(IpcRequest.WikiCheckAvailable),
