@@ -67,9 +67,16 @@ test("lsp-bridge routing: uri roundtrip on windows paths", () => {
 });
 
 test("lsp-bridge routing: escaping paths are rejected (root pinning)", () => {
-  assert.equal(resolveWithinRoot(ROOT, "src\\a.ts"), ROOT + "\\src\\a.ts");
-  assert.equal(resolveWithinRoot(ROOT, "..\\outside.txt"), null);
-  assert.equal(resolveWithinRoot(ROOT, "D:\\elsewhere\\x.ts"), null);
+  // Windows-style fixture on win32; POSIX separators elsewhere. The escape
+  // semantics under test (inside-root / parent-escape / absolute-elsewhere)
+  // are identical on both — the fixture just follows the host's separators.
+  const win = process.platform === "win32";
+  const root = win ? ROOT : "/work/demo";
+  const sep = win ? "\\" : "/";
+  assert.equal(resolveWithinRoot(root, `src${sep}a.ts`), root + `${sep}src${sep}a.ts`);
+  assert.equal(resolveWithinRoot(root, `..${sep}outside.txt`), null);
+  const elsewhere = win ? "D:\\elsewhere\\x.ts" : "/elsewhere/x.ts";
+  assert.equal(resolveWithinRoot(root, elsewhere), null);
 });
 
 test("lsp-bridge frames: encode carries byte length + payload", () => {
@@ -99,4 +106,110 @@ test("lsp-bridge frames: parser resyncs after unframed garbage", () => {
   parser.push("garbage without header\r\n\r\n");
   parser.push(encodeFrame({ ok: true }));
   assert.equal(messages.length, 1);
+});
+
+// ── CMB-5: dependency readiness probes (specs/cmb-adoption design §2.2) ────
+
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { depsMissingError, probeDepsReadiness } from "../main/tools/lsp-bridge/deps-readiness";
+
+function specById(id: string) {
+  const spec = LSP_SERVER_SPECS.find((s) => s.id === id);
+  if (!spec) throw new Error(`missing spec: ${id}`);
+  return spec;
+}
+
+function withTempProject(build: (root: string) => void, run: (root: string) => void): void {
+  const root = mkdtempSync(join(tmpdir(), "lsp-deps-"));
+  try {
+    build(root);
+    run(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("CMB-5 deps-readiness: TS with package.json but no node_modules is deps-missing", () => {
+  withTempProject(
+    (root) => writeFileSync(join(root, "package.json"), '{"name":"demo"}'),
+    (root) => {
+      const probe = probeDepsReadiness(root, specById("typescript"));
+      assert.equal(probe.ready, false);
+      if (!probe.ready) {
+        assert.ok(probe.remediation.includes("npm install"));
+        assert.ok(depsMissingError(probe).includes("node_modules"));
+      }
+    }
+  );
+});
+
+test("CMB-5 deps-readiness: TS ready when node_modules exists, open when no package.json", () => {
+  withTempProject(
+    (root) => {
+      writeFileSync(join(root, "package.json"), "{}");
+      mkdirSync(join(root, "node_modules"));
+    },
+    (root) => assert.equal(probeDepsReadiness(root, specById("typescript")).ready, true)
+  );
+  withTempProject(
+    () => {},
+    (root) => assert.equal(probeDepsReadiness(root, specById("typescript")).ready, true)
+  );
+});
+
+test("CMB-5 deps-readiness: python declared but no venv is missing; venv or undeclared is fine", () => {
+  withTempProject(
+    (root) => writeFileSync(join(root, "requirements.txt"), "flask\n"),
+    (root) => {
+      const probe = probeDepsReadiness(root, specById("python"));
+      assert.equal(probe.ready, false);
+      if (!probe.ready) assert.ok(probe.remediation.includes("venv"));
+    }
+  );
+  withTempProject(
+    (root) => {
+      writeFileSync(join(root, "pyproject.toml"), "[project]\n");
+      mkdirSync(join(root, ".venv"));
+    },
+    (root) => assert.equal(probeDepsReadiness(root, specById("python")).ready, true)
+  );
+  withTempProject(
+    () => {},
+    (root) => assert.equal(probeDepsReadiness(root, specById("python")).ready, true)
+  );
+});
+
+test("CMB-5 deps-readiness: go stdlib-only module stays open; declared deps without go.sum is missing", () => {
+  withTempProject(
+    (root) => writeFileSync(root === "" ? "" : join(root, "go.mod"), "module demo\n\ngo 1.22\n"),
+    (root) => assert.equal(probeDepsReadiness(root, specById("go")).ready, true)
+  );
+  withTempProject(
+    (root) => writeFileSync(join(root, "go.mod"), "module demo\n\nrequire (\n\tgithub.com/x/y v1.2.3\n)\n"),
+    (root) => {
+      const probe = probeDepsReadiness(root, specById("go"));
+      assert.equal(probe.ready, false);
+      if (!probe.ready) assert.ok(probe.remediation.includes("go mod tidy"));
+    }
+  );
+  withTempProject(
+    (root) => {
+      writeFileSync(join(root, "go.mod"), "module demo\n\nrequire (\n\tgithub.com/x/y v1.2.3\n)\n");
+      writeFileSync(join(root, "go.sum"), "\n");
+    },
+    (root) => assert.equal(probeDepsReadiness(root, specById("go")).ready, true)
+  );
+});
+
+test("CMB-5 deps-readiness: families without criteria stay fail-open", () => {
+  withTempProject(
+    () => {},
+    (root) => {
+      for (const id of ["rust", "cpp", "csharp", "java", "kotlin", "swift", "dart"]) {
+        assert.equal(probeDepsReadiness(root, specById(id)).ready, true, id);
+      }
+    }
+  );
 });

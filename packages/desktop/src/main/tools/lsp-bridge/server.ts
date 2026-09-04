@@ -20,6 +20,7 @@
 
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+import { depsMissingError, probeDepsReadiness } from "./deps-readiness";
 import { LspClient, type LspDiagnostic } from "./lsp-client";
 import { pathToUri, resolveWithinRoot } from "./routing";
 import { LSP_SERVER_SPECS, languageIdForFile, resolveSpecForFile } from "./server-specs";
@@ -91,6 +92,13 @@ class ServerPool {
     const spec = resolveSpecForFile(filePath);
     if (!spec) {
       return { ok: true, diagnostics: [] }; // unsupported language — empty, not an error
+    }
+    // CMB-5: a language server against un-installed deps reports false-positive
+    // import errors — worse than no diagnostics. Probe BEFORE spawning and
+    // degrade with a remediation hint (routed to the unavailable leg in core).
+    const readiness = probeDepsReadiness(config.root, spec);
+    if (!readiness.ready) {
+      return { ok: false, error: depsMissingError(readiness) };
     }
     const slot = this.slot(spec.id);
     if (slot.requestsServed >= config.requestBudget) {
@@ -176,7 +184,13 @@ async function dispatchTool(
   }
   const filePath = typeof args.filePath === "string" ? args.filePath : "";
   const result = await pool.getDiagnostics(filePath);
-  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  // CMB-1/CMB-5: a soft failure (deps-missing / budget / spawn) MUST travel
+  // the isError channel — a plain result would make the manager envelope
+  // `ok:true` and core would read a fake-clean zero-error list.
+  return {
+    content: [{ type: "text", text: JSON.stringify(result) }],
+    ...(result.ok === false ? { isError: true } : {}),
+  };
 }
 
 const readline = createInterface({ input: process.stdin, terminal: false });

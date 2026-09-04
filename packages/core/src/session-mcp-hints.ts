@@ -23,29 +23,45 @@ const DARWIN_PREFIXES = ["apple-", "swift-", "uikit-", "swiftui-"];
 const LINUX_PREFIXES = ["deepin-", "dde-", "dtk-"];
 
 /**
- * Extract error-level diagnostics from a Serena get_diagnostics_for_file result.
- * Serena returns diagnostics as an array of objects with severity, message, and range.
+ * Extract error-level diagnostics from a diagnostics tool result. Accepts TWO
+ * shapes (CMB-1/CMB-5 wiring — the manager envelope is what callers actually
+ * receive; the raw CallToolResult path stays for compatibility):
+ *   1. manager envelope: { ok, name, output?, error? } — parses `output` JSON
+ *      (Serena array form or the bridge's {ok, diagnostics} form).
+ *   2. raw CallToolResult: { content: [{ type: "text", text }] }.
  * We only care about severity "error" (not "warning" or "hint") to avoid noise.
  */
 export function extractErrorDiagnostics(result: unknown): string[] {
   if (!result || typeof result !== "object") return [];
-  const content = (result as { content?: unknown }).content;
-  if (!Array.isArray(content)) return [];
+
+  const texts: string[] = [];
+  const shape = result as { content?: unknown; output?: unknown };
+  if (typeof shape.output === "string" && shape.output) {
+    texts.push(shape.output);
+  }
+  if (Array.isArray(shape.content)) {
+    for (const block of shape.content) {
+      if (typeof block === "object" && block !== null) {
+        const text = (block as { text?: unknown }).text;
+        if (typeof text === "string" && text) texts.push(text);
+      }
+    }
+  }
+  if (texts.length === 0) return [];
 
   const errors: string[] = [];
-  for (const block of content) {
-    if (typeof block !== "object" || block === null) continue;
-    const text = (block as { text?: unknown }).text;
-    if (typeof text !== "string") continue;
+  for (const text of texts) {
     try {
       const parsed = JSON.parse(text);
       const diags = Array.isArray(parsed) ? parsed : (parsed.diagnostics ?? []);
       for (const d of diags) {
-        const severity = (d.severity ?? "").toLowerCase();
+        if (typeof d !== "object" || d === null) continue;
+        const severity = String((d as { severity?: unknown }).severity ?? "").toLowerCase();
         if (severity === "error" || severity === "1") {
-          const msg = d.message ?? "Unknown error";
-          const line = d.range?.start?.line ?? d.line;
-          errors.push(line !== undefined ? `L${line}: ${msg}` : msg);
+          const msg = (d as { message?: unknown }).message ?? "Unknown error";
+          const line =
+            (d as { range?: { start?: { line?: unknown } } }).range?.start?.line ?? (d as { line?: unknown }).line;
+          errors.push(line !== undefined ? `L${line}: ${String(msg)}` : String(msg));
         }
       }
     } catch {
@@ -53,6 +69,31 @@ export function extractErrorDiagnostics(result: unknown): string[] {
     }
   }
   return errors;
+}
+
+/**
+ * Throw when a diagnostics tool call failed at the MCP level (manager envelope
+ * `ok:false`). Callers route this into their catch block so the leg is
+ * recorded `unavailable` with the reason instead of degrading to a fake-clean
+ * empty list (CMB-1; the LSP bridge's deps-missing / budget / spawn failures
+ * all arrive here via isError:true, with the human-readable error — including
+ * the remediation hint — embedded in the output JSON).
+ */
+export function assertDiagnosticsEnvelopeOk(result: unknown): void {
+  if (!result || typeof result !== "object") return;
+  const env = result as { ok?: unknown; error?: unknown; output?: unknown };
+  if (env.ok !== false && !(typeof env.error === "string" && env.error)) return;
+
+  let message = typeof env.error === "string" && env.error ? env.error : "";
+  if (!message && typeof env.output === "string") {
+    try {
+      const inner = JSON.parse(env.output) as { error?: unknown };
+      if (typeof inner.error === "string" && inner.error) message = inner.error;
+    } catch {
+      // output is not JSON — fall through to the generic message
+    }
+  }
+  throw new Error(message || "diagnostics tool call failed");
 }
 
 /** Serena tools that overlap with CodeGraph — add differentiating hints for G2 routing. */
