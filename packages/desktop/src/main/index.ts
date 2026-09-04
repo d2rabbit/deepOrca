@@ -2524,6 +2524,7 @@ function registerIpc(): void {
   registerGitmcpIpc(helpers);
   registerEditorIpc(helpers);
   registerAgentChangesIpc(helpers);
+  registerCoordChainIpc(helpers, () => mainWindow);
   registerSessionExportIpc(helpers);
   // defineAction IPC surface. Reads the SAME ActionRegistry SessionManager owns
   // (LLM + IPC + MCP share one instance — no dual state). action-ipc.ts stays

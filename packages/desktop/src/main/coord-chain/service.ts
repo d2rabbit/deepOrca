@@ -133,6 +133,12 @@ export class CoordChainService {
       this.emit({ type: "started", payload });
       return { ok: true };
     } catch (error) {
+      // A failed start must not leave a half-initialized node behind (its
+      // transport/timer would keep running with no chain attached).
+      if (this.node) {
+        await this.node.stop().catch(() => undefined);
+        this.node = null;
+      }
       const message = (error as Error).message;
       this.emit({ type: "error", error: message });
       return { ok: false, error: message };

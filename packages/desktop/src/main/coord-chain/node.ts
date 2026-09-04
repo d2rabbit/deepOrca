@@ -55,7 +55,8 @@ import {
 import { startTransport, type PeerConnection, type Transport } from "./transport.js";
 import type { ChainTaskNode } from "./task-tree-bridge.js";
 import { ChainStore, type StoredBlock } from "./chain-store.js";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { coordChainRoot } from "./paths.js";
 
 export type ChainNodeMode = "create" | "join";
@@ -331,6 +332,11 @@ export class ChainNode {
     }
     let found: { genesis: Genesis; store: ChainStore } | null = null;
     for (const dir of readdirSync(this.dataRoot)) {
+      // Only real directories can host a chain — device-key.json and other
+      // files must never be mistaken for a chain dir (ENOTDIR otherwise).
+      if (!statSync(join(this.dataRoot, dir)).isDirectory()) {
+        continue;
+      }
       const store = new ChainStore(dir, this.dataRoot); // chainPaths helper resolves
       const genesis = store.loadGenesis();
       if (genesis) {

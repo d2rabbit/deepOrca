@@ -85,3 +85,17 @@ test("service: wrong machine fingerprint refuses to start (unbound clone)", asyn
   assert.match(result.error ?? "", /not bound to this machine/);
   await svc.stop();
 });
+
+
+test("service: data root containing non-chain FILES starts clean (resume scan ignores them)", async () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), "coord-svc-messy-"));
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(join(dataRoot, "device-key.json"), "not a dir");
+  writeFileSync(join(dataRoot, "identity-anchor.json"), "not a dir");
+  const svc = new CoordChainService({ dataRoot, machineFingerprint: FP, blocksLimit: 10 });
+  const started = await svc.start({ mode: "create", theme: THEME, deviceName: "messy" });
+  assert.equal(started.ok, true, started.error ?? "");
+  assert.equal(svc.state().running, true);
+  assert.match(svc.state().chainId, /^orca1/);
+  await svc.stop();
+});
