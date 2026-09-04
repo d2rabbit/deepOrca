@@ -5,12 +5,12 @@
 >
 > | 层   | 文档                                                                                                                                  | 现状 |
 > | ---- | ------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-> | 预研 | [`docs/research/2026-08-17-hallmark-codebrain-membrain-prestudy.md`](../../docs/research/2026-08-17-hallmark-codebrain-membrain-prestudy.md)（可行性轮，P0-P2 已落地）· [`2026-09-04-codebrain-membrain-philosophy.md`](../../docs/research/2026-09-04-codebrain-membrain-philosophy.md)（理念轮） | ✅   |
-> | 台账 | [`docs/research/2026-09-04-codebrain-membrain-issues.md`](../../docs/research/2026-09-04-codebrain-membrain-issues.md)（CMB-1~11 唯一跟踪点）                                                        | ✅   |
+> | 预研 | [`docs/research/2026-08-17-hallmark-codebrain-membrain-prestudy.md`](../../../docs/research/2026-08-17-hallmark-codebrain-membrain-prestudy.md)（可行性轮，P0-P2 已落地）· [`2026-09-04-codebrain-membrain-philosophy.md`](../../../docs/research/2026-09-04-codebrain-membrain-philosophy.md)（理念轮） | ✅   |
+> | 台账 | [`docs/research/2026-09-04-codebrain-membrain-issues.md`](../../../docs/research/2026-09-04-codebrain-membrain-issues.md)（CMB-1~11 唯一跟踪点）                                                        | ✅   |
 > | 设计 | [`design.md`](./design.md)（§1 取证 / §2 分批设计 / §6 拍板项）                                                                       | ✅   |
 > | 任务 | **本文件**                                                                                                                            | ⏳ 待开工 |
 >
-> **开工顺序**（继承台账）：批次 A → B → C → D；批次内顺序即任务编号。每批完成即回写台账总览表（✅ + 提交号 + 验收证据），全批完成按 [`specs/README.md`](../README.md) 流转口径归档。
+> **开工顺序**（继承台账）：批次 A → B → C → D；批次内顺序即任务编号。每批完成即回写台账总览表（✅ + 提交号 + 验收证据），全批完成按 [`specs/README.md`](../../README.md) 流转口径归档。
 
 ## 硬约束（每批适用）
 

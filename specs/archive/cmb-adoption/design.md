@@ -1,6 +1,6 @@
 # CodeBrain / MemBrain 理念采纳（cmb-adoption）· 供给侧工程落地 — 技术设计
 
-> **状态**：**已落地（2026-09-04 同日实施完毕，批次 A-D 提交 007d57e8 / 584440aa / 95e0ac5d / 1e5cdf95；实施中另修复存量信封解析缺陷——见 CMB-1 回写）**——上游调研已全部定稿：理念层 [`docs/research/2026-09-04-codebrain-membrain-philosophy.md`](../../docs/research/2026-09-04-codebrain-membrain-philosophy.md)（Part V 建议动作表）、问题台账 [`docs/research/2026-09-04-codebrain-membrain-issues.md`](../../docs/research/2026-09-04-codebrain-membrain-issues.md)（CMB-1~11，开工顺序与验收标准的唯一跟踪点）。本 spec 是台账中 **CMB-1/2/3/4/5/7 六项的实施依据**（总口径："实现一律以 `specs/` 为准"）。
+> **状态**：**已落地（2026-09-04 同日实施完毕，批次 A-D 提交 007d57e8 / 584440aa / 95e0ac5d / 1e5cdf95；实施中另修复存量信封解析缺陷——见 CMB-1 回写）**——上游调研已全部定稿：理念层 [`docs/research/2026-09-04-codebrain-membrain-philosophy.md`](../../../docs/research/2026-09-04-codebrain-membrain-philosophy.md)（Part V 建议动作表）、问题台账 [`docs/research/2026-09-04-codebrain-membrain-issues.md`](../../../docs/research/2026-09-04-codebrain-membrain-issues.md)（CMB-1~11，开工顺序与验收标准的唯一跟踪点）。本 spec 是台账中 **CMB-1/2/3/4/5/7 六项的实施依据**（总口径："实现一律以 `specs/` 为准"）。
 > **对应实现域**：`core/`（诊断腿状态机、edit/write 提示、辅助 LLM 原语契约）、`desktop/`（LSP 桥依赖就绪探测）、`memory/`（L1 提示词、记忆行渲染）。**活跃 spec，不属 `next-version` 规划区。**
 > **硬约束**（台账总约束，全程有效）：① **零新依赖**——不引 zod/ajv/上游任何包；② **不引上游代码**——MemBrain 无 LICENSE 文件，禁止拷贝（08-17 预研许可红线），只借鉴理念自写实现；③ 全部改动为**模型面/日志面**文案与行为，**无 renderer 面文案，不进 i18n 6 目录**。
 

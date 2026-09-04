@@ -6,11 +6,11 @@
 
 | 位置 | 含义 | 现有内容 |
 | --- | --- | --- |
-| `specs/<name>/` | **活跃 spec**（当前版本实施中或待启动，不进第二阶段规划区） | [chat-redesign](./chat-redesign/design.md)（主会话重设计，实施中，含 `designs/` 视觉稿）· [design-systems-advance](./design-systems-advance/design.md)（设计系统进阶唯一方案；已并入 pm-design-v2 工件与 prototype-companion/ 子目录）· [ts-native-migration](./ts-native-migration/design.md)（TS 原生化迁移排期）· [lsp-diagnostics](./lsp-diagnostics/design.md)（LSP 类型级诊断桥，本阶段，P0+P1 已落地）· [cmb-adoption](./cmb-adoption/design.md)（CodeBrain/MemBrain 理念采纳：CMB-1/2/3/4/5/7 六项供给侧工程落地，设计定稿待实现；上游台账 `docs/research/2026-09-04-codebrain-membrain-issues.md`）· [memory-audit](./memory-audit/design.md)（记忆审计子智能体：自有 session 证据 → 记忆规则迭代，P0 纯观察先行待开工；上游 `docs/research/2026-09-04-memory-audit-subagent-proposal.md`） |
-| `specs/next-version/` | **第二阶段规划区**：冻结期后随 `next/*` 启动的 spec（3 个主线上 + 9 个储备，路线见 `docs/features/next-version-plan.md`） | 主线：[module-system](./next-version/module-system/design.md)（B）· [doc-wiki](./next-version/doc-wiki/design.md)（D）· [zg-semantic-search](./next-version/zg-semantic-search/design.md)（E）。储备：android-dev-kit · cad-3d-generation · content-translation · depth-lane · desktop-pet · harmonyos-dev-kit · in-process-multi-driver · model-fleet-adaptation · sandbox-next（详见 [next-version/README.md](./next-version/README.md)） |
+| `specs/<name>/` | **活跃 spec**（当前版本实施中或待启动，不进第二阶段规划区） | [chat-redesign](./chat-redesign/design.md)（主会话重设计，实施中，含 `designs/` 视觉稿）· [design-systems-advance](./design-systems-advance/design.md)（设计系统进阶唯一方案；已并入 pm-design-v2 工件与 prototype-companion/ 子目录）· [lsp-diagnostics](./lsp-diagnostics/design.md)（LSP 类型级诊断桥，本阶段，P0+P1 已落地）· [memory-audit](./memory-audit/design.md)（记忆审计子智能体：自有 session 证据 → 记忆规则迭代，P0 已落地待数据门；上游 `docs/research/2026-09-04-memory-audit-subagent-proposal.md`） |
+| `specs/next-version/` | **第二阶段规划区**：冻结期后随 `next/*` 启动的 spec（3 个主线上 + 10 个储备，路线见 `docs/features/next-version-plan.md`） | 主线：[module-system](./next-version/module-system/design.md)（B）· [doc-wiki](./next-version/doc-wiki/design.md)（D）· [zg-semantic-search](./next-version/zg-semantic-search/design.md)（E）。储备：ts-native-migration · android-dev-kit · cad-3d-generation · content-translation · depth-lane · desktop-pet · harmonyos-dev-kit · in-process-multi-driver · model-fleet-adaptation · sandbox-next（详见 [next-version/README.md](./next-version/README.md)） |
 | `specs/review-ing/` | **审查归档**：主体落地但带待复核项，复核通过后移入 `archive/` 转正 | [task-tree-hub](./review-ing/task-tree-hub/design.md)（含 `screen-task-tree.html` 视觉稿）· [skill-eval](./review-ing/skill-eval/design.md) |
 | `specs/branch-implemented/` | **分支实现归档**：已在未合并的 `next/*` 分支实现，合并后转正式归档 | [coord-chain](./branch-implemented/coord-chain/design.md)（OC1–OC2 @ `next/coord-chain`） |
-| `specs/archive/` | **收官归档**：终判 ✅ 且无未决项，原样保留作为实现依据与历史记录 | 15 项（a2ui-integration · activity-frames · deep-design · define-action · task-tree · text-embedding · memory-remediation · skill-routing · token-local-accounting · mcp-sdk-migration · gitmcp-local-module · ui-domain-regroup · review-module · sandbox · index-knowledge-rework），另有 [`deprecated/pre-production/`](./archive/deprecated/README.md)（❌ 出口门槛毙掉）。见 [archive/README.md](./archive/README.md) |
+| `specs/archive/` | **收官归档**：终判 ✅ 且无未决项，原样保留作为实现依据与历史记录 | 16 项（a2ui-integration · activity-frames · deep-design · define-action · task-tree · text-embedding · memory-remediation · skill-routing · token-local-accounting · mcp-sdk-migration · gitmcp-local-module · ui-domain-regroup · review-module · sandbox · index-knowledge-rework · [cmb-adoption](./archive/cmb-adoption/design.md) 2026-09-04 四批次同日落地收官），另有 [`deprecated/pre-production/`](./archive/deprecated/README.md)（❌ 出口门槛毙掉）。见 [archive/README.md](./archive/README.md) |
 
 > **behavior-memory 已物理删除**（2026-09-03；❌ 2026-08-17 拍板作废，由 `@deeporca/memory` 承接，作废记录见 `docs/features/feature-roadmap.md` §0 与 `docs/spec-open-items-status.md` §五）。
 
@@ -30,6 +30,7 @@
 仓库根的 `designs/` 目录已取消，视觉稿与交互稿**随所属 spec 归档**：
 
 - `specs/chat-redesign/designs/` — 主会话重设计视觉稿（screen-chat / demo-flow / 全套预览截图）
+- `specs/design-systems-advance/designs/` — 设计系统进阶工作台交互视觉稿（screen-design-workbench.html · 演示清单 D1-D12 · 预览截图 ×3）
 - `specs/archive/review-module/screen-review.html` — 审查模块视觉稿
 - `specs/review-ing/task-tree-hub/screen-task-tree.html` — 任务树 V2 视觉稿
 

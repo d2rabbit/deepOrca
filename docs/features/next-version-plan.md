@@ -119,7 +119,7 @@
 
 ## 储备 spec（specs/next-version/ 内的非主线项，2026-09-03 对齐增补）
 
-> 以下 9 个 spec 与 A–E 主线同存于 `specs/next-version/`（第二阶段规划区），但**不属于本计划 A–E 主线**——按既定口径不裁撤，保留于储备区，立项时点随各自功能域规划（移动域重启统一走 `next/*`）。目录总览见 [`specs/README.md`](../../specs/README.md) 与 [`specs/next-version/README.md`](../../specs/next-version/README.md)。
+> 以下 10 个 spec 与 A–E 主线同存于 `specs/next-version/`（第二阶段规划区），但**不属于本计划 A–E 主线**——按既定口径不裁撤，保留于储备区，立项时点随各自功能域规划（移动域重启统一走 `next/*`）。目录总览见 [`specs/README.md`](../../specs/README.md) 与 [`specs/next-version/README.md`](../../specs/next-version/README.md)。
 
 | spec | 一句话 | 当前状态 |
 | --- | --- | --- |
@@ -132,3 +132,4 @@
 | [in-process-multi-driver](../../specs/next-version/in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay 编排） | ⬜ 立稿未实施（S0 质量验证 + 锁版起步） |
 | [model-fleet-adaptation](../../specs/next-version/model-fleet-adaptation/design.md) | GLM5 / Kimi-K3 / MiniMax-M3 / Qwen-3.8 收官适配 | 🟡 G0+S0 落地（16/34），S1–S4 系列核填待做 |
 | [sandbox-next](../../specs/next-version/sandbox-next/design.md) | 沙箱延伸：bwrap / WSL2 / 能力矩阵对账 / WASI 预研 | ⬜ 独立任务规划（自 sandbox 收官延伸，2026-09-03） |
+| [ts-native-migration](../../specs/next-version/ts-native-migration/design.md) | TS 原生化迁移排期 | ⬜ 移入本区（2026-09-04，随 8e21b465 调研批次；此前误列于 specs/ 活跃区，索引本次补记） |

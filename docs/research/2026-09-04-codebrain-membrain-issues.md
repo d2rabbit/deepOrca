@@ -6,7 +6,7 @@
 > **文件定位：落地项追踪台账，非缺陷审计**（区别于 `2026-08-05-audit-issues.md` 那类 Critical/High 代码缺陷清单）。11 条中仅 **CMB-1 / CMB-5 具缺陷性质**——且都属于"误导性输出"类（模型被告知错误信息），**无崩溃、无数据错误、不阻塞发布**；其余为增强项（CMB-2/3/4/7）、纯文档项（CMB-6）、观念种子（CMB-9/10/11）。逐条性质见总览表"性质"列。
 > 硬约束：全部**零新依赖、不引上游代码**（MemBrain 无 LICENSE 文件，禁止拷贝——08-17 预研许可红线）
 > 总口径：**实现一律以 `specs/` 为准**；P1 项开工前按总口径落 spec 或在本文档跟踪验收回写。
-> **spec 立项（2026-09-04）**：CMB-1/2/3/4/5/7 六项已落 spec —— [`specs/cmb-adoption/`](../../specs/cmb-adoption/design.md)（design + tasks，四批次 A→B→C→D 与本文开工顺序一致）；本台账保持 CMB-1~11 的唯一跟踪点身份，各项落地后回写 ✅ + 提交号 + 验收证据。
+> **spec 立项（2026-09-04）**：CMB-1/2/3/4/5/7 六项已落 spec —— [`specs/archive/cmb-adoption/`](../../specs/archive/cmb-adoption/design.md)（design + tasks，四批次 A→B→C→D 与本文开工顺序一致）；本台账保持 CMB-1~11 的唯一跟踪点身份，各项落地后回写 ✅ + 提交号 + 验收证据。
 
 ## 状态图例
 
@@ -24,7 +24,7 @@
 | CMB-3 | edit/write 后单文件即时校验提示 | 增强（工具结果面新增提示） | P1 | 1 天 | ✅ | CodeBrain C3/C4 |
 | CMB-4 | 辅助 LLM 调用契约（schema 校验 + 重试预算 + 示范模板化） | 增强（架构健壮性，现有代码可跑） | **P1 · 真发现** | 1-2 天 | ✅ | MemBrain M8 |
 | CMB-5 | LSP 桥依赖就绪探测（防假阳性诊断回灌） | **缺陷**（条件触发·假阳性：deps 缺失时主动误导） | **P2 · 真发现** | 半天 | ✅ | CodeBrain C5 |
-| CMB-6 | C6 失败模式七项独立对账（session 循环，不锚外部台账） | 纯文档（对账表） | P2（文档级） | 半天 | ⬜ | CodeBrain C6 |
+| CMB-6 | C6 失败模式七项独立对账（session 循环，不锚外部台账） | 纯文档（对账表） | P2（文档级） | 半天 | ✅ | CodeBrain C6 |
 | CMB-7 | 记忆注入相对时间预解析 + 事件/获知时间分离 | 增强（记忆渲染） | P2 | 半天-1 天 | ✅ | MemBrain M5 |
 | CMB-8 | agentic recall 充分性检查（二轮 follow-up） | 增强（待数据门） | P2 | 待数据 | ⬜ | MemBrain M4 |
 | CMB-9 | 结构债调度蓝本（任务树/技能库/L3 自组织） | 观念种子（纯存档） | P3 | 仅存档 | ⬜ | MemBrain M3 |
@@ -55,7 +55,7 @@
 - **来源**：调研文档 M10。
 - **落地回写（2026-09-04）**：✅ `584440aa` —— l1-validation.test.ts 断言三规则关键词 + findForeignProperNouns 专名软校验真值表；既有 L1 用例零回归（memory 66/66）。
 
-## CMB-3. edit/write 后单文件即时校验提示（第一轮 §1.3-3 漏项补上）⬜
+## CMB-3. edit/write 后单文件即时校验提示（第一轮 §1.3-3 漏项补上）✅
 
 - **优先级/成本**：P1 · 1 天
 - **现象与证据**：edit/write 工具结果不携带校验提示（grep 证实，`edit-handler.ts` 的 metadata 均为文件元数据），唯一反馈通道是回合末诊断桥——粒度差一档。CodeBrain 的节奏是**每文件一个循环**（edit → validate → 修干净才动下一个文件），其 hook 也只是"提醒"不是"替它跑"。
@@ -88,7 +88,7 @@
 - **来源**：调研文档 C5。
 - **落地回写（2026-09-04）**：✅ `007d57e8` —— deps-readiness 三族真值表（tmpdir 跨平台构造）；deps-missing 走 isError 通道带补救指引——与 CMB-1 同提交打通入带链路。
 
-## CMB-6. CodeBrain 失败模式七项独立对账（session 循环）⬜
+## CMB-6. CodeBrain 失败模式七项独立对账（session 循环）✅
 
 - **优先级/成本**：P2 · 半天（文档级）
 - **背景**：原方案"并入 dsh-consolidated 台账对账"——**2026-09-04 dsh 线经用户拍板封闭**，本项改独立形态：七项直接对照本仓 session 循环逐条判定，不锚任何外部台账。
@@ -99,6 +99,19 @@
 - **边界**：**每条过 P0 观察数据门再定**（与 depth-lane 决策纪律一致）；七项的实现在上游未开源，只取失败模式分类学；候选条目如启动，按总口径独立立项。
 - **验收标准**：本台账出现七项对账表，每条标注"已有/候选/否决"与理由。
 - **来源**：调研文档 C6。
+- **对账表（2026-09-04 落地，逐条对照本仓 session 循环判定）**：
+
+| # | CodeBrain 失败模式 | 本仓对应物 | 判定 | 理由 |
+| --- | --- | --- | --- | --- |
+| 1 | premature stop recovery（未验证停止续推） | 无 | **候选（等数据）** | 本仓"停止"多为有意设计（`waiting_for_user`/`ask_permission` 显式状态）；CodeBrain 判的是"任务未验证却停下"。判据必须是"是否有未验证的声明"而非"见消息无工具就续推"——需 depth-lane P0 观察数据证明该失败模式真实发生频率后再立项 |
+| 2 | 结构化前置勘察工具（先看布局再动手） | 决策矩阵（prompt.ts 引导 CodeGraph/CRG/serena 分工）+ `mcp__codegraph__explore` | **部分已有** | 勘察面与 SOP 引导在树；缺的是"强制先勘察"闸门——与 CMB-3 编辑即提醒同族，闸门化等观察数据 |
+| 3 | dynamic reasoning effort（规划/验证高、实现中档） | per-family reasoning 契约（读字段注册表，按模型族） | **候选（等数据）** | per-model 维度已有；per-phase 维度未实现。与 depth-lane P1.2 Gate Directive 邻近但不同轴；作 settings 项随 depth-lane 数据门评估 |
+| 4 | tool-call 格式自动纠错（省一个废回合） | `common/tool-call-repair.ts` + `tool-call-repair.test.ts` | **已有** | 非法 tool call 解析修复已在生产路径 |
+| 5 | stuck-detection（重复同参调用检测） | 无（grep `stuck/consecutive` 零命中） | **候选（等数据）** | 需先与 AskUserQuestion 反问机制整合设计（检测到循环 → 反问用户而非自动重试）；启动前过 P0 观察数据门 |
+| 6 | 上下文压缩（早期消息 pin） | compaction（中间 2/3 摘要 + `PRE_COMPACT_RATIO` 预发送阈值）+ 稳定前缀（MOST→LEAST） | **已有** | 早期 pin 以"系统提示链稳定前缀"形态存在——跨会话缓存与防跑偏双收益 |
+| 7 | per-model 提示词（按模型失败模式定制） | per-family reasoning 契约 + family-routed token counter | **部分已有** | 字段契约按族差异化已有；提示词本体 per-model 定制属 model-fleet-adaptation spec 域，不在此立项 |
+
+  **小计**：已有 2（#4/#6）+ 部分 2（#2/#7）+ 候选 3（#1/#3/#5，全部挂 depth-lane P0 观察数据门，逐条独立立项，不预设立场）。对账完成即本项交付；候选条目启动与否由数据决定。
 
 ## CMB-7. 记忆注入相对时间预解析 + 事件/获知时间分离 ✅
 
@@ -125,7 +138,7 @@
 - **内容**：MemBrain 实体树维护调度器作算法蓝本存档：`debt = uncertainty + W_WIDTH·超宽 + W_DEPTH·(深度 − D_max(support))`，`D_max(n) = round(2 + 1.3·ln n)`；全树按债排序**只审 top-K**、审后复位；LLM 动作收窄三动词（GROUP/PROMOTE/RELOCATE）+ MERGE/WRAPPER 两模式；纯代码兜底（force_split 等分 + auto_dissolve ≤1 子溶解）。**适用对象**：任务树（嵌套失衡）、技能库（只增不减）、L3 人格（事实堆积）——都是只长不剪的结构。哲学一句话：**结构不是一次性设计出来的，是按债偿还出来的；LLM 参与"怎么还"，代码保证"总还得动"**。
 - **边界**：理念级借鉴；若真做实体级实现，从 Graphiti 取并署名（08-17 许可红线）。**触发条件**：任一结构出现可观测的失衡/堆积再启动。
 
-## CMB-10. 检索即维护遥测 ✅
+## CMB-10. 检索即维护遥测 ⬜
 
 - **内容**：tech_blog Future Work："use retrieval as an opportunity to lightly reorganize memory along the accessed paths… each query is not just reading memory, but also helping maintain it." 检索路径暴露组织方式与查询分布的错配，是免费结构反馈。**落点**：depth-lane P0 观察面顺手扩展（记录 routing 决策 + recall 命中），未来喂给重组。**触发条件**：CMB-8 的观察期启动后顺手设计。
 

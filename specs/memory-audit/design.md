@@ -1,6 +1,6 @@
 # 记忆审计子智能体（memory-audit）· 自有证据 → 记忆规则迭代 — 技术设计
 
-> **状态**：**P0 已落地（2026-09-04，提交 19b3bcf9——确定性证据扫描 + 佐证聚合 + dryRun 只读 + 测试含 mutation-check）；P0.7 数据决策门待真实项目数据，门过进 P1**——上游调研已定稿：可行性轮 [`docs/research/2026-09-04-backpass-integration-feasibility.md`](../../docs/research/2026-09-04-backpass-integration-feasibility.md)（结论：backpass 不集成，只借方法论）+ 方案轮 [`docs/research/2026-09-04-memory-audit-subagent-proposal.md`](../../docs/research/2026-09-04-memory-audit-subagent-proposal.md)（本 spec 的直接依据，全部 file:line 取证在案）。归档于 [research-adoption-plan](../../docs/features/research-adoption-plan.md) 三线之一。
+> **状态**：**P0 已落地（2026-09-04，提交 19b3bcf9——确定性证据扫描 + 佐证聚合 + dryRun 只读 + 测试含 mutation-check）；P0.7 首轮真实数据已采（本仓自身扫描：1 个已佐证模式 session-failed|API key not found，n=2 样本不足 → 维持观察态，门槛 ≥20 会话）**——上游调研已定稿：可行性轮 [`docs/research/2026-09-04-backpass-integration-feasibility.md`](../../docs/research/2026-09-04-backpass-integration-feasibility.md)（结论：backpass 不集成，只借方法论）+ 方案轮 [`docs/research/2026-09-04-memory-audit-subagent-proposal.md`](../../docs/research/2026-09-04-memory-audit-subagent-proposal.md)（本 spec 的直接依据，全部 file:line 取证在案）。归档于 [research-adoption-plan](../../docs/features/research-adoption-plan.md) 三线之一。
 > **上游提案**：把 backpass 的「跨会话证据 → 记忆规则迭代」自研进 DeepOrca——用自有 session 证据 + 自有记忆管线 + 自有子智能体通道，不引 external CLI。
 > **对应实现域**：`core/`（`memory.audit` action + 证据扫描 + proposal 管线）与 `desktop/`（报告/store，P1 起）。**活跃 spec（本阶段实施，不属 `next-version` 规划区）**。
 > **硬约束**：零新依赖、不引 backpass 代码/CLI/`acpx`；会话与 store 全程只读；写回只经主会话权限面；默认关闭、fail-open；不向 L0–L3 运行时记忆写入任何合成规则。
@@ -94,7 +94,7 @@ type MemoryAuditProposal = {
 | L0–L3 运行时记忆（`@deeporca/memory`） | **只读参考/去重源**，绝不写入合成规则 |
 | activity-frames 行为画像 | 可作补充输入，**P0 不纳入**（先验证最小闭环） |
 | review.full / OCR delegate | 复用其 `profile:"review"` 通道与报告模式；audit 是"记忆/规则"维度的另一条只读审计 |
-| CMB 台账（`specs/cmb-adoption/`） | CMB-2/7 改的是 L1 抽取与渲染（运行时记忆质量）；本 spec 改的是规则级记忆——同属"记忆供给面"但互不重叠；CMB-9（结构债调度）若未来启动，其 top-K 审计思想与本 spec 的 gap 排序同源 |
+| CMB 台账（`specs/archive/cmb-adoption/`） | CMB-2/7 改的是 L1 抽取与渲染（运行时记忆质量）；本 spec 改的是规则级记忆——同属"记忆供给面"但互不重叠；CMB-9（结构债调度）若未来启动，其 top-K 审计思想与本 spec 的 gap 排序同源 |
 | depth-lane | 无直接依赖；同享"P0 观察 → 数据决策门"纪律（research-adoption-plan 统一时序） |
 
 ## 3. 分期
