@@ -223,6 +223,15 @@ export async function extractL1Memories(params: {
           `${TAG} Validator: fabricated-precision dates ${fabricated.join(", ")} in "${mem.content.slice(0, 60)}"`
         );
       }
+      const foreignNouns = findForeignProperNouns(mem.content, sourceTexts);
+      if (foreignNouns.length > 0) {
+        // CMB-2: same soft posture — a capitalized token absent from the whole
+        // source corpus is most likely a hallucinated (or generalized-away)
+        // proper noun; observable, kept, never dropped.
+        logger?.warn?.(
+          `${TAG} Validator: capitalized tokens absent from source ${foreignNouns.join(", ")} in "${mem.content.slice(0, 60)}"`
+        );
+      }
       allExtracted.push({
         content: mem.content,
         type: memType,
@@ -645,6 +654,30 @@ export function findFabricatedDates(content: string, sourceTexts: readonly strin
     }
   }
   return fabricated;
+}
+
+/**
+ * CMB-2 soft validation (verbatim-preservation companion): capitalized tokens
+ * in an extracted memory that appear NOWHERE in the source messages — a
+ * hallucinated proper noun (brand/book/project) is the likeliest cause, since
+ * rule 8 demands such names be copied verbatim from the source. Same posture
+ * as findFabricatedDates: log-only, never drop (soft observability for prompt
+ * iteration). Lowercase-only tokens are skipped — ordinary vocabulary, not
+ * names — and matching is case-insensitive against the joined source text.
+ */
+export function findForeignProperNouns(content: string, sourceTexts: readonly string[]): string[] {
+  if (sourceTexts.length === 0) return [];
+  const haystack = sourceTexts.join("\n").toLowerCase();
+  const tokens = content.match(/[A-Za-z][A-Za-z0-9'&.-]+/g) ?? [];
+  const suspicious = new Set<string>();
+  for (const raw of tokens) {
+    // Trailing sentence punctuation travels with the token ("Corp." from a
+    // period-terminated sentence) — strip it so the NAME is what gets checked.
+    const token = raw.replace(/[.&'-]+$/, "");
+    if (token.length < 2 || !/[A-Z]/.test(token)) continue;
+    if (!haystack.includes(token.toLowerCase())) suspicious.add(token);
+  }
+  return [...suspicious];
 }
 
 // ============================
