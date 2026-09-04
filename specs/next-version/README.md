@@ -18,6 +18,7 @@
 | [android-dev-kit](./android-dev-kit/design.md) | 内核驱动的安卓开发套件 | ⬜ 设计稿（移动域重启向） |
 | [cad-3d-generation](./cad-3d-generation/design.md) | text-to-cad / img2threejs 三阶段 | ⬜ 规划中 |
 | [content-translation](./content-translation/design.md) | 第三方内容翻译引擎 | ⬜ 设计定稿待实现 |
+| [depth-lane](./depth-lane/design.md) | 复杂性路由双轨制（智能网关 × 轻轨/重轨） | ⬜ 设计定稿待实现（P0 纯观察先行，数据决策门定 P1） |
 | [desktop-pet](./desktop-pet/design.md) | 桌宠小助手 P1–P10 | ⬜ 调研定稿（P1 另立项） |
 | [harmonyos-dev-kit](./harmonyos-dev-kit/design.md) | 鸿蒙开发套件 | ❌ 曾落地后下线；重启属 `next/*` |
 | [in-process-multi-driver](./in-process-multi-driver/design.md) | 进程内多驱动并行（agent-relay） | ⬜ 立稿未实施 |
