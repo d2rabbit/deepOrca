@@ -15,78 +15,83 @@
  *
  * The anchor is the record's own timestamp (the moment the memory was
  * learned), matching the 获知时间 semantics CMB-7 separates from event time.
+ *
+ * Calendar semantics: "今天/昨天/上周" are LOCAL-calendar phrases, so day /
+ * week / month boundaries resolve in the machine's local timezone (the recall
+ * runs in-process on the user's own machine, making local time the recording
+ * timezone). English phrases match on word boundaries so "the last weekly
+ * report" is not annotated.
  */
 
-const DAY_MS = 86400000;
-
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function parseAnchor(anchorIso?: string): Date | null {
-  if (!anchorIso) return null;
-  const d = new Date(anchorIso);
-  return Number.isFinite(d.getTime()) ? d : null;
-}
-
 type Resolver = {
-  /** Matches the relative phrase (Chinese substring or English word). */
+  /** Matches the relative phrase — CJK literals, or English with \b guards. */
   pattern: RegExp;
-  /** Absolute window for the phrase, given the learned-at anchor. */
+  /** Absolute window for the phrase, given the learned-at anchor (local day). */
   resolve: (anchor: Date) => { start: Date; end: Date } | { day: Date };
 };
 
+function localMidnight(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, days: number): Date {
+  const out = localMidnight(d);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+function fmtDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function startOfIsoWeek(d: Date): Date {
-  const day = d.getUTCDay();
-  const back = (day + 6) % 7; // Monday = 0
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - back * DAY_MS);
+  const back = (d.getDay() + 6) % 7; // Monday = 0
+  return addDays(d, -back);
 }
 
 function previousMonthRange(anchor: Date): { start: Date; end: Date } {
-  const firstOfThis = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1);
-  const start = new Date(firstOfThis); // first of previous month
-  start.setUTCMonth(start.getUTCMonth() - 1);
-  const end = new Date(firstOfThis - DAY_MS);
+  const start = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
+  const end = new Date(anchor.getFullYear(), anchor.getMonth(), 0);
   return { start, end };
 }
 
 const RESOLVERS: Resolver[] = [
   {
-    pattern: /今天|today/gi,
-    resolve: (a) => ({ day: new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate())) }),
+    pattern: /今天|\btoday\b/gi,
+    resolve: (a) => ({ day: localMidnight(a) }),
   },
   {
-    pattern: /昨天|yesterday/gi,
-    resolve: (a) => ({ day: new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()) - DAY_MS) }),
+    pattern: /昨天|\byesterday\b/gi,
+    resolve: (a) => ({ day: addDays(a, -1) }),
   },
   {
     pattern: /前天/g,
-    resolve: (a) => ({ day: new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()) - 2 * DAY_MS) }),
+    resolve: (a) => ({ day: addDays(a, -2) }),
   },
   {
     pattern: /上上周/g,
     resolve: (a) => {
       const monday = startOfIsoWeek(a);
-      return { start: new Date(monday.getTime() - 14 * DAY_MS), end: new Date(monday.getTime() - 8 * DAY_MS) };
+      return { start: addDays(monday, -14), end: addDays(monday, -8) };
     },
   },
   {
-    pattern: /上周|last week/gi,
+    pattern: /上周|\blast week\b/gi,
     resolve: (a) => {
       const monday = startOfIsoWeek(a);
-      return { start: new Date(monday.getTime() - 7 * DAY_MS), end: new Date(monday.getTime() - DAY_MS) };
+      return { start: addDays(monday, -7), end: addDays(monday, -1) };
     },
   },
   {
-    pattern: /上个月|last month/gi,
+    pattern: /上个月|\blast month\b/gi,
     resolve: previousMonthRange,
   },
   {
-    pattern: /最近|recently/gi,
-    resolve: (a) => ({
-      start: new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()) - 6 * DAY_MS),
-      end: new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate())),
-    }),
+    pattern: /最近|\brecently\b/gi,
+    resolve: (a) => ({ start: addDays(a, -6), end: localMidnight(a) }),
   },
 ];
 
@@ -98,12 +103,19 @@ function hasRelativePhrase(content: string): boolean {
   });
 }
 
+function parseAnchor(anchorIso?: string): Date | null {
+  if (!anchorIso) return null;
+  const d = new Date(anchorIso);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 /**
  * Annotate every known relative phrase in `content` with its absolute window
- * computed against `anchorIso` (the learned-at timestamp). Idempotent: a
- * phrase already followed by our `（→` marker is left alone. When the content
- * has a known phrase but no usable anchor, the ORIGINAL is returned with a
- * single trailing `（源未锚定）` marker (and no invention).
+ * computed against `anchorIso` (the learned-at timestamp), in the local
+ * calendar. Idempotent: a phrase already followed by our `（→` marker is left
+ * alone. When the content has a known phrase but no usable anchor, the
+ * ORIGINAL is returned with a single trailing `（源未锚定）` marker (and no
+ * invention).
  */
 export function resolveRelativeTimes(content: string, anchorIso?: string): string {
   const anchor = parseAnchor(anchorIso);

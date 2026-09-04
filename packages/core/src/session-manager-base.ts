@@ -664,6 +664,11 @@ export abstract class SessionManagerBase {
     if (!client) return null;
     const builtIn = auxEnumSchema(choices);
 
+    const systemInstruction = opts?.schema
+      ? `Respond with a single JSON object matching this contract: ${opts.schema.describe}. No other keys, no prose.`
+      : "You classify requests. Respond with JSON only: " +
+        `{"choice": "<exactly one of the allowed choices>"}. No other keys.`;
+
     for (let attempt = 0; attempt <= AUX_CONTENT_RETRY_BUDGET; attempt++) {
       try {
         const response = await this.createChatCompletionStream(
@@ -673,12 +678,7 @@ export abstract class SessionManagerBase {
             temperature: 0,
             max_tokens: 64,
             messages: [
-              {
-                role: "system",
-                content:
-                  "You classify requests. Respond with JSON only: " +
-                  `{"choice": "<exactly one of the allowed choices>"}. No other keys.`,
-              },
+              { role: "system", content: systemInstruction },
               { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
             ],
             response_format: { type: "json_object" },
@@ -698,8 +698,13 @@ export abstract class SessionManagerBase {
         const rawContent = response.choices?.[0]?.message?.content;
         if (typeof rawContent !== "string" || !rawContent) continue; // content-level — retry
         if (opts?.schema) {
-          const applied = applyAuxSchema(rawContent, opts.schema);
-          if (applied.ok) return applied.value;
+          let applied: { ok: true; value: unknown } | { ok: false };
+          try {
+            applied = applyAuxSchema(rawContent, opts.schema);
+          } catch {
+            applied = { ok: false }; // throwing validator → content-level
+          }
+          if (applied.ok) return applied.value as T;
           continue; // content-level — retry within budget
         }
         let parsedJson: unknown;
@@ -765,8 +770,13 @@ export abstract class SessionManagerBase {
         const content = response.choices?.[0]?.message?.content;
         if (typeof content !== "string" || !content.trim()) continue; // content-level
         if (opts?.schema) {
-          const applied = applyAuxSchema(content, opts.schema);
-          if (applied.ok) return applied.value;
+          let applied: { ok: true; value: unknown } | { ok: false };
+          try {
+            applied = applyAuxSchema(content, opts.schema);
+          } catch {
+            applied = { ok: false }; // throwing validator → content-level
+          }
+          if (applied.ok) return applied.value as T;
           continue; // content-level — retry within budget
         }
         return content as T;

@@ -46,7 +46,11 @@ export function auxEnumSchema<T extends string>(values: readonly T[]): AuxSchema
 export function applyAuxSchema<T>(raw: string, schema: AuxSchema<T>): { ok: true; value: T } | { ok: false } {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    // completeTextViaLlm has no JSON mode — models routinely wrap the object
+    // in a markdown fence. Strip full-line fences before parsing (a partial
+    // strip leaves invalid JSON and lands in the catch anyway).
+    const stripped = raw.replace(/^\s*```[a-zA-Z]*\s*\n?/, "").replace(/\n?```\s*$/, "");
+    parsed = JSON.parse(stripped);
   } catch {
     return { ok: false };
   }

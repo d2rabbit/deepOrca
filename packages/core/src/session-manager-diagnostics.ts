@@ -36,7 +36,7 @@ export type DiagnosticsLegResult = {
 const MAX_MESSAGE_CHARS = 2048;
 
 /** Cap for a leg's failure reason inside the degradation line. */
-const REASON_MAX_CHARS = 120;
+const REASON_MAX_CHARS = 240;
 
 function legLabel(source?: "serena" | "lsp"): string {
   return source === "lsp" ? "LSP bridge" : "Serena";
@@ -85,9 +85,15 @@ export function buildDiagnosticsSystemMessage(
     byFile.set(leg.file, lines);
   }
 
+  // Cap the degradation line itself: with many files × distinct reasons the
+  // joined reasons could exceed the whole message budget — keep the first
+  // two and summarize the rest (band honesty with a budget, per Part III).
+  const reasons = [...unavailable.keys()];
+  const reasonText =
+    reasons.length > 2 ? `${reasons.slice(0, 2).join("；")}；等 ${reasons.length} 项` : reasons.join("；");
   const degradation =
     unavailable.size > 0
-      ? `⚠️ 部分诊断检查不可用：${[...unavailable.keys()].join("；")}；"无错误"不等于"检查通过"，本轮结论按部分检查理解。`
+      ? `⚠️ 部分诊断检查不可用：${reasonText}；"无错误"不等于"检查通过"，本轮结论按部分检查理解。`
       : null;
 
   if (totalErrors === 0) return degradation; // null when every expected leg ran clean
@@ -97,7 +103,9 @@ export function buildDiagnosticsSystemMessage(
     body += `\n${file}\n${lines.map((l) => `- ${l}`).join("\n")}`;
   }
   let message = `⚠️ 编辑后诊断检查发现 ${totalErrors} 个错误：${body}`;
-  const budget = degradation ? maxChars - (degradation.length + 1) : maxChars;
+  // Clamped to >= 0: a negative budget makes slice() count from the END,
+  // which would silently un-truncate the body (review finding P1).
+  const budget = Math.max(0, degradation ? maxChars - (degradation.length + 1) : maxChars);
   if (message.length > budget) {
     message = `${message.slice(0, budget)}\n…（诊断过多已截断）`;
   }

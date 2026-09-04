@@ -85,23 +85,32 @@ export abstract class SessionManagerSkills extends SessionManagerDiagnostics {
     // the prompt means reviewing a diff, not re-reading call-site string
     // concatenation. depth-lane P0.2's `lane/tpcr` extension lands here too.
     let systemPrompt: string;
+    // Loaded ONCE so the fail-open fallback carries the same context as the
+    // template — a packaging gap must not silently change matching behavior
+    // (review finding: fallback used to drop the agent-instructions block).
+    const agentInstructions = this.loadAgentInstructions() || "";
     try {
       const templatePath = path.join(getExtensionRoot(), "templates", "auxiliary", "skill-matching.md.ejs");
       systemPrompt = ejs.render(fs.readFileSync(templatePath, "utf8"), {
-        agentInstructions: this.loadAgentInstructions() || "",
+        agentInstructions,
         candidatePoolJson: JSON.stringify(pool, null, 2),
       });
     } catch {
       // Template unreadable → fail-open to the inline fallback (never block
-      // skill matching on a packaging issue).
+      // skill matching on a packaging issue) — semantic parity maintained.
       systemPrompt =
         `When users ask you to perform tasks, check if any of the available skills match the goal and situation. ` +
         `Skills provide specialized capabilities and domain knowledge.\n\n` +
         `Response in JSON format:\n\`\`\`\n{"skillNames": ["", ...], "multiIntent": false}\n\`\`\`\n\n` +
         `If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": [], "multiIntent": false}\`.\n\n` +
         `Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills. ` +
-        `Single-purpose requests, however complex, are multiIntent: false.\n\n` +
-        `The candidate skills are as follows:\n\n\`\`\`\n${JSON.stringify(pool, null, 2)}\n\`\`\``;
+        `Single-purpose requests, however complex, are multiIntent: false.\n\n`;
+      if (agentInstructions) {
+        systemPrompt +=
+          `Use the current agent instructions as additional context when deciding which skills match:\n\n` +
+          `<agent-instructions>\n${agentInstructions}\n</agent-instructions>\n\n`;
+      }
+      systemPrompt += `The candidate skills are as follows:\n\n\`\`\`\n${JSON.stringify(pool, null, 2)}\n\`\`\``;
     }
 
     try {

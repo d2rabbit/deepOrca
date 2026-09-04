@@ -16,7 +16,10 @@ import { resolveRelativeTimes } from "../tdai/core/hooks/relative-time.js";
 import { formatMemoryLine } from "../tdai/core/hooks/auto-recall.js";
 
 // 2026-09-04 is a Friday → its ISO week is Mon 2026-08-31 ~ Sun 2026-09-06.
-const ANCHOR = "2026-09-04T10:00:00.000Z";
+// Anchor at LOCAL noon so the local-calendar day is 2026-09-04 in every
+// timezone (±14h from noon never crosses a date line) — the resolver is
+// local-calendar based (review P1 fix), so tests must be TZ-stable this way.
+const ANCHOR = new Date(2026, 8, 4, 12, 0, 0).toISOString();
 
 test("CMB-7: Chinese relative phrases resolve to absolute windows", () => {
   assert.equal(resolveRelativeTimes("用户今天加班了", ANCHOR), "用户今天（→ 2026-09-04）加班了");
@@ -46,6 +49,14 @@ test("CMB-7: unknown relative phrasing stays untouched (no invention)", () => {
   assert.equal(resolveRelativeTimes("a while back it broke", ANCHOR), "a while back it broke");
 });
 
+test("CMB-7: English phrases only match on word boundaries", () => {
+  assert.equal(resolveRelativeTimes("the last weekly report", ANCHOR), "the last weekly report");
+  // "today's" DOES contain the standalone word today (apostrophe is a
+  // boundary) and annotates — correct. The mid-word plural has no boundary:
+  assert.equal(resolveRelativeTimes("yesterdays leftovers", ANCHOR), "yesterdays leftovers");
+  assert.equal(resolveRelativeTimes("shipped last week", ANCHOR), "shipped last week（→ 2026-08-24 ~ 2026-08-30）");
+});
+
 test("CMB-7: re-resolution is idempotent (annotations not duplicated)", () => {
   const once = resolveRelativeTimes("用户上周去爬山了", ANCHOR);
   assert.equal(resolveRelativeTimes(once, ANCHOR), once);
@@ -64,12 +75,20 @@ test("CMB-7: formatMemoryLine separates event time from known-at time", () => {
   );
   // point-only → KNOWN-AT label, not event time (the old label conflated them)
   assert.equal(
-    formatMemoryLine({ type: "instruction", content: "要求用中文回答", timestamp: "2026-09-01T08:00:00.000Z" }),
+    formatMemoryLine({
+      type: "instruction",
+      content: "要求用中文回答",
+      timestamp: new Date(2026, 8, 1, 12, 0, 0).toISOString(),
+    }),
     "- [instruction] 要求用中文回答 (记录于 2026-09-01)"
   );
   // relative phrase inside content resolves against the same timestamp
   assert.equal(
-    formatMemoryLine({ type: "episodic", content: "用户上周发布了版本", timestamp: "2026-09-04T10:00:00.000Z" }),
+    formatMemoryLine({
+      type: "episodic",
+      content: "用户上周发布了版本",
+      timestamp: new Date(2026, 8, 4, 12, 0, 0).toISOString(),
+    }),
     "- [episodic] 用户上周（→ 2026-08-24 ~ 2026-08-30）发布了版本 (记录于 2026-09-04)"
   );
   // all empty → no time suffix

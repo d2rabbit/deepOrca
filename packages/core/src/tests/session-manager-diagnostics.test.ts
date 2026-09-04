@@ -113,8 +113,28 @@ test("CMB-1: identical unavailable reasons collapse across files", () => {
 
 test("CMB-1: summarizeLegFailure clips long error messages to the reason budget", () => {
   const long = new Error("x".repeat(500));
-  assert.ok(summarizeLegFailure(long).length <= 120);
+  assert.ok(summarizeLegFailure(long).length <= 240);
   assert.equal(summarizeLegFailure("boom"), "boom");
+});
+
+test("CMB-1 (review fix): degradation line caps at two reasons and the whole message respects the budget", () => {
+  // 5 distinct unavailable reasons → only the first two named + 等 N 项
+  const legs: DiagnosticsLegResult[] = Array.from({ length: 5 }, (_, i) =>
+    unavailable("a.ts", "lsp", `reason number ${i}`)
+  );
+  const message = buildDiagnosticsSystemMessage(legs, 2048)!;
+  assert.ok(message.includes("reason number 0"));
+  assert.ok(message.includes("reason number 1"));
+  assert.ok(!message.includes("reason number 2（"));
+  assert.ok(message.includes("等 5 项"));
+  assert.ok(message.length <= 2048 + 40);
+  // Huge distinct-reason load + huge error body: budget must hold even when
+  // the degradation line alone eats most of it (negative-budget clamp).
+  const spam = Array.from({ length: 100 }, (_, i) => `L${i}: ${"y".repeat(30)}`);
+  const mixed = [...legs, err("big.rs", spam)];
+  const capped = buildDiagnosticsSystemMessage(mixed, 1024)!;
+  assert.ok(capped.includes("部分诊断检查不可用"));
+  assert.ok(capped.length <= 1024 + 60);
 });
 
 // ── CMB-1/CMB-5 envelope wiring: the manager NEVER throws tool-level failures —

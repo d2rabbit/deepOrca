@@ -89,6 +89,16 @@ test("CMB-4: applyAuxSchema truth table — parse failure, shape failure, succes
   assert.deepEqual(applyAuxSchema("42", schema), { ok: true, value: 42 });
 });
 
+test("CMB-4: applyAuxSchema strips markdown code fences before parsing", () => {
+  const schema = {
+    describe: "number",
+    validate: (parsed: unknown) => (typeof parsed === "number" ? parsed : null),
+  };
+  assert.deepEqual(applyAuxSchema("```json\n42\n```", schema), { ok: true, value: 42 });
+  assert.deepEqual(applyAuxSchema("```\n42\n```", schema), { ok: true, value: 42 });
+  assert.deepEqual(applyAuxSchema('```json\n{"v":1}\n```', schema), { ok: false }); // fence stripped, shape still wrong
+});
+
 test("CMB-4: auxEnumSchema accepts members and rejects everything else", () => {
   const schema = auxEnumSchema(["express", "deep"] as const);
   assert.deepEqual(applyAuxSchema('"deep"', schema), { ok: true, value: "deep" });

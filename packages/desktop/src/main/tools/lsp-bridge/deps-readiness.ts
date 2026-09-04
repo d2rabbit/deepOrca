@@ -34,7 +34,12 @@ function exists(root: string, ...segments: string[]): boolean {
  *  "declared deps, no go.sum" combination is a false-positive risk. */
 function goModDeclaresExternalDeps(root: string): boolean {
   try {
-    const text = readFileSync(join(root, "go.mod"), "utf8");
+    // Comment lines stripped first — a commented-out require block must not
+    // count as a declaration (review nit).
+    const text = readFileSync(join(root, "go.mod"), "utf8")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("//"))
+      .join("\n");
     return /require\s+\(/.test(text) || /require\s+\S+\s+v\d/.test(text);
   } catch {
     return false; // unreadable → treat as no declaration → probe open
@@ -58,12 +63,16 @@ export function probeDepsReadiness(root: string, spec: LspServerSpec): DepsReadi
       };
     }
     case "python": {
-      const declared = exists(root, "pyproject.toml") || exists(root, "requirements.txt");
-      if (!declared) return { ready: true };
+      // ONLY requirements.txt flags: that workflow reliably means "install
+      // into a local venv". A pyproject-only project may legitimately live in
+      // conda/poetry/system interpreters with no ./venv dir — flagging it
+      // would claim "not installed" about environments that are fine (the
+      // exact dishonesty this probe exists to prevent — review finding).
+      if (!exists(root, "requirements.txt")) return { ready: true };
       if (exists(root, ".venv") || exists(root, "venv")) return { ready: true };
       return {
         ready: false,
-        reason: "python dependencies not installed (pyproject.toml/requirements.txt present, no .venv)",
+        reason: "python dependencies not installed (requirements.txt present, no .venv)",
         remediation: "run python -m venv .venv && .venv/bin/pip install -r requirements.txt (or equivalent)",
       };
     }

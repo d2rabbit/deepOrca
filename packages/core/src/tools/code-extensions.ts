@@ -50,8 +50,12 @@ const CODE_EXTENSIONS: ReadonlySet<string> = new Set([
 ]);
 
 export function isCodeFilePath(filePath: string): boolean {
-  const ext = (filePath.split(".").pop() ?? "").toLowerCase();
-  return CODE_EXTENSIONS.has(ext);
+  // Segment-then-extname (not bare split) so dot-directories ("/a.b/c")
+  // don't masquerade as extensions (review nit).
+  const lastSegment = filePath.split(/[\\/]/).pop() ?? "";
+  const dot = lastSegment.lastIndexOf(".");
+  if (dot <= 0) return false;
+  return CODE_EXTENSIONS.has(lastSegment.slice(dot + 1).toLowerCase());
 }
 
 /**

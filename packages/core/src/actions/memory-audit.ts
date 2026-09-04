@@ -23,7 +23,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ActionDefinition, ActionRun } from "./types";
-import { getProjectCode, getUserConfigRoot } from "../common/app-dirs";
+import { getProjectCode, getProjectConfigRoot, getUserConfigRoot } from "../common/app-dirs";
 import { verifyAuditChain, type AuditEvent, type PathGateAuditEvent } from "../sandbox/audit";
 
 // ── Inputs / outputs ─────────────────────────────────────────────────────────
@@ -104,6 +104,12 @@ export interface MemoryAuditOutput {
 const MAX_EVENTS = 200;
 const MESSAGE_CLIP = 200;
 const SNAPSHOT_KEEP = 10;
+
+/** Index entries are semi-trusted storage — a corrupt/hand-edited id must
+ *  never turn into a path traversal out of the project store. */
+function isSafeSessionId(id: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(id) && !id.includes("..");
+}
 
 function clip(text: string): string {
   return text.length > MESSAGE_CLIP ? `${text.slice(0, MESSAGE_CLIP)}…` : text;
@@ -219,7 +225,9 @@ function scanAuditChain(projectDir: string, sessionId: string): { events: Memory
       }));
     return { events, verified };
   } catch {
-    return { events: [], verified: true };
+    // Unreadable file → unverifiable, NOT verified (a broken read must not
+    // count toward the verified total — review finding).
+    return { events: [], verified: false };
   }
 }
 
@@ -288,7 +296,9 @@ function aggregate(
 // ── Snapshot write (dryRun=false only) ──────────────────────────────────────
 
 function writeSnapshot(projectRoot: string, output: Omit<MemoryAuditOutput, "snapshotPath">): string {
-  const dir = path.join(projectRoot, ".deeporca", "audits");
+  // getProjectConfigRoot honors a legacy `.deepcode` root when present — the
+  // same dual-root discipline as the reviews store.
+  const dir = path.join(getProjectConfigRoot(projectRoot), "audits");
   fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = path.join(dir, `memory-audit-${stamp}.json`);
@@ -330,7 +340,7 @@ export const memoryAuditDefinition: ActionDefinition<MemoryAuditInput> = {
     },
     additionalProperties: false,
   },
-  sideEffects: ["read-in-cwd"],
+  sideEffects: ["read-in-cwd", "write-in-cwd"],
 };
 
 export const memoryAuditRun: ActionRun<MemoryAuditInput, MemoryAuditOutput> = async (input, ctx) => {
@@ -370,7 +380,7 @@ export const memoryAuditRun: ActionRun<MemoryAuditInput, MemoryAuditOutput> = as
 
   const silent = entries.filter((e) => e.isSilentSubagent);
   const material = entries
-    .filter((e) => !e.isSilentSubagent)
+    .filter((e) => !e.isSilentSubagent && isSafeSessionId(e.id))
 
     .sort((a, b) => String(b.updateTime ?? "").localeCompare(String(a.updateTime ?? "")))
     .slice(0, maxSessions);
