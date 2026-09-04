@@ -1,18 +1,20 @@
 /**
  * Store-reference parsing (five kinds, designs/chat-redesign V4 §五类引用):
- *   wiki   @…/.deeporca/deepwiki/…        （引用桥写入）
- *   review @…/.deeporca/reviews/…         （引用桥写入）
- *   file   @path/to/file.ext              （@-菜单插入形态，需路径分隔符）
+ *   wiki   @…/.deeporca/deepwiki/…        （引用桥 / @-菜单注入；相对形态亦可）
+ *   review @…/.deeporca/reviews/…         （引用桥 / @-菜单注入；相对形态亦可）
+ *   file   @path/to/file.ext 或 @README.md（根级文件亦可）
  *   cmd    $ npm test                     （shell 提示符惯例）
  *   skill  @frontend-review               （小写连字符词）
  * Pure + UI-free — 供会话流芯片、输入框镜像层与 @-菜单抑制共用。
  */
 
 const CHIP_SOURCE = [
-  // ① deeporca 结构化引用（wiki 页 / 审查报告 JSON）—— 引用桥写入，优先级最高
-  String.raw`@(?<deep>\S*?[\\/]\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
-  // ② 文件引用：@ + 含路径分隔符、带扩展名的路径（@-菜单插入形态）
-  String.raw`@(?<file>\S*?[\\/]\S+?\.[A-Za-z0-9]{1,10})`,
+  // ① deeporca 结构化引用（wiki 页 / 审查报告 JSON）—— 引用桥 / @-菜单写入，
+  //    绝对与相对形态均识别（(?:…)? 可选前缀，2026-09-05 修复相对形态丢失语义）
+  String.raw`@(?<deep>(?:\S*?[\\/])?\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
+  // ② 文件引用：@ + 带扩展名的路径（含路径分隔符或根级文件，如 @README.md——
+  //    2026-09-05 放开根级；扩展名前瞻使 @x.md 归文件、@x 归技能的消歧自然成立）
+  String.raw`@(?<file>(?:\S*?[\\/])?\S+?\.[A-Za-z0-9]{1,10})`,
   // ③ 命令引用：$ + 空格 + 命令（≤5 个 token，拒收 CJK 与 $ 歧义；首词合理性
   //    在 splitStoreRefSegments 里二次过滤——正则里塞停用词表会不可读）
   String.raw`\$(?<cmd> ?[a-zA-Z][\w./-]*(?:[ \t]+[\w./=-]+){0,4})`,
@@ -85,17 +87,20 @@ function isPlausibleCommand(cmdToken: string): boolean {
 }
 
 function chipLabel(kind: StoreRefKind, token: string): string {
+  // Root-level files ("@README.md") carry no separator, so the leading @
+  // survives the path split — normalize it away first (2026-09-05 fix 3).
+  const stripped = token.replace(/^@/, "");
   if (kind === "wiki") {
-    const file = token.split(/[\\/]/).pop() ?? token;
+    const file = stripped.split(/[\\/]/).pop() ?? stripped;
     return file.replace(/\.md$/, "") || "wiki";
   }
   if (kind === "review") {
-    const file = token.split(/[\\/]/).pop() ?? token;
+    const file = stripped.split(/[\\/]/).pop() ?? stripped;
     const mm = file.match(/review-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
     return mm ? `${mm[1]}/${mm[2]}/${mm[3]} ${mm[4]}:${mm[5]}` : file;
   }
   if (kind === "file") {
-    return token.split(/[\\/]/).pop() ?? token;
+    return stripped.split(/[\\/]/).pop() ?? stripped;
   }
   if (kind === "cmd") {
     return token.replace(/^\$?\s*/, "");
@@ -134,8 +139,8 @@ export function extractStoreReferences(text: string): { hasRefs: boolean; refs: 
 }
 
 const COMPLETE_CHIP_SOURCE = [
-  String.raw`@(?<deep>\S*?[\\/]\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
-  String.raw`@(?<file>\S*?[\\/]\S+?\.[A-Za-z0-9]{1,10})`,
+  String.raw`@(?<deep>(?:\S*?[\\/])?\.deeporca[\\/](?:deepwiki|reviews)[\\/][^\s@]+(?:\.md|\.json)?)`,
+  String.raw`@(?<file>(?:\S*?[\\/])?\S+?\.[A-Za-z0-9]{1,10})`,
   String.raw`@(?<skill>[a-z][a-z0-9-]{1,31})(?![\w/-])(?!\.[A-Za-z0-9])`,
 ].join("|");
 const COMPLETE_CHIP_RE = new RegExp(`^(?:${COMPLETE_CHIP_SOURCE})$`);

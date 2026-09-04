@@ -50,6 +50,7 @@ function renderComposer(value: string): { container: HTMLElement; onChange: (v: 
           I18nProvider,
           null,
           ReactPkg.createElement(Composer, {
+            root: "/tmp/demo",
             value: v,
             onChange,
             onSend: () => {},
@@ -74,6 +75,7 @@ function renderComposer(value: string): { container: HTMLElement; onChange: (v: 
       I18nProvider,
       null,
       ReactPkg.createElement(Composer, {
+        root: "/tmp/demo",
         value,
         onChange,
         onSend: () => {},

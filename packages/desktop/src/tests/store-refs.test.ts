@@ -38,11 +38,31 @@ test("a skill reference followed by an ASCII sentence period still chips", () =>
   );
 });
 
-test("an extension-like continuation after a skill name does not chip", () => {
-  // "@frontend-review.md" reads like a file — and without a path separator
-  // it matches neither the file nor the skill shape.
+test("a root-level file with an extension now chips as file (2026-09-05 fix 3)", () => {
+  // "@frontend-review.md" reads like a file — since root-level files are
+  // recognized, it is a FILE chip (the skill shape's extension lookahead
+  // already yields disambiguation: @x.md → file, @x → skill).
   const { refs } = extractStoreReferences("open @frontend-review.md please");
-  assert.equal(refs.length, 0);
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "file");
+  assert.equal(refs[0]?.label, "frontend-review.md");
+});
+
+test("relative .deeporca forms keep their wiki/review semantics (2026-09-05 fix 2)", () => {
+  const { refs } = extractStoreReferences(
+    "see @.deeporca/deepwiki/roadmap.md and @.deeporca/reviews/review-2026-09-05T10-00.json"
+  );
+  assert.equal(refs.length, 2);
+  assert.equal(refs[0]?.kind, "wiki");
+  assert.equal(refs[0]?.label, "roadmap");
+  assert.equal(refs[1]?.kind, "review");
+});
+
+test("root-level plain file chips as file (2026-09-05 fix 3)", () => {
+  const { refs } = extractStoreReferences("check @README.md first");
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0]?.kind, "file");
+  assert.equal(refs[0]?.label, "README.md");
 });
 
 test("prose containing '$ ' does not become a command chip", () => {

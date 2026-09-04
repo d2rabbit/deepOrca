@@ -16,6 +16,8 @@ import {
 
 type Props = {
   value: string;
+  /** Registered workspace root — scopes the @ menu's wiki/review groups. */
+  root: string;
   onChange: (value: string) => void;
   onSend: () => void;
   onStop: () => void;
@@ -108,6 +110,7 @@ function filterSlashCandidates(items: SlashCandidate[], token: string): SlashCan
 // handlers), so App-level stream/busy ticks don't re-render the composer.
 export const Composer = memo(function Composer(props: Props): JSX.Element {
   const {
+    root,
     value,
     onChange,
     onSend,
@@ -592,6 +595,7 @@ export const Composer = memo(function Composer(props: Props): JSX.Element {
         <FileMentionMenu
           open={showFileMenu}
           query={fileQuery}
+          root={root}
           onSelect={applyFileMention}
           onClose={() => setShowFileMenu(false)}
         />

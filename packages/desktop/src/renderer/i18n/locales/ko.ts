@@ -432,6 +432,10 @@ export const ko: Record<MessageKey, string> = {
   "fileMenu.scanning": "스캔 중…",
   "fileMenu.noMatch": "일치하는 파일이 없습니다",
   "fileMenu.typeToSearch": "입력하여 파일 검색…",
+  "fileMenu.wiki": "wiki 문서",
+
+  "fileMenu.review": "리뷰 리포트",
+
   "fileMenu.dir": "디렉터리",
 
   // ── 슬래시 명령 메뉴 ───────────────────────────────────────

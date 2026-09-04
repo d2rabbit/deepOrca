@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import type { FileMatch } from "../../shared/ipc";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { IconFileOutline, IconFolderOutline } from "../ui/icons";
+import { IconBook, IconFileOutline, IconFolderOutline } from "../ui/icons";
+import { reviewStorePath, wikiStorePath } from "../lib/generated-paths";
 
 type Props = {
   /** Whether the menu is visible (based on @ token detection). */
@@ -15,11 +16,21 @@ type Props = {
   onClose: () => void;
   /** Cursor position for placement. */
   anchorRect?: DOMRect | null;
+  /**
+   * Registered workspace root — scopes the wiki-page / review-report groups
+   * injected into the menu (2026-09-05 fix 1: these stores were excluded from
+   * the filesystem scan, so the only way to reference them was the panels'
+   * quote bridge). Absent → store groups are skipped (fail-open).
+   */
+  root?: string;
 };
 
-export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: Props): JSX.Element | null {
+type StoreGroupItem = FileMatch & { kind: "wiki" | "review"; title: string };
+
+export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect, root }: Props): JSX.Element | null {
   const { t } = useI18n();
   const [items, setItems] = useState<FileMatch[]>([]);
+  const [storeItems, setStoreItems] = useState<StoreGroupItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +82,44 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
     };
   }, [open, query]);
 
+  // Store groups (fix 1): wiki pages + review reports as first-class mention
+  // items. Refreshed whenever the menu opens; filtered by query locally.
+  useEffect(() => {
+    if (!open || !root) {
+      setStoreItems([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const wiki: StoreGroupItem[] = await api
+        .wikiListPages(root)
+        .then((pages) =>
+          pages.map((page) => ({
+            path: wikiStorePath(root, page.path),
+            type: "file" as const,
+            kind: "wiki" as const,
+            title: page.title,
+          }))
+        )
+        .catch(() => [] as StoreGroupItem[]);
+      const reviews: StoreGroupItem[] = await api
+        .reviewListReports(root)
+        .then((reports) =>
+          reports.map((r) => ({
+            path: reviewStorePath(root, r.id),
+            type: "file" as const,
+            kind: "review" as const,
+            title: r.generatedAt ? `${r.generatedAt.slice(0, 10)}${r.status ? ` · ${r.status}` : ""}` : r.id,
+          }))
+        )
+        .catch(() => [] as StoreGroupItem[]);
+      if (!cancelled) setStoreItems([...wiki, ...reviews]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, root]);
+
   const handleSelect = useCallback(
     (item: FileMatch) => {
       onSelect(item);
@@ -79,19 +128,28 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
     [onSelect, onClose]
   );
 
+  // Combined list: store groups first (they are the scarcer, semantic refs),
+  // then filesystem matches — query-filtered on path + title.
+  const lowerQuery = query.trim().toLowerCase();
+  const matchedStore = storeItems.filter(
+    (item) =>
+      !lowerQuery || item.path.toLowerCase().includes(lowerQuery) || item.title.toLowerCase().includes(lowerQuery)
+  );
+  const combined: FileMatch[] = [...matchedStore, ...items];
+
   // Keyboard navigation
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent): void {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveIndex((i) => (i + 1) % Math.max(1, items.length));
+        setActiveIndex((i) => (i + 1) % Math.max(1, combined.length));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveIndex((i) => (i - 1 + items.length) % Math.max(1, items.length));
-      } else if (e.key === "Enter" && items.length > 0) {
+        setActiveIndex((i) => (i - 1 + combined.length) % Math.max(1, combined.length));
+      } else if (e.key === "Enter" && combined.length > 0) {
         e.preventDefault();
-        const item = items[activeIndex];
+        const item = combined[activeIndex];
         if (item) handleSelect(item);
       } else if (e.key === "Escape") {
         e.preventDefault();
@@ -100,7 +158,7 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, items, activeIndex, handleSelect, onClose]);
+  }, [open, combined, activeIndex, handleSelect, onClose]);
 
   if (!open) return null;
 
@@ -109,12 +167,12 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
       className="ui-file-mention-menu"
       style={anchorRect ? { maxHeight: Math.min(240, window.innerHeight - anchorRect.bottom - 20) } : undefined}
     >
-      {loading && items.length === 0 ? (
+      {loading && combined.length === 0 ? (
         <div className="ui-file-mention-loading">
           <span className="ui-file-mention-spinner" />
           {t("fileMenu.scanning")}
         </div>
-      ) : items.length === 0 ? (
+      ) : combined.length === 0 ? (
         <div className="ui-file-mention-empty">{query ? t("fileMenu.noMatch") : t("fileMenu.typeToSearch")}</div>
       ) : (
         <>
@@ -125,25 +183,40 @@ export function FileMentionMenu({ open, query, onSelect, onClose, anchorRect }: 
               <span className="ui-file-mention-spinner" />
             </div>
           ) : null}
-          {items.map((item, i) => (
-            <button
-              key={item.path}
-              className={`ui-file-mention-option${i === activeIndex ? " active" : ""}${item.type === "directory" ? " is-dir" : ""}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSelect(item);
-              }}
-              onMouseEnter={() => setActiveIndex(i)}
-            >
-              <span className="ui-file-mention-icon">
-                {item.type === "directory" ? <IconFolderOutline /> : <IconFileOutline />}
-              </span>
-              <span className="ui-file-mention-path">{item.path}</span>
-              <span className="ui-file-mention-type">
-                {item.type === "directory" ? t("fileMenu.dir") : (item.path.split(".").pop() ?? "")}
-              </span>
-            </button>
-          ))}
+          {combined.map((item, i) => {
+            const isStore = item.kind === "wiki" || item.kind === "review";
+            return (
+              <button
+                key={`${item.kind ?? "fs"}:${item.path}`}
+                className={`ui-file-mention-option${i === activeIndex ? " active" : ""}${item.type === "directory" ? " is-dir" : ""}${isStore ? " is-store" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelect(item);
+                }}
+                onMouseEnter={() => setActiveIndex(i)}
+              >
+                <span className="ui-file-mention-icon">
+                  {item.kind === "wiki" ? (
+                    <IconBook />
+                  ) : item.type === "directory" ? (
+                    <IconFolderOutline />
+                  ) : (
+                    <IconFileOutline />
+                  )}
+                </span>
+                <span className="ui-file-mention-path">{item.title ?? item.path}</span>
+                <span className="ui-file-mention-type">
+                  {item.kind === "wiki"
+                    ? t("fileMenu.wiki")
+                    : item.kind === "review"
+                      ? t("fileMenu.review")
+                      : item.type === "directory"
+                        ? t("fileMenu.dir")
+                        : (item.path.split(".").pop() ?? "")}
+                </span>
+              </button>
+            );
+          })}
         </>
       )}
     </div>

@@ -424,6 +424,10 @@ export const zh: Record<MessageKey, string> = {
   "fileMenu.scanning": "扫描中…",
   "fileMenu.noMatch": "没有匹配的文件",
   "fileMenu.typeToSearch": "输入以搜索文件…",
+  "fileMenu.wiki": "wiki 页",
+
+  "fileMenu.review": "审查报告",
+
   "fileMenu.dir": "目录",
 
   // ── 斜杠命令菜单 ───────────────────────────────────────────

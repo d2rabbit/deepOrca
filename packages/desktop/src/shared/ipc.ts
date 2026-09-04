@@ -1005,6 +1005,12 @@ export type EditorFileEntry = {
 export type FileMatch = {
   path: string;
   type: "file" | "directory";
+  /** Store-reference semantic kind — wiki/review items are injected by the
+   *  mention menu from the stores (not filesystem scan results) and insert
+   *  as absolute store paths so the deep reference regex chips them. */
+  kind?: "wiki" | "review";
+  /** Human display title (wiki page title / formatted report stamp). */
+  title?: string;
 };
 
 /** defineAction surface (spec §六). A registered action's introspection entry. */

@@ -423,6 +423,10 @@ export const zhHK: Record<MessageKey, string> = {
   "fileMenu.scanning": "掃描中…",
   "fileMenu.noMatch": "沒有符合的檔案",
   "fileMenu.typeToSearch": "輸入以搜尋檔案…",
+  "fileMenu.wiki": "wiki 頁",
+
+  "fileMenu.review": "審查報告",
+
   "fileMenu.dir": "目錄",
 
   // ── 斜線命令選單 ───────────────────────────────────────────

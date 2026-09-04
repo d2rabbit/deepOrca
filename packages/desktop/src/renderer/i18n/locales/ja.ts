@@ -433,6 +433,10 @@ export const ja: Record<MessageKey, string> = {
   "fileMenu.scanning": "スキャン中…",
   "fileMenu.noMatch": "一致するファイルはありません",
   "fileMenu.typeToSearch": "入力してファイルを検索…",
+  "fileMenu.wiki": "wiki ページ",
+
+  "fileMenu.review": "レビューレポート",
+
   "fileMenu.dir": "ディレクトリ",
 
   // ── スラッシュコマンドメニュー ─────────────────────────────

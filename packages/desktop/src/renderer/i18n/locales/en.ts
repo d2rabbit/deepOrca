@@ -435,6 +435,10 @@ export const en = {
   "fileMenu.scanning": "Scanning…",
   "fileMenu.noMatch": "No matching files",
   "fileMenu.typeToSearch": "Type to search files…",
+  "fileMenu.wiki": "wiki page",
+
+  "fileMenu.review": "review report",
+
   "fileMenu.dir": "dir",
 
   // ── Slash command menu ────────────────────────────────────

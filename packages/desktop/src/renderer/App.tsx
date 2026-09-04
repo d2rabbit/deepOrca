@@ -1667,6 +1667,7 @@ export function App(): JSX.Element {
           </div>
         ) : null}
         <Composer
+          root={projectRoot}
           value={draft}
           onChange={setDraft}
           onSend={handleSend}
