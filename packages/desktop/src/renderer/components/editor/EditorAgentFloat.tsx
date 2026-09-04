@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { editor } from "monaco-editor";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { A2uiSurface } from "../../a2ui/A2uiSurface";
 import { extractSurfaceId, getSurfaceModel } from "../../a2ui/processor";
 import { languageForFile } from "./monaco-loader";
+import { computeFloatPlacement, type FloatPlacement } from "../../lib/selection-anchor";
+
+/** 浮窗尺寸（估）：边缘翻转与 clamp 用——与图上浮窗的固定常数同风格。 */
+const PANEL_W = 380;
+const PANEL_H = 340;
+const FAB_W = 130;
+const FAB_H = 30;
 
 /** JSON.stringify replacer: drop circular values instead of throwing. */
 const safeReplacer = (_key: string, value: unknown): unknown =>
@@ -265,7 +273,84 @@ export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }:
     []
   );
 
-  if (!selection && !thread.open) return null;
+  // ── F1–F3：追随选中位置的浮动锚点（user ask 2026-09-04）──────────────────
+  // 锚在选区末行（提交后冻结在 appliedRange 末行——结果落点不受后续选区
+  // 影响），编辑器滚动/窗口尺寸变化时重算：图上浮窗「滚动即关」，这里改
+  // 为跟随内容，rAF 节流滚动风暴。
+  const [placement, setPlacement] = useState<FloatPlacement | null>(null);
+  const rafRef = useRef(0);
+  const anchorLine = thread.appliedRange?.endLine ?? selection?.endLine ?? null;
+  const panelSize = thread.open || thread.busy || thread.result ? { w: PANEL_W, h: PANEL_H } : { w: FAB_W, h: FAB_H };
+
+  const recompute = useCallback(() => {
+    const ed = editorRef.current;
+    if (!ed || anchorLine === null) {
+      setPlacement(null);
+      return;
+    }
+    const model = ed.getModel();
+    const dom = ed.getDomNode();
+    if (!model || !dom || anchorLine > model.getLineCount()) {
+      setPlacement(null);
+      return;
+    }
+    const pos = ed.getScrolledVisiblePosition({ lineNumber: anchorLine, column: model.getLineMaxColumn(anchorLine) });
+    if (!pos) {
+      setPlacement(null);
+      return;
+    }
+    const rect = dom.getBoundingClientRect();
+    setPlacement(
+      computeFloatPlacement({
+        anchor: { x: rect.left + pos.left, y: rect.top + pos.top, lineHeight: pos.height ?? 20 },
+        panelWidth: panelSize.w,
+        panelHeight: panelSize.h,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      })
+    );
+  }, [editorRef, anchorLine, panelSize.w, panelSize.h]);
+
+  // 锚点行/浮窗形态变化：绘制前重算（首帧就在正确位置，不闪）。
+  useLayoutEffect(() => {
+    recompute();
+  }, [recompute]);
+
+  // 滚动/窗口变化：rAF 节流重算。onDidScroll 的订阅挂在渲染间隙补挂——
+  // 浮窗先于 Monaco onMount 渲染时编辑器实例尚不存在。
+  const scrollOffRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const schedule = (): void => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0;
+        recompute();
+      });
+    };
+    const onResize = (): void => schedule();
+    window.addEventListener("resize", onResize);
+    const attach = (): void => {
+      const ed = editorRef.current;
+      if (!ed || scrollOffRef.current) return;
+      // The repo's monaco type stub narrows IStandaloneCodeEditor — the real
+      // runtime object has onDidScroll; go through a structural cast (same
+      // escape as the ts defaults config in monaco-loader).
+      type ScrollableEditor = { onDidScroll(listener: () => void): { dispose(): void } };
+      const d = (ed as unknown as ScrollableEditor).onDidScroll(schedule);
+      scrollOffRef.current = () => d.dispose();
+    };
+    attach();
+    const interval = scrollOffRef.current ? null : window.setInterval(attach, 300);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      scrollOffRef.current?.();
+      scrollOffRef.current = null;
+      if (interval) window.clearInterval(interval);
+    };
+  }, [editorRef, recompute]);
+
+  if (!selection && !thread.open && !thread.busy && !thread.result) return null;
 
   const submitToChat = (): void => {
     const instruction = thread.input.trim();
@@ -278,8 +363,13 @@ export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }:
     patchThread(filePath, { open: false });
   };
 
-  return (
-    <div className="ui-edagent">
+  // Portal 到 body + fixed 视口坐标（同索引关系图浮窗的 escape：工作区
+  // sheet 的层叠/裁剪不再影响浮窗）。
+  return createPortal(
+    <div
+      className="ui-edagent ui-edagent-floating"
+      style={placement ? { left: placement.left, top: placement.top } : undefined}
+    >
       {thread.open ? (
         <div className="ui-edagent-panel">
           <div className="ui-edagent-head">
@@ -379,6 +469,7 @@ export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }:
           ◈ {t("editor.agent.ask")}
         </button>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

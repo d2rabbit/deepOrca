@@ -1864,11 +1864,11 @@
 }
 
 /* ── 选区 agent 交互浮窗（user ask 2026-09-03 十三轮 B3c-3 第一切片）── */
-.ui-edagent {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  z-index: 8;
+/* 浮窗容器（B-line F1）：portal 到 body + fixed 视口坐标，追随选区位置
+   （left/top 由 selection-anchor 计算注入）；不再是右下角 absolute。 */
+.ui-edagent-floating {
+  position: fixed;
+  z-index: 400;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
