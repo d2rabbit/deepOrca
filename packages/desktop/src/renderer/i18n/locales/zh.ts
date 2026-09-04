@@ -1346,4 +1346,6 @@ export const zh: Record<MessageKey, string> = {
   "chain.pane.noData": "（无）",
   "chain.pane.error": "链操作失败：",
   "chain.pane.device": "设备",
+
+  "chain.pane.records": "{n} 条记录",
 };

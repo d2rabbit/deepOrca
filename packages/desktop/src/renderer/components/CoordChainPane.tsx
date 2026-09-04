@@ -168,8 +168,8 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
             ) : (
               <ul>
                 {members.map((member) => (
-                  <li key={member.keyId}>
-                    {member.deviceName} · {member.keyId.slice(0, 16)}
+                  <li key={member.keyId} title={member.keyId}>
+                    {member.deviceName} · {keyIdShort(member.keyId)}
                   </li>
                 ))}
               </ul>
@@ -182,8 +182,8 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
             ) : (
               <ul>
                 {blocks.map((block) => (
-                  <li key={`${block.height}-${block.hash}`}>
-                    #{block.height} · {block.proposer.slice(0, 12)} · {block.recordCount} rec
+                  <li key={`${block.height}-${block.hash}`} title={block.hash}>
+                    #{block.height} · {keyIdShort(block.proposer)} · {t("chain.pane.records", { n: block.recordCount })}
                   </li>
                 ))}
               </ul>
@@ -198,7 +198,7 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
                 {genealogy.map((task) => (
                   <li key={task.recordId}>
                     {task.parentRecordId ? "⑂ " : ""}
-                    {task.title} · {task.author.slice(0, 12)}
+                    {task.title} · {keyIdShort(task.author)}
                   </li>
                 ))}
               </ul>
@@ -213,4 +213,12 @@ export function CoordChainPane(props: { startArgs?: Omit<ChainStartArgs, "mode">
 /** Theme for a workspace without an explicit chain config: the git remote string. */
 function localTheme(): string {
   return document.body.dataset.chainTheme ?? "git:local";
+}
+
+/** Compact, CONSISTENT key display for lists — never a per-site slice length. */
+function keyIdShort(keyId: string): string {
+  if (keyId.length <= 16) {
+    return keyId;
+  }
+  return `${keyId.slice(0, 10)}…${keyId.slice(-4)}`;
 }

@@ -88,6 +88,6 @@ test("pane renders chain state, members, blocks and genealogy from the ipc surfa
   assert.equal(text("[data-testid=chain-id]"), "orca1abcdefghijklmnop", "chain id rendered");
   assert.ok(text(".ui-chain-section").includes("alpha"), "member device name rendered");
   assert.ok(text("[data-testid=chain-genealogy]").includes("⑂ fork passkey"), "genealogy fork edge rendered");
-  assert.ok(text("[data-testid=chain-blocks]").includes("#5 · did:aaaa · 2 rec"), "block row with approvers line");
+  assert.ok(text("[data-testid=chain-blocks]").includes("#5 · did:aaaa · 2 条记录"), "block row with localized record count");
   assert.ok(text(".ui-chain-facts").includes("已绑定本机"), "anchor bound label");
 });

@@ -1386,4 +1386,6 @@ export const ja: Record<MessageKey, string> = {
   "chain.pane.noData": "（なし）",
   "chain.pane.error": "チェーン操作に失敗：",
   "chain.pane.device": "デバイス",
+
+  "chain.pane.records": "{n} 件のレコード",
 };

@@ -29,7 +29,24 @@
 **可重复脚本**：`scripts/electron-chain-e2e.mjs <ws-url> <shot.png>`（CDP 驱动，配合
 `--remote-debugging-port=9222` 启动）。
 
-## B. 视觉走查（部分受限，已由替代证据覆盖）
+## B. 视觉走查（Electron 实跑 + 像素级判读，已执行）
+
+**方法**：Electron 实跑窗口 → CDP 真实点击（Hub orb → 「工作链」）→ `Page.captureScreenshot`
+真实像素 → MiniMax 视觉模型两轮判读（评审-修复-复检闭环）。
+
+**第一轮判读**（发现了问题即修复）：
+
+- ✅ 面板四段（状态卡/成员/区块含审批人/谱系）文本正确、深色主题、无乱码
+- ⚠️ 成员与区块的设备标识截断长度不一致（16 vs 12）→ **已修**：统一 `keyIdShort`
+  （`did:xxxx…xxxx`）并在列表项加 `title` 悬停完整标识 → **复检一致**（`did:427b51…ad87`）
+- ⚠️ `1 rec` 英文混排 → **已修**：i18n 六套 `chain.pane.records`（`{n} 条记录` 等）→ 复检 `1 条记录`
+- ✅ 链 ID 完整（`orca1…` 24 字符，判读器曾疑截断——**误解校正**：`orca1` 前缀与 base32 是链 ID 设计规范，非缺陷）
+
+**第二轮判读（复检）**：核心缺陷清零；剩余视觉精修项（面板底部留白、按钮宽度比、
+主 UI 顶栏元素在小窗口溢出、撤销按钮 5+1 排布等）均属**主 UI 既有设计或 P2 级精修**，
+不阻断本分支功能验收，列入后续打磨（不影响 coord-chain 交付判定）。
+
+## B1. 视觉走查结论（由替代证据覆盖的部分保留）
 
 - 共享空间面板（CoordChainPane）DOM 渲染：jsdom + api stub 测试全绿（状态卡/成员/区块/谱系中文文案）。
 - renderer 实捆：esbuild 产物含 CoordChainPane/chainGetState。

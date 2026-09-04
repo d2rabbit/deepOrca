@@ -1384,4 +1384,6 @@ export const en = {
   "chain.pane.noData": "(none)",
   "chain.pane.error": "Chain operation failed:",
   "chain.pane.device": "Device",
+
+  "chain.pane.records": "{n} records",
 } as const;

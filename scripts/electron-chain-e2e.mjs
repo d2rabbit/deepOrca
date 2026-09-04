@@ -28,8 +28,16 @@ ws.on("open", async () => {
   try {
     await send("Runtime.enable");
     await send("Page.enable");
-    const r = await send("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
-    console.log("EVAL:", JSON.stringify(r));
+    let r = null;
+    if (expr.startsWith("click:")) {
+      const [x, y] = expr.slice(6).split(",").map(Number);
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+      console.log("CLICK:", x, y);
+    } else {
+      r = await send("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
+      console.log("EVAL:", JSON.stringify(r));
+    }
     if (r && r.exceptionDetails) console.log("EXC:", JSON.stringify(r.exceptionDetails.exception ?? r.exceptionDetails.text));
     const shot = await send("Page.captureScreenshot", { format: "png" });
     if (shot && shot.data) {

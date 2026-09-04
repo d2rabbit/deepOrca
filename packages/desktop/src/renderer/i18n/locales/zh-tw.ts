@@ -1349,4 +1349,6 @@ export const zhTW: Record<MessageKey, string> = {
   "chain.pane.noData": "（無）",
   "chain.pane.error": "鏈操作失敗：",
   "chain.pane.device": "設備",
+
+  "chain.pane.records": "{n} 條記錄",
 };

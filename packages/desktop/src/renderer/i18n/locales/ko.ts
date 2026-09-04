@@ -1377,4 +1377,6 @@ export const ko: Record<MessageKey, string> = {
   "chain.pane.noData": "(없음)",
   "chain.pane.error": "체인 작업 실패:",
   "chain.pane.device": "기기",
+
+  "chain.pane.records": "{n}개 기록",
 };
