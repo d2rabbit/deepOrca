@@ -132,6 +132,15 @@ export type {
   DesignAuditSeverity,
   DesignAuditAxes,
 } from "./design-audit";
+export { memoryAuditDefinition, memoryAuditRun } from "./memory-audit";
+export type {
+  MemoryAuditInput,
+  MemoryAuditOutput,
+  MemoryAuditEvent,
+  MemoryAuditEventKind,
+  MemoryAuditPattern,
+  AlwaysAllowCandidate,
+} from "./memory-audit";
 export {
   prototypeSpecDefinition,
   prototypeSpecRun,
