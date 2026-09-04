@@ -42,6 +42,9 @@ export class PeerConnection {
   readonly session: FrameCodec;
   readonly info: PeerMeta;
   private closed = false;
+  /** Frames decrypted but not yet consumed by nextFrame(). */
+  private readonly frameQueue: Uint8Array[] = [];
+  private readonly frameResolvers: Array<(frame: Uint8Array) => void> = [];
 
   constructor(
     private readonly ws: WebSocket,
@@ -51,6 +54,30 @@ export class PeerConnection {
   ) {
     this.session = session;
     this.info = info;
+    // ONE persistent 'message' listener for the whole connection: frames that
+    // arrive while no nextFrame() is pending are QUEUED, never dropped. A
+    // per-call off/on listener has an attach window in which ws emits a frame
+    // to zero listeners and the frame is gone for good.
+    ws.on("message", (data: RawData, isBinary: boolean) => {
+      if (!isBinary) {
+        // Plaintext after the handshake = protocol violation → drop (R19).
+        this.terminate();
+        return;
+      }
+      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+      try {
+        const frame = new Uint8Array(this.session.decryptFrame(new Uint8Array(buffer)));
+        const resolve = this.frameResolvers.shift();
+        if (resolve) {
+          resolve(frame);
+        } else {
+          this.frameQueue.push(frame);
+        }
+      } catch {
+        // Tampering/replay: the channel is no longer trustworthy.
+        this.terminate();
+      }
+    });
     ws.on("close", () => {
       if (!this.closed) {
         this.closed = true;
@@ -60,6 +87,14 @@ export class PeerConnection {
     ws.on("error", () => {
       /* 'close' follows */
     });
+  }
+
+  private terminate(): void {
+    try {
+      this.ws.terminate();
+    } catch {
+      /* already dead */
+    }
   }
 
   get keyId(): string {
@@ -83,39 +118,16 @@ export class PeerConnection {
 
   /** Resolve the next encrypted frame; rejects when the peer disconnects. */
   nextFrame(): Promise<Uint8Array> {
+    const queued = this.frameQueue.shift();
+    if (queued) {
+      return Promise.resolve(queued);
+    }
     if (this.closed) {
       return Promise.reject(new Error("peer closed"));
     }
     return new Promise<Uint8Array>((resolve, reject) => {
-      const onMessage = (data: RawData, isBinary: boolean): void => {
-        // Plaintext after the handshake = protocol violation → drop (R19).
-        if (!isBinary) {
-          cleanup();
-          this.ws.terminate();
-          reject(new Error("plaintext message on an encrypted channel"));
-          return;
-        }
-        cleanup();
-        const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
-        try {
-          resolve(this.session.decryptFrame(new Uint8Array(buffer)));
-        } catch (error) {
-          // Tampering/replay: the channel is no longer trustworthy.
-          cleanup();
-          this.ws.terminate();
-          reject(error as Error);
-        }
-      };
-      const onClose = (): void => {
-        cleanup();
-        reject(new Error("peer closed"));
-      };
-      const cleanup = (): void => {
-        this.ws.off("message", onMessage);
-        this.ws.off("close", onClose);
-      };
-      this.ws.on("message", onMessage);
-      this.ws.on("close", onClose);
+      this.frameResolvers.push(resolve);
+      this.ws.once("close", () => reject(new Error("peer closed")));
     });
   }
 

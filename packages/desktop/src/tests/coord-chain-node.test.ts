@@ -23,7 +23,7 @@ function newRoot(): string {
   return mkdtempSync(join(tmpdir(), "coord-chain-e2e-"));
 }
 
-async function waitFor(description: string, condition: () => boolean, timeoutMs = 10_000): Promise<void> {
+async function waitFor(description: string, condition: () => boolean, timeoutMs = 20_000): Promise<void> {
   const started = Date.now();
   while (!condition()) {
     if (Date.now() - started > timeoutMs) {

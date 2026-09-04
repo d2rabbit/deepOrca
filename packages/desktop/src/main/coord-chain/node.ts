@@ -49,6 +49,7 @@ import {
   type SyncMessage,
 } from "@deeporca/ledger";
 import { startTransport, type PeerConnection, type Transport } from "./transport.js";
+import type { ChainTaskNode } from "./task-tree-bridge.js";
 import { ChainStore, type StoredBlock } from "./chain-store.js";
 import { coordChainRoot } from "./paths.js";
 
@@ -563,16 +564,49 @@ export class ChainNode {
   }
 
   /** Submit one of our own records: sign, stage, gossip (design §7). */
-  submitRecord(type: RecordType, body: unknown): SignedRecord {
+  submitRecord(type: RecordType, body: unknown, opts?: { parentRecordId?: string }): SignedRecord {
     if (!this.genesis) {
       throw new Error("chain not open");
     }
     if (type !== "member.join" && !this.isMember) {
       throw new Error("not a chain member yet — member.join still pending");
     }
-    const record = this.signRecord(type, body);
+    const record = buildSignedRecord(this.identity, {
+      type,
+      ts: Date.now(),
+      author: this.identity.keyId,
+      body: body as never,
+      ...(opts?.parentRecordId !== undefined ? { parentRecordId: opts.parentRecordId } : {}),
+    });
     this.acceptLocalRecord(record);
     return record;
+  }
+
+  /**
+   * Chain-side task genealogy: every task.share record resolved into a node
+   * with its parentRecordId lineage and ws.commit cross-reference — the
+   * decentralized mirror of the local TaskTree fork graph (R14/R15).
+   */
+  taskGenealogy(): ChainTaskNode[] {
+    const rows = this.view?.listRecords("task.share") ?? [];
+    return rows.map((row) => {
+      const body = JSON.parse(row.body_json) as {
+        title?: string;
+        conclusion?: string;
+        goal?: string;
+        commitRef?: string;
+      };
+      return {
+        recordId: row.record_id,
+        parentRecordId: row.parent_record_id ?? undefined,
+        title: body.title ?? row.record_id,
+        goal: body.goal ?? "",
+        conclusion: body.conclusion ?? "",
+        author: row.author,
+        ts: row.ts,
+        ...(typeof body.commitRef === "string" ? { commitRef: body.commitRef } : {}),
+      };
+    });
   }
 
   private acceptLocalRecord(record: SignedRecord): void {
