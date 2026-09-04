@@ -54,6 +54,8 @@ import {
   designDriftRun,
   designAuditDefinition,
   designAuditRun,
+  memoryAuditDefinition,
+  memoryAuditRun,
   prototypeSpecDefinition,
   prototypeSpecRun,
   prototypeMaterializeDefinition,
@@ -77,6 +79,7 @@ import {
 } from "./actions";
 import type { AuditLog } from "./sandbox/audit";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
+import { applyAuxSchema, auxEnumSchema, AUX_CONTENT_RETRY_BUDGET, type AuxSchema } from "./common/aux-llm-contract";
 import { configureCrgGraphQuery, createCrgGraphQuery } from "./actions/crg-query";
 import { createSecondaryClient as defaultCreateSecondaryClient, createEndpointClient } from "./common/openai-client";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./settings";
@@ -426,6 +429,9 @@ export abstract class SessionManagerBase {
     // ── Designer — deterministic anti-slop audit (design.audit; taste #11
     // three-axis machine check + gate subset, zero LLM, changes nothing) ────
     this.actionRegistry.register(designAuditDefinition, designAuditRun);
+    // ── Memory audit P0 (specs/memory-audit): deterministic evidence scan over
+    // own session history — read-only, no LLM, gates whether P1 gets built ──
+    this.actionRegistry.register(memoryAuditDefinition, memoryAuditRun);
     // ── Prototype module (design-module split): 需求 → 需求文档 → 原型图 —
     // two explicit steps, no auto-routing (real-machine feedback) ──────────
     this.actionRegistry.register(prototypeSpecDefinition, prototypeSpecRun);
@@ -634,90 +640,141 @@ export abstract class SessionManagerBase {
 
   /**
    * LLM single-choice judgment for classification-shaped actions (flash
-   * model, JSON mode). Returns one of `choices` or null on any failure —
-   * callers must fail open to their deterministic fallback.
+   * model, JSON mode).
+   *
+   * Contract (specs/cmb-adoption CMB-4, `common/aux-llm-contract.ts`):
+   *   - input budget: flash-class model, temperature 0, max_tokens 64, thinking off;
+   *   - output contract: built-in enum schema over `choices` (or a custom
+   *     `opts.schema` for structured verdicts — parsed as JSON, validated by a
+   *     pure function);
+   *   - content-level failures (unparseable JSON / schema violation) retry at
+   *     most AUX_CONTENT_RETRY_BUDGET times; transport-level failures are NOT
+   *     retried here (classification lives in `common/llm-error.ts`);
+   *   - fail-open: any exhaustion returns null — callers MUST have a
+   *     deterministic fallback;
+   *   - every attempt is billed via the usage ledger as source "auxiliary".
    */
-  protected async judgeViaLlm(prompt: string, choices: readonly string[]): Promise<string | null> {
+  protected async judgeViaLlm<T = string>(
+    prompt: string,
+    choices: readonly string[],
+    opts?: { schema?: AuxSchema<T> }
+  ): Promise<T | null> {
     if (choices.length === 0) return null;
     const { client, baseURL, debugLogEnabled, model } = this.createBackgroundLlm();
     if (!client) return null;
-    try {
-      const response = await this.createChatCompletionStream(
-        client,
-        {
-          model,
-          temperature: 0,
-          max_tokens: 64,
-          messages: [
-            {
-              role: "system",
-              content:
-                "You classify requests. Respond with JSON only: " +
-                `{"choice": "<exactly one of the allowed choices>"}. No other keys.`,
-            },
-            { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
-          ],
-          response_format: { type: "json_object" },
-          ...buildThinkingRequestOptions(false, baseURL, "max", model),
-        },
-        undefined,
-        undefined,
-        {
-          enabled: debugLogEnabled,
-          location: "SessionManager.judgeViaLlm",
-          baseURL,
-          params: { purpose: "action-judgment", model, temperature: 0 },
-        },
-        // Auxiliary helper call — never bill it as chat traffic in the ledger.
-        { source: "auxiliary" }
-      );
-      const rawContent = response.choices?.[0]?.message?.content;
-      const parsed = typeof rawContent === "string" ? (JSON.parse(rawContent) as { choice?: unknown }) : null;
-      const choice = parsed?.choice;
-      return typeof choice === "string" && choices.includes(choice) ? choice : null;
-    } catch {
-      return null;
+    const builtIn = auxEnumSchema(choices);
+
+    for (let attempt = 0; attempt <= AUX_CONTENT_RETRY_BUDGET; attempt++) {
+      try {
+        const response = await this.createChatCompletionStream(
+          client,
+          {
+            model,
+            temperature: 0,
+            max_tokens: 64,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You classify requests. Respond with JSON only: " +
+                  `{"choice": "<exactly one of the allowed choices>"}. No other keys.`,
+              },
+              { role: "user", content: `${prompt}\n\nAllowed choices: ${choices.join(", ")}` },
+            ],
+            response_format: { type: "json_object" },
+            ...buildThinkingRequestOptions(false, baseURL, "max", model),
+          },
+          undefined,
+          undefined,
+          {
+            enabled: debugLogEnabled,
+            location: "SessionManager.judgeViaLlm",
+            baseURL,
+            params: { purpose: "action-judgment", model, temperature: 0, attempt },
+          },
+          // Auxiliary helper call — never bill it as chat traffic in the ledger.
+          { source: "auxiliary" }
+        );
+        const rawContent = response.choices?.[0]?.message?.content;
+        if (typeof rawContent !== "string" || !rawContent) continue; // content-level — retry
+        if (opts?.schema) {
+          const applied = applyAuxSchema(rawContent, opts.schema);
+          if (applied.ok) return applied.value;
+          continue; // content-level — retry within budget
+        }
+        let parsedJson: unknown;
+        try {
+          parsedJson = JSON.parse(rawContent);
+        } catch {
+          continue; // unparseable JSON — content-level, retry within budget
+        }
+        const rawChoice = (parsedJson as { choice?: unknown })?.choice;
+        const choice = builtIn.validate(typeof rawChoice === "string" ? rawChoice : undefined);
+        if (choice !== null) return choice as T;
+        // invalid choice — content-level, retry within budget
+      } catch {
+        return null; // transport-level — no retry here (llm-error.ts governs)
+      }
     }
+    return null; // content budget exhausted — fail open
   }
 
   /**
    * Free-form backend text completion on the PRIMARY (settings) model — the
    * content-work counterpart of judgeViaLlm's flash-class classification.
    * Translation-grade output: no JSON mode, no max_tokens cap, thinking off
-   * (cost/latency), temperature pinned low for fidelity. Returns null on any
-   * failure so callers can fail open.
+   * (cost/latency), temperature pinned low for fidelity.
+   *
+   * Contract (specs/cmb-adoption CMB-4, `common/aux-llm-contract.ts`):
+   *   - without `opts.schema` the raw string (or null) is returned as before;
+   *   - with `opts.schema` the output must parse as JSON and validate —
+   *     content-level failures retry at most AUX_CONTENT_RETRY_BUDGET times,
+   *     transport-level failures never retry here, exhaustion returns null;
+   *   - fail-open: callers MUST have a deterministic fallback;
+   *   - every attempt is billed via the usage ledger as source "auxiliary".
    */
-  protected async completeTextViaLlm(
+  protected async completeTextViaLlm<T = string>(
     messages: Array<{ role: "system" | "user"; content: string }>,
-    opts?: { signal?: AbortSignal }
-  ): Promise<string | null> {
+    opts?: { signal?: AbortSignal; schema?: AuxSchema<T> }
+  ): Promise<T | null> {
     const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
     if (!client) return null;
-    try {
-      const response = await this.createChatCompletionStream(
-        client,
-        {
-          model,
-          temperature: 0.2,
-          messages,
-          ...buildThinkingRequestOptions(false, baseURL, "max", model),
-        },
-        opts?.signal ? { signal: opts.signal } : undefined,
-        undefined,
-        {
-          enabled: debugLogEnabled,
-          location: "SessionManager.completeTextViaLlm",
-          baseURL,
-          params: { purpose: "backend-completion", model },
-        },
-        // Auxiliary helper call — never bill it as chat traffic in the ledger.
-        { source: "auxiliary" }
-      );
-      const content = response.choices?.[0]?.message?.content;
-      return typeof content === "string" && content.trim() ? content : null;
-    } catch {
-      return null;
+
+    const attempts = opts?.schema ? AUX_CONTENT_RETRY_BUDGET + 1 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const response = await this.createChatCompletionStream(
+          client,
+          {
+            model,
+            temperature: 0.2,
+            messages,
+            ...buildThinkingRequestOptions(false, baseURL, "max", model),
+          },
+          opts?.signal ? { signal: opts.signal } : undefined,
+          undefined,
+          {
+            enabled: debugLogEnabled,
+            location: "SessionManager.completeTextViaLlm",
+            baseURL,
+            params: { purpose: "backend-completion", model, attempt },
+          },
+          // Auxiliary helper call — never bill it as chat traffic in the ledger.
+          { source: "auxiliary" }
+        );
+        const content = response.choices?.[0]?.message?.content;
+        if (typeof content !== "string" || !content.trim()) continue; // content-level
+        if (opts?.schema) {
+          const applied = applyAuxSchema(content, opts.schema);
+          if (applied.ok) return applied.value;
+          continue; // content-level — retry within budget
+        }
+        return content as T;
+      } catch {
+        return null; // transport-level — no retry here (llm-error.ts governs)
+      }
     }
+    return null; // content budget exhausted (or empty output) — fail open
   }
 
   protected formatEstimatedTokens(tokens: number): string {

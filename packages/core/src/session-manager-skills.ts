@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import ejs from "ejs";
 import { buildSkillDocumentsPrompt, getExtensionRoot } from "./prompt";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import { formatSessionPrompt } from "./common/session-prompts";
@@ -27,17 +28,6 @@ export abstract class SessionManagerSkills extends SessionManagerDiagnostics {
     options?: { signal?: AbortSignal; sessionId?: string }
   ): Promise<string[]> {
     this.throwIfAborted(options?.signal);
-    let systemPrompt = `When users ask you to perform tasks, check if any of the available skills match the goal and situation. Skills provide specialized capabilities and domain knowledge.\n
-Response in JSON format:
-\`\`\`
-{
-  "skillNames": ["", ...],
-  "multiIntent": false
-}
-\`\`\`\n
-If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": [], "multiIntent": false}\`.\n
-Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills (e.g. "generate slides AND run the tests"). Single-purpose requests, however complex, are multiIntent: false.\n
-`;
     const simpleSkills = skills
       .filter((x) => !x.isLoaded && x.allowImplicitInvocation !== false)
       .map((x) => ({
@@ -90,16 +80,29 @@ Set "multiIntent" to true ONLY when the request clearly combines multiple distin
     // lightweight model with thinking explicitly disabled and a tight output
     // cap so it never burns pro-level reasoning tokens or adds avoidable latency.
 
-    const agentInstructions = this.loadAgentInstructions();
-    if (agentInstructions) {
-      systemPrompt += `Use the current agent instructions as additional context when deciding which skills match:\n
-<agent-instructions>
-${agentInstructions}
-</agent-instructions>\n
-`;
+    // CMB-4 demonstration point: the skill-matching prompt lives as a
+    // versioned artifact (templates/auxiliary/skill-matching.md.ejs) — editing
+    // the prompt means reviewing a diff, not re-reading call-site string
+    // concatenation. depth-lane P0.2's `lane/tpcr` extension lands here too.
+    let systemPrompt: string;
+    try {
+      const templatePath = path.join(getExtensionRoot(), "templates", "auxiliary", "skill-matching.md.ejs");
+      systemPrompt = ejs.render(fs.readFileSync(templatePath, "utf8"), {
+        agentInstructions: this.loadAgentInstructions() || "",
+        candidatePoolJson: JSON.stringify(pool, null, 2),
+      });
+    } catch {
+      // Template unreadable → fail-open to the inline fallback (never block
+      // skill matching on a packaging issue).
+      systemPrompt =
+        `When users ask you to perform tasks, check if any of the available skills match the goal and situation. ` +
+        `Skills provide specialized capabilities and domain knowledge.\n\n` +
+        `Response in JSON format:\n\`\`\`\n{"skillNames": ["", ...], "multiIntent": false}\n\`\`\`\n\n` +
+        `If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": [], "multiIntent": false}\`.\n\n` +
+        `Set "multiIntent" to true ONLY when the request clearly combines multiple distinct goals that need different skills. ` +
+        `Single-purpose requests, however complex, are multiIntent: false.\n\n` +
+        `The candidate skills are as follows:\n\n\`\`\`\n${JSON.stringify(pool, null, 2)}\n\`\`\``;
     }
-    systemPrompt += "The candidate skills are as follows:\n\n";
-    systemPrompt += "```\n" + JSON.stringify(pool, null, 2) + "\n```";
 
     try {
       const response = await this.createChatCompletionStream(
