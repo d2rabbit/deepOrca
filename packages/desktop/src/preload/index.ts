@@ -2,7 +2,8 @@
 // Runs with contextIsolation so the renderer never touches Node/Electron directly.
 
 import { contextBridge, ipcRenderer } from "electron";
-import { IpcEvent, IpcRequest } from "../shared/ipc";
+import { ChainIpcRequest, IpcEvent, IpcRequest } from "../shared/ipc";
+import type { ChainStartArgs, ChainStatePayload } from "../shared/ipc";
 import type { DesktopApi } from "../shared/ipc";
 
 function subscribe(channel: string, cb: (payload: never) => void): () => void {
@@ -209,6 +210,16 @@ const api: DesktopApi = {
 
   // ── Session export ────────────────────────────────────────────────────────
   exportSession: (sessionId) => ipcRenderer.invoke(IpcRequest.SessionExport, sessionId),
+
+  // ── Coord Chain ───────────────────────────────────────────────────────────
+  chainStart: (args: ChainStartArgs) => ipcRenderer.invoke(ChainIpcRequest.Start, args),
+  chainStop: () => ipcRenderer.invoke(ChainIpcRequest.Stop),
+  chainGetState: () => ipcRenderer.invoke(ChainIpcRequest.GetState),
+  chainRotateKey: () => ipcRenderer.invoke(ChainIpcRequest.RotateKey),
+  chainMembers: () => ipcRenderer.invoke(ChainIpcRequest.Members),
+  chainBlocks: (limit?: number) => ipcRenderer.invoke(ChainIpcRequest.Blocks, limit),
+  chainGenealogy: () => ipcRenderer.invoke(ChainIpcRequest.Genealogy),
+  chainOnStateChanged: (cb: (payload: ChainStatePayload) => void) => subscribe(IpcEvent.ChainStateChanged, cb as never),
 };
 
 contextBridge.exposeInMainWorld("deeporca", api);

@@ -28,6 +28,7 @@ import {
   checkApprovals,
   chunkIdOf,
   decodeMessageBytes,
+  generateDeviceIdentity,
   genesisHash,
   keyIdFromPublicKeyBase64,
   merkleRoot,
@@ -113,6 +114,8 @@ export class ChainNode {
   private readonly requestTimeoutMs: number;
   private readonly dataRoot: string;
 
+  /** Active signing identity — rotation (member.rotate) swaps this in place. */
+  private currentIdentity: DeviceIdentity;
   private transport: Transport | null = null;
   private store: ChainStore | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -126,10 +129,15 @@ export class ChainNode {
   private pendingRecords: SignedRecord[] = [];
   private readonly seenRecords = new RecordIdIndex();
   private readonly candidates = new Map<string, BlockCandidate>();
+  /** Key ids this DEVICE owns — the current key plus any retired key whose
+   *  rotation block has not yet sealed (the device keeps its slot until then). */
+  private readonly ownKeyIds = new Set<string>();
   private readonly manifests = new Map<string, BlobManifest>();
   private readonly waiters = new Map<string, Array<(message: SyncMessage) => void>>();
 
   constructor(private readonly options: ChainNodeOptions) {
+    this.currentIdentity = options.identity;
+    this.ownKeyIds.add(options.identity.keyId);
     this.themeId = themeIdFromTheme(options.theme);
     this.blockIntervalMs = options.blockIntervalMs ?? DEFAULT_BLOCK_INTERVAL_MS;
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
@@ -143,7 +151,7 @@ export class ChainNode {
   }
 
   get identity(): DeviceIdentity {
-    return this.options.identity;
+    return this.currentIdentity;
   }
 
   get chainIdValue(): string {
@@ -270,7 +278,9 @@ export class ChainNode {
 
   private broadcast(message: SyncMessage): void {
     for (const peer of this.peers.values()) {
-      peer.sendSyncMessage(message);
+      if (peer.isOpen) {
+        peer.sendSyncMessage(message);
+      }
     }
   }
 
@@ -516,8 +526,11 @@ export class ChainNode {
       if (block.proposer !== this.genesis.creator) {
         return null;
       }
-    } else if (block.proposer !== proposerKeyForHeight(block.height, this.activeMemberKeyIds())) {
-      return null;
+    } else {
+      const slotOwner = proposerKeyForHeight(block.height, this.activeMemberKeyIds());
+      if (block.proposer !== slotOwner && !this.ownKeyIds.has(slotOwner)) {
+        return null;
+      }
     }
     if (merkleRoot(block.records.map((record) => record.recordId)) !== block.merkleRoot) {
       return null;
@@ -563,6 +576,19 @@ export class ChainNode {
         }
         if (record.type === "member.leave") {
           member.leftHeight = block.height;
+        } else if (record.type === "member.rotate") {
+          // The outgoing key (record.author) signs; the entry moves to the
+          // derived key so approvals with the ROTATED key verify below.
+          const body = record.body as { oldKeyId: string; newPubKey: string };
+          if (body.oldKeyId !== record.author) {
+            return null;
+          }
+          const newKeyId = keyIdFromPublicKeyBase64(body.newPubKey);
+          if (newKeyId === record.author || tempMembers.has(newKeyId)) {
+            return null;
+          }
+          tempMembers.delete(record.author);
+          tempMembers.set(newKeyId, { ...member, keyId: newKeyId, pubKey: body.newPubKey });
         }
       }
     }
@@ -612,6 +638,31 @@ export class ChainNode {
     });
     this.acceptLocalRecord(record);
     return record;
+  }
+
+  /**
+   * Rotate the device signing key ON CHAIN (member.rotate, signed by the
+   * outgoing key) and switch the node to the new key immediately. The
+   * membership entry migrates when the block seals; until then both keys are
+   * usable for approval (pre ∪ post table semantics).
+   */
+  rotateDeviceKey(): { record: SignedRecord; newIdentity: DeviceIdentity } {
+    if (!this.genesis) {
+      throw new Error("chain not open");
+    }
+    if (!this.isMember) {
+      throw new Error("not a chain member yet");
+    }
+    const outgoingKeyId = this.currentIdentity.keyId;
+    const next = generateDeviceIdentity();
+    const record = this.submitRecord("member.rotate", {
+      oldKeyId: outgoingKeyId,
+      newPubKey: next.publicKeyBase64,
+    });
+    this.currentIdentity = next;
+    // The retired key keeps the device's slot until its rotation seals.
+    this.ownKeyIds.add(outgoingKeyId);
+    return { record, newIdentity: next };
   }
 
   /**
@@ -677,7 +728,7 @@ export class ChainNode {
     const nextHeight = this.height + 1;
     const proposer =
       nextHeight === 0 ? this.genesis.creator : proposerKeyForHeight(nextHeight, this.activeMemberKeyIds());
-    if (proposer !== this.identity.keyId) {
+    if (proposer !== this.identity.keyId && !this.ownKeyIds.has(proposer)) {
       return;
     }
     const params = this.currentParams();
@@ -718,6 +769,18 @@ export class ChainNode {
         const entry = temp.get(record.author);
         if (entry) {
           entry.leftHeight = block.height;
+        }
+      } else if (record.type === "member.rotate") {
+        // Entry CONTINUES under the derived key — so the rotated key's own
+        // approval of this block verifies (pre∪post table semantics).
+        const body = record.body as { oldKeyId: string; newPubKey: string };
+        const entry = temp.get(body.oldKeyId);
+        if (entry) {
+          const newKeyId = keyIdFromPublicKeyBase64(body.newPubKey);
+          if (newKeyId !== body.oldKeyId && !temp.has(newKeyId)) {
+            temp.delete(body.oldKeyId);
+            temp.set(newKeyId, { ...entry, keyId: newKeyId, pubKey: body.newPubKey });
+          }
         }
       }
     }
@@ -826,6 +889,16 @@ export class ChainNode {
         const entry = this.members.get(record.author);
         if (entry) {
           entry.leftHeight = block.height;
+        }
+      } else if (record.type === "member.rotate") {
+        const body = record.body as { oldKeyId: string; newPubKey: string };
+        const entry = this.members.get(body.oldKeyId);
+        if (entry) {
+          const newKeyId = keyIdFromPublicKeyBase64(body.newPubKey);
+          this.members.delete(body.oldKeyId);
+          this.members.set(newKeyId, { ...entry, keyId: newKeyId, pubKey: body.newPubKey });
+          // The retired key loses the slot only when its rotation seals.
+          this.ownKeyIds.delete(body.oldKeyId);
         }
       }
     }

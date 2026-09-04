@@ -156,3 +156,81 @@ test("coord-chain: cross-theme join is refused by the handshake pin", async () =
   assert.equal(impostor.chainIdValue, "", "no chain adopted across themes");
   await nodeA.stop();
 });
+
+test("coord-chain e2e: device key rotation migrates the member and keeps signing", async () => {
+  const identityA = generateDeviceIdentity();
+  const identityB = generateDeviceIdentity();
+  const rootA = newRoot();
+  const rootB = newRoot();
+  const nodeA = new ChainNode({
+    identity: identityA,
+    deviceName: "alpha",
+    theme: THEME,
+    mode: "create",
+    dataRoot: rootA,
+    blockIntervalMs: 120,
+  });
+  await nodeA.start();
+  const nodeB = new ChainNode({
+    identity: identityB,
+    deviceName: "beta",
+    theme: THEME,
+    mode: "join",
+    joinUrl: `ws://127.0.0.1:${nodeA.status().port}`,
+    dataRoot: rootB,
+    blockIntervalMs: 120,
+  });
+  await nodeB.start();
+  await waitFor("B joins", () => nodeB.isMember && nodeA.height >= 1);
+
+  // A rotates its signing key on chain.
+  const { newIdentity } = nodeA.rotateDeviceKey();
+  assert.notEqual(newIdentity.keyId, identityA.keyId);
+
+  // The rotate block seals; B's member table migrates the entry to the new key.
+  let lastDump = 0;
+  try {
+    await waitFor(
+      "B sees the rotated member entry",
+      () => {
+        const member = (nodeB.ledgerView?.listMembers() ?? []).find((row) => row.key_id === newIdentity.keyId);
+        if (!member && Date.now() - lastDump > 2000) {
+          lastDump = Date.now();
+          console.error(
+            `[dbg] B h=${nodeB.height} A h=${nodeA.height} members=${JSON.stringify(nodeB.ledgerView?.listMembers() ?? [])}`
+          );
+        }
+        return member !== undefined && Boolean(member);
+      },
+      15_000
+    );
+  } catch (error) {
+    console.error(
+      `[dbg] FINAL A h=${nodeA.height} B h=${nodeB.height} blockRows=${JSON.stringify((nodeB.ledgerView?.listBlocks(0, 10) ?? []).map((b) => b.height))}`
+    );
+    throw error;
+  }
+  const migrated = (nodeB.ledgerView?.listMembers() ?? []).find((row) => row.key_id === newIdentity.keyId);
+  assert.equal(migrated?.device_name, "alpha", "the DEVICE entry continues, only the key moved");
+  const oldEntry = (nodeB.ledgerView?.listMembers() ?? []).find((row) => row.key_id === identityA.keyId);
+  assert.equal(oldEntry, undefined, "the old key id is gone from the member table");
+
+  // A signs with the NEW key and B verifies the resulting block/record.
+  nodeA.submitRecord("note", { text: "signed with rotated key" });
+  await waitFor(
+    "B seals the post-rotation note",
+    () =>
+      nodeB.height >= (nodeA.height >= 0 ? nodeA.height : 0) &&
+      (nodeB.ledgerView?.listRecords("note") ?? []).some(
+        (row) => JSON.parse(row.body_json).text === "signed with rotated key"
+      ),
+    15_000
+  );
+  const note = (nodeB.ledgerView?.listRecords("note") ?? []).find(
+    (row) => JSON.parse(row.body_json).text === "signed with rotated key"
+  );
+  assert.equal(note?.author, newIdentity.keyId, "record author is the rotated key");
+
+  await nodeB.stop();
+  await nodeA.stop();
+});

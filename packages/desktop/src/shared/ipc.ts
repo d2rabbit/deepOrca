@@ -24,6 +24,25 @@ import type { TaskNode, TaskReflogEntry, TaskTreeIndex, TaskTreeSummary } from "
 import type { AskPermissionRequest, UserToolPermission } from "@deeporca/core";
 
 /** Request/response channels (renderer -> main via ipcRenderer.invoke). */
+export const ChainIpcRequest = {
+  Start: "chain:start",
+  Stop: "chain:stop",
+  GetState: "chain:getState",
+  RotateKey: "chain:rotateKey",
+  Members: "chain:members",
+  Blocks: "chain:blocks",
+  Genealogy: "chain:genealogy",
+} as const;
+
+export type ChainStartMode = "create" | "join";
+
+export type ChainStartArgs = {
+  mode: ChainStartMode;
+  theme: string;
+  joinUrl?: string;
+  deviceName?: string;
+  fingerprint?: string;
+};
 /** Thinking-mode-only hot update (no model change, no session system message). */
 export type ThinkingModeSelection = Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">;
 
@@ -234,6 +253,8 @@ export const IpcEvent = {
   SandboxStatusChanged: "event:sandboxStatusChanged",
   /** design-store artifact saved/deleted (payload: { root }) — panels refresh live. */
   DesignChanged: "event:designChanged",
+  /** Coord Chain node lifecycle/state changed (payload: ChainStatePayload). */
+  ChainStateChanged: "event:chainStateChanged",
 } as const;
 
 /** Payload for A2UI surface update event (pushed after a2ui_action mutates state). */
@@ -983,6 +1004,49 @@ export type ActionProgressEvent = {
 };
 
 /** The typed surface exposed on `window.deeporca` from the preload script. */
+export interface ChainStatePayload {
+  running: boolean;
+  chainId: string;
+  theme: string;
+  themeId: string;
+  height: number;
+  memberCount: number;
+  peerCount: number;
+  pendingRecords: number;
+  port: number;
+  anchorId: string;
+  deviceName: string;
+  anchorBound: boolean;
+  version: number;
+  lastError?: string;
+}
+
+export interface ChainMemberView {
+  keyId: string;
+  deviceName: string;
+  joinedHeight: number;
+  leftHeight: number | null;
+  current: boolean;
+}
+
+export interface ChainBlockView {
+  height: number;
+  hash: string;
+  proposer: string;
+  ts: number;
+  recordCount: number;
+  approvedBy: string[];
+}
+
+export interface ChainGenealogyView {
+  recordId: string;
+  parentRecordId: string | null;
+  title: string;
+  conclusion: string;
+  author: string;
+  ts: number;
+}
+
 export type DesktopApi = {
   ready(): Promise<{ projectRoot: string; platform: NodeJS.Platform; homeDir: string }>;
   pickFolder(): Promise<string | null>;
@@ -1350,6 +1414,16 @@ export type DesktopApi = {
   /** Pull the initial prototype-window payload by token (race-free handshake,
    *  preferred over the push subscription). Returns null when unknown/consumed. */
   getPrototypePayload(token: string): Promise<{ a2uiJson: string; title: string } | null>;
+
+  // --- Coord Chain ----------------------------------------------------------
+  chainStart(args: ChainStartArgs): Promise<{ ok: boolean; error?: string }>;
+  chainStop(): Promise<{ ok: boolean; error?: string }>;
+  chainGetState(): Promise<ChainStatePayload>;
+  chainRotateKey(): Promise<{ ok: boolean; error?: string; newKeyId?: string }>;
+  chainMembers(): Promise<ChainMemberView[]>;
+  chainBlocks(limit?: number): Promise<ChainBlockView[]>;
+  chainGenealogy(): Promise<ChainGenealogyView[]>;
+  chainOnStateChanged(cb: (payload: ChainStatePayload) => void): () => void;
 };
 
 /** A unified plugin event payload (mirrors PluginEvent from plugin-manager.ts). */

@@ -48,6 +48,7 @@ import {
   endpointQuotaKind,
 } from "@deeporca/core";
 import { extractTaskTrajectory } from "./task-trajectory";
+import { registerCoordChainIpc } from "./coord-chain-ipc.js";
 import { withReviewReportSurface } from "./review-report-surface.js";
 import { buildSymbolGraph } from "./symbol-graph-query";
 import { gitPreflight, gitBootstrap } from "./git-preflight";
