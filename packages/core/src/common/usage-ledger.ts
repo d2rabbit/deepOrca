@@ -15,8 +15,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectCode } from "./app-dirs";
 
-/** Which engine path issued the request. */
-export type UsageSource = "chat" | "compaction" | "background" | "auxiliary" | "backfill";
+/** Which engine path issued the request. "depth-lane" = the staged
+ *  deliberation flow's orchestration calls (specs/depth-lane §2.5). */
+export type UsageSource = "chat" | "compaction" | "background" | "auxiliary" | "depth-lane" | "backfill";
 
 export type UsageRecord = {
   /** Request start timestamp — the anchor for exact time-window reporting. */

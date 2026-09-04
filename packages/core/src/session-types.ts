@@ -8,7 +8,13 @@ import {
 } from "./common/permissions";
 import { type CreateOpenAIClient, type CreateSecondaryClient } from "./tools/executor";
 import { type ToolDefinition } from "./prompt";
-import type { McpServerConfig, PermissionScope, PermissionSettings, RoutingSettings } from "./settings";
+import type {
+  ComplexityGateSettings,
+  McpServerConfig,
+  PermissionScope,
+  PermissionSettings,
+  RoutingSettings,
+} from "./settings";
 import type { SandboxBackendStatus } from "./sandbox/backend/interface";
 import type { WebPageFetcher } from "./common/tool-types";
 
@@ -103,6 +109,13 @@ export type SessionEntry = {
   processes: Map<string, SessionProcessEntry> | null; // {pid: process info}
   askPermissions?: AskPermissionRequest[];
   planMode?: boolean;
+  /**
+   * Complexity-routing verdict (specs/depth-lane): "express" (status-quo
+   * single loop) or "deep" (staged deliberation). Persisted at session
+   * creation when the gate is enabled; undefined = gate disabled or the
+   * session predates the feature (backward compatible, never migrates).
+   */
+  lane?: "express" | "deep";
   /** Task trajectory binding (specs/task-tree P1): reverse pointer to the branch this session executes. */
   taskRef?: { treeId: string; branch: string; nodeId: string };
   /**
@@ -295,6 +308,8 @@ export type SessionResolvedSettings = {
   workspaceTrust?: "trusted" | "quarantine";
   enabledSkills?: Record<string, boolean>;
   routing?: RoutingSettings;
+  /** Complexity gate / depth-lane routing (specs/depth-lane); absent = defaults (all off). */
+  complexityGate?: ComplexityGateSettings;
   visionModel?: string;
   visionApiKey?: string;
   streamIdleTimeoutMs?: number;

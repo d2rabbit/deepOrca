@@ -1411,6 +1411,9 @@ export abstract class SessionManagerPersistence extends SessionManagerSkills {
       processes: this.deserializeProcesses(value.processes),
       askPermissions: normalizeAskPermissions(value.askPermissions),
       planMode: value.planMode === true,
+      // depth-lane: whitelisted like every other field — an unlisted persisted
+      // field is silently dropped on the first post-restart flush.
+      lane: value.lane === "express" || value.lane === "deep" ? value.lane : undefined,
       taskRef: this.normalizeTaskRef(value.taskRef),
       // Whitelisted like every other field — an unlisted persisted field is
       // silently dropped on the first post-restart updateSessionEntry flush.

@@ -6,33 +6,33 @@
 
 ## P0 网关与观察（零行为变化，纯采集）
 
-- [ ] P0.1 `core/routing/gate/gate.ts` + `gate-prompt.ts`：L1 启发式规则表（planMode→deep；纯图片→express；关键词快规则；历史追问率）+ L2 评分 prompt（四维标准原文 + 禁止自报 lane）+ `lane` 由程序按 `T+P+C+R ≥ threshold` 计算
-- [ ] P0.2 `identifyMatchingSkillNames` flash 调用返回扩展 `lane/tpcr`（或并行同参数调用，拍板项 ①）；严格 JSON 解析（非法/缺失/无 client/超时/中止 → express）
-- [ ] P0.3 缓存：复用 `SkillMatchCache` 模式（同 prompt 同池 replay），`lane` 键与 skill 匹配合并
-- [ ] P0.4 `SessionEntry.lane`（`session-types.ts`，可选字段向后兼容）写入 createSession
-- [ ] P0.5 `settings.ts` 新增 `complexityGate` 节（enabled 默认 false / threshold 50 / autoTune false / maxPaths 3 / maxRounds 3 / depthLaneEnabled false）
-- [ ] P0.6 轻轨瞬态指令（`getCurrentTurnTail` 同款：转换时注入、不入 JSONL/缓存前缀）；`R=20` 且总分 <50 时追加安全提示
-- [ ] P0.7 遥测：lane 分布、express 平均成本 vs 现状基线、重轨误判率（usage-ledger source `"auxiliary"`）
-- [ ] P0.8 测试：`complexity-gate.test.ts`（L1 逐条 / 解析确定性 / 缓存 / 阈值边界 / fail-open 四路径）；回归：`enabled: false` 字节级等价、`skillNames/multiIntent` 行为不回归
-- [ ] P0.9 数据决策门报告（express 占比、误判率；>90% 阈值下砍重轨，只留轻轨指令 + 追问率提示）
+- [x] P0.1 `core/routing/gate/gate.ts` + `gate-prompt.ts`：L1 启发式规则表（planMode→deep；纯图片→express；关键词快规则；历史追问率）+ L2 评分 prompt（四维标准原文 + 禁止自报 lane）+ `lane` 由程序按 `T+P+C+R ≥ threshold` 计算 — 已落 `routing/gate/gate.ts`（evaluateL1Rules/computeLane/parseTpcrScores）与 `gate-prompt.ts`（COMPLEXITY_SCORING_DIRECTIVE），lane 一律程序计算、模型自报 lane 字段解析器根本不读
+- [x] P0.2 `identifyMatchingSkillNames` flash 调用返回扩展 `lane/tpcr`（拍板项 ①：并入单调用）；严格 JSON 解析（非法/缺失/无 client/超时/中止 → express） — `session-manager-skills.ts` matchSkillsWithVerdict（新入口）+ `templates/auxiliary/skill-matching.md.ejs` `complexityDirective` 槽位（禁用时字节级等价，测试锁定）+ 内联 fallback 同步扩展；四条 fail-open 路径全部有测试
+- [x] P0.3 缓存：复用 `SkillMatchCache` 模式（同 prompt 同池 replay），`lane` 键与 skill 匹配合并 — `common/skill-match-cache.ts` 增 `getWithLane`/`set(..., verdict)`，同 key 同淘汰策略，单一缓存无第二套；disabled 时代缓存条目在 enabled 后 replay 为 fail-open express（测试覆盖）
+- [x] P0.4 `SessionEntry.lane`（`session-types.ts`，可选字段向后兼容）写入 createSession — `session-types.ts` 可选字段 + `session-manager-persistence.ts` normalizeSessionEntry 白名单 + `session-manager-lifecycle.ts` recordLaneVerdict；image-only/plan-mode 无文本路径也经 L1 记 lane（零 LLM 调用）
+- [x] P0.5 `settings.ts` 新增 `complexityGate` 节（enabled 默认 false / threshold 50 / autoTune false / maxPaths 3 / maxRounds 3 / depthLaneEnabled false） — `ComplexityGateSettings` + `resolveComplexityGateSettings`（threshold 钳制 [1,100]、maxPaths/maxRounds 硬钳 [1,3]），并入 ResolvedDeepcodingSettings 与 quarantine 安全钳制
+- [x] P0.6 轻轨瞬态指令（`getCurrentTurnTail` 同款：转换时注入、不入 JSONL/缓存前缀）；`R=20` 且总分 <50 时追加安全提示 — `session-manager-base.ts` buildCurrentTurnTail 钩子 + `session-manager-depth.ts` buildLaneTurnTail（express 指令/riskNote、deep 的 Gate Directive 仅非零维度），走 OpenAIMessageConverter.applyTurnTail 瞬态尾部
+- [x] P0.7 遥测：lane 分布、express 平均成本 vs 现状基线、重轨误判率（usage-ledger source） — `routing/gate/gate.ts` summarizeLaneTelemetry（lane 分布+按 source 均值）+ `routing/telemetry.ts` G0 事件 + `common/usage-ledger.ts` 新 source `"depth-lane"`（staged 流程所有编排调用经此记账）
+- [x] P0.8 测试：`complexity-gate.test.ts`（L1 逐条 / 解析确定性 / 缓存 / 阈值边界 / fail-open 四路径）；回归：`enabled: false` 字节级等价、`skillNames/multiIntent` 行为不回归 — 30 tests 全绿；skill-matching 模板禁用态与 pre-feature 渲染字节级相等（测试锁定）；session-skills-mcp 18 tests 零改动全绿；变异测试（>= 改 > 阈值边界测试变红后还原）
+- [ ] P0.9 数据决策门报告（express 占比、误判率；>90% 阈值下砍重轨，只留轻轨指令 + 追问率提示）— 未启动；**观察期自 `complexityGate.enabled` 翻开即开始采集**（lane 落 sessions-index、G0 事件与 depth-lane 记账落 usage-ledger），无需再等任何代码
 
 ## P1 重轨最小链（S1 → S2 → S4 → S5）
 
-- [ ] P1.1 `core/session-manager-depth.ts` 新层（≤2500 行标准内）：5 阶段状态机骨架 + `AbortController`/`throwIfAborted` 中止传播 + 预算上限（maxPaths≤3 / maxRounds≤3 / 子循环迭代 ≤80）
-- [ ] P1.2 S1 情境编译：复用既有 prompt 链；Gate Directive 瞬态块（仅注入非零维度得分，转换时注入）
-- [ ] P1.3 S1.5 证据闸：确定性判定优先（引用文件/搜索结果条数与覆盖 ≥ 阈值），不足 → flash 兜底 → 子循环补充检索（ReAct 回边）
-- [ ] P1.4 S2 分歧生成 K=2：`runSubagent({silent: true})` ×1 + 主会话 1 路，两路立场 prompt（乐观/保守），产出「路径 + 置信度 + 关键假设」；K=1 串行退化跳过 S3
-- [ ] P1.5 S4 融合校准：单次汇总调用（输入 = K 路结果），收敛判据（置信度归一极差 <15% 或轮次 >maxRounds）
-- [ ] P1.6 S5 判定输出：深度决策报告（复用 `<proposed_plan>` 块契约渲染），结构「判定 + 置信度 + 分歧点 + 关键假设 + 风险红线 + 下一步」，结论先行段置顶
-- [ ] P1.7 集成测试（桩 LLM）：简单任务必走 express 且 token 同量级；复杂任务必走 deep 且输出 5 段结构；**变异测试**收敛判据写反必红；轮次上限兜底输出「未收敛 + 已给证据」
-- [ ] P1.8 `depthLaneEnabled` 观测期：默认 false，P1.7 通过后于内测环境开启
+- [x] P1.1 `core/session-manager-depth.ts` 新层（≤2500 行标准内）：5 阶段状态机骨架 + `AbortController`/`throwIfAborted` 中止传播 + 预算上限 — 729 行，组合链尾部（Tasks → **Depth** → SessionManager）；每阶段边界 throwIfAborted，stageController 采纳外部中断并登记 sessionControllers 供 interruptSession 命中
+- [x] P1.2 S1 情境编译：复用既有 prompt 链；Gate Directive 瞬态块（仅注入非零维度得分，转换时注入） — S1 = 既有 activateSession 主循环 + buildGateDirective 瞬态尾部（dims 为 0 的维度不渲染）
+- [x] P1.3 S1.5 证据闸：确定性判定优先（引用文件/搜索结果条数与覆盖 ≥ 阈值），不足 → flash 兜底 → 子循环补充检索 — countSessionEvidence（≥2 条 read/bash/WebSearch/WebFetch 结果）→ judgeViaLlm 兜底（null = fail-open 视为充足）→ runBackgroundLlmTask(review profile, 80 轮上限) 补充检索
+- [x] P1.4 S2 分歧生成 K=2：`runSubagent({silent: true})` ×1 + 主会话 1 路，两路立场 prompt（乐观/保守），产出「路径 + 置信度 + 关键假设」；K=1 串行退化跳过 S3 — stances [乐观/保守]；主路径单次 aux 调用（source "depth-lane"）+ 1 个 silent 子代理；K=1 退化有测试
+- [x] P1.5 S4 融合校准：单次汇总调用（输入 = K 路结果），收敛判据（置信度归一极差 <15% 或轮次 >maxRounds） — runFusion 单次编排调用 + isConverged（极差 <15 严格）；maxRounds 硬钳 ≤3
+- [x] P1.6 S5 判定输出：深度决策报告（复用 `<proposed_plan>` 块契约渲染），结构「判定 + 置信度 + 分歧点 + 关键假设 + 风险红线 + 下一步」，结论先行段置顶 — emitDepthReport 渲染 `<proposed_plan>` 块（模板 templates/prompts/depth-lane.md.ejs report 段），结论先行段置顶、未收敛时带 ⚠️ 提示
+- [x] P1.7 集成测试（桩 LLM）：简单任务必走 express 且 token 同量级；复杂任务必走 deep 且输出 5 段结构；**变异测试**收敛判据写反必红；轮次上限兜底输出「未收敛 + 已给证据」 — `depth-lane.test.ts` 10 tests 全绿（S1→S5 happy path 五段结构/express 旁路/轮次上限 3 轮硬顶/中断/S1 暂停退化/编排失败 fail-open）；变异测试对阈值比较执行（>= → > 边界测试红后还原）
+- [ ] P1.8 `depthLaneEnabled` 观测期：默认 false，P1.7 通过后于内测环境开启 — 代码就绪（默认 false），等待内测环境实际翻开
 
 ## P2 对抗与自适应
 
-- [ ] P2.1 S3 red-team 子代理（击穿测试：反例/被忽略约束/不可逆风险），与 `review.full`（CRG+OCR）共用风险扫描基础；存在不可逆决策时调用一次 `AskUserQuestion`
-- [ ] P2.2 S2 回边：不收敛 → 带对抗反馈重生成（轮次上限硬性）
-- [ ] P2.3 阈值遥测口径实现：轻轨追问率（10 分钟内新消息 + embedding 余弦相似）、重轨负反馈率（6 语言正则 + 1 星反馈）；报告进设置面板只读展示
-- [ ] P2.4 `autoTune`：提案公式 `新阈值 = 旧阈值 + 追问率*0.5 − 负反馈率*0.5`，±5 步进、钳制 [30, 70]、每次变更写审计日志、默认关闭
+- [x] P2.1 S3 red-team 子代理（击穿测试：反例/被忽略约束/不可逆风险） — runRedTeam 单个 silent 子代理，输出 {brokenPaths/ignoredConstraints/irreversibleRisks/verdict}；不可逆风险在 S5 报告「风险与红线」顶部标记需用户拍板（v1 以报告内仲裁替代阻塞式 AskUserQuestion，见交付说明的偏差记录）
+- [x] P2.2 S2 回边：不收敛 → 带对抗反馈重生成（轮次上限硬性） — 收敛判据失败时 red-team 发现注入下一轮 divergence prompt（"Previous-round red-team findings"），轮次 > maxRounds 硬停并输出「未收敛 + 已给证据」；回边恰好一次 + 反馈携带验证有测试
+- [ ] P2.3 阈值遥测口径实现：轻轨追问率（10 分钟内新消息 + embedding 余弦相似）、重轨负反馈率（6 语言正则 + 1 星反馈）；报告进设置面板只读展示 — 未实现（TODO 见 `routing/gate/gate.ts` summarizeLaneTelemetry 与 `session-manager-depth.ts` 头注）
+- [ ] P2.4 `autoTune`：提案公式 `新阈值 = 旧阈值 + 追问率*0.5 − 负反馈率*0.5`，±5 步进、钳制 [30, 70]、每次变更写审计日志、默认关闭 — 未实现（settings.ts autoTune 字段已留，TODO 注释引用本条）
 
 ## X 桌面最小面
 

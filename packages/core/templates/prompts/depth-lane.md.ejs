@@ -1,0 +1,98 @@
+<%#
+  Depth-lane prompt fragments (specs/depth-lane §2.3/§2.4) — rendered by
+  renderDepthLanePrompt() in prompt.ts. One versioned artifact for every
+  depth-lane prompt surface; `kind` selects the section. Fails open to inline
+  fallbacks in session-manager-depth.ts when this file is unreadable.
+%>
+<%_ if (kind === "express") { _%>
+本回合为轻轨（express）：基于当前上下文直接作答，无需多路径推演、无需模拟多方博弈；信息不足时照实说明并建议切换深度模式。
+<%_ if (riskNote) { _%>
+注意：本任务的风险维度得分不为零。若涉及金钱/安全/声誉，请提示用户可切换深度模式以获得多路径推演。
+<%_ } _%>
+<%_ } _%>
+<%_ if (kind === "gate-directive") { _%>
+网关提示：本任务经复杂度评分进入深度车轨（deep lane）。各维度得分与解读如下（0 分维度不出现）：
+<%_ if (dims && dims.T) { _%>
+- T=<%= dims.T %>：终局依赖超过 7 天的时间跨度或对未来状态的推断——请显式推演时间线上的关键节点。
+<%_ } _%>
+<%_ if (dims && dims.P) { _%>
+- P=<%= dims.P %>：存在两个以上独立意志的利益方且利益冲突——请重点刻画各方的长期利益冲突与红线的不可逆性。
+<%_ } _%>
+<%_ if (dims && dims.C) { _%>
+- C=<%= dims.C %>：结论依赖三步以上因果链或 A→B/C→D 分叉——请逐步展示推理链并标注每个分叉的前提。
+<%_ } _%>
+<%_ if (dims && dims.R) { _%>
+- R=<%= dims.R %>：错误代价高或用户点名风险/策略——请对每个高风险结论给出可回退的护栏。
+<%_ } _%>
+<%_ } _%>
+<%_ if (kind === "divergence") { _%>
+You are one independent reasoning path in a multi-path deliberation (deep lane, stage S2).
+Stance: <%= stance %>.
+
+User task:
+<%= userTask %>
+
+<%_ if (evidenceDigest) { _%>
+Evidence gathered so far (context compilation digest):
+<%= evidenceDigest %>
+<%_ } _%>
+Produce ONE recommended path for this stance. Respond with EXACTLY one JSON object (no prose, no markdown fences):
+{"path": "<one-paragraph concrete recommendation from this stance>", "confidence": <0-100 integer>, "keyAssumptions": ["<assumption>", ...], "risks": ["<risk>", ...]}
+Rules: commit to the stance's framing (do not hedge toward other stances); confidence is your honest calibrated confidence in YOUR path, not in the task; at most 5 assumptions and 5 risks, each one line.
+<%_ } _%>
+<%_ if (kind === "red-team") { _%>
+You are the red-team adversary in a multi-path deliberation (deep lane, stage S3). Your job is to BREAK the candidate paths, not to improve them.
+
+User task:
+<%= userTask %>
+
+Candidate paths:
+<%= candidatesDigest %>
+
+For each candidate, try to defeat it: find counterexamples, ignored constraints (technical, organizational, timing), and irreversible risks it overlooks. Respond with EXACTLY one JSON object (no prose, no markdown fences):
+{"brokenPaths": ["<candidate id/stance and the concrete reason it breaks>", ...], "ignoredConstraints": ["<constraint the paths all miss>", ...], "irreversibleRisks": ["<risk that cannot be undone once taken>", ...], "verdict": "<survivors | all-broken>"}
+Be specific: cite the assumption each attack defeats. If a path genuinely survives, say so via the verdict field instead of inventing weaknesses.
+<%_ } _%>
+<%_ if (kind === "fusion") { _%>
+You are the orchestrator fusing multi-path deliberation results (deep lane, stage S4).
+
+User task:
+<%= userTask %>
+
+Candidate paths (round <%= round %>):
+<%= pathsDigest %>
+
+<%_ if (adversarialDigest) { _%>
+Red-team findings:
+<%= adversarialDigest %>
+<%_ } _%>
+Fuse the candidates with the adversarial findings into ONE calibrated judgment. Drop paths the red team broke; where paths disagree, name the disagreement and pick a side with reasons. Respond with EXACTLY one JSON object (no prose, no markdown fences):
+{"judgment": "<the fused decision, one paragraph>", "confidence": <0-100 integer>, "disagreements": ["<unresolved disagreement worth surfacing>", ...], "keyAssumptions": ["<assumption the judgment rests on>", ...], "risks": ["<risk/red line>", ...], "nextSteps": ["<concrete executable next step>", ...]}
+<%_ } _%>
+<%_ if (kind === "report") { _%>
+<proposed_plan>
+# 深度决策报告（deep-lane）
+
+## 结论（先读这里）
+<%= conclusion %>
+<%_ if (!converged) { _%>
+
+> ⚠️ 未收敛：各推演路径的置信度分歧仍超过阈值，以下结论基于已给证据的最好判断，建议对高影响项保留人工复核。
+<%_ } _%>
+
+## 置信度
+<%= confidence %>
+
+## 分歧点
+<%= disagreements %>
+
+## 关键假设
+<%= assumptions %>
+
+## 风险与红线
+<%= risks %>
+
+## 可执行下一步
+<%= nextSteps %>
+</proposed_plan>
+<%_ } _%>

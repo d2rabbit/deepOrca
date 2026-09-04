@@ -176,6 +176,13 @@ export type DeepcodingSettings = {
    */
   lspDiagnostics?: LspDiagnosticsSettings;
   /**
+   * Complexity gate / depth-lane routing (specs/depth-lane): L1 heuristic +
+   * L2 flash scoring decides `SessionEntry.lane`. Default OFF — enabling is
+   * the P0 observation flip; `depthLaneEnabled` separately gates the staged
+   * deep-lane flow.
+   */
+  complexityGate?: ComplexityGateSettings;
+  /**
    * Max silence allowed between two reads of an LLM stream before the request
    * is considered stalled and aborted (idle watchdog). Milliseconds.
    * Default: 300000 (5 minutes) — long enough for extended thinking pauses.
@@ -278,6 +285,89 @@ export function resolveLspDiagnosticsSettings(
   };
 }
 
+/**
+ * Merge user + project LSP diagnostics config (project overrides user).
+ * `projectSettings` must be the quarantine-clamped safeProject (null when the
+ * workspace is not explicitly trusted), mirroring mergeMemory — a committable
+ * project file must not be able to enable the bridge behind the user's back.
+ */
+function mergeLspDiagnostics(
+  userSettings: DeepcodingSettings | null | undefined,
+  projectSettings: DeepcodingSettings | null | undefined
+): Required<LspDiagnosticsSettings> {
+  const combined: LspDiagnosticsSettings = { ...userSettings?.lspDiagnostics, ...projectSettings?.lspDiagnostics };
+  return resolveLspDiagnosticsSettings({ lspDiagnostics: combined });
+}
+
+/**
+ * Complexity gate settings (specs/depth-lane design §2.7) — the L1/L2 gateway
+ * that routes sessions to the express lane (status-quo single loop) or the
+ * deep lane (staged deliberation). All fields optional; merged with
+ * DEFAULT_COMPLEXITY_GATE_SETTINGS at runtime. `enabled: false` (the default)
+ * is the byte-level regression baseline: no extra LLM calls, no prompt
+ * changes, no `SessionEntry.lane` set.
+ */
+export type ComplexityGateSettings = {
+  /** Master switch (default false — the published default IS the regression baseline). */
+  enabled?: boolean;
+  /** T+P+C+R total at or above which the session routes deep (default 50). */
+  threshold?: number;
+  /**
+   * Automatic threshold tuning (default false). P2.4 — deliberately NOT
+   * implemented yet; observation data (P0.9) must land first.
+   * TODO(specs/depth-lane P2.4): 新阈值 = 旧阈值 + 追问率*0.5 − 负反馈率*0.5，
+   * ±5 步进、钳制 [30, 70]、每次变更写审计日志。
+   */
+  autoTune?: boolean;
+  /** Deep-lane divergence path budget cap, hard-clamped to [1, 3] (default 3, P1 uses 2). */
+  maxPaths?: number;
+  /** Deep-lane convergence round cap, hard-clamped to [1, 3] (default 3). */
+  maxRounds?: number;
+  /**
+   * Deep lane execution switch (default false): P0 only RECORDS the lane;
+   * flipping this on makes `lane === "deep"` sessions run the staged flow.
+   */
+  depthLaneEnabled?: boolean;
+};
+
+export const DEFAULT_COMPLEXITY_GATE_SETTINGS: Required<ComplexityGateSettings> = {
+  enabled: false,
+  threshold: 50,
+  autoTune: false,
+  maxPaths: 3,
+  maxRounds: 3,
+  depthLaneEnabled: false,
+};
+
+/** Clamp helper: keep an integer inside [min, max], falling back to the default. */
+function clampIntegerSetting(value: unknown, min: number, max: number, fallback: number): number {
+  const raw = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isInteger(raw) || raw < min || raw > max) {
+    return fallback;
+  }
+  return raw;
+}
+
+/** Merge a (possibly partial/undefined) complexityGate node onto the defaults (hard budget clamps included). */
+export function resolveComplexityGateSettings(
+  settings: { complexityGate?: ComplexityGateSettings } | undefined
+): Required<ComplexityGateSettings> {
+  const node = settings?.complexityGate ?? {};
+  return {
+    enabled: node.enabled ?? DEFAULT_COMPLEXITY_GATE_SETTINGS.enabled,
+    // Threshold clamp [1, 100]: the four dimensions max out at 100 total, so
+    // anything outside that range is a hand-editing error. The autoTune-only
+    // [30, 70] clamp is a P2.4 concern and intentionally NOT applied here.
+    threshold: clampIntegerSetting(node.threshold, 1, 100, DEFAULT_COMPLEXITY_GATE_SETTINGS.threshold),
+    autoTune: node.autoTune ?? DEFAULT_COMPLEXITY_GATE_SETTINGS.autoTune,
+    // §2.5 budget caps are HARD: a hand-edited maxPaths/maxRounds above 3 must
+    // never multiply deep-lane cost beyond the spec's ceiling.
+    maxPaths: clampIntegerSetting(node.maxPaths, 1, 3, DEFAULT_COMPLEXITY_GATE_SETTINGS.maxPaths),
+    maxRounds: clampIntegerSetting(node.maxRounds, 1, 3, DEFAULT_COMPLEXITY_GATE_SETTINGS.maxRounds),
+    depthLaneEnabled: node.depthLaneEnabled ?? DEFAULT_COMPLEXITY_GATE_SETTINGS.depthLaneEnabled,
+  };
+}
+
 export type ResolvedDeepcodingSettings = {
   env: Record<string, string>;
   apiKey?: string;
@@ -323,6 +413,10 @@ export type ResolvedDeepcodingSettings = {
    * (getCompactPromptTokenThreshold).
    */
   compactTokenThreshold?: number;
+  /** Resolved LSP diagnostics bridge config (user + trusted project merged). */
+  lspDiagnostics: Required<LspDiagnosticsSettings>;
+  /** Resolved complexity-gate config (project overrides user; budgets hard-clamped). */
+  complexityGate: Required<ComplexityGateSettings>;
 };
 
 export type ModelConfigSelection = {
@@ -1044,6 +1138,13 @@ export function resolveSettingsSources(
     visionApiKey,
     streamIdleTimeoutMs,
     compactTokenThreshold,
+    lspDiagnostics: mergeLspDiagnostics(userSettings, safeProject),
+    // depth-lane: project config wins per-field (project > user > default) —
+    // routed through the safeProject clamp like every other execution-relevant
+    // node so a quarantined repo cannot flip the gate on.
+    complexityGate: resolveComplexityGateSettings({
+      complexityGate: { ...userSettings?.complexityGate, ...safeProject?.complexityGate },
+    }),
   };
 }
 

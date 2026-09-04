@@ -483,14 +483,25 @@ export abstract class SessionManagerBase {
       // Inject the current date + active model as a transient user-message tail
       // per request, never into the persisted prefix — keeps the DeepSeek prefix
       // cache warm across days/model switches (the date no longer lives in the
-      // system-prompt prefix).
-      buildTurnTail: (model) => getCurrentTurnTail(model),
+      // system-prompt prefix). The depth-lane layer extends this hook with the
+      // lane directive (specs/depth-lane P0.6); with the gate disabled the
+      // extension is byte-identically absent.
+      buildTurnTail: (model) => this.buildCurrentTurnTail(model),
     });
 
     // Must run after every field is initialized and BEFORE any consumer can
     // observe sessions (no activation loop can exist yet — controllers are
     // empty, so nothing live can be swept by accident).
     this.sweepStaleRunsAfterRestart();
+  }
+
+  /**
+   * Transient per-turn tail: date/model line + (depth-lane) the lane
+   * directive for the ACTIVE session. Overridden by the depth layer; this
+   * base implementation returns the legacy tail untouched.
+   */
+  protected buildCurrentTurnTail(model: string): string {
+    return getCurrentTurnTail(model);
   }
 
   /**

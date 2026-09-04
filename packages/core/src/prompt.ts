@@ -246,6 +246,55 @@ export function getPlanModePrompt(): string {
   }
 }
 
+/**
+ * Depth-lane prompt fragment variables (specs/depth-lane §2.3/§2.4). One
+ * template (templates/prompts/depth-lane.md.ejs) renders every depth-lane
+ * prompt surface; `kind` selects the section. Strings are pre-rendered by the
+ * caller (session-manager-depth.ts); this function only interpolates.
+ */
+export type DepthLanePromptVars = {
+  kind: "express" | "gate-directive" | "divergence" | "red-team" | "fusion" | "report";
+  /** express: R>0 with a sub-threshold total → safety hint appended. */
+  riskNote?: boolean;
+  /** gate-directive: non-zero dimension scores (zero dimensions are omitted). */
+  dims?: { T?: number; P?: number; C?: number; R?: number };
+  stance?: string;
+  userTask?: string;
+  evidenceDigest?: string;
+  candidatesDigest?: string;
+  pathsDigest?: string;
+  adversarialDigest?: string;
+  round?: number;
+  conclusion?: string;
+  confidence?: string;
+  disagreements?: string;
+  assumptions?: string;
+  risks?: string;
+  nextSteps?: string;
+  converged?: boolean;
+};
+
+/**
+ * Render a depth-lane prompt fragment from the versioned template. Returns
+ * null when the template is missing/unreadable/render-throwing — the depth
+ * layer fails open to its inline fallback (same pattern as skill matching).
+ */
+export function renderDepthLanePrompt(vars: DepthLanePromptVars): string | null {
+  // containment check (security scan): the depth-lane template must stay
+  // under the templates root next to getExtensionRoot().
+  const extensionRoot = getExtensionRoot();
+  const templatePath = joinWithinRoot(extensionRoot, "templates", "prompts", "depth-lane.md.ejs");
+  if (!templatePath) {
+    return null;
+  }
+  try {
+    const template = fs.readFileSync(templatePath, "utf8");
+    return ejs.render(template, vars).trim();
+  } catch {
+    return null;
+  }
+}
+
 export function buildSkillDocumentsPrompt(skills: SkillPromptDocument[]): string {
   const blocks = skills.map((skill) => renderSkillDocumentBlock(skill));
   return `Use the skill documents below to assist the user:\n${blocks.join("\n\n")}`;
