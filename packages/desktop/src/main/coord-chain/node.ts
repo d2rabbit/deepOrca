@@ -17,6 +17,7 @@
 //     common order (proposal first) always works.
 
 import {
+  AnchorError,
   buildBlock,
   buildBlob,
   buildGenesis,
@@ -38,11 +39,13 @@ import {
   themeIdFromTheme,
   verifySignedRecord,
   verifyThemeAnchor,
+  checkAnchorBinding,
   type Approval,
   type Block,
   type BlobManifest,
   type DeviceIdentity,
   type Genesis,
+  type IdentityAnchor,
   type MemberEntry,
   type RecordType,
   type SignedRecord,
@@ -66,6 +69,14 @@ export interface ChainNodeOptions {
   dataRoot?: string;
   blockIntervalMs?: number;
   requestTimeoutMs?: number;
+  /**
+   * Hardware-sealed identity anchor (identity/anchor.ts). When provided, the
+   * node fails closed at start() unless the anchor is bound to THIS machine —
+   * an unbound clone must not sign (identity is a device, not a file).
+   */
+  anchor?: IdentityAnchor;
+  /** Test override for the machine fingerprint (DEEPORCA_MACHINE_FINGERPRINT also works). */
+  machineFingerprint?: string;
 }
 
 export interface ChainNodeStatus {
@@ -183,6 +194,17 @@ export class ChainNode {
   async start(): Promise<void> {
     if (this.transport) {
       throw new Error("chain node already started");
+    }
+    if (this.options.anchor) {
+      const binding = checkAnchorBinding(this.options.anchor, this.options.machineFingerprint);
+      if (!binding.bound) {
+        throw new AnchorError(`identity anchor not bound to this machine: ${binding.reason}`);
+      }
+      if (this.options.identity.keyId !== this.options.anchor.currentKeyId) {
+        throw new AnchorError(
+          `device identity ${this.options.identity.keyId} is not the anchor's active key ${this.options.anchor.currentKeyId}`
+        );
+      }
     }
     this.transport = await startTransport({
       identity: this.identity,
@@ -505,6 +527,14 @@ export class ChainNode {
     // what a proposal is supposed to seal — only already-FINALIZED records
     // (seen and no longer pending) are duplicates.
     const tempMembers = new Map(this.members);
+    // Pre-block pubkey snapshot: a member rotating out in this block approves
+    // with the outgoing key (the merged table validates, post count sets quorum).
+    const preBlockPubKeys = new Map<string, string>();
+    for (const [keyId, entry] of this.members) {
+      if (entry.leftHeight === undefined) {
+        preBlockPubKeys.set(keyId, entry.pubKey);
+      }
+    }
     for (const record of block.records) {
       if (
         this.seenRecords.has(record.recordId) &&
@@ -539,18 +569,20 @@ export class ChainNode {
     if (!requireApprovals) {
       return { approvals: [] };
     }
-    const pubKeys = new Map<string, string>();
+    const pubKeys = new Map<string, string>(preBlockPubKeys);
+    let postMemberCount = 0;
     for (const [keyId, member] of tempMembers) {
       if (member.leftHeight === undefined) {
         pubKeys.set(keyId, member.pubKey);
+        postMemberCount++;
       }
     }
-    if (pubKeys.size === 0) {
+    if (postMemberCount === 0) {
       return null;
     }
     const rawApprovals = (block as Block & { approvals?: Approval[] }).approvals;
     const approvals: Approval[] = Array.isArray(rawApprovals) ? rawApprovals : [];
-    const check = checkApprovals(block, approvals, pubKeys, params.quorum);
+    const check = checkApprovals(block, approvals, pubKeys, params.quorum, postMemberCount);
     if (!check.finalized) {
       return null;
     }
@@ -728,10 +760,15 @@ export class ChainNode {
       return;
     }
     // Signature verification happens in checkApprovals at finalize; the cheap
-    // membership filter here keeps junk out of the candidate. postMembers —
-    // NOT this.members — is authoritative: joins inside the candidate block
-    // must be able to approve it.
-    if (!candidate.postMembers.has(message.approval.keyId)) {
+    // membership filter here keeps junk out of the candidate. Accept members
+    // from post (joins inside the block) and pre (members rotating out).
+    const preActive = new Set<string>();
+    for (const [keyId, member] of this.members) {
+      if (member.leftHeight === undefined) {
+        preActive.add(keyId);
+      }
+    }
+    if (!candidate.postMembers.has(message.approval.keyId) && !preActive.has(message.approval.keyId)) {
       return;
     }
     candidate.approvals.set(message.approval.keyId, message.approval);
@@ -744,6 +781,11 @@ export class ChainNode {
       return;
     }
     const pubKeys = new Map<string, string>();
+    for (const [keyId, member] of this.members) {
+      if (member.leftHeight === undefined) {
+        pubKeys.set(keyId, member.pubKey);
+      }
+    }
     for (const [keyId, member] of candidate.postMembers) {
       pubKeys.set(keyId, member.pubKey);
     }
@@ -751,7 +793,8 @@ export class ChainNode {
       candidate.block,
       [...candidate.approvals.values()],
       pubKeys,
-      this.currentParams().quorum
+      this.currentParams().quorum,
+      candidate.postMembers.size
     );
     if (!check.finalized) {
       return;

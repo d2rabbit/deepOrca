@@ -33,17 +33,30 @@
 
 ## 3. 分层详解
 
-### 3.1 身份层（L0，`identity/` + `record/` 的 member.join）
+### 3.1 身份层（L0，`identity/` + `record/` 的 member.join/rotate）
 
-- 每台机器一对 **Ed25519** 密钥，权限 0600 存 `~/.deeporca/coordchain/device-key.json`
-  （PKCS8/SPKI DER base64）。
-- `keyId = "did:" + SHA-256(SPKI DER) 前 8 字节的 hex`（16 个 hex 字符）——由公钥推导，
-  不信任存盘文件；UI 显示按 4 字符分组。
+**身份对象是设备，不是人。** 我们不做任何用户字段（无账号/邮箱/实名）；追溯粒度与
+加密货币一致——设备密钥即身份锚，链上成员即设备。
+
+- **硬件绑定锚点**（`identity/anchor.ts` + `identity/hardware-binding.ts`）：每台设备
+  一个 `IdentityAnchor`（v3，0600 存 `identity-anchor.json`）——`anchorId` 由创生钥
+  派生且永不变；`machineBinding.seal` 在创建时把**机器指纹哈希**（macOS
+  IOPlatformUUID / Windows MachineGuid / Linux machine-id，原始串绝不落盘）签名进锚点。
+  启动时 `checkAnchorBinding` 重算当前机指纹：不匹配 = **未绑定副本**——只可读，拒绝
+  签名/出块/进链（fail-closed）。v1 为指纹弱绑定（防复制/云同步迁移），Secure
+  Enclave/TPM 强绑定（私钥不出安全芯片）为 OC4 路线。
+- **密钥轮换不走"身份搬家"**：`rotateAnchorKey` 在同一硬件上换钥，`rotations` 是
+  自证签名链（每步旧钥签新钥，`verifyRotationChain` 链外可验）；链上对应
+  `member.rotate { oldKeyId, newPubKey }` 记录——成员条目连续迁移（pubKey 时间线），
+  历史用当时的钥、新记录用新钥，全重放自然验证。换硬件 = 新锚点入链（配合 invite 准入），
+  旧设备历史链上永留。
 - **注册表自包含**：`member.join { deviceName, pubKey }` 记录体携带公钥且作者键必须与
   公钥绑定（`keyIdFromPublicKeyBase64(body.pubKey) === record.author` 才有效）。因此
   重放链时不需要任何外部信任源，就能重建完整成员公钥表。
-- 准入策略在创世参数：`open`（默认，局域网即团队）/ `invite`（须创世成员签名邀请码，OC4
-  完整化）；`member.leave` 撤销后续准入，历史签名永久保留（不可抵赖）。
+- 准入策略在创世参数：`open`（默认，局域网即团队）/ `invite`（须创世成员签名邀请码，
+  用锚点当前钥签发）；`member.leave` 撤销后续准入，历史签名永久保留（不可抵赖）。
+- **批准的双表语义**：轮值/批准按「块前成员表 ∪ 块后成员表」验签（轮换者用旧钥批自己
+  离场前的块）；**quorum 基数 = 块后成员数**（旧钥只验签、不占席）。
 
 ### 3.2 编码层（`encode/`）
 

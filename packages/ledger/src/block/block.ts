@@ -127,7 +127,9 @@ export function checkApprovals(
   header: BlockHeader,
   approvals: Approval[],
   pubKeyByKeyId: Map<string, string>,
-  policy: QuorumPolicy
+  policy: QuorumPolicy,
+  /** Post-block member count — the quorum base; defaults to the key-table size. */
+  memberCount?: number
 ): ApprovalCheck {
   const digest = blockHashDigest(header);
   const validApprovals: Approval[] = [];
@@ -147,7 +149,7 @@ export function checkApprovals(
       invalidKeyIds.push(approval.keyId);
     }
   }
-  const quorum = quorumRequired(pubKeyByKeyId.size, policy);
+  const quorum = quorumRequired(memberCount ?? pubKeyByKeyId.size, policy);
   return { validApprovals, invalidKeyIds, quorum, finalized: validApprovals.length >= quorum };
 }
 

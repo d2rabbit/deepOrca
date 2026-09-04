@@ -20,6 +20,23 @@ export {
   verifyBytes,
 } from "./identity/identity.js";
 export type { DeviceIdentity } from "./identity/identity.js";
+export {
+  AnchorError,
+  checkAnchorBinding,
+  createIdentityAnchor,
+  loadIdentityAnchor,
+  rotateAnchorKey,
+  saveIdentityAnchor,
+  verifyRotationChain,
+} from "./identity/anchor.js";
+export type { AnchorRotation, AnchorSeal, CreateAnchorOptions, IdentityAnchor } from "./identity/anchor.js";
+export {
+  collectRawFingerprint,
+  fingerprintHash,
+  machineFingerprintHash,
+  parseIoRegistryUuid,
+  parseMachineGuid,
+} from "./identity/hardware-binding.js";
 
 export { normalizeGitRemote, normalizeThemeName, resolveWorkspaceTheme, themeIdFromTheme } from "./theme/theme.js";
 export type { ResolveThemeInput, ResolvedTheme } from "./theme/theme.js";
@@ -39,6 +56,7 @@ export type {
   AssetUpdateBody,
   MemberJoinBody,
   MemberLeaveBody,
+  MemberRotateBody,
   NoteBody,
   RecordBody,
   RecordType,

@@ -58,6 +58,12 @@ export function replayChain(genesis: Genesis, blocks: Block[]): ReplayResult {
   for (let index = 0; index < blocks.length; index++) {
     const block = blocks[index];
     const fail = (reason: string): ReplayFailure => ({ ok: false, height: block.height, reason });
+    const preBlockPubKeys = new Map<string, string>();
+    for (const [keyId, member] of members) {
+      if (member.leftHeight === undefined) {
+        preBlockPubKeys.set(keyId, member.pubKey);
+      }
+    }
 
     if (block.height !== index) {
       return { ok: false, height: block.height, reason: `unexpected height ${block.height}, expected ${index}` };
@@ -129,6 +135,24 @@ export function replayChain(genesis: Genesis, blocks: Block[]): ReplayResult {
         }
         if (record.type === "member.leave") {
           member.leftHeight = block.height;
+        } else if (record.type === "member.rotate") {
+          // Pubkey timeline: the OUTGOING key (record.author) signs the
+          // rotation; the membership entry moves to the derived new keyId so
+          // later records verify against the new key. History stays verifiable.
+          const body = record.body as { oldKeyId: string; newPubKey: string };
+          if (body.oldKeyId !== record.author) {
+            return fail(`member.rotate oldKeyId ${body.oldKeyId} != author ${record.author}`);
+          }
+          const newKeyId = keyIdFromPublicKeyBase64(body.newPubKey);
+          if (newKeyId === record.author) {
+            return fail("member.rotate must rotate to a fresh key");
+          }
+          if (members.has(newKeyId)) {
+            return fail(`member.rotate target ${newKeyId} already exists`);
+          }
+          const fresh: MemberEntry = { ...member, keyId: newKeyId, pubKey: body.newPubKey };
+          members.delete(record.author);
+          members.set(newKeyId, fresh);
         }
       }
       seenRecordIds.add(record.recordId);
@@ -145,14 +169,20 @@ export function replayChain(genesis: Genesis, blocks: Block[]): ReplayResult {
     }
 
     const approvalSet = collectApprovals(block);
-    const pubKeys = new Map<string, string>();
-    for (const keyId of members.keys()) {
-      const member = members.get(keyId);
-      if (member && member.leftHeight === undefined) {
-        pubKeys.set(keyId, member.pubKey);
+    // Approval keys verify against the PRE-block ∪ POST-block member tables:
+    // a member rotating out in this block (or joining into it) approves with
+    // whatever key they held at block time. The QUORUM base, however, is the
+    // POST-block membership — a rotated-out key validates signatures but no
+    // longer counts as a committee seat.
+    const merged = new Map<string, string>(preBlockPubKeys);
+    let postMemberCount = 0;
+    for (const [keyId, member] of members) {
+      if (member.leftHeight === undefined) {
+        merged.set(keyId, member.pubKey);
+        postMemberCount++;
       }
     }
-    const check = checkApprovals(block, approvalSet, pubKeys, genesis.params.quorum);
+    const check = checkApprovals(block, approvalSet, merged, genesis.params.quorum, postMemberCount);
     if (!check.finalized) {
       return fail(`only ${check.validApprovals.length}/${check.quorum} valid approvals`);
     }

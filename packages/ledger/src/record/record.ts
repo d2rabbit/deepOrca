@@ -14,6 +14,7 @@ export const MAX_RECORD_BYTES = 8 * 1024;
 export type RecordType =
   | "member.join"
   | "member.leave"
+  | "member.rotate"
   | "asset.publish"
   | "asset.update"
   | "asset.revoke"
@@ -32,6 +33,13 @@ export interface MemberJoinBody {
 
 export interface MemberLeaveBody {
   deviceName?: string;
+}
+
+export interface MemberRotateBody {
+  /** The outgoing key id — must equal the record author. */
+  oldKeyId: string;
+  /** The incoming SPKI DER public key (base64); the membership entry moves to its derived keyId. */
+  newPubKey: string;
 }
 
 export type AssetKind = "requirement" | "design" | "architecture" | "file" | "other";
@@ -103,6 +111,7 @@ export interface NoteBody {
 export type RecordBody =
   | MemberJoinBody
   | MemberLeaveBody
+  | MemberRotateBody
   | AssetPublishBody
   | AssetUpdateBody
   | AssetRevokeBody
@@ -237,6 +246,10 @@ export function validateRecordShape(record: UnsignedRecord): RecordVerification 
         : fail("member.join needs deviceName and pubKey");
     case "member.leave":
       return ok;
+    case "member.rotate":
+      return hasString(body, "oldKeyId") && hasString(body, "newPubKey")
+        ? ok
+        : fail("member.rotate needs oldKeyId and newPubKey");
     case "asset.publish":
       if (
         !hasString(body, "cid") ||

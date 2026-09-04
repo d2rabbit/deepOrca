@@ -8,6 +8,7 @@
 // replays and re-gossip of the same block are harmless.
 
 import { DatabaseSync } from "node:sqlite";
+import { keyIdFromPublicKeyBase64 } from "../identity/identity.js";
 import { existsSync, rmSync } from "node:fs";
 import { blockHash, type Block } from "../block/block.js";
 import { commitCidOf } from "../ws/commit.js";
@@ -115,6 +116,22 @@ export class LedgerView {
       }
       case "member.leave": {
         this.db.prepare("UPDATE members SET left_height = ? WHERE key_id = ?").run(height, author);
+        break;
+      }
+      case "member.rotate": {
+        // The membership entry is continuous: key_id + pub_key move to the
+        // derived id while joined_height/left_height history is preserved.
+        const body = b as { newPubKey?: string };
+        if (typeof body.newPubKey === "string") {
+          try {
+            const newKeyId = keyIdFromPublicKeyBase64(body.newPubKey);
+            this.db
+              .prepare("UPDATE members SET key_id = ?, pub_key = ? WHERE key_id = ? AND left_height IS NULL")
+              .run(newKeyId, body.newPubKey, author);
+          } catch {
+            // Malformed key — the replay layer already rejected the block.
+          }
+        }
         break;
       }
       case "asset.publish": {
