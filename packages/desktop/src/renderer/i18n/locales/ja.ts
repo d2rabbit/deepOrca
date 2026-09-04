@@ -890,6 +890,9 @@ export const ja: Record<MessageKey, string> = {
   "settings.entities.risk.desc": "CRG ナレッジグラフによる変更リスクホットスポットの検出。",
   "settings.entities.web.name": "ウェブリサーチャー",
   "settings.entities.web.desc": "WebSearch / WebFetch を支える検索とレンダリング研究。",
+  "settings.entities.editor.name": "エディタエージェント",
+  "settings.entities.editor.desc":
+    "エディターの選択範囲で働く専用デジタルエンティティ——diff優先・確認質問・セッション残留ゼロ。",
   "settings.tab.about": "について",
   "settings.tab.actions": "Actions",
   "about.title": "DeepOrca について",

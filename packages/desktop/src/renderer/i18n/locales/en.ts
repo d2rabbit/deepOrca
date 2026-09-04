@@ -472,6 +472,9 @@ export const en = {
   "settings.entities.risk.desc": "Detects change risk hot-spots via the CRG knowledge graph.",
   "settings.entities.web.name": "Web Researcher",
   "settings.entities.web.desc": "Web search and rendered-page research behind the WebSearch/WebFetch tools.",
+  "settings.entities.editor.name": "Editor Agent",
+  "settings.entities.editor.desc":
+    "Selection-scoped digital entity living in the editor — diff-first rewrites, clarifying questions, zero session residue.",
   "settings.tab.about": "About",
   "settings.tab.actions": "Actions",
   "settings.tab.capabilities": "Capabilities",

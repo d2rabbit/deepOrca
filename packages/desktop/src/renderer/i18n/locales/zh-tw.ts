@@ -866,6 +866,8 @@ export const zhTW: Record<MessageKey, string> = {
   "settings.entities.risk.desc": "基於 CRG 知識圖譜偵測變更風險熱點。",
   "settings.entities.web.name": "網路研究員",
   "settings.entities.web.desc": "驅動 WebSearch / WebFetch 的網頁檢索與渲染頁研究。",
+  "settings.entities.editor.name": "編輯數字體",
+  "settings.entities.editor.desc": "常駐編輯器的選區專職數字體——diff 優先、追問確認、零會話殘留。",
   "settings.tab.about": "關於",
   "settings.tab.actions": "Actions",
   "about.title": "關於 DeepOrca",

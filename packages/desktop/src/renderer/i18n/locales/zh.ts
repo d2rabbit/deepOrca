@@ -463,6 +463,8 @@ export const zh: Record<MessageKey, string> = {
   "settings.entities.risk.desc": "基于 CRG 知识图谱检测变更风险热点。",
   "settings.entities.web.name": "网络研究员",
   "settings.entities.web.desc": "驱动 WebSearch / WebFetch 的网页检索与渲染页研究。",
+  "settings.entities.editor.name": "编辑数字体",
+  "settings.entities.editor.desc": "常驻编辑器的选区专职数字体——diff 优先、反问确认、零会话残留。",
   "settings.tab.about": "关于",
   "settings.tab.actions": "动作",
   "settings.tab.capabilities": "能力配置",

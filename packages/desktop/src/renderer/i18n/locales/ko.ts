@@ -885,6 +885,9 @@ export const ko: Record<MessageKey, string> = {
   "settings.entities.risk.desc": "CRG 지식그래프 기반 변경 리스크 핫스팟 탐지.",
   "settings.entities.web.name": "웹 리서처",
   "settings.entities.web.desc": "WebSearch / WebFetch 뒷단의 검색·렌더링 조사.",
+  "settings.entities.editor.name": "에디터 에이전트",
+  "settings.entities.editor.desc":
+    "편집기 선택 영역에서 작업하는 전용 디지털 엔티티——diff 우선, 확인 질문, 세션 잔여 제로.",
   "settings.tab.about": "정보",
   "settings.tab.actions": "Actions",
   "about.title": "DeepOrca 정보",

@@ -28,6 +28,7 @@ import {
   IconBook,
   IconBot,
   IconCheck,
+  IconEditor,
   IconExternal,
   IconInfo,
   IconLock,
@@ -1606,6 +1607,7 @@ export function SettingsPanel({
                         { icon: <IconBook />, key: "wiki" },
                         { icon: <IconWarn />, key: "risk" },
                         { icon: <IconExternal />, key: "web" },
+                        { icon: <IconEditor />, key: "editor" },
                       ] as const
                     ).map((agent) => (
                       <div key={agent.key} className="ui-opt entities-agent">
