@@ -1067,7 +1067,7 @@ button.ui-surface-chip {
   gap: 3px;
   font-size: 10px;
   line-height: 16px;
-  padding: 0 5px;
+  padding: 0 6px;
   border-radius: var(--ui-radius-pill);
   white-space: nowrap;
 }
