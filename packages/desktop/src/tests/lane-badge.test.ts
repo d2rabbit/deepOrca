@@ -64,8 +64,8 @@ test("express lane → cyan pill with the localized label and tip", () => {
   const badge = container.querySelector(".ui-lane-badge");
   assert.ok(badge, "badge renders");
   assert.ok(badge!.classList.contains("ui-lane-badge--express"));
-  assert.match(badge!.textContent ?? "", /轻轨/);
-  assert.equal(badge!.getAttribute("data-tip"), "轻轨：直接作答路径");
+  assert.match(badge!.textContent ?? "", /快速/);
+  assert.equal(badge!.getAttribute("data-tip"), "快速模式：基于当前上下文直接作答");
   assert.ok(badge!.querySelector("svg"), "glyph present");
 });
 
@@ -74,6 +74,6 @@ test("deep lane → amber pill, different glyph class and label", () => {
   const badge = container.querySelector(".ui-lane-badge");
   assert.ok(badge);
   assert.ok(badge!.classList.contains("ui-lane-badge--deep"));
-  assert.match(badge!.textContent ?? "", /重轨/);
-  assert.equal(badge!.getAttribute("data-tip"), "重轨：多路径推演决策报告");
+  assert.match(badge!.textContent ?? "", /深度/);
+  assert.equal(badge!.getAttribute("data-tip"), "深度模式：多路径推演后给出决策报告");
 });
