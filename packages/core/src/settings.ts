@@ -170,6 +170,12 @@ export type DeepcodingSettings = {
   /** Skill/tool routing config (embedding-based context reduction). */
   routing?: RoutingSettings;
   /**
+   * LSP diagnostics bridge (specs/lsp-diagnostics): type-level diagnostics via
+   * real language servers behind ONE MCP tool. Default OFF — trusted projects
+   * must enable explicitly; fail-open to Serena-only otherwise.
+   */
+  lspDiagnostics?: LspDiagnosticsSettings;
+  /**
    * Max silence allowed between two reads of an LLM stream before the request
    * is considered stalled and aborted (idle watchdog). Milliseconds.
    * Default: 300000 (5 minutes) — long enough for extended thinking pauses.
@@ -223,6 +229,54 @@ export type RoutingSettings = {
   /** G2: server names that always pass through (never gated). */
   pinnedServers?: string[];
 };
+
+/**
+ * LSP diagnostics bridge settings (specs/lsp-diagnostics design §2.6).
+ * All fields optional; merged with DEFAULT_LSP_DIAGNOSTICS_SETTINGS at runtime.
+ */
+export type LspDiagnosticsSettings = {
+  /** Master switch (default false — trusted projects must opt in). */
+  enabled?: boolean;
+  /** Spawn policy: "manual" (P0, on-demand per check) | "auto" (P1). */
+  trigger?: "manual" | "auto";
+  /** Max diagnostics returned per file (default 10). */
+  maxDiagnostics?: number;
+  /** Language-server idle recycle (default 30000ms). */
+  idleTimeoutMs?: number;
+  /** Per-process request budget (default 20) — memory stop-gap. */
+  perTurnMaxRequests?: number;
+};
+
+export const DEFAULT_LSP_DIAGNOSTICS_SETTINGS: Required<LspDiagnosticsSettings> = {
+  enabled: false,
+  trigger: "manual",
+  maxDiagnostics: 10,
+  idleTimeoutMs: 30000,
+  perTurnMaxRequests: 20,
+};
+
+/** Merge a (possibly partial/undefined) settings node onto the defaults. */
+export function resolveLspDiagnosticsSettings(
+  settings: DeepcodingSettings | undefined
+): Required<LspDiagnosticsSettings> {
+  const node = settings?.lspDiagnostics ?? {};
+  return {
+    enabled: node.enabled ?? DEFAULT_LSP_DIAGNOSTICS_SETTINGS.enabled,
+    trigger: node.trigger === "auto" ? "auto" : DEFAULT_LSP_DIAGNOSTICS_SETTINGS.trigger,
+    maxDiagnostics:
+      typeof node.maxDiagnostics === "number" && node.maxDiagnostics > 0
+        ? Math.floor(node.maxDiagnostics)
+        : DEFAULT_LSP_DIAGNOSTICS_SETTINGS.maxDiagnostics,
+    idleTimeoutMs:
+      typeof node.idleTimeoutMs === "number" && node.idleTimeoutMs >= 0
+        ? Math.floor(node.idleTimeoutMs)
+        : DEFAULT_LSP_DIAGNOSTICS_SETTINGS.idleTimeoutMs,
+    perTurnMaxRequests:
+      typeof node.perTurnMaxRequests === "number" && node.perTurnMaxRequests > 0
+        ? Math.floor(node.perTurnMaxRequests)
+        : DEFAULT_LSP_DIAGNOSTICS_SETTINGS.perTurnMaxRequests,
+  };
+}
 
 export type ResolvedDeepcodingSettings = {
   env: Record<string, string>;

@@ -92,6 +92,18 @@ const dembrandtProviderConfig = {
   packages: "external",
 };
 
+/** LSP diagnostics bridge server (specs/lsp-diagnostics): standalone CJS child
+ *  spawned via Electron-as-Node per trusted+opted-in root — speaks MCP ndjson
+ *  on stdio and hosts the language-server processes. Zero runtime deps. */
+const lspBridgeServerConfig = {
+  ...shared,
+  entryPoints: [resolve(__dirname, "src/main/tools/lsp-bridge/server.ts")],
+  outfile: resolve(outdir, "lsp-bridge-server.cjs"),
+  platform: "node",
+  format: "cjs",
+  target: "node24",
+};
+
 /**
  * Renderer: browser bundle with code splitting.
  * Splitting enables React.lazy() and dynamic import() to produce separate
@@ -362,6 +374,7 @@ async function run() {
       context(preloadConfig),
       context(prototypePreloadConfig),
       context(dembrandtProviderConfig),
+      context(lspBridgeServerConfig),
       context(rendererConfig),
     ]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));
@@ -376,6 +389,7 @@ async function run() {
     build(preloadConfig),
     build(prototypePreloadConfig),
     build(dembrandtProviderConfig),
+    build(lspBridgeServerConfig),
     build(rendererConfig),
   ]);
   await aliasChunkCss();

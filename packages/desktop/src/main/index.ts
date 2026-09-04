@@ -27,6 +27,7 @@ import {
   runCrgResetWithOutput,
   configureSerenaController,
   configureSkillSpectorController,
+  configureLspBridgeController,
   configureCrgController,
   configureRoutingModelDir,
   configureRoutingLogger,
@@ -104,6 +105,7 @@ import { WIKI_STORE_DIR } from "./tools/wiki-staging.js";
 import { ensureGeneratedLayout } from "./tools/generated-layout.js";
 import { buildVisionServer } from "./tools/vision-mcp.js";
 import { SerenaCliController } from "./tools/serena-cli.js";
+import { BundledLspBridgeController } from "./tools/lsp-bridge/controller.js";
 import { cleanupLeakedSubagentSessions } from "./subagent-cleanup.js";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import { BuildJobManager } from "./build-job-manager.js";
@@ -485,6 +487,11 @@ configureSerenaController(
     vendorRoot: join(__dirname, "..", "vendor", "serena"),
   })
 );
+
+// LSP diagnostics bridge (specs/lsp-diagnostics P0-5): the bundled bridge
+// server next to main.js; buildMcpServerConfig returns null unless
+// settings.lspDiagnostics.enabled — default OFF, trusted-project opt-in.
+configureLspBridgeController(new BundledLspBridgeController({ serverEntry: join(__dirname, "lsp-bridge-server.cjs") }));
 
 /**
  * Aggregate the status of every knowledge source for the dashboard. Each probe
