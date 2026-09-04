@@ -36,6 +36,7 @@
     "highlight.js": "^11.11.1",
     "mermaid": "^11.16.0",
     "monaco-editor": "^0.56.0",
+    "motion": "^13.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "remark-breaks": "^4.0.0",

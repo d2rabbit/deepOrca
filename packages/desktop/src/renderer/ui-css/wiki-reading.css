@@ -628,3 +628,16 @@
   max-width: 860px;
   margin: 0 auto;
 }
+
+/* prefers-reduced-motion: turn off non-essential motion for users who opt out
+   (specs/depth-lane 邻项 — 动画调研 P0 无依赖先行项, 2026-09-04). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

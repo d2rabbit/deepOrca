@@ -21,6 +21,37 @@ function ensureEditorChunkCss(): void {
   document.head.appendChild(link);
 }
 
+let warmupScheduled = false;
+
+/**
+ * Editor open-speed warmup (user ask 2026-09-05): the first editor open used
+ * to serially fetch the workspace chunk + parse the ~5MB Monaco core + spin
+ * up the TS worker — all after the click. Scheduling this during idle right
+ * after launch moves that cost off the interaction path; `ensureMonacoLoaded`
+ * then resolves from cache and the editor opens at render speed.
+ */
+export function scheduleMonacoWarmup(): void {
+  if (warmupScheduled) return;
+  warmupScheduled = true;
+  const run = (): void => {
+    void import("./EditorWorkspace")
+      .then(() => ensureMonacoLoaded())
+      .catch(() => {
+        // Idle warmup is best-effort — a failed pass just means the first open
+        // pays the cost again (the flag resets so a later call can retry).
+        warmupScheduled = false;
+      });
+  };
+  const idle = window as Window & {
+    requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+  };
+  if (typeof idle.requestIdleCallback === "function") {
+    idle.requestIdleCallback(() => run(), { timeout: 4000 });
+  } else {
+    setTimeout(run, 2000);
+  }
+}
+
 export async function ensureMonacoLoaded(): Promise<void> {
   if (monacoInitialized) return;
   monacoInitialized = true;

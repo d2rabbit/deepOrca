@@ -37,6 +37,8 @@ import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
 import { DepthLaneProgressStrip } from "./components/DepthLaneProgressStrip";
+import { AnimatePresence, m, springToken } from "./ui/motion";
+import { scheduleMonacoWarmup } from "./components/editor/monaco-loader";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 import { QuestionCard } from "./components/QuestionCard";
@@ -333,6 +335,13 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (previewOpen) setTaskQuick(null);
   }, [previewOpen]);
+  // Editor open-speed warmup (user ask 2026-09-05): fetch the editor chunk
+  // + Monaco core during idle so the first editor open skips the multi-MB
+  // parse. Best-effort — failures just fall back to cold open. Run once.
+  useEffect(() => {
+    const warmTimer = window.setTimeout(() => scheduleMonacoWarmup(), 1500);
+    return () => window.clearTimeout(warmTimer);
+  }, []);
   // Workspace task tabs (specs/task-tree session→task cross-reference entry):
   // opened from session badges, one tree per tab in the main area.
   const [taskTabs, setTaskTabs] = useState<Array<{ treeId: string; title: string; root?: string }>>([]);
@@ -2239,151 +2248,199 @@ export function App(): JSX.Element {
       <div className="ui-main">
         {/* Settings renders at SHELL level (modal family) — here the chain
             falls through to the conversation, which stays visible (dimmed by
-            the scrim) instead of being covered by a full-stage sheet. */}
-        {activeTab.kind === "plugins" ? (
-          <div className="ui-sheet">
-            <PluginDetail
-              selection={selectedPlugin}
-              skills={skills}
-              selectedSkills={selectedSkills}
-              onToggleSkill={handleToggleSkill}
-              onBack={() => handleCloseAuxTab("plugins")}
-            />
-          </div>
-        ) : activeTab.kind === "editor" && editorOpenFiles.length > 0 ? (
-          <div className="ui-sheet">
-            <Suspense
-              fallback={
-                <div className="ui-editor-empty">
-                  <span className="ui-spinner" /> {t("editor.loading")}
-                </div>
-              }
+            the scrim) instead of being covered by a full-stage sheet.
+            动画编排（2026-09-04 动画调研 P0）: sheet 分支全部 m.div —
+            AnimatePresence 接管进出场（CSS 入场 keyframes 已从 .ui-sheet 移除），
+            chat 兜底保持普通 div 即时切换（exit 仅在 sheet 侧声明，避免
+            chat↔sheet 双向等待）。 */}
+        <AnimatePresence initial={false}>
+          {activeTab.kind === "plugins" ? (
+            <m.div
+              key="tab-plugins"
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              <EditorWorkspaceLazy
-                store={editorWorkspace}
-                appearance={appearance}
-                onRequestCloseFile={requestCloseEditorFile}
-                onContentChange={workspaceSetDraft}
-                onSaved={workspaceMarkSaved}
-                onAskAgent={(prompt) => {
-                  // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
-                  // 切回会话主视图让用户看到实时输出。
-                  setActiveTab({ kind: "chat" });
-                  setMainView("chat");
-                  void runPrompt({ text: prompt });
-                }}
+              <PluginDetail
+                selection={selectedPlugin}
+                skills={skills}
+                selectedSkills={selectedSkills}
+                onToggleSkill={handleToggleSkill}
+                onBack={() => handleCloseAuxTab("plugins")}
               />
-            </Suspense>
-          </div>
-        ) : activeTab.kind === "knowledge" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseKnowledgeTab(activeTab.root)}
-              aria-label={t("sheet.backToChat")}
+            </m.div>
+          ) : activeTab.kind === "editor" && editorOpenFiles.length > 0 ? (
+            <m.div
+              key="tab-editor"
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <KnowledgePanel
-              root={activeTab.root}
-              appearance={appearance}
-              onOpenFile={handleOpenEditor}
-              onQuoteToChat={handleQuoteWikiToChat}
-            />
-          </div>
-        ) : activeTab.kind === "review" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseReviewTab(activeTab.root)}
-              aria-label={t("sheet.backToChat")}
+              <Suspense
+                fallback={
+                  <div className="ui-editor-empty">
+                    <span className="ui-spinner" /> {t("editor.loading")}
+                  </div>
+                }
+              >
+                <EditorWorkspaceLazy
+                  store={editorWorkspace}
+                  appearance={appearance}
+                  onRequestCloseFile={requestCloseEditorFile}
+                  onContentChange={workspaceSetDraft}
+                  onSaved={workspaceMarkSaved}
+                  onAskAgent={(prompt) => {
+                    // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
+                    // 切回会话主视图让用户看到实时输出。
+                    setActiveTab({ kind: "chat" });
+                    setMainView("chat");
+                    void runPrompt({ text: prompt });
+                  }}
+                />
+              </Suspense>
+            </m.div>
+          ) : activeTab.kind === "knowledge" ? (
+            <m.div
+              key={`tab-knowledge:${activeTab.root}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              {/* key={root}: without it, switching between two review tabs
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseKnowledgeTab(activeTab.root)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <KnowledgePanel
+                root={activeTab.root}
+                appearance={appearance}
+                onOpenFile={handleOpenEditor}
+                onQuoteToChat={handleQuoteWikiToChat}
+              />
+            </m.div>
+          ) : activeTab.kind === "review" ? (
+            <m.div
+              key={`tab-review:${activeTab.root}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
+            >
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseReviewTab(activeTab.root)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+                {/* key={root}: without it, switching between two review tabs
                   REUSED the component instance — the risk map (and error state)
                   from workspace A stayed visible under workspace B's tab, and
                   openGraph's cache guard short-circuited the refetch
                   (review round 2026-09-01). */}
-              <ReviewWorkspace
-                key={activeTab.root}
-                root={activeTab.root}
-                initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
-                onQuoteToChat={handleQuoteReviewToChat}
-              />
-            </Suspense>
-          </div>
-        ) : activeTab.kind === "taskhub" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseTaskHubTab(activeTab.root)}
-              aria-label={t("sheet.backToChat")}
+                <ReviewWorkspace
+                  key={activeTab.root}
+                  root={activeTab.root}
+                  initialReportId={reviewTabs.find((tab) => tab.root === activeTab.root)?.reportId}
+                  onQuoteToChat={handleQuoteReviewToChat}
+                />
+              </Suspense>
+            </m.div>
+          ) : activeTab.kind === "taskhub" ? (
+            <m.div
+              key={`tab-taskhub:${activeTab.root}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
-              <TaskHubWorkspace
-                key={activeTab.root}
-                root={activeTab.root}
-                onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
-                onOpenKnowledge={handleOpenKnowledgeTab}
-                onOpenSession={handleSelectSession}
-                onOpenWorkspace={(wtRoot) => {
-                  // 分支独立 fork（九轮）：切进 git worktree 临时工作区 ——
-                  // 停泊当前会话 → 切 root → 会话主视图（结构性隔离）。
-                  if (!wtRoot || wtRoot === projectRootRef.current) return;
-                  pushPipSnapshot(wtRoot);
-                  pendingSelectRef.current = null;
-                  setActiveTab({ kind: "chat" });
-                  setMainView("chat");
-                  void api.setProjectRoot(wtRoot);
-                }}
-                onOpenDesign={(artifactId, pipeline) =>
-                  void handleOpenDesignArtifact({
-                    id: artifactId,
-                    title: artifactId,
-                    pipeline: pipeline === "spec" ? "spec" : "openui",
-                    createdAt: "",
-                    updatedAt: "",
-                  })
-                }
-              />
-            </Suspense>
-          </div>
-        ) : activeTab.kind === "task" ? (
-          <div className="ui-sheet">
-            <button
-              type="button"
-              className="ui-sheet-close"
-              onClick={() => handleCloseTaskTab(activeTab.treeId)}
-              aria-label={t("sheet.backToChat")}
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseTaskHubTab(activeTab.root)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("common.loading")}</div>}>
+                <TaskHubWorkspace
+                  key={activeTab.root}
+                  root={activeTab.root}
+                  onOpenQuick={(quick) => handleOpenTaskQuick(quick)}
+                  onOpenKnowledge={handleOpenKnowledgeTab}
+                  onOpenSession={handleSelectSession}
+                  onOpenWorkspace={(wtRoot) => {
+                    // 分支独立 fork（九轮）：切进 git worktree 临时工作区 ——
+                    // 停泊当前会话 → 切 root → 会话主视图（结构性隔离）。
+                    if (!wtRoot || wtRoot === projectRootRef.current) return;
+                    pushPipSnapshot(wtRoot);
+                    pendingSelectRef.current = null;
+                    setActiveTab({ kind: "chat" });
+                    setMainView("chat");
+                    void api.setProjectRoot(wtRoot);
+                  }}
+                  onOpenDesign={(artifactId, pipeline) =>
+                    void handleOpenDesignArtifact({
+                      id: artifactId,
+                      title: artifactId,
+                      pipeline: pipeline === "spec" ? "spec" : "openui",
+                      createdAt: "",
+                      updatedAt: "",
+                    })
+                  }
+                />
+              </Suspense>
+            </m.div>
+          ) : activeTab.kind === "task" ? (
+            <m.div
+              key={`tab-task:${activeTab.treeId}`}
+              className="ui-sheet"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={springToken}
             >
-              ✕ {t("sheet.backToChat")}
-            </button>
-            <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
-              <TaskRecordPanel
-                treeId={activeTab.treeId}
-                workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
-              />
-            </Suspense>
-          </div>
-        ) : (
-          <div className={`ui-chat-stage${hasLive ? " has-live" : ""}${welcomeMode ? " welcome-mode" : ""}`}>
-            <InstructionToc messages={messages} />
-            <div className="ui-chat-main">
-              {planProgress ? (
-                <PinnedPlan lines={planProgress.lines} done={planProgress.done} total={planProgress.total} />
-              ) : null}
-              {chatContent}
+              <button
+                type="button"
+                className="ui-sheet-close"
+                onClick={() => handleCloseTaskTab(activeTab.treeId)}
+                aria-label={t("sheet.backToChat")}
+              >
+                ✕ {t("sheet.backToChat")}
+              </button>
+              <Suspense fallback={<div className="ui-side-panel-empty">{t("diff.loading")}</div>}>
+                <TaskRecordPanel
+                  treeId={activeTab.treeId}
+                  workspaceRoot={taskTabs.find((tab) => tab.treeId === activeTab.treeId)?.root ?? undefined}
+                />
+              </Suspense>
+            </m.div>
+          ) : (
+            <div className={`ui-chat-stage${hasLive ? " has-live" : ""}${welcomeMode ? " welcome-mode" : ""}`}>
+              <InstructionToc messages={messages} />
+              <div className="ui-chat-main">
+                {planProgress ? (
+                  <PinnedPlan lines={planProgress.lines} done={planProgress.done} total={planProgress.total} />
+                ) : null}
+                {chatContent}
+              </div>
+              {hasLive ? <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} /> : null}
             </div>
-            {hasLive ? <ActivityRail messages={messages} busy={busy} collapsed={companionOpen} /> : null}
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Settings — centered modal card (shell level, modal family): settings
@@ -2391,24 +2448,40 @@ export function App(): JSX.Element {
           click-to-dismiss scrim; the conversation stage stays visible behind.
           scrim 98 · card 99 — above the floating islands, below the app's
           .ui-modal-overlay (100) / palette (120) / toasts (200). */}
-      {activeTab.kind === "settings" && editable ? (
-        <>
-          <div className="ui-settings-scrim" onClick={requestCloseSettings} aria-hidden />
-          <div className="ui-settings-modal">
-            <SettingsPanel
-              root={projectRoot}
-              initial={editable}
-              initialTab={settingsInitialTab}
-              onSave={handleSaveSettings}
-              onClose={requestCloseSettings}
-              onDirtyChange={setSettingsDirty}
-              platform={platform}
-              theme={theme}
-              onSelectTheme={handleSelectTheme}
+      <AnimatePresence>
+        {activeTab.kind === "settings" && editable ? (
+          <>
+            <m.div
+              className="ui-settings-scrim"
+              onClick={requestCloseSettings}
+              aria-hidden
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
             />
-          </div>
-        </>
-      ) : null}
+            <m.div
+              className="ui-settings-modal"
+              initial={{ opacity: 0, y: 10, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <SettingsPanel
+                root={projectRoot}
+                initial={editable}
+                initialTab={settingsInitialTab}
+                onSave={handleSaveSettings}
+                onClose={requestCloseSettings}
+                onDirtyChange={setSettingsDirty}
+                platform={platform}
+                theme={theme}
+                onSelectTheme={handleSelectTheme}
+              />
+            </m.div>
+          </>
+        ) : null}
+      </AnimatePresence>
 
       {/* Right-side companion card — PM-Design / DeepDesign output */}
       {previewOpen && (prototypeJson || prototypeMode === "openui" || designContent) ? (
@@ -2496,16 +2569,18 @@ export function App(): JSX.Element {
       {/* Quick dock — the everyday trio (sessions / new / workspace) pulled
           out of the hub into a persistent top-left capsule. Hidden while the
           hub rail is up: same corner, and browsing belongs to the rail. */}
-      {!panelOpen ? (
-        <QuickDock
-          sessionTitle={activeSessionTitle}
-          busy={busy}
-          modKey={modKey}
-          onOpenSessions={() => selectView("explorer")}
-          onNewSession={handleNewSession}
-          onNewWorkspace={() => void handleNewWorkspace()}
-        />
-      ) : null}
+      <AnimatePresence>
+        {!panelOpen ? (
+          <QuickDock
+            sessionTitle={activeSessionTitle}
+            busy={busy}
+            modKey={modKey}
+            onOpenSessions={() => selectView("explorer")}
+            onNewSession={handleNewSession}
+            onNewWorkspace={() => void handleNewWorkspace()}
+          />
+        ) : null}
+      </AnimatePresence>
 
       {/* Tide orb — the stage's idle-state navigation affordance: summons the
           hub sheet. Merged into the rail while it is open (the rail's bottom

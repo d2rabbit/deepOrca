@@ -1219,7 +1219,7 @@ button.ui-surface-chip {
   border-top: 1px solid color-mix(in srgb, var(--ui-border-soft, #c3cdd9) 62%, transparent);
   overflow: hidden;
   transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* entry/exit now owned by motion (AnimatePresence) — CSS keyframe removed 2026-09-04 */
 }
 @keyframes ui-sheet-in {
   from {
@@ -1315,7 +1315,7 @@ button.ui-surface-chip {
   background: var(--ui-surface);
   box-shadow: var(--ui-shadow-modal);
   overflow: hidden;
-  animation: ui-sheet-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* entry owned by motion (AnimatePresence) — CSS keyframe removed 2026-09-04 */
 }
 
 /* Model-fault dialog error detail — raw transport error, honest and
