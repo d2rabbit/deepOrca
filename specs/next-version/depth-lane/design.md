@@ -14,6 +14,8 @@
 
 ### 0.2 适配判定（TL;DR，详情见 §1）
 
+> **外部论据（2026-09-04 回写，cmb-adoption 任务 B-7）**：MemBrain（`docs/research/2026-09-04-codebrain-membrain-philosophy.md` M4）以另一领域（记忆检索）独立收敛到同一哲学——*"agent involvement scales with query complexity"*：标准检索零 agent，不足时才升档 follow-up 二轮。本 spec 的轻轨/重轨仲裁是**第二实现者**互证（与 dsh 两段式 compaction 之于 HKUDS DeepCode 同款关系），其"升档 = 首轮结果过低才触发"思想对应本 spec P0→数据门→P1 的决策纪律。
+
 1. **轻轨 = 现状默认单循环**：本仓是 coding-agent harness，默认路径（`createSession → activateSession`）已是直出；语义检索/知识库的等价物在树上（`core/routing/` 语义路由 + `@deeporca/memory` 记忆召回 + `WebSearch`/`WebFetch` 工具）。轻轨**不做顶层 Top-5 RAG 注入**——本仓检索是按需工具调用，顶层注入只会冗余烧 token 且与路由/记忆职责重叠。
 2. **网关 = 并入既有 skill 匹配 flash 调用**：`identifyMatchingSkillNames`（`session-manager-skills.ts:24-153`）就是「轻量预检 Agent」的生产级同构先例（轻量模型/低温/`response_format: json_object`/thinking 关闭/缓存/fail-open）。复杂度评分作为**单调用双 verdict**（`skillNames` + `lane/tpcr`）并入，轻轨侧**零增量 LLM 调用**。
 3. **重轨 = 原生机制组装，不引 LangGraph**：5 阶段中 4 个已有开源件（Plan Mode / `runSubagent` / `runBackgroundLlmTask` / review 动作 / multi-driver spec），新增仅一个编排状态机层 `session-manager-depth.ts` + 收敛判据。
