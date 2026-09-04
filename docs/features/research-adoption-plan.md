@@ -10,9 +10,9 @@
 
 | # | 线 | 上游调研 | spec 落点 | 生命周期区 | 分期结构 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **CMB 供给侧工程**（CodeBrain/MemBrain 理念六处真差距） | [2026-09-04-codebrain-membrain-philosophy.md](../research/2026-09-04-codebrain-membrain-philosophy.md) + [问题台账 CMB-1~11](../research/2026-09-04-codebrain-membrain-issues.md) | [`specs/cmb-adoption/`](../../specs/cmb-adoption/design.md)（design+tasks） | **活跃（当前版本）** | 批次 A（诊断诚实化）→ B（记忆供给面）→ C（编辑即提醒）→ D（辅助调用契约），~4-6d | 设计定稿待开工 |
+| 1 | **CMB 供给侧工程**（CodeBrain/MemBrain 理念六处真差距） | [2026-09-04-codebrain-membrain-philosophy.md](../research/2026-09-04-codebrain-membrain-philosophy.md) + [问题台账 CMB-1~11](../research/2026-09-04-codebrain-membrain-issues.md) | [`specs/cmb-adoption/`](../../specs/cmb-adoption/design.md)（design+tasks） | **活跃（当前版本）** | 批次 A（诊断诚实化）→ B（记忆供给面）→ C（编辑即提醒）→ D（辅助调用契约），~4-6d | **✅ 四批次全落地（2026-09-04，007d57e8/584440aa/95e0ac5d/1e5cdf95）** |
 | 2 | **depth-lane 复杂性路由双轨**（智能网关 × 轻轨/重轨） | [2026-09-03-smart-gateway-dual-lane-adaptation.md](../research/2026-09-03-smart-gateway-dual-lane-adaptation.md) | [`specs/next-version/depth-lane/`](../../specs/next-version/depth-lane/design.md)（design+tasks，2026-09-03 入库） | **next-version 储备** | P0 纯观察 → 数据决策门 → P1 重轨最小链 → P2 对抗与自适应 | 设计定稿待启动 |
-| 3 | **memory-audit 记忆审计子智能体**（backpass 方法论自研） | [2026-09-04-backpass-integration-feasibility.md](../research/2026-09-04-backpass-integration-feasibility.md) + [方案轮](../research/2026-09-04-memory-audit-subagent-proposal.md) | [`specs/memory-audit/`](../../specs/memory-audit/design.md)（design+tasks，随本计划案立稿） | **活跃（当前版本，P0 即将开工）** | P0 纯观察 → 数据决策门 → P1 合成+审核 → P2 受控写回 → P3 泛化（可选） | 设计定稿，待开工 |
+| 3 | **memory-audit 记忆审计子智能体**（backpass 方法论自研） | [2026-09-04-backpass-integration-feasibility.md](../research/2026-09-04-backpass-integration-feasibility.md) + [方案轮](../research/2026-09-04-memory-audit-subagent-proposal.md) | [`specs/memory-audit/`](../../specs/memory-audit/design.md)（design+tasks，随本计划案立稿） | **活跃（当前版本，P0 即将开工）** | P0 纯观察 → 数据决策门 → P1 合成+审核 → P2 受控写回 → P3 泛化（可选） | **🟡 P0 已落地（19b3bcf9）；P1 等 P0.7 数据门** |
 
 三线共同的底色：**不引外部依赖/代码，用自有原语（flash 调用、subagent、background task、edit 权限面、确定性校验）把别人的工程哲学做进产品**。CMB 台账中的 CMB-6/8/9/10/11（文档对账 / 等数据 / 观念种子）不进任何 spec，留台账跟踪——遇下述决策门时再逐条激活。
 
