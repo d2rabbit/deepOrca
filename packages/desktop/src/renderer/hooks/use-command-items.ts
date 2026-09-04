@@ -5,7 +5,7 @@ import type { SidebarView } from "./use-panel-layout";
 import type { Theme } from "../lib/appearance";
 import type { useI18n } from "../i18n";
 import type { useToasts } from "../components/Toast";
-import type { MainTab } from "../App";
+import type { MainTab } from "../lib/app-models";
 
 /**
  * ⌘K command palette items — extracted verbatim from App.tsx (file-length
