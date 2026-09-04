@@ -2081,3 +2081,100 @@
   margin-left: 4px;
   border-radius: 2px;
 }
+
+/* ── 编辑器工作区（B-line E2）：子 tab 栏 —— 顶部只留一枚「编辑器」chip，
+   多文件以工作区内部子 tab 呈现（VSCode 式），不进顶层 tab 模型。 ── */
+.ui-editor-workspace {
+  display: flex;
+  flex-direction: column;
+}
+.ui-editor-workspace > .ui-editor-inline {
+  flex: 1;
+  min-height: 0;
+}
+.ui-edtabs {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: var(--ui-bg-soft);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.ui-edtabs::-webkit-scrollbar {
+  display: none;
+}
+.ui-edtab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+}
+.ui-edtab:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+.ui-edtab.active {
+  background: var(--ui-bg);
+  border-color: var(--ui-border-soft);
+  color: var(--ui-text);
+}
+.ui-edtab-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 4px 5px 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ui-edtab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-edtab-dirty {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+}
+.ui-edtab-close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-faint);
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s var(--ui-ease),
+    background 0.12s var(--ui-ease);
+}
+.ui-edtab:hover .ui-edtab-close,
+.ui-edtab.active .ui-edtab-close {
+  opacity: 1;
+}
+.ui-edtab-close:hover {
+  background: color-mix(in srgb, var(--ui-danger) 16%, transparent);
+  color: var(--ui-danger);
+}

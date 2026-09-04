@@ -34,6 +34,7 @@ import type {
   WorkspaceTrustLevel,
 } from "../shared/ipc";
 import { TopBar } from "./components/TopBar";
+import { EditorTabBar } from "./components/editor/EditorTabBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
 import { Composer } from "./components/Composer";
@@ -242,6 +243,8 @@ export function App(): JSX.Element {
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
 
   const [modal, setModal] = useState<"undo" | "shortcuts" | "discard-settings" | "discard-editor" | null>(null);
+  /** Editor sub-tab pending a dirty-close confirm (per-file guard, B-line E2). */
+  const [editorFileClose, setEditorFileClose] = useState<string | null>(null);
   /** Settings tab has unsaved edits — every settings close path asks first. */
   const [settingsDirty, setSettingsDirty] = useState(false);
   // Branch the user tried to switch to while the working tree had blocking local changes.
@@ -264,7 +267,17 @@ export function App(): JSX.Element {
   const editorWorkspace = useEditorWorkspace();
   // Stable members pulled out so callbacks can depend on identifiers, not
   // property paths (the hook's methods are useCallback-stable).
-  const { openFile: workspaceOpenFile, closeWorkspace: workspaceCloseAll, anyDirty: editorDirty } = editorWorkspace;
+  const {
+    openFile: workspaceOpenFile,
+    closeFile: workspaceCloseFile,
+    closeWorkspace: workspaceCloseAll,
+    setDraft: workspaceSetDraft,
+    markSaved: workspaceMarkSaved,
+    openFiles: editorOpenFiles,
+    dirtyFiles: editorDirtyFiles,
+    anyDirty: editorDirty,
+  } = editorWorkspace;
+  const editorDirtySet = useMemo(() => new Set(editorDirtyFiles), [editorDirtyFiles]);
   // Back-compat view for consumers keyed on the old tri-state (composer dock,
   // rail active state) and the settings hook's dispatcher.
   const mainView: "chat" | "settings" | "plugins" =
@@ -316,6 +329,25 @@ export function App(): JSX.Element {
     }
     closeEditorWorkspace();
   }, [editorDirty, closeEditorWorkspace]);
+  /** Per-file close (sub-tab ✕): the dirty guard lives HERE, not in the tab
+   *  bar — the last file closing also drops the workspace chip. */
+  const closeEditorFile = useCallback(
+    (file: string) => {
+      workspaceCloseFile(file);
+      if (editorOpenFiles.length <= 1) handleCloseAuxTab("editor");
+    },
+    [workspaceCloseFile, editorOpenFiles, handleCloseAuxTab]
+  );
+  const requestCloseEditorFile = useCallback(
+    (file: string) => {
+      if (editorDirtyFiles.includes(file)) {
+        setEditorFileClose(file);
+        return;
+      }
+      closeEditorFile(file);
+    },
+    [editorDirtyFiles, closeEditorFile]
+  );
   /** The ONE guarded close for the settings tab: dirty edits raise the
    *  discard-confirm no matter which path fired (panel button, tab-strip ✕,
    *  Esc, scrim click) — previously only the button asked. */
@@ -2282,35 +2314,46 @@ export function App(): JSX.Element {
               onBack={() => handleCloseAuxTab("plugins")}
             />
           </div>
-        ) : activeTab.kind === "editor" && editorWorkspace.activeFile ? (
-          <div className="ui-sheet">
-            <Suspense
-              fallback={
-                <div className="ui-editor-empty">
-                  <span className="ui-spinner" /> {t("editor.loading")}
-                </div>
-              }
-            >
-              <EditorOverlay
-                filePath={editorWorkspace.activeFile}
-                onClose={() => {
-                  // Interim (E1): single-file overlay over the multi-file
-                  // workspace store. Closing the last file drops the chip.
-                  const file = editorWorkspace.activeFile;
-                  if (file) editorWorkspace.closeFile(file);
-                  if (editorWorkspace.openFiles.length <= 1) handleCloseAuxTab("editor");
-                }}
-                appearance={appearance}
-                inline
-                onAskAgent={(prompt) => {
-                  // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
-                  // 切回会话主视图让用户看到实时输出。
-                  setActiveTab({ kind: "chat" });
-                  setMainView("chat");
-                  void runPrompt({ text: prompt });
-                }}
-              />
-            </Suspense>
+        ) : activeTab.kind === "editor" && editorOpenFiles.length > 0 ? (
+          <div className="ui-sheet ui-editor-workspace">
+            <EditorTabBar
+              files={editorOpenFiles}
+              activeFile={editorWorkspace.activeFile}
+              dirtyFiles={editorDirtySet}
+              onSelect={editorWorkspace.setActiveFile}
+              onCloseRequest={requestCloseEditorFile}
+            />
+            {editorWorkspace.activeFile ? (
+              <Suspense
+                fallback={
+                  <div className="ui-editor-empty">
+                    <span className="ui-spinner" /> {t("editor.loading")}
+                  </div>
+                }
+              >
+                <EditorOverlay
+                  filePath={editorWorkspace.activeFile}
+                  onClose={() => {
+                    // The overlay's own dirty-confirm ran before this — close
+                    // the file directly. Closing the last file drops the chip.
+                    const file = editorWorkspace.activeFile;
+                    if (file) workspaceCloseFile(file);
+                    if (editorOpenFiles.length <= 1) handleCloseAuxTab("editor");
+                  }}
+                  appearance={appearance}
+                  inline
+                  onContentChange={workspaceSetDraft}
+                  onSaved={workspaceMarkSaved}
+                  onAskAgent={(prompt) => {
+                    // B3c-3 第一切片：编辑器选区指令注入主会话流式执行 ——
+                    // 切回会话主视图让用户看到实时输出。
+                    setActiveTab({ kind: "chat" });
+                    setMainView("chat");
+                    void runPrompt({ text: prompt });
+                  }}
+                />
+              </Suspense>
+            ) : null}
           </div>
         ) : activeTab.kind === "knowledge" ? (
           <div className="ui-sheet">
@@ -2688,6 +2731,31 @@ export function App(): JSX.Element {
                 onClick={() => {
                   setModal(null);
                   closeEditorWorkspace();
+                }}
+              >
+                {t("editor.discardAndClose")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+
+      {/* Per-file close confirm (sub-tab ✕ on a dirty file) — same dialog the
+          in-editor ✕ shows, so both close paths ask identically. */}
+      {editorFileClose ? (
+        <Modal
+          title={t("editor.closeDirtyTitle")}
+          subtitle={t("editor.closeDirtyBody")}
+          onClose={() => setEditorFileClose(null)}
+          actions={
+            <>
+              <Button onClick={() => setEditorFileClose(null)}>{t("common.cancel")}</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const file = editorFileClose;
+                  setEditorFileClose(null);
+                  if (file) closeEditorFile(file);
                 }}
               >
                 {t("editor.discardAndClose")}

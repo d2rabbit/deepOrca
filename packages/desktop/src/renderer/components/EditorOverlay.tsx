@@ -190,6 +190,10 @@ type Props = {
    *  后浮出指令窗，发布的问题/指令带上文件:行号与选区代码注入主会话流式
    *  执行。专职 editor-agent 子代理见 specs/editor-agent/design.md。 */
   onAskAgent?: (prompt: string) => void;
+  /** Workspace sync (B-line E2): mirror edits/saves into the multi-file
+   *  workspace store so sub-tab dirty dots and close guards stay truthful. */
+  onContentChange?: (file: string, content: string) => void;
+  onSaved?: (file: string, content: string) => void;
 };
 
 /**
@@ -197,7 +201,15 @@ type Props = {
  * and saves back via IPC. Tracks dirty state and warns on unsaved changes.
  * Can render as a modal overlay or inline workspace panel.
  */
-export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgent }: Props): JSX.Element {
+export function EditorOverlay({
+  filePath,
+  onClose,
+  appearance,
+  inline,
+  onAskAgent,
+  onContentChange,
+  onSaved,
+}: Props): JSX.Element {
   const { t } = useI18n();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -284,7 +296,8 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
     // The saved content now matches disk for the current path.
     loadedPathRef.current = filePath;
     setDirty(false);
-  }, [content, saving, filePath, t]);
+    onSaved?.(filePath, content);
+  }, [content, saving, filePath, t, onSaved]);
 
   const [monacoReady, setMonacoReady] = useState(false);
   const MonacoEditorRef = useRef<ComponentType<Record<string, unknown>> | null>(null);
@@ -305,11 +318,15 @@ export function EditorOverlay({ filePath, onClose, appearance, inline, onAskAgen
     };
   }, []);
 
-  const handleChange = useCallback((value: string | undefined) => {
-    const next = value ?? "";
-    setContent(next);
-    setDirty(next !== originalContentRef.current);
-  }, []);
+  const handleChange = useCallback(
+    (value: string | undefined) => {
+      const next = value ?? "";
+      setContent(next);
+      setDirty(next !== originalContentRef.current);
+      onContentChange?.(filePath, next);
+    },
+    [filePath, onContentChange]
+  );
 
   // ── 选区数字体（B3c S2，specs/editor-agent）───────────────────────────────
   // 有非空选区时浮出「问数字体」；主路径走专职 editor-agent 后台实体
