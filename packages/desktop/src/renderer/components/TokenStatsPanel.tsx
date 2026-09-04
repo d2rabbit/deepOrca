@@ -85,6 +85,14 @@ export function TokenStatsPanel({ root, refreshKey }: Props): JSX.Element {
     <div className="ui-side-panel">
       <div className="ui-side-panel-head">
         <span>{t("tokens.title")}</span>
+        <button
+          type="button"
+          className="ui-token-heat-btn"
+          onClick={() => setHeatOpen(true)}
+          title={t("tokens.heatmap")}
+        >
+          ▦ {t("tokens.heatmap")}
+        </button>
       </div>
       <div className="ui-side-panel-body ui-token-stats">
         <div className="ui-token-hero">

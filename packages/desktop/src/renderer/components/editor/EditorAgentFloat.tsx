@@ -332,11 +332,18 @@ export function EditorAgentFloat({ filePath, selection, editorRef, onAskAgent }:
     const attach = (): void => {
       const ed = editorRef.current;
       if (!ed || scrollOffRef.current) return;
-      // The repo's monaco type stub narrows IStandaloneCodeEditor — the real
-      // runtime object has onDidScroll; go through a structural cast (same
-      // escape as the ts defaults config in monaco-loader).
-      type ScrollableEditor = { onDidScroll(listener: () => void): { dispose(): void } };
-      const d = (ed as unknown as ScrollableEditor).onDidScroll(schedule);
+      // Monaco's real event is onDidScrollChange — the original assumption of
+      // an `onDidScroll` member crashed the editor at runtime
+      // (`p.onDidScroll is not a function`, 2026-09-05 user report). Structural
+      // cast with a both-names guard so any monaco variant degrades safely.
+      type ScrollableEditor = {
+        onDidScrollChange?(listener: () => void): { dispose(): void };
+        onDidScroll?(listener: () => void): { dispose(): void };
+      };
+      const scrollable = ed as unknown as ScrollableEditor;
+      const subscribe = scrollable.onDidScrollChange ?? scrollable.onDidScroll;
+      if (!subscribe) return; // no scroll event at all → resize listener still covers recompute
+      const d = subscribe.call(scrollable, schedule);
       scrollOffRef.current = () => d.dispose();
     };
     attach();

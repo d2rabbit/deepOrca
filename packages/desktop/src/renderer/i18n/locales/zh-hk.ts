@@ -47,6 +47,30 @@ export const zhHK: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "重軌",
 
+  "depth.report.title": "深度決策報告",
+
+  "depth.report.confidence": "置信度",
+
+  "depth.report.unconverged": "未收斂——結論基於已給證據的最好判斷，高影響項建議保留人工覆核。",
+
+  "depth.report.irreversible": "不可逆風險 · 需用戶拍板",
+
+  "depth.report.divergences": "分歧點",
+
+  "depth.report.assumptions": "關鍵假設",
+
+  "depth.report.risks": "風險與紅線",
+
+  "depth.report.nextSteps": "可執行下一步",
+
+  "depth.report.toTaskTree": "落為任務軌跡",
+
+  "depth.report.taskBusy": "建立中…",
+
+  "depth.report.taskDone": "任務樹已建立 ✓",
+
+  "depth.report.taskError": "任務建立失敗",
+
   "depth.stripTitle": "重軌",
 
   "depth.stageS1": "S1 情境編譯",
@@ -915,6 +939,8 @@ export const zhHK: Record<MessageKey, string> = {
   "settings.entities.web.desc": "驅動 WebSearch / WebFetch 的網頁檢索與渲染頁研究。",
   "settings.entities.editor.name": "編輯數字體",
   "settings.entities.editor.desc": "常駐編輯器的選區專職數字體——diff 優先、追問確認、零會話殘留。",
+  "settings.tab.lane": "車道",
+
   "settings.tab.about": "關於",
   "settings.tab.actions": "Actions",
   "about.title": "關於 DeepOrca",

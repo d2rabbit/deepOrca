@@ -41,6 +41,7 @@ import {
   Input,
   Modal,
   Select,
+  IconLaneDeep,
 } from "../ui/index";
 import { availableThemes, type Theme } from "../lib/appearance";
 import { ActionsPanel } from "./ActionsPanel";
@@ -64,7 +65,7 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void;
 };
 
-type Tab = "endpoints" | "model" | "entities" | "appearance" | "memory" | "permissions" | "actions" | "about";
+type Tab = "endpoints" | "model" | "entities" | "appearance" | "memory" | "permissions" | "actions" | "lane" | "about";
 
 const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "endpoints", labelKey: "settings.tab.endpoints" },
@@ -74,6 +75,7 @@ const TABS: { id: Tab; labelKey: MessageKey }[] = [
   { id: "memory", labelKey: "settings.tab.memory" },
   { id: "permissions", labelKey: "settings.tab.permissions" },
   { id: "actions", labelKey: "settings.tab.actions" },
+  { id: "lane", labelKey: "settings.tab.lane" },
   { id: "about", labelKey: "settings.tab.about" },
 ];
 
@@ -85,6 +87,7 @@ const TAB_ICONS: Record<Tab, JSX.Element> = {
   memory: <IconBook />,
   permissions: <IconLock />,
   actions: <IconSettings />,
+  lane: <IconLaneDeep />,
   about: <IconInfo />,
 };
 
@@ -1636,9 +1639,9 @@ export function SettingsPanel({
                 </section>
               </>
             ) : null}
+            {tab === "lane" ? <LaneObservationSection root={root} /> : null}
             {tab === "about" ? (
               <>
-                <LaneObservationSection root={root} />
                 <section className="ui-settings-section">
                   <div className="ui-settings-section-title">{t("about.title")}</div>
                   <p className="ui-about-desc">{t("about.intro")}</p>

@@ -46,6 +46,30 @@ export const ko: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "딥",
 
+  "depth.report.title": "딥 결정 리포트",
+
+  "depth.report.confidence": "신뢰도",
+
+  "depth.report.unconverged": "미수렴 — 결론은 제시된 증거 기반 최선 판단. 영향 큰 항목은 사람 검토 권장.",
+
+  "depth.report.irreversible": "불가역 리스크 · 사용자 결정 필요",
+
+  "depth.report.divergences": "분기점",
+
+  "depth.report.assumptions": "핵심 가정",
+
+  "depth.report.risks": "리스크와 레드라인",
+
+  "depth.report.nextSteps": "실행 가능한 다음 단계",
+
+  "depth.report.toTaskTree": "작업 궤적으로 만들기",
+
+  "depth.report.taskBusy": "생성 중…",
+
+  "depth.report.taskDone": "작업 트리 생성됨 ✓",
+
+  "depth.report.taskError": "작업 생성 실패",
+
   "depth.stripTitle": "딥 레인",
 
   "depth.stageS1": "S1 컨텍스트 컴파일",
@@ -936,6 +960,8 @@ export const ko: Record<MessageKey, string> = {
   "settings.entities.editor.name": "에디터 에이전트",
   "settings.entities.editor.desc":
     "편집기 선택 영역에서 작업하는 전용 디지털 엔티티——diff 우선, 확인 질문, 세션 잔여 제로.",
+  "settings.tab.lane": "레인",
+
   "settings.tab.about": "정보",
   "settings.tab.actions": "Actions",
   "about.title": "DeepOrca 정보",

@@ -47,6 +47,30 @@ export const zh: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "重轨",
 
+  "depth.report.title": "深度决策报告",
+
+  "depth.report.confidence": "置信度",
+
+  "depth.report.unconverged": "未收敛——结论基于已给证据的最好判断，高影响项建议保留人工复核。",
+
+  "depth.report.irreversible": "不可逆风险 · 需用户拍板",
+
+  "depth.report.divergences": "分歧点",
+
+  "depth.report.assumptions": "关键假设",
+
+  "depth.report.risks": "风险与红线",
+
+  "depth.report.nextSteps": "可执行下一步",
+
+  "depth.report.toTaskTree": "落为任务轨迹",
+
+  "depth.report.taskBusy": "创建中…",
+
+  "depth.report.taskDone": "任务树已创建 ✓",
+
+  "depth.report.taskError": "任务创建失败",
+
   "depth.stripTitle": "重轨",
 
   "depth.stageS1": "S1 情境编译",
@@ -501,6 +525,8 @@ export const zh: Record<MessageKey, string> = {
   "settings.entities.web.desc": "驱动 WebSearch / WebFetch 的网页检索与渲染页研究。",
   "settings.entities.editor.name": "编辑数字体",
   "settings.entities.editor.desc": "常驻编辑器的选区专职数字体——diff 优先、反问确认、零会话残留。",
+  "settings.tab.lane": "车道",
+
   "settings.tab.about": "关于",
   "settings.tab.actions": "动作",
   "settings.tab.capabilities": "能力配置",

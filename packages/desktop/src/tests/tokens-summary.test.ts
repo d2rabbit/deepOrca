@@ -311,6 +311,13 @@ test("model-detail: buckets the 7-day window per day/hour/model, skips backfill"
   try {
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
+    // Adaptive fixture hour (AGENTS.md time-boundary discipline): a fixed
+    // "today at 14:00" entry is in the FUTURE — and skipped by buildModelDetail's
+    // ts > now guard — whenever the suite runs before 14:00 local (observed
+    // 2026-09-05 01:21 after a green 23:xx run). Anchor to one hour in the past.
+    const todayHour = new Date(now).getHours();
+    const h = Math.max(0, todayHour - 1);
+    const hNext = Math.min(23, h + 1);
     const inWindow = (daysAgo: number, hour: number): string => {
       const d = new Date(now - daysAgo * dayMs);
       d.setHours(hour, 0, 0, 0);
@@ -318,12 +325,12 @@ test("model-detail: buckets the 7-day window per day/hour/model, skips backfill"
     };
     const file = await makeIndex(root, []);
     await writeLedger(file, [
-      { ts: inWindow(0, 14), model: "m-a", prompt: 100, completion: 40, source: "chat", estimated: true },
-      { ts: inWindow(0, 14), model: "m-a", prompt: 10, completion: 5, source: "chat", estimated: true },
+      { ts: inWindow(0, h), model: "m-a", prompt: 100, completion: 40, source: "chat", estimated: true },
+      { ts: inWindow(0, h), model: "m-a", prompt: 10, completion: 5, source: "chat", estimated: true },
       { ts: inWindow(6, 9), model: "m-b", prompt: 50, completion: 20, source: "chat", estimated: true },
       { ts: inWindow(9, 9), model: "m-a", prompt: 999, completion: 0, source: "chat", estimated: true }, // outside 7d
       {
-        ts: inWindow(0, 15),
+        ts: inWindow(0, hNext),
         model: "legacy-backfill",
         prompt: 777,
         completion: 0,
@@ -334,7 +341,7 @@ test("model-detail: buckets the 7-day window per day/hour/model, skips backfill"
     const detail = buildModelDetail(file, 7, now);
     assert.equal(detail.days.length, 7);
     assert.ok(detail.days.every((day, i) => i === 0 || day > detail.days[i - 1]!));
-    const cell = detail.heat.find((c) => c.model === "m-a" && c.hour === 14 && c.day === detail.days[6]!);
+    const cell = detail.heat.find((c) => c.model === "m-a" && c.hour === h && c.day === detail.days[6]!);
     assert.ok(cell);
     assert.equal(cell.tokens, 155);
     assert.equal(cell.reqs, 2);

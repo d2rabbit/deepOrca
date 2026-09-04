@@ -46,6 +46,30 @@ export const ja: Record<MessageKey, string> = {
 
   "sidebar.laneDeep": "深度",
 
+  "depth.report.title": "深度決定レポート",
+
+  "depth.report.confidence": "信頼度",
+
+  "depth.report.unconverged": "未収束——結論は既出証拠に基づく最良判断。高影響項目は人間レビューを推奨。",
+
+  "depth.report.irreversible": "不可逆リスク · ユーザー判断が必要",
+
+  "depth.report.divergences": "分岐点",
+
+  "depth.report.assumptions": "主要な仮定",
+
+  "depth.report.risks": "リスクとレッドライン",
+
+  "depth.report.nextSteps": "実行可能な次のステップ",
+
+  "depth.report.toTaskTree": "タスク軌跡へ落とす",
+
+  "depth.report.taskBusy": "作成中…",
+
+  "depth.report.taskDone": "タスクツリー作成済み ✓",
+
+  "depth.report.taskError": "タスク作成に失敗",
+
   "depth.stripTitle": "深度レーン",
 
   "depth.stageS1": "S1 コンテキスト編譯",
@@ -941,6 +965,8 @@ export const ja: Record<MessageKey, string> = {
   "settings.entities.editor.name": "エディタエージェント",
   "settings.entities.editor.desc":
     "エディターの選択範囲で働く専用デジタルエンティティ——diff優先・確認質問・セッション残留ゼロ。",
+  "settings.tab.lane": "レーン",
+
   "settings.tab.about": "について",
   "settings.tab.actions": "Actions",
   "about.title": "DeepOrca について",

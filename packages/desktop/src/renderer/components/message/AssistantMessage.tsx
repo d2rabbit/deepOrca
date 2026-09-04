@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, type
 import type { SessionMessage } from "../../../shared/ipc";
 import { useI18n } from "../../i18n";
 import { Md, formatTime } from "./shared";
+import { extractDepthReport, stripDepthReport } from "../../lib/depth-report";
+import { DepthReportCard } from "./DepthReportCard";
 
 export function AssistantMessage({
   message,
@@ -31,6 +33,12 @@ export function AssistantMessage({
   // Content without comparison blocks (rendered as markdown).
   const contentWithoutComparisons =
     comparisonBlocks.length > 0 ? content.replace(/<comparison>[\s\S]*?<\/comparison>/g, "").trim() : content;
+  // Deep-lane decision report (specs/depth-lane 渲染优化): a COMPLETE
+  // <proposed_plan> carrying the deep-report structure renders as the
+  // dedicated card instead of a raw markdown dump; the block is stripped
+  // from the markdown body (partial blocks keep streaming as text).
+  const depthReport = useMemo(() => extractDepthReport(contentWithoutComparisons), [contentWithoutComparisons]);
+  const markdownBody = depthReport ? stripDepthReport(contentWithoutComparisons) : contentWithoutComparisons;
 
   // Clear the pending copy-feedback reset when the bubble unmounts.
   useEffect(
@@ -79,7 +87,8 @@ export function AssistantMessage({
         ) : null}
       </div>
       <div className="ui-md">
-        {contentWithoutComparisons ? <Md text={contentWithoutComparisons} isAnimating={streaming} /> : null}
+        {depthReport ? <DepthReportCard report={depthReport} /> : null}
+        {markdownBody ? <Md text={markdownBody} isAnimating={streaming} /> : null}
         {comparisonBlocks.length > 0
           ? comparisonBlocks.map((block, i) => (
               <Suspense key={`cmp-${i}`} fallback={<div>{t("msg.loadingComparison")}</div>}>

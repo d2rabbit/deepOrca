@@ -1419,3 +1419,109 @@ button.ui-surface-chip {
 .ui-chat-stage.welcome-mode .ui-conversation {
   padding-bottom: 24px !important;
 }
+
+/* Depth-lane decision report card (渲染优化 2026-09-05) — amber accent,
+   conclusion-first hero, confidence bar, irreversible risks flagged. */
+.ui-depth-report {
+  border: 1px solid color-mix(in srgb, #e8a848 30%, var(--ui-border-soft, #333));
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 8px 0 12px;
+  background: color-mix(in srgb, #e8a848 5%, var(--ui-bg, #1e1e22));
+}
+.ui-depth-report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ui-depth-report-confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ui-text-dim, #9a9aa2);
+}
+.ui-depth-report-conf-track {
+  width: 90px;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, #e8a848 15%, transparent);
+  overflow: hidden;
+}
+.ui-depth-report-conf-fill {
+  display: block;
+  height: 100%;
+  background: #e8a848;
+}
+.ui-depth-report-conf-value {
+  font-family: var(--ui-font-mono);
+  color: #e8a848;
+}
+.ui-depth-report-unconverged {
+  font-size: 11px;
+  color: #e8a848;
+  border: 1px dashed color-mix(in srgb, #e8a848 40%, transparent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+}
+.ui-depth-report-conclusion {
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #e8a848 9%, transparent);
+  margin-bottom: 10px;
+}
+.ui-depth-report-irreversible {
+  border-left: 3px solid #e05a4e;
+  padding: 6px 10px;
+  margin: 8px 0;
+  background: color-mix(in srgb, #e05a4e 8%, transparent);
+  border-radius: 0 8px 8px 0;
+}
+.ui-depth-report-section {
+  margin: 8px 0;
+}
+.ui-depth-report-section-title {
+  font-size: 11px;
+  color: var(--ui-text-dim, #9a9aa2);
+  margin-bottom: 4px;
+  letter-spacing: 0.03em;
+}
+.ui-depth-report ul,
+.ui-depth-report ol {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.ui-depth-report-actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ui-depth-report-task-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--ui-radius-pill, 999px);
+  border: 1px solid color-mix(in srgb, #e8a848 45%, transparent);
+  background: transparent;
+  color: #e8a848;
+  cursor: pointer;
+}
+.ui-depth-report-task-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #e8a848 14%, transparent);
+}
+.ui-depth-report-task-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ui-depth-report-task-error {
+  font-size: 11px;
+  color: #e05a4e;
+}
