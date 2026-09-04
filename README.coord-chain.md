@@ -11,6 +11,7 @@ DeepOrca 的**王牌路线 OC（Orca Coord Chain）**：局域网内多台 DeepO
 
 需求/设计/任务三件套（唯一事实源）：[`specs/coord-chain/`](./specs/coord-chain/) · 路线总纲：[`docs/features/coord-chain-plan.md`](./docs/features/coord-chain-plan.md)
 **协作流程设计（OC3 蓝本）**：[`specs/coord-chain/collaboration-flows.md`](./specs/coord-chain/collaboration-flows.md)——共享工作区与会话任务 / 跨机 fork 任务节点 / 任务×分支联动 / 工区合并三阶梯 / 任务合并收敛，含动作序列与落地清单。
+**私有链实现说明**：[`specs/coord-chain/implementation.md`](./specs/coord-chain/implementation.md)——联盟式许可链五层协议栈（身份/编码/记录/区块终局/重放）、记录生命周期、链工作区对象模型、传输安全、与公链对照及 v1 边界。
 
 ## 分支配线（不要动主线）
 
