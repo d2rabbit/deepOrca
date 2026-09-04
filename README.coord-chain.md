@@ -28,6 +28,8 @@ DeepOrca 的**王牌路线 OC（Orca Coord Chain）**：局域网内多台 DeepO
 | `07b65682` | OC1 | `packages/ledger/` 协议库：Ed25519 设备身份、JCS(RFC 8785) 子集规范编码、**工作区主题解析**（git remote 归一/显式主题名 → themeId，目录名不参与跨机匹配）、12 类签名记录、quorum 区块、创世链 ID（`orca1`+base32，主题双向锚定）、从创世全量重放校验、CID 4MB 分块、链工作区对象模型（tree/commit/tree diff/谱系/LWW head）、`node:sqlite` 物化视图 —— 42 单测 |
 | `8401824b` | OC2·协议核心 | ledger `net/` + `objects/`：X25519+HKDF+AES-256-GCM 加密帧（序号防重放）、Ed25519 双向挑战握手（版本协商/主题钉扎/keyId 钉扎/明文拒收）、同步消息协议、内容寻址对象库（配额 LRU）—— 含真实 TCP socket 端到端单测 |
 | `c2b4a71c` | OC2·组网 | desktop `src/main/coord-chain/`：ws 传输（PeerConnection，握手后明文帧即断连）、ChainNode（建链/重放入链/轮值提议/联签终局/记录 gossip/断线对高续传/资产 manifest+分块拉取）、mDNS 发现 + 邀请码、账本落盘与 SQLite 视图接线 —— **双节点 ws 回环 e2e 全流程**（建链→入链→双向 gossip→资产逐块校验拉取→重启重连续传） |
+| `2a41ed3e` | 合并 | **merge `feat/modern-ui-redesign`**（任务树 hub、双模式 fork + merge 闭环、编辑器数字体等 446 文件）——coord-chain 与任务树语义在同一分支上会师 |
+| `f005a898` | OC3·前置 | **任务树×协调链桥接** `task-tree-bridge.ts`：本地 TaskTree 分支（fork 必带 why、cherry-pick merge、reflog）→ `task.share` 载荷；链上 `parentRecordId` 谱系 → fork 森林重建；`ChainNode.submitRecord(parentRecordId)` + `taskGenealogy()`。**修复传输层丢帧竞态**：PeerConnection 改持久 message 监听 + 帧队列（per-call 监听器 attach 空窗会静默丢帧，e2e 死锁根因），8/8 连跑全绿 |
 
 ## 代码地图
 
