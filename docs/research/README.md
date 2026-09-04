@@ -12,7 +12,7 @@
 
 ## 总览
 
-48 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 3 份 + 09-04 新增 2 份）：**✅ 21 · 🟡 11 · ⬜ 13 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
+50 份文档（含 1 份 EN 孪生 + 08-18 新增 1 份 + 08-19 UI/UX 重设计 4 份 + 08-19 超大版本重构预研 2 份 + 08-21 新增 1 份 + 08-27 新增 1 份 + 09-03 新增 4 份 + 09-04 新增 3 份）：**✅ 21 · 🟡 12 · ⬜ 14 · ❌ 3（作废）**。整体消费率高；作废 3 份均为 2026-08-17 拍板（zread 对比线、MemOS 线、pi-sdk 线），理由见各行备注。
 
 ---
 
@@ -115,11 +115,12 @@
 
 ---
 
-## 2026-09-03 · 外部 Coding Agent 全景预研
+## 2026-09-03 · 外部 Coding Agent / 游戏层全景预研
 
 | 文档 | 主题 | 对应模块 | 消费 | 备注 |
 | --- | --- | --- | --- | --- |
 | [2026-09-03-hkuds-deepcode-prestudy.md](./2026-09-03-hkuds-deepcode-prestudy.md) | HKUDS/DeepCode（16.5k★，MIT，v2.1.0）全景：Paper2Code 论文原型 → v2.x 通用 coding agent harness（Python 内核 + CLI TUI + Tauri 桌面 + JSON-RPC App Server），逐维对位本仓 | 规划落点（未启动）：`core/common/*`（compaction 两段式/每回合冻结安全 profile）、`core/mcp`（HTTP transport + OAuth，遗留待办 #9 参照）、`core/skills`（依赖展开/渐进读取）、`desktop`（会话投影分离/schema 生成契约） | ⬜ | 纯调研留档，无代码变更。**最有价值单条**：其 compaction 两段式（大工具结果中段修剪 → 前缀重放摘要 → 拒绝不收缩摘要）与本仓 dsh-consolidated 候选池 P1-2/前缀收尾包独立同向——继 dsh 之后第二个实现者，建议回写台账作论据；MCP HTTP+OAuth 印证遗留待办 #9。**同名澄清**：HKUDS DeepCode ≠ 本仓遗留 `.deepcode` 前身，但两者共享 SKILL.md 方言且 `~/.deepcode` 路径可能交叠（文内 §2.5） |
+| [2026-09-03-vibegame-prestudy.md](./2026-09-03-vibegame-prestudy.md) | tettethu/VibeGame（189★，Apache-2.0，2026-08 发布）游戏层全景：Prompt-to-Game AI 原生工具链（数据驱动场景树引擎 + 对抗式 7 agent 团队 + Python 美术管线 + 自进化四目的地 + bot 证据协议 + VLM 独立视觉门），逐维对位本仓 | 规划落点（未启动）：review 模块（证据协议/"不算证据"清单/VLM 逐项二元提问）、designer taste 线（主/客观双视觉门）、skill-up（先验蒸馏纪律）、编辑器诊断（模块静态自检二分法）；桌宠 spec 修订参考 | ⬜ | 纯调研留档，无代码变更。与桌宠线（`specs/next-version/desktop-pet`）范围刻意错开：桌宠"不做小游戏"边界维持不变，VibeGame 作宏观参考与机制迁移源；其"帧在动≠可运行/eval≠证据"反例清单与"VLM 逐项二元提问防讨好"两条可直接进 review 验收标准 |
 
 ---
 
@@ -138,6 +139,14 @@
 | --- | --- | --- | --- | --- |
 | [2026-09-04-backpass-integration-feasibility.md](./2026-09-04-backpass-integration-feasibility.md) | kunchenguid/backpass（MIT，0.1.16/0.1.17，Node≥22.5，CLI 本地记忆优化：扫描 Claude/Codex/Pi/OpenCode/Grok/Cursor CLI/Hermes 会话→证据聚合→proposal→审核写回）对本仓的集成可行性：不必须集成；推荐 P0 只读 status/scan → P1 显式 analyze/propose → P2 受控 apply 的 L1/L2 受控 CLI sidecar 姿态，全程不碰 core、不新增内置 MCP、不自动 apply、注册 root 界定运行目录 | 规划落点（未启动）：`desktop/main/tools/`（受控 spawn backpass）、桌面 proposal/预算展示（仅 L1/L2 时） | ⬜ | 纯调研留档，无代码变更。**关键结论**：DeepOrca 自有 sessions 不在 backpass 支持列表（要学习需上游贡献正式 transcript adapter）；`apply` 不是 DeepOrca 原生权限流程；npm latest(0.1.16) 与 GitHub tag(0.1.17) 不同步；transcript 脱敏非安全保证，会经 `acpx` 发外部 harness。调研仅供参考，实现以 specs/ 为准 |
 | [2026-09-04-memory-audit-subagent-proposal.md](./2026-09-04-memory-audit-subagent-proposal.md) | **承接 backpass 调研的「怎么抄」方案**：不引 external CLI，用 DeepOrca 自有 session/记忆/子智能体通道重实现「跨会话证据→记忆规则迭代」。方案：`memory.audit` action（defineAction 三端自动承接）+ `runBackgroundLlmTask(profile:"review")` 只读审计 + 「确定性证据扫描(含 audit 哈希链 path_gate)→gap 聚合→LLM proposal 合成」三段式 + `AskUserQuestion` 逐项审核 + 自包含双语 HTML 报告 + 用户批准后主会话 `edit` 写回 AGENTS.md/SKILL.md；P0 纯观察、数据决策门定 P1 | 规划落点（未启动）：`core/actions/memory-audit.ts`（新）、`session-manager-base.ts` 注册两行、`desktop/main/tools/audit-*.ts`（报告/store）、核心记忆审计 skill（`templates/plugins/`） | ⬜ | 纯方案留档，无代码变更。**关键对位**：本仓已具备全部地基（自有 sessions 证据含 audit 哈希链、L0-L3 记忆、`profile:"review"` 只读后台循环、AskUserQuestion+双语 HTML 审核面），增量只有「证据扫描→gap 聚合→proposal 合成」一条语义管线；`specs/archive/memory-remediation/design.md` §五 2 早已把「session→SOP/规则自萃取」拍板为后续自研空白区，本方案是其第一个具体形态。P0-P1 零新增 IPC/i18n。_建议 next-version 储备_ |
+
+---
+
+## 2026-09-04 · LSP 引入可行性
+
+| 文档 | 主题 | 对应模块 | 消费 | 备注 |
+| --- | --- | --- | --- | --- |
+| [2026-09-04-lsp-idea-feasibility.md](./2026-09-04-lsp-idea-feasibility.md) | 引入 LSP 的可行性：IDEA 系（lsp4ij/lsp4intellij/intellij-lsp-server/Kotlin LSP，全绑 IntelliJ Platform/JVM）**直接使用不可行**；干净备选 = **LSP→MCP 桥**（协议层窄客户端包成 MCP server，进既有 `core/src/mcp/` 运行时），首期 TS（typescript-language-server，MIT）+ Python（pyright-langserver，MIT） | 规划落点（未启动）：desktop main 新建 LSP-MCP 桥 tool（照 gitmcp/a2ui 模式）、`core/src/mcp/` 注册一枚 server、session-mcp-hints 增补诊断工具词典；诊断环复用 `session-manager-persistence.ts:570` 既有接线 | ⬜ 未消费 → 🟡 | 纯调研留档，无代码变更。**关键对位**：本仓诊断闭环已存在（Serena/SolidLSP MCP → `extractErrorDiagnostics` → 系统消息回灌），真实缺口仅是**类型级诊断**；"IDEA 的 LSP 最完整"系误读（完整性属 PSI 引擎/lsp4j），价值仅在 lsp4ij 的 server 管理 UX 形态参考。推进前需过文内 V1-V5 验证点（含 SolidLSP 覆盖实测、冷启动内存、诊断噪声预算）。**2026-09-04 已按总口径落 spec**：`specs/lsp-diagnostics/`（design+tasks，**本阶段活跃 spec**——用户拍板不属 next-version；P0 原型 + V0 五验证点硬前置、默认全关） |
 
 ---
 
