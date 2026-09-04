@@ -199,3 +199,162 @@ test("memory.audit P0: missing index degrades to an empty scan, never throws", a
   assert.equal(output.scannedSessions, 0);
   assert.equal(output.events.length, 0);
 });
+
+// ── P1/P2: synthesis, review loop, rejection persistence, controlled write-back ──
+
+function buildCtx2(
+  projectRoot: string,
+  complete?: (m: Array<{ role: "system" | "user"; content: string }>) => Promise<string | null>
+) {
+  return {
+    projectRoot,
+    signal: new AbortController().signal,
+    emit: () => {},
+    spawner: {} as never,
+    ...(complete ? { completeViaLlm: complete } : {}),
+  } as Parameters<typeof memoryAuditRun>[1];
+}
+
+function seedTwoFailureSessions(projectDir: string): void {
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(projectDir, "sessions-index.json"),
+    JSON.stringify({
+      version: 1,
+      originalPath: "ws",
+      entries: [
+        { id: "s1", status: "completed", updateTime: "2026-09-04T12:00:00.000Z" },
+        { id: "s2", status: "completed", updateTime: "2026-09-04T11:00:00.000Z" },
+      ],
+    }),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(projectDir, "s1.jsonl"),
+    toolMessage(
+      "m1",
+      "s1",
+      { ok: false, name: "bash", error: "permission denied for git", errorType: "PERMISSION_DENIED" },
+      { command: "git status" }
+    ),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(projectDir, "s2.jsonl"),
+    toolMessage(
+      "m2",
+      "s2",
+      { ok: false, name: "bash", error: "permission denied for git", errorType: "PERMISSION_DENIED" },
+      { command: "git log" }
+    ),
+    "utf8"
+  );
+}
+
+const GOOD_JSON =
+  '{"proposals":[' +
+  '{"action":"add","target":"agents","ruleText":"Prefer scoped git commands; avoid bare git runs without a path.","evidenceIds":["ev-0","ev-1"],"rationale":"Two sessions hit PERMISSION_DENIED on git","estTokens":18},' +
+  '{"action":"add","target":"agents","ruleText":"Bogous one","evidenceIds":["ev-99"],"rationale":"bad evidence","estTokens":1}' +
+  "]}";
+
+test("P1: synthesis parses the contract, drops bad-evidence proposals, dryRun stays read-only", async () => {
+  const home = tempDir("deeporca-ma-p1-");
+  const workspace = tempDir("deeporca-ma-p1ws-");
+  setHomeDir(home);
+  const projectDir = path.join(home, ".deeporca", "projects", getProjectCode(workspace));
+  seedTwoFailureSessions(projectDir);
+
+  const calls: number[] = [];
+  const out = await memoryAuditRun(
+    { synthesize: true },
+    buildCtx2(workspace, async () => {
+      calls.push(1);
+      return GOOD_JSON;
+    })
+  );
+
+  assert.equal(out.ok, true);
+  assert.equal(out.synthesis?.ok, true);
+  assert.equal(out.synthesis?.proposals.length, 1); // ev-99 dropped
+  assert.equal(out.synthesis?.dropped, 1);
+  const proposals = out.synthesis?.proposals ?? [];
+  assert.equal(proposals.length, 1);
+  assert.deepEqual(proposals[0]?.evidenceIds, ["ev-0", "ev-1"]);
+  assert.ok(out.reviewInstructions?.includes("AskUserQuestion"));
+  assert.equal(calls.length, 1);
+  assert.equal(fs.existsSync(path.join(workspace, ".deeporca", "audits")), false); // dryRun read-only
+});
+
+test("P1: synthesis fail-opens (garbage output) — the snapshot still returns", async () => {
+  const home = tempDir("deeporca-ma-p1b-");
+  const workspace = tempDir("deeporca-ma-p1bws-");
+  setHomeDir(home);
+  seedTwoFailureSessions(path.join(home, ".deeporca", "projects", getProjectCode(workspace)));
+
+  const out = await memoryAuditRun(
+    { synthesize: true },
+    buildCtx2(workspace, async () => "total garbage")
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.synthesis?.ok, false);
+  assert.equal(out.synthesis?.proposals.length, 0);
+  assert.equal(out.reviewInstructions, undefined);
+});
+
+test("P1/P2 end-to-end: snapshot+report written, decisions recorded, rejected never resurfaces, accepts get write-backs", async () => {
+  const home = tempDir("deeporca-ma-p2-");
+  const workspace = tempDir("deeporca-ma-p2ws-");
+  setHomeDir(home);
+  seedTwoFailureSessions(path.join(home, ".deeporca", "projects", getProjectCode(workspace)));
+
+  // 1) synthesize + write snapshot & HTML report
+  const first = await memoryAuditRun(
+    { synthesize: true, dryRun: false },
+    buildCtx2(workspace, async () => GOOD_JSON)
+  );
+  assert.ok(first.snapshotPath && fs.existsSync(first.snapshotPath!));
+  assert.ok(first.reportPath && fs.existsSync(first.reportPath!));
+  const report = fs.readFileSync(first.reportPath!, "utf8");
+  assert.ok(report.includes("记忆审计报告") && report.includes("Memory Audit Report"));
+  const auditId = path
+    .basename(first.snapshotPath!)
+    .replace(/^memory-audit-/, "")
+    .replace(/\.json$/, "");
+  const keyA = first.synthesis!.proposals[0]!.key;
+
+  // 2) record an accept → controlled write-back comes back for the native edit tool
+  const second = await memoryAuditRun(
+    { recordDecisions: { auditId, decisions: [{ proposalKey: keyA, verdict: "accept", note: "looks right" }] } },
+    buildCtx2(workspace)
+  );
+  assert.equal(second.ok, true);
+  assert.equal(second.pendingWriteBacks?.length, 1);
+  const wb = second.pendingWriteBacks![0]!;
+  assert.equal(wb.proposalKey, keyA);
+  assert.equal(wb.targetFile, "AGENTS.md");
+  assert.ok(wb.instruction.includes("native edit tool"));
+  assert.ok(wb.instruction.includes("ev-"));
+
+  // 3) persistence: the store records the accept; a fresh synthesis excludes it
+  const storeFile = path.join(workspace, ".deeporca", "audits", "rejections.json");
+  const store = JSON.parse(fs.readFileSync(storeFile, "utf8"));
+  assert.equal(store[keyA]?.verdict, "accept");
+  const third = await memoryAuditRun(
+    { synthesize: true },
+    buildCtx2(workspace, async () => GOOD_JSON)
+  );
+  assert.equal(third.synthesis?.proposals.length, 0); // the one valid proposal is now recorded
+  assert.equal(third.synthesis?.dropped, 2); // one bad evidence + one recorded
+});
+
+test("P1: recordDecisions with an unknown auditId fails cleanly", async () => {
+  const home = tempDir("deeporca-ma-p2b-");
+  const workspace = tempDir("deeporca-ma-p2bws-");
+  setHomeDir(home);
+  const out = await memoryAuditRun(
+    { recordDecisions: { auditId: "nope", decisions: [{ proposalKey: "x:y:z", verdict: "reject" }] } },
+    buildCtx2(workspace)
+  );
+  assert.equal(out.ok, false);
+  assert.match(out.error ?? "", /snapshot not found/);
+});

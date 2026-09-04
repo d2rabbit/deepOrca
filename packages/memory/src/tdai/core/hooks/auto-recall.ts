@@ -22,6 +22,7 @@ import type { EmbeddingService, EmbeddingCallOptions } from "../store/embedding.
 import { sanitizeText } from "../../utils/sanitize.js";
 import { buildRecallQueryVariants, fuseByRrf, RRF_K } from "./query-variants.js";
 import { resolveRelativeTimes } from "./relative-time.js";
+import { applySufficiencyFollowUp } from "./recall-sufficiency.js";
 
 const TAG = "[memory-tdai] [recall]";
 const RECALL_TRUNCATION_SUFFIX = "…（已截断）";
@@ -132,6 +133,45 @@ async function performAutoRecallInner(params: {
     memoryLines = searchResult.lines;
     searchTiming = searchResult.timing;
     memoryLines = applyRecallBudget(memoryLines, cfg.recall, logger);
+
+    // CMB-8: sparse first round → ONE bounded follow-up round on the unused
+    // deterministic variants (zero LLM, fail-open). CMB-10: the rounds/hits
+    // telemetry line below feeds the depth-lane P0 observation surface.
+    let recallRounds = 1;
+    if (memoryLines.length > 0 || userText) {
+      const sufficiency = await applySufficiencyFollowUp({
+        userText,
+        primaryQuery: userText,
+        lines: memoryLines,
+        minResults: cfg.recall.sufficiencyMinResults ?? 2,
+        maxFollowUpQueries: 2,
+        enabled: cfg.recall.sufficiencyFollowUp !== false,
+        runQuery: async (query) => {
+          const round = await searchMemories(
+            query,
+            pluginDataDir,
+            cfg,
+            logger,
+            effectiveStrategy as "keyword" | "embedding" | "hybrid",
+            vectorStore,
+            embeddingService
+          );
+          searchTiming = {
+            ftsMs: searchTiming.ftsMs + round.timing.ftsMs,
+            embeddingMs: searchTiming.embeddingMs + round.timing.embeddingMs,
+            ftsHits: searchTiming.ftsHits + round.timing.ftsHits,
+            embeddingHits: searchTiming.embeddingHits + round.timing.embeddingHits,
+          };
+          return applyRecallBudget(round.lines, cfg.recall, logger);
+        },
+      });
+      recallRounds = sufficiency.rounds;
+      memoryLines = sufficiency.lines;
+    }
+    logger?.info?.(
+      `${TAG} telemetry: recall rounds=${recallRounds} hits=${memoryLines.length} ` +
+        `strategy=${effectiveStrategy} ftsHits=${searchTiming.ftsHits} vecHits=${searchTiming.embeddingHits}`
+    );
 
     // Extract structured RecalledMemory from formatted lines for metric reporting
     recalledL1Memories = memoryLines.map((line) => {

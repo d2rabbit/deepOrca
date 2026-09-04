@@ -20,11 +20,13 @@
  *     marks the file unverifiable but still surfaces its deny count, flagged).
  */
 
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ActionDefinition, ActionRun } from "./types";
 import { getProjectCode, getProjectConfigRoot, getUserConfigRoot } from "../common/app-dirs";
 import { verifyAuditChain, type AuditEvent, type PathGateAuditEvent } from "../sandbox/audit";
+import { applyAuxSchema, AUX_CONTENT_RETRY_BUDGET, type AuxSchema } from "../common/aux-llm-contract";
 
 // ── Inputs / outputs ─────────────────────────────────────────────────────────
 
@@ -35,6 +37,22 @@ export interface MemoryAuditInput {
   corroborationThreshold?: number;
   /** true (default): return the snapshot without writing anything. */
   dryRun?: boolean;
+  /** P1: run stage-3 proposal synthesis (single structured completion on the
+   *  primary model via ctx.completeViaLlm; contract-enforced, fail-open). */
+  synthesize?: boolean;
+  /** P1/P2 review loop: record the user's per-proposal verdicts. Reject/skip
+   *  persist so the same suggestion never resurfaces; accepts return the
+   *  controlled write-back instructions for the main agent to apply via the
+   *  native edit tool. */
+  recordDecisions?: {
+    /** Stamp id of a previously written snapshot (its file name stem). */
+    auditId: string;
+    decisions: ReadonlyArray<{
+      proposalKey: string;
+      verdict: "accept" | "reject" | "skip";
+      note?: string;
+    }>;
+  };
 }
 
 export type MemoryAuditEventKind =
@@ -98,7 +116,56 @@ export interface MemoryAuditOutput {
   };
   /** Set when dryRun:false — the written snapshot path. */
   readonly snapshotPath?: string;
+  /** Set when dryRun:false and synthesize — the bilingual HTML report path. */
+  readonly reportPath?: string;
+  /** P1 synthesis outcome (present when synthesize:true). */
+  readonly synthesis?: MemoryAuditSynthesis;
+  /** P1: instructions for the main agent to run the per-item review. */
+  readonly reviewInstructions?: string;
+  /** P2: returned by recordDecisions for accepted proposals — the agent MUST
+   *  apply these via the native edit tool (read → snippet_id → edit); never
+   *  bash redirection, never a background task. */
+  readonly pendingWriteBacks?: ReadonlyArray<MemoryAuditWriteBack>;
   readonly error?: string;
+}
+
+/** P1: one memory-rule proposal (JSON contract enforced by applyAuxSchema). */
+export interface MemoryAuditProposal {
+  /** Stable identity: `${action}:${target}:${sha8(ruleText|diffHint|rationale)}`. */
+  readonly key: string;
+  readonly action: "add" | "update" | "delete";
+  readonly target: "agents" | "skill";
+  /** Target skill name (target === "skill" only). */
+  readonly skillName?: string;
+  /** New/updated rule text (add/update). */
+  readonly ruleText?: string;
+  /** Locate hint for update/delete (NOT a patch — the agent edits by hand). */
+  readonly diffHint?: string;
+  /** Event ids (ev-N) backing the proposal; unknown ids are dropped. */
+  readonly evidenceIds: readonly string[];
+  readonly rationale: string;
+  /** Estimated always-loaded token cost of the rule. */
+  readonly estTokens: number;
+}
+
+export interface MemoryAuditSynthesis {
+  readonly ok: boolean;
+  readonly proposals: readonly MemoryAuditProposal[];
+  /** Proposals dropped for referencing unknown evidence or exceeding the cap. */
+  readonly dropped: number;
+  /** Absent when ok; reason otherwise (fail-open — the snapshot still returns). */
+  readonly error?: string;
+}
+
+/** P2: controlled write-back instruction for one ACCEPTED proposal. */
+export interface MemoryAuditWriteBack {
+  readonly proposalKey: string;
+  readonly action: "add" | "update" | "delete";
+  readonly targetFile: "AGENTS.md" | "SKILL.md";
+  readonly skillName?: string;
+  readonly ruleText?: string;
+  readonly diffHint?: string;
+  readonly instruction: string;
 }
 
 const MAX_EVENTS = 200;
@@ -318,6 +385,272 @@ function writeSnapshot(projectRoot: string, output: Omit<MemoryAuditOutput, "sna
   return file;
 }
 
+// ── P1/P2: proposal synthesis, review loop, controlled write-back ────────────
+
+/** Max proposals per run (backpass's 5-edit budget; overflow shrinks, never grows). */
+const MAX_PROPOSALS = 5;
+
+function sha8(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 8);
+}
+
+function proposalKeyOf(p: {
+  action: string;
+  target: string;
+  ruleText?: string;
+  diffHint?: string;
+  rationale?: string;
+}): string {
+  return `${p.action}:${p.target}:${sha8(p.ruleText ?? p.diffHint ?? p.rationale ?? "")}`;
+}
+
+type RejectionStore = Record<string, { verdict: "accept" | "reject" | "skip"; note?: string; at: string }>;
+
+function rejectionsPath(projectRoot: string): string {
+  return path.join(getProjectConfigRoot(projectRoot), "audits", "rejections.json");
+}
+
+function loadRejections(projectRoot: string): RejectionStore {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(rejectionsPath(projectRoot), "utf8")) as RejectionStore;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRejections(projectRoot: string, store: RejectionStore): void {
+  const file = rejectionsPath(projectRoot);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(store, null, 2), "utf8");
+}
+
+const proposalSchema: AuxSchema<{ proposals: Array<Record<string, unknown>> }> = {
+  describe: '{"proosals": [{"action","target","ruleText","diffHint","evidenceIds","rationale","estTokens"}]}',
+  validate: (parsed) => {
+    if (!parsed || typeof parsed !== "object") return null;
+    const proposals = (parsed as { proposals?: unknown }).proposals;
+    if (!Array.isArray(proposals)) return null;
+    return { proposals: proposals.filter((p): p is Record<string, unknown> => !!p && typeof p === "object") };
+  },
+};
+
+/**
+ * Stage-3 synthesis prompt. Input redaction discipline (documented, P1.3):
+ * corroborated patterns + clipped samples + event ids + the AGENTS.md head
+ * (first 60 lines) + the SKILL NAME LISTING only — never raw transcripts,
+ * never skill bodies, never audit-chain checksums.
+ */
+function buildSynthesisPrompt(input: {
+  patterns: readonly MemoryAuditPattern[];
+  eventCount: number;
+  agentsHead: string;
+  skillNames: string[];
+  rejectedKeys: string[];
+}): string {
+  const corroborated = input.patterns.filter((p) => p.corroborated);
+  const patternText = corroborated
+    .map(
+      (p, i) =>
+        `P${i}: kind=${p.kind} tool=${p.tool ?? "-"} occurrences=${p.occurrences} sessions=${p.distinctSessions}\n` +
+        `   samples: ${p.samples.map((x) => `"${x}"`).join(" | ")}`
+    )
+    .join("\n");
+  const rejected =
+    input.rejectedKeys.length > 0
+      ? `\nAlready reviewed and rejected by the user (DO NOT re-propose): ${input.rejectedKeys.join(", ")}`
+      : "";
+  return `You are proposing memory-rule edits for a coding agent (AGENTS.md / SKILL.md) based on CORROBORATED failure evidence from its own session history.
+
+Evidence events are referenced as ev-N (N = index into the scanned event list, 0..${input.eventCount - 1}).
+Corroborated patterns:
+${patternText || "(none — return an empty proposals array)"}
+${rejected}
+Current AGENTS.md (head):
+${input.agentsHead || "(no AGENTS.md yet)"}
+Existing skills (names only): ${input.skillNames.join(", ") || "(none)"}
+
+Rules:
+- Only propose rules the evidence genuinely supports; every proposal MUST cite evidenceIds.
+- add/update target AGENTS.md ("agents") or one existing skill ("skill" + skillName).
+- delete requires harm evidence across sessions — prefer update over delete.
+- Keep each ruleText one or two sentences, directly actionable; no narration.
+- At most ${MAX_PROPOSALS} proposals, highest confidence first.
+
+Respond with JSON only: {"proosals": [{"action":"add|update|delete","target":"agents|skill","skillName":"...","ruleText":"...","diffHint":"...","evidenceIds":["ev-0"],"rationale":"...","estTokens":12}]}`;
+}
+
+/** Redacted, bounded context reads for the synthesis prompt (P1.3). */
+function readAgentsHead(projectRoot: string): string {
+  try {
+    return fs.readFileSync(path.join(projectRoot, "AGENTS.md"), "utf8").split("\n").slice(0, 60).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+function listSkillNames(projectRoot: string): string[] {
+  const dir = path.join(getProjectConfigRoot(projectRoot), "skills");
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .slice(0, 50);
+  } catch {
+    return [];
+  }
+}
+
+async function synthesizeProposals(opts: {
+  projectRoot: string;
+  patterns: readonly MemoryAuditPattern[];
+  eventCount: number;
+  complete: (messages: Array<{ role: "system" | "user"; content: string }>) => Promise<string | null>;
+}): Promise<MemoryAuditSynthesis> {
+  const rejections = loadRejections(opts.projectRoot);
+  // ANY recorded decision (accept OR reject OR skip) settles a proposal —
+  // re-proposing settled items is review noise; the user re-runs from scratch
+  // by clearing the store.
+  const rejectedKeys = Object.keys(rejections);
+  const prompt = buildSynthesisPrompt({
+    patterns: opts.patterns,
+    eventCount: opts.eventCount,
+    agentsHead: readAgentsHead(opts.projectRoot),
+    skillNames: listSkillNames(opts.projectRoot),
+    rejectedKeys,
+  });
+  const messages: Array<{ role: "system" | "user"; content: string }> = [
+    { role: "system", content: "You synthesize memory-rule proposals. Respond with JSON only." },
+    { role: "user", content: prompt },
+  ];
+
+  for (let attempt = 0; attempt <= AUX_CONTENT_RETRY_BUDGET; attempt++) {
+    let raw: string | null = null;
+    try {
+      raw = await opts.complete(messages);
+    } catch {
+      return { ok: false, proposals: [], dropped: 0, error: "completion transport failure" };
+    }
+    if (!raw) continue; // content-level empty — retry within budget
+    let applied: { ok: true; value: { proposals: Array<Record<string, unknown>> } } | { ok: false };
+    try {
+      applied = applyAuxSchema(raw, proposalSchema);
+    } catch {
+      applied = { ok: false };
+    }
+    if (!applied.ok) continue;
+
+    const proposals: MemoryAuditProposal[] = [];
+    let dropped = 0;
+    for (const raw of applied.value.proposals) {
+      const action = raw.action === "update" || raw.action === "delete" ? raw.action : "add";
+      const target = raw.target === "skill" ? "skill" : "agents";
+      const ruleText = typeof raw.ruleText === "string" ? raw.ruleText.slice(0, 400) : undefined;
+      const diffHint = typeof raw.diffHint === "string" ? raw.diffHint.slice(0, 200) : undefined;
+      const rationale = typeof raw.rationale === "string" ? raw.rationale.slice(0, 300) : "";
+      const evidenceIds = Array.isArray(raw.evidenceIds)
+        ? raw.evidenceIds.filter(
+            (id): id is string => typeof id === "string" && /^ev-\d+$/.test(id) && Number(id.slice(3)) < opts.eventCount
+          )
+        : [];
+      const candidate = { action, target, ruleText, diffHint, rationale };
+      const key = proposalKeyOf(candidate);
+      if (proposals.length >= MAX_PROPOSALS || !rationale || evidenceIds.length === 0 || rejectedKeys.includes(key)) {
+        dropped += 1;
+        continue;
+      }
+      proposals.push({
+        key,
+        action,
+        target,
+        skillName: target === "skill" && typeof raw.skillName === "string" ? raw.skillName.slice(0, 80) : undefined,
+        ruleText,
+        diffHint,
+        evidenceIds,
+        rationale,
+        estTokens: Number.isFinite(Number(raw.estTokens)) ? Math.max(0, Math.round(Number(raw.estTokens))) : 0,
+      });
+    }
+    return { ok: true, proposals, dropped };
+  }
+  return { ok: false, proposals: [], dropped: 0, error: "content budget exhausted (unparseable output)" };
+}
+
+function buildReviewInstructions(synthesis: MemoryAuditSynthesis): string {
+  return [
+    "审阅以下记忆规则建议（每条附证据）：",
+    ...synthesis.proposals.map(
+      (p, i) =>
+        `${i + 1}. [${p.action}/${p.target}${p.skillName ? `:${p.skillName}` : ""}] ${p.ruleText ?? p.diffHint ?? ""} — 依据: ${p.evidenceIds.join(", ")}（${p.rationale}）`
+    ),
+    "",
+    "Use the AskUserQuestion tool to let the user accept/reject/skip EACH proposal, then call memory.audit once with recordDecisions={auditId, decisions}.",
+    "Accepted proposals are applied ONLY afterwards, via the native edit tool (read the target file first for its snippet_id) — never bash redirection.",
+  ].join("\n");
+}
+
+/** P2: controlled write-back instruction for one accepted proposal. */
+function writeBackFor(p: MemoryAuditProposal): MemoryAuditWriteBack {
+  const targetFile = p.target === "skill" ? "SKILL.md" : "AGENTS.md";
+  const locate =
+    p.target === "skill" ? `.deeporca/skills/${p.skillName ?? "<skill>"}/SKILL.md` : "AGENTS.md (repo root)";
+  const instruction =
+    p.action === "add"
+      ? `Append the rule below to ${locate} in its matching section (create the section if absent): "${p.ruleText ?? ""}"`
+      : p.action === "update"
+        ? `In ${locate}, update the rule hinted at by "${p.diffHint ?? ""}" to: "${p.ruleText ?? ""}"`
+        : `In ${locate}, delete the rule hinted at by "${p.diffHint ?? ""}" ONLY if the harm evidence justifies removal (≥2 sessions); otherwise skip and say why.`;
+  return {
+    proposalKey: p.key,
+    action: p.action,
+    targetFile,
+    skillName: p.skillName,
+    ruleText: p.ruleText,
+    diffHint: p.diffHint,
+    instruction: `${instruction} — apply via the native edit tool (read first for snippet_id; a snippet mismatch means the file changed, re-read). Evidence: ${p.evidenceIds.join(", ")}.`,
+  };
+}
+
+/** Bilingual self-contained HTML report (P1.5 — zero renderer/i18n surface). */
+function buildHtmlReport(snapshot: Omit<MemoryAuditOutput, "snapshotPath" | "reportPath">): string {
+  const esc = (t: string): string =>
+    t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const patterns = snapshot.patterns
+    .map(
+      (p) =>
+        `<tr><td>${esc(p.key)}</td><td>${p.occurrences}</td><td>${p.distinctSessions}</td><td>${p.corroborated ? "✅" : "—"}</td></tr>`
+    )
+    .join("");
+  const proposals = (snapshot.synthesis?.proposals ?? [])
+    .map(
+      (p) =>
+        `<section class="card"><h3>${esc(p.key)}</h3><p><b>${esc(p.action)} / ${esc(p.target)}${p.skillName ? `:${esc(p.skillName)}` : ""}</b></p>` +
+        (p.ruleText ? `<p>${esc(p.ruleText)}</p>` : "") +
+        (p.diffHint ? `<p class="hint">${esc(p.diffHint)}</p>` : "") +
+        `<p class="ev">证据 evidence: ${p.evidenceIds.map(esc).join(", ")} · ~${p.estTokens} tokens</p>` +
+        `<p>${esc(p.rationale)}</p></section>`
+    )
+    .join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>memory.audit 报告 report</title><style>
+body{font:14px/1.6 -apple-system,system-ui,sans-serif;margin:24px auto;max-width:860px;color:#222}
+h1{font-size:20px}table{border-collapse:collapse;width:100%;margin:12px 0}
+td,th{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}
+.card{border:1px solid #ddd;border-radius:8px;padding:10px 14px;margin:10px 0}
+.card h3{font-size:13px;margin:0 0 6px;color:#666}
+.hint{color:#888}.ev{color:#09c;font-size:12px}
+</style></head><body>
+<h1>记忆审计报告 · Memory Audit Report</h1>
+<p>扫描会话 sessions scanned: <b>${snapshot.scannedSessions}</b>（排除 silent 子代理 ${snapshot.excludedSilentSessions}）·
+失败事件 failure events: <b>${snapshot.events.length + snapshot.omittedEvents}</b> ·
+审计链 audit chain: ${snapshot.auditChain.verified} verified / ${snapshot.auditChain.broken} broken / ${snapshot.auditChain.denyEvents} denies</p>
+<h2>模式 Patterns（佐证 corroborated 标记）</h2>
+<table><tr><th>key</th><th>次数 occ.</th><th>会话 sessions</th><th>佐证</th></tr>${patterns}</table>
+<h2>建议 Proposals${snapshot.synthesis?.ok === false ? "（合成失败 synthesis failed）" : ""}</h2>
+${proposals || "<p>无 no proposals</p>"}
+</body></html>`;
+}
+
 // ── Action definition + run ─────────────────────────────────────────────────
 
 export const memoryAuditDefinition: ActionDefinition<MemoryAuditInput> = {
@@ -337,6 +670,32 @@ export const memoryAuditDefinition: ActionDefinition<MemoryAuditInput> = {
         description: "Independent sessions required to corroborate a pattern (default 2)",
       },
       dryRun: { type: "boolean", description: "true (default) = return the snapshot without writing any file" },
+      synthesize: {
+        type: "boolean",
+        description:
+          "P1: also synthesize memory-rule proposals (add/update/delete for AGENTS.md/SKILL.md) from corroborated patterns, with per-proposal evidence; user review happens in the main session",
+      },
+      recordDecisions: {
+        type: "object",
+        description:
+          "P1/P2 review loop: record per-proposal verdicts. reject/skip persist (never resurface); accepts return controlled write-back instructions to apply via the native edit tool",
+        properties: {
+          auditId: { type: "string", description: "stamp id of a previously written snapshot (file name stem)" },
+          decisions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                proposalKey: { type: "string" },
+                verdict: { type: "string", enum: ["accept", "reject", "skip"] },
+                note: { type: "string" },
+              },
+              required: ["proposalKey", "verdict"],
+            },
+          },
+        },
+        required: ["auditId", "decisions"],
+      },
     },
     additionalProperties: false,
   },
@@ -344,6 +703,10 @@ export const memoryAuditDefinition: ActionDefinition<MemoryAuditInput> = {
 };
 
 export const memoryAuditRun: ActionRun<MemoryAuditInput, MemoryAuditOutput> = async (input, ctx) => {
+  // P1/P2 review-loop leg: record verdicts against a stored snapshot.
+  if (input?.recordDecisions) {
+    return recordDecisions(ctx.projectRoot, input.recordDecisions);
+  }
   const maxSessions =
     Number.isFinite(input?.maxSessions) && (input?.maxSessions as number) > 0 ? (input?.maxSessions as number) : 20;
   const threshold =
@@ -412,22 +775,49 @@ export const memoryAuditRun: ActionRun<MemoryAuditInput, MemoryAuditOutput> = as
 
   const { patterns, candidates } = aggregate(events, threshold);
   const omittedEvents = Math.max(0, events.length - MAX_EVENTS);
-  const snapshot: Omit<MemoryAuditOutput, "snapshotPath"> = {
+  const keptEvents = events.slice(0, MAX_EVENTS);
+  // Evidence ids are POSITIONAL (ev-N = keptEvents[N]) — stable within one
+  // snapshot and expandable by the reviewer without re-running the scan.
+  let synthesis: MemoryAuditSynthesis | undefined;
+  let reviewInstructions: string | undefined;
+  if (input?.synthesize) {
+    synthesis = ctx.completeViaLlm
+      ? await synthesizeProposals({
+          projectRoot: ctx.projectRoot,
+          patterns,
+          eventCount: keptEvents.length,
+          complete: (messages) => ctx.completeViaLlm!(messages),
+        })
+      : { ok: false, proposals: [], dropped: 0, error: "completeViaLlm seam not injected" };
+    if (synthesis.proposals.length > 0) {
+      reviewInstructions = buildReviewInstructions(synthesis);
+    }
+  }
+  const snapshot: Omit<MemoryAuditOutput, "snapshotPath" | "reportPath"> = {
     ok: true,
     projectDir,
     scannedSessions: material.length,
     excludedSilentSessions: silent.length,
-    events: events.slice(0, MAX_EVENTS),
+    events: keptEvents,
     omittedEvents,
     patterns,
     candidates,
     auditChain: chain,
+    ...(synthesis ? { synthesis } : {}),
+    ...(reviewInstructions ? { reviewInstructions } : {}),
   };
 
   if (dryRun) return snapshot;
   try {
     const snapshotPath = writeSnapshot(ctx.projectRoot, snapshot);
-    return { ...snapshot, snapshotPath };
+    let reportPath: string | undefined;
+    try {
+      reportPath = snapshotPath.replace(/\.json$/, ".html");
+      fs.writeFileSync(reportPath, buildHtmlReport(snapshot), "utf8");
+    } catch {
+      reportPath = undefined; // report is a convenience — never fail the run on it
+    }
+    return { ...snapshot, snapshotPath, ...(reportPath ? { reportPath } : {}) };
   } catch (err) {
     return {
       ...snapshot,
@@ -436,3 +826,59 @@ export const memoryAuditRun: ActionRun<MemoryAuditInput, MemoryAuditOutput> = as
     };
   }
 };
+
+/** P1/P2: persist verdicts; accepted proposals come back as write-backs. */
+function recordDecisions(
+  projectRoot: string,
+  record: NonNullable<MemoryAuditInput["recordDecisions"]>
+): MemoryAuditOutput {
+  const base: Omit<MemoryAuditOutput, "snapshotPath" | "reportPath"> = {
+    ok: true,
+    projectDir: path.join(getUserConfigRoot(), "projects", getProjectCode(projectRoot)),
+    scannedSessions: 0,
+    excludedSilentSessions: 0,
+    events: [],
+    omittedEvents: 0,
+    patterns: [],
+    candidates: [],
+    auditChain: { files: 0, verified: 0, broken: 0, denyEvents: 0 },
+  };
+  if (!/^[A-Za-z0-9._-]+$/.test(record.auditId) || record.auditId.includes("..")) {
+    return { ...base, ok: false, error: "invalid auditId" };
+  }
+  // Re-read the stored snapshot to resolve accepted proposals (never trust
+  // the caller to re-supply proposal content).
+  const snapshotFile = path.join(getProjectConfigRoot(projectRoot), "audits", `memory-audit-${record.auditId}.json`);
+  let stored: MemoryAuditOutput;
+  try {
+    stored = JSON.parse(fs.readFileSync(snapshotFile, "utf8")) as MemoryAuditOutput;
+  } catch {
+    return { ...base, ok: false, error: `snapshot not found or unreadable: ${record.auditId}` };
+  }
+  const byKey = new Map((stored.synthesis?.proposals ?? []).map((p) => [p.key, p]));
+  const store = loadRejections(projectRoot);
+  const writeBacks: MemoryAuditWriteBack[] = [];
+  const at = new Date().toISOString();
+  for (const decision of record.decisions ?? []) {
+    const proposal = decision.proposalKey ? byKey.get(decision.proposalKey) : undefined;
+    if (!proposal) continue; // unknown key — nothing to record
+    if (decision.verdict === "accept") {
+      // Accepts are recorded too (so they don't resurface), and produce the
+      // controlled write-back for the main agent to apply via edit.
+      store[proposal.key] = { verdict: "accept", note: decision.note, at };
+      writeBacks.push(writeBackFor(proposal));
+    } else {
+      store[proposal.key] = { verdict: decision.verdict, note: decision.note, at };
+    }
+  }
+  try {
+    saveRejections(projectRoot, store);
+  } catch (err) {
+    return {
+      ...base,
+      ok: false,
+      error: `rejection store write failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  return { ...base, ...(writeBacks.length > 0 ? { pendingWriteBacks: writeBacks } : {}) };
+}

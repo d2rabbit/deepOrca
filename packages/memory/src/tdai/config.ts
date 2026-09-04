@@ -90,6 +90,14 @@ export interface RecallConfig {
   strategy: "embedding" | "keyword" | "hybrid";
   /** Overall recall timeout in milliseconds (default: 5000). When exceeded, recall is skipped with a warning. */
   timeoutMs: number;
+  /**
+   * CMB-8 sufficiency follow-up: a sparse first round (< sufficiencyMinResults)
+   * fires ONE more bounded round on unused deterministic query variants —
+   * zero LLM, fail-open. Default true; 0-config users are unaffected.
+   */
+  sufficiencyFollowUp?: boolean;
+  /** Sparse bar for the follow-up round (default 2). */
+  sufficiencyMinResults?: number;
 }
 
 /** Embedding service configuration for vector search. */
@@ -515,6 +523,8 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
       scoreThreshold: num(recallGroup, "scoreThreshold") ?? 0.3,
       strategy: validateStrategy(str(recallGroup, "strategy")) ?? "hybrid",
       timeoutMs: num(recallGroup, "timeoutMs") ?? 5000,
+      sufficiencyFollowUp: bool(recallGroup, "sufficiencyFollowUp") ?? true,
+      sufficiencyMinResults: num(recallGroup, "sufficiencyMinResults") ?? 2,
     },
     embedding: {
       enabled: embeddingEnabled,
