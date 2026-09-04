@@ -1237,3 +1237,50 @@ test("edit with approved write-out-cwd is not killed by its internal read (R4)",
   assert.equal(blocked.errorType, "PERMISSION_DENIED");
   assert.equal(fs.readFileSync(blockedTarget, "utf8"), "alpha beta\n");
 });
+
+// ── CMB-3 (specs/cmb-adoption batch C): post-edit/write diagnostic hint ─────
+
+test("Edit appends the diagnostic hint for code files, not for prose files", async () => {
+  const workspace = createTempWorkspace();
+
+  const tsPath = path.join(workspace, "hint-case.ts");
+  fs.writeFileSync(tsPath, ["const a = 1;"].join("\n"), "utf8");
+  const tsSnippet = await readSnippet(tsPath, "hint-ts", workspace);
+  const tsEdit = await handleEditTool(
+    { snippet_id: tsSnippet.id, old_string: "const a = 1;", new_string: "const a = 2;" },
+    createContext("hint-ts", workspace)
+  );
+  assert.equal(tsEdit.ok, true);
+  assert.ok(typeof tsEdit.output === "string" && tsEdit.output.includes("建议立即运行诊断检查该文件"), tsEdit.output);
+
+  const mdPath = path.join(workspace, "hint-case.md");
+  fs.writeFileSync(mdPath, ["# Title"].join("\n"), "utf8");
+  const mdSnippet = await readSnippet(mdPath, "hint-md", workspace);
+  const mdEdit = await handleEditTool(
+    { snippet_id: mdSnippet.id, old_string: "# Title", new_string: "# Title!" },
+    createContext("hint-md", workspace)
+  );
+  assert.equal(mdEdit.ok, true);
+  assert.ok(typeof mdEdit.output === "string" && !mdEdit.output.includes("诊断检查"), mdEdit.output);
+});
+
+test("Write appends the diagnostic hint only for code extensions", async () => {
+  const workspace = createTempWorkspace();
+
+  const tsWrite = await handleWriteTool(
+    { file_path: path.join(workspace, "fresh.ts"), content: "export const x = 1;\n" },
+    createContext("hint-write-ts", workspace)
+  );
+  assert.equal(tsWrite.ok, true);
+  assert.ok(
+    typeof tsWrite.output === "string" && tsWrite.output.includes("建议立即运行诊断检查该文件"),
+    tsWrite.output
+  );
+
+  const txtWrite = await handleWriteTool(
+    { file_path: path.join(workspace, "fresh.txt"), content: "notes\n" },
+    createContext("hint-write-txt", workspace)
+  );
+  assert.equal(txtWrite.ok, true);
+  assert.ok(typeof txtWrite.output === "string" && !txtWrite.output.includes("诊断检查"), txtWrite.output);
+});
