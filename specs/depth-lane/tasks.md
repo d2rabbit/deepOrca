@@ -31,14 +31,14 @@
 
 - [x] P2.1 S3 red-team 子代理（击穿测试：反例/被忽略约束/不可逆风险） — runRedTeam 单个 silent 子代理，输出 {brokenPaths/ignoredConstraints/irreversibleRisks/verdict}；不可逆风险在 S5 报告「风险与红线」顶部标记需用户拍板（v1 以报告内仲裁替代阻塞式 AskUserQuestion，见交付说明的偏差记录）
 - [x] P2.2 S2 回边：不收敛 → 带对抗反馈重生成（轮次上限硬性） — 收敛判据失败时 red-team 发现注入下一轮 divergence prompt（"Previous-round red-team findings"），轮次 > maxRounds 硬停并输出「未收敛 + 已给证据」；回边恰好一次 + 反馈携带验证有测试
-- [x] P2.3 阈值遥测口径实现 — `routing/gate/lane-rates.ts`：追问率（10 分钟窗口 + 确定性 bigram 重叠首版，embedding 余弦经 `similarity` 插槽即插即用）+ 负反馈率（6 语言词表含繁体）；lane-rates.test.ts 7/7。**真实历史首跑（2026-09-04，GVGL+本仓 3 会话）**：追问率 0.33（GVGL 重复提问真实命中）、deep 率 null（无 deep 会话，诚实未定义）。设置面板只读展示已随 X 面落地（`laneRates:get` root-pin IPC + 设置面板"车道观察"区块，i18n×6）
+- [x] P2.3 阈值遥测口径实现 — `routing/gate/lane-rates.ts`：追问率（10 分钟窗口 + 确定性 bigram 重叠首版，embedding 余弦经 `similarity` 插槽即插即用）+ 负反馈率（6 语言词表含繁体）；lane-rates.test.ts 7/7。**真实历史首跑（2026-09-04，GVGL+本仓 3 会话）**：追问率 0.33（GVGL 重复提问真实命中）、deep 率 null（无 deep 会话，诚实未定义）。设置面板只读展示已落地（`laneRates:get` root-pin IPC + 独立「回答模式」设置 tab 内的观察区块，i18n×6；2026-09-05 产品术语重组：轻轨/重轨/车道观察 → 快速模式/深度模式/回答模式，核心注入指令与模板同步）
 - [x] P2.4 `autoTune` 公式 — `lane-rates.ts autoTuneThreshold`（±5 步进、钳制 [30,70]、null 率=无信号不动、formula 串即审计行）；**真实输入校准**：50 + 0.33*0.5 − 0 → 50.17（行为正常）。默认关闭不变（自动调参开闸仍需生产数据量）
 
 ## X 桌面最小面
 
 - [x] X.1 lane 徽标（会话卡，只读展示，不参与路由决策）— `LaneBadge.tsx`（express ⚡青/deep ▤琥珀双胶囊；设计链 mmx 生成参考 + VLM 14px 修正：纯色去渐变/去外框/粗杆短尾/粗条分层，参考图 `designs/lane-badge-reference.jpg`）；lane 经 SerializableSessionEntry spread 自动到 renderer，零 IPC 改动；dom-harness 测试 4/4
 - [x] X.2 i18n 新键 ×6 locale — sidebar.laneExpress/laneDeep/laneExpressTip/laneDeepTip 四键 ×6 目录（Record 完整性类型强制通过）；消息气泡位未做（会话卡已覆盖可见性，气泡位等真机反馈再定）
-- [x] X.3 重轨阶段进度事件 — core `onDepthLaneProgress` seam（S1→done 全转移发射，best-effort 不入 lane）→ `IpcEvent.DepthLaneProgress`（root 戳）→ preload → `DepthLaneProgressStrip`（消息区上方阶段条，完成 4s 自隐；depth-lane.test 阶段序列断言 s1/s1.5/s2#1/s3#1/s4#1/s5#1/done）
+- [x] X.3 重轨阶段进度事件 — core `onDepthLaneProgress` seam（S1→done 全转移发射，best-effort 不入 lane）→ `IpcEvent.DepthLaneProgress`（root 戳）→ preload → `DepthLaneProgressStrip`（消息区上方阶段条，完成 4s 自隐；depth-lane.test 阶段序列断言 s1/s1.5/s2#1/s3#1/s4#1/s5#1/done）；进度条随 X 批次接入消息区（DepthLaneProgressStrip）
 - [ ] X.4 真机冒烟 — **移交功能测试清单**（[docs/functional-test-checklist-2026-09-04.md](../../docs/functional-test-checklist-2026-09-04.md) C1-C5/G 节，用户执行）
 
 ## 收尾
@@ -46,3 +46,12 @@
 - [ ] 收尾 1：P0–X 全部通过后，`git mv specs/next-version/depth-lane specs/depth-lane` 转活跃 spec；`specs/next-version/README.md` 与 `specs/README.md` 台账同步改写
 - [ ] 收尾 2：回写 `docs/research/2026-09-03-smart-gateway-dual-lane-adaptation.md` 台账行消费状态（✅/🟡 + 一行证据）
 - [ ] 收尾 3：`npm run check && npm test` 全绿；提交走 Conventional Commits（`feat(depth-lane): …`）
+
+## 追加批次（2026-09-05，用户反馈四项 + 动画/编辑器性能）
+
+- [x] 编辑器 `onDidScroll` 运行时崩溃修复（Monaco 真实事件为 onDidScrollChange；双名守卫 + 缺失退化 resize）
+- [x] token hub 标题行右侧「模型热力图」按钮（数据态头部漏渲染补齐）
+- [x] 「车道」独立设置 tab 承载观察区块（移出「关于」页）
+- [x] 重轨报告专属渲染 DepthReportCard（六段结构化卡片 + 置信度条 + 不可逆风险置顶 + 「落为任务轨迹」播种 taskTreeCreate）+ lib/depth-report.ts 解析器（完整块才触发；计划模式提案/流式半块不误触）真值表 4/4
+- [x] 动画调研 P0 落地（docs/research/2026-09-03-motion-react-animation-prestudy）：motion 13.2.0 / ui/motion.tsx（LazyMotion strict + 动态 domAnimation chunk + MotionConfig reducedMotion=user）/ ui-main sheet 六分支 AnimatePresence 进出场（CSS ui-sheet-in 退役）/ Toast·QuickDock·设置弹窗 exit / 9 个 ui-css 补 prefers-reduced-motion / motion-wiring jsdom 测试（onExitComplete 契约）
+- [x] 编辑器打开提速：scheduleMonacoWarmup（launch 后 idle 预取 EditorWorkspace chunk + ~5MB Monaco 核心 + TS worker 配置），首次打开从「点击→串行加载」变为缓存命中即开
