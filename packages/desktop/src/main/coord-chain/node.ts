@@ -185,6 +185,32 @@ export class ChainNode {
     return this.view;
   }
 
+  /** Newest-first block summary WITH the approval key ids — the audit surface. */
+  blocksView(
+    limit: number
+  ): Array<{ height: number; hash: string; proposer: string; ts: number; recordCount: number; approvedBy: string[] }> {
+    const rows: Array<{
+      height: number;
+      hash: string;
+      proposer: string;
+      ts: number;
+      recordCount: number;
+      approvedBy: string[];
+    }> = [];
+    for (let index = this.storedBlocks.length - 1; index >= 0 && rows.length < limit; index--) {
+      const stored = this.storedBlocks[index];
+      rows.push({
+        height: stored.block.height,
+        hash: blockHash(stored.block),
+        proposer: stored.block.proposer,
+        ts: stored.block.ts,
+        recordCount: stored.block.records.length,
+        approvedBy: stored.approvals.map((approval) => approval.keyId),
+      });
+    }
+    return rows;
+  }
+
   status(): ChainNodeStatus {
     return {
       chainId: this.chainId,
@@ -204,16 +230,8 @@ export class ChainNode {
     if (this.transport) {
       throw new Error("chain node already started");
     }
-    if (this.tryResumeChain()) {
-      // Chain restored from disk — the mode below is irrelevant.
-      this.transport = await startTransport({
-        identity: this.identity,
-        themeShort: this.themeId.slice(0, 8),
-      });
-      this.transport.onPeer((peer) => void this.onPeer(peer));
-      this.timer = setInterval(() => this.maybePropose(), this.blockIntervalMs);
-      return;
-    }
+    // HARDWARE-BOUND IDENTITY FIRST: an unbound clone must be refused even
+    // when a chain exists on disk — resume must never bypass the anchor.
     if (this.options.anchor) {
       const binding = checkAnchorBinding(this.options.anchor, this.options.machineFingerprint);
       if (!binding.bound) {
@@ -224,6 +242,16 @@ export class ChainNode {
           `device identity ${this.options.identity.keyId} is not the anchor's active key ${this.options.anchor.currentKeyId}`
         );
       }
+    }
+    if (this.tryResumeChain()) {
+      // Chain restored from disk — the mode below is irrelevant.
+      this.transport = await startTransport({
+        identity: this.identity,
+        themeShort: this.themeId.slice(0, 8),
+      });
+      this.transport.onPeer((peer) => void this.onPeer(peer));
+      this.timer = setInterval(() => this.maybePropose(), this.blockIntervalMs);
+      return;
     }
     this.transport = await startTransport({
       identity: this.identity,
@@ -673,7 +701,13 @@ export class ChainNode {
       throw new Error("chain not open");
     }
     if (type !== "member.join" && !this.isMember) {
-      throw new Error("not a chain member yet — member.join still pending");
+      const viewKeys = (this.view?.listMembers() ?? []).map((row) => row.key_id.slice(4, 12));
+      throw new Error(
+        `not a chain member yet (member.join pending, or the previous member.rotate has not sealed on this node): ` +
+          `key=${this.currentIdentity.keyId.slice(4, 12)} members=[${[...this.members.keys()].map((k) => k.slice(4, 12)).join(",")}] ` +
+          `view=[${viewKeys.join(",")}] h=${this.height} stored=[${this.storedBlocks.map((s) => s.block.height).join(",")}] ` +
+          `pending=[${this.pendingRecords.map((r) => r.type).join(",")}] own=[${[...this.ownKeyIds].map((k) => k.slice(4, 12)).join(",")}]`
+      );
     }
     const record = buildSignedRecord(this.identity, {
       type,
@@ -992,11 +1026,28 @@ export class ChainNode {
   }
 
   /** Fetch a published asset from peers: manifest → chunks → verify (R12). */
-  async fetchAsset(manifestCid: string): Promise<Uint8Array> {
-    const peer = this.pickAnyPeer();
-    if (!peer) {
+  async fetchAsset(manifestCid: string, retries: number = 2): Promise<Uint8Array> {
+    const peers = [...this.peers.values()].filter((peer) => peer.isOpen);
+    if (peers.length === 0) {
       throw new Error("no connected peer to fetch from");
     }
+    let lastError: Error | undefined;
+    // Multi-source re-routing (R12): a failed attempt moves to the next peer.
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const peer = peers[attempt % peers.length] ?? this.pickAnyPeer();
+      if (!peer) {
+        break;
+      }
+      try {
+        return await this.fetchAssetFromPeer(peer, manifestCid);
+      } catch (error) {
+        lastError = error as Error;
+      }
+    }
+    throw lastError ?? new Error(`asset fetch failed: ${manifestCid}`);
+  }
+
+  private async fetchAssetFromPeer(peer: PeerConnection, manifestCid: string): Promise<Uint8Array> {
     const manifest = await this.requestManifest(peer, manifestCid);
     peer.sendSyncMessage({ kind: "wantChunks", manifestCid, chunkIds: manifest.chunkIds });
     const received = new Map<string, Uint8Array>();

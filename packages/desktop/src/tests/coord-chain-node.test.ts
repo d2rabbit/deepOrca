@@ -14,7 +14,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { generateDeviceIdentity } from "@deeporca/ledger";
+import { AnchorError, createIdentityAnchor, generateDeviceIdentity } from "@deeporca/ledger";
 import { ChainNode } from "../main/coord-chain/node.js";
 
 const THEME = "git:github.com/zshipu/deeporca";
@@ -231,6 +231,111 @@ test("coord-chain e2e: device key rotation migrates the member and keeps signing
   );
   assert.equal(note?.author, newIdentity.keyId, "record author is the rotated key");
 
+  // Second rotation: the pubkey timeline moves again and the device keeps
+  // working — the rotation chain is reusable, not a one-shot. Must wait for
+  // the PREVIOUS rotation to seal on A too (quorum = both members), otherwise
+  // A's member table still carries the key we are rotating FROM.
+  await waitFor(
+    "first rotation sealed on A",
+    () => (nodeA.ledgerView?.listMembers() ?? []).some((row) => row.key_id === newIdentity.keyId),
+    15_000
+  );
+  const second = nodeA.rotateDeviceKey();
+  await waitFor(
+    "B sees the second rotated entry",
+    () => (nodeB.ledgerView?.listMembers() ?? []).some((row) => row.key_id === second.newIdentity.keyId),
+    15_000
+  );
+  const membersAfter2 = nodeB.ledgerView?.listMembers() ?? [];
+  // Two DEVICES on the chain (alpha + beta); alpha's entry moved to the
+  // second rotated key, beta's is untouched.
+  assert.equal(membersAfter2.length, 2, "two device entries after two rotations");
+  const alphaEntry = membersAfter2.find((row) => row.key_id === second.newIdentity.keyId);
+  assert.ok(alphaEntry, "alpha moved to the second rotated key");
+  const betaEntry = membersAfter2.find((row) => row.device_name === "beta");
+  assert.ok(betaEntry, "beta untouched");
+  assert.equal(
+    membersAfter2.some((row) => row.key_id === newIdentity.keyId),
+    false,
+    "first rotated key is gone"
+  );
+  nodeA.submitRecord("note", { text: "after second rotation" });
+  await waitFor(
+    "B seals the second-rotation note",
+    () =>
+      (nodeB.ledgerView?.listRecords("note") ?? []).some(
+        (row) => JSON.parse(row.body_json).text === "after second rotation"
+      ),
+    15_000
+  );
+  const note2 = (nodeB.ledgerView?.listRecords("note") ?? []).find(
+    (row) => JSON.parse(row.body_json).text === "after second rotation"
+  );
+  assert.equal(note2?.author, second.newIdentity.keyId, "second rotation key signs");
+
   await nodeB.stop();
   await nodeA.stop();
+});
+
+test("anchor: resume cannot bypass the hardware binding; bound resume reopens the same chain", async () => {
+  const fp = "fp-bound-device";
+  const seedIdentity = generateDeviceIdentity();
+  const anchor = createIdentityAnchor({
+    deviceName: "alpha",
+    fingerprint: fp,
+    identity: seedIdentity,
+    createdAt: "2026-09-04T00:00:00.000Z",
+  });
+  const root = newRoot();
+
+  // First run: bound create, chain seals block 0.
+  const first = new ChainNode({
+    identity: seedIdentity,
+    deviceName: "alpha",
+    theme: THEME,
+    mode: "create",
+    dataRoot: root,
+    anchor,
+    machineFingerprint: fp,
+    blockIntervalMs: 120,
+  });
+  await first.start();
+  await waitFor("block 0 seals", () => first.height >= 0 && first.isMember);
+  const chainId = first.chainIdValue;
+  await first.stop();
+
+  // Unbound clone over the SAME data root must be refused at the anchor check —
+  // before it can resume anything.
+  const clone = new ChainNode({
+    identity: seedIdentity,
+    deviceName: "alpha",
+    theme: THEME,
+    mode: "create",
+    dataRoot: root,
+    anchor,
+    machineFingerprint: "fp-other-machine",
+  });
+  await assert.rejects(
+    clone.start(),
+    (error: unknown) => error instanceof AnchorError && /not bound to this machine/.test((error as Error).message)
+  );
+  assert.equal(clone.chainIdValue, "", "clone never resumed the chain");
+
+  // Bound restart resumes the exact same chain from the persisted genesis.
+  const resumed = new ChainNode({
+    identity: seedIdentity,
+    deviceName: "alpha",
+    theme: THEME,
+    mode: "join",
+    joinUrl: "ws://127.0.0.1:1",
+    dataRoot: root,
+    anchor,
+    machineFingerprint: fp,
+    blockIntervalMs: 120,
+  });
+  await resumed.start();
+  assert.equal(resumed.chainIdValue, chainId, "resume restores the same chain id");
+  assert.equal(resumed.height, first.height, "ledger replayed to the same head");
+  assert.equal(resumed.isMember, true);
+  await resumed.stop();
 });

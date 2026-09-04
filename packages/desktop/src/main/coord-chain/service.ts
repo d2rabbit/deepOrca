@@ -220,19 +220,18 @@ export class CoordChainService {
     }));
   }
 
-  blocks(): ChainBlockView[] {
+  blocks(limit?: number): ChainBlockView[] {
     const node = this.node;
     if (!node) {
       return [];
     }
-    const rows = node.ledgerView?.listBlocks(0, this.options.blocksLimit) ?? [];
-    return rows.map((row) => ({
+    return node.blocksView(limit ?? this.options.blocksLimit).map((row) => ({
       height: row.height,
       hash: row.hash,
       proposer: row.proposer,
       ts: row.ts,
-      recordCount: row.record_count,
-      approvedBy: [],
+      recordCount: row.recordCount,
+      approvedBy: row.approvedBy,
     }));
   }
 
